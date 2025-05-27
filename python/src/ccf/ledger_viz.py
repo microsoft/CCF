@@ -146,18 +146,21 @@ def main():
     ledger = ccf.ledger.Ledger(
         ledger_paths,
         committed_only=not args.uncommitted,
-        validator=(
-            ccf.ledger.LedgerValidator()
-            if not args.insecure_skip_verification
-            else None
-        ),
     )
 
     liner = DefaultLiner(args.write_views, args.split_views, args.split_services)
     liner.help()
     current_service_identity = None
+
+    validator = (
+        ccf.ledger.LedgerValidator() if not args.insecure_skip_verification else None
+    )
+
     for chunk in ledger:
         for tx in chunk:
+            if validator:
+                validator.add_transaction(tx)
+
             public = tx.get_public_domain().get_tables()
             has_private = tx.get_private_domain_size()
 

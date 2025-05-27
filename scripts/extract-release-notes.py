@@ -6,15 +6,6 @@ import re
 import sys
 import subprocess
 
-MICROSOFT_ARTIFACT_REGISTRY_NAME = "mcr.microsoft.com"
-MICROSOFT_ARTIFACT_REGISTRY_PREFIX = "product"
-CCF_APP_IMAGE_PREFIX = "ccf/app"
-CCF_MCR_IMAGES = {
-    "App Development": f"{CCF_APP_IMAGE_PREFIX}/dev",
-    "C++ Runtime": f"{CCF_APP_IMAGE_PREFIX}/run",
-    "TypeScript/JavaScript Runtime": f"{CCF_APP_IMAGE_PREFIX}/run-js",
-}
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -40,12 +31,6 @@ def main():
         "--fix",
         help="Fix any automatically correctable errors",
         action="store_true",
-    )
-    parser.add_argument(
-        "--append-mcr-images",
-        help="If true, automatically append MCR images URLs to release notes",
-        action="store_true",
-        default=False,
     )
     parser.add_argument(
         "--describe-path-changes",
@@ -162,17 +147,6 @@ def main():
                         print(
                             f"\n- **Note**: This release include changes to `{path}`, which may be viewed [here](https://github.com/Microsoft/CCF/compare/{prev_version}...{git_version}#files_bucket)"
                         )
-
-            if args.append_mcr_images:
-                print("\n**MCR Docker Images:** ", end="")
-                print(
-                    ", ".join(
-                        [
-                            f"[{desc}](https://{MICROSOFT_ARTIFACT_REGISTRY_NAME}/{MICROSOFT_ARTIFACT_REGISTRY_PREFIX}/{name}/tags)"
-                            for desc, name in CCF_MCR_IMAGES.items()
-                        ]
-                    )
-                )
 
         else:
             print("CHANGELOG is valid!")

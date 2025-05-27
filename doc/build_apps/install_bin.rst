@@ -7,7 +7,7 @@ Quickstart
 ----------
 
 CCF builds and runs on Linux. It is primarily developed and tested on `Azure Linux 3.0 <https://github.com/microsoft/azurelinux>`_.
-To build a CCF application, installing the `ccf_<platform>-devel` RPM package is sufficient. This package contains the libraries and headers required to build CCF applications.
+To build a CCF application, installing the `ccf_<platform>_devel` RPM package is sufficient. This package contains the libraries and headers required to build CCF applications.
 
 CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases>`_. They can be installed as follows, for the ``SNP`` and ``Virtual`` platforms:
 
@@ -19,8 +19,8 @@ CCF releases are available on the `GitHub repository release page <https://githu
         $ export CCF_VERSION=$(curl -ILs -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
         # Alternatively, set this manually, e.g.:
         # export CCF_VERSION=6.0.0
-        $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_snp_${CCF_VERSION}-devel_x86_64.rpm
-        $ sudo tdnf install ./ccf_snp_${CCF_VERSION}-devel_x86_64.rpm
+        $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_snp_devel_${CCF_VERSION}_x86_64.rpm
+        $ sudo tdnf install ./ccf_snp_${CCF_VERSION}_devel_x86_64.rpm
 
     The following commands can be run to verify that CCF was installed successfully:
 
@@ -47,8 +47,8 @@ CCF releases are available on the `GitHub repository release page <https://githu
         $ export CCF_VERSION=$(curl -ILs -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
         # Alternatively, set this manually, e.g.:
         # export CCF_VERSION=6.0.0
-        $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_virtual_${CCF_VERSION}-devel_x86_64.rpm
-        $ sudo tdnf install ./ccf_virtual_${CCF_VERSION}-devel_x86_64.rpm
+        $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_virtual_devel_${CCF_VERSION}_x86_64.rpm
+        $ sudo tdnf install ./ccf_virtual_${CCF_VERSION}_devel_x86_64.rpm
 
     .. warning:: Virtual mode does not provide any security guarantees and should be used for development purposes only.
         
@@ -89,15 +89,18 @@ To remove an installation of CCF, run:
 
     .. code-block:: bash
 
-        $ sudo tdnf remove ccf_snp
+        $ sudo tdnf remove ccf_snp_devel
 
 .. tab:: Virtual
 
     .. code-block:: bash
 
-        $ sudo tdnf remove ccf_virtual
+        $ sudo tdnf remove ccf_virtual_devel
 
 From Source
 -----------
 
-To build and install CCF from source, please see :doc:`/contribute/build_ccf`.
+To build and install CCF from source, please see :doc:`/contribute/build_ccf`. The devcontainer is a good way to get started: |Github codespace|
+
+.. |Github codespace| image:: https://img.shields.io/static/v1?label=Open+in&message=GitHub+codespace&logo=github&color=2F363D&logoColor=white&labelColor=2C2C32
+   :target: https://codespaces.new/microsoft/CCF?quickstart=1

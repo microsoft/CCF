@@ -23,7 +23,6 @@ TAG_DAILY_RELEASE_PREFIX = "daily-"
 TAG_DEVELOPMENT_SUFFIX = "-dev"
 TAG_RELEASE_CANDIDATE_SUFFIX = "-rc"
 MAIN_BRANCH_NAME = "main"
-DEBIAN_PACKAGE_EXTENSION = "_amd64.deb"
 RPM_PACKAGE_EXTENSION = "_x86_64.rpm"
 # This assumes that CCF is installed at `/opt/ccf`, which is true from 1.0.0
 INSTALL_DIRECTORY_PREFIX = "ccf_install_"
@@ -148,6 +147,12 @@ def get_major_version_from_branch_name(branch_name):
     )
 
 
+def get_devel_package_prefix_with_platform(tag_name, platform="snp"):
+    tag_components = tag_name.split("-")
+    tag_components[0] += f"_{platform}_devel"
+    return "-".join(tag_components)
+
+
 def get_package_prefix_with_platform(tag_name, platform="snp"):
     tag_components = tag_name.split("-")
     tag_components[0] += f"_{platform}"
@@ -156,12 +161,11 @@ def get_package_prefix_with_platform(tag_name, platform="snp"):
 
 def get_package_url_from_tag_name(tag_name, platform="snp"):
     # First release with RPM packages for Azure Linux
+    if get_version_from_tag_name(tag_name) >= Version("6.0.0.rc2"):
+        return f"{REMOTE_URL}/releases/download/{tag_name}/{get_devel_package_prefix_with_platform(tag_name, platform).replace('-', '_')}{RPM_PACKAGE_EXTENSION}"
     if get_version_from_tag_name(tag_name) >= Version("6.0.0.dev19"):
         return f"{REMOTE_URL}/releases/download/{tag_name}/{get_package_prefix_with_platform(tag_name, platform).replace('-', '_')}{RPM_PACKAGE_EXTENSION}"
-    if get_version_from_tag_name(tag_name) >= Version("3.0.0-rc0"):
-        return f'{REMOTE_URL}/releases/download/{tag_name}/{get_package_prefix_with_platform(tag_name, platform).replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
-    else:
-        return f'{REMOTE_URL}/releases/download/{tag_name}/{tag_name.replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
+    raise ValueError(f"Unsupported tag name: {tag_name} for platform {platform}")
 
 
 class GitEnv:
@@ -177,11 +181,21 @@ class GitEnv:
             for branch in self.g.ls_remote(REMOTE_URL).split("\n")
             if "heads/release" in branch
         ]
+        repo = git.Repo(os.getcwd(), search_parent_directories=True)
+        current_commit = repo.head.commit
+        self.tags_for_current_commit = [
+            tag.name for tag in repo.tags if tag.commit == current_commit
+        ]
 
     def has_release_for_tag_name(self, tag_name):
+        try:
+            package_url = get_package_url_from_tag_name(tag_name)
+        except ValueError:
+            return False
+
         return (
             requests.head(
-                get_package_url_from_tag_name(tag_name),
+                package_url,
                 allow_redirects=True,
                 timeout=30,
             ).status_code
@@ -285,7 +299,7 @@ class Repository:
             if is_release_branch(branch)
             else None
         )
-        major_version = 1
+        major_version = 6
         while max_major_version is None or major_version <= max_major_version:
             tag = self.get_latest_tag_for_major_version(major_version)
             if tag is None:
@@ -329,11 +343,7 @@ class Repository:
 
         shutil.rmtree(install_directory, ignore_errors=True)
 
-        if download_path.endswith(DEBIAN_PACKAGE_EXTENSION):
-            LOG.info("Unpacking debian package...")
-            install_cmd = ["dpkg-deb", "-R", download_path, install_directory]
-            subprocess.run(install_cmd, check=True)
-        elif download_path.endswith(RPM_PACKAGE_EXTENSION):
+        if download_path.endswith(RPM_PACKAGE_EXTENSION):
             LOG.info("Unpacking RPM package...")
             os.makedirs(install_directory, exist_ok=True)
             install_cmd = (
@@ -440,7 +450,10 @@ class Repository:
                 (
                     tag
                     for tag in self.tags
-                    if get_version_from_tag_name(tag) >= Version("6.0.0.dev0")
+                    if (
+                        get_version_from_tag_name(tag) >= Version("6.0.0.dev0")
+                        and tag not in self.g.tags_for_current_commit
+                    )
                 ),
                 key=get_version_from_tag_name,
                 reverse=True,

@@ -593,6 +593,12 @@ namespace asynchost
       {
         return;
       }
+      // It may happen (e.g. during recovery) that the incomplete ledger gets
+      // truncated on the primary, so we have to make sure that whenever we
+      // complete the file it doesn't contain anything past the last_idx, which
+      // can happen on the follower unless explicitly truncated before
+      // completion.
+      truncate(get_last_idx(), /* remove_file_if_empty = */ false);
 
       fseeko(file, total_len, SEEK_SET);
       size_t table_offset = ftello(file);

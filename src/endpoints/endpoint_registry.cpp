@@ -173,7 +173,9 @@ namespace ccf::endpoints
       spec.template_component_names.push_back(
         regex_s.substr(template_start + 1, template_end - template_start - 1));
       regex_s.replace(
-        template_start, template_end - template_start + 1, "([^/]+)");
+        template_start,
+        template_end - template_start + 1,
+        fmt::format("([^{}]+)", allowed_delimiters));
       template_start = regex_s.find_first_of('{', template_start + 1);
     }
 

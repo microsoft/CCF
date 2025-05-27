@@ -9,19 +9,21 @@
 
 namespace
 {
-  static constexpr size_t extra_size_for_int_tag = 1; // type
-  static constexpr size_t extra_size_for_seq_tag = 1 + 8; // type + size
+  constexpr size_t extra_size_for_int_tag = 1; // type
+  constexpr size_t extra_size_for_seq_tag = 1 + 8; // type + size
+
+  constexpr size_t RESERVED_BUFFER_SIZE = 300;
 
   size_t estimate_buffer_size(
     const ccf::crypto::COSEHeadersArray& protected_headers,
     std::span<const uint8_t> payload)
   {
-    size_t result =
-      300; // bytes for metadata even everything else is empty. This's the most
-           // often used value in the t_cose examples, however no recommendation
-           // is provided which one to use. We will consider this an affordable
-           // starting point, as soon as we don't expect a shortage of memory on
-           // the target platforms.
+    // bytes for metadata even everything else is empty. This's the most
+    // often used value in the t_cose examples, however no recommendation
+    // is provided which one to use. We will consider this an affordable
+    // starting point, as soon as we don't expect a shortage of memory on
+    // the target platforms.
+    size_t result = RESERVED_BUFFER_SIZE;
 
     result = std::accumulate(
       protected_headers.begin(),
@@ -106,7 +108,7 @@ namespace ccf::crypto
     return sizeof(key) + extra_size_for_int_tag;
   }
 
-  COSEMapStringKey::COSEMapStringKey(const std::string& key_) : key(key_) {}
+  COSEMapStringKey::COSEMapStringKey(std::string key_) : key(std::move(key_)) {}
 
   void COSEMapStringKey::apply(QCBOREncodeContext* ctx) const
   {
@@ -240,7 +242,7 @@ namespace ccf::crypto
     QCBOREncodeContext cbor_encode;
     QCBOREncode_Init(&cbor_encode, signed_cose_buffer);
 
-    t_cose_sign1_sign_ctx sign_ctx;
+    t_cose_sign1_sign_ctx sign_ctx = {};
     const auto algorithm_id = key_to_cose_alg_id(key);
     if (!algorithm_id.has_value())
     {
@@ -250,7 +252,7 @@ namespace ccf::crypto
     t_cose_sign1_sign_init(&sign_ctx, 0, *algorithm_id);
 
     EVP_PKEY* evp_key = key;
-    t_cose_key signing_key;
+    t_cose_key signing_key = {};
     signing_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
     signing_key.k.key_ptr = evp_key;
 
@@ -284,15 +286,15 @@ namespace ccf::crypto
     }
     auto err = t_cose_sign1_encode_signature_aad_internal(
       &sign_ctx, NULL_Q_USEFUL_BUF_C, payload_to_encode, &cbor_encode);
-    if (err)
+    if (err != T_COSE_SUCCESS)
     {
       throw COSESignError(
         fmt::format("Can't encode signature with error code {}", err));
     }
 
-    struct q_useful_buf_c signed_cose;
+    q_useful_buf_c signed_cose = {};
     auto qerr = QCBOREncode_Finish(&cbor_encode, &signed_cose);
-    if (qerr)
+    if (qerr != QCBOR_SUCCESS)
     {
       throw COSESignError(
         fmt::format("Can't finish QCBOR encoding with error code {}", err));

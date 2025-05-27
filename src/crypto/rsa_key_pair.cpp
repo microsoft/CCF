@@ -31,16 +31,17 @@ namespace ccf::crypto
 
   RSAPublicKeyPtr make_rsa_public_key(const uint8_t* data, size_t size)
   {
-    if (size < 10 || strncmp(PEM_BEGIN, (char*)data, PEM_BEGIN_LEN) != 0)
+    if (
+      size < PEM_BEGIN_LEN ||
+      strncmp(PEM_BEGIN, reinterpret_cast<const char*>(data), PEM_BEGIN_LEN) !=
+        0)
     {
-      std::vector<uint8_t> der = {data, data + size};
+      std::span<const uint8_t> der{data, size};
       return std::make_shared<RSAPublicKeyImpl>(der);
     }
-    else
-    {
-      Pem pem(data, size);
-      return std::make_shared<RSAPublicKeyImpl>(pem);
-    }
+
+    Pem pem(data, size);
+    return std::make_shared<RSAPublicKeyImpl>(pem);
   }
 
   /**

@@ -1649,7 +1649,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 
   // Run a few more iterations manually interleaved, simulating a synchronous
   // period, to reach quiescence
-  static constexpr size_t worst_case = 2 * messages_each / 10;
+  static constexpr size_t worst_case = 2 * messages_each;
   for (auto i = 0; i < worst_case; ++i)
   {
     LOG_INFO_FMT("Catchup loop #{}/{}", i, worst_case);

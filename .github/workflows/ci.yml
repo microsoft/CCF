@@ -9,7 +9,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !contains(github.ref, 'main')}}
 
 permissions:
   contents: read
@@ -19,7 +19,7 @@ permissions:
 jobs:
   checks:
     name: "Format and License Checks"
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -45,83 +45,9 @@ jobs:
           ./scripts/ci-checks.sh
         shell: bash
 
-  build_and_test:
-    name: CI
-    needs: checks
-    strategy:
-      matrix:
-        platform:
-          - name: virtual
-            image: default
-            nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
-          - name: snp
-            image: default
-            nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
-    runs-on: ${{ matrix.platform.nodes }}
-    container:
-      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-14-01-2025
-      options: ${{ matrix.platform.options }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: "Build Debug ${{ matrix.platform.name }}"
-        run: |
-          set -ex
-          git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
-          cd build
-          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Debug ..
-          ninja
-        shell: bash
-
-      - name: "Platform SNP"
-        run: |
-          samples/scripts/snpinfo.sh
-        shell: bash
-        if: "${{ matrix.platform.name == 'snp' }}"
-
-      - name: "Test ${{ matrix.platform.name }}"
-        run: |
-          set -ex
-          cd build
-          rm -rf /github/home/.cache
-          mkdir -p /github/home/.cache
-          export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
-          # Unit tests
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          # All other acceptably fast tests, mostly end-to-end
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|protocolstest|suite|unit"
-          # Partitions tests
-          ./tests.sh --timeout 240 --output-on-failure -L partitions -C partitions
-        shell: bash
-        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
-
-      - name: "Upload logs for ${{ matrix.platform.name }}"
-        uses: actions/upload-artifact@v4
-        with:
-          name: logs-ubuntu-${{ matrix.platform.name }}
-          path: |
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*.ledger/*
-          if-no-files-found: ignore
-        if: success() || failure()
-
-  build_and_test_azure_linux:
-    name: "Azure Linux CI"
-    needs: checks
-    strategy:
-      matrix:
-        platform:
-          - name: virtual
-          - name: snp
-
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+  build_with_tidy:
+    name: "Build with clang-tidy"
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -130,6 +56,7 @@ jobs:
       - name: "Checkout dependencies"
         shell: bash
         run: |
+          set -ex
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
           tdnf -y install ca-certificates git
@@ -150,12 +77,52 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
           ninja
         shell: bash
 
-      - name: "Test ${{ matrix.platform.name }}"
-        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
+  build_and_test_virtual:
+    name: "Virtual CI"
+    needs: checks
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "cpuinfo"
+        run: |
+          cat /proc/cpuinfo
+        shell: bash
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
+
+      - name: "Build Debug"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug ..
+          ninja
+        shell: bash
+
+      - name: "Test virtual"
         run: |
           set -ex
           cd build
@@ -164,33 +131,47 @@ jobs:
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          # All other acceptably fast tests, which are now supported on Azure Linux.
+          # End to end tests
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
           # Partitions tests
-          ./tests.sh --timeout 240 --output-on-failure -L partitions -C partitions
+          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash
 
-      - name: "Upload logs for ${{ matrix.platform.name }}"
+      - name: "Upload logs for virtual"
         uses: actions/upload-artifact@v4
         with:
-          name: logs-azurelinux-${{ matrix.platform.name }}
+          name: logs-azurelinux-virtual
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
-            build/workspace/*.ledger/*
+            build/workspace/*/*.ledger/*
           if-no-files-found: ignore
         if: success() || failure()
 
-  build_caci:
-    name: "Confidential Container (ACI) CI"
-    runs-on: [self-hosted, 1ES.Pool=gha-caci-ne]
+  build_and_test_caci:
+    name: "Confidential Container CI"
+    runs-on: [self-hosted, 1ES.Pool=gha-c-aci-ci]
     needs: checks
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: "Dump environment"
+        run: |
+          set -ex
+          # Dump environment variables, extract Fabric_NodeIPOrFQDN
+          # and save it to a file for reconfiguration test using THIM.
+          cat /proc/*/environ | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
+          echo "::group::Disk usage"
+          df -kh
+          echo "::endgroup::"
+          echo "::group::CPU Info"
+          cat /proc/cpuinfo
+          echo "::endgroup::"
+        shell: bash
 
       - name: "Build Debug"
         run: |
@@ -209,21 +190,45 @@ jobs:
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
-          # Unit tests, minus indexing that is sometimes timing out with this few cores
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all) -E indexing
-          # Minimal end to end test that exercises SNP attestation verification
-          # but works within the current 4 core budget
-          ./tests.sh --timeout 360 --output-on-failure -R code_update
+          # Unit tests
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+
+          # End to end tests
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit|reconfiguration"
+
+          # DISABLED until Pool issue causing the CI to stop after 30 minutes is resolved
+          # Reconfiguration tests
+          # ./tests.sh --timeout 360 --output-on-failure -L reconfiguration -C reconfiguration
         shell: bash
+
+      - name: "Partition Tests"
+        run: |
+          set -ex
+          cd build
+          # DISABLED until Pool issue causing the CI to stop after 30 minutes is resolved
+          # Partitions tests
+          # ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+        shell: bash
+
+      - name: "Capture dmesg"
+        run: |
+          set -ex
+          echo "::group::Disk usage"
+          df -kh
+          echo "::endgroup::"
+          dmesg > dmesg.log
+        shell: bash
+        if: success() || failure()
 
       - name: "Upload logs"
         uses: actions/upload-artifact@v4
         with:
           name: logs-caci-snp
           path: |
+            dmesg.log
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
-            build/workspace/*.ledger/*
+            build/workspace/*/*.ledger/*
           if-no-files-found: ignore
         if: success() || failure()

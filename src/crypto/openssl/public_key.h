@@ -18,19 +18,14 @@ namespace ccf::crypto
     EVP_PKEY* key = nullptr;
     PublicKey_OpenSSL();
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-    std::vector<uint8_t> ec_point_public_from_jwk(
+    static std::vector<uint8_t> ec_point_public_from_jwk(
       const JsonWebKeyECPublic& jwk);
-#else
-    OpenSSL::Unique_EC_KEY ec_key_public_from_jwk(
-      const JsonWebKeyECPublic& jwk);
-#endif
 
   public:
     PublicKey_OpenSSL(PublicKey_OpenSSL&& key) = default;
     PublicKey_OpenSSL(EVP_PKEY* key);
     PublicKey_OpenSSL(const Pem& pem);
-    PublicKey_OpenSSL(const std::vector<uint8_t>& der);
+    PublicKey_OpenSSL(std::span<const uint8_t> der);
     PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk);
     virtual ~PublicKey_OpenSSL();
 

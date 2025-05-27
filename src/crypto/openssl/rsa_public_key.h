@@ -16,18 +16,14 @@ namespace ccf::crypto
   class RSAPublicKey_OpenSSL : public PublicKey_OpenSSL, public RSAPublicKey
   {
   protected:
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-    std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
+    static std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
     rsa_public_raw_from_jwk(const JsonWebKeyRSAPublic& jwk);
-#else
-    OpenSSL::Unique_RSA rsa_public_from_jwk(const JsonWebKeyRSAPublic& jwk);
-#endif
 
   public:
     RSAPublicKey_OpenSSL() = default;
     RSAPublicKey_OpenSSL(EVP_PKEY* c);
     RSAPublicKey_OpenSSL(const Pem& pem);
-    RSAPublicKey_OpenSSL(const std::vector<uint8_t>& der);
+    RSAPublicKey_OpenSSL(std::span<const uint8_t> der);
     RSAPublicKey_OpenSSL(const JsonWebKeyRSAPublic& jwk);
     virtual ~RSAPublicKey_OpenSSL() = default;
 
@@ -66,9 +62,7 @@ namespace ccf::crypto
 
     static std::vector<uint8_t> bn_bytes(const BIGNUM* bn);
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     OpenSSL::Unique_BIGNUM get_bn_param(const char* key_name) const;
-#endif
 
     virtual JsonWebKeyRSAPublic public_key_jwk_rsa(
       const std::optional<std::string>& kid = std::nullopt) const override;

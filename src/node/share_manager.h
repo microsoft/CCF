@@ -11,6 +11,7 @@
 #include "kv/encryptor.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
+#include "node/ledger_secret.h"
 #include "service/internal_tables_access.h"
 
 #include <openssl/crypto.h>
@@ -353,12 +354,15 @@ namespace ccf
       encrypted_share.deserialise(encrypted_submitted_share);
       std::vector<uint8_t> decrypted_share;
 
-      current_ledger_secret->key->decrypt(
-        encrypted_share.hdr.get_iv(),
-        encrypted_share.hdr.tag,
-        encrypted_share.cipher,
-        {},
-        decrypted_share);
+      if (!current_ledger_secret->key->decrypt(
+            encrypted_share.hdr.get_iv(),
+            encrypted_share.hdr.tag,
+            encrypted_share.cipher,
+            {},
+            decrypted_share))
+      {
+        throw std::logic_error("Decrypting submitted shares failed");
+      }
 
       return decrypted_share;
     }
@@ -507,27 +511,36 @@ namespace ccf
 
     LedgerSecretsMap restore_recovery_shares_info(
       ccf::kv::Tx& tx,
-      const RecoveredEncryptedLedgerSecrets& recovery_ledger_secrets)
+      const RecoveredEncryptedLedgerSecrets& recovery_ledger_secrets,
+      const std::optional<LedgerSecretPtr>& restored_ls_opt = std::nullopt)
     {
-      // First, re-assemble the ledger secret wrapping key from the submitted
-      // encrypted shares. Then, unwrap the latest ledger secret and use it to
-      // decrypt the sequence of recovered ledger secrets, from the last one.
-
       if (recovery_ledger_secrets.empty())
       {
         throw std::logic_error("No recovery ledger secrets");
       }
 
-      auto recovery_shares_info =
-        tx.ro<ccf::RecoveryShares>(Tables::SHARES)->get();
-      if (!recovery_shares_info.has_value())
+      LedgerSecretPtr restored_ls;
+      if (restored_ls_opt.has_value())
       {
-        throw std::logic_error(
-          "Failed to retrieve current recovery shares info");
+        restored_ls = restored_ls_opt.value();
       }
+      else
+      {
+        // First, re-assemble the ledger secret wrapping key from the submitted
+        // encrypted shares. Then, unwrap the latest ledger secret and use it to
+        // decrypt the sequence of recovered ledger secrets, from the last one.
 
-      auto restored_ls = combine_from_encrypted_submitted_shares(tx).unwrap(
-        recovery_shares_info->wrapped_latest_ledger_secret);
+        auto recovery_shares_info =
+          tx.ro<ccf::RecoveryShares>(Tables::SHARES)->get();
+        if (!recovery_shares_info.has_value())
+        {
+          throw std::logic_error(
+            "Failed to retrieve current recovery shares info");
+        }
+
+        restored_ls = combine_from_encrypted_submitted_shares(tx).unwrap(
+          recovery_shares_info->wrapped_latest_ledger_secret);
+      }
 
       LOG_DEBUG_FMT(
         "Recovering {} encrypted ledger secrets",
@@ -558,10 +571,25 @@ namespace ccf
            it != recovery_ledger_secrets.rend();
            it++)
       {
+        LOG_DEBUG_FMT(
+          "Recovering encrypted ledger secret valid at seqno {}",
+          it->previous_ledger_secret->version);
+
         if (!it->previous_ledger_secret.has_value())
         {
           // Very first entry does not encrypt any other ledger secret
           break;
+        }
+
+        if (
+          restored_ledger_secrets.find(it->previous_ledger_secret->version) !=
+          restored_ledger_secrets.end())
+        {
+          // Already decrypted this ledger secret
+          LOG_INFO_FMT(
+            "Skipping, already decrypted ledger secret with version {}",
+            it->previous_ledger_secret->version);
+          continue;
         }
 
         auto decrypted_ls_raw = decrypt_previous_ledger_secret_raw(

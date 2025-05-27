@@ -25,7 +25,8 @@ tdnf -y install  \
     curl-devel  \
     libarrow-devel  \
     parquet-libs-devel  \
-    doxygen
+    doxygen  \
+    clang-tools-extra-devel
 
 # To run standard tests
 tdnf -y install  \
@@ -59,6 +60,7 @@ chmod +x /opt/pebble/pebble_linux-amd64 /opt/pebble/pebble-challtestsrv_linux-am
 
 # partitions test
 tdnf -y install iptables
+tdnf -y install strace
 
 # For packaging
 tdnf -y install rpm-build

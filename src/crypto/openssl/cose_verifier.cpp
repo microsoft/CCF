@@ -19,16 +19,16 @@
 
 namespace
 {
-  static std::string qcbor_buf_to_string(const UsefulBufC& buf)
+  std::string qcbor_buf_to_string(const UsefulBufC& buf)
   {
-    return std::string(reinterpret_cast<const char*>(buf.ptr), buf.len);
+    return {reinterpret_cast<const char*>(buf.ptr), buf.len};
   }
 
-  static std::optional<int> extract_algorithm_from_header(
+  std::optional<int> extract_algorithm_from_header(
     std::span<const uint8_t> cose_msg)
   {
     UsefulBufC msg{cose_msg.data(), cose_msg.size()};
-    QCBORError qcbor_result;
+    QCBORError qcbor_result = QCBOR_SUCCESS;
 
     QCBORDecodeContext ctx;
     QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
@@ -48,10 +48,10 @@ namespace
       return std::nullopt;
     }
 
-    struct q_useful_buf_c protected_parameters;
+    q_useful_buf_c protected_parameters = {};
     QCBORDecode_EnterBstrWrapped(
       &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
-    QCBORDecode_EnterMap(&ctx, NULL);
+    QCBORDecode_EnterMap(&ctx, nullptr);
 
     enum
     {
@@ -66,7 +66,7 @@ namespace
 
     header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
 
-    QCBORDecode_GetItemsInMap(&ctx, header_items);
+    QCBORDecode_GetItemsInMap(&ctx, static_cast<QCBORItem*>(header_items));
     qcbor_result = QCBORDecode_GetError(&ctx);
     if (qcbor_result != QCBOR_SUCCESS)
     {
@@ -107,26 +107,24 @@ namespace ccf::crypto
   {
     Unique_BIO certbio(certificate);
     OpenSSL::Unique_X509 cert;
-    if (!(cert = Unique_X509(certbio, true)))
+    if ((cert = Unique_X509(certbio, true)) == nullptr)
     {
       BIO_reset(certbio);
-      if (!(cert = Unique_X509(certbio, false)))
+      if ((cert = Unique_X509(certbio, false)) == nullptr)
       {
         throw std::invalid_argument(fmt::format(
           "OpenSSL error: {}", OpenSSL::error_string(ERR_get_error())));
       }
     }
 
-    int mdnid, pknid, secbits;
-    X509_get_signature_info(cert, &mdnid, &pknid, &secbits, 0);
+    int mdnid = 0;
+    int pknid = 0;
+    int secbits = 0;
+    X509_get_signature_info(cert, &mdnid, &pknid, &secbits, nullptr);
 
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     if (EVP_PKEY_get_base_id(pk) == EVP_PKEY_EC)
-#else
-    if (EVP_PKEY_get0_EC_KEY(pk))
-#endif
     {
       public_key = std::make_shared<PublicKey_OpenSSL>(pk);
     }
@@ -149,25 +147,27 @@ namespace ccf::crypto
   {
     EVP_PKEY* evp_key = *public_key;
 
-    t_cose_key cose_key;
+    t_cose_key cose_key = {};
     cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
     cose_key.k.key_ptr = evp_key;
 
-    t_cose_sign1_verify_ctx verify_ctx;
+    t_cose_sign1_verify_ctx verify_ctx = {};
     t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_TAG_REQUIRED);
     t_cose_sign1_set_verification_key(&verify_ctx, cose_key);
 
-    q_useful_buf_c buf_;
+    q_useful_buf_c buf_ = {};
     buf_.ptr = buf.data();
     buf_.len = buf.size();
 
-    q_useful_buf_c authned_content_;
+    q_useful_buf_c authned_content_ = {};
 
     t_cose_err_t error =
       t_cose_sign1_verify(&verify_ctx, buf_, &authned_content_, nullptr);
     if (error == T_COSE_SUCCESS)
     {
-      authned_content = {(uint8_t*)authned_content_.ptr, authned_content_.len};
+      authned_content = {
+        reinterpret_cast<uint8_t*>(const_cast<void*>(authned_content_.ptr)),
+        authned_content_.len};
       return true;
     }
     LOG_DEBUG_FMT("COSE Sign1 verification failed with error {}", error);
@@ -190,19 +190,19 @@ namespace ccf::crypto
       return false;
     }
 
-    t_cose_key cose_key;
+    t_cose_key cose_key = {};
     cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
     cose_key.k.key_ptr = evp_key;
 
-    t_cose_sign1_verify_ctx verify_ctx;
+    t_cose_sign1_verify_ctx verify_ctx = {};
     t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_TAG_REQUIRED);
     t_cose_sign1_set_verification_key(&verify_ctx, cose_key);
 
-    q_useful_buf_c buf_;
+    q_useful_buf_c buf_ = {};
     buf_.ptr = buf.data();
     buf_.len = buf.size();
 
-    q_useful_buf_c payload_;
+    q_useful_buf_c payload_ = {};
     payload_.ptr = payload.data();
     payload_.len = payload.size();
 
@@ -233,7 +233,7 @@ namespace ccf::crypto
     std::span<const uint8_t> cose_msg)
   {
     UsefulBufC msg{cose_msg.data(), cose_msg.size()};
-    QCBORError qcbor_result;
+    QCBORError qcbor_result = QCBOR_SUCCESS;
 
     QCBORDecodeContext ctx;
     QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
@@ -251,7 +251,7 @@ namespace ccf::crypto
       throw std::logic_error("Failed to parse COSE_Sign1 tag");
     }
 
-    struct q_useful_buf_c protected_parameters;
+    q_useful_buf_c protected_parameters = {};
 
     QCBORDecode_EnterBstrWrapped(
       &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
@@ -262,7 +262,7 @@ namespace ccf::crypto
       throw std::logic_error("Failed to parse COSE_Sign1 as bstr");
     }
 
-    QCBORDecode_EnterMap(&ctx, NULL); // phdr
+    QCBORDecode_EnterMap(&ctx, nullptr); // phdr
     QCBORDecode_EnterMapFromMapSZ(&ctx, "ccf.v1"); // phdr["ccf.v1"]
 
     qcbor_result = QCBORDecode_GetError(&ctx);
@@ -293,7 +293,7 @@ namespace ccf::crypto
 
     header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
 
-    QCBORDecode_GetItemsInMap(&ctx, header_items);
+    QCBORDecode_GetItemsInMap(&ctx, static_cast<QCBORItem*>(header_items));
     qcbor_result = QCBORDecode_GetError(&ctx);
     if (qcbor_result != QCBOR_SUCCESS)
     {

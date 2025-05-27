@@ -5,6 +5,188 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.4]
+
+[6.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.4
+
+### Changed
+
+- Templated URL parsing will no longer allow `:` within regex matched components, since `:` is already used to delimit actions. Concretely, a call to `GET .../state-digests/abcd:update` should now correctly return a 404, rather than dispatching to `GET .../state-digests/{memberId}` and returning `No ACK record exists for member m[abcd:update]`.
+
+## [6.0.3]
+
+[6.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.3
+
+### Changed
+
+- Added `ccf::pal::verify_uvm_endorsements_descriptor()`, which verifies endorsements for a UVM measurement, and returns a descriptor capturing a did, feed, svn triplet that can be used for authorization.
+- SymCrypt backend pinning reverted after 1.8.0 memleak got fixed (#7016).
+
+## [6.0.2]
+
+[6.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.2
+
+### Added
+
+- Add support for [recovery from locally sealed secrets](https://microsoft.github.io/CCF/main/operations/recovery.html#local-sealing-recovery). (#6966)
+
+### Changed
+
+- SymCrypt backend is pinned to 1.7.0 until https://github.com/microsoft/SymCrypt-OpenSSL/issues/115 gets shipped (#6995).
+- Disaster recovery process is now robust to services which have sealed the same secret multiple times (#6999).
+
+## [6.0.1]
+
+[6.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.1
+
+### Fixed
+
+- Fixed potential stack corruption that could occur on SNP builds at node startup (#6967).
+
+## [6.0.0]
+
+[6.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0
+
+### Important
+
+CCF 6.0.0 removes support for SGX, and targets Azure Linux 3.0 and SEV-SNP exclusively.
+
+It also adds COSE_Sign1 ledger signatures, to support the generation of COSE receipts. The `cose_signatures` section of the configuration can be used to set desired issuer and subject values.
+
+### Packaging
+
+- CCF releases now contain two separate RPM packages
+  - `ccf_{platform}_devel` RPM to support building CCF applications (#6904)
+  - `ccf` to support running pre-built CCF applications (#6909)
+
+### COSE Signatures
+
+- Added COSE signatures over the Merkle root to the KV (#6449).
+  - Signing is done with service key (unlike raw signatures, which remain unchanged and are still signed by the node key).
+  - New signatures reside in `public:ccf.internal.cose_signatures`
+- COSE signatures set a `kid` that is a hex-encoded SHA-256 of the DER representation of the key used to produce them (#6703).
+- Provided API for getting COSE signatures and Merkle proofs (#6477).
+  - Exposed COSE signature in historical API via `TxReceiptImpl`.
+  - Introduced `ccf::describe_merkle_proof_v1(receipt)` for Merkle proof construction in CBOR format, described by [ccf-tree-alg schema](https://github.com/microsoft/CCF/blob/main/cddl/ccf-tree-alg.cddl).
+- Added `ccf::cose::edit::set_unprotected_header()` API, to allow easy injection of proofs in signatures, and of receipts in signed statements (#6586). It also allows removing the unprotected header altogether (#6607).
+- Introduced `ccf::describe_cose_endorsements_v1(receipt)` for COSE-endorsements chain of previous service identities (#6500).
+- Added `ccf::cose::AbstractCOSESignaturesConfig` subsystem to expose COSE signature configuration to application handlers (#6707).
+
+### Developer API
+
+#### C++
+
+##### Added
+
+- `ccf::http::get_query_value()` now supports bool types with `"true"` and `"false"` as values.
+- Added OpenAPI support for `std::unordered_set` (#6634).
+- Added a `ccf::any_cert_auth_policy` (C++), or `any_cert` (JS/TS), implementing TLS client certificate authentication, but without checking for the presence of the certificate in the governance user or member tables. This enables applications wanting to do so to perform user management in application space, using application tables (#6608).
+- Expose `ccf:http::parse_accept_header()` and `ccf::http::AcceptHeaderField` (#6706).
+- OpenSSL helpers in `ccf/crypto/openssl/openssl_wrappers.h` are now exposed (#6895).
+- Expose `AttestationProvider::get_snp_attestation` to extract snp attestations from a quote. (#6837)
+- Applications can now extend `js_generic` (ie - a JS app where JS endpoints are edited by governance transactions), from the public header `ccf/js/samples/governance_driven_registry.h`. The API for existing JS-programmability apps using `DynamicJSEndpointRegistry` should be unaffected.
+
+##### Changed
+
+- All definitions in CCF's public headers are now under the `ccf::` namespace. Any application code which references any of these types directly (notably `StartupConfig`, `http_status`, `LoggerLevel`), they will now need to be prefixed with the `ccf::` namespace.
+
+##### Removed
+
+- Internal logging macros (`LOG_INFO_FMT`, `LOG_DEBUG_FMT` etc) deprecated in 3.0 (#4024), have been removed and can no longer be used by application code. Replace with the `CCF_APP_*` equivalent (#6908).
+- The function `ccf::get_js_plugins()` and associated FFI plugin system for JS is removed. Similar functionality should now be implemented through a `js::Extension` returned from `DynamicJSEndpointRegistry::get_extensions()`.
+
+#### TypeScript/JavaScript
+
+- Package `build_bundle.ts` under `npx ccf-build-bundle` to allow javascript users to build a ccf schema bundle (#6704).
+
+#### Python
+
+- `ccf.cose.verify_receipt()` to support verifiying [draft COSE receipts](https://datatracker.ietf.org/doc/draft-ietf-cose-merkle-tree-proofs/) (#6603).
+
+#### Other
+
+- secp256k1 support has been removed as a side-effect of the migration to Azure Linux 3.0 and its crypto provider (#6592).
+
+### Authentication
+
+- Ignore time when resolving did:x509 against x5chain, resolution establishes a point-in-time endorsement, not ongoing validity (#6575).
+- Service certificates and endorsements used for historical receipts now have a pathlen constraint of 1 instead of 0, reflecting the fact that there can be a single intermediate in endorsement chains. Historically the value had been 0, which happened to work because of a quirk in OpenSSL when Issuer and Subject match on an element in the chain.
+- Set VMPL value when creating SNP attestations, and check VMPL value is in guest range when verifiying attestation, since recent [updates allow host-initiated attestations](https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/programmer-references/56860.pdf) (#6583).
+
+### Governance
+
+#### Added
+
+- Members can now be configured with an explicit `recovery_role`. Members without an encryption key default to `NonParticipant`, members with an encryption key set default to `Participant` and continue to receive a recovery share. A new recovery role `Owner` allows members to receive a full key, letting them perform a recovery single-handedly. The process and APIs remain identical (#6705).
+- Attestations of new SNP nodes must be from a trusted TCB version higher than the minimum TCB version stored for that CPU model in `public:ccf.gov.nodes.snp.tcb_versions`. Added `set_snp_minimum_tcb_version(cpuid, tcb_version)` and `remove_snp_minimum_tcb_version(cpuid)` governance actions. New networks will automatically populate the TCB version, pre-existing networks must set a TCB version when upgrading. (#6837)
+
+#### Changed
+
+- When deciding which nodes are allowed to join, only UVM roots of trust defined in `public:ccf.gov.nodes.snp.uvm_endorsements` are considered (#6489).
+- Nodes in Start and Recovery modes no longer enforce specific UVM descriptors, and will instead derive one from UVM endorsements if found. The consortium must check that the value is acceptable, record their agreement by opening the network (#6869).
+- JWT authentication now supports raw public keys along with certificates (#6601).
+  - Public key information ('n' and 'e', or 'x', 'y' and 'crv' fields) now have a priority if defined in JWK set, 'x5c' remains as a backup option.
+  - Has same side-effects as #5809 does please see the changelog entry for that change for more details. In short:
+    - stale JWKs may be used for JWT validation on older nodes during the upgrade.
+    - old tables are not cleaned up, #6222 is tracking those.
+- A deprecated `GET /gov/jwt_keys/all` has been altered because of #6601, as soon as JWT certificates are no longer stored in CCF. A new "public_key" field has been added, "cert" is now left empty.
+- `GET /gov/service/javascript-app` now takes an optional `?case=original` query argument. When passed, the response will contain the raw original `snake_case` field names, for direct comparison, rather than the API-standard `camelCase` projections.
+
+#### Removed
+
+- The `key_filter` or `key_policy` arguments to `set_jwt_issuer` have been removed (#6450).
+
+### Operations
+
+#### Added
+
+- Joining nodes can now request a snapshot from their peers at startup, rather than relying on file access. The joinee's snapshot will be fetched and used if it is more recent than the joiner has access to. This behaviour is enabled by default, but can be disabled via the `command.join.fetch_recent_snapshot` config option (#6758).
+- In configuration, `attestation.snp_endorsements_servers` can specify a `max_retries_count`. If the count has been exhausted without success for all configured servers, the node will shut down (#6478).
+- The `read_ledger.py` tool now has a `--quiet` option which avoids printing anything per-transaction, as well as other performance improvements, which should make it more useful in verifying the integrity of large ledgers.
+- Added ["cose_signatures"](https://microsoft.github.io/CCF/main/operations/configuration.html#command-start-cose-signatures) entry in the configuration, which allows setting "issuer" and "subject" at network start or recovery time (#6637).
+- The `read-ledger.py` tool now has a `--recovery` argument, which will allow it to parse `.recovery` files. Previously these were ignored (#6896)
+
+#### Changed
+
+- Nodes started in `Join` mode will shut down if they receive an unrecoverable condition such as `StartupSeqnoIsOld` or `InvalidQuote` when attempting to join (#6471, #6489).
+- `ccf.ledger`/`read_ledger.py` previously enforced too strict a condition on node membership when validating ledger files (#6849).
+- `cchost` now requires `--config`.
+- Don't throw error if the ledger directory exists but is empty on node start (#6885).
+- Removed default value for redirection-kind parameter to start_network script (#6887).
+
+### Client API
+
+- Improved error message when attempting to obtain receipts for a past epoch during a recovery (#6507).
+- Added `GET /node/attestations` and `GET /node/attestations/self`, as aliases for the `/quote` endpoints.
+
+### Dependencies
+
+- CCF now defaults to using libstdc++ rather than libc++, and no longer builds with LTO, to improve compatibility with other C++ libraries.
+- nghttp2 is now picked up from the OS rather than vendored to enable libcurl usage.
+- Misc dependency updates (#6725).
+
+### Bug Fixes
+
+- CA certificate bundles used for JWT refresh and containing more than one certificate are now handled correctly (#6817).
+- Memory leak during EC key creation is fixed (#6845).
+- Fixed thread-safety issues when CCF nodes attempted to contact non-TLS servers. This previously could cause errors when running SNP builds with multiple worker threads (#6836).
+- SNP nodes will no longer crash when run on firmware returning v3 attestations (#6841).
+- Fixed potential races in indexing interfaces and `LazyStrategy` (#6886).
+- Fixed a bug which could produce an invalid secret chain (containing duplicate ledger secret sealing entries) in the ledger if an election occurred during private recovery (#6926).
+
+### Removed
+
+- `verify_quote.sh` script (#6919).
+
+## [6.0.0-rc3]
+
+[6.0.0-rc3]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-rc3
+
+### Removed
+
+- Reference containers are no longer published to GHCR from 6.0.0-rc3 onwards. Azure Linux base images and RPM packages are recommended instead (#6938).
+- Debian packages are no longer published from 6.0.0-rc3 onwards. Azure Linux base images and RPM packages are recommended instead (#6939).
+
 ## [6.0.0-rc2]
 
 [6.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/6.0.0-rc2
@@ -35,7 +217,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Fixed potential races in indexing interfaces and `LazyStrategy` (#6886).
 - Removed default value for redirection-kind parameter to start_network script (#6887).
 - Don't throw error if the ledger directory exists but is empty on node start (#6885).
-- Open Enclave logs directly to standard output, without restriction (#6888).
 
 ### Added
 

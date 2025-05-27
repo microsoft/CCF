@@ -206,6 +206,8 @@ class Network:
         "snp_endorsements_file",
         "subject_name",
         "idle_connection_timeout_s",
+        "enable_local_sealing",
+        "previous_sealed_ledger_secret_location",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -225,6 +227,7 @@ class Network:
         version=None,
         service_load=None,
         node_data_json_file=None,
+        next_node_id=0,
     ):
         # Map of node id to dict of node arg to override value
         # for example, to set the election timeout to 2s for node 3:
@@ -235,7 +238,7 @@ class Network:
             self.consortium = None
             self.users = []
             self.hosts = hosts
-            self.next_node_id = 0
+            self.next_node_id = next_node_id
             self.txs = txs
             self.jwt_issuer = jwt_issuer
             self.service_load = service_load
@@ -718,7 +721,13 @@ class Network:
         self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
 
-    def recover(self, args, expected_recovery_count=None, via_recovery_owner=False):
+    def recover(
+        self,
+        args,
+        expected_recovery_count=None,
+        via_recovery_owner=False,
+        via_local_sealing=False,
+    ):
         """
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
@@ -748,7 +757,9 @@ class Network:
             previous_service_identity=prev_service_identity,
         )
 
-        if via_recovery_owner:
+        if via_local_sealing:
+            pass
+        elif via_recovery_owner:
             self.consortium.recover_with_owner_share(self.find_random_node())
         else:
             self.consortium.recover_with_shares(self.find_random_node())
@@ -1585,12 +1596,12 @@ class Network:
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
-    def _get_ledger_public_view_at(self, node, call, seqno, timeout, insecure=False):
+    def _get_ledger_public_view_at(self, node, call, seqno, timeout):
         end_time = time.time() + timeout
         self.consortium.force_ledger_chunk(node)
         while time.time() < end_time:
             try:
-                return call(seqno, insecure=insecure)
+                return call(seqno)
             except Exception as ex:
                 LOG.info(f"Exception: {ex}")
                 time.sleep(0.1)
@@ -1598,20 +1609,20 @@ class Network:
             f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()} after {timeout}s"
         )
 
-    def get_ledger_public_state_at(self, seqno, timeout=5, insecure=False):
+    def get_ledger_public_state_at(self, seqno, timeout=5):
         primary, _ = self.find_primary()
         return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_tables_at, seqno, timeout, insecure
+            primary, primary.get_ledger_public_tables_at, seqno, timeout
         )
 
-    def get_latest_ledger_public_state(self, insecure=False, timeout=5):
+    def get_latest_ledger_public_state(self, timeout=5):
         primary, _ = self.find_primary()
         with primary.client() as nc:
             resp = nc.get("/node/commit")
             body = resp.body.json()
             tx_id = TxID.from_str(body["transaction_id"])
         return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_state_at, tx_id.seqno, timeout, insecure
+            primary, primary.get_ledger_public_state_at, tx_id.seqno, timeout
         )
 
     @functools.cached_property
@@ -1698,7 +1709,7 @@ class Network:
         with open(previous_identity, "w", encoding="utf-8") as f:
             f.write(current_ident)
         args.previous_service_identity_file = previous_identity
-        return args
+        return current_ident
 
     def identity(self, name=None):
         if name is not None:

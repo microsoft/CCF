@@ -71,6 +71,35 @@ def run(cert_test):
         "IP Address:1.2.3.4",
     )
 
+    MAX_SUBJECT_LENGTH = 64
+    PREFIX = "CN="
+    long_subject = "a" * MAX_SUBJECT_LENGTH
+    test(
+        [f"--sn={PREFIX}{long_subject}", "--san=iPAddress:1.2.3.4"],
+        f"Subject: CN = {long_subject}\n",
+        "X509v3 Subject Alternative Name: \n" + 16 * " ",
+        "IP Address:1.2.3.4",
+    )
+
+    MAX_DNSNAME_SAN_LENGTH = 4096
+    long_dnsname = "a" * MAX_DNSNAME_SAN_LENGTH
+    test(
+        ["--sn=CN=subject3", f"--san=dNSName:{long_dnsname}"],
+        "Subject: CN = subject3\n",
+        "X509v3 Subject Alternative Name: \n" + 16 * " ",
+        f"DNS:{long_dnsname}",
+    )
+
+    MAX_DNSNAME_SAN_LENGTH = 256
+    long_dnsname = "a" * MAX_DNSNAME_SAN_LENGTH
+    NUM_OF_SANS = 256
+    test(
+        ["--sn=CN=subject3"] + [f"--san=dNSName:{long_dnsname}"] * NUM_OF_SANS,
+        "Subject: CN = subject3\n",
+        "X509v3 Subject Alternative Name: \n" + 16 * " ",
+        f"DNS:{long_dnsname}",
+    )
+
 
 if __name__ == "__main__":
     run(sys.argv[1])

@@ -121,18 +121,7 @@ def generate_and_verify_jwk(client):
         assert body["pem"] == pub_pem
 
     # EdDSA
-    running_under_asan = (
-        len(
-            subprocess.run(
-                " nm -an cchost | grep asan", shell=True, capture_output=True
-            ).stdout
-        )
-        > 0
-    )
-    curves_for_eddsa = (
-        ["curve25519", "x25519"] if not running_under_asan else ["curve25519"]
-    )
-    for curve in curves_for_eddsa:
+    for curve in ["curve25519", "x25519"]:
         priv_pem, pub_pem = infra.crypto.generate_eddsa_keypair(curve)
         # Private
         ref_priv_jwk = jwk.JWK.from_pem(priv_pem.encode()).export_private(as_dict=True)

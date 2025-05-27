@@ -1,8 +1,0 @@
-steps:
-  - script: |
-      set -ex
-      set -o pipefail
-      curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-      az login --identity -u "${{ parameters.managed_identity_id }}"
-    name: setup_azure_cli
-    displayName: "Install Azure CLI and login"

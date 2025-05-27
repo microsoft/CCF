@@ -23,6 +23,9 @@ include(${CCF_DIR}/cmake/version.cmake)
 project(
   ${CCF_PROJECT}
   VERSION ${CCF_RELEASE_VERSION}
+  DESCRIPTION
+    "Build confidential, highly-available distributed systems on top of secure hardware"
+  HOMEPAGE_URL "https://github.com/Microsoft/CCF"
   LANGUAGES C CXX
 )
 
@@ -122,6 +125,13 @@ option(USE_SNMALLOC "Link against snmalloc" ON)
 option(USE_LIBCXX "Use libc++ instead of libstdc++" OFF)
 
 option(CLANG_TIDY "Run clang-tidy on the codebase" OFF)
+# Must happen before tools.cmake is included
+if(CLANG_TIDY)
+  find_program(
+    CLANG_TIDY_EXE NAMES "clang-tidy" "clang-tidy-18" "clang-tidy-15"
+  )
+  message(STATUS "Using clang-tidy from: ${CLANG_TIDY_EXE}")
+endif()
 
 enable_language(ASM)
 
@@ -245,6 +255,7 @@ add_executable(cchost ${CCHOST_SOURCES})
 
 add_warning_checks(cchost)
 add_san(cchost)
+add_tidy(cchost)
 
 target_compile_options(
   cchost PRIVATE ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
@@ -358,6 +369,7 @@ if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_kv.snp "${CCF_KV_SOURCES}")
   add_san(ccf_kv.snp)
   add_warning_checks(ccf_kv.snp)
+  add_tidy(ccf_kv.snp)
   target_compile_definitions(ccf_kv.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
   if(CCF_DEVEL)
     install(
@@ -371,6 +383,7 @@ endif()
 add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
 add_san(ccf_kv.host)
 add_warning_checks(ccf_kv.host)
+add_tidy(ccf_kv.host)
 target_compile_definitions(ccf_kv.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
 if(INSTALL_VIRTUAL_LIBRARIES)
   install(
@@ -414,18 +427,6 @@ if(INSTALL_VIRTUAL_LIBRARIES)
     TARGETS ccf_endpoints.host
     EXPORT ccf
     DESTINATION lib
-  )
-endif()
-
-if(CLANG_TIDY)
-  find_program(
-    CLANG_TIDY_EXE NAMES "clang-tidy" "clang-tidy-18" "clang-tidy-15"
-  )
-  message(STATUS "Using clang-tidy from: ${CLANG_TIDY_EXE}")
-  # Start with cchost
-  set_target_properties(
-    cchost PROPERTIES C_CLANG_TIDY "${CLANG_TIDY_EXE}" CXX_CLANG_TIDY
-                                                       "${CLANG_TIDY_EXE}"
   )
 endif()
 
@@ -534,6 +535,7 @@ add_custom_target(ccf ALL)
 set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/node/quote.cpp
+    ${CCF_DIR}/src/node/uvm_endorsements.cpp
 )
 
 # Same as virtual for the time being but will diverge soon
@@ -849,6 +851,7 @@ if(BUILD_TESTS)
     add_unit_test(
       endorsements_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/endorsements.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/uvm_endorsements.cpp
     )
     set_property(
       TEST endorsements_test
@@ -936,6 +939,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
       ${CCF_DIR}/src/node/quote.cpp
+      ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
       frontend_test
@@ -966,7 +970,7 @@ if(BUILD_TESTS)
     add_unit_test(
       node_frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
-      ${CCF_DIR}/src/node/quote.cpp
+      ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
       node_frontend_test
@@ -1049,7 +1053,9 @@ if(BUILD_TESTS)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
 
     if(LONG_TESTS)
-      set(ADDITIONAL_RECOVERY_ARGS --with-load --with-election)
+      set(ADDITIONAL_RECOVERY_ARGS --with-load --with-election
+                                   --with-unsigned-suffix
+      )
 
       add_e2e_test(
         NAME recovery_test_cft_api_0
@@ -1087,6 +1093,9 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS
         --test-duration 300 --test-suite reconfiguration --jinja-templates-path
         ${CMAKE_SOURCE_DIR}/samples/templates
+    )
+    set_property(
+      TEST reconfiguration_test_suite PROPERTY LABELS reconfiguration
     )
 
     if(LONG_TESTS)
@@ -1185,9 +1194,7 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME jwt_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
-      LABEL snp_flaky
+      NAME jwt_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
     )
 
     add_e2e_test(
@@ -1324,7 +1331,6 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME consistency_trace_validation
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
-      LABEL snp_flaky
     )
 
     add_e2e_test(
@@ -1392,6 +1398,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
       ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}
     )
+    set_property(TEST reconfiguration_test_cft PROPERTY LABELS reconfiguration)
 
     add_e2e_test(
       NAME election_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py

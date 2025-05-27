@@ -23,10 +23,6 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-#  include <openssl/evp.h>
-#endif
-
 namespace ccf::crypto
 {
   namespace OpenSSL
@@ -36,7 +32,7 @@ namespace ccf::crypto
      */
 
     /// Returns the error string from an error code
-    inline std::string error_string(int ec)
+    inline std::string error_string(unsigned long ec)
     {
       // ERR_error_string doesn't really expect the code could actually be zero
       // and uses the `static char buf[256]` which is NOT cleaned nor checked
@@ -46,7 +42,7 @@ namespace ccf::crypto
         std::string err(256, '\0');
         ERR_load_crypto_strings();
         SSL_load_error_strings();
-        ERR_error_string_n((unsigned long)ec, err.data(), err.size());
+        ERR_error_string_n(ec, err.data(), err.size());
         ERR_free_strings();
         // Remove any trailing NULs before returning
         err.resize(std::strlen(err.c_str()));
@@ -170,9 +166,9 @@ namespace ccf::crypto
         Unique_SSL_OBJECT(
           BIO_new_mem_buf(buf, len), [](auto x) { BIO_free(x); })
       {}
-      Unique_BIO(const std::vector<uint8_t>& d) :
+      Unique_BIO(std::span<const uint8_t> s) :
         Unique_SSL_OBJECT(
-          BIO_new_mem_buf(d.data(), d.size()), [](auto x) { BIO_free(x); })
+          BIO_new_mem_buf(s.data(), s.size()), [](auto x) { BIO_free(x); })
       {}
       Unique_BIO(const Pem& pem) :
         Unique_SSL_OBJECT(
@@ -205,11 +201,9 @@ namespace ccf::crypto
           PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL), EVP_PKEY_free)
       {}
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
       Unique_PKEY(EVP_PKEY* pkey) :
         Unique_SSL_OBJECT(EVP_PKEY_dup(pkey), EVP_PKEY_free)
       {}
-#endif
     };
 
     struct Unique_EVP_PKEY_CTX
@@ -223,13 +217,11 @@ namespace ccf::crypto
           EVP_PKEY_CTX_new_id(key_type, NULL), EVP_PKEY_CTX_free)
       {}
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
       Unique_EVP_PKEY_CTX(const std::string& name) :
         Unique_SSL_OBJECT(
           EVP_PKEY_CTX_new_from_name(NULL, name.c_str(), NULL),
           EVP_PKEY_CTX_free)
       {}
-#endif
     };
 
     struct Unique_EVP_MD_CTX
@@ -403,24 +395,6 @@ namespace ccf::crypto
       {}
     };
 
-#if !(defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3)
-    struct Unique_EC_KEY : public Unique_SSL_OBJECT<EC_KEY, nullptr, nullptr>
-    {
-      Unique_EC_KEY(int nid) :
-        Unique_SSL_OBJECT(
-          EC_KEY_new_by_curve_name(nid), EC_KEY_free, /*check_null=*/true)
-      {}
-      Unique_EC_KEY(EC_KEY* key) :
-        Unique_SSL_OBJECT(key, EC_KEY_free, /*check_null=*/true)
-      {}
-    };
-
-    struct Unique_RSA : public Unique_SSL_OBJECT<RSA, RSA_new, RSA_free>
-    {
-      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
-    };
-#endif
-
     struct Unique_EVP_ENCODE_CTX : public Unique_SSL_OBJECT<
                                      EVP_ENCODE_CTX,
                                      EVP_ENCODE_CTX_new,
@@ -434,6 +408,15 @@ namespace ccf::crypto
     {
       Unique_EVP_PKEY() = default;
       Unique_EVP_PKEY(EVP_PKEY* key) : Unique_SSL_OBJECT(key, EVP_PKEY_free) {}
+    };
+
+    struct Unique_X509_REQ_DER
+      : public Unique_SSL_OBJECT<X509_REQ, X509_REQ_new, X509_REQ_free>
+    {
+      Unique_X509_REQ_DER(BIO* mem) :
+        Unique_SSL_OBJECT::Unique_SSL_OBJECT(
+          d2i_X509_REQ_bio(mem, nullptr), X509_REQ_free)
+      {}
     };
   }
 }

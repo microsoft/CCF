@@ -22,7 +22,7 @@ namespace ccf::crypto
 
   public:
     Pem() = default;
-    Pem(const std::string& s_);
+    Pem(std::string pem_string);
     Pem(const uint8_t* data, size_t size);
 
     explicit Pem(std::span<const uint8_t> s) : Pem(s.data(), s.size()) {}

@@ -33,6 +33,7 @@ set(CCFCRYPTO_SRC
 if(COMPILE_TARGET STREQUAL "snp")
   add_library(ccfcrypto.snp ${CCFCRYPTO_SRC})
   add_san(ccfcrypto.snp)
+  add_tidy(ccfcrypto.snp)
   target_compile_options(ccfcrypto.snp PUBLIC ${COMPILE_LIBCXX})
   target_link_options(ccfcrypto.snp PUBLIC ${LINK_LIBCXX})
   target_link_libraries(ccfcrypto.snp PUBLIC qcbor.snp)
@@ -56,6 +57,7 @@ find_library(TLS_LIBRARY ssl)
 
 add_library(ccfcrypto.host STATIC ${CCFCRYPTO_SRC})
 add_san(ccfcrypto.host)
+add_tidy(ccfcrypto.host)
 target_compile_options(ccfcrypto.host PUBLIC ${COMPILE_LIBCXX})
 target_link_options(ccfcrypto.host PUBLIC ${LINK_LIBCXX})
 

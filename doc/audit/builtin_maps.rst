@@ -565,3 +565,10 @@ While the contents themselves are encrypted, the table is public so as to be acc
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
 **Value** Last signed Merkle root of previous service instance, represented as a hex-encoded string.
+
+``last_recovery_type``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Value** The mechanism by which the ledger secret was recovered.
+
+.. doxygenenum:: ccf::RecoveryType
+   :project: CCF
