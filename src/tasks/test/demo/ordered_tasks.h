@@ -77,6 +77,36 @@ namespace
   };
 
   using TaskAction = std::shared_ptr<ITaskAction>;
+
+  struct BasicTaskAction : public ITaskAction
+  {
+    using Fn = std::function<void()>;
+
+    Fn fn;
+    const std::string name;
+
+    BasicTaskAction(const Fn& _fn, const std::string& s = "[Anon]") :
+      name(s),
+      fn(_fn)
+    {}
+
+    size_t do_action() override
+    {
+      fn();
+      return 1;
+    }
+
+    std::string get_name() const override
+    {
+      return name;
+    }
+  };
+
+  template <typename... Ts>
+  TaskAction make_basic_action(Ts&&... ts)
+  {
+    return std::make_shared<BasicTaskAction>(std::forward<Ts>(ts)...);
+  }
 }
 
 // Self-scheduling collection of in-order tasks. Tasks will be executed in the

@@ -119,11 +119,3 @@ Task make_basic_task(Ts&&... ts)
 {
   return make_task<BasicTask>(std::forward<Ts>(ts)...);
 }
-
-struct IPausedTask
-{
-  virtual ~IPausedTask() = default;
-
-  // TODO: Optionally takes an action to execute first?
-  virtual void resume();
-};

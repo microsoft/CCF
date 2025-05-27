@@ -62,6 +62,79 @@ TEST_CASE("Tasks")
   REQUIRE(x == 3);
 }
 
+TEST_CASE("OrderedTasks")
+{
+  // With more sessions than workers, and tasks concurrently added to these
+  // sessions, each task is still executed in-order for that session
+  static constexpr auto num_sessions = 5;
+  static constexpr auto num_workers = 2;
+
+  // Record last x seen for each session
+  using Result = std::atomic<size_t>;
+  std::vector<Result> results(num_sessions);
+
+  JobBoard job_board;
+  {
+    std::vector<std::unique_ptr<Worker>> workers;
+    for (auto i = 0; i < num_workers; ++i)
+    {
+      workers.emplace_back(std::make_unique<Worker>(job_board, i));
+    }
+
+    {
+      // Record next x to send for each session
+      std::vector<std::pair<std::shared_ptr<OrderedTasks>, size_t>> all_tasks;
+      for (auto i = 0; i < num_sessions; ++i)
+      {
+        all_tasks.emplace_back(
+          std::make_shared<OrderedTasks>(job_board, std::to_string(i)), 0);
+      }
+
+      auto add_action = [&](size_t idx, size_t sleep_time_ms) {
+        auto& [tasks, n] = all_tasks[idx];
+        tasks->add_action(make_basic_action([=, &n, &results]() {
+          std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time_ms));
+          const auto x = ++n;
+          LOG_TRACE_FMT("{} {}", tasks->get_name(), x);
+          REQUIRE(++results[idx] == x);
+        }));
+      };
+
+      // Add some initial tasks on each session
+      const auto spacing = 3;
+      const auto period = spacing * num_sessions + 1;
+      for (auto i = 0; i < num_sessions; ++i)
+      {
+        add_action(i, spacing * i);
+        add_action(i, period);
+        add_action(i, period);
+      }
+
+      // Start processing those tasks on worker threads
+      for (auto& worker : workers)
+      {
+        worker->start();
+      }
+
+      // Continually add tasks, while the workers are running
+      for (auto i = 0; i < num_workers * num_sessions * 10; ++i)
+      {
+        add_action(i % all_tasks.size(), period);
+        // Try to produce an interesting interleaving of tasks across sessions
+        if (i % ((num_workers * num_sessions) - 1) == 0)
+        {
+          std::this_thread::sleep_for(std::chrono::milliseconds(period / 2));
+        }
+      }
+
+      while (!job_board.empty())
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      }
+    }
+  }
+}
+
 void describe_session_manager(SessionManager& sm)
 {
   std::lock_guard<std::mutex> lock(sm.sessions_mutex);
