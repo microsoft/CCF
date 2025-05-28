@@ -96,22 +96,27 @@ fn main() {
     let model = model
         .property(
             stateright::Expectation::Sometimes,
-            "Open state reached",
+            "Open",
             |model: &ActorModel<Node, ModelCfg>, state: &ActorModelState<Node>| {
                 reached_open(model, state) && !non_unanimous_gossip(model, state)
             },
         )
         .property(
             stateright::Expectation::Sometimes,
-            "Deadlock reached",
+            "Deadlock",
             |_model: &ActorModel<Node, ModelCfg>, state: &ActorModelState<Node>| {
                 let all_open_join = state
                     .actor_states
                     .iter()
                     .all(|actor_state: &Arc<State>| actor_state.next_step == NextStep::OpenJoin);
-                let all_votes_delivered = state.network.iter_all().filter(|msg| {
-                  matches!(msg, Envelope { src:_, dst:_, msg: Msg::Vote(_)})
-                }).count() == 0;
+                let all_votes_delivered = state
+                    .network
+                    .iter_all()
+                    .filter(|msg| {
+                        matches!(msg.msg, Msg::Vote(_))
+                    })
+                    .count()
+                    == 0;
                 all_open_join && all_votes_delivered
             },
         );
