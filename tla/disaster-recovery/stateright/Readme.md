@@ -1,6 +1,6 @@
-# Auto-open specification in (stateright)[https://github.com/stateright/stateright]
+# Auto-open specification in [stateright](https://github.com/stateright/stateright)
 
-The properties are specified in (main.rs)[./src/main.rs], while the model is specified in (model.rs)[./src/model.rs].
+The properties are specified in [main.rs](./src/main.rs), while the model is specified in [model.rs](./src/model.rs).
 
 Due to stateright being executable, there is little syntactic sugar, and so there is quite a bit of boilerplate.
 The functional parts of the specification are in `advance_step`, `on_start`, `on_timeout` and `on_msg`.
