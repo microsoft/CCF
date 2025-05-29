@@ -33,7 +33,7 @@ For example to set the minimum TCB version on Milan CPUs the following proposal 
         {
           "name": "set_snp_minimum_tcb_version",
           "args": {
-            "cpuid": "00a0f11",
+            "cpuid": "00a00f11",
             "tcb_version": {
               "boot_loader": 255,
               "tee": 255,
@@ -44,6 +44,8 @@ For example to set the minimum TCB version on Milan CPUs the following proposal 
         }
       ]
     }
+
+.. note:: The CPUID must be presented as a lower-case hex-string. The value in the above example is for Milan CPUs.
 
 CCF release distribution
 ------------------------
