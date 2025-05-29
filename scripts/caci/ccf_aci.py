@@ -122,6 +122,9 @@ class CCFRelease:
                 "tdnf install -y ./ccf.rpm",
             ]
         else:
+            oe_version = (
+                "0.19.11" if args.version.version >= Version("5.0.17") else "0.19.8"
+            )
             install = [
                 "apt update -y",
                 "apt install -y curl gnupg software-properties-common",
@@ -134,7 +137,7 @@ class CCFRelease:
                 "apt update -y",
                 "apt install -y az-dcap-client",
                 # Manually install OE host-verify
-                "curl -kL https://github.com/openenclave/openenclave/releases/download/v0.19.8/Ubuntu_2004_open-enclave-hostverify_0.19.8_amd64.deb -o oe.deb",
+                f"curl -kL https://github.com/openenclave/openenclave/releases/download/v{oe_version}/Ubuntu_2004_open-enclave-hostverify_{oe_version}_amd64.deb -o oe.deb",
                 "apt install -y ./oe.deb",
                 # Manually install CCF
                 f"curl -kL {self.binary_url()} -o ./ccf.deb",
