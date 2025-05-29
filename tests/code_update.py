@@ -293,7 +293,7 @@ def test_tcb_version_tables(network, args):
             network.consortium.set_snp_minimum_tcb_version(
                 primary, invalid_cpuid, permissive_tcb_version
             )
-        except infra.proposal.ProposalNotCreated as e:
+        except infra.proposal.ProposalNotCreated:
             LOG.success("Failed as expected")
         else:
             assert (
