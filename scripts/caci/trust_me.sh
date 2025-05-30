@@ -65,9 +65,11 @@ cpuid_mod_ext=$((cpuid_mod_id / 16))
 
 cpuid=$(printf "0%02x%x0%x%x%x" ${cpuid_fam_ext} ${cpuid_mod_ext} ${cpuid_fam_base} ${cpuid_mod_base} ${cpuid_step} )
 
-echo "CPUID extracted from ${attestation_path}:"
-printf "  Extended Family = %2d (%x)\n" ${cpuid_fam_ext} ${cpuid_fam_ext}
+echo "CPUID nibbles extracted from ${attestation_path}:"
+printf "  Reserved        =  0 (0)\n"
+printf "  Extended Family = %2d (%02x) (1 byte)\n" ${cpuid_fam_ext} ${cpuid_fam_ext}
 printf "  Extended Model  = %2d (%x)\n" ${cpuid_mod_ext} ${cpuid_mod_ext}
+printf "  Reserved        =  0 (0)\n"
 printf "  Base Family     = %2d (%x)\n" ${cpuid_fam_base} ${cpuid_fam_base}
 printf "  Base Model      = %2d (%x)\n" ${cpuid_mod_base} ${cpuid_mod_base}
 printf "  Stepping        = %2d (%x)\n" ${cpuid_step} ${cpuid_step}
