@@ -47,7 +47,7 @@ function get_node_statuses()
 echo "Fetching nodes"
 initial_nodes=$(get_node_statuses)
 
-pending_node_ids=($(jq -r 'to_entries.[] | select(.value == "Pending").key' <<< "${initial_nodes}"))
+mapfile -t pending_node_ids < <(jq -r 'to_entries.[] | select(.value == "Pending").key' <<< "${initial_nodes}")
 
 PATH_HERE=$(dirname "$(realpath -s "$0")")
 
@@ -56,15 +56,15 @@ for node in "${pending_node_ids[@]}"; do
     filename="./trust_${node}.json"
     jq -n \
       '{actions: [{name: "transition_node_to_trusted", args: {node_id: $node, valid_from: $datetime}}]}' \
-      --arg node ${node} \
+      --arg node "$node" \
       --arg datetime "$(date -Is)" \
-    > $filename
+    > "$filename"
 
-    echo "Submitting proposal ${filename}"
-    ${PATH_HERE}/member_propose.sh \
+    echo "Submitting proposal $filename"
+    "${PATH_HERE}/member_propose.sh" \
       --node "${node_rpc_address}" \
       --member "${member}" \
-      --proposal $filename
+      --proposal "$filename"
 done
 
 final_nodes=$(get_node_statuses)

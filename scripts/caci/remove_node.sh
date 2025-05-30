@@ -41,7 +41,7 @@ if [ -z "${node_rpc_address}" ]; then
     exit 1
 fi
 
-node_id=$(curl -k --silent "https://{node_rpc_address}/node/network/nodes/self" | jq '.node_id')
+node_id=$(curl -k --silent "${node_rpc_address}/node/network/nodes/self" | jq -r '.node_id')
 
 filename="./remove_${node_id}.json"
 
@@ -51,7 +51,7 @@ echo "{
     {
       \"name\": \"remove_node\",
       \"args\": {
-        \"node_id\": ${node_id}
+        \"node_id\": \"${node_id}\"
       }
     }
   ]
@@ -60,7 +60,7 @@ echo "{
 
 PATH_HERE=$(dirname "$(realpath -s "$0")")
 echo "Submitting proposal"
-${PATH_HERE}/member_propose.sh \
+"${PATH_HERE}/member_propose.sh" \
   --node "${node_rpc_address}" \
   --member "${member}" \
   --proposal "$filename"

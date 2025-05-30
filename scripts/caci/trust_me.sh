@@ -51,9 +51,11 @@ cpuid_fam_id=$((16#$(hexdump --skip 0x188 --length 1 -ve '1/1 "%.2x"' ${attestat
 cpuid_mod_id=$((16#$(hexdump --skip 0x189 --length 1 -ve '1/1 "%.2x"' ${attestation_path})))
 cpuid_step=$((16#$(hexdump --skip 0x18A --length 1 -ve '1/1 "%.2x"' ${attestation_path})))
 
+echo "Attestation reports Family=${cpuid_fam_id}, Model=${cpuid_mod_id}"
+
 if [ $cpuid_fam_id -gt 15 ]; then
   cpuid_fam_base=$((15))
-  cpuid_fam_ext=$(($cpuid_fam_id - 15))
+  cpuid_fam_ext=$((cpuid_fam_id - 15))
 else
   cpuid_fam_base=$cpuid_fam_id
   cpuid_fam_ext=$((0))
@@ -76,7 +78,7 @@ printf "  Stepping        = %2d (%x)\n" ${cpuid_step} ${cpuid_step}
 echo "Producing hex-string cpuid: ${cpuid}"
 
 # Output each byte of the platform_version field (a TcbVersion) as hex, one-per-line
-tcb_version=($(hexdump --skip 0x38 --length 8 -ve '1/1 "%.2x\n"' ${attestation_path}))
+mapfile -t tcb_version < <(hexdump --skip 0x38 --length 8 -ve '1/1 "%.2x\n"' ${attestation_path})
 
 boot_loader=$((16#${tcb_version[0]}))
 tee=$((16#${tcb_version[1]}))
@@ -104,7 +106,7 @@ jq -n "{
 
 PATH_HERE=$(dirname "$(realpath -s "$0")")
 echo "Submitting proposal"
-${PATH_HERE}/member_propose.sh \
+"${PATH_HERE}/member_propose.sh" \
   --node "${node_rpc_address}" \
   --member "${member}" \
   --proposal "$filename"

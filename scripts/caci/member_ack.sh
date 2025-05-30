@@ -51,12 +51,12 @@ function get_member_status()
 
 original_status=$(get_member_status)
 
-echo Getting state-digest for $member
+echo "Getting state-digest for $member"
 touch empty_file
 
 ccf_cose_sign1 \
-  --signing-key $member_privk \
-  --signing-cert $member_cert \
+  --signing-key "$member_privk" \
+  --signing-cert "$member_cert" \
   --ccf-gov-msg-type state_digest \
   --ccf-gov-msg-created_at "$(date -Is)" \
   --content empty_file \
@@ -69,8 +69,8 @@ ccf_cose_sign1 \
 
 echo Signing and submitting state-digest
 ccf_cose_sign1 \
-  --signing-key $member_privk \
-  --signing-cert $member_cert  \
+  --signing-key "$member_privk" \
+  --signing-cert "$member_cert"  \
   --ccf-gov-msg-type ack \
   --ccf-gov-msg-created_at "$(date -Is)" \
   --content ./digest.json \

@@ -60,7 +60,7 @@ echo "{
 
 PATH_HERE=$(dirname "$(realpath -s "$0")")
 echo "Submitting proposal"
-${PATH_HERE}/member_propose.sh \
+"${PATH_HERE}/member_propose.sh" \
   --node "${node_rpc_address}" \
   --member "${member}" \
   --proposal "./transition_service_to_open.json"

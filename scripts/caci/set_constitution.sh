@@ -57,40 +57,40 @@ fi
 jq_args=()
 
 validate_path="${constitution_dir}/validate.js"
-if [ ! -f $validate_path ]; then
+if [ ! -f "$validate_path" ]; then
     echo "Error: File not found at: $validate_path"
     exit 1
 else
-    jq_args+=(--rawfile validate $validate_path)
+    jq_args+=("--rawfile" "validate" "$validate_path")
 fi
 
 apply_path="${constitution_dir}/apply.js"
-if [ ! -f $apply_path ]; then
+if [ ! -f "$apply_path" ]; then
     echo "Error: File not found at: $apply_path"
     exit 1
 else
-    jq_args+=(--rawfile apply $apply_path)
+    jq_args+=("--rawfile" "apply" "$apply_path")
 fi
 
 if "$auto_accept"; then
     resolve=$'export function resolve() { return "Accepted"; }\n'
-    jq_args+=(--arg resolve "$resolve")
+    jq_args+=("--arg" "resolve" "$resolve")
 else
     resolve_path="${constitution_dir}/resolve.js"
-    if [ ! -f $resolve_path ]; then
+    if [ ! -f "$resolve_path" ]; then
         echo "Error: File not found at: $resolve_path"
         exit 1
     else
-        jq_args+=(--rawfile resolve $resolve_path)
+        jq_args+=("--rawfile" "resolve" "$resolve_path")
     fi
 fi
 
 actions_path="${constitution_dir}/actions.js"
-if [ ! -f $actions_path ]; then
+if [ ! -f "$actions_path" ]; then
     echo "Error: File not found at: $actions_path"
     exit 1
 else
-    jq_args+=(--rawfile actions $actions_path)
+    jq_args+=("--rawfile" "actions" "$actions_path")
 fi
 
 proposal="./set_constitution.json"
@@ -102,7 +102,7 @@ jq -n \
 
 PATH_HERE=$(dirname "$(realpath -s "$0")")
 echo "Submitting proposal"
-${PATH_HERE}/member_propose.sh \
+"${PATH_HERE}/member_propose.sh" \
   --node "${node_rpc_address}" \
   --member "${member}" \
   --proposal $proposal

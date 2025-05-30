@@ -52,11 +52,11 @@ member_cert="${member}_cert.pem"
 member_privk="${member}_privk.pem"
 
 ccf_cose_sign1 \
-  --signing-key $member_privk \
-  --signing-cert $member_cert \
+  --signing-key "$member_privk" \
+  --signing-cert "$member_cert" \
   --ccf-gov-msg-type proposal \
   --ccf-gov-msg-created_at "$(date -Is)" \
-  --content ${proposal} \
+  --content "$proposal" \
   | curl -k \
     "${node_rpc_address}/gov/members/proposals:create?api-version=2024-07-01" \
     -H "Content-type: application/cose" \
