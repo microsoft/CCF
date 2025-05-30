@@ -1,0 +1,143 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "resources": [
+    {
+      "type": "Microsoft.ContainerInstance/containerGroups",
+      "apiVersion": "2022-10-01-preview",
+      "name": "{{ name }}",
+      "location": "{{ location }}",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "sku": "Confidential",
+        "restartPolicy": "Never",
+        "osType": "Linux",
+        "ipAddress": {
+          "ports": [
+            {
+              "protocol": "TCP",
+              "port": "22"
+            },
+            {
+              "protocol": "TCP",
+              "port": "443"
+            },
+            {
+              "protocol": "TCP",
+              "port": "8081"
+            }
+          ],
+          "dnsNameLabel": "{{ name }}",
+          "type": "Public"
+        },
+        "volumes": [
+          {
+            "name": "emptydirvolume",
+            "emptyDir": {}
+          }
+        ],
+        "confidentialComputeProperties": {
+          "ccePolicy": "cGFja2FnZSBwb2xpY3kKCmFwaV9zdm4gOj0gIjAuMTAuMCIKZnJhbWV3b3JrX3N2biA6PSAiMC4xLjAiCgptb3VudF9kZXZpY2UgOj0geyJhbGxvd2VkIjogdHJ1ZX0KbW91bnRfb3ZlcmxheSA6PSB7ImFsbG93ZWQiOiB0cnVlfQpjcmVhdGVfY29udGFpbmVyIDo9IHsiYWxsb3dlZCI6IHRydWUsICJhbGxvd19zdGRpb19hY2Nlc3MiOiB0cnVlfQp1bm1vdW50X2RldmljZSA6PSB7ImFsbG93ZWQiOiB0cnVlfQp1bm1vdW50X292ZXJsYXkgOj0geyJhbGxvd2VkIjogdHJ1ZX0KZXhlY19pbl9jb250YWluZXIgOj0geyJhbGxvd2VkIjogdHJ1ZX0KZXhlY19leHRlcm5hbCA6PSB7ImFsbG93ZWQiOiB0cnVlLCAiYWxsb3dfc3RkaW9fYWNjZXNzIjogdHJ1ZX0Kc2h1dGRvd25fY29udGFpbmVyIDo9IHsiYWxsb3dlZCI6IHRydWV9CnNpZ25hbF9jb250YWluZXJfcHJvY2VzcyA6PSB7ImFsbG93ZWQiOiB0cnVlfQpwbGFuOV9tb3VudCA6PSB7ImFsbG93ZWQiOiB0cnVlfQpwbGFuOV91bm1vdW50IDo9IHsiYWxsb3dlZCI6IHRydWV9CmdldF9wcm9wZXJ0aWVzIDo9IHsiYWxsb3dlZCI6IHRydWV9CmR1bXBfc3RhY2tzIDo9IHsiYWxsb3dlZCI6IHRydWV9CnJ1bnRpbWVfbG9nZ2luZyA6PSB7ImFsbG93ZWQiOiB0cnVlfQpsb2FkX2ZyYWdtZW50IDo9IHsiYWxsb3dlZCI6IHRydWV9CnNjcmF0Y2hfbW91bnQgOj0geyJhbGxvd2VkIjogdHJ1ZX0Kc2NyYXRjaF91bm1vdW50IDo9IHsiYWxsb3dlZCI6IHRydWV9Cg=="
+        },
+        "initContainers": [
+          {
+            "name": "{{ name }}-init",
+            "properties": {
+              "image": "{{ image }}",
+              "command": [
+                "/bin/sh",
+                "-c",
+                "set -x; echo Fabric_NodeIPOrFQDN=$Fabric_NodeIPOrFQDN | tee -a /mnt/ccf/aci_env; echo UVM_SECURITY_CONTEXT_DIR=$UVM_SECURITY_CONTEXT_DIR | tee -a /mnt/ccf/aci_env; gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY; {{ installer_tool }} update -y"
+              ],
+              "volumeMounts": [
+                {
+                  "name": "emptydirvolume",
+                  "mountPath": "/mnt/ccf"
+                }
+              ]
+            }
+          },
+          {
+            "name": "{{ name }}-dump-files",
+            "properties": {
+              "image": "{{ image }}",
+              "command": [
+                "/bin/sh",
+                "-c",
+                "set -x; {% for dst_path, content in files_to_copy.items() %}echo '{% filter tojson | trim("\"") %}{{ content }}{% endfilter %}' > {{ dst_path }}; {% endfor %}"
+              ],
+              "volumeMounts": [
+                {
+                  "name": "emptydirvolume",
+                  "mountPath": "/mnt/ccf"
+                }
+              ]
+            }
+          }
+        ],
+        "containers": [
+          {
+            "name": "{{ name }}-main",
+            "properties": {
+              "image": "{{ image }}",
+              "command": ["/bin/bash", "-c", "set -x; {{ container_command }}"],
+              "ports": [
+                {
+                  "protocol": "TCP",
+                  "port": "443"
+                },
+                {
+                  "protocol": "TCP",
+                  "port": "8081"
+                }
+              ],
+              "volumeMounts": [
+                {
+                  "name": "emptydirvolume",
+                  "mountPath": "/mnt/ccf"
+                }
+              ],
+              "resources": {
+                "requests": {
+                  "memoryInGB": 16,
+                  "cpu": 4
+                }
+              }
+            }
+          },
+          {
+            "name": "{{ name }}-ssh",
+            "properties": {
+              "image": "{{ image }}",
+              "command": [
+                "/bin/sh",
+                "-c",
+                "set -x; mkdir -p /root/.ssh/; echo '{{ ssh_key|replace("\n", "") }}' >> /root/.ssh/authorized_keys; {% if is_azure_linux %}tdnf update -y; tdnf install -y openssh-server; ssh-keygen -A; sed -i 's/PermitRootLogin no/PermitRootLogin yes/' /etc/ssh/sshd_config; sed -i 's/# PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config; /usr/sbin/sshd -D{% else %}apt update -y; apt install -y openssh-server; service ssh start; tail -f /dev/null{% endif %}"
+              ],
+              "ports": [
+                {
+                  "protocol": "TCP",
+                  "port": "22"
+                }
+              ],
+              "volumeMounts": [
+                {
+                  "name": "emptydirvolume",
+                  "mountPath": "/mnt/ccf"
+                }
+              ],
+              "resources": {
+                "requests": {
+                  "memoryInGB": 16,
+                  "cpu": 4
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
