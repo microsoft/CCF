@@ -192,9 +192,8 @@ jobs:
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-
           # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit|reconfiguration"
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
 
           # DISABLED until Pool issue causing the CI to stop after 30 minutes is resolved
           # Reconfiguration tests
