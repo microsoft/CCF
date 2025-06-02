@@ -833,10 +833,10 @@ class Snapshot(Entry):
 
             try:
                 receipt = json.loads(receipt_bytes.decode("utf-8"))
-            except:
+            except json.decoder.JSONDecodeError as e:
                 raise InvalidSnapshotException(
                     f"Cannot read receipt from snapshot {os.path.basename(self._filename)}: Receipt starts at {receipt_pos} (file is {self._file_size} bytes), and contains {receipt_bytes}"
-                )
+                ) from e
 
             # Receipts included in snapshots always contain leaf components,
             # including a claims digest and commit evidence, from 2.0.0-rc0 onwards.
