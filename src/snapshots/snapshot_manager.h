@@ -131,7 +131,7 @@ namespace snapshots
                 snapshot_file.write(
                   reinterpret_cast<const char*>(receipt_data), receipt_size);
 
-                snapshot_file.flush();
+                snapshot_file.close();
                 LOG_INFO_FMT(
                   "New snapshot file written to {} [{} bytes]",
                   file_name,
