@@ -155,6 +155,7 @@ namespace asynchost
 
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
+    FILE* parent_dir = nullptr;
     FILE* file = nullptr;
     ccf::pal::Mutex file_lock;
 
@@ -185,6 +186,13 @@ namespace asynchost
       {
         file_name =
           fmt::format("{}.{}", file_name.string(), ledger_recovery_file_suffix);
+      }
+
+      parent_dir = fopen(dir.c_str(), "r");
+      if (!parent_dir)
+      {
+        throw std::logic_error(fmt::format(
+          "Unable to open ledger directory {}: {}", dir, strerror(errno)));
       }
 
       auto file_path = dir / file_name;
@@ -223,10 +231,16 @@ namespace asynchost
       committed = is_ledger_file_name_committed(file_name);
       start_idx = get_start_idx_from_file_name(file_name);
 
+      parent_dir = fopen(dir.c_str(), "r");
+      if (!parent_dir)
+      {
+        throw std::logic_error(fmt::format(
+          "Unable to open ledger directory {}: {}", dir, strerror(errno)));
+      }
+
       const auto mode = committed ? "rb" : "r+b";
 
       file = fopen(file_path.c_str(), mode);
-
       if (!file)
       {
         throw std::logic_error(fmt::format(
@@ -350,6 +364,11 @@ namespace asynchost
 
     ~LedgerFile()
     {
+      if (parent_dir)
+      {
+        fclose(parent_dir);
+      }
+
       if (file)
       {
         fclose(file);
@@ -630,6 +649,19 @@ namespace asynchost
           fmt::format("Failed to flush ledger file: {}", strerror(errno)));
       }
 
+      if (fsync(fileno(file)) != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to sync completed ledger file: {}", strerror(errno)));
+      }
+
+      if (fsync(fileno(parent_dir)) != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to sync ledger directory after completing file: {}",
+          strerror(errno)));
+      }
+
       LOG_TRACE_FMT("Completed ledger file {}", file_name);
 
       completed = true;
@@ -643,6 +675,12 @@ namespace asynchost
       try
       {
         files::rename(file_path, new_file_path);
+        if (fsync(fileno(parent_dir)) != 0)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to sync ledger directory after renaming file: {}",
+            strerror(errno)));
+        }
       }
       catch (const std::exception& e)
       {
