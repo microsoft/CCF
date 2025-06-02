@@ -96,15 +96,14 @@ namespace snapshots
         {
           if (snapshot_idx == it->first)
           {
-            // e.g. snapshot_100_105.committed
+            // e.g. snapshot_100_105
             auto file_name = fmt::format(
-              "{}{}{}{}{}{}",
+              "{}{}{}{}{}",
               snapshot_file_prefix,
               snapshot_idx_delimiter,
               it->first,
               snapshot_idx_delimiter,
-              it->second.evidence_idx,
-              snapshot_committed_suffix);
+              it->second.evidence_idx);
             auto full_snapshot_path = snapshot_dir / file_name;
 
             if (fs::exists(full_snapshot_path))
@@ -136,6 +135,18 @@ namespace snapshots
                   "New snapshot file written to {} [{} bytes]",
                   file_name,
                   static_cast<size_t>(snapshot_file.tellp()));
+
+                // e.g. snapshot_100_105.committed
+                const auto committed_file_name =
+                  fmt::format("{}{}", file_name, snapshot_committed_suffix);
+                const auto full_committed_path =
+                  snapshot_dir / committed_file_name;
+
+                files::rename(full_snapshot_path, full_committed_path);
+                LOG_INFO_FMT(
+                  "Renamed temporary snapshot {} to committed {}",
+                  file_name,
+                  committed_file_name);
               }
             }
 
