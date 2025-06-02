@@ -30,6 +30,7 @@ from cryptography.hazmat.backends import default_backend
 from pycose.messages import Sign1Message
 import sys
 import pathlib
+import infra.concurrency
 
 from loguru import logger as LOG
 
@@ -57,14 +58,54 @@ def test_save_committed_ledger_files(network, args):
 
 
 def test_parse_snapshot_file(network, args):
-    primary, _ = network.find_primary()
-    network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
-    committed_snapshots_dir = network.get_committed_snapshots(primary)
-    for snapshot in os.listdir(committed_snapshots_dir):
-        with ccf.ledger.Snapshot(os.path.join(committed_snapshots_dir, snapshot)) as s:
-            assert len(
-                s.get_public_domain().get_tables()
-            ), "No public table in snapshot"
+    class ReaderThread(infra.concurrency.StoppableThread):
+        def __init__(self, network):
+            super().__init__(name="reader")
+            primary, _ = network.find_primary()
+            self.snapshots_dir = os.path.join(
+                primary.remote.remote.root,
+                primary.remote.snapshots_dir_name,
+            )
+
+        def run(self):
+            seen = set()
+            while not self.is_stopped():
+                for snapshot in os.listdir(self.snapshots_dir):
+                    if snapshot not in seen:
+                        seen.add(snapshot)
+                        with ccf.ledger.Snapshot(
+                            os.path.join(self.snapshots_dir, snapshot)
+                        ) as s:
+                            assert len(
+                                s.get_public_domain().get_tables()
+                            ), "No public table in snapshot"
+                            LOG.success(f"Successfully parsed snapshot: {snapshot}")
+
+    class WriterThread(infra.concurrency.StoppableThread):
+        def __init__(self, network, reader):
+            super().__init__(name="writer")
+            self.primary, _ = network.find_primary()
+            self.member = network.consortium.get_any_active_member()
+            self.reader = reader
+
+        def run(self):
+            while not self.is_stopped() and self.reader.is_alive():
+                self.member.update_ack_state_digest(self.primary)
+
+    reader_thread = ReaderThread(network)
+    reader_thread.start()
+
+    writer_thread = WriterThread(network, reader_thread)
+    writer_thread.start()
+
+    time.sleep(5)
+
+    writer_thread.stop()
+    writer_thread.join()
+
+    reader_thread.stop()
+    reader_thread.join()
+
     return network
 
 
