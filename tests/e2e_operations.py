@@ -84,6 +84,7 @@ def test_parse_snapshot_file(network, args):
                             ), "No public table in snapshot"
                             LOG.success(f"Successfully parsed snapshot: {snapshot}")
             LOG.info(f"Tested {len(seen)} snapshots")
+            assert len(seen) > 0, f"No snapshots seen, so this tested nothing"
 
     class WriterThread(infra.concurrency.StoppableThread):
         def __init__(self, network, reader):
