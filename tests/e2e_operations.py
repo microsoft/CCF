@@ -71,7 +71,10 @@ def test_parse_snapshot_file(network, args):
             seen = set()
             while not self.is_stopped():
                 for snapshot in os.listdir(self.snapshots_dir):
-                    if snapshot not in seen:
+                    if (
+                        ccf.ledger.is_snapshot_file_committed(snapshot)
+                        and snapshot not in seen
+                    ):
                         seen.add(snapshot)
                         with ccf.ledger.Snapshot(
                             os.path.join(self.snapshots_dir, snapshot)
@@ -80,6 +83,7 @@ def test_parse_snapshot_file(network, args):
                                 s.get_public_domain().get_tables()
                             ), "No public table in snapshot"
                             LOG.success(f"Successfully parsed snapshot: {snapshot}")
+            LOG.info(f"Tested {len(seen)} snapshots")
 
     class WriterThread(infra.concurrency.StoppableThread):
         def __init__(self, network, reader):
@@ -98,6 +102,9 @@ def test_parse_snapshot_file(network, args):
     writer_thread = WriterThread(network, reader_thread)
     writer_thread.start()
 
+    # When this test was added, the original failure was occurring 100% of the time within 0.5s.
+    # This fix has been manually verified across multi-minute runs.
+    # 5s is a plausible run-time in the CI, that should still provide convincing coverage.
     time.sleep(5)
 
     writer_thread.stop()

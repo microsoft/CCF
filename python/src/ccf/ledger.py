@@ -86,6 +86,10 @@ def is_ledger_chunk_committed(file_name):
     return file_name.endswith(COMMITTED_FILE_SUFFIX)
 
 
+def is_snapshot_file_committed(file_name):
+    return file_name.endswith(COMMITTED_FILE_SUFFIX)
+
+
 def digest(data):
     return sha256(data).digest()
 
