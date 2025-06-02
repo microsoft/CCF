@@ -106,49 +106,66 @@ namespace snapshots
               it->second.evidence_idx);
             auto full_snapshot_path = snapshot_dir / file_name;
 
-            if (fs::exists(full_snapshot_path))
+            int snapshot_fd = open(
+              full_snapshot_path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0664);
+            if (snapshot_fd == -1)
             {
-              // In the case that a file with this name already exists, keep
-              // existing file and drop pending snapshot
-              LOG_FAIL_FMT(
-                "Cannot write snapshot as file already exists: {}", file_name);
-            }
-            else
-            {
-              std::ofstream snapshot_file(
-                full_snapshot_path, std::ios::app | std::ios::binary);
-              if (!snapshot_file.good())
+              if (errno == EEXIST)
               {
+                // In the case that a file with this name already exists, keep
+                // existing file and drop pending snapshot
                 LOG_FAIL_FMT(
-                  "Cannot write snapshot: error opening file {}", file_name);
+                  "Cannot write snapshot as file already exists: {}",
+                  file_name);
               }
               else
               {
-                const auto& snapshot = it->second.snapshot;
-                snapshot_file.write(
-                  reinterpret_cast<const char*>(snapshot->data()),
-                  snapshot->size());
-                snapshot_file.write(
-                  reinterpret_cast<const char*>(receipt_data), receipt_size);
-
-                snapshot_file.close();
-                LOG_INFO_FMT(
-                  "New snapshot file written to {} [{} bytes]",
-                  file_name,
-                  static_cast<size_t>(snapshot_file.tellp()));
-
-                // e.g. snapshot_100_105.committed
-                const auto committed_file_name =
-                  fmt::format("{}{}", file_name, snapshot_committed_suffix);
-                const auto full_committed_path =
-                  snapshot_dir / committed_file_name;
-
-                files::rename(full_snapshot_path, full_committed_path);
-                LOG_INFO_FMT(
-                  "Renamed temporary snapshot {} to committed {}",
-                  file_name,
-                  committed_file_name);
+                LOG_FAIL_FMT(
+                  "Cannot write snapshot: error ({}) opening file {}",
+                  errno,
+                  file_name);
               }
+            }
+            else
+            {
+              const auto& snapshot = it->second.snapshot;
+
+#define THROW_ON_ERROR(x) \
+  do \
+  { \
+    auto rc = x; \
+    if (rc == -1) \
+    { \
+      throw std::runtime_error(fmt::format( \
+        "Error ({}) writing snapshot {} in " #x, errno, file_name)); \
+    } \
+  } while (0)
+
+              THROW_ON_ERROR(
+                write(snapshot_fd, snapshot->data(), snapshot->size()));
+              THROW_ON_ERROR(write(snapshot_fd, receipt_data, receipt_size));
+
+              THROW_ON_ERROR(fsync(snapshot_fd));
+              THROW_ON_ERROR(close(snapshot_fd));
+
+#undef THROW_ON_ERROR
+
+              LOG_INFO_FMT(
+                "New snapshot file written to {} [{} bytes]",
+                file_name,
+                snapshot->size() + receipt_size);
+
+              // e.g. snapshot_100_105.committed
+              const auto committed_file_name =
+                fmt::format("{}{}", file_name, snapshot_committed_suffix);
+              const auto full_committed_path =
+                snapshot_dir / committed_file_name;
+
+              files::rename(full_snapshot_path, full_committed_path);
+              LOG_INFO_FMT(
+                "Renamed temporary snapshot {} to committed {}",
+                file_name,
+                committed_file_name);
             }
 
             pending_snapshots.erase(it);
