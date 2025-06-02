@@ -277,6 +277,29 @@ def test_host_data_tables(network, args):
 @reqs.snp_only()
 def test_tcb_version_tables(network, args):
     primary, _ = network.find_nodes()
+
+    permissive_tcb_version = {"boot_loader": 0, "microcode": 0, "snp": 0, "tee": 0}
+
+    LOG.info("Checking that the cpuid is correctly validated")
+    for invalid_cpuid in (
+        "",  # Too short
+        "0",  # Not a multiple of 2
+        "000000",  # Too short
+        "0000000000",  # Too long
+        "0000000g",  # Non-hex character
+        "0000000A",  # Not lower-case
+    ):
+        try:
+            network.consortium.set_snp_minimum_tcb_version(
+                primary, invalid_cpuid, permissive_tcb_version
+            )
+        except infra.proposal.ProposalNotCreated:
+            LOG.success("Failed as expected")
+        else:
+            assert (
+                False
+            ), f"Expected cpuid '{invalid_cpuid}' to be refused by validation code"
+
     LOG.info("Checking that the TCB versions is correctly populated")
     cpuid, tcb_version = None, None
     with primary.api_versioned_client(api_version=args.gov_api_version) as client:
@@ -290,16 +313,17 @@ def test_tcb_version_tables(network, args):
     assert cpuid.lower() == cpuid, f"Expected lowercase CPUID, {cpuid}"
 
     LOG.info("Change current cpuid's TCB version")
-    test_tcb_version = {"boot_loader": 0, "microcode": 0, "snp": 0, "tee": 0}
-    network.consortium.set_snp_minimum_tcb_version(primary, cpuid, test_tcb_version)
+    network.consortium.set_snp_minimum_tcb_version(
+        primary, cpuid, permissive_tcb_version
+    )
     with primary.api_versioned_client(api_version=args.gov_api_version) as client:
         r = client.get("/gov/service/join-policy")
         assert r.status_code == http.HTTPStatus.OK, r
         versions = r.body.json()["snp"]["tcbVersions"]
         assert cpuid in versions, f"Expected {cpuid} in TCB versions, {versions}"
         assert (
-            versions[cpuid] == test_tcb_version
-        ), f"TCB version does not match, {versions} != {test_tcb_version}"
+            versions[cpuid] == permissive_tcb_version
+        ), f"TCB version does not match, {versions} != {permissive_tcb_version}"
 
     LOG.info("Removing current cpuid's TCB version")
     network.consortium.remove_snp_minimum_tcb_version(primary, cpuid)
