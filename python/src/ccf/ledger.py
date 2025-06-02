@@ -1194,4 +1194,4 @@ class UnknownTransaction(Exception):
 
 
 class InvalidSnapshotException(Exception):
-    """The given snapshot file has size 0"""
+    """The given snapshot file is invalid and cannot be parsed"""
