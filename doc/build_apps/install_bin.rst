@@ -20,7 +20,7 @@ CCF releases are available on the `GitHub repository release page <https://githu
         # Alternatively, set this manually, e.g.:
         # export CCF_VERSION=6.0.0
         $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_snp_devel_${CCF_VERSION}_x86_64.rpm
-        $ sudo tdnf install ./ccf_snp_${CCF_VERSION}_devel_x86_64.rpm
+        $ sudo tdnf install ./ccf_snp_devel_${CCF_VERSION}_x86_64.rpm
 
     The following commands can be run to verify that CCF was installed successfully:
 
@@ -48,7 +48,7 @@ CCF releases are available on the `GitHub repository release page <https://githu
         # Alternatively, set this manually, e.g.:
         # export CCF_VERSION=6.0.0
         $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_virtual_devel_${CCF_VERSION}_x86_64.rpm
-        $ sudo tdnf install ./ccf_virtual_${CCF_VERSION}_devel_x86_64.rpm
+        $ sudo tdnf install ./ccf_virtual_devel_${CCF_VERSION}_x86_64.rpm
 
     .. warning:: Virtual mode does not provide any security guarantees and should be used for development purposes only.
         
