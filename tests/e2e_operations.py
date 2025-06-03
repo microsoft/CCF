@@ -97,23 +97,6 @@ def test_parse_snapshot_file(network, args):
             while not self.is_stopped() and self.reader.is_alive():
                 self.member.update_ack_state_digest(self.primary)
 
-    # TODO: Strip this before merge
-    primary, _ = network.find_primary()
-    strace_command = [
-        "strace",
-        f"--attach={primary.remote.remote.proc.pid}",
-        "-tt",
-        "-T",
-        "--trace=fsync,open,write,rename",
-        "--decode-fds=all",
-        "--output=strace_output.txt",
-    ]
-    strace_process = subprocess.Popen(
-        strace_command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-
     reader_thread = ReaderThread(network)
     reader_thread.start()
 
@@ -130,9 +113,6 @@ def test_parse_snapshot_file(network, args):
 
     reader_thread.stop()
     reader_thread.join()
-
-    strace_process.terminate()
-    strace_process.communicate()
 
     return network
 
