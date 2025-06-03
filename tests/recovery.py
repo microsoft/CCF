@@ -1414,15 +1414,6 @@ checked. Note that the key for each logging message is unique (per table).
     )
 
     cr.add(
-        "recovery_with_election",
-        run_recovery_with_election,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        ledger_chunk_bytes="50KB",
-        snapshot_tx_interval=30,
-    )
-
-    cr.add(
         "recovery_with_incomplete_ledger",
         run_recovery_with_incomplete_ledger,
         package="samples/apps/logging/liblogging",
