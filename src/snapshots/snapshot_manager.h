@@ -106,6 +106,26 @@ namespace snapshots
               it->second.evidence_idx);
             auto full_snapshot_path = snapshot_dir / file_name;
 
+#define THROW_ON_ERROR(x) \
+  do \
+  { \
+    auto rc = x; \
+    if (rc == -1) \
+    { \
+      throw std::runtime_error(fmt::format( \
+        "Error ({}) writing snapshot {} in " #x, errno, file_name)); \
+    } \
+  } while (0)
+
+            int dir_fd = open(snapshot_dir.c_str(), O_DIRECTORY);
+            if (dir_fd == -1)
+            {
+              throw std::runtime_error(fmt::format(
+                "Error ({}) opening snapshots directory {}",
+                errno,
+                snapshot_dir));
+            }
+
             int snapshot_fd = open(
               full_snapshot_path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0664);
             if (snapshot_fd == -1)
@@ -130,17 +150,6 @@ namespace snapshots
             {
               const auto& snapshot = it->second.snapshot;
 
-#define THROW_ON_ERROR(x) \
-  do \
-  { \
-    auto rc = x; \
-    if (rc == -1) \
-    { \
-      throw std::runtime_error(fmt::format( \
-        "Error ({}) writing snapshot {} in " #x, errno, file_name)); \
-    } \
-  } while (0)
-
               THROW_ON_ERROR(
                 write(snapshot_fd, snapshot->data(), snapshot->size()));
               THROW_ON_ERROR(write(snapshot_fd, receipt_data, receipt_size));
@@ -148,7 +157,7 @@ namespace snapshots
               THROW_ON_ERROR(fsync(snapshot_fd));
               THROW_ON_ERROR(close(snapshot_fd));
 
-#undef THROW_ON_ERROR
+              THROW_ON_ERROR(fsync(dir_fd));
 
               LOG_INFO_FMT(
                 "New snapshot file written to {} [{} bytes]",
@@ -166,7 +175,13 @@ namespace snapshots
                 "Renamed temporary snapshot {} to committed {}",
                 file_name,
                 committed_file_name);
+
+              THROW_ON_ERROR(fsync(dir_fd));
             }
+
+            THROW_ON_ERROR(close(dir_fd));
+
+#undef THROW_ON_ERROR
 
             pending_snapshots.erase(it);
 
