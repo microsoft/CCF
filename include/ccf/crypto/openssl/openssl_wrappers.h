@@ -409,5 +409,14 @@ namespace ccf::crypto
       Unique_EVP_PKEY() = default;
       Unique_EVP_PKEY(EVP_PKEY* key) : Unique_SSL_OBJECT(key, EVP_PKEY_free) {}
     };
+
+    struct Unique_X509_REQ_DER
+      : public Unique_SSL_OBJECT<X509_REQ, X509_REQ_new, X509_REQ_free>
+    {
+      Unique_X509_REQ_DER(BIO* mem) :
+        Unique_SSL_OBJECT::Unique_SSL_OBJECT(
+          d2i_X509_REQ_bio(mem, nullptr), X509_REQ_free)
+      {}
+    };
   }
 }

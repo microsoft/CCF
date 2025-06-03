@@ -54,9 +54,9 @@ TEST_CASE("URL template parsing")
     REQUIRE(match[2].str() == "spain");
 
     path = prefix + "/alice:jump/spain";
-    REQUIRE(std::regex_match(path, match, parsed->template_regex));
-    REQUIRE(match[1].str() == "alice:jump");
-    REQUIRE(match[2].str() == "spain");
+    REQUIRE_FALSE(std::regex_match(path, match, parsed->template_regex));
+    path = prefix + "/alice/spain:jump";
+    REQUIRE_FALSE(std::regex_match(path, match, parsed->template_regex));
 
     require_parsed_components(prefix + "/{name}:do", {"name"});
     require_parsed_components(prefix + "/{name}:do/world", {"name"});

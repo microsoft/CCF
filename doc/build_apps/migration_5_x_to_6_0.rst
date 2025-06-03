@@ -33,7 +33,7 @@ For example to set the minimum TCB version on Milan CPUs the following proposal 
         {
           "name": "set_snp_minimum_tcb_version",
           "args": {
-            "cpuid": "00a0f11",
+            "cpuid": "00a00f11",
             "tcb_version": {
               "boot_loader": 255,
               "tee": 255,
@@ -44,6 +44,32 @@ For example to set the minimum TCB version on Milan CPUs the following proposal 
         }
       ]
     }
+
+.. note::
+    The CPUID must be presented as a lower-case hex-string. The value in the above example is for Milan CPUs, broken down as follows:
+
+    +-----------------+-----------+
+    |                 |    Value  |
+    |      Field      +-----+-----+
+    |                 | dec | hex |
+    +=================+=====+=====+
+    | Reserved        | 0   | 0x0 |
+    +-----------------+-----+-----+
+    | Extended Family | 10  | 0x0a|
+    +-----------------+-----+-----+
+    | Extended Model  | 0   | 0x0 |
+    +-----------------+-----+-----+
+    | Reserved        | 0   | 0x0 |
+    +-----------------+-----+-----+
+    | Base Family     | 15  | 0xf |
+    +-----------------+-----+-----+
+    | Base Model      | 1   | 0x1 |
+    +-----------------+-----+-----+
+    | Stepping        | 1   | 0x1 |
+    +-----------------+-----+-----+
+
+    SNP attestation structures contain the combined Family (``Extended Family + Base Family``) and Model (``Extended Model : Base Model``) values, so 25 (0x19) and 1 (0x01) respectively for the above Milan example.
+
 
 CCF release distribution
 ------------------------
