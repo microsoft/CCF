@@ -5,21 +5,25 @@ use std::borrow::Cow;
 type Txid = u64;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Gossip {
+pub struct GossipStruct {
     pub src: Id,
     pub txid: Txid,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Vote {
+pub struct VoteStruct {
     pub src: Id,
     pub recv: HashableHashSet<Id>,
 }
 
+fn toHashSet(ids: Vec<Id>) -> HashableHashSet<Id> {
+    ids.into_iter().collect()
+}
+
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Msg {
-    Gossip(Gossip),
-    Vote(Vote),
+    Gossip(GossipStruct),
+    Vote(VoteStruct),
     Open,
 }
 
@@ -40,9 +44,9 @@ pub enum NextStep {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct State {
     pub next_step: NextStep,
-    pub gossips: HashableHashSet<Gossip>,
-    pub votes: HashableHashSet<Vote>,
-    pub submitted_vote: Option<(Id, Vote)>,
+    pub gossips: HashableHashSet<GossipStruct>,
+    pub votes: HashableHashSet<VoteStruct>,
+    pub submitted_vote: Option<(Id, VoteStruct)>,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -52,16 +56,16 @@ pub struct Node {
 }
 
 impl Node {
-    fn vote_for_max<'a, I>(gossips: &I, id: Id) -> (Id, Vote)
+    fn vote_for_max<'a, I>(gossips: &I, id: Id) -> (Id, VoteStruct)
     where
-        I: Iterator<Item = &'a Gossip> + Clone,
+        I: Iterator<Item = &'a GossipStruct> + Clone,
     {
         let dst = gossips
             .clone()
             .max_by(|a, b| a.txid.cmp(&b.txid))
             .unwrap()
             .src;
-        let vote = Vote {
+        let vote = VoteStruct {
             src: id,
             recv: gossips.clone().map(|g| g.src.clone()).collect(),
         };
@@ -93,10 +97,12 @@ impl Actor for Node {
     type Msg = Msg;
     type State = State;
     type Timer = Timer;
+    type Storage = ();
+    type Random = ();
 
-    fn on_start(&self, id: Id, o: &mut Out<Self>) -> Self::State {
+    fn on_start(&self, id: Id, _storage: &Option<Self::Storage>, o: &mut Out<Self>) -> Self::State {
         let mut gossips = HashableHashSet::new();
-        gossips.insert(Gossip {
+        gossips.insert(GossipStruct {
             src: id,
             txid: self.txid,
         });
@@ -108,7 +114,7 @@ impl Actor for Node {
         };
         o.broadcast(
             &self.other_peers(id),
-            &Msg::Gossip(Gossip {
+            &Msg::Gossip(GossipStruct {
                 src: id,
                 txid: self.txid,
             }),
@@ -124,7 +130,7 @@ impl Actor for Node {
                     let state = state.to_mut();
                     self.advance_step(state, o, id, true);
                 } else {
-                  o.set_timer(Timer::ElectionTimeout, model_timeout());
+                    o.set_timer(Timer::ElectionTimeout, model_timeout());
                 }
             }
         }
@@ -182,62 +188,62 @@ impl ModelCfg {
     }
 }
 
-impl Rewrite<Id> for Gossip {
-    fn rewrite<S>(&self, plan: &RewritePlan<Id, S>) -> Self {
-        Gossip {
-            src: self.src.rewrite(plan),
-            txid: self.txid,
-        }
-    }
-}
-
-impl Rewrite<Id> for Vote {
-    fn rewrite<S>(&self, plan: &RewritePlan<Id, S>) -> Self {
-        Vote {
-            src: self.src.rewrite(plan),
-            recv: self.recv.iter().map(|r| r.rewrite(plan)).collect(),
-        }
-    }
-}
-
-impl Rewrite<Id> for Msg {
-    fn rewrite<S>(&self, plan: &RewritePlan<Id, S>) -> Self {
-        match self {
-            Msg::Gossip(gossip) => Msg::Gossip(gossip.rewrite(plan)),
-            Msg::Vote(vote) => Msg::Vote(vote.rewrite(plan)),
-            Msg::Open => Msg::Open,
-        }
-    }
-}
-
-impl Rewrite<Id> for Node {
-    fn rewrite<S>(&self, plan: &RewritePlan<Id, S>) -> Self {
-        Node {
-            txid: self.txid,
-            peers: self.peers.iter().map(|p| p.rewrite(plan)).collect(),
-        }
-    }
-}
-
-impl Rewrite<Id> for State {
-    fn rewrite<S>(&self, plan: &RewritePlan<Id, S>) -> Self {
-        State {
-            next_step: self.next_step.clone(),
-            gossips: self.gossips.iter().map(|g| g.rewrite(plan)).collect(),
-            votes: self.votes.iter().map(|v| v.rewrite(plan)).collect(),
-            submitted_vote: None,
-        }
-    }
-}
-
-impl Rewrite<Id> for Timer {
-    fn rewrite<S>(&self, _plan: &RewritePlan<Id, S>) -> Self {
-        self.clone()
-    }
-}
-
-impl Rewrite<Id> for ModelCfg {
-    fn rewrite<S>(&self, _plan: &RewritePlan<Id, S>) -> Self {
-        self.clone()
-    }
-}
+//impl Rewrite<Id> for Gossip {
+//    fn rewrite<S>(&self, plan: &RewritePlan<Id, S>) -> Self {
+//        Gossip {
+//            src: self.src.rewrite(plan),
+//            txid: self.txid,
+//        }
+//    }
+//}
+//
+//impl Rewrite<Id> for Vote {
+//    fn rewrite<S>(&self, plan: &RewritePlan<Id, S>) -> Self {
+//        Vote {
+//            src: self.src.rewrite(plan),
+//            recv: self.recv.iter().map(|r| r.rewrite(plan)).collect(),
+//        }
+//    }
+//}
+//
+//impl Rewrite<Id> for Msg {
+//    fn rewrite<S>(&self, plan: &RewritePlan<Id, S>) -> Self {
+//        match self {
+//            Msg::Gossip(gossip) => Msg::Gossip(gossip.rewrite(plan)),
+//            Msg::Vote(vote) => Msg::Vote(vote.rewrite(plan)),
+//            Msg::Open => Msg::Open,
+//        }
+//    }
+//}
+//
+//impl Rewrite<Id> for Node {
+//    fn rewrite<S>(&self, plan: &RewritePlan<Id, S>) -> Self {
+//        Node {
+//            txid: self.txid,
+//            peers: self.peers.iter().map(|p| p.rewrite(plan)).collect(),
+//        }
+//    }
+//}
+//
+//impl Rewrite<Id> for State {
+//    fn rewrite<S>(&self, plan: &RewritePlan<Id, S>) -> Self {
+//        State {
+//            next_step: self.next_step.clone(),
+//            gossips: self.gossips.iter().map(|g| g.rewrite(plan)).collect(),
+//            votes: self.votes.iter().map(|v| v.rewrite(plan)).collect(),
+//            submitted_vote: None,
+//        }
+//    }
+//}
+//
+//impl Rewrite<Id> for Timer {
+//    fn rewrite<S>(&self, _plan: &RewritePlan<Id, S>) -> Self {
+//        self.clone()
+//    }
+//}
+//
+//impl Rewrite<Id> for ModelCfg {
+//    fn rewrite<S>(&self, _plan: &RewritePlan<Id, S>) -> Self {
+//        self.clone()
+//    }
+//}

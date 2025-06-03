@@ -38,6 +38,7 @@ fn serve(model: ActorModel<Node, ModelCfg, ()>) {
     checker.serve("localhost:8080");
 }
 
+
 fn reached_open(_model: &ActorModel<Node, ModelCfg, ()>, state: &ActorModelState<Node>) -> bool {
     // Check if the open state is reached
     state
@@ -75,7 +76,7 @@ fn main() {
             // state where any vote is made using non-unanimous gossips
             // OR
             // open reached
-            reached_open(model, state) || non_unanimous_gossip(model, state)
+            reached_open(model, state)
         },
     );
 
@@ -112,9 +113,7 @@ fn main() {
                 let all_votes_delivered = state
                     .network
                     .iter_all()
-                    .filter(|msg| {
-                        matches!(msg.msg, Msg::Vote(_))
-                    })
+                    .filter(|msg| matches!(msg.msg, Msg::Vote(_)))
                     .count()
                     == 0;
                 all_open_join && all_votes_delivered
