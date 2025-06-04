@@ -73,9 +73,6 @@ class LocalRemote(CmdMixin):
         env=None,
         **kwargs,
     ):
-        """
-        Local Equivalent to the SSHRemote
-        """
         self.hostname = hostname
         self.exe_files = exe_files
         self.data_files = data_files
@@ -300,7 +297,6 @@ class CCFRemote(object):
         start_type,
         enclave_file,
         enclave_type,
-        remote_class,
         workspace,
         common_dir,
         label="",
@@ -523,7 +519,7 @@ class CCFRemote(object):
                     else enclave_platform.upper()
                 ),
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(
-                    remote_class.make_host(host)
+                    LocalRemote.make_host(host)
                 ),
                 node_certificate_file=self.pem,
                 node_address_file=self.node_address_file,
@@ -547,7 +543,7 @@ class CCFRemote(object):
                 node_pid_file=node_pid_file,
                 snp_security_context_directory_envvar=snp_security_context_directory_envvar,  # Ignored by current jinja, but passed for LTS compat
                 ignore_first_sigterm=ignore_first_sigterm,
-                node_address=remote_class.get_node_address(node_address),
+                node_address=LocalRemote.get_node_address(node_address),
                 follow_redirect=follow_redirect,
                 fetch_recent_snapshot=fetch_recent_snapshot,
                 max_uncommitted_tx_count=max_uncommitted_tx_count,
@@ -633,7 +629,7 @@ class CCFRemote(object):
         if start_type == StartType.join:
             data_files += [os.path.join(self.common_dir, "service_cert.pem")]
 
-        self.remote = remote_class(
+        self.remote = LocalRemote(
             self.name,
             self.pub_host,
             exe_files,
