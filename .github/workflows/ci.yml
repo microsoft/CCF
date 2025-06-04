@@ -194,16 +194,13 @@ jobs:
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # End to end tests
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
-
-          # DISABLED until Pool issue causing the CI to stop after 30 minutes is resolved
-          # Reconfiguration tests
-          # ./tests.sh --timeout 360 --output-on-failure -L reconfiguration -C reconfiguration
         shell: bash
 
       - name: "Partition Tests"
         run: |
           set -ex
           cd build
+          tdnf install -y iptables
           # Partitions tests
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash
