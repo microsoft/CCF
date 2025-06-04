@@ -162,6 +162,9 @@ jobs:
       - name: "Dump environment"
         run: |
           set -ex
+          echo "User"
+          whoami
+
           # Dump environment variables, extract Fabric_NodeIPOrFQDN
           # and save it to a file for reconfiguration test using THIM.
           cat /proc/*/environ | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
