@@ -5,7 +5,6 @@ import time
 from enum import Enum, auto
 import subprocess
 import infra.path
-import ctypes
 import signal
 import re
 import shutil
@@ -23,21 +22,7 @@ DBG = os.getenv("DBG", "lldb")
 
 # Duration after which unresponsive node is declared as crashed on startup
 REMOTE_STARTUP_TIMEOUT_S = 5
-
-
 FILE_TIMEOUT_S = 60
-
-_libc = ctypes.CDLL("libc.so.6")
-
-
-def _term_on_pdeathsig():
-    # usr/include/linux/prctl.h: #define PR_SET_PDEATHSIG 1
-    _libc.prctl(1, signal.SIGTERM)
-
-
-def popen(*args, **kwargs):
-    kwargs["preexec_fn"] = _term_on_pdeathsig
-    return subprocess.Popen(*args, **kwargs)
 
 
 class CmdMixin(object):
@@ -162,7 +147,7 @@ class LocalRemote(CmdMixin):
         LOG.info(f"[{self.hostname}] {cmd} (env: {self.env.keys()})")
         self.stdout = open(self.out, "wb")
         self.stderr = open(self.err, "wb")
-        self.proc = popen(
+        self.proc = subprocess.Popen(
             self.cmd,
             cwd=self.root,
             stdout=self.stdout,
