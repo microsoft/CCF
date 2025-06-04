@@ -176,10 +176,7 @@ endfunction()
 function(add_perf_test)
 
   cmake_parse_arguments(
-    PARSE_ARGV
-    0
-    PARSED_ARGS
-    ""
+    PARSE_ARGV 0 PARSED_ARGS ""
     "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;VERIFICATION_FILE;PERF_LABEL"
     "ADDITIONAL_ARGS"
   )
