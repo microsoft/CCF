@@ -95,12 +95,12 @@ namespace snapshots
     struct AsyncSnapshotSyncAndRename
     {
       // Inputs, populated at construction
-      std::filesystem::path dir;
-      std::string tmp_file_name;
-      int snapshot_fd;
+      const std::filesystem::path dir;
+      const std::string tmp_file_name;
+      const int snapshot_fd;
 
       // Outputs, populated by callback
-      std::string committed_file_name;
+      std::string committed_file_name = {};
     };
 
     static void on_snapshot_sync_and_rename(uv_work_t* req)
@@ -202,11 +202,10 @@ namespace snapshots
               uv_work_t* work_handle = new uv_work_t;
 
               {
-                auto* data = new AsyncSnapshotSyncAndRename;
-
-                data->dir = snapshot_dir;
-                data->tmp_file_name = file_name;
-                data->snapshot_fd = snapshot_fd;
+                auto* data = new AsyncSnapshotSyncAndRename{
+                  .dir = snapshot_dir,
+                  .tmp_file_name = file_name,
+                  .snapshot_fd = snapshot_fd};
 
                 work_handle->data = data;
               }
