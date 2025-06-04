@@ -5,12 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.4]
+
+[6.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.4
+
+### Fixed
+
+- CCF will no longer create in-progress snapshot files with a `.committed` suffix. It will only rename files to `.committed` when they are complete and ready for reading (#7029).
+
+### Changed
+
+- Templated URL parsing will no longer allow `:` within regex matched components, since `:` is already used to delimit actions. Concretely, a call to `GET .../state-digests/abcd:update` should now correctly return a 404, rather than dispatching to `GET .../state-digests/{memberId}` and returning `No ACK record exists for member m[abcd:update]`.
+
 ## [6.0.3]
 
 [6.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.3
 
 ### Changed
 
+- Added `ccf::pal::verify_uvm_endorsements_descriptor()`, which verifies endorsements for a UVM measurement, and returns a descriptor capturing a did, feed, svn triplet that can be used for authorization.
 - SymCrypt backend pinning reverted after 1.8.0 memleak got fixed (#7016).
 
 ## [6.0.2]

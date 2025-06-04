@@ -86,6 +86,10 @@ def is_ledger_chunk_committed(file_name):
     return file_name.endswith(COMMITTED_FILE_SUFFIX)
 
 
+def is_snapshot_file_committed(file_name):
+    return file_name.endswith(COMMITTED_FILE_SUFFIX)
+
+
 def digest(data):
     return sha256(data).digest()
 
@@ -817,6 +821,9 @@ class Snapshot(Entry):
         self._filename = filename
         self._file_size = os.path.getsize(filename)
 
+        if self._file_size == 0:
+            raise InvalidSnapshotException(f"{filename} is currently empty")
+
         entry_start_pos = super()._read_header()
 
         # 1.x snapshots do not include evidence
@@ -824,7 +831,13 @@ class Snapshot(Entry):
             receipt_pos = entry_start_pos + self._header.size
             receipt_bytes = _peek_all(self._file, pos=receipt_pos)
 
-            receipt = json.loads(receipt_bytes.decode("utf-8"))
+            try:
+                receipt = json.loads(receipt_bytes.decode("utf-8"))
+            except json.decoder.JSONDecodeError as e:
+                raise InvalidSnapshotException(
+                    f"Cannot read receipt from snapshot {os.path.basename(self._filename)}: Receipt starts at {receipt_pos} (file is {self._file_size} bytes), and contains {receipt_bytes}"
+                ) from e
+
             # Receipts included in snapshots always contain leaf components,
             # including a claims digest and commit evidence, from 2.0.0-rc0 onwards.
             # This verification code deliberately does not support snapshots
@@ -1178,3 +1191,7 @@ class UntrustedNodeException(Exception):
 
 class UnknownTransaction(Exception):
     """The transaction at seqno does not exist in ledger"""
+
+
+class InvalidSnapshotException(Exception):
+    """The given snapshot file is invalid and cannot be parsed"""
