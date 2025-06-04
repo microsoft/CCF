@@ -183,6 +183,17 @@ jobs:
           ninja
         shell: bash
 
+      - name: "Partition Tests TBD"
+        run: |
+          set -ex
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+          tdnf install -y iptables
+          # Partitions tests
+          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+        shell: bash
+
       - name: "Tests"
         run: |
           set -ex
