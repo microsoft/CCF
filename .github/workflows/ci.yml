@@ -204,9 +204,8 @@ jobs:
         run: |
           set -ex
           cd build
-          # DISABLED until Pool issue causing the CI to stop after 30 minutes is resolved
           # Partitions tests
-          # ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash
 
       - name: "Capture dmesg"
