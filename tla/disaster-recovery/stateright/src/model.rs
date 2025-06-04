@@ -16,10 +16,6 @@ pub struct VoteStruct {
     pub recv: HashableHashSet<Id>,
 }
 
-fn toHashSet(ids: Vec<Id>) -> HashableHashSet<Id> {
-    ids.into_iter().collect()
-}
-
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Msg {
     Gossip(GossipStruct),
@@ -187,63 +183,3 @@ impl ModelCfg {
             .lossy_network(LossyNetwork::No)
     }
 }
-
-//impl Rewrite<Id> for Gossip {
-//    fn rewrite<S>(&self, plan: &RewritePlan<Id, S>) -> Self {
-//        Gossip {
-//            src: self.src.rewrite(plan),
-//            txid: self.txid,
-//        }
-//    }
-//}
-//
-//impl Rewrite<Id> for Vote {
-//    fn rewrite<S>(&self, plan: &RewritePlan<Id, S>) -> Self {
-//        Vote {
-//            src: self.src.rewrite(plan),
-//            recv: self.recv.iter().map(|r| r.rewrite(plan)).collect(),
-//        }
-//    }
-//}
-//
-//impl Rewrite<Id> for Msg {
-//    fn rewrite<S>(&self, plan: &RewritePlan<Id, S>) -> Self {
-//        match self {
-//            Msg::Gossip(gossip) => Msg::Gossip(gossip.rewrite(plan)),
-//            Msg::Vote(vote) => Msg::Vote(vote.rewrite(plan)),
-//            Msg::Open => Msg::Open,
-//        }
-//    }
-//}
-//
-//impl Rewrite<Id> for Node {
-//    fn rewrite<S>(&self, plan: &RewritePlan<Id, S>) -> Self {
-//        Node {
-//            txid: self.txid,
-//            peers: self.peers.iter().map(|p| p.rewrite(plan)).collect(),
-//        }
-//    }
-//}
-//
-//impl Rewrite<Id> for State {
-//    fn rewrite<S>(&self, plan: &RewritePlan<Id, S>) -> Self {
-//        State {
-//            next_step: self.next_step.clone(),
-//            gossips: self.gossips.iter().map(|g| g.rewrite(plan)).collect(),
-//            votes: self.votes.iter().map(|v| v.rewrite(plan)).collect(),
-//            submitted_vote: None,
-//        }
-//    }
-//}
-//
-//impl Rewrite<Id> for Timer {
-//    fn rewrite<S>(&self, _plan: &RewritePlan<Id, S>) -> Self {
-//        self.clone()
-//    }
-//}
-//
-//impl Rewrite<Id> for ModelCfg {
-//    fn rewrite<S>(&self, _plan: &RewritePlan<Id, S>) -> Self {
-//        self.clone()
-//    }
-//}

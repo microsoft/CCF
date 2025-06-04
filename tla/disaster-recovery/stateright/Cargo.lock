@@ -428,7 +428,7 @@ checksum = "8917285742e9f3e1683f0a9c4e6b57960b7314d0b08d30d1ecd426713ee2eee9"
 [[package]]
 name = "stateright"
 version = "0.30.2"
-source = "git+https://github.com/stateright/stateright?rev=4c385128baa589c6760e675ca32219fb722aedd3#4c385128baa589c6760e675ca32219fb722aedd3"
+source = "git+https://github.com/cjen1-msft/stateright?branch=eventually-fix#c59ac159513b88830f9bab58ce094afd58c7cb11"
 dependencies = [
  "ahash",
  "choice",
