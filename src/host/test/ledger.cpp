@@ -7,6 +7,7 @@
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/serialized.h"
+#define TEST_MODE_EXECUTE_SYNC_INLINE
 #include "host/snapshots.h"
 #include "kv/serialised_entry_format.h"
 
