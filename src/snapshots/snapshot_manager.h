@@ -107,8 +107,13 @@ namespace snapshots
     {
       auto data = static_cast<AsyncSnapshotSyncAndRename*>(req->data);
 
-      THROW_ON_ERROR(fsync(data->snapshot_fd), data->tmp_file_name);
-      THROW_ON_ERROR(close(data->snapshot_fd), data->tmp_file_name);
+      {
+        asynchost::TimeBoundLogger log_if_slow(
+          fmt::format("Committing snapshot - fsync({})", data->tmp_file_name));
+        fsync(data->snapshot_fd);
+      }
+
+      close(data->snapshot_fd);
 
       // e.g. snapshot_100_105.committed
       data->committed_file_name =
