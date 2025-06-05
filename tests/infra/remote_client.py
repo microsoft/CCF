@@ -24,7 +24,6 @@ class CCFRemoteClient(object):
         label,
         config,
         command_args,
-        remote_class,
         piccolo_run=False,
     ):
         """
@@ -64,7 +63,7 @@ class CCFRemoteClient(object):
                 f"--config={os.path.basename(config)}",
             ] + client_command_args
 
-        self.remote = remote_class(
+        self.remote = infra.remote.LocalRemote(
             name, host, [self.BIN], self.DEPS, cmd, workspace, self.common_dir
         )
 
@@ -106,9 +105,7 @@ class CCFRemoteCmd(object):
     DEPS = []
     LINES_RESULT_FROM_END = 8
 
-    def __init__(
-        self, name, host, bin_path, common_dir, workspace, remote_class, dependencies
-    ):
+    def __init__(self, name, host, bin_path, common_dir, workspace, dependencies):
         """
         Creates a ccf client on a remote host.
         """
@@ -118,7 +115,7 @@ class CCFRemoteCmd(object):
         self.common_dir = common_dir
 
         self.DEPS = dependencies
-        self.remote = remote_class(
+        self.remote = infra.remote.LocalRemote(
             name,
             host,
             [self.BIN],
