@@ -577,7 +577,7 @@ namespace ccf::kv
   class AbstractSnapshotter
   {
   public:
-    virtual ~AbstractSnapshotter(){};
+    virtual ~AbstractSnapshotter() {};
 
     virtual bool record_committable(ccf::kv::Version v) = 0;
     virtual void commit(ccf::kv::Version v, bool generate_snapshot) = 0;

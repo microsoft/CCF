@@ -50,7 +50,6 @@ def filter_nodes(primary, backups, filter_type):
 
 def my_configure_remote_client(args, client_id, client_host, node, command_args):
     client_host = infra.net.expand_localhost()
-    remote_impl = infra.remote.LocalRemote
 
     try:
         remote_client = infra.remote_client.CCFRemoteClient(
@@ -63,7 +62,6 @@ def my_configure_remote_client(args, client_id, client_host, node, command_args)
             args.label,
             args.config,
             command_args,
-            remote_impl,
             piccolo_run=True,
         )
         remote_client.setup()
