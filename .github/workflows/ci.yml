@@ -134,6 +134,9 @@ jobs:
           # End to end tests
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
           # Partitions tests
+          # Note that those are only run on the virtual CI, as they require enough
+          # privileges to configure iptables. ACI-based pools run unprivileged
+          # containers, and so cannot run these tests unfortunately.
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash
 
@@ -162,9 +165,6 @@ jobs:
       - name: "Dump environment"
         run: |
           set -ex
-          echo "User"
-          whoami
-
           # Dump environment variables, extract Fabric_NodeIPOrFQDN
           # and save it to a file for reconfiguration test using THIM.
           cat /proc/*/environ | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
@@ -186,17 +186,6 @@ jobs:
           ninja
         shell: bash
 
-      - name: "Partition Tests TBD"
-        run: |
-          set -ex
-          cd build
-          rm -rf /github/home/.cache
-          mkdir -p /github/home/.cache
-          tdnf install -y iptables
-          # Partitions tests
-          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
-        shell: bash
-
       - name: "Tests"
         run: |
           set -ex
@@ -208,15 +197,6 @@ jobs:
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # End to end tests
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
-        shell: bash
-
-      - name: "Partition Tests"
-        run: |
-          set -ex
-          cd build
-          tdnf install -y iptables
-          # Partitions tests
-          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash
 
       - name: "Capture dmesg"

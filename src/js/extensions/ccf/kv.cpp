@@ -21,7 +21,7 @@ namespace ccf::js::extensions
     std::unordered_map<std::string, ccf::kv::untyped::Map::Handle*> kv_handles =
       {};
 
-    Impl(ccf::kv::Tx* t) : tx(t){};
+    Impl(ccf::kv::Tx* t) : tx(t) {};
   };
 
   namespace
