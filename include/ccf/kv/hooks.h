@@ -15,7 +15,7 @@ namespace ccf::kv
   {
   public:
     virtual void call(ConfigurableConsensus*) = 0;
-    virtual ~ConsensusHook() {};
+    virtual ~ConsensusHook() = default;
   };
 
   using ConsensusHookPtr = std::unique_ptr<ConsensusHook>;
