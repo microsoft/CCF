@@ -69,6 +69,8 @@ First, the new member should update and retrieve the latest state digest via the
       --cacert service_cert.pem \
       --key new_member_privk.pem \
       --cert new_member_cert.pem \
+      --data-binary @- \
+      -H "content-type: application/cose" \
       --silent | jq > request.json
     $ cat request.json
     {
