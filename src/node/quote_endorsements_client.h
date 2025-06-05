@@ -313,7 +313,7 @@ namespace ccf
       QuoteEndorsementsFetchedCallback cb) :
       rpcsessions(rpcsessions_),
       config(config_),
-      done_cb(cb){};
+      done_cb(cb) {};
 
     void fetch_endorsements()
     {
