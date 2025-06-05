@@ -8,6 +8,7 @@
 #include "ds/files.h"
 #include "ds/serialized.h"
 #include "kv/serialised_entry_format.h"
+#define TEST_MODE_EXECUTE_SYNC_INLINE
 #include "snapshots/snapshot_manager.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
