@@ -134,6 +134,9 @@ jobs:
           # End to end tests
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
           # Partitions tests
+          # Note that those are only run on the virtual CI, as they require enough
+          # privileges to configure iptables. ACI-based pools run unprivileged
+          # containers, and so cannot run these tests unfortunately.
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash
 
@@ -192,22 +195,8 @@ jobs:
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-
           # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit|reconfiguration"
-
-          # DISABLED until Pool issue causing the CI to stop after 30 minutes is resolved
-          # Reconfiguration tests
-          # ./tests.sh --timeout 360 --output-on-failure -L reconfiguration -C reconfiguration
-        shell: bash
-
-      - name: "Partition Tests"
-        run: |
-          set -ex
-          cd build
-          # DISABLED until Pool issue causing the CI to stop after 30 minutes is resolved
-          # Partitions tests
-          # ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
         shell: bash
 
       - name: "Capture dmesg"
