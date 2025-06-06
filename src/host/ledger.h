@@ -1083,7 +1083,10 @@ namespace asynchost
 
       if (fs::is_directory(ledger_dir))
       {
-        // If the ledger directory exists, recover ledger files from it
+        // If the ledger directory exists, populate this->files with the
+        // writeable files from it. These must have no suffix, and must not
+        // end-before the current committed_idx found from the read-only
+        // directories
         LOG_INFO_FMT("Recovering main ledger directory {}", ledger_dir);
 
         for (auto const& f : fs::directory_iterator(ledger_dir))
@@ -1094,6 +1097,42 @@ namespace asynchost
           {
             LOG_INFO_FMT(
               "Ignoring ledger file {} in main ledger directory", file_name);
+
+            ignore_ledger_file(file_name);
+
+            continue;
+          }
+
+          const auto file_end_idx = get_last_idx_from_file_name(file_name);
+
+          if (is_ledger_file_name_committed(file_name))
+          {
+            if (!file_end_idx.has_value())
+            {
+              LOG_FAIL_FMT(
+                "Surprising file {} in {}: committed but not completed!?",
+                file_name,
+                ledger_dir);
+            }
+            else
+            {
+              if (file_end_idx.value() > committed_idx)
+              {
+                committed_idx = file_end_idx.value();
+                end_of_committed_files_idx = file_end_idx.value();
+              }
+            }
+
+            continue;
+          }
+
+          if (file_end_idx.has_value() && file_end_idx.value() <= committed_idx)
+          {
+            LOG_INFO_FMT(
+              "Ignoring ledger file {} in main ledger directory - already "
+              "discovered commit up to {} from read-only directories",
+              file_name,
+              committed_idx);
 
             ignore_ledger_file(file_name);
 
@@ -1137,6 +1176,13 @@ namespace asynchost
             ledger_dir);
           return;
         }
+        else
+        {
+          LOG_INFO_FMT(
+            "Main ledger directory {} contains {} restored (writeable) files",
+            ledger_dir,
+            files.size());
+        }
 
         files.sort([](
                      const std::shared_ptr<LedgerFile>& a,
@@ -1144,29 +1190,11 @@ namespace asynchost
           return a->get_last_idx() < b->get_last_idx();
         });
 
-        auto main_ledger_dir_last_idx = get_latest_file(false)->get_last_idx();
+        const auto main_ledger_dir_last_idx =
+          get_latest_file(false)->get_last_idx();
         if (main_ledger_dir_last_idx > last_idx)
         {
           last_idx = main_ledger_dir_last_idx;
-        }
-
-        // Remove committed files from list of writable files
-        for (auto f = files.begin(); f != files.end();)
-        {
-          if ((*f)->is_committed())
-          {
-            const auto f_last_idx = (*f)->get_last_idx();
-            if (f_last_idx > committed_idx)
-            {
-              committed_idx = f_last_idx;
-              end_of_committed_files_idx = f_last_idx;
-            }
-            f = files.erase(f);
-          }
-          else
-          {
-            f++;
-          }
         }
       }
       else
