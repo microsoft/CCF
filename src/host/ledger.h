@@ -1110,7 +1110,7 @@ namespace asynchost
             if (!file_end_idx.has_value())
             {
               LOG_FAIL_FMT(
-                "Surprising file {} in {}: committed but not completed!?",
+                "Unexpected file {} in {}: committed but not completed",
                 file_name,
                 ledger_dir);
             }
