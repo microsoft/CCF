@@ -1174,6 +1174,12 @@ namespace asynchost
             "Main ledger directory {} is empty: no ledger file to "
             "recover",
             ledger_dir);
+
+          // If we had any uncommitted files, we wouldn't be in this path and
+          // we'd populate last_idx below. In this branch, we need to ensure
+          // last_idx is correctly initialised. Since there are no uncommitted
+          // files, it must match the last committed_idx we've discovered.
+          last_idx = committed_idx;
           return;
         }
         else
