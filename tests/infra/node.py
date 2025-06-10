@@ -153,18 +153,13 @@ class Node:
             # Main RPC interface determines remote implementation
             if interface_name == infra.interfaces.PRIMARY_RPC_INTERFACE:
                 if rpc_interface.protocol == "local":
-                    self.remote_impl = infra.remote.LocalRemote
                     if not self.major_version or self.major_version > 1:
                         self.node_client_host = str(
                             ipaddress.ip_address(BASE_NODE_CLIENT_HOST)
                             + self.local_node_id
                         )
-                elif rpc_interface.protocol == "ssh":
-                    self.remote_impl = infra.remote.SSHRemote
                 else:
-                    assert (
-                        False
-                    ), f"{rpc_interface.protocol} is not 'local://' or 'ssh://'"
+                    assert False, f"{rpc_interface.protocol} is not 'local://'"
 
             if rpc_interface.host == "localhost":
                 rpc_interface.host = infra.net.expand_localhost()
@@ -327,7 +322,6 @@ class Node:
             start_type,
             lib_path,
             enclave_type,
-            self.remote_impl,
             workspace,
             common_dir,
             binary_dir=self.binary_dir,
