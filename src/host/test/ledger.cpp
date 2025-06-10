@@ -1126,7 +1126,7 @@ TEST_CASE("Recovery resilience")
     ledger.commit(last_idx);
   }
 
-  SUBCASE("Corrupt table offset in committed chunk")
+  SUBCASE("Corrupt table offset in committed chunk has no effect")
   {
     REQUIRE(number_of_files_in_ledger_dir() == 1);
     for (auto const& f : fs::directory_iterator(ledger_dir))
@@ -1136,9 +1136,10 @@ TEST_CASE("Recovery resilience")
 
     // Corrupted ledger file is ignored
     Ledger new_ledger(ledger_dir, wf, chunk_threshold);
-    TestEntrySubmitter entry_submitter(new_ledger);
+    const auto last_idx = new_ledger.get_last_idx();
+    TestEntrySubmitter entry_submitter(new_ledger, last_idx);
     entry_submitter.write(true);
-    REQUIRE(entry_submitter.get_last_idx() == 1);
+    REQUIRE(entry_submitter.get_last_idx() == last_idx + 1);
   }
 
   SUBCASE("Corrupt first entry header in uncommitted chunk")
