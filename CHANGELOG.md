@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.5]
+
+[6.0.5]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.5
+
+### Fixed
+
+- Nodes will now avoid re-parsing `.committed` files in the main directory if they have established a later commit point in the `read_only` directories. This should significantly reduce start-up time for nodes with large existing ledgers.
+
 ## [6.0.4]
 
 [6.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.4
