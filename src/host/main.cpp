@@ -1003,7 +1003,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     uv_run(uv_default_loop(), UV_RUN_NOWAIT);
     close_iterations--;
   }
-  LOG_INFO_FMT("Ran an extra {} cleanup iteration(s)", 100 - close_iterations);
+  LOG_INFO_FMT(
+    "Ran an extra {} cleanup iteration(s)", max_iterations - close_iterations);
 
   auto loop_close_rc = uv_loop_close(uv_default_loop());
   if (loop_close_rc != 0)
