@@ -281,30 +281,18 @@ target_link_libraries(
           ${LINK_LIBCXX}
           ccfcrypto
           curl
-          http_parser.host
+          http_parser
 )
 target_compile_definitions(cchost PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 install(TARGETS cchost DESTINATION bin)
 
 # HTTP parser
-if(COMPILE_TARGET STREQUAL "snp")
-  add_library(http_parser.snp "${HTTP_PARSER_SOURCES}")
-  set_property(TARGET http_parser.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
-  if(CCF_DEVEL)
-    install(
-      TARGETS http_parser.snp
-      EXPORT ccf
-      DESTINATION lib
-    )
-  endif()
-endif()
-
-add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
-set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-if(INSTALL_VIRTUAL_LIBRARIES)
+add_library(http_parser "${HTTP_PARSER_SOURCES}")
+set_property(TARGET http_parser PROPERTY POSITION_INDEPENDENT_CODE ON)
+if(CCF_DEVEL)
   install(
-    TARGETS http_parser.host
+    TARGETS http_parser
     EXPORT ccf
     DESTINATION lib
   )
@@ -333,29 +321,14 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/registry.cpp
 )
 
-if(COMPILE_TARGET STREQUAL "snp")
-  add_host_library(ccf_js.snp "${CCF_JS_SOURCES}")
-  add_san(ccf_js.snp)
-  target_link_libraries(ccf_js.snp PUBLIC ccfcrypto quickjs)
-  target_compile_definitions(ccf_js.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
-  add_warning_checks(ccf_js.snp)
-  if(CCF_DEVEL)
-    install(
-      TARGETS ccf_js.snp
-      EXPORT ccf
-      DESTINATION lib
-    )
-  endif()
-endif()
-
-add_host_library(ccf_js.host "${CCF_JS_SOURCES}")
-add_san(ccf_js.host)
-target_link_libraries(ccf_js.host PUBLIC ccfcrypto quickjs)
-target_compile_definitions(ccf_js.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
-add_warning_checks(ccf_js.host)
-if(INSTALL_VIRTUAL_LIBRARIES)
+add_host_library(ccf_js "${CCF_JS_SOURCES}")
+add_san(ccf_js)
+target_link_libraries(ccf_js PUBLIC ccfcrypto quickjs)
+target_compile_definitions(ccf_js PRIVATE CCF_LOGGER_NO_DEPRECATE)
+add_warning_checks(ccf_js)
+if(CCF_DEVEL)
   install(
-    TARGETS ccf_js.host
+    TARGETS ccf_js
     EXPORT ccf
     DESTINATION lib
   )
@@ -367,66 +340,32 @@ set(CCF_KV_SOURCES
     ${CCF_DIR}/src/kv/untyped_map_diff.cpp
 )
 
-if(COMPILE_TARGET STREQUAL "snp")
-  add_host_library(ccf_kv.snp "${CCF_KV_SOURCES}")
-  add_san(ccf_kv.snp)
-  add_warning_checks(ccf_kv.snp)
-  add_tidy(ccf_kv.snp)
-  target_compile_definitions(ccf_kv.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
-  if(CCF_DEVEL)
-    install(
-      TARGETS ccf_kv.snp
-      EXPORT ccf
-      DESTINATION lib
-    )
-  endif()
-endif()
-
-add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
-add_san(ccf_kv.host)
-add_warning_checks(ccf_kv.host)
-add_tidy(ccf_kv.host)
-target_compile_definitions(ccf_kv.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
-if(INSTALL_VIRTUAL_LIBRARIES)
+add_host_library(ccf_kv "${CCF_KV_SOURCES}")
+add_san(ccf_kv)
+add_warning_checks(ccf_kv)
+add_tidy(ccf_kv)
+target_compile_definitions(ccf_kv PRIVATE CCF_LOGGER_NO_DEPRECATE)
+if(CCF_DEVEL)
   install(
-    TARGETS ccf_kv.host
+    TARGETS ccf_kv
     EXPORT ccf
     DESTINATION lib
   )
 endif()
 
-# CCF endpoints libs
-if(COMPILE_TARGET STREQUAL "snp")
-  add_host_library(ccf_endpoints.snp "${CCF_ENDPOINTS_SOURCES}")
-  target_include_directories(ccf_endpoints.snp PRIVATE ${CCF_DIR}/src/endpoints)
-  target_link_libraries(
-    ccf_endpoints.snp PUBLIC qcbor t_cose http_parser.snp ccfcrypto
-                             ccf_kv.snp
-  )
-  add_san(ccf_endpoints.snp)
-  add_warning_checks(ccf_endpoints.snp)
-  target_compile_definitions(ccf_endpoints.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
-  if(CCF_DEVEL)
-    install(
-      TARGETS ccf_endpoints.snp
-      EXPORT ccf
-      DESTINATION lib
-    )
-  endif()
-endif()
-
-add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
-target_include_directories(ccf_endpoints.host PRIVATE ${CCF_DIR}/src/endpoints)
+# CCF endpoints lib
+add_host_library(ccf_endpoints "${CCF_ENDPOINTS_SOURCES}")
+target_include_directories(ccf_endpoints PRIVATE ${CCF_DIR}/src/endpoints)
 target_link_libraries(
-  ccf_endpoints.host PUBLIC qcbor t_cose http_parser.host
-                            ccfcrypto ccf_kv.host
+  ccf_endpoints PUBLIC qcbor t_cose http_parser ccfcrypto
+                            ccf_kv
 )
-add_san(ccf_endpoints.host)
-add_warning_checks(ccf_endpoints.host)
-target_compile_definitions(ccf_endpoints.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
-if(INSTALL_VIRTUAL_LIBRARIES)
+add_san(ccf_endpoints)
+add_warning_checks(ccf_endpoints)
+target_compile_definitions(ccf_endpoints PRIVATE CCF_LOGGER_NO_DEPRECATE)
+if(CCF_DEVEL)
   install(
-    TARGETS ccf_endpoints.host
+    TARGETS ccf_endpoints
     EXPORT ccf
     DESTINATION lib
   )
@@ -469,6 +408,7 @@ endif()
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
 if(CCF_DEVEL)
+  # TODO
   file(WRITE ${CMAKE_BINARY_DIR}/PLATFORM "${COMPILE_TARGET}")
   install(FILES ${CMAKE_BINARY_DIR}/PLATFORM DESTINATION share)
 endif()
@@ -570,11 +510,11 @@ if(COMPILE_TARGET STREQUAL "snp")
     ccf.snp
     PUBLIC ${LINK_LIBCXX}
            -lgcc
-           http_parser.snp
-           ccf_js.snp
-           ccf_endpoints.snp
+           http_parser
+           ccf_js
+           ccf_endpoints
            ccfcrypto
-           ccf_kv.snp
+           ccf_kv
            nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
   )
@@ -622,11 +562,11 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
     ccf.virtual
     PUBLIC ${LINK_LIBCXX}
            -lgcc
-           http_parser.host
-           ccf_js.host
-           ccf_endpoints.host
+           http_parser
+           ccf_js
+           ccf_endpoints
            ccfcrypto
-           ccf_kv.host
+           ccf_kv
            nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
   )
@@ -732,7 +672,7 @@ if(BUILD_TESTS)
     add_unit_test(
       openapi_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/openapi.cpp
     )
-    target_link_libraries(openapi_test PRIVATE http_parser.host)
+    target_link_libraries(openapi_test PRIVATE http_parser)
 
     add_unit_test(
       logger_json_test
@@ -748,7 +688,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
     )
     target_link_libraries(
-      kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_kv.host
+      kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_kv
     )
 
     add_unit_test(
@@ -813,18 +753,18 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
     )
     target_link_libraries(
-      history_test PRIVATE ccfcrypto http_parser.host ccf_kv.host
+      history_test PRIVATE ccfcrypto http_parser ccf_kv
     )
 
     add_unit_test(
       encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
     )
-    target_link_libraries(encryptor_test PRIVATE ccfcrypto ccf_kv.host)
+    target_link_libraries(encryptor_test PRIVATE ccfcrypto ccf_kv)
 
     add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
     target_link_libraries(
-      js_test PRIVATE ccf_js.host ccf_kv.host ccf_endpoints.host ccfcrypto
-                      http_parser.host
+      js_test PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto
+                      http_parser
     )
 
     add_unit_test(
@@ -847,27 +787,27 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/receipt.cpp
     )
     target_link_libraries(
-      historical_queries_test PRIVATE http_parser.host ccf_kv.host
-                                      ccf_endpoints.host
+      historical_queries_test PRIVATE http_parser ccf_kv
+                                      ccf_endpoints
     )
     add_unit_test(
       indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp
     )
-    target_link_libraries(indexing_test PRIVATE ccf_endpoints.host ccf_kv.host)
+    target_link_libraries(indexing_test PRIVATE ccf_endpoints ccf_kv)
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
     )
-    target_link_libraries(snapshot_test PRIVATE ccf_kv.host)
+    target_link_libraries(snapshot_test PRIVATE ccf_kv)
 
     add_unit_test(
       snapshotter_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshotter.cpp
     )
     target_link_libraries(
-      snapshotter_test PRIVATE ccf_kv.host ccf_endpoints.host
+      snapshotter_test PRIVATE ccf_kv ccf_endpoints
     )
 
     add_unit_test(
@@ -906,7 +846,7 @@ if(BUILD_TESTS)
     add_unit_test(
       http_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_test.cpp
     )
-    target_link_libraries(http_test PRIVATE http_parser.host)
+    target_link_libraries(http_test PRIVATE http_parser)
 
     add_unit_test(
       http_etag_test
@@ -922,8 +862,8 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_js.host
-              ccf_endpoints.host ccfcrypto ccf_kv.host
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
+              ccf_endpoints ccfcrypto ccf_kv
     )
 
     add_unit_test(
@@ -933,13 +873,13 @@ if(BUILD_TESTS)
     target_include_directories(
       endpoint_registry_test PRIVATE ${CCF_DIR}/src/endpoints
     )
-    target_link_libraries(endpoint_registry_test PRIVATE ccf_endpoints.host)
+    target_link_libraries(endpoint_registry_test PRIVATE ccf_endpoints)
 
     add_unit_test(
       jwt_auth_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/test_jwt_auth.cpp
     )
-    target_link_libraries(jwt_auth_test PRIVATE ccf_endpoints.host)
+    target_link_libraries(jwt_auth_test PRIVATE ccf_endpoints)
 
     add_unit_test(
       tx_status_test
@@ -953,8 +893,8 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       node_frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_js.host
-              ccf_endpoints.host ccfcrypto ccf_kv.host
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
+              ccf_endpoints ccfcrypto ccf_kv
     )
 
     add_unit_test(
@@ -1020,13 +960,13 @@ if(BUILD_TESTS)
       history_bench
       SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
            ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
-      LINK_LIBS ccf_kv.host
+      LINK_LIBS ccf_kv
     )
 
     add_picobench(
       kv_bench
       SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
-      LINK_LIBS ccf_kv.host
+      LINK_LIBS ccf_kv
     )
     add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
