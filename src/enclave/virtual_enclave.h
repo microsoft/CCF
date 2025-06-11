@@ -2,10 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#if !defined(PLATFORM_VIRTUAL) && !defined(PLATFORM_SNP)
-#  error Should only be included in cchost builds with virtual support
-#endif
-
 #include "ccf/service/consensus_type.h"
 #include "common/enclave_interface_types.h"
 
@@ -33,7 +29,6 @@ T get_enclave_exported_function(
   return (T)sym;
 }
 
-#ifndef PLATFORM_SGX
 // If this build does not also include OE definitions, then recreate them here.
 // It should not matter if these do not match precisely OE's, so long as they
 // can be used consistently by the virtual build.
@@ -49,8 +44,7 @@ enum oe_enclave_type_t
   OE_ENCLAVE_TYPE_SGX = 2,
 };
 
-#  define oe_result_str(x) x
-#endif
+#define oe_result_str(x) x
 
 #ifdef __cplusplus
 extern "C"

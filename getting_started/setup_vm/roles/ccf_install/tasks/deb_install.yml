@@ -47,6 +47,7 @@
   become: true
   when: run_js|bool
 
+# TODO
 - name: Copy JS generic (Virtual)
   copy:
     src: "/opt/ccf_{{ platform }}/lib/{{ ccf_js_app_name }}.virtual.so"

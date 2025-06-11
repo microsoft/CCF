@@ -52,9 +52,6 @@ def max_f(args, number_nodes):
 
 
 def default_platform():
-    if os.path.exists("PLATFORM"):
-        with open("PLATFORM") as f:
-            return f.read().strip()
     return "virtual"
 
 

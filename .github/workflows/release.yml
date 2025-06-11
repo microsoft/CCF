@@ -105,7 +105,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
+          cmake -GNinja -DCCF_TEST_PLATFORM=${{ matrix.platform.name }} -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
           ninja -v | tee build.log
 
       - name: "Test ${{ matrix.platform.name }}"
@@ -161,7 +161,7 @@ jobs:
 
           # Reset cmake config to affect cpack settings
           rm CMakeCache.txt
-          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Release -DCCF_DEVEL=OFF ..
+          cmake -GNinja -DCCF_TEST_PLATFORM=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Release -DCCF_DEVEL=OFF ..
 
           cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
           cpack -V -G RPM

@@ -20,15 +20,7 @@ namespace ccf::pal
      {Platform::Virtual, "Virtual"},
      {Platform::Unknown, "Unknown"}});
 
-  constexpr static auto platform =
-#if defined(PLATFORM_SGX)
-    Platform::SGX
-#elif defined(PLATFORM_SNP)
-    Platform::SNP
-#elif defined(PLATFORM_VIRTUAL)
-    Platform::Virtual
-#else
-    Platform::Unknown
-#endif
-    ;
+  // Default inits to Unknown.
+  // Set this early from CLI, or explicitly for unit tests.
+  static auto platform = Platform::Unknown;
 }

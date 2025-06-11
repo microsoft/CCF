@@ -18,7 +18,7 @@ To build CCF from source, run the following:
         $ cd CCF
         $ mkdir build
         $ cd build
-        $ cmake -GNinja -DCOMPILE_TARGET=snp .. 
+        $ cmake -GNinja -DCCF_TEST_PLATFORM=snp .. 
         $ ninja
 
 
@@ -29,7 +29,7 @@ To build CCF from source, run the following:
         $ cd CCF
         $ mkdir build
         $ cd build
-        $ cmake -GNinja -DCOMPILE_TARGET=virtual ..
+        $ cmake -GNinja ..
         $ ninja
 
 .. note:::

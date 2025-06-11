@@ -14,6 +14,7 @@ _SEV_DEVICE_LINUX_5 = "/dev/sev"
 _SEV_DEVICE_LINUX_6 = "/dev/sev-guest"
 
 
+# TODO: Remove this. Always set from e2e args
 def is_snp():
     return any(
         os.path.exists(dev) for dev in [_SEV_DEVICE_LINUX_5, _SEV_DEVICE_LINUX_6]

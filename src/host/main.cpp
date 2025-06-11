@@ -213,6 +213,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
 
   host::CCHostConfig config = config_json;
 
+  ccf::pal::platform = config.enclave.platform;
+
   if (config.logging.format == host::LogFormat::JSON)
   {
     ccf::logger::config::add_json_console_logger();
@@ -382,7 +384,7 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   }
 
   host::Enclave enclave(
-    enclave_file_path, config.enclave.type, config.enclave.platform);
+    enclave_file_path, config.enclave.type, ccf::pal::platform);
 
   // messaging ring buffers
   const auto buffer_size = config.memory.circuit_size;
@@ -679,7 +681,7 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
         files::try_slurp_string(snp_endorsements_file);
     }
 
-    if (config.enclave.platform == host::EnclavePlatform::VIRTUAL)
+    if (ccf::pal::platform == ccf::pal::Platform::Virtual)
     {
       ccf::pal::emit_virtual_measurement(enclave_file_path);
     }
