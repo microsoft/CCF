@@ -8,6 +8,7 @@
 #include "ccf/ds/hex.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
+#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/snp_ioctl.h"
 
@@ -114,14 +115,24 @@ namespace ccf::pal
 
     auto root_cert_verifier = ccf::crypto::make_verifier(root_certificate);
 
+    auto expected_root_public_key = snp::amd_root_signing_keys.find(
+      std::make_pair(quote.cpuid_fam_id, quote.cpuid_mod_id));
+    if (expected_root_public_key == snp::amd_root_signing_keys.end())
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: Unsupported CPUID family {} model {}",
+        quote.cpuid_fam_id,
+        quote.cpuid_mod_id));
+    }
     if (
       root_cert_verifier->public_key_pem().str() !=
-      snp::amd_milan_root_signing_public_key)
+      expected_root_public_key->second)
     {
       throw std::logic_error(fmt::format(
         "SEV-SNP: The root of trust public key for this attestation was not "
-        "the expected one {}",
-        root_cert_verifier->public_key_pem().str()));
+        "the expected one {} != {}",
+        root_cert_verifier->public_key_pem().str(),
+        expected_root_public_key->second));
     }
 
     if (!root_cert_verifier->verify_certificate({&root_certificate}))

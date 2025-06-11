@@ -8,6 +8,7 @@
 #include "ccf/pal/report_data.h"
 
 #include <array>
+#include <cstdint>
 #include <map>
 #include <string>
 
@@ -35,6 +36,48 @@ pCCoMNit2uLo9M18fHz10lOMT8nWAUvRZFzteXCm+7PHdYPlmQwUw3LvenJ/ILXo
 QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 -----END PUBLIC KEY-----
 )";
+  constexpr auto amd_genoa_root_signing_public_key =
+    R"(-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA3Cd95S/uFOuRIskW9vz9
+VDBF69NDQF79oRhL/L2PVQGhK3YdfEBgpF/JiwWFBsT/fXDhzA01p3LkcT/7Ldjc
+RfKXjHl+0Qq/M4dZkh6QDoUeKzNBLDcBKDDGWo3v35NyrxbA1DnkYwUKU5AAk4P9
+4tKXLp80oxt84ahyHoLmc/LqsGsp+oq1Bz4PPsYLwTG4iMKVaaT90/oZ4I8oibSr
+u92vJhlqWO27d/Rxc3iUMyhNeGToOvgx/iUo4gGpG61NDpkEUvIzuKcaMx8IdTpW
+g2DF6SwF0IgVMffnvtJmA68BwJNWo1E4PLJdaPfBifcJpuBFwNVQIPQEVX3aP89H
+JSp8YbY9lySS6PlVEqTBBtaQmi4ATGmMR+n2K/e+JAhU2Gj7jIpJhOkdH9firQDn
+mlA2SFfJ/Cc0mGNzW9RmIhyOUnNFoclmkRhl3/AQU5Ys9Qsan1jT/EiyT+pCpmnA
++y9edvhDCbOG8F2oxHGRdTBkylungrkXJGYiwGrR8kaiqv7NN8QhOBMqYjcbrkEr
+0f8QMKklIS5ruOfqlLMCBw8JLB3LkjpWgtD7OpxkzSsohN47Uom86RY6lp72g8eX
+HP1qYrnvhzaG1S70vw6OkbaaC9EjiH/uHgAJQGxon7u0Q7xgoREWA/e7JcBQwLg8
+0Hq/sbRuqesxz7wBWSY254cCAwEAAQ==
+-----END PUBLIC KEY-----
+)";
+  constexpr auto amd_turin_root_signing_public_key =
+    R"(-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAwaAriB7EIuVc4ZB1wD3Y
+fDxL+9eyS7+izm0Jj3W772NINCWl8Bj3w/JD2ZjmbRxWdIq/4d9iarCKorXloJUB
+1jRdgxqccTx1aOoig4+2w1XhVVJT7K457wT5ZLNJgQaxqa9Etkwjd6+9sOhlCDE9
+l43kQ0R2BikVJa/uyyVOSwEk5w5tXKOuG9jvq6QtAMJasW38wlqRDaKEGtZ9VUgG
+on27ZuL4sTJuC/azz9/iQBw8kEilzOl95AiTkeY5jSEBDWbAqnZk5qlM7kISKG20
+kgQm14mhNKDI2p2oua+zuAG7i52epoRF2GfU0TYk/yf+vCNB2tnechFQuP2e8bLk
+95ZdqPi9/UWw4JXjtdEA4u2JYplSSUPQVAXKt6LVqujtJcM59JKr2u0XQ75KwxcM
+p15gSXhBfInvPAwuAY4dEwwGqT8oIg4esPHwEsmChhYeDIxPG9R4fx9O0q6p8Gb+
+HXlTiS47P9YNeOpidOUKzDl/S1OvyhDtSL8LJc24QATFydo/iD/KUdvFTRlD0crk
+AMkZLoWQ8hLDGc6BZJXsdd7Zf2e4UW3tI/1oh/2t23Ot3zyhTcv5gDbABu0LjVe9
+8uRnS15SMwK//lJt9e5BqKvgABkSoABf+B4VFtPVEX0ygrYaFaI9i5ABrxnVBmzX
+pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
+-----END PUBLIC KEY-----
+)";
+
+  using AMDFamily = uint8_t;
+  using AMDExtendedModel = uint8_t;
+  inline const std::map<std::pair<AMDFamily, AMDExtendedModel>, const char*>
+    amd_root_signing_keys{
+      {{0x19, 0x0}, amd_milan_root_signing_public_key},
+      {{0x19, 0x1}, amd_genoa_root_signing_public_key},
+      {{0x1A, 0x0}, amd_turin_root_signing_public_key},
+      {{0x1A, 0x1}, amd_turin_root_signing_public_key},
+    };
 
 #pragma pack(push, 1)
   // Table 3
