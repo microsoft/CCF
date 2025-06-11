@@ -46,7 +46,7 @@ target_link_libraries(ccfcrypto PUBLIC ssl)
 set_property(TARGET ccfcrypto PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_compile_definitions(ccfcrypto PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
-if(INSTALL_VIRTUAL_LIBRARIES)
+if(CCF_DEVEL)
   install(
     TARGETS ccfcrypto
     EXPORT ccf
