@@ -122,13 +122,13 @@ def test_measurements_tables(network, args):
 
     original_measurements = get_trusted_measurements(primary)
 
-    if snp.IS_SNP:
+    if args.enclave_platform == "snp":
         assert (
             len(original_measurements) == 0
         ), "Expected no measurement as UVM endorsements are used by default"
 
     LOG.debug("Add dummy measurement")
-    measurement_length = 96 if snp.IS_SNP else 64
+    measurement_length = 96 if args.enclave_platform == "snp" else 64
     dummy_measurement = "a" * measurement_length
     network.consortium.add_measurement(
         primary, args.enclave_platform, dummy_measurement
@@ -810,14 +810,14 @@ def run(args):
 
         # Measurements
         test_measurements_tables(network, args)
-        if not snp.IS_SNP:
+        if args.enclave_platform != "snp":
             test_add_node_with_untrusted_measurement(network, args)
 
         # Host data/security policy
         test_host_data_tables(network, args)
         test_add_node_with_untrusted_host_data(network, args)
 
-        if snp.IS_SNP:
+        if args.enclave_platform == "snp":
             # Virtual has no security policy, _only_ host data (unassociated with anything)
             test_add_node_with_stubbed_security_policy(network, args)
             test_start_node_with_mismatched_host_data(network, args)
@@ -828,7 +828,7 @@ def run(args):
             test_endorsements_tables(network, args)
             test_add_node_with_no_uvm_endorsements(network, args)
 
-        if not snp.IS_SNP:
+        if args.enclave_platform != "snp":
             # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
             test_proposal_invalidation(network, args)
 
@@ -841,7 +841,7 @@ def run(args):
         # Run again at the end to confirm current nodes are acceptable
         test_verify_quotes(network, args)
 
-        if snp.IS_SNP:
+        if args.enclave_platform == "snp":
             test_add_node_with_no_uvm_endorsements_in_kv(network, args)
 
 

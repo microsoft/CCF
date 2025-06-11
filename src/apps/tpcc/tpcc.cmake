@@ -8,9 +8,7 @@ add_client_exe(
 if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
   target_link_libraries(tpcc_client PRIVATE http_parser ccfcrypto)
 else()
-  target_link_libraries(
-    tpcc_client PRIVATE http_parser ccfcrypto c++fs
-  )
+  target_link_libraries(tpcc_client PRIVATE http_parser ccfcrypto c++fs)
 endif()
 # tpcc_client uses http_parser.h, which is an internal header and contains calls
 # to LOG_*_FMT functions.

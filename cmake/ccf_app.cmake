@@ -17,11 +17,7 @@ endif()
 function(add_ccf_app name)
 
   cmake_parse_arguments(
-    PARSE_ARGV
-    1
-    PARSED_ARGS
-    ""
-    ""
+    PARSE_ARGV 1 PARSED_ARGS "" ""
     "SRCS;INCLUDE_DIRS;SYSTEM_INCLUDE_DIRS;LINK_LIBS;DEPS;INSTALL_LIBS"
   )
 
@@ -34,9 +30,7 @@ function(add_ccf_app name)
   )
   add_warning_checks(${name})
 
-  target_link_libraries(
-    ${name} PRIVATE ${PARSED_ARGS_LINK_LIBS} ccf
-  )
+  target_link_libraries(${name} PRIVATE ${PARSED_ARGS_LINK_LIBS} ccf)
 
   if(NOT (SAN OR TSAN))
     target_link_options(${name} PRIVATE LINKER:--no-undefined)

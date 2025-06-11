@@ -22,7 +22,7 @@ target_include_directories(t_cose PRIVATE "${T_COSE_SRC}")
 
 target_include_directories(
   t_cose PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/t_cose/inc>
-                     $<INSTALL_INTERFACE:include/3rdparty/t_cose/inc>
+                $<INSTALL_INTERFACE:include/3rdparty/t_cose/inc>
 )
 
 target_link_libraries(t_cose PUBLIC qcbor crypto)

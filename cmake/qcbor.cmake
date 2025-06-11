@@ -14,7 +14,7 @@ add_library(qcbor STATIC ${QCBOR_SRCS})
 
 target_include_directories(
   qcbor PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/QCBOR>
-                    $<INSTALL_INTERFACE:include/3rdparty/QCBOR>
+               $<INSTALL_INTERFACE:include/3rdparty/QCBOR>
 )
 set_property(TARGET qcbor PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_san(qcbor)

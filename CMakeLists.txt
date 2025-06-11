@@ -343,8 +343,7 @@ endif()
 add_host_library(ccf_endpoints "${CCF_ENDPOINTS_SOURCES}")
 target_include_directories(ccf_endpoints PRIVATE ${CCF_DIR}/src/endpoints)
 target_link_libraries(
-  ccf_endpoints PUBLIC qcbor t_cose http_parser ccfcrypto
-                            ccf_kv
+  ccf_endpoints PUBLIC qcbor t_cose http_parser ccfcrypto ccf_kv
 )
 add_san(ccf_endpoints)
 add_warning_checks(ccf_endpoints)
@@ -461,8 +460,7 @@ set(CCF_IMPL_SOURCE
 add_library(ccf STATIC ${CCF_IMPL_SOURCE})
 
 target_compile_definitions(
-  ccf PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                  _LIBCPP_HAS_THREAD_API_PTHREAD
+  ccf PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
 )
 
 target_compile_options(ccf PUBLIC ${COMPILE_LIBCXX})
@@ -471,26 +469,25 @@ target_compile_definitions(ccf PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 target_include_directories(
   ccf SYSTEM
-  PUBLIC
-    $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-    $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
-                                      #< which are currently under src, and
-                                      #< should be removed or renamed
-    $<INSTALL_INTERFACE:include/>
-    $<INSTALL_INTERFACE:include/3rdparty/>
+  PUBLIC $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+         $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
+                                           #< which are currently under src, and
+                                           #< should be removed or renamed
+         $<INSTALL_INTERFACE:include/>
+         $<INSTALL_INTERFACE:include/3rdparty/>
 )
 
 target_link_libraries(
   ccf
   PUBLIC ${LINK_LIBCXX}
-          -lgcc
-          http_parser
-          ccf_js
-          ccf_endpoints
-          ccfcrypto
-          ccf_kv
-          nghttp2
-          ${CMAKE_THREAD_LIBS_INIT}
+         -lgcc
+         http_parser
+         ccf_js
+         ccf_endpoints
+         ccfcrypto
+         ccf_kv
+         nghttp2
+         ${CMAKE_THREAD_LIBS_INIT}
 )
 
 set_property(TARGET ccf PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -671,9 +668,7 @@ if(BUILD_TESTS)
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
     )
-    target_link_libraries(
-      history_test PRIVATE ccfcrypto http_parser ccf_kv
-    )
+    target_link_libraries(history_test PRIVATE ccfcrypto http_parser ccf_kv)
 
     add_unit_test(
       encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
@@ -682,8 +677,7 @@ if(BUILD_TESTS)
 
     add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
     target_link_libraries(
-      js_test PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto
-                      http_parser
+      js_test PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto http_parser
     )
 
     add_unit_test(
@@ -706,8 +700,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/receipt.cpp
     )
     target_link_libraries(
-      historical_queries_test PRIVATE http_parser ccf_kv
-                                      ccf_endpoints
+      historical_queries_test PRIVATE http_parser ccf_kv ccf_endpoints
     )
     add_unit_test(
       indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
@@ -725,9 +718,7 @@ if(BUILD_TESTS)
       snapshotter_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshotter.cpp
     )
-    target_link_libraries(
-      snapshotter_test PRIVATE ccf_kv ccf_endpoints
-    )
+    target_link_libraries(snapshotter_test PRIVATE ccf_kv ccf_endpoints)
 
     add_unit_test(
       node_info_json_test
@@ -780,9 +771,8 @@ if(BUILD_TESTS)
       ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
-      frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
-              ccf_endpoints ccfcrypto ccf_kv
+      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
+                            ccf_endpoints ccfcrypto ccf_kv
     )
 
     add_unit_test(
@@ -811,9 +801,8 @@ if(BUILD_TESTS)
       ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
-      node_frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
-              ccf_endpoints ccfcrypto ccf_kv
+      node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
+                                 ccf_endpoints ccfcrypto ccf_kv
     )
 
     add_unit_test(
@@ -824,8 +813,7 @@ if(BUILD_TESTS)
     add_executable(merkle_mem src/node/test/merkle_mem.cpp)
     target_compile_options(merkle_mem PRIVATE ${COMPILE_LIBCXX})
     target_link_libraries(
-      merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX}
-                         ccfcrypto
+      merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX} ccfcrypto
     )
     target_compile_definitions(merkle_mem PRIVATE CCF_LOGGER_NO_DEPRECATE)
 

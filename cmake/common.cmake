@@ -48,9 +48,7 @@ function(add_client_exe name)
 
   add_executable(${name} ${PARSED_ARGS_SRCS})
 
-  target_link_libraries(
-    ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto
-  )
+  target_link_libraries(${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto)
   target_include_directories(
     ${name} PRIVATE ${CCF_DIR}/src/clients/perf ${PARSED_ARGS_INCLUDE_DIRS}
   )
@@ -259,8 +257,7 @@ function(add_piccolo_test)
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
       ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --label ${TEST_NAME}
       --perf-label ${PARSED_ARGS_PERF_LABEL} --snapshot-tx-interval 10000
-      ${PARSED_ARGS_ADDITIONAL_ARGS} -t ${CCF_TEST_PLATFORM}
-      ${NODES}
+      ${PARSED_ARGS_ADDITIONAL_ARGS} -t ${CCF_TEST_PLATFORM} ${NODES}
     CONFIGURATIONS perf
   )
 

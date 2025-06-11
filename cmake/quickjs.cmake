@@ -35,7 +35,7 @@ add_san(quickjs)
 set_property(TARGET quickjs PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(
   quickjs PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs>
-                      $<INSTALL_INTERFACE:include/3rdparty/quickjs>
+                 $<INSTALL_INTERFACE:include/3rdparty/quickjs>
 )
 
 if(CCF_DEVEL)

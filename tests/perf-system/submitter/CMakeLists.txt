@@ -7,9 +7,7 @@ add_executable(
 target_compile_definitions(submit PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 add_library(stdcxxhttp_parser "${HTTP_PARSER_SOURCES}")
-target_compile_definitions(
-  stdcxxhttp_parser PRIVATE CCF_LOGGER_NO_DEPRECATE
-)
+target_compile_definitions(stdcxxhttp_parser PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/base64.cpp

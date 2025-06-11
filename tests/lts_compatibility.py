@@ -16,7 +16,6 @@ import json
 import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
-from infra.snp import IS_SNP
 from distutils.dir_util import copy_tree
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -102,7 +101,7 @@ def test_new_service(
     version,
     expected_subject_name=None,
 ):
-    if IS_SNP:
+    if args.enclave_platform == "snp":
         LOG.info(
             "Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade"
         )
@@ -203,7 +202,7 @@ def run_code_upgrade_from(
     to_version=None,
     from_container_image=None,
 ):
-    if IS_SNP:
+    if args.enclave_platform == "snp":
         LOG.info(
             "Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade"
         )

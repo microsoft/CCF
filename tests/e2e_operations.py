@@ -1449,7 +1449,7 @@ def run(args):
     run_cose_signatures_config_check(args)
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
-    if infra.snp.is_snp():
+    if args.enclave_platform == "snp":
         run_initial_uvm_descriptor_checks(args)
         run_initial_tcb_version_checks(args)
         run_recovery_local_unsealing(args)
