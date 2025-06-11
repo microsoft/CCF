@@ -30,47 +30,25 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/sharing.cpp
 )
 
-if(COMPILE_TARGET STREQUAL "snp")
-  add_library(ccfcrypto.snp ${CCFCRYPTO_SRC})
-  add_san(ccfcrypto.snp)
-  add_tidy(ccfcrypto.snp)
-  target_compile_options(ccfcrypto.snp PUBLIC ${COMPILE_LIBCXX})
-  target_link_options(ccfcrypto.snp PUBLIC ${LINK_LIBCXX})
-  target_link_libraries(ccfcrypto.snp PUBLIC qcbor.snp)
-  target_link_libraries(ccfcrypto.snp PUBLIC t_cose.snp)
-  target_link_libraries(ccfcrypto.snp PUBLIC crypto)
-  target_link_libraries(ccfcrypto.snp PUBLIC ssl)
-  set_property(TARGET ccfcrypto.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
-  target_compile_definitions(ccfcrypto.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
-
-  if(CCF_DEVEL)
-    install(
-      TARGETS ccfcrypto.snp
-      EXPORT ccf
-      DESTINATION lib
-    )
-  endif()
-endif()
-
 find_library(CRYPTO_LIBRARY crypto)
 find_library(TLS_LIBRARY ssl)
 
-add_library(ccfcrypto.host STATIC ${CCFCRYPTO_SRC})
-add_san(ccfcrypto.host)
-add_tidy(ccfcrypto.host)
-target_compile_options(ccfcrypto.host PUBLIC ${COMPILE_LIBCXX})
-target_link_options(ccfcrypto.host PUBLIC ${LINK_LIBCXX})
+add_library(ccfcrypto STATIC ${CCFCRYPTO_SRC})
+add_san(ccfcrypto)
+add_tidy(ccfcrypto)
+target_compile_options(ccfcrypto PUBLIC ${COMPILE_LIBCXX})
+target_link_options(ccfcrypto PUBLIC ${LINK_LIBCXX})
 
-target_link_libraries(ccfcrypto.host PUBLIC qcbor.host)
-target_link_libraries(ccfcrypto.host PUBLIC t_cose.host)
-target_link_libraries(ccfcrypto.host PUBLIC crypto)
-target_link_libraries(ccfcrypto.host PUBLIC ssl)
-set_property(TARGET ccfcrypto.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_compile_definitions(ccfcrypto.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
+target_link_libraries(ccfcrypto PUBLIC qcbor)
+target_link_libraries(ccfcrypto PUBLIC t_cose)
+target_link_libraries(ccfcrypto PUBLIC crypto)
+target_link_libraries(ccfcrypto PUBLIC ssl)
+set_property(TARGET ccfcrypto PROPERTY POSITION_INDEPENDENT_CODE ON)
+target_compile_definitions(ccfcrypto PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 if(INSTALL_VIRTUAL_LIBRARIES)
   install(
-    TARGETS ccfcrypto.host
+    TARGETS ccfcrypto
     EXPORT ccf
     DESTINATION lib
   )

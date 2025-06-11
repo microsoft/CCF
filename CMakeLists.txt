@@ -194,6 +194,7 @@ if(CCF_DEVEL)
   )
 endif()
 
+# TODO
 if(COMPILE_TARGET STREQUAL "snp")
   set(INSTALL_VIRTUAL_LIBRARIES OFF)
 elseif(CCF_DEVEL)
@@ -264,6 +265,7 @@ target_include_directories(
   cchost PRIVATE ${CCF_GENERATED_DIR} ${SNMALLOC_INCLUDE_DIRS}
 )
 
+# TODO
 if(COMPILE_TARGET STREQUAL "snp")
   target_compile_definitions(cchost PUBLIC PLATFORM_SNP)
 elseif(COMPILE_TARGET STREQUAL "virtual")
@@ -277,7 +279,7 @@ target_link_libraries(
           ${CMAKE_DL_LIBS}
           ${CMAKE_THREAD_LIBS_INIT}
           ${LINK_LIBCXX}
-          ccfcrypto.host
+          ccfcrypto
           curl
           http_parser.host
 )
@@ -334,7 +336,7 @@ set(CCF_JS_SOURCES
 if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_js.snp "${CCF_JS_SOURCES}")
   add_san(ccf_js.snp)
-  target_link_libraries(ccf_js.snp PUBLIC ccfcrypto.snp quickjs.snp)
+  target_link_libraries(ccf_js.snp PUBLIC ccfcrypto quickjs)
   target_compile_definitions(ccf_js.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
   add_warning_checks(ccf_js.snp)
   if(CCF_DEVEL)
@@ -348,7 +350,7 @@ endif()
 
 add_host_library(ccf_js.host "${CCF_JS_SOURCES}")
 add_san(ccf_js.host)
-target_link_libraries(ccf_js.host PUBLIC ccfcrypto.host quickjs.host)
+target_link_libraries(ccf_js.host PUBLIC ccfcrypto quickjs)
 target_compile_definitions(ccf_js.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
 add_warning_checks(ccf_js.host)
 if(INSTALL_VIRTUAL_LIBRARIES)
@@ -398,7 +400,7 @@ if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_endpoints.snp "${CCF_ENDPOINTS_SOURCES}")
   target_include_directories(ccf_endpoints.snp PRIVATE ${CCF_DIR}/src/endpoints)
   target_link_libraries(
-    ccf_endpoints.snp PUBLIC qcbor.snp t_cose.snp http_parser.snp ccfcrypto.snp
+    ccf_endpoints.snp PUBLIC qcbor t_cose http_parser.snp ccfcrypto
                              ccf_kv.snp
   )
   add_san(ccf_endpoints.snp)
@@ -416,8 +418,8 @@ endif()
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
 target_include_directories(ccf_endpoints.host PRIVATE ${CCF_DIR}/src/endpoints)
 target_link_libraries(
-  ccf_endpoints.host PUBLIC qcbor.host t_cose.host http_parser.host
-                            ccfcrypto.host ccf_kv.host
+  ccf_endpoints.host PUBLIC qcbor t_cose http_parser.host
+                            ccfcrypto ccf_kv.host
 )
 add_san(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
@@ -571,7 +573,7 @@ if(COMPILE_TARGET STREQUAL "snp")
            http_parser.snp
            ccf_js.snp
            ccf_endpoints.snp
-           ccfcrypto.snp
+           ccfcrypto
            ccf_kv.snp
            nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
@@ -623,7 +625,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            http_parser.host
            ccf_js.host
            ccf_endpoints.host
-           ccfcrypto.host
+           ccfcrypto
            ccf_kv.host
            nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
@@ -778,27 +780,27 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/committable_suffix.cpp
     )
-    target_link_libraries(raft_test PRIVATE ccfcrypto.host)
+    target_link_libraries(raft_test PRIVATE ccfcrypto)
 
     add_unit_test(
       raft_enclave_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/enclave.cpp
     )
     target_include_directories(raft_enclave_test PRIVATE ${CCFCRYPTO_INC})
-    target_link_libraries(raft_enclave_test PRIVATE ccfcrypto.host)
+    target_link_libraries(raft_enclave_test PRIVATE ccfcrypto)
 
     add_unit_test(
       crypto_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp
     )
     target_include_directories(crypto_test PRIVATE ${CCFCRYPTO_INC})
-    target_link_libraries(crypto_test PRIVATE ccfcrypto.host)
+    target_link_libraries(crypto_test PRIVATE ccfcrypto)
 
     add_unit_test(
       sharing_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/secret_sharing.cpp
     )
     target_include_directories(sharing_test PRIVATE ${CCFCRYPTO_INC})
-    target_link_libraries(sharing_test PRIVATE ccfcrypto.host)
+    target_link_libraries(sharing_test PRIVATE ccfcrypto)
 
     add_unit_test(
       key_exchange_test
@@ -811,17 +813,17 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
     )
     target_link_libraries(
-      history_test PRIVATE ccfcrypto.host http_parser.host ccf_kv.host
+      history_test PRIVATE ccfcrypto http_parser.host ccf_kv.host
     )
 
     add_unit_test(
       encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
     )
-    target_link_libraries(encryptor_test PRIVATE ccfcrypto.host ccf_kv.host)
+    target_link_libraries(encryptor_test PRIVATE ccfcrypto ccf_kv.host)
 
     add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
     target_link_libraries(
-      js_test PRIVATE ccf_js.host ccf_kv.host ccf_endpoints.host ccfcrypto.host
+      js_test PRIVATE ccf_js.host ccf_kv.host ccf_endpoints.host ccfcrypto
                       http_parser.host
     )
 
@@ -885,7 +887,7 @@ if(BUILD_TESTS)
       cose_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cose.cpp
     )
     target_link_libraries(
-      cose_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto.host qcbor.host
+      cose_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto qcbor
     )
 
     add_unit_test(pem_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/pem.cpp)
@@ -921,7 +923,7 @@ if(BUILD_TESTS)
     target_link_libraries(
       frontend_test
       PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_js.host
-              ccf_endpoints.host ccfcrypto.host ccf_kv.host
+              ccf_endpoints.host ccfcrypto ccf_kv.host
     )
 
     add_unit_test(
@@ -952,7 +954,7 @@ if(BUILD_TESTS)
     target_link_libraries(
       node_frontend_test
       PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_js.host
-              ccf_endpoints.host ccfcrypto.host ccf_kv.host
+              ccf_endpoints.host ccfcrypto ccf_kv.host
     )
 
     add_unit_test(
@@ -964,7 +966,7 @@ if(BUILD_TESTS)
     target_compile_options(merkle_mem PRIVATE ${COMPILE_LIBCXX})
     target_link_libraries(
       merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX}
-                         ccfcrypto.host
+                         ccfcrypto
     )
     target_compile_definitions(merkle_mem PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
@@ -973,7 +975,7 @@ if(BUILD_TESTS)
       raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
                   src/enclave/thread_local.cpp
     )
-    target_link_libraries(raft_driver PRIVATE ccfcrypto.host)
+    target_link_libraries(raft_driver PRIVATE ccfcrypto)
     target_include_directories(raft_driver PRIVATE src/aft)
     target_compile_definitions(raft_driver PRIVATE CCF_LOGGER_NO_DEPRECATE)
 

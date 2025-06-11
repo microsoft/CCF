@@ -9,7 +9,7 @@ function(add_unit_test name)
     ${name} PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
   )
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host -pthread)
+  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto -pthread)
   add_san(${name})
 
   add_test(NAME ${name} COMMAND ${name})
@@ -35,7 +35,7 @@ function(add_test_bin name)
   target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host)
+  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto)
   add_san(${name})
 endfunction()
 
@@ -49,7 +49,7 @@ function(add_client_exe name)
   add_executable(${name} ${PARSED_ARGS_SRCS})
 
   target_link_libraries(
-    ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto.host
+    ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto
   )
   target_include_directories(
     ${name} PRIVATE ${CCF_DIR}/src/clients/perf ${PARSED_ARGS_INCLUDE_DIRS}
@@ -326,7 +326,7 @@ function(add_picobench name)
 
   target_link_libraries(
     ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${PARSED_ARGS_LINK_LIBS}
-                    ccfcrypto.host
+                    ccfcrypto
   )
 
   add_san(${name})

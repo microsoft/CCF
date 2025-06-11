@@ -37,7 +37,7 @@ set(CCFCRYPTO_SRC
 add_library(stdcxxccfcrypto.host STATIC "${CCFCRYPTO_SRC}")
 target_link_libraries(stdcxxccfcrypto.host PUBLIC crypto)
 target_link_libraries(stdcxxccfcrypto.host PUBLIC ssl)
-target_link_libraries(stdcxxccfcrypto.host PUBLIC qcbor.host)
+target_link_libraries(stdcxxccfcrypto.host PUBLIC qcbor)
 target_compile_definitions(stdcxxccfcrypto.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 target_link_libraries(

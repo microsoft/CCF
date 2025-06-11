@@ -6,10 +6,10 @@ add_client_exe(
   tpcc_client SRCS ${CMAKE_CURRENT_LIST_DIR}/clients/tpcc_client.cpp
 )
 if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
-  target_link_libraries(tpcc_client PRIVATE http_parser.host ccfcrypto.host)
+  target_link_libraries(tpcc_client PRIVATE http_parser.host ccfcrypto)
 else()
   target_link_libraries(
-    tpcc_client PRIVATE http_parser.host ccfcrypto.host c++fs
+    tpcc_client PRIVATE http_parser.host ccfcrypto c++fs
   )
 endif()
 # tpcc_client uses http_parser.h, which is an internal header and contains calls
