@@ -106,9 +106,14 @@ def version_after(version, cmp_version):
         version
     ) > ccf._versionifier.to_python_version(cmp_version)
 
+
 def major_version(full_version):
-    return  Version(strip_version(full_version)).release[0]            if full_version is not None            else None
-        
+    return (
+        Version(strip_version(full_version)).release[0]
+        if full_version is not None
+        else None
+    )
+
 
 class Node:
     def __init__(
@@ -301,7 +306,9 @@ class Node:
         and ships over the files)
         """
         lib_path = infra.path.build_lib_path(
-            lib_name, enclave_platform, library_dir=self.library_dir,
+            lib_name,
+            enclave_platform,
+            library_dir=self.library_dir,
             major_version=self.major_version,
         )
         self.common_dir = common_dir

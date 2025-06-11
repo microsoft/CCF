@@ -14,13 +14,17 @@ def get_measurement(enclave_platform, package, library_dir="."):
         raise ValueError(f"Cannot get measurement on {enclave_platform}")
 
 
-def get_host_data_and_security_policy(enclave_platform, package, library_dir=".", major_version=None):
+def get_host_data_and_security_policy(
+    enclave_platform, package, library_dir=".", major_version=None
+):
     if enclave_platform == "snp":
         security_policy = snp.get_container_group_security_policy()
         host_data = sha256(security_policy.encode()).hexdigest()
         return host_data, security_policy
     elif enclave_platform == "virtual":
-        lib_path = infra.path.build_lib_path(package, enclave_platform, library_dir, major_version=major_version)
+        lib_path = infra.path.build_lib_path(
+            package, enclave_platform, library_dir, major_version=major_version
+        )
         hash = sha256(open(lib_path, "rb").read())
         return hash.hexdigest(), None
     else:

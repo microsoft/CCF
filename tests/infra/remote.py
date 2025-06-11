@@ -471,7 +471,7 @@ class CCFRemote(object):
                 f"Consensus message timeout ({consensus_update_timeout_ms}ms) is not significantly less than election timeout ({election_timeout_ms}ms). This may lead to many unintended elections"
             )
 
-        LOG.warning(f"!!! In CCFRemote.__init__()")
+        LOG.warning("!!! In CCFRemote.__init__()")
         # Configuration file
         if config_file:
             LOG.info(

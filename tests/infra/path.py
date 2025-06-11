@@ -20,7 +20,9 @@ def mk_new(name, contents):
         mk(name, contents)
 
 
-def build_lib_path(lib_name, enclave_platform="virtual", library_dir=".", major_version=None):
+def build_lib_path(
+    lib_name, enclave_platform="virtual", library_dir=".", major_version=None
+):
     if major_version is None or major_version >= 7:
         ext = ".so"
     else:
