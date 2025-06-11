@@ -12,7 +12,6 @@ import infra.bencher
 from loguru import logger as LOG
 
 
-
 def format_message(idx):
     return """
     Nodes whisper secrets,

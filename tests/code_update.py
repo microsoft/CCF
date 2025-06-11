@@ -443,9 +443,7 @@ def test_start_node_with_mismatched_host_data(network, args):
 def test_add_node_with_untrusted_measurement(network, args):
     primary, _ = network.find_nodes()
 
-    measurement = infra.utils.get_measurement(
-        args.enclave_platform, args.package
-    )
+    measurement = infra.utils.get_measurement(args.enclave_platform, args.package)
 
     LOG.info("Removing this measurement so that a new joiner is refused")
     network.consortium.remove_measurement(primary, args.enclave_platform, measurement)

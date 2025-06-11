@@ -20,11 +20,9 @@ def mk_new(name, contents):
         mk(name, contents)
 
 
-def build_lib_path(
-    lib_name, enclave_platform="virtual", library_dir="."
-):
+def build_lib_path(lib_name, enclave_platform="virtual", library_dir="."):
     ext = ".so"
-    if enclave_platform == "virtual" :
+    if enclave_platform == "virtual":
         mode = "Virtual mode"
     elif enclave_platform == "snp":
         mode = "SNP enclave"
