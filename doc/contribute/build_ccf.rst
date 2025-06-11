@@ -53,7 +53,6 @@ The most common build switches include:
 
 * **BUILD_TESTS**: Boolean. Build all tests for CCF. Default to ON.
 * **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
-* **COMPILE_TARGET**: String. Target compilation platform. Defaults to ``snp``. Supported values are ``snp``, or ``virtual``.
 
 Run Tests
 ---------
