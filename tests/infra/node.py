@@ -106,6 +106,9 @@ def version_after(version, cmp_version):
         version
     ) > ccf._versionifier.to_python_version(cmp_version)
 
+def major_version(full_version):
+    return  Version(strip_version(full_version)).release[0]            if full_version is not None            else None
+        
 
 class Node:
     def __init__(
@@ -135,11 +138,7 @@ class Node:
         # nodes or networks
         self.host = copy.deepcopy(host)
         self.version = version
-        self.major_version = (
-            Version(strip_version(self.version)).release[0]
-            if self.version is not None
-            else None
-        )
+        self.major_version = major_version(self.version)
         self.certificate_valid_from = None
         self.certificate_validity_days = None
         self.initial_node_data_json_file = node_data_json_file
@@ -302,7 +301,8 @@ class Node:
         and ships over the files)
         """
         lib_path = infra.path.build_lib_path(
-            lib_name, enclave_platform, library_dir=self.library_dir
+            lib_name, enclave_platform, library_dir=self.library_dir,
+            major_version=self.major_version,
         )
         self.common_dir = common_dir
         members_info = members_info or []
