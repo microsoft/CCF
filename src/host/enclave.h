@@ -5,14 +5,10 @@
 #include "ccf/ds/logger.h"
 #include "ccf/version.h"
 #include "enclave/interface.h"
+#include "enclave/virtual_enclave.h"
 
 #include <dlfcn.h>
 #include <filesystem>
-
-// TODO: Remove this comment if possible, restore normal order?
-// Include order matters. virtual_enclave.h uses the OE definitions if
-// available, else creates its own stubs
-#include "enclave/virtual_enclave.h"
 
 namespace host
 {
@@ -65,6 +61,8 @@ namespace host
   private:
     void* virtual_handle = nullptr;
 
+    const ccf::pal::Platform platform;
+
   public:
     /**
      * Create an uninitialized enclave hosting the given library.
@@ -75,7 +73,8 @@ namespace host
      * flags should be passed to OE, or whether to dlload a virtual enclave
      */
     Enclave(
-      const std::string& path, EnclaveType type, ccf::pal::Platform platform)
+      const std::string& path, EnclaveType type, ccf::pal::Platform platform_) :
+      platform(platform_)
     {
       if (!std::filesystem::exists(path))
       {
@@ -139,7 +138,7 @@ namespace host
     node_cert.size(), &node_cert_len, service_cert.data(), \
     service_cert.size(), &service_cert_len, enclave_version_buf.data(), \
     enclave_version_buf.size(), &enclave_version_len, start_type, \
-    enclave_log_level, num_worker_thread, time_location, work_beacon
+    enclave_log_level, platform, num_worker_thread, time_location, work_beacon
 
       oe_result_t err = OE_FAILURE;
 

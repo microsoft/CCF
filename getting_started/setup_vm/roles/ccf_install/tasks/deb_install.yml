@@ -47,22 +47,12 @@
   become: true
   when: run_js|bool
 
-# TODO
-- name: Copy JS generic (Virtual)
+- name: Copy JS generic
   copy:
-    src: "/opt/ccf_{{ platform }}/lib/{{ ccf_js_app_name }}.virtual.so"
-    dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.virtual.so"
+    src: "/opt/ccf/lib/{{ ccf_js_app_name }}.so"
+    dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.so"
     remote_src: true
   become: true
-  when: (run_js|bool) and (platform == "virtual")
-
-- name: Copy JS generic (SNP)
-  copy:
-    src: "/opt/ccf_{{ platform }}/lib/{{ ccf_js_app_name }}.snp.so"
-    dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.snp.so"
-    remote_src: true
-  become: true
-  when: (run_js|bool) and (platform == "snp")
 
 - name: Remove release
   apt:

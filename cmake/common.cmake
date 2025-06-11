@@ -156,18 +156,10 @@ function(add_e2e_test)
       )
     endif()
 
-    if(DEFINED DEFAULT_ENCLAVE_TYPE)
-      set_property(
-        TEST ${PARSED_ARGS_NAME}
-        APPEND
-        PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
-      )
-    endif()
-
     set_property(
       TEST ${PARSED_ARGS_NAME}
       APPEND
-      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_PLATFORM=${COMPILE_TARGET}"
+      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_PLATFORM=${CCF_TEST_PLATFORM}"
     )
   endif()
 endfunction()
@@ -186,8 +178,7 @@ function(add_perf_test)
 
   set(TESTS_SUFFIX "")
   set(ENCLAVE_TYPE "")
-  set(ENCLAVE_PLATFORM "${COMPILE_TARGET}")
-  if("virtual" STREQUAL COMPILE_TARGET)
+  if("virtual" STREQUAL CCF_TEST_PLATFORM)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_virtual")
     set(ENCLAVE_TYPE "virtual")
   endif()
@@ -205,7 +196,7 @@ function(add_perf_test)
       ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --write-tx-times
       --label ${TEST_NAME} --snapshot-tx-interval 10000 --perf-label
       ${PARSED_ARGS_PERF_LABEL} ${PARSED_ARGS_ADDITIONAL_ARGS} -e
-      ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM} ${NODES}
+      ${ENCLAVE_TYPE} -t ${CCF_TEST_PLATFORM} ${NODES}
     CONFIGURATIONS perf
   )
 
@@ -215,13 +206,7 @@ function(add_perf_test)
     APPEND
     PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
-  if(DEFINED DEFAULT_ENCLAVE_TYPE)
-    set_property(
-      TEST ${TEST_NAME}
-      APPEND
-      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
-    )
-  endif()
+
   if(DEFINED DEFAULT_ENCLAVE_PLATFORM)
     set_property(
       TEST ${TEST_NAME}
@@ -257,8 +242,7 @@ function(add_piccolo_test)
 
   set(TESTS_SUFFIX "")
   set(ENCLAVE_TYPE "")
-  set(ENCLAVE_PLATFORM "${COMPILE_TARGET}")
-  if("virtual" STREQUAL COMPILE_TARGET)
+  if("virtual" STREQUAL CCF_TEST_PLATFORM)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_virtual")
     set(ENCLAVE_TYPE "virtual")
   endif()
@@ -275,7 +259,7 @@ function(add_piccolo_test)
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
       ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --label ${TEST_NAME}
       --perf-label ${PARSED_ARGS_PERF_LABEL} --snapshot-tx-interval 10000
-      ${PARSED_ARGS_ADDITIONAL_ARGS} -e ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM}
+      ${PARSED_ARGS_ADDITIONAL_ARGS} -t ${CCF_TEST_PLATFORM}
       ${NODES}
     CONFIGURATIONS perf
   )
@@ -286,13 +270,7 @@ function(add_piccolo_test)
     APPEND
     PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
-  if(DEFINED DEFAULT_ENCLAVE_TYPE)
-    set_property(
-      TEST ${TEST_NAME}
-      APPEND
-      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
-    )
-  endif()
+
   if(DEFINED DEFAULT_ENCLAVE_PLATFORM)
     set_property(
       TEST ${TEST_NAME}

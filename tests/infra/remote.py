@@ -498,7 +498,7 @@ class CCFRemote(object):
             output = t.render(
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
-                enclave_type=enclave_type.title(),
+                enclave_type=enclave_platform.title(),
                 enclave_platform=(
                     enclave_platform.title()
                     if enclave_platform == "virtual"

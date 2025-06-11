@@ -110,6 +110,7 @@ extern "C"
     size_t* enclave_version_len,
     StartType start_type,
     ccf::LoggerLevel enclave_log_level,
+    ccf::pal::Platform platform,
     size_t num_worker_thread,
     void* time_location,
     const ccf::ds::WorkBeaconPtr& work_beacon)
@@ -131,6 +132,7 @@ extern "C"
       size_t*,
       StartType,
       ccf::LoggerLevel,
+      ccf::pal::Platform,
       size_t,
       void*,
       const ccf::ds::WorkBeaconPtr&);
@@ -156,6 +158,7 @@ extern "C"
       enclave_version_len,
       start_type,
       enclave_log_level,
+      platform,
       num_worker_thread,
       time_location,
       work_beacon);
