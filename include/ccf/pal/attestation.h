@@ -130,7 +130,8 @@ namespace ccf::pal
     {
       throw std::logic_error(fmt::format(
         "SEV-SNP: The root of trust public key for this attestation was not "
-        "the expected one {} != {}",
+        "the expected one for {} {}:  {} != {}",
+        quote.cpuid_fam_id, quote_cpuid.mod_id,
         root_cert_verifier->public_key_pem().str(),
         expected_root_public_key->second));
     }
