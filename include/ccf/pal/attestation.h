@@ -115,26 +115,36 @@ namespace ccf::pal
 
     auto root_cert_verifier = ccf::crypto::make_verifier(root_certificate);
 
-    auto expected_root_public_key = snp::amd_root_signing_keys.find(
-      std::make_pair(quote.cpuid_fam_id, quote.cpuid_mod_id));
-    if (expected_root_public_key == snp::amd_root_signing_keys.end())
+    std::string expected_root_public_key;
+    if (quote.version < 3)
     {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: Unsupported CPUID family {} model {}",
-        quote.cpuid_fam_id,
-        quote.cpuid_mod_id));
+      // before version 3 there are no cpuid fields so we must assume that it is
+      // milan
+      expected_root_public_key = snp::amd_milan_root_signing_public_key;
     }
-    if (
-      root_cert_verifier->public_key_pem().str() !=
-      expected_root_public_key->second)
+    else
+    {
+      auto key = snp::amd_root_signing_keys.find(
+        std::make_pair(quote.cpuid_fam_id, quote.cpuid_mod_id));
+      if (key == snp::amd_root_signing_keys.end())
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: Unsupported CPUID family {} model {}",
+          quote.cpuid_fam_id,
+          quote.cpuid_mod_id));
+      }
+      expected_root_public_key = key->second;
+    }
+    if (root_cert_verifier->public_key_pem().str() != expected_root_public_key)
     {
       throw std::logic_error(fmt::format(
         "SEV-SNP: The root of trust public key for this attestation was not "
-        "the expected one for {} {}:  {} != {}",
+        "the expected one for v{} {} {}:  {} != {}",
+        quote.version,
         quote.cpuid_fam_id,
         quote.cpuid_mod_id,
         root_cert_verifier->public_key_pem().str(),
-        expected_root_public_key->second));
+        expected_root_public_key));
     }
 
     if (!root_cert_verifier->verify_certificate({&root_certificate}))
