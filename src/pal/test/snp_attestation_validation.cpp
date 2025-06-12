@@ -1,14 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-
 #include "ccf/ds/hex.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/report_data.h"
 #include "crypto/openssl/hash.h"
-
 #include "pal/test/snp_attestation_validation_data.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -25,12 +23,12 @@ TEST_CASE("milan validation")
     // chip_certificate /o sev_version_certificate /o root_certificate
     // root pubkey -> root cert -> sev_version_cert (ASK?) -> chip_cert
     // sig algo of attestation sig must be ecdsa_p384_sha384
-    .endorsements = std::vector<uint8_t>(pal::snp::testing::milan_endorsements.begin(),
-                                         pal::snp::testing::milan_endorsements.end()),
+    .endorsements = std::vector<uint8_t>(
+      pal::snp::testing::milan_endorsements.begin(),
+      pal::snp::testing::milan_endorsements.end()),
     .uvm_endorsements = std::nullopt,
   };
 
-  
   // Output by verify_snp_attestation_report
   pal::PlatformAttestationMeasurement measurement;
   pal::PlatformAttestationReportData report_data;
@@ -50,12 +48,12 @@ TEST_CASE("genoa validation")
     // chip_certificate /o sev_version_certificate /o root_certificate
     // root pubkey -> root cert -> sev_version_cert (ASK?) -> chip_cert
     // sig algo of attestation sig must be ecdsa_p384_sha384
-    .endorsements = std::vector<uint8_t>(pal::snp::testing::genoa_endorsements.begin(),
-                                         pal::snp::testing::genoa_endorsements.end()),
+    .endorsements = std::vector<uint8_t>(
+      pal::snp::testing::genoa_endorsements.begin(),
+      pal::snp::testing::genoa_endorsements.end()),
     .uvm_endorsements = std::nullopt,
   };
 
-  
   // Output by verify_snp_attestation_report
   pal::PlatformAttestationMeasurement measurement;
   pal::PlatformAttestationReportData report_data;
@@ -75,12 +73,12 @@ TEST_CASE("Mismatched attestation and endorsements fail")
     // chip_certificate /o sev_version_certificate /o root_certificate
     // root pubkey -> root cert -> sev_version_cert (ASK?) -> chip_cert
     // sig algo of attestation sig must be ecdsa_p384_sha384
-    .endorsements = std::vector<uint8_t>(pal::snp::testing::genoa_endorsements.begin(),
-                                         pal::snp::testing::genoa_endorsements.end()),
+    .endorsements = std::vector<uint8_t>(
+      pal::snp::testing::genoa_endorsements.begin(),
+      pal::snp::testing::genoa_endorsements.end()),
     .uvm_endorsements = std::nullopt,
   };
 
-  
   // Output by verify_snp_attestation_report
   pal::PlatformAttestationMeasurement measurement;
   pal::PlatformAttestationReportData report_data;
@@ -89,10 +87,13 @@ TEST_CASE("Mismatched attestation and endorsements fail")
   {
     pal::verify_snp_attestation_report(
       mismatched_quote, measurement, report_data);
-  } catch (const std::logic_error& e)
+  }
+  catch (const std::logic_error& e)
   {
     const std::string what = e.what();
-    CHECK(what.find("SEV-SNP: The root of trust public key for this attestation was not the expected one") != std::string::npos);
+    CHECK(
+      what.find("SEV-SNP: The root of trust public key for this attestation "
+                "was not the expected one") != std::string::npos);
   }
 }
 
