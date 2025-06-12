@@ -21,7 +21,7 @@ TEST_CASE("milan validation")
     .quote = pal::snp::testing::milan_attestation,
     // bundle of certificates
     // chip_certificate /o sev_version_certificate /o root_certificate
-    // root pubkey -> root cert -> sev_version_cert (ASK?) -> chip_cert
+    // root pubkey -> root cert (ARK) -> sev_version_cert (ASK) -> chip_cert
     // sig algo of attestation sig must be ecdsa_p384_sha384
     .endorsements = std::vector<uint8_t>(
       pal::snp::testing::milan_endorsements.begin(),
