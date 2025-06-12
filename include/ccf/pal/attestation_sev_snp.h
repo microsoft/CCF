@@ -70,8 +70,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 )";
 
   using AMDFamily = uint8_t;
-  using AMDExtendedModel = uint8_t;
-  inline const std::map<std::pair<AMDFamily, AMDExtendedModel>, const char*>
+  using AMDModel = uint8_t;
+  inline const std::map<std::pair<AMDFamily, AMDModel>, const char*>
     amd_root_signing_keys{
       {{0x19, 0x01}, amd_milan_root_signing_public_key},
       {{0x19, 0x11}, amd_genoa_root_signing_public_key},
