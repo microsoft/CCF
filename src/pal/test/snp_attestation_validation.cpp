@@ -19,17 +19,12 @@ TEST_CASE("milan validation")
   auto milan_quote_info = QuoteInfo{
     .format = QuoteFormat::amd_sev_snp_v1,
     .quote = pal::snp::testing::milan_attestation,
-    // bundle of certificates
-    // chip_certificate /o sev_version_certificate /o root_certificate
-    // root pubkey -> root cert (ARK) -> sev_version_cert (ASK) -> chip_cert
-    // sig algo of attestation sig must be ecdsa_p384_sha384
     .endorsements = std::vector<uint8_t>(
       pal::snp::testing::milan_endorsements.begin(),
       pal::snp::testing::milan_endorsements.end()),
     .uvm_endorsements = std::nullopt,
   };
 
-  // Output by verify_snp_attestation_report
   pal::PlatformAttestationMeasurement measurement;
   pal::PlatformAttestationReportData report_data;
 
@@ -44,17 +39,12 @@ TEST_CASE("genoa validation")
   auto genoa_quote_info = QuoteInfo{
     .format = QuoteFormat::amd_sev_snp_v1,
     .quote = pal::snp::testing::genoa_attestation,
-    // bundle of certificates
-    // chip_certificate /o sev_version_certificate /o root_certificate
-    // root pubkey -> root cert -> sev_version_cert (ASK?) -> chip_cert
-    // sig algo of attestation sig must be ecdsa_p384_sha384
     .endorsements = std::vector<uint8_t>(
       pal::snp::testing::genoa_endorsements.begin(),
       pal::snp::testing::genoa_endorsements.end()),
     .uvm_endorsements = std::nullopt,
   };
 
-  // Output by verify_snp_attestation_report
   pal::PlatformAttestationMeasurement measurement;
   pal::PlatformAttestationReportData report_data;
 
@@ -69,17 +59,12 @@ TEST_CASE("Mismatched attestation and endorsements fail")
   auto mismatched_quote = QuoteInfo{
     .format = QuoteFormat::amd_sev_snp_v1,
     .quote = pal::snp::testing::milan_attestation,
-    // bundle of certificates
-    // chip_certificate /o sev_version_certificate /o root_certificate
-    // root pubkey -> root cert -> sev_version_cert (ASK?) -> chip_cert
-    // sig algo of attestation sig must be ecdsa_p384_sha384
     .endorsements = std::vector<uint8_t>(
       pal::snp::testing::genoa_endorsements.begin(),
       pal::snp::testing::genoa_endorsements.end()),
     .uvm_endorsements = std::nullopt,
   };
 
-  // Output by verify_snp_attestation_report
   pal::PlatformAttestationMeasurement measurement;
   pal::PlatformAttestationReportData report_data;
 
