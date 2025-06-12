@@ -73,10 +73,9 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   using AMDExtendedModel = uint8_t;
   inline const std::map<std::pair<AMDFamily, AMDExtendedModel>, const char*>
     amd_root_signing_keys{
-      {{0x19, 0x0}, amd_milan_root_signing_public_key},
-      {{0x19, 0x1}, amd_genoa_root_signing_public_key},
-      {{0x1A, 0x0}, amd_turin_root_signing_public_key},
-      {{0x1A, 0x1}, amd_turin_root_signing_public_key},
+      {{0x19, 0x01}, amd_milan_root_signing_public_key},
+      {{0x19, 0x11}, amd_genoa_root_signing_public_key},
+      {{0x1A, 0x02}, amd_turin_root_signing_public_key},
     };
 
 #pragma pack(push, 1)
