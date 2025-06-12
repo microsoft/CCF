@@ -13,7 +13,6 @@ import os
 import subprocess
 import json
 from infra.runner import ConcurrentRunner
-from distutils.dir_util import copy_tree
 from infra.consortium import slurp_file
 import infra.health_watcher
 import time
@@ -537,8 +536,22 @@ def test_recover_service_from_files(
     )
 
     old_common = os.path.join(service_dir, "common")
+    LOG.info(f"Copying common folder: {old_common}")
     new_common = infra.network.get_common_folder_name(args.workspace, args.label)
-    copy_tree(old_common, new_common)
+
+    cmd = ["rm", "-rf", new_common]
+    assert (
+        infra.proc.ccall(*cmd).returncode == 0
+    ), f"Could not remove existing {new_common} directory"
+    cmd = ["mkdir", "-p", new_common]
+    assert (
+        infra.proc.ccall(*cmd).returncode == 0
+    ), f"Could not create fresh {new_common} directory"
+    for file in os.listdir(old_common):
+        cmd = ["cp", os.path.join(old_common, file), new_common]
+        assert (
+            infra.proc.ccall(*cmd).returncode == 0
+        ), f"Could not copy {file} to {new_common}"
 
     network = infra.network.Network(args.nodes, args.binary_dir)
 
@@ -1077,17 +1090,13 @@ def run(args):
                         chunk_start_seqno == seqno
                     ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
-    test_recover_service_from_files(
-        args, "expired_service", expected_recovery_count=2, test_receipt=True
-    )
-    # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> 5.x -> main.
-    # This is used to test recovery from SGX to SNP.
-    test_recover_service_from_files(
-        args, "sgx_service", expected_recovery_count=4, test_receipt=False
-    )
 
+def run_recovery_from_files(args):
     test_recover_service_from_files(
-        args, "double_sealed_service", expected_recovery_count=2, test_receipt=False
+        args,
+        directory=args.directory,
+        expected_recovery_count=args.expected_recovery_count,
+        test_receipt=args.test_receipt,
     )
 
 
@@ -1346,6 +1355,28 @@ checked. Note that the key for each logging message is unique (per table).
         snapshot_tx_interval=30,
     )
 
+    for directory, expected_recovery_count, test_receipt in (
+        ("expired_service", 2, True),
+        # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> 5.x -> main.
+        # This is used to test recovery from SGX to SNP.
+        ("sgx_service", 4, False),
+        # double_sealed_service is a regression test for the issue described in #6906
+        ("double_sealed_service", 2, False),
+        # cose_flipflop_service is a regression test for the issue described in #7002
+        ("cose_flipflop_service", 0, False),
+    ):
+        cr.add(
+            f"recovery_from_{directory}",
+            run_recovery_from_files,
+            package="samples/apps/logging/liblogging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+            ledger_chunk_bytes="50KB",
+            snapshot_tx_interval=30,
+            directory=directory,
+            expected_recovery_count=expected_recovery_count,
+            test_receipt=test_receipt,
+        )
+
     # Note: `run_corrupted_ledger` runs with very a specific node configuration
     # so that the contents of recovered (and tampered) ledger chunks
     # can be dictated by the test. In particular, the signature interval is large
@@ -1380,15 +1411,6 @@ checked. Note that the key for each logging message is unique (per table).
         run_recover_via_added_recovery_owner,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
-    )
-
-    cr.add(
-        "recovery_with_election",
-        run_recovery_with_election,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        ledger_chunk_bytes="50KB",
-        snapshot_tx_interval=30,
     )
 
     cr.add(

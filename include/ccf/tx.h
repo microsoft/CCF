@@ -110,7 +110,7 @@ namespace ccf::kv
     }
 
   public:
-    BaseTx(AbstractStore* _store);
+    BaseTx(AbstractStore* store_);
 
     // To avoid accidental copies and promote use of pass-by-reference, this is
     // non-copyable

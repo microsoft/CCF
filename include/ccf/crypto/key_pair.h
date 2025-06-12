@@ -180,10 +180,10 @@ namespace ccf::crypto
   /**
    * Create a public / private ECDSA key pair from existing private key data
    *
-   * @param pkey PEM key to load
+   * @param pem PEM key to load
    * @return Key pair
    */
-  KeyPairPtr make_key_pair(const Pem& pkey);
+  KeyPairPtr make_key_pair(const Pem& pem);
 
   /**
    * Construct a new public / private ECDSA key pair from a JsonWebKeyECPrivate

@@ -400,7 +400,7 @@ namespace ccf::kv
     };
 
     virtual ~TxHistory() {}
-    virtual bool verify_root_signatures() = 0;
+    virtual bool verify_root_signatures(ccf::kv::Version version) = 0;
     virtual void try_emit_signature() = 0;
     virtual void emit_signature() = 0;
     virtual ccf::crypto::Sha256Hash get_replicated_state_root() = 0;
@@ -577,7 +577,7 @@ namespace ccf::kv
   class AbstractSnapshotter
   {
   public:
-    virtual ~AbstractSnapshotter(){};
+    virtual ~AbstractSnapshotter() = default;
 
     virtual bool record_committable(ccf::kv::Version v) = 0;
     virtual void commit(ccf::kv::Version v, bool generate_snapshot) = 0;

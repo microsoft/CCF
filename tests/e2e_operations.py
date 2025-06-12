@@ -28,6 +28,9 @@ import infra.snp as snp
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from pycose.messages import Sign1Message
+import sys
+import pathlib
+import infra.concurrency
 
 from loguru import logger as LOG
 
@@ -55,14 +58,62 @@ def test_save_committed_ledger_files(network, args):
 
 
 def test_parse_snapshot_file(network, args):
-    primary, _ = network.find_primary()
-    network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
-    committed_snapshots_dir = network.get_committed_snapshots(primary)
-    for snapshot in os.listdir(committed_snapshots_dir):
-        with ccf.ledger.Snapshot(os.path.join(committed_snapshots_dir, snapshot)) as s:
-            assert len(
-                s.get_public_domain().get_tables()
-            ), "No public table in snapshot"
+    class ReaderThread(infra.concurrency.StoppableThread):
+        def __init__(self, network):
+            super().__init__(name="reader")
+            primary, _ = network.find_primary()
+            self.snapshots_dir = os.path.join(
+                primary.remote.remote.root,
+                primary.remote.snapshots_dir_name,
+            )
+
+        def run(self):
+            seen = set()
+            while not self.is_stopped():
+                for snapshot in os.listdir(self.snapshots_dir):
+                    if (
+                        ccf.ledger.is_snapshot_file_committed(snapshot)
+                        and snapshot not in seen
+                    ):
+                        seen.add(snapshot)
+                        with ccf.ledger.Snapshot(
+                            os.path.join(self.snapshots_dir, snapshot)
+                        ) as s:
+                            assert len(
+                                s.get_public_domain().get_tables()
+                            ), "No public table in snapshot"
+                            LOG.success(f"Successfully parsed snapshot: {snapshot}")
+            LOG.info(f"Tested {len(seen)} snapshots")
+            assert len(seen) > 0, "No snapshots seen, so this tested nothing"
+
+    class WriterThread(infra.concurrency.StoppableThread):
+        def __init__(self, network, reader):
+            super().__init__(name="writer")
+            self.primary, _ = network.find_primary()
+            self.member = network.consortium.get_any_active_member()
+            self.reader = reader
+
+        def run(self):
+            while not self.is_stopped() and self.reader.is_alive():
+                self.member.update_ack_state_digest(self.primary)
+
+    reader_thread = ReaderThread(network)
+    reader_thread.start()
+
+    writer_thread = WriterThread(network, reader_thread)
+    writer_thread.start()
+
+    # When this test was added, the original failure was occurring 100% of the time within 0.5s.
+    # This fix has been manually verified across multi-minute runs.
+    # 5s is a plausible run-time in the CI, that should still provide convincing coverage.
+    time.sleep(5)
+
+    writer_thread.stop()
+    writer_thread.join()
+
+    reader_thread.stop()
+    reader_thread.join()
+
     return network
 
 
@@ -1115,6 +1166,276 @@ def run_initial_tcb_version_checks(args):
         assert False, "No TCB_version found in recovery ledger"
 
 
+def run_recovery_local_unsealing(
+    const_args, recovery_f=0, rekey=False, recovery_shares_refresh=False
+):
+    LOG.info("Running recovery local unsealing")
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.enable_local_sealing = True
+
+    with infra.network.network(args.nodes, args.binary_dir) as network:
+        network.start_and_open(args)
+
+        network.save_service_identity(args)
+
+        primary, _ = network.find_primary()
+        if rekey:
+            network.consortium.trigger_ledger_rekey(primary)
+        if recovery_shares_refresh:
+            network.consortium.trigger_recovery_shares_refresh(primary)
+
+        node_secret_map = {
+            node.local_node_id: node.save_sealed_ledger_secret()
+            for node in network.nodes
+        }
+
+        network.stop_all_nodes()
+
+        prev_network = network
+        for node in network.nodes:
+            recovery_network_args = copy.deepcopy(args)
+            recovery_network_args.nodes = infra.e2e_args.min_nodes(args, f=recovery_f)
+            recovery_network_args.previous_sealed_ledger_secret_location = (
+                node_secret_map[node.local_node_id]
+            )
+            recovery_network = infra.network.Network(
+                recovery_network_args.nodes,
+                recovery_network_args.binary_dir,
+                next_node_id=prev_network.next_node_id,
+            )
+
+            # Reset consortium and users to prevent issues with hosts from existing_network
+            recovery_network.consortium = prev_network.consortium
+            recovery_network.users = prev_network.users
+            recovery_network.txs = prev_network.txs
+            recovery_network.jwt_issuer = prev_network.jwt_issuer
+
+            current_ledger_dir, committed_ledger_dirs = node.get_ledger()
+            recovery_network.start_in_recovery(
+                recovery_network_args,
+                ledger_dir=current_ledger_dir,
+                committed_ledger_dirs=committed_ledger_dirs,
+            )
+
+            recovery_network.recover(recovery_network_args, via_local_sealing=True)
+
+            recovery_network.stop_all_nodes()
+            prev_network = recovery_network
+
+
+def run_recovery_unsealing_validate_audit(const_args):
+    LOG.info("Running recovery local unsealing")
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.enable_local_sealing = True
+
+    with infra.network.network(args.nodes, args.binary_dir) as network:
+        network.start_and_open(args)
+
+        network.save_service_identity(args)
+        node0_secrets = network.nodes[0].save_sealed_ledger_secret()
+
+        latest_public_tables, _ = network.get_latest_ledger_public_state()
+        node_info = latest_public_tables["public:ccf.gov.nodes.info"]
+        for info in node_info.values():
+            node_info = json.loads(info.decode("utf-8"))
+            assert node_info["will_locally_seal_ledger_secrets"]
+        assert (
+            "public:ccf.internal.last_recovery_type" not in latest_public_tables
+        ), "last_recovery_type was set when no recovery was performed."
+
+        network.stop_all_nodes()
+
+        prev_network = network
+        for via_local_unsealing in [True, False]:
+            recovery_network_args = copy.deepcopy(args)
+            recovery_network_args.nodes = infra.e2e_args.min_nodes(args, f=0)
+            if via_local_unsealing:
+                recovery_network_args.previous_sealed_ledger_secret_location = (
+                    node0_secrets
+                )
+            recovery_network = infra.network.Network(
+                recovery_network_args.nodes,
+                recovery_network_args.binary_dir,
+                next_node_id=prev_network.next_node_id,
+            )
+
+            # Reset consortium and users to prevent issues with hosts from existing_network
+            recovery_network.consortium = prev_network.consortium
+            recovery_network.users = prev_network.users
+            recovery_network.txs = prev_network.txs
+            recovery_network.jwt_issuer = prev_network.jwt_issuer
+
+            current_ledger_dir, committed_ledger_dirs = network.nodes[0].get_ledger()
+            recovery_network.start_in_recovery(
+                recovery_network_args,
+                ledger_dir=current_ledger_dir,
+                committed_ledger_dirs=committed_ledger_dirs,
+            )
+
+            recovery_network.recover(
+                recovery_network_args, via_local_sealing=via_local_unsealing
+            )
+
+            latest_public_tables, _ = recovery_network.get_latest_ledger_public_state()
+            recovery_type = latest_public_tables[
+                "public:ccf.internal.last_recovery_type"
+            ][b"\x00\x00\x00\x00\x00\x00\x00\x00"].decode("utf-8")
+            expected_recovery_type = (
+                '"LOCAL_UNSEALING"' if via_local_unsealing else '"RECOVERY_SHARES"'
+            )
+            assert (
+                recovery_type == expected_recovery_type
+            ), f"Network recovery type was {recovery_type} instead of {expected_recovery_type}"
+
+            recovery_network.stop_all_nodes()
+
+            prev_network = recovery_network
+
+
+def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
+    LOG.info("Running recovery local unsealing corrupted secret")
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.enable_local_sealing = True
+
+    with infra.network.network(args.nodes, args.binary_dir) as network:
+        network.start_and_open(args)
+
+        network.save_service_identity(args)
+
+        node_secret_map = {
+            node.local_node_id: node.save_sealed_ledger_secret()
+            for node in network.nodes
+        }
+
+        network.stop_all_nodes()
+
+        class Corruption:
+            def __init__(self, tag, lamb, expected_exception):
+                self.tag = tag
+                self.lamb = lamb
+                self.expected_exception = expected_exception
+
+            def run(self, src_dir, dst_dir):
+                secrets = {}
+                for file in os.listdir(src_dir):
+                    version = file.split(".")[0]
+                    try:
+                        data = json.loads(
+                            open(os.path.join(src_dir, file), "rb").read()
+                        )
+                    except json.JSONDecodeError:
+                        continue
+
+                    secrets[int(version)] = data
+
+                corrupted_secrets = self.lamb(secrets)
+
+                pathlib.Path(dst_dir).mkdir(parents=True, exist_ok=True)
+                for version, data in corrupted_secrets.items():
+                    secret_path = os.path.join(dst_dir, f"{version}.sealed.json")
+                    with open(secret_path, "wb") as w:
+                        w.write(json.dumps(data).encode("utf-8"))
+
+        corruptions = [Corruption("delete_everything", lambda _: {}, True)]
+
+        corruptions.append(
+            Corruption(
+                "max_version_ignored",
+                lambda s: s
+                | {
+                    int(sys.maxsize): {
+                        "ciphertext": "some data",
+                        "aad_text": "some aad",
+                    }
+                },
+                False,
+            )
+        )
+
+        corruptions.append(
+            Corruption(
+                "invalid_file",
+                lambda s: s
+                | {"asdf": {"ciphertext": "some data", "aad_text": "some aad"}},
+                False,
+            )
+        )
+
+        corruptions.append(
+            Corruption(
+                "xor_ciphertext",
+                lambda s: {
+                    v: {
+                        "ciphertext": base64.b64encode(
+                            bytes(
+                                [b ^ 0xFF for b in base64.b64decode(s[v]["ciphertext"])]
+                            )
+                        ).decode("utf-8"),
+                        "aad_text": s[v]["aad_text"],
+                    }
+                    for v in s.keys()
+                },
+                True,
+            )
+        )
+
+        # corrupt one of the ledgers
+        node = network.nodes[0]
+        ledger_secret = list(node_secret_map.values())[0]
+
+        prev_network = network
+        for corruption in corruptions:
+            LOG.info("Corruption: " + corruption.tag)
+            corrupt_ledger_secret = ledger_secret + f"{corruption.tag}.corrupt"
+            corruption.run(ledger_secret, corrupt_ledger_secret)
+
+            recovery_network_args = copy.deepcopy(args)
+            recovery_network_args.nodes = infra.e2e_args.min_nodes(args, f=recovery_f)
+            recovery_network_args.previous_sealed_ledger_secret_location = (
+                corrupt_ledger_secret
+            )
+            recovery_network = infra.network.Network(
+                recovery_network_args.nodes,
+                recovery_network_args.binary_dir,
+                next_node_id=prev_network.next_node_id,
+            )
+
+            # Reset consortium and users to prevent issues with hosts from existing_network
+            recovery_network.consortium = prev_network.consortium
+            recovery_network.users = prev_network.users
+            recovery_network.txs = prev_network.txs
+            recovery_network.jwt_issuer = prev_network.jwt_issuer
+
+            current_ledger_dir, committed_ledger_dirs = node.get_ledger()
+            exception_thrown = None
+            try:
+                recovery_network.start_in_recovery(
+                    recovery_network_args,
+                    ledger_dir=current_ledger_dir,
+                    committed_ledger_dirs=committed_ledger_dirs,
+                )
+
+                recovery_network.recover(recovery_network_args, via_local_sealing=True)
+            except Exception as e:
+                exception_thrown = e
+                pass
+
+            if corruption.expected_exception:
+                assert (
+                    exception_thrown is not None
+                ), f"Expected exception to be thrown for {corruption.tag} corruption"
+            else:
+                assert (
+                    exception_thrown is None
+                ), f"Expected no exception to be thrown for {corruption.tag} corruption"
+
+            recovery_network.stop_all_nodes()
+            prev_network = recovery_network
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
@@ -1131,3 +1452,9 @@ def run(args):
     if infra.snp.is_snp():
         run_initial_uvm_descriptor_checks(args)
         run_initial_tcb_version_checks(args)
+        run_recovery_local_unsealing(args)
+        run_recovery_local_unsealing(args, rekey=True)
+        run_recovery_local_unsealing(args, recovery_shares_refresh=True)
+        run_recovery_local_unsealing(args, recovery_f=1)
+        run_recovery_unsealing_corrupt(args)
+        run_recovery_unsealing_validate_audit(args)

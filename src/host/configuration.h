@@ -91,6 +91,8 @@ namespace host
       std::string node_to_node_address_file = "";
       std::string rpc_addresses_file = "";
 
+      std::optional<std::string> sealed_ledger_secret_location = std::nullopt;
+
       bool operator==(const OutputFiles&) const = default;
     };
     OutputFiles output_files = {};
@@ -157,6 +159,8 @@ namespace host
       {
         size_t initial_service_certificate_validity_days = 1;
         std::string previous_service_identity_file;
+        std::optional<std::string> previous_sealed_ledger_secret_location =
+          std::nullopt;
         bool operator==(const Recover&) const = default;
       };
       Recover recover = {};
@@ -175,7 +179,8 @@ namespace host
     node_certificate_file,
     pid_file,
     node_to_node_address_file,
-    rpc_addresses_file);
+    rpc_addresses_file,
+    sealed_ledger_secret_location);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Ledger);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Ledger);
@@ -214,7 +219,8 @@ namespace host
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCHostConfig::Command::Recover,
     initial_service_certificate_validity_days,
-    previous_service_identity_file);
+    previous_service_identity_file,
+    previous_sealed_ledger_secret_location);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);

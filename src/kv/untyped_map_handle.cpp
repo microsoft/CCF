@@ -14,19 +14,18 @@ namespace ccf::kv::untyped
     auto write = tx_changes.writes.find(key);
     if (write != tx_changes.writes.end())
     {
+      MapHandle::ValueType* ptr = nullptr;
       if (write->second.has_value())
       {
-        return &write->second.value();
+        ptr = &(
+          write->second.value()); // NOLINT(bugprone-unchecked-optional-access)
       }
-      else
-      {
-        return nullptr;
-      }
+      return ptr;
     }
 
     // If the key doesn't exist, return empty and record that we depend on
     // the key not existing.
-    const auto search = tx_changes.state.getp(key);
+    const auto* const search = tx_changes.state.getp(key);
     if (search == nullptr)
     {
       tx_changes.reads.insert(
@@ -69,11 +68,11 @@ namespace ccf::kv::untyped
 
     if (always_consider_writes || should_continue)
     {
-      for (auto write = w.begin(); write != w.end(); ++write)
+      for (auto& write : w)
       {
-        if (write->second.has_value())
+        if (write.second.has_value())
         {
-          should_continue = f(write->first, write->second.value());
+          should_continue = f(write.first, write.second.value());
         }
 
         if (!should_continue)
@@ -84,10 +83,9 @@ namespace ccf::kv::untyped
     }
   }
 
-  MapHandle::MapHandle(
-    ccf::kv::untyped::ChangeSet& cs, const std::string& map_name) :
+  MapHandle::MapHandle(ccf::kv::untyped::ChangeSet& cs, std::string map_name) :
     tx_changes(cs),
-    map_name(map_name)
+    map_name(std::move(map_name))
   {}
 
   std::string MapHandle::get_name_of_map() const
@@ -98,7 +96,7 @@ namespace ccf::kv::untyped
   std::optional<MapHandle::ValueType> MapHandle::get(
     const MapHandle::KeyType& key)
   {
-    auto value_p = read_key(key);
+    const auto* value_p = read_key(key);
     auto found = value_p != nullptr;
     LOG_TRACE_FMT(
       "KV[{}]::get({}) - {}found", map_name, key, found ? "" : "not ");
@@ -115,7 +113,7 @@ namespace ccf::kv::untyped
   {
     // If the key doesn't exist, return empty and record that we depend on
     // the key not existing.
-    const auto search = tx_changes.state.getp(key);
+    const auto* const search = tx_changes.state.getp(key);
     if (search == nullptr)
     {
       tx_changes.reads.insert(
@@ -146,7 +144,7 @@ namespace ccf::kv::untyped
 
   bool MapHandle::has(const MapHandle::KeyType& key)
   {
-    auto versionv_p = read_key(key);
+    const auto* versionv_p = read_key(key);
     auto found = versionv_p != nullptr;
     LOG_TRACE_FMT(
       "KV[{}]::has({}) - {}found", map_name, key, found ? "" : "not ");
@@ -155,7 +153,7 @@ namespace ccf::kv::untyped
 
   bool MapHandle::has_globally_committed(const MapHandle::KeyType& key)
   {
-    auto raw = tx_changes.committed.getp(key);
+    const auto* raw = tx_changes.committed.getp(key);
     return raw != nullptr;
   }
 
@@ -241,7 +239,8 @@ namespace ccf::kv::untyped
         // Start of range is not yet found.
         return true;
       }
-      else if (to.has_value() && (k == to.value() || to.value() < k))
+
+      if (to.has_value() && (k == to.value() || to.value() < k))
       {
         // End of range. Note: `to` is excluded.
         return continue_past_range_to;

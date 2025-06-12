@@ -5,9 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.5]
+
+[6.0.5]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.5
+
+### Fixed
+
+- Nodes will now avoid re-parsing `.committed` files in the main directory if they have established a later commit point in the `read_only` directories. This should significantly reduce start-up time for nodes with large existing ledgers.
+
+## [6.0.4]
+
+[6.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.4
+
+### Fixed
+
+- CCF will no longer create in-progress snapshot files with a `.committed` suffix. It will only rename files to `.committed` when they are complete and ready for reading (#7029).
+
+### Changed
+
+- Templated URL parsing will no longer allow `:` within regex matched components, since `:` is already used to delimit actions. Concretely, a call to `GET .../state-digests/abcd:update` should now correctly return a 404, rather than dispatching to `GET .../state-digests/{memberId}` and returning `No ACK record exists for member m[abcd:update]`.
+
+## [6.0.3]
+
+[6.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.3
+
+### Changed
+
+- Added `ccf::pal::verify_uvm_endorsements_descriptor()`, which verifies endorsements for a UVM measurement, and returns a descriptor capturing a did, feed, svn triplet that can be used for authorization.
+- SymCrypt backend pinning reverted after 1.8.0 memleak got fixed (#7016).
+
 ## [6.0.2]
 
 [6.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.2
+
+### Added
+
+- Add support for [recovery from locally sealed secrets](https://microsoft.github.io/CCF/main/operations/recovery.html#local-sealing-recovery). (#6966)
 
 ### Changed
 
