@@ -471,7 +471,6 @@ class CCFRemote(object):
                 f"Consensus message timeout ({consensus_update_timeout_ms}ms) is not significantly less than election timeout ({election_timeout_ms}ms). This may lead to many unintended elections"
             )
 
-        LOG.warning("!!! In CCFRemote.__init__()")
         # Configuration file
         if config_file:
             LOG.info(
@@ -484,7 +483,6 @@ class CCFRemote(object):
             self.rpc_addresses_file = config.get("rpc_addresses_file")
 
         elif major_version is None or major_version > 1:
-            LOG.warning(f"!!! {major_version=}, {binary_dir=}")
             loader = FileSystemLoader(binary_dir)
             t_env = Environment(loader=loader, autoescape=select_autoescape())
             t = t_env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
