@@ -132,7 +132,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/didx509cpp",
-          "commitHash": "09577475e75fd3c8bbcc8c1f1addbc9a3f9546c9"
+          "commitHash": "d6083ed6ec8437f77f44c2835c217f205ed24b86"
         }
       }
     }

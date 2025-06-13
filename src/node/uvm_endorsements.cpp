@@ -219,62 +219,37 @@ namespace ccf
         "Signature algorithm {} is not one of expected: RSA, ECDSA", phdr.alg));
     }
 
-    std::string pem_chain;
+    std::vector<std::string> pem_chain;
     for (auto const& c : phdr.x5_chain)
     {
-      pem_chain += ccf::crypto::cert_der_to_pem(c).str();
+      pem_chain.emplace_back(ccf::crypto::cert_der_to_pem(c).str());
     }
 
     const auto& did = phdr.iss;
 
-    auto did_document_str =
-      didx509::resolve(pem_chain, did, true /* ignore time */);
-    did::DIDDocument did_document = nlohmann::json::parse(did_document_str);
-
-    if (did_document.verification_method.empty())
-    {
-      throw std::logic_error(fmt::format(
-        "Could not find verification method for DID document: {}",
-        did_document_str));
-    }
-
     ccf::crypto::Pem pubk;
-    for (auto const& vm : did_document.verification_method)
+    const auto jwk = nlohmann::json::parse(
+      didx509::resolve_jwk(pem_chain, did, true /* ignore time */));
+    const auto generic_jwk = jwk.get<ccf::crypto::JsonWebKey>();
+    switch (generic_jwk.kty)
     {
-      if (vm.controller == did && vm.public_key_jwk.has_value())
+      case ccf::crypto::JsonWebKeyType::RSA:
       {
-        auto jwk = vm.public_key_jwk.value().get<ccf::crypto::JsonWebKey>();
-        switch (jwk.kty)
-        {
-          case ccf::crypto::JsonWebKeyType::RSA:
-          {
-            auto rsa_jwk =
-              vm.public_key_jwk->get<ccf::crypto::JsonWebKeyRSAPublic>();
-            pubk = ccf::crypto::make_rsa_public_key(rsa_jwk)->public_key_pem();
-            break;
-          }
-          case ccf::crypto::JsonWebKeyType::EC:
-          {
-            auto ec_jwk =
-              vm.public_key_jwk->get<ccf::crypto::JsonWebKeyECPublic>();
-            pubk = ccf::crypto::make_public_key(ec_jwk)->public_key_pem();
-            break;
-          }
-          default:
-          {
-            throw std::logic_error(fmt::format(
-              "Unsupported public key type ({}) for DID {}", jwk.kty, did));
-          }
-        }
+        auto rsa_jwk = jwk.get<ccf::crypto::JsonWebKeyRSAPublic>();
+        pubk = ccf::crypto::make_rsa_public_key(rsa_jwk)->public_key_pem();
+        break;
       }
-    }
-
-    if (pubk.empty())
-    {
-      throw std::logic_error(fmt::format(
-        "Could not find matching public key for DID {} in {}",
-        did,
-        did_document_str));
+      case ccf::crypto::JsonWebKeyType::EC:
+      {
+        auto ec_jwk = jwk.get<ccf::crypto::JsonWebKeyECPublic>();
+        pubk = ccf::crypto::make_public_key(ec_jwk)->public_key_pem();
+        break;
+      }
+      default:
+      {
+        throw std::logic_error(fmt::format(
+          "Unsupported public key type ({}) for DID {}", generic_jwk.kty, did));
+      }
     }
 
     auto raw_payload =

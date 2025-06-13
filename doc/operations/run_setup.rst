@@ -10,7 +10,7 @@ CCF releases are available on the `GitHub repository release page <https://githu
     .. code-block:: bash
 
         # Set CCF_VERSION to most recent LTS release
-        $ export CCF_VERSION=$(curl -ILs -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
+        $ export CCF_VERSION=$(curl -Ls -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
         # Alternatively, set this manually, e.g.:
         # export CCF_VERSION=6.0.0
         $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_snp_${CCF_VERSION}_x86_64.rpm
@@ -29,7 +29,7 @@ CCF releases are available on the `GitHub repository release page <https://githu
     .. code-block:: bash
 
         # Set CCF_VERSION to most recent LTS release
-        $ export CCF_VERSION=$(curl -ILs -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
+        $ export CCF_VERSION=$(curl -Ls -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
         # Alternatively, set this manually, e.g.:
         # export CCF_VERSION=6.0.0
         $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_virtual_${CCF_VERSION}_x86_64.rpm
