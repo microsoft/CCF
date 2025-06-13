@@ -8,6 +8,7 @@
 #include "ccf/ds/hex.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
+#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/snp_ioctl.h"
 
@@ -108,20 +109,45 @@ namespace ccf::pal
       throw std::logic_error(fmt::format(
         "Expected 3 endorsement certificates but got {}", certificates.size()));
     }
+
+    // chip_cert (VCEK) <-signs- sev_version (ASK)
+    // ASK <-signs- root_certificate (ARK)
     auto chip_certificate = certificates[0];
     auto sev_version_certificate = certificates[1];
     auto root_certificate = certificates[2];
 
     auto root_cert_verifier = ccf::crypto::make_verifier(root_certificate);
 
-    if (
-      root_cert_verifier->public_key_pem().str() !=
-      snp::amd_milan_root_signing_public_key)
+    std::string expected_root_public_key;
+    if (quote.version < 3)
+    {
+      // before version 3 there are no cpuid fields so we must assume that it is
+      // milan
+      expected_root_public_key = snp::amd_milan_root_signing_public_key;
+    }
+    else
+    {
+      auto key = snp::amd_root_signing_keys.find(
+        std::make_pair(quote.cpuid_fam_id, quote.cpuid_mod_id));
+      if (key == snp::amd_root_signing_keys.end())
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: Unsupported CPUID family {} model {}",
+          quote.cpuid_fam_id,
+          quote.cpuid_mod_id));
+      }
+      expected_root_public_key = key->second;
+    }
+    if (root_cert_verifier->public_key_pem().str() != expected_root_public_key)
     {
       throw std::logic_error(fmt::format(
         "SEV-SNP: The root of trust public key for this attestation was not "
-        "the expected one {}",
-        root_cert_verifier->public_key_pem().str()));
+        "the expected one for v{} {} {}:  {} != {}",
+        quote.version,
+        quote.cpuid_fam_id,
+        quote.cpuid_mod_id,
+        root_cert_verifier->public_key_pem().str(),
+        expected_root_public_key));
     }
 
     if (!root_cert_verifier->verify_certificate({&root_certificate}))
@@ -140,6 +166,7 @@ namespace ccf::pal
         "attestation is broken");
     }
 
+    // According to Table 134 (2025-06-12) only ecdsa_p384_sha384 is supported
     if (quote.signature_algo != snp::SignatureAlgorithm::ecdsa_p384_sha384)
     {
       throw std::logic_error(fmt::format(
