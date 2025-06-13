@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Allow `:` within regex matched templated URL components again, while still terminating matched segments correctly.
+- Allow `:` within regex matched templated URL components again, while still terminating matched segments correctly (#7046).
 
 ### Dependencies
 
