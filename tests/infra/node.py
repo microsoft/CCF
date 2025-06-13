@@ -106,6 +106,7 @@ def version_after(version, cmp_version):
         version
     ) > ccf._versionifier.to_python_version(cmp_version)
 
+
 class Node:
     def __init__(
         self,
