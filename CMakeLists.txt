@@ -133,6 +133,12 @@ if(CLANG_TIDY)
   message(STATUS "Using clang-tidy from: ${CLANG_TIDY_EXE}")
 endif()
 
+if (SAN OR TSAN)
+  find_program(LLVM_SYMBOLIZER NAMES "llvm-symbolizer")
+  message(STATUS "Using llvm symbolizer: ${LLVM_SYMBOLIZER}")
+endif()
+
+
 enable_language(ASM)
 
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
