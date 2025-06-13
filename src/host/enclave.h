@@ -5,15 +5,10 @@
 #include "ccf/ds/logger.h"
 #include "ccf/version.h"
 #include "enclave/interface.h"
+#include "enclave/virtual_enclave.h"
 
 #include <dlfcn.h>
 #include <filesystem>
-
-#if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
-// Include order matters. virtual_enclave.h uses the OE definitions if
-// available, else creates its own stubs
-#  include "enclave/virtual_enclave.h"
-#endif
 
 namespace host
 {
@@ -27,8 +22,7 @@ namespace host
       // Remove possible suffixes to try and get root of filename, to build
       // suggested filename
       auto basename = file;
-      for (const char* suffix :
-           {".signed", ".debuggable", ".so", ".enclave", ".virtual", ".snp"})
+      for (const char* suffix : {".signed", ".debuggable", ".so", ".enclave"})
       {
         if (basename.ends_with(suffix))
         {
@@ -38,8 +32,7 @@ namespace host
       const auto suggested = fmt::format("{}{}", basename, expected_suffix);
       throw std::logic_error(fmt::format(
         "Given enclave file '{}' does not have suffix expected for enclave "
-        "type "
-        "{}. Did you mean '{}'?",
+        "type {}. Did you mean '{}'?",
         file,
         nlohmann::json(type).dump(),
         suggested));
@@ -66,9 +59,9 @@ namespace host
   class Enclave
   {
   private:
-#if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
     void* virtual_handle = nullptr;
-#endif
+
+    const ccf::pal::Platform platform;
 
   public:
     /**
@@ -79,7 +72,9 @@ namespace host
      * @param platform Trusted Execution Platform of enclave, influencing what
      * flags should be passed to OE, or whether to dlload a virtual enclave
      */
-    Enclave(const std::string& path, EnclaveType type, EnclavePlatform platform)
+    Enclave(
+      const std::string& path, EnclaveType type, ccf::pal::Platform platform_) :
+      platform(platform_)
     {
       if (!std::filesystem::exists(path))
       {
@@ -89,31 +84,11 @@ namespace host
 
       switch (platform)
       {
-        case host::EnclavePlatform::SNP:
+        case ccf::pal::Platform::SNP:
+        case ccf::pal::Platform::Virtual:
         {
-#if defined(PLATFORM_SNP)
-          expect_enclave_file_suffix(path, ".snp.so", type);
+          expect_enclave_file_suffix(path, ".so", type);
           virtual_handle = load_virtual_enclave(path.c_str());
-#else
-          throw std::logic_error(fmt::format(
-            "SNP enclaves are not supported in current build - cannot launch "
-            "{}",
-            path));
-#endif // defined(PLATFORM_SNP)
-          break;
-        }
-
-        case host::EnclavePlatform::VIRTUAL:
-        {
-#if defined(PLATFORM_VIRTUAL)
-          expect_enclave_file_suffix(path, ".virtual.so", type);
-          virtual_handle = load_virtual_enclave(path.c_str());
-#else
-          throw std::logic_error(fmt::format(
-            "Virtual enclaves are not supported in current build - cannot "
-            "launch {}",
-            path));
-#endif // defined(PLATFORM_VIRTUAL)
           break;
         }
 
@@ -127,12 +102,10 @@ namespace host
 
     ~Enclave()
     {
-#if defined(PLATFORM_SNP) || defined(PLATFORM_VIRTUAL)
       if (virtual_handle != nullptr)
       {
         terminate_virtual_enclave(virtual_handle);
       }
-#endif
     }
 
     CreateNodeStatus create_node(
@@ -165,18 +138,16 @@ namespace host
     node_cert.size(), &node_cert_len, service_cert.data(), \
     service_cert.size(), &service_cert_len, enclave_version_buf.data(), \
     enclave_version_buf.size(), &enclave_version_len, start_type, \
-    enclave_log_level, num_worker_thread, time_location, work_beacon
+    enclave_log_level, platform, num_worker_thread, time_location, work_beacon
 
       oe_result_t err = OE_FAILURE;
 
-// Assume that constructor correctly set the appropriate field, and call
-// appropriate function
-#if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
+      // Assume that constructor correctly set the appropriate field, and call
+      // appropriate function
       if (virtual_handle != nullptr)
       {
         err = virtual_create_node(virtual_handle, CREATE_NODE_ARGS);
       }
-#endif
 
       if (err != OE_OK || status != CreateNodeStatus::OK)
       {
@@ -212,12 +183,10 @@ namespace host
       bool ret = true;
       oe_result_t err = OE_FAILURE;
 
-#if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
       if (virtual_handle != nullptr)
       {
         err = virtual_run(virtual_handle, &ret);
       }
-#endif
 
       if (err != OE_OK)
       {

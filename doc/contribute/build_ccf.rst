@@ -18,7 +18,7 @@ To build CCF from source, run the following:
         $ cd CCF
         $ mkdir build
         $ cd build
-        $ cmake -GNinja -DCOMPILE_TARGET=snp .. 
+        $ cmake -GNinja -DCCF_TEST_PLATFORM=snp .. 
         $ ninja
 
 
@@ -29,7 +29,7 @@ To build CCF from source, run the following:
         $ cd CCF
         $ mkdir build
         $ cd build
-        $ cmake -GNinja -DCOMPILE_TARGET=virtual ..
+        $ cmake -GNinja ..
         $ ninja
 
 .. note:::
@@ -53,7 +53,6 @@ The most common build switches include:
 
 * **BUILD_TESTS**: Boolean. Build all tests for CCF. Default to ON.
 * **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
-* **COMPILE_TARGET**: String. Target compilation platform. Defaults to ``snp``. Supported values are ``snp``, or ``virtual``.
 
 Run Tests
 ---------

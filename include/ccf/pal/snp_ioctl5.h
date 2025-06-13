@@ -79,7 +79,7 @@ namespace ccf::pal::snp::ioctl5
   constexpr int SEV_SNP_GUEST_MSG_REPORT =
     _IOWR(SEV_GUEST_IOC_TYPE, 0x1, struct snp::ioctl5::GuestRequest);
 
-  static inline bool is_sev_snp()
+  static inline bool supports_sev_snp()
   {
     return access(DEVICE, W_OK) == 0;
   }

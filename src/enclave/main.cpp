@@ -46,6 +46,7 @@ extern "C"
     size_t* enclave_version_len,
     StartType start_type,
     ccf::LoggerLevel enclave_log_level,
+    ccf::pal::Platform platform,
     size_t num_worker_threads,
     void* time_location,
     const ccf::ds::WorkBeaconPtr& work_beacon)
@@ -145,6 +146,8 @@ extern "C"
     }
 
     ccf::logger::config::level() = permitted;
+
+    ccf::pal::platform = platform;
 
     ccf::Enclave* enclave = nullptr;
 

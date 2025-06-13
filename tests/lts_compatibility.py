@@ -16,7 +16,6 @@ import json
 import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
-from infra.snp import IS_SNP
 from distutils.dir_util import copy_tree
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -102,7 +101,7 @@ def test_new_service(
     version,
     expected_subject_name=None,
 ):
-    if IS_SNP:
+    if args.enclave_platform == "snp":
         LOG.info(
             "Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade"
         )
@@ -203,7 +202,7 @@ def run_code_upgrade_from(
     to_version=None,
     from_container_image=None,
 ):
-    if IS_SNP:
+    if args.enclave_platform == "snp":
         LOG.info(
             "Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade"
         )
@@ -256,7 +255,6 @@ def run_code_upgrade_from(
             network.consortium.set_constitution(primary, new_constitution)
 
             new_measurement = infra.utils.get_measurement(
-                args.enclave_type,
                 args.enclave_platform,
                 args.package,
                 library_dir=to_library_dir,
@@ -269,10 +267,10 @@ def run_code_upgrade_from(
             try:
                 new_host_data, new_security_policy = (
                     infra.utils.get_host_data_and_security_policy(
-                        args.enclave_type,
                         args.enclave_platform,
                         args.package,
                         library_dir=to_library_dir,
+                        version=to_version,
                     )
                 )
                 network.consortium.add_host_data(
@@ -347,7 +345,6 @@ def run_code_upgrade_from(
             primary, _ = network.find_primary()
 
             old_measurement = infra.utils.get_measurement(
-                args.enclave_type,
                 args.enclave_platform,
                 args.package,
                 library_dir=from_library_dir,
@@ -361,10 +358,10 @@ def run_code_upgrade_from(
             if new_host_data is not None:
                 old_host_data, old_security_policy = (
                     infra.utils.get_host_data_and_security_policy(
-                        args.enclave_type,
                         args.enclave_platform,
                         args.package,
                         library_dir=from_library_dir,
+                        version=from_version,
                     )
                 )
 
@@ -707,11 +704,6 @@ if __name__ == "__main__":
 
     # Hardcoded because host only accepts info log on release builds
     args.host_log_level = "info"
-
-    # For compatibility with <= 2.x versions as enclave platform
-    # was introduced in 3.x
-    if args.enclave_platform == "virtual":
-        args.enclave_type = "virtual"
 
     repo = infra.github.Repository()
     local_branch = infra.github.GitEnv.local_branch()

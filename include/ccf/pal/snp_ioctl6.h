@@ -198,7 +198,7 @@ namespace ccf::pal::snp::ioctl6
   constexpr int SEV_SNP_GUEST_MSG_DERIVED_KEY =
     _IOWR(SEV_GUEST_IOC_TYPE, 0x1, GuestRequestDerivedKey);
 
-  static inline bool is_sev_snp()
+  static inline bool supports_sev_snp()
   {
     return access(DEVICE, W_OK) == 0;
   }

@@ -302,7 +302,10 @@ class Node:
         and ships over the files)
         """
         lib_path = infra.path.build_lib_path(
-            lib_name, enclave_type, enclave_platform, library_dir=self.library_dir
+            lib_name,
+            enclave_platform,
+            library_dir=self.library_dir,
+            version=self.version,
         )
         self.common_dir = common_dir
         members_info = members_info or []

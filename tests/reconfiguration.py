@@ -18,7 +18,7 @@ import infra.crypto
 from datetime import datetime
 from infra.checker import check_can_progress
 from governance_history import check_signatures
-from infra.snp import IS_SNP
+from infra.snp import SNP_SUPPORT
 from infra.runner import ConcurrentRunner
 import http
 import random
@@ -255,7 +255,7 @@ def test_add_node_endorsements_endpoints(network, args):
     # However, we still want to support fetching those from a remote server, which is
     # tested here
     primary, _ = network.find_primary()
-    if not IS_SNP:
+    if not SNP_SUPPORT:
         LOG.warning("Skipping test as running on non SEV-SNP")
         return network
 

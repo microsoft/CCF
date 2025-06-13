@@ -9,7 +9,7 @@ function(add_unit_test name)
     ${name} PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
   )
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host -pthread)
+  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto -pthread)
   add_san(${name})
 
   add_test(NAME ${name} COMMAND ${name})
@@ -47,7 +47,7 @@ function(add_test_bin name)
   target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host)
+  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto)
   add_san(${name})
 endfunction()
 
@@ -60,9 +60,7 @@ function(add_client_exe name)
 
   add_executable(${name} ${PARSED_ARGS_SRCS})
 
-  target_link_libraries(
-    ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto.host
-  )
+  target_link_libraries(${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto)
   target_include_directories(
     ${name} PRIVATE ${CCF_DIR}/src/clients/perf ${PARSED_ARGS_INCLUDE_DIRS}
   )
@@ -180,18 +178,10 @@ function(add_e2e_test)
       )
     endif()
 
-    if(DEFINED DEFAULT_ENCLAVE_TYPE)
-      set_property(
-        TEST ${PARSED_ARGS_NAME}
-        APPEND
-        PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
-      )
-    endif()
-
     set_property(
       TEST ${PARSED_ARGS_NAME}
       APPEND
-      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_PLATFORM=${COMPILE_TARGET}"
+      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_PLATFORM=${CCF_TEST_PLATFORM}"
     )
   endif()
 endfunction()
@@ -210,8 +200,7 @@ function(add_perf_test)
 
   set(TESTS_SUFFIX "")
   set(ENCLAVE_TYPE "")
-  set(ENCLAVE_PLATFORM "${COMPILE_TARGET}")
-  if("virtual" STREQUAL COMPILE_TARGET)
+  if("virtual" STREQUAL CCF_TEST_PLATFORM)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_virtual")
     set(ENCLAVE_TYPE "virtual")
   endif()
@@ -229,7 +218,7 @@ function(add_perf_test)
       ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --write-tx-times
       --label ${TEST_NAME} --snapshot-tx-interval 10000 --perf-label
       ${PARSED_ARGS_PERF_LABEL} ${PARSED_ARGS_ADDITIONAL_ARGS} -e
-      ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM} ${NODES}
+      ${ENCLAVE_TYPE} -t ${CCF_TEST_PLATFORM} ${NODES}
     CONFIGURATIONS perf
   )
 
@@ -239,13 +228,7 @@ function(add_perf_test)
     APPEND
     PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
-  if(DEFINED DEFAULT_ENCLAVE_TYPE)
-    set_property(
-      TEST ${TEST_NAME}
-      APPEND
-      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
-    )
-  endif()
+
   if(DEFINED DEFAULT_ENCLAVE_PLATFORM)
     set_property(
       TEST ${TEST_NAME}
@@ -292,8 +275,7 @@ function(add_piccolo_test)
 
   set(TESTS_SUFFIX "")
   set(ENCLAVE_TYPE "")
-  set(ENCLAVE_PLATFORM "${COMPILE_TARGET}")
-  if("virtual" STREQUAL COMPILE_TARGET)
+  if("virtual" STREQUAL CCF_TEST_PLATFORM)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_virtual")
     set(ENCLAVE_TYPE "virtual")
   endif()
@@ -310,8 +292,7 @@ function(add_piccolo_test)
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
       ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --label ${TEST_NAME}
       --perf-label ${PARSED_ARGS_PERF_LABEL} --snapshot-tx-interval 10000
-      ${PARSED_ARGS_ADDITIONAL_ARGS} -e ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM}
-      ${NODES}
+      ${PARSED_ARGS_ADDITIONAL_ARGS} -t ${CCF_TEST_PLATFORM} ${NODES}
     CONFIGURATIONS perf
   )
 
@@ -321,13 +302,7 @@ function(add_piccolo_test)
     APPEND
     PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
-  if(DEFINED DEFAULT_ENCLAVE_TYPE)
-    set_property(
-      TEST ${TEST_NAME}
-      APPEND
-      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
-    )
-  endif()
+
   if(DEFINED DEFAULT_ENCLAVE_PLATFORM)
     set_property(
       TEST ${TEST_NAME}
@@ -371,7 +346,7 @@ function(add_picobench name)
 
   target_link_libraries(
     ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${PARSED_ARGS_LINK_LIBS}
-                    ccfcrypto.host
+                    ccfcrypto
   )
 
   add_san(${name})

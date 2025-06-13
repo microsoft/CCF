@@ -57,7 +57,7 @@ def test_verify_quotes(network, args):
                 # But for virtual, it's encoding some ASCII string, not a digest, so decode it for readability
                 claimed_measurement = bytes.fromhex(claimed_measurement).decode()
                 expected_measurement = infra.utils.get_measurement(
-                    args.enclave_type, args.enclave_platform, args.package
+                    args.enclave_platform, args.package
                 )
                 assert (
                     claimed_measurement == expected_measurement
@@ -69,7 +69,7 @@ def test_verify_quotes(network, args):
                 # - The host_data (equal to any equivalent node) is the sha256 of the package (library) it loaded
                 host_data = raw["host_data"]
                 expected_host_data, _ = infra.utils.get_host_data_and_security_policy(
-                    args.enclave_type, args.enclave_platform, args.package
+                    args.enclave_platform, args.package
                 )
                 assert (
                     host_data == expected_host_data
@@ -122,13 +122,13 @@ def test_measurements_tables(network, args):
 
     original_measurements = get_trusted_measurements(primary)
 
-    if snp.IS_SNP:
+    if args.enclave_platform == "snp":
         assert (
             len(original_measurements) == 0
         ), "Expected no measurement as UVM endorsements are used by default"
 
     LOG.debug("Add dummy measurement")
-    measurement_length = 96 if snp.IS_SNP else 64
+    measurement_length = 96 if args.enclave_platform == "snp" else 64
     dummy_measurement = "a" * measurement_length
     network.consortium.add_measurement(
         primary, args.enclave_platform, dummy_measurement
@@ -228,7 +228,7 @@ def test_host_data_tables(network, args):
     original_host_data = get_trusted_host_data(primary)
 
     host_data, security_policy = infra.utils.get_host_data_and_security_policy(
-        args.enclave_type, args.enclave_platform, args.package
+        args.enclave_platform, args.package
     )
 
     if args.enclave_platform == "snp":
@@ -384,7 +384,7 @@ def test_add_node_with_stubbed_security_policy(network, args):
     primary, _ = network.find_nodes()
 
     host_data, security_policy = infra.utils.get_host_data_and_security_policy(
-        args.enclave_type, args.enclave_platform, args.package
+        args.enclave_platform, args.package
     )
 
     network.consortium.remove_host_data(primary, args.enclave_platform, host_data)
@@ -443,9 +443,7 @@ def test_start_node_with_mismatched_host_data(network, args):
 def test_add_node_with_untrusted_measurement(network, args):
     primary, _ = network.find_nodes()
 
-    measurement = infra.utils.get_measurement(
-        args.enclave_type, args.enclave_platform, args.package
-    )
+    measurement = infra.utils.get_measurement(args.enclave_platform, args.package)
 
     LOG.info("Removing this measurement so that a new joiner is refused")
     network.consortium.remove_measurement(primary, args.enclave_platform, measurement)
@@ -471,7 +469,7 @@ def test_add_node_with_untrusted_host_data(network, args):
     primary, _ = network.find_nodes()
 
     host_data, security_policy = infra.utils.get_host_data_and_security_policy(
-        args.enclave_type, args.enclave_platform, args.package
+        args.enclave_platform, args.package
     )
 
     LOG.info("Removing this host data value so that a new joiner is refused")
@@ -601,18 +599,18 @@ def test_update_all_nodes(network, args):
     primary, _ = network.find_nodes()
 
     initial_measurement = infra.utils.get_measurement(
-        args.enclave_type, args.enclave_platform, args.package
+        args.enclave_platform, args.package
     )
     initial_host_data, initial_security_policy = (
         infra.utils.get_host_data_and_security_policy(
-            args.enclave_type, args.enclave_platform, args.package
+            args.enclave_platform, args.package
         )
     )
     new_measurement = infra.utils.get_measurement(
-        args.enclave_type, args.enclave_platform, replacement_package
+        args.enclave_platform, replacement_package
     )
     new_host_data, new_security_policy = infra.utils.get_host_data_and_security_policy(
-        args.enclave_type, args.enclave_platform, replacement_package
+        args.enclave_platform, replacement_package
     )
 
     measurement_changed = initial_measurement != new_measurement
@@ -748,7 +746,6 @@ def test_proposal_invalidation(network, args):
 
     LOG.info("Add temporary measurement")
     temporary_measurement = infra.utils.get_measurement(
-        args.enclave_type,
         args.enclave_platform,
         get_replacement_package(args),
     )
@@ -811,14 +808,14 @@ def run(args):
 
         # Measurements
         test_measurements_tables(network, args)
-        if not snp.IS_SNP:
+        if args.enclave_platform != "snp":
             test_add_node_with_untrusted_measurement(network, args)
 
         # Host data/security policy
         test_host_data_tables(network, args)
         test_add_node_with_untrusted_host_data(network, args)
 
-        if snp.IS_SNP:
+        if args.enclave_platform == "snp":
             # Virtual has no security policy, _only_ host data (unassociated with anything)
             test_add_node_with_stubbed_security_policy(network, args)
             test_start_node_with_mismatched_host_data(network, args)
@@ -829,7 +826,7 @@ def run(args):
             test_endorsements_tables(network, args)
             test_add_node_with_no_uvm_endorsements(network, args)
 
-        if not snp.IS_SNP:
+        if args.enclave_platform != "snp":
             # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
             test_proposal_invalidation(network, args)
 
@@ -842,7 +839,7 @@ def run(args):
         # Run again at the end to confirm current nodes are acceptable
         test_verify_quotes(network, args)
 
-        if snp.IS_SNP:
+        if args.enclave_platform == "snp":
             test_add_node_with_no_uvm_endorsements_in_kv(network, args)
 
 
