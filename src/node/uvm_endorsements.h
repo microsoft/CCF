@@ -9,7 +9,6 @@
 #include "ccf/service/tables/uvm_endorsements.h"
 #include "crypto/openssl/cose_verifier.h"
 #include "node/cose_common.h"
-#include "node/did.h"
 
 #include <didx509cpp/didx509cpp.h>
 #include <nlohmann/json.hpp>
