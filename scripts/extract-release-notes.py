@@ -73,7 +73,7 @@ def main():
                 if not release_notes:
                     assert (
                         log_version == pyproject_version
-                    ), f"First version in CHANGELOG must match version in pyproject.toml: {pyproject_version}"
+                    ), f"First version in CHANGELOG ({log_version}) must match version in pyproject.toml ({pyproject_version})"
                 release_notes[log_version] = current_release_notes
             elif match := link_definition.match(line):
                 link_version = match.group(1)
