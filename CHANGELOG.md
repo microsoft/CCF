@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Nodes will now avoid re-parsing `.committed` files in the main directory if they have established a later commit point in the `read_only` directories. This should significantly reduce start-up time for nodes with large existing ledgers.
 
+### Changed
+
+- Allow `:` within regex matched templated URL components again, while still terminating matched segments correctly (#7046).
+
 ### Dependencies
 
 - Updated didx509cpp to 0.11.0 (#7050).
