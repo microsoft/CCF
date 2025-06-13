@@ -4,6 +4,7 @@ import os
 from contextlib import contextmanager
 from shutil import copy2, rmtree
 import hashlib
+import infra.node
 
 from loguru import logger as LOG
 
@@ -21,9 +22,9 @@ def mk_new(name, contents):
 
 
 def build_lib_path(
-    lib_name, enclave_platform="virtual", library_dir=".", major_version=None
+    lib_name, enclave_platform="virtual", library_dir=".", version=None
 ):
-    if major_version is None or major_version >= 7:
+    if infra.node.version_after(version, "ccf-6.0.4"):
         ext = ".so"
     else:
         if enclave_platform == "virtual":

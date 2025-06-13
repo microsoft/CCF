@@ -15,7 +15,7 @@ def get_measurement(enclave_platform, package, library_dir="."):
 
 
 def get_host_data_and_security_policy(
-    enclave_platform, package, library_dir=".", major_version=None
+    enclave_platform, package, library_dir=".", version=None
 ):
     if enclave_platform == "snp":
         security_policy = snp.get_container_group_security_policy()
@@ -23,7 +23,7 @@ def get_host_data_and_security_policy(
         return host_data, security_policy
     elif enclave_platform == "virtual":
         lib_path = infra.path.build_lib_path(
-            package, enclave_platform, library_dir, major_version=major_version
+            package, enclave_platform, library_dir, version=version
         )
         hash = sha256(open(lib_path, "rb").read())
         return hash.hexdigest(), None

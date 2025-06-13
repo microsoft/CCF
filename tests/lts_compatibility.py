@@ -270,7 +270,7 @@ def run_code_upgrade_from(
                         args.enclave_platform,
                         args.package,
                         library_dir=to_library_dir,
-                        major_version=infra.node.major_version(to_version),
+                        version=to_version,
                     )
                 )
                 network.consortium.add_host_data(
@@ -361,7 +361,7 @@ def run_code_upgrade_from(
                         args.enclave_platform,
                         args.package,
                         library_dir=from_library_dir,
-                        major_version=infra.node.major_version(from_version),
+                        version=from_version,
                     )
                 )
 
