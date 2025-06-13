@@ -5,13 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.22]
+
+[5.0.22]: https://github.com/microsoft/CCF/releases/tag/5.0.22
+
+### Added
+
+- Correctly validate the full AMD ASK endorsement chain (#7233)
+
 ## [5.0.21]
 
 [5.0.21]: https://github.com/microsoft/CCF/releases/tag/5.0.21
 
 ### Fixed
 
-- Correctly validate the full AMD ASK endorsement chain (#7233)
+- Nodes will now avoid re-parsing `.committed` files in the main directory if they have established a later commit point in the `read_only` directories. This should significantly reduce start-up time for nodes with large existing ledgers.
+- Added support for validating Genoa attestations (#7051).
 
 ## [5.0.20]
 
