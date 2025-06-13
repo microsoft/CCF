@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/hash_provider.h"
-#include "openssl_wrappers.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 
 #include <openssl/evp.h>
 #include <openssl/kdf.h>

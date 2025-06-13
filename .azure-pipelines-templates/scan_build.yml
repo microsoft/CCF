@@ -1,7 +1,0 @@
-steps:
-  - script: |
-      set -ex
-      mkdir build
-      cd build
-      ../scripts/scan-build.sh
-    displayName: "Scan build"

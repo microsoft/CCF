@@ -5,7 +5,6 @@ import time
 from enum import Enum, auto
 import subprocess
 import infra.path
-import ctypes
 import signal
 import re
 import shutil
@@ -23,21 +22,7 @@ DBG = os.getenv("DBG", "lldb")
 
 # Duration after which unresponsive node is declared as crashed on startup
 REMOTE_STARTUP_TIMEOUT_S = 5
-
-
 FILE_TIMEOUT_S = 60
-
-_libc = ctypes.CDLL("libc.so.6")
-
-
-def _term_on_pdeathsig():
-    # usr/include/linux/prctl.h: #define PR_SET_PDEATHSIG 1
-    _libc.prctl(1, signal.SIGTERM)
-
-
-def popen(*args, **kwargs):
-    kwargs["preexec_fn"] = _term_on_pdeathsig
-    return subprocess.Popen(*args, **kwargs)
 
 
 class CmdMixin(object):
@@ -73,9 +58,6 @@ class LocalRemote(CmdMixin):
         env=None,
         **kwargs,
     ):
-        """
-        Local Equivalent to the SSHRemote
-        """
         self.hostname = hostname
         self.exe_files = exe_files
         self.data_files = data_files
@@ -165,7 +147,7 @@ class LocalRemote(CmdMixin):
         LOG.info(f"[{self.hostname}] {cmd} (env: {self.env.keys()})")
         self.stdout = open(self.out, "wb")
         self.stderr = open(self.err, "wb")
-        self.proc = popen(
+        self.proc = subprocess.Popen(
             self.cmd,
             cwd=self.root,
             stdout=self.stdout,
@@ -227,6 +209,9 @@ class LocalRemote(CmdMixin):
     def sigterm(self):
         self.proc.terminate()
 
+    def sigkill(self):
+        self.proc.send_signal(signal.SIGKILL)
+
     def stop(self):
         """
         Disconnect the client, and therefore shut down the command as well.
@@ -257,9 +242,6 @@ class LocalRemote(CmdMixin):
         Empty the temporary directory if it exists,
         and populate it with the initial set of files.
         """
-        # SNP Testing currently runs on a fileshare which does not support symlinks
-        if snp.IS_SNP:
-            use_links = False
         self._setup_files(use_links)
 
     def get_cmd(self, include_dir=True):
@@ -300,7 +282,6 @@ class CCFRemote(object):
         start_type,
         enclave_file,
         enclave_type,
-        remote_class,
         workspace,
         common_dir,
         label="",
@@ -340,10 +321,13 @@ class CCFRemote(object):
         max_uncommitted_tx_count=0,
         snp_security_policy_file=None,
         snp_uvm_endorsements_file=None,
+        snp_endorsements_file=None,
         service_subject_name="CN=CCF Test Service",
         historical_cache_soft_limit=None,
         cose_signatures_issuer="service.example.com",
         cose_signatures_subject="ledger.signature",
+        sealed_ledger_secret_location=None,
+        previous_sealed_ledger_secret_location=None,
         **kwargs,
     ):
         """
@@ -363,6 +347,7 @@ class CCFRemote(object):
                 env["UBSAN_OPTIONS"] += ":" + ubsan_opts
             env["TSAN_OPTIONS"] = os.environ.get("TSAN_OPTIONS", "")
             env["ASAN_OPTIONS"] = os.environ.get("ASAN_OPTIONS", "")
+            env["ASAN_SYMBOLIZER_PATH"] = os.environ.get("ASAN_SYMBOLIZER_PATH", "")
         elif enclave_platform == "snp":
             snp_security_context_directory_envvar = (
                 snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
@@ -472,6 +457,10 @@ class CCFRemote(object):
                 "$UVM_SECURITY_CONTEXT_DIR/reference-info-base64"
             )
 
+        # Default snp_endorsements_file if not set
+        if snp_endorsements_file is None:
+            snp_endorsements_file = "$UVM_SECURITY_CONTEXT_DIR/host-amd-cert-base64"
+
         # Validate consensus timers
         if (
             election_timeout_ms is not None
@@ -497,6 +486,15 @@ class CCFRemote(object):
             loader = FileSystemLoader(binary_dir)
             t_env = Environment(loader=loader, autoescape=select_autoescape())
             t = t_env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
+            auto_dr_args = {}
+            if sealed_ledger_secret_location is not None:
+                auto_dr_args["sealed_ledger_secret_location"] = (
+                    sealed_ledger_secret_location
+                )
+            if previous_sealed_ledger_secret_location is not None:
+                auto_dr_args["previous_sealed_ledger_secret_location"] = (
+                    previous_sealed_ledger_secret_location
+                )
             output = t.render(
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
@@ -507,7 +505,7 @@ class CCFRemote(object):
                     else enclave_platform.upper()
                 ),
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(
-                    remote_class.make_host(host)
+                    LocalRemote.make_host(host)
                 ),
                 node_certificate_file=self.pem,
                 node_address_file=self.node_address_file,
@@ -531,16 +529,18 @@ class CCFRemote(object):
                 node_pid_file=node_pid_file,
                 snp_security_context_directory_envvar=snp_security_context_directory_envvar,  # Ignored by current jinja, but passed for LTS compat
                 ignore_first_sigterm=ignore_first_sigterm,
-                node_address=remote_class.get_node_address(node_address),
+                node_address=LocalRemote.get_node_address(node_address),
                 follow_redirect=follow_redirect,
                 fetch_recent_snapshot=fetch_recent_snapshot,
                 max_uncommitted_tx_count=max_uncommitted_tx_count,
                 snp_security_policy_file=snp_security_policy_file,
                 snp_uvm_endorsements_file=snp_uvm_endorsements_file,
+                snp_endorsements_file=snp_endorsements_file,
                 service_subject_name=service_subject_name,
                 historical_cache_soft_limit=historical_cache_soft_limit,
                 cose_signatures_issuer=cose_signatures_issuer,
                 cose_signatures_subject=cose_signatures_subject,
+                **auto_dr_args,
                 **kwargs,
             )
 
@@ -615,7 +615,7 @@ class CCFRemote(object):
         if start_type == StartType.join:
             data_files += [os.path.join(self.common_dir, "service_cert.pem")]
 
-        self.remote = remote_class(
+        self.remote = LocalRemote(
             self.name,
             self.pub_host,
             exe_files,
@@ -659,6 +659,9 @@ class CCFRemote(object):
 
     def sigterm(self):
         self.remote.sigterm()
+
+    def sigkill(self):
+        self.remote.sigkill()
 
     def stop(self):
         try:

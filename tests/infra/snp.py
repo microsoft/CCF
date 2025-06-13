@@ -3,6 +3,7 @@
 
 import os
 import base64
+import glob
 from hashlib import sha256
 
 # Path to the SEV guest device on patched 5.x kernels
@@ -45,10 +46,19 @@ EMPTY_SNP_SECURITY_POLICY = ""
 
 def get_aci_env():
     env = {}
-    with open(WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH, "r", encoding="utf-8") as f:
-        for line in f.read().splitlines():
-            env_key, env_value = line.partition("=")[::2]
-            env[env_key] = env_value
+    # If the well-known file exists, read the environment variables from it
+    # Otherwise, try to discover the security context directory
+    if os.path.exists(WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH):
+        with open(WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH, "r", encoding="utf-8") as f:
+            for line in f.read().splitlines():
+                env_key, env_value = line.partition("=")[::2]
+                env[env_key] = env_value
+    else:
+        (security_context_dir,) = glob.glob("/security-context-*")
+        env[ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR] = security_context_dir
+    # If Fabric_NodeIPOrFQDN is set, pick it up
+    if "Fabric_NodeIPOrFQDN" in os.environ:
+        env["Fabric_NodeIPOrFQDN"] = os.environ["Fabric_NodeIPOrFQDN"]
     return env
 
 

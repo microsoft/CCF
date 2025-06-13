@@ -1,11 +1,6 @@
 What is CCF?
 ============
 
-This page gives a broad overview of the fundamentals of CCF. This is where you should start if you're new to CCF.
-
-CCF in a Hundred Words
-----------------------
-
 The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly-available, and performant applications that focus on multi-party compute and data.
 
 Leveraging the power of trusted execution environments (:term:`TEE`, or enclave), decentralised systems concepts, and cryptography, CCF enables enterprise-ready multiparty systems.

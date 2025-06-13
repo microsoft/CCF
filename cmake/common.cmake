@@ -26,6 +26,7 @@ function(add_unit_test name)
              "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
   )
 
+  target_compile_definitions(${name} PRIVATE CCF_LOGGER_NO_DEPRECATE)
 endfunction()
 
 # Test binary wrapper
@@ -175,22 +176,12 @@ endfunction()
 function(add_perf_test)
 
   cmake_parse_arguments(
-    PARSE_ARGV
-    0
-    PARSED_ARGS
-    ""
-    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;VERIFICATION_FILE;LABEL,PERF_LABEL"
-    "ADDITIONAL_ARGS"
+    PARSE_ARGV 0 PARSED_ARGS ""
+    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;PERF_LABEL" "ADDITIONAL_ARGS"
   )
 
   if(NOT PARSED_ARGS_CONSTITUTION)
     set(PARSED_ARGS_CONSTITUTION ${CCF_NETWORK_TEST_DEFAULT_CONSTITUTION})
-  endif()
-
-  if(PARSED_ARGS_VERIFICATION_FILE)
-    set(VERIFICATION_ARG "--verify ${PARSED_ARGS_VERIFICATION_FILE}")
-  else()
-    unset(VERIFICATION_ARG)
   endif()
 
   set(TESTS_SUFFIX "")
@@ -212,9 +203,10 @@ function(add_perf_test)
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
       ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --write-tx-times
-      ${VERIFICATION_ARG} --label ${TEST_NAME} --snapshot-tx-interval 10000
-      --perf-label ${PARSED_ARGS_PERF_LABEL} ${PARSED_ARGS_ADDITIONAL_ARGS} -e
+      --label ${TEST_NAME} --snapshot-tx-interval 10000 --perf-label
+      ${PARSED_ARGS_PERF_LABEL} ${PARSED_ARGS_ADDITIONAL_ARGS} -e
       ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM} ${NODES}
+    CONFIGURATIONS perf
   )
 
   # Make python test client framework importable
@@ -281,10 +273,10 @@ function(add_piccolo_test)
     NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-      ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} ${VERIFICATION_ARG}
-      --label ${TEST_NAME} --perf-label ${PARSED_ARGS_PERF_LABEL}
-      --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS} -e
-      ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM} ${NODES}
+      ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --label ${TEST_NAME}
+      --perf-label ${PARSED_ARGS_PERF_LABEL} --snapshot-tx-interval 10000
+      ${PARSED_ARGS_ADDITIONAL_ARGS} -e ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM}
+      ${NODES}
     CONFIGURATIONS perf
   )
 
@@ -357,4 +349,5 @@ function(add_picobench name)
     PROPERTY ENVIRONMENT
              "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
   )
+  target_compile_definitions(${name} PRIVATE CCF_LOGGER_NO_DEPRECATE)
 endfunction()

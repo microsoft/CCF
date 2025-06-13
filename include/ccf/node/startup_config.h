@@ -63,11 +63,15 @@ namespace ccf
       ccf::pal::snp::EndorsementsServers snp_endorsements_servers = {};
       std::optional<std::string> snp_security_policy_file = std::nullopt;
       std::optional<std::string> snp_uvm_endorsements_file = std::nullopt;
+      std::optional<std::string> snp_endorsements_file = std::nullopt;
 
       struct Environment
       {
+        // Each of these contains the string read from the relevant file. It is
+        // expected to be a base-64 string.
         std::optional<std::string> security_policy = std::nullopt;
         std::optional<std::string> uvm_endorsements = std::nullopt;
+        std::optional<std::string> snp_endorsements = std::nullopt;
 
         bool operator==(const Environment&) const = default;
       };
@@ -101,6 +105,8 @@ namespace ccf
     std::string service_subject_name = "CN=CCF Service";
     ccf::COSESignaturesConfig cose_signatures;
 
+    std::optional<std::string> sealed_ledger_secret_location;
+
     nlohmann::json service_data = nullptr;
 
     nlohmann::json node_data = nullptr;
@@ -127,6 +133,8 @@ namespace ccf
     struct Recover
     {
       std::optional<std::vector<uint8_t>> previous_service_identity =
+        std::nullopt;
+      std::optional<std::string> previous_sealed_ledger_secret_location =
         std::nullopt;
     };
     Recover recover = {};

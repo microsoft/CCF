@@ -227,7 +227,7 @@ namespace timing
 
       constexpr auto get_tx_status = "tx";
 
-      LOG_INFO_FMT(
+      CCF_APP_INFO(
         "Waiting for transaction ID {}.{}", target.view, target.seqno);
 
       while (true)
@@ -267,10 +267,10 @@ namespace timing
         }
         else if (tx_status == "Committed")
         {
-          LOG_INFO_FMT("Found global commit {}.{}", target.view, target.seqno);
+          CCF_APP_INFO("Found global commit {}.{}", target.view, target.seqno);
           if (tx_id.has_value())
           {
-            LOG_INFO_FMT(
+            CCF_APP_INFO(
               " (headers view: {}, seqno: {})", tx_id->view, tx_id->seqno);
           }
 
@@ -334,7 +334,7 @@ namespace timing
         {
           if (receive.global_seqno >= highest_local_commit)
           {
-            LOG_INFO_FMT(
+            CCF_APP_INFO(
               "Global commit match {} for highest local commit {}",
               receive.global_seqno,
               highest_local_commit);
@@ -343,7 +343,7 @@ namespace timing
             auto is =
               duration_cast<milliseconds>(receive.receive_time).count() /
               1000.0;
-            LOG_INFO_FMT("Duration changing from {}s to {}s", was, is);
+            CCF_APP_INFO("Duration changing from {}s to {}s", was, is);
             end_time_delta = receive.receive_time;
             break;
           }
@@ -412,7 +412,7 @@ namespace timing
 
               if (tx_latency < 0)
               {
-                LOG_FAIL_FMT(
+                CCF_APP_FAIL(
                   "Calculated a negative latency ({}) for RPC {} - duplicate "
                   "ID causing mismatch?",
                   tx_latency,
@@ -449,7 +449,7 @@ namespace timing
                 }
                 else
                 {
-                  LOG_DEBUG_FMT(
+                  CCF_APP_DEBUG(
                     "Ignoring request with ID {} because it committed too late "
                     "({} > {})",
                     send.rpc_id,
@@ -539,7 +539,7 @@ namespace timing
 
     void write_to_file(const string& filename)
     {
-      LOG_INFO_FMT("Writing timing data to files");
+      CCF_APP_INFO("Writing timing data to files");
 
       const auto sent_path = filename + "_sent.csv";
       ofstream sent_csv(sent_path, ofstream::out);
@@ -551,7 +551,7 @@ namespace timing
           sent_csv << sent.send_time.count() << "," << sent.rpc_id << ","
                    << sent.method << "," << sent.expects_commit << endl;
         }
-        LOG_INFO_FMT("Wrote {} entries to {}", sends.size(), sent_path);
+        CCF_APP_INFO("Wrote {} entries to {}", sends.size(), sent_path);
       }
 
       const auto recv_path = filename + "_recv.csv";
@@ -580,7 +580,7 @@ namespace timing
           recv_csv << "," << reply.global_seqno;
           recv_csv << endl;
         }
-        LOG_INFO_FMT("Wrote {} entries to {}", receives.size(), recv_path);
+        CCF_APP_INFO("Wrote {} entries to {}", receives.size(), recv_path);
       }
     }
   };

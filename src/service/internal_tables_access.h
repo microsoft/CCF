@@ -9,6 +9,7 @@
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/snp_measurements.h"
+#include "ccf/service/tables/tcb_verification.h"
 #include "ccf/service/tables/users.h"
 #include "ccf/service/tables/virtual_measurements.h"
 #include "ccf/tx.h"
@@ -430,36 +431,30 @@ namespace ccf
       node->put(id, node_info);
     }
 
-    static auto get_trusted_nodes(
-      ccf::kv::ReadOnlyTx& tx,
-      std::optional<NodeId> self_to_exclude = std::nullopt)
+    static std::map<NodeId, NodeInfo> get_trusted_nodes(ccf::kv::ReadOnlyTx& tx)
     {
-      // Returns the list of trusted nodes. If self_to_exclude is set,
-      // self_to_exclude is not included in the list of returned nodes.
       std::map<NodeId, NodeInfo> active_nodes;
 
       auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
 
-      nodes->foreach([&active_nodes, &nodes, self_to_exclude](
-                       const NodeId& nid, const NodeInfo& ni) {
-        if (
-          ni.status == ccf::NodeStatus::TRUSTED &&
-          (!self_to_exclude.has_value() || self_to_exclude.value() != nid))
-        {
-          active_nodes[nid] = ni;
-        }
-        else if (ni.status == ccf::NodeStatus::RETIRED)
-        {
-          // If a node is retired, but knowledge of their retirement has not yet
-          // been globally committed, they are still considered active.
-          auto cni = nodes->get_globally_committed(nid);
-          if (cni.has_value() && !cni->retired_committed)
+      nodes->foreach(
+        [&active_nodes, &nodes](const NodeId& nid, const NodeInfo& ni) {
+          if (ni.status == ccf::NodeStatus::TRUSTED)
           {
             active_nodes[nid] = ni;
           }
-        }
-        return true;
-      });
+          else if (ni.status == ccf::NodeStatus::RETIRED)
+          {
+            // If a node is retired, but knowledge of their retirement has not
+            // yet been globally committed, they are still considered active.
+            auto cni = nodes->get_globally_committed(nid);
+            if (cni.has_value() && !cni->retired_committed)
+            {
+              active_nodes[nid] = ni;
+            }
+          }
+          return true;
+        });
 
       return active_nodes;
     }
@@ -807,7 +802,8 @@ namespace ccf
     }
 
     static void trust_node_uvm_endorsements(
-      ccf::kv::Tx& tx, const std::optional<UVMEndorsements>& uvm_endorsements)
+      ccf::kv::Tx& tx,
+      const std::optional<pal::UVMEndorsements>& uvm_endorsements)
     {
       if (!uvm_endorsements.has_value())
       {
@@ -820,6 +816,112 @@ namespace ccf
       uvme->put(
         uvm_endorsements->did,
         {{uvm_endorsements->feed, {uvm_endorsements->svn}}});
+    }
+
+    static void trust_static_snp_tcb_version(ccf::kv::Tx& tx)
+    {
+      auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+
+      constexpr pal::snp::CPUID milan_chip_id{
+        .stepping = 0x1,
+        .base_model = 0x1,
+        .base_family = 0xF,
+        .reserved = 0,
+        .extended_model = 0x0,
+        .extended_family = 0x0A,
+        .reserved2 = 0};
+      constexpr pal::snp::TcbVersion milan_tcb_version = {
+        .boot_loader = 0,
+        .tee = 0,
+        .reserved = {0},
+        .snp = 0x18,
+        .microcode = 0xDB};
+      h->put(milan_chip_id.hex_str(), milan_tcb_version);
+
+      constexpr pal::snp::CPUID milan_x_chip_id{
+        .stepping = 0x2,
+        .base_model = 0x1,
+        .base_family = 0xF,
+        .reserved = 0,
+        .extended_model = 0x0,
+        .extended_family = 0x0A,
+        .reserved2 = 0};
+      constexpr pal::snp::TcbVersion milan_x_tcb_version = {
+        .boot_loader = 0,
+        .tee = 0,
+        .reserved = {0},
+        .snp = 0x18,
+        .microcode = 0x44};
+      h->put(milan_x_chip_id.hex_str(), milan_x_tcb_version);
+
+      constexpr pal::snp::CPUID genoa_chip_id{
+        .stepping = 0x1,
+        .base_model = 0x1,
+        .base_family = 0xF,
+        .reserved = 0,
+        .extended_model = 0x1,
+        .extended_family = 0x0A,
+        .reserved2 = 0};
+      constexpr pal::snp::TcbVersion genoa_tcb_version = {
+        .boot_loader = 0,
+        .tee = 0,
+        .reserved = {0},
+        .snp = 0x17,
+        .microcode = 0x54};
+      h->put(genoa_chip_id.hex_str(), genoa_tcb_version);
+
+      constexpr pal::snp::CPUID genoa_x_chip_id{
+        .stepping = 0x2,
+        .base_model = 0x1,
+        .base_family = 0xF,
+        .reserved = 0,
+        .extended_model = 0x1,
+        .extended_family = 0x0A,
+        .reserved2 = 0};
+      constexpr pal::snp::TcbVersion genoa_x_tcb_version = {
+        .boot_loader = 0,
+        .tee = 0,
+        .reserved = {0},
+        .snp = 0x17,
+        .microcode = 0x4F};
+      h->put(genoa_x_chip_id.hex_str(), genoa_x_tcb_version);
+    }
+
+    static void trust_node_snp_tcb_version(
+      ccf::kv::Tx& tx, pal::snp::Attestation& attestation)
+    {
+      // Fall back to statically configured tcb versions
+      if (attestation.version < pal::snp::MIN_TCB_VERIF_VERSION)
+      {
+        LOG_FAIL_FMT(
+          "SNP attestation version {} older than {}, falling back to static "
+          "minimum TCB values",
+          attestation.version,
+          pal::snp::MIN_TCB_VERIF_VERSION);
+        trust_static_snp_tcb_version(tx);
+        return;
+      }
+
+      // As cpuid -> attestation cpuid is surjective, we must use the local
+      // cpuid and validate it against the attestation's cpuid
+      auto cpuid = pal::snp::get_cpuid_untrusted();
+      if (
+        cpuid.get_family_id() != attestation.cpuid_fam_id ||
+        cpuid.get_model_id() != attestation.cpuid_mod_id ||
+        cpuid.stepping != attestation.cpuid_step)
+      {
+        LOG_FAIL_FMT(
+          "CPU-sourced cpuid does not match attestation cpuid ({} != {}, {}, "
+          "{})",
+          cpuid.hex_str(),
+          attestation.cpuid_fam_id,
+          attestation.cpuid_mod_id,
+          attestation.cpuid_step);
+        trust_static_snp_tcb_version(tx);
+        return;
+      }
+      auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+      h->put(cpuid.hex_str(), attestation.reported_tcb);
     }
 
     static void init_configuration(

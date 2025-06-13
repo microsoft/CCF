@@ -15,6 +15,7 @@
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
+#include "ccf/service/tables/tcb_verification.h"
 #include "frontend.h"
 #include "js/extensions/ccf/network.h"
 #include "js/extensions/ccf/node.h"
@@ -508,7 +509,8 @@ namespace ccf
             handle->foreach([&response_body](const auto& k, const auto& v) {
               if constexpr (
                 std::is_same_v<typename T::Key, ccf::crypto::Sha256Hash> ||
-                pal::is_attestation_measurement<typename T::Key>::value)
+                pal::is_attestation_measurement<typename T::Key>::value ||
+                std::is_same_v<typename T::Key, ccf::pal::snp::CPUID>)
               {
                 response_body[k.hex_str()] = v;
               }
@@ -610,7 +612,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "4.6.1";
+      openapi_info.document_version = "4.7.3";
     }
 
     static std::optional<MemberId> get_caller_member_id(

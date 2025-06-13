@@ -437,6 +437,10 @@
                   "previous_service_identity_file": {
                     "type": "string",
                     "description": "Path to the previous service certificate (PEM) file"
+                  },
+                  "previous_sealed_ledger_secret_location": {
+                    "type": ["string"],
+                    "description": "Path to the sealed ledger secret folder, the ledger secrets for the recovered service will be unsealed from here instead of reconstructed from recovery shares."
                   }
                 },
                 "required": ["previous_service_identity_file"],
@@ -494,6 +498,10 @@
         "snp_uvm_endorsements_file": {
           "type": ["string", "null"],
           "description": "Path to file containing UVM endorsements as a base64-encoded COSE Sign1 (SEV-SNP only). Can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR"
+        },
+        "snp_endorsements_file": {
+          "type": ["string", "null"],
+          "description": "Path to file containing AMD VCEK hardware endorsements (a PEM certificate chain), base-64 encoded. Can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR. Will be used in preference to snp_endorsements_servers if the tcbm in this file matches that of the attestation"
         },
         "snp_endorsements_servers": {
           "type": "array",
@@ -666,6 +674,10 @@
         "rpc_addresses_file": {
           "type": "string",
           "description": "Path to file in which all RPC addresses (hostnames and ports) will be written to on startup. This option is particularly useful when binding to port 0 and getting auto-assigned a port by the OS. No file is created if this entry is not specified"
+        },
+        "sealed_ledger_secret_location": {
+          "type": "string",
+          "description": "Path to the folder where the node will seal its ledger secrets."
         }
       },
       "description": "This section includes configuration for additional files output by the node",

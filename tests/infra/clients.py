@@ -398,7 +398,7 @@ def cose_protected_headers_api_v1(request_path, created_at=None):
     phdr = {"ccf.gov.msg.created_at": created_at or get_clock().moment()}
 
     hex_id = "([a-f0-9]+)"
-    opt_query = "(\?.*)?"
+    opt_query = r"(\?.*)?"
 
     if match := re.match(
         f"^/gov/members/state-digests/{hex_id}:update{opt_query}$",

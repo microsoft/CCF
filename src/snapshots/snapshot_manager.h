@@ -81,6 +81,62 @@ namespace snapshots
       return snapshot;
     }
 
+#define THROW_ON_ERROR(x, name) \
+  do \
+  { \
+    auto rc = x; \
+    if (rc == -1) \
+    { \
+      throw std::runtime_error(fmt::format( \
+        "Error ({}) writing snapshot {} in " #x, strerror(errno), name)); \
+    } \
+  } while (0)
+
+    struct AsyncSnapshotSyncAndRename
+    {
+      // Inputs, populated at construction
+      const std::filesystem::path dir;
+      const std::string tmp_file_name;
+      const int snapshot_fd;
+
+      // Outputs, populated by callback
+      std::string committed_file_name = {};
+    };
+
+    static void on_snapshot_sync_and_rename(uv_work_t* req)
+    {
+      auto data = static_cast<AsyncSnapshotSyncAndRename*>(req->data);
+
+      {
+        asynchost::TimeBoundLogger log_if_slow(
+          fmt::format("Committing snapshot - fsync({})", data->tmp_file_name));
+        fsync(data->snapshot_fd);
+      }
+
+      close(data->snapshot_fd);
+
+      // e.g. snapshot_100_105.committed
+      data->committed_file_name =
+        fmt::format("{}{}", data->tmp_file_name, snapshot_committed_suffix);
+      const auto full_committed_path = data->dir / data->committed_file_name;
+
+      const auto full_tmp_path = data->dir / data->tmp_file_name;
+      files::rename(full_tmp_path, full_committed_path);
+    }
+
+    static void on_snapshot_sync_and_rename_complete(uv_work_t* req, int status)
+    {
+      auto data = static_cast<AsyncSnapshotSyncAndRename*>(req->data);
+
+      LOG_INFO_FMT(
+        "Renamed temporary snapshot {} to {}",
+        data->tmp_file_name,
+        data->committed_file_name);
+
+      delete data;
+      delete req;
+    }
+
     void commit_snapshot(
       ::consensus::Index snapshot_idx,
       const uint8_t* receipt_data,
@@ -96,47 +152,74 @@ namespace snapshots
         {
           if (snapshot_idx == it->first)
           {
-            // e.g. snapshot_100_105.committed
+            // e.g. snapshot_100_105
             auto file_name = fmt::format(
-              "{}{}{}{}{}{}",
+              "{}{}{}{}{}",
               snapshot_file_prefix,
               snapshot_idx_delimiter,
               it->first,
               snapshot_idx_delimiter,
-              it->second.evidence_idx,
-              snapshot_committed_suffix);
+              it->second.evidence_idx);
             auto full_snapshot_path = snapshot_dir / file_name;
 
-            if (fs::exists(full_snapshot_path))
+            int snapshot_fd = open(
+              full_snapshot_path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0664);
+            if (snapshot_fd == -1)
             {
-              // In the case that a file with this name already exists, keep
-              // existing file and drop pending snapshot
-              LOG_FAIL_FMT(
-                "Cannot write snapshot as file already exists: {}", file_name);
-            }
-            else
-            {
-              std::ofstream snapshot_file(
-                full_snapshot_path, std::ios::app | std::ios::binary);
-              if (!snapshot_file.good())
+              if (errno == EEXIST)
               {
+                // In the case that a file with this name already exists, keep
+                // existing file and drop pending snapshot
                 LOG_FAIL_FMT(
-                  "Cannot write snapshot: error opening file {}", file_name);
+                  "Cannot write snapshot as file already exists: {}",
+                  file_name);
               }
               else
               {
-                const auto& snapshot = it->second.snapshot;
-                snapshot_file.write(
-                  reinterpret_cast<const char*>(snapshot->data()),
-                  snapshot->size());
-                snapshot_file.write(
-                  reinterpret_cast<const char*>(receipt_data), receipt_size);
-
-                LOG_INFO_FMT(
-                  "New snapshot file written to {} [{} bytes]",
-                  file_name,
-                  static_cast<size_t>(snapshot_file.tellp()));
+                LOG_FAIL_FMT(
+                  "Cannot write snapshot: error ({}) opening file {}",
+                  errno,
+                  file_name);
               }
+            }
+            else
+            {
+              const auto& snapshot = it->second.snapshot;
+
+              THROW_ON_ERROR(
+                write(snapshot_fd, snapshot->data(), snapshot->size()),
+                file_name);
+              THROW_ON_ERROR(
+                write(snapshot_fd, receipt_data, receipt_size), file_name);
+
+              LOG_INFO_FMT(
+                "New snapshot file written to {} [{} bytes] (unsynced)",
+                file_name,
+                snapshot->size() + receipt_size);
+
+              // Call fsync and rename on a worker-thread via uv async, as they
+              // may be slow
+              uv_work_t* work_handle = new uv_work_t;
+
+              {
+                auto* data = new AsyncSnapshotSyncAndRename{
+                  .dir = snapshot_dir,
+                  .tmp_file_name = file_name,
+                  .snapshot_fd = snapshot_fd};
+
+                work_handle->data = data;
+              }
+
+#ifdef TEST_MODE_EXECUTE_SYNC_INLINE
+              on_snapshot_sync_and_rename(work_handle);
+              on_snapshot_sync_and_rename_complete(work_handle, 0);
+#else
+              uv_queue_work(
+                uv_default_loop(),
+                work_handle,
+                &on_snapshot_sync_and_rename,
+                &on_snapshot_sync_and_rename_complete);
+#endif
             }
 
             pending_snapshots.erase(it);
@@ -155,6 +238,7 @@ namespace snapshots
           e.what());
       }
     }
+#undef THROW_ON_ERROR
 
     std::optional<std::pair<fs::path, fs::path>>
     find_latest_committed_snapshot()

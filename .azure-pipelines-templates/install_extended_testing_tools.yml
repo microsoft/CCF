@@ -1,8 +1,0 @@
-steps:
-  - script: |
-      set -ex
-      sudo apt-get -y update
-      sudo apt install ansible -y
-      cd getting_started/setup_vm
-      ansible-playbook ccf-extended-testing.yml
-    displayName: Install Extended Testing Tools

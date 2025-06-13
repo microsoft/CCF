@@ -17,6 +17,7 @@ import http
 import contextlib
 import ccf.ledger
 from reconfiguration import test_ledger_invariants
+import subprocess
 
 from loguru import logger as LOG
 
@@ -711,6 +712,151 @@ def test_session_consistency(network, args):
     return network
 
 
+@reqs.supports_methods("/app/log/public")
+def test_recovery_elections(orig_network, args):
+    # Ensure we have 3 nodes
+    original_size = orig_network.resize(3, args)
+
+    old_primary, _ = orig_network.find_nodes()
+    with old_primary.client("user0") as c:
+        LOG.warning("Writing some initial state")
+        for _ in range(300):
+            r = c.post(
+                "/app/log/public",
+                {
+                    "id": 42,
+                    "msg": "Uninteresting recoverable transactions",
+                },
+            )
+            assert r.status_code == 200, r
+
+        r = c.get("/node/network")
+        assert r.status_code == 200, r
+        previous_identity = orig_network.save_service_identity(args)
+        c.wait_for_commit(
+            orig_network.consortium.set_recovery_threshold(old_primary, 1)
+        )
+    orig_network.stop_all_nodes(skip_verification=True)
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+    # Create a recovery network, where we will manually take the recovery steps (transition to open and submit share)
+    network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=orig_network,
+    )
+    network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+    )
+    new_primary, new_backups = network.find_nodes()
+    network.consortium.transition_service_to_open(
+        new_primary, previous_service_identity=previous_identity
+    )
+
+    with new_primary.client("user0") as c:
+        previous_identity = network.save_service_identity(args)
+
+    member = network.consortium.get_active_recovery_participants()[0]
+
+    # We need to delay a backup's private recovery process until:
+    # - The primary has completed its private recovery, and fully opened the network
+    # - The backup has called and won an election
+    # So that the backup node _is primary_ at the point it completes private recovery.
+    # We force the delay by injecting a delay into the file operations of the backup,
+    # and force an election (after the primary has completed its recovery) by killing
+    # the original primary node.
+    backup = new_backups[0]
+    LOG.info(f"Using strace to inject delays in file IO of {backup}")
+    assert not backup.remote.check_done()
+
+    strace_command = [
+        "strace",
+        f"--attach={backup.remote.remote.proc.pid}",
+        "--inject=lseek:delay_exit=10s",
+        "-tt",
+        "--trace=lseek,read,open,openat",
+        "--decode-fds=all",
+        "--output=strace_output.txt",
+    ]
+    LOG.warning(f"About to run strace: {strace_command}")
+    strace_process = subprocess.Popen(
+        strace_command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    member.get_and_submit_recovery_share(new_primary)
+    network.recovery_count += 1
+
+    LOG.info("Confirming that primary completes private recovery")
+    network.wait_for_state(
+        new_primary,
+        infra.node.State.PART_OF_NETWORK.value,
+        timeout=30,
+    )
+
+    election_s = args.election_timeout_ms / 1000
+    LOG.info(
+        f"Holding backup stalled via strace for {election_s}, to trigger an election"
+    )
+    time.sleep(election_s)
+
+    # If strace failed to stall the node, the rest of the test is meaningless.
+    try:
+        strace_process.communicate(timeout=1)
+    except subprocess.TimeoutExpired:
+        assert strace_process.returncode is None, strace_process.returncode
+    else:
+        assert (
+            False
+        ), f"strace must not have been completed yet (retcode: {strace_process.returncode})"
+
+    LOG.info("Ending strace, and terminating primary node")
+    strace_process.terminate()
+    strace_process.communicate()
+
+    new_primary.stop()
+
+    LOG.info(
+        f"Give {backup} time to finish its recovery (including becoming primary), and confirm that it dies in the process"
+    )
+    time.sleep(election_s)
+    # The result of all of that is that this node, which had become primary while it
+    # completed its private recovery, crashed at the end of recovery (rather than)
+    # producing an invalid ledger)
+    assert backup.remote.check_done()
+
+    network.ignore_errors_on_shutdown()
+    network.stop_all_nodes(skip_verification=True)
+    current_ledger_dir, committed_ledger_dirs = backup.get_ledger()
+
+    LOG.info(
+        "Trying a further recovery, to confirm that the ledger is in a recoverable state"
+    )
+    recovery_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=network,
+    )
+    recovery_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+    )
+    recovery_network.recover(args)
+
+    # Restore original network size
+    recovery_network.resize(original_size, args)
+
+    return recovery_network
+
+
 def run(args):
     txs = app.LoggingTxs("user0")
 
@@ -737,6 +883,7 @@ def run(args):
         # HTTP2 doesn't support forwarding
         if not args.http2:
             test_session_consistency(network, args)
+        network = test_recovery_elections(network, args)
         test_ledger_invariants(network, args)
 
 

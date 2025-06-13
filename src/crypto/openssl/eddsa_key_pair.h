@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/crypto/eddsa_key_pair.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/eddsa_public_key.h"
-#include "openssl_wrappers.h"
 
 namespace ccf::crypto
 {

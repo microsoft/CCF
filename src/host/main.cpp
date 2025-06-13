@@ -1,19 +1,28 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/crypto/pem.h"
+#include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
+#include "ccf/ds/logger_level.h"
+#include "ccf/ds/nonstd.h"
 #include "ccf/ds/unit_strings.h"
 #include "ccf/ds/x509_time_fmt.h"
+#include "ccf/node/startup_config.h"
 #include "ccf/pal/attestation.h"
+#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/platform.h"
+#include "ccf/pal/snp_ioctl.h"
+#include "ccf/service/node_info_network.h"
 #include "ccf/version.h"
+#include "common/configuration.h"
+#include "common/enclave_interface_types.h"
 #include "config_schema.h"
 #include "configuration.h"
 #include "crypto/openssl/hash.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/non_blocking.h"
-#include "ds/nonstd.h"
 #include "ds/notifying.h"
 #include "ds/oversized.h"
 #include "enclave.h"
@@ -28,25 +37,38 @@
 #include "rpc_connections.h"
 #include "sig_term.h"
 #include "snapshots/fetch.h"
+#include "snapshots/filenames.h"
 #include "snapshots/snapshot_manager.h"
+#include "tcp.h"
 #include "ticker.h"
+#include "time_bound_logger.h"
 #include "time_updater.h"
+#include "udp.h"
 
 #include <CLI11/CLI11.hpp>
-#include <codecvt>
+#include <atomic>
+#include <chrono>
+#include <csignal>
+#include <cstdint>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
-#include <locale>
+#include <map>
+#include <optional>
+#include <stdexcept>
 #include <string>
-#include <sys/types.h>
 #include <thread>
 #include <unistd.h>
+#include <utility>
+#include <uv.h>
+
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 
 namespace fs = std::filesystem;
 
-extern char** environ;
+using namespace std::chrono_literals;
 
 using namespace std::string_literals;
 using namespace std::chrono_literals;
@@ -61,21 +83,29 @@ bool asynchost::TCPImpl::alloc_quota_logged = false;
 size_t asynchost::UDPImpl::remaining_read_quota =
   asynchost::UDPImpl::max_read_quota;
 
-std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(10'000);
-
-void print_version(size_t)
+void print_version(int64_t ignored)
 {
+  (void)ignored;
   std::cout << "CCF host: " << ccf::ccf_version << std::endl;
   std::cout << "Platform: "
             << nlohmann::json(ccf::pal::platform).get<std::string>()
             << std::endl;
-  exit(0);
+  exit(0); // NOLINT(concurrency-mt-unsafe)
 }
 
-int main(int argc, char** argv)
+static constexpr size_t max_time_us = 10'000;
+std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(
+  max_time_us);
+
+static constexpr size_t retry_interval_ms = 100;
+
+int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
 {
-  // ignore SIGPIPE
-  signal(SIGPIPE, SIG_IGN);
+  if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+  {
+    LOG_FAIL_FMT("Failed to ignore SIGPIPE");
+    return 1;
+  }
 
   ccf::crypto::openssl_sha256_init();
 
@@ -112,8 +142,8 @@ int main(int argc, char** argv)
        i < ccf::LoggerLevel::MAX_LOG_LEVEL;
        ++i)
   {
-    const auto l = (ccf::LoggerLevel)i;
-    log_level_options[ccf::logger::to_string(l)] = l;
+    const auto level = (ccf::LoggerLevel)i;
+    log_level_options[ccf::logger::to_string(level)] = level;
   }
 
   app
@@ -142,9 +172,11 @@ int main(int argc, char** argv)
     config_file_path,
     true /* return an empty string if the file does not exist */);
   nlohmann::json config_json;
-  auto config_timeout_end = std::chrono::high_resolution_clock::now() +
+  const auto
+    config_timeout_end = // NOLINT(clang-analyzer-deadcode.DeadStores) line 195
+    std::chrono::high_resolution_clock::now() +
     std::chrono::microseconds(config_timeout);
-  std::string config_parsing_error = "";
+  std::string config_parsing_error;
   do
   {
     config_str = files::slurp_string(
@@ -160,7 +192,7 @@ int main(int argc, char** argv)
     {
       config_parsing_error = fmt::format(
         "Error parsing configuration file {}: {}", config_file_path, e.what());
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      std::this_thread::sleep_for(std::chrono::milliseconds(retry_interval_ms));
     }
   } while (std::chrono::high_resolution_clock::now() < config_timeout_end);
 
@@ -192,7 +224,12 @@ int main(int argc, char** argv)
 
   LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
 
-  LOG_INFO_FMT("CLI args: \"{}\"", fmt::join(argv, argv + argc, "\" \""));
+  LOG_INFO_FMT(
+    "CLI args: \"{}\"",
+    fmt::join(
+      argv,
+      argv + argc, // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      "\" \""));
 
   if (check_config_only)
   {
@@ -203,9 +240,14 @@ int main(int argc, char** argv)
   LOG_INFO_FMT("Configuration file {}:\n{}", config_file_path, config_str);
 
   nlohmann::json environment;
-  for (int i = 0; environ[i] != nullptr; i++)
+  for (int i = 0;
+       environ[i] != // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+       nullptr;
+       i++)
   {
-    auto [k, v] = ccf::nonstd::split_1(environ[i], "=");
+    auto [k, v] = ccf::nonstd::split_1(
+      environ[i], // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      "=");
     environment[k] = v;
   }
 
@@ -233,12 +275,12 @@ int main(int argc, char** argv)
       // service can be opened.
       size_t recovery_participants_count = 0;
       size_t recovery_owners_count = 0;
-      for (auto const& m : config.command.start.members)
+      for (auto const& member : config.command.start.members)
       {
-        if (m.encryption_public_key_file.has_value())
+        if (member.encryption_public_key_file.has_value())
         {
           auto role =
-            m.recovery_role.value_or(ccf::MemberRecoveryRole::Participant);
+            member.recovery_role.value_or(ccf::MemberRecoveryRole::Participant);
           if (role == ccf::MemberRecoveryRole::Participant)
           {
             recovery_participants_count++;
@@ -303,7 +345,7 @@ int main(int argc, char** argv)
     return static_cast<int>(CLI::ExitCodes::ValidationError);
   }
 
-  std::filesystem::path pid_file_path{config.output_files.pid_file};
+  const std::filesystem::path pid_file_path{config.output_files.pid_file};
   if (std::filesystem::exists(pid_file_path))
   {
     LOG_FATAL_FMT(
@@ -372,7 +414,7 @@ int main(int argc, char** argv)
   }
 
   ringbuffer::Circuit circuit(to_enclave_def, from_enclave_def);
-  messaging::BufferProcessor bp("Host");
+  messaging::BufferProcessor buffer_processor("Host");
 
   ringbuffer::WriterFactory base_factory(circuit);
 
@@ -385,35 +427,36 @@ int main(int argc, char** argv)
   ringbuffer::NonBlockingWriterFactory non_blocking_factory(notifying_factory);
 
   // Factory for creating writers which will handle writing of large messages
-  oversized::WriterConfig writer_config{
+  const oversized::WriterConfig writer_config{
     config.memory.max_fragment_size, config.memory.max_msg_size};
   oversized::WriterFactory writer_factory(non_blocking_factory, writer_config);
 
   // reconstruct oversized messages sent to the host
-  oversized::FragmentReconstructor fr(bp.get_dispatcher());
+  const oversized::FragmentReconstructor fragment_reconstructor(
+    buffer_processor.get_dispatcher());
 
   asynchost::ProcessLauncher process_launcher;
-  process_launcher.register_message_handlers(bp.get_dispatcher());
+  process_launcher.register_message_handlers(buffer_processor.get_dispatcher());
 
   {
     // provide regular ticks to the enclave
-    asynchost::Ticker ticker(config.tick_interval, writer_factory);
+    const asynchost::Ticker ticker(config.tick_interval, writer_factory);
 
     // reset the inbound-TCP processing quota each iteration
-    asynchost::ResetTCPReadQuota reset_tcp_quota;
+    const asynchost::ResetTCPReadQuota reset_tcp_quota;
 
     // reset the inbound-UDP processing quota each iteration
-    asynchost::ResetUDPReadQuota reset_udp_quota;
+    const asynchost::ResetUDPReadQuota reset_udp_quota;
 
     // regularly update the time given to the enclave
     asynchost::TimeUpdater time_updater(1ms);
 
     // regularly record some load statistics
-    asynchost::LoadMonitor load_monitor(500ms, bp);
+    const asynchost::LoadMonitor load_monitor(500ms, buffer_processor);
 
     // handle outbound logging and admin messages from the enclave
-    asynchost::HandleRingbuffer handle_ringbuffer(
-      1ms, bp, circuit.read_from_inside(), non_blocking_factory);
+    const asynchost::HandleRingbuffer handle_ringbuffer(
+      1ms, buffer_processor, circuit.read_from_inside(), non_blocking_factory);
 
     // graceful shutdown on sigterm
     asynchost::Sigterm sigterm(writer_factory, config.ignore_first_sigterm);
@@ -426,18 +469,19 @@ int main(int argc, char** argv)
       config.ledger.chunk_size,
       asynchost::ledger_max_read_cache_files_default,
       config.ledger.read_only_directories);
-    ledger.register_message_handlers(bp.get_dispatcher());
+    ledger.register_message_handlers(buffer_processor.get_dispatcher());
 
     snapshots::SnapshotManager snapshots(
       config.snapshots.directory,
       writer_factory,
       config.snapshots.read_only_directory);
-    snapshots.register_message_handlers(bp.get_dispatcher());
+    snapshots.register_message_handlers(buffer_processor.get_dispatcher());
 
     // handle LFS-related messages from the enclave
     asynchost::LFSFileHandler lfs_file_handler(
       writer_factory.create_writer_to_inside());
-    lfs_file_handler.register_message_handlers(bp.get_dispatcher());
+    lfs_file_handler.register_message_handlers(
+      buffer_processor.get_dispatcher());
 
     // Begin listening for node-to-node and RPC messages.
     // This includes DNS resolution and potentially dynamic port assignment (if
@@ -446,7 +490,7 @@ int main(int argc, char** argv)
     auto [node_host, node_port] =
       cli::validate_address(config.network.node_to_node_interface.bind_address);
     asynchost::NodeConnections node(
-      bp.get_dispatcher(),
+      buffer_processor.get_dispatcher(),
       ledger,
       writer_factory,
       node_host,
@@ -478,7 +522,7 @@ int main(int argc, char** argv)
       idGen,
       config.client_connection_timeout,
       config.idle_connection_timeout);
-    rpc->behaviour.register_message_handlers(bp.get_dispatcher());
+    rpc->behaviour.register_message_handlers(buffer_processor.get_dispatcher());
 
     // This is a temporary solution to keep UDP RPC handlers in the same
     // way as the TCP ones without having to parametrize per connection,
@@ -490,7 +534,8 @@ int main(int argc, char** argv)
       idGen,
       config.client_connection_timeout,
       config.idle_connection_timeout);
-    rpc_udp->behaviour.register_udp_message_handlers(bp.get_dispatcher());
+    rpc_udp->behaviour.register_udp_message_handlers(
+      buffer_processor.get_dispatcher());
 
     ResolvedAddresses resolved_rpc_addresses;
     for (auto& [name, interface] : config.network.rpc_interfaces)
@@ -574,11 +619,6 @@ int main(int argc, char** argv)
         files::try_slurp_string(security_policy_file);
     }
 
-    if (config.enclave.platform == host::EnclavePlatform::VIRTUAL)
-    {
-      ccf::pal::emit_virtual_measurement(enclave_file_path);
-    }
-
     if (startup_config.attestation.snp_uvm_endorsements_file.has_value())
     {
       auto snp_uvm_endorsements_file =
@@ -624,6 +664,26 @@ int main(int argc, char** argv)
       }
     }
 
+    if (startup_config.attestation.snp_endorsements_file.has_value())
+    {
+      auto snp_endorsements_file =
+        startup_config.attestation.snp_endorsements_file.value();
+      LOG_DEBUG_FMT(
+        "Resolving snp_endorsements_file: {}", snp_endorsements_file);
+      snp_endorsements_file =
+        ccf::env::expand_envvars_in_path(snp_endorsements_file);
+      LOG_DEBUG_FMT(
+        "Resolved snp_endorsements_file: {}", snp_endorsements_file);
+
+      startup_config.attestation.environment.snp_endorsements =
+        files::try_slurp_string(snp_endorsements_file);
+    }
+
+    if (config.enclave.platform == host::EnclavePlatform::VIRTUAL)
+    {
+      ccf::pal::emit_virtual_measurement(enclave_file_path);
+    }
+
     if (config.node_data_json_file.has_value())
     {
       startup_config.node_data =
@@ -653,34 +713,44 @@ int main(int argc, char** argv)
     startup_config.startup_host_time =
       ccf::ds::to_x509_time_string(startup_host_time);
 
+    if (config.output_files.sealed_ledger_secret_location.has_value())
+    {
+      CCF_ASSERT_FMT(
+        ccf::pal::platform == ccf::pal::Platform::SNP,
+        "Local sealing is only supported on SEV-SNP platforms");
+      startup_config.network.will_locally_seal_ledger_secrets = true;
+      startup_config.sealed_ledger_secret_location =
+        config.output_files.sealed_ledger_secret_location;
+    }
+
     if (config.command.type == StartType::Start)
     {
-      for (auto const& m : config.command.start.members)
+      for (auto const& member : config.command.start.members)
       {
         std::optional<ccf::crypto::Pem> public_encryption_key = std::nullopt;
         std::optional<ccf::MemberRecoveryRole> recovery_role = std::nullopt;
         if (
-          m.encryption_public_key_file.has_value() &&
-          !m.encryption_public_key_file.value().empty())
+          member.encryption_public_key_file.has_value() &&
+          !member.encryption_public_key_file.value().empty())
         {
           public_encryption_key = ccf::crypto::Pem(
-            files::slurp(m.encryption_public_key_file.value()));
-          if (m.recovery_role.has_value())
-          {
-            recovery_role = m.recovery_role.value();
-          }
+            files::slurp(member.encryption_public_key_file.value()));
+          recovery_role = member.recovery_role;
         }
 
-        nlohmann::json md = nullptr;
-        if (m.data_json_file.has_value() && !m.data_json_file.value().empty())
+        nlohmann::json member_data = nullptr;
+        if (
+          member.data_json_file.has_value() &&
+          !member.data_json_file.value().empty())
         {
-          md = nlohmann::json::parse(files::slurp(m.data_json_file.value()));
+          member_data =
+            nlohmann::json::parse(files::slurp(member.data_json_file.value()));
         }
 
         startup_config.start.members.emplace_back(
-          ccf::crypto::Pem(files::slurp(m.certificate_file)),
+          ccf::crypto::Pem(files::slurp(member.certificate_file)),
           public_encryption_key,
-          md,
+          member_data,
           recovery_role);
       }
       startup_config.start.constitution = "";
@@ -738,6 +808,16 @@ int main(int argc, char** argv)
       }
       LOG_INFO_FMT("Reading previous service identity from {}", idf);
       startup_config.recover.previous_service_identity = files::slurp(idf);
+
+      if (config.command.recover.previous_sealed_ledger_secret_location
+            .has_value())
+      {
+        CCF_ASSERT_FMT(
+          ccf::pal::platform == ccf::pal::Platform::SNP,
+          "Local unsealing is only supported on SEV-SNP platforms");
+        startup_config.recover.previous_sealed_ledger_secret_location =
+          config.command.recover.previous_sealed_ledger_secret_location;
+      }
     }
     else
     {
@@ -823,9 +903,10 @@ int main(int argc, char** argv)
     auto flush_outbound = [&]() {
       do
       {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(
+          std::chrono::milliseconds(retry_interval_ms));
 
-        bp.read_all(circuit.read_from_inside());
+        buffer_processor.read_all(circuit.read_from_inside());
       } while (!ecall_completed);
     };
     std::thread flusher_thread(flush_outbound);
@@ -849,9 +930,9 @@ int main(int argc, char** argv)
         "An error occurred when creating CCF node: {}",
         create_node_result_to_str(create_status));
 
-      // Pull all logs from the enclave via BufferProcessor `bp`
+      // Pull all logs from the enclave via BufferProcessor `buffer_processor`
       // and show any logs that came from the ring buffer during setup.
-      bp.read_all(circuit.read_from_inside());
+      buffer_processor.read_all(circuit.read_from_inside());
 
       // This returns from main, stopping the program
       return create_status;
@@ -898,15 +979,15 @@ int main(int argc, char** argv)
     std::vector<std::thread> threads;
     for (uint32_t i = 0; i < (config.worker_threads + 1); ++i)
     {
-      threads.emplace_back(std::thread(enclave_thread_start));
+      threads.emplace_back(enclave_thread_start);
     }
 
     LOG_INFO_FMT("Entering event loop");
     uv_run(uv_default_loop(), UV_RUN_DEFAULT);
     LOG_INFO_FMT("Exited event loop");
-    for (auto& t : threads)
+    for (auto& thread : threads)
     {
-      t.join();
+      thread.join();
     }
   }
 
@@ -915,19 +996,23 @@ int main(int argc, char** argv)
   // Continue running the loop long enough for the on_close
   // callbacks to be despatched, so as to avoid memory being
   // leaked by handles. Capped out of abundance of caution.
-  size_t close_iterations = 100;
-  while (uv_loop_alive(uv_default_loop()) && close_iterations > 0)
+  constexpr size_t max_iterations = 1000;
+  size_t close_iterations = max_iterations;
+  while ((uv_loop_alive(uv_default_loop()) != 0) && (close_iterations > 0))
   {
     uv_run(uv_default_loop(), UV_RUN_NOWAIT);
     close_iterations--;
   }
-  LOG_INFO_FMT("Ran an extra {} cleanup iteration(s)", 100 - close_iterations);
+  LOG_INFO_FMT(
+    "Ran an extra {} cleanup iteration(s)", max_iterations - close_iterations);
 
-  auto rc = uv_loop_close(uv_default_loop());
-  if (rc)
-    LOG_FAIL_FMT("Failed to close uv loop cleanly: {}", uv_err_name(rc));
-
+  auto loop_close_rc = uv_loop_close(uv_default_loop());
+  if (loop_close_rc != 0)
+  {
+    LOG_FAIL_FMT(
+      "Failed to close uv loop cleanly: {}", uv_err_name(loop_close_rc));
+  }
   ccf::crypto::openssl_sha256_shutdown();
 
-  return rc;
+  return loop_close_rc;
 }

@@ -34,7 +34,7 @@ namespace ccf::kv::untyped
     void foreach_(const ElementVisitorWithEarlyOut& fn);
 
   public:
-    MapDiff(ccf::kv::untyped::ChangeSet& cs, const std::string& map_name);
+    MapDiff(ccf::kv::untyped::ChangeSet& cs, std::string map_name);
 
     std::optional<std::optional<ValueType>> get(const KeyType& key);
 

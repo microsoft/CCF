@@ -18,6 +18,7 @@
 #include "ccf/service/tables/proposals.h"
 #include "ccf/service/tables/service.h"
 #include "ccf/service/tables/snp_measurements.h"
+#include "ccf/service/tables/tcb_verification.h"
 #include "ccf/service/tables/users.h"
 #include "ccf/service/tables/uvm_endorsements.h"
 #include "ccf/service/tables/virtual_measurements.h"
@@ -96,6 +97,7 @@ namespace ccf
     const SnpMeasurements snp_measurements = {Tables::NODE_SNP_MEASUREMENTS};
     const SNPUVMEndorsements snp_uvm_endorsements = {
       Tables::NODE_SNP_UVM_ENDORSEMENTS};
+    const SnpTcbVersionMap snp_tcb_versions = {Tables::SNP_TCB_VERSIONS};
 
     inline auto get_all_node_tables() const
     {
@@ -108,7 +110,8 @@ namespace ccf
         virtual_measurements,
         host_data,
         snp_measurements,
-        snp_uvm_endorsements);
+        snp_uvm_endorsements,
+        snp_tcb_versions);
     }
 
     //

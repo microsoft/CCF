@@ -6,19 +6,26 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/json.h"
 #include "ccf/ds/logger.h"
 #include "ccf/js/core/context.h"
 #include "ccf/node/cose_signatures_config.h"
+#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/locking.h"
 #include "ccf/pal/platform.h"
+#include "ccf/pal/snp_ioctl.h"
+#include "ccf/pal/uvm_endorsements.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/service/tables/acme_certificates.h"
 #include "ccf/service/tables/service.h"
+#include "ccf/tx.h"
 #include "ccf_acme_client.h"
 #include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
+#include "ds/ccf_assert.h"
+#include "ds/files.h"
 #include "ds/state_machine.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
@@ -30,6 +37,9 @@
 #include "node/hooks.h"
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
+#include "node/ledger_secret.h"
+#include "node/ledger_secrets.h"
+#include "node/local_sealing.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
@@ -39,8 +49,11 @@
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
 #include "service/internal_tables_access.h"
+#include "service/tables/recovery_type.h"
 #include "share_manager.h"
 #include "uvm_endorsements.h"
+
+#include <optional>
 
 #ifdef USE_NULL_ENCRYPTOR
 #  include "kv/test/null_encryptor.h"
@@ -91,8 +104,9 @@ namespace ccf
     std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
     pal::PlatformAttestationMeasurement node_measurement;
+    std::optional<pal::snp::TcbVersion> snp_tcb_version = std::nullopt;
     ccf::StartupConfig config;
-    std::optional<UVMEndorsements> snp_uvm_endorsements = std::nullopt;
+    std::optional<pal::UVMEndorsements> snp_uvm_endorsements = std::nullopt;
     std::vector<uint8_t> startup_snapshot;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
       nullptr;
@@ -148,7 +162,6 @@ namespace ccf
     std::vector<ccf::kv::Version> view_history;
     ::consensus::Index last_recovered_signed_idx = 0;
     RecoveredEncryptedLedgerSecrets recovered_encrypted_ledger_secrets = {};
-    LedgerSecretsMap recovered_ledger_secrets = {};
     ::consensus::Index last_recovered_idx = 0;
     static const size_t recovery_batch_size = 100;
 
@@ -297,6 +310,13 @@ namespace ccf
         throw std::logic_error("Failed to extract code id from quote");
       }
 
+      auto snp_attestation =
+        AttestationProvider::get_snp_attestation(quote_info);
+      if (snp_attestation.has_value())
+      {
+        snp_tcb_version = snp_attestation.value().reported_tcb;
+      }
+
       // Verify that the security policy matches the quoted digest of the policy
       if (!config.attestation.environment.security_policy.has_value())
       {
@@ -347,9 +367,18 @@ namespace ccf
           {
             auto uvm_endorsements_raw = ccf::crypto::raw_from_b64(
               config.attestation.environment.uvm_endorsements.value());
-            snp_uvm_endorsements =
-              verify_uvm_endorsements(uvm_endorsements_raw, node_measurement);
+            // A node at this stage does not have a notion of what UVM
+            // descriptor is acceptable. That is decided either by the Joinee,
+            // or by Consortium endorsing the Start or Recovery node. For that
+            // reason, we extract an endorsement descriptor from the UVM
+            // endorsements and make it available in the ledger's initial or
+            // recovery transaction.
+            snp_uvm_endorsements = pal::verify_uvm_endorsements_descriptor(
+              uvm_endorsements_raw, node_measurement);
             quote_info.uvm_endorsements = uvm_endorsements_raw;
+            LOG_INFO_FMT(
+              "Successfully verified attested UVM endorsements: {}",
+              snp_uvm_endorsements->to_str());
           }
           catch (const std::exception& e)
           {
@@ -408,9 +437,85 @@ namespace ccf
                                       endpoint_config) {
         // Note: Node lock is already taken here as this is called back
         // synchronously with the call to pal::generate_quote
+        this->quote_info = qi;
 
-        if (qi.format == QuoteFormat::amd_sev_snp_v1)
+        if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
         {
+          // Use endorsements retrieved from file, if available
+          if (config.attestation.environment.snp_endorsements.has_value())
+          {
+            try
+            {
+              const auto raw_data = ccf::crypto::raw_from_b64(
+                config.attestation.environment.snp_endorsements.value());
+
+              const auto j = nlohmann::json::parse(raw_data);
+              const auto aci_endorsements =
+                j.get<ccf::pal::snp::ACIReportEndorsements>();
+
+              // Check that tcbm in endorsement matches reported TCB in our
+              // retrieved attestation
+              auto* quote = reinterpret_cast<const ccf::pal::snp::Attestation*>(
+                quote_info.quote.data());
+              const auto reported_tcb = quote->reported_tcb;
+
+              // tcbm is a single hex value, like DB18000000000004. To match
+              // that with a TcbVersion, reverse the bytes.
+              const uint8_t* tcb_begin =
+                reinterpret_cast<const uint8_t*>(&reported_tcb);
+              const std::span<const uint8_t> tcb_bytes{
+                tcb_begin, tcb_begin + sizeof(reported_tcb)};
+              auto tcb_as_hex = fmt::format(
+                "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
+              ccf::nonstd::to_upper(tcb_as_hex);
+
+              if (tcb_as_hex == aci_endorsements.tcbm)
+              {
+                LOG_INFO_FMT(
+                  "Using SNP endorsements loaded from file, endorsing TCB {}",
+                  tcb_as_hex);
+
+                auto& endorsements_pem = quote_info.endorsements;
+                endorsements_pem.insert(
+                  endorsements_pem.end(),
+                  aci_endorsements.vcek_cert.begin(),
+                  aci_endorsements.vcek_cert.end());
+                endorsements_pem.insert(
+                  endorsements_pem.end(),
+                  aci_endorsements.certificate_chain.begin(),
+                  aci_endorsements.certificate_chain.end());
+
+                try
+                {
+                  launch_node();
+                  return;
+                }
+                catch (const std::exception& e)
+                {
+                  LOG_FAIL_FMT("Failed to launch node: {}", e.what());
+                  throw;
+                }
+              }
+              else
+              {
+                LOG_FAIL_FMT(
+                  "SNP endorsements loaded from disk ({}) contained tcbm {}, "
+                  "which does not match reported TCB of current attestation "
+                  "{}. "
+                  "Falling back to fetching fresh endorsements from server.",
+                  config.attestation.snp_endorsements_file.value(),
+                  aci_endorsements.tcbm,
+                  tcb_as_hex);
+              }
+            }
+            catch (const std::exception& e)
+            {
+              LOG_FAIL_FMT(
+                "Error attempting to use SNP endorsements from file: {}",
+                e.what());
+            }
+          }
+
           if (config.attestation.snp_endorsements_servers.empty())
           {
             throw std::runtime_error(
@@ -421,9 +526,8 @@ namespace ccf
           quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
             rpcsessions,
             endpoint_config,
-            [this, qi](std::vector<uint8_t>&& endorsements) {
+            [this](std::vector<uint8_t>&& endorsements) {
               std::lock_guard<pal::Mutex> guard(lock);
-              quote_info = qi;
               quote_info.endorsements = std::move(endorsements);
               try
               {
@@ -440,17 +544,19 @@ namespace ccf
           quote_endorsements_client->fetch_endorsements();
           return;
         }
-
-        if (!((qi.format == QuoteFormat::oe_sgx_v1 &&
-               !qi.endorsements.empty()) ||
-              (qi.format != QuoteFormat::oe_sgx_v1 && qi.endorsements.empty())))
+        else // Non-SNP
         {
-          throw std::runtime_error(
-            "SGX quote generation should have already fetched endorsements");
-        }
+          if (!((quote_info.format == QuoteFormat::oe_sgx_v1 &&
+                 !quote_info.endorsements.empty()) ||
+                (quote_info.format != QuoteFormat::oe_sgx_v1 &&
+                 quote_info.endorsements.empty())))
+          {
+            throw std::runtime_error(
+              "SGX quote generation should have already fetched endorsements");
+          }
 
-        quote_info = qi;
-        launch_node();
+          launch_node();
+        }
       };
 
       pal::PlatformAttestationReportData report_data =
@@ -507,6 +613,9 @@ namespace ccf
             config.initial_service_certificate_validity_days);
 
           network.ledger_secrets->init();
+          // Safe as initiate_quote_generation has previously set the
+          // snp_tcb_version
+          seal_ledger_secret(network.ledger_secrets->get_first());
 
           history->set_service_signing_identity(
             network.identity->get_key_pair(), config.cose_signatures);
@@ -663,6 +772,7 @@ namespace ccf
 
             network.identity = std::make_unique<ccf::NetworkIdentity>(
               resp.network_info->identity);
+            seal_ledger_secret(*resp.network_info->ledger_secrets.rbegin());
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info->ledger_secrets));
 
@@ -1128,7 +1238,10 @@ namespace ccf
       {
         auto entry = ::consensus::LedgerEnclave::get_entry(data, size);
 
-        LOG_INFO_FMT("Deserialising private ledger entry [{}]", entry.size());
+        LOG_INFO_FMT(
+          "Deserialising private ledger entry {} [{}]",
+          last_recovered_idx + 1,
+          entry.size());
 
         // When reading the private ledger, deserialise in the recovery store
         ccf::kv::ApplyResult result = ccf::kv::ApplyResult::FAIL;
@@ -1181,6 +1294,11 @@ namespace ccf
 
       sm.expect(NodeStartupState::readingPrivateLedger);
 
+      LOG_INFO_FMT(
+        "Try end private recovery at {}. Is primary: {}",
+        recovery_v,
+        consensus->is_primary());
+
       if (recovery_v != recovery_store->current_version())
       {
         throw std::logic_error(fmt::format(
@@ -1210,8 +1328,34 @@ namespace ccf
       // Open the service
       if (consensus->can_replicate())
       {
-        setup_one_off_secret_hook();
+        LOG_INFO_FMT(
+          "Try end private recovery at {}. Trigger service opening",
+          recovery_v);
+
         auto tx = network.tables->create_tx();
+
+        {
+          // Ensure this transition happens at-most-once, by checking that no
+          // other node has already advanced the state
+          auto service = tx.ro<ccf::Service>(Tables::SERVICE);
+          auto active_service = service->get();
+
+          if (!active_service.has_value())
+          {
+            throw std::logic_error(fmt::format(
+              "Error in {}: no value in {}", __func__, Tables::SERVICE));
+          }
+
+          if (
+            active_service->status !=
+            ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
+          {
+            throw std::logic_error(fmt::format(
+              "Error in {}: current service status is {}",
+              __func__,
+              active_service->status));
+          }
+        }
 
         // Clear recovery shares that were submitted to initiate the recovery
         // procedure
@@ -1531,6 +1675,19 @@ namespace ccf
         ShareManager::clear_submitted_recovery_shares(tx);
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
         service->put(service_info.value());
+        if (config.recover.previous_sealed_ledger_secret_location.has_value())
+        {
+          tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
+            ->put(RecoveryType::LOCAL_UNSEALING);
+          auto unsealed_ls = unseal_ledger_secret();
+          LOG_INFO_FMT("Unsealed ledger secret, initiating private recovery");
+          initiate_private_recovery_unsafe(tx, unsealed_ls);
+        }
+        else
+        {
+          tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
+            ->put(RecoveryType::RECOVERY_SHARES);
+        }
         return;
       }
       else if (is_part_of_network())
@@ -1561,18 +1718,34 @@ namespace ccf
       }
     }
 
-    void initiate_private_recovery(ccf::kv::Tx& tx) override
+    // Decrypts chain of ledger secrets, and writes those to the ledger
+    // encrypted for each node. On a commit hook for this write, each node
+    // (including this one!) will begin_private_recovery().
+    void initiate_private_recovery_unsafe(
+      ccf::kv::Tx& tx,
+      const std::optional<LedgerSecretPtr>& unsealed_ledger_secret =
+        std::nullopt)
     {
-      std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::partOfPublicNetwork);
-
-      recovered_ledger_secrets = share_manager.restore_recovery_shares_info(
-        tx, recovered_encrypted_ledger_secrets);
+      LedgerSecretsMap recovered_ledger_secrets =
+        share_manager.restore_recovery_shares_info(
+          tx, recovered_encrypted_ledger_secrets, unsealed_ledger_secret);
 
       // Broadcast decrypted ledger secrets to other nodes for them to
       // initiate private recovery too
       LedgerSecretsBroadcast::broadcast_some(
-        network, self, tx, recovered_ledger_secrets);
+        InternalTablesAccess::get_trusted_nodes(tx),
+        tx.wo(network.secrets),
+        std::move(recovered_ledger_secrets));
+    }
+
+    void initiate_private_recovery(
+      ccf::kv::Tx& tx,
+      const std::optional<LedgerSecretPtr>& unsealed_ledger_secret =
+        std::nullopt) override
+    {
+      std::lock_guard<pal::Mutex> guard(lock);
+      initiate_private_recovery_unsafe(tx, unsealed_ledger_secret);
     }
 
     //
@@ -1767,7 +1940,9 @@ namespace ccf
       auto new_ledger_secret = make_ledger_secret();
       share_manager.issue_recovery_shares(tx, new_ledger_secret);
       LedgerSecretsBroadcast::broadcast_new(
-        network, tx, std::move(new_ledger_secret));
+        InternalTablesAccess::get_trusted_nodes(tx),
+        tx.wo(network.secrets),
+        std::move(new_ledger_secret));
 
       return true;
     }
@@ -2073,14 +2248,11 @@ namespace ccf
         threading::get_current_thread_id(), std::move(msg));
     }
 
-    void backup_initiate_private_recovery()
+    void begin_private_recovery()
     {
-      if (!consensus->is_backup())
-        return;
-
       sm.expect(NodeStartupState::partOfPublicNetwork);
 
-      LOG_INFO_FMT("Initiating end of recovery (backup)");
+      LOG_INFO_FMT("Beginning private recovery");
 
       setup_private_recovery_store();
 
@@ -2088,11 +2260,10 @@ namespace ccf
       setup_one_off_secret_hook();
 
       // Start reading private security domain of ledger
+      sm.advance(NodeStartupState::readingPrivateLedger);
       last_recovered_idx = recovery_store->current_version();
       read_ledger_entries(
         last_recovered_idx + 1, last_recovered_idx + recovery_batch_size);
-
-      sm.advance(NodeStartupState::readingPrivateLedger);
     }
 
     void setup_basic_hooks()
@@ -2135,10 +2306,11 @@ namespace ccf
                 // When rekeying, set the encryption key for the next version
                 // onward (backups deserialise this transaction with the
                 // previous ledger secret)
+                auto ledger_secret = std::make_shared<LedgerSecret>(
+                  std::move(plain_ledger_secret), hook_version);
+                seal_ledger_secret(hook_version + 1, ledger_secret);
                 network.ledger_secrets->set_secret(
-                  hook_version + 1,
-                  std::make_shared<LedgerSecret>(
-                    std::move(plain_ledger_secret), hook_version));
+                  hook_version + 1, std::move(ledger_secret));
               }
             }
 
@@ -2203,42 +2375,18 @@ namespace ccf
               // recovery protocol (backup only)
               network.ledger_secrets->restore_historical(
                 std::move(restored_ledger_secrets));
-              backup_initiate_private_recovery();
+              begin_private_recovery();
               return;
             }
           }
+
+          LOG_INFO_FMT(
+            "Found no ledger secrets for this node ({}) in global commit hook "
+            "for {} @ {}",
+            self,
+            network.secrets.get_name(),
+            hook_version);
         }));
-
-      network.tables->set_global_hook(
-        network.encrypted_submitted_shares.get_name(),
-        network.encrypted_submitted_shares.wrap_commit_hook(
-          [this](
-            ccf::kv::Version hook_version,
-            const EncryptedSubmittedShares::Write& w) {
-            // Initiate recovery procedure from global hook, once all recovery
-            // shares have been submitted (i.e. recovered_ledger_secrets is
-            // set)
-            if (!recovered_ledger_secrets.empty())
-            {
-              network.ledger_secrets->restore_historical(
-                std::move(recovered_ledger_secrets));
-
-              LOG_INFO_FMT("Initiating end of recovery (primary)");
-
-              setup_private_recovery_store();
-              reset_recovery_hook();
-
-              // Start reading private security domain of ledger
-              last_recovered_idx = recovery_store->current_version();
-              read_ledger_entries(
-                last_recovered_idx + 1,
-                last_recovered_idx + recovery_batch_size);
-
-              sm.advance(NodeStartupState::readingPrivateLedger);
-            }
-
-            return;
-          }));
 
       network.tables->set_global_hook(
         network.nodes.get_name(),
@@ -2723,6 +2871,48 @@ namespace ccf
         ::threading::ThreadMessaging::instance().add_task_after(
           std::move(msg), std::chrono::seconds(2));
       }
+    }
+
+    void seal_ledger_secret(const VersionedLedgerSecret& ledger_secret)
+    {
+      seal_ledger_secret(ledger_secret.first, ledger_secret.second);
+    }
+
+    void seal_ledger_secret(
+      const kv::Version& version, const LedgerSecretPtr& ledger_secret)
+    {
+      if (!config.sealed_ledger_secret_location.has_value())
+      {
+        return;
+      }
+
+      CCF_ASSERT(
+        snp_tcb_version.has_value(), "TCB version must be set before sealing");
+
+      seal_ledger_secret_to_disk(
+        config.sealed_ledger_secret_location.value(),
+        snp_tcb_version.value(),
+        version,
+        ledger_secret);
+    }
+
+    LedgerSecretPtr unseal_ledger_secret()
+    {
+      CCF_ASSERT(
+        snp_tcb_version.has_value(),
+        "TCB version must be set when unsealing ledger secret");
+
+      CCF_ASSERT(
+        config.recover.previous_sealed_ledger_secret_location.has_value(),
+        "Previous sealed ledger secret location must be set");
+      auto ledger_secret_path =
+        config.recover.previous_sealed_ledger_secret_location.value();
+
+      auto max_version = network.tables->current_version();
+
+      return find_and_unseal_ledger_secret_from_disk(
+        config.recover.previous_sealed_ledger_secret_location.value(),
+        max_version);
     }
 
   public:

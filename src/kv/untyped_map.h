@@ -143,7 +143,7 @@ namespace ccf::kv::untyped
         return committed_writes || change_set.has_writes();
       }
 
-      bool prepare(bool track_read_versions) override
+      bool prepare() override
       {
         auto& map_roll = map.get_roll();
 
@@ -185,9 +185,7 @@ namespace ccf::kv::untyped
             // conflicts then ensure that the read versions also match.
             if (
               !search.has_value() ||
-              std::get<0>(it->second) != search.value().version ||
-              (track_read_versions &&
-               std::get<1>(it->second) != search.value().read_version))
+              std::get<0>(it->second) != search.value().version)
             {
               LOG_DEBUG_FMT("Read depends on invalid version of entry");
               return false;
@@ -198,12 +196,9 @@ namespace ccf::kv::untyped
         return true;
       }
 
-      void commit(
-        Version v,
-        bool track_read_versions,
-        bool track_deletes_on_missing_keys) override
+      void commit(Version v, bool track_deletes_on_missing_keys) override
       {
-        if (change_set.writes.empty() && !track_read_versions)
+        if (change_set.writes.empty())
         {
           commit_version = change_set.start_version;
           return;
@@ -211,30 +206,6 @@ namespace ccf::kv::untyped
 
         auto& map_roll = map.get_roll();
         auto state = map_roll.commits->get_tail()->state;
-
-        // To track conflicts the read version of all keys that are read or
-        // written within a transaction must be updated.
-        if (track_read_versions)
-        {
-          for (auto it = change_set.reads.begin(); it != change_set.reads.end();
-               ++it)
-          {
-            auto search = state.get(it->first);
-            if (!search.has_value())
-            {
-              continue;
-            }
-            state =
-              state.put(it->first, VersionV{search->version, v, search->value});
-          }
-          if (change_set.writes.empty())
-          {
-            commit_version = change_set.start_version;
-            map.roll.commits->insert_back(map.roll.create_new_local_commit(
-              commit_version, std::move(state), change_set.writes));
-            return;
-          }
-        }
 
         // Record our commit time.
         commit_version = v;
@@ -439,14 +410,16 @@ namespace ccf::kv::untyped
         return true;
       }
 
-      bool prepare(bool) override
+      bool prepare() override
       {
         // Snapshots never conflict
         return true;
       }
 
-      void commit(Version, bool, bool) override
+      void commit(Version v, bool track_deletes_on_missing_keys) override
       {
+        (void)v;
+        (void)track_deletes_on_missing_keys;
         // Version argument is ignored. The version of the roll after the
         // snapshot is applied depends on the version of the map at which the
         // snapshot was taken.

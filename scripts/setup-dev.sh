@@ -6,4 +6,18 @@ set -ex
 
 tdnf -y install  \
     vim  \
-    cpio # Used by LTS test to extract binaries from rpms
+    clang-tools-extra  \
+    python-pip
+
+# For LTS test to extract binaries from rpms
+tdnf -y install cpio
+
+pip install cmakelang
+
+# For shellcheck
+curl -L https://github.com/koalaman/shellcheck/releases/download/stable/shellcheck-stable.linux.x86_64.tar.xz  \
+    --output shellcheck.tar.gz
+mkdir -p shellcheck-dir
+tar -xvf shellcheck.tar.gz -C shellcheck-dir
+mv shellcheck-dir/shellcheck-stable/shellcheck /usr/local/bin/shellcheck
+rm -rf shellcheck-dir shellcheck.tar.gz

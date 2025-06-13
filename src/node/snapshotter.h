@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
-#include "ccf/pal/enclave.h"
 #include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
@@ -114,16 +113,27 @@ namespace ccf
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot,
       uint32_t generation_count)
     {
-      if (pending_snapshots.size() >= max_pending_snapshots_count)
-      {
-        LOG_FAIL_FMT(
-          "Skipping new snapshot generation as {} snapshots are already "
-          "pending",
-          pending_snapshots.size());
-        return;
-      }
-
       auto snapshot_version = snapshot->get_version();
+
+      {
+        std::unique_lock<ccf::pal::Mutex> guard(lock);
+        if (pending_snapshots.size() >= max_pending_snapshots_count)
+        {
+          LOG_FAIL_FMT(
+            "Skipping new snapshot generation as {} snapshots are already "
+            "pending",
+            pending_snapshots.size());
+          return;
+        }
+
+        // It is possible that the signature following the snapshot evidence is
+        // scheduled by another thread while the below snapshot evidence
+        // transaction is committed. To allow for such scenario, the evidence
+        // seqno is recorded via `record_snapshot_evidence_idx()` on a hook
+        // rather than here.
+        pending_snapshots[generation_count] = {};
+        pending_snapshots[generation_count].version = snapshot_version;
+      }
 
       auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
       auto serialised_snapshot_size = serialised_snapshot.size();
@@ -147,16 +157,7 @@ namespace ccf
           commit_evidence = commit_evidence_;
         };
 
-      // It is possible that the signature following the snapshot evidence is
-      // scheduled by another thread while the below snapshot evidence
-      // transaction is committed. To allow for such scenario, the evidence
-      // seqno is recorded via `record_snapshot_evidence_idx()` on a hook rather
-      // than here.
-      pending_snapshots[generation_count] = {};
-      pending_snapshots[generation_count].version = snapshot_version;
-
-      auto rc =
-        tx.commit(cd, false, nullptr, capture_ws_digest_and_commit_evidence);
+      auto rc = tx.commit(cd, nullptr, capture_ws_digest_and_commit_evidence);
       if (rc != ccf::kv::CommitResult::SUCCESS)
       {
         LOG_FAIL_FMT(
@@ -168,11 +169,14 @@ namespace ccf
 
       auto evidence_version = tx.commit_version();
 
-      pending_snapshots[generation_count].commit_evidence = commit_evidence;
-      pending_snapshots[generation_count].write_set_digest = ws_digest;
-      pending_snapshots[generation_count].snapshot_digest = cd.value();
-      pending_snapshots[generation_count].serialised_snapshot =
-        std::move(serialised_snapshot);
+      {
+        std::unique_lock<ccf::pal::Mutex> guard(lock);
+        pending_snapshots[generation_count].commit_evidence = commit_evidence;
+        pending_snapshots[generation_count].write_set_digest = ws_digest;
+        pending_snapshots[generation_count].snapshot_digest = cd.value();
+        pending_snapshots[generation_count].serialised_snapshot =
+          std::move(serialised_snapshot);
+      }
 
       auto to_host = writer_factory.create_writer_to_outside();
       RINGBUFFER_WRITE_MESSAGE(
@@ -300,18 +304,6 @@ namespace ccf
           "size [{} bytes]. Discarding snapshot for seqno {}",
           snapshot_buf.size(),
           pending_snapshot.serialised_snapshot.size(),
-          pending_snapshot.version);
-        pending_snapshots.erase(search);
-        return false;
-      }
-      else if (!ccf::pal::is_outside_enclave(
-                 snapshot_buf.data(), snapshot_buf.size()))
-      {
-        // Sanitise host-allocated buffer. Note that buffer alignment is not
-        // checked as the buffer is only written to and never read.
-        LOG_FAIL_FMT(
-          "Host allocated snapshot buffer is not outside enclave memory. "
-          "Discarding snapshot for seqno {}",
           pending_snapshot.version);
         pending_snapshots.erase(search);
         return false;

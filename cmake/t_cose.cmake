@@ -30,11 +30,13 @@ if(COMPILE_TARGET STREQUAL "snp")
   set_property(TARGET t_cose.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
   add_san(t_cose.snp)
 
-  install(
-    TARGETS t_cose.snp
-    EXPORT ccf
-    DESTINATION lib
-  )
+  if(CCF_DEVEL)
+    install(
+      TARGETS t_cose.snp
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
 endif()
 
 find_package(OpenSSL REQUIRED)

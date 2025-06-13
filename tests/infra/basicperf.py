@@ -23,11 +23,8 @@ import infra.bencher
 
 
 def configure_remote_client(args, client_id, client_host, common_dir):
-    if client_host == "localhost":
-        client_host = infra.net.expand_localhost()
-        remote_impl = infra.remote.LocalRemote
-    else:
-        remote_impl = infra.remote.SSHRemote
+    client_host = infra.net.expand_localhost()
+
     try:
         remote_client = infra.remote_client.CCFRemoteCmd(
             f"client_{client_id}",
@@ -35,7 +32,6 @@ def configure_remote_client(args, client_id, client_host, common_dir):
             args.client,
             common_dir,
             args.workspace,
-            remote_impl,
             [
                 os.path.join(common_dir, "user0_cert.pem"),
                 os.path.join(common_dir, "user0_privk.pem"),

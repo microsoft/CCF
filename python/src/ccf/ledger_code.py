@@ -49,11 +49,6 @@ def main():
     ledger = ccf.ledger.Ledger(
         ledger_paths,
         committed_only=not args.uncommitted,
-        validator=(
-            ccf.ledger.LedgerValidator()
-            if not args.insecure_skip_verification
-            else None
-        ),
     )
 
     def fmt_digest(d):
@@ -79,8 +74,14 @@ def main():
     def code_ids_with_trusted_nodes():
         return {code_id for code_id, nodes in code_to_nodes.items() if nodes}
 
+    validator = (
+        (ccf.ledger.LedgerValidator() if not args.insecure_skip_verification else None),
+    )
     for chunk in ledger:
         for tx in chunk:
+            if validator:
+                validator.add_transaction(tx)
+
             public = tx.get_public_domain().get_tables()
 
             view = tx.gcm_header.view

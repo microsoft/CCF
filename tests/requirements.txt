@@ -24,3 +24,4 @@ prettytable==3.*
 polars
 plotext
 boofuzz
+numpy<2

@@ -278,6 +278,8 @@ def test_add_node_endorsements_endpoints(network, args):
         )
         new_node = network.create_node("local://localhost")
         args_copy.snp_endorsements_servers = servers
+        # Ensure these nodes go to the specified server, and do not get their endorsements from file
+        args_copy.snp_endorsements_file = "/dev/null"
         try:
             network.join_node(
                 new_node,

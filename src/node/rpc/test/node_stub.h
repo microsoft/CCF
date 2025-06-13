@@ -167,7 +167,7 @@ namespace ccf
       historical::ExpiryDuration seconds_until_expiry)
     {}
 
-    void set_soft_cache_limit(historical::CacheSize cache_limit){};
+    void set_soft_cache_limit(historical::CacheSize cache_limit) {};
 
     void track_deletes_on_missing_keys(bool track) {}
 

@@ -1,4 +1,4 @@
-name: "Bencher: Run Benchmarks"
+name: "Benchmarks"
 
 on:
   schedule:
@@ -9,11 +9,61 @@ on:
   workflow_dispatch:
 
 jobs:
-  run_benchmarks:
-    name: Continuous Benchmarking with Bencher
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+  benchmark_virtual:
+    name: Benchmark Virtual
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
+
+      - name: Build and run virtual perf tests
+        run: |
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DWORKER_THREADS=2 -DBUILD_TPCC=ON ..
+          ninja
+          # Microbenchmarks
+          ./tests.sh -VV -L benchmark
+          # End to end performance tests
+          ./tests.sh -VV -L perf -C perf
+          # Convert microbenchmark output to bencher json
+          source env/bin/activate
+          PYTHONPATH=../tests python convert_pico_to_bencher.py
+        shell: bash
+
+      - uses: bencherdev/bencher@main
+      - name: Track base branch benchmarks with Bencher
+        run: |
+          bencher run \
+          --project ccf \
+          --token '${{ secrets.BENCHER_API_TOKEN }}' \
+          --branch main \
+          --testbed gha-vmss-d16av5-ci \
+          --adapter json \
+          --err \
+          --file build/bencher.json
+
+  benchmark_snp:
+    name: Benchmark SNP
+    runs-on: [self-hosted, 1ES.Pool=gha-c-aci-ci]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,7 +92,7 @@ jobs:
           --project ccf \
           --token '${{ secrets.BENCHER_API_TOKEN }}' \
           --branch main \
-          --testbed gha-virtual-ccf-sub \
+          --testbed gha-c-aci-ci \
           --adapter json \
           --err \
           --file build/bencher.json

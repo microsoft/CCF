@@ -34,13 +34,6 @@ The CCF team welcome contributions to any part of the framework, including this 
 
     Release CCF or a patch to CCF.
 
-    ---
-
-    :fa:`cogs` :doc:`build_images`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    CCF build images.
-
 .. toctree::
     :maxdepth: 1
     :hidden:
@@ -49,4 +42,3 @@ The CCF team welcome contributions to any part of the framework, including this 
     build_setup
     build_ccf
     release_ccf
-    build_images

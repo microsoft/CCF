@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ccf"
-version = "6.0.0-dev21"
+version = "6.0.5"
 authors = [
   { name="CCF Team", email="CCF-Sec@microsoft.com" },
 ]
@@ -17,18 +17,17 @@ classifiers = [
 ]
 dependencies = [
     "loguru >= 0.5, == 0.*",
-    "cryptography == 44.*",
+    "cryptography >= 44,< 46",
     "string-color >= 1.2.1, == 1.*",
     "pycose >= 1.0.1, == 1.*",
-    "setuptools >= 74,< 76",
-    "packaging == 24.*"
+    "setuptools >= 74,< 81",
+    "packaging >= 24,< 26"
 ]
 
 [tool.setuptools]
 script-files = [
     "utils/keygenerator.sh",
     "utils/submit_recovery_share.sh",
-    "utils/verify_quote.sh"
 ]
 
 [project.urls]
@@ -43,3 +42,4 @@ ccf_cose_sign1_finish = "ccf.cose:finish_cli"
 "ledger_viz.py" = "ccf.ledger_viz:main"
 "ledger_code.py" = "ccf.ledger_code:main"
 "split_ledger.py" = "ccf.split_ledger:main"
+"verify_ledger_secrets_chain.py" = "ccf.verify_ledger_secrets_chain:main"

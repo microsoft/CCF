@@ -28,8 +28,11 @@ function hexStrToBuf(hexStr) {
 
   for (let i = 0; i < hexStr.length; i += 2) {
     const octet = hexStr.slice(i, i + 2);
-    if (octet.length != 2 || octet.match(/[G-Z\s]/i)) {
-      throw new Error("Hex string invalid");
+    if (octet.length != 2) {
+      throw new Error("Hex string invalid: length must be multiple of 2");
+    }
+    if (octet.match(/[G-Z\s]/i)) {
+      throw new Error(`Hex string invalid: Non-hex character ${octet}`);
     }
     result.push(parseInt(octet, 16));
   }
@@ -73,12 +76,36 @@ function checkBounds(value, low, high, field) {
   }
 }
 
-function checkLength(value, min, max, field) {
+function checkArrayLength(value, min, max, field) {
+  checkType(value, "array", field);
   if (min !== null && value.length < min) {
     throw new Error(`${field} must be an array of minimum ${min} elements`);
   }
   if (max !== null && value.length > max) {
     throw new Error(`${field} must be an array of maximum ${max} elements`);
+  }
+}
+
+function checkArrayBufferLength(value, min, max, field) {
+  if (min !== null && value.length < min) {
+    throw new Error(`${field} must be an array of minimum ${min} elements`);
+  }
+  if (max !== null && value.length > max) {
+    throw new Error(`${field} must be an array of maximum ${max} elements`);
+  }
+}
+
+function checkValidCpuid(value, field) {
+  checkType(value, "string", field);
+  if (value !== value.toLowerCase()) {
+    throw new Error(`${field} must be a lowercase hex string: ${value}`);
+  }
+
+  // This will throw if the string contains non-hex characters
+  const buffer = hexStrToBuf(value);
+  const length = buffer.byteLength;
+  if (length != 4) {
+    throw new Error(`${field} must convert to exactly 4 bytes`);
   }
 }
 
@@ -131,8 +158,7 @@ function checkJwks(value, field) {
     checkType(jwk.kid, "string", `${field}.keys[${i}].kid`);
     checkType(jwk.kty, "string", `${field}.keys[${i}].kty`);
     if (jwk.x5c) {
-      checkType(jwk.x5c, "array", `${field}.keys[${i}].x5c`);
-      checkLength(jwk.x5c, 1, null, `${field}.keys[${i}].x5c`);
+      checkArrayLength(jwk.x5c, 1, null, `${field}.keys[${i}].x5c`);
       for (const [j, b64der] of jwk.x5c.entries()) {
         checkType(b64der, "string", `${field}.keys[${i}].x5c[${j}]`);
         const pem =
@@ -1097,6 +1123,37 @@ const actions = new Map([
     ),
   ],
   [
+    "set_snp_minimum_tcb_version",
+    new Action(
+      function (args) {
+        checkValidCpuid(args.cpuid, "cpuid");
+
+        checkType(args.tcb_version, "object", "tcb_version");
+        checkType(
+          args.tcb_version?.boot_loader,
+          "number",
+          "tcb_version.boot_loader",
+        );
+        checkType(args.tcb_version?.tee, "number", "tcb_version.tee");
+        checkType(args.tcb_version?.snp, "number", "tcb_version.snp");
+        checkType(
+          args.tcb_version?.microcode,
+          "number",
+          "tcb_version.microcode",
+        );
+      },
+      function (args, proposalId) {
+        // ensure cpuid is uppercase to prevent aliasing
+        ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].set(
+          ccf.strToBuf(args.cpuid),
+          ccf.jsonCompatibleToBuf(args.tcb_version),
+        );
+
+        invalidateOtherOpenProposals(proposalId);
+      },
+    ),
+  ],
+  [
     "remove_snp_host_data",
     new Action(
       function (args) {
@@ -1147,6 +1204,22 @@ const actions = new Map([
             ccf.strToBuf(args.did),
             ccf.jsonCompatibleToBuf(uvme),
           );
+        }
+      },
+    ),
+  ],
+  [
+    "remove_snp_minimum_tcb_version",
+    new Action(
+      function (args) {
+        checkValidCpuid(args.cpuid, "cpuid");
+      },
+      function (args) {
+        const cpuid = ccf.strToBuf(args.cpuid);
+        if (ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid)) {
+          ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].delete(cpuid);
+        } else {
+          throw new Error(`CPUID ${args.cpuid} not found`);
         }
       },
     ),

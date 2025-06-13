@@ -615,6 +615,20 @@ namespace ccf::gov::endpoints
               });
             snp_policy["uvmEndorsements"] = snp_endorsements;
 
+            auto snp_tcb_versions = nlohmann::json::object();
+            auto tcb_versions_handle =
+              ctx.tx.template ro<ccf::SnpTcbVersionMap>(
+                ccf::Tables::SNP_TCB_VERSIONS);
+
+            tcb_versions_handle->foreach(
+              [&snp_tcb_versions](
+                const std::string& cpuid,
+                const pal::snp::TcbVersion& tcb_version) {
+                snp_tcb_versions[cpuid] = tcb_version;
+                return true;
+              });
+            snp_policy["tcbVersions"] = snp_tcb_versions;
+
             response_body["snp"] = snp_policy;
           }
 

@@ -150,7 +150,12 @@ namespace ds
       while (head != nullptr)
       {
         auto c = head;
-        remove(c);
+        // The analysis does not seem to take into account that the
+        // penultimate remove will result in head->next == nullptr
+        // and head == nullptr on the next iteration
+        // This is perhaps related to
+        // https://github.com/llvm/llvm-project/issues/43395
+        remove(c); // NOLINT(clang-analyzer-cplusplus.NewDelete)
         delete c;
       }
     }

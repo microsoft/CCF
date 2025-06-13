@@ -3,11 +3,12 @@
 
 #include "crypto/openssl/symmetric_key.h"
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
-#include "crypto/openssl/openssl_wrappers.h"
 #include "ds/thread_messaging.h"
 
+#include <climits>
 #include <openssl/aes.h>
 #include <openssl/evp.h>
 
@@ -15,22 +16,26 @@ namespace ccf::crypto
 {
   using namespace OpenSSL;
 
+  static constexpr size_t KEY_SIZE_256 = 256;
+  static constexpr size_t KEY_SIZE_192 = 192;
+  static constexpr size_t KEY_SIZE_128 = 128;
+
   KeyAesGcm_OpenSSL::KeyAesGcm_OpenSSL(std::span<const uint8_t> rawKey) :
     key(std::vector<uint8_t>(rawKey.data(), rawKey.data() + rawKey.size())),
     evp_cipher(nullptr)
   {
-    const auto n = static_cast<unsigned int>(rawKey.size() * 8);
-    if (n >= 256)
+    const auto n = static_cast<unsigned int>(rawKey.size() * CHAR_BIT);
+    if (n >= KEY_SIZE_256)
     {
       evp_cipher = EVP_aes_256_gcm();
       evp_cipher_wrap_pad = EVP_aes_256_wrap_pad();
     }
-    else if (n >= 192)
+    else if (n >= KEY_SIZE_192)
     {
       evp_cipher = EVP_aes_192_gcm();
       evp_cipher_wrap_pad = EVP_aes_192_wrap_pad();
     }
-    else if (n >= 128)
+    else if (n >= KEY_SIZE_128)
     {
       evp_cipher = EVP_aes_128_gcm();
       evp_cipher_wrap_pad = EVP_aes_128_wrap_pad();
@@ -38,13 +43,13 @@ namespace ccf::crypto
     else
     {
       throw std::logic_error(
-        fmt::format("Need at least {} bits, only have {}", 128, n));
+        fmt::format("Need at least {} bits, only have {}", KEY_SIZE_128, n));
     }
   }
 
   size_t KeyAesGcm_OpenSSL::key_size() const
   {
-    return key.size() * 8;
+    return key.size() * CHAR_BIT;
   }
 
   void KeyAesGcm_OpenSSL::encrypt(
@@ -60,15 +65,17 @@ namespace ccf::crypto
     }
 
     Unique_EVP_CIPHER_CTX ctx;
-    CHECK1(EVP_EncryptInit_ex(ctx, evp_cipher, NULL, key.data(), NULL));
+    CHECK1(EVP_EncryptInit_ex(ctx, evp_cipher, nullptr, key.data(), nullptr));
 
-    CHECK1(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), NULL));
-    CHECK1(EVP_EncryptInit_ex(ctx, NULL, NULL, key.data(), iv.data()));
+    CHECK1(
+      EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr));
+    CHECK1(EVP_EncryptInit_ex(ctx, nullptr, nullptr, key.data(), iv.data()));
 
     if (!aad.empty())
     {
       int aad_outl{0};
-      CHECK1(EVP_EncryptUpdate(ctx, NULL, &aad_outl, aad.data(), aad.size()));
+      CHECK1(
+        EVP_EncryptUpdate(ctx, nullptr, &aad_outl, aad.data(), aad.size()));
     }
 
     std::vector<uint8_t> ciphertext(plain.size());
@@ -83,7 +90,7 @@ namespace ccf::crypto
     }
 
     int final_outl{0};
-    CHECK1(EVP_EncryptFinal_ex(ctx, NULL, &final_outl));
+    CHECK1(EVP_EncryptFinal_ex(ctx, nullptr, &final_outl));
 
     // As long a we use GSM cipher, the final outl must be 0, because there's no
     // padding and the block size is equal to 1, so EncryptUpdate() always does
@@ -109,14 +116,16 @@ namespace ccf::crypto
     std::vector<uint8_t>& plain) const
   {
     Unique_EVP_CIPHER_CTX ctx;
-    CHECK1(EVP_DecryptInit_ex(ctx, evp_cipher, NULL, NULL, NULL));
-    CHECK1(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), NULL));
+    CHECK1(EVP_DecryptInit_ex(ctx, evp_cipher, nullptr, nullptr, nullptr));
+    CHECK1(
+      EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr));
 
-    CHECK1(EVP_DecryptInit_ex(ctx, NULL, NULL, key.data(), iv.data()));
+    CHECK1(EVP_DecryptInit_ex(ctx, nullptr, nullptr, key.data(), iv.data()));
     if (!aad.empty())
     {
       int aad_outl{0};
-      CHECK1(EVP_DecryptUpdate(ctx, NULL, &aad_outl, aad.data(), aad.size()));
+      CHECK1(
+        EVP_DecryptUpdate(ctx, nullptr, &aad_outl, aad.data(), aad.size()));
     }
 
     std::vector<uint8_t> plaintext(cipher.size());
@@ -130,11 +139,12 @@ namespace ccf::crypto
       assert(plain_outl == cipher.size());
     }
 
-    CHECK1(EVP_CIPHER_CTX_ctrl(
-      ctx, EVP_CTRL_GCM_SET_TAG, GCM_SIZE_TAG, (uint8_t*)tag));
+    void* tag_ptr = const_cast<void*>(static_cast<const void*>(tag));
+    CHECK1(
+      EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, GCM_SIZE_TAG, tag_ptr));
 
     int final_outl{0};
-    if (EVP_DecryptFinal_ex(ctx, NULL, &final_outl) != 1)
+    if (EVP_DecryptFinal_ex(ctx, nullptr, &final_outl) != 1)
     {
       return false;
     }
@@ -160,13 +170,14 @@ namespace ccf::crypto
     int len = 0;
     Unique_EVP_CIPHER_CTX ctx;
     EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
-    CHECK1(EVP_EncryptInit_ex(ctx, evp_cipher_wrap_pad, NULL, NULL, NULL));
-    CHECK1(EVP_EncryptInit_ex(ctx, NULL, NULL, key.data(), NULL));
-    CHECK1(EVP_EncryptUpdate(ctx, NULL, &len, plain.data(), plain.size()));
+    CHECK1(
+      EVP_EncryptInit_ex(ctx, evp_cipher_wrap_pad, nullptr, nullptr, nullptr));
+    CHECK1(EVP_EncryptInit_ex(ctx, nullptr, nullptr, key.data(), nullptr));
+    CHECK1(EVP_EncryptUpdate(ctx, nullptr, &len, plain.data(), plain.size()));
     std::vector<uint8_t> cipher(len);
     CHECK1(
       EVP_EncryptUpdate(ctx, cipher.data(), &len, plain.data(), plain.size()));
-    CHECK1(EVP_EncryptFinal_ex(ctx, NULL, &len));
+    CHECK1(EVP_EncryptFinal_ex(ctx, nullptr, &len));
     return cipher;
   }
 
@@ -176,14 +187,15 @@ namespace ccf::crypto
     int len = 0;
     Unique_EVP_CIPHER_CTX ctx;
     EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
-    CHECK1(EVP_DecryptInit_ex(ctx, evp_cipher_wrap_pad, NULL, NULL, NULL));
-    CHECK1(EVP_DecryptInit_ex(ctx, NULL, NULL, key.data(), NULL));
-    CHECK1(EVP_DecryptUpdate(ctx, NULL, &len, cipher.data(), cipher.size()));
+    CHECK1(
+      EVP_DecryptInit_ex(ctx, evp_cipher_wrap_pad, nullptr, nullptr, nullptr));
+    CHECK1(EVP_DecryptInit_ex(ctx, nullptr, nullptr, key.data(), nullptr));
+    CHECK1(EVP_DecryptUpdate(ctx, nullptr, &len, cipher.data(), cipher.size()));
     std::vector<uint8_t> plain(len);
     CHECK1(
       EVP_DecryptUpdate(ctx, plain.data(), &len, cipher.data(), cipher.size()));
     plain.resize(len);
-    if (EVP_DecryptFinal_ex(ctx, NULL, &len) != 1)
+    if (EVP_DecryptFinal_ex(ctx, nullptr, &len) != 1)
     {
       plain.clear();
     }

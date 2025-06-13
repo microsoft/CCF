@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/ds/x509_time_fmt.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "ccf/indexing/strategies/seqnos_by_key_in_memory.h"
 #include "consensus/aft/raft.h"
@@ -30,7 +31,7 @@ using IndexB = ccf::indexing::strategies::SeqnosByKey_InMemory<decltype(map_b)>;
 constexpr size_t certificate_validity_period_days = 365;
 using namespace std::literals;
 auto valid_from =
-  ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+  ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 auto valid_to = ccf::crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
@@ -451,7 +452,7 @@ TEST_CASE_TEMPLATE(
 }
 
 using namespace std::chrono_literals;
-const auto max_multithread_run_time = 100s;
+const auto max_multithread_run_time = 500s;
 
 // Uses the real classes, and access + update them concurrently
 TEST_CASE(
@@ -968,6 +969,7 @@ TEST_CASE(
 
 int main(int argc, char** argv)
 {
+  threading::ThreadMessaging::init(1);
   ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);

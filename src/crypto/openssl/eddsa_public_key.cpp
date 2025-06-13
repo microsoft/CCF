@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/eddsa_key_pair.h"
 #include "crypto/openssl/hash.h"
-#include "openssl_wrappers.h"
 
 namespace ccf::crypto
 {
@@ -12,8 +12,8 @@ namespace ccf::crypto
   EdDSAPublicKey_OpenSSL::EdDSAPublicKey_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
-    key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
-    if (!key)
+    key = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
+    if (key == nullptr)
     {
       throw std::runtime_error("could not parse PEM");
     }
@@ -55,7 +55,7 @@ namespace ccf::crypto
 
   EdDSAPublicKey_OpenSSL::~EdDSAPublicKey_OpenSSL()
   {
-    if (key)
+    if (key != nullptr)
     {
       EVP_PKEY_free(key);
     }
@@ -67,9 +67,9 @@ namespace ccf::crypto
 
     OpenSSL::CHECK1(PEM_write_bio_PUBKEY(buf, key));
 
-    BUF_MEM* bptr;
+    BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(buf, &bptr);
-    return Pem((uint8_t*)bptr->data, bptr->length);
+    return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
   }
 
   bool EdDSAPublicKey_OpenSSL::verify(
@@ -81,7 +81,7 @@ namespace ccf::crypto
     Unique_EVP_MD_CTX ctx;
     EVP_PKEY_CTX* pkctx = nullptr;
 
-    OpenSSL::CHECK1(EVP_DigestVerifyInit(ctx, &pkctx, NULL, NULL, key));
+    OpenSSL::CHECK1(EVP_DigestVerifyInit(ctx, &pkctx, nullptr, nullptr, key));
 
     return 1 ==
       EVP_DigestVerify(ctx, signature, signature_size, contents, contents_size);

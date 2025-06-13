@@ -3,9 +3,9 @@
 
 #include "crypto/openssl/verifier.h"
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/public_key.h"
 #include "ccf/ds/logger.h"
-#include "crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "x509_time.h"
 
@@ -18,7 +18,7 @@ namespace ccf::crypto
 {
   using namespace OpenSSL;
 
-  MDType Verifier_OpenSSL::get_md_type(int mdt) const
+  MDType Verifier_OpenSSL::get_md_type(int mdt)
   {
     switch (mdt)
     {
@@ -38,25 +38,28 @@ namespace ccf::crypto
     return MDType::NONE;
   }
 
-  Verifier_OpenSSL::Verifier_OpenSSL(const std::vector<uint8_t>& c) : Verifier()
+  Verifier_OpenSSL::Verifier_OpenSSL(const std::vector<uint8_t>& c)
   {
     Unique_BIO certbio(c);
-    if (!(cert = Unique_X509(certbio, true)))
+    cert = Unique_X509(certbio, true);
+    if (cert == nullptr)
     {
       BIO_reset(certbio);
-      if (!(cert = Unique_X509(certbio, false)))
+      cert = Unique_X509(certbio, false);
+      if (cert == nullptr)
       {
         throw std::invalid_argument(fmt::format(
           "OpenSSL error: {}", OpenSSL::error_string(ERR_get_error())));
       }
     }
 
-    int mdnid, pknid, secbits;
-    X509_get_signature_info(cert, &mdnid, &pknid, &secbits, 0);
+    int mdnid = 0;
+    int pknid = 0;
+    int secbits = 0;
+    X509_get_signature_info(cert, &mdnid, &pknid, &secbits, nullptr);
 
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     auto base_id = EVP_PKEY_get_base_id(pk);
     if (base_id == EVP_PKEY_EC)
     {
@@ -66,32 +69,24 @@ namespace ccf::crypto
     {
       public_key = std::make_unique<RSAPublicKey_OpenSSL>(pk);
     }
-#else
-    if (EVP_PKEY_get0_EC_KEY(pk))
-    {
-      public_key = std::make_unique<PublicKey_OpenSSL>(pk);
-    }
-    else if (EVP_PKEY_get0_RSA(pk))
-    {
-      public_key = std::make_unique<RSAPublicKey_OpenSSL>(pk);
-    }
-#endif
     else
     {
       throw std::logic_error("unsupported public key type");
     }
   }
 
-  Verifier_OpenSSL::~Verifier_OpenSSL() {}
+  Verifier_OpenSSL::~Verifier_OpenSSL() = default;
 
   std::vector<uint8_t> Verifier_OpenSSL::cert_der()
   {
     Unique_BIO mem;
     CHECK1(i2d_X509_bio(mem, cert));
 
-    BUF_MEM* bptr;
+    BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(mem, &bptr);
-    return {(uint8_t*)bptr->data, (uint8_t*)bptr->data + bptr->length};
+    return {
+      reinterpret_cast<uint8_t*>(bptr->data),
+      reinterpret_cast<uint8_t*>(bptr->data) + bptr->length};
   }
 
   Pem Verifier_OpenSSL::cert_pem()
@@ -99,9 +94,9 @@ namespace ccf::crypto
     Unique_BIO mem;
     CHECK1(PEM_write_bio_X509(mem, cert));
 
-    BUF_MEM* bptr;
+    BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(mem, &bptr);
-    return Pem((uint8_t*)bptr->data, bptr->length);
+    return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
   }
 
   bool Verifier_OpenSSL::verify_certificate(
@@ -112,7 +107,7 @@ namespace ccf::crypto
     Unique_X509_STORE store;
     Unique_X509_STORE_CTX store_ctx;
 
-    for (auto& pem : trusted_certs)
+    for (const auto& pem : trusted_certs)
     {
       Unique_BIO tcbio(*pem);
       Unique_X509 tc(tcbio, true);
@@ -126,7 +121,7 @@ namespace ccf::crypto
     }
 
     Unique_STACK_OF_X509 chain_stack;
-    for (auto& pem : chain)
+    for (const auto& pem : chain)
     {
       Unique_BIO certbio(*pem);
       Unique_X509 cert(certbio, true);
@@ -157,14 +152,14 @@ namespace ccf::crypto
     if (!valid)
     {
       auto error = X509_STORE_CTX_get_error(store_ctx);
-      auto msg = X509_verify_cert_error_string(error);
+      const auto* msg = X509_verify_cert_error_string(error);
       LOG_DEBUG_FMT("Failed to verify certificate: {}", msg);
       LOG_DEBUG_FMT("Target: {}", cert_pem().str());
-      for (auto pem : chain)
+      for (const auto* pem : chain)
       {
         LOG_DEBUG_FMT("Chain: {}", pem->str());
       }
-      for (auto pem : trusted_certs)
+      for (const auto* pem : trusted_certs)
       {
         LOG_DEBUG_FMT("Trusted: {}", pem->str());
       }
@@ -174,7 +169,7 @@ namespace ccf::crypto
 
   bool Verifier_OpenSSL::is_self_signed() const
   {
-    return X509_get_extension_flags(cert) & EXFLAG_SS;
+    return (X509_get_extension_flags(cert) & EXFLAG_SS) != 0U;
   }
 
   std::string Verifier_OpenSSL::serial_number() const
@@ -182,9 +177,9 @@ namespace ccf::crypto
     const ASN1_INTEGER* sn = X509_get0_serialNumber(cert);
     Unique_BIO mem;
     i2a_ASN1_INTEGER(mem, sn);
-    BUF_MEM* bptr;
+    BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(mem, &bptr);
-    return std::string(bptr->data, bptr->length);
+    return {bptr->data, bptr->length};
   }
 
   std::pair<std::string, std::string> Verifier_OpenSSL::validity_period() const
@@ -199,9 +194,9 @@ namespace ccf::crypto
     X509_NAME* name = X509_get_subject_name(cert);
     Unique_BIO mem;
     X509_NAME_print_ex(mem, name, 0, 0);
-    BUF_MEM* bptr;
+    BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(mem, &bptr);
-    return std::string(bptr->data, bptr->length);
+    return {bptr->data, bptr->length};
   }
 
   size_t Verifier_OpenSSL::remaining_seconds(

@@ -3,6 +3,7 @@
 
 #include "host/env.h"
 
+#include <cstdlib>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -16,20 +17,19 @@ namespace ccf::env
       return str;
     }
 
-    char* e = std::getenv(str.c_str() + 1);
-    if (e == nullptr)
+    const auto name = str.substr(1);
+    char* value = std::getenv(name.c_str()); // NOLINT(concurrency-mt-unsafe)
+    if (value == nullptr)
     {
       return str;
     }
-    else
-    {
-      return std::string(e);
-    }
+
+    return {value};
   }
 
   std::string expand_envvars_in_path(const std::string& str)
   {
-    std::filesystem::path path(str);
+    const std::filesystem::path path(str);
 
     if (path.empty())
     {
@@ -37,16 +37,16 @@ namespace ccf::env
     }
 
     std::vector<std::filesystem::path> elements;
-    auto it = path.begin();
+    auto path_element = path.begin();
     if (path.has_root_directory())
     {
-      ++it;
+      ++path_element;
       elements.push_back(path.root_directory());
     }
 
-    while (it != path.end())
+    while (path_element != path.end())
     {
-      elements.push_back(expand_envvar(*it++));
+      elements.emplace_back(expand_envvar(*path_element++));
     }
 
     std::filesystem::path resolved;

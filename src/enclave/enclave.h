@@ -6,7 +6,6 @@
 #include "ccf/js/core/context.h"
 #include "ccf/node_context.h"
 #include "ccf/node_subsystem_interface.h"
-#include "ccf/pal/enclave.h"
 #include "ccf/pal/mem.h"
 #include "crypto/openssl/hash.h"
 #include "ds/oversized.h"
@@ -15,7 +14,6 @@
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
-#include "js/ffi_plugins.h"
 #include "js/interpreter_cache.h"
 #include "node/acme_challenge_frontend.h"
 #include "node/historical_queries.h"
@@ -36,7 +34,6 @@
 #include "ringbuffer_logger.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
-#include "verify.h"
 
 #include <openssl/engine.h>
 
@@ -56,9 +53,6 @@ namespace ccf
     std::unique_ptr<ccf::NodeState> node;
     ringbuffer::WriterPtr to_host = nullptr;
     std::chrono::microseconds last_tick_time;
-#if !(defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3)
-    ENGINE* rdrand_engine = nullptr;
-#endif
 
     StartType start_type;
 
@@ -102,29 +96,7 @@ namespace ccf
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
     {
-      ccf::pal::initialize_enclave();
-      ccf::initialize_verifiers();
       ccf::crypto::openssl_sha256_init();
-
-      // https://github.com/microsoft/CCF/issues/5569
-      // Open Enclave with OpenSSL 3.x (default for SGX) is built with RDCPU
-      // (https://github.com/openenclave/openenclave/blob/master/docs/OpenSSLSupport.md#how-to-use-rand-apis)
-      // and so does not need to make use of the (deprecated) ENGINE_x API.
-#if !(defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3)
-      // From
-      // https://software.intel.com/content/www/us/en/develop/articles/how-to-use-the-rdrand-engine-in-openssl-for-random-number-generation.html
-      if (
-        ENGINE_load_rdrand() != 1 ||
-        (rdrand_engine = ENGINE_by_id("rdrand")) == nullptr ||
-        ENGINE_init(rdrand_engine) != 1 ||
-        ENGINE_set_default(rdrand_engine, ENGINE_METHOD_RAND) != 1)
-      {
-        LOG_FAIL_FMT("Error creating OpenSSL's RDRAND engine");
-        ENGINE_free(rdrand_engine);
-        throw ccf::ccf_openssl_rdrand_init_error(
-          "could not initialize RDRAND engine for OpenSSL");
-      }
-#endif
 
       to_host = writer_factory->create_writer_to_outside();
 
@@ -197,13 +169,6 @@ namespace ccf
       rpc_map->register_frontend<ccf::ActorsType::acme_challenge>(
         std::make_unique<ccf::ACMERpcFrontend>(network, *context));
 
-// Suppress error about use of deprecated get_js_plugins(). This call, and all
-// references to FFIPlugins, should be removed after 6.0.0
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-      ccf::js::register_ffi_plugins(ccf::get_js_plugins());
-#pragma clang diagnostic pop
-
       LOG_TRACE_FMT("Initialize node");
       node->initialize(
         consensus_config,
@@ -216,17 +181,7 @@ namespace ccf
 
     ~Enclave()
     {
-#if !(defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3)
-      if (rdrand_engine)
-      {
-        LOG_TRACE_FMT("Finishing RDRAND engine");
-        ENGINE_finish(rdrand_engine);
-        ENGINE_free(rdrand_engine);
-      }
-#endif
       LOG_TRACE_FMT("Shutting down enclave");
-      ccf::shutdown_verifiers();
-      ccf::pal::shutdown_enclave();
       ccf::crypto::openssl_sha256_shutdown();
     }
 

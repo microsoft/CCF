@@ -13,7 +13,6 @@ import os
 import subprocess
 import json
 from infra.runner import ConcurrentRunner
-from distutils.dir_util import copy_tree
 from infra.consortium import slurp_file
 import infra.health_watcher
 import time
@@ -29,7 +28,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from ccf.cose import validate_cose_sign1
 from pycose.messages import Sign1Message  # type: ignore
-
+import random
 from loguru import logger as LOG
 
 
@@ -107,10 +106,94 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
         pubkey = serialization.load_der_public_key(next_key_bytes, default_backend())
 
 
+def restart_network(old_network, args, current_ledger_dir, committed_ledger_dirs):
+    network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=old_network,
+    )
+    network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+    )
+    network.recover(args)
+    return network
+
+
+def recover_with_primary_dying(args, recovered_network):
+    # Minimal copy-paste from network.recover() with primary shut down.
+    recovered_network.consortium.activate(recovered_network.find_random_node())
+    recovered_network.consortium.check_for_service(
+        recovered_network.find_random_node(),
+        status=infra.network.ServiceStatus.RECOVERING,
+    )
+    recovered_network.wait_for_all_nodes_to_be_trusted(
+        recovered_network.find_random_node()
+    )
+
+    prev_service_identity = None
+    if args.previous_service_identity_file:
+        prev_service_identity = slurp_file(args.previous_service_identity_file)
+    LOG.info(f"Prev identity: {prev_service_identity}")
+
+    recovered_network.consortium.transition_service_to_open(
+        recovered_network.find_random_node(),
+        previous_service_identity=prev_service_identity,
+    )
+
+    recovered_network.consortium.recover_with_shares(
+        recovered_network.find_random_node()
+    )
+    for node in recovered_network.get_joined_nodes():
+        recovered_network.wait_for_state(
+            node,
+            infra.node.State.READING_PRIVATE_LEDGER.value,
+            timeout=args.ledger_recovery_timeout,
+        )
+
+    retired_primary, _ = recovered_network.find_primary()
+    retired_id = retired_primary.node_id
+
+    LOG.info(f"Force-kill primary {retired_id}")
+    retired_primary.sigkill()
+    recovered_network.nodes.remove(retired_primary)
+
+    primary, _ = recovered_network.find_primary()
+    while not primary or primary.node_id == retired_id:
+        LOG.info("Keep looking for new primary")
+        time.sleep(0.1)
+        primary, _ = recovered_network.find_primary()
+
+    # Ensure new primary has been elected while all nodes are still reading private entries.
+    for node in recovered_network.get_joined_nodes():
+        LOG.info(f"Check state for node id {node.node_id}")
+        with node.client(connection_timeout=1) as c:
+            assert (
+                infra.node.State.READING_PRIVATE_LEDGER.value
+                == c.get("/node/state").body.json()["state"]
+            )
+
+    # Wait for recovery to complete.
+    for node in recovered_network.get_joined_nodes():
+        recovered_network.wait_for_state(
+            node,
+            infra.node.State.PART_OF_NETWORK.value,
+            timeout=args.ledger_recovery_timeout,
+        )
+
+
 @reqs.description("Recover a service")
 @reqs.recover(number_txs=2)
 def test_recover_service(
-    network, args, from_snapshot=True, no_ledger=False, via_recovery_owner=False
+    network,
+    args,
+    from_snapshot=True,
+    no_ledger=False,
+    via_recovery_owner=False,
+    force_election=False,
 ):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
@@ -126,6 +209,16 @@ def test_recover_service(
     snapshots_dir = None
     if from_snapshot:
         snapshots_dir = network.get_committed_snapshots(old_primary)
+
+    if force_election:
+        # Necessary to make recovering private entries taking long enough time
+        # to allow election to happen if primary gets killed. These later get verified post-recovery (logging app verify_tx() thing).
+        network.txs.issue(
+            network,
+            number_txs=10000,
+            send_public=False,
+            msg=str(bytes(random.getrandbits(8) for _ in range(512))),
+        )
 
     # Start health watcher and stop nodes one by one until a recovery has to be staged
     watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
@@ -202,7 +295,10 @@ def test_recover_service(
             r = c.get("/node/ready/app")
             assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value, r
 
-    recovered_network.recover(args, via_recovery_owner=via_recovery_owner)
+    if force_election:
+        recover_with_primary_dying(args, recovered_network)
+    else:
+        recovered_network.recover(args, via_recovery_owner=via_recovery_owner)
 
     LOG.info("Check that new service view is as expected")
     new_primary, _ = recovered_network.find_primary()
@@ -216,6 +312,16 @@ def test_recover_service(
         r = c.get("/node/ready/gov")
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
         r = c.get("/node/ready/app")
+
+        # Service opening may be slightly delayed due to forced election (if option enabled).
+        app_ready_attempts = 10 if force_election else 0
+        while (
+            r.status_code != http.HTTPStatus.NO_CONTENT.value and app_ready_attempts > 0
+        ):
+            time.sleep(0.1)
+            app_ready_attempts -= 1
+            r = c.get("/node/ready/app")
+
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
 
     return recovered_network
@@ -430,8 +536,22 @@ def test_recover_service_from_files(
     )
 
     old_common = os.path.join(service_dir, "common")
+    LOG.info(f"Copying common folder: {old_common}")
     new_common = infra.network.get_common_folder_name(args.workspace, args.label)
-    copy_tree(old_common, new_common)
+
+    cmd = ["rm", "-rf", new_common]
+    assert (
+        infra.proc.ccall(*cmd).returncode == 0
+    ), f"Could not remove existing {new_common} directory"
+    cmd = ["mkdir", "-p", new_common]
+    assert (
+        infra.proc.ccall(*cmd).returncode == 0
+    ), f"Could not create fresh {new_common} directory"
+    for file in os.listdir(old_common):
+        cmd = ["cp", os.path.join(old_common, file), new_common]
+        assert (
+            infra.proc.ccall(*cmd).returncode == 0
+        ), f"Could not copy {file} to {new_common}"
 
     network = infra.network.Network(args.nodes, args.binary_dir)
 
@@ -945,14 +1065,15 @@ def run(args):
         network.stop_all_nodes()
 
     # Verify that a new ledger chunk was created at the start of each recovery
+    validator = ccf.ledger.LedgerValidator(accept_deprecated_entry_types=False)
     ledger = ccf.ledger.Ledger(
         primary.remote.ledger_paths(),
         committed_only=False,
-        validator=ccf.ledger.LedgerValidator(accept_deprecated_entry_types=False),
     )
     for chunk in ledger:
         chunk_start_seqno, _ = chunk.get_seqnos()
         for tx in chunk:
+            validator.add_transaction(tx)
             tables = tx.get_public_domain().get_tables()
             seqno = tx.get_public_domain().get_seqno()
             if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
@@ -969,14 +1090,100 @@ def run(args):
                         chunk_start_seqno == seqno
                     ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
+
+def run_recovery_from_files(args):
     test_recover_service_from_files(
-        args, "expired_service", expected_recovery_count=2, test_receipt=True
+        args,
+        directory=args.directory,
+        expected_recovery_count=args.expected_recovery_count,
+        test_receipt=args.test_receipt,
     )
-    # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> 5.x -> main.
-    # This is used to test recovery from SGX to SNP.
-    test_recover_service_from_files(
-        args, "sgx_service", expected_recovery_count=4, test_receipt=False
-    )
+
+
+def test_incomplete_ledger_recovery(network, args):
+    # Try to get incomplete pre-recovery ledger files with at least one
+    # signature and some unsigned payload following.
+    ATTEMPTS = 5
+
+    network.save_service_identity(args)
+    primary, _ = network.find_primary()
+    current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+    network.stop_all_nodes(skip_verification=True)
+
+    for attempt in range(0, ATTEMPTS):
+        LOG.info(
+            f"Try get incomplete pre-recovery ledger files on primary, attempt=#{attempt}/{ATTEMPTS}"
+        )
+
+        network = restart_network(
+            network, args, current_ledger_dir, committed_ledger_dirs
+        )
+        network.save_service_identity(args)
+
+        primary, _ = network.find_primary()
+        current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+
+        with primary.client("user0") as c:
+            for _ in range(100 + 100 * attempt):
+                r = c.post(
+                    "/app/log/public",
+                    {
+                        "id": 42,
+                        "msg": "Boring recoverable transactions",
+                    },
+                )
+                assert r.status_code == 200, r
+
+        network.stop_all_nodes(skip_verification=True)
+
+        # Calling .get_ledger() after shutdown because it lazy-copies the files.
+        current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+
+        ledger = ccf.ledger.Ledger(
+            primary.remote.ledger_paths(),
+            committed_only=False,
+        )
+
+        _, last_seqno = ledger.get_latest_public_state()
+        last_tx = ledger.get_transaction(last_seqno)
+
+        if "ccf.internal.signatures" in last_tx.get_raw_tx().decode(errors="ignore"):
+            LOG.info(
+                f"Found signature in last tx {last_tx.get_tx_digest()}, not a suitable candidate for this test"
+            )
+            continue
+
+        # We've got a suffix with extra payload with no following signature.
+        break
+    else:
+        raise RuntimeError(
+            f"Failed to get incomplete pre-recovery ledger files after {ATTEMPTS} attempts"
+        )
+
+    network = restart_network(network, args, current_ledger_dir, committed_ledger_dirs)
+
+    primary, _ = network.find_nodes()
+    with primary.client("user0") as c:
+        for _ in range(10):
+            r = c.post(
+                "/app/log/public",
+                {
+                    "id": 42,
+                    "msg": "Less boring recoverable transactions",
+                },
+            )
+            assert r.status_code == 200, r
+
+    network.wait_for_all_nodes_to_commit(primary=primary)
+    network.save_service_identity(args)
+    primary, _ = network.find_primary()
+    current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+    network.stop_all_nodes(skip_verification=True)
+
+    network.check_ledger_files_identical()
+
+    network = restart_network(network, args, current_ledger_dir, committed_ledger_dirs)
+    return network
 
 
 def run_recover_snapshot_alone(args):
@@ -996,6 +1203,48 @@ def run_recover_snapshot_alone(args):
         primary, _ = network.find_primary()
         # Recover node solely from snapshot
         test_recover_service(network, args, from_snapshot=True, no_ledger=True)
+        return network
+
+
+def run_recovery_with_election(args):
+    """
+    Recover a service but force election during recovery.
+    """
+    if not args.with_election:
+        return
+
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        test_recover_service(network, args, force_election=True)
+        return network
+
+
+def run_recovery_with_incomplete_ledger(args):
+    """
+    Recover a service with incomplete ledger file on a primary which contains unsigned suffix.
+    """
+    if not args.with_unsigned_suffix:
+        return
+
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        test_incomplete_ledger_recovery(network, args)
         return network
 
 
@@ -1082,6 +1331,18 @@ checked. Note that the key for each logging message is unique (per table).
             action="store_true",
             default=False,
         )
+        parser.add_argument(
+            "--with-election",
+            help="If set, the primary gets killed to force election mid-recovery",
+            action="store_true",
+            default=False,
+        )
+        parser.add_argument(
+            "--with-unsigned-suffix",
+            help="If set, recover with open-ranged ledger file with unsigned suffix",
+            action="store_true",
+            default=False,
+        )
 
     cr = ConcurrentRunner(add)
 
@@ -1093,6 +1354,28 @@ checked. Note that the key for each logging message is unique (per table).
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=30,
     )
+
+    for directory, expected_recovery_count, test_receipt in (
+        ("expired_service", 2, True),
+        # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> 5.x -> main.
+        # This is used to test recovery from SGX to SNP.
+        ("sgx_service", 4, False),
+        # double_sealed_service is a regression test for the issue described in #6906
+        ("double_sealed_service", 2, False),
+        # cose_flipflop_service is a regression test for the issue described in #7002
+        ("cose_flipflop_service", 0, False),
+    ):
+        cr.add(
+            f"recovery_from_{directory}",
+            run_recovery_from_files,
+            package="samples/apps/logging/liblogging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+            ledger_chunk_bytes="50KB",
+            snapshot_tx_interval=30,
+            directory=directory,
+            expected_recovery_count=expected_recovery_count,
+            test_receipt=test_receipt,
+        )
 
     # Note: `run_corrupted_ledger` runs with very a specific node configuration
     # so that the contents of recovered (and tampered) ledger chunks
@@ -1128,6 +1411,15 @@ checked. Note that the key for each logging message is unique (per table).
         run_recover_via_added_recovery_owner,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    )
+
+    cr.add(
+        "recovery_with_incomplete_ledger",
+        run_recovery_with_incomplete_ledger,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=10000,
     )
 
     cr.run()

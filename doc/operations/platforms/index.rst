@@ -9,6 +9,4 @@ CCF can run on several hardware platforms/trusted execution environments, which 
     snp
     virtual
 
-CCF releases (Debian packages and Docker images) are available for each platform.
-
-.. note:: Support for a single CCF service running a mix of node platforms is currently experimental.
+CCF releases (RPM packages) are available for each platform.

@@ -6,6 +6,7 @@ import sys
 import json
 import re
 import argparse
+from datetime import datetime
 from enum import Enum, auto
 
 from loguru import logger as LOG
@@ -43,11 +44,25 @@ def fmt_json(data):
     return json.dumps(json.loads(data), indent=2)
 
 
+def fmt_cose_recent_timestamp(data):
+    s = data.decode()
+    ts, _ = s.split(":")
+    dt = datetime.fromtimestamp(int(ts))
+    return f"[{dt.isoformat()}] {s}"
+
+
 # List of table name regex to key and value format functions (first match is used)
 # Callers can specify additional rules (e.g. for application-specific
 # public tables) which get looked up first.
 default_format_rule = {"key": fmt_raw, "value": fmt_raw}
 default_tables_format_rules = [
+    (
+        "^public:ccf\\.gov\\.cose_recent_proposals$",
+        {
+            "key": fmt_cose_recent_timestamp,
+            "value": fmt_json,
+        },
+    ),
     (
         "^public:ccf\\.internal\\..*$",
         {
@@ -141,6 +156,7 @@ def run(
     tables_regex=None,
     insecure_skip_verification=False,
     uncommitted=False,
+    read_recovery_files=False,
     tables_format_rules=None,
 ):
     table_filter = re.compile(tables_regex) if tables_regex is not None else None
@@ -166,7 +182,9 @@ def run(
         )
         ledger_paths = paths
         ledger = ccf.ledger.Ledger(
-            ledger_paths, committed_only=not uncommitted, validator=validator
+            ledger_paths,
+            committed_only=not uncommitted,
+            read_recovery_files=read_recovery_files,
         )
 
         LOG.info(f"Reading ledger from {ledger_paths}")
@@ -186,6 +204,9 @@ def run(
                         )
                     elif print_mode == PrintMode.Contents:
                         dump_entry(transaction, table_filter, tables_format_rules)
+
+                    if validator:
+                        validator.add_transaction(transaction)
         except Exception as e:
             LOG.exception(f"Error parsing ledger: {e}")
             has_error = True
@@ -226,7 +247,14 @@ def main():
         action="store_true",
     )
     parser.add_argument(
-        "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
+        "--uncommitted",
+        help="Also parse uncommitted ledger files. Note that if these are in a live node directory, they may be being modified.",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--recovery",
+        help="Also parse .recovery ledger files. Note that if these are in a live node directory, they may be being modified.",
+        action="store_true",
     )
 
     display_options = parser.add_mutually_exclusive_group()
@@ -272,6 +300,7 @@ def main():
         tables_regex=args.tables,
         insecure_skip_verification=args.insecure_skip_verification,
         uncommitted=args.uncommitted,
+        read_recovery_files=args.recovery,
     ):
         sys.exit(1)
 

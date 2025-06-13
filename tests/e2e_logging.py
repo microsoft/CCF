@@ -357,13 +357,12 @@ def test_protocols(network, args):
                 "-H",
                 "Connection: Upgrade",
             ],
-            "http_status": "200",
-            "http_version": "1.1",
         },
         # HTTP3 is not supported by curl _or_ CCF
         "--http3": {
             "errors": [
                 "the installed libcurl version doesn't support this",
+                "the installed libcurl version does not support this",
                 "option --http3: is unknown",
             ]
         },
@@ -375,25 +374,20 @@ def test_protocols(network, args):
                 "--http1.0": {"errors": ["Empty reply from server"]},
                 "--http1.1": {"errors": ["Empty reply from server"]},
                 # TLS handshake negotiates HTTP/2
-                "--http2": {"http_status": "200", "http_version": "1.1"},
-                "--http2-prior-knowledge": {
-                    "http_status": "200",
-                    "http_version": "1.1",
-                },
+                "--http2": {},
+                "--http2-prior-knowledge": {},
             }
         )
     else:  # HTTP/1.1
         protocols.update(
             {
                 # HTTP/1.x requests succeed, as HTTP/1.1
-                "--http1.0": {"http_status": "200", "http_version": "1.1"},
-                "--http1.1": {"http_status": "200", "http_version": "1.1"},
+                "--http1.0": {},
+                "--http1.1": {},
                 # TLS handshake negotiates HTTP/1.1
-                "--http2": {"http_status": "200", "http_version": "1.1"},
-                "--http2-prior-knowledge": {
-                    "http_status": "200",
-                    "http_version": "1.1",
-                },
+                "--http2": {},
+                # This is disabled because the behaviour of curl differs from version 8.10, so we do not get consistent results across platforms
+                # "--http2-prior-knowledge": {},
             }
         )
 

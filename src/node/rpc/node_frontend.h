@@ -736,12 +736,6 @@ namespace ccf
           q.format = node_quote_info.format;
           q.uvm_endorsements = node_quote_info.uvm_endorsements;
 
-          // get_measurement attempts to re-validate the quote to extract
-          // mrenclave and the Open Enclave is insufficiently flexible to allow
-          // quotes with expired collateral to be parsed at all. Recent nodes
-          // therefore cache their code digest on startup, and this code
-          // attempts to fetch that value when possible and only call the
-          // unreliable get_measurement otherwise.
           auto nodes = args.tx.ro(network.nodes);
           auto node_info = nodes->get(context.get_node_id());
           if (node_info.has_value() && node_info->code_digest.has_value())
@@ -814,12 +808,6 @@ namespace ccf
             q.format = node_info.quote_info.format;
             q.uvm_endorsements = node_info.quote_info.uvm_endorsements;
 
-            // get_measurement attempts to re-validate the quote to extract
-            // mrenclave and the Open Enclave is insufficiently flexible to
-            // allow quotes with expired collateral to be parsed at all. Recent
-            // nodes therefore cache their code digest on startup, and this code
-            // attempts to fetch that value when possible and only call the
-            // unreliable get_measurement otherwise.
             if (node_info.code_digest.has_value())
             {
               q.measurement = node_info.code_digest.value();
@@ -1647,6 +1635,11 @@ namespace ccf
 
             InternalTablesAccess::trust_node_uvm_endorsements(
               ctx.tx, in.snp_uvm_endorsements);
+
+            auto attestation =
+              AttestationProvider::get_snp_attestation(in.quote_info).value();
+            InternalTablesAccess::trust_node_snp_tcb_version(
+              ctx.tx, attestation);
             break;
           }
 

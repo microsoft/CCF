@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/verifier.h"
-#include "crypto/openssl/openssl_wrappers.h"
 
 #include <chrono>
 #include <openssl/x509.h>
@@ -15,7 +15,7 @@ namespace ccf::crypto
   protected:
     mutable OpenSSL::Unique_X509 cert;
 
-    MDType get_md_type(int mdt) const;
+    static MDType get_md_type(int mdt);
 
   public:
     Verifier_OpenSSL(const std::vector<uint8_t>& c);

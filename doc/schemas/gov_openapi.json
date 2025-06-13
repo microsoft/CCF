@@ -781,6 +781,9 @@
           },
           "status": {
             "$ref": "#/components/schemas/NodeStatus"
+          },
+          "will_locally_seal_ledger_secrets": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -1172,6 +1175,29 @@
         ],
         "type": "object"
       },
+      "TcbVersion": {
+        "properties": {
+          "boot_loader": {
+            "$ref": "#/components/schemas/uint8"
+          },
+          "microcode": {
+            "$ref": "#/components/schemas/uint8"
+          },
+          "snp": {
+            "$ref": "#/components/schemas/uint8"
+          },
+          "tee": {
+            "$ref": "#/components/schemas/uint8"
+          }
+        },
+        "required": [
+          "boot_loader",
+          "tee",
+          "snp",
+          "microcode"
+        ],
+        "type": "object"
+      },
       "TransactionId": {
         "pattern": "^[0-9]+\\.[0-9]+$",
         "type": "string"
@@ -1284,6 +1310,12 @@
         },
         "type": "object"
       },
+      "string_to_TcbVersion": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/TcbVersion"
+        },
+        "type": "object"
+      },
       "string_to_UVMEndorsementsData": {
         "additionalProperties": {
           "$ref": "#/components/schemas/UVMEndorsementsData"
@@ -1310,6 +1342,11 @@
       },
       "uint64": {
         "maximum": 18446744073709551615,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "uint8": {
+        "maximum": 255,
         "minimum": 0,
         "type": "integer"
       }
@@ -1339,7 +1376,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.6.1"
+    "version": "4.7.3"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -2121,6 +2158,31 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SnpAttestationMeasurement_to_CodeStatus"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "This route is auto-generated from the KV schema.",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/nodes/snp/tcb_versions": {
+      "get": {
+        "deprecated": true,
+        "operationId": "GetGovKvNodesSnpTcbVersions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_TcbVersion"
                 }
               }
             },

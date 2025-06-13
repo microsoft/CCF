@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/entropy.h"
-#include "openssl_wrappers.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 
 #include <functional>
 #include <memory>

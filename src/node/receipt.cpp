@@ -83,18 +83,18 @@ namespace ccf
     {
       required.push_back("claims_digest");
       properties["claims_digest"] = ds::openapi::components_ref_object(
-        ds::json::schema_name<decltype(
-          ProofReceipt::Components::claims_digest)>());
+        ds::json::schema_name<
+          decltype(ProofReceipt::Components::claims_digest)>());
 
       required.push_back("commit_evidence");
       properties["commit_evidence"] = ds::openapi::components_ref_object(
-        ds::json::schema_name<decltype(
-          ProofReceipt::Components::commit_evidence)>());
+        ds::json::schema_name<
+          decltype(ProofReceipt::Components::commit_evidence)>());
 
       required.push_back("write_set_digest");
       properties["write_set_digest"] = ds::openapi::components_ref_object(
-        ds::json::schema_name<decltype(
-          ProofReceipt::Components::write_set_digest)>());
+        ds::json::schema_name<
+          decltype(ProofReceipt::Components::write_set_digest)>());
     }
 
     schema["required"] = required;

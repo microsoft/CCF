@@ -1,7 +1,0 @@
-steps:
-  - script: |
-      set -ex
-      set -o pipefail
-      ninja -v ${{ parameters.ninja_targets }} | tee build.log
-    displayName: Ninja
-    workingDirectory: build

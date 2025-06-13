@@ -9,13 +9,6 @@ namespace ccf::crypto
 {
   EntropyPtr get_entropy()
   {
-    if (use_drng)
-    {
-      if (!intel_drng_ptr)
-        intel_drng_ptr = std::make_shared<IntelDRNG>();
-      return intel_drng_ptr;
-    }
-
     return std::make_shared<Entropy_OpenSSL>();
   }
 }

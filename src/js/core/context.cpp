@@ -9,7 +9,6 @@
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/tx_access.h"
 #include "enclave/enclave_time.h"
-#include "js/ffi_plugins.h"
 #include "js/global_class_ids.h"
 
 #include <chrono>
@@ -63,12 +62,6 @@ namespace ccf::js::core
       throw std::runtime_error("Failed to initialise QuickJS context");
     }
     JS_SetContextOpaque(ctx, this);
-
-    for (auto& plugin : ffi_plugins)
-    {
-      LOG_DEBUG_FMT("Extending JS context with plugin {}", plugin.name);
-      plugin.extend(*this);
-    }
 
     JS_SetModuleLoaderFunc(rt, nullptr, load_module_via_context, this);
   }

@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/key_pair.h"
-#include "crypto/openssl/openssl_wrappers.h"
 #include "tls/ca.h"
 
 #include <cstring>

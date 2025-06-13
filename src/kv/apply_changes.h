@@ -25,10 +25,6 @@ namespace ccf::kv
   // sets to their underlying Maps. Calls f() at most once, iff the writes are
   // applied, to retrieve a unique Version for the write set and return the max
   // version which can have a conflict with the transaction.
-  //
-  // The track_read_versions parameter tells the store if it needs to track the
-  // last read version for every key. This is required for backup execution as
-  // described at the top of tx.h
 
   using VersionLastNewMap = Version;
   using VersionResolver = std::function<std::tuple<Version, VersionLastNewMap>(
@@ -40,7 +36,6 @@ namespace ccf::kv
     ccf::kv::ConsensusHookPtrs& hooks,
     const MapCollection& new_maps,
     const std::optional<Version>& new_maps_conflict_version,
-    bool track_read_versions,
     bool track_deletes_on_missing_keys,
     const std::optional<Version>& expected_rollback_count = std::nullopt)
   {
@@ -88,7 +83,7 @@ namespace ccf::kv
     {
       for (auto it = views.begin(); it != views.end(); ++it)
       {
-        if (!it->second->prepare(track_read_versions))
+        if (!it->second->prepare())
         {
           ok = false;
           break;
@@ -132,39 +127,30 @@ namespace ccf::kv
       std::tie(version, version_last_new_map) =
         version_resolver_fn(!new_maps.empty());
 
-      if (!track_read_versions)
+      // Transfer ownership of these new maps to their target stores, iff we
+      // have writes to them
+      for (const auto& [map_name, map_ptr] : new_maps)
       {
-        // Transfer ownership of these new maps to their target stores, iff we
-        // have writes to them
-        for (const auto& [map_name, map_ptr] : new_maps)
+        const auto it = views.find(map_name);
+        if (it != views.end() && it->second->has_writes())
         {
-          const auto it = views.find(map_name);
-          if (it != views.end() && it->second->has_writes())
-          {
-            map_ptr->get_store()->add_dynamic_map(version, map_ptr);
-          }
-        }
-
-        for (auto it = views.begin(); it != views.end(); ++it)
-        {
-          it->second->commit(
-            version, track_read_versions, track_deletes_on_missing_keys);
-        }
-
-        // Collect ConsensusHooks
-        for (auto it = views.begin(); it != views.end(); ++it)
-        {
-          auto hook_ptr = it->second->post_commit();
-          if (hook_ptr != nullptr)
-          {
-            hooks.push_back(std::move(hook_ptr));
-          }
+          map_ptr->get_store()->add_dynamic_map(version, map_ptr);
         }
       }
-      else
+
+      for (auto it = views.begin(); it != views.end(); ++it)
       {
-        // A linearizability violation was detected
-        ok = false;
+        it->second->commit(version, track_deletes_on_missing_keys);
+      }
+
+      // Collect ConsensusHooks
+      for (auto it = views.begin(); it != views.end(); ++it)
+      {
+        auto hook_ptr = it->second->post_commit();
+        if (hook_ptr != nullptr)
+        {
+          hooks.push_back(std::move(hook_ptr));
+        }
       }
     }
 

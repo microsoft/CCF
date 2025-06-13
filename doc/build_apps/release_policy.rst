@@ -46,7 +46,7 @@ Member-facing API
 
 As defined under :ref:`governance/member_rpc_api:Member RPC API`, versioned as of CCF 5.0.0.
 
-The older, unversioned API will be dropped in 6.0.0.
+The older, unversioned API will be dropped in 7.0.0.
 
 Operations compatibility
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -104,8 +104,3 @@ Support calendar
    * - 5.0
      - Jul 17, 2024
      - \-
-
-.. toctree::
-   :maxdepth: 2
-
-   migration_4_x_to_5_0

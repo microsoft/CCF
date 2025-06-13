@@ -22,7 +22,8 @@
   {
     "snp_endorsements_servers": {{ snp_endorsements_servers|tojson }},
     "snp_security_policy_file": "{{ snp_security_policy_file }}",
-    "snp_uvm_endorsements_file": "{{ snp_uvm_endorsements_file }}"
+    "snp_uvm_endorsements_file": "{{ snp_uvm_endorsements_file }}",
+    "snp_endorsements_file": "{{ snp_endorsements_file }}"
   },
   "service_data_json_file": {{ service_data_json_file|tojson }},
   "command": {
@@ -55,6 +56,9 @@
     },
     "recover": {
       "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }},
+      {% if previous_sealed_ledger_secret_location %}
+        "previous_sealed_ledger_secret_location": "{{ previous_sealed_ledger_secret_location }}",
+      {% endif %}
       "previous_service_identity_file": "{{ previous_service_identity_file }}"
     }
   },
@@ -94,6 +98,9 @@
     "node_certificate_file": "{{ node_certificate_file or "node.pem" }}",
     "pid_file": "{{ node_pid_file or "node.pid" }}",
     "node_to_node_address_file": "{{ node_address_file }}",
+    {% if sealed_ledger_secret_location %}
+      "sealed_ledger_secret_location": "{{ sealed_ledger_secret_location }}",
+    {% endif %}
     "rpc_addresses_file" : "{{ rpc_addresses_file }}"
   },
   "tick_interval": "{{ tick_ms }}ms",

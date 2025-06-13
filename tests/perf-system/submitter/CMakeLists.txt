@@ -4,8 +4,12 @@ add_executable(
   submit ${SUBMITTER_DIR}/submit.cpp ${SUBMITTER_DIR}/handle_arguments.h
          ${SUBMITTER_DIR}/parquet_data.h
 )
+target_compile_definitions(submit PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 add_library(stdcxxhttp_parser.host "${HTTP_PARSER_SOURCES}")
+target_compile_definitions(
+  stdcxxhttp_parser.host PRIVATE CCF_LOGGER_NO_DEPRECATE
+)
 
 set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/base64.cpp
@@ -34,6 +38,7 @@ add_library(stdcxxccfcrypto.host STATIC "${CCFCRYPTO_SRC}")
 target_link_libraries(stdcxxccfcrypto.host PUBLIC crypto)
 target_link_libraries(stdcxxccfcrypto.host PUBLIC ssl)
 target_link_libraries(stdcxxccfcrypto.host PUBLIC qcbor.host)
+target_compile_definitions(stdcxxccfcrypto.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 target_link_libraries(
   submit PRIVATE stdcxxhttp_parser.host stdcxxccfcrypto.host arrow parquet

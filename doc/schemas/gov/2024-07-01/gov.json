@@ -2260,12 +2260,20 @@
           "additionalProperties": {
             "$ref": "#/definitions/ServiceState.UvmEndorsementFeeds"
           }
+        },
+        "tcbVersions": {
+          "type": "object",
+          "description": "Collection of minimum TCB versions. Keyed by corresponding CPUID.",
+          "additionalProperties": {
+            "$ref": "#/definitions/ServiceState.MinimumTcbVersion"
+          }
         }
       },
       "required": [
         "measurements",
         "hostData",
-        "uvmEndorsements"
+        "uvmEndorsements",
+        "tcbVersions"
       ]
     },
     "ServiceState.SnpQuoteInfo": {
@@ -2299,6 +2307,35 @@
       "description": "Collection of endorsement feeds, keyed by feed name.",
       "additionalProperties": {
         "$ref": "#/definitions/ServiceState.FeedInfo"
+      }
+    },
+    "ServiceState.TcbVersion": {
+      "type": "object",
+      "description": "Minimum TCB version for a specific CPUID.",
+      "properties": {
+        "boot_loader": {
+          "type": "integer",
+          "description": ""
+        },
+        "tee": {
+          "type": "integer",
+          "description": ""
+        },
+        "snp": {
+          "type": "integer",
+          "description": ""
+        },
+        "microcode": {
+          "type": "integer",
+          "description": ""
+        }
+      }
+    },
+    "ServiceState.MinimumTcbVersion": {
+      "type": "object",
+      "description": "Collection of minimum TCB versions. Keyed by corresponding CPUID.",
+      "additionalProperties": {
+        "$ref": "#/definitions/ServiceState.TcbVersion"
       }
     },
     "ServiceState.caCertBundle": {

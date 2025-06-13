@@ -25,7 +25,8 @@ tdnf -y install  \
     curl-devel  \
     libarrow-devel  \
     parquet-libs-devel  \
-    doxygen
+    doxygen  \
+    clang-tools-extra-devel
 
 # To run standard tests
 tdnf -y install  \
@@ -56,6 +57,10 @@ mv pebble_linux-amd64 /opt/pebble/pebble_linux-amd64
 curl -L --output pebble-challtestsrv_linux-amd64 https://github.com/letsencrypt/pebble/releases/download/$PEBBLE_VERSION/pebble-challtestsrv_linux-amd64
 mv pebble-challtestsrv_linux-amd64 /opt/pebble/pebble-challtestsrv_linux-amd64
 chmod +x /opt/pebble/pebble_linux-amd64 /opt/pebble/pebble-challtestsrv_linux-amd64
+
+# partitions test
+tdnf -y install iptables
+tdnf -y install strace
 
 # For packaging
 tdnf -y install rpm-build

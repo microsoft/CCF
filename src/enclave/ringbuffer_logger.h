@@ -9,19 +9,28 @@ namespace ccf
   class RingbufferLogger : public ccf::logger::AbstractLogger
   {
   protected:
-    ringbuffer::WriterPtr writer;
+    ringbuffer::AbstractWriterFactory& writer_factory;
 
     // Current time, as us duration since epoch (from system_clock). Used to
     // produce offsets to host time when logging from inside the enclave
     std::atomic<std::chrono::microseconds> us = {};
 
   public:
-    RingbufferLogger(const ringbuffer::WriterPtr& writer_) : writer(writer_) {}
+    RingbufferLogger(ringbuffer::AbstractWriterFactory& wf_) :
+      writer_factory(wf_)
+    {}
 
     void write(
       const ccf::logger::LogLine& line,
       const std::optional<double>& enclave_offset = std::nullopt) override
     {
+      thread_local ringbuffer::WriterPtr writer = nullptr;
+
+      if (writer == nullptr)
+      {
+        writer = writer_factory.create_writer_to_outside();
+      }
+
       writer->write(
         AdminMessage::log_msg,
         us.load().count(),

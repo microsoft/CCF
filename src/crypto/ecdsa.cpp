@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/crypto/ecdsa.h"
 
-#include "crypto/openssl/openssl_wrappers.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/public_key.h"
 
 #include <openssl/bn.h>
@@ -39,7 +39,7 @@ namespace ccf::crypto
     auto der_size = i2d_ECDSA_SIG(sig, nullptr);
     OpenSSL::CHECK0(der_size);
     std::vector<uint8_t> der_sig(der_size);
-    auto der_sig_buf = der_sig.data();
+    auto* der_sig_buf = der_sig.data();
     OpenSSL::CHECK0(i2d_ECDSA_SIG(sig, &der_sig_buf));
     return der_sig;
   }
@@ -55,9 +55,9 @@ namespace ccf::crypto
   std::vector<uint8_t> ecdsa_sig_der_to_p1363(
     const std::vector<uint8_t>& signature, CurveID curveId)
   {
-    auto sig_ptr = signature.data();
+    const auto* sig_ptr = signature.data();
     OpenSSL::Unique_ECDSA_SIG ecdsa_sig(
-      d2i_ECDSA_SIG(NULL, &sig_ptr, signature.size()));
+      d2i_ECDSA_SIG(nullptr, &sig_ptr, signature.size()));
     // r and s are managed by Unique_ECDSA_SIG object, so we shouldn't use
     // Unique_BIGNUM for them
     const BIGNUM* r = ECDSA_SIG_get0_r(ecdsa_sig);

@@ -175,9 +175,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
-latex_documents = [
-    (master_doc, "CCF.tex", "CCF Documentation", "Microsoft", "manual")
-]
+latex_documents = [(master_doc, "CCF.tex", "CCF Documentation", "Microsoft", "manual")]
 
 
 # -- Options for manual page output ------------------------------------------
@@ -221,7 +219,7 @@ breathe_default_project = "CCF"
 # Set up multiversion extension
 
 smv_tag_whitelist = None
-smv_branch_whitelist = r"^(main)|(release\/([4-9]|\d\d\d*)\.x)$"
+smv_branch_whitelist = r"^(main)|(release\/([5-9]|\d\d\d*)\.x)$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
 
@@ -422,12 +420,12 @@ def config_inited(app, config):
             os.environ["SMV_METADATA_PATH"] = app.config.smv_metadata_path
             os.environ["SMV_CURRENT_VERSION"] = app.config.smv_current_version
         subprocess.run(
-            ["sed", "-i", "s/\^4.2.3/4.2.4/g", "package.json"],
+            ["sed", "-i", r"s/\^4.2.3/4.2.4/g", "package.json"],
             cwd=js_pkg_dir,
             check=True,
         )
         subprocess.run(
-            ["sed", "-i", 's/"\^14\.14\.35"/"14\.17\.27"/g', "package.json"],
+            ["sed", "-i", r's/"\^14\.14\.35"/"14\.17\.27"/g', "package.json"],
             cwd=js_pkg_dir,
             check=True,
         )

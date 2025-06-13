@@ -10,12 +10,6 @@ Overview
 
     ---
 
-    :fa:`question` :doc:`faq`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Frequently Asked Questions.
-
-    ---
     
     :fa:`scroll` :doc:`governance`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -37,13 +31,6 @@ Overview
 
     Common terms used throughout the documentation and their definitions.
 
-    ---
-
-    :fa:`cogs` :doc:`maintenance`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Explains what maintenance is needed by which actor.
-
 .. toctree::
     :hidden:
     :maxdepth: 1
@@ -51,6 +38,4 @@ Overview
     what_is_ccf
     governance
     performance
-    faq
-    maintenance
     glossary

@@ -154,4 +154,15 @@ namespace files
         ec.message()));
     }
   }
+
+  static void create_directory(const fs::path& dir)
+  {
+    std::error_code ec;
+    fs::create_directory(dir, ec);
+    if (ec && ec != std::errc::file_exists)
+    {
+      throw std::logic_error(fmt::format(
+        "Could not create directory {}: {}", dir.string(), ec.message()));
+    }
+  }
 }

@@ -6,6 +6,7 @@
 #include "ccf/pal/attestation.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/snp_measurements.h"
+#include "ccf/service/tables/tcb_verification.h"
 #include "ccf/service/tables/uvm_endorsements.h"
 #include "ccf/service/tables/virtual_measurements.h"
 #include "node/uvm_endorsements.h"
@@ -19,7 +20,7 @@ namespace ccf
   {
     // Uses KV-defined roots of trust (did -> (feed, svn)) to verify the
     // UVM measurement against endorsements in the quote.
-    std::vector<UVMEndorsements> uvm_roots_of_trust_from_kv;
+    std::vector<pal::UVMEndorsements> uvm_roots_of_trust_from_kv;
     auto uvmes = tx.ro<SNPUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
     if (uvmes)
     {
@@ -29,7 +30,7 @@ namespace ccf
           for (const auto& [feed, data] : endorsements_map)
           {
             uvm_roots_of_trust_from_kv.push_back(
-              UVMEndorsements{did, feed, data.svn});
+              pal::UVMEndorsements{did, feed, data.svn});
           }
           return true;
         });
@@ -37,8 +38,9 @@ namespace ccf
 
     try
     {
-      auto uvm_endorsements_data = verify_uvm_endorsements(
-        uvm_endorsements, quote_measurement, uvm_roots_of_trust_from_kv);
+      auto uvm_endorsements_data =
+        verify_uvm_endorsements_against_roots_of_trust(
+          uvm_endorsements, quote_measurement, uvm_roots_of_trust_from_kv);
       return true;
     }
     catch (const std::logic_error& e)
@@ -138,6 +140,29 @@ namespace ccf
     return measurement;
   }
 
+  std::optional<pal::snp::Attestation> AttestationProvider::get_snp_attestation(
+    const QuoteInfo& quote_info)
+  {
+    if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
+    {
+      return std::nullopt;
+    }
+    try
+    {
+      pal::PlatformAttestationMeasurement d = {};
+      pal::PlatformAttestationReportData r = {};
+      pal::verify_quote(quote_info, d, r);
+      auto attestation = *reinterpret_cast<const pal::snp::Attestation*>(
+        quote_info.quote.data());
+      return attestation;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Failed to verify local attestation report: {}", e.what());
+      return std::nullopt;
+    }
+  }
+
   std::optional<HostData> AttestationProvider::get_host_data(
     const QuoteInfo& quote_info)
   {
@@ -231,6 +256,62 @@ namespace ccf
     return QuoteVerificationResult::Verified;
   }
 
+  QuoteVerificationResult verify_tcb_version_against_store(
+    ccf::kv::ReadOnlyTx& tx, const QuoteInfo& quote_info)
+  {
+    if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
+    {
+      return QuoteVerificationResult::Verified;
+    }
+
+    pal::PlatformAttestationMeasurement d = {};
+    pal::PlatformAttestationReportData r = {};
+    pal::verify_quote(quote_info, d, r);
+    auto attestation =
+      *reinterpret_cast<const pal::snp::Attestation*>(quote_info.quote.data());
+
+    if (attestation.version < pal::snp::MIN_TCB_VERIF_VERSION)
+    {
+      // Necessary until all C-ACI servers are updated
+      return QuoteVerificationResult::Verified;
+    }
+
+    std::optional<pal::snp::TcbVersion> min_tcb_opt = std::nullopt;
+
+    auto h = tx.ro<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+    // expensive but there should not be many entries
+    h->foreach([&min_tcb_opt, &attestation](
+                 const std::string cpuid_hex, const pal::snp::TcbVersion& v) {
+      auto cpuid = pal::snp::cpuid_from_hex(cpuid_hex);
+      if (
+        cpuid.get_family_id() == attestation.cpuid_fam_id &&
+        cpuid.get_model_id() == attestation.cpuid_mod_id &&
+        cpuid.stepping == attestation.cpuid_step)
+      {
+        min_tcb_opt = v;
+        return false;
+      }
+      return true;
+    });
+
+    if (!min_tcb_opt.has_value())
+    {
+      return QuoteVerificationResult::FailedInvalidCPUID;
+    }
+
+    auto min_tcb = min_tcb_opt.value();
+
+    // only check snp and microcode as these are AMD controlled
+    if (
+      min_tcb.snp > attestation.reported_tcb.snp ||
+      min_tcb.microcode > attestation.reported_tcb.microcode)
+    {
+      return QuoteVerificationResult::FailedInvalidTcbVersion;
+    }
+
+    return QuoteVerificationResult::Verified;
+  }
+
   QuoteVerificationResult AttestationProvider::verify_quote_against_store(
     ccf::kv::ReadOnlyTx& tx,
     const QuoteInfo& quote_info,
@@ -258,6 +339,12 @@ namespace ccf
 
     rc = verify_enclave_measurement_against_store(
       tx, measurement, quote_info.format, quote_info.uvm_endorsements);
+    if (rc != QuoteVerificationResult::Verified)
+    {
+      return rc;
+    }
+
+    rc = verify_tcb_version_against_store(tx, quote_info);
     if (rc != QuoteVerificationResult::Verified)
     {
       return rc;

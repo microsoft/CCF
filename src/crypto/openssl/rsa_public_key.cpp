@@ -1,14 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/rsa_key_pair.h"
-#include "openssl_wrappers.h"
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-#  include <openssl/core_names.h>
-#  include <openssl/encoder.h>
-#endif
+#include <openssl/core_names.h>
+#include <openssl/encoder.h>
 
 namespace ccf::crypto
 {
@@ -16,11 +14,7 @@ namespace ccf::crypto
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(EVP_PKEY* c) : PublicKey_OpenSSL(c)
   {
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
-#else
-    if (!EVP_PKEY_get0_RSA(key))
-#endif
     {
       throw std::logic_error("invalid RSA key");
     }
@@ -29,39 +23,32 @@ namespace ccf::crypto
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
-    key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-    if (!key || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
-#else
-    if (!key || !EVP_PKEY_get0_RSA(key))
-#endif
+    key = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
+    if (key == nullptr || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
       throw std::logic_error("invalid RSA key");
     }
   }
 
-  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const std::vector<uint8_t>& der)
+  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(std::span<const uint8_t> der)
   {
     const unsigned char* pp = der.data();
     key = EVP_PKEY_new();
     if (
       ((key = d2i_PUBKEY(&key, &pp, der.size())) ==
-       NULL) && // "SubjectPublicKeyInfo structure" format
+       nullptr) && // "SubjectPublicKeyInfo structure" format
       ((key = d2i_PublicKey(EVP_PKEY_RSA, &key, &pp, der.size())) ==
-       NULL)) // PKCS#1 structure format
+       nullptr)) // PKCS#1 structure format
     {
       unsigned long ec = ERR_get_error();
       auto msg = OpenSSL::error_string(ec);
       throw std::runtime_error(fmt::format("OpenSSL error: {}", msg));
     }
 
-// As it's a common pattern to rely on successful key wrapper construction as a
-// confirmation of a concrete key type, this must fail for non-RSA keys.
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-    if (!key || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
-#else
-    if (!key || !EVP_PKEY_get0_RSA(key))
-#endif
+    // As it's a common pattern to rely on successful key wrapper construction
+    // as a confirmation of a concrete key type, this must fail for non-RSA
+    // keys.
+    if (key == nullptr || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
       throw std::logic_error("invalid RSA key");
     }
@@ -84,7 +71,6 @@ namespace ccf::crypto
     return ne;
   }
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
   std::pair<std::vector<uint8_t>, std::vector<uint8_t>> RSAPublicKey_OpenSSL::
     rsa_public_raw_from_jwk(const JsonWebKeyRSAPublic& jwk)
   {
@@ -97,25 +83,10 @@ namespace ccf::crypto
 
     return r;
   }
-#else
-  OpenSSL::Unique_RSA RSAPublicKey_OpenSSL::rsa_public_from_jwk(
-    const JsonWebKeyRSAPublic& jwk)
-  {
-    auto [n, e] = get_modulus_and_exponent(jwk);
-
-    Unique_RSA rsa;
-    CHECK1(RSA_set0_key(rsa, n, e, nullptr));
-    n.release();
-    e.release();
-
-    return rsa;
-  }
-#endif
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const JsonWebKeyRSAPublic& jwk)
   {
     key = EVP_PKEY_new();
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     auto [n_raw, e_raw] = rsa_public_raw_from_jwk(jwk);
 
     OSSL_PARAM params[3];
@@ -127,10 +98,8 @@ namespace ccf::crypto
 
     Unique_EVP_PKEY_CTX pctx("RSA");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
-    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_PUBLIC_KEY, params));
-#else
-    CHECK1(EVP_PKEY_set1_RSA(key, rsa_public_from_jwk(jwk)));
-#endif
+    CHECK1(EVP_PKEY_fromdata(
+      pctx, &key, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
   }
 
   size_t RSAPublicKey_OpenSSL::key_size() const
@@ -150,19 +119,20 @@ namespace ccf::crypto
     EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256());
     EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256());
 
-    if (label)
+    if (label != nullptr && label_size > 0)
     {
-      unsigned char* openssl_label = (unsigned char*)OPENSSL_malloc(label_size);
+      auto* openssl_label =
+        static_cast<unsigned char*>(OPENSSL_malloc(label_size));
       std::copy(label, label + label_size, openssl_label);
       EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, openssl_label, label_size);
     }
     else
     {
-      EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, NULL, 0);
+      EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, nullptr, 0);
     }
 
-    size_t olen;
-    OpenSSL::CHECK1(EVP_PKEY_encrypt(ctx, NULL, &olen, input, input_size));
+    size_t olen = 0;
+    OpenSSL::CHECK1(EVP_PKEY_encrypt(ctx, nullptr, &olen, input, input_size));
 
     std::vector<uint8_t> output(olen);
     OpenSSL::CHECK1(
@@ -176,7 +146,7 @@ namespace ccf::crypto
     const std::vector<uint8_t>& input,
     const std::optional<std::vector<std::uint8_t>>& label)
   {
-    const unsigned char* label_ = NULL;
+    const unsigned char* label_ = nullptr;
     size_t label_size = 0;
     if (label.has_value())
     {
@@ -242,33 +212,20 @@ namespace ccf::crypto
     return r;
   }
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
   Unique_BIGNUM RSAPublicKey_OpenSSL::get_bn_param(const char* key_name) const
   {
     Unique_BIGNUM r;
-    BIGNUM* bn = NULL;
+    BIGNUM* bn = nullptr;
     CHECK1(EVP_PKEY_get_bn_param(key, key_name, &bn));
     r.reset(bn);
     return r;
   }
-#endif
 
   RSAPublicKey::Components RSAPublicKey_OpenSSL::components() const
   {
     Components r;
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     r.n = bn_bytes(get_bn_param(OSSL_PKEY_PARAM_RSA_N));
     r.e = bn_bytes(get_bn_param(OSSL_PKEY_PARAM_RSA_E));
-#else
-    const RSA* rsa = EVP_PKEY_get0_RSA(key);
-    if (!rsa)
-    {
-      throw std::logic_error("invalid RSA key");
-    }
-
-    r.n = bn_bytes(RSA_get0_n(rsa));
-    r.e = bn_bytes(RSA_get0_e(rsa));
-#endif
     return r;
   }
 

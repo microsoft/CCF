@@ -503,7 +503,7 @@ namespace std
 #define JSON_FIELD_FOR_JSON_FINAL(TYPE, FIELD) \
   ccf::JsonField<decltype(TYPE::FIELD)> \
   { \
-#    FIELD \
+    #FIELD \
   }
 
 /** Defines from_json, to_json, fill_json_schema, schema_name and

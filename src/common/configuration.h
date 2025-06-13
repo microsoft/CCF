@@ -73,7 +73,10 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Attestation::Environment);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Attestation::Environment);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCFConfig::Attestation::Environment, security_policy, uvm_endorsements);
+    CCFConfig::Attestation::Environment,
+    security_policy,
+    uvm_endorsements,
+    snp_endorsements);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Attestation);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Attestation);
@@ -82,7 +85,8 @@ namespace ccf
     snp_endorsements_servers,
     environment,
     snp_security_policy_file,
-    snp_uvm_endorsements_file);
+    snp_uvm_endorsements_file,
+    snp_endorsements_file);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Snapshots);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Snapshots);
@@ -117,7 +121,9 @@ namespace ccf
 
   DECLARE_JSON_TYPE(StartupConfig::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(
-    StartupConfig::Recover, previous_service_identity);
+    StartupConfig::Recover,
+    previous_service_identity,
+    previous_sealed_ledger_secret_location);
 
   DECLARE_JSON_TYPE_WITH_BASE(StartupConfig, CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -131,5 +137,6 @@ namespace ccf
     node_data,
     start,
     join,
-    recover);
+    recover,
+    sealed_ledger_secret_location);
 }
