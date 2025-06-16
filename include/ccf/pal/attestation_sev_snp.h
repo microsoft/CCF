@@ -6,6 +6,7 @@
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/report_data.h"
+#include "ccf/pal/sev_snp_cpuid.h"
 
 #include <array>
 #include <cstdint>
@@ -69,14 +70,12 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 -----END PUBLIC KEY-----
 )";
 
-  using AMDFamily = uint8_t;
-  using AMDModel = uint8_t;
-  inline const std::map<std::pair<AMDFamily, AMDModel>, const char*>
+  inline const std::map<ProductName, const char*>
     amd_root_signing_keys{
-      {{0x19, 0x01}, amd_milan_root_signing_public_key},
-      {{0x19, 0x11}, amd_genoa_root_signing_public_key},
+      {ProductName::Milan, amd_milan_root_signing_public_key},
+      {ProductName::Genoa, amd_genoa_root_signing_public_key},
       // Disabled until we can test this
-      //{{0x1A, 0x02}, amd_turin_root_signing_public_key},
+      //{ProductName::turin, amd_turin_root_signing_public_key},
     };
 
 #pragma pack(push, 1)
@@ -269,6 +268,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
           auto tee = fmt::format("{}", quote.reported_tcb.tee);
           auto snp = fmt::format("{}", quote.reported_tcb.snp);
           auto microcode = fmt::format("{}", quote.reported_tcb.microcode);
+          auto product = get_sev_snp_product(
+            quote.cpuid_fam_id, quote.cpuid_mod_id);
 
           auto loc =
             get_endpoint_loc(server, default_amd_endorsements_endpoint);
@@ -279,6 +280,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             tee,
             snp,
             microcode,
+            product,
             max_retries_count));
           break;
         }
