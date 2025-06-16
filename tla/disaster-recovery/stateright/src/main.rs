@@ -41,8 +41,7 @@ fn liveness_properties(model: ActorModel<Node, ModelCfg, ()>) -> ActorModel<Node
             // Hence unanimous votes => reach open
             // Hence on every path unanimous votes => <> reached open
             // Since votes are not forgotten on a node, we check for a state where unanimous votes => reached open
-            //return implies(unanimous_votes(model, state), reached_open(model, state));
-            return implies(true, reached_open(model, state));
+            return implies(unanimous_votes(model, state), reached_open(model, state));
         },
     );
     return model;
