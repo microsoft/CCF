@@ -22,7 +22,7 @@ def mk_new(name, contents):
 
 
 def build_lib_path(lib_name, enclave_platform="virtual", library_dir=".", version=None):
-    if infra.node.version_after(version, "ccf-6.0.4"):
+    if infra.node.version_after(version, "ccf-6.0.5"):
         ext = ".so"
     else:
         if enclave_platform == "virtual":
