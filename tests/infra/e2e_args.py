@@ -95,15 +95,6 @@ def cli_args(
         action="append",
         default=[],
     )
-    parser.add_argument(
-        "-t",
-        "--enclave-platform",
-        help="Enclave platform (Trusted Execution Environment)",
-        default=os.getenv(
-            "TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_PLATFORM", default_platform())
-        ),
-        choices=("sgx", "snp", "virtual"),
-    )
     log_level_choices = ("trace", "debug", "info", "fail", "fatal")
     default_log_level = "info"
     parser.add_argument(

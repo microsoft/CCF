@@ -3,6 +3,7 @@
 import infra.e2e_args
 import infra.network
 import infra.proc
+import infra.platform_detection
 import infra.net
 import infra.logging_app as app
 from infra.tx_status import TxStatus
@@ -570,13 +571,7 @@ def test_issue_fake_join(network, args):
         r = c.post("/node/join", body=req)
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED
         assert r.body.json()["error"]["code"] == "InvalidQuote"
-        if args.enclave_platform != "sgx":
-            assert r.body.json()["error"]["message"] == "Quote could not be verified"
-        else:
-            assert (
-                r.body.json()["error"]["message"]
-                == "Quote report data does not contain node's public key hash"
-            )
+        assert r.body.json()["error"]["message"] == "Quote could not be verified"
 
         for platform, info, format in (
             (
@@ -596,10 +591,10 @@ def test_issue_fake_join(network, args):
                 "quote": own_quote["raw"],
                 "endorsements": own_quote["endorsements"],
             }
-            if args.enclave_platform == "snp":
+            if "uvm_endorsements" in own_quote:
                 req["quote_info"]["uvm_endorsements"] = own_quote["uvm_endorsements"]
             r = c.post("/node/join", body=req)
-            if args.enclave_platform != platform:
+            if infra.platform_detection.get_platform() != platform:
                 assert r.status_code == http.HTTPStatus.UNAUTHORIZED
                 assert r.body.json()["error"]["code"] == "InvalidQuote"
                 assert (

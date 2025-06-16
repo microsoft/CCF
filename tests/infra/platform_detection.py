@@ -2,13 +2,13 @@
 # Licensed under the Apache 2.0 License.
 
 from enum import StrEnum
-from snp import SNP_SUPPORT
+from infra.snp import SNP_SUPPORT
 from os import getenv
 
 
 class Platform(StrEnum):
-    VIRTUAL = "Virtual"
-    SNP = "SNP"
+    VIRTUAL = "virtual"
+    SNP = "snp"
 
 
 _CURRENT_PLATFORM = getenv(

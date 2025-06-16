@@ -7,7 +7,7 @@ import shutil
 import infra.logging_app as app
 import infra.e2e_args
 import infra.network
-import infra.snp
+import infra.platform_detection
 import ccf.ledger
 from ccf.tx_id import TxID
 import base64
@@ -583,8 +583,8 @@ def run_config_timeout_check(args):
     LOG.info(f"Attempt to start node without a config under {start_node_path}")
     config_timeout = 10
     env = {}
-    if args.enclave_platform == "snp":
-        env = snp.get_aci_env()
+
+    env.update(snp.get_aci_env())
 
     proc = subprocess.Popen(
         [
@@ -1449,7 +1449,8 @@ def run(args):
     run_cose_signatures_config_check(args)
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
-    if args.enclave_platform == "snp":
+
+    if infra.platform_detection.is_snp():
         run_initial_uvm_descriptor_checks(args)
         run_initial_tcb_version_checks(args)
         run_recovery_local_unsealing(args)

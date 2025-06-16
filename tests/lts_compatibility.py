@@ -9,6 +9,7 @@ import infra.github
 import infra.jwt_issuer
 import infra.crypto
 import infra.node
+import infra.platform_detection
 import suite.test_requirements as reqs
 import ccf.ledger
 import os
@@ -101,7 +102,7 @@ def test_new_service(
     version,
     expected_subject_name=None,
 ):
-    if args.enclave_platform == "snp":
+    if infra.platform_detection.is_snp():
         LOG.info(
             "Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade"
         )
@@ -202,7 +203,7 @@ def run_code_upgrade_from(
     to_version=None,
     from_container_image=None,
 ):
-    if args.enclave_platform == "snp":
+    if infra.platform_detection.is_snp():
         LOG.info(
             "Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade"
         )

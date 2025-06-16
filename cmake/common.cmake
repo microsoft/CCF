@@ -177,12 +177,6 @@ function(add_e2e_test)
         PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
       )
     endif()
-
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_PLATFORM=${CCF_TEST_PLATFORM}"
-    )
   endif()
 endfunction()
 
@@ -200,6 +194,8 @@ function(add_perf_test)
 
   set(TESTS_SUFFIX "")
   set(ENCLAVE_TYPE "")
+
+  # TODO
   if("virtual" STREQUAL CCF_TEST_PLATFORM)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_virtual")
     set(ENCLAVE_TYPE "virtual")
@@ -218,7 +214,7 @@ function(add_perf_test)
       ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --write-tx-times
       --label ${TEST_NAME} --snapshot-tx-interval 10000 --perf-label
       ${PARSED_ARGS_PERF_LABEL} ${PARSED_ARGS_ADDITIONAL_ARGS} -e
-      ${ENCLAVE_TYPE} -t ${CCF_TEST_PLATFORM} ${NODES}
+      ${ENCLAVE_TYPE} ${NODES}
     CONFIGURATIONS perf
   )
 
@@ -229,14 +225,6 @@ function(add_perf_test)
     PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
 
-  if(DEFINED DEFAULT_ENCLAVE_PLATFORM)
-    set_property(
-      TEST ${TEST_NAME}
-      APPEND
-      PROPERTY ENVIRONMENT
-               "DEFAULT_ENCLAVE_PLATFORM=${DEFAULT_ENCLAVE_PLATFORM}"
-    )
-  endif()
   set_property(
     TEST ${TEST_NAME}
     APPEND
@@ -275,6 +263,8 @@ function(add_piccolo_test)
 
   set(TESTS_SUFFIX "")
   set(ENCLAVE_TYPE "")
+
+  # TODO
   if("virtual" STREQUAL CCF_TEST_PLATFORM)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_virtual")
     set(ENCLAVE_TYPE "virtual")
@@ -292,7 +282,7 @@ function(add_piccolo_test)
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
       ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --label ${TEST_NAME}
       --perf-label ${PARSED_ARGS_PERF_LABEL} --snapshot-tx-interval 10000
-      ${PARSED_ARGS_ADDITIONAL_ARGS} -t ${CCF_TEST_PLATFORM} ${NODES}
+      ${PARSED_ARGS_ADDITIONAL_ARGS} ${NODES}
     CONFIGURATIONS perf
   )
 
@@ -303,14 +293,6 @@ function(add_piccolo_test)
     PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
 
-  if(DEFINED DEFAULT_ENCLAVE_PLATFORM)
-    set_property(
-      TEST ${TEST_NAME}
-      APPEND
-      PROPERTY ENVIRONMENT
-               "DEFAULT_ENCLAVE_PLATFORM=${DEFAULT_ENCLAVE_PLATFORM}"
-    )
-  endif()
   set_property(
     TEST ${TEST_NAME}
     APPEND

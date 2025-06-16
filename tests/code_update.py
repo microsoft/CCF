@@ -7,6 +7,7 @@ import infra.path
 import infra.proc
 import infra.utils
 import infra.crypto
+import infra.platform_detection
 import suite.test_requirements as reqs
 import os
 from infra.checker import check_can_progress
@@ -118,17 +119,19 @@ def test_measurements_tables(network, args):
         with node.api_versioned_client(api_version=args.gov_api_version) as client:
             r = client.get("/gov/service/join-policy")
             assert r.status_code == http.HTTPStatus.OK, r
-            return sorted(r.body.json()[args.enclave_platform]["measurements"])
+            return sorted(
+                r.body.json()[infra.platform_detection.get_platform()]["measurements"]
+            )
 
     original_measurements = get_trusted_measurements(primary)
 
-    if args.enclave_platform == "snp":
+    if infra.platform_detection.is_snp():
         assert (
             len(original_measurements) == 0
         ), "Expected no measurement as UVM endorsements are used by default"
 
     LOG.debug("Add dummy measurement")
-    measurement_length = 96 if args.enclave_platform == "snp" else 64
+    measurement_length = 96 if infra.platform_detection.is_snp() else 64
     dummy_measurement = "a" * measurement_length
     network.consortium.add_measurement(
         primary, args.enclave_platform, dummy_measurement
@@ -223,7 +226,7 @@ def test_host_data_tables(network, args):
         with node.api_versioned_client(api_version=args.gov_api_version) as client:
             r = client.get("/gov/service/join-policy")
             assert r.status_code == http.HTTPStatus.OK, r
-            return r.body.json()[args.enclave_platform]["hostData"]
+            return r.body.json()[infra.platform_detection.get_platform()]["hostData"]
 
     original_host_data = get_trusted_host_data(primary)
 
@@ -231,9 +234,9 @@ def test_host_data_tables(network, args):
         args.enclave_platform, args.package
     )
 
-    if args.enclave_platform == "snp":
+    if infra.platform_detection.is_snp():
         expected = {host_data: security_policy}
-    elif args.enclave_platform == "virtual":
+    elif infra.platform_detection.is_virtual():
         expected = [host_data]
     else:
         raise ValueError(f"Unsupported platform: {args.enclave_platform}")
@@ -248,12 +251,12 @@ def test_host_data_tables(network, args):
         primary, args.enclave_platform, dummy_host_data_key, dummy_host_data_value
     )
     host_data = get_trusted_host_data(primary)
-    if args.enclave_platform == "snp":
+    if infra.platform_detection.is_snp():
         expected_host_data = {
             **original_host_data,
             dummy_host_data_key: dummy_host_data_value,
         }
-    elif args.enclave_platform == "virtual":
+    elif infra.platform_detection.is_virtual():
         host_data = sorted(host_data)
         expected_host_data = sorted([*original_host_data, dummy_host_data_key])
     else:
@@ -546,7 +549,7 @@ def test_add_node_with_no_uvm_endorsements(network, args):
     "Not yet supported as all nodes run the same measurement AND security policy in SNP CI"
 )
 def test_add_node_with_different_package(network, args):
-    if args.enclave_platform == "snp":
+    if infra.platform_detection.is_snp():
         LOG.warning(
             "Skipping test_add_node_with_different_package with SNP - policy does not currently restrict packages"
         )
@@ -571,7 +574,7 @@ def test_add_node_with_different_package(network, args):
     assert (
         exception_thrown is not None
     ), f"Adding a node with {replacement_package} should fail"
-    if args.enclave_platform == "virtual":
+    if infra.platform_detection.is_virtual():
         assert isinstance(
             exception_thrown, infra.network.HostDataNotFound
         ), "Virtual node package should affect host data"
@@ -628,7 +631,7 @@ def test_update_all_nodes(network, args):
     with primary.api_versioned_client(api_version=args.gov_api_version) as uc:
         r = uc.get("/gov/service/join-policy")
         assert r.status_code == http.HTTPStatus.OK, r
-        platform_policy = r.body.json()[args.enclave_platform]
+        platform_policy = r.body.json()[infra.platform_detection.get_platform()]
 
         if measurement_changed:
             LOG.info("Check reported trusted measurements")
@@ -649,7 +652,9 @@ def test_update_all_nodes(network, args):
 
             r = uc.get("/gov/service/join-policy")
             assert r.status_code == http.HTTPStatus.OK, r
-            actual_measurements = r.body.json()[args.enclave_platform]["measurements"]
+            actual_measurements = r.body.json()[
+                infra.platform_detection.get_platform()
+            ]["measurements"]
 
             expected_measurements.remove(initial_measurement)
 
@@ -662,19 +667,19 @@ def test_update_all_nodes(network, args):
         if initial_host_data != new_host_data:
 
             def format_expected_host_data(entries):
-                if args.enclave_platform == "snp":
+                if infra.platform_detection.is_snp():
                     return {
                         host_data: security_policy
                         for host_data, security_policy in entries
                     }
-                elif args.enclave_platform == "virtual":
+                elif infra.platform_detection.is_virtual():
                     return set(host_data for host_data, _ in entries)
                 else:
                     raise ValueError(f"Unsupported platform: {args.enclave_platform}")
 
             LOG.info("Check reported trusted host datas")
             actual_host_datas = platform_policy["hostData"]
-            if args.enclave_platform == "virtual":
+            if infra.platform_detection.is_virtual():
                 actual_host_datas = set(actual_host_datas)
             expected_host_datas = format_expected_host_data(
                 [
@@ -693,8 +698,10 @@ def test_update_all_nodes(network, args):
 
             r = uc.get("/gov/service/join-policy")
             assert r.status_code == http.HTTPStatus.OK, r
-            actual_host_datas = r.body.json()[args.enclave_platform]["hostData"]
-            if args.enclave_platform == "virtual":
+            actual_host_datas = r.body.json()[infra.platform_detection.get_platform()][
+                "hostData"
+            ]
+            if infra.platform_detection.is_virtual():
                 actual_host_datas = set(actual_host_datas)
             expected_host_datas = format_expected_host_data(
                 [(new_host_data, new_security_policy)]
@@ -808,14 +815,14 @@ def run(args):
 
         # Measurements
         test_measurements_tables(network, args)
-        if args.enclave_platform != "snp":
+        if not infra.platform_detection.is_snp():
             test_add_node_with_untrusted_measurement(network, args)
 
         # Host data/security policy
         test_host_data_tables(network, args)
         test_add_node_with_untrusted_host_data(network, args)
 
-        if args.enclave_platform == "snp":
+        if infra.platform_detection.is_snp():
             # Virtual has no security policy, _only_ host data (unassociated with anything)
             test_add_node_with_stubbed_security_policy(network, args)
             test_start_node_with_mismatched_host_data(network, args)
@@ -826,7 +833,7 @@ def run(args):
             test_endorsements_tables(network, args)
             test_add_node_with_no_uvm_endorsements(network, args)
 
-        if args.enclave_platform != "snp":
+        if not infra.platform_detection.is_snp():
             # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
             test_proposal_invalidation(network, args)
 
@@ -839,7 +846,7 @@ def run(args):
         # Run again at the end to confirm current nodes are acceptable
         test_verify_quotes(network, args)
 
-        if args.enclave_platform == "snp":
+        if infra.platform_detection.is_snp():
             test_add_node_with_no_uvm_endorsements_in_kv(network, args)
 
 

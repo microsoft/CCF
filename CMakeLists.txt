@@ -4,12 +4,6 @@ cmake_minimum_required(VERSION 3.16)
 
 set(ALLOWED_TEST_PLATFORMS "snp;virtual")
 
-set(CCF_TEST_PLATFORM
-    "virtual"
-    CACHE STRING
-          "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
-)
-
 # Default CMakeLists processing path. To exclude building and installing testing
 # stuff set this to OFF, e.g. to build the run-only RPM.
 option(CCF_DEVEL "CCF Devel Mode" ON)

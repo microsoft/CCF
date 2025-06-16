@@ -337,8 +337,9 @@ class CCFRemote(object):
         snp_security_context_directory_envvar = None
 
         env = kwargs.get("env", {})
-        if enclave_platform == "snp":
-            env.update(snp.get_aci_env())
+
+        # TODO: Forward new override var? Do most of this unconditionally?
+        env.update(snp.get_aci_env())
 
         if enclave_platform == "virtual":
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"
