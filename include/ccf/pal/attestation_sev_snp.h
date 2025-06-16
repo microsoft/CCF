@@ -70,13 +70,12 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 -----END PUBLIC KEY-----
 )";
 
-  inline const std::map<ProductName, const char*>
-    amd_root_signing_keys{
-      {ProductName::Milan, amd_milan_root_signing_public_key},
-      {ProductName::Genoa, amd_genoa_root_signing_public_key},
-      // Disabled until we can test this
-      //{ProductName::turin, amd_turin_root_signing_public_key},
-    };
+  inline const std::map<ProductName, const char*> amd_root_signing_keys{
+    {ProductName::Milan, amd_milan_root_signing_public_key},
+    {ProductName::Genoa, amd_genoa_root_signing_public_key},
+    // Disabled until we can test this
+    //{ProductName::turin, amd_turin_root_signing_public_key},
+  };
 
 #pragma pack(push, 1)
   // Table 3
@@ -268,8 +267,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
           auto tee = fmt::format("{}", quote.reported_tcb.tee);
           auto snp = fmt::format("{}", quote.reported_tcb.snp);
           auto microcode = fmt::format("{}", quote.reported_tcb.microcode);
-          auto product = get_sev_snp_product(
-            quote.cpuid_fam_id, quote.cpuid_mod_id);
+          auto product =
+            get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
 
           auto loc =
             get_endpoint_loc(server, default_amd_endorsements_endpoint);
