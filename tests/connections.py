@@ -190,7 +190,7 @@ def run_connection_caps_tests(args):
                         client.post(
                             "/log/private",
                             {"id": 42, "msg": "foo"},
-                            timeout=3 if args.enclave_platform == "snp" else 1,
+                            timeout=1,
                             log_capture=logs,
                         )
                     except Exception as e:
