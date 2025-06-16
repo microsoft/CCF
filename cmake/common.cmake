@@ -26,6 +26,18 @@ function(add_unit_test name)
              "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
   )
 
+  set_property(
+    TEST ${name}
+    APPEND
+    PROPERTY ENVIRONMENT "ASAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
+  )
+
+  set_property(
+    TEST ${name}
+    APPEND
+    PROPERTY ENVIRONMENT "TSAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
+  )
+
   target_compile_definitions(${name} PRIVATE CCF_LOGGER_NO_DEPRECATE)
 endfunction()
 
@@ -138,6 +150,18 @@ function(add_e2e_test)
     set_property(
       TEST ${PARSED_ARGS_NAME}
       APPEND
+      PROPERTY ENVIRONMENT "ASAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
+    )
+
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY ENVIRONMENT "TSAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
+    )
+
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
       PROPERTY LABELS e2e
     )
     set_property(
@@ -224,6 +248,17 @@ function(add_perf_test)
     PROPERTY ENVIRONMENT
              "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
   )
+  set_property(
+    TEST ${TEST_NAME}
+    APPEND
+    PROPERTY ENVIRONMENT "ASAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
+  )
+
+  set_property(
+    TEST ${TEST_NAME}
+    APPEND
+    PROPERTY ENVIRONMENT "TSAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
+  )
 endfunction()
 
 # Helper for building end-to-end perf tests using the python infrastucture
@@ -287,6 +322,16 @@ function(add_piccolo_test)
     PROPERTY ENVIRONMENT
              "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
   )
+  set_property(
+    TEST ${TEST_NAME}
+    APPEND
+    PROPERTY ENVIRONMENT "ASAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
+  )
+  set_property(
+    TEST ${TEST_NAME}
+    APPEND
+    PROPERTY ENVIRONMENT "TSAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
+  )
 endfunction()
 
 # Picobench wrapper
@@ -323,6 +368,16 @@ function(add_picobench name)
     APPEND
     PROPERTY ENVIRONMENT
              "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+  )
+  set_property(
+    TEST ${name}
+    APPEND
+    PROPERTY ENVIRONMENT "ASAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
+  )
+  set_property(
+    TEST ${name}
+    APPEND
+    PROPERTY ENVIRONMENT "TSAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
   )
   target_compile_definitions(${name} PRIVATE CCF_LOGGER_NO_DEPRECATE)
 endfunction()

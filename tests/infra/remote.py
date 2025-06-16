@@ -348,6 +348,7 @@ class CCFRemote(object):
             env["TSAN_OPTIONS"] = os.environ.get("TSAN_OPTIONS", "")
             env["ASAN_OPTIONS"] = os.environ.get("ASAN_OPTIONS", "")
             env["ASAN_SYMBOLIZER_PATH"] = os.environ.get("ASAN_SYMBOLIZER_PATH", "")
+            env["TSAN_SYMBOLIZER_PATH"] = os.environ.get("TSAN_SYMBOLIZER_PATH", "")
         elif enclave_platform == "snp":
             snp_security_context_directory_envvar = (
                 snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR

@@ -67,7 +67,7 @@ extern "C"
       path,
       RTLD_NOW
 #if defined(__has_feature)
-#  if __has_feature(address_sanitizer)
+#  if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
         // Avoid unloading on delete under ASAN, so that leak checking can still
         // access symbols
         | RTLD_NODELETE
