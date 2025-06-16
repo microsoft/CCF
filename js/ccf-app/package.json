@@ -20,7 +20,7 @@
   "devDependencies": {
     "@types/chai": "^5.0.0",
     "@types/mocha": "^10.0.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^24.0.3",
     "@types/node-forge": "^1.0.0",
     "chai": "^5.0.0",
     "colors": "1.4.0",
