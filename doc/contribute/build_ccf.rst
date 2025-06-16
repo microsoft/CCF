@@ -11,26 +11,13 @@ First, checkout the CCF repository:
 
 To build CCF from source, run the following:
 
-.. tab:: SNP
+.. code-block:: bash
 
-    .. code-block:: bash
-
-        $ cd CCF
-        $ mkdir build
-        $ cd build
-        $ cmake -GNinja -DCCF_TEST_PLATFORM=snp .. 
-        $ ninja
-
-
-.. tab:: Virtual
-
-    .. code-block:: bash
-
-        $ cd CCF
-        $ mkdir build
-        $ cd build
-        $ cmake -GNinja ..
-        $ ninja
+    $ cd CCF
+    $ mkdir build
+    $ cd build
+    $ cmake -GNinja .. 
+    $ ninja
 
 .. note:::
 
@@ -65,15 +52,6 @@ Tests can be started through the ``tests.sh`` wrapper for ``ctest``.
     $ ./tests.sh
 
 Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end tests that start a network require some Python infrastructure. :ccf_repo:`tests.sh </tests/tests.sh>` will set up a virtual environment with these dependencies and activate it before running ``ctest``. Add ``-VV`` for verbose test output. Further runs will re-use that virtual environment.
-
-.. note::
-    On a full build of CCF, it is also possible to run tests with virtual enclaves by setting the ``TEST_ENCLAVE`` environment variable:
-
-    .. code-block:: bash
-
-        $ TEST_ENCLAVE=virtual ./tests.sh [-VV]
-
-    Tests that require enclave attestation will be skipped.
 
 Build Older Versions of CCF
 ---------------------------
