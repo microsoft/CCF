@@ -424,14 +424,17 @@ class BaseValidator:
     @staticmethod
     def _verify_node_status(tx_info: TxBundleInfo):
         """Verify item 1, The merkle root is signed by a valid node in the given network"""
-        # Note: A retired primary will still issue signature transactions until
-        # its retirement is committed
+        if tx_info.signing_node not in tx_info.node_activity:
+            raise UntrustedNodeException(
+                f"The signing node {tx_info.signing_node} is not part of the network"
+            )
         node_info = tx_info.node_activity[tx_info.signing_node]
         node_status = NodeStatus(node_info[0])
-        if node_status not in (
-            NodeStatus.TRUSTED,
-            NodeStatus.RETIRED,
-        ) or (node_status == NodeStatus.RETIRED and node_info[2]):
+        # Note: Even nodes that are Retired, and for which retired_committed is True
+        # may be issuing signatures, to ensure the liveness of a reconfiguring
+        # network. They will stop doing so once the transaction that sets retired_committed is itself committed,
+        # but that is unfortunately not observable from the ledger alone.
+        if node_status == NodeStatus.PENDING:
             raise UntrustedNodeException(
                 f"The signing node {tx_info.signing_node} has unexpected status {node_status.value}"
             )
