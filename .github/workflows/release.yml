@@ -63,7 +63,7 @@ jobs:
 
   build_release:
     name: Build Release
-    needs: release_notes
+    # needs: release_notes
     strategy:
       matrix:
         platform:
