@@ -8,6 +8,7 @@ H2SPEC_VERSION="v2.6.0"
 PEBBLE_VERSION="v2.3.1"
 
 export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(date +%s)}
+echo "Using SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
 
 # Source control
 tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
