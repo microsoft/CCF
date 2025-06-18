@@ -1,10 +1,11 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "ccf-[56].*"
-  workflow_dispatch:
+  # push:
+  #   tags:
+  #     - "ccf-[56].*"
+  # workflow_dispatch:
+  pull_request: #deleteme
 
 permissions:
   contents: write
@@ -12,58 +13,58 @@ permissions:
   checks: write
 
 jobs:
-  make_sbom:
-    name: SBOM Generation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-      - name: "Install SBOM tool"
-        run: |
-          set -ex
-          curl -Lo sbom-tool https://github.com/microsoft/sbom-tool/releases/latest/download/sbom-tool-linux-x64 > sbom-tool
-          chmod +x sbom-tool
-        shell: bash
-      - name: "Produce SBOM"
-        run: |
-          set -ex
-          CCF_VERSION=${{ github.ref_name }}
-          CCF_VERSION=${CCF_VERSION#ccf-}
-          ./sbom-tool generate -b . -bc . -pn CCF -ps Microsoft -nsb https://sbom.microsoft -pv $CCF_VERSION -V Error
-        shell: bash
-      - name: "Upload SBOM"
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom
-          path: _manifest/spdx_2.2/*
+  # make_sbom:
+  #   name: SBOM Generation
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 1
+  #     - name: "Install SBOM tool"
+  #       run: |
+  #         set -ex
+  #         curl -Lo sbom-tool https://github.com/microsoft/sbom-tool/releases/latest/download/sbom-tool-linux-x64 > sbom-tool
+  #         chmod +x sbom-tool
+  #       shell: bash
+  #     - name: "Produce SBOM"
+  #       run: |
+  #         set -ex
+  #         CCF_VERSION=${{ github.ref_name }}
+  #         CCF_VERSION=${CCF_VERSION#ccf-}
+  #         ./sbom-tool generate -b . -bc . -pn CCF -ps Microsoft -nsb https://sbom.microsoft -pv $CCF_VERSION -V Error
+  #       shell: bash
+  #     - name: "Upload SBOM"
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: sbom
+  #         path: _manifest/spdx_2.2/*
 
-  release_notes:
-    name: Release Notes
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-      - name: "Check Release Notes"
-        run: |
-          set -ex
-          python scripts/extract-release-notes.py --target-git-version
-        shell: bash
-      - name: "Produce Release Notes"
-        run: |
-          set -ex
-          set -o pipefail
-          python ./scripts/extract-release-notes.py --target-git-version --describe-path-changes "./samples/constitution" | tee rel-notes.md
-      - name: "Upload Release Notes"
-        uses: actions/upload-artifact@v4
-        with:
-          name: relnotes
-          path: rel-notes.md
+  # release_notes:
+  #   name: Release Notes
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 1
+  #     - name: "Check Release Notes"
+  #       run: |
+  #         set -ex
+  #         python scripts/extract-release-notes.py --target-git-version
+  #       shell: bash
+  #     - name: "Produce Release Notes"
+  #       run: |
+  #         set -ex
+  #         set -o pipefail
+  #         python ./scripts/extract-release-notes.py --target-git-version --describe-path-changes "./samples/constitution" | tee rel-notes.md
+  #     - name: "Upload Release Notes"
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: relnotes
+  #         path: rel-notes.md
 
   build_release:
     name: Build Release
-    needs: release_notes
+    # needs: release_notes
     strategy:
       matrix:
         platform:
@@ -81,12 +82,16 @@ jobs:
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
 
     steps:
+      - name: Set SOURCE_DATE_EPOCH env variable
+        id: set_epoch
+        run: echo "SOURCE_DATE_EPOCH=$(date +%s)" >> $GITHUB_ENV
+
       - name: "Checkout dependencies"
         shell: bash
         run: |
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
+          tdnf --snapshottime=$SOURCE_DATE_EPOCH -y update
+          tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install ca-certificates git
 
       - uses: actions/checkout@v4
         with:
@@ -272,54 +277,54 @@ jobs:
           name: tstgz
           path: js/ccf-app/${{ steps.build_tstgz.outputs.name }}
 
-  create_release:
-    needs:
-      - build_release
-      - make_sbom
-    name: Create Release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-      - name: Download Packages
-        uses: actions/download-artifact@v4
-        with:
-          path: pkg
-          pattern: pkg-*
-          merge-multiple: true
-      - name: Download Release Notes
-        uses: actions/download-artifact@v4
-        with:
-          name: relnotes
-      - name: Download Compatibility Report
-        uses: actions/download-artifact@v4
-        with:
-          name: compatibility
-      - name: Download TLS Report
-        uses: actions/download-artifact@v4
-        with:
-          name: tls
-      - name: Download Python Wheel
-        uses: actions/download-artifact@v4
-        with:
-          path: wheel
-          name: wheel
-      - name: Download TS Package
-        uses: actions/download-artifact@v4
-        with:
-          path: tstgz
-          name: tstgz
-      - name: Download SBOM
-        uses: actions/download-artifact@v4
-        with:
-          path: sbom
-          name: sbom
-      - run: |
-          set -ex
-          CCF_VERSION=${{ github.ref_name }}
-          CCF_VERSION=${CCF_VERSION#ccf-}
-          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
+  # create_release:
+  #   needs:
+  #     - build_release
+  #     - make_sbom
+  #   name: Create Release
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 1
+  #     - name: Download Packages
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         path: pkg
+  #         pattern: pkg-*
+  #         merge-multiple: true
+  #     - name: Download Release Notes
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: relnotes
+  #     - name: Download Compatibility Report
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: compatibility
+  #     - name: Download TLS Report
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: tls
+  #     - name: Download Python Wheel
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         path: wheel
+  #         name: wheel
+  #     - name: Download TS Package
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         path: tstgz
+  #         name: tstgz
+  #     - name: Download SBOM
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         path: sbom
+  #         name: sbom
+  #     - run: |
+  #         set -ex
+  #         CCF_VERSION=${{ github.ref_name }}
+  #         CCF_VERSION=${CCF_VERSION#ccf-}
+  #         gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json
+  #       shell: bash
+  #       env:
+  #         GH_TOKEN: ${{ github.token }}

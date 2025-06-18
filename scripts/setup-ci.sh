@@ -7,13 +7,15 @@ set -ex
 H2SPEC_VERSION="v2.6.0"
 PEBBLE_VERSION="v2.3.1"
 
+export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(date +%s)}
+
 # Source control
-tdnf -y install  \
+tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
     git  \
     ca-certificates
 
 # To build CCF
-tdnf -y install  \
+tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
     build-essential  \
     clang  \
     cmake  \
@@ -29,21 +31,21 @@ tdnf -y install  \
     clang-tools-extra-devel
 
 # To run standard tests
-tdnf -y install  \
+tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
     lldb  \
     expect  \
     npm  \
     jq
 
 # Extra-dependency for CDDL schema checker
-tdnf -y install rubygems
+tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install rubygems
 gem install cddl
 
 # Release (extended) tests
-tdnf -y install procps
+tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install procps
 
 # protocoltest
-tdnf install -y bind-utils
+tdnf --snapshottime=$SOURCE_DATE_EPOCH install -y bind-utils
 curl -L --output h2spec_linux_amd64.tar.gz https://github.com/summerwind/h2spec/releases/download/$H2SPEC_VERSION/h2spec_linux_amd64.tar.gz
 tar -xvf h2spec_linux_amd64.tar.gz
 mkdir /opt/h2spec
@@ -59,8 +61,8 @@ mv pebble-challtestsrv_linux-amd64 /opt/pebble/pebble-challtestsrv_linux-amd64
 chmod +x /opt/pebble/pebble_linux-amd64 /opt/pebble/pebble-challtestsrv_linux-amd64
 
 # partitions test
-tdnf -y install iptables
-tdnf -y install strace
+tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install iptables
+tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install strace
 
 # For packaging
-tdnf -y install rpm-build
+tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install rpm-build
