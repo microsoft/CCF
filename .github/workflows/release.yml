@@ -11,6 +11,9 @@ permissions:
   actions: read
   checks: write
 
+env:
+  IMAGE: mcr.microsoft.com/azurelinux/base/core:3.0
+
 jobs:
   make_sbom:
     name: SBOM Generation
@@ -61,23 +64,32 @@ jobs:
           name: relnotes
           path: rel-notes.md
 
+  image_digest:
+    runs-on: self-hosted
+    outputs:
+      image_digest: ${{ steps.digest.outputs.digest }}
+    steps:
+      - id: digest
+        run: |
+          set -ex
+          docker pull $IMAGE
+          echo "digest=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE)" >> "$GITHUB_OUTPUT"
+
   build_release:
-    name: Build Release
-    needs: release_notes
+    name: Build Release 
+    needs: [release_notes, image_digest]
     strategy:
       matrix:
         platform:
           - name: virtual
             os: azure-linux
-            image: mcr.microsoft.com/azurelinux/base/core:3.0
             test_filter: "benchmark|unit"
           - name: snp
             os: azure-linux
-            image: mcr.microsoft.com/azurelinux/base/core:3.0
 
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ${{ matrix.platform.image }}
+      image: ${{needs.image_digest.outputs.image_digest}}
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
 
     steps:
