@@ -83,7 +83,10 @@ jobs:
     steps:
       - name: Set SOURCE_DATE_EPOCH env variable
         id: set_epoch
-        run: echo "SOURCE_DATE_EPOCH=$(date +%s)" >> $GITHUB_ENV
+        run: |
+          epoch=$(date +%s)
+          echo "SOURCE_DATE_EPOCH=$epoch" >> $GITHUB_ENV
+          echo "$epoch"
 
       - name: "Checkout dependencies"
         shell: bash
