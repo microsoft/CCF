@@ -280,54 +280,54 @@ jobs:
           name: tstgz
           path: js/ccf-app/${{ steps.build_tstgz.outputs.name }}
 
-  create_release:
-    needs:
-      - build_release
-      - make_sbom
-    name: Create Release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-      - name: Download Packages
-        uses: actions/download-artifact@v4
-        with:
-          path: pkg
-          pattern: pkg-*
-          merge-multiple: true
-      - name: Download Release Notes
-        uses: actions/download-artifact@v4
-        with:
-          name: relnotes
-      - name: Download Compatibility Report
-        uses: actions/download-artifact@v4
-        with:
-          name: compatibility
-      - name: Download TLS Report
-        uses: actions/download-artifact@v4
-        with:
-          name: tls
-      - name: Download Python Wheel
-        uses: actions/download-artifact@v4
-        with:
-          path: wheel
-          name: wheel
-      - name: Download TS Package
-        uses: actions/download-artifact@v4
-        with:
-          path: tstgz
-          name: tstgz
-      - name: Download SBOM
-        uses: actions/download-artifact@v4
-        with:
-          path: sbom
-          name: sbom
-      - run: |
-          set -ex
-          CCF_VERSION=${{ github.ref_name }}
-          CCF_VERSION=${CCF_VERSION#ccf-}
-          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
+  # create_release:
+  #   needs:
+  #     - build_release
+  #     - make_sbom
+  #   name: Create Release
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 1
+  #     - name: Download Packages
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         path: pkg
+  #         pattern: pkg-*
+  #         merge-multiple: true
+  #     - name: Download Release Notes
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: relnotes
+  #     - name: Download Compatibility Report
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: compatibility
+  #     - name: Download TLS Report
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: tls
+  #     - name: Download Python Wheel
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         path: wheel
+  #         name: wheel
+  #     - name: Download TS Package
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         path: tstgz
+  #         name: tstgz
+  #     - name: Download SBOM
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         path: sbom
+  #         name: sbom
+  #     - run: |
+  #         set -ex
+  #         CCF_VERSION=${{ github.ref_name }}
+  #         CCF_VERSION=${CCF_VERSION#ccf-}
+  #         gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json
+  #       shell: bash
+  #       env:
+  #         GH_TOKEN: ${{ github.token }}
