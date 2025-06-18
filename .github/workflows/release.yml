@@ -84,6 +84,7 @@ jobs:
       - name: Set SOURCE_DATE_EPOCH env variable
         id: set_epoch
         run: |
+          set -ex
           epoch=$(date +%s)
           echo "SOURCE_DATE_EPOCH=$epoch" >> $GITHUB_ENV
           echo "$epoch"
