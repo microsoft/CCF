@@ -4,8 +4,7 @@ on:
   # push:
   #   tags:
   #     - "ccf-[56].*"
-  # workflow_dispatch:
-  pull_request: #deleteme
+  workflow_dispatch:
 
 permissions:
   contents: write
