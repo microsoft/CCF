@@ -12,54 +12,54 @@ permissions:
   checks: write
 
 jobs:
-  make_sbom:
-    name: SBOM Generation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-      - name: "Install SBOM tool"
-        run: |
-          set -ex
-          curl -Lo sbom-tool https://github.com/microsoft/sbom-tool/releases/latest/download/sbom-tool-linux-x64 > sbom-tool
-          chmod +x sbom-tool
-        shell: bash
-      - name: "Produce SBOM"
-        run: |
-          set -ex
-          CCF_VERSION=${{ github.ref_name }}
-          CCF_VERSION=${CCF_VERSION#ccf-}
-          ./sbom-tool generate -b . -bc . -pn CCF -ps Microsoft -nsb https://sbom.microsoft -pv $CCF_VERSION -V Error
-        shell: bash
-      - name: "Upload SBOM"
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom
-          path: _manifest/spdx_2.2/*
+  # make_sbom:
+  #   name: SBOM Generation
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 1
+  #     - name: "Install SBOM tool"
+  #       run: |
+  #         set -ex
+  #         curl -Lo sbom-tool https://github.com/microsoft/sbom-tool/releases/latest/download/sbom-tool-linux-x64 > sbom-tool
+  #         chmod +x sbom-tool
+  #       shell: bash
+  #     - name: "Produce SBOM"
+  #       run: |
+  #         set -ex
+  #         CCF_VERSION=${{ github.ref_name }}
+  #         CCF_VERSION=${CCF_VERSION#ccf-}
+  #         ./sbom-tool generate -b . -bc . -pn CCF -ps Microsoft -nsb https://sbom.microsoft -pv $CCF_VERSION -V Error
+  #       shell: bash
+  #     - name: "Upload SBOM"
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: sbom
+  #         path: _manifest/spdx_2.2/*
 
-  release_notes:
-    name: Release Notes
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-      - name: "Check Release Notes"
-        run: |
-          set -ex
-          python scripts/extract-release-notes.py --target-git-version
-        shell: bash
-      - name: "Produce Release Notes"
-        run: |
-          set -ex
-          set -o pipefail
-          python ./scripts/extract-release-notes.py --target-git-version --describe-path-changes "./samples/constitution" | tee rel-notes.md
-      - name: "Upload Release Notes"
-        uses: actions/upload-artifact@v4
-        with:
-          name: relnotes
-          path: rel-notes.md
+  # release_notes:
+  #   name: Release Notes
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 1
+  #     - name: "Check Release Notes"
+  #       run: |
+  #         set -ex
+  #         python scripts/extract-release-notes.py --target-git-version
+  #       shell: bash
+  #     - name: "Produce Release Notes"
+  #       run: |
+  #         set -ex
+  #         set -o pipefail
+  #         python ./scripts/extract-release-notes.py --target-git-version --describe-path-changes "./samples/constitution" | tee rel-notes.md
+  #     - name: "Upload Release Notes"
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: relnotes
+  #         path: rel-notes.md
 
   build_release:
     name: Build Release
@@ -75,7 +75,8 @@ jobs:
             os: azure-linux
             image: mcr.microsoft.com/azurelinux/base/core:3.0
 
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    # runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub] 
+    runs-on: self-hosted #deleteme
     container:
       image: ${{ matrix.platform.image }}
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
