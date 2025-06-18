@@ -123,7 +123,7 @@ namespace ccf::pal
     else
     {
       auto key = snp::amd_root_signing_keys.find(
-        std::make_pair(quote.cpuid_fam_id, quote.cpuid_mod_id));
+        snp::get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id));
       if (key == snp::amd_root_signing_keys.end())
       {
         throw std::logic_error(fmt::format(

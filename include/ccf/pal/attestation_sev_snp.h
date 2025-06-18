@@ -5,6 +5,7 @@
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/report_data.h"
+#include "ccf/pal/sev_snp_cpuid.h"
 
 #include <array>
 #include <cstdint>
@@ -68,15 +69,12 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 -----END PUBLIC KEY-----
 )";
 
-  using AMDFamily = uint8_t;
-  using AMDModel = uint8_t;
-  inline const std::map<std::pair<AMDFamily, AMDModel>, const char*>
-    amd_root_signing_keys{
-      {{0x19, 0x01}, amd_milan_root_signing_public_key},
-      {{0x19, 0x11}, amd_genoa_root_signing_public_key},
-      // Disabled until we can test this
-      //{{0x1A, 0x02}, amd_turin_root_signing_public_key},
-    };
+  inline const std::map<ProductName, const char*> amd_root_signing_keys{
+    {ProductName::Milan, amd_milan_root_signing_public_key},
+    {ProductName::Genoa, amd_genoa_root_signing_public_key},
+    // Disabled until we can test this
+    //{ProductName::turin, amd_turin_root_signing_public_key},
+  };
 
 #pragma pack(push, 1)
   // Table 3
@@ -183,7 +181,10 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t report_id[32]; /* 0x140 */
     uint8_t report_id_ma[32]; /* 0x160 */
     struct TcbVersion reported_tcb; /* 0x180 */
-    uint8_t reserved1[24]; /* 0x188 */
+    uint8_t cpuid_fam_id; /* 0x188*/
+    uint8_t cpuid_mod_id; /* 0x189 */
+    uint8_t cpuid_step; /* 0x18A */
+    uint8_t reserved1[21]; /* 0x18B */
     uint8_t chip_id[64]; /* 0x1A0 */
     struct TcbVersion committed_tcb; /* 0x1E0 */
     uint8_t current_minor; /* 0x1E8 */
@@ -256,11 +257,13 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
           auto tee = fmt::format("{}", quote.reported_tcb.tee);
           auto snp = fmt::format("{}", quote.reported_tcb.snp);
           auto microcode = fmt::format("{}", quote.reported_tcb.microcode);
+          auto product =
+            get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
 
           auto loc =
             get_endpoint_loc(server, default_amd_endorsements_endpoint);
           config.servers.emplace_back(make_amd_endorsements_server(
-            loc, chip_id_hex, boot_loader, tee, snp, microcode));
+            loc, chip_id_hex, boot_loader, tee, snp, microcode, product));
           break;
         }
         case EndorsementsEndpointType::THIM:
