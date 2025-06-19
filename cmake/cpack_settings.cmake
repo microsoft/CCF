@@ -74,4 +74,11 @@ message(STATUS "Final RPM package name: ${FINAL_PACKAGE_NAME}.rpm")
 
 set(CPACK_RPM_FILE_NAME "${FINAL_PACKAGE_NAME}")
 
+# Reproducible builds Macros
+set(CPACK_RPM_SPEC_MORE_DEFINE
+  "%define _buildhost reproducible
+%define use_source_date_epoch_as_buildtime Y
+%define clamp_mtime_to_source_date_epoch Y
+")
+
 include(CPack)
