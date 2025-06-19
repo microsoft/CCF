@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/nonstd.h"
 #include "ccf/pal/attestation_sev_snp.h"
 
 #include <algorithm>
@@ -12,7 +13,6 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include "ccf/ds/nonstd.h"
 
 // Based on the SEV-SNP ABI Spec document at
 // https://www.amd.com/system/files/TechDocs/56860.pdf
