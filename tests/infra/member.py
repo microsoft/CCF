@@ -279,11 +279,11 @@ class Member:
     def __init__(
         self,
         local_id,
-        curve,
         common_dir,
         share_script,
         recovery_role=RecoveryRole.Participant,
         key_generator=None,
+        curve=None,
         member_data=None,
         authenticate_session=True,
         gov_api_impl=None,
@@ -318,6 +318,8 @@ class Member:
             self.member_info["recovery_role"] = "Owner"
 
         if key_generator is not None:
+            assert curve is not None
+
             key_generator_args = [
                 "--name",
                 self.local_id,
