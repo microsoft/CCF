@@ -109,10 +109,10 @@ namespace ccf::pal::snp::ioctl5
         throw std::logic_error(
           fmt::format("Failed to open \"{}\" ({})", DEVICE, fd));
       }
-      auto close_fd = [&fd]() {
-        if (fd >= 0)
+      auto close_fd = [](int* fd) {
+        if (fd != nullptr && *fd >= 0)
         {
-          close(fd);
+          close(*fd);
         }
       };
       std::unique_ptr<int, decltype(close_fd)> fd_guard(&fd, close_fd);
