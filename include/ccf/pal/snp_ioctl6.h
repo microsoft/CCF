@@ -229,13 +229,20 @@ namespace ccf::pal::snp::ioctl6
         throw std::logic_error(
           fmt::format("Failed to open \"{}\" ({})", DEVICE, fd));
       }
+      auto close_fd = [&fd]() {
+        if (fd >= 0)
+        {
+          close(fd);
+        }
+      };
+      std::unique_ptr<int, decltype(close_fd)> fd_guard(&fd, close_fd);
 
       // Documented at
       // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
       GuestRequestAttestation payload = {
         .req_data = &req, .resp_wrapper = &padded_resp, .exit_info = {0}};
 
-      int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
+      int rc = ioctl(*fd_ptr, SEV_SNP_GUEST_MSG_REPORT, &payload);
       if (rc < 0)
       {
         const auto msg = fmt::format(
@@ -283,6 +290,13 @@ namespace ccf::pal::snp::ioctl6
         throw std::logic_error(
           fmt::format("Failed to open \"{}\" ({})", DEVICE, fd));
       }
+      auto close_fd = [&fd]() {
+        if (fd >= 0)
+        {
+          close(fd);
+        }
+      };
+      std::unique_ptr<int, decltype(close_fd)> fd_guard(&fd, close_fd);
 
       // This req by default mixes in HostData and the CPU VCEK
       DerivedKeyReq req = {};

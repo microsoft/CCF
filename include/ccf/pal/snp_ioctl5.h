@@ -106,8 +106,16 @@ namespace ccf::pal::snp::ioctl5
       int fd = open(DEVICE, O_RDWR | O_CLOEXEC);
       if (fd < 0)
       {
-        throw std::logic_error(fmt::format("Failed to open \"{}\"", DEVICE));
+        throw std::logic_error(
+          fmt::format("Failed to open \"{}\" ({})", DEVICE, fd));
       }
+      auto close_fd = [&fd]() {
+        if (fd >= 0)
+        {
+          close(fd);
+        }
+      };
+      std::unique_ptr<int, decltype(close_fd)> fd_guard(&fd, close_fd);
 
       // Documented at
       // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
