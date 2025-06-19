@@ -11,6 +11,9 @@ permissions:
   actions: read
   checks: write
 
+env:
+  IMAGE: mcr.microsoft.com/azurelinux/base/core:3.0
+
 jobs:
   make_sbom:
     name: SBOM Generation
@@ -61,23 +64,32 @@ jobs:
           name: relnotes
           path: rel-notes.md
 
+  image_digest:
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    outputs:
+      image_digest: ${{ steps.digest.outputs.digest }}
+    steps:
+      - id: digest
+        run: |
+          set -ex
+          docker pull $IMAGE
+          echo "digest=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE)" >> "$GITHUB_OUTPUT"
+
   build_release:
     name: Build Release
-    needs: release_notes
+    needs: [release_notes, image_digest]
     strategy:
       matrix:
         platform:
           - name: virtual
             os: azure-linux
-            image: mcr.microsoft.com/azurelinux/base/core:3.0
             test_filter: "benchmark|unit"
           - name: snp
             os: azure-linux
-            image: mcr.microsoft.com/azurelinux/base/core:3.0
 
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ${{ matrix.platform.image }}
+      image: ${{ needs.image_digest.outputs.image_digest }}
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
 
     steps:
@@ -280,6 +292,30 @@ jobs:
           name: tstgz
           path: js/ccf-app/${{ steps.build_tstgz.outputs.name }}
 
+      - name: "Generate Reproducibility Metadata"
+        id: metadata
+        shell: bash
+        run: |
+          set -ex
+          commit_id=$(git rev-parse HEAD)
+          echo "commit_sha=$commit_id" >> $GITHUB_OUTPUT
+          filename=reproduce-${{ matrix.platform.name }}.json
+
+          cat <<EOF > $filename
+          {
+            "image": "${{needs.image_digest.outputs.image_digest}}",
+            "snapshottime": $SOURCE_DATE_EPOCH,
+            "commit_sha": "$commit_id"
+          }
+          EOF
+          cat $filename
+
+      - name: "Upload Reproducibility Metadata"
+        uses: actions/upload-artifact@v4
+        with:
+          name: reproduce-${{ matrix.platform.name }}-metadata
+          path: reproduce-${{ matrix.platform.name }}.json
+
   create_release:
     needs:
       - build_release
@@ -323,11 +359,17 @@ jobs:
         with:
           path: sbom
           name: sbom
+      - name: Download Reproducibility Metadata
+        uses: actions/download-artifact@v4
+        with:
+          path: repro
+          pattern: reproduce-*
+          merge-multiple: true
       - run: |
           set -ex
           CCF_VERSION=${{ github.ref_name }}
           CCF_VERSION=${CCF_VERSION#ccf-}
-          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json
+          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json repro/*
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
