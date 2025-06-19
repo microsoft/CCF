@@ -559,7 +559,6 @@ def test_recover_service_from_files(
 
     network.start_in_recovery(
         args,
-        ledger_dir=os.path.join(service_dir, "ledger"),
         committed_ledger_dirs=[os.path.join(service_dir, "ledger")],
         snapshots_dir=os.path.join(service_dir, "snapshots"),
         common_dir=new_common,

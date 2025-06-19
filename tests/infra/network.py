@@ -665,7 +665,7 @@ class Network:
     def start_in_recovery(
         self,
         args,
-        ledger_dir,
+        ledger_dir=None,
         committed_ledger_dirs=None,
         snapshots_dir=None,
         common_dir=None,
@@ -683,7 +683,6 @@ class Network:
             args.workspace, args.label
         )
         committed_ledger_dirs = committed_ledger_dirs or []
-        ledger_dirs = [ledger_dir, *committed_ledger_dirs]
 
         primary = self._start_all_nodes(
             args,
@@ -696,7 +695,9 @@ class Network:
 
         # If a common directory was passed in, initialise the consortium from it
         if not self.consortium and common_dir is not None:
-            ledger = ccf.ledger.Ledger(ledger_dirs, committed_only=False)
+            ledger = ccf.ledger.Ledger(
+                committed_ledger_dirs + [ledger_dir], committed_only=False
+            )
             public_state, _ = ledger.get_latest_public_state()
 
             self.consortium = infra.consortium.Consortium(
