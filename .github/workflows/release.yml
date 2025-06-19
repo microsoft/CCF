@@ -305,7 +305,7 @@ jobs:
           cat <<EOF > $filename
           {
             "image": "${{needs.image_digest.outputs.image_digest}}",
-            "snapshottime": $SOURCE_DATE_EPOCH,
+            "tdnf_snapshottime": $SOURCE_DATE_EPOCH,
             "commit_sha": "$commit_id"
           }
           EOF
