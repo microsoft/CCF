@@ -10,10 +10,11 @@ from typing import NamedTuple, Optional, Tuple, Dict, List
 import json
 import base64
 from dataclasses import dataclass
+import functools
 
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import utils, ec
 
@@ -111,6 +112,15 @@ def unpack_array(buf, fmt):
         except StopIteration:
             break
     return ret
+
+
+@functools.lru_cache(maxsize=64)
+def spki_from_cert(cert: bytes) -> bytes:
+    cert_obj = load_pem_x509_certificate(cert, default_backend())
+    return cert_obj.public_key().public_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
 
 
 def range_from_filename(filename: str) -> Tuple[int, Optional[int]]:
@@ -596,9 +606,11 @@ class LedgerValidator(BaseValidator):
                 existing_root = bytes.fromhex(signature["root"])
                 sig = base64.b64decode(signature["sig"])
 
-                # Check that cert in signature matches locally tracked
+                # Check that key in cert matches that in node table
                 sig_cert = signature["cert"].encode("utf-8")
-                assert cert == sig_cert
+                assert spki_from_cert(cert) == spki_from_cert(
+                    sig_cert
+                ), f"Mismatch in public key for node {signing_node}"
 
                 tx_info = TxBundleInfo(
                     self.merkle,
