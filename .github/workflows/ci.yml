@@ -222,7 +222,7 @@ jobs:
 
   build_and_test_caci_genoa:
     name: "Confidential Container CI on Genoa"
-    runs-on: [self-hosted, 1ES.Pool=gha-c-aci-ci-south-central-us]
+    runs-on: [self-hosted, 1ES.Pool=gha-c-caci-ci-south-central-us]
     needs: checks
 
     steps:
