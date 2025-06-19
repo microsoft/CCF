@@ -12,6 +12,7 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include "ccf/ds/nonstd.h"
 
 // Based on the SEV-SNP ABI Spec document at
 // https://www.amd.com/system/files/TechDocs/56860.pdf
@@ -229,13 +230,7 @@ namespace ccf::pal::snp::ioctl6
         throw std::logic_error(
           fmt::format("Failed to open \"{}\" ({})", DEVICE, fd));
       }
-      auto close_fd = [](int* fd) {
-        if (fd != nullptr && *fd >= 0)
-        {
-          close(*fd);
-        }
-      };
-      std::unique_ptr<int, decltype(close_fd)> fd_guard(&fd, close_fd);
+      auto close_guard = nonstd::make_close_fd_guard(&fd);
 
       // Documented at
       // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
@@ -290,13 +285,7 @@ namespace ccf::pal::snp::ioctl6
         throw std::logic_error(
           fmt::format("Failed to open \"{}\" ({})", DEVICE, fd));
       }
-      auto close_fd = [](int* fd) {
-        if (fd != nullptr && *fd >= 0)
-        {
-          close(*fd);
-        }
-      };
-      std::unique_ptr<int, decltype(close_fd)> fd_guard(&fd, close_fd);
+      auto close_guard = nonstd::make_close_fd_guard(&fd);
 
       // This req by default mixes in HostData and the CPU VCEK
       DerivedKeyReq req = {};
