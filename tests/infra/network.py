@@ -571,7 +571,14 @@ class Network:
                 + args.initial_recovery_owner_count
             ), f"Not enough members ({mc}) for the set amount of recovery participants and owners ({args.initial_recovery_participant_count + args.initial_recovery_owner_count})"
 
-        initial_members_info = []
+        self.consortium = infra.consortium.Consortium(
+            self.common_dir,
+            self.key_generator,
+            self.share_script,
+            args.consensus,
+            gov_api_version=args.gov_api_version,
+        )
+
         for i in range(mc):
             member_data = None
             if i < args.initial_operator_provisioner_count:
@@ -591,23 +598,14 @@ class Network:
             ):
                 recovery_role = infra.member.RecoveryRole.Owner
 
-            initial_members_info += [
-                (
-                    i,
-                    recovery_role,
-                    member_data,
+            self.consortium.add_member(
+                self.consortium.generate_new_member(
+                    curve=args.participants_curve,
+                    recovery_role=recovery_role,
+                    member_data=member_data,
                 )
-            ]
+            )
 
-        self.consortium = infra.consortium.Consortium(
-            self.common_dir,
-            self.key_generator,
-            self.share_script,
-            args.consensus,
-            initial_members_info,
-            args.participants_curve,
-            gov_api_version=args.gov_api_version,
-        )
         set_authenticate_session = kwargs.pop("set_authenticate_session", None)
         if set_authenticate_session is not None:
             self.consortium.set_authenticate_session(set_authenticate_session)
@@ -695,19 +693,58 @@ class Network:
 
         # If a common directory was passed in, initialise the consortium from it
         if not self.consortium and common_dir is not None:
-            ledger = ccf.ledger.Ledger(
-                committed_ledger_dirs + [ledger_dir], committed_only=False
-            )
-            public_state, _ = ledger.get_latest_public_state()
+            with primary.api_versioned_client(
+                api_version=args.gov_api_version,
+            ) as c:
+                self.consortium = infra.consortium.Consortium(
+                    common_dir,
+                    self.key_generator,
+                    self.share_script,
+                    args.consensus,
+                    gov_api_version=args.gov_api_version,
+                )
+                for f in os.listdir(self.common_dir):
+                    if re.search("member(.*)_cert.pem", f) is not None:
+                        local_id = f.split("_")[0]
+                        recovery_role = (
+                            infra.member.RecoveryRole.Participant
+                            if os.path.isfile(
+                                os.path.join(
+                                    self.common_dir, f"{local_id}_enc_privk.pem"
+                                )
+                            )
+                            else infra.member.RecoveryRole.NonParticipant
+                        )
 
-            self.consortium = infra.consortium.Consortium(
-                common_dir,
-                self.key_generator,
-                self.share_script,
-                args.consensus,
-                public_state=public_state,
-                gov_api_version=args.gov_api_version,
-            )
+                        new_member = self.consortium.generate_existing_member(
+                            local_id, recovery_role
+                        )
+
+                        r = c.get(f"/gov/service/members/{new_member.service_id}")
+                        assert r.status_code == 200
+                        member_info = r.body.json()
+                        assert member_info["memberId"] == new_member.service_id
+                        assert (
+                            infra.member.RecoveryRole(member_info["recoveryRole"])
+                            == new_member.recovery_role
+                        )
+                        new_member.member_data = member_info["memberData"]
+                        if (
+                            infra.member.MemberStatus(member_info["status"])
+                            == infra.member.MemberStatus.ACTIVE
+                        ):
+                            new_member.set_active()
+
+                        self.consortium.add_member(new_member)
+                        LOG.info(
+                            f"Successfully recovered member {local_id}: {new_member.service_id}"
+                        )
+
+                # Override locally-computed threshold to match whatever was retrieved from service
+                r = c.get("/node/service/configuration")
+                assert r.status_code == 200
+                recovery_threshold = r.body.json()["recovery_threshold"]
+                self.consortium.recovery_threshold = recovery_threshold
 
         if set_authenticate_session is not None:
             self.consortium.set_authenticate_session(set_authenticate_session)
