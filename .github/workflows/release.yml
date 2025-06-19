@@ -65,7 +65,7 @@ jobs:
           path: rel-notes.md
 
   image_digest:
-    runs-on: self-hosted
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     outputs:
       image_digest: ${{ steps.digest.outputs.digest }}
     steps:
@@ -76,7 +76,7 @@ jobs:
           echo "digest=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE)" >> "$GITHUB_OUTPUT"
 
   build_release:
-    name: Build Release 
+    name: Build Release
     needs: [release_notes, image_digest]
     strategy:
       matrix:
