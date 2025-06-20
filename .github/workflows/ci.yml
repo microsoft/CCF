@@ -169,6 +169,7 @@ jobs:
           cat /proc/*/environ | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
           echo "::group::Disk usage"
           df -kh
+          mount
           echo "::endgroup::"
           echo "::group::CPU Info"
           cat /proc/cpuinfo
