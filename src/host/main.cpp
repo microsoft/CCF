@@ -1001,6 +1001,7 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   while ((uv_loop_alive(uv_default_loop()) != 0) && (close_iterations > 0))
   {
     uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+    usleep(1000); // 1ms
     close_iterations--;
   }
   LOG_INFO_FMT(
