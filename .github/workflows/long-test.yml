@@ -45,7 +45,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSAN=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSAN=ON ..
           ninja
 
       - name: "Test"
@@ -99,7 +99,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DTSAN=ON -DWORKER_THREADS=2 ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DTSAN=ON -DWORKER_THREADS=2 ..
           ninja
 
       - name: "Test"
@@ -152,7 +152,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DWORKER_THREADS=2 ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DWORKER_THREADS=2 ..
           ninja
 
       - name: "Test"
@@ -211,7 +211,7 @@ jobs:
           mkdir build
           cd build
           # Use libc++ to enable hardening/bounds checking during tests
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DUSE_LIBCXX=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DUSE_LIBCXX=ON ..
           ninja
 
       - name: "Test"
@@ -265,7 +265,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Release -DCLIENT_PROTOCOLS_TEST=ON -DLONG_TESTS=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCLIENT_PROTOCOLS_TEST=ON -DLONG_TESTS=ON ..
           ninja
 
       - name: "Test"
@@ -319,7 +319,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSHUFFLE_SUITE=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSHUFFLE_SUITE=ON ..
           ninja
 
       - name: "Test"
