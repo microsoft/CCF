@@ -385,9 +385,7 @@ def cli_args(
         help="Servers used to retrieve attestation report endorsement certificates (AMD SEV-SNP only)",
         action="append",
         # ACI default
-        default=(
-            ["THIM:$Fabric_NodeIPOrFQDN:2377"]
-        ),
+        default=(["THIM:$Fabric_NodeIPOrFQDN:2377"]),
     )
     parser.add_argument(
         "--forwarding-timeout-ms",

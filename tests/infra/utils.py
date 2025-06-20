@@ -22,9 +22,7 @@ def get_host_data_and_security_policy(
         host_data = sha256(security_policy.encode()).hexdigest()
         return host_data, security_policy
     elif enclave_platform == "virtual":
-        lib_path = infra.path.build_lib_path(
-            package, library_dir, version=version
-        )
+        lib_path = infra.path.build_lib_path(package, library_dir, version=version)
         hash = sha256(open(lib_path, "rb").read())
         return hash.hexdigest(), None
     else:
