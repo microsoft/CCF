@@ -89,7 +89,7 @@ jobs:
 
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ${{needs.image_digest.outputs.image_digest}}
+      image: ${{ needs.image_digest.outputs.image_digest }}
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
 
     steps:
@@ -293,6 +293,30 @@ jobs:
           name: tstgz
           path: js/ccf-app/${{ steps.build_tstgz.outputs.name }}
 
+      - name: "Generate Reproducibility Metadata"
+        id: metadata
+        shell: bash
+        run: |
+          set -ex
+          commit_id=$(git rev-parse HEAD)
+          echo "commit_sha=$commit_id" >> $GITHUB_OUTPUT
+          filename=reproduce-${{ matrix.platform.name }}.json
+
+          cat <<EOF > $filename
+          {
+            "build_container_image": "${{needs.image_digest.outputs.image_digest}}",
+            "tdnf_snapshottime": $SOURCE_DATE_EPOCH,
+            "commit_sha": "$commit_id"
+          }
+          EOF
+          cat $filename
+
+      - name: "Upload Reproducibility Metadata"
+        uses: actions/upload-artifact@v4
+        with:
+          name: reproduce-${{ matrix.platform.name }}-metadata
+          path: reproduce-${{ matrix.platform.name }}.json
+
   create_release:
     needs:
       - build_release
@@ -336,11 +360,17 @@ jobs:
         with:
           path: sbom
           name: sbom
+      - name: Download Reproducibility Metadata
+        uses: actions/download-artifact@v4
+        with:
+          path: repro
+          pattern: reproduce-*
+          merge-multiple: true
       - run: |
           set -ex
           CCF_VERSION=${{ github.ref_name }}
           CCF_VERSION=${CCF_VERSION#ccf-}
-          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json
+          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json repro/*
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
