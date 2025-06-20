@@ -13,9 +13,7 @@
 namespace host
 {
   void expect_enclave_file_suffix(
-    const std::string& file,
-    char const* expected_suffix,
-    host::EnclaveType type)
+    const std::string& file, char const* expected_suffix)
   {
     if (!file.ends_with(expected_suffix))
     {
@@ -31,10 +29,9 @@ namespace host
       }
       const auto suggested = fmt::format("{}{}", basename, expected_suffix);
       throw std::logic_error(fmt::format(
-        "Given enclave file '{}' does not have suffix expected for enclave "
-        "type {}. Did you mean '{}'?",
+        "Given enclave file '{}' does not have suffix expected.. Did you mean "
+        "'{}'?",
         file,
-        nlohmann::json(type).dump(),
         suggested));
     }
   }
@@ -61,20 +58,13 @@ namespace host
   private:
     void* virtual_handle = nullptr;
 
-    const ccf::pal::Platform platform;
-
   public:
     /**
      * Create an uninitialized enclave hosting the given library.
      *
-     * @param path Path to signed enclave library file
-     * @param type Type of enclave to load
-     * @param platform Trusted Execution Platform of enclave, influencing what
-     * flags should be passed to OE, or whether to dlload a virtual enclave
+     * @param path Path to library file
      */
-    Enclave(
-      const std::string& path, EnclaveType type, ccf::pal::Platform platform_) :
-      platform(platform_)
+    Enclave(const std::string& path)
     {
       if (!std::filesystem::exists(path))
       {
@@ -82,12 +72,12 @@ namespace host
           fmt::format("No enclave file found at {}", path));
       }
 
-      switch (platform)
+      switch (ccf::pal::platform)
       {
         case ccf::pal::Platform::SNP:
         case ccf::pal::Platform::Virtual:
         {
-          expect_enclave_file_suffix(path, ".so", type);
+          expect_enclave_file_suffix(path, ".so");
           virtual_handle = load_virtual_enclave(path.c_str());
           break;
         }
@@ -95,7 +85,8 @@ namespace host
         default:
         {
           throw std::logic_error(fmt::format(
-            "Unsupported enclave type: {}", nlohmann::json(type).dump()));
+            "Unsupported enclave type: {}",
+            nlohmann::json(ccf::pal::platform).dump()));
         }
       }
     }
@@ -138,7 +129,7 @@ namespace host
     node_cert.size(), &node_cert_len, service_cert.data(), \
     service_cert.size(), &service_cert_len, enclave_version_buf.data(), \
     enclave_version_buf.size(), &enclave_version_len, start_type, \
-    enclave_log_level, platform, num_worker_thread, time_location, work_beacon
+    enclave_log_level, num_worker_thread, time_location, work_beacon
 
       oe_result_t err = OE_FAILURE;
 

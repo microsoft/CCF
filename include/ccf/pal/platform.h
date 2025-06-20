@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/pal/snp_ioctl.h"
 
 namespace ccf::pal
 {
@@ -20,7 +21,23 @@ namespace ccf::pal
      {Platform::Virtual, "Virtual"},
      {Platform::Unknown, "Unknown"}});
 
+  static Platform _detect_platform()
+  {
+    auto* env_var = std::getenv("CCF_PLATFORM_OVERRIDE");
+    if (env_var != nullptr)
+    {
+      return nlohmann::json(env_var).get<Platform>();
+    }
+
+    if (ccf::pal::snp::supports_sev_snp())
+    {
+      return Platform::SNP;
+    }
+
+    return Platform::Virtual;
+  }
+
   // Default inits to Unknown.
   // Set this early from CLI, or explicitly for unit tests.
-  static auto platform = Platform::Unknown;
+  static auto platform = _detect_platform();
 }

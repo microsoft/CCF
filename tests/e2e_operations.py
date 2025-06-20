@@ -584,7 +584,8 @@ def run_config_timeout_check(args):
     config_timeout = 10
     env = {}
 
-    env.update(snp.get_aci_env())
+    if infra.platform_detection.is_snp():
+        env.update(snp.get_aci_env())
 
     proc = subprocess.Popen(
         [

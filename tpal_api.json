@@ -1,0 +1,1216 @@
+{
+  "components": {
+    "responses": {
+      "default": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CCFError"
+            }
+          }
+        },
+        "description": "An error occurred"
+      }
+    },
+    "schemas": {
+      "ApplicationClaim": {
+        "properties": {
+          "digest": {
+            "$ref": "#/components/schemas/ClaimDigest"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/string"
+          },
+          "ledgerEntry": {
+            "$ref": "#/components/schemas/LedgerEntryClaim"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "ApplicationClaim_array": {
+        "items": {
+          "$ref": "#/components/schemas/ApplicationClaim"
+        },
+        "type": "array"
+      },
+      "CCFError": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "description": "Response error code. CCF error codes: https://microsoft.github.io/CCF/main/operations/troubleshooting.html#error-codes",
+                "type": "string"
+              },
+              "message": {
+                "description": "Response error message",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "ClaimDigest": {
+        "properties": {
+          "protocol": {
+            "$ref": "#/components/schemas/string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "protocol"
+        ],
+        "type": "object"
+      },
+      "CodeStatus": {
+        "enum": [
+          "AllowedToJoin"
+        ],
+        "type": "string"
+      },
+      "Collection": {
+        "properties": {
+          "collectionId": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "collectionId"
+        ],
+        "type": "object"
+      },
+      "Collection_array": {
+        "items": {
+          "$ref": "#/components/schemas/Collection"
+        },
+        "type": "array"
+      },
+      "ConsortiumMember": {
+        "properties": {
+          "certificate": {
+            "$ref": "#/components/schemas/string"
+          },
+          "id": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "certificate",
+          "id"
+        ],
+        "type": "object"
+      },
+      "ConsortiumMember_array": {
+        "items": {
+          "$ref": "#/components/schemas/ConsortiumMember"
+        },
+        "type": "array"
+      },
+      "EnclaveQuote": {
+        "properties": {
+          "mrenclave": {
+            "$ref": "#/components/schemas/string"
+          },
+          "nodeId": {
+            "$ref": "#/components/schemas/string"
+          },
+          "quoteVersion": {
+            "$ref": "#/components/schemas/QuoteFormat"
+          },
+          "raw": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "nodeId",
+          "quoteVersion",
+          "raw"
+        ],
+        "type": "object"
+      },
+      "GetCode__Out": {
+        "properties": {
+          "versions": {
+            "$ref": "#/components/schemas/GetCode__Version_array"
+          }
+        },
+        "required": [
+          "versions"
+        ],
+        "type": "object"
+      },
+      "GetCode__Version": {
+        "properties": {
+          "digest": {
+            "$ref": "#/components/schemas/string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CodeStatus"
+          }
+        },
+        "required": [
+          "digest",
+          "status"
+        ],
+        "type": "object"
+      },
+      "GetCode__Version_array": {
+        "items": {
+          "$ref": "#/components/schemas/GetCode__Version"
+        },
+        "type": "array"
+      },
+      "GetCollections__Out": {
+        "properties": {
+          "collections": {
+            "$ref": "#/components/schemas/Collection_array"
+          },
+          "nextLink": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "collections"
+        ],
+        "type": "object"
+      },
+      "GetCommit__Out": {
+        "properties": {
+          "transaction_id": {
+            "$ref": "#/components/schemas/TransactionId"
+          },
+          "view_history": {
+            "$ref": "#/components/schemas/TransactionId_array"
+          }
+        },
+        "required": [
+          "transaction_id"
+        ],
+        "type": "object"
+      },
+      "GetConsortiumMembers__Out": {
+        "properties": {
+          "members": {
+            "$ref": "#/components/schemas/ConsortiumMember_array"
+          },
+          "nextLink": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "members"
+        ],
+        "type": "object"
+      },
+      "GetConstitution__Out": {
+        "properties": {
+          "digest": {
+            "$ref": "#/components/schemas/string"
+          },
+          "script": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "digest",
+          "script"
+        ],
+        "type": "object"
+      },
+      "GetEnclaveQuotes__Out": {
+        "properties": {
+          "currentNodeId": {
+            "$ref": "#/components/schemas/string"
+          },
+          "enclaveQuotes": {
+            "$ref": "#/components/schemas/string_to_EnclaveQuote"
+          }
+        },
+        "required": [
+          "currentNodeId",
+          "enclaveQuotes"
+        ],
+        "type": "object"
+      },
+      "GetLedgerEntryForTransactionIdState": {
+        "enum": [
+          "Loading",
+          "Ready"
+        ],
+        "type": "string"
+      },
+      "GetLedgerEntryForTransactionId__Out": {
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/GetLedgerEntry__Out"
+          },
+          "state": {
+            "$ref": "#/components/schemas/GetLedgerEntryForTransactionIdState"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "GetLedgerEntry__Out": {
+        "properties": {
+          "collectionId": {
+            "$ref": "#/components/schemas/string"
+          },
+          "contents": {
+            "$ref": "#/components/schemas/string"
+          },
+          "subLedgerId": {
+            "$ref": "#/components/schemas/string"
+          },
+          "transactionId": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "contents",
+          "transactionId"
+        ],
+        "type": "object"
+      },
+      "GetReceipt__Out": {
+        "properties": {
+          "applicationClaims": {
+            "$ref": "#/components/schemas/ApplicationClaim_array"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/Receipt"
+          },
+          "state": {
+            "$ref": "#/components/schemas/GetLedgerEntryForTransactionIdState"
+          },
+          "transactionId": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "state",
+          "receipt",
+          "transactionId"
+        ],
+        "type": "object"
+      },
+      "GetSubLedgerIds__Out": {
+        "properties": {
+          "subLedgerIds": {
+            "$ref": "#/components/schemas/string_array"
+          }
+        },
+        "required": [
+          "subLedgerIds"
+        ],
+        "type": "object"
+      },
+      "GetTransactionStatus__Out": {
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/TransactionState"
+          },
+          "transactionId": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "state",
+          "transactionId"
+        ],
+        "type": "object"
+      },
+      "GetTxStatus__Out": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/TxStatus"
+          },
+          "transaction_id": {
+            "$ref": "#/components/schemas/TransactionId"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "status"
+        ],
+        "type": "object"
+      },
+      "LeafComponents": {
+        "properties": {
+          "claimsDigest": {
+            "$ref": "#/components/schemas/string"
+          },
+          "commitEvidence": {
+            "$ref": "#/components/schemas/string"
+          },
+          "writeSetDigest": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "type": "object"
+      },
+      "LedgerEntryClaim": {
+        "properties": {
+          "collectionId": {
+            "$ref": "#/components/schemas/string"
+          },
+          "contents": {
+            "$ref": "#/components/schemas/string"
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/string"
+          },
+          "secretKey": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "protocol"
+        ],
+        "type": "object"
+      },
+      "LedgerUser__In": {
+        "properties": {
+          "assignedRole": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "assignedRole"
+        ],
+        "type": "object"
+      },
+      "LedgerUser__Out": {
+        "properties": {
+          "assignedRole": {
+            "$ref": "#/components/schemas/string"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "assignedRole",
+          "userId"
+        ],
+        "type": "object"
+      },
+      "LedgerUser__Out_array": {
+        "items": {
+          "$ref": "#/components/schemas/LedgerUser__Out"
+        },
+        "type": "array"
+      },
+      "LedgerUsers__Out": {
+        "properties": {
+          "ledgerUsers": {
+            "$ref": "#/components/schemas/LedgerUser__Out_array"
+          }
+        },
+        "required": [
+          "ledgerUsers"
+        ],
+        "type": "object"
+      },
+      "PostLedgerEntry__In": {
+        "properties": {
+          "contents": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "contents"
+        ],
+        "type": "object"
+      },
+      "PostLedgerEntry__Out": {
+        "properties": {
+          "collectionId": {
+            "$ref": "#/components/schemas/string"
+          },
+          "subLedgerId": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "type": "object"
+      },
+      "ProofElement": {
+        "properties": {
+          "left": {
+            "$ref": "#/components/schemas/string"
+          },
+          "right": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "type": "object"
+      },
+      "ProofElement_array": {
+        "items": {
+          "$ref": "#/components/schemas/ProofElement"
+        },
+        "type": "array"
+      },
+      "QuoteFormat": {
+        "enum": [
+          "OE_SGX_v1",
+          "Insecure_Virtual",
+          "AMD_SEV_SNP_v1"
+        ],
+        "type": "string"
+      },
+      "Receipt": {
+        "properties": {
+          "cert": {
+            "$ref": "#/components/schemas/string"
+          },
+          "leaf": {
+            "$ref": "#/components/schemas/string"
+          },
+          "leafComponents": {
+            "$ref": "#/components/schemas/LeafComponents"
+          },
+          "nodeId": {
+            "$ref": "#/components/schemas/string"
+          },
+          "proof": {
+            "$ref": "#/components/schemas/ProofElement_array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/string"
+          },
+          "serviceEndorsements": {
+            "$ref": "#/components/schemas/string_array"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "nodeId",
+          "proof",
+          "signature"
+        ],
+        "type": "object"
+      },
+      "TransactionId": {
+        "pattern": "^[0-9]+\\.[0-9]+$",
+        "type": "string"
+      },
+      "TransactionId_array": {
+        "items": {
+          "$ref": "#/components/schemas/TransactionId"
+        },
+        "type": "array"
+      },
+      "TransactionState": {
+        "enum": [
+          "Committed",
+          "Pending"
+        ],
+        "type": "string"
+      },
+      "TxStatus": {
+        "enum": [
+          "Unknown",
+          "Pending",
+          "Committed",
+          "Invalid"
+        ],
+        "type": "string"
+      },
+      "boolean": {
+        "type": "boolean"
+      },
+      "json": {},
+      "string": {
+        "type": "string"
+      },
+      "string_array": {
+        "items": {
+          "$ref": "#/components/schemas/string"
+        },
+        "type": "array"
+      },
+      "string_to_EnclaveQuote": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/EnclaveQuote"
+        },
+        "type": "object"
+      },
+      "uint64": {
+        "maximum": 18446744073709551615,
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    "securitySchemes": {
+      "jwt": {
+        "bearerFormat": "JWT",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    },
+    "x-ccf-forwarding": {
+      "always": {
+        "description": "If this request is made to a backup node, it will be forwarded to the primary node for execution.",
+        "value": "always"
+      },
+      "never": {
+        "description": "This call will never be forwarded, and is always executed on the receiving node, potentially breaking session consistency. If this attempts to write on a backup, this will fail.",
+        "value": "never"
+      },
+      "sometimes": {
+        "description": "If this request is made to a backup node, it may be forwarded to the primary node for execution. Specifically, if this request is sent as part of a session which was already forwarded, then it will also be forwarded.",
+        "value": "sometimes"
+      }
+    }
+  },
+  "info": {
+    "description": "Empty description",
+    "title": "Empty title",
+    "version": "0.0.1"
+  },
+  "openapi": "3.0.0",
+  "paths": {
+    "/app/api": {
+      "get": {
+        "operationId": "GetAppApi",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/json"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "OpenAPI schema",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/code": {
+      "get": {
+        "deprecated": true,
+        "description": "This endpoint is deprecated from 5.0.0. It is replaced by GET /gov/service/join-policy",
+        "operationId": "GetAppCode",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCode__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Permitted SGX code identities",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/collections": {
+      "get": {
+        "operationId": "GetAppCollections",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCollections__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/commit": {
+      "get": {
+        "description": "Latest transaction ID that has been committed on the service",
+        "operationId": "GetAppCommit",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "view_history",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view_history_since",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCommit__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Current commit level",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/enclaveQuotes": {
+      "get": {
+        "operationId": "GetAppEnclaveQuotes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetEnclaveQuotes__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
+    },
+    "/app/governance/constitution": {
+      "get": {
+        "operationId": "GetAppGovernanceConstitution",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetConstitution__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/governance/members": {
+      "get": {
+        "operationId": "GetAppGovernanceMembers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetConsortiumMembers__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/receipt": {
+      "get": {
+        "description": "A signed statement from the service over a transaction entry in the ledger",
+        "operationId": "GetAppReceipt",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/TransactionId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/json"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Receipt for a transaction",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/subLedgerIds": {
+      "get": {
+        "operationId": "GetAppSubLedgerIds",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSubLedgerIds__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/transactions": {
+      "get": {
+        "operationId": "GetAppTransactions",
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "post": {
+        "operationId": "PostAppTransactions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostLedgerEntry__In"
+              }
+            }
+          },
+          "description": "Auto-generated request body schema"
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostLedgerEntry__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      }
+    },
+    "/app/transactions/current": {
+      "get": {
+        "operationId": "GetAppTransactionsCurrent",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetLedgerEntry__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/transactions/{transactionId}": {
+      "get": {
+        "operationId": "GetAppTransactionsTransactionId",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetLedgerEntryForTransactionId__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "transactionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/app/transactions/{transactionId}/receipt": {
+      "get": {
+        "operationId": "GetAppTransactionsTransactionIdReceipt",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetReceipt__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "transactionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/app/transactions/{transactionId}/status": {
+      "get": {
+        "operationId": "GetAppTransactionsTransactionIdStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetTransactionStatus__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "transactionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/app/tx": {
+      "get": {
+        "description": "Possible statuses returned are Unknown, Pending, Committed or Invalid.",
+        "operationId": "GetAppTx",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/TransactionId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetTxStatus__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Current status of a transaction",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/users": {
+      "get": {
+        "operationId": "GetAppUsers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerUsers__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/users/{userId}": {
+      "delete": {
+        "operationId": "DeleteAppUsersUserId",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerUser__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      },
+      "get": {
+        "operationId": "GetAppUsersUserId",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerUser__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "userId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "patch": {
+        "operationId": "PatchAppUsersUserId",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LedgerUser__In"
+              }
+            }
+          },
+          "description": "Auto-generated request body schema"
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerUser__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      }
+    }
+  },
+  "servers": []
+}

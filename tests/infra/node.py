@@ -303,7 +303,6 @@ class Node:
         """
         lib_path = infra.path.build_lib_path(
             lib_name,
-            enclave_platform,
             library_dir=self.library_dir,
             version=self.version,
         )

@@ -213,8 +213,6 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
 
   host::CCHostConfig config = config_json;
 
-  ccf::pal::platform = config.enclave.platform;
-
   if (config.logging.format == host::LogFormat::JSON)
   {
     ccf::logger::config::add_json_console_logger();
@@ -383,8 +381,7 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     return static_cast<int>(CLI::ExitCodes::ValidationError);
   }
 
-  host::Enclave enclave(
-    enclave_file_path, config.enclave.type, ccf::pal::platform);
+  host::Enclave enclave(enclave_file_path);
 
   // messaging ring buffers
   const auto buffer_size = config.memory.circuit_size;

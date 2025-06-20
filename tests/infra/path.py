@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from shutil import copy2, rmtree
 import hashlib
 import infra.node
+import infra.platform_detection
 
 from loguru import logger as LOG
 
@@ -21,21 +22,21 @@ def mk_new(name, contents):
         mk(name, contents)
 
 
-def build_lib_path(lib_name, enclave_platform="virtual", library_dir=".", version=None):
+def build_lib_path(lib_name, library_dir=".", version=None):
     if infra.node.version_after(version, "ccf-6.0.5"):
         ext = ".so"
     else:
-        if enclave_platform == "virtual":
+        if infra.platform_detection.is_virtual():
             ext = ".virtual.so"
-        elif enclave_platform == "snp":
+        elif infra.platform_detection.is_snp():
             ext = ".snp.so"
 
-    if enclave_platform == "virtual":
+    if infra.platform_detection.is_virtual():
         mode = "Virtual mode"
-    elif enclave_platform == "snp":
+    elif infra.platform_detection.is_snp():
         mode = "SNP enclave"
     else:
-        raise ValueError(f"Invalid enclave_platform passed {enclave_platform}")
+        raise ValueError(f"Unexpected platform: {infra.platform_detection.get_platform()}")
 
     if os.path.isfile(lib_name):
         if ext not in lib_name:

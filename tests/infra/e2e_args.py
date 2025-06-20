@@ -387,8 +387,6 @@ def cli_args(
         # ACI default
         default=(
             ["THIM:$Fabric_NodeIPOrFQDN:2377"]
-            if os.getenv("DEFAULT_ENCLAVE_PLATFORM") == "snp"
-            else []
         ),
     )
     parser.add_argument(
