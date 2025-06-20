@@ -77,7 +77,7 @@ jobs:
 
   build_release:
     name: Build Release
-    needs: image_digest
+    needs: [release_notes, image_digest]
     outputs:
       SOURCE_DATE_EPOCH: ${{ steps.set_epoch.outputs.SOURCE_DATE_EPOCH }}
     strategy:
@@ -91,7 +91,7 @@ jobs:
 
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ${{ needs.image_digest.outputs.image_digest }}
+      image: ${{needs.image_digest.outputs.image_digest}}
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
 
     steps:
@@ -110,7 +110,7 @@ jobs:
           set -ex
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf --snapshottime=$SOURCE_DATE_EPOCH -y update
-          tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install ca-certificates git nodejs
+          tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install ca-certificates git
 
       - uses: actions/checkout@v4
         with:
