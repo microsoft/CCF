@@ -151,7 +151,7 @@ def test_governance(network, args):
     assert new_member_proposal.state == ProposalState.ACCEPTED
 
     # Manually add new member to consortium
-    network.consortium.members.append(new_member)
+    network.consortium.add_member(new_member)
 
     LOG.debug("Further vote requests fail as the proposal has already been accepted")
     params_error = http.HTTPStatus.BAD_REQUEST.value
