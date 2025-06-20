@@ -80,7 +80,7 @@ Version live compatibility
 
 When upgrading CCF services from one major version to the next, our usual recommendation is to upgrade first to the initial release in the new major version before attempting upgrade to later versions; ``N.latest`` transitions to ``N+1.0.0``. Interoperation between other versions is not guaranteed.
 
-**We make an exception for upgrades from 5.x to 6.0, and recommend that services upgrade directly to 6.0.2.**
+.. warning:: We make an exception for upgrades from 5.x to 6.0, and recommend that services upgrade from 5.latest directly to 6.0.2.
 
 There is a bug in ``6.0.0`` and ``6.0.1`` which can cause a node to crash when running in a mixed-version service. This is described in detail in `GitHub issue #7002 <https://github.com/microsoft/CCF/issues/7002>`_, but a brief summary is that if a ``5.x`` node becomes primary and emits a signature `after` a ``6.0.0`` or ``6.0.1`` node has been primary, then the resulting ledger transactions will be unparseable by a ``6.0.0`` or ``6.0.1`` node. Any such node receiving these errors will report ``Failed to deserialise`` errors in its log. It is not guaranteed that multi-versioned services will hit this - if the upgrade and node rotation happens smoothly then it is possible for the service to reach a point where all nodes are running ``6.0.0`` and it is safe from this issue.
 
