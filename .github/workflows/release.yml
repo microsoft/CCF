@@ -64,20 +64,9 @@ jobs:
   build_release:
     name: Build Release
     needs: release_notes
-    strategy:
-      matrix:
-        platform:
-          - name: virtual
-            os: azure-linux
-            image: mcr.microsoft.com/azurelinux/base/core:3.0
-            test_filter: "benchmark|unit"
-          - name: snp
-            os: azure-linux
-            image: mcr.microsoft.com/azurelinux/base/core:3.0
-
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ${{ matrix.platform.image }}
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
 
     steps:
@@ -98,7 +87,7 @@ jobs:
           set -ex
           ./scripts/setup-ci.sh
 
-      - name: "Build Release ${{ matrix.platform.name }}"
+      - name: "Build Release"
         shell: bash
         run: |
           set -ex
@@ -108,8 +97,7 @@ jobs:
           cmake -GNinja -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
           ninja -v | tee build.log
 
-      - name: "Test ${{ matrix.platform.name }}"
-        if: "${{ matrix.platform.name == 'virtual' }}"
+      - name: "Test"
         run: |
           set -ex
           cd build
@@ -120,14 +108,14 @@ jobs:
           # Suite tests
           ./tests.sh --timeout 600 --output-on-failure -L "suite"
           # Most tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "suite|${{ matrix.platform.test_filter }}"
+          ./tests.sh --timeout 360 --output-on-failure -LE "suite|benchmark|unit"
         shell: bash
 
-      - name: "Upload logs for ${{ matrix.platform.name }}"
+      - name: "Upload logs"
         if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ matrix.platform.name }}
+          name: logs
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
@@ -180,7 +168,6 @@ jobs:
         shell: bash
 
       - name: "Test Installed CCF"
-        if: "${{ matrix.platform.name == 'virtual' }}"
         run: |
           set -ex
           set -o pipefail
@@ -189,7 +176,6 @@ jobs:
         shell: bash
 
       - name: "Recovery Benchmark for Installed CCF"
-        if: "${{ matrix.platform.name == 'virtual' }}"
         run: |
           set -ex
           set -o pipefail
@@ -200,37 +186,34 @@ jobs:
       - name: "Test Building a Sample Against Installed CCF"
         run: |
           set -ex
-          ./tests/test_install_build.sh -DCOMPILE_TARGET=${{ matrix.platform.name }}
+          ./tests/test_install_build.sh
         shell: bash
 
       - name: "Upload .rpm Package"
         uses: actions/upload-artifact@v4
         with:
-          name: pkg-${{ matrix.platform.name }}
+          name: pkg
           path: build/${{ steps.make_rpm_run.outputs.name }}
 
       - name: "Upload -devel.rpm Package"
         uses: actions/upload-artifact@v4
         with:
-          name: pkg-${{ matrix.platform.name }}-devel
+          name: pkg-devel
           path: build/${{ steps.make_rpm_devel.outputs.name }}
 
       - name: "Upload Compatibility Report"
-        if: "${{ matrix.platform.name == 'virtual' }}"
         uses: actions/upload-artifact@v4
         with:
           name: compatibility
           path: build/compatibility_report.json
 
       - name: "Upload TLS Report"
-        if: "${{ matrix.platform.name == 'virtual' }}"
         uses: actions/upload-artifact@v4
         with:
           name: tls
           path: build/tls_report.html
 
       - name: "Build Python Wheel"
-        if: "${{ matrix.platform.name == 'virtual' }}"
         id: build_wheel
         run: |
           set -ex
@@ -244,14 +227,12 @@ jobs:
         shell: bash
 
       - name: "Upload Python Wheel"
-        if: "${{ matrix.platform.name == 'virtual' }}"
         uses: actions/upload-artifact@v4
         with:
           name: wheel
           path: python/${{ steps.build_wheel.outputs.name }}
 
       - name: "Build TS Package"
-        if: "${{ matrix.platform.name == 'virtual' }}"
         id: build_tstgz
         run: |
           set -ex
@@ -266,7 +247,6 @@ jobs:
         shell: bash
 
       - name: "Upload TS Package"
-        if: "${{ matrix.platform.name == 'virtual' }}"
         uses: actions/upload-artifact@v4
         with:
           name: tstgz
