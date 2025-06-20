@@ -33,6 +33,12 @@ jobs:
           set -ex
           ./scripts/setup-ci.sh
 
+      - name: "Confirm running on Virtual"
+        run: |
+          set -ex
+          python tests/infra/platform_detection.py virtual
+        shell: bash
+
       - name: Build and run virtual perf tests
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
@@ -69,7 +75,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Build and run virtual perf tests
+      - name: "Confirm running on SEV-SNP"
+        run: |
+          set -ex
+          python tests/infra/platform_detection.py snp
+        shell: bash
+
+      - name: Build and run SNP perf tests
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
