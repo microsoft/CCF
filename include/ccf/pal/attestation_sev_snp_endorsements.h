@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/pal/sev_snp_cpuid.h"
 
 #include <list>
 #include <map>
@@ -14,8 +15,6 @@
 
 namespace ccf::pal::snp
 {
-  constexpr auto product_name = "Milan";
-
   struct ACIReportEndorsements
   {
     std::string cache_control;
@@ -125,6 +124,7 @@ namespace ccf::pal::snp
     const std::string& tee,
     const std::string& snp,
     const std::string& microcode,
+    const ProductName& product_name,
     size_t max_retries_count)
   {
     std::map<std::string, std::string> params;
@@ -137,7 +137,7 @@ namespace ccf::pal::snp
     EndorsementEndpointsConfiguration::EndpointInfo leaf{
       endpoint.host,
       endpoint.port,
-      fmt::format("/vcek/v1/{}/{}", product_name, chip_id_hex),
+      fmt::format("/vcek/v1/{}/{}", to_string(product_name), chip_id_hex),
       params,
       true // DER
     };
@@ -145,7 +145,7 @@ namespace ccf::pal::snp
     EndorsementEndpointsConfiguration::EndpointInfo chain{
       endpoint.host,
       endpoint.port,
-      fmt::format("/vcek/v1/{}/cert_chain", product_name),
+      fmt::format("/vcek/v1/{}/cert_chain", to_string(product_name)),
       {}};
     chain.max_retries_count = max_retries_count;
 
