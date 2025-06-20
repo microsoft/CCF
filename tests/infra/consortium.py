@@ -5,14 +5,12 @@ import os
 import http
 import json
 import random
-import re
 import infra.network
 import infra.proc
 import infra.checker
 import infra.node
 import infra.crypto
 import infra.member
-import ccf.ledger
 from infra.proposal import ProposalState
 import shutil
 import tempfile
