@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
 
 set -exu
 
@@ -9,7 +11,8 @@ usage() {
 
 setup_env() {
   PLATFORM=$(jq -r '.platform_name' "$REPRO_JSON")
-  export SOURCE_DATE_EPOCH=$(jq -r '.tdnf_snapshottime' "$REPRO_JSON")
+  SOURCE_DATE_EPOCH=$(jq -r '.tdnf_snapshottime' "$REPRO_JSON")
+  export SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH"
   echo "Reproducing using SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH"
 }
 
@@ -23,7 +26,12 @@ build_pkg() {
   ninja -v
   cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
   cpack -V -G RPM
-  initial_repro_run_pkg=$(ls *.rpm | grep -v devel)
+  for f in *.rpm; do
+    if [[ "$f" != *devel*.rpm ]]; then
+      initial_repro_run_pkg="$f"
+      break
+    fi
+  done
   final_repro_run_pkg=${initial_repro_run_pkg//\~/_}
   if [ "$initial_repro_run_pkg" != "$final_repro_run_pkg" ]; then
     mv "$initial_repro_run_pkg" "$final_repro_run_pkg"

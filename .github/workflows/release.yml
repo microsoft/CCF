@@ -323,7 +323,7 @@ jobs:
 
   reproduce_rpm:
     name: Test Reproducibility
-    needs: 
+    needs:
       - build_release
       - image_digest
     strategy:
@@ -356,7 +356,7 @@ jobs:
       - name: Download Reproducibility Metadata
         uses: actions/download-artifact@v4
         with:
-          path:  repro
+          path: repro
           pattern: reproduce-${{ matrix.platform.name }}-metadata
           merge-multiple: true
 
@@ -393,7 +393,7 @@ jobs:
           fi
 
       - name: Upload Non-Reproduced Package
-        if:  ${{ steps.verify.outputs.not_reproduced == 'true' }}
+        if: ${{ steps.verify.outputs.not_reproduced == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: not-reproduced

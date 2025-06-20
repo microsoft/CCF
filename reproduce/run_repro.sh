@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
 
 set -exu
 
@@ -9,7 +11,8 @@ usage() {
 
 setup_env() {
   IMAGE=$(jq -r '.build_container_image' "$REPRO_JSON")
-  export SOURCE_DATE_EPOCH=$(jq -r '.tdnf_snapshottime' "$REPRO_JSON")
+  SOURCE_DATE_EPOCH=$(jq -r '.tdnf_snapshottime' "$REPRO_JSON")
+  export SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH"
 }
 
 if [ "$#" -ne 1 ]; then
