@@ -1336,9 +1336,14 @@ if(BUILD_TESTS)
       NAME schema_test_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
       ADDITIONAL_ARGS
-        --schema-dir ${CMAKE_SOURCE_DIR}/doc/schemas --ledger-tutorial
-        ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py --config-samples-dir
+        --schema-dir
+        ${CMAKE_SOURCE_DIR}/doc/schemas
+        --ledger-tutorial
+        ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
+        --config-samples-dir
         ${CMAKE_SOURCE_DIR}/samples/config
+        --historical-testdata
+        ${CMAKE_SOURCE_DIR}/tests/testdata
     )
 
     list(APPEND LTS_TEST_ARGS --ccf-version ${CCF_VERSION})
