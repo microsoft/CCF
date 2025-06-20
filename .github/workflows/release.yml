@@ -134,8 +134,8 @@ jobs:
         shell: bash
         run: |
           set -ex
-          echo "I'm in branch $(git branch --show-current)"
-          echo "I'm in commit $(git rev-parse HEAD)"
+          echo " CI I'm in branch $(git branch --show-current)"
+          echo " CI I'm in commit $(git rev-parse HEAD)"
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build

@@ -26,8 +26,8 @@ clone_repo() {
   # REPO_URL="https://github.com/microsoft/CCF"
   REPO_URL="/home/CCF"
   git config --global --add safe.directory /home/CCF/.git #deleteme when repourl is updated
-  git clone -b "reproducibility-tests" "$REPO_URL" /CCF #deleteme
-  # git clone "$REPO_URL" /CCF
+  # git clone -b "reproducibility-tests" "$REPO_URL" /CCF #deleteme
+  git clone "$REPO_URL" /CCF
   git config --global --add safe.directory /CCF
   cd /CCF
   
@@ -36,6 +36,10 @@ clone_repo() {
   git checkout "$COMMIT_ID"
   echo "checking again 2"
   tail -n 10  cmake/cpack_settings.cmake
+
+  
+  echo " script I'm in branch $(git branch --show-current)"
+  echo " script I'm in commit $(git rev-parse HEAD)"
 }
 
 build_devel_pkg() {
