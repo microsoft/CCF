@@ -226,7 +226,6 @@ namespace asynchost
       const auto mode = committed ? "rb" : "r+b";
 
       file = fopen(file_path.c_str(), mode);
-
       if (!file)
       {
         throw std::logic_error(fmt::format(
@@ -630,6 +629,26 @@ namespace asynchost
           fmt::format("Failed to flush ledger file: {}", strerror(errno)));
       }
 
+      if (fsync(fileno(file)) != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to sync completed ledger file: {}", strerror(errno)));
+      }
+
+      auto parent_dir = fopen(dir.c_str(), "r");
+      if (!parent_dir)
+      {
+        throw std::logic_error(fmt::format(
+          "Unable to open ledger directory {}: {}", dir, strerror(errno)));
+      }
+      if (fsync(fileno(parent_dir)) != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to sync ledger directory after completing file: {}",
+          strerror(errno)));
+      }
+      fclose(parent_dir);
+
       LOG_TRACE_FMT("Completed ledger file {}", file_name);
 
       completed = true;
@@ -643,6 +662,20 @@ namespace asynchost
       try
       {
         files::rename(file_path, new_file_path);
+
+        auto parent_dir = fopen(dir.c_str(), "r");
+        if (!parent_dir)
+        {
+          throw std::logic_error(fmt::format(
+            "Unable to open ledger directory {}: {}", dir, strerror(errno)));
+        }
+        if (fsync(fileno(parent_dir)) != 0)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to sync ledger directory after renaming file: {}",
+            strerror(errno)));
+        }
+        fclose(parent_dir);
       }
       catch (const std::exception& e)
       {
