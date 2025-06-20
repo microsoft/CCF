@@ -247,6 +247,9 @@ jobs:
           echo "::group::Disk usage"
           df -kh
           echo "::endgroup::"
+          echo "::group::Mounts"
+          mount
+          echo "::endgroup::"
           echo "::group::CPU Info"
           cat /proc/cpuinfo
           echo "::endgroup::"
