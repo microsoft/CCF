@@ -112,6 +112,12 @@ jobs:
           set -ex
           ./scripts/setup-ci.sh
 
+      - name: "Confirm running on Virtual"
+        run: |
+          set -ex
+          python tests/infra/platform_detection.py virtual
+        shell: bash
+
       - name: "Build Debug"
         run: |
           set -ex
@@ -175,13 +181,19 @@ jobs:
           echo "::endgroup::"
         shell: bash
 
+      - name: "Confirm running on SEV-SNP"
+        run: |
+          set -ex
+          python tests/infra/platform_detection.py snp
+        shell: bash
+
       - name: "Build Debug"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCCF_TEST_PLATFORM=snp -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
 

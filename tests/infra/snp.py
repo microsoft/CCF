@@ -5,17 +5,7 @@ import os
 import base64
 import glob
 from hashlib import sha256
-
-# Path to the SEV guest device on patched 5.x kernels
-_SEV_DEVICE_LINUX_5 = "/dev/sev"
-
-# Path to the SEV guest device from 6.0 onwards
-# https://www.kernel.org/doc/html/v6.0/virt/coco/sev-guest.html
-_SEV_DEVICE_LINUX_6 = "/dev/sev-guest"
-
-SNP_SUPPORT = any(
-    os.path.exists(dev) for dev in [_SEV_DEVICE_LINUX_5, _SEV_DEVICE_LINUX_6]
-)
+from infra.platform_detection import SNP_SUPPORT
 
 # It is the responsibility of the infra spinning up ACI container
 # to populate this file with relevant environment variables
