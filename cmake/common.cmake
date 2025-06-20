@@ -70,8 +70,7 @@ endfunction()
 # Helper for building end-to-end function tests using the python infrastructure
 function(add_e2e_test)
   cmake_parse_arguments(
-    PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT"
+    PARSE_ARGV 0 PARSED_ARGS "" "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT"
     "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
 
@@ -111,8 +110,7 @@ function(add_e2e_test)
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
-        ${PARSED_ARGS_NAME}
-        ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
+        ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
         ${PARSED_ARGS_ADDITIONAL_ARGS} --tick-ms ${NODE_TICK_MS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )

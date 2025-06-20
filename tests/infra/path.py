@@ -23,7 +23,7 @@ def mk_new(name, contents):
 
 
 def build_lib_path(lib_name, library_dir=".", version=None):
-    if infra.node.version_after(version, "ccf-6.0.5"):
+    if infra.node.version_after(version, "ccf-6.0.7"):
         ext = ".so"
     else:
         if infra.platform_detection.is_virtual():
@@ -36,7 +36,9 @@ def build_lib_path(lib_name, library_dir=".", version=None):
     elif infra.platform_detection.is_snp():
         mode = "SNP enclave"
     else:
-        raise ValueError(f"Unexpected platform: {infra.platform_detection.get_platform()}")
+        raise ValueError(
+            f"Unexpected platform: {infra.platform_detection.get_platform()}"
+        )
 
     if os.path.isfile(lib_name):
         if ext not in lib_name:
