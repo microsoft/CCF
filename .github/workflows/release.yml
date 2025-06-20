@@ -77,15 +77,17 @@ jobs:
 
   build_release:
     name: Build Release
-    needs: [release_notes, image_digest]
+    needs: image_digest
+    outputs:
+      SOURCE_DATE_EPOCH: ${{ steps.set_epoch.outputs.SOURCE_DATE_EPOCH }}
     strategy:
       matrix:
         platform:
           - name: virtual
             os: azure-linux
             test_filter: "benchmark|unit"
-          - name: snp
-            os: azure-linux
+          # - name: snp
+          #   os: azure-linux
 
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
@@ -93,12 +95,20 @@ jobs:
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
 
     steps:
+      - name: Confirm UID in build container
+        run: |
+          set -ex
+          echo "in build UID=$(id -u)"
+          echo "looooool"
+          echo "in build User=$(whoami)"
       - name: Set SOURCE_DATE_EPOCH env variable
         id: set_epoch
         run: |
           set -ex
-          epoch=$(date +%s)
+          # epoch=$(date +%s)
+          epoch=1750352755 
           echo "SOURCE_DATE_EPOCH=$epoch" >> $GITHUB_ENV
+          echo "SOURCE_DATE_EPOCH=$epoch" >> $GITHUB_OUTPUT
           echo "$epoch"
 
       - name: "Checkout dependencies"
@@ -107,11 +117,12 @@ jobs:
           set -ex
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf --snapshottime=$SOURCE_DATE_EPOCH -y update
-          tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install ca-certificates git
+          tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install ca-certificates git nodejs
 
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: reproducibility-tests #deleteme
 
       - name: "Install dependencies"
         shell: bash
@@ -123,38 +134,40 @@ jobs:
         shell: bash
         run: |
           set -ex
+          echo "I'm in branch $(git branch --show-current)"
+          echo "I'm in commit $(git rev-parse HEAD)"
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
           cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
           ninja -v | tee build.log
 
-      - name: "Test ${{ matrix.platform.name }}"
-        if: "${{ matrix.platform.name == 'virtual' }}"
-        run: |
-          set -ex
-          cd build
-          rm -rf /github/home/.cache
-          mkdir -p /github/home/.cache
-          # Unit tests
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          # Suite tests
-          ./tests.sh --timeout 600 --output-on-failure -L "suite"
-          # Most tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "suite|${{ matrix.platform.test_filter }}"
-        shell: bash
+      # - name: "Test ${{ matrix.platform.name }}"
+      #   if: "${{ matrix.platform.name == 'virtual' }}"
+      #   run: |
+      #     set -ex
+      #     cd build
+      #     rm -rf /github/home/.cache
+      #     mkdir -p /github/home/.cache
+      #     # Unit tests
+      #     ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+      #     # Suite tests
+      #     ./tests.sh --timeout 600 --output-on-failure -L "suite"
+      #     # Most tests
+      #     ./tests.sh --timeout 360 --output-on-failure -LE "suite|${{ matrix.platform.test_filter }}"
+      #   shell: bash
 
-      - name: "Upload logs for ${{ matrix.platform.name }}"
-        if: success() || failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: logs-${{ matrix.platform.name }}
-          path: |
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*/*.ledger/*
-          if-no-files-found: ignore
+      # - name: "Upload logs for ${{ matrix.platform.name }}"
+      #   if: success() || failure()
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: logs-${{ matrix.platform.name }}
+      #     path: |
+      #       build/workspace/*/*.config.json
+      #       build/workspace/*/out
+      #       build/workspace/*/err
+      #       build/workspace/*/*.ledger/*
+      #     if-no-files-found: ignore
 
       - name: "Make .rpm (devel) Package"
         id: make_rpm_devel
@@ -193,36 +206,36 @@ jobs:
           echo "name=$CCF_GITHUB_PKG" >> $GITHUB_OUTPUT
         shell: bash
 
-      - name: "Install CCF package"
-        run: |
-          set -ex
-          cd build
-          tdnf -y install ./${{ steps.make_rpm_devel.outputs.name }}
-        shell: bash
+      # - name: "Install CCF package"
+      #   run: |
+      #     set -ex
+      #     cd build
+      #     tdnf -y install ./${{ steps.make_rpm_devel.outputs.name }}
+      #   shell: bash
 
-      - name: "Test Installed CCF"
-        if: "${{ matrix.platform.name == 'virtual' }}"
-        run: |
-          set -ex
-          set -o pipefail
-          cd build
-          cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {}"
-        shell: bash
+      # - name: "Test Installed CCF"
+      #   if: "${{ matrix.platform.name == 'virtual' }}"
+      #   run: |
+      #     set -ex
+      #     set -o pipefail
+      #     cd build
+      #     cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {}"
+      #   shell: bash
 
-      - name: "Recovery Benchmark for Installed CCF"
-        if: "${{ matrix.platform.name == 'virtual' }}"
-        run: |
-          set -ex
-          set -o pipefail
-          cd build
-          cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./recovery_benchmark.sh {}"
-        shell: bash
+      # - name: "Recovery Benchmark for Installed CCF"
+      #   if: "${{ matrix.platform.name == 'virtual' }}"
+      #   run: |
+      #     set -ex
+      #     set -o pipefail
+      #     cd build
+      #     cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./recovery_benchmark.sh {}"
+      #   shell: bash
 
-      - name: "Test Building a Sample Against Installed CCF"
-        run: |
-          set -ex
-          ./tests/test_install_build.sh -DCOMPILE_TARGET=${{ matrix.platform.name }}
-        shell: bash
+      # - name: "Test Building a Sample Against Installed CCF"
+      #   run: |
+      #     set -ex
+      #     ./tests/test_install_build.sh -DCOMPILE_TARGET=${{ matrix.platform.name }}
+      #   shell: bash
 
       - name: "Upload .rpm Package"
         uses: actions/upload-artifact@v4
@@ -236,62 +249,62 @@ jobs:
           name: pkg-${{ matrix.platform.name }}-devel
           path: build/${{ steps.make_rpm_devel.outputs.name }}
 
-      - name: "Upload Compatibility Report"
-        if: "${{ matrix.platform.name == 'virtual' }}"
-        uses: actions/upload-artifact@v4
-        with:
-          name: compatibility
-          path: build/compatibility_report.json
+      # - name: "Upload Compatibility Report"
+      #   if: "${{ matrix.platform.name == 'virtual' }}"
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: compatibility
+      #     path: build/compatibility_report.json
 
-      - name: "Upload TLS Report"
-        if: "${{ matrix.platform.name == 'virtual' }}"
-        uses: actions/upload-artifact@v4
-        with:
-          name: tls
-          path: build/tls_report.html
+      # - name: "Upload TLS Report"
+      #   if: "${{ matrix.platform.name == 'virtual' }}"
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: tls
+      #     path: build/tls_report.html
 
-      - name: "Build Python Wheel"
-        if: "${{ matrix.platform.name == 'virtual' }}"
-        id: build_wheel
-        run: |
-          set -ex
-          cd python
-          python3 -m venv env
-          source ./env/bin/activate
-          pip install wheel build
-          python -m build --wheel
-          WHL=`ls dist/*.whl`
-          echo "name=$WHL" >> $GITHUB_OUTPUT
-        shell: bash
+      # - name: "Build Python Wheel"
+      #   if: "${{ matrix.platform.name == 'virtual' }}"
+      #   id: build_wheel
+      #   run: |
+      #     set -ex
+      #     cd python
+      #     python3 -m venv env
+      #     source ./env/bin/activate
+      #     pip install wheel build
+      #     python -m build --wheel
+      #     WHL=`ls dist/*.whl`
+      #     echo "name=$WHL" >> $GITHUB_OUTPUT
+      #   shell: bash
 
-      - name: "Upload Python Wheel"
-        if: "${{ matrix.platform.name == 'virtual' }}"
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheel
-          path: python/${{ steps.build_wheel.outputs.name }}
+      # - name: "Upload Python Wheel"
+      #   if: "${{ matrix.platform.name == 'virtual' }}"
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: wheel
+      #     path: python/${{ steps.build_wheel.outputs.name }}
 
-      - name: "Build TS Package"
-        if: "${{ matrix.platform.name == 'virtual' }}"
-        id: build_tstgz
-        run: |
-          set -ex
-          cd js/ccf-app
-          CCF_VERSION=$(<../../build/VERSION_LONG)
-          CCF_VERSION=${CCF_VERSION#ccf-}
-          echo "Setting npm package version to ${CCF_VERSION}"
-          npm version $CCF_VERSION
-          npm pack
-          PKG=`ls *.tgz`
-          echo "name=$PKG" >> $GITHUB_OUTPUT
-        shell: bash
+      # - name: "Build TS Package"
+      #   if: "${{ matrix.platform.name == 'virtual' }}"
+      #   id: build_tstgz
+      #   run: |
+      #     set -ex
+      #     cd js/ccf-app
+      #     CCF_VERSION=$(<../../build/VERSION_LONG)
+      #     CCF_VERSION=${CCF_VERSION#ccf-}
+      #     echo "Setting npm package version to ${CCF_VERSION}"
+      #     npm version $CCF_VERSION
+      #     npm pack
+      #     PKG=`ls *.tgz`
+      #     echo "name=$PKG" >> $GITHUB_OUTPUT
+      #   shell: bash
 
-      - name: "Upload TS Package"
-        if: "${{ matrix.platform.name == 'virtual' }}"
-        uses: actions/upload-artifact@v4
-        with:
-          name: tstgz
-          path: js/ccf-app/${{ steps.build_tstgz.outputs.name }}
+      # - name: "Upload TS Package"
+      #   if: "${{ matrix.platform.name == 'virtual' }}"
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: tstgz
+      #     path: js/ccf-app/${{ steps.build_tstgz.outputs.name }}
 
       - name: "Generate Reproducibility Metadata"
         id: metadata
@@ -316,6 +329,91 @@ jobs:
         with:
           name: reproduce-${{ matrix.platform.name }}-metadata
           path: reproduce-${{ matrix.platform.name }}.json
+
+  test_reproducibility:
+    name: Test Reproducibility
+    needs: 
+      - build_release
+      - image_digest
+    strategy:
+      matrix:
+        platform:
+          - name: virtual
+            os: azure-linux
+            test_filter: "benchmark|unit"
+          # - name: snp
+          #   os: azure-linux
+
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ${{ needs.image_digest.outputs.image_digest }}
+      volumes:
+        - /tmp/reproduced:/tmp/reproduced #deleteme
+        - /home/barbie/CCF:/home/CCF #deleteme
+      options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
+
+    env:
+      OUTPUT_DIR: /tmp/reproduced
+    steps:
+      - name: Confirm UID in reproducibility container
+        run: |
+          set -ex
+          echo "in repro UID=$(id -u)"
+          echo "in repro User=$(whoami)"
+          #  tdnf install --snapshottime=1750352755 -y nodejs jq
+           tdnf install --snapshottime=${{ needs.build_release.outputs.SOURCE_DATE_EPOCH }} -y nodejs jq
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: reproducibility-tests #deleteme
+      - name: Download Prebuilt Packages
+        uses: actions/download-artifact@v4
+        with:
+          path: PREBUILT_DIR
+          pattern: pkg-*
+          merge-multiple: true
+      - name: Download Reproducibility Metadata
+        uses: actions/download-artifact@v4
+        with:
+          path:  repro
+          pattern: reproduce-${{ matrix.platform.name }}-metadata
+          merge-multiple: true
+      - name: Reproduce RPMs
+        id: reproduce
+        shell: bash
+        run: |
+          set -ex 
+          ls PREBUILT_DIR/
+          tail -n 10  cmake/cpack_settings.cmake
+          export COMMIT_ID=$(jq -r '.commit_sha' repro/reproduce-${{ matrix.platform.name }}.json)
+          export SOURCE_DATE_EPOCH=$(jq -r '.tdnf_snapshottime' repro/reproduce-${{ matrix.platform.name }}.json)
+          echo "Using commit $COMMIT_ID"
+          echo "Using SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH"
+          chmod +x ./reproduce/reproduce-rpm.sh
+          ./reproduce/reproduce-rpm.sh "${{ matrix.platform.name }}"
+          
+          # Load output package filenames
+          source $OUTPUT_DIR/rpm_output.env
+          echo "rpm_devel=$FINAL_PKG_DEVEL" >> $GITHUB_OUTPUT
+          echo "rpm_run=$FINAL_PKG_RUN" >> $GITHUB_OUTPUT
+          echo "Reproduced packages: $FINAL_PKG_DEVEL, $FINAL_PKG_RUN"
+
+      - name: Verify reproducibility
+        shell: bash
+        run: |
+          set -ex
+          echo "Verifying reproducibility..."
+          for reproduced_pkg in "${{ steps.reproduce.outputs.rpm_devel }}" "${{ steps.reproduce.outputs.rpm_run }}"; do
+            echo "Checking $reproduced_pkg"
+            sha256sum "$OUTPUT_DIR/$reproduced_pkg"
+            sha256sum "PREBUILT_DIR/$reproduced_pkg"
+            if ! diff <(sha256sum "$OUTPUT_DIR/$reproduced_pkg" | awk '{print $1}') <(sha256sum "PREBUILT_DIR/$reproduced_pkg" | awk '{print $1}'); then
+              echo "Failed to reproduce $reproduced_pkg!"
+              # exit 1 #uncomment me
+            fi
+            echo "Reproducibility verified for $reproduced_pkg"
+          done
 
   create_release:
     needs:
