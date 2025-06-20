@@ -64,8 +64,6 @@ class Consortium:
 
     def add_member(self, member):
         self.members.append(member)
-        if member.recovery_role == infra.member.RecoveryRole.Participant:
-            self.recovery_threshold += 1
 
     def generate_new_member(self, curve, recovery_role, member_data):
         new_member_local_id = f"member{len(self.members)}"
@@ -92,6 +90,12 @@ class Consortium:
             gov_api_impl=self.gov_api_impl,
         )
         return new_member
+
+    def update_recovery_threshold_from_node(self, node):
+        with node.client() as c:
+            r = c.get("/node/service/configuration")
+            assert r.status_code == 200
+            self.recovery_threshold = r.body.json()["recovery_threshold"]
 
     def set_authenticate_session(self, flag):
         self.authenticate_session = flag

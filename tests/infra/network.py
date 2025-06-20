@@ -614,6 +614,10 @@ class Network:
         self.wait_for_all_nodes_to_commit(primary=primary)
         LOG.success("All nodes joined network")
 
+        # Initial recovery threshold is derived by the service from the number of recovery members.
+        # Don't reproduce that here, just ask the service what it chose
+        self.consortium.update_recovery_threshold_from_node(primary)
+
     def open(self, args):
         def get_target_node(args, primary):
             # HTTP/2 does not currently support forwarding
@@ -740,11 +744,8 @@ class Network:
                             f"Successfully recovered member {local_id}: {new_member.service_id}"
                         )
 
-                # Override locally-computed threshold to match whatever was retrieved from service
-                r = c.get("/node/service/configuration")
-                assert r.status_code == 200
-                recovery_threshold = r.body.json()["recovery_threshold"]
-                self.consortium.recovery_threshold = recovery_threshold
+            # Override locally-computed threshold to match whatever was retrieved from service
+            self.consortium.update_recovery_threshold_from_node(primary)
 
         if set_authenticate_session is not None:
             self.consortium.set_authenticate_session(set_authenticate_session)
