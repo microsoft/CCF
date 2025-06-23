@@ -1686,13 +1686,11 @@ Key-Value Store
 #### Certificate(s) Validity Period
 
 - Nodes certificates validity period is no longer hardcoded and must instead be set by operators and renewed by members (#2924):
-
   - The new `node_certificate.initial_validity_days` (defaults to 1 day) configuration entry lets operators set the initial validity period for the node certificate (valid from the current system time).
   - The new `command.start.service_configuration.maximum_node_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for node certificates.
   - The new `set_node_certificate_validity` proposal action allows members to renew a node certificate (or `set_all_nodes_certificate_validity` equivalent action to renew _all_ trusted nodes certificates).
 
 - Service certificate validity period is no longer hardcoded and must instead be set by operators and renewed by members (#3363):
-
   - The new `service_certificate_initial_validity_days` (defaults to 1 day) configuration entry lets operators set the initial validity period for the service certificate (valid from the current system time).
   - The new `maximum_service_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for service certificate.
   - The new `set_service_certificate_validity` proposal action allows members to renew the service certificate.
@@ -1973,13 +1971,11 @@ Key-Value Store
 #### Certificate(s) Validity Period
 
 - Nodes certificates validity period is no longer hardcoded and must instead be set by operators and renewed by members (#2924):
-
   - The new `node_certificate.initial_validity_days` (defaults to 1 day) configuration entry lets operators set the initial validity period for the node certificate (valid from the current system time).
   - The new `command.start.service_configuration.maximum_node_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for node certificates.
   - The new `set_node_certificate_validity` proposal action allows members to renew a node certificate (or `set_all_nodes_certificate_validity` equivalent action to renew _all_ trusted nodes certificates).
 
 - Service certificate validity period is no longer hardcoded and must instead be set by operators and renewed by members (#3363):
-
   - The new `service_certificate_initial_validity_days` (defaults to 1 day) configuration entry lets operators set the initial validity period for the service certificate (valid from the current system time).
   - The new `maximum_service_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for service certificate.
   - The new `set_service_certificate_validity` proposal action allows members to renew the service certificate.
@@ -2722,17 +2718,14 @@ The 1.0 release will require minimal changes from this release.
 ### Added
 
 - Experimental
-
   - New CCF nodes can now join from a [snapshot](https://microsoft.github.io/CCF/ccf-0.13.0/operators/start_network.html#resuming-from-existing-snapshot) (#1500, #1532)
   - New KV maps can now be created dynamically in a transaction (#1507, #1528)
 
 - CLI
-
   - Subject Name and Subject Alternative Names for the node certificates can now be passed to cchost using the --sn and --san CLI switches (#1537)
   - Signature and ledger splitting [flags](https://microsoft.github.io/CCF/ccf-0.13.0/operators/start_network.html#signature-interval) have been renamed more accurately (#1534)
 
 - Governance
-
   - `user_data` can be set at user creation, as well as later (#1488)
 
 - Javascript
