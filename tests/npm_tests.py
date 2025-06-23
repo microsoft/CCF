@@ -853,7 +853,8 @@ def test_npm_app(network, args):
                 "/app/verifySnpAttestation",
                 {
                     "evidence": primary_quote_info["raw"],
-                    "endorsements": primary_quote_info["endorsements"] + b64_pem_separator,
+                    "endorsements": primary_quote_info["endorsements"]
+                    + b64_pem_separator,
                     "uvm_endorsements": primary_quote_info["uvm_endorsements"],
                 },
             )
