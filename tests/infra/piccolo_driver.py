@@ -191,6 +191,10 @@ def run(get_command, args):
 
                     time.sleep(5)
 
+                perf_label = args.perf_label
+                if infra.platform_detection.is_virtual():
+                    perf_label += "_virtual"
+
                 for remote_client in clients:
                     analysis = analyzer.Analyze()
 
@@ -210,7 +214,7 @@ def run(get_command, args):
                     # see basicperf.py for a better, cross-client approach.
                     bf = infra.bencher.Bencher()
                     bf.set(
-                        args.perf_label,
+                        perf_label,
                         infra.bencher.Throughput(perf_result),
                     )
 
@@ -224,7 +228,7 @@ def run(get_command, args):
 
                     bf = infra.bencher.Bencher()
                     bf.set(
-                        args.perf_label,
+                        perf_label,
                         infra.bencher.Memory(current_value, high_value=peak_value),
                     )
 

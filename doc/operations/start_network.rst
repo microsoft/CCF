@@ -127,7 +127,7 @@ Virtual Mode
 ------------
 
 To run a CCF node on a system without hardware TEE support, or to debug an application, a ``virtual`` enclave should be used.
-To start a CCF node in ``virtual`` mode, the JSON configuration file should specify the path of a ``*.virtual.so`` enclave library and ``enclave.type`` should be set to ``"virtual"``.
+To start a CCF node in ``virtual`` mode, the JSON configuration file should specify ``enclave.type`` as ``"virtual"``.
 
 .. warning:: Nodes started in virtual mode provide no security guarantees. They should never be used for production purposes.
 

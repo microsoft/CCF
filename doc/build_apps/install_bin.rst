@@ -7,68 +7,39 @@ Quickstart
 ----------
 
 CCF builds and runs on Linux. It is primarily developed and tested on `Azure Linux 3.0 <https://github.com/microsoft/azurelinux>`_.
-To build a CCF application, installing the `ccf_<platform>_devel` RPM package is sufficient. This package contains the libraries and headers required to build CCF applications.
+To build a CCF application, installing the `ccf_devel` RPM package is sufficient. This package contains the libraries and headers required to build CCF applications.
 
-CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases>`_. They can be installed as follows, for the ``SNP`` and ``Virtual`` platforms:
+CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases>`_. They can be installed as follows:
 
-.. tab:: SNP
+.. code-block:: bash
 
-    .. code-block:: bash
+    # Set CCF_VERSION to most recent LTS release
+    $ export CCF_VERSION=$(curl -Ls -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
+    # Alternatively, set this manually, e.g.:
+    # export CCF_VERSION=7.0.0
+    $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_devel_${CCF_VERSION}_x86_64.rpm
+    $ sudo tdnf install ./ccf_devel_${CCF_VERSION}_x86_64.rpm
 
-        # Set CCF_VERSION to most recent LTS release
-        $ export CCF_VERSION=$(curl -Ls -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
-        # Alternatively, set this manually, e.g.:
-        # export CCF_VERSION=6.0.0
-        $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_snp_devel_${CCF_VERSION}_x86_64.rpm
-        $ sudo tdnf install ./ccf_snp_devel_${CCF_VERSION}_x86_64.rpm
+The following commands can be run to verify that CCF was installed successfully:
 
-    The following commands can be run to verify that CCF was installed successfully:
+.. code-block:: bash
 
-    .. code-block:: bash
+    $ /opt/ccf/bin/cchost --version
+    CCF host: ccf-<version>
+    Platform: SNP
 
-        $ /opt/ccf_snp/bin/cchost --version
-        CCF host: ccf-<version>
-        Platform: SNP
+    $ /opt/ccf/bin/sandbox.sh
+    No package/app specified. Defaulting to installed JS logging app
+    Setting up Python environment...
+    Python environment successfully setup
+    [16:10:16.552] Starting 1 CCF node...
+    [16:10:23.349] Started CCF network with the following nodes:
+    [16:10:23.350]   Node [0] = https://127.0.0.1:8000
+    ...
 
-        $ /opt/ccf_snp/bin/sandbox.sh
-        No package/app specified. Defaulting to installed JS logging app
-        Setting up Python environment...
-        Python environment successfully setup
-        [16:10:16.552] Starting 1 CCF node...
-        [16:10:23.349] Started CCF network with the following nodes:
-        [16:10:23.350]   Node [0] = https://127.0.0.1:8000
-        ...
 
-.. tab:: Virtual
 
-    .. code-block:: bash
-
-        # Set CCF_VERSION to most recent LTS release
-        $ export CCF_VERSION=$(curl -Ls -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
-        # Alternatively, set this manually, e.g.:
-        # export CCF_VERSION=6.0.0
-        $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_virtual_devel_${CCF_VERSION}_x86_64.rpm
-        $ sudo tdnf install ./ccf_virtual_devel_${CCF_VERSION}_x86_64.rpm
-
-    .. warning:: Virtual mode does not provide any security guarantees and should be used for development purposes only.
-        
-    The following commands can be run to verify that CCF was installed successfully:
-
-    .. code-block:: bash
-
-        $ /opt/ccf_virtual/bin/cchost --version
-        CCF host: ccf-<version>
-        Platform: Virtual
-
-        $ /opt/ccf_virtual/bin/sandbox.sh
-        No package/app specified. Defaulting to installed JS logging app
-        Setting up Python environment...
-        Python environment successfully setup
-        [16:10:16.552] Starting 1 CCF node...
-        [16:10:16.552] Virtual mode enabled
-        [16:10:23.349] Started CCF network with the following nodes:
-        [16:10:23.350]   Node [0] = https://127.0.0.1:8000
-        ...
+.. note:: Before version 7, CCF releases included custom binaries for each platform. So if you're installing an older version, you may need to find the ``snp`` or ``virtual`` rpm in the release, and this would be installed to ``/opt/ccf_snp`` or ``/opt/ccf_virtual``.
 
 ------------
 
@@ -85,17 +56,9 @@ Uninstall
 
 To remove an installation of CCF, run:
 
-.. tab:: SNP
+.. code-block:: bash
 
-    .. code-block:: bash
-
-        $ sudo tdnf remove ccf_snp_devel
-
-.. tab:: Virtual
-
-    .. code-block:: bash
-
-        $ sudo tdnf remove ccf_virtual_devel
+    $ sudo tdnf remove ccf_devel
 
 From Source
 -----------

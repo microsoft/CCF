@@ -1,6 +1,6 @@
 {
   "enclave": {
-    "file": "libjs_generic.snp.so",
+    "file": "libjs_generic.so",
     "platform": "SNP",
     "type": "Release"
   },
