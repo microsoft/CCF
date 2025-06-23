@@ -1436,6 +1436,38 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
             prev_network = recovery_network
 
 
+def run_read_ledger_on_testdata(args):
+    for testdata_dir in os.scandir(args.historical_testdata):
+        assert testdata_dir.is_dir()
+        testdata_path = os.path.join(
+            args.historical_testdata, testdata_dir.name, "ledger"
+        )
+        LOG.info(f"Reading and validating ledger in {testdata_path}")
+        tx_count = 0
+        ledger = ccf.ledger.Ledger(
+            [testdata_path],
+            committed_only=False,
+            read_recovery_files=False,
+        )
+        for chunk in ledger:
+            for tx in chunk:
+                tables = tx.get_public_domain().get_tables()
+                tx_count += 1
+        LOG.info(f"Read {tx_count} transactions from {testdata_path}")
+        snapshot_path = os.path.join(
+            args.historical_testdata, testdata_dir.name, "snapshots"
+        )
+        for snapshot_file in os.scandir(snapshot_path):
+            if snapshot_file.is_file() and snapshot_file.name.endswith(".committed"):
+                snapshot_path = os.path.join(snapshot_path, snapshot_file.name)
+                LOG.info(f"Reading and validating snapshot {snapshot_path}")
+                with ccf.ledger.Snapshot(snapshot_file.path) as snapshot:
+                    tables = snapshot.get_public_domain().get_tables()
+                    LOG.info(
+                        f"Valid snapshot at {snapshot_file.path} with {len(tables)} tables"
+                    )
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
@@ -1458,3 +1490,4 @@ def run(args):
         run_recovery_local_unsealing(args, recovery_f=1)
         run_recovery_unsealing_corrupt(args)
         run_recovery_unsealing_validate_audit(args)
+    run_read_ledger_on_testdata(args)
