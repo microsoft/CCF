@@ -331,7 +331,6 @@ jobs:
         platform:
           - name: virtual
             os: azure-linux
-            test_filter: "benchmark|unit"
           - name: snp
             os: azure-linux
 
