@@ -2,6 +2,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+# This script runs the build inside a container using info from the JSON file.
+# Clones the repo at the specified commit and runs the reproduce_rpm.sh script.
+
+
 set -exu
 
 usage() {

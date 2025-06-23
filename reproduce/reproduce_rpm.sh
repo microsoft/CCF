@@ -2,6 +2,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+# This script is intended to be called from start_container_and_reproduce_rpm.sh script.
+# builds the RPM using timestamps from the JSON and outputs the package.
+
 set -exu
 
 usage() {

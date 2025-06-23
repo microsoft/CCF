@@ -76,9 +76,9 @@ set(CPACK_RPM_FILE_NAME "${FINAL_PACKAGE_NAME}")
 
 # Reproducible builds Macros
 set(CPACK_RPM_SPEC_MORE_DEFINE
-    "%define _buildhost reproducible
-%define use_source_date_epoch_as_buildtime Y
-%define clamp_mtime_to_source_date_epoch Y
+    "%define _buildhost reproducible                # Overrides the build host name to 'reproducible' for deterministic output
+%define use_source_date_epoch_as_buildtime Y        # Uses the SOURCE_DATE_EPOCH environment variable as the build time for reproducibility
+%define clamp_mtime_to_source_date_epoch Y          # Clamps file modification times to SOURCE_DATE_EPOCH to eliminate variation from timestamps
 "
 )
 

@@ -382,30 +382,19 @@ jobs:
           set -ex
           echo "Verifying reproducibility..."
           reproduced_pkg=${{ steps.reproduce.outputs.reproduced_pkg }}
-          OUTPUT_HASH=$(sha256sum "$OUTPUT_DIR/$reproduced_pkg" | cut -d ' ' -f1)
-          PREBUILT_HASH=$(sha256sum "PREBUILT_DIR/$reproduced_pkg" | cut -d ' ' -f1)
-          if [ "$OUTPUT_HASH" != "$PREBUILT_HASH" ]; then
+          if ! diff "$OUTPUT_DIR/$reproduced_pkg" "PREBUILT_DIR/$reproduced_pkg"; then
             echo "Failed to reproduce $reproduced_pkg!"
-            echo "not_reproduced=true" >> $GITHUB_OUTPUT
+            exit 1
           else
             echo "Reproducibility verified for $reproduced_pkg"
-            echo "not_reproduced=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Upload Non-Reproduced Package
-        if: ${{ steps.verify.outputs.not_reproduced == 'true' }}
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: not-reproduced
           path: ${{ env.OUTPUT_DIR }}/${{ steps.verify.outputs.reproduced_pkg }}
-
-      - name: Fail if not reproducible
-        if: ${{ steps.verify.outputs.not_reproduced == 'true' }}
-        shell: bash
-        run: |
-          set -ex
-          echo "Exiting job because reproducibility failed"
-          exit 1
 
   create_release:
     needs:
