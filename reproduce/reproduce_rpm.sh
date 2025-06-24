@@ -25,21 +25,27 @@ install_deps() {
 
 build_pkg() {
   mkdir -p build && cd build
-  cmake -G Ninja -DCOMPILE_TARGET="$PLATFORM" -DCMAKE_BUILD_TYPE=Release -DCCF_DEVEL=OFF ..
+  echo "Reproducing devel package..."
+  cmake -G Ninja -DCOMPILE_TARGET="$PLATFORM" -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
   ninja -v
   cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
   cpack -V -G RPM
-  for f in *.rpm; do
-    if [[ "$f" != *devel*.rpm ]]; then
-      initial_repro_run_pkg="$f"
-      break
-    fi
-  done
-  final_repro_run_pkg=${initial_repro_run_pkg//\~/_}
-  if [ "$initial_repro_run_pkg" != "$final_repro_run_pkg" ]; then
-    mv "$initial_repro_run_pkg" "$final_repro_run_pkg"
-  fi
-  cp -v $final_repro_run_pkg /tmp/reproduced || true
+  D_INITIAL_PKG=`ls *devel*.rpm`
+  D_FINAL_PKG=${D_INITIAL_PKG//\~/_}
+  if [ "$D_INITIAL_PKG" != "$D_FINAL_PKG" ]; then mv "$D_INITIAL_PKG" "$D_FINAL_PKG"; fi
+  cp -v $D_FINAL_PKG /tmp/reproduced || true
+
+  echo "Reproducing run package..."
+  # Reset cmake config to affect cpack settings
+  rm CMakeCache.txt
+  cmake -G Ninja -DCOMPILE_TARGET="$PLATFORM"  -DCMAKE_BUILD_TYPE=Release -DCCF_DEVEL=OFF ..
+  cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
+  cpack -V -G RPM
+  INITIAL_PKG=`ls *.rpm | grep -v devel`
+  FINAL_PKG=${INITIAL_PKG//\~/_}
+  if [ "$INITIAL_PKG" != "$FINAL_PKG" ]; then mv "$INITIAL_PKG" "$FINAL_PKG"; fi
+  cp -v $FINAL_PKG /tmp/reproduced || true
+
 }
 
 if [ "$#" -ne 1 ]; then

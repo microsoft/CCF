@@ -333,15 +333,12 @@ jobs:
             os: azure-linux
           - name: snp
             os: azure-linux
-
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     env:
-      OUTPUT_DIR: /tmp/reproduced
+      REPRO_DIR: /tmp/reproduced
     container:
       image: ${{ needs.image_digest.outputs.image_digest }}
-      volumes:
-        - /tmp/reproduced:/tmp/reproduced
-      options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
+      options: "--user root"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -349,7 +346,7 @@ jobs:
       - name: Download Prebuilt Packages
         uses: actions/download-artifact@v4
         with:
-          path: PREBUILT_DIR
+          path: DOWNLOAD_DIR
           pattern: pkg-*
           merge-multiple: true
       - name: Download Reproducibility Metadata
@@ -358,42 +355,32 @@ jobs:
           path: repro
           pattern: reproduce-${{ matrix.platform.name }}-metadata
           merge-multiple: true
-
       - name: Reproduce RPMs
         id: reproduce
         shell: bash
         run: |
           set -ex
-          chmod +x ./reproduce/reproduce_rpm.sh
+          tdnf install --snapshottime=${{ needs.build_release.outputs.SOURCE_DATE_EPOCH }} -y jq 
           ./reproduce/reproduce_rpm.sh repro/reproduce-${{ matrix.platform.name }}.json
-          reproduced_pkg=$(ls "$OUTPUT_DIR" | head -n1 || true)
-          if [ -z "$reproduced_pkg" ]; then
-            echo "ERROR: No reproduced package found in $OUTPUT_DIR"
+          RPM_NAMES=$(ls "$REPRO_DIR" || true)
+          if [ -z "$RPM_NAMES" ]; then
+            echo "ERROR: No reproduced package found in $REPRO_DIR"
             exit 1
           fi
-          echo "Reproduced package: $reproduced_pkg"
-          echo "reproduced_pkg=$reproduced_pkg" >> $GITHUB_OUTPUT
-
       - name: Verify reproducibility
         id: verify
         shell: bash
         run: |
           set -ex
-          echo "Verifying reproducibility..."
-          reproduced_pkg=${{ steps.reproduce.outputs.reproduced_pkg }}
-          if ! diff "$OUTPUT_DIR/$reproduced_pkg" "PREBUILT_DIR/$reproduced_pkg"; then
-            echo "Failed to reproduce $reproduced_pkg!"
-            exit 1
-          else
-            echo "Reproducibility verified for $reproduced_pkg"
-          fi
-
+          for pkg in "$REPRO_DIR"/*; do
+            cmp "$pkg" "DOWNLOAD_DIR/$(basename "$pkg")"
+          done
       - name: Upload Non-Reproduced Package
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: not-reproduced
-          path: ${{ env.OUTPUT_DIR }}/${{ steps.verify.outputs.reproduced_pkg }}
+          path: ${{ env.REPRO_DIR }}
 
   create_release:
     needs:
@@ -448,7 +435,7 @@ jobs:
           set -ex
           CCF_VERSION=${{ github.ref_name }}
           CCF_VERSION=${CCF_VERSION#ccf-}
-          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json repro/* ./reproduce/run_repro.sh
+          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json repro/* ./reproduce/start_container_and_reproduce_rpm.sh
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
