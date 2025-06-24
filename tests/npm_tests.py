@@ -848,15 +848,15 @@ def test_npm_app(network, args):
             )
 
             # Test too long an endorsement
-            b64_pem_separator = b64encode(
+            b64_pem_end = b64encode(
                 "-----END CERTIFICATE-----".encode(encoding="utf-8")
-            )
+            ).decode(encoding="utf-8")
             r = c.post(
                 "/app/verifySnpAttestation",
                 {
                     "evidence": primary_quote_info["raw"],
                     "endorsements": primary_quote_info["endorsements"]
-                    + b64_pem_separator,
+                    + b64_pem_end,
                     "uvm_endorsements": primary_quote_info["uvm_endorsements"],
                 },
             )
