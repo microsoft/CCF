@@ -328,8 +328,9 @@ namespace ccf
     const std::chrono::microseconds now_us = ccf::get_enclave_time();
 
     constexpr auto us_per_s = 1'000'000;
+    constexpr auto ns_per_us = 1'000;
     time.tv_sec = now_us.count() / us_per_s;
-    time.tv_nsec = (now_us.count() % us_per_s) * 1'000;
+    time.tv_nsec = (now_us.count() % us_per_s) * ns_per_us;
 
     return ApiResult::OK;
   }

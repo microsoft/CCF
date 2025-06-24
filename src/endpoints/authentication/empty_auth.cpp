@@ -6,14 +6,19 @@
 namespace ccf
 {
   std::unique_ptr<AuthnIdentity> EmptyAuthnPolicy::authenticate(
-    ccf::kv::ReadOnlyTx&, const std::shared_ptr<ccf::RpcContext>&, std::string&)
+    ccf::kv::ReadOnlyTx& tx, const std::shared_ptr<ccf::RpcContext>& ctx, std::string& error_reason)
   {
+    (void) tx;
+    (void) ctx;
+    (void) error_reason;
     return std::make_unique<EmptyAuthnIdentity>();
   }
 
   void EmptyAuthnPolicy::set_unauthenticated_error(
-    std::shared_ptr<ccf::RpcContext>, std::string&&)
+    std::shared_ptr<ccf::RpcContext> ctx, std::string&& error) // NOLINT(cppcoreguidelines-rvalue-reference-param-not-moved)
   {
+    (void) ctx;
+    (void) error;
     throw std::logic_error("Should not happen");
   }
 }

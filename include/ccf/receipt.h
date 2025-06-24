@@ -158,8 +158,8 @@ namespace ccf
   // Manual JSON serializers are specified for these types as they are not
   // trivial POD structs
 
-  void to_json(nlohmann::json& j, const ProofReceipt::Components& step);
-  void from_json(const nlohmann::json& j, ProofReceipt::Components& step);
+  void to_json(nlohmann::json& j, const ProofReceipt::Components& components);
+  void from_json(const nlohmann::json& j, ProofReceipt::Components& components);
   std::string schema_name(const ProofReceipt::Components*);
   void fill_json_schema(
     nlohmann::json& schema, const ProofReceipt::Components*);

@@ -35,7 +35,7 @@ namespace ccf
       // t_cose doesn't support custom header parameters yet.
       UsefulBufC msg{cose_sign1.data(), cose_sign1.size()};
 
-      QCBORError qcbor_result;
+      QCBORError qcbor_result = QCBOR_SUCCESS;
 
       QCBORDecodeContext ctx;
       QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
@@ -53,10 +53,10 @@ namespace ccf
         throw COSEDecodeError("COSE_Sign1 is not tagged");
       }
 
-      struct q_useful_buf_c protected_parameters;
+      struct q_useful_buf_c protected_parameters = {};
       QCBORDecode_EnterBstrWrapped(
         &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
-      QCBORDecode_EnterMap(&ctx, NULL);
+      QCBORDecode_EnterMap(&ctx, nullptr);
 
       enum
       {
@@ -77,19 +77,19 @@ namespace ccf
       header_items[KID_INDEX].uLabelType = QCBOR_TYPE_INT64;
       header_items[KID_INDEX].uDataType = QCBOR_TYPE_BYTE_STRING;
 
-      auto gov_msg_type_label = HEADER_PARAM_MSG_TYPE;
+      const auto * gov_msg_type_label = HEADER_PARAM_MSG_TYPE;
       header_items[GOV_MSG_TYPE].label.string =
         UsefulBuf_FromSZ(gov_msg_type_label);
       header_items[GOV_MSG_TYPE].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[GOV_MSG_TYPE].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-      auto gov_msg_proposal_id = HEADER_PARAM_MSG_PROPOSAL_ID;
+      const auto * gov_msg_proposal_id = HEADER_PARAM_MSG_PROPOSAL_ID;
       header_items[GOV_MSG_PROPOSAL_ID].label.string =
         UsefulBuf_FromSZ(gov_msg_proposal_id);
       header_items[GOV_MSG_PROPOSAL_ID].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[GOV_MSG_PROPOSAL_ID].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-      auto gov_msg_proposal_created_at = HEADER_PARAM_MSG_CREATED_AT;
+      const auto * gov_msg_proposal_created_at = HEADER_PARAM_MSG_CREATED_AT;
       header_items[GOV_MSG_MSG_CREATED_AT].label.string =
         UsefulBuf_FromSZ(gov_msg_proposal_created_at);
       header_items[GOV_MSG_MSG_CREATED_AT].uLabelType = QCBOR_TYPE_TEXT_STRING;
@@ -158,7 +158,7 @@ namespace ccf
 
       QCBORDecode_ExitArray(&ctx);
       auto error = QCBORDecode_Finish(&ctx);
-      if (error)
+      if (error != QCBOR_SUCCESS)
       {
         throw COSEDecodeError("Failed to decode COSE_Sign1");
       }
@@ -179,7 +179,7 @@ namespace ccf
       // t_cose doesn't support custom header parameters yet.
       UsefulBufC msg{cose_sign1.data(), cose_sign1.size()};
 
-      QCBORError qcbor_result;
+      QCBORError qcbor_result = QCBOR_SUCCESS;
 
       QCBORDecodeContext ctx;
       QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
@@ -197,10 +197,10 @@ namespace ccf
         throw COSEDecodeError("COSE_Sign1 is not tagged");
       }
 
-      struct q_useful_buf_c protected_parameters;
+      struct q_useful_buf_c protected_parameters = {};
       QCBORDecode_EnterBstrWrapped(
         &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
-      QCBORDecode_EnterMap(&ctx, NULL);
+      QCBORDecode_EnterMap(&ctx, nullptr);
 
       enum
       {
@@ -225,7 +225,7 @@ namespace ccf
       header_items[MSG_TYPE].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[MSG_TYPE].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-      auto gov_msg_proposal_created_at = HEADER_PARAM_MSG_CREATED_AT;
+      const auto * gov_msg_proposal_created_at = HEADER_PARAM_MSG_CREATED_AT;
       header_items[MSG_CREATED_AT].label.string =
         UsefulBuf_FromSZ(created_at_name.c_str());
       header_items[MSG_CREATED_AT].uLabelType = QCBOR_TYPE_TEXT_STRING;
@@ -284,7 +284,7 @@ namespace ccf
 
       QCBORDecode_ExitArray(&ctx);
       auto error = QCBORDecode_Finish(&ctx);
-      if (error)
+      if (error != QCBOR_SUCCESS)
       {
         throw COSEDecodeError("Failed to decode COSE_Sign1");
       }
@@ -296,7 +296,7 @@ namespace ccf
 
   MemberCOSESign1AuthnPolicy::MemberCOSESign1AuthnPolicy(
     std::optional<std::string> gov_msg_type_) :
-    gov_msg_type(gov_msg_type_) {};
+    gov_msg_type(std::move(gov_msg_type_)) {};
   MemberCOSESign1AuthnPolicy::~MemberCOSESign1AuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> MemberCOSESign1AuthnPolicy::authenticate(
@@ -330,7 +330,7 @@ namespace ccf
     }
 
     MemberCerts members_certs_table(Tables::MEMBER_CERTS);
-    auto member_certs = tx.ro(members_certs_table);
+    auto * member_certs = tx.ro(members_certs_table);
     auto member_cert = member_certs->get(phdr.kid);
     if (member_cert.has_value())
     {
@@ -375,11 +375,8 @@ namespace ccf
         member_cert.value(),
         phdr);
     }
-    else
-    {
-      error_reason = fmt::format("Signer is not a known member");
-      return nullptr;
-    }
+    error_reason = fmt::format("Signer is not a known member");
+    return nullptr;
   }
 
   void MemberCOSESign1AuthnPolicy::set_unauthenticated_error(
@@ -414,7 +411,7 @@ namespace ccf
       MemberCOSESign1AuthnPolicy::authenticate(tx, ctx, error_reason);
     if (ident != nullptr)
     {
-      auto cose_ident =
+      const auto * cose_ident =
         dynamic_cast<const MemberCOSESign1AuthnIdentity*>(ident.get());
       if (cose_ident == nullptr)
       {
@@ -424,9 +421,9 @@ namespace ccf
 
       const auto member_id = cose_ident->member_id;
 
-      auto member_info_handle =
+      auto * member_info_handle =
         tx.template ro<ccf::MemberInfo>(ccf::Tables::MEMBER_INFO);
-      const auto member = member_info_handle->get(member_id);
+      auto member = member_info_handle->get(member_id);
       if (!member.has_value() || member->status != ccf::MemberStatus::ACTIVE)
       {
         error_reason = "Signer is not an ACTIVE member";
@@ -470,7 +467,7 @@ namespace ccf
     }
 
     UserCerts users_certs_table(Tables::USER_CERTS);
-    auto user_certs = tx.ro(users_certs_table);
+    auto * user_certs = tx.ro(users_certs_table);
     auto user_cert = user_certs->get(phdr.kid);
     if (user_cert.has_value())
     {
@@ -494,11 +491,8 @@ namespace ccf
         user_cert.value(),
         phdr);
     }
-    else
-    {
-      error_reason = fmt::format("Signer is not a known user");
-      return nullptr;
-    }
+    error_reason = fmt::format("Signer is not a known user");
+    return nullptr;
   }
 
   std::unique_ptr<AuthnIdentity> UserCOSESign1AuthnPolicy::authenticate(

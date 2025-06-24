@@ -37,21 +37,21 @@ namespace ccf
     void set_response(
       JsonAdapterResponse&& res, std::shared_ptr<ccf::RpcContext>& ctx)
     {
-      auto error = std::get_if<ErrorDetails>(&res);
+      auto * error = std::get_if<ErrorDetails>(&res);
       if (error != nullptr)
       {
         ctx->set_error(std::move(*error));
       }
       else
       {
-        auto redirect = std::get_if<RedirectDetails>(&res);
+        auto * redirect = std::get_if<RedirectDetails>(&res);
         if (redirect != nullptr)
         {
           ctx->set_response_status(redirect->status);
         }
         else
         {
-          const auto body = std::get_if<nlohmann::json>(&res);
+          auto * const body = std::get_if<nlohmann::json>(&res);
           if (body->is_null())
           {
             ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
@@ -113,7 +113,7 @@ namespace ccf
   jsonhandler::JsonAdapterResponse make_success(
     const nlohmann::json& result_payload)
   {
-    return jsonhandler::JsonAdapterResponse(result_payload);
+    return {result_payload};
   }
 
   jsonhandler::JsonAdapterResponse make_error(

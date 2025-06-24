@@ -35,7 +35,10 @@ Checks: >
   -cppcoreguidelines-pro-type-const-cast,
   -bugprone-assignment-in-if-condition,
   -performance-enum-size,
-  -bugprone-casting-through-void
+  -bugprone-casting-through-void,
+  -cppcoreguidelines-macro-usage,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -misc-non-private-member-variables-in-classes
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: '?!(3rdparty)'

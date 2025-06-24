@@ -235,7 +235,7 @@ namespace ccf
 
     UsefulBufC result;
     auto qerr = QCBOREncode_Finish(&ctx, &result);
-    if (qerr)
+    if (qerr != QCBOR_SUCCESS)
     {
       LOG_DEBUG_FMT("Failed to encode merkle proof: {}", qerr);
       return std::nullopt;

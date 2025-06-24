@@ -16,8 +16,8 @@
 
 namespace
 {
-  static const std::string multitenancy_indicator{"{tenantid}"};
-  static const std::string microsoft_entra_domain{"login.microsoftonline.com"};
+  const std::string multitenancy_indicator{"{tenantid}"};
+  const std::string microsoft_entra_domain{"login.microsoftonline.com"};
 
   std::optional<std::string_view> first_non_empty_chunk(
     const std::vector<std::string_view>& chunks)
@@ -133,7 +133,8 @@ namespace ccf
           signature_size,
           ccf::crypto::MDType::SHA256);
       }
-      else if (std::holds_alternative<ccf::crypto::PublicKeyPtr>(key))
+      
+      if (std::holds_alternative<ccf::crypto::PublicKeyPtr>(key))
       {
         LOG_DEBUG_FMT("Verify der: {} as EC key", der);
 
@@ -146,11 +147,9 @@ namespace ccf
           sig_der.size(),
           ccf::crypto::MDType::SHA256);
       }
-      else
-      {
-        LOG_DEBUG_FMT("Key not found for der: {}", der);
-        return false;
-      }
+
+      LOG_DEBUG_FMT("Key not found for der: {}", der);
+      return false;
     }
   };
 
@@ -174,8 +173,8 @@ namespace ccf
       return nullptr;
     }
 
-    auto& token = token_opt.value();
-    auto keys = tx.ro<JwtPublicSigningKeysMetadata>(
+    const auto& token = token_opt.value();
+    auto * keys = tx.ro<JwtPublicSigningKeysMetadata>(
       ccf::Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
     const auto key_id = token.header_typed.kid;
     auto token_keys = keys->get(key_id);
@@ -186,7 +185,7 @@ namespace ccf
     // conversion from cert to raw key is needed.
     if (!token_keys)
     {
-      auto fallback_certs = tx.ro<JwtPublicSigningKeysMetadataLegacy>(
+      auto * fallback_certs = tx.ro<JwtPublicSigningKeysMetadataLegacy>(
         ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS_METADATA);
       auto fallback_data = fallback_certs->get(key_id);
       if (fallback_data)
@@ -213,9 +212,9 @@ namespace ccf
     // conversion from certs to keys is needed.
     if (!token_keys)
     {
-      auto fallback_keys = tx.ro<Tables::Legacy::JwtPublicSigningKeys>(
+      auto * fallback_keys = tx.ro<Tables::Legacy::JwtPublicSigningKeys>(
         ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS);
-      auto fallback_issuers = tx.ro<Tables::Legacy::JwtPublicSigningKeyIssuer>(
+      auto * fallback_issuers = tx.ro<Tables::Legacy::JwtPublicSigningKeyIssuer>(
         ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEY_ISSUER);
 
       auto fallback_cert = fallback_keys->get(key_id);
