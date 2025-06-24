@@ -997,11 +997,13 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   // callbacks to be despatched, so as to avoid memory being
   // leaked by handles. Capped out of abundance of caution.
   constexpr size_t max_iterations = 1000;
+  constexpr size_t max_delay_us = 1'000'000; // 1 second
   size_t close_iterations = max_iterations;
   while ((uv_loop_alive(uv_default_loop()) != 0) && (close_iterations > 0))
   {
     uv_run(uv_default_loop(), UV_RUN_NOWAIT);
-    usleep(1000); // 1ms
+    constexpr size_t per_iteration_sleep_length = max_delay_us / max_iterations;
+    usleep(per_iteration_sleep_length);
     close_iterations--;
   }
   LOG_INFO_FMT(
