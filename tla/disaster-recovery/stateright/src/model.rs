@@ -1,5 +1,5 @@
 extern crate stateright;
-use stateright::{actor::*, util::HashableHashSet, Rewrite, RewritePlan};
+use stateright::{actor::*, util::HashableHashSet};
 use std::borrow::Cow;
 
 type Txid = u64;
@@ -13,14 +13,14 @@ pub struct GossipStruct {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct VoteStruct {
     pub src: Id,
-    pub recv: HashableHashSet<Id>,
+    pub recv: HashableHashSet<GossipStruct>,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Msg {
     Gossip(GossipStruct),
     Vote(VoteStruct),
-    Open,
+    IAmOpen(Id),
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -30,10 +30,9 @@ pub enum Timer {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NextStep {
-    //    Gossip,
     Vote,
     OpenJoin,
-    Open,
+    Open { timeout: bool },
     Join,
 }
 
@@ -43,27 +42,26 @@ pub struct State {
     pub gossips: HashableHashSet<GossipStruct>,
     pub votes: HashableHashSet<VoteStruct>,
     pub submitted_vote: Option<(Id, VoteStruct)>,
+    pub txid: Txid,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Node {
-    pub txid: Txid,
     pub peers: HashableHashSet<Id>,
 }
 
 impl Node {
-    fn vote_for_max<'a, I>(gossips: &I, id: Id) -> (Id, VoteStruct)
-    where
-        I: Iterator<Item = &'a GossipStruct> + Clone,
-    {
+    fn vote_for_max<'a>(gossips: &HashableHashSet<GossipStruct>, id: Id) -> (Id, VoteStruct)
+where {
         let dst = gossips
+            .iter()
             .clone()
-            .max_by(|a, b| a.txid.cmp(&b.txid))
+            .max_by_key(|g| (g.txid, g.src))
             .unwrap()
             .src;
         let vote = VoteStruct {
             src: id,
-            recv: gossips.clone().map(|g| g.src.clone()).collect(),
+            recv: gossips.clone(),
         };
         return (dst, vote);
     }
@@ -72,19 +70,30 @@ impl Node {
         self.peers.iter().filter(|&&p| p != id).cloned().collect()
     }
 
-    fn advance_step(&self, state: &mut State, o: &mut Out<Self>, id: Id, timeout: bool) {
+    fn advance_step(&self, state: &mut State, o: &mut Out<Self>, id: Id, timeout: bool) -> bool {
         match state.next_step {
             NextStep::Vote if state.gossips.len() == self.peers.len() || timeout => {
-                let (dst, vote) = Node::vote_for_max(&state.gossips.iter(), id);
+                let (dst, vote) = Node::vote_for_max(&state.gossips, id);
                 state.submitted_vote = Some((dst, vote.clone()));
-                o.send(dst, Msg::Vote(vote));
+                if dst == id {
+                    state.votes.insert(vote);
+                } else {
+                    o.send(dst, Msg::Vote(vote));
+                }
                 state.next_step = NextStep::OpenJoin;
+                return true;
             }
-            NextStep::OpenJoin if state.votes.len() >= (self.peers.len() + 1) / 2 => {
-                state.next_step = NextStep::Open;
-                o.broadcast(&self.other_peers(id), &Msg::Open);
+            NextStep::OpenJoin if state.votes.len() >= (self.peers.len() + 1) / 2 || timeout => {
+                state.next_step = NextStep::Open { timeout };
+                o.broadcast(&self.other_peers(id), &Msg::IAmOpen(id));
+                return true;
             }
-            _ => {}
+            _ => false,
+        }
+    }
+
+    fn advance_several(&self, state: &mut State, o: &mut Out<Self>, id: Id, timeout: bool) {
+        while self.advance_step(state, o, id, timeout) {
         }
     }
 }
@@ -97,38 +106,39 @@ impl Actor for Node {
     type Random = ();
 
     fn on_start(&self, id: Id, _storage: &Option<Self::Storage>, o: &mut Out<Self>) -> Self::State {
+        let txid = usize::from(id) as Txid; // Use id as txid for simplicity
+        let gossip = GossipStruct { src: id, txid };
         let mut gossips = HashableHashSet::new();
-        gossips.insert(GossipStruct {
-            src: id,
-            txid: self.txid,
-        });
-        let state = State {
+        gossips.insert(gossip.clone());
+        let mut state = State {
             next_step: NextStep::Vote,
-            gossips: gossips,
+            gossips,
             votes: HashableHashSet::new(),
             submitted_vote: None,
+            txid: usize::from(id) as Txid,
         };
-        o.broadcast(
-            &self.other_peers(id),
-            &Msg::Gossip(GossipStruct {
-                src: id,
-                txid: self.txid,
-            }),
-        );
+        o.broadcast(&self.other_peers(id), &Msg::Gossip(gossip));
         o.set_timer(Timer::ElectionTimeout, model_timeout());
+        self.advance_several(&mut state, o, id, false);
         return state;
     }
 
     fn on_timeout(&self, id: Id, state: &mut Cow<Self::State>, timer: &Timer, o: &mut Out<Self>) {
         match timer {
-            Timer::ElectionTimeout => {
-                if state.next_step == NextStep::Vote && !state.gossips.is_empty() {
+            Timer::ElectionTimeout => match state.next_step {
+                NextStep::Vote if !state.gossips.is_empty() => {
                     let state = state.to_mut();
-                    self.advance_step(state, o, id, true);
-                } else {
+                    self.advance_several(state, o, id, true);
                     o.set_timer(Timer::ElectionTimeout, model_timeout());
                 }
-            }
+                NextStep::OpenJoin if !state.votes.is_empty() => {
+                    let state = state.to_mut();
+                    self.advance_several(state, o, id, true);
+                }
+                _ => {
+                    o.set_timer(Timer::ElectionTimeout, model_timeout());
+                }
+            },
         }
     }
 
@@ -153,11 +163,13 @@ impl Actor for Node {
                     state.votes.insert(vote);
                 }
             }
-            Msg::Open => {
-                state.next_step = NextStep::Join;
+            Msg::IAmOpen(_) => {
+                if !matches!(state.next_step, NextStep::Open { .. }) {
+                    state.next_step = NextStep::Join;
+                }
             }
         };
-        self.advance_step(state, o, id, false);
+        self.advance_several(state, o, id, false);
     }
 }
 
@@ -172,9 +184,8 @@ impl ModelCfg {
         ActorModel::new(self.clone(), ())
             .actors(
                 (0..self.n_nodes)
-                    .map(|i| Node {
+                    .map(|_| Node {
                         peers: peers.clone(),
-                        txid: i as u64,
                     })
                     .collect::<Vec<_>>(),
             )
