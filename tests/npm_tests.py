@@ -849,12 +849,12 @@ def test_npm_app(network, args):
 
             # Test too long an endorsement
             extended_endorsements = (
-                b64decode(primary_quote_info["endorsements"]).decode(encoding="utf-8")
-                + "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
+                b64decode(primary_quote_info["endorsements"])
+                + b"-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
             )
-            extended_endorsements = b64encode(
-                extended_endorsements.encode(encoding="utf-8")
-            ).decode(encoding="utf-8")
+            extended_endorsements = b64encode(extended_endorsements).decode(
+                encoding="utf-8"
+            )
             r = c.post(
                 "/app/verifySnpAttestation",
                 {
