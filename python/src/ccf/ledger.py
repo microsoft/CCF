@@ -607,10 +607,12 @@ class LedgerValidator(BaseValidator):
                 sig = base64.b64decode(signature["sig"])
 
                 # Check that key in cert matches that in node table
-                sig_cert = signature["cert"].encode("utf-8")
-                assert spki_from_cert(cert) == spki_from_cert(
-                    sig_cert
-                ), f"Mismatch in public key for node {signing_node}"
+                # when present
+                if "cert" in signature:
+                    sig_cert = signature["cert"].encode("utf-8")
+                    assert spki_from_cert(cert) == spki_from_cert(
+                        sig_cert
+                    ), f"Mismatch in public key for node {signing_node}"
 
                 tx_info = TxBundleInfo(
                     self.merkle,
