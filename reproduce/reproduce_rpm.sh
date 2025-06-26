@@ -30,7 +30,12 @@ build_pkg() {
   ninja -v
   cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
   cpack -V -G RPM
-  D_INITIAL_PKG=`ls *devel*.rpm`
+  for f in *.rpm; do
+    if [[ "$f" == *devel* ]]; then
+      D_INITIAL_PKG="$f"
+      break
+    fi
+  done
   D_FINAL_PKG=${D_INITIAL_PKG//\~/_}
   if [ "$D_INITIAL_PKG" != "$D_FINAL_PKG" ]; then mv "$D_INITIAL_PKG" "$D_FINAL_PKG"; fi
   cp -v $D_FINAL_PKG /tmp/reproduced || true
@@ -41,7 +46,12 @@ build_pkg() {
   cmake -G Ninja -DCOMPILE_TARGET="$PLATFORM"  -DCMAKE_BUILD_TYPE=Release -DCCF_DEVEL=OFF ..
   cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
   cpack -V -G RPM
-  INITIAL_PKG=`ls *.rpm | grep -v devel`
+  for f in *.rpm; do
+    if [[ "$f" != *devel* ]]; then
+      INITIAL_PKG="$f"
+      break
+    fi
+  done
   FINAL_PKG=${INITIAL_PKG//\~/_}
   if [ "$INITIAL_PKG" != "$FINAL_PKG" ]; then mv "$INITIAL_PKG" "$FINAL_PKG"; fi
   cp -v $FINAL_PKG /tmp/reproduced || true
