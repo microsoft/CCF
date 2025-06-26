@@ -725,11 +725,11 @@ def test_operator_provisioner_proposals_and_votes(network, args):
     # Propose the creation of an operator signed by the operator provisioner
     operator = infra.member.Member(
         "operator",
-        args.participants_curve,
         network.consortium.common_dir,
         network.consortium.share_script,
         recovery_role=infra.member.RecoveryRole.NonParticipant,
         key_generator=network.consortium.key_generator,
+        curve=args.participants_curve,
         authenticate_session=network.consortium.authenticate_session,
         gov_api_impl=network.consortium.gov_api_impl,
     )
@@ -748,7 +748,7 @@ def test_operator_provisioner_proposals_and_votes(network, args):
         signer_id=operator_provisioner.local_id,
         proposal=set_operator,
     )
-    network.consortium.members.append(operator)
+    network.consortium.add_member(operator)
     operator.ack(node)
 
     # Propose the removal of the operator signed by the operator provisioner
