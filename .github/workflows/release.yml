@@ -78,6 +78,8 @@ jobs:
   build_release:
     name: Build Release
     needs: [release_notes, image_digest]
+    outputs:
+      SOURCE_DATE_EPOCH: ${{ steps.set_epoch.outputs.SOURCE_DATE_EPOCH }}
     strategy:
       matrix:
         platform:
@@ -99,6 +101,7 @@ jobs:
           set -ex
           epoch=$(date +%s)
           echo "SOURCE_DATE_EPOCH=$epoch" >> $GITHUB_ENV
+          echo "SOURCE_DATE_EPOCH=$epoch" >> $GITHUB_OUTPUT
           echo "$epoch"
 
       - name: "Checkout dependencies"
@@ -304,6 +307,7 @@ jobs:
 
           cat <<EOF > $filename
           {
+            "platform_name": "${{ matrix.platform.name }}",
             "build_container_image": "${{needs.image_digest.outputs.image_digest}}",
             "tdnf_snapshottime": $SOURCE_DATE_EPOCH,
             "commit_sha": "$commit_id"
@@ -316,6 +320,67 @@ jobs:
         with:
           name: reproduce-${{ matrix.platform.name }}-metadata
           path: reproduce-${{ matrix.platform.name }}.json
+
+  reproduce_rpm:
+    name: Test Reproducibility
+    needs:
+      - build_release
+      - image_digest
+    strategy:
+      matrix:
+        platform:
+          - name: virtual
+            os: azure-linux
+          - name: snp
+            os: azure-linux
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    env:
+      REPRO_DIR: /tmp/reproduced
+    container:
+      image: ${{ needs.image_digest.outputs.image_digest }}
+      options: "--user root"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download Prebuilt Packages
+        uses: actions/download-artifact@v4
+        with:
+          path: DOWNLOAD_DIR
+          pattern: pkg-*
+          merge-multiple: true
+      - name: Download Reproducibility Metadata
+        uses: actions/download-artifact@v4
+        with:
+          path: repro
+          pattern: reproduce-${{ matrix.platform.name }}-metadata
+          merge-multiple: true
+      - name: Reproduce RPMs
+        id: reproduce
+        shell: bash
+        run: |
+          set -ex
+          tdnf install --snapshottime=${{ needs.build_release.outputs.SOURCE_DATE_EPOCH }} -y jq 
+          ./reproduce/reproduce_rpm.sh repro/reproduce-${{ matrix.platform.name }}.json
+          RPM_NAMES=$(ls "$REPRO_DIR" || true)
+          if [ -z "$RPM_NAMES" ]; then
+            echo "ERROR: No reproduced package found in $REPRO_DIR"
+            exit 1
+          fi
+      - name: Verify reproducibility
+        id: verify
+        shell: bash
+        run: |
+          set -ex
+          for pkg in "$REPRO_DIR"/*; do
+            cmp "$pkg" "DOWNLOAD_DIR/$(basename "$pkg")"
+          done
+      - name: Upload Non-Reproduced Package
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: not-reproduced
+          path: ${{ env.REPRO_DIR }}
 
   create_release:
     needs:
@@ -370,7 +435,7 @@ jobs:
           set -ex
           CCF_VERSION=${{ github.ref_name }}
           CCF_VERSION=${CCF_VERSION#ccf-}
-          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json repro/*
+          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json repro/* ./reproduce/start_container_and_reproduce_rpm.sh
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
