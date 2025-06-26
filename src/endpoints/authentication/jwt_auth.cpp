@@ -218,12 +218,19 @@ namespace ccf
         ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEY_ISSUER);
 
       auto fallback_cert = fallback_keys->get(key_id);
+      auto fallback_issuer = fallback_issuers->get(key_id);
       if (fallback_cert)
       {
+        if (!fallback_issuer)
+        {
+          error_reason =
+            fmt::format("JWT signing key fallback issuers not found for kid {}", key_id);
+          return nullptr;
+        }
         auto verifier = ccf::crypto::make_unique_verifier(*fallback_cert);
         token_keys = std::vector<OpenIDJWKMetadata>{OpenIDJWKMetadata{
           .public_key = verifier->public_key_der(),
-          .issuer = *fallback_issuers->get(key_id),
+          .issuer = fallback_issuer.value(),
           .constraint = std::nullopt}};
       }
     }
@@ -238,7 +245,7 @@ namespace ccf
     for (const auto& metadata : *token_keys)
     {
       if (!keys_cache->verify(
-            (uint8_t*)token.signed_content.data(),
+            reinterpret_cast<const uint8_t*>(token.signed_content.data()),
             token.signed_content.size(),
             token.signature.data(),
             token.signature.size(),
@@ -282,8 +289,8 @@ namespace ccf
       {
         auto identity = std::make_unique<JwtAuthnIdentity>();
         identity->key_issuer = metadata.issuer;
-        identity->header = std::move(token.header);
-        identity->payload = std::move(token.payload);
+        identity->header = token.header;
+        identity->payload = token.payload;
         return identity;
       }
     }
@@ -300,7 +307,7 @@ namespace ccf
       std::move(error_reason));
     ctx->set_response_header(
       http::headers::WWW_AUTHENTICATE,
-      "Bearer realm=\"JWT bearer token access\", error=\"invalid_token\"");
+      R"(Bearer realm="JWT bearer token access", error="invalid_token")");
   }
 
   const OpenAPISecuritySchema JwtAuthnPolicy::security_schema = std::make_pair(

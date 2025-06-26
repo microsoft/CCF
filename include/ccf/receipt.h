@@ -135,7 +135,7 @@ namespace ccf
   struct TxReceiptImpl;
   using TxReceiptImplPtr = std::shared_ptr<TxReceiptImpl>;
   nlohmann::json describe_receipt_v1(const TxReceiptImpl& receipt);
-  ReceiptPtr describe_receipt_v2(const TxReceiptImpl& receipt);
+  ReceiptPtr describe_receipt_v2(const TxReceiptImpl& in);
 
   enum MerkleProofLabel : int64_t
   {
@@ -145,13 +145,13 @@ namespace ccf
     MERKLE_PROOF_PATH_LABEL = 2
   };
   std::optional<std::vector<uint8_t>> describe_merkle_proof_v1(
-    const TxReceiptImpl& in);
+    const TxReceiptImpl& receipt);
 
   using SerialisedCoseEndorsement = std::vector<uint8_t>;
   using SerialisedCoseSignature = std::vector<uint8_t>;
   using SerialisedCoseEndorsements = std::vector<SerialisedCoseEndorsement>;
   std::optional<SerialisedCoseEndorsements> describe_cose_endorsements_v1(
-    const TxReceiptImpl& in);
+    const TxReceiptImpl& receipt);
   std::optional<SerialisedCoseSignature> describe_cose_signature_v1(
     const TxReceiptImpl& receipt);
 

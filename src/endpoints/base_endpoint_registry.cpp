@@ -58,7 +58,7 @@ namespace ccf
   ApiResult BaseEndpointRegistry::get_view_history_v1(
     std::vector<ccf::TxID>& history, ccf::View since)
   {
-    ccf::InvalidArgsReason ignored;
+    ccf::InvalidArgsReason ignored = {};
     return get_view_history_v2(history, since, ignored);
   }
 
@@ -141,7 +141,7 @@ namespace ccf
     try
     {
       const auto node_id = context.get_node_id();
-      auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
+      auto * nodes = tx.ro<ccf::Nodes>(Tables::NODES);
       const auto node_info = nodes->get(node_id);
 
       if (!node_info.has_value())
@@ -180,7 +180,7 @@ namespace ccf
     try
     {
       std::map<NodeId, QuoteInfo> tmp;
-      auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
+      auto * nodes = tx.ro<ccf::Nodes>(Tables::NODES);
       nodes->foreach([&tmp](const NodeId& node_id, const NodeInfo& ni) {
         if (ni.status == ccf::NodeStatus::TRUSTED)
         {
@@ -212,15 +212,9 @@ namespace ccf
           view = v;
           return ApiResult::OK;
         }
-        else
-        {
-          return ApiResult::NotFound;
-        }
+        return ApiResult::NotFound;
       }
-      else
-      {
-        return ApiResult::Uninitialised;
-      }
+      return ApiResult::Uninitialised;
     }
     catch (const std::exception& e)
     {
@@ -234,7 +228,7 @@ namespace ccf
   {
     try
     {
-      auto users_data = tx.ro<ccf::UserInfo>(Tables::USER_INFO);
+      auto * users_data = tx.ro<ccf::UserInfo>(Tables::USER_INFO);
       auto ui = users_data->get(user_id);
       if (!ui.has_value())
       {
@@ -258,7 +252,7 @@ namespace ccf
   {
     try
     {
-      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto * member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
       auto mi = member_info->get(member_id);
       if (!mi.has_value())
       {
@@ -282,7 +276,7 @@ namespace ccf
   {
     try
     {
-      auto user_certs = tx.ro<ccf::UserCerts>(Tables::USER_CERTS);
+      auto * user_certs = tx.ro<ccf::UserCerts>(Tables::USER_CERTS);
       auto uc = user_certs->get(user_id);
       if (!uc.has_value())
       {
@@ -306,7 +300,7 @@ namespace ccf
   {
     try
     {
-      auto member_certs = tx.ro<ccf::MemberCerts>(Tables::MEMBER_CERTS);
+      auto * member_certs = tx.ro<ccf::MemberCerts>(Tables::MEMBER_CERTS);
       auto mc = member_certs->get(member_id);
       if (!mc.has_value())
       {

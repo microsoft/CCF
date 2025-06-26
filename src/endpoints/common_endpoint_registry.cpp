@@ -107,6 +107,7 @@ namespace ccf
         }
         std::vector<ccf::TxID> history;
         result = get_view_history_v1(history, view_history_since.value());
+
         if (result == ccf::ApiResult::InvalidArgs)
         {
           return make_error(
@@ -116,7 +117,8 @@ namespace ccf
               "Invalid value for {}, must be in range [1, current_term]",
               view_history_since_param_key));
         }
-        else if (result == ccf::ApiResult::NotFound)
+
+        if (result == ccf::ApiResult::NotFound)
         {
           return make_error(
             HTTP_STATUS_NOT_FOUND,
@@ -125,7 +127,8 @@ namespace ccf
               "Invalid value for {}, must be in range [1, current_term]",
               view_history_since_param_key));
         }
-        else if (result != ccf::ApiResult::OK)
+        
+        if (result != ccf::ApiResult::OK)
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -142,7 +145,7 @@ namespace ccf
       // if view_history was given then we can validate the value
       if (view_history.has_value())
       {
-        if (error_reason != "")
+        if (!error_reason.empty())
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -191,7 +194,7 @@ namespace ccf
         "Latest transaction ID that has been committed on the service")
       .install();
 
-    auto get_tx_status = [this](auto& ctx, nlohmann::json&&) {
+    auto get_tx_status = [this](auto& ctx, nlohmann::json&&) { // NOLINT(cppcoreguidelines-rvalue-reference-param-not-moved)
       // Parse arguments from query
       const auto parsed_query =
         http::parse_query(ctx.rpc_ctx->get_request_query());
@@ -204,7 +207,7 @@ namespace ccf
         return make_error(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::InvalidQueryParameterValue,
-          std::move(error_reason));
+          error_reason);
       }
 
       const auto tx_id = ccf::TxID::from_str(tx_id_str);
@@ -228,13 +231,10 @@ namespace ccf
         out.transaction_id = tx_id.value();
         return make_success(out);
       }
-      else
-      {
-        return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          fmt::format("Error code: {}", ccf::api_result_to_str(result)));
-      }
+      return make_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        fmt::format("Error code: {}", ccf::api_result_to_str(result)));
     };
     make_command_endpoint(
       "/tx", HTTP_GET, json_command_adapter(get_tx_status), no_auth_required)
@@ -259,7 +259,7 @@ namespace ccf
       };
 
     auto get_receipt =
-      [](auto& ctx, ccf::historical::StatePtr historical_state) {
+      [](auto& ctx, ccf::historical::StatePtr historical_state) { // NOLINT(performance-unnecessary-value-param)
         const auto params = ccf::jsonhandler::get_json_params(ctx.rpc_ctx);
 
         assert(historical_state->receipt);

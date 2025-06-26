@@ -262,7 +262,7 @@ namespace ccf::endpoints
       ccf::kv::Tx&, ccf::RpcContext& rpc_ctx);
 
     virtual void execute_endpoint(
-      EndpointDefinitionPtr e, EndpointContext& args);
+      EndpointDefinitionPtr e, EndpointContext& ctx);
 
     virtual void execute_endpoint_locally_committed(
       EndpointDefinitionPtr e, CommandEndpointContext& args, const TxID& tx_id);
