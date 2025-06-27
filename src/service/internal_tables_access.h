@@ -840,7 +840,12 @@ namespace ccf
         .extended_family = 0x0A,
         .reserved2 = 0};
       // Reported by ACI for minimum Milan version
-      constexpr pal::snp::TcbVersion milan_tcb_version{.data=ds::from_hex("d315000000000004")};
+      const auto vec_milan_tcb_version = ds::from_hex("d315000000000004");
+      pal::snp::TcbVersion milan_tcb_version{};
+      memcpy(
+        milan_tcb_version.data,
+        vec_milan_tcb_version.data(),
+        sizeof(milan_tcb_version.data));
       h->put(milan_chip_id.hex_str(), milan_tcb_version);
       h->put(milan_x_chip_id.hex_str(), milan_tcb_version);
     }

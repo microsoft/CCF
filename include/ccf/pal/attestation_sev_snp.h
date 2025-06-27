@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstring>
 #include <map>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -120,13 +121,15 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   {
     uint8_t data[snp_tcb_version_size];
 
+    bool operator==(const TcbVersion&) const = default;
+
     TcbVersionMilanGenoa to_MilanGenoa() const
     {
       TcbVersionMilanGenoa ret{};
       std::memcpy(&ret, &data, snp_tcb_version_size);
       return ret;
     }
-    static inline TcbVersion from_MilanGenoa(
+    inline static TcbVersion from_MilanGenoa(
       const TcbVersionMilanGenoa& tcb_milan_genoa)
     {
       TcbVersion ret{};
@@ -139,13 +142,40 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
       std::memcpy(&ret, &data, snp_tcb_version_size);
       return ret;
     }
-    static inline TcbVersion from_Turin(const TcbVersionTurin& tcb_turin)
+    inline static TcbVersion from_Turin(const TcbVersionTurin& tcb_turin)
     {
       TcbVersion ret{};
       std::memcpy(&ret.data, &tcb_turin, snp_tcb_version_size);
       return ret;
     }
+    inline static TcbVersion from_hex(const std::string& hex_str)
+    {
+      TcbVersion ret{};
+      if (hex_str.size() != snp_tcb_version_size * 2)
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: TCB version hex string of size {}, expected {}",
+          hex_str.size(),
+          snp_tcb_version_size * 2));
+      }
+      auto hex_data = ds::from_hex(hex_str);
+      // reverse to match the expected endianness
+      std::reverse(hex_data.begin(), hex_data.end());
+      memcpy(ret.data, hex_data.data(), snp_tcb_version_size);
+      return ret;
+    }
   };
+
+  inline std::string schema_name(const TcbVersion* /*unused*/)
+  {
+    return "TcbVersion";
+  }
+
+  inline void fill_json_schema(
+    nlohmann::json& schema, const TcbVersion* /*unused*/)
+  {
+    schema["type"] = "string";
+  }
 
   inline void from_json(const nlohmann::json& j, TcbVersion& tcb)
   {
@@ -159,15 +189,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
       try
       {
-        auto hex_data = ds::from_hex(hex_str);
-        if (hex_data.size() != snp_tcb_version_size)
-        {
-          throw std::logic_error(fmt::format(
-            "SEV-SNP: TCB version hex string of size {}, expected {}",
-            hex_data.size(),
-            snp_tcb_version_size));
-        }
-        std::memcpy(tcb.data, hex_data.data(), snp_tcb_version_size);
+        tcb = TcbVersion::from_hex(hex_str);
       }
       catch (const std::logic_error& e)
       {
@@ -186,6 +208,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   inline void to_json(nlohmann::json& j, const TcbVersion& tcb)
   {
     auto vec = std::vector<uint8_t>(tcb.data, tcb.data + snp_tcb_version_size);
+    std::reverse(vec.begin(), vec.end());
     j = ds::to_hex(vec);
   }
 #pragma pack(pop)

@@ -20,7 +20,9 @@ namespace ccf::js::extensions
   static JSValue make_js_tcb_version(
     js::core::Context& jsctx, pal::snp::TcbVersion tcb)
   {
-    auto data_hex = jsctx.new_string(ds::to_hex(tcb.data));
+    auto span = std::span<const uint8_t>(
+      tcb.data, sizeof(tcb.data) / sizeof(tcb.data[0]));
+    auto data_hex = jsctx.new_string(ds::to_hex(span));
     JS_CHECK_EXC(data_hex);
     return data_hex.take();
   }
