@@ -4,6 +4,7 @@
 #include "ccf/node/quote.h"
 
 #include "ccf/pal/attestation.h"
+#include "ccf/pal/sev_snp_cpuid.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/tcb_verification.h"
@@ -277,11 +278,9 @@ namespace ccf
     }
 
     std::optional<pal::snp::TcbVersion> min_tcb_opt = std::nullopt;
-
-    auto h = tx.ro<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
-    // expensive but there should not be many entries
+    auto* h = tx.ro<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
     h->foreach([&min_tcb_opt, &attestation](
-                 const std::string cpuid_hex, const pal::snp::TcbVersion& v) {
+                 const std::string& cpuid_hex, const pal::snp::TcbVersion& v) {
       auto cpuid = pal::snp::cpuid_from_hex(cpuid_hex);
       if (
         cpuid.get_family_id() == attestation.cpuid_fam_id &&
@@ -299,17 +298,46 @@ namespace ccf
       return QuoteVerificationResult::FailedInvalidCPUID;
     }
 
-    auto min_tcb = min_tcb_opt.value();
-
-    // only check snp and microcode as these are AMD controlled
-    if (
-      min_tcb.snp > attestation.reported_tcb.snp ||
-      min_tcb.microcode > attestation.reported_tcb.microcode)
+    bool verified = false;
+    switch (pal::snp::get_sev_snp_product(
+      attestation.cpuid_fam_id, attestation.cpuid_mod_id))
     {
-      return QuoteVerificationResult::FailedInvalidTcbVersion;
+      case pal::snp::ProductName::Milan:
+      case pal::snp::ProductName::Genoa:
+      {
+        // guaranteed by above to be valid
+        auto min_tcb = min_tcb_opt->to_MilanGenoa();
+        auto test_tcb = attestation.reported_tcb.to_MilanGenoa();
+        if (
+          (min_tcb.tee <= test_tcb.tee) && (min_tcb.snp <= test_tcb.snp) &&
+          (min_tcb.microcode <= test_tcb.microcode) &&
+          (min_tcb.boot_loader <= test_tcb.boot_loader))
+        {
+          return QuoteVerificationResult::Verified;
+        }
+        break;
+      }
+      case pal::snp::ProductName::Turin:
+      {
+        auto min_tcb = min_tcb_opt->to_Turin();
+        auto test_tcb = attestation.reported_tcb.to_Turin();
+        if (
+          (min_tcb.fmc <= test_tcb.fmc) && (min_tcb.tee <= test_tcb.tee) &&
+          (min_tcb.snp <= test_tcb.snp) &&
+          (min_tcb.microcode <= test_tcb.microcode) &&
+          (min_tcb.boot_loader <= test_tcb.boot_loader))
+        {
+          return QuoteVerificationResult::Verified;
+        }
+        break;
+      }
+      default:
+      {
+        throw std::logic_error(
+          "SEV-SNP: Unsupported CPUID family and model for TCB verification");
+      }
     }
-
-    return QuoteVerificationResult::Verified;
+    return QuoteVerificationResult::FailedInvalidTcbVersion;
   }
 
   QuoteVerificationResult AttestationProvider::verify_quote_against_store(

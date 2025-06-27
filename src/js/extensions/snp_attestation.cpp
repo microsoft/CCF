@@ -20,14 +20,11 @@ namespace ccf::js::extensions
   static JSValue make_js_tcb_version(
     js::core::Context& jsctx, pal::snp::TcbVersion tcb)
   {
-    auto js_tcb = jsctx.new_obj();
-    JS_CHECK_EXC(js_tcb);
-
-    JS_CHECK_SET(js_tcb.set_uint32("boot_loader", tcb.boot_loader));
-    JS_CHECK_SET(js_tcb.set_uint32("tee", tcb.tee));
-    JS_CHECK_SET(js_tcb.set_uint32("snp", tcb.snp));
-    JS_CHECK_SET(js_tcb.set_uint32("microcode", tcb.microcode));
-    return js_tcb.take();
+    auto span = std::span<const uint8_t>(
+      tcb.data, sizeof(tcb.data) / sizeof(tcb.data[0]));
+    auto data_hex = jsctx.new_string(ds::to_hex(span));
+    JS_CHECK_EXC(data_hex);
+    return data_hex.take();
   }
 
   static JSValue JS_NewArrayBuffer2(

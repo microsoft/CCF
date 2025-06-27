@@ -229,8 +229,10 @@ namespace ccf::pal
           sizeof(snp::TcbVersion)));
       }
 
-      snp::TcbVersion tcb = *reinterpret_cast<snp::TcbVersion*>(raw_tcb.data());
-      if (tcb != quote.reported_tcb)
+      if (
+        memcmp(
+          raw_tcb.data(), &quote.reported_tcb.data, sizeof(snp::TcbVersion)) !=
+        0)
       {
         auto* reported_tcb = reinterpret_cast<uint8_t*>(&quote.reported_tcb);
         throw std::logic_error(fmt::format(
