@@ -111,6 +111,7 @@ namespace snapshots
         asynchost::TimeBoundLogger log_if_slow(
           fmt::format("Committing snapshot - fsync({})", data->tmp_file_name));
         fsync(data->snapshot_fd);
+        usleep(50000); // Force a delayed fsync of 50ms
       }
 
       close(data->snapshot_fd);
