@@ -484,7 +484,7 @@ namespace ccf::endpoints
   void EndpointRegistry::execute_endpoint(
     EndpointDefinitionPtr e, EndpointContext& ctx)
   {
-    auto endpoint = dynamic_cast<const Endpoint*>(e.get());
+    const auto* endpoint = dynamic_cast<const Endpoint*>(e.get());
     if (endpoint == nullptr)
     {
       throw std::logic_error(
@@ -498,7 +498,7 @@ namespace ccf::endpoints
   void EndpointRegistry::execute_endpoint_locally_committed(
     EndpointDefinitionPtr e, CommandEndpointContext& ctx, const TxID& tx_id)
   {
-    auto endpoint = dynamic_cast<const Endpoint*>(e.get());
+    const auto* endpoint = dynamic_cast<const Endpoint*>(e.get());
     if (endpoint == nullptr)
     {
       throw std::logic_error(
@@ -513,6 +513,7 @@ namespace ccf::endpoints
   std::set<RESTVerb> EndpointRegistry::get_allowed_verbs(
     ccf::kv::Tx& tx, const ccf::RpcContext& rpc_ctx)
   {
+    (void) tx;
     auto method = rpc_ctx.get_method();
 
     std::set<RESTVerb> verbs;
@@ -543,6 +544,7 @@ namespace ccf::endpoints
 
   bool EndpointRegistry::request_needs_root(const ccf::RpcContext& rpc_ctx)
   {
+    (void) rpc_ctx;
     return false;
   }
 
@@ -567,7 +569,7 @@ namespace ccf::endpoints
   }
 
   // Default implementation does nothing
-  void EndpointRegistry::tick(std::chrono::milliseconds) {}
+  void EndpointRegistry::tick(std::chrono::milliseconds duration) {}
 
   void EndpointRegistry::set_consensus(ccf::kv::Consensus* c)
   {

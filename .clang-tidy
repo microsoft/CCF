@@ -39,7 +39,8 @@ Checks: >
   -cppcoreguidelines-macro-usage,
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
   -misc-non-private-member-variables-in-classes,
-  -readability-convert-member-functions-to-static
+  -readability-convert-member-functions-to-static,
+  -performance-unnecessary-value-param
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: '?!(3rdparty)'

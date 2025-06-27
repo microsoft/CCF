@@ -22,9 +22,17 @@ namespace
 
     // 1 WSD
     const auto& wsd = receipt.write_set_digest->h;
+    if (!receipt.write_set_digest.has_value())
+    {
+      throw std::logic_error("Write set digest is required for COSE receipts");
+    }
     QCBOREncode_AddBytes(&ctx, {wsd.data(), wsd.size()});
 
     // 2. CE
+    if (!receipt.commit_evidence.has_value())
+    {
+      throw std::logic_error("Commit evidence is required for COSE receipts");
+    }
     const auto& ce = receipt.commit_evidence.value();
     QCBOREncode_AddSZString(&ctx, ce.data());
 
@@ -97,7 +105,10 @@ namespace ccf
     }
     else if (!receipt.commit_evidence.has_value())
     {
-      out["leaf"] = receipt.write_set_digest->hex_str();
+      if (receipt.write_set_digest.has_value())
+      {
+        out["leaf"] = receipt.write_set_digest->hex_str();
+      }
     }
     else
     {

@@ -70,9 +70,9 @@ namespace ccf
   {
     BaseEndpointRegistry::init_handlers();
 
-    auto get_commit = [this](auto& ctx, nlohmann::json&&) {
-      ccf::View view;
-      ccf::SeqNo seqno;
+    auto get_commit = [this](auto& ctx, nlohmann::json&&) { // NOLINT(cppcoreguidelines-rvalue-reference-param-not-moved)
+      ccf::View view = 0;
+      ccf::SeqNo seqno = 0;
       auto result = get_last_committed_txid_v1(view, seqno);
       if (result != ccf::ApiResult::OK)
       {
@@ -98,7 +98,7 @@ namespace ccf
       // validated
       if (view_history_since.has_value())
       {
-        if (error_reason != "")
+        if (!error_reason.empty())
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,

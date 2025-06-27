@@ -21,7 +21,7 @@ namespace
     bool retry{false};
   };
 
-  static std::vector<ccf::CoseEndorsement> cose_endorsements_cache = {};
+  std::vector<ccf::CoseEndorsement> cose_endorsements_cache = {};
 
   bool is_self_endorsement(const ccf::CoseEndorsement& endorsement)
   {
@@ -81,11 +81,12 @@ namespace
     const ccf::CoseEndorsement& newer, const ccf::CoseEndorsement& older)
   {
     if (
-      !is_self_endorsement(older) &&
+      !is_self_endorsement(older) && (
+      older.endorsement_epoch_end.has_value() &&
       (newer.endorsement_epoch_begin.view - aft::starting_view_change !=
          older.endorsement_epoch_end->view ||
        newer.endorsement_epoch_begin.seqno - 1 !=
-         older.endorsement_epoch_end->seqno))
+         older.endorsement_epoch_end->seqno)))
     {
       throw std::logic_error(fmt::format(
         "COSE endorsement chain integrity is violated, previous endorsement "
@@ -104,7 +105,10 @@ namespace
             ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
           ->get();
       validate_fetched_endorsement(endorsement);
+      // NOLINTBEGIN(bugprone-unchecked-optional-access)
+      // Checked by the validate call above
       cose_endorsements_cache.push_back(*endorsement);
+      // NOLINTEND(bugprone-unchecked-optional-access)
     }
   }
 
@@ -238,7 +242,7 @@ namespace ccf
           return std::nullopt; // Not available yet - retry later.
         }
         auto htx = hstate->store->create_read_only_tx();
-        auto hservice = htx.ro<Service>(Tables::SERVICE);
+        auto * hservice = htx.ro<Service>(Tables::SERVICE);
         hservice_info = hservice->get();
       } while (i > target_seqno || (i > 1 && !hservice_info));
 
