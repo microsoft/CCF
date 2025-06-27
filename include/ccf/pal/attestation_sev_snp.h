@@ -10,6 +10,7 @@
 
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <map>
 #include <string>
 
@@ -79,22 +80,56 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
 #pragma pack(push, 1)
   // Table 3
-  struct TcbVersion
-  {
-    uint8_t boot_loader = 0;
-    uint8_t tee = 0;
-    uint8_t reserved[4];
-    uint8_t snp = 0;
-    uint8_t microcode = 0;
+  constexpr size_t snp_tcb_version_size = 8;
 
-    bool operator==(const TcbVersion&) const = default;
+  struct TcbVersionMilanGenoa
+  {
+    uint8_t boot_loader;
+    uint8_t tee;
+    uint8_t reserved[4];
+    uint8_t snp;
+    uint8_t microcode;
   };
-#pragma pack(pop)
   static_assert(
-    sizeof(TcbVersion) == sizeof(uint64_t),
-    "Can't cast TcbVersion to uint64_t");
-  DECLARE_JSON_TYPE(TcbVersion);
-  DECLARE_JSON_REQUIRED_FIELDS(TcbVersion, boot_loader, tee, snp, microcode);
+    sizeof(TcbVersionMilanGenoa) == snp_tcb_version_size,
+    "Milan/Genoa TCB version size mismatch");
+  DECLARE_JSON_TYPE(TcbVersionMilanGenoa);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    TcbVersionMilanGenoa, boot_loader, tee, snp, microcode);
+
+  struct TcbVersionTurin
+  {
+    uint8_t fmc;
+    uint8_t boot_loader;
+    uint8_t tee;
+    uint8_t snp;
+    uint8_t reserved[3];
+    uint8_t microcode;
+  };
+  static_assert(
+    sizeof(TcbVersionTurin) == snp_tcb_version_size,
+    "Turin TCB version size mismatch");
+  DECLARE_JSON_TYPE(TcbVersionTurin);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    TcbVersionTurin, fmc, boot_loader, tee, snp, microcode);
+
+  union TcbVersion
+  {
+    TcbVersionMilanGenoa milan_genoa;
+    TcbVersionTurin turin;
+    uint8_t raw[snp_tcb_version_size];
+
+    TcbVersionMilanGenoa& operator*()
+    {
+      return milan_genoa;
+    }
+    const TcbVersionMilanGenoa& operator*() const
+    {
+      return milan_genoa;
+    }
+  } static_assert(
+    sizeof(TcbVersion) == snp_tcb_version_size, "TcbVersion size mismatch");
+#pragma pack(pop)
 
 #pragma pack(push, 1)
   struct Signature
@@ -172,7 +207,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t image_id[16]; /* 0x020 */
     uint32_t vmpl; /* 0x030 */
     SignatureAlgorithm signature_algo; /* 0x034 */
-    struct TcbVersion platform_version; /* 0x038 */
+    union TcbVersion platform_version; /* 0x038 */
     PlatformInfo platform_info; /* 0x040 */
     Flags flags; /* 0x048 */
     uint32_t reserved0; /* 0x04C */
@@ -183,13 +218,13 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t author_key_digest[48]; /* 0x110 */
     uint8_t report_id[32]; /* 0x140 */
     uint8_t report_id_ma[32]; /* 0x160 */
-    struct TcbVersion reported_tcb; /* 0x180 */
+    union TcbVersion reported_tcb; /* 0x180 */
     uint8_t cpuid_fam_id; /* 0x188*/
     uint8_t cpuid_mod_id; /* 0x189 */
     uint8_t cpuid_step; /* 0x18A */
     uint8_t reserved1[21]; /* 0x18B */
     uint8_t chip_id[64]; /* 0x1A0 */
-    struct TcbVersion committed_tcb; /* 0x1E0 */
+    union TcbVersion committed_tcb; /* 0x1E0 */
     uint8_t current_minor; /* 0x1E8 */
     uint8_t current_build; /* 0x1E9 */
     uint8_t current_major; /* 0x1EA */
@@ -198,7 +233,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t committed_minor; /* 0x1ED */
     uint8_t committed_major; /* 0x1EE */
     uint8_t reserved3; /* 0x1EF */
-    struct TcbVersion launch_tcb; /* 0x1F0 */
+    union TcbVersion launch_tcb; /* 0x1F0 */
     uint8_t reserved4[168]; /* 0x1F8 */
     struct Signature signature; /* 0x2A0 */
   };
