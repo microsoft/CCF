@@ -200,6 +200,11 @@ if __name__ == "__main__":
             type=str,
             default=None,
         )
+        parser.add_argument(
+            "--historical-testdata",
+            help="Historical ledger test data directory",
+            type=str,
+        )
 
     cr = ConcurrentRunner(add)
 
