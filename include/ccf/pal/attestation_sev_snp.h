@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/enum_formatter.h"
+#include "ccf/ds/json.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/report_data.h"
@@ -12,6 +13,7 @@
 #include <cstdint>
 #include <cstring>
 #include <map>
+#include <stdexcept>
 #include <string>
 
 namespace ccf::pal::snp
@@ -78,6 +80,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     //{ProductName::turin, amd_turin_root_signing_public_key},
   };
 
+  static uint8_t MIN_TCB_VERIF_VERSION = 3;
 #pragma pack(push, 1)
   // Table 3
   constexpr size_t snp_tcb_version_size = 8;
@@ -113,22 +116,78 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   DECLARE_JSON_REQUIRED_FIELDS(
     TcbVersionTurin, fmc, boot_loader, tee, snp, microcode);
 
-  union TcbVersion
+  struct TcbVersion
   {
-    TcbVersionMilanGenoa milan_genoa;
-    TcbVersionTurin turin;
-    uint8_t raw[snp_tcb_version_size];
+    uint8_t data[snp_tcb_version_size];
 
-    TcbVersionMilanGenoa& operator*()
+    TcbVersionMilanGenoa to_MilanGenoa() const
     {
-      return milan_genoa;
+      TcbVersionMilanGenoa ret{};
+      std::memcpy(&ret, &data, snp_tcb_version_size);
+      return ret;
     }
-    const TcbVersionMilanGenoa& operator*() const
+    static inline TcbVersion from_MilanGenoa(
+      const TcbVersionMilanGenoa& tcb_milan_genoa)
     {
-      return milan_genoa;
+      TcbVersion ret{};
+      std::memcpy(&ret.data, &tcb_milan_genoa, snp_tcb_version_size);
+      return ret;
     }
-  } static_assert(
-    sizeof(TcbVersion) == snp_tcb_version_size, "TcbVersion size mismatch");
+    TcbVersionTurin to_Turin() const
+    {
+      TcbVersionTurin ret{};
+      std::memcpy(&ret, &data, snp_tcb_version_size);
+      return ret;
+    }
+    static inline TcbVersion from_Turin(const TcbVersionTurin& tcb_turin)
+    {
+      TcbVersion ret{};
+      std::memcpy(&ret.data, &tcb_turin, snp_tcb_version_size);
+      return ret;
+    }
+  };
+
+  inline void from_json(const nlohmann::json& j, TcbVersion& tcb)
+  {
+    if (j.is_string())
+    {
+      std::string hex_str = j.get<std::string>();
+      if (hex_str.size() >= 2 && hex_str[0] == '0' && hex_str[1] == 'x')
+      {
+        hex_str = hex_str.substr(2);
+      }
+
+      try
+      {
+        auto hex_data = ds::from_hex(hex_str);
+        if (hex_data.size() != snp_tcb_version_size)
+        {
+          throw std::logic_error(fmt::format(
+            "SEV-SNP: TCB version hex string of size {}, expected {}",
+            hex_data.size(),
+            snp_tcb_version_size));
+        }
+        std::memcpy(tcb.data, hex_data.data(), snp_tcb_version_size);
+      }
+      catch (const std::logic_error& e)
+      {
+        throw ccf::JsonParseError(fmt::format(
+          "SEV-SNP: Failed to parse TCB version hex string '{}': {}",
+          hex_str,
+          e.what()));
+      }
+    }
+    else if (j.is_object())
+    {
+      tcb = TcbVersion::from_MilanGenoa(j.get<TcbVersionMilanGenoa>());
+    }
+  }
+
+  inline void to_json(nlohmann::json& j, const TcbVersion& tcb)
+  {
+    auto vec = std::vector<uint8_t>(tcb.data, tcb.data + snp_tcb_version_size);
+    j = ds::to_hex(vec);
+  }
 #pragma pack(pop)
 
 #pragma pack(push, 1)
@@ -207,7 +266,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t image_id[16]; /* 0x020 */
     uint32_t vmpl; /* 0x030 */
     SignatureAlgorithm signature_algo; /* 0x034 */
-    union TcbVersion platform_version; /* 0x038 */
+    TcbVersion platform_version; /* 0x038 */
     PlatformInfo platform_info; /* 0x040 */
     Flags flags; /* 0x048 */
     uint32_t reserved0; /* 0x04C */
@@ -218,13 +277,13 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t author_key_digest[48]; /* 0x110 */
     uint8_t report_id[32]; /* 0x140 */
     uint8_t report_id_ma[32]; /* 0x160 */
-    union TcbVersion reported_tcb; /* 0x180 */
+    TcbVersion reported_tcb; /* 0x180 */
     uint8_t cpuid_fam_id; /* 0x188*/
     uint8_t cpuid_mod_id; /* 0x189 */
     uint8_t cpuid_step; /* 0x18A */
     uint8_t reserved1[21]; /* 0x18B */
     uint8_t chip_id[64]; /* 0x1A0 */
-    union TcbVersion committed_tcb; /* 0x1E0 */
+    TcbVersion committed_tcb; /* 0x1E0 */
     uint8_t current_minor; /* 0x1E8 */
     uint8_t current_build; /* 0x1E9 */
     uint8_t current_major; /* 0x1EA */
@@ -233,7 +292,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t committed_minor; /* 0x1ED */
     uint8_t committed_major; /* 0x1EE */
     uint8_t reserved3; /* 0x1EF */
-    union TcbVersion launch_tcb; /* 0x1F0 */
+    TcbVersion launch_tcb; /* 0x1F0 */
     uint8_t reserved4[168]; /* 0x1F8 */
     struct Signature signature; /* 0x2A0 */
   };
@@ -298,12 +357,39 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         }
         case EndorsementsEndpointType::AMD:
         {
-          auto boot_loader = fmt::format("{}", quote.reported_tcb.boot_loader);
-          auto tee = fmt::format("{}", quote.reported_tcb.tee);
-          auto snp = fmt::format("{}", quote.reported_tcb.snp);
-          auto microcode = fmt::format("{}", quote.reported_tcb.microcode);
           auto product =
             get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
+
+          std::string boot_loader;
+          std::string tee;
+          std::string snp;
+          std::string microcode;
+          switch (product)
+          {
+            case ProductName::Milan:
+            case ProductName::Genoa:
+            {
+              auto tcb = quote.reported_tcb.to_MilanGenoa();
+              boot_loader = fmt::format("{}", boot_loader);
+              tee = fmt::format("{}", tcb.tee);
+              snp = fmt::format("{}", tcb.snp);
+              microcode = fmt::format("{}", tcb.microcode);
+              break;
+            }
+            case ProductName::Turin:
+            {
+              auto tcb = quote.reported_tcb.to_Turin();
+              boot_loader = fmt::format("{}", tcb.boot_loader);
+              tee = fmt::format("{}", tcb.tee);
+              snp = fmt::format("{}", tcb.snp);
+              microcode = fmt::format("{}", tcb.microcode);
+              break;
+            }
+            break;
+            default:
+              throw std::logic_error(
+                fmt::format("Unsupported SEV-SNP product: {}", product));
+          }
 
           auto loc =
             get_endpoint_loc(server, default_amd_endorsements_endpoint);
@@ -346,76 +432,6 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     virtual ~AttestationInterface() = default;
   };
 
-  static uint8_t MIN_TCB_VERIF_VERSION = 3;
-#pragma pack(push, 1)
-  // AMD CPUID specification. Chapter 2 Fn0000_0001_EAX
-  // Milan: 0x00A00F11
-  // Genoa: 0X00A10F11
-  // Note: The CPUID is little-endian so the hex_string is reversed
-  struct CPUID
-  {
-    uint8_t stepping : 4;
-    uint8_t base_model : 4;
-    uint8_t base_family : 4;
-    uint8_t reserved : 4;
-    uint8_t extended_model : 4;
-    uint8_t extended_family : 8;
-    uint8_t reserved2 : 4;
-
-    bool operator==(const CPUID&) const = default;
-    std::string hex_str() const
-    {
-      CPUID buf = *this;
-      auto buf_ptr = reinterpret_cast<uint8_t*>(&buf);
-      const std::span<const uint8_t> tcb_bytes{
-        buf_ptr, buf_ptr + sizeof(CPUID)};
-      return fmt::format(
-        "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
-    }
-    inline uint8_t get_family_id() const
-    {
-      return this->base_family + this->extended_family;
-    }
-    inline uint8_t get_model_id() const
-    {
-      return (this->extended_model << 4) | this->base_model;
-    }
-  };
-#pragma pack(pop)
-  DECLARE_JSON_TYPE(CPUID);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    CPUID, stepping, base_model, base_family, extended_model, extended_family);
-  static_assert(
-    sizeof(CPUID) == sizeof(uint32_t), "Can't cast CPUID to uint32_t");
-  static CPUID cpuid_from_hex(const std::string& hex_str)
-  {
-    CPUID ret;
-    auto buf_ptr = reinterpret_cast<uint8_t*>(&ret);
-    ccf::ds::from_hex(hex_str, buf_ptr, buf_ptr + sizeof(CPUID));
-    std::reverse(
-      buf_ptr, buf_ptr + sizeof(CPUID)); // fix little endianness of AMD
-    return ret;
-  }
-
-  // On SEVSNP cpuid cannot be trusted and must be validated against an
-  // attestation.
-  static CPUID get_cpuid_untrusted()
-  {
-    uint32_t ieax = 1;
-    uint64_t iebx = 0;
-    uint64_t iecx = 0;
-    uint64_t iedx = 0;
-    uint32_t oeax = 0;
-    uint64_t oebx = 0;
-    uint64_t oecx = 0;
-    uint64_t oedx = 0;
-    // pass in e{b,c,d}x to prevent cpuid from blatting other registers
-    asm volatile("cpuid"
-                 : "=a"(oeax), "=b"(oebx), "=c"(oecx), "=d"(oedx)
-                 : "a"(ieax), "b"(iebx), "c"(iecx), "d"(iedx));
-    auto cpuid = *reinterpret_cast<CPUID*>(&oeax);
-    return cpuid;
-  }
 }
 
 namespace ccf::kv::serialisers

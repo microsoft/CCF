@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/hex.h"
 #include "ccf/ds/json.h"
 
 #include <cstdint>
@@ -10,6 +11,76 @@
 
 namespace ccf::pal::snp
 {
+
+#pragma pack(push, 1)
+  // AMD CPUID specification. Chapter 2 Fn0000_0001_EAX
+  // Milan: 0x00A00F11
+  // Genoa: 0X00A10F11
+  // Note: The CPUID is little-endian so the hex_string is reversed
+  struct CPUID
+  {
+    uint8_t stepping : 4;
+    uint8_t base_model : 4;
+    uint8_t base_family : 4;
+    uint8_t reserved : 4;
+    uint8_t extended_model : 4;
+    uint8_t extended_family : 8;
+    uint8_t reserved2 : 4;
+
+    bool operator==(const CPUID&) const = default;
+    std::string hex_str() const
+    {
+      CPUID buf = *this;
+      auto buf_ptr = reinterpret_cast<uint8_t*>(&buf);
+      const std::span<const uint8_t> tcb_bytes{
+        buf_ptr, buf_ptr + sizeof(CPUID)};
+      return fmt::format(
+        "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
+    }
+    inline uint8_t get_family_id() const
+    {
+      return this->base_family + this->extended_family;
+    }
+    inline uint8_t get_model_id() const
+    {
+      return (this->extended_model << 4) | this->base_model;
+    }
+  };
+#pragma pack(pop)
+  DECLARE_JSON_TYPE(CPUID);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    CPUID, stepping, base_model, base_family, extended_model, extended_family);
+  static_assert(
+    sizeof(CPUID) == sizeof(uint32_t), "Can't cast CPUID to uint32_t");
+  static CPUID cpuid_from_hex(const std::string& hex_str)
+  {
+    CPUID ret{};
+    auto* buf_ptr = reinterpret_cast<uint8_t*>(&ret);
+    ccf::ds::from_hex(hex_str, buf_ptr, buf_ptr + sizeof(CPUID));
+    std::reverse(
+      buf_ptr, buf_ptr + sizeof(CPUID)); // fix little endianness of AMD
+    return ret;
+  }
+
+  // On SEVSNP cpuid cannot be trusted and must later be validated against an
+  // attestation.
+  static CPUID get_cpuid_untrusted()
+  {
+    uint32_t ieax = 1;
+    uint64_t iebx = 0;
+    uint64_t iecx = 0;
+    uint64_t iedx = 0;
+    uint32_t oeax = 0;
+    uint64_t oebx = 0;
+    uint64_t oecx = 0;
+    uint64_t oedx = 0;
+    // pass in e{b,c,d}x to prevent cpuid from blatting other registers
+    asm volatile("cpuid"
+                 : "=a"(oeax), "=b"(oebx), "=c"(oecx), "=d"(oedx)
+                 : "a"(ieax), "b"(iebx), "c"(iecx), "d"(iedx));
+    auto cpuid = *reinterpret_cast<CPUID*>(&oeax);
+    return cpuid;
+  }
 
   enum class ProductName
   {
@@ -66,5 +137,16 @@ namespace ccf::pal::snp
     }
     throw std::logic_error(fmt::format(
       "SEV-SNP: Unsupported CPUID family {} model {}", family, model));
+  }
+
+  inline ProductName get_sev_snp_product(const CPUID& cpuid)
+  {
+    return get_sev_snp_product(cpuid.get_family_id(), cpuid.get_model_id());
+  }
+
+  inline ProductName get_sev_snp_product(const std::string& cpuid_hex)
+  {
+    auto cpuid = cpuid_from_hex(cpuid_hex);
+    return get_sev_snp_product(cpuid.get_family_id(), cpuid.get_model_id());
   }
 }
