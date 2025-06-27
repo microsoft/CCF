@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.7]
+
+[6.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.7
+
+### Added
+
+- Reproducibility support for RPM releases: each release now includes a manifest and script to reproduce the RPM (#7063, #7069)
+
+- Documentation added for users to reproduce and verify CCF RPMs (#7072)
+
 ## [6.0.6]
 
 [6.0.6]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.6
