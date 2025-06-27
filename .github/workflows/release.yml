@@ -340,6 +340,13 @@ jobs:
       image: ${{ needs.image_digest.outputs.image_digest }}
       options: "--user root"
     steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          set -ex
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf --snapshottime=${{ needs.build_release.outputs.SOURCE_DATE_EPOCH }} -y update
+          tdnf --snapshottime=${{ needs.build_release.outputs.SOURCE_DATE_EPOCH }} -y install ca-certificates git
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -384,6 +391,7 @@ jobs:
 
   create_release:
     needs:
+      - reproduce_rpm
       - build_release
       - make_sbom
     name: Create Release
