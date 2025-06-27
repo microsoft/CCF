@@ -135,7 +135,7 @@ namespace ccf
   struct TxReceiptImpl;
   using TxReceiptImplPtr = std::shared_ptr<TxReceiptImpl>;
   nlohmann::json describe_receipt_v1(const TxReceiptImpl& receipt);
-  ReceiptPtr describe_receipt_v2(const TxReceiptImpl& receipt);
+  ReceiptPtr describe_receipt_v2(const TxReceiptImpl& in);
 
   enum MerkleProofLabel : int64_t
   {
@@ -145,21 +145,21 @@ namespace ccf
     MERKLE_PROOF_PATH_LABEL = 2
   };
   std::optional<std::vector<uint8_t>> describe_merkle_proof_v1(
-    const TxReceiptImpl& in);
+    const TxReceiptImpl& receipt);
 
   using SerialisedCoseEndorsement = std::vector<uint8_t>;
   using SerialisedCoseSignature = std::vector<uint8_t>;
   using SerialisedCoseEndorsements = std::vector<SerialisedCoseEndorsement>;
   std::optional<SerialisedCoseEndorsements> describe_cose_endorsements_v1(
-    const TxReceiptImpl& in);
+    const TxReceiptImpl& receipt);
   std::optional<SerialisedCoseSignature> describe_cose_signature_v1(
     const TxReceiptImpl& receipt);
 
   // Manual JSON serializers are specified for these types as they are not
   // trivial POD structs
 
-  void to_json(nlohmann::json& j, const ProofReceipt::Components& step);
-  void from_json(const nlohmann::json& j, ProofReceipt::Components& step);
+  void to_json(nlohmann::json& j, const ProofReceipt::Components& components);
+  void from_json(const nlohmann::json& j, ProofReceipt::Components& components);
   std::string schema_name(const ProofReceipt::Components*);
   void fill_json_schema(
     nlohmann::json& schema, const ProofReceipt::Components*);

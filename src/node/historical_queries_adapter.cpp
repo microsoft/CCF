@@ -21,10 +21,18 @@ namespace
       &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL);
 
     // 1 WSD
+    if (!receipt.write_set_digest.has_value())
+    {
+      throw std::logic_error("Write set digest is required for COSE receipts");
+    }
     const auto& wsd = receipt.write_set_digest->h;
     QCBOREncode_AddBytes(&ctx, {wsd.data(), wsd.size()});
 
     // 2. CE
+    if (!receipt.commit_evidence.has_value())
+    {
+      throw std::logic_error("Commit evidence is required for COSE receipts");
+    }
     const auto& ce = receipt.commit_evidence.value();
     QCBOREncode_AddSZString(&ctx, ce.data());
 
@@ -97,7 +105,10 @@ namespace ccf
     }
     else if (!receipt.commit_evidence.has_value())
     {
-      out["leaf"] = receipt.write_set_digest->hex_str();
+      if (receipt.write_set_digest.has_value())
+      {
+        out["leaf"] = receipt.write_set_digest->hex_str();
+      }
     }
     else
     {
@@ -235,7 +246,7 @@ namespace ccf
 
     UsefulBufC result;
     auto qerr = QCBOREncode_Finish(&ctx, &result);
-    if (qerr)
+    if (qerr != QCBOR_SUCCESS)
     {
       LOG_DEBUG_FMT("Failed to encode merkle proof: {}", qerr);
       return std::nullopt;

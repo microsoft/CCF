@@ -29,7 +29,7 @@ namespace ccf
 
   public:
     // Provide policies with explicit names
-    AllOfAuthnPolicy(const Policies& _policies);
+    AllOfAuthnPolicy(Policies _policies);
 
     // Try to auto-select names, by calling get_security_scheme_name() on each
     // policy. Will throw if it finds duplicate names.
