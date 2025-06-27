@@ -77,19 +77,19 @@ namespace ccf
       header_items[KID_INDEX].uLabelType = QCBOR_TYPE_INT64;
       header_items[KID_INDEX].uDataType = QCBOR_TYPE_BYTE_STRING;
 
-      const auto * gov_msg_type_label = HEADER_PARAM_MSG_TYPE;
+      const auto* gov_msg_type_label = HEADER_PARAM_MSG_TYPE;
       header_items[GOV_MSG_TYPE].label.string =
         UsefulBuf_FromSZ(gov_msg_type_label);
       header_items[GOV_MSG_TYPE].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[GOV_MSG_TYPE].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-      const auto * gov_msg_proposal_id = HEADER_PARAM_MSG_PROPOSAL_ID;
+      const auto* gov_msg_proposal_id = HEADER_PARAM_MSG_PROPOSAL_ID;
       header_items[GOV_MSG_PROPOSAL_ID].label.string =
         UsefulBuf_FromSZ(gov_msg_proposal_id);
       header_items[GOV_MSG_PROPOSAL_ID].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[GOV_MSG_PROPOSAL_ID].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-      const auto * gov_msg_proposal_created_at = HEADER_PARAM_MSG_CREATED_AT;
+      const auto* gov_msg_proposal_created_at = HEADER_PARAM_MSG_CREATED_AT;
       header_items[GOV_MSG_MSG_CREATED_AT].label.string =
         UsefulBuf_FromSZ(gov_msg_proposal_created_at);
       header_items[GOV_MSG_MSG_CREATED_AT].uLabelType = QCBOR_TYPE_TEXT_STRING;
@@ -225,7 +225,7 @@ namespace ccf
       header_items[MSG_TYPE].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[MSG_TYPE].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-      const auto * gov_msg_proposal_created_at = HEADER_PARAM_MSG_CREATED_AT;
+      const auto* gov_msg_proposal_created_at = HEADER_PARAM_MSG_CREATED_AT;
       header_items[MSG_CREATED_AT].label.string =
         UsefulBuf_FromSZ(created_at_name.c_str());
       header_items[MSG_CREATED_AT].uLabelType = QCBOR_TYPE_TEXT_STRING;
@@ -330,7 +330,7 @@ namespace ccf
     }
 
     MemberCerts members_certs_table(Tables::MEMBER_CERTS);
-    auto * member_certs = tx.ro(members_certs_table);
+    auto* member_certs = tx.ro(members_certs_table);
     auto member_cert = member_certs->get(phdr.kid);
     if (member_cert.has_value())
     {
@@ -411,7 +411,7 @@ namespace ccf
       MemberCOSESign1AuthnPolicy::authenticate(tx, ctx, error_reason);
     if (ident != nullptr)
     {
-      const auto * cose_ident =
+      const auto* cose_ident =
         dynamic_cast<const MemberCOSESign1AuthnIdentity*>(ident.get());
       if (cose_ident == nullptr)
       {
@@ -421,7 +421,7 @@ namespace ccf
 
       const auto member_id = cose_ident->member_id;
 
-      auto * member_info_handle =
+      auto* member_info_handle =
         tx.template ro<ccf::MemberInfo>(ccf::Tables::MEMBER_INFO);
       auto member = member_info_handle->get(member_id);
       if (!member.has_value() || member->status != ccf::MemberStatus::ACTIVE)
@@ -467,7 +467,7 @@ namespace ccf
     }
 
     UserCerts users_certs_table(Tables::USER_CERTS);
-    auto * user_certs = tx.ro(users_certs_table);
+    auto* user_certs = tx.ro(users_certs_table);
     auto user_cert = user_certs->get(phdr.kid);
     if (user_cert.has_value())
     {

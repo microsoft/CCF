@@ -160,13 +160,14 @@ namespace ccf::endpoints
 
   std::string schema_name(const InterpreterReusePolicy* policy)
   {
-    (void) policy;
+    (void)policy;
     return "InterpreterReusePolicy";
   }
 
-  void fill_json_schema(nlohmann::json& schema, const InterpreterReusePolicy* policy)
+  void fill_json_schema(
+    nlohmann::json& schema, const InterpreterReusePolicy* policy)
   {
-    (void) policy;
+    (void)policy;
     auto one_of = nlohmann::json::array();
 
     {

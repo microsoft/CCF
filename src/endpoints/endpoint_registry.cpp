@@ -67,19 +67,28 @@ namespace ccf::endpoints
       ds::openapi::error_response_default(path_op);
 
       // Add summary and description if set
-      if (endpoint->openapi_summary.has_value())
       {
-        path_op["summary"] = endpoint->openapi_summary.value();
+        const auto& summary = endpoint->openapi_summary;
+        if (summary.has_value())
+        {
+          path_op["summary"] = summary.value();
+        }
       }
 
-      if (endpoint->openapi_deprecated.has_value())
       {
-        path_op["deprecated"] = endpoint->openapi_deprecated.value();
+        const auto& deprecated = endpoint->openapi_deprecated;
+        if (deprecated.has_value())
+        {
+          path_op["deprecated"] = deprecated.value();
+        }
       }
 
-      if (endpoint->openapi_description.has_value())
       {
-        path_op["description"] = endpoint->openapi_description.value();
+        const auto& description = endpoint->openapi_description;
+        if (description.has_value())
+        {
+          path_op["description"] = description.value();
+        }
       }
 
       if (!endpoint->authn_policies.empty())
@@ -320,7 +329,7 @@ namespace ccf::endpoints
   void EndpointRegistry::build_api(
     nlohmann::json& document, ccf::kv::ReadOnlyTx& tx)
   {
-    (void) tx;
+    (void)tx;
     // Add common components:
     // - Descriptions of each kind of forwarding
     auto& forwarding_component = document["components"]["x-ccf-forwarding"];
@@ -410,7 +419,7 @@ namespace ccf::endpoints
   EndpointDefinitionPtr EndpointRegistry::find_endpoint(
     ccf::kv::Tx& tx, ccf::RpcContext& rpc_ctx)
   {
-    (void) tx;
+    (void)tx;
     auto method = rpc_ctx.get_method();
     auto endpoints_for_exact_method = fully_qualified_endpoints.find(method);
     if (endpoints_for_exact_method != fully_qualified_endpoints.end())
@@ -444,7 +453,7 @@ namespace ccf::endpoints
             // error-reporting
             if (matches.empty())
             {
-              auto * ctx_impl = dynamic_cast<ccf::RpcContextImpl*>(&rpc_ctx);
+              auto* ctx_impl = dynamic_cast<ccf::RpcContextImpl*>(&rpc_ctx);
               if (ctx_impl == nullptr)
               {
                 throw std::logic_error("Unexpected type of RpcContext");
@@ -519,7 +528,7 @@ namespace ccf::endpoints
   std::set<RESTVerb> EndpointRegistry::get_allowed_verbs(
     ccf::kv::Tx& tx, const ccf::RpcContext& rpc_ctx)
   {
-    (void) tx;
+    (void)tx;
     auto method = rpc_ctx.get_method();
 
     std::set<RESTVerb> verbs;
@@ -550,7 +559,7 @@ namespace ccf::endpoints
 
   bool EndpointRegistry::request_needs_root(const ccf::RpcContext& rpc_ctx)
   {
-    (void) rpc_ctx;
+    (void)rpc_ctx;
     return false;
   }
 

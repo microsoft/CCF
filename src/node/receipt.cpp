@@ -58,24 +58,28 @@ namespace ccf
         j.dump()));
     }
 
-    FROM_JSON_GET_REQUIRED_FIELD(ProofReceipt::Components, components, write_set_digest);
-    FROM_JSON_GET_REQUIRED_FIELD(ProofReceipt::Components, components, commit_evidence);
+    FROM_JSON_GET_REQUIRED_FIELD(
+      ProofReceipt::Components, components, write_set_digest);
+    FROM_JSON_GET_REQUIRED_FIELD(
+      ProofReceipt::Components, components, commit_evidence);
 
     // claims_digest is always _emitted_ by current code, but may be
     // missing from old receipts. When parsing those from JSON, treat it as
     // optional
-    FROM_JSON_GET_OPTIONAL_FIELD(ProofReceipt::Components, components, claims_digest);
+    FROM_JSON_GET_OPTIONAL_FIELD(
+      ProofReceipt::Components, components, claims_digest);
   }
 
   std::string schema_name(const ProofReceipt::Components* components)
   {
-    (void) components;
+    (void)components;
     return "Receipt__LeafComponents";
   }
 
-  void fill_json_schema(nlohmann::json& schema, const ProofReceipt::Components* components)
+  void fill_json_schema(
+    nlohmann::json& schema, const ProofReceipt::Components* components)
   {
-    (void) components;
+    (void)components;
     schema = nlohmann::json::object();
     schema["type"] = "object";
 
@@ -106,7 +110,7 @@ namespace ccf
   void to_json(nlohmann::json& j, const ProofReceipt::ProofStep& step)
   {
     j = nlohmann::json::object();
-    const auto * const key =
+    const auto* const key =
       step.direction == ProofReceipt::ProofStep::Left ? "left" : "right";
     j[key] = step.hash;
   }
@@ -143,13 +147,14 @@ namespace ccf
 
   std::string schema_name(const ProofReceipt::ProofStep* step)
   {
-    (void) step;
+    (void)step;
     return "Receipt__Element";
   }
 
-  void fill_json_schema(nlohmann::json& schema, const ProofReceipt::ProofStep* step)
+  void fill_json_schema(
+    nlohmann::json& schema, const ProofReceipt::ProofStep* step)
   {
-    (void) step;
+    (void)step;
     schema = nlohmann::json::object();
 
     auto possible_hash = [](const auto& name) {
@@ -157,8 +162,9 @@ namespace ccf
       schema["required"] = nlohmann::json::array();
       schema["required"].push_back(name);
       schema["properties"] = nlohmann::json::object();
-      schema["properties"][name] = ds::openapi::components_ref_object( // NOLINT(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
-        ds::json::schema_name<ccf::crypto::Sha256Hash>());
+      schema["properties"][name] = ds::openapi::
+        components_ref_object( // NOLINT(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+          ds::json::schema_name<ccf::crypto::Sha256Hash>());
       return schema;
     };
 
@@ -291,13 +297,13 @@ namespace ccf
 
   std::string schema_name(const ReceiptPtr* receipt)
   {
-    (void) receipt;
+    (void)receipt;
     return "Receipt";
   }
 
   void fill_json_schema(nlohmann::json& schema, const ReceiptPtr* receipt)
   {
-    (void) receipt;
+    (void)receipt;
     schema = nlohmann::json::object();
     schema["type"] = "object";
 

@@ -10,7 +10,7 @@ namespace ccf::indexing::strategies
   void SeqnosByKey_InMemory_Untyped::visit_entry(
     const ccf::TxID& tx_id, const ccf::ByteVector& k, const ccf::ByteVector& v)
   {
-    (void) v;
+    (void)v;
     std::lock_guard<ccf::pal::Mutex> guard(lock);
     seqnos_by_key[k].insert(tx_id.seqno);
   }

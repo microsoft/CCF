@@ -133,7 +133,7 @@ namespace ccf
           signature_size,
           ccf::crypto::MDType::SHA256);
       }
-      
+
       if (std::holds_alternative<ccf::crypto::PublicKeyPtr>(key))
       {
         LOG_DEBUG_FMT("Verify der: {} as EC key", der);
@@ -174,7 +174,7 @@ namespace ccf
     }
 
     const auto& token = token_opt.value();
-    auto * keys = tx.ro<JwtPublicSigningKeysMetadata>(
+    auto* keys = tx.ro<JwtPublicSigningKeysMetadata>(
       ccf::Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
     const auto key_id = token.header_typed.kid;
     auto token_keys = keys->get(key_id);
@@ -185,7 +185,7 @@ namespace ccf
     // conversion from cert to raw key is needed.
     if (!token_keys)
     {
-      auto * fallback_certs = tx.ro<JwtPublicSigningKeysMetadataLegacy>(
+      auto* fallback_certs = tx.ro<JwtPublicSigningKeysMetadataLegacy>(
         ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS_METADATA);
       auto fallback_data = fallback_certs->get(key_id);
       if (fallback_data)
@@ -212,9 +212,9 @@ namespace ccf
     // conversion from certs to keys is needed.
     if (!token_keys)
     {
-      auto * fallback_keys = tx.ro<Tables::Legacy::JwtPublicSigningKeys>(
+      auto* fallback_keys = tx.ro<Tables::Legacy::JwtPublicSigningKeys>(
         ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS);
-      auto * fallback_issuers = tx.ro<Tables::Legacy::JwtPublicSigningKeyIssuer>(
+      auto* fallback_issuers = tx.ro<Tables::Legacy::JwtPublicSigningKeyIssuer>(
         ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEY_ISSUER);
 
       auto fallback_cert = fallback_keys->get(key_id);
@@ -223,8 +223,8 @@ namespace ccf
       {
         if (!fallback_issuer)
         {
-          error_reason =
-            fmt::format("JWT signing key fallback issuers not found for kid {}", key_id);
+          error_reason = fmt::format(
+            "JWT signing key fallback issuers not found for kid {}", key_id);
           return nullptr;
         }
         auto verifier = ccf::crypto::make_unique_verifier(*fallback_cert);

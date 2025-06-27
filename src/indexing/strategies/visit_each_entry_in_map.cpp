@@ -19,7 +19,7 @@ namespace ccf::indexing::strategies
     // NB: Get an untyped view over the map with the same name. This saves
     // deserialisation here, where we hand on the raw key and value.
     auto tx = store->create_read_only_tx();
-    auto * handle = tx.ro<ccf::kv::untyped::Map>(map_name);
+    auto* handle = tx.ro<ccf::kv::untyped::Map>(map_name);
 
     handle->foreach([this, &tx_id](const auto& k, const auto& v) {
       visit_entry(tx_id, k, v);

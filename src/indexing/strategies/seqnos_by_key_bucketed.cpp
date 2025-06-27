@@ -65,7 +65,9 @@ namespace ccf::indexing::strategies
       }
     }
 
-    static LFSContents serialise(SeqNoCollection&& seqnos) // NOLINT(cppcoreguidelines-rvalue-reference-param-not-moved)
+    static LFSContents serialise(
+      SeqNoCollection&&
+        seqnos) // NOLINT(cppcoreguidelines-rvalue-reference-param-not-moved)
     {
       LFSContents blob;
 
@@ -73,7 +75,7 @@ namespace ccf::indexing::strategies
         // Write number of seqnos
         const auto orig_size = blob.size();
         blob.resize(orig_size + sizeof(seqnos.size()));
-        auto * data = blob.data() + orig_size;
+        auto* data = blob.data() + orig_size;
         auto size = blob.size() - orig_size;
         serialized::write(data, size, seqnos.size());
       }
@@ -83,7 +85,7 @@ namespace ccf::indexing::strategies
       {
         const auto orig_size = blob.size();
         blob.resize(orig_size + sizeof(seqno));
-        auto * data = blob.data() + orig_size;
+        auto* data = blob.data() + orig_size;
         auto size = blob.size() - orig_size;
         serialized::write(data, size, seqno);
       }
@@ -96,7 +98,7 @@ namespace ccf::indexing::strategies
       corrupt = false;
       try
       {
-        const auto * data = raw.data();
+        const auto* data = raw.data();
         auto size = raw.size();
 
         // Read number of seqnos
@@ -245,7 +247,7 @@ namespace ccf::indexing::strategies
                 {
                   bucket_value.first = nullptr;
                   break;
-                }                
+                }
                 // Deliberately fall through to the case below. If this can't
                 // deserialise the value, consider the file corrupted
                 LOG_FAIL_FMT("Deserialisation failed");
@@ -257,7 +259,7 @@ namespace ccf::indexing::strategies
                 // longer available or corrupted. Reset the watermark of what
                 // has been indexed, to re-index and rewrite those files.
                 complete = false;
-                const auto * problem =
+                const auto* problem =
                   fetch_result == FetchResult::NotFound ? "missing" : "corrupt";
                 LOG_FAIL_FMT(
                   "A file that {} requires is {}. Re-indexing.", name, problem);
@@ -358,7 +360,7 @@ namespace ccf::indexing::strategies
   void SeqnosByKey_Bucketed_Untyped::visit_entry(
     const ccf::TxID& tx_id, const ccf::ByteVector& k, const ccf::ByteVector& v)
   {
-    (void) v;
+    (void)v;
     const auto range = impl->get_range_for(tx_id.seqno);
 
     std::lock_guard<ccf::pal::Mutex> guard(impl->results_access);

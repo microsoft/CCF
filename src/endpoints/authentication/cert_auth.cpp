@@ -84,7 +84,7 @@ namespace ccf
           valid_from_unix_time);
         return false;
       }
-      
+
       if (time_now > valid_to_unix_time)
       {
         error_reason = fmt::format(
@@ -124,7 +124,7 @@ namespace ccf
 
     auto caller_id = ccf::crypto::Sha256Hash(caller_cert).hex_str();
 
-    auto * user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
+    auto* user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
     if (user_certs->has(caller_id))
     {
       auto identity = std::make_unique<UserCertAuthnIdentity>();
@@ -156,7 +156,7 @@ namespace ccf
 
     auto caller_id = ccf::crypto::Sha256Hash(caller_cert).hex_str();
 
-    auto * member_certs = tx.ro<MemberCerts>(Tables::MEMBER_CERTS);
+    auto* member_certs = tx.ro<MemberCerts>(Tables::MEMBER_CERTS);
     if (member_certs->has(caller_id))
     {
       auto identity = std::make_unique<MemberCertAuthnIdentity>();
@@ -182,7 +182,7 @@ namespace ccf
 
     auto node_caller_id = compute_node_id_from_cert_der(caller_cert);
 
-    auto * nodes = tx.ro<ccf::Nodes>(Tables::NODES);
+    auto* nodes = tx.ro<ccf::Nodes>(Tables::NODES);
     auto node = nodes->get(node_caller_id);
     if (node.has_value())
     {
@@ -193,7 +193,7 @@ namespace ccf
 
     std::vector<ccf::NodeId> known_nids;
     nodes->foreach([&known_nids](const NodeId& nid, const NodeInfo& ni) {
-      (void) ni;
+      (void)ni;
       known_nids.push_back(nid);
       return true;
     });
@@ -218,7 +218,7 @@ namespace ccf
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
-    (void) tx;
+    (void)tx;
     const auto& caller_cert = ctx->get_session_context()->caller_cert;
     if (caller_cert.empty())
     {
