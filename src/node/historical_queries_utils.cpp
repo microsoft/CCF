@@ -127,8 +127,15 @@ namespace
 
     while (keep_fetching(target_seq))
     {
+      auto & last_cose_endorsement = cose_endorsements_cache.back(); 
+      if (!last_cose_endorsement.previous_version.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "previous_version is not set for the endorsement with epoch_begin: {}",
+          last_cose_endorsement.endorsement_epoch_begin.to_str())); 
+      }
       const auto prev_endorsement_seqno =
-        cose_endorsements_cache.back().previous_version.value();
+        last_cose_endorsement.previous_version.value();
       const auto hstate = state_cache.get_state_at(
         prev_endorsement_seqno, prev_endorsement_seqno);
 
@@ -145,9 +152,12 @@ namespace
           ->get();
 
       validate_fetched_endorsement(endorsement);
+      // NOLINTBEGIN(bugprone-unchecked-optional-access)
+      // Checked by the validate call above
       validate_chain_integrity(
-        cose_endorsements_cache.back(), endorsement.value());
-      cose_endorsements_cache.push_back(*endorsement);
+        last_cose_endorsement, endorsement.value());
+        cose_endorsements_cache.push_back(endorsement.value());
+        // NOLINTEND(bugprone-unchecked-optional-access)
     }
 
     if (cose_endorsements_cache.size() == 1)
@@ -218,7 +228,7 @@ namespace ccf
       SeqNo target_seqno = state->transaction_id.seqno;
 
       // We start at the previous write to the latest (current) service info.
-      auto service = tx.template ro<Service>(Tables::SERVICE);
+      auto * service = tx.template ro<Service>(Tables::SERVICE);
 
       // Iterate until we find the most recent write to the service info that
       // precedes the target seqno.
@@ -346,6 +356,11 @@ namespace ccf
       AbstractStateCache& state_cache)
     {
       const auto service_info = tx.template ro<Service>(Tables::SERVICE)->get();
+      if (!service_info)
+      {
+        throw std::logic_error(
+          "COSE endorsements fetch: current service info not available");
+      }
       const auto service_start = service_info->current_service_create_txid;
       if (!service_start)
       {

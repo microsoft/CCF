@@ -21,11 +21,11 @@ namespace
       &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL);
 
     // 1 WSD
-    const auto& wsd = receipt.write_set_digest->h;
     if (!receipt.write_set_digest.has_value())
     {
       throw std::logic_error("Write set digest is required for COSE receipts");
     }
+    const auto& wsd = receipt.write_set_digest->h;
     QCBOREncode_AddBytes(&ctx, {wsd.data(), wsd.size()});
 
     // 2. CE

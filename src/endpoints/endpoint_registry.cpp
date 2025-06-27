@@ -295,7 +295,7 @@ namespace ccf::endpoints
     {
       auto templated_endpoint =
         std::make_shared<PathTemplatedEndpoint>(endpoint);
-      templated_endpoint->spec = std::move(template_spec.value());
+      templated_endpoint->spec = template_spec.value();
       templated_endpoints[endpoint.dispatch.uri_path][endpoint.dispatch.verb] =
         templated_endpoint;
     }
@@ -318,8 +318,9 @@ namespace ccf::endpoints
   }
 
   void EndpointRegistry::build_api(
-    nlohmann::json& document, ccf::kv::ReadOnlyTx&)
+    nlohmann::json& document, ccf::kv::ReadOnlyTx& tx)
   {
+    (void) tx;
     // Add common components:
     // - Descriptions of each kind of forwarding
     auto& forwarding_component = document["components"]["x-ccf-forwarding"];
@@ -373,7 +374,9 @@ namespace ccf::endpoints
       for (const auto& [verb, endpoint] : verb_endpoints)
       {
         if (endpoint->openapi_hidden)
+        {
           continue;
+        }
         add_endpoint_to_api_document(document, endpoint);
       }
     }
@@ -383,7 +386,9 @@ namespace ccf::endpoints
       for (const auto& [verb, endpoint] : verb_endpoints)
       {
         if (endpoint->openapi_hidden)
+        {
           continue;
+        }
         add_endpoint_to_api_document(document, endpoint);
 
         for (const auto& name : endpoint->spec.template_component_names)
@@ -403,8 +408,9 @@ namespace ccf::endpoints
   void EndpointRegistry::init_handlers() {}
 
   EndpointDefinitionPtr EndpointRegistry::find_endpoint(
-    ccf::kv::Tx&, ccf::RpcContext& rpc_ctx)
+    ccf::kv::Tx& tx, ccf::RpcContext& rpc_ctx)
   {
+    (void) tx;
     auto method = rpc_ctx.get_method();
     auto endpoints_for_exact_method = fully_qualified_endpoints.find(method);
     if (endpoints_for_exact_method != fully_qualified_endpoints.end())
@@ -436,9 +442,9 @@ namespace ccf::endpoints
             // Populate the request_path_params the first-time through. If we
             // get a second match, we're just building up a list for
             // error-reporting
-            if (matches.size() == 0)
+            if (matches.empty())
             {
-              auto ctx_impl = static_cast<ccf::RpcContextImpl*>(&rpc_ctx);
+              auto * ctx_impl = dynamic_cast<ccf::RpcContextImpl*>(&rpc_ctx);
               if (ctx_impl == nullptr)
               {
                 throw std::logic_error("Unexpected type of RpcContext");
