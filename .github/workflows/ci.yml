@@ -267,13 +267,19 @@ jobs:
           echo "::endgroup::"
         shell: bash
 
+      - name: "Confirm running on SEV-SNP"
+        run: |
+          set -ex
+          python3 tests/infra/platform_detection.py snp
+        shell: bash
+
       - name: "Build Debug"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
 

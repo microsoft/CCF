@@ -13,7 +13,6 @@ usage() {
 }
 
 setup_env() {
-  PLATFORM=$(jq -r '.platform_name' "$REPRO_JSON")
   SOURCE_DATE_EPOCH=$(jq -r '.tdnf_snapshottime' "$REPRO_JSON")
   export SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH"
   echo "Reproducing using SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH"
@@ -26,7 +25,7 @@ install_deps() {
 build_pkg() {
   mkdir -p build && cd build
   echo "Reproducing devel package..."
-  cmake -G Ninja -DCOMPILE_TARGET="$PLATFORM" -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
+  cmake -G Ninja -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
   ninja -v
   cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
   cpack -V -G RPM
@@ -43,7 +42,7 @@ build_pkg() {
   echo "Reproducing run package..."
   # Reset cmake config to affect cpack settings
   rm CMakeCache.txt
-  cmake -G Ninja -DCOMPILE_TARGET="$PLATFORM"  -DCMAKE_BUILD_TYPE=Release -DCCF_DEVEL=OFF ..
+  cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCCF_DEVEL=OFF ..
   cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
   cpack -V -G RPM
   for f in *.rpm; do

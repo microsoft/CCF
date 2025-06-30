@@ -285,11 +285,10 @@ jobs:
           set -ex
           commit_id=$(git rev-parse HEAD)
           echo "commit_sha=$commit_id" >> $GITHUB_OUTPUT
-          filename=reproduce-${{ matrix.platform.name }}.json
+          filename=reproduce.json
 
           cat <<EOF > $filename
           {
-            "platform_name": "${{ matrix.platform.name }}",
             "build_container_image": "${{needs.image_digest.outputs.image_digest}}",
             "tdnf_snapshottime": $SOURCE_DATE_EPOCH,
             "commit_sha": "$commit_id"
@@ -300,21 +299,14 @@ jobs:
       - name: "Upload Reproducibility Metadata"
         uses: actions/upload-artifact@v4
         with:
-          name: reproduce-${{ matrix.platform.name }}-metadata
-          path: reproduce-${{ matrix.platform.name }}.json
+          name: reproduce-metadata
+          path: reproduce.json
 
   reproduce_rpm:
     name: Test Reproducibility
     needs:
       - build_release
       - image_digest
-    strategy:
-      matrix:
-        platform:
-          - name: virtual
-            os: azure-linux
-          - name: snp
-            os: azure-linux
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     env:
       REPRO_DIR: /tmp/reproduced
@@ -342,7 +334,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: repro
-          pattern: reproduce-${{ matrix.platform.name }}-metadata
+          pattern: reproduce-metadata
           merge-multiple: true
       - name: Reproduce RPMs
         id: reproduce
@@ -351,7 +343,7 @@ jobs:
           set -ex
           tdnf install --snapshottime=${{ needs.build_release.outputs.SOURCE_DATE_EPOCH }} -y jq
           git config --global --add safe.directory /__w/CCF/CCF
-          ./reproduce/reproduce_rpm.sh repro/reproduce-${{ matrix.platform.name }}.json
+          ./reproduce/reproduce_rpm.sh repro/reproduce.json
           RPM_NAMES=$(ls "$REPRO_DIR" || true)
           if [ -z "$RPM_NAMES" ]; then
             echo "ERROR: No reproduced package found in $REPRO_DIR"
@@ -420,7 +412,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: repro
-          pattern: reproduce-*
+          pattern: reproduce*
           merge-multiple: true
       - run: |
           set -ex
