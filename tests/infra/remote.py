@@ -400,6 +400,11 @@ class CCFRemote(object):
         if common_read_only_ledger_dir is not None:
             self.read_only_ledger_dirs_names.append(common_read_only_ledger_dir)
 
+        if self.ledger_dir_name in self.read_only_ledger_dirs_names:
+            raise RuntimeError(
+                f"Ledger directory named '{self.ledger_dir_name}' already appears in this node's read-only ledger directories, it cannot also be the node's main writeable directory"
+            )
+
         # Snapshots
         self.snapshots_dir = os.path.normpath(snapshots_dir) if snapshots_dir else None
         self.snapshots_dir_name = (
