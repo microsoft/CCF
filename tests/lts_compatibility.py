@@ -581,7 +581,6 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
 
                     network.start_in_recovery(
                         args,
-                        ledger_dir=new_ledger,
                         committed_ledger_dirs=[new_ledger],
                         snapshots_dir=new_snapshots if use_snapshot else None,
                         common_dir=new_common,
