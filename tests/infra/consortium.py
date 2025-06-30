@@ -149,16 +149,12 @@ class Consortium:
         for cls in (
             infra.member.MemberAPI.Preview_v1,
             infra.member.MemberAPI.v1,
-            infra.member.MemberAPI.Classic,
         ):
             if version_s == cls.API_VERSION:
                 self.gov_api_impl = cls
                 break
         else:
-            LOG.warning(
-                f"No gov API version found to match '{version_s}' specified - defaulting to classic API"
-            )
-            self.gov_api_impl = infra.member.MemberAPI.Classic
+            raise ValueError(f"Unsupported gov API version: {version_s}")
 
     def make_proposal(self, proposal_name, **kwargs):
         action = {
