@@ -297,7 +297,6 @@ namespace ccf
           auto& receipt = *state->receipt;
 
           // NOLINTBEGIN(bugprone-unchecked-optional-access)
-          // Checked on line 292
           if (receipt.node_cert->empty())
           {
             // Pre 2.0 receipts did not contain node certs.
