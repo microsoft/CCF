@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/nonstd.h"
 #include "ccf/pal/attestation_sev_snp.h"
 
 #include <algorithm>
@@ -229,6 +230,7 @@ namespace ccf::pal::snp::ioctl6
         throw std::logic_error(
           fmt::format("Failed to open \"{}\" ({})", DEVICE, fd));
       }
+      auto close_guard = nonstd::make_close_fd_guard(&fd);
 
       // Documented at
       // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
@@ -283,6 +285,7 @@ namespace ccf::pal::snp::ioctl6
         throw std::logic_error(
           fmt::format("Failed to open \"{}\" ({})", DEVICE, fd));
       }
+      auto close_guard = nonstd::make_close_fd_guard(&fd);
 
       // This req by default mixes in HostData and the CPU VCEK
       DerivedKeyReq req = {};

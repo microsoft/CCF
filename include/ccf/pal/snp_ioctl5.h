@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/nonstd.h"
 #include "ccf/pal/attestation_sev_snp.h"
 
 #include <fcntl.h>
@@ -106,8 +107,10 @@ namespace ccf::pal::snp::ioctl5
       int fd = open(DEVICE, O_RDWR | O_CLOEXEC);
       if (fd < 0)
       {
-        throw std::logic_error(fmt::format("Failed to open \"{}\"", DEVICE));
+        throw std::logic_error(
+          fmt::format("Failed to open \"{}\" ({})", DEVICE, fd));
       }
+      auto close_guard = nonstd::make_close_fd_guard(&fd);
 
       // Documented at
       // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
