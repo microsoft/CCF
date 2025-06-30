@@ -21,7 +21,7 @@ namespace
     bool retry{false};
   };
 
-  static std::vector<ccf::CoseEndorsement> cose_endorsements_cache = {};
+  std::vector<ccf::CoseEndorsement> cose_endorsements_cache = {};
 
   bool is_self_endorsement(const ccf::CoseEndorsement& endorsement)
   {
@@ -82,10 +82,11 @@ namespace
   {
     if (
       !is_self_endorsement(older) &&
-      (newer.endorsement_epoch_begin.view - aft::starting_view_change !=
-         older.endorsement_epoch_end->view ||
-       newer.endorsement_epoch_begin.seqno - 1 !=
-         older.endorsement_epoch_end->seqno))
+      (older.endorsement_epoch_end.has_value() &&
+       (newer.endorsement_epoch_begin.view - aft::starting_view_change !=
+          older.endorsement_epoch_end->view ||
+        newer.endorsement_epoch_begin.seqno - 1 !=
+          older.endorsement_epoch_end->seqno)))
     {
       throw std::logic_error(fmt::format(
         "COSE endorsement chain integrity is violated, previous endorsement "
@@ -104,7 +105,10 @@ namespace
             ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
           ->get();
       validate_fetched_endorsement(endorsement);
+      // NOLINTBEGIN(bugprone-unchecked-optional-access)
+      // Checked by the validate call above
       cose_endorsements_cache.push_back(*endorsement);
+      // NOLINTEND(bugprone-unchecked-optional-access)
     }
   }
 
@@ -123,8 +127,16 @@ namespace
 
     while (keep_fetching(target_seq))
     {
+      auto& last_cose_endorsement = cose_endorsements_cache.back();
+      if (!last_cose_endorsement.previous_version.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "previous_version is not set for the endorsement with epoch_begin: "
+          "{}",
+          last_cose_endorsement.endorsement_epoch_begin.to_str()));
+      }
       const auto prev_endorsement_seqno =
-        cose_endorsements_cache.back().previous_version.value();
+        last_cose_endorsement.previous_version.value();
       const auto hstate = state_cache.get_state_at(
         prev_endorsement_seqno, prev_endorsement_seqno);
 
@@ -141,9 +153,11 @@ namespace
           ->get();
 
       validate_fetched_endorsement(endorsement);
-      validate_chain_integrity(
-        cose_endorsements_cache.back(), endorsement.value());
-      cose_endorsements_cache.push_back(*endorsement);
+      // NOLINTBEGIN(bugprone-unchecked-optional-access)
+      // Checked by the validate call above
+      validate_chain_integrity(last_cose_endorsement, endorsement.value());
+      cose_endorsements_cache.push_back(endorsement.value());
+      // NOLINTEND(bugprone-unchecked-optional-access)
     }
 
     if (cose_endorsements_cache.size() == 1)
@@ -214,14 +228,22 @@ namespace ccf
       SeqNo target_seqno = state->transaction_id.seqno;
 
       // We start at the previous write to the latest (current) service info.
-      auto service = tx.template ro<Service>(Tables::SERVICE);
+      auto* service = tx.template ro<Service>(Tables::SERVICE);
 
       // Iterate until we find the most recent write to the service info that
       // precedes the target seqno.
       std::optional<ServiceInfo> hservice_info = service->get();
       SeqNo i = -1;
+
+      if (!hservice_info)
+      {
+        throw std::runtime_error("Failed to locate service identity");
+      }
+
       do
       {
+        // NOLINTBEGIN(bugprone-unchecked-optional-access)
+        // Checked on lines 238 and 266
         if (!hservice_info->previous_service_identity_version)
         {
           // Pre 2.0 we did not record the versions of previous identities in
@@ -231,6 +253,7 @@ namespace ccf
             "because it is in a pre-2.0 part of the ledger.");
         }
         i = hservice_info->previous_service_identity_version.value_or(i - 1);
+        // NOLINTEND(bugprone-unchecked-optional-access)
         LOG_TRACE_FMT("historical service identity search at: {}", i);
         auto hstate = state_cache.get_state_at(i, i);
         if (!hstate)
@@ -238,7 +261,7 @@ namespace ccf
           return std::nullopt; // Not available yet - retry later.
         }
         auto htx = hstate->store->create_read_only_tx();
-        auto hservice = htx.ro<Service>(Tables::SERVICE);
+        auto* hservice = htx.ro<Service>(Tables::SERVICE);
         hservice_info = hservice->get();
       } while (i > target_seqno || (i > 1 && !hservice_info));
 
@@ -273,6 +296,7 @@ namespace ccf
         {
           auto& receipt = *state->receipt;
 
+          // NOLINTBEGIN(bugprone-unchecked-optional-access)
           if (receipt.node_cert->empty())
           {
             // Pre 2.0 receipts did not contain node certs.
@@ -282,6 +306,7 @@ namespace ccf
           }
 
           auto v = ccf::crypto::make_unique_verifier(*receipt.node_cert);
+          // NOLINTEND(bugprone-unchecked-optional-access)
           if (!v->verify_certificate(
                 {&network_identity->cert}, {}, /* ignore_time */ true))
           {
@@ -342,6 +367,11 @@ namespace ccf
       AbstractStateCache& state_cache)
     {
       const auto service_info = tx.template ro<Service>(Tables::SERVICE)->get();
+      if (!service_info)
+      {
+        throw std::logic_error(
+          "COSE endorsements fetch: current service info not available");
+      }
       const auto service_start = service_info->current_service_create_txid;
       if (!service_start)
       {
