@@ -500,11 +500,7 @@ namespace programmabilityapp
           return;
         }
 
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CONTENT_TYPE,
-          ccf::http::headervalues::contenttype::JSON);
-        ctx.rpc_ctx->set_response_body(nlohmann::json(bundle).dump(2));
+        ctx.rpc_ctx->set_response_json(bundle, HTTP_STATUS_OK);
       };
 
       make_endpoint(
@@ -673,11 +669,7 @@ namespace programmabilityapp
             return;
           }
 
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::CONTENT_TYPE,
-            ccf::http::headervalues::contenttype::JSON);
-          ctx.rpc_ctx->set_response_body(nlohmann::json(options).dump(2));
+          ctx.rpc_ctx->set_response_json(options, HTTP_STATUS_OK);
         };
       make_endpoint(
         "/custom_endpoints/runtime_options",
@@ -701,11 +693,7 @@ namespace programmabilityapp
           return;
         }
 
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CONTENT_TYPE,
-          ccf::http::headervalues::contenttype::JSON);
-        ctx.rpc_ctx->set_response_body(nlohmann::json(options).dump(2));
+        ctx.rpc_ctx->set_response_json(options, HTTP_STATUS_OK);
       };
       make_endpoint(
         "/custom_endpoints/runtime_options",
