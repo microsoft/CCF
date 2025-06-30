@@ -60,7 +60,6 @@ namespace ccf
           }
           else
           {
-            ctx->set_response_status(HTTP_STATUS_OK);
             const auto accept_it =
               ctx->get_request_header(http::headers::ACCEPT);
             if (accept_it.has_value())
@@ -90,12 +89,7 @@ namespace ccf
               }
             }
 
-            const auto s = body->dump();
-            ctx->set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
-
-            ctx->set_response_header(
-              http::headers::CONTENT_TYPE,
-              http::headervalues::contenttype::JSON);
+            ctx->set_response_json(*body, HTTP_STATUS_OK);
           }
         }
       }
