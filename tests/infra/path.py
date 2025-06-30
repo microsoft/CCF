@@ -6,6 +6,7 @@ from shutil import copy2, rmtree
 import hashlib
 import infra.node
 import infra.platform_detection
+from packaging.version import Version  # type: ignore
 
 from loguru import logger as LOG
 
@@ -23,7 +24,7 @@ def mk_new(name, contents):
 
 
 def build_lib_path(lib_name, library_dir=".", version=None):
-    if infra.node.version_after(version, "ccf-6.0.7"):
+    if version is None or Version(infra.node.strip_version(version)).major >= 7:
         ext = ".so"
     else:
         if infra.platform_detection.is_virtual():

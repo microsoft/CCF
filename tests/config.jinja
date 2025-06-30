@@ -1,7 +1,7 @@
 {
   "enclave": {
     "type": "{{ enclave_type }}",
-    "platform": "{{ "Virtual" if enclave_platform.lower() == "virtual" else enclave_platform.upper() }}"
+    "platform": "{{ enclave_platform }}"
   },
   "network": {
     "node_to_node_interface": { "bind_address": "{{ node_address }}", "published_address": "{{ published_node_address }}" },

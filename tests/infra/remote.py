@@ -497,11 +497,19 @@ class CCFRemote(object):
                 auto_dr_args["previous_sealed_ledger_secret_location"] = (
                     previous_sealed_ledger_secret_location
                 )
+
+            enclave_platform = infra.platform_detection.get_platform()
+            enclave_platform = (
+                "Virtual"
+                if enclave_platform.lower() == "virtual"
+                else enclave_platform.upper()
+            )
+
             output = t.render(
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
                 enclave_type="Release",
-                enclave_platform=infra.platform_detection.get_platform(),  # Ignored, but paased for LTS compat
+                enclave_platform=enclave_platform,  # Ignored, but paased for LTS compat
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(
                     LocalRemote.make_host(host)
                 ),
