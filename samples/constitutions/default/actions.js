@@ -1128,19 +1128,38 @@ const actions = new Map([
       function (args) {
         checkValidCpuid(args.cpuid, "cpuid");
 
-        checkType(args.tcb_version, "object", "tcb_version");
-        checkType(
-          args.tcb_version?.boot_loader,
-          "number",
-          "tcb_version.boot_loader",
-        );
-        checkType(args.tcb_version?.tee, "number", "tcb_version.tee");
-        checkType(args.tcb_version?.snp, "number", "tcb_version.snp");
-        checkType(
-          args.tcb_version?.microcode,
-          "number",
-          "tcb_version.microcode",
-        );
+        if (typeof(args.tcb_version) == "object") {
+          checkType(args.tcb_version, "object", "tcb_version");
+          checkType(
+            args.tcb_version?.boot_loader,
+            "number",
+            "tcb_version.boot_loader",
+          );
+          checkType(args.tcb_version?.tee, "number", "tcb_version.tee");
+          checkType(args.tcb_version?.snp, "number", "tcb_version.snp");
+          checkType(
+            args.tcb_version?.microcode,
+            "number",
+            "tcb_version.microcode",
+          );
+        } else if (typeof(args.tcb_version) == "string") {
+          if (value !== value.toLowerCase()) {
+            throw new Error(
+              `tcb_version must be a lowercase string, but is ${args.tcb_version}`,
+            );
+          }
+
+          const buffer = hexStrToBuf(args.tcb_version);
+          if (buffer.length !== 8) {
+            throw new Error(
+              `tcb_version must be 8 bytes long, but ${args.tcb_version} is ${buffer.length} bytes long`,
+            );
+          }
+        } else {
+          throw new Error(
+            `tcb_version must be an object or a string, but is ${typeof args.tcb_version}`,
+          );  
+        }
       },
       function (args, proposalId) {
         // ensure cpuid is uppercase to prevent aliasing
