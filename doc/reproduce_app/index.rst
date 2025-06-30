@@ -20,10 +20,10 @@ To reproduce a package:
     # Alternatively, set this manually, e.g.:
     # export CCF_VERSION=6.0.0
     $ export PLATFORM=virtual
-    $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/reproduce_${PLATFORM}.json
+    $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/reproduce-${PLATFORM}.json
     $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/start_container_and_reproduce_rpm.sh
-
-    $ ./start_container_and_reproduce_rpm.sh reproduce_${PLATFORM}.json
+    $ chmod +x ./start_container_and_reproduce_rpm.sh 
+    $ ./start_container_and_reproduce_rpm.sh reproduce-${PLATFORM}.json
 
 This builds the RPM in a container and outputs it to ``./reproduced/``. You can then compare it with the official RPM to verify they are identical:
 
