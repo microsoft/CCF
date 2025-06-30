@@ -14,6 +14,10 @@ usage() {
 }
 
 setup_env() {
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "Error: jq is not installed. Please install jq to continue."
+    exit 1
+  fi
   IMAGE=$(jq -r '.build_container_image' "$REPRO_JSON")
   SOURCE_DATE_EPOCH=$(jq -r '.tdnf_snapshottime' "$REPRO_JSON")
   export SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH"
@@ -29,19 +33,21 @@ setup_env
 docker run --rm -it \
   -e SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
   -v "$(pwd)/reproduced":/tmp/reproduced \
-  -v $REPRO_JSON:/reproduce.json \
+  --mount type=bind,src="$(pwd)/$REPRO_JSON",dst=/reproduce.json \
   "$IMAGE" \
   bash -c '
     set -ex
-    tdnf install --snapshottime=$SOURCE_DATE_EPOCH -y git jq
+    tdnf install --snapshottime=$SOURCE_DATE_EPOCH -y git jq ca-certificates
     COMMIT_ID=$(jq -r '.commit_sha' "/reproduce.json")
     echo "Cloning repo and checking out commit $COMMIT_ID"
     REPO_URL="https://github.com/microsoft/CCF"
-    git clone "$REPO_URL" /CCF
-    git config --global --add safe.directory /CCF
-    cd /CCF
+    mkdir -p /__w/CCF
+    cd /__w/CCF
+    git clone "$REPO_URL" CCF
+    git config --global --add safe.directory $(pwd)/CCF
+    cd CCF
     git checkout "$COMMIT_ID"
-    
+   
     echo "Running reproduce script..."
     chmod +x ./reproduce/reproduce_rpm.sh
     ./reproduce/reproduce_rpm.sh /reproduce.json
