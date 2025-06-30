@@ -67,19 +67,28 @@ namespace ccf::endpoints
       ds::openapi::error_response_default(path_op);
 
       // Add summary and description if set
-      if (endpoint->openapi_summary.has_value())
       {
-        path_op["summary"] = endpoint->openapi_summary.value();
+        const auto& summary = endpoint->openapi_summary;
+        if (summary.has_value())
+        {
+          path_op["summary"] = summary.value();
+        }
       }
 
-      if (endpoint->openapi_deprecated.has_value())
       {
-        path_op["deprecated"] = endpoint->openapi_deprecated.value();
+        const auto& deprecated = endpoint->openapi_deprecated;
+        if (deprecated.has_value())
+        {
+          path_op["deprecated"] = deprecated.value();
+        }
       }
 
-      if (endpoint->openapi_description.has_value())
       {
-        path_op["description"] = endpoint->openapi_description.value();
+        const auto& description = endpoint->openapi_description;
+        if (description.has_value())
+        {
+          path_op["description"] = description.value();
+        }
       }
 
       if (!endpoint->authn_policies.empty())
@@ -295,7 +304,7 @@ namespace ccf::endpoints
     {
       auto templated_endpoint =
         std::make_shared<PathTemplatedEndpoint>(endpoint);
-      templated_endpoint->spec = std::move(template_spec.value());
+      templated_endpoint->spec = template_spec.value();
       templated_endpoints[endpoint.dispatch.uri_path][endpoint.dispatch.verb] =
         templated_endpoint;
     }
@@ -318,8 +327,9 @@ namespace ccf::endpoints
   }
 
   void EndpointRegistry::build_api(
-    nlohmann::json& document, ccf::kv::ReadOnlyTx&)
+    nlohmann::json& document, ccf::kv::ReadOnlyTx& tx)
   {
+    (void)tx;
     // Add common components:
     // - Descriptions of each kind of forwarding
     auto& forwarding_component = document["components"]["x-ccf-forwarding"];
@@ -373,7 +383,9 @@ namespace ccf::endpoints
       for (const auto& [verb, endpoint] : verb_endpoints)
       {
         if (endpoint->openapi_hidden)
+        {
           continue;
+        }
         add_endpoint_to_api_document(document, endpoint);
       }
     }
@@ -383,7 +395,9 @@ namespace ccf::endpoints
       for (const auto& [verb, endpoint] : verb_endpoints)
       {
         if (endpoint->openapi_hidden)
+        {
           continue;
+        }
         add_endpoint_to_api_document(document, endpoint);
 
         for (const auto& name : endpoint->spec.template_component_names)
@@ -403,8 +417,9 @@ namespace ccf::endpoints
   void EndpointRegistry::init_handlers() {}
 
   EndpointDefinitionPtr EndpointRegistry::find_endpoint(
-    ccf::kv::Tx&, ccf::RpcContext& rpc_ctx)
+    ccf::kv::Tx& tx, ccf::RpcContext& rpc_ctx)
   {
+    (void)tx;
     auto method = rpc_ctx.get_method();
     auto endpoints_for_exact_method = fully_qualified_endpoints.find(method);
     if (endpoints_for_exact_method != fully_qualified_endpoints.end())
@@ -436,9 +451,9 @@ namespace ccf::endpoints
             // Populate the request_path_params the first-time through. If we
             // get a second match, we're just building up a list for
             // error-reporting
-            if (matches.size() == 0)
+            if (matches.empty())
             {
-              auto ctx_impl = static_cast<ccf::RpcContextImpl*>(&rpc_ctx);
+              auto* ctx_impl = dynamic_cast<ccf::RpcContextImpl*>(&rpc_ctx);
               if (ctx_impl == nullptr)
               {
                 throw std::logic_error("Unexpected type of RpcContext");
@@ -484,7 +499,7 @@ namespace ccf::endpoints
   void EndpointRegistry::execute_endpoint(
     EndpointDefinitionPtr e, EndpointContext& ctx)
   {
-    auto endpoint = dynamic_cast<const Endpoint*>(e.get());
+    const auto* endpoint = dynamic_cast<const Endpoint*>(e.get());
     if (endpoint == nullptr)
     {
       throw std::logic_error(
@@ -498,7 +513,7 @@ namespace ccf::endpoints
   void EndpointRegistry::execute_endpoint_locally_committed(
     EndpointDefinitionPtr e, CommandEndpointContext& ctx, const TxID& tx_id)
   {
-    auto endpoint = dynamic_cast<const Endpoint*>(e.get());
+    const auto* endpoint = dynamic_cast<const Endpoint*>(e.get());
     if (endpoint == nullptr)
     {
       throw std::logic_error(
@@ -513,6 +528,7 @@ namespace ccf::endpoints
   std::set<RESTVerb> EndpointRegistry::get_allowed_verbs(
     ccf::kv::Tx& tx, const ccf::RpcContext& rpc_ctx)
   {
+    (void)tx;
     auto method = rpc_ctx.get_method();
 
     std::set<RESTVerb> verbs;
@@ -543,6 +559,7 @@ namespace ccf::endpoints
 
   bool EndpointRegistry::request_needs_root(const ccf::RpcContext& rpc_ctx)
   {
+    (void)rpc_ctx;
     return false;
   }
 
@@ -567,7 +584,7 @@ namespace ccf::endpoints
   }
 
   // Default implementation does nothing
-  void EndpointRegistry::tick(std::chrono::milliseconds) {}
+  void EndpointRegistry::tick(std::chrono::milliseconds duration) {}
 
   void EndpointRegistry::set_consensus(ccf::kv::Consensus* c)
   {
