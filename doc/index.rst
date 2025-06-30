@@ -57,6 +57,13 @@ CCF Documentation
 
     ---
 
+    :fa:`sync` :doc:`reproduce_app/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Reproduce CCF RPM package from the source code.
+
+    ---
+
     :fa:`code-branch` :doc:`contribute/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -86,6 +93,7 @@ CCF Documentation
     operations/index.rst
     governance/index.rst
     audit/index.rst
+    reproduce_app/index.rst
     contribute/index.rst
     architecture/index.rst
     research/index.rst

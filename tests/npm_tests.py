@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 #
-from base64 import b64encode
+from base64 import b64encode, b64decode
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -881,15 +881,26 @@ def test_npm_app(network, args):
         )
 
         # Test too long an endorsement
+        extended_endorsements = (
+            b64decode(reference_quote["endorsements"])
+            + b"-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
+        )
+        extended_endorsements = b64encode(extended_endorsements).decode(
+            encoding="utf-8"
+        )
         r = c.post(
             "/app/verifySnpAttestation",
             {
                 "evidence": reference_quote["raw"],
-                "endorsements": reference_quote["endorsements"] + "1",
+                "endorsements": extended_endorsements,
                 "uvm_endorsements": reference_quote["uvm_endorsements"],
             },
         )
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+        assert (
+            "Expected 3 endorsement certificates but got 4"
+            in r.body.json()["error"]["message"]
+        )
 
         # Test corrupted endorsements
         r = c.post(
