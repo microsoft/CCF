@@ -41,10 +41,8 @@ docker run --rm -it \
     COMMIT_ID=$(jq -r '.commit_sha' "/reproduce.json")
     echo "Cloning repo and checking out commit $COMMIT_ID"
     REPO_URL="https://github.com/microsoft/CCF"
-    mkdir -p /__w/CCF
-    cd /__w/CCF
     git clone "$REPO_URL" CCF
-    git config --global --add safe.directory $(pwd)/CCF
+    git config --global --add safe.directory CCF
     cd CCF
     git checkout "$COMMIT_ID"
    
