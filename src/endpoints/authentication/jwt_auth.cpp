@@ -265,6 +265,7 @@ namespace ccf
           "Current time {} is before token's Not Before (nbf) claim {}",
           time_now,
           token.payload_typed.nbf);
+        continue;
       }
       else if (time_now > token.payload_typed.exp)
       {
@@ -272,6 +273,7 @@ namespace ccf
           "Current time {} is after token's Expiration Time (exp) claim {}",
           time_now,
           token.payload_typed.exp);
+        continue;
       }
       else if (
         metadata.constraint &&
@@ -284,6 +286,7 @@ namespace ccf
           "Kid {} failed issuer constraint validation {}",
           key_id,
           *metadata.constraint);
+        continue;
       }
       else
       {
@@ -291,6 +294,7 @@ namespace ccf
         identity->key_issuer = metadata.issuer;
         identity->header = token.header;
         identity->payload = token.payload;
+        error_reason.clear();
         return identity;
       }
     }
