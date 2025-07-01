@@ -9,6 +9,7 @@
 #include "ccf/pal/report_data.h"
 #include "ccf/pal/sev_snp_cpuid.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -16,6 +17,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace ccf::pal::snp
 {
@@ -97,9 +99,6 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   static_assert(
     sizeof(TcbVersionMilanGenoa) == snp_tcb_version_size,
     "Milan/Genoa TCB version size mismatch");
-  DECLARE_JSON_TYPE(TcbVersionMilanGenoa);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    TcbVersionMilanGenoa, boot_loader, tee, snp, microcode);
 
   struct TcbVersionTurin
   {
@@ -113,107 +112,179 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   static_assert(
     sizeof(TcbVersionTurin) == snp_tcb_version_size,
     "Turin TCB version size mismatch");
-  DECLARE_JSON_TYPE(TcbVersionTurin);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    TcbVersionTurin, fmc, boot_loader, tee, snp, microcode);
-
-  struct TcbVersion
-  {
-    uint8_t data[snp_tcb_version_size];
-
-    bool operator==(const TcbVersion&) const = default;
-
-    TcbVersionMilanGenoa to_MilanGenoa() const
-    {
-      TcbVersionMilanGenoa ret{};
-      std::memcpy(&ret, &data, snp_tcb_version_size);
-      return ret;
-    }
-    inline static TcbVersion from_MilanGenoa(
-      const TcbVersionMilanGenoa& tcb_milan_genoa)
-    {
-      TcbVersion ret{};
-      std::memcpy(&ret.data, &tcb_milan_genoa, snp_tcb_version_size);
-      return ret;
-    }
-    TcbVersionTurin to_Turin() const
-    {
-      TcbVersionTurin ret{};
-      std::memcpy(&ret, &data, snp_tcb_version_size);
-      return ret;
-    }
-    inline static TcbVersion from_Turin(const TcbVersionTurin& tcb_turin)
-    {
-      TcbVersion ret{};
-      std::memcpy(&ret.data, &tcb_turin, snp_tcb_version_size);
-      return ret;
-    }
-    inline static TcbVersion from_hex(const std::string& hex_str)
-    {
-      TcbVersion ret{};
-      if (hex_str.size() != snp_tcb_version_size * 2)
-      {
-        throw std::logic_error(fmt::format(
-          "SEV-SNP: TCB version hex string of size {}, expected {}",
-          hex_str.size(),
-          snp_tcb_version_size * 2));
-      }
-      auto hex_data = ds::from_hex(hex_str);
-      // reverse to match the expected endianness
-      std::reverse(hex_data.begin(), hex_data.end());
-      memcpy(ret.data, hex_data.data(), snp_tcb_version_size);
-      return ret;
-    }
-  };
-
-  inline std::string schema_name(const TcbVersion* /*unused*/)
-  {
-    return "TcbVersion";
-  }
-
-  inline void fill_json_schema(
-    nlohmann::json& schema, const TcbVersion* /*unused*/)
-  {
-    schema["type"] = "string";
-  }
-
-  inline void from_json(const nlohmann::json& j, TcbVersion& tcb)
-  {
-    if (j.is_string())
-    {
-      std::string hex_str = j.get<std::string>();
-      if (hex_str.size() >= 2 && hex_str[0] == '0' && hex_str[1] == 'x')
-      {
-        hex_str = hex_str.substr(2);
-      }
-
-      try
-      {
-        tcb = TcbVersion::from_hex(hex_str);
-      }
-      catch (const std::logic_error& e)
-      {
-        throw ccf::JsonParseError(fmt::format(
-          "SEV-SNP: Failed to parse TCB version hex string '{}': {}",
-          hex_str,
-          e.what()));
-      }
-    }
-    else if (j.is_object())
-    {
-      tcb = TcbVersion::from_MilanGenoa(j.get<TcbVersionMilanGenoa>());
-    }
-  }
-
-  inline void to_json(nlohmann::json& j, const TcbVersion& tcb)
-  {
-    auto vec = std::vector<uint8_t>(tcb.data, tcb.data + snp_tcb_version_size);
-    std::reverse(vec.begin(), vec.end());
-    j = ds::to_hex(vec);
-  }
 #pragma pack(pop)
 
+  struct TcbVersionPolicy
+  {
+    std::optional<uint> microcode = std::nullopt;
+    std::optional<uint> snp = std::nullopt;
+    std::optional<uint> tee = std::nullopt;
+    std::optional<uint> boot_loader = std::nullopt;
+    std::optional<uint> fmc = std::nullopt;
+
+    [[nodiscard]] TcbVersionMilanGenoa to_milan_genoa() const
+    {
+      auto valid = true;
+      valid &= microcode.has_value();
+      valid &= snp.has_value();
+      valid &= tee.has_value();
+      valid &= boot_loader.has_value();
+      if (!valid)
+      {
+        throw std::logic_error(
+          fmt::format("Invalid TCB version policy for Milan or Genoa"));
+      }
+      return TcbVersionMilanGenoa{
+        static_cast<uint8_t>(boot_loader.value()),
+        static_cast<uint8_t>(tee.value()),
+        {0, 0, 0, 0}, // reserved
+        static_cast<uint8_t>(snp.value()),
+        static_cast<uint8_t>(microcode.value())};
+    }
+
+    [[nodiscard]] TcbVersionTurin to_turin() const
+    {
+      auto valid = true;
+      valid &= microcode.has_value();
+      valid &= snp.has_value();
+      valid &= tee.has_value();
+      valid &= boot_loader.has_value();
+      valid &= fmc.has_value();
+      if (!valid)
+      {
+        throw std::logic_error(
+          fmt::format("Invalid TCB version policy for Turin"));
+      }
+      return TcbVersionTurin{
+        static_cast<uint8_t>(fmc.value()),
+        static_cast<uint8_t>(boot_loader.value()),
+        static_cast<uint8_t>(tee.value()),
+        static_cast<uint8_t>(snp.value()),
+        {0, 0, 0}, // reserved
+        static_cast<uint8_t>(microcode.value())};
+    }
+
+    static bool is_valid(TcbVersionPolicy& minimum, TcbVersionPolicy& test)
+    {
+      auto more_than_min =
+        [](std::optional<uint>& min, std::optional<uint>& test) {
+          if ((min.has_value() != test.has_value()))
+          {
+            return false;
+          }
+          if (!min.has_value() && !test.has_value())
+          {
+            return true;
+          }
+          // both set
+          return min.value() <= test.value();
+        };
+      auto valid = true;
+      valid &= more_than_min(minimum.microcode, test.microcode);
+      valid &= more_than_min(minimum.snp, test.snp);
+      valid &= more_than_min(minimum.tee, test.tee);
+      valid &= more_than_min(minimum.boot_loader, test.boot_loader);
+      valid &= more_than_min(minimum.fmc, test.fmc);
+      return valid;
+    }
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(TcbVersionPolicy);
+  DECLARE_JSON_REQUIRED_FIELDS(TcbVersionPolicy);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    TcbVersionPolicy, fmc, boot_loader, tee, snp, microcode);
+
+  struct TcbVersionRaw
+  {
+  private:
+    uint8_t underlying_data[snp_tcb_version_size];
+
+  public:
+    [[nodiscard]] TcbVersionPolicy to_policy(ProductName product) const
+    {
+      switch (product)
+      {
+        case ProductName::Milan:
+        case ProductName::Genoa:
+        {
+          auto tcb = *reinterpret_cast<const TcbVersionMilanGenoa*>(this);
+          return TcbVersionPolicy{
+            .microcode = tcb.microcode,
+            .snp = tcb.snp,
+            .tee = tcb.tee,
+            .boot_loader = tcb.boot_loader,
+            .fmc = std::nullopt // fmc is not applicable for Milan/Genoa
+          };
+        }
+        case ProductName::Turin:
+        {
+          auto tcb = *reinterpret_cast<const TcbVersionTurin*>(this);
+          return TcbVersionPolicy{
+            .microcode = tcb.microcode,
+            .snp = tcb.snp,
+            .tee = tcb.tee,
+            .boot_loader = tcb.boot_loader,
+            .fmc = tcb.fmc};
+        }
+        default:
+          throw std::logic_error(
+            "Unsupported SEV-SNP product for TCB version policy");
+      }
+    }
+
+    [[nodiscard]] std::vector<uint8_t> data() const
+    {
+      return {
+        static_cast<const uint8_t*>(underlying_data),
+        static_cast<const uint8_t*>(underlying_data) + snp_tcb_version_size};
+    }
+    [[nodiscard]] std::string to_hex() const
+    {
+      auto data = this->data();
+      // reverse to match endianness
+      std::reverse(data.begin(), data.end());
+      auto s = ccf::ds::to_hex(data);
+      return s;
+    }
+    static TcbVersionRaw from_hex(const std::string& hex)
+    {
+      auto data = ccf::ds::from_hex(hex);
+      if (data.size() != snp_tcb_version_size)
+      {
+        throw std::logic_error(
+          fmt::format("Invalid TCB version data size: {}", data.size()));
+      }
+      // reverse to match endianness
+      std::reverse(data.begin(), data.end());
+      TcbVersionRaw tcb_version{};
+      std::memcpy(
+        static_cast<void*>(tcb_version.underlying_data),
+        data.data(),
+        snp_tcb_version_size);
+      return tcb_version;
+    }
+  };
+  static_assert(
+    sizeof(TcbVersionRaw) == snp_tcb_version_size,
+    "TCB version raw size mismatch");
 #pragma pack(push, 1)
+  inline void to_json(nlohmann::json& j, const TcbVersionRaw& tcb_version)
+  {
+    j = tcb_version.to_hex();
+  }
+  inline void from_json(const nlohmann::json& j, TcbVersionRaw& tcb_version_raw)
+  {
+    if (!j.is_string())
+    {
+      throw std::logic_error(
+        fmt::format("Invalid TCB version raw data: {}", j.dump()));
+    }
+    tcb_version_raw = TcbVersionRaw::from_hex(j.get<std::string>());
+  }
+  inline std::string schema_name(const TcbVersionRaw& /*tcb_version*/)
+  {
+    return "TcbVersionRaw";
+  }
+
   struct Signature
   {
     uint8_t r[72];
@@ -289,7 +360,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t image_id[16]; /* 0x020 */
     uint32_t vmpl; /* 0x030 */
     SignatureAlgorithm signature_algo; /* 0x034 */
-    TcbVersion platform_version; /* 0x038 */
+    TcbVersionRaw platform_version; /* 0x038 */
     PlatformInfo platform_info; /* 0x040 */
     Flags flags; /* 0x048 */
     uint32_t reserved0; /* 0x04C */
@@ -300,13 +371,13 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t author_key_digest[48]; /* 0x110 */
     uint8_t report_id[32]; /* 0x140 */
     uint8_t report_id_ma[32]; /* 0x160 */
-    TcbVersion reported_tcb; /* 0x180 */
+    TcbVersionRaw reported_tcb; /* 0x180 */
     uint8_t cpuid_fam_id; /* 0x188*/
     uint8_t cpuid_mod_id; /* 0x189 */
     uint8_t cpuid_step; /* 0x18A */
     uint8_t reserved1[21]; /* 0x18B */
     uint8_t chip_id[64]; /* 0x1A0 */
-    TcbVersion committed_tcb; /* 0x1E0 */
+    TcbVersionRaw committed_tcb; /* 0x1E0 */
     uint8_t current_minor; /* 0x1E8 */
     uint8_t current_build; /* 0x1E9 */
     uint8_t current_major; /* 0x1EA */
@@ -315,7 +386,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t committed_minor; /* 0x1ED */
     uint8_t committed_major; /* 0x1EE */
     uint8_t reserved3; /* 0x1EF */
-    TcbVersion launch_tcb; /* 0x1F0 */
+    TcbVersionRaw launch_tcb; /* 0x1F0 */
     uint8_t reserved4[168]; /* 0x1F8 */
     struct Signature signature; /* 0x2A0 */
   };
@@ -392,8 +463,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             case ProductName::Milan:
             case ProductName::Genoa:
             {
-              auto tcb = quote.reported_tcb.to_MilanGenoa();
-              boot_loader = fmt::format("{}", boot_loader);
+              auto tcb = quote.reported_tcb.to_policy(product).to_milan_genoa();
+              boot_loader = fmt::format("{}", tcb.boot_loader);
               tee = fmt::format("{}", tcb.tee);
               snp = fmt::format("{}", tcb.snp);
               microcode = fmt::format("{}", tcb.microcode);
@@ -401,7 +472,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             }
             case ProductName::Turin:
             {
-              auto tcb = quote.reported_tcb.to_Turin();
+              auto tcb = quote.reported_tcb.to_policy(product).to_turin();
               boot_loader = fmt::format("{}", tcb.boot_loader);
               tee = fmt::format("{}", tcb.tee);
               snp = fmt::format("{}", tcb.snp);

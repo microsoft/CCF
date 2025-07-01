@@ -144,9 +144,19 @@ namespace ccf::pal::snp
     return get_sev_snp_product(cpuid.get_family_id(), cpuid.get_model_id());
   }
 
-  inline ProductName get_sev_snp_product(const std::string& cpuid_hex)
+  inline std::string get_cpuid_of_snp_sev_product(ProductName product)
   {
-    auto cpuid = cpuid_from_hex(cpuid_hex);
-    return get_sev_snp_product(cpuid.get_family_id(), cpuid.get_model_id());
+    switch (product)
+    {
+      case ProductName::Milan:
+        return "00a00f11";
+      case ProductName::Genoa:
+        return "00a10f11";
+      case ProductName::Turin:
+        return "00b00f11";
+      default:
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: Unsupported product for CPUID: {}", to_string(product)));
+    }
   }
 }
