@@ -57,6 +57,10 @@ endif()
 
 include(GNUInstallDirs)
 
+# Use project directory name instead of absolute path for reproducible builds
+get_filename_component(REPRO_DIR ${CMAKE_CURRENT_SOURCE_DIR} NAME)
+add_compile_options("-ffile-prefix-map=${CCF_DIR}=${REPRO_DIR}")
+
 set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
