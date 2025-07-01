@@ -49,12 +49,12 @@ CCF ensures that governance audit is possible offline from a ledger, by consider
 - Governance code must never read from private tables. Doing so might make decisions which could not be reproduced from the ledger by an auditor (ie. without access to ledger secrets).
 - Governance code must never read from application tables. Doing so might produce dependencies on data which was not signed by a member.
 - Governance code running pre-approval must only have read access to tables, and never write.
-- Governance code should not write to application tables, which could be modified further outside of governance.
 - Application code must not modify governance tables, as it could do so without constitution approval.
 
 .. note:: 
 
     An important exemption here is that application code may still `read` from governance tables. This allows authentication, authorization, and metadata to be configured and controlled by governance, but affect the execution of application endpoints.
+    An additional restriction was present until v7.0: "Governance code should not write to application tables, which could be modified further outside of governance". This was determined to be too strict, and prevents governance directly bootstrapping (or correcting) application table state, so was removed.
 
 ..
     A link to this page is included in the CCF source code, and returned in error messages.
@@ -75,7 +75,7 @@ The possible access permissions are elaborated in the table below:
     +==========================+============+============+============+============+============+============+
     | Pre-approval governance  | Read-only  | None       | Read-only  | None       | None       | None       |
     +--------------------------+------------+------------+------------+------------+------------+------------+
-    | Post-approval governance | Read-only  | None       | Writeable  | None       | None       | None       |
+    | Post-approval governance | Read-only  | None       | Writeable  | None       | Writeable  | None       |
     +--------------------------+------------+------------+------------+------------+------------+------------+
     | Application              | Read-only  | None       | Read-only  | None       | Writeable  | Writeable  |
     +--------------------------+------------+------------+------------+------------+------------+------------+
