@@ -1145,12 +1145,12 @@ def test_read_write_restrictions(network, args):
         ),
         # Application tables
         TestSpec(
-            description="Public application tables are read-only",
+            description="Public application tables cannot even be read, apart from during apply where they can be written",
             table_name="public:my.app.my_custom_table",
             readable_in_validate=False,
             writable_in_validate=False,
             readable_in_apply=False,
-            writable_in_apply=False,
+            writable_in_apply=True,
         ),
         TestSpec(
             description="Private application tables cannot even be read",
