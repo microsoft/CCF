@@ -75,9 +75,9 @@ The possible access permissions are elaborated in the table below:
     +==========================+============+============+============+============+============+============+
     | Pre-approval governance  | Read-only  | None       | Read-only  | None       | None       | None       |
     +--------------------------+------------+------------+------------+------------+------------+------------+
-    | Post-approval governance | Read-only  | None       | Writeable  | None       | Writeable  | None       |
+    | Post-approval governance | Read-only  | None       | Read/Write | None       | Write-Only | None       |
     +--------------------------+------------+------------+------------+------------+------------+------------+
-    | Application              | Read-only  | None       | Read-only  | None       | Writeable  | Writeable  |
+    | Application              | Read-only  | None       | Read-only  | None       | Read/Write | Read/Write |
     +--------------------------+------------+------------+------------+------------+------------+------------+
 
 Any violation of these restrictions (eg - calling ``set`` on a `Read-only` table, or ``has`` on a `None` table) results in an exception being thrown.
