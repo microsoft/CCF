@@ -104,7 +104,7 @@ namespace ccf
     std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
     pal::PlatformAttestationMeasurement node_measurement;
-    std::optional<pal::snp::TcbVersion> snp_tcb_version = std::nullopt;
+    std::optional<pal::snp::TcbVersionRaw> snp_tcb_version = std::nullopt;
     ccf::StartupConfig config;
     std::optional<pal::UVMEndorsements> snp_uvm_endorsements = std::nullopt;
     std::vector<uint8_t> startup_snapshot;

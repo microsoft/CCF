@@ -5,6 +5,7 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
 #include "ccf/pal/attestation_sev_snp.h"
+#include "ccf/pal/sev_snp_cpuid.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/constitution.h"
 #include "ccf/service/tables/members.h"
@@ -840,14 +841,11 @@ namespace ccf
         .extended_family = 0x0A,
         .reserved2 = 0};
       // Reported by ACI for minimum Milan version
-      const auto vec_milan_tcb_version = ds::from_hex("d315000000000004");
-      pal::snp::TcbVersion milan_tcb_version{};
-      memcpy(
-        milan_tcb_version.data,
-        vec_milan_tcb_version.data(),
-        sizeof(milan_tcb_version.data));
-      h->put(milan_chip_id.hex_str(), milan_tcb_version);
-      h->put(milan_x_chip_id.hex_str(), milan_tcb_version);
+      const auto milan_tcb_policy =
+        pal::snp::TcbVersionRaw::from_hex("d315000000000004")
+          .to_policy(pal::snp::ProductName::Milan);
+      h->put(milan_chip_id.hex_str(), milan_tcb_policy);
+      h->put(milan_x_chip_id.hex_str(), milan_tcb_policy);
     }
 
     static void trust_node_snp_tcb_version(
@@ -884,7 +882,8 @@ namespace ccf
         return;
       }
       auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
-      h->put(cpuid.hex_str(), attestation.reported_tcb);
+      auto product = pal::snp::get_sev_snp_product(cpuid);
+      h->put(cpuid.hex_str(), attestation.reported_tcb.to_policy(product));
     }
 
     static void init_configuration(

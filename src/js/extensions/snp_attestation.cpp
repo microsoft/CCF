@@ -5,6 +5,7 @@
 
 #include "ccf/js/core/context.h"
 #include "ccf/pal/attestation.h"
+#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/version.h"
 #include "js/checks.h"
 #include "node/uvm_endorsements.h"
@@ -18,11 +19,9 @@ namespace ccf::js::extensions
 {
 #pragma clang diagnostic push
   static JSValue make_js_tcb_version(
-    js::core::Context& jsctx, pal::snp::TcbVersion tcb)
+    js::core::Context& jsctx, pal::snp::TcbVersionRaw tcb)
   {
-    auto span = std::span<const uint8_t>(
-      tcb.data, sizeof(tcb.data) / sizeof(tcb.data[0]));
-    auto data_hex = jsctx.new_string(ds::to_hex(span));
+    auto data_hex = jsctx.new_string(tcb.to_hex());
     JS_CHECK_EXC(data_hex);
     return data_hex.take();
   }
