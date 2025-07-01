@@ -8,8 +8,9 @@ namespace ccf::js
 {
   enum class KVAccessPermissions
   {
-    READ_WRITE,
-    READ_ONLY,
-    ILLEGAL
+    ILLEGAL = 0,
+    READ_ONLY = 1 << 0,
+    WRITE_ONLY = 1 << 1,
+    READ_WRITE = READ_ONLY | WRITE_ONLY
   };
 }
