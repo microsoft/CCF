@@ -95,7 +95,8 @@ TEST_CASE("Parsing of Tcb versions from strings")
     milan_tcb_version_raw.to_policy(ccf::pal::snp::ProductName::Milan);
   CHECK_EQ(
     nlohmann::json(milan_tcb_policy).dump(),
-    "{\"boot_loader\":4,\"microcode\":211,\"snp\":21,\"tee\":0}");
+    "{\"boot_loader\":4,\"hexstring\":\"d315000000000004\",\"microcode\":211,"
+    "\"snp\":21,\"tee\":0}");
 
   const auto milan_tcb_version = milan_tcb_policy.to_milan_genoa();
   CHECK_EQ(milan_tcb_version.microcode, 0xd3);
@@ -108,7 +109,8 @@ TEST_CASE("Parsing of Tcb versions from strings")
       .to_policy(ccf::pal::snp::ProductName::Turin);
   CHECK_EQ(
     nlohmann::json(turin_tcb_policy).dump(),
-    "{\"boot_loader\":68,\"fmc\":85,\"microcode\":17,\"snp\":34,\"tee\":51}");
+    "{\"boot_loader\":68,\"fmc\":85,\"hexstring\":\"1100000022334455\","
+    "\"microcode\":17,\"snp\":34,\"tee\":51}");
 
   const auto turin_tcb_version = turin_tcb_policy.to_turin();
   CHECK_EQ(turin_tcb_version.microcode, 0x11);

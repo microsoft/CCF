@@ -116,6 +116,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
   struct TcbVersionPolicy
   {
+    std::optional<std::string> hexstring = std::nullopt;
     std::optional<uint> microcode = std::nullopt;
     std::optional<uint> snp = std::nullopt;
     std::optional<uint> tee = std::nullopt;
@@ -191,7 +192,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(TcbVersionPolicy);
   DECLARE_JSON_REQUIRED_FIELDS(TcbVersionPolicy);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    TcbVersionPolicy, fmc, boot_loader, tee, snp, microcode);
+    TcbVersionPolicy, fmc, boot_loader, tee, snp, microcode, hexstring);
 
   struct TcbVersionRaw
   {
@@ -199,36 +200,12 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t underlying_data[snp_tcb_version_size];
 
   public:
-    [[nodiscard]] TcbVersionPolicy to_policy(ProductName product) const
+    bool operator==(const TcbVersionRaw& other) const
     {
-      switch (product)
-      {
-        case ProductName::Milan:
-        case ProductName::Genoa:
-        {
-          auto tcb = *reinterpret_cast<const TcbVersionMilanGenoa*>(this);
-          return TcbVersionPolicy{
-            .microcode = tcb.microcode,
-            .snp = tcb.snp,
-            .tee = tcb.tee,
-            .boot_loader = tcb.boot_loader,
-            .fmc = std::nullopt // fmc is not applicable for Milan/Genoa
-          };
-        }
-        case ProductName::Turin:
-        {
-          auto tcb = *reinterpret_cast<const TcbVersionTurin*>(this);
-          return TcbVersionPolicy{
-            .microcode = tcb.microcode,
-            .snp = tcb.snp,
-            .tee = tcb.tee,
-            .boot_loader = tcb.boot_loader,
-            .fmc = tcb.fmc};
-        }
-        default:
-          throw std::logic_error(
-            "Unsupported SEV-SNP product for TCB version policy");
-      }
+      return std::memcmp(
+               static_cast<const void*>(underlying_data),
+               static_cast<const void*>(other.underlying_data),
+               snp_tcb_version_size) == 0;
     }
 
     [[nodiscard]] std::vector<uint8_t> data() const
@@ -261,6 +238,40 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         data.data(),
         snp_tcb_version_size);
       return tcb_version;
+    }
+
+    [[nodiscard]] TcbVersionPolicy to_policy(ProductName product) const
+    {
+      switch (product)
+      {
+        case ProductName::Milan:
+        case ProductName::Genoa:
+        {
+          auto tcb = *reinterpret_cast<const TcbVersionMilanGenoa*>(this);
+          return TcbVersionPolicy{
+            .hexstring = this->to_hex(),
+            .microcode = tcb.microcode,
+            .snp = tcb.snp,
+            .tee = tcb.tee,
+            .boot_loader = tcb.boot_loader,
+            .fmc = std::nullopt // fmc is not applicable for Milan/Genoa
+          };
+        }
+        case ProductName::Turin:
+        {
+          auto tcb = *reinterpret_cast<const TcbVersionTurin*>(this);
+          return TcbVersionPolicy{
+            .hexstring = this->to_hex(),
+            .microcode = tcb.microcode,
+            .snp = tcb.snp,
+            .tee = tcb.tee,
+            .boot_loader = tcb.boot_loader,
+            .fmc = tcb.fmc};
+        }
+        default:
+          throw std::logic_error(
+            "Unsupported SEV-SNP product for TCB version policy");
+      }
     }
   };
   static_assert(
