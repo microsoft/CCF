@@ -277,7 +277,7 @@ namespace ccf
         continue;
       }
 
-      // Check that the contraint is met
+      // Check that the constraint is met
       if (
         metadata.constraint &&
         !validate_issuer(
