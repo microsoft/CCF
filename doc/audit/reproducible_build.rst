@@ -3,7 +3,7 @@ Reproducible Build
 
 This section explains how :term:`Users` can reproduce CCF RPM packages using published build manifests.
 
-Reproducible builds enables our published packages to be independently verified. For each official CCF release, we provide:
+Reproducible builds enables our published packages to be independently verified. For each official CCF release `published to GitHub <https://github.com/microsoft/CCF/releases>`_, we provide:
 
 - A ``reproduce_${PLATFORM}.json`` manifest containing the platform, container image, snapshot time, and git commit.
 - A ``start_container_and_reproduce_rpm.sh`` script needed to reproduce the RPM build.
