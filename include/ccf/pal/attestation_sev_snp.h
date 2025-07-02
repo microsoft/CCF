@@ -200,13 +200,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t underlying_data[snp_tcb_version_size];
 
   public:
-    bool operator==(const TcbVersionRaw& other) const
-    {
-      return std::memcmp(
-               static_cast<const void*>(underlying_data),
-               static_cast<const void*>(other.underlying_data),
-               snp_tcb_version_size) == 0;
-    }
+    bool operator==(const TcbVersionRaw& other) const = default;
 
     [[nodiscard]] std::vector<uint8_t> data() const
     {
