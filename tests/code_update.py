@@ -338,7 +338,7 @@ def test_tcb_version_tables(network, args):
         tcb_version["hexstring"] == tcb_version["hexstring"].lower()
     ), f"Expected lowercase TCB version, {tcb_version['hexstring']}"
     assert (
-        tcb_version["hexstring"].length == 16
+        len(tcb_version["hexstring"]) == 16
     ), f"Expected TCB version to be 8 bytes long (16 chars), {tcb_version['hexstring']}"
     assert all(
         tcb_version["hexstring"][i] in "0123456789abcdef" for i in range(16)
