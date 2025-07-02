@@ -57,6 +57,9 @@ endif()
 
 include(GNUInstallDirs)
 
+# Use fixed name instead of absolute path for reproducible builds
+add_compile_options("-ffile-prefix-map=${CCF_DIR}=CCF")
+
 set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
