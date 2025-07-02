@@ -57,6 +57,9 @@ endif()
 
 include(GNUInstallDirs)
 
+# Use fixed name instead of absolute path for reproducible builds
+add_compile_options("-ffile-prefix-map=${CCF_DIR}=CCF")
+
 set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -408,6 +411,7 @@ if(COMPILE_TARGET STREQUAL "snp")
   )
   add_san(ccf_endpoints.snp)
   add_warning_checks(ccf_endpoints.snp)
+  add_tidy(ccf_endpoints.snp)
   target_compile_definitions(ccf_endpoints.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
   if(CCF_DEVEL)
     install(
@@ -426,6 +430,7 @@ target_link_libraries(
 )
 add_san(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
+add_tidy(ccf_endpoints.host)
 target_compile_definitions(ccf_endpoints.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
 if(INSTALL_VIRTUAL_LIBRARIES)
   install(

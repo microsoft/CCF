@@ -559,7 +559,6 @@ def test_recover_service_from_files(
 
     network.start_in_recovery(
         args,
-        ledger_dir=os.path.join(service_dir, "ledger"),
         committed_ledger_dirs=[os.path.join(service_dir, "ledger")],
         snapshots_dir=os.path.join(service_dir, "snapshots"),
         common_dir=new_common,
@@ -1375,6 +1374,7 @@ checked. Note that the key for each logging message is unique (per table).
             directory=directory,
             expected_recovery_count=expected_recovery_count,
             test_receipt=test_receipt,
+            gov_api_version="2024-07-01",
         )
 
     # Note: `run_corrupted_ledger` runs with very a specific node configuration

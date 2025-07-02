@@ -13,14 +13,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Add governance action that supports specifying minimum TCB versions in hexstring format. This is intended to be the default format going forward. (#7078)
 
+### Changed
+
+- The constitution's `apply()` function may now write directly to public application (ie - non-governance) tables. Note that this access is _write-only_, so these tables can still not be read from. (#7088)
+
 ## [6.0.7]
 
 [6.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.7
 
 ### Added
 
-- Reproducibility support for RPM releases: each release now includes a manifest and script to reproduce the RPM (#7063, #7069)
-
+- Reproducibility support for RPM releases: each release now includes a manifest and script to reproduce published RPM packages (#7063, #7069)
 - Documentation added for users to reproduce and verify CCF RPMs (#7072)
 
 ## [6.0.6]

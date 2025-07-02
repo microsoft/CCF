@@ -35,6 +35,13 @@ Audit
 
     Some KV maps should only be modified during governance transactions.
 
+    ---
+
+    :fa:`trowel-bricks` :doc:`reproducible_build`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Reproduce CCF RPM packages from the source code.
+
 .. toctree::
     :hidden:
 
@@ -42,3 +49,4 @@ Audit
     builtin_maps
     python_library
     read_write_restrictions
+    reproducible_build

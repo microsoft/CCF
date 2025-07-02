@@ -38,8 +38,8 @@ namespace ccf
     return scheme_name;
   }
 
-  AllOfAuthnPolicy::AllOfAuthnPolicy(const Policies& _policies) :
-    policies(_policies)
+  AllOfAuthnPolicy::AllOfAuthnPolicy(Policies _policies) :
+    policies(std::move(_policies))
   {
     scheme_name = get_combined_schema_name(policies);
   }
