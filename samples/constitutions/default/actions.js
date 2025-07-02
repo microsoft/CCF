@@ -1176,7 +1176,7 @@ const actions = new Map([
         checkValidTcbVersionHex(args.tcb_version, "tcb_version");
       },
       function (args, proposalId) {
-        let tcb_policy = ccf.tcbHexToPolicy(args.tcb_version);
+        let tcb_policy = ccf.tcbHexToPolicy(args.cpuid, args.tcb_version);
         ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].set(
           ccf.strToBuf(args.cpuid),
           ccf.jsonCompatibleToBuf(tcb_policy),
