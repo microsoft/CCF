@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.8]
+
+[6.0.8]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.8
+
+### Changed
+
+- The constitution's `apply()` function may now write directly to public application (ie - non-governance) tables. Note that this access is _write-only_, so these tables can still not be read from. (#7088)
+
 ## [6.0.7]
 
 [6.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.7
