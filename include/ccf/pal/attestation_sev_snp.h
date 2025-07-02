@@ -284,8 +284,9 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     }
     tcb_version_raw = TcbVersionRaw::from_hex(j.get<std::string>());
   }
-  inline std::string schema_name(const TcbVersionRaw& /*tcb_version*/)
+  inline std::string schema_name(const TcbVersionRaw& tcb_version)
   {
+    (void)tcb_version;
     return "TcbVersionRaw";
   }
 
@@ -483,7 +484,6 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
               microcode = fmt::format("{}", tcb.microcode);
               break;
             }
-            break;
             default:
             {
               throw std::logic_error(
