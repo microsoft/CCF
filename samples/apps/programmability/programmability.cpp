@@ -59,8 +59,8 @@ namespace programmabilityapp
         const auto roles = roles_it->get<std::vector<std::string>>();
         for (const auto& role : roles)
         {
-          auto role_handle =
-            tx.ro<RoleSet>(fmt::format("public:ccf.gov.roles.{}", role));
+          auto role_handle = tx.ro<RoleSet>(
+            fmt::format("public:programmability.roles.{}", role));
           if (role_handle->contains(action))
           {
             return true;

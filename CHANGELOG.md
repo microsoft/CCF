@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Constitution actions may now write directly to public application tables.
+- The governance constitution may now write directly to public application (ie - non-governance) tables. Note that this access is _write-only_, so these tables can still not be read from.
 
 ## [6.0.7]
 
