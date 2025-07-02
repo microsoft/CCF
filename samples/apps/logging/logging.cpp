@@ -1108,11 +1108,7 @@ namespace loggingapp
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(in.id, log_line);
 
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CONTENT_TYPE,
-          ccf::http::headervalues::contenttype::JSON);
-        ctx.rpc_ctx->set_response_body(nlohmann::json(true).dump());
+        ctx.rpc_ctx->set_response_json(true, HTTP_STATUS_OK);
       };
       make_endpoint(
         "/log/private/prefix_cert",
@@ -1665,12 +1661,7 @@ namespace loggingapp
         }
 
         // Construct the HTTP response
-        nlohmann::json j_response = response;
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CONTENT_TYPE,
-          ccf::http::headervalues::contenttype::JSON);
-        ctx.rpc_ctx->set_response_body(j_response.dump());
+        ctx.rpc_ctx->set_response_json(response, HTTP_STATUS_OK);
       };
       make_endpoint(
         get_historical_range_path,
@@ -1831,12 +1822,7 @@ namespace loggingapp
         }
 
         // Construct the HTTP response
-        nlohmann::json j_response = response;
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CONTENT_TYPE,
-          ccf::http::headervalues::contenttype::JSON);
-        ctx.rpc_ctx->set_response_body(j_response.dump());
+        ctx.rpc_ctx->set_response_json(response, HTTP_STATUS_OK);
       };
       make_endpoint(
         get_historical_sparse_path,
@@ -2000,12 +1986,7 @@ namespace loggingapp
             response.endorsements->push_back(endorsement);
           }
 
-          nlohmann::json j_response = response;
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::CONTENT_TYPE,
-            ccf::http::headervalues::contenttype::JSON);
-          ctx.rpc_ctx->set_response_body(j_response.dump());
+          ctx.rpc_ctx->set_response_json(response, HTTP_STATUS_OK);
         };
       make_read_only_endpoint(
         "/log/public/cose_endorsements",
@@ -2036,12 +2017,7 @@ namespace loggingapp
         LoggingGetCoseSignature::Out response{
           .cose_signature = signature.value()};
 
-        nlohmann::json j_response = response;
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CONTENT_TYPE,
-          ccf::http::headervalues::contenttype::JSON);
-        ctx.rpc_ctx->set_response_body(j_response.dump());
+        ctx.rpc_ctx->set_response_json(response, HTTP_STATUS_OK);
       };
       make_read_only_endpoint(
         "/log/public/cose_signature",
