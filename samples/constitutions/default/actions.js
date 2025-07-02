@@ -109,6 +109,20 @@ function checkValidCpuid(value, field) {
   }
 }
 
+function checkValidTcbVersionHex(value, field) {
+  checkType(value, "string", field);
+  if( value !== value.toLowerCase()) {
+    throw new Error(`${field} must be a lowercase hex string: ${value}`);
+  }
+
+  // This will throw if the string contains non-hex characters
+  const buffer = hexStrToBuf(value);
+  const length = buffer.byteLength;
+  if (length != 64) {
+    throw new Error(`${field} must convert to exactly 64 bytes`);
+  }
+}
+
 function checkNone(args) {
   if (args !== null && args !== undefined) {
     throw new Error(`Proposal does not accept any argument, found "${args}"`);
@@ -843,7 +857,7 @@ const actions = new Map([
   [
     "remove_js_app",
     new Action(
-      function (args) {},
+      function (args) { },
       function (args) {
         const modulesMap = ccf.kv["public:ccf.gov.modules"];
         const modulesQuickJsBytecodeMap =
@@ -896,7 +910,7 @@ const actions = new Map([
   [
     "refresh_js_app_bytecode_cache",
     new Action(
-      function (args) {},
+      function (args) { },
       function (args) {
         ccf.refreshAppBytecodeCache();
       },
@@ -1128,7 +1142,7 @@ const actions = new Map([
       function (args) {
         checkValidCpuid(args.cpuid, "cpuid");
 
-        if (typeof(args.tcb_version) == "object") {
+        if (typeof (args.tcb_version) == "object") {
           checkType(args.tcb_version, "object", "tcb_version");
           checkType(
             args.tcb_version?.boot_loader,
@@ -1142,7 +1156,7 @@ const actions = new Map([
             "number",
             "tcb_version.microcode",
           );
-        } else if (typeof(args.tcb_version) == "string") {
+        } else if (typeof (args.tcb_version) == "string") {
           if (value !== value.toLowerCase()) {
             throw new Error(
               `tcb_version must be a lowercase string, but is ${args.tcb_version}`,
@@ -1158,11 +1172,10 @@ const actions = new Map([
         } else {
           throw new Error(
             `tcb_version must be an object or a string, but is ${typeof args.tcb_version}`,
-          );  
+          );
         }
       },
       function (args, proposalId) {
-        // ensure cpuid is uppercase to prevent aliasing
         ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].set(
           ccf.strToBuf(args.cpuid),
           ccf.jsonCompatibleToBuf(args.tcb_version),
@@ -1171,6 +1184,24 @@ const actions = new Map([
         invalidateOtherOpenProposals(proposalId);
       },
     ),
+  ],
+  [
+  "set_snp_minimum_tcb_version_hex",
+  new Action(
+    function (args) {
+      checkValidCpuid(args.cpuid, "cpuid");
+      checkValidTcbVersionHex(args.tcb_version, "tcb_version");
+    },
+    function (args, proposalId) {
+      let tcb_policy = tcbHexToPolicy(args.tcb_version);
+      ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].set(
+        ccf.strToBuf(args.cpuid),
+        ccf.jsonCompatibleToBuf(tcb_policy),
+      );
+
+      invalidateOtherOpenProposals(proposalId);
+    },
+  ),
   ],
   [
     "remove_snp_host_data",
@@ -1325,7 +1356,7 @@ const actions = new Map([
               nodeInfo.certificate_signing_request,
               args.valid_from,
               args.validity_period_days ??
-                max_allowed_cert_validity_period_days,
+              max_allowed_cert_validity_period_days,
             );
             ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
               ccf.strToBuf(args.node_id),
@@ -1525,7 +1556,7 @@ const actions = new Map([
   [
     "trigger_ledger_chunk",
     new Action(
-      function (args) {},
+      function (args) { },
       function (args, proposalId) {
         ccf.node.triggerLedgerChunk();
       },
@@ -1534,7 +1565,7 @@ const actions = new Map([
   [
     "trigger_snapshot",
     new Action(
-      function (args) {},
+      function (args) { },
       function (args, proposalId) {
         ccf.node.triggerSnapshot();
       },
@@ -1570,7 +1601,7 @@ const actions = new Map([
           throw new Error("Service identity certificate mismatch");
         }
       },
-      function (args) {},
+      function (args) { },
     ),
   ],
 ]);

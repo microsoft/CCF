@@ -319,7 +319,7 @@ def test_tcb_version_tables(network, args):
                 False
             ), f"Expected TCB version '{invalid_tcb_version}' to be refused by validation code"
 
-    LOG.info("Checking that the TCB versions is correctly populated")
+    LOG.info("Checking that the TCB versions are initially populated correctly")
     cpuid, tcb_version = None, None
     with primary.api_versioned_client(api_version=args.gov_api_version) as client:
         r = client.get("/gov/service/join-policy")
@@ -331,30 +331,18 @@ def test_tcb_version_tables(network, args):
     LOG.info("CPUID should be lowercase")
     assert cpuid.lower() == cpuid, f"Expected lowercase CPUID, {cpuid}"
 
-    LOG.info("Prepopulated TCB version should be a 16 character hex string")
     assert (
-        tcb_version == tcb_version.lower()
-    ), f"Expected lowercase TCB version, {tcb_version}"
+        'hex' in tcb_version.keys(), "Prepopulated TCB version should include the orginal hex tcb"
+    )
     assert (
-        tcb_version.length == 16
-    ), f"Expected TCB version to be 16 characters, {tcb_version}"
+        tcb_version['hex'] == tcb_version['hex'].lower()
+    ), f"Expected lowercase TCB version, {tcb_version['hex']}"
+    assert (
+        tcb_version['hex'].length == 16
+    ), f"Expected TCB version to be 16 characters, {tcb_version['hex']}"
     assert all(
-        tcb_version[i] in "0123456789abcdef" for i in range(16)
-    ), f"Expected TCB version to be hex, {tcb_version}"
-
-    LOG.info("Change current cpuid's TCB version")
-    for tcb in [permissive_tcb_version_json, permissive_tcb_version_raw]:
-      network.consortium.set_snp_minimum_tcb_version(
-          primary, cpuid, tcb
-      )
-      with primary.api_versioned_client(api_version=args.gov_api_version) as client:
-          r = client.get("/gov/service/join-policy")
-          assert r.status_code == http.HTTPStatus.OK, r
-          versions = r.body.json()["snp"]["tcbVersions"]
-          assert cpuid in versions, f"Expected {cpuid} in TCB versions, {versions}"
-          assert (
-              versions[cpuid] == tcb
-          ), f"TCB version does not match, {versions} != {tcb}"
+        tcb_version['hex'][i] in "0123456789abcdef" for i in range(16)
+    ), f"Expected TCB version to be hex, {tcb_version['hex']}"
 
     LOG.info("Removing current cpuid's TCB version")
     network.consortium.remove_snp_minimum_tcb_version(primary, cpuid)
@@ -374,13 +362,28 @@ def test_tcb_version_tables(network, args):
         thrown_exception = e
     assert thrown_exception is not None, "New node should not have been able to join"
 
-    LOG.info("Adding new cpuid's TCB version")
-    network.consortium.set_snp_minimum_tcb_version(primary, cpuid, tcb_version)
+    LOG.info("Change the current cpuid's TCB version using the old API")
+    network.consortium.set_snp_minimum_tcb_version(
+        primary, cpuid, permissive_tcb_version_json
+    )
     with primary.api_versioned_client(api_version=args.gov_api_version) as client:
         r = client.get("/gov/service/join-policy")
         assert r.status_code == http.HTTPStatus.OK, r
         versions = r.body.json()["snp"]["tcbVersions"]
-        assert len(versions) == 1, f"Expected one TCB version, {versions}"
+        assert cpuid in versions, f"Expected {cpuid} in TCB versions, {versions}"
+        assert not 'hex' in versions[cpuid].keys(), "TCB version should not include the hex tcb if set with the old API"
+
+    LOG.info("Change the current cpuid's TCB version using the new API")
+    network.consortium.set_snp_minimum_tcb_version_hex(
+        primary, cpuid, permissive_tcb_version_raw
+    )
+    with primary.api_versioned_client(api_version=args.gov_api_version) as client:
+        r = client.get("/gov/service/join-policy")
+        assert r.status_code == http.HTTPStatus.OK, r
+        versions = r.body.json()["snp"]["tcbVersions"]
+        assert cpuid in versions, f"Expected {cpuid} in TCB versions, {versions}"
+        assert 'hex' in versions[cpuid].keys(), "TCB version should include the orginal hex tcb"
+        assert versions[cpuid]['hex'] == permissive_tcb_version_raw, f"TCB version does not match, {versions[cpuid]['hex']} != {permissive_tcb_version_raw}"
 
     LOG.info("Checking new nodes are allowed to join")
     new_node = network.create_node("local://localhost")
