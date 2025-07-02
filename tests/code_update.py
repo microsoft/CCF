@@ -333,7 +333,7 @@ def test_tcb_version_tables(network, args):
 
     assert (
         "hexstring" in tcb_version.keys()
-    ),"Prepopulated TCB version should include the orginal hex tcb"
+    ), "Prepopulated TCB version should include the orginal hex tcb"
     assert (
         tcb_version["hexstring"] == tcb_version["hexstring"].lower()
     ), f"Expected lowercase TCB version, {tcb_version['hexstring']}"

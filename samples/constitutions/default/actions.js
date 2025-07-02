@@ -106,7 +106,9 @@ function checkValidCpuid(value, field) {
   const buffer = hexStrToBuf(value);
   const length = buffer.byteLength;
   if (length != cpuid_length_bytes) {
-    throw new Error(`${field} must convert to exactly ${cpuid_length_bytes} bytes`);
+    throw new Error(
+      `${field} must convert to exactly ${cpuid_length_bytes} bytes`,
+    );
   }
 }
 
@@ -121,7 +123,9 @@ function checkValidTcbVersionHex(value, field) {
   const buffer = hexStrToBuf(value);
   const length = buffer.byteLength;
   if (length != tcb_version_length_bytes) {
-    throw new Error(`${field} must convert to exactly ${tcb_version_length_bytes} bytes`);
+    throw new Error(
+      `${field} must convert to exactly ${tcb_version_length_bytes} bytes`,
+    );
   }
 }
 
