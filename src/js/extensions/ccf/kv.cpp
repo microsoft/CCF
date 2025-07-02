@@ -107,11 +107,8 @@ namespace ccf::js::extensions
 
         // Name-based policy cannot grant more access (eg - cannot change
         // Read-Only to Read-Write), can only make it more restricted
-        // This could use std::to_underlying from C++23
-        using T = std::underlying_type_t<KVAccessPermissions>;
-
-        const auto combined_permission =
-          KVAccessPermissions((T)proposed_permission & (T)access_permission);
+        const auto combined_permission = ccf::js::intersect_access_permissions(
+          proposed_permission, access_permission);
         if (combined_permission != access_permission)
         {
           access_permission = combined_permission;

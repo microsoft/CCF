@@ -155,7 +155,7 @@ TEST_CASE("Check KV Map access")
     }
 
     {
-      INFO("Public applications tables cannot be read, but CAN be written to");
+      INFO("Public applications tables cannot be read, but can be written to");
       REQUIRE(
         check_kv_map_access(TxAccess::GOV_RW, public_app_table_name) ==
         KVAccessPermissions::WRITE_ONLY);

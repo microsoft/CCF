@@ -352,8 +352,9 @@ namespace ccf::js::extensions::kvhelpers
   do \
   { \
     /* This could use std::to_underlying from C++23 */ \
-    using T = std::underlying_type_t<KVAccessPermissions>; \
-    const auto permitted = ((T)access_permission & (T)PERMISSION_FLAGS) != 0; \
+    const auto permitted = \
+      ccf::js::intersect_access_permissions( \
+        access_permission, PERMISSION_FLAGS) != KVAccessPermissions::ILLEGAL; \
     auto fn_val = ctx.FUNC_FACTORY_METHOD( \
       !permitted ? C_FUNC_NAME##_denied : C_FUNC_NAME<HANDLE_GETTER>, \
       JS_METHOD_NAME, \
