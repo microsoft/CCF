@@ -95,6 +95,7 @@ function checkArrayBufferLength(value, min, max, field) {
   }
 }
 
+const cpuid_length_bytes = 4;
 function checkValidCpuid(value, field) {
   checkType(value, "string", field);
   if (value !== value.toLowerCase()) {
@@ -104,11 +105,12 @@ function checkValidCpuid(value, field) {
   // This will throw if the string contains non-hex characters
   const buffer = hexStrToBuf(value);
   const length = buffer.byteLength;
-  if (length != 4) {
-    throw new Error(`${field} must convert to exactly 4 bytes`);
+  if (length != cpuid_length_bytes) {
+    throw new Error(`${field} must convert to exactly ${cpuid_length_bytes} bytes`);
   }
 }
 
+const tcb_version_length_bytes = 8;
 function checkValidTcbVersionHex(value, field) {
   checkType(value, "string", field);
   if (value !== value.toLowerCase()) {
@@ -118,8 +120,8 @@ function checkValidTcbVersionHex(value, field) {
   // This will throw if the string contains non-hex characters
   const buffer = hexStrToBuf(value);
   const length = buffer.byteLength;
-  if (length != 64) {
-    throw new Error(`${field} must convert to exactly 64 bytes`);
+  if (length != tcb_version_length_bytes) {
+    throw new Error(`${field} must convert to exactly ${tcb_version_length_bytes} bytes`);
   }
 }
 
@@ -1142,38 +1144,19 @@ const actions = new Map([
       function (args) {
         checkValidCpuid(args.cpuid, "cpuid");
 
-        if (typeof args.tcb_version == "object") {
-          checkType(args.tcb_version, "object", "tcb_version");
-          checkType(
-            args.tcb_version?.boot_loader,
-            "number",
-            "tcb_version.boot_loader",
-          );
-          checkType(args.tcb_version?.tee, "number", "tcb_version.tee");
-          checkType(args.tcb_version?.snp, "number", "tcb_version.snp");
-          checkType(
-            args.tcb_version?.microcode,
-            "number",
-            "tcb_version.microcode",
-          );
-        } else if (typeof args.tcb_version == "string") {
-          if (value !== value.toLowerCase()) {
-            throw new Error(
-              `tcb_version must be a lowercase string, but is ${args.tcb_version}`,
-            );
-          }
-
-          const buffer = hexStrToBuf(args.tcb_version);
-          if (buffer.length !== 8) {
-            throw new Error(
-              `tcb_version must be 8 bytes long, but ${args.tcb_version} is ${buffer.length} bytes long`,
-            );
-          }
-        } else {
-          throw new Error(
-            `tcb_version must be an object or a string, but is ${typeof args.tcb_version}`,
-          );
-        }
+        checkType(args.tcb_version, "object", "tcb_version");
+        checkType(
+          args.tcb_version?.boot_loader,
+          "number",
+          "tcb_version.boot_loader",
+        );
+        checkType(args.tcb_version?.tee, "number", "tcb_version.tee");
+        checkType(args.tcb_version?.snp, "number", "tcb_version.snp");
+        checkType(
+          args.tcb_version?.microcode,
+          "number",
+          "tcb_version.microcode",
+        );
       },
       function (args, proposalId) {
         ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].set(

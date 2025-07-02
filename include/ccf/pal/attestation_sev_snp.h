@@ -168,7 +168,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     static bool is_valid(TcbVersionPolicy& minimum, TcbVersionPolicy& test)
     {
       auto more_than_min =
-        [](std::optional<uint>& min, std::optional<uint>& test) {
+        [](std::optional<uint64_t>& min, std::optional<uint64_t>& test) {
           if ((min.has_value() != test.has_value()))
           {
             return false;
