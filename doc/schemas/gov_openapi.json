@@ -1178,22 +1178,22 @@
       "TcbVersionPolicy": {
         "properties": {
           "boot_loader": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/uint32"
           },
           "fmc": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/uint32"
           },
           "hexstring": {
             "$ref": "#/components/schemas/string"
           },
           "microcode": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/uint32"
           },
           "snp": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/uint32"
           },
           "tee": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/uint32"
           }
         },
         "type": "object"
@@ -1339,6 +1339,11 @@
           "$ref": "#/components/schemas/string_to_UVMEndorsementsData"
         },
         "type": "object"
+      },
+      "uint32": {
+        "maximum": 4294967295,
+        "minimum": 0,
+        "type": "integer"
       },
       "uint64": {
         "maximum": 18446744073709551615,

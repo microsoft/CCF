@@ -840,7 +840,7 @@ namespace ccf
         .extended_model = 0x0,
         .extended_family = 0x0A,
         .reserved2 = 0};
-      // Reported by ACI for minimum Milan version
+      // ACI reports this as their minimum Milan version
       const auto milan_tcb_policy =
         pal::snp::TcbVersionRaw::from_hex("d315000000000004")
           .to_policy(pal::snp::ProductName::Milan);

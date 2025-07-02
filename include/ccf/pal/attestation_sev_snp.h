@@ -117,11 +117,11 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   struct TcbVersionPolicy
   {
     std::optional<std::string> hexstring = std::nullopt;
-    std::optional<uint64_t> microcode = std::nullopt;
-    std::optional<uint64_t> snp = std::nullopt;
-    std::optional<uint64_t> tee = std::nullopt;
-    std::optional<uint64_t> boot_loader = std::nullopt;
-    std::optional<uint64_t> fmc = std::nullopt;
+    std::optional<uint32_t> microcode = std::nullopt;
+    std::optional<uint32_t> snp = std::nullopt;
+    std::optional<uint32_t> tee = std::nullopt;
+    std::optional<uint32_t> boot_loader = std::nullopt;
+    std::optional<uint32_t> fmc = std::nullopt;
 
     [[nodiscard]] TcbVersionMilanGenoa to_milan_genoa() const
     {
@@ -168,7 +168,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     static bool is_valid(TcbVersionPolicy& minimum, TcbVersionPolicy& test)
     {
       auto more_than_min =
-        [](std::optional<uint64_t>& min, std::optional<uint64_t>& test) {
+        [](std::optional<uint32_t>& min, std::optional<uint32_t>& test) {
           if ((min.has_value() != test.has_value()))
           {
             return false;
