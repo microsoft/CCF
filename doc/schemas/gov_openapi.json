@@ -1175,27 +1175,27 @@
         ],
         "type": "object"
       },
-      "TcbVersion": {
+      "TcbVersionPolicy": {
         "properties": {
           "boot_loader": {
-            "$ref": "#/components/schemas/uint8"
+            "$ref": "#/components/schemas/uint64"
+          },
+          "fmc": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "hexstring": {
+            "$ref": "#/components/schemas/string"
           },
           "microcode": {
-            "$ref": "#/components/schemas/uint8"
+            "$ref": "#/components/schemas/uint64"
           },
           "snp": {
-            "$ref": "#/components/schemas/uint8"
+            "$ref": "#/components/schemas/uint64"
           },
           "tee": {
-            "$ref": "#/components/schemas/uint8"
+            "$ref": "#/components/schemas/uint64"
           }
         },
-        "required": [
-          "boot_loader",
-          "tee",
-          "snp",
-          "microcode"
-        ],
         "type": "object"
       },
       "TransactionId": {
@@ -1310,9 +1310,9 @@
         },
         "type": "object"
       },
-      "string_to_TcbVersion": {
+      "string_to_TcbVersionPolicy": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/TcbVersion"
+          "$ref": "#/components/schemas/TcbVersionPolicy"
         },
         "type": "object"
       },
@@ -1344,11 +1344,6 @@
         "maximum": 18446744073709551615,
         "minimum": 0,
         "type": "integer"
-      },
-      "uint8": {
-        "maximum": 255,
-        "minimum": 0,
-        "type": "integer"
       }
     },
     "securitySchemes": {
@@ -1376,7 +1371,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.7.3"
+    "version": "4.7.4"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -2182,7 +2177,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string_to_TcbVersion"
+                  "$ref": "#/components/schemas/string_to_TcbVersionPolicy"
                 }
               }
             },
