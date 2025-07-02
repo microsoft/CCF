@@ -335,14 +335,14 @@ def test_tcb_version_tables(network, args):
         "hexstring" in tcb_version.keys()
     ),"Prepopulated TCB version should include the orginal hex tcb"
     assert (
-        tcb_version["hexstring"] == tcb_version["hex"].lower()
-    ), f"Expected lowercase TCB version, {tcb_version['hex']}"
+        tcb_version["hexstring"] == tcb_version["hexstring"].lower()
+    ), f"Expected lowercase TCB version, {tcb_version['hexstring']}"
     assert (
         tcb_version["hexstring"].length == 16
-    ), f"Expected TCB version to be 8 bytes long (16 chars), {tcb_version['hex']}"
+    ), f"Expected TCB version to be 8 bytes long (16 chars), {tcb_version['hexstring']}"
     assert all(
         tcb_version["hexstring"][i] in "0123456789abcdef" for i in range(16)
-    ), f"Expected TCB version to be hex, {tcb_version['hex']}"
+    ), f"Expected TCB version to be a hexstring, {tcb_version['hexstring']}"
 
     LOG.info("Removing current cpuid's TCB version")
     network.consortium.remove_snp_minimum_tcb_version(primary, cpuid)
