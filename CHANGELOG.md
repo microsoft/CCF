@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [6.0.8]
 
-- Add support for hexstring tcb versions, which is now the default format throughout CCF. (#7078)
+- Add governance action that supports specifying minimum TCB versions in hexstring format. This is intended to be the default format going forward. (#7078)
 
 ## [6.0.7]
 
