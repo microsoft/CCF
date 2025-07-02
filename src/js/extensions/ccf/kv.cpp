@@ -107,9 +107,11 @@ namespace ccf::js::extensions
 
         // Name-based policy cannot grant more access (eg - cannot change
         // Read-Only to Read-Write), can only make it more restricted
-        if (proposed_permission > access_permission)
+        const auto combined_permission = ccf::js::intersect_access_permissions(
+          proposed_permission, access_permission);
+        if (combined_permission != access_permission)
         {
-          access_permission = proposed_permission;
+          access_permission = combined_permission;
           explanation = proposed_explanation;
         }
       }
