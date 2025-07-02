@@ -51,7 +51,7 @@ namespace ccf::pal::snp
   DECLARE_JSON_REQUIRED_FIELDS(
     CPUID, stepping, base_model, base_family, extended_model, extended_family);
   static_assert(
-    sizeof(CPUID) == sizeof(uint32_t), "Can't cast CPUID to uint32_t");
+    sizeof(CPUID) == sizeof(uint32_t), "Cannot cast CPUID to uint32_t");
   static CPUID cpuid_from_hex(const std::string& hex_str)
   {
     CPUID ret{};

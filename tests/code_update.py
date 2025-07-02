@@ -332,16 +332,17 @@ def test_tcb_version_tables(network, args):
     assert cpuid.lower() == cpuid, f"Expected lowercase CPUID, {cpuid}"
 
     assert (
-        'hex' in tcb_version.keys(), "Prepopulated TCB version should include the orginal hex tcb"
+        "hexstring" in tcb_version.keys(),
+        "Prepopulated TCB version should include the orginal hex tcb",
     )
     assert (
-        tcb_version['hex'] == tcb_version['hex'].lower()
+        tcb_version["hexstring"] == tcb_version["hex"].lower()
     ), f"Expected lowercase TCB version, {tcb_version['hex']}"
     assert (
-        tcb_version['hex'].length == 16
-    ), f"Expected TCB version to be 16 characters, {tcb_version['hex']}"
+        tcb_version["hexstring"].length == 16
+    ), f"Expected TCB version to be 8 bytes long (16 chars), {tcb_version['hex']}"
     assert all(
-        tcb_version['hex'][i] in "0123456789abcdef" for i in range(16)
+        tcb_version["hexstring"][i] in "0123456789abcdef" for i in range(16)
     ), f"Expected TCB version to be hex, {tcb_version['hex']}"
 
     LOG.info("Removing current cpuid's TCB version")
@@ -371,7 +372,14 @@ def test_tcb_version_tables(network, args):
         assert r.status_code == http.HTTPStatus.OK, r
         versions = r.body.json()["snp"]["tcbVersions"]
         assert cpuid in versions, f"Expected {cpuid} in TCB versions, {versions}"
-        assert not 'hex' in versions[cpuid].keys(), "TCB version should not include the hex tcb if set with the old API"
+        assert (
+            "hexstring" not in versions[cpuid].keys()
+        ), "TCB version should not include the hexstring tcb if set with the old API"
+
+    LOG.info("Checking new nodes are allowed to join using expanded api")
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, args.package, args, timeout=3)
+    network.trust_node(new_node, args)
 
     LOG.info("Change the current cpuid's TCB version using the new API")
     network.consortium.set_snp_minimum_tcb_version_hex(
@@ -382,10 +390,14 @@ def test_tcb_version_tables(network, args):
         assert r.status_code == http.HTTPStatus.OK, r
         versions = r.body.json()["snp"]["tcbVersions"]
         assert cpuid in versions, f"Expected {cpuid} in TCB versions, {versions}"
-        assert 'hex' in versions[cpuid].keys(), "TCB version should include the orginal hex tcb"
-        assert versions[cpuid]['hex'] == permissive_tcb_version_raw, f"TCB version does not match, {versions[cpuid]['hex']} != {permissive_tcb_version_raw}"
+        assert (
+            "hexstring" in versions[cpuid].keys()
+        ), "TCB version should include the orginal hexstring tcb"
+        assert (
+            versions[cpuid]["hexstring"] == permissive_tcb_version_raw
+        ), f"TCB version does not match, {versions[cpuid]['hexstring']} != {permissive_tcb_version_raw}"
 
-    LOG.info("Checking new nodes are allowed to join")
+    LOG.info("Checking new nodes are allowed to join using hexstring api")
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args, timeout=3)
     network.trust_node(new_node, args)

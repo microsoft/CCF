@@ -90,11 +90,11 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
   struct TcbVersionMilanGenoa
   {
-    uint8_t boot_loader;
-    uint8_t tee;
+    uint8_t boot_loader = 0;
+    uint8_t tee = 0;
     uint8_t reserved[4];
-    uint8_t snp;
-    uint8_t microcode;
+    uint8_t snp = 0;
+    uint8_t microcode = 0;
   };
   static_assert(
     sizeof(TcbVersionMilanGenoa) == snp_tcb_version_size,
@@ -102,12 +102,12 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
   struct TcbVersionTurin
   {
-    uint8_t fmc;
-    uint8_t boot_loader;
-    uint8_t tee;
-    uint8_t snp;
+    uint8_t fmc = 0;
+    uint8_t boot_loader = 0;
+    uint8_t tee = 0;
+    uint8_t snp = 0;
     uint8_t reserved[3];
-    uint8_t microcode;
+    uint8_t microcode = 0;
   };
   static_assert(
     sizeof(TcbVersionTurin) == snp_tcb_version_size,
@@ -117,11 +117,11 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   struct TcbVersionPolicy
   {
     std::optional<std::string> hexstring = std::nullopt;
-    std::optional<uint> microcode = std::nullopt;
-    std::optional<uint> snp = std::nullopt;
-    std::optional<uint> tee = std::nullopt;
-    std::optional<uint> boot_loader = std::nullopt;
-    std::optional<uint> fmc = std::nullopt;
+    std::optional<uint64_t> microcode = std::nullopt;
+    std::optional<uint64_t> snp = std::nullopt;
+    std::optional<uint64_t> tee = std::nullopt;
+    std::optional<uint64_t> boot_loader = std::nullopt;
+    std::optional<uint64_t> fmc = std::nullopt;
 
     [[nodiscard]] TcbVersionMilanGenoa to_milan_genoa() const
     {
@@ -219,8 +219,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
       auto data = this->data();
       // reverse to match endianness
       std::reverse(data.begin(), data.end());
-      auto s = ccf::ds::to_hex(data);
-      return s;
+      return ccf::ds::to_hex(data);
     }
     static TcbVersionRaw from_hex(const std::string& hex)
     {
@@ -327,7 +326,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 #pragma pack(pop)
   static_assert(
     sizeof(GuestPolicy) == sizeof(uint64_t),
-    "Can't cast GuestPolicy to uint64_t");
+    "Cannot cast GuestPolicy to uint64_t");
 
   static constexpr uint8_t attestation_flags_signing_key_vcek = 0;
 
@@ -341,7 +340,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   };
 #pragma pack(pop)
   static_assert(
-    sizeof(Flags) == sizeof(uint32_t), "Can't cast Flags to uint32_t");
+    sizeof(Flags) == sizeof(uint32_t), "Cannot cast Flags to uint32_t");
 
 #pragma pack(push, 1)
   // Table 22
@@ -354,7 +353,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 #pragma pack(pop)
   static_assert(
     sizeof(PlatformInfo) == sizeof(uint64_t),
-    "Can't cast PlatformInfo to uint64_t");
+    "Cannot cast PlatformInfo to uint64_t");
 
 #pragma pack(push, 1)
   // Table 21

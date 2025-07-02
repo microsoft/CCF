@@ -303,7 +303,8 @@ namespace ccf
 
     auto product_family = pal::snp::get_sev_snp_product(
       attestation.cpuid_fam_id, attestation.cpuid_mod_id);
-    auto attestation_tcb_policy = attestation.reported_tcb.to_policy(product_family);
+    auto attestation_tcb_policy =
+      attestation.reported_tcb.to_policy(product_family);
 
     if (pal::snp::TcbVersionPolicy::is_valid(
           min_tcb_opt.value(), attestation_tcb_policy))
