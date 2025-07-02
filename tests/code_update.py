@@ -332,9 +332,8 @@ def test_tcb_version_tables(network, args):
     assert cpuid.lower() == cpuid, f"Expected lowercase CPUID, {cpuid}"
 
     assert (
-        "hexstring" in tcb_version.keys(),
-        "Prepopulated TCB version should include the orginal hex tcb",
-    )
+        "hexstring" in tcb_version.keys()
+    ),"Prepopulated TCB version should include the orginal hex tcb",
     assert (
         tcb_version["hexstring"] == tcb_version["hex"].lower()
     ), f"Expected lowercase TCB version, {tcb_version['hex']}"
