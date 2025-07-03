@@ -1549,7 +1549,7 @@ def run_ledger_chunk_bytes_check(const_args):
 
 
 def run(args):
-    # run_max_uncommitted_tx_count(args)
+    run_max_uncommitted_tx_count(args)
     run_file_operations(args)
     run_tls_san_checks(args)
     run_config_timeout_check(args)
