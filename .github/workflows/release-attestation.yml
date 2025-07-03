@@ -24,12 +24,14 @@ jobs:
       - name: Download release assets
         id: download
         run: |
+          set -ex
           # Get the release tag from input or event
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             RELEASE_TAG="${{ github.event.inputs.release_tag }}"
           else
             RELEASE_TAG="${{ github.event.release.tag_name }}"
           fi
+          git checkout $RELEASE_TAG
           echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
 
           gh release download -R microsoft/ccf $RELEASE_TAG -D release-assets
@@ -40,3 +42,4 @@ jobs:
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: "release-assets/*"
+          subject-name: "microsoft/CCF/${{ steps.download.outputs.release_tag }}"
