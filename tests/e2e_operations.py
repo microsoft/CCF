@@ -1475,20 +1475,18 @@ def run_ledger_chunk_bytes_check(const_args):
     LOG.info("Confirm that ledger chunks are determined by the primary")
     args = copy.deepcopy(const_args)
 
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.nodes = infra.e2e_args.nodes(args, 3)
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
         # Start each node with a different chunk size
         per_write_size = 16000
-        network.per_node_args_override[0] = {
-            "ledger_chunk_bytes": f"{per_write_size//8}B"
-        }  # => 1 chunk per write
-        network.per_node_args_override[1] = {
-            "ledger_chunk_bytes": f"{per_write_size*2}B"
-        }  # => ~2 writes per chunk
-        network.per_node_args_override[2] = {
-            "ledger_chunk_bytes": f"{per_write_size*8}B"
-        }  # => ~8 writes per chunk
+        size_0 = per_write_size // 8  # => 1 chunk per write
+        size_1 = per_write_size * 2  # => ~2 writes per chunk
+        size_2 = per_write_size * 8  # => ~8 writes per chunk
+
+        network.per_node_args_override[0] = {"ledger_chunk_bytes": f"{size_0}B"}
+        network.per_node_args_override[1] = {"ledger_chunk_bytes": f"{size_1}B"}
+        network.per_node_args_override[2] = {"ledger_chunk_bytes": f"{size_2}B"}
 
         network.start_and_open(args)
 
@@ -1528,6 +1526,26 @@ def run_ledger_chunk_bytes_check(const_args):
 
         with primary.client() as c:
             c.wait_for_commit(r)
+
+        # This explicitly checks that ledger chunks match on each node
+        network.stop_all_nodes(accept_ledger_diff=False)
+
+        # Confirm that at least one ledger chunk of each expected size was produced
+        current, committeds = primary.get_ledger()
+        chunks = [
+            os.path.join(ledger_dir, basename)
+            for ledger_dir in (current, *committeds)
+            for basename in os.listdir(ledger_dir)
+        ]
+        chunk_sizes = {chunk: os.path.getsize(chunk) for chunk in chunks}
+
+        def close_enough(expected, actual):
+            return (expected * 0.75 <= actual) and (actual <= expected * 1.25)
+
+        for target in (per_write_size, size_1, size_2):
+            assert any(
+                close_enough(target, size) for size in chunk_sizes.values()
+            ), f"Found no chunk matching a {target} chunk size: {chunk_sizes}"
 
 
 def run(args):
