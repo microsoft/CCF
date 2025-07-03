@@ -18,11 +18,6 @@ jobs:
       attestations: write
       id-token: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: true
-
       - name: Download release assets
         id: download
         run: |
@@ -33,9 +28,7 @@ jobs:
           else
             RELEASE_TAG="${{ github.event.release.tag_name }}"
           fi
-          git checkout $RELEASE_TAG
           echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
-
           gh release download -R microsoft/ccf $RELEASE_TAG -D release-assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
