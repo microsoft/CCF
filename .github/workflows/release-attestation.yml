@@ -10,14 +10,13 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: read
-  attestations: write
-  id-token: write
-
 jobs:
   attest-release-assets:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      attestations: write
+      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
