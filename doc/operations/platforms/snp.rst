@@ -77,7 +77,93 @@ The following governance proposals can be issued to add/remove these trusted val
 - ``add_snp_host_data``/``remove_snp_host_data``: To add/remove a trusted security policy, e.g. when adding a new trusted container image as part of the code upgrade procedure. 
 - ``add_snp_uvm_endorsement``/``add_snp_uvm_endorsement``: To add remove a trusted UVM endorsement (Azure deployment only).
 - ``add_snp_measurement``/``remove_snp_measurement``: To add/remove a trusted measurement.
-- ``set_snp_minimum_tcb_version``/``remove_snp_minimum_tcb_version``: To add/remove a minimum trusted TCB version.
+- ``set_snp_minimum_tcb_version_hex``/``remove_snp_minimum_tcb_version``: To add/remove a minimum trusted TCB version.
+  - ``set_snp_minimum_tcb_version`` was deprecated in CCF 6.0.9 and replaced by ``set_snp_minimum_tcb_version_hex``.
+
+Setting the minimum TCB Version using ``set_snp_minimum_tcb_version_hex``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The `set_snp_minimum_tcb_version_hex` governance action was introduced in CCF 6.0.9 to simplify the process of setting the minimum TCB version for a specific CPU model. This action allows you to specify the CPUID and the TCB version as hex-strings, which are then parsed and stored in the :ref:`audit/builtin_maps:``nodes.snp.tcb_versions``` table.
+To set the minimum TCB version for a specific CPU model, you can use the following governance action:
+.. code-block:: json
+
+    {
+      "actions": [
+        {
+          "name": "set_snp_minimum_tcb_version_hex",
+          "args": {
+            "cpuid": "00a00f11",
+            "tcb_version": "d315000000000004"
+          }
+        }
+      ]
+    }
+
+The parsed TCB version mapped to that cpuid in the :ref:`audit/builtin_maps:``nodes.snp.tcb_versions``` table, which is used to validate the TCB version of joining nodes.
+
+.. note::
+    The CPUID and TCB version must be input as lower-case hex-strings. The values in the above example are for Milan CPUs, and can be expanded as follows:
+
+    +-----------------+------------+
+    |                 |    Value   |
+    |   CPUID Field   +-----+------+
+    |                 | dec |  hex |
+    +=================+=====+======+
+    | Reserved        | 0   |  0x0 |
+    +-----------------+-----+------+
+    | Extended Family | 10  | 0x0a |
+    +-----------------+-----+------+
+    | Extended Model  | 0   |  0x0 |
+    +-----------------+-----+------+
+    | Reserved        | 0   |  0x0 |
+    +-----------------+-----+------+
+    | Base Family     | 15  |  0xf |
+    +-----------------+-----+------+
+    | Base Model      | 1   |  0x1 |
+    +-----------------+-----+------+
+    | Stepping        | 1   |  0x1 |
+    +-----------------+-----+------+
+
+    SNP attestation structures contain the combined Family (``Extended Family + Base Family``) and Model (``Extended Model : Base Model``) values, so 25 (0x19) and 1 (0x01) respectively for the above Milan example.
+
+    The above TCB version ``d315000000000004`` is for a Milan CPU. 
+    It, and also TCB versions for Genoa CPUs, can be expanded as follows:
+
+    +-------------------+------------------+
+    |                   |      Value       |
+    | TCB Version Field +-----+------------+
+    |                   | dec |        hex |
+    +===================+=====+============+
+    | Microcode         | 211 |       0xd3 |
+    +-------------------+-----+------------+
+    | SNP               | 21  |       0x15 |
+    +-------------------+-----+------------+
+    | Reserved          | 0   | 0x00000000 |
+    +-------------------+-----+------------+
+    | TEE               | 0   |       0x00 |
+    +-------------------+-----+------------+
+    | Boot Loader       | 4   |       0x04 |
+    +-------------------+-----+------------+
+
+    The TCB version for Turin CPUs have a different format with, for example, ``1100000022334455`` having the following expanded fields:
+
+    +-------------------+------------------+
+    |                   |      Value       |
+    | TCB Version Field +-----+------------+
+    |                   | dec |        hex |
+    +===================+=====+============+
+    | Microcode         | 17  |       0x11 |
+    +-------------------+-----+------------+
+    | Reserved          | 0   |   0x000000 |
+    +-------------------+-----+------------+
+    | SNP               | 34  |       0x22 |
+    +-------------------+-----+------------+
+    | TEE               | 51  |       0x33 |
+    +-------------------+-----+------------+
+    | Boot Loader       | 68  |       0x44 |
+    +-------------------+-----+------------+
+    | FMC               | 85  |       0x55 |
+    +-------------------+-----+------------+
 
 .. rubric:: Footnotes
 

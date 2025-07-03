@@ -23,6 +23,11 @@ This introduced a new table, ``nodes.snp.tcb_versions``, which is the minimum TC
 Old networks which are migrating to 6.0 will need to populate this table manually, using the ``set_snp_minimum_tcb_version`` governance action.
 If they are not populated then new nodes may fail to join the network.
 
+.. note:: 
+  In 6.0.9 we introduced ``set_minimum_tcb_version_hex``, a more ergonomic governance action to set the minimum TCB version.
+  This action takes the CPUID of the CPU and a hexstring of the TCB version in an attestation expands it into the relevant fields in the ``nodes.snp.tcb_versions`` table.
+  We strongly recommend using this action as we can transparently add support for new CPU models which change the TCB version format, such as Turin.
+
 For example to set the minimum TCB version on Milan CPUs the following proposal can be submitted:
 
 .. code-block:: json
