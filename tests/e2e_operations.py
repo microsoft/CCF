@@ -479,7 +479,7 @@ def run_file_operations(args):
                     r = c.get("/node/network").body.json()
                     assert r["service_data"] == service_data
 
-                # test_save_committed_ledger_files(network, args)
+                test_save_committed_ledger_files(network, args)
                 test_parse_snapshot_file(network, args)
                 test_forced_ledger_chunk(network, args)
                 test_forced_snapshot(network, args)
@@ -487,21 +487,12 @@ def run_file_operations(args):
                 test_snapshot_access(network, args)
                 test_empty_snapshot(network, args)
 
-                with primary.client("user0") as c:
-                    for i in range(150):
-                        LOG.info(f"Posting #{i}:")
-                        c.post("/app/log/public", {"id": 42, "msg": "X" * 1024})
+                primary, _ = network.find_primary()
+                # Scoped transactions are not handled by historical range queries
+                network.stop_all_nodes(skip_verification=True)
 
-                # test_forced_snapshot(network, args)
-                # test_large_snapshot(network, args)
-                # test_snapshot_access(network, args)
-
-                # primary, _ = network.find_primary()
-                # # Scoped transactions are not handled by historical range queries
-                # network.stop_all_nodes(skip_verification=True)
-
-                # test_split_ledger_on_stopped_network(primary, args)
-                # args.common_read_only_ledger_dir = None  # Reset for future tests
+                test_split_ledger_on_stopped_network(primary, args)
+                args.common_read_only_ledger_dir = None  # Reset for future tests
 
 
 def run_tls_san_checks(args):
@@ -1477,6 +1468,68 @@ def run_read_ledger_on_testdata(args):
                     )
 
 
+import itertools
+
+
+def run_ledger_chunk_bytes_check(const_args):
+    LOG.info("Confirm that ledger chunks are determined by the primary")
+    args = copy.deepcopy(const_args)
+
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+
+    with infra.network.network(args.nodes, args.binary_dir) as network:
+        # Start each node with a different chunk size
+        per_write_size = 16000
+        network.per_node_args_override[0] = {
+            "ledger_chunk_bytes": f"{per_write_size//8}B"
+        }  # => 1 chunk per write
+        network.per_node_args_override[1] = {
+            "ledger_chunk_bytes": f"{per_write_size*2}B"
+        }  # => ~2 writes per chunk
+        network.per_node_args_override[2] = {
+            "ledger_chunk_bytes": f"{per_write_size*8}B"
+        }  # => ~8 writes per chunk
+
+        network.start_and_open(args)
+
+        # Assume all nodes are equally up-to-date, suspend the target so they trigger an election on resume
+        def force_become_primary(node):
+            p, _ = network.find_primary()
+            if p != node:
+                sleep_time = args.election_timeout_ms / 1000
+                LOG.info(
+                    f"Suspending {node.node_id} and sleeping {sleep_time}s to trigger election"
+                )
+                node.suspend()
+                time.sleep(sleep_time)
+                node.resume()
+
+                primary, _ = network.wait_for_new_primary_in({node.node_id})
+                assert primary == node
+
+        primary, backups = network.find_nodes()
+
+        def do_some_writes(node):
+            force_become_primary(node)
+            with node.client("user0") as c:
+                for i in range(8):
+                    r = c.post(
+                        "/app/log/public", {"id": i, "msg": "X" * per_write_size}
+                    )
+                    assert r.status_code == http.HTTPStatus.OK, r
+            return r
+
+        do_some_writes(primary)
+        for backup in backups:
+            do_some_writes(backup)
+        do_some_writes(primary)
+        for backup in backups:
+            r = do_some_writes(backup)
+
+        with primary.client() as c:
+            c.wait_for_commit(r)
+
+
 def run(args):
     # run_max_uncommitted_tx_count(args)
     run_file_operations(args)
@@ -1500,3 +1553,4 @@ def run(args):
         run_recovery_unsealing_corrupt(args)
         run_recovery_unsealing_validate_audit(args)
     run_read_ledger_on_testdata(args)
+    run_ledger_chunk_bytes_check(args)

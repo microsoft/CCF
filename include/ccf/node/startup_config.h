@@ -41,6 +41,16 @@ namespace ccf
     };
     NodeCertificateInfo node_certificate = {};
 
+    struct Ledger
+    {
+      std::string directory = "ledger";
+      std::vector<std::string> read_only_directories = {};
+      ccf::ds::SizeString chunk_size = {"5MB"};
+
+      bool operator==(const Ledger&) const = default;
+    };
+    Ledger ledger = {};
+
     struct LedgerSignatures
     {
       size_t tx_count = 5000;

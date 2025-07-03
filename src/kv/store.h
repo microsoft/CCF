@@ -110,6 +110,7 @@ namespace ccf::kv
     uint8_t flags = 0;
 
     size_t size_since_chunk = 0;
+    size_t chunk_threshold = 0;
 
     bool commit_deserialised(
       OrderedChanges& changes,
@@ -993,6 +994,12 @@ namespace ccf::kv
           txid.term,
           txid.version);
 
+        size_since_chunk += data_shared->size();
+        if (size_since_chunk >= chunk_threshold)
+        {
+          set_flag(AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+        }
+
         batch.emplace_back(
           last_replicated + offset, data_shared, committable_, hooks_shared);
         offset++;
@@ -1301,15 +1308,9 @@ namespace ccf::kv
       return (flags & static_cast<uint8_t>(f)) != 0;
     }
 
-    virtual void heres_some_more_data_that_might_make_you_want_to_chunk_soon(
-      size_t size) override
+    void set_chunk_threshold(size_t threshold)
     {
-      size_since_chunk += size;
-      if (size_since_chunk > 10 * 1024)
-      {
-        set_flag_unsafe(
-          AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
-      }
+      chunk_threshold = threshold;
     }
   };
 

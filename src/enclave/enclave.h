@@ -84,6 +84,7 @@ namespace ccf
       RingbufferLogger* ringbuffer_logger_,
       size_t sig_tx_interval,
       size_t sig_ms_interval,
+      size_t chunk_threshold,
       const ccf::consensus::Configuration& consensus_config,
       const ccf::crypto::CurveID& curve_id,
       const ccf::ds::WorkBeaconPtr& work_beacon_) :
@@ -102,6 +103,8 @@ namespace ccf
 
       LOG_TRACE_FMT("Creating ledger secrets");
       network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+
+      network.tables->set_chunk_threshold(chunk_threshold);
 
       LOG_TRACE_FMT("Creating node");
       node = std::make_unique<ccf::NodeState>(

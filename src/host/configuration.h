@@ -97,16 +97,6 @@ namespace host
     };
     OutputFiles output_files = {};
 
-    struct Ledger
-    {
-      std::string directory = "ledger";
-      std::vector<std::string> read_only_directories = {};
-      ccf::ds::SizeString chunk_size = {"5MB"};
-
-      bool operator==(const Ledger&) const = default;
-    };
-    Ledger ledger = {};
-
     struct Logging
     {
       ccf::LoggerLevel host_level = ccf::LoggerLevel::INFO;
@@ -182,11 +172,6 @@ namespace host
     rpc_addresses_file,
     sealed_ledger_secret_location);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Ledger);
-  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Ledger);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Ledger, directory, read_only_directories, chunk_size);
-
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Logging);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Logging);
   DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Logging, host_level, format);
@@ -240,7 +225,6 @@ namespace host
     service_data_json_file,
     ignore_first_sigterm,
     output_files,
-    ledger,
     snapshots,
     logging,
     memory);
