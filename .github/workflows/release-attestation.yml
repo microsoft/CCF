@@ -37,4 +37,3 @@ jobs:
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: "release-assets/*"
-          subject-name: "microsoft/CCF/${{ steps.download.outputs.release_tag }}"
