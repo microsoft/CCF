@@ -1468,9 +1468,6 @@ def run_read_ledger_on_testdata(args):
                     )
 
 
-import itertools
-
-
 def run_ledger_chunk_bytes_check(const_args):
     LOG.info("Confirm that ledger chunks are determined by the primary")
     args = copy.deepcopy(const_args)
