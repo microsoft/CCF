@@ -461,12 +461,12 @@ namespace aft
         data, expected_txid, std::move(hooks));
     }
 
-    bool flag_enabled(ccf::kv::AbstractStore::StoreFlag)
+    bool flag_enabled(ccf::kv::AbstractStore::Flag)
     {
       return false;
     }
 
-    void unset_flag(ccf::kv::AbstractStore::StoreFlag) {}
+    void unset_flag(ccf::kv::AbstractStore::Flag) {}
   };
 
   class LoggingStubStoreConfig : public LoggingStubStore

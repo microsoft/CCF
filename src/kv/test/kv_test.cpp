@@ -3155,7 +3155,7 @@ TEST_CASE("Ledger entry chunk request")
   {
     // Ledger chunk flag is not set in the store
     REQUIRE(!store.flag_enabled(
-      ccf::kv::AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+      ccf::kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
 
     INFO("Add a transaction with the chunking flag enabled");
     {
@@ -3163,8 +3163,7 @@ TEST_CASE("Ledger entry chunk request")
       auto tx = store.create_tx();
 
       // Request a ledger chunk at the next signature
-      tx.set_tx_flag(
-        ccf::kv::CommittableTx::TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      tx.set_flag(ccf::kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
 
       auto h1 = tx.rw(map);
       h1->put("key", "value");
@@ -3173,7 +3172,7 @@ TEST_CASE("Ledger entry chunk request")
 
     // Flag is now set in the store
     REQUIRE(store.flag_enabled(
-      ccf::kv::AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+      ccf::kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
 
     INFO("Roll back the last transaction");
     {
@@ -3183,7 +3182,7 @@ TEST_CASE("Ledger entry chunk request")
 
       // Ledger chunk flag is still set in the store
       REQUIRE(store.flag_enabled(
-        ccf::kv::AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+        ccf::kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
 
       // Roll the last transaction back to clear the flag in the store
       store.rollback(
@@ -3192,7 +3191,7 @@ TEST_CASE("Ledger entry chunk request")
 
       // Ledger chunk flag is not set in the store anymore
       REQUIRE(!store.flag_enabled(
-        ccf::kv::AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+        ccf::kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
     }
 
     INFO("Add another transaction with the chunking flag enabled");
@@ -3201,8 +3200,7 @@ TEST_CASE("Ledger entry chunk request")
       auto tx = store.create_tx();
 
       // Request a ledger chunk at the next signature again
-      tx.set_tx_flag(
-        ccf::kv::CommittableTx::TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      tx.set_flag(ccf::kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
 
       auto h1 = tx.rw(map);
       h1->put("key", "value");
@@ -3211,7 +3209,7 @@ TEST_CASE("Ledger entry chunk request")
 
     // Ledger chunk flag is now set in the store
     REQUIRE(store.flag_enabled(
-      ccf::kv::AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+      ccf::kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
 
     INFO(
       "Add a signature transaction which triggers chunk via entry header flag");
@@ -3244,7 +3242,7 @@ TEST_CASE("Ledger entry chunk request")
 
     // Ledger chunk flag is not set in the store anymore
     REQUIRE(!store.flag_enabled(
-      ccf::kv::AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+      ccf::kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
   }
 
   SUBCASE("Chunk before this transaction")
@@ -3257,8 +3255,7 @@ TEST_CASE("Ledger entry chunk request")
       auto tx = store.create_tx();
 
       // Request a ledger chunk before tx
-      tx.set_tx_flag(
-        ccf::kv::CommittableTx::TxFlag::LEDGER_CHUNK_BEFORE_THIS_TX);
+      tx.set_flag(ccf::kv::CommittableTx::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
 
       auto h1 = tx.rw(map);
       h1->put("key", "value");
@@ -3282,8 +3279,7 @@ TEST_CASE("Ledger entry chunk request")
 
   SUBCASE("Chunk when the snapshotter requires one")
   {
-    store.set_flag(
-      ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+    store.set_flag(ccf::kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
     INFO("Add a signature that triggers a snapshot");
     {
