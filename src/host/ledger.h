@@ -706,9 +706,6 @@ namespace asynchost
   class Ledger
   {
   private:
-    static constexpr size_t max_chunk_threshold_size =
-      std::numeric_limits<uint32_t>::max(); // 4GB
-
     ringbuffer::WriterPtr to_enclave;
 
     // Main ledger directory (write and read)
@@ -726,7 +723,6 @@ namespace asynchost
     std::list<std::shared_ptr<LedgerFile>> files_read_cache;
     ccf::pal::Mutex read_cache_lock;
 
-    const size_t chunk_threshold;
     size_t last_idx = 0;
     size_t committed_idx = 0;
 
@@ -1018,21 +1014,12 @@ namespace asynchost
     Ledger(
       const fs::path& ledger_dir,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      size_t chunk_threshold,
       size_t max_read_cache_files = ledger_max_read_cache_files_default,
       const std::vector<std::string>& read_ledger_dirs_ = {}) :
       to_enclave(writer_factory.create_writer_to_inside()),
       ledger_dir(ledger_dir),
-      max_read_cache_files(max_read_cache_files),
-      chunk_threshold(chunk_threshold)
+      max_read_cache_files(max_read_cache_files)
     {
-      if (chunk_threshold == 0 || chunk_threshold > max_chunk_threshold_size)
-      {
-        throw std::logic_error(fmt::format(
-          "Error: Ledger chunk threshold should be between 1-{}",
-          max_chunk_threshold_size));
-      }
-
       // Recover last idx from read-only ledger directories
       for (const auto& read_dir : read_ledger_dirs_)
       {

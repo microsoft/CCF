@@ -466,7 +466,6 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     asynchost::Ledger ledger(
       config.ledger.directory,
       writer_factory,
-      config.ledger.chunk_size,
       asynchost::ledger_max_read_cache_files_default,
       config.ledger.read_only_directories);
     ledger.register_message_handlers(buffer_processor.get_dispatcher());
