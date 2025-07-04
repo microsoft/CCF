@@ -508,4 +508,7 @@ namespace ccf::curl
       return *curlm_libuv_context_instance;
     }
   };
+
+  inline CurlmLibuvContext* CurlmLibuvContextSingleton::curlm_libuv_context_instance =
+    nullptr;
 } // namespace ccf::curl
