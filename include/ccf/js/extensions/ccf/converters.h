@@ -15,6 +15,7 @@ namespace ccf::js::extensions
    * - ccf.bufToJsonCompatible
    *
    * - ccf.pemToId
+   * - ccf.tcbHexToPolicy
    *
    * - ccf.enableUntrustedDateTime
    * - ccf.enableMetricsLogging

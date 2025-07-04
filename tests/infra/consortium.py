@@ -850,6 +850,15 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def set_snp_minimum_tcb_version_hex(self, remote_node, cpuid, new_tcb_version):
+        proposal_body, careful_vote = self.make_proposal(
+            "set_snp_minimum_tcb_version_hex",
+            cpuid=cpuid,
+            tcb_version=new_tcb_version,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
     def remove_host_data(self, remote_node, platform, host_data_key):
         if platform == "virtual":
             return self.remove_virtual_host_data(remote_node, host_data_key)

@@ -336,7 +336,7 @@ namespace ccf
         next_snapshot_indices.back().idx);
 
       bool forced = store->flag_enabled_unsafe(
-        ccf::kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+        ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
       ::consensus::Index last_unforced_idx = last_snapshot_idx;
       for (auto it = next_snapshot_indices.rbegin();
@@ -357,7 +357,7 @@ namespace ccf
         LOG_TRACE_FMT(
           "{} {} as snapshot index", !due ? "Forced" : "Recorded", idx);
         store->unset_flag_unsafe(
-          ccf::kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+          ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         return due;
       }
 
