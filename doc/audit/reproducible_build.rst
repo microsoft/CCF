@@ -5,7 +5,7 @@ This section explains how :term:`Users` can reproduce CCF RPM packages using pub
 
 Reproducible builds enables our published packages to be independently verified. For each official CCF release `published to GitHub <https://github.com/microsoft/CCF/releases>`_, we provide:
 
-- A ``reproduce_${PLATFORM}.json`` manifest containing the platform, container image, snapshot time, and git commit.
+- A ``reproduce.json`` manifest containing the container image, snapshot time, and git commit.
 - A ``start_container_and_reproduce_rpm.sh`` script needed to reproduce the RPM build.
 
 To reproduce a package:
@@ -19,11 +19,10 @@ To reproduce a package:
     $ export CCF_VERSION=$(curl -Ls -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
     # Alternatively, set this manually, e.g.:
     # export CCF_VERSION=6.0.0
-    $ export PLATFORM=virtual
-    $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/reproduce-${PLATFORM}.json
+    $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/reproduce.json
     $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/start_container_and_reproduce_rpm.sh
     $ chmod +x ./start_container_and_reproduce_rpm.sh 
-    $ ./start_container_and_reproduce_rpm.sh reproduce-${PLATFORM}.json
+    $ ./start_container_and_reproduce_rpm.sh reproduce.json
 
 This builds the RPM in a container and outputs it to ``./reproduced/``. You can then compare it with the official RPM to verify they are identical:
 
