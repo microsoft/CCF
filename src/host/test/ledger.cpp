@@ -551,7 +551,7 @@ TEST_CASE("Truncation")
 {
   auto dir = AutoDeleteFolder(ledger_dir);
 
-  size_t entries_per_chunk = 3;
+  size_t entries_per_chunk = 2;
   Ledger ledger(ledger_dir, wf);
   TestEntrySubmitter entry_submitter(ledger, entries_per_chunk);
 
@@ -587,6 +587,14 @@ TEST_CASE("Truncation")
   {
     entry_submitter.truncate(last_idx - 2);
     REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far - 1);
+
+    // New file gets opened when three more entries are submitted
+    entry_submitter.write(true);
+    REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far - 1);
+    entry_submitter.write(true);
+    REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far - 1);
+    entry_submitter.write(true);
+    REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far);
   }
 
   INFO("Truncating entry at the start of second chunk");
@@ -620,7 +628,7 @@ TEST_CASE("Commit")
 {
   auto dir = AutoDeleteFolder(ledger_dir);
 
-  size_t entries_per_chunk = 3;
+  size_t entries_per_chunk = 2;
   Ledger ledger(ledger_dir, wf);
   TestEntrySubmitter entry_submitter(ledger, entries_per_chunk);
 
@@ -707,7 +715,7 @@ TEST_CASE("Restore existing ledger")
 {
   auto dir = AutoDeleteFolder(ledger_dir);
 
-  size_t entries_per_chunk = 3;
+  size_t entries_per_chunk = 2;
   size_t last_idx = 0;
   size_t end_of_first_chunk_idx = 0;
   size_t chunk_count = 3;
@@ -950,7 +958,7 @@ TEST_CASE("Multiple ledger paths")
   auto dir3 = AutoDeleteFolder(empty_write_ledger_dir);
 
   size_t max_read_cache_size = 2;
-  size_t entries_per_chunk = 3;
+  size_t entries_per_chunk = 2;
   size_t chunk_count = 5;
 
   size_t last_committed_idx = 0;
@@ -1034,7 +1042,7 @@ TEST_CASE("Recover from read-only ledger directory only")
   auto dir2 = AutoDeleteFolder(ledger_dir_2);
 
   size_t max_read_cache_size = 2;
-  size_t entries_per_chunk = 3;
+  size_t entries_per_chunk = 2;
   size_t chunk_count = 5;
 
   size_t last_idx = 0;
@@ -1210,7 +1218,7 @@ TEST_CASE("Delete committed file from main directory")
   auto dir2 = AutoDeleteFolder(ledger_dir_read_only);
   auto dir3 = AutoDeleteFolder(ledger_dir_tmp);
 
-  size_t entries_per_chunk = 3;
+  size_t entries_per_chunk = 2;
   size_t chunk_count = 5;
 
   // Worst-case scenario: do not keep any committed file in cache
@@ -1384,7 +1392,7 @@ TEST_CASE("Chunking according to entry header flag")
 {
   auto dir = AutoDeleteFolder(ledger_dir);
 
-  size_t entries_per_chunk = 3;
+  size_t entries_per_chunk = 2;
   Ledger ledger(ledger_dir, wf);
   TestEntrySubmitter entry_submitter(ledger, entries_per_chunk);
 
@@ -1440,7 +1448,7 @@ TEST_CASE("Recovery")
 {
   auto dir = AutoDeleteFolder(ledger_dir);
 
-  size_t entries_per_chunk = 3;
+  size_t entries_per_chunk = 2;
 
   SUBCASE("Enable and complete recovery")
   {
@@ -1583,7 +1591,7 @@ TEST_CASE("Recover both ledger dirs")
 
   fs::create_directory(ledger_dir_read_only);
 
-  size_t entries_per_chunk = 3;
+  size_t entries_per_chunk = 2;
   size_t last_idx = 0;
   size_t chunk_count = 3;
 
@@ -1637,7 +1645,7 @@ TEST_CASE("Ledger init with existing files")
 {
   auto dir = AutoDeleteFolder(ledger_dir);
 
-  size_t entries_per_chunk = 3;
+  size_t entries_per_chunk = 2;
   size_t chunk_count = 6;
   size_t last_idx = 0;
   size_t commit_idx = 0;
@@ -1744,7 +1752,7 @@ TEST_CASE("Ledger init with existing files")
 
 int main(int argc, char** argv)
 {
-  // ccf::logger::config::default_init();
+  ccf::logger::config::default_init();
   ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
