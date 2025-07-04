@@ -17,7 +17,7 @@ namespace ccf::endpoints
   {
     params_schema = j;
 
-    schema_builders.push_back(
+    schema_builders.emplace_back(
       [](nlohmann::json& document, const Endpoint& endpoint) {
         const auto http_verb = endpoint.dispatch.verb.get_http_method();
         if (!http_verb.has_value())
@@ -43,7 +43,7 @@ namespace ccf::endpoints
     result_schema = j;
     success_status = status.value_or(HTTP_STATUS_OK);
 
-    schema_builders.push_back(
+    schema_builders.emplace_back(
       [j](nlohmann::json& document, const Endpoint& endpoint) {
         const auto http_verb = endpoint.dispatch.verb.get_http_method();
         if (!http_verb.has_value())
@@ -130,10 +130,7 @@ namespace ccf::endpoints
       LOG_FATAL_FMT("{}", msg);
       throw std::logic_error(msg);
     }
-    else
-    {
-      installer->install(*this);
-    }
+    installer->install(*this);
   }
 
   void to_json(nlohmann::json& j, const InterpreterReusePolicy& grp)
@@ -161,13 +158,16 @@ namespace ccf::endpoints
     }
   }
 
-  std::string schema_name(const InterpreterReusePolicy*)
+  std::string schema_name(const InterpreterReusePolicy* policy)
   {
+    (void)policy;
     return "InterpreterReusePolicy";
   }
 
-  void fill_json_schema(nlohmann::json& schema, const InterpreterReusePolicy*)
+  void fill_json_schema(
+    nlohmann::json& schema, const InterpreterReusePolicy* policy)
   {
+    (void)policy;
     auto one_of = nlohmann::json::array();
 
     {

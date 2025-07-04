@@ -51,6 +51,9 @@ endif()
 
 include(GNUInstallDirs)
 
+# Use fixed name instead of absolute path for reproducible builds
+add_compile_options("-ffile-prefix-map=${CCF_DIR}=CCF")
+
 set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -341,6 +344,7 @@ endif()
 # CCF endpoints lib
 add_host_library(ccf_endpoints "${CCF_ENDPOINTS_SOURCES}")
 target_include_directories(ccf_endpoints PRIVATE ${CCF_DIR}/src/endpoints)
+add_tidy(ccf_endpoints)
 target_link_libraries(
   ccf_endpoints PUBLIC qcbor t_cose http_parser ccfcrypto ccf_kv
 )

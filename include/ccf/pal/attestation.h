@@ -221,16 +221,17 @@ namespace ccf::pal
       const auto& endorsed_tcb = quote_info.endorsed_tcb.value();
       auto raw_tcb = ds::from_hex(quote_info.endorsed_tcb.value());
 
-      if (raw_tcb.size() != sizeof(snp::TcbVersion))
+      if (raw_tcb.size() != sizeof(snp::TcbVersionRaw))
       {
         throw std::logic_error(fmt::format(
           "SEV-SNP: TCB of size {}, expected {}",
           raw_tcb.size(),
-          sizeof(snp::TcbVersion)));
+          sizeof(snp::TcbVersionRaw)));
       }
 
-      snp::TcbVersion tcb = *reinterpret_cast<snp::TcbVersion*>(raw_tcb.data());
-      if (tcb != quote.reported_tcb)
+      if (
+        memcmp(
+          raw_tcb.data(), &quote.reported_tcb, sizeof(snp::TcbVersionRaw)) != 0)
       {
         auto* reported_tcb = reinterpret_cast<uint8_t*>(&quote.reported_tcb);
         throw std::logic_error(fmt::format(

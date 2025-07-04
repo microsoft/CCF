@@ -743,18 +743,18 @@ namespace ccf::kv
 
     virtual size_t committable_gap() = 0;
 
-    enum class Flag : uint8_t
+    enum class StoreFlag : uint8_t
     {
       LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01,
       SNAPSHOT_AT_NEXT_SIGNATURE = 0x02
     };
 
-    virtual void set_flag(Flag f) = 0;
-    virtual void unset_flag(Flag f) = 0;
-    virtual bool flag_enabled(Flag f) = 0;
-    virtual void set_flag_unsafe(Flag f) = 0;
-    virtual void unset_flag_unsafe(Flag f) = 0;
-    virtual bool flag_enabled_unsafe(Flag f) const = 0;
+    virtual void set_flag(StoreFlag f) = 0;
+    virtual void unset_flag(StoreFlag f) = 0;
+    virtual bool flag_enabled(StoreFlag f) = 0;
+    virtual void set_flag_unsafe(StoreFlag f) = 0;
+    virtual void unset_flag_unsafe(StoreFlag f) = 0;
+    virtual bool flag_enabled_unsafe(StoreFlag f) const = 0;
   };
 
   template <class StorePointer>

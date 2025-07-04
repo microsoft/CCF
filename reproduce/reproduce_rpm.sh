@@ -23,6 +23,7 @@ install_deps() {
 }
 
 build_pkg() {
+  mkdir -p /tmp/reproduced
   mkdir -p build && cd build
   echo "Reproducing devel package..."
   cmake -G Ninja -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..

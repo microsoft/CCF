@@ -5,14 +5,12 @@ import os
 import http
 import json
 import random
-import re
 import infra.network
 import infra.proc
 import infra.checker
 import infra.node
 import infra.crypto
 import infra.member
-import ccf.ledger
 from infra.proposal import ProposalState
 import shutil
 import tempfile
@@ -52,9 +50,6 @@ class Consortium:
         key_generator,
         share_script,
         consensus,
-        members_info=None,
-        curve=None,
-        public_state=None,
         authenticate_session="COSE",
         gov_api_version=infra.member.MemberAPI.Preview_v1.API_VERSION,
     ):
@@ -63,82 +58,44 @@ class Consortium:
         self.key_generator = key_generator
         self.share_script = share_script
         self.consensus = consensus
-        self.recovery_threshold = None
+        self.recovery_threshold = 0
         self.authenticate_session = authenticate_session
         self.set_gov_api_version(gov_api_version)
-        # If a list of member IDs is passed in, generate fresh member identities.
-        # Otherwise, recover the state of the consortium from the common directory
-        # and the state of the service
-        if members_info is not None:
-            self.recovery_threshold = 0
-            for m_local_id, recovery_role, m_data in members_info:
-                new_member = infra.member.Member(
-                    f"member{m_local_id}",
-                    curve,
-                    common_dir,
-                    share_script,
-                    recovery_role,
-                    key_generator,
-                    m_data,
-                    authenticate_session=authenticate_session,
-                    gov_api_impl=self.gov_api_impl,
-                )
-                if recovery_role == infra.member.RecoveryRole.Participant:
-                    self.recovery_threshold += 1
-                self.members.append(new_member)
-        else:
-            for f in os.listdir(self.common_dir):
-                if re.search("member(.*)_cert.pem", f) is not None:
-                    local_id = f.split("_")[0]
-                    recovery_role = (
-                        infra.member.RecoveryRole.Participant
-                        if os.path.isfile(
-                            os.path.join(self.common_dir, f"{local_id}_enc_privk.pem")
-                        )
-                        else infra.member.RecoveryRole.NonParticipant
-                    )
-                    new_member = infra.member.Member(
-                        local_id,
-                        curve,
-                        self.common_dir,
-                        share_script,
-                        recovery_role,
-                        authenticate_session=authenticate_session,
-                        gov_api_impl=self.gov_api_impl,
-                    )
-                    self.members.append(new_member)
-                    LOG.info(
-                        f"Successfully recovered member {local_id}: {new_member.service_id}"
-                    )
 
-            self.recovery_threshold = json.loads(
-                public_state["public:ccf.gov.service.config"][
-                    ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
-                ]
-            )["recovery_threshold"]
+    def add_member(self, member):
+        self.members.append(member)
 
-            if not self.members:
-                LOG.warning("No consortium member to recover")
-                return
+    def generate_new_member(self, curve, recovery_role, member_data):
+        new_member_local_id = f"member{len(self.members)}"
+        new_member = infra.member.Member(
+            new_member_local_id,
+            self.common_dir,
+            self.share_script,
+            recovery_role=recovery_role,
+            key_generator=self.key_generator,
+            curve=curve,
+            member_data=member_data,
+            authenticate_session=self.authenticate_session,
+            gov_api_impl=self.gov_api_impl,
+        )
+        return new_member
 
-            for id_bytes, info_bytes in public_state[
-                "public:ccf.gov.members.info"
-            ].items():
-                member_id = id_bytes.decode()
-                member_info = json.loads(info_bytes)
+    def generate_existing_member(self, local_id, recovery_role):
+        new_member = infra.member.Member(
+            local_id,
+            self.common_dir,
+            self.share_script,
+            recovery_role=recovery_role,
+            authenticate_session=self.authenticate_session,
+            gov_api_impl=self.gov_api_impl,
+        )
+        return new_member
 
-                status = member_info["status"]
-                member = self.get_member_by_service_id(member_id)
-                if member:
-                    if (
-                        infra.member.MemberStatus(status)
-                        == infra.member.MemberStatus.ACTIVE
-                    ):
-                        member.set_active()
-                else:
-                    LOG.warning(
-                        f"Keys and certificates for consortium member {member_id} do not exist locally"
-                    )
+    def update_recovery_threshold_from_node(self, node):
+        with node.client() as c:
+            r = c.get("/node/service/configuration")
+            assert r.status_code == 200
+            self.recovery_threshold = r.body.json()["recovery_threshold"]
 
     def set_authenticate_session(self, flag):
         self.authenticate_session = flag
@@ -211,26 +168,20 @@ class Consortium:
     ):
         # The Member returned by this function is in state ACCEPTED. The new Member
         # should ACK to become active.
-        new_member_local_id = f"member{len(self.members)}"
-        new_member = infra.member.Member(
-            new_member_local_id,
-            curve,
-            self.common_dir,
-            self.share_script,
+        new_member = self.generate_new_member(
+            curve=curve,
             recovery_role=recovery_role,
-            key_generator=self.key_generator,
-            authenticate_session=self.authenticate_session,
-            gov_api_impl=self.gov_api_impl,
+            member_data=member_data,
         )
 
         proposal_body, careful_vote = self.make_proposal(
             "set_member",
             cert=slurp_file(
-                os.path.join(self.common_dir, f"{new_member_local_id}_cert.pem")
+                os.path.join(self.common_dir, f"{new_member.local_id}_cert.pem")
             ),
             encryption_pub_key=(
                 slurp_file(
-                    os.path.join(self.common_dir, f"{new_member_local_id}_enc_pubk.pem")
+                    os.path.join(self.common_dir, f"{new_member.local_id}_enc_pubk.pem")
                 )
                 if recovery_role != infra.member.RecoveryRole.NonParticipant
                 else None
@@ -260,7 +211,7 @@ class Consortium:
 
         # If the member was successfully registered, add it to the
         # local list of consortium members
-        self.members.append(new_member)
+        self.add_member(new_member)
         return new_member
 
     def get_members_info(self):
@@ -893,6 +844,15 @@ class Consortium:
     def set_snp_minimum_tcb_version(self, remote_node, cpuid, new_tcb_version):
         proposal_body, careful_vote = self.make_proposal(
             "set_snp_minimum_tcb_version",
+            cpuid=cpuid,
+            tcb_version=new_tcb_version,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def set_snp_minimum_tcb_version_hex(self, remote_node, cpuid, new_tcb_version):
+        proposal_body, careful_vote = self.make_proposal(
+            "set_snp_minimum_tcb_version_hex",
             cpuid=cpuid,
             tcb_version=new_tcb_version,
         )

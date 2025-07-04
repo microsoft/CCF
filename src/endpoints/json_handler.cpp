@@ -35,30 +35,31 @@ namespace ccf
     }
 
     void set_response(
-      JsonAdapterResponse&& res, std::shared_ptr<ccf::RpcContext>& ctx)
+      JsonAdapterResponse&&
+        res, // NOLINT(cppcoreguidelines-rvalue-reference-param-not-moved)
+      std::shared_ptr<ccf::RpcContext>& ctx)
     {
-      auto error = std::get_if<ErrorDetails>(&res);
+      auto* error = std::get_if<ErrorDetails>(&res);
       if (error != nullptr)
       {
         ctx->set_error(std::move(*error));
       }
       else
       {
-        auto redirect = std::get_if<RedirectDetails>(&res);
+        auto* redirect = std::get_if<RedirectDetails>(&res);
         if (redirect != nullptr)
         {
           ctx->set_response_status(redirect->status);
         }
         else
         {
-          const auto body = std::get_if<nlohmann::json>(&res);
+          auto* const body = std::get_if<nlohmann::json>(&res);
           if (body->is_null())
           {
             ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
           }
           else
           {
-            ctx->set_response_status(HTTP_STATUS_OK);
             const auto accept_it =
               ctx->get_request_header(http::headers::ACCEPT);
             if (accept_it.has_value())
@@ -88,12 +89,7 @@ namespace ccf
               }
             }
 
-            const auto s = body->dump();
-            ctx->set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
-
-            ctx->set_response_header(
-              http::headers::CONTENT_TYPE,
-              http::headervalues::contenttype::JSON);
+            ctx->set_response_json(*body, HTTP_STATUS_OK);
           }
         }
       }
@@ -113,7 +109,7 @@ namespace ccf
   jsonhandler::JsonAdapterResponse make_success(
     const nlohmann::json& result_payload)
   {
-    return jsonhandler::JsonAdapterResponse(result_payload);
+    return {result_payload};
   }
 
   jsonhandler::JsonAdapterResponse make_error(

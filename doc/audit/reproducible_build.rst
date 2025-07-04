@@ -3,7 +3,7 @@ Reproducible Build
 
 This section explains how :term:`Users` can reproduce CCF RPM packages using published build manifests.
 
-Reproducible builds enables our published packages to be independently verified. For each official CCF release, we provide:
+Reproducible builds enables our published packages to be independently verified. For each official CCF release `published to GitHub <https://github.com/microsoft/CCF/releases>`_, we provide:
 
 - A ``reproduce_${PLATFORM}.json`` manifest containing the platform, container image, snapshot time, and git commit.
 - A ``start_container_and_reproduce_rpm.sh`` script needed to reproduce the RPM build.
@@ -20,10 +20,10 @@ To reproduce a package:
     # Alternatively, set this manually, e.g.:
     # export CCF_VERSION=6.0.0
     $ export PLATFORM=virtual
-    $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/reproduce_${PLATFORM}.json
+    $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/reproduce-${PLATFORM}.json
     $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/start_container_and_reproduce_rpm.sh
-
-    $ ./start_container_and_reproduce_rpm.sh reproduce_${PLATFORM}.json
+    $ chmod +x ./start_container_and_reproduce_rpm.sh 
+    $ ./start_container_and_reproduce_rpm.sh reproduce-${PLATFORM}.json
 
 This builds the RPM in a container and outputs it to ``./reproduced/``. You can then compare it with the official RPM to verify they are identical:
 

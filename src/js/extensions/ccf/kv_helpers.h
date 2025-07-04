@@ -347,17 +347,20 @@ namespace ccf::js::extensions::kvhelpers
   ARG_COUNT, \
   FUNC_FACTORY_METHOD, \
   SETTER_METHOD, \
-  PERMISSION_ERROR_MIN, \
+  PERMISSION_FLAGS, \
   HANDLE_GETTER) \
   do \
   { \
+    /* This could use std::to_underlying from C++23 */ \
+    const auto permitted = \
+      ccf::js::intersect_access_permissions( \
+        access_permission, PERMISSION_FLAGS) != KVAccessPermissions::ILLEGAL; \
     auto fn_val = ctx.FUNC_FACTORY_METHOD( \
-      access_permission >= PERMISSION_ERROR_MIN ? C_FUNC_NAME##_denied : \
-                                                  C_FUNC_NAME<HANDLE_GETTER>, \
+      !permitted ? C_FUNC_NAME##_denied : C_FUNC_NAME<HANDLE_GETTER>, \
       JS_METHOD_NAME, \
       ARG_COUNT); \
     JS_CHECK_EXC(fn_val); \
-    if (access_permission >= PERMISSION_ERROR_MIN) \
+    if (!permitted) \
     { \
       JS_CHECK_SET( \
         fn_val.set("_error_msg", ctx.new_string(permission_explanation))); \
@@ -365,17 +368,7 @@ namespace ccf::js::extensions::kvhelpers
     JS_CHECK_SET(view_val.SETTER_METHOD(JS_METHOD_NAME, std::move(fn_val))); \
   } while (0)
 
-#define MAKE_RO_FUNCTION(C_FUNC_NAME, JS_METHOD_NAME, ARG_COUNT) \
-  MAKE_FUNCTION( \
-    C_FUNC_NAME, \
-    JS_METHOD_NAME, \
-    ARG_COUNT, \
-    new_c_function, \
-    set, \
-    KVAccessPermissions::ILLEGAL, \
-    GetReadOnlyHandle)
-
-#define MAKE_RW_FUNCTION(C_FUNC_NAME, JS_METHOD_NAME, ARG_COUNT) \
+#define MAKE_READ_FUNCTION(C_FUNC_NAME, JS_METHOD_NAME, ARG_COUNT) \
   MAKE_FUNCTION( \
     C_FUNC_NAME, \
     JS_METHOD_NAME, \
@@ -383,18 +376,28 @@ namespace ccf::js::extensions::kvhelpers
     new_c_function, \
     set, \
     KVAccessPermissions::READ_ONLY, \
+    GetReadOnlyHandle)
+
+#define MAKE_WRITE_FUNCTION(C_FUNC_NAME, JS_METHOD_NAME, ARG_COUNT) \
+  MAKE_FUNCTION( \
+    C_FUNC_NAME, \
+    JS_METHOD_NAME, \
+    ARG_COUNT, \
+    new_c_function, \
+    set, \
+    KVAccessPermissions::WRITE_ONLY, \
     GetWriteHandle)
 
-    MAKE_RO_FUNCTION(js_kv_map_has, "has", 1);
-    MAKE_RO_FUNCTION(js_kv_map_get, "get", 1);
+    MAKE_READ_FUNCTION(js_kv_map_has, "has", 1);
+    MAKE_READ_FUNCTION(js_kv_map_get, "get", 1);
 
-    MAKE_RO_FUNCTION(js_kv_map_foreach, "forEach", 1);
-    MAKE_RO_FUNCTION(
+    MAKE_READ_FUNCTION(js_kv_map_foreach, "forEach", 1);
+    MAKE_READ_FUNCTION(
       js_kv_get_version_of_previous_write, "getVersionOfPreviousWrite", 1);
 
-    MAKE_RW_FUNCTION(js_kv_map_set, "set", 2);
-    MAKE_RW_FUNCTION(js_kv_map_delete, "delete", 1);
-    MAKE_RW_FUNCTION(js_kv_map_clear, "clear", 0);
+    MAKE_WRITE_FUNCTION(js_kv_map_set, "set", 2);
+    MAKE_WRITE_FUNCTION(js_kv_map_delete, "delete", 1);
+    MAKE_WRITE_FUNCTION(js_kv_map_clear, "clear", 0);
 
     // This is a _getter_, subtly different from a read-only function
     MAKE_FUNCTION(
@@ -403,7 +406,7 @@ namespace ccf::js::extensions::kvhelpers
       0,
       new_getter_c_function,
       set_getter,
-      KVAccessPermissions::ILLEGAL,
+      KVAccessPermissions::READ_ONLY,
       GetReadOnlyHandle);
 
 #undef MAKE_RW_FUNCTION

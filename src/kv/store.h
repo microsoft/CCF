@@ -623,8 +623,8 @@ namespace ccf::kv
 
         version = tx_id.version;
         last_replicated = tx_id.version;
-        unset_flag_unsafe(Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
-        unset_flag_unsafe(Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+        unset_flag_unsafe(StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+        unset_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
         auto e = get_encryptor();
@@ -1025,9 +1025,8 @@ namespace ccf::kv
       // Note that snapshotter->record_committable, and therefore this function,
       // assumes that `version` is a committable entry/signature.
 
-      bool r = flag_enabled_unsafe(
-                 AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE) ||
-        flag_enabled_unsafe(AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      bool r = flag_enabled_unsafe(StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE) ||
+        flag_enabled_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
       if (snapshotter)
       {
@@ -1258,35 +1257,35 @@ namespace ccf::kv
       return ReservedTx(this, term_of_last_version, tx_id, rollback_count);
     }
 
-    virtual void set_flag(Flag f) override
+    virtual void set_flag(StoreFlag f) override
     {
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
       set_flag_unsafe(f);
     }
 
-    virtual void unset_flag(Flag f) override
+    virtual void unset_flag(StoreFlag f) override
     {
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
       unset_flag_unsafe(f);
     }
 
-    virtual bool flag_enabled(Flag f) override
+    virtual bool flag_enabled(StoreFlag f) override
     {
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
       return flag_enabled_unsafe(f);
     }
 
-    virtual void set_flag_unsafe(Flag f) override
+    virtual void set_flag_unsafe(StoreFlag f) override
     {
       this->flags |= static_cast<uint8_t>(f);
     }
 
-    virtual void unset_flag_unsafe(Flag f) override
+    virtual void unset_flag_unsafe(StoreFlag f) override
     {
       this->flags &= ~static_cast<uint8_t>(f);
     }
 
-    virtual bool flag_enabled_unsafe(Flag f) const override
+    virtual bool flag_enabled_unsafe(StoreFlag f) const override
     {
       return (flags & static_cast<uint8_t>(f)) != 0;
     }
