@@ -997,7 +997,7 @@ namespace ccf::kv
         size_since_chunk += data_shared->size();
         if (size_since_chunk >= chunk_threshold)
         {
-          set_flag(AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+          set_flag(AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
         }
 
         batch.emplace_back(
@@ -1298,7 +1298,7 @@ namespace ccf::kv
       if (
         (uf &
          static_cast<uint8_t>(
-           AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE)) != 0)
+           AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE)) != 0)
       {
         size_since_chunk = 0;
       }
