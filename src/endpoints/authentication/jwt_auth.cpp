@@ -265,15 +265,20 @@ namespace ccf
           "Current time {} is before token's Not Before (nbf) claim {}",
           time_now,
           token.payload_typed.nbf);
+        continue;
       }
-      else if (time_now > token.payload_typed.exp)
+
+      if (time_now > token.payload_typed.exp)
       {
         error_reason = fmt::format(
           "Current time {} is after token's Expiration Time (exp) claim {}",
           time_now,
           token.payload_typed.exp);
+        continue;
       }
-      else if (
+
+      // Check that the constraint is met
+      if (
         metadata.constraint &&
         !validate_issuer(
           token.payload_typed.iss,
@@ -284,15 +289,16 @@ namespace ccf
           "Kid {} failed issuer constraint validation {}",
           key_id,
           *metadata.constraint);
+        continue;
       }
-      else
-      {
-        auto identity = std::make_unique<JwtAuthnIdentity>();
-        identity->key_issuer = metadata.issuer;
-        identity->header = token.header;
-        identity->payload = token.payload;
-        return identity;
-      }
+
+      // Else all checks have passed; return this identity
+      auto identity = std::make_unique<JwtAuthnIdentity>();
+      identity->key_issuer = metadata.issuer;
+      identity->header = token.header;
+      identity->payload = token.payload;
+      error_reason.clear();
+      return identity;
     }
 
     return nullptr;

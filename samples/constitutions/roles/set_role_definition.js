@@ -21,12 +21,6 @@ class KVSet {
   clear() {
     this.#map.clear();
   }
-
-  asSetOfStrings() {
-    let set = new Set();
-    this.#map.forEach((_, key) => set.add(ccf.bufToJsonCompatible(key)));
-    return set;
-  }
 }
 
 actions.set(
@@ -41,19 +35,14 @@ actions.set(
     },
     function (args) {
       let roleDefinition = new KVSet(
-        ccf.kv[`public:ccf.gov.roles.${args.role}`],
+        ccf.kv[`public:programmability.roles.${args.role}`],
       );
-      let oldValues = roleDefinition.asSetOfStrings();
+
+      roleDefinition.clear();
+
       let newValues = new Set(args.actions);
-      for (const action of oldValues) {
-        if (!newValues.has(action)) {
-          roleDefinition.delete(ccf.jsonCompatibleToBuf(action));
-        }
-      }
       for (const action of newValues) {
-        if (!oldValues.has(action)) {
-          roleDefinition.add(ccf.jsonCompatibleToBuf(action));
-        }
+        roleDefinition.add(ccf.jsonCompatibleToBuf(action));
       }
     },
   ),

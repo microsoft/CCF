@@ -8,7 +8,7 @@
 
 namespace ccf
 {
-  using SnpTcbVersionMap = ServiceMap<std::string, pal::snp::TcbVersion>;
+  using SnpTcbVersionMap = ServiceMap<std::string, pal::snp::TcbVersionPolicy>;
 
   namespace Tables
   {
