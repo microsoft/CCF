@@ -76,17 +76,16 @@ extern "C"
     auto writer_factory = std::make_unique<oversized::WriterFactory>(
       *basic_writer_factory, ec.writer_config);
 
-    auto& curl_context = ccf::curl::CurlmLibuvContextSingleton::get_instance_unsafe();
+    auto& curl_context =
+      ccf::curl::CurlmLibuvContextSingleton::get_instance_unsafe();
     if (curl_context == nullptr)
     {
-      LOG_FAIL_FMT(
-        "Curl context singleton already initialized");
+      LOG_FAIL_FMT("Curl context singleton already initialized");
       return CreateNodeStatus::InternalError;
-    } 
+    }
     if (ec.curl_libuv_context == nullptr)
     {
-      LOG_FAIL_FMT(
-        "Enclave config curl context is null");
+      LOG_FAIL_FMT("Enclave config curl context is null");
       return CreateNodeStatus::InternalError;
     }
     curl_context = ec.curl_libuv_context;

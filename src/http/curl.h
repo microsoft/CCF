@@ -143,26 +143,62 @@ namespace ccf::curl
     }
   };
 
-  class ResponseBody
+  class Response
   {
   public:
     std::vector<uint8_t> buffer;
+    using HeaderMap = std::unordered_map<std::string, std::string>;
+    HeaderMap headers;
+    long status_code = 0;
 
     static size_t write_response_chunk(
       uint8_t* ptr, size_t size, size_t nmemb, void* userdata)
     {
-      auto* data = static_cast<ResponseBody*>(userdata);
+      auto* data = static_cast<Response*>(userdata);
       auto bytes_to_copy = size * nmemb;
       data->buffer.insert(data->buffer.end(), ptr, ptr + bytes_to_copy);
       // Should probably set a maximum response size here
       return bytes_to_copy;
     }
 
+    static size_t append_header(
+      char* buffer, size_t size, size_t nitems, Response* response)
+    {
+      if (size != 1)
+      {
+        LOG_FAIL_FMT(
+          "Unexpected value in curl HEADERFUNCTION callback: size = {}", size);
+        return 0;
+      }
+
+      const std::string_view header =
+        ccf::nonstd::trim(std::string_view(buffer, nitems));
+
+      // Ignore HTTP status line, and empty line
+      if (!header.empty() && !header.starts_with("HTTP/1.1"))
+      {
+        const auto [field, value] = ccf::nonstd::split_1(header, ": ");
+        if (!value.empty())
+        {
+          response->headers[std::string(field)] = ccf::nonstd::trim(value);
+        }
+        else
+        {
+          LOG_INFO_FMT("Ignoring invalid-looking HTTP Header '{}'", header);
+        }
+      }
+
+      return nitems * size;
+    }
+
     void attach_to_curl(CURL* curl)
     {
+      // Body
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_WRITEDATA, this);
-      // Called one or more times to add more data
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_WRITEFUNCTION, write_response_chunk);
+      // Headers
+      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_HEADERDATA, this);
+      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_HEADERFUNCTION, append_header);
     }
   };
 
@@ -194,9 +230,9 @@ namespace ccf::curl
     UniqueCURL curl_handle;
     std::string url;
     std::unique_ptr<ccf::curl::RequestBody> request_body = nullptr;
-    std::unique_ptr<ccf::curl::ResponseBody> response_body = nullptr;
+    std::unique_ptr<ccf::curl::Response> response = nullptr;
     ccf::curl::UniqueSlist headers;
-    std::optional<std::function<void(const ResponseBody&)>> response_callback =
+    std::optional<std::function<void(CurlRequest&)>> response_callback =
       std::nullopt;
 
     void attach_to_curl() const
@@ -207,9 +243,9 @@ namespace ccf::curl
         request_body->attach_to_curl(curl_handle);
         CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_UPLOAD, 1L);
       }
-      if (response_body != nullptr)
+      if (response != nullptr)
       {
-        response_body->attach_to_curl(curl_handle);
+        response->attach_to_curl(curl_handle);
       }
       CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPHEADER, headers.get());
     }
@@ -231,16 +267,25 @@ namespace ccf::curl
       CHECK_CURL_EASY_SETOPT(curl_handle, option, blob);
     }
 
-    void set_response_callback(
-      std::function<void(const ResponseBody&)> callback)
+    void set_response_callback(std::function<void(CurlRequest&)> callback)
     {
-      if (response_body != nullptr || response_callback.has_value())
+      if (response != nullptr || response_callback.has_value())
       {
         throw std::logic_error(
           "Only one response callback can be set for a request.");
       }
       response_callback = std::move(callback);
-      response_body = std::make_unique<ResponseBody>();
+      response = std::make_unique<Response>();
+    }
+
+    void set_header(const std::string& key, const std::string& value)
+    {
+      headers.append(fmt::format("{}: {}", key, value).c_str());
+    }
+
+    [[nodiscard]] CURL* get_easy_handle() const
+    {
+      return curl_handle;
     }
 
     static void attach_to_multi_curl(
@@ -276,23 +321,28 @@ namespace ccf::curl
           curl_easy_strerror(result));
 
         // retrieve the request data and attach a lifetime to it
-        ccf::curl::CurlRequest* request_data = nullptr;
-        curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request_data);
-        if (request_data == nullptr)
+        ccf::curl::CurlRequest* request = nullptr;
+        curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
+        if (request == nullptr)
         {
           throw std::runtime_error(
             "CURLMSG_DONE received with no associated request data");
         }
-        std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request_data);
+        std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request);
+
+        if (request->response != nullptr)
+        {
+          CHECK_CURL_EASY_GETINFO(
+            easy, CURLINFO_RESPONSE_CODE, &request->response->status_code);
+        }
 
         // Clean up the easy handle and corresponding resources
         curl_multi_remove_handle(p.get(), easy);
-        if (request_data->response_callback.has_value())
+        if (request->response_callback.has_value())
         {
-          if (request_data->response_body != nullptr)
+          if (request->response != nullptr)
           {
-            request_data->response_callback.value()(
-              *request_data->response_body);
+            request->response_callback.value()(*request);
           }
         }
         // Handled by the destructor of CurlRequest
@@ -493,6 +543,7 @@ namespace ccf::curl
   class CurlmLibuvContextSingleton
   {
     static CurlmLibuvContext* curlm_libuv_context_instance;
+
   public:
     static CurlmLibuvContext*& get_instance_unsafe()
     {
@@ -509,6 +560,6 @@ namespace ccf::curl
     }
   };
 
-  inline CurlmLibuvContext* CurlmLibuvContextSingleton::curlm_libuv_context_instance =
-    nullptr;
+  inline CurlmLibuvContext*
+    CurlmLibuvContextSingleton::curlm_libuv_context_instance = nullptr;
 } // namespace ccf::curl
