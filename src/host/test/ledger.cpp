@@ -859,7 +859,7 @@ TEST_CASE("Limit number of open files")
 {
   auto dir = AutoDeleteFolder(ledger_dir);
 
-  size_t entries_per_chunk = 3;
+  size_t entries_per_chunk = 2;
   size_t chunk_count = 5;
   size_t max_read_cache_size = 2;
   Ledger ledger(ledger_dir, wf, max_read_cache_size);
@@ -1601,7 +1601,22 @@ TEST_CASE("Recover both ledger dirs")
 
     // Delete last committed file from ledger directory so that new ledger
     // starts with main ledger directory behind read-only ledger directory
-    REQUIRE(fs::remove(fs::path(ledger_dir) / "ledger_5-6.committed"));
+    std::string last_committed_file;
+    size_t last_file_idx = 0;
+    for (auto const& f : fs::directory_iterator(ledger_dir))
+    {
+      const auto file_name = f.path().filename();
+      if (asynchost::is_ledger_file_name_committed(file_name))
+      {
+        const auto idx = asynchost::get_start_idx_from_file_name(file_name);
+        if (idx > last_file_idx)
+        {
+          last_committed_file = file_name;
+          last_file_idx = idx;
+        }
+      }
+    }
+    REQUIRE(fs::remove(fs::path(ledger_dir) / last_committed_file));
   }
 
   INFO("Recover from both ledger dirs");
