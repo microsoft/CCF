@@ -1175,27 +1175,27 @@
         ],
         "type": "object"
       },
-      "TcbVersion": {
+      "TcbVersionPolicy": {
         "properties": {
           "boot_loader": {
-            "$ref": "#/components/schemas/uint8"
+            "$ref": "#/components/schemas/uint32"
+          },
+          "fmc": {
+            "$ref": "#/components/schemas/uint32"
+          },
+          "hexstring": {
+            "$ref": "#/components/schemas/string"
           },
           "microcode": {
-            "$ref": "#/components/schemas/uint8"
+            "$ref": "#/components/schemas/uint32"
           },
           "snp": {
-            "$ref": "#/components/schemas/uint8"
+            "$ref": "#/components/schemas/uint32"
           },
           "tee": {
-            "$ref": "#/components/schemas/uint8"
+            "$ref": "#/components/schemas/uint32"
           }
         },
-        "required": [
-          "boot_loader",
-          "tee",
-          "snp",
-          "microcode"
-        ],
         "type": "object"
       },
       "TransactionId": {
@@ -1310,9 +1310,9 @@
         },
         "type": "object"
       },
-      "string_to_TcbVersion": {
+      "string_to_TcbVersionPolicy": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/TcbVersion"
+          "$ref": "#/components/schemas/TcbVersionPolicy"
         },
         "type": "object"
       },
@@ -1340,13 +1340,13 @@
         },
         "type": "object"
       },
-      "uint64": {
-        "maximum": 18446744073709551615,
+      "uint32": {
+        "maximum": 4294967295,
         "minimum": 0,
         "type": "integer"
       },
-      "uint8": {
-        "maximum": 255,
+      "uint64": {
+        "maximum": 18446744073709551615,
         "minimum": 0,
         "type": "integer"
       }
@@ -1376,7 +1376,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.7.3"
+    "version": "4.7.4"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -2182,7 +2182,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string_to_TcbVersion"
+                  "$ref": "#/components/schemas/string_to_TcbVersionPolicy"
                 }
               }
             },

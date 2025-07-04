@@ -8,12 +8,14 @@
 
 #include "ccf/js/core/context.h"
 #include "ccf/pal/attestation_sev_snp.h"
+#include "ccf/pal/sev_snp_cpuid.h"
 #include "ccf/version.h"
 #include "js/checks.h"
 #include "node/rpc/jwt_management.h"
 
 #include <nlohmann/json.hpp>
 #include <quickjs/quickjs.h>
+#include <stdexcept>
 
 namespace ccf::js::extensions
 {
@@ -193,6 +195,68 @@ namespace ccf::js::extensions
           ctx, "Failed to parse PEM: %s", exc.what());
       }
     }
+
+    JSValue js_tcb_hex_to_policy(
+      JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+    {
+      if (argc != 2)
+      {
+        return JS_ThrowTypeError(
+          ctx, "Passed %d arguments, but expected 2", argc);
+      }
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+
+      auto hex_cpuid = jsctx.to_str(argv[0]);
+      if (!hex_cpuid.has_value())
+      {
+        return JS_ThrowTypeError(ctx, "CPUID could not be parsed");
+      }
+      auto cpuid = pal::snp::cpuid_from_hex(hex_cpuid.value());
+
+      auto hex_tcb = jsctx.to_str(argv[1]);
+      if (!hex_tcb.has_value())
+      {
+        return JS_ThrowTypeError(ctx, "TCB could not be parsed from hex_str");
+      }
+      pal::snp::TcbVersionRaw tcb =
+        pal::snp::TcbVersionRaw::from_hex(hex_tcb.value());
+      pal::snp::ProductName product = pal::snp::get_sev_snp_product(
+        cpuid.get_family_id(), cpuid.get_model_id());
+
+      pal::snp::TcbVersionPolicy tcb_policy = tcb.to_policy(product);
+
+      auto tcb_policy_obj = jsctx.new_obj();
+      JS_CHECK_EXC(tcb_policy_obj);
+      if (tcb_policy.hexstring.has_value())
+      {
+        JS_CHECK_SET(tcb_policy_obj.set(
+          "hexstring", jsctx.new_string(tcb_policy.hexstring.value())));
+      }
+      if (tcb_policy.microcode.has_value())
+      {
+        JS_CHECK_SET(
+          tcb_policy_obj.set_uint32("microcode", tcb_policy.microcode.value()));
+      }
+      if (tcb_policy.snp.has_value())
+      {
+        JS_CHECK_SET(tcb_policy_obj.set_uint32("snp", tcb_policy.snp.value()));
+      }
+      if (tcb_policy.tee.has_value())
+      {
+        JS_CHECK_SET(tcb_policy_obj.set_uint32("tee", tcb_policy.tee.value()));
+      }
+      if (tcb_policy.boot_loader.has_value())
+      {
+        JS_CHECK_SET(tcb_policy_obj.set_uint32(
+          "boot_loader", tcb_policy.boot_loader.value()));
+      }
+      if (tcb_policy.fmc.has_value())
+      {
+        JS_CHECK_SET(tcb_policy_obj.set_uint32("fmc", tcb_policy.fmc.value()));
+      }
+
+      return tcb_policy_obj.take();
+    }
   }
 
   void ConvertersExtension::install(js::core::Context& ctx)
@@ -219,5 +283,9 @@ namespace ccf::js::extensions
       ctx.new_c_function(js_enable_metrics_logging, "enableMetricsLogging", 1));
 
     ccf.set("pemToId", ctx.new_c_function(js_pem_to_id, "pemToId", 1));
+
+    ccf.set(
+      "tcbHexToPolicy",
+      ctx.new_c_function(js_tcb_hex_to_policy, "tcbHexToPolicy", 2));
   }
 }

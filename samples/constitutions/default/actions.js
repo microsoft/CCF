@@ -95,6 +95,7 @@ function checkArrayBufferLength(value, min, max, field) {
   }
 }
 
+const cpuid_length_bytes = 4;
 function checkValidCpuid(value, field) {
   checkType(value, "string", field);
   if (value !== value.toLowerCase()) {
@@ -104,8 +105,27 @@ function checkValidCpuid(value, field) {
   // This will throw if the string contains non-hex characters
   const buffer = hexStrToBuf(value);
   const length = buffer.byteLength;
-  if (length != 4) {
-    throw new Error(`${field} must convert to exactly 4 bytes`);
+  if (length != cpuid_length_bytes) {
+    throw new Error(
+      `${field} must convert to exactly ${cpuid_length_bytes} bytes`,
+    );
+  }
+}
+
+const tcb_version_length_bytes = 8;
+function checkValidTcbVersionHex(value, field) {
+  checkType(value, "string", field);
+  if (value !== value.toLowerCase()) {
+    throw new Error(`${field} must be a lowercase hex string: ${value}`);
+  }
+
+  // This will throw if the string contains non-hex characters
+  const buffer = hexStrToBuf(value);
+  const length = buffer.byteLength;
+  if (length != tcb_version_length_bytes) {
+    throw new Error(
+      `${field} must convert to exactly ${tcb_version_length_bytes} bytes`,
+    );
   }
 }
 
@@ -1143,10 +1163,27 @@ const actions = new Map([
         );
       },
       function (args, proposalId) {
-        // ensure cpuid is uppercase to prevent aliasing
         ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].set(
           ccf.strToBuf(args.cpuid),
           ccf.jsonCompatibleToBuf(args.tcb_version),
+        );
+
+        invalidateOtherOpenProposals(proposalId);
+      },
+    ),
+  ],
+  [
+    "set_snp_minimum_tcb_version_hex",
+    new Action(
+      function (args) {
+        checkValidCpuid(args.cpuid, "cpuid");
+        checkValidTcbVersionHex(args.tcb_version, "tcb_version");
+      },
+      function (args, proposalId) {
+        let tcb_policy = ccf.tcbHexToPolicy(args.cpuid, args.tcb_version);
+        ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].set(
+          ccf.strToBuf(args.cpuid),
+          ccf.jsonCompatibleToBuf(tcb_policy),
         );
 
         invalidateOtherOpenProposals(proposalId);

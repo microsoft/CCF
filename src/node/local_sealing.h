@@ -88,7 +88,7 @@ namespace ccf
   struct SealedLedgerSecretAAD
   {
     ccf::kv::Version version = 0;
-    ccf::pal::snp::TcbVersion tcb_version = {};
+    ccf::pal::snp::TcbVersionRaw tcb_version = {};
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SealedLedgerSecretAAD);
@@ -106,7 +106,7 @@ namespace ccf
 
   inline void seal_ledger_secret_to_disk(
     const std::string& sealed_secret_dir,
-    const ccf::pal::snp::TcbVersion& tcb_version,
+    const ccf::pal::snp::TcbVersionRaw& tcb_version,
     const kv::Version& version,
     const LedgerSecretPtr& ledger_secret)
   {

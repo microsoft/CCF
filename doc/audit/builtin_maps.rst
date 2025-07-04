@@ -216,7 +216,7 @@ The minimum trusted TCB version for new nodes allowed to join the network (:doc`
    * - CPUID
      - TCB Version
    * - ``00a00f11``
-     - ``{boot_loader: 4, tee: 0, snp: 24, microcode: 219}``
+     - ``{"hexstring": "d315000000000004", "boot_loader": 4, "tee": 0, "snp": 21, "microcode": 211}``
 
 ``service.info``
 ~~~~~~~~~~~~~~~~
