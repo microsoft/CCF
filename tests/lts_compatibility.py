@@ -9,6 +9,7 @@ import infra.github
 import infra.jwt_issuer
 import infra.crypto
 import infra.node
+import infra.platform_detection
 import suite.test_requirements as reqs
 import ccf.ledger
 import os
@@ -16,7 +17,6 @@ import json
 import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
-from infra.snp import IS_SNP
 from distutils.dir_util import copy_tree
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -102,7 +102,7 @@ def test_new_service(
     version,
     expected_subject_name=None,
 ):
-    if IS_SNP:
+    if infra.platform_detection.is_snp():
         LOG.info(
             "Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade"
         )
@@ -203,7 +203,7 @@ def run_code_upgrade_from(
     to_version=None,
     from_container_image=None,
 ):
-    if IS_SNP:
+    if infra.platform_detection.is_snp():
         LOG.info(
             "Skipping backwards compatibility test for AMD nodes until either we patch 2.x or we confirm that we don't need to do a live upgrade"
         )
@@ -256,27 +256,29 @@ def run_code_upgrade_from(
             network.consortium.set_constitution(primary, new_constitution)
 
             new_measurement = infra.utils.get_measurement(
-                args.enclave_type,
-                args.enclave_platform,
+                infra.platform_detection.get_platform(),
                 args.package,
                 library_dir=to_library_dir,
             )
             network.consortium.add_measurement(
-                primary, args.enclave_platform, new_measurement
+                primary, infra.platform_detection.get_platform(), new_measurement
             )
 
             new_host_data = None
             try:
                 new_host_data, new_security_policy = (
                     infra.utils.get_host_data_and_security_policy(
-                        args.enclave_type,
-                        args.enclave_platform,
+                        infra.platform_detection.get_platform(),
                         args.package,
                         library_dir=to_library_dir,
+                        version=to_version,
                     )
                 )
                 network.consortium.add_host_data(
-                    primary, args.enclave_platform, new_host_data, new_security_policy
+                    primary,
+                    infra.platform_detection.get_platform(),
+                    new_host_data,
+                    new_security_policy,
                 )
             except ValueError as e:
                 LOG.warning(f"Not setting host data/security policy for new nodes: {e}")
@@ -347,30 +349,29 @@ def run_code_upgrade_from(
             primary, _ = network.find_primary()
 
             old_measurement = infra.utils.get_measurement(
-                args.enclave_type,
-                args.enclave_platform,
+                infra.platform_detection.get_platform(),
                 args.package,
                 library_dir=from_library_dir,
             )
             if old_measurement != new_measurement:
                 network.consortium.remove_measurement(
-                    primary, args.enclave_platform, old_measurement
+                    primary, infra.platform_detection.get_platform(), old_measurement
                 )
 
             # If host_data was found for original nodes, check if it's different on new nodes, in which case old should be removed
             if new_host_data is not None:
                 old_host_data, old_security_policy = (
                     infra.utils.get_host_data_and_security_policy(
-                        args.enclave_type,
-                        args.enclave_platform,
+                        infra.platform_detection.get_platform(),
                         args.package,
                         library_dir=from_library_dir,
+                        version=from_version,
                     )
                 )
 
                 if old_host_data != new_host_data:
                     network.consortium.remove_host_data(
-                        primary, args.enclave_platform, old_host_data
+                        primary, infra.platform_detection.get_platform(), old_host_data
                     )
 
             for index, node in enumerate(old_nodes):
@@ -462,7 +463,7 @@ def run_live_compatibility_with_latest(
         lts_version, lts_install_path = repo.install_latest_lts_for_branch(
             os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch),
             this_release_branch_only,
-            platform=args.enclave_platform,
+            platform=infra.platform_detection.get_platform(),
         )
     else:
         lts_version = infra.github.get_version_from_install(lts_install_path)
@@ -522,7 +523,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
             if lts_release:
                 version, install_path = repo.install_release(
                     lts_release,
-                    platform=args.enclave_platform,
+                    platform=infra.platform_detection.get_platform(),
                 )
                 lts_versions.append(version)
                 set_js_args(args, install_path)
@@ -706,11 +707,6 @@ if __name__ == "__main__":
 
     # Hardcoded because host only accepts info log on release builds
     args.host_log_level = "info"
-
-    # For compatibility with <= 2.x versions as enclave platform
-    # was introduced in 3.x
-    if args.enclave_platform == "virtual":
-        args.enclave_type = "virtual"
 
     repo = infra.github.Repository()
     local_branch = infra.github.GitEnv.local_branch()

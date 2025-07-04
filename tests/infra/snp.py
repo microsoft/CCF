@@ -5,22 +5,7 @@ import os
 import base64
 import glob
 from hashlib import sha256
-
-# Path to the SEV guest device on patched 5.x kernels
-_SEV_DEVICE_LINUX_5 = "/dev/sev"
-
-# Path to the SEV guest device from 6.0 onwards
-# https://www.kernel.org/doc/html/v6.0/virt/coco/sev-guest.html
-_SEV_DEVICE_LINUX_6 = "/dev/sev-guest"
-
-
-def is_snp():
-    return any(
-        os.path.exists(dev) for dev in [_SEV_DEVICE_LINUX_5, _SEV_DEVICE_LINUX_6]
-    )
-
-
-IS_SNP = is_snp()
+from infra.platform_detection import SNP_SUPPORT
 
 # It is the responsibility of the infra spinning up ACI container
 # to populate this file with relevant environment variables
@@ -68,7 +53,7 @@ def _read_aci_environment_variable(envvar_name):
 
 
 def get_security_context_dir():
-    assert IS_SNP
+    assert SNP_SUPPORT
     try:
         return _read_aci_environment_variable(
             ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
@@ -78,7 +63,7 @@ def get_security_context_dir():
 
 
 def get_container_group_security_policy_base64():
-    assert IS_SNP
+    assert SNP_SUPPORT
     security_context_dir = get_security_context_dir()
     return open(
         os.path.join(security_context_dir, ACI_SEV_SNP_FILENAME_SECURITY_POLICY),
@@ -96,7 +81,7 @@ def get_container_group_security_policy_digest():
 
 
 def get_container_group_uvm_endorsements_base64():
-    assert IS_SNP
+    assert SNP_SUPPORT
     security_context_dir = get_security_context_dir()
     return open(
         os.path.join(security_context_dir, ACI_SEV_SNP_FILENAME_UVM_ENDORSEMENTS),
