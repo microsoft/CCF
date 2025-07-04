@@ -489,4 +489,23 @@ namespace ccf::curl
       return curl_request_curlm;
     }
   };
+
+  class CurlmLibuvContextSingleton
+  {
+    static CurlmLibuvContext* curlm_libuv_context_instance;
+  public:
+    static CurlmLibuvContext*& get_instance_unsafe()
+    {
+      return curlm_libuv_context_instance;
+    }
+    static CurlmLibuvContext& get_instance()
+    {
+      if (curlm_libuv_context_instance == nullptr)
+      {
+        throw std::logic_error(
+          "CurlmLibuvContextSingleton instance not initialized");
+      }
+      return *curlm_libuv_context_instance;
+    }
+  };
 } // namespace ccf::curl

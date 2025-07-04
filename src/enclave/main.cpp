@@ -8,6 +8,7 @@
 #include "common/enclave_interface_types.h"
 #include "enclave.h"
 #include "enclave_time.h"
+#include "http/curl.h"
 #include "ringbuffer_logger.h"
 
 #include <chrono>
@@ -74,6 +75,21 @@ extern "C"
       std::make_unique<ringbuffer::WriterFactory>(*circuit);
     auto writer_factory = std::make_unique<oversized::WriterFactory>(
       *basic_writer_factory, ec.writer_config);
+
+    auto& curl_context = ccf::curl::CurlmLibuvContextSingleton::get_instance_unsafe();
+    if (curl_context == nullptr)
+    {
+      LOG_FAIL_FMT(
+        "Curl context singleton already initialized");
+      return CreateNodeStatus::InternalError;
+    } 
+    if (ec.curl_libuv_context == nullptr)
+    {
+      LOG_FAIL_FMT(
+        "Enclave config curl context is null");
+      return CreateNodeStatus::InternalError;
+    }
+    curl_context = ec.curl_libuv_context;
 
     // Note: because logger uses ringbuffer, logger can only be initialised once
     // ringbuffer memory has been verified
