@@ -1468,6 +1468,83 @@ def run_read_ledger_on_testdata(args):
                     )
 
 
+def run_ledger_chunk_bytes_check(const_args):
+    LOG.info("Confirm that ledger chunks are determined by the primary")
+    args = copy.deepcopy(const_args)
+
+    args.nodes = infra.e2e_args.nodes(args, 3)
+
+    with infra.network.network(args.nodes, args.binary_dir) as network:
+        # Start each node with a different chunk size
+        per_write_size = 16000
+        size_0 = per_write_size // 8  # => 1 chunk per write
+        size_1 = per_write_size * 2  # => ~2 writes per chunk
+        size_2 = per_write_size * 8  # => ~8 writes per chunk
+
+        network.per_node_args_override[0] = {"ledger_chunk_bytes": f"{size_0}B"}
+        network.per_node_args_override[1] = {"ledger_chunk_bytes": f"{size_1}B"}
+        network.per_node_args_override[2] = {"ledger_chunk_bytes": f"{size_2}B"}
+
+        network.start_and_open(args)
+
+        # Assume all nodes are equally up-to-date, suspend the target so they trigger an election on resume
+        def force_become_primary(node):
+            p, _ = network.find_primary()
+            if p != node:
+                sleep_time = args.election_timeout_ms / 1000
+                LOG.info(
+                    f"Suspending {node.node_id} and sleeping {sleep_time}s to trigger election"
+                )
+                node.suspend()
+                time.sleep(sleep_time)
+                node.resume()
+
+                primary, _ = network.wait_for_new_primary_in({node.node_id})
+                assert primary == node
+
+        primary, backups = network.find_nodes()
+
+        def do_some_writes(node):
+            force_become_primary(node)
+            with node.client("user0") as c:
+                for i in range(8):
+                    r = c.post(
+                        "/app/log/public", {"id": i, "msg": "X" * per_write_size}
+                    )
+                    assert r.status_code == http.HTTPStatus.OK, r
+            return r
+
+        do_some_writes(primary)
+        for backup in backups:
+            do_some_writes(backup)
+        do_some_writes(primary)
+        for backup in backups:
+            r = do_some_writes(backup)
+
+        with primary.client() as c:
+            c.wait_for_commit(r)
+
+        # This explicitly checks that ledger chunks match on each node
+        network.stop_all_nodes(accept_ledger_diff=False)
+
+        # Confirm that at least one ledger chunk of each expected size was produced
+        current, committeds = primary.get_ledger()
+        chunks = [
+            os.path.join(ledger_dir, basename)
+            for ledger_dir in (current, *committeds)
+            for basename in os.listdir(ledger_dir)
+        ]
+        chunk_sizes = {chunk: os.path.getsize(chunk) for chunk in chunks}
+
+        def close_enough(expected, actual):
+            return (expected * 0.75 <= actual) and (actual <= expected * 1.25)
+
+        for target in (per_write_size, size_1, size_2):
+            assert any(
+                close_enough(target, size) for size in chunk_sizes.values()
+            ), f"Found no chunk matching a {target} chunk size: {chunk_sizes}"
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
@@ -1491,3 +1568,4 @@ def run(args):
         run_recovery_unsealing_corrupt(args)
         run_recovery_unsealing_validate_audit(args)
     run_read_ledger_on_testdata(args)
+    run_ledger_chunk_bytes_check(args)

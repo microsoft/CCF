@@ -109,6 +109,9 @@ namespace ccf::kv
     // Ledger entry header flags
     uint8_t flags = 0;
 
+    size_t size_since_chunk = 0;
+    size_t chunk_threshold = 0;
+
     bool commit_deserialised(
       OrderedChanges& changes,
       Version v,
@@ -991,6 +994,12 @@ namespace ccf::kv
           txid.term,
           txid.version);
 
+        size_since_chunk += data_shared->size();
+        if (size_since_chunk >= chunk_threshold)
+        {
+          set_flag(AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+        }
+
         batch.emplace_back(
           last_replicated + offset, data_shared, committable_, hooks_shared);
         offset++;
@@ -1282,12 +1291,36 @@ namespace ccf::kv
 
     virtual void unset_flag_unsafe(StoreFlag f) override
     {
-      this->flags &= ~static_cast<uint8_t>(f);
+      const uint8_t uf = static_cast<uint8_t>(f);
+      this->flags &= ~uf;
+
+      if (
+        (uf &
+         static_cast<uint8_t>(
+           AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE)) != 0)
+      {
+        size_since_chunk = 0;
+      }
     }
 
     virtual bool flag_enabled_unsafe(StoreFlag f) const override
     {
       return (flags & static_cast<uint8_t>(f)) != 0;
+    }
+
+    void set_chunk_threshold(size_t threshold)
+    {
+      static constexpr size_t max_chunk_threshold_size =
+        std::numeric_limits<uint32_t>::max(); // 4GB
+      if (threshold == 0 || threshold > max_chunk_threshold_size)
+      {
+        throw std::logic_error(fmt::format(
+          "Error: Ledger chunk threshold ({}) must be between 1-{}",
+          threshold,
+          max_chunk_threshold_size));
+      }
+
+      chunk_threshold = threshold;
     }
   };
 
