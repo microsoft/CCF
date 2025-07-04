@@ -1312,10 +1312,11 @@ namespace ccf::kv
     {
       static constexpr size_t max_chunk_threshold_size =
         std::numeric_limits<uint32_t>::max(); // 4GB
-      if (chunk_threshold == 0 || chunk_threshold > max_chunk_threshold_size)
+      if (threshold == 0 || threshold > max_chunk_threshold_size)
       {
         throw std::logic_error(fmt::format(
-          "Error: Ledger chunk threshold should be between 1-{}",
+          "Error: Ledger chunk threshold ({}) must be between 1-{}",
+          threshold,
           max_chunk_threshold_size));
       }
 
