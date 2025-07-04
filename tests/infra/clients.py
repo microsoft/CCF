@@ -36,7 +36,6 @@ import infra.commit
 from infra.log_capture import flush_info
 import ccf.cose
 
-API_VERSION_CLASSIC = "classic"
 API_VERSION_PREVIEW_01 = "2023-06-01-preview"
 API_VERSION_01 = "2024-07-01"
 

@@ -25,7 +25,7 @@ fi
 node_rpc_address=$1
 shift
 
-api_version="classic"
+api_version="2024-07-01"
 while [ "$1" != "" ]; do
     case $1 in
         -h|-\?|--help)
@@ -76,15 +76,9 @@ pip install -q ccf
 # Compute member ID, as the SHA-256 fingerprint of the signing certificate
 member_id=$(openssl x509 -in "$member_id_cert" -noout -fingerprint -sha256 | cut -d "=" -f 2 | sed 's/://g' | awk '{print tolower($0)}')
 
-if [ "${api_version}" == "classic" ]; then
-    get_share_path="gov/encrypted_recovery_share/${member_id}"
-    share_field="encrypted_share"
-    submit_share_path="gov/recovery_share"
-else
-    get_share_path="gov/recovery/encrypted-shares/${member_id}?api-version=${api_version}"
-    share_field="encryptedShare"
-    submit_share_path="gov/recovery/members/${member_id}:recover?api-version=${api_version}"
-fi
+get_share_path="gov/recovery/encrypted-shares/${member_id}?api-version=${api_version}"
+share_field="encryptedShare"
+submit_share_path="gov/recovery/members/${member_id}:recover?api-version=${api_version}"
 
 # First, retrieve the encrypted recovery share
 encrypted_share=$(curl -sS --fail -X GET "${node_rpc_address}/${get_share_path}" "${@}" | jq -r ".${share_field}")

@@ -128,10 +128,6 @@ def test_api_transactions(network, args):
 
 
 def run(args):
-    if args.gov_api_version == "classic":
-        LOG.warning(f"Skipping gov API tests with {args.gov_api_version} API")
-        return
-
     with infra.network.network(
         args.nodes,
         args.binary_dir,
