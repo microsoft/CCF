@@ -78,7 +78,7 @@ extern "C"
 
     auto& curl_context =
       ccf::curl::CurlmLibuvContextSingleton::get_instance_unsafe();
-    if (curl_context == nullptr)
+    if (curl_context != nullptr)
     {
       LOG_FAIL_FMT("Curl context singleton already initialized");
       return CreateNodeStatus::InternalError;
