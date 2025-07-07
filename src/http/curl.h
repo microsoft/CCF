@@ -413,8 +413,9 @@ namespace ccf::curl
       }
       else
       {
-        // If timeout is zero, this will trigger on the next uv loop iteration
-        uv_timer_start(&self->timeout_tracker, libuv_timeout_callback, 0, 0);
+        // If timeout is zero, this will trigger immediately
+        timeout_ms = std::max(timeout_ms, 1L);
+        uv_timer_start(&self->timeout_tracker, libuv_timeout_callback, timeout_ms, 0);
       }
       return 0;
     }
