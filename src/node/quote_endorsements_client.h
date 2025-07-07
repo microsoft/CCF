@@ -191,30 +191,30 @@ namespace ccf
       request->set_response_callback([this, server, endpoint](
                                        curl::CurlRequest& request) {
         std::lock_guard<ccf::pal::Mutex> guard(this->lock);
-        auto response = *request.response.release();
+        auto* response = request.response.get();
 
         last_received_request_id++;
 
-        if (response.status_code == HTTP_STATUS_OK)
+        if (response->status_code == HTTP_STATUS_OK)
         {
           LOG_INFO_FMT(
             "Successfully retrieved endorsements for attestation report: "
             "{} bytes",
-            response.buffer.size());
+            response->buffer.size());
 
-          handle_success_response(std::move(response.buffer), endpoint);
+          handle_success_response(std::move(response->buffer), endpoint);
           return;
         }
 
         LOG_DEBUG_FMT(
           "Error fetching endorsements for attestation report: {}",
-          response.status_code);
-        if (response.status_code == HTTP_STATUS_TOO_MANY_REQUESTS)
+          response->status_code);
+        if (response->status_code == HTTP_STATUS_TOO_MANY_REQUESTS)
         {
           constexpr size_t default_retry_after_s = 3;
           size_t retry_after_s = default_retry_after_s;
-          auto h = response.headers.find(http::headers::RETRY_AFTER);
-          if (h != response.headers.end())
+          auto h = response->headers.find(http::headers::RETRY_AFTER);
+          if (h != response->headers.end())
           {
             const auto& retry_after_value = h->second;
             // If value is invalid, retry_after_s is unchanged
