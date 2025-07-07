@@ -51,6 +51,7 @@ namespace ccf
     // requests in series, after receiving the response to each one or after a
     // long timeout.
     size_t last_received_request_id = 0;
+    size_t last_submitted_request_id = 0;
     bool has_completed = false;
     size_t server_retries_count = 0;
 
@@ -153,6 +154,7 @@ namespace ccf
 
     void fetch(const Server& server)
     {
+      auto request_id = ++last_submitted_request_id;
       auto endpoint = server.front();
 
       auto request = std::make_unique<curl::CurlRequest>();
@@ -253,7 +255,7 @@ namespace ccf
           {
             return;
           }
-          if (msg->data.request_id >= msg->data.self->last_received_request_id)
+          if (msg->data.request_id >= msg->data.self->last_submitted_request_id)
           {
             auto& servers = msg->data.self->config.servers;
             // Should always contain at least one server,
@@ -294,7 +296,7 @@ namespace ccf
         },
         shared_from_this(),
         endpoint,
-        last_received_request_id);
+        request_id);
 
       ::threading::ThreadMessaging::instance().add_task_after(
         std::move(msg),
