@@ -155,7 +155,7 @@ namespace ccf
     {
       auto endpoint = server.front();
 
-      std::unique_ptr<curl::CurlRequest> request;
+      auto request = std::make_unique<curl::CurlRequest>();
 
       // set curl get
       CHECK_CURL_EASY_SETOPT(request->get_easy_handle(), CURLOPT_HTTPGET, 1L);
