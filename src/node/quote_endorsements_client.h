@@ -195,12 +195,12 @@ namespace ccf
 
         last_received_request_id++;
 
-        if (request.response->status_code == HTTP_STATUS_OK)
+        if (response.status_code == HTTP_STATUS_OK)
         {
           LOG_INFO_FMT(
             "Successfully retrieved endorsements for attestation report: "
             "{} bytes",
-            request.response->buffer.size());
+            response.buffer.size());
 
           handle_success_response(std::move(response.buffer), endpoint);
           return;
