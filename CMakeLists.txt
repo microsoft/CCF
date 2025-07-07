@@ -585,6 +585,7 @@ if(COMPILE_TARGET STREQUAL "snp")
            ccf_kv.snp
            nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
+           curl
   )
 
   set_property(TARGET ccf.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -637,6 +638,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            ccf_kv.host
            nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
+           curl
   )
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)

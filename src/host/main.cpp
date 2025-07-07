@@ -28,6 +28,7 @@
 #include "enclave.h"
 #include "handle_ring_buffer.h"
 #include "host/env.h"
+#include "http/curl.h"
 #include "json_schema.h"
 #include "lfs_file_handler.h"
 #include "load_monitor.h"
@@ -356,6 +357,11 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   // Write PID to disk
   files::dump(fmt::format("{}", ::getpid()), config.output_files.pid_file);
 
+  // Initialise curlm libuv interface
+  ccf::curl::CurlmLibuvContext curl_libuv_context(uv_default_loop());
+  ccf::curl::CurlmLibuvContextSingleton::get_instance_unsafe() =
+    &curl_libuv_context;
+
   // set the host log level
   ccf::logger::config::level() = config.logging.host_level;
 
@@ -601,6 +607,9 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     enclave_config.from_enclave_buffer_offsets = &from_enclave_offsets;
 
     enclave_config.writer_config = writer_config;
+
+    enclave_config.curl_libuv_context =
+      &ccf::curl::CurlmLibuvContextSingleton::get_instance();
 
     ccf::StartupConfig startup_config(config);
 

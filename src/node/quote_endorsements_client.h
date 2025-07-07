@@ -4,6 +4,7 @@
 
 #include "ccf/pal/attestation.h"
 #include "enclave/rpc_sessions.h"
+#include "http/curl.h"
 
 namespace ccf
 {
@@ -50,6 +51,7 @@ namespace ccf
     // requests in series, after receiving the response to each one or after a
     // long timeout.
     size_t last_received_request_id = 0;
+    size_t last_submitted_request_id = 0;
     bool has_completed = false;
     size_t server_retries_count = 0;
 
@@ -81,103 +83,6 @@ namespace ccf
       EndpointInfo endpoint;
       size_t request_id;
     };
-
-    std::shared_ptr<ClientSession> create_unauthenticated_client()
-    {
-      // Note: server CA is not checked here as this client is not sending
-      // private data. If the server was malicious and the certificate chain was
-      // bogus, the verification of the endorsement of the quote would fail
-      // anyway.
-      return rpcsessions->create_client(std::make_shared<::tls::Cert>(
-        nullptr, std::nullopt, std::nullopt, std::nullopt, false));
-    }
-
-    std::shared_ptr<ClientSession> create_unencrypted_client()
-    {
-      return rpcsessions->create_unencrypted_client();
-    }
-
-    void send_request(
-      const std::shared_ptr<ClientSession>& client,
-      const EndpointInfo& endpoint)
-    {
-      {
-        ::http::Request r(endpoint.uri, HTTP_GET);
-        for (auto const& [k, v] : endpoint.params)
-        {
-          r.set_query_param(k, v);
-        }
-        for (auto const& [k, v] : endpoint.headers)
-        {
-          r.set_header(k, v);
-        }
-        r.set_header(http::headers::HOST, endpoint.host);
-
-        LOG_INFO_FMT(
-          "Fetching endorsements for attestation report at {}{}{}",
-          endpoint,
-          r.get_path(),
-          r.get_formatted_query());
-        client->send_request(std::move(r));
-      }
-
-      // Start watchdog to send request on new server if it is unresponsive
-      auto msg = std::make_unique<
-        ::threading::Tmsg<QuoteEndorsementsClientTimeoutMsg>>(
-        [](std::unique_ptr<::threading::Tmsg<QuoteEndorsementsClientTimeoutMsg>>
-             msg) {
-          std::lock_guard<ccf::pal::Mutex> guard(msg->data.self->lock);
-          if (msg->data.self->has_completed)
-          {
-            return;
-          }
-          if (msg->data.request_id >= msg->data.self->last_received_request_id)
-          {
-            auto& servers = msg->data.self->config.servers;
-            // Should always contain at least one server,
-            // installed by ccf::pal::make_endorsement_endpoint_configuration()
-            if (servers.empty())
-            {
-              throw std::logic_error(
-                "No server specified to fetch endorsements");
-            }
-
-            msg->data.self->server_retries_count++;
-            if (
-              msg->data.self->server_retries_count >=
-              max_retries_count(servers.front()))
-            {
-              if (servers.size() > 1)
-              {
-                // Move on to next server if we have passed max retries count
-                servers.pop_front();
-              }
-              else
-              {
-                auto& server = servers.front();
-                LOG_FAIL_FMT(
-                  "Giving up retrying fetching attestation endorsements from "
-                  "{} after {} attempts",
-                  server.front().host,
-                  server.front().max_retries_count);
-                throw ccf::pal::AttestationCollateralFetchingTimeout(
-                  "Timed out fetching attestation endorsements from all "
-                  "configured servers");
-                return;
-              }
-            }
-
-            msg->data.self->fetch(servers.front());
-          }
-        },
-        shared_from_this(),
-        endpoint,
-        last_received_request_id);
-
-      ::threading::ThreadMessaging::instance().add_task_after(
-        std::move(msg),
-        std::chrono::milliseconds(server_connection_timeout_s * 1000));
-    }
 
     void handle_success_response(
       std::vector<uint8_t>&& data, const EndpointInfo& response_endpoint)
@@ -233,77 +138,175 @@ namespace ccf
       }
     }
 
+    std::string get_formatted_query(
+      const std::map<std::string, std::string> params) const
+    {
+      std::string formatted_query;
+      bool first = true;
+      for (const auto& it : params)
+      {
+        formatted_query +=
+          fmt::format("{}{}={}", (first ? '?' : '&'), it.first, it.second);
+        first = false;
+      }
+      return formatted_query;
+    }
+
     void fetch(const Server& server)
     {
+      auto request_id = ++last_submitted_request_id;
       auto endpoint = server.front();
 
-      auto c = endpoint.tls ? create_unauthenticated_client() :
-                              create_unencrypted_client();
-      c->connect(
+      auto request = std::make_unique<curl::CurlRequest>();
+
+      // set curl get
+      CHECK_CURL_EASY_SETOPT(request->get_easy_handle(), CURLOPT_HTTPGET, 1L);
+
+      request->url = fmt::format(
+        "{}://{}:{}/{}{}",
+        endpoint.tls ? "https" : "http",
         endpoint.host,
         endpoint.port,
-        [this, server, endpoint](
-          ccf::http_status status,
-          http::HeaderMap&& headers,
-          std::vector<uint8_t>&& data) {
-          std::lock_guard<ccf::pal::Mutex> guard(this->lock);
+        endpoint.uri,
+        get_formatted_query(endpoint.params));
 
-          last_received_request_id++;
+      if (endpoint.tls)
+      {
+        // Note: server CA is not checked here as this client is not sending
+        // private data. If the server was malicious and the certificate chain
+        // was bogus, the verification of the endorsement of the quote would
+        // fail anyway.
+        CHECK_CURL_EASY_SETOPT(
+          request->get_easy_handle(), CURLOPT_SSL_VERIFYHOST, 0L);
+        CHECK_CURL_EASY_SETOPT(
+          request->get_easy_handle(), CURLOPT_SSL_VERIFYPEER, 0L);
+        CHECK_CURL_EASY_SETOPT(
+          request->get_easy_handle(), CURLOPT_SSL_VERIFYSTATUS, 0L);
+      }
 
-          if (status == HTTP_STATUS_OK)
+      for (auto const& [k, v] : endpoint.headers)
+      {
+        request->set_header(k, v);
+      }
+      request->set_header(http::headers::HOST, endpoint.host);
+
+      request->set_response_callback([this, server, endpoint](
+                                       curl::CurlRequest& request) {
+        std::lock_guard<ccf::pal::Mutex> guard(this->lock);
+        auto* response = request.response.get();
+
+        last_received_request_id++;
+
+        if (response->status_code == HTTP_STATUS_OK)
+        {
+          LOG_INFO_FMT(
+            "Successfully retrieved endorsements for attestation report: "
+            "{} bytes",
+            response->buffer.size());
+
+          handle_success_response(std::move(response->buffer), endpoint);
+          return;
+        }
+
+        LOG_DEBUG_FMT(
+          "Error fetching endorsements for attestation report: {}",
+          response->status_code);
+        if (response->status_code == HTTP_STATUS_TOO_MANY_REQUESTS)
+        {
+          constexpr size_t default_retry_after_s = 3;
+          size_t retry_after_s = default_retry_after_s;
+          auto h = response->headers.find(http::headers::RETRY_AFTER);
+          if (h != response->headers.end())
           {
-            LOG_INFO_FMT(
-              "Successfully retrieved endorsements for attestation report: "
-              "{} bytes",
-              data.size());
+            const auto& retry_after_value = h->second;
+            // If value is invalid, retry_after_s is unchanged
+            std::from_chars(
+              retry_after_value.data(),
+              retry_after_value.data() + retry_after_value.size(),
+              retry_after_s);
+          }
 
-            handle_success_response(std::move(data), endpoint);
+          auto msg =
+            std::make_unique<::threading::Tmsg<QuoteEndorsementsClientMsg>>(
+              [](std::unique_ptr<::threading::Tmsg<QuoteEndorsementsClientMsg>>
+                   msg) { msg->data.self->fetch(msg->data.server); },
+              shared_from_this(),
+              server);
+
+          LOG_INFO_FMT(
+            "{} endorsements endpoint had too many requests. Retrying "
+            "in {}s",
+            endpoint,
+            retry_after_s);
+
+          ::threading::ThreadMessaging::instance().add_task_after(
+            std::move(msg), std::chrono::milliseconds(retry_after_s * 1000));
+        }
+        return;
+      });
+
+      // Start watchdog to send request on new server if it is unresponsive
+      auto msg = std::make_unique<
+        ::threading::Tmsg<QuoteEndorsementsClientTimeoutMsg>>(
+        [](std::unique_ptr<::threading::Tmsg<QuoteEndorsementsClientTimeoutMsg>>
+             msg) {
+          std::lock_guard<ccf::pal::Mutex> guard(msg->data.self->lock);
+          if (msg->data.self->has_completed)
+          {
             return;
           }
-
-          LOG_DEBUG_FMT(
-            "Error fetching endorsements for attestation report: {}", status);
-          if (status == HTTP_STATUS_TOO_MANY_REQUESTS)
+          if (msg->data.request_id >= msg->data.self->last_submitted_request_id)
           {
-            constexpr size_t default_retry_after_s = 3;
-            size_t retry_after_s = default_retry_after_s;
-            auto h = headers.find(http::headers::RETRY_AFTER);
-            if (h != headers.end())
+            auto& servers = msg->data.self->config.servers;
+            // Should always contain at least one server,
+            // installed by ccf::pal::make_endorsement_endpoint_configuration()
+            if (servers.empty())
             {
-              const auto& retry_after_value = h->second;
-              // If value is invalid, retry_after_s is unchanged
-              std::from_chars(
-                retry_after_value.data(),
-                retry_after_value.data() + retry_after_value.size(),
-                retry_after_s);
+              throw std::logic_error(
+                "No server specified to fetch endorsements");
             }
 
-            auto msg =
-              std::make_unique<::threading::Tmsg<QuoteEndorsementsClientMsg>>(
-                [](
-                  std::unique_ptr<::threading::Tmsg<QuoteEndorsementsClientMsg>>
-                    msg) { msg->data.self->fetch(msg->data.server); },
-                shared_from_this(),
-                server);
+            msg->data.self->server_retries_count++;
+            if (
+              msg->data.self->server_retries_count >=
+              max_retries_count(servers.front()))
+            {
+              if (servers.size() > 1)
+              {
+                // Move on to next server if we have passed max retries count
+                servers.pop_front();
+              }
+              else
+              {
+                auto& server = servers.front();
+                LOG_FAIL_FMT(
+                  "Giving up retrying fetching attestation endorsements from "
+                  "{} after {} attempts",
+                  server.front().host,
+                  server.front().max_retries_count);
+                throw ccf::pal::AttestationCollateralFetchingTimeout(
+                  "Timed out fetching attestation endorsements from all "
+                  "configured servers");
+                return;
+              }
+            }
 
-            LOG_INFO_FMT(
-              "{} endorsements endpoint had too many requests. Retrying "
-              "in {}s",
-              endpoint,
-              retry_after_s);
-
-            ::threading::ThreadMessaging::instance().add_task_after(
-              std::move(msg), std::chrono::milliseconds(retry_after_s * 1000));
+            msg->data.self->fetch(servers.front());
           }
-          return;
         },
-        [endpoint](const std::string& error_msg) {
-          LOG_FAIL_FMT(
-            "TLS error when connecting to quote endorsements endpoint {}: {}",
-            endpoint,
-            error_msg);
-        });
-      send_request(c, endpoint);
+        shared_from_this(),
+        endpoint,
+        request_id);
+
+      ::threading::ThreadMessaging::instance().add_task_after(
+        std::move(msg),
+        std::chrono::milliseconds(server_connection_timeout_s * 1000));
+
+      LOG_INFO_FMT(
+        "Fetching endorsements for attestation report at {}", request->url);
+
+      curl::CurlRequest::attach_to_multi_curl(
+        curl::CurlmLibuvContextSingleton::get_instance().curlm(), request);
     }
 
   public:
