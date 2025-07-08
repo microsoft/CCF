@@ -8,6 +8,7 @@
 #include "ccf/pal/locking.h"
 #include "deserialise.h"
 #include "kv/committable_tx.h"
+#include "kv/ledger_chunker_interface.h"
 #include "kv/snapshot.h"
 #include "kv/untyped_map.h"
 #include "kv_serialiser.h"
@@ -93,6 +94,7 @@ namespace ccf::kv
 
     std::shared_ptr<Consensus> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
+    std::shared_ptr<ILedgerChunker> chunker = nullptr;
     EncryptorPtr encryptor = nullptr;
     SnapshotterPtr snapshotter = nullptr;
 
@@ -204,6 +206,16 @@ namespace ccf::kv
     void set_history(const std::shared_ptr<TxHistory>& history_)
     {
       history = history_;
+    }
+
+    std::shared_ptr<ILedgerChunker> get_chunker() override
+    {
+      return chunker;
+    }
+
+    void set_chunker(const std::shared_ptr<ILedgerChunker>& chunker_)
+    {
+      chunker = chunker_;
     }
 
     void set_encryptor(const EncryptorPtr& encryptor_)
@@ -594,6 +606,11 @@ namespace ccf::kv
         snapshotter->rollback(tx_id.version);
       }
 
+      if (chunker)
+      {
+        chunker->rolled_back_to(tx_id.version);
+      }
+
       std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
 
       {
@@ -626,7 +643,6 @@ namespace ccf::kv
 
         version = tx_id.version;
         last_replicated = tx_id.version;
-        unset_flag_unsafe(StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
         unset_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
@@ -804,7 +820,12 @@ namespace ccf::kv
       const std::optional<TxID>& expected_txid = std::nullopt) override
     {
       auto exec = std::make_unique<CFTExecutionWrapper>(
-        this, get_history(), std::move(data), public_only, expected_txid);
+        this,
+        get_history(),
+        get_chunker(),
+        std::move(data),
+        public_only,
+        expected_txid);
       return exec;
     }
 
@@ -987,18 +1008,17 @@ namespace ccf::kv
             replication_view);
         }
 
+        if (chunker)
+        {
+          chunker->append_entry_size(data_shared->size());
+        }
+
         LOG_DEBUG_FMT(
           "Batching {} ({}) during commit of {}.{}",
           last_replicated + offset,
           data_shared->size(),
           txid.term,
           txid.version);
-
-        size_since_chunk += data_shared->size();
-        if (size_since_chunk >= chunk_threshold)
-        {
-          set_flag(AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
-        }
 
         batch.emplace_back(
           last_replicated + offset, data_shared, committable_, hooks_shared);
@@ -1023,19 +1043,23 @@ namespace ccf::kv
       }
     }
 
-    bool must_force_ledger_chunk(Version version) override
+    bool should_create_ledger_chunk(Version version) override
     {
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-      return must_force_ledger_chunk_unsafe(version);
+      return should_create_ledger_chunk_unsafe(version);
     }
 
-    bool must_force_ledger_chunk_unsafe(Version version) override
+    bool should_create_ledger_chunk_unsafe(Version version) override
     {
       // Note that snapshotter->record_committable, and therefore this function,
       // assumes that `version` is a committable entry/signature.
 
-      bool r = flag_enabled_unsafe(StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE) ||
-        flag_enabled_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      bool r = flag_enabled_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+
+      if (chunker)
+      {
+        r |= chunker->is_chunk_end_requested(version);
+      }
 
       if (snapshotter)
       {
@@ -1291,36 +1315,12 @@ namespace ccf::kv
 
     virtual void unset_flag_unsafe(StoreFlag f) override
     {
-      const uint8_t uf = static_cast<uint8_t>(f);
-      this->flags &= ~uf;
-
-      if (
-        (uf &
-         static_cast<uint8_t>(
-           AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE)) != 0)
-      {
-        size_since_chunk = 0;
-      }
+      this->flags &= ~static_cast<uint8_t>(f);
     }
 
     virtual bool flag_enabled_unsafe(StoreFlag f) const override
     {
       return (flags & static_cast<uint8_t>(f)) != 0;
-    }
-
-    void set_chunk_threshold(size_t threshold)
-    {
-      static constexpr size_t max_chunk_threshold_size =
-        std::numeric_limits<uint32_t>::max(); // 4GB
-      if (threshold == 0 || threshold > max_chunk_threshold_size)
-      {
-        throw std::logic_error(fmt::format(
-          "Error: Ledger chunk threshold ({}) must be between 1-{}",
-          threshold,
-          max_chunk_threshold_size));
-      }
-
-      chunk_threshold = threshold;
     }
   };
 

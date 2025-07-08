@@ -15,6 +15,7 @@
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/tx_id.h"
 #include "crypto/openssl/key_pair.h"
+#include "kv/ledger_chunker_interface.h"
 #include "serialiser_declare.h"
 
 #include <array>
@@ -712,6 +713,7 @@ namespace ccf::kv
 
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;
+    virtual std::shared_ptr<ILedgerChunker> get_chunker() = 0;
     virtual EncryptorPtr get_encryptor() = 0;
     virtual std::unique_ptr<AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
@@ -738,14 +740,14 @@ namespace ccf::kv
       ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) = 0;
-    virtual bool must_force_ledger_chunk(Version version) = 0;
-    virtual bool must_force_ledger_chunk_unsafe(Version version) = 0;
+    virtual bool should_create_ledger_chunk(Version version) = 0;
+    virtual bool should_create_ledger_chunk_unsafe(Version version) = 0;
 
     virtual size_t committable_gap() = 0;
 
     enum class StoreFlag : uint8_t
     {
-      LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01,
+      TODO = 0x01,
       SNAPSHOT_AT_NEXT_SIGNATURE = 0x02
     };
 
