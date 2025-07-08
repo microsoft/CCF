@@ -27,16 +27,6 @@ with section("parse"):
                 "ADDITIONAL_ARGS": "*",
             },
         },
-        "add_perf_test": {
-            "kwargs": {
-                "NAME": "*",
-                "PYTHON_SCRIPT": "*",
-                "CONSTITUTION": "*",
-                "CLIENT_BIN": "*",
-                "LABEL": "*",
-                "ADDITIONAL_ARGS": "*",
-            },
-        },
         "add_piccolo_test": {
             "kwargs": {
                 "NAME": "*",

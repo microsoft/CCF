@@ -293,11 +293,6 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         type=int,
         default=100,
     )
-    parser.add_argument(
-        "--write-tx-times",
-        help="Unused, swallowed for compatibility with old args",
-        action="store_true",
-    )
     parser.add_argument("--config", help="Path to config for client binary", default="")
 
     return infra.e2e_args.cli_args(
