@@ -137,6 +137,7 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     "-v, --version", print_version, "Display CCF host version and exit");
 
   ccf::LoggerLevel enclave_log_level = ccf::LoggerLevel::INFO;
+  ccf::LoggerLevel log_level = ccf::LoggerLevel::INFO;
   std::map<std::string, ccf::LoggerLevel> log_level_options;
   for (size_t i = ccf::logger::MOST_VERBOSE;
        i < ccf::LoggerLevel::MAX_LOG_LEVEL;
@@ -150,7 +151,14 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     .add_option(
       "--enclave-log-level",
       enclave_log_level,
-      "Logging level for the enclave code (security critical)")
+      "Logging level for the enclave code (deprecated, use --log-level)")
+    ->transform(CLI::CheckedTransformer(log_level_options, CLI::ignore_case));
+
+  app
+    .add_option(
+      "--log-level",
+      log_level,
+      "Logging level for the node (security critical)")
     ->transform(CLI::CheckedTransformer(log_level_options, CLI::ignore_case));
 
   std::string enclave_file_path;
@@ -357,7 +365,7 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   files::dump(fmt::format("{}", ::getpid()), config.output_files.pid_file);
 
   // set the host log level
-  ccf::logger::config::level() = config.logging.host_level;
+  ccf::logger::config::level() = log_level;
 
   asynchost::TimeBoundLogger::default_max_time =
     config.slow_io_logging_threshold;
@@ -917,7 +925,7 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
       node_cert,
       service_cert,
       config.command.type,
-      enclave_log_level,
+      log_level,
       config.worker_threads,
       time_updater->behaviour.get_value(),
       notifying_factory.get_inbound_work_beacon());
