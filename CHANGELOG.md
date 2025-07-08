@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [7.0.0-dev0]
 
-[7.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev0
+[7.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev0
 
 ### Removed
 
@@ -3218,3 +3218,4 @@ Initial pre-release
 [3.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc0
 [3.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc2
 [5.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0
+[7.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev0
