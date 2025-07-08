@@ -16,9 +16,6 @@ with section("parse"):
                 "LINK_LIBS_SNP": "*",
             },
         },
-        "add_client_exe": {
-            "kwargs": {"SRCS": "*", "INCLUDE_DIRS": "*", "LINK_LIBS": "*"},
-        },
         "add_e2e_test": {
             "kwargs": {
                 "NAME": "*",

@@ -51,24 +51,6 @@ function(add_test_bin name)
   add_san(${name})
 endfunction()
 
-# Helper for building clients inheriting from perf_client
-function(add_client_exe name)
-
-  cmake_parse_arguments(
-    PARSE_ARGV 1 PARSED_ARGS "" "" "SRCS;INCLUDE_DIRS;LINK_LIBS"
-  )
-
-  add_executable(${name} ${PARSED_ARGS_SRCS})
-
-  target_link_libraries(
-    ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto.host
-  )
-  target_include_directories(
-    ${name} PRIVATE ${CCF_DIR}/src/clients/perf ${PARSED_ARGS_INCLUDE_DIRS}
-  )
-
-endfunction()
-
 # Helper for building end-to-end function tests using the python infrastructure
 function(add_e2e_test)
   cmake_parse_arguments(
