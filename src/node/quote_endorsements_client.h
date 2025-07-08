@@ -49,7 +49,7 @@ namespace ccf
     // Uniquely identify each received request. We assume that this client sends
     // requests in series, after receiving the response to each one or after a
     // long timeout.
-    size_t last_received_request_id = 0;
+    size_t last_submitted_request_id = 0;
     bool has_completed = false;
     size_t server_retries_count = 0;
 
@@ -101,6 +101,7 @@ namespace ccf
       const std::shared_ptr<ClientSession>& client,
       const EndpointInfo& endpoint)
     {
+      auto request_id = ++last_submitted_request_id;
       {
         ::http::Request r(endpoint.uri, HTTP_GET);
         for (auto const& [k, v] : endpoint.params)
@@ -131,7 +132,7 @@ namespace ccf
           {
             return;
           }
-          if (msg->data.request_id >= msg->data.self->last_received_request_id)
+          if (msg->data.request_id >= msg->data.self->last_submitted_request_id)
           {
             auto& servers = msg->data.self->config.servers;
             // Should always contain at least one server,
@@ -172,7 +173,7 @@ namespace ccf
         },
         shared_from_this(),
         endpoint,
-        last_received_request_id);
+        request_id);
 
       ::threading::ThreadMessaging::instance().add_task_after(
         std::move(msg),
@@ -247,8 +248,6 @@ namespace ccf
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
           std::lock_guard<ccf::pal::Mutex> guard(this->lock);
-
-          last_received_request_id++;
 
           if (status == HTTP_STATUS_OK)
           {
