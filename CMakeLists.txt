@@ -532,7 +532,6 @@ configure_file(
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(CLIENT_PROTOCOLS_TEST "Test client protocols (TLS, HTTP/2)" OFF)
-option(BUILD_TPCC "Build TPPC sample app and clients" OFF)
 
 option(CCF_RAFT_TRACING "Enable tracing of Raft consensus" OFF)
 if(CCF_RAFT_TRACING)
@@ -1198,10 +1197,6 @@ if(BUILD_TESTS)
         --constitution
         ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
     )
-
-    if(BUILD_TPCC)
-      include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/tpcc/tpcc.cmake)
-    endif()
 
     if(CLIENT_PROTOCOLS_TEST)
       add_custom_command(
