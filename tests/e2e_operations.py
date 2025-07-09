@@ -31,6 +31,7 @@ from pycose.messages import Sign1Message
 import sys
 import pathlib
 import infra.concurrency
+from collections import defaultdict
 
 from loguru import logger as LOG
 
@@ -1472,14 +1473,40 @@ def run_ledger_chunk_bytes_check(const_args):
     LOG.info("Confirm that ledger chunks are determined by the primary")
     args = copy.deepcopy(const_args)
 
+    # Don't emit snapshots
+    args.snapshot_tx_interval = 10000000
+
+    # Don't sign too-often; give time to store many entries in a single chunk
+    args.sig_ms_interval = 1000
+
     args.nodes = infra.e2e_args.nodes(args, 3)
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
         # Start each node with a different chunk size
-        per_write_size = 16000
-        size_0 = per_write_size // 8  # => 1 chunk per write
-        size_1 = per_write_size * 2  # => ~2 writes per chunk
-        size_2 = per_write_size * 8  # => ~8 writes per chunk
+        unit_size = 16384
+        size_0 = unit_size
+        size_1 = unit_size * 3
+        size_2 = unit_size * 9
+
+        51869
+        51893
+
+        def overhead(num_transactions, num_signatures):
+            # From checking a sample run, the overhead consists of:
+            # - 24 bytes of header + footer
+            # - 202 bytes of framing/encoding for each of our transactions
+            #   - Comes from
+            #      16384 content
+            #      + table name
+            #      + JSON quoting
+            #      + size prefixes
+            #      + transaction header
+            #      = 16586
+            # - ~2100 bytes per signature transaction
+            #   - Some variation from cert sizes
+            #   - Increasing over time as the mini-tree grows
+            #   - Adding 2400 bytes here to be safe
+            return 24 + (202 * num_transactions) + (2400 * num_signatures)
 
         network.per_node_args_override[0] = {"ledger_chunk_bytes": f"{size_0}B"}
         network.per_node_args_override[1] = {"ledger_chunk_bytes": f"{size_1}B"}
@@ -1487,14 +1514,16 @@ def run_ledger_chunk_bytes_check(const_args):
 
         network.start_and_open(args)
 
-        # Assume all nodes are equally up-to-date, suspend the target so they trigger an election on resume
         def force_become_primary(node):
+            # Ensure all nodes are equally up-to-date
+            network.wait_for_node_commit_sync()
             p, _ = network.find_primary()
             if p != node:
                 sleep_time = args.election_timeout_ms / 1000
                 LOG.info(
                     f"Suspending {node.node_id} and sleeping {sleep_time}s to trigger election"
                 )
+                # Suspend the target so they trigger an election on resume
                 node.suspend()
                 time.sleep(sleep_time)
                 node.resume()
@@ -1504,27 +1533,72 @@ def run_ledger_chunk_bytes_check(const_args):
 
         primary, backups = network.find_nodes()
 
-        def do_some_writes(node):
+        nodes_and_sizes = [
+            (primary, size_0),
+            (backups[0], size_1),
+            (backups[1], size_2),
+        ]
+
+        chunks_per_node = 2
+
+        chunk_ends_by_size = defaultdict(list)
+
+        for node, chunk_size in nodes_and_sizes:
             force_become_primary(node)
             with node.client("user0") as c:
-                for i in range(8):
+                for _ in range(chunks_per_node):
+                    written = 0
+                    while written < chunk_size:
+                        r = c.post(
+                            "/app/log/public",
+                            {"id": chunk_size, "msg": "X" * unit_size},
+                        )
+                        assert r.status_code == http.HTTPStatus.OK, r
+                        written += unit_size
+                    c.wait_for_commit(r)
+                    r = c.get("/node/commit")
+                    assert r.status_code == http.HTTPStatus.OK, r
+                    chunk_ends_by_size[chunk_size].append(
+                        TxID.from_str(r.body.json()["transaction_id"])
+                    )
+
+        # When a node becomes primary, it may discover the current chunk is already over
+        # the local chunk threshold, and should immediately terminate this chunk.
+        # Confirm it has been correctly tracking chunk sizes while it was backup in this case.
+        smallest_node, smallest_size = nodes_and_sizes[0]
+        for node, chunk_size in nodes_and_sizes[1:]:
+            force_become_primary(node)
+            with node.client("user0") as c:
+                written = 0
+                # Stop just before this node completes the chunk
+                target_chunk_size = chunk_size - unit_size
+                while written < target_chunk_size:
                     r = c.post(
-                        "/app/log/public", {"id": i, "msg": "X" * per_write_size}
+                        "/app/log/public",
+                        {"id": chunk_size, "msg": "X" * unit_size},
                     )
                     assert r.status_code == http.HTTPStatus.OK, r
-            return r
+                    written += unit_size
+                c.wait_for_commit(r)
 
-        do_some_writes(primary)
-        for backup in backups:
-            do_some_writes(backup)
-        do_some_writes(primary)
-        for backup in backups:
-            r = do_some_writes(backup)
+            force_become_primary(smallest_node)
+            with smallest_node.client("user0") as c:
+                r = c.get("/node/commit")
+                assert r.status_code == http.HTTPStatus.OK, r
+                chunk_ends_by_size[target_chunk_size].append(
+                    TxID.from_str(r.body.json()["transaction_id"])
+                )
 
-        with primary.client() as c:
+        # Add a further write to trigger .committed rename of all chunks above
+        with primary.client("user0") as c:
+            r = c.post(
+                "/app/log/public",
+                {"id": 42, "msg": "Make a new chunk"},
+            )
+            assert r.status_code == http.HTTPStatus.OK, r
             c.wait_for_commit(r)
 
-        # This explicitly checks that ledger chunks match on each node
+        # This explicitly checks that ledger chunks match on each node, which is the critical property
         network.stop_all_nodes(accept_ledger_diff=False)
 
         # Confirm that at least one ledger chunk of each expected size was produced
@@ -1534,15 +1608,31 @@ def run_ledger_chunk_bytes_check(const_args):
             for ledger_dir in (current, *committeds)
             for basename in os.listdir(ledger_dir)
         ]
-        chunk_sizes = {chunk: os.path.getsize(chunk) for chunk in chunks}
+        actual_chunk_sizes = {chunk: os.path.getsize(chunk) for chunk in chunks}
 
-        def close_enough(expected, actual):
-            return (expected * 0.75 <= actual) and (actual <= expected * 1.25)
+        chunk_ends_to_expected_size = {
+            tx_id.seqno: size
+            for size, tx_ids in chunk_ends_by_size.items()
+            for tx_id in tx_ids
+        }
 
-        for target in (per_write_size, size_1, size_2):
-            assert any(
-                close_enough(target, size) for size in chunk_sizes.values()
-            ), f"Found no chunk matching a {target} chunk size: {chunk_sizes}"
+        for path, actual_size in actual_chunk_sizes.items():
+            start, end = ccf.ledger.range_from_filename(path)
+            if end in chunk_ends_to_expected_size:
+                chunk_size = chunk_ends_to_expected_size[end]
+                num_transactions = 1 + end - start
+                min_expected = chunk_size + overhead(num_transactions, num_signatures=0)
+                max_expected = chunk_size + overhead(num_transactions, num_signatures=2)
+
+                r = range(min_expected, max_expected)
+                assert (
+                    actual_size in r
+                ), f"Expected {os.path.basename(path)} (produced by a node with chunk-size {chunk_size:,}) to be between {min_expected:,} and {max_expected:,} bytes. It is actually {actual_size:,} bytes"
+
+                del chunk_ends_to_expected_size[end]
+
+        # Confirm we've seen all expected chunk ends
+        assert len(chunk_ends_to_expected_size) == 0
 
 
 def run(args):
