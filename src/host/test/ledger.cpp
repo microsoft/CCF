@@ -237,30 +237,10 @@ public:
   ccf::kv::LedgerChunker chunker;
   size_t last_idx = 0;
 
-  void debug_print()
-  {
-    fmt::print("!!!!!\n");
-
-    fmt::print(" chunker.chunk_threshold = {}\n", chunker.chunk_threshold);
-    fmt::print(
-      " chunker.current_tx_version = {}\n", chunker.current_tx_version);
-    fmt::print(
-      " chunker.forced_chunk_version = {}\n",
-      chunker.forced_chunk_version.value_or(-1));
-    fmt::print(
-      " chunker.transaction_sizes = [{}]\n", chunker.transaction_sizes.size());
-    for (auto& [k, v] : chunker.transaction_sizes)
-    {
-      fmt::print("    {}: {}\n", k, v);
-    }
-
-    fmt::print("!!!!!\n");
-  }
-
   TestEntrySubmitter(
     Ledger& ledger, size_t chunk_threshold, size_t initial_last_idx = 0) :
     ledger(ledger),
-    chunker(chunk_threshold),
+    chunker(chunk_threshold, initial_last_idx),
     last_idx(initial_last_idx)
   {}
 
@@ -368,103 +348,186 @@ TEST_CASE("LedgerChunker")
 
     REQUIRE_FALSE(chunker.is_chunk_end_requested(version));
 
+    // Transactions look like this, with a chunk threshold of 5:
+    // ## ## # ####
     chunker.append_entry_size(2);
-    version = 1;
-    REQUIRE_FALSE(chunker.is_chunk_end_requested(version));
-
     chunker.append_entry_size(2);
-    version = 2;
-    REQUIRE_FALSE(chunker.is_chunk_end_requested(version));
+    chunker.append_entry_size(1);
+    chunker.append_entry_size(4);
 
     {
       INFO("As soon as the threshold is reached, a chunk is requested");
-      chunker.append_entry_size(1);
-      version = 3;
-      REQUIRE(chunker.is_chunk_end_requested(version));
-    }
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(1));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(2));
+      REQUIRE(chunker.is_chunk_end_requested(3));
 
-    {
       INFO("More entries may arrive, pushing further past the threshold");
-      chunker.append_entry_size(4);
-      version = 4;
-      REQUIRE(chunker.is_chunk_end_requested(version));
+      REQUIRE(chunker.is_chunk_end_requested(4));
     }
 
     {
+      // Using '|' to indicate where a chunk has been produced
+      // ## ## #| ####
       INFO(
         "When a chunk is produced, we re-calculate whether a chunk is "
         "requested");
       chunker.produced_chunk_at(3);
-      REQUIRE_FALSE(chunker.is_chunk_end_requested(version));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(3));
     }
 
     {
       INFO(
         "Chunks may be far larger than the threshold, if committable entries "
-        "are "
-        "sparse");
+        "are sparse");
+      // ## ## #| #### #### ###### ##### ##
       chunker.append_entry_size(4);
-      version = 5;
       chunker.append_entry_size(6);
-      version = 6;
-      chunker.append_entry_size(10);
-      version = 7;
+      chunker.append_entry_size(5);
       chunker.append_entry_size(2);
-      version = 8;
-      REQUIRE(chunker.is_chunk_end_requested(version));
+      REQUIRE(chunker.is_chunk_end_requested(8));
 
-      chunker.produced_chunk_at(version);
-      REQUIRE_FALSE(chunker.is_chunk_end_requested(version));
+      // ## ## #| #### #### ###### ##### ##|
+      chunker.produced_chunk_at(8);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(8));
     }
 
     {
       INFO("Chunks can be explicitly requested");
+      // ## ## #| #### #### ###### ##### ##| #!
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(9));
+      chunker.force_end_of_chunk(9);
       chunker.append_entry_size(1);
-      version = 9;
-      REQUIRE_FALSE(chunker.is_chunk_end_requested(version));
-      chunker.force_end_of_chunk(version);
-      REQUIRE(chunker.is_chunk_end_requested(version));
+      REQUIRE(chunker.is_chunk_end_requested(9));
 
-      chunker.produced_chunk_at(version);
-      REQUIRE_FALSE(chunker.is_chunk_end_requested(version));
+      chunker.produced_chunk_at(9);
     }
 
     {
       INFO("Rollbacks are accurately tracked");
+      // ## ## #| #### #### ###### ##### ##| #! ### ##
       chunker.append_entry_size(3);
-      version = 10;
       chunker.append_entry_size(2);
-      version = 11;
-      REQUIRE(chunker.is_chunk_end_requested(version));
+      REQUIRE(chunker.is_chunk_end_requested(11));
 
+      // ## ## #| #### #### ###### ##### ##| #! ### ## #####
       chunker.append_entry_size(5);
-      version = 12;
-      REQUIRE(chunker.is_chunk_end_requested(version));
+      REQUIRE(chunker.is_chunk_end_requested(12));
 
-      version = 11;
-      chunker.rolled_back_to(version);
-      REQUIRE(chunker.is_chunk_end_requested(version));
+      // ## ## #| #### #### ###### ##### ##| #! ### ##
+      chunker.rolled_back_to(11);
+      REQUIRE(chunker.is_chunk_end_requested(11));
 
-      version = 10;
-      chunker.rolled_back_to(version);
-      REQUIRE_FALSE(chunker.is_chunk_end_requested(version));
+      // ## ## #| #### #### ###### ##### ##| #! ###
+      chunker.rolled_back_to(10);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(10));
 
       INFO("Even when new sizes differ");
+      // ## ## #| #### #### ###### ##### ##| #! ### # #
       chunker.append_entry_size(1);
-      version = 11;
-      REQUIRE_FALSE(chunker.is_chunk_end_requested(version));
       chunker.append_entry_size(1);
-      version = 12;
-      REQUIRE(chunker.is_chunk_end_requested(version));
 
-      INFO("Even across completed chunks");
-      version = 2;
-      chunker.rolled_back_to(version);
-      REQUIRE_FALSE(chunker.is_chunk_end_requested(version));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(11));
+      REQUIRE(chunker.is_chunk_end_requested(12));
+    }
 
-      version = 3;
+    {
+      INFO("Rollbacks across known chunks are possible");
+      // ## ##
+      chunker.rolled_back_to(2);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(2));
+
+      // ## ## ###
       chunker.append_entry_size(2);
-      REQUIRE(chunker.is_chunk_end_requested(version));
+      REQUIRE(chunker.is_chunk_end_requested(3));
+    }
+
+    {
+      INFO(
+        "Rollbacks and compactions correctly track explicit and implict "
+        "chunks");
+      // ## ## ###|
+      chunker.produced_chunk_at(3);
+
+      // ## ## ###| #!
+      chunker.append_entry_size(1);
+      chunker.force_end_of_chunk(4);
+      chunker.produced_chunk_at(4);
+
+      // ## ## ###| #! # #!
+      chunker.append_entry_size(1);
+      chunker.append_entry_size(1);
+      chunker.force_end_of_chunk(6);
+      chunker.produced_chunk_at(6);
+
+      // ## ## ###| #! ##! #######|
+      chunker.append_entry_size(7);
+      chunker.produced_chunk_at(6);
+
+      // ## ## ###| #! ##! #######| #|
+      chunker.append_entry_size(1);
+      chunker.produced_chunk_at(7);
+
+      // ## ## ###| #! ##! #######| #| #!
+      chunker.append_entry_size(1);
+      chunker.force_end_of_chunk(8);
+      chunker.produced_chunk_at(8);
+
+      // 1  2  3    4  5   6
+      // ## ## ###| #! ##! #
+      chunker.rolled_back_to(5);
+      chunker.append_entry_size(1);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(6));
+
+      //                   6
+      //                   #
+      chunker.compacted_to(5);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(6));
+
+      // 6
+      // # #####
+      chunker.append_entry_size(5);
+      REQUIRE(chunker.is_chunk_end_requested(7));
+
+      chunker.produced_chunk_at(7);
+
+      chunker.append_entry_size(3);
+      chunker.force_end_of_chunk(8);
+      chunker.produced_chunk_at(8);
+
+      chunker.append_entry_size(3);
+      chunker.append_entry_size(1);
+      chunker.append_entry_size(1);
+      chunker.append_entry_size(1);
+      chunker.produced_chunk_at(12);
+
+      chunker.append_entry_size(2);
+      chunker.force_end_of_chunk(13);
+      chunker.produced_chunk_at(13);
+
+      chunker.append_entry_size(4);
+
+      // 6 7      8    9   10 11 12 13  14
+      // # #####| ###! ### #  #  #| ##! ####
+      REQUIRE(chunker.is_chunk_end_requested(13));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(14));
+
+      // Only compacts to the latest known chunk boundary so we can accurately
+      // count!
+      // 9   10 11 12 13  14
+      // ### #  #  #| ##! ####
+      chunker.compacted_to(10);
+      REQUIRE(chunker.is_chunk_end_requested(13));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(14));
+
+      // 9   10
+      // ### #
+      chunker.rolled_back_to(10);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(11));
+
+      // 9   10 11
+      // ### #  ##
+      chunker.append_entry_size(2);
+      REQUIRE(chunker.is_chunk_end_requested(11));
     }
   }
 }
@@ -515,7 +578,8 @@ TEST_CASE("Regular chunking")
   }
 
   INFO(
-    "Submitting more committable entries trigger chunking at regular interval");
+    "Submitting more committable entries trigger chunking at regular "
+    "interval");
   {
     size_t chunk_count = 10;
     size_t number_of_files_before = number_of_files_in_ledger_dir();
@@ -549,7 +613,8 @@ TEST_CASE("Regular chunking")
     is_committable = false;
     entry_submitter.write(is_committable);
 
-    // A new chunk is created as the previous entry was committable _and_ forced
+    // A new chunk is created as the previous entry was committable _and_
+    // forced
     REQUIRE(number_of_files_in_ledger_dir() == number_of_files_after + 1);
 
     is_committable = true;
@@ -735,7 +800,6 @@ TEST_CASE("Truncation")
     entry_submitter.write(true);
     REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far - 1);
     entry_submitter.write(true);
-    entry_submitter.debug_print();
     REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far);
   }
 
@@ -1825,10 +1889,11 @@ TEST_CASE("Ledger init with existing files")
     TestEntrySubmitter entry_submitter(ledger, chunk_threshold, init_idx);
 
     while (ledger.get_last_idx() < last_idx)
-      entry_submitter.write(true);
     {
-      read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
+      entry_submitter.write(true);
     }
+
+    read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
 
     // Entire ledger has now been replayed
     ledger.commit(commit_idx);
@@ -1900,7 +1965,7 @@ TEST_CASE("Ledger init with existing files")
 
 int main(int argc, char** argv)
 {
-  // ccf::logger::config::default_init();
+  ccf::logger::config::default_init();
   ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);

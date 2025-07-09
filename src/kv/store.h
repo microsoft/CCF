@@ -552,6 +552,11 @@ namespace ccf::kv
         snapshotter->commit(v, generate_snapshot);
       }
 
+      if (chunker)
+      {
+        chunker->compacted_to(v);
+      }
+
       std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
 
       if (v > current_version())

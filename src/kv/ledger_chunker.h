@@ -17,20 +17,29 @@ namespace ccf::kv
 {
   struct LedgerChunker : public ILedgerChunker
   {
-    // protected: TODO
-  public:
+  protected:
     const size_t chunk_threshold;
+    Version current_tx_version;
 
-    std::optional<Version> forced_chunk_version = std::nullopt;
     std::map<Version, size_t> transaction_sizes = {};
+    std::set<Version> chunk_ends = {};
+    std::set<Version> forced_chunk_versions = {};
 
-    Version current_tx_version = 0;
-
-    size_t get_unchunked_size() const
+    size_t get_unchunked_size(Version up_to) const
     {
+      decltype(transaction_sizes)::const_iterator begin;
+      if (!chunk_ends.empty())
+      {
+        begin = transaction_sizes.upper_bound(*chunk_ends.rbegin());
+      }
+      else
+      {
+        begin = transaction_sizes.cbegin();
+      }
+
       return std::accumulate(
-        transaction_sizes.begin(),
-        transaction_sizes.end(),
+        begin,
+        transaction_sizes.upper_bound(up_to),
         0,
         [](size_t n, const auto& p) { return n + p.second; });
     }
@@ -39,8 +48,10 @@ namespace ccf::kv
     static constexpr size_t max_chunk_threshold_size =
       std::numeric_limits<uint32_t>::max(); // 4GB
 
-    LedgerChunker(size_t threshold = max_chunk_threshold_size) :
-      chunk_threshold(threshold)
+    LedgerChunker(
+      size_t threshold = max_chunk_threshold_size, Version start_from = 0) :
+      chunk_threshold(threshold),
+      current_tx_version(start_from)
     {
       if (threshold == 0 || threshold > max_chunk_threshold_size)
       {
@@ -58,20 +69,19 @@ namespace ccf::kv
 
     void force_end_of_chunk(Version v) override
     {
-      if (forced_chunk_version.value_or(0) < v)
-      {
-        forced_chunk_version = v;
-      }
+      forced_chunk_versions.insert(v);
     }
 
     bool is_chunk_end_requested(Version v) override
     {
-      if (forced_chunk_version.has_value() && forced_chunk_version.value() <= v)
+      const auto it = forced_chunk_versions.lower_bound(v);
+      if (it != forced_chunk_versions.end())
       {
         return true;
       }
 
-      return get_unchunked_size() >= chunk_threshold;
+      const auto us = get_unchunked_size(v);
+      return get_unchunked_size(v) >= chunk_threshold;
     }
 
     void rolled_back_to(Version v) override
@@ -80,22 +90,39 @@ namespace ccf::kv
 
       transaction_sizes.erase(
         transaction_sizes.upper_bound(v), transaction_sizes.end());
+      chunk_ends.erase(chunk_ends.upper_bound(v), chunk_ends.end());
+      forced_chunk_versions.erase(
+        forced_chunk_versions.upper_bound(v), forced_chunk_versions.end());
+    }
 
-      if (forced_chunk_version.has_value() && forced_chunk_version.value() > v)
+    void compacted_to(Version v) override
+    {
+      Version compactable_v;
+
+      auto compactable_it = chunk_ends.lower_bound(v);
+      if (compactable_it != chunk_ends.begin())
       {
-        forced_chunk_version.reset();
+        std::advance(compactable_it, -1);
+        compactable_v = *compactable_it;
       }
+      else
+      {
+        compactable_v = 0;
+      }
+
+      transaction_sizes.erase(
+        transaction_sizes.begin(),
+        transaction_sizes.upper_bound(compactable_v));
+      chunk_ends.erase(
+        chunk_ends.begin(), chunk_ends.upper_bound(compactable_v));
+      forced_chunk_versions.erase(
+        forced_chunk_versions.begin(),
+        forced_chunk_versions.upper_bound(compactable_v));
     }
 
     void produced_chunk_at(Version v) override
     {
-      transaction_sizes.erase(
-        transaction_sizes.begin(), transaction_sizes.upper_bound(v));
-
-      if (forced_chunk_version.has_value() && forced_chunk_version.value() <= v)
-      {
-        forced_chunk_version.reset();
-      }
+      chunk_ends.insert(v);
     }
   };
 }
