@@ -555,8 +555,7 @@ if(COMPILE_TARGET STREQUAL "snp")
   add_library(ccf.snp STATIC ${CCF_IMPL_SOURCE})
 
   target_compile_definitions(
-    ccf.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                   _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+    ccf.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE PLATFORM_SNP
   )
 
   target_compile_options(ccf.snp PUBLIC ${COMPILE_LIBCXX})
@@ -607,8 +606,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
   add_library(ccf.virtual STATIC ${CCF_IMPL_SOURCE})
 
   target_compile_definitions(
-    ccf.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                       _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_VIRTUAL
+    ccf.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE PLATFORM_VIRTUAL
   )
 
   target_compile_options(ccf.virtual PUBLIC ${COMPILE_LIBCXX})
