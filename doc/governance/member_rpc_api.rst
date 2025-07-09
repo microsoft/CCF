@@ -9,5 +9,3 @@ Multiple API versions are available, with the versions supported by the current 
 
    gov_api_schemas/2024-07-01
    gov_api_schemas/2023-06-01-preview
-   gov_api_schemas/classic
-   gov_api_schemas/upgrading_from_classic

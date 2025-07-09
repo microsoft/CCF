@@ -1048,12 +1048,6 @@ if(BUILD_TESTS)
       set(ADDITIONAL_RECOVERY_ARGS --with-load --with-election
                                    --with-unsigned-suffix
       )
-
-      add_e2e_test(
-        NAME recovery_test_cft_api_0
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-        ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "classic"
-      )
     endif()
 
     add_e2e_test(
@@ -1263,14 +1257,6 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS --js-app-bundle
                       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js --http2
     )
-
-    if(LONG_TESTS)
-      add_e2e_test(
-        NAME membership_api_0
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
-        ADDITIONAL_ARGS --gov-api-version "classic"
-      )
-    endif()
 
     add_e2e_test(
       NAME membership_api_1

@@ -120,10 +120,6 @@ def run(args):
             if not fetch_schema(client.get("/node/api"), "node_openapi.json"):
                 documents_valid = False
 
-            LOG.info("member frontend")
-            if not fetch_schema(client.get("/gov/api"), "gov_openapi.json"):
-                documents_valid = False
-
         with primary.api_versioned_client(
             api_version=infra.clients.API_VERSION_PREVIEW_01
         ) as client:
