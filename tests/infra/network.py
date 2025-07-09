@@ -168,8 +168,7 @@ class Network:
     node_args_to_forward = [
         "enclave_type",
         "enclave_platform",
-        "host_log_level",
-        "enclave_log_level",
+        "log_level",
         "sig_tx_interval",
         "sig_ms_interval",
         "election_timeout_ms",

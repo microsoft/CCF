@@ -296,8 +296,7 @@ class CCFRemote(object):
         constitution=None,
         curve_id=None,
         version=None,
-        host_log_level="Info",
-        enclave_log_level="Info",
+        log_level="Info",
         major_version=None,
         node_address=None,
         config_file=None,
@@ -361,7 +360,7 @@ class CCFRemote(object):
                     snp_uvm_security_context_dir
                 )
 
-        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
+        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("log_level"))
         if oe_log_level:
             env["OE_LOG_LEVEL"] = oe_log_level
 
@@ -501,6 +500,8 @@ class CCFRemote(object):
                 auto_dr_args["previous_sealed_ledger_secret_location"] = (
                     previous_sealed_ledger_secret_location
                 )
+            print(">>>>>>>>>>>>>>>>")
+            print(log_level)
             output = t.render(
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
@@ -522,7 +523,7 @@ class CCFRemote(object):
                 read_only_snapshots_dir=self.read_only_snapshots_dir_name,
                 constitution=constitution,
                 curve_id=curve_id.name.title(),
-                host_log_level=host_log_level.title(),
+                host_log_level=log_level.title(),
                 join_timer=f"{join_timer_s}s" if join_timer_s else None,
                 signature_interval_duration=f"{sig_ms_interval}ms",
                 jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",
@@ -588,13 +589,19 @@ class CCFRemote(object):
             if version is not None
             else None
         )
-        if v is None or v >= Version("4.0.5"):
-            # Avoid passing too-low level to debug SGX nodes
-            if not (enclave_type == "debug" and enclave_platform == "sgx"):
-                cmd += [
-                    "--enclave-log-level",
-                    enclave_log_level,
-                ]
+        if v is None or v >= Version("7.0.0.dev0"):
+            cmd += [
+                "--log-level",
+                log_level,
+            ]
+        else:
+            if v >= Version("4.0.5"):
+                # Avoid passing too-low level to debug SGX nodes
+                if not (enclave_type == "debug" and enclave_platform == "sgx"):
+                    cmd += [
+                        "--enclave-log-level",
+                        log_level,
+                    ]
 
         if v is None or v >= Version("4.0.11"):
             cmd += [

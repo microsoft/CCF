@@ -118,14 +118,8 @@ def cli_args(
     log_level_choices = ("trace", "debug", "info", "fail", "fatal")
     default_log_level = "info"
     parser.add_argument(
-        "--host-log-level",
-        help="Runtime host log level",
-        default=default_log_level,
-        choices=log_level_choices,
-    )
-    parser.add_argument(
-        "--enclave-log-level",
-        help="Runtime enclave log level",
+        "--log-level",
+        help="Runtime log level",
         default=default_log_level,
         choices=log_level_choices,
     )

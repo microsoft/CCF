@@ -136,7 +136,6 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   app.add_flag(
     "-v, --version", print_version, "Display CCF host version and exit");
 
-  ccf::LoggerLevel enclave_log_level = ccf::LoggerLevel::INFO;
   ccf::LoggerLevel log_level = ccf::LoggerLevel::INFO;
   std::map<std::string, ccf::LoggerLevel> log_level_options;
   for (size_t i = ccf::logger::MOST_VERBOSE;
@@ -146,13 +145,6 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     const auto level = (ccf::LoggerLevel)i;
     log_level_options[ccf::logger::to_string(level)] = level;
   }
-
-  app
-    .add_option(
-      "--enclave-log-level",
-      enclave_log_level,
-      "Logging level for the enclave code (deprecated, use --log-level)")
-    ->transform(CLI::CheckedTransformer(log_level_options, CLI::ignore_case));
 
   app
     .add_option(
