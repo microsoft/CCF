@@ -22,12 +22,14 @@ SNP_SUPPORT = any(
     path.exists(dev) for dev in [_SEV_DEVICE_LINUX_5, _SEV_DEVICE_LINUX_6]
 )
 
+
 def _detect_platform():
     default_value = Platform.SNP if SNP_SUPPORT else Platform.VIRTUAL
     return getenv(
         "CCF_PLATFORM_OVERRIDE",
         default=default_value,
     )
+
 
 _CURRENT_PLATFORM = _detect_platform()
 
