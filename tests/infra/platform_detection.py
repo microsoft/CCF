@@ -11,12 +11,6 @@ class Platform(StrEnum):
     SNP = "snp"
 
 
-_CURRENT_PLATFORM = getenv(
-    "CCF_PLATFORM_OVERRIDE",
-    default=None,
-)
-
-
 # Path to the SEV guest device on patched 5.x kernels
 _SEV_DEVICE_LINUX_5 = "/dev/sev"
 
@@ -28,15 +22,17 @@ SNP_SUPPORT = any(
     path.exists(dev) for dev in [_SEV_DEVICE_LINUX_5, _SEV_DEVICE_LINUX_6]
 )
 
+def _detect_platform():
+    default_value = Platform.SNP if SNP_SUPPORT else Platform.VIRTUAL
+    return getenv(
+        "CCF_PLATFORM_OVERRIDE",
+        default=default_value,
+    )
+
+_CURRENT_PLATFORM = _detect_platform()
+
 
 def get_platform():
-    global _CURRENT_PLATFORM
-    if _CURRENT_PLATFORM is None:
-        if SNP_SUPPORT:
-            _CURRENT_PLATFORM = Platform.SNP
-        else:
-            _CURRENT_PLATFORM = Platform.VIRTUAL
-
     return _CURRENT_PLATFORM
 
 
