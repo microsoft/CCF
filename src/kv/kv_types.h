@@ -747,7 +747,6 @@ namespace ccf::kv
 
     enum class StoreFlag : uint8_t
     {
-      TODO = 0x01,
       SNAPSHOT_AT_NEXT_SIGNATURE = 0x02
     };
 
