@@ -611,7 +611,7 @@ namespace ccf::gov::endpoints
               default:
               {
                 throw std::runtime_error(
-                  "Invalid ProposalSubmissionStatus value");
+                  "Invalid ProposalSubmissionResult::Status value");
               }
             }
           }
