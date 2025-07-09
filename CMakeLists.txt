@@ -577,7 +577,6 @@ if(COMPILE_TARGET STREQUAL "snp")
   target_link_libraries(
     ccf.snp
     PUBLIC ${LINK_LIBCXX}
-           -lgcc
            http_parser.snp
            ccf_js.snp
            ccf_endpoints.snp
@@ -629,7 +628,6 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
   target_link_libraries(
     ccf.virtual
     PUBLIC ${LINK_LIBCXX}
-           -lgcc
            http_parser.host
            ccf_js.host
            ccf_endpoints.host
