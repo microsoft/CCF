@@ -61,7 +61,7 @@ EXCLUDED = ["3rdparty", ".git", "build", "env"] + submodules()
 
 
 def list_files(suffix):
-    cmd = f"git ls-files | grep -E -v \"{'|'.join('^' + prefix for prefix in EXCLUDED)}\" | grep -e '\{suffix}$'"
+    cmd = f"git ls-files | grep -E -v \"{'|'.join('^' + prefix for prefix in EXCLUDED)}\" | grep -e '\\{suffix}$'"
     r = subprocess.run(
         cmd,
         capture_output=True,
@@ -72,18 +72,20 @@ def list_files(suffix):
 
 def check_ccf():
     missing = []
+    count = 0
     for file_suffix, notice_lines in PREFIX_BY_FILETYPE.items():
         for path in list_files(file_suffix):
             # git ls-files returns moved/deleted files - ignore those
             if os.path.isfile(path):
+                count += 1
                 if not has_notice(path, notice_lines):
                     missing.append(path)
-    return missing
+    return missing, count
 
 
 if __name__ == "__main__":
-    missing = []
-    missing.extend(check_ccf())
+    missing, count = check_ccf()
+    print(f"Checked {count} files for copyright notices.")
 
     for path in missing:
         print(f"Copyright notice missing from {path}")
