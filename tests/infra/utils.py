@@ -3,7 +3,6 @@
 import infra.path
 from hashlib import sha256
 import infra.snp as snp
-import infra.proc
 
 
 def get_measurement(enclave_platform, package, library_dir="."):
