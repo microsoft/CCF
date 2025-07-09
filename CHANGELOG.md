@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The classic governance API which was deprecated in 5.0.0 has now been removed. Any operations under `/gov` which do not take an `api-version` query parameter are no longer available.
 
+### Fixed
+
+- Improved error messages when failing to fetch collateral. (#7103)
+
 ## [6.0.9]
 
 [6.0.9]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.9
