@@ -15,6 +15,7 @@
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
 #include "js/interpreter_cache.h"
+#include "kv/ledger_chunker.h"
 #include "node/acme_challenge_frontend.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"
@@ -104,7 +105,8 @@ namespace ccf
       LOG_TRACE_FMT("Creating ledger secrets");
       network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
 
-      network.tables->set_chunk_threshold(chunk_threshold);
+      network.tables->set_chunker(
+        std::make_shared<ccf::kv::LedgerChunker>(chunk_threshold));
 
       LOG_TRACE_FMT("Creating node");
       node = std::make_unique<ccf::NodeState>(

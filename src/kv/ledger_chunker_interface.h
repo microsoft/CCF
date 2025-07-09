@@ -11,6 +11,8 @@ namespace ccf::kv
 {
   struct ILedgerChunker
   {
+    virtual ~ILedgerChunker() = default;
+
     virtual void append_entry_size(size_t) = 0;
     virtual void force_end_of_chunk(Version v) = 0;
 
