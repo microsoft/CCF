@@ -33,12 +33,18 @@ jobs:
           set -ex
           ./scripts/setup-ci.sh
 
+      - name: "Confirm running on Virtual"
+        run: |
+          set -ex
+          python3 tests/infra/platform_detection.py virtual
+        shell: bash
+
       - name: Build and run virtual perf tests
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DWORKER_THREADS=2 -DBUILD_TPCC=ON ..
+          cmake -GNinja -DWORKER_THREADS=2 -DBUILD_TPCC=ON ..
           ninja
           # Microbenchmarks
           ./tests.sh -VV -L benchmark
@@ -69,12 +75,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Build and run virtual perf tests
+      - name: "Confirm running on SEV-SNP"
+        run: |
+          set -ex
+          python3 tests/infra/platform_detection.py snp
+        shell: bash
+
+      - name: Build and run SNP perf tests
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DWORKER_THREADS=2 -DBUILD_TPCC=ON ..
+          cmake -GNinja -DWORKER_THREADS=2 -DBUILD_TPCC=ON ..
           ninja
           # Microbenchmarks
           ./tests.sh -VV -L benchmark

@@ -3,7 +3,7 @@
 
 import functools
 
-from infra.snp import IS_SNP
+from infra.snp import SNP_SUPPORT
 from loguru import logger as LOG
 from infra.member import RecoveryRole
 
@@ -166,7 +166,7 @@ def no_http2():
 
 def snp_only():
     def check(*args, **kwargs):
-        if not IS_SNP:
+        if not SNP_SUPPORT:
             raise TestRequirementsNotMet("Platform does not support SNP")
 
     return ensure_reqs(check)
@@ -174,7 +174,7 @@ def snp_only():
 
 def not_snp(reason=None):
     def check(*args, **kwargs):
-        if IS_SNP:
+        if SNP_SUPPORT:
             raise TestRequirementsNotMet(
                 f"Platform should not be SNP (reason: {reason})"
             )

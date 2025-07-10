@@ -6,10 +6,8 @@ add_executable(
 )
 target_compile_definitions(submit PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
-add_library(stdcxxhttp_parser.host "${HTTP_PARSER_SOURCES}")
-target_compile_definitions(
-  stdcxxhttp_parser.host PRIVATE CCF_LOGGER_NO_DEPRECATE
-)
+add_library(stdcxxhttp_parser "${HTTP_PARSER_SOURCES}")
+target_compile_definitions(stdcxxhttp_parser PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/base64.cpp
@@ -34,14 +32,14 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/sharing.cpp
 )
 
-add_library(stdcxxccfcrypto.host STATIC "${CCFCRYPTO_SRC}")
-target_link_libraries(stdcxxccfcrypto.host PUBLIC crypto)
-target_link_libraries(stdcxxccfcrypto.host PUBLIC ssl)
-target_link_libraries(stdcxxccfcrypto.host PUBLIC qcbor.host)
-target_compile_definitions(stdcxxccfcrypto.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
+add_library(stdcxxccfcrypto STATIC "${CCFCRYPTO_SRC}")
+target_link_libraries(stdcxxccfcrypto PUBLIC crypto)
+target_link_libraries(stdcxxccfcrypto PUBLIC ssl)
+target_link_libraries(stdcxxccfcrypto PUBLIC qcbor)
+target_compile_definitions(stdcxxccfcrypto PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 target_link_libraries(
-  submit PRIVATE stdcxxhttp_parser.host stdcxxccfcrypto.host arrow parquet
+  submit PRIVATE stdcxxhttp_parser stdcxxccfcrypto arrow parquet
 )
 
 install(TARGETS submit DESTINATION bin)
