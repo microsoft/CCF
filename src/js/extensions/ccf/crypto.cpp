@@ -19,20 +19,24 @@ namespace ccf::js::extensions
 {
   namespace
   {
-    static JSValue js_generate_aes_key(
+    JSValue js_generate_aes_key(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 1", argc);
+      }
 
-      int32_t key_size;
+      int32_t key_size = 0;
       if (JS_ToInt32(ctx, &key_size, argv[0]) < 0)
       {
         return ccf::js::core::constants::Exception;
       }
       // Supported key sizes for AES.
+      // NOLINTBEGIN(readability-magic-numbers)
       if (key_size != 128 && key_size != 192 && key_size != 256)
+      // NOLINTEND(readability-magic-numbers)
       {
         return JS_ThrowRangeError(
           ctx, "invalid key size (not one of 128, 192, 256)");
@@ -51,12 +55,14 @@ namespace ccf::js::extensions
       }
     }
 
-    static JSValue js_generate_rsa_key_pair(
+    JSValue js_generate_rsa_key_pair(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1 && argc != 2)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 1 or 2", argc);
+      }
 
       uint32_t key_size = 0, key_exponent = 0;
       if (JS_ToUint32(ctx, &key_size, argv[0]) < 0)
@@ -113,7 +119,7 @@ namespace ccf::js::extensions
       }
     }
 
-    static JSValue js_generate_ecdsa_key_pair(
+    JSValue js_generate_ecdsa_key_pair(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1)
@@ -168,7 +174,7 @@ namespace ccf::js::extensions
       }
     }
 
-    static JSValue js_generate_eddsa_key_pair(
+    JSValue js_generate_eddsa_key_pair(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1)
@@ -223,7 +229,7 @@ namespace ccf::js::extensions
       }
     }
 
-    static JSValue js_digest(
+    JSValue js_digest(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 2)
@@ -261,7 +267,7 @@ namespace ccf::js::extensions
       }
     }
 
-    static JSValue js_is_valid_x509_cert_bundle(
+    JSValue js_is_valid_x509_cert_bundle(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1)
@@ -294,7 +300,7 @@ namespace ccf::js::extensions
       return ccf::js::core::constants::True;
     }
 
-    static JSValue js_is_valid_x509_cert_chain(
+    JSValue js_is_valid_x509_cert_chain(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       // first arg: chain (concatenated PEM certs, first cert = target)
@@ -362,7 +368,7 @@ namespace ccf::js::extensions
     }
 
     template <typename T>
-    static JSValue js_pem_to_jwk(
+    JSValue js_pem_to_jwk(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1 && argc != 2)
@@ -447,7 +453,7 @@ namespace ccf::js::extensions
     }
 
     template <typename T>
-    static JSValue js_jwk_to_pem(
+    JSValue js_jwk_to_pem(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1)
@@ -515,7 +521,7 @@ namespace ccf::js::extensions
       return JS_NewString(ctx, pem.str().c_str());
     }
 
-    static JSValue js_wrap_key(
+    JSValue js_wrap_key(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 3)
@@ -645,7 +651,7 @@ namespace ccf::js::extensions
       }
     }
 
-    static JSValue js_unwrap_key(
+    JSValue js_unwrap_key(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 3)
@@ -783,7 +789,7 @@ namespace ccf::js::extensions
       }
     }
 
-    static JSValue js_sign(
+    JSValue js_sign(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
@@ -926,7 +932,7 @@ namespace ccf::js::extensions
         contents, contents_size, signature, signature_size);
     }
 
-    static JSValue js_verify_signature(
+    JSValue js_verify_signature(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
