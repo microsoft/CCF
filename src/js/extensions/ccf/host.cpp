@@ -14,7 +14,11 @@ namespace ccf::js::extensions
     JSValue js_node_trigger_host_process_launch(
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      (void) this_val;
+      (void) argc;
+      (void) argv;
+
+      js::core::Context& jsctx = *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       if (argc != 1 && argc != 2)
       {
@@ -26,29 +30,29 @@ namespace ccf::js::extensions
       std::vector<uint8_t> process_input;
 
       JSValue r = jsctx.extract_string_array(argv[0], process_args);
-      if (!JS_IsUndefined(r))
+      if (JS_IsUndefined(r) == 0)
       {
         return r;
       }
 
       if (argc == 2)
       {
-        size_t size;
+        size_t size = 0;
         uint8_t* buf = JS_GetArrayBuffer(ctx, &size, argv[1]);
-        if (!buf)
+        if (buf != nullptr)
         {
           return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
         }
         process_input.assign(buf, buf + size);
       }
 
-      auto extension = jsctx.get_extension<HostExtension>();
+      auto * extension = jsctx.get_extension<HostExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto host_processes = extension->host_processes;
+      auto * host_processes = extension->host_processes;
       if (host_processes == nullptr)
       {
         return JS_ThrowInternalError(
@@ -82,6 +86,8 @@ namespace ccf::js::extensions
         ctx, js_node_trigger_host_process_launch, "triggerSubprocess", 1));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
+    // NOLINTBEGIN(performance-move-const-arg)
     ccf.set("host", std::move(host));
+    // NOLINTEND(performance-move-const-arg)
   }
 }
