@@ -463,7 +463,7 @@ set(CCF_IMPL_SOURCE
 add_library(ccf STATIC ${CCF_IMPL_SOURCE})
 
 target_compile_definitions(
-  ccf PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
+  ccf PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
 )
 
 target_compile_options(ccf PUBLIC ${COMPILE_LIBCXX})
@@ -494,7 +494,6 @@ target_link_libraries(
 )
 
 set_property(TARGET ccf PROPERTY POSITION_INDEPENDENT_CODE ON)
-
 add_san(ccf)
 
 if(CCF_DEVEL)
