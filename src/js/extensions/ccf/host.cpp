@@ -14,11 +14,12 @@ namespace ccf::js::extensions
     JSValue js_node_trigger_host_process_launch(
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
-      (void) this_val;
-      (void) argc;
-      (void) argv;
+      (void)this_val;
+      (void)argc;
+      (void)argv;
 
-      js::core::Context& jsctx = *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       if (argc != 1 && argc != 2)
       {
@@ -46,13 +47,13 @@ namespace ccf::js::extensions
         process_input.assign(buf, buf + size);
       }
 
-      auto * extension = jsctx.get_extension<HostExtension>();
+      auto* extension = jsctx.get_extension<HostExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto * host_processes = extension->host_processes;
+      auto* host_processes = extension->host_processes;
       if (host_processes == nullptr)
       {
         return JS_ThrowInternalError(

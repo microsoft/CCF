@@ -136,7 +136,8 @@ namespace ccf::js::core
 
   int JSWrappedValue::set_bool(const std::string& prop, bool b) const
   {
-    return JS_SetPropertyStr(ctx, val, prop.c_str(), JS_NewBool(ctx, static_cast<int>(b)));
+    return JS_SetPropertyStr(
+      ctx, val, prop.c_str(), JS_NewBool(ctx, static_cast<int>(b)));
   }
 
   // NOLINTBEGIN(readability-make-member-function-const,cppcoreguidelines-rvalue-reference-param-not-moved)

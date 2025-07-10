@@ -15,7 +15,9 @@ namespace ccf::js::extensions
     JSValue js_rpc_set_apply_writes(
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      (void)this_val;
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       if (argc != 1)
       {
@@ -23,13 +25,13 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected 1", argc);
       }
 
-      auto extension = jsctx.get_extension<RpcExtension>();
+      auto* extension = jsctx.get_extension<RpcExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto rpc_ctx = extension->rpc_ctx;
+      auto* rpc_ctx = extension->rpc_ctx;
       if (rpc_ctx == nullptr)
       {
         return JS_ThrowInternalError(ctx, "RPC context is not set");
@@ -41,14 +43,16 @@ namespace ccf::js::extensions
         return ccf::js::core::constants::Exception;
       }
 
-      rpc_ctx->set_apply_writes(val);
+      rpc_ctx->set_apply_writes(val != 0);
       return ccf::js::core::constants::Undefined;
     }
 
     JSValue js_rpc_set_claims_digest(
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      (void)this_val;
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       if (argc != 1)
       {
@@ -56,22 +60,22 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected 1", argc);
       }
 
-      auto extension = jsctx.get_extension<RpcExtension>();
+      auto* extension = jsctx.get_extension<RpcExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto rpc_ctx = extension->rpc_ctx;
+      auto* rpc_ctx = extension->rpc_ctx;
       if (rpc_ctx == nullptr)
       {
         return JS_ThrowInternalError(ctx, "RPC context is not set");
       }
 
-      size_t digest_size;
+      size_t digest_size = 0;
       uint8_t* digest = JS_GetArrayBuffer(ctx, &digest_size, argv[0]);
 
-      if (!digest)
+      if (digest == nullptr)
       {
         return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
       }
@@ -109,6 +113,8 @@ namespace ccf::js::extensions
       JS_NewCFunction(ctx, js_rpc_set_claims_digest, "setClaimsDigest", 1));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
+    // NOLINTBEGIN(performance-move-const-arg)
     ccf.set("rpc", std::move(rpc));
+    // NOLINTEND(performance-move-const-arg)
   }
 }
