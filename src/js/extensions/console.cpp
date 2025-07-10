@@ -15,7 +15,8 @@ namespace ccf::js::extensions
     std::optional<std::stringstream> stringify_args(
       JSContext* ctx, int argc, JSValueConst* argv)
     {
-      js::core::Context& jsctx = *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       int i = 0;
       std::optional<std::string> str;
@@ -53,7 +54,8 @@ namespace ccf::js::extensions
         return ccf::js::core::constants::Exception;
       }
 
-      js::core::Context& jsctx = *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
       ConsoleExtension::log_info_with_tag(jsctx.access, ss->str());
       return ccf::js::core::constants::Undefined;
     }
@@ -66,7 +68,8 @@ namespace ccf::js::extensions
         return ccf::js::core::constants::Exception;
       }
 
-      js::core::Context& jsctx = *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
       switch (jsctx.access)
       {
         case (js::TxAccess::APP_RO):
@@ -100,7 +103,8 @@ namespace ccf::js::extensions
         return ccf::js::core::constants::Exception;
       }
 
-      js::core::Context& jsctx = *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
       switch (jsctx.access)
       {
         case (js::TxAccess::APP_RO):

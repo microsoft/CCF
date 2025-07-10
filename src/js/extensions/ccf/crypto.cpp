@@ -15,6 +15,8 @@
 #include "js/checks.h"
 #include "tls/ca.h"
 
+#include <climits>
+
 namespace ccf::js::extensions
 {
   namespace
@@ -35,7 +37,9 @@ namespace ccf::js::extensions
       }
       // Supported key sizes for AES.
       // NOLINTBEGIN(readability-magic-numbers)
+      // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
       if (key_size != 128 && key_size != 192 && key_size != 256)
+      // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
       // NOLINTEND(readability-magic-numbers)
       {
         return JS_ThrowRangeError(
@@ -45,7 +49,7 @@ namespace ccf::js::extensions
       try
       {
         std::vector<uint8_t> key =
-          ccf::crypto::get_entropy()->random(key_size / 8);
+          ccf::crypto::get_entropy()->random(key_size / CHAR_BIT);
         return JS_NewArrayBufferCopy(ctx, key.data(), key.size());
       }
       catch (const std::exception& exc)
@@ -64,7 +68,8 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments, but expected 1 or 2", argc);
       }
 
-      uint32_t key_size = 0, key_exponent = 0;
+      uint32_t key_size = 0;
+      uint32_t key_exponent = 0;
       if (JS_ToUint32(ctx, &key_size, argv[0]) < 0)
       {
         return ccf::js::core::constants::Exception;
@@ -93,7 +98,8 @@ namespace ccf::js::extensions
           ctx, "Failed to generate RSA key pair: %s", exc.what());
       }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       try
       {
@@ -102,11 +108,11 @@ namespace ccf::js::extensions
 
         auto r = jsctx.new_obj();
         JS_CHECK_EXC(r);
-        auto private_key = jsctx.new_string_len((char*)prv.data(), prv.size());
+        auto private_key = jsctx.new_string(prv.str());
         OPENSSL_cleanse(prv.data(), prv.size());
         JS_CHECK_EXC(private_key);
         JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
-        auto public_key = jsctx.new_string_len((char*)pub.data(), pub.size());
+        auto public_key = jsctx.new_string(pub.str());
         JS_CHECK_EXC(public_key);
         JS_CHECK_SET(r.set("publicKey", std::move(public_key)));
 
@@ -123,17 +129,20 @@ namespace ccf::js::extensions
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 1", argc);
+      }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
       auto curve = jsctx.to_str(argv[0]);
       if (!curve)
       {
         return ccf::js::core::constants::Exception;
       }
 
-      ccf::crypto::CurveID cid;
+      ccf::crypto::CurveID cid = {};
       if (curve == "secp256r1")
       {
         cid = ccf::crypto::CurveID::SECP256R1;
@@ -157,11 +166,11 @@ namespace ccf::js::extensions
 
         auto r = jsctx.new_obj();
         JS_CHECK_EXC(r);
-        auto private_key = jsctx.new_string_len((char*)prv.data(), prv.size());
+        auto private_key = jsctx.new_string(prv.str());
         OPENSSL_cleanse(prv.data(), prv.size());
         JS_CHECK_EXC(private_key);
         JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
-        auto public_key = jsctx.new_string_len((char*)pub.data(), pub.size());
+        auto public_key = jsctx.new_string(pub.str());
         JS_CHECK_EXC(public_key);
         JS_CHECK_SET(r.set("publicKey", std::move(public_key)));
 
@@ -178,17 +187,20 @@ namespace ccf::js::extensions
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 1", argc);
+      }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
       auto curve = jsctx.to_str(argv[0]);
       if (!curve)
       {
         return ccf::js::core::constants::Exception;
       }
 
-      ccf::crypto::CurveID cid;
+      ccf::crypto::CurveID cid = {};
       if (curve == "curve25519")
       {
         cid = ccf::crypto::CurveID::CURVE25519;
@@ -212,11 +224,11 @@ namespace ccf::js::extensions
 
         auto r = jsctx.new_obj();
         JS_CHECK_EXC(r);
-        auto private_key = jsctx.new_string_len((char*)prv.data(), prv.size());
+        auto private_key = jsctx.new_string(prv.str());
         OPENSSL_cleanse(prv.data(), prv.size());
         JS_CHECK_EXC(private_key);
         JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
-        auto public_key = jsctx.new_string_len((char*)pub.data(), pub.size());
+        auto public_key = jsctx.new_string(pub.str());
         JS_CHECK_EXC(public_key);
         JS_CHECK_SET(r.set("publicKey", std::move(public_key)));
 
@@ -233,10 +245,13 @@ namespace ccf::js::extensions
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 2)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 2", argc);
+      }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
       auto digest_algo_name_str = jsctx.to_str(argv[0]);
       if (!digest_algo_name_str)
       {
@@ -249,9 +264,9 @@ namespace ccf::js::extensions
           ctx, "unsupported digest algorithm, supported: SHA-256");
       }
 
-      size_t data_size;
+      size_t data_size = 0;
       uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[1]);
-      if (!data)
+      if (data == nullptr)
       {
         return ccf::js::core::constants::Exception;
       }
@@ -789,8 +804,7 @@ namespace ccf::js::extensions
       }
     }
 
-    JSValue js_sign(
-      JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+    JSValue js_sign(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 

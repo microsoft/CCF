@@ -20,24 +20,26 @@ namespace ccf::js::extensions
   {
     JSValue js_body_text(
       JSContext* ctx,
-      JSValueConst this_val,
+      [[maybe_unused]] JSValueConst this_val,
       int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
       if (argc != 0)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected none", argc);
+      }
 
       ccf::js::core::Context& jsctx =
-        *(ccf::js::core::Context*)JS_GetContextOpaque(ctx);
+        *reinterpret_cast<ccf::js::core::Context*>(JS_GetContextOpaque(ctx));
 
-      auto extension = jsctx.get_extension<RequestExtension>();
+      auto* extension = jsctx.get_extension<RequestExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto rpc_ctx = extension->rpc_ctx;
+      auto* rpc_ctx = extension->rpc_ctx;
       if (rpc_ctx == nullptr)
       {
         return JS_ThrowInternalError(ctx, "RPC context is not set");
@@ -45,29 +47,32 @@ namespace ccf::js::extensions
 
       auto body = rpc_ctx->get_request_body();
 
-      return JS_NewStringLen(ctx, (const char*)body.data(), body.size());
+      return JS_NewStringLen(
+        ctx, reinterpret_cast<const char*>(body.data()), body.size());
     }
 
     JSValue js_body_json(
       JSContext* ctx,
-      JSValueConst this_val,
+      [[maybe_unused]] JSValueConst this_val,
       int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
       if (argc != 0)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected none", argc);
+      }
 
       ccf::js::core::Context& jsctx =
-        *(ccf::js::core::Context*)JS_GetContextOpaque(ctx);
+        *reinterpret_cast<ccf::js::core::Context*>(JS_GetContextOpaque(ctx));
 
-      auto extension = jsctx.get_extension<RequestExtension>();
+      auto* extension = jsctx.get_extension<RequestExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto rpc_ctx = extension->rpc_ctx;
+      auto* rpc_ctx = extension->rpc_ctx;
       if (rpc_ctx == nullptr)
       {
         return JS_ThrowInternalError(ctx, "RPC context is not set");
@@ -81,24 +86,26 @@ namespace ccf::js::extensions
 
     JSValue js_body_array_buffer(
       JSContext* ctx,
-      JSValueConst this_val,
+      [[maybe_unused]] JSValueConst this_val,
       int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
       if (argc != 0)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected none", argc);
+      }
 
       ccf::js::core::Context& jsctx =
-        *(ccf::js::core::Context*)JS_GetContextOpaque(ctx);
+        *reinterpret_cast<ccf::js::core::Context*>(JS_GetContextOpaque(ctx));
 
-      auto extension = jsctx.get_extension<RequestExtension>();
+      const auto* extension = jsctx.get_extension<RequestExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto rpc_ctx = extension->rpc_ctx;
+      auto* rpc_ctx = extension->rpc_ctx;
       if (rpc_ctx == nullptr)
       {
         return JS_ThrowInternalError(ctx, "RPC context is not set");
@@ -122,7 +129,7 @@ namespace ccf::js::extensions
       auto caller = ctx.new_obj();
 
       if (
-        auto jwt_ident =
+        const auto* jwt_ident =
           dynamic_cast<const ccf::JwtAuthnIdentity*>(ident.get()))
       {
         caller.set(
@@ -140,7 +147,7 @@ namespace ccf::js::extensions
         return caller;
       }
       if (
-        auto empty_ident =
+        const auto* empty_ident =
           dynamic_cast<const ccf::EmptyAuthnIdentity*>(ident.get()))
       {
         caller.set(
@@ -149,7 +156,7 @@ namespace ccf::js::extensions
         return caller;
       }
       if (
-        auto all_of_ident =
+        const auto* all_of_ident =
           dynamic_cast<const ccf::AllOfAuthnIdentity*>(ident.get()))
       {
         auto policy = ctx.new_array();
@@ -170,7 +177,7 @@ namespace ccf::js::extensions
       // DER from the identity object, as provided by the session, and
       // convert them to PEM.
       if (
-        auto any_cert_ident =
+        const auto* any_cert_ident =
           dynamic_cast<const ccf::AnyCertAuthnIdentity*>(ident.get()))
       {
         auto policy_name = ccf::get_policy_name_from_ident(any_cert_ident);
@@ -185,7 +192,7 @@ namespace ccf::js::extensions
       bool is_member = false;
 
       if (
-        auto user_cert_ident =
+        const auto* user_cert_ident =
           dynamic_cast<const ccf::UserCertAuthnIdentity*>(ident.get()))
       {
         policy_name = ccf::get_policy_name_from_ident(user_cert_ident);
@@ -193,7 +200,7 @@ namespace ccf::js::extensions
         is_member = false;
       }
       else if (
-        auto member_cert_ident =
+        const auto* member_cert_ident =
           dynamic_cast<const ccf::MemberCertAuthnIdentity*>(ident.get()))
       {
         policy_name = ccf::get_policy_name_from_ident(member_cert_ident);
@@ -201,7 +208,7 @@ namespace ccf::js::extensions
         is_member = true;
       }
       else if (
-        auto user_cose_ident =
+        const auto* user_cose_ident =
           dynamic_cast<const ccf::UserCOSESign1AuthnIdentity*>(ident.get()))
       {
         policy_name = ccf::get_policy_name_from_ident(user_cose_ident);
@@ -289,7 +296,7 @@ namespace ccf::js::extensions
 
     const auto& r_headers = endpoint_ctx.rpc_ctx->get_request_headers();
     auto headers = ctx.new_obj();
-    for (auto& [header_name, header_value] : r_headers)
+    for (const auto& [header_name, header_value] : r_headers)
     {
       headers.set(header_name, ctx.new_string(header_value));
     }
@@ -331,7 +338,7 @@ namespace ccf::js::extensions
     request.set("url", std::move(url_str));
 
     auto params = ctx.new_obj();
-    for (auto& [param_name, param_value] :
+    for (const auto& [param_name, param_value] :
          endpoint_ctx.rpc_ctx->get_request_path_params())
     {
       params.set(param_name, ctx.new_string(param_value));

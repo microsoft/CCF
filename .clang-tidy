@@ -41,7 +41,9 @@ Checks: >
   -misc-non-private-member-variables-in-classes,
   -readability-convert-member-functions-to-static,
   -performance-unnecessary-value-param,
-  -cppcoreguidelines-pro-type-vararg
+  -cppcoreguidelines-pro-type-vararg,
+  -misc-no-recursion,
+  -cert-dcl50-cpp
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: '?!(3rdparty)'
