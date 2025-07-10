@@ -100,7 +100,6 @@ namespace host
 
     struct Logging
     {
-      ccf::LoggerLevel host_level = ccf::LoggerLevel::INFO;
       LogFormat format = LogFormat::TEXT;
 
       bool operator==(const Logging&) const = default;
@@ -180,7 +179,7 @@ namespace host
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Logging);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Logging);
-  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Logging, host_level, format);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Logging, format);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Memory);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Memory);

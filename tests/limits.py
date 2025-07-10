@@ -51,11 +51,10 @@ def test_forward_larger_than_default_requests(network, args):
 
 def run_parser_limits_checks(args):
     new_args = copy.copy(args)
-    # Deliberately large because some builds (eg. SGX Debug) take
+    # Deliberately large because some builds take
     # a long time to process large requests
     new_args.election_timeout_ms = 10000
-    new_args.host_log_level = "info"
-    new_args.enclave_log_level = "info"
+    new_args.log_level = "info"
     with infra.network.network(
         new_args.nodes,
         new_args.binary_dir,

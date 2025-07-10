@@ -375,9 +375,8 @@ set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
     --constitution
     ${CCF_DIR}/samples/constitutions/default/apply.js
 )
-set(CCF_NETWORK_TEST_ARGS
-    --host-log-level ${TEST_LOGGING_LEVEL} --enclave-log-level
-    ${TEST_LOGGING_LEVEL} --worker-threads ${WORKER_THREADS}
+set(CCF_NETWORK_TEST_ARGS --log-level ${TEST_LOGGING_LEVEL} --worker-threads
+                          ${WORKER_THREADS}
 )
 
 # SNIPPET_START: JS generic application
