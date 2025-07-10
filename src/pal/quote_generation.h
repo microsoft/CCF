@@ -53,9 +53,7 @@ namespace ccf::pal
     files::dump(j.dump(2), virtual_attestation_path("measurement"));
   }
 
-#if defined(PLATFORM_VIRTUAL)
-
-  static void generate_quote(
+  static void generate_virtual_quote(
     PlatformAttestationReportData& report_data,
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
@@ -77,9 +75,7 @@ namespace ccf::pal
       {});
   }
 
-#elif defined(PLATFORM_SNP)
-
-  static void generate_quote(
+  static void generate_snp_quote(
     PlatformAttestationReportData& report_data,
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
@@ -98,5 +94,32 @@ namespace ccf::pal
           attestation->get(), endorsements_servers));
     }
   }
-#endif
+
+  static void generate_quote(
+    PlatformAttestationReportData& report_data,
+    RetrieveEndorsementCallback endorsement_cb,
+    const snp::EndorsementsServers& endorsements_servers = {})
+  {
+    switch (ccf::pal::platform)
+    {
+      case (ccf::pal::Platform::SNP):
+      {
+        generate_snp_quote(report_data, endorsement_cb, endorsements_servers);
+        break;
+      }
+
+      case (ccf::pal::Platform::Virtual):
+      {
+        generate_virtual_quote(
+          report_data, endorsement_cb, endorsements_servers);
+        break;
+      }
+
+      default:
+      {
+        throw std::logic_error(fmt::format(
+          "Unsupported platform for quote generation: {}", ccf::pal::platform));
+      }
+    }
+  }
 }

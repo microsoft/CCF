@@ -5,7 +5,7 @@ unset(CCF_VERSION)
 unset(CCF_RELEASE_VERSION)
 unset(CCF_VERSION_SUFFIX)
 
-set(CCF_PROJECT "ccf_${COMPILE_TARGET}")
+set(CCF_PROJECT "ccf")
 
 # If possible, deduce project version from git environment
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
