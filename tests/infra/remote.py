@@ -500,8 +500,6 @@ class CCFRemote(object):
                 auto_dr_args["previous_sealed_ledger_secret_location"] = (
                     previous_sealed_ledger_secret_location
                 )
-            print(">>>>>>>>>>>>>>>>")
-            print(log_level)
             output = t.render(
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
