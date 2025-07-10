@@ -445,7 +445,6 @@ configure_file(
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(CLIENT_PROTOCOLS_TEST "Test client protocols (TLS, HTTP/2)" OFF)
-option(BUILD_TPCC "Build TPPC sample app and clients" OFF)
 
 option(CCF_RAFT_TRACING "Enable tracing of Raft consensus" OFF)
 if(CCF_RAFT_TRACING)
@@ -856,7 +855,7 @@ if(BUILD_TESTS)
     )
   endif()
 
-  if(NOT TSAN)
+  if(NOT (TSAN OR USE_LIBCXX))
     # Picobench benchmarks
     add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
@@ -1030,10 +1029,6 @@ if(BUILD_TESTS)
         --constitution
         ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
     )
-
-    if(BUILD_TPCC)
-      include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/tpcc/tpcc.cmake)
-    endif()
 
     if(CLIENT_PROTOCOLS_TEST)
       add_custom_command(
@@ -1315,7 +1310,7 @@ if(CCF_DEVEL)
   )
 endif()
 
-if(CCF_DEVEL)
+if(CCF_DEVEL AND (NOT USE_LIBCXX))
   # Perf tool executable
   include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
 endif()
