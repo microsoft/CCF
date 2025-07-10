@@ -462,9 +462,7 @@ set(CCF_IMPL_SOURCE
 
 add_library(ccf STATIC ${CCF_IMPL_SOURCE})
 
-target_compile_definitions(
-  ccf PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-)
+target_compile_definitions(ccf PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE)
 
 target_compile_options(ccf PUBLIC ${COMPILE_LIBCXX})
 add_warning_checks(ccf)
