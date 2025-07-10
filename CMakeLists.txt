@@ -856,7 +856,7 @@ if(BUILD_TESTS)
     )
   endif()
 
-  if(NOT TSAN)
+  if(NOT (TSAN OR USE_LIBCXX))
     # Picobench benchmarks
     add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
@@ -1311,7 +1311,7 @@ if(CCF_DEVEL)
   )
 endif()
 
-if(CCF_DEVEL)
+if(CCF_DEVEL AND (NOT USE_LIBCXX))
   # Perf tool executable
   include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
 endif()
