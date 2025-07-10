@@ -58,9 +58,10 @@ def get_all_entries(
     target_id,
     from_seqno=None,
     to_seqno=None,
-    timeout=DEFAULT_TIMEOUT_S,
     log_on_success=False,
     headers=None,
+    *,
+    timeout,
 ):
     LOG.info(
         f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {target_id}"

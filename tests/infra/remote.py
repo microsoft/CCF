@@ -8,6 +8,7 @@ import infra.path
 import signal
 import re
 import shutil
+import infra.platform_detection
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 import json
 import infra.snp as snp
@@ -337,10 +338,8 @@ class CCFRemote(object):
         snp_security_context_directory_envvar = None
 
         env = kwargs.get("env", {})
-        if enclave_platform == "snp":
-            env.update(snp.get_aci_env())
 
-        if enclave_platform == "virtual":
+        if infra.platform_detection.is_virtual():
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"
             ubsan_opts = kwargs.get("ubsan_options")
             if ubsan_opts:
@@ -349,7 +348,9 @@ class CCFRemote(object):
             env["ASAN_OPTIONS"] = os.environ.get("ASAN_OPTIONS", "")
             env["ASAN_SYMBOLIZER_PATH"] = os.environ.get("ASAN_SYMBOLIZER_PATH", "")
             env["TSAN_SYMBOLIZER_PATH"] = os.environ.get("TSAN_SYMBOLIZER_PATH", "")
-        elif enclave_platform == "snp":
+
+        elif infra.platform_detection.is_snp():
+            env.update(snp.get_aci_env())
             snp_security_context_directory_envvar = (
                 snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
                 if set_snp_uvm_security_context_dir_envvar
@@ -501,15 +502,19 @@ class CCFRemote(object):
                 auto_dr_args["previous_sealed_ledger_secret_location"] = (
                     previous_sealed_ledger_secret_location
                 )
+
+            enclave_platform = infra.platform_detection.get_platform()
+            enclave_platform = (
+                "Virtual"
+                if enclave_platform.lower() == "virtual"
+                else enclave_platform.upper()
+            )
+
             output = t.render(
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
-                enclave_type=enclave_type.title(),
-                enclave_platform=(
-                    enclave_platform.title()
-                    if enclave_platform == "virtual"
-                    else enclave_platform.upper()
-                ),
+                enclave_type="Release",
+                enclave_platform=enclave_platform,  # Ignored, but paased for LTS compat
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(
                     LocalRemote.make_host(host)
                 ),

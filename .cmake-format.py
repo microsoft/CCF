@@ -11,9 +11,7 @@ with section("parse"):
                 "SRCS": "*",
                 "INCLUDE_DIRS": "*",
                 "SYSTEM_INCLUDE_DIRS": "*",
-                "LINK_LIBS_ENCLAVE": "*",
-                "LINK_LIBS_VIRTUAL": "*",
-                "LINK_LIBS_SNP": "*",
+                "LINK_LIBS": "*",
             },
         },
         "add_e2e_test": {

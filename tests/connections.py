@@ -18,7 +18,6 @@ import httpx
 import os
 import socket
 import struct
-from infra.snp import IS_SNP
 from infra.runner import ConcurrentRunner
 
 from loguru import logger as LOG
@@ -191,7 +190,7 @@ def run_connection_caps_tests(args):
                         client.post(
                             "/log/private",
                             {"id": 42, "msg": "foo"},
-                            timeout=3 if IS_SNP else 1,
+                            timeout=1,
                             log_capture=logs,
                         )
                     except Exception as e:

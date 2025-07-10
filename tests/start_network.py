@@ -3,6 +3,7 @@
 import infra.e2e_args
 import infra.interfaces
 import infra.network
+import infra.platform_detection
 import http
 import time
 import sys
@@ -67,7 +68,7 @@ def run(args):
         LOG.disable("infra")
         LOG.disable("ccf")
 
-    if args.enclave_platform == "virtual":
+    if infra.platform_detection.is_virtual():
         LOG.warning("Virtual mode enabled")
     LOG.info(f"Starting {len(hosts)} CCF node{'s' if len(hosts) > 1 else ''}...")
 
