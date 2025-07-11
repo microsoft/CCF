@@ -43,7 +43,8 @@ Checks: >
   -performance-unnecessary-value-param,
   -cppcoreguidelines-pro-type-vararg,
   -misc-no-recursion,
-  -cert-dcl50-cpp
+  -cert-dcl50-cpp,
+  -performance-no-int-to-ptr
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: '?!(3rdparty)'
