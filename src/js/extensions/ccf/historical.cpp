@@ -428,7 +428,8 @@ namespace ccf::js::extensions
       auto tx = state->store->create_read_only_tx_ptr();
 
       // Extend lifetime of state and tx, by storing on this extension
-      impl->historical_handles[transaction_id.seqno] = {state, std::move(tx), {}};
+      impl->historical_handles[transaction_id.seqno] = {
+        state, std::move(tx), {}};
     }
     catch (const std::exception& e)
     {

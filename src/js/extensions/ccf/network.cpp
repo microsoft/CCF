@@ -18,7 +18,9 @@ namespace ccf::js::extensions
       int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      (void)this_val;
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       if (argc != 0)
       {
@@ -26,15 +28,15 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected none", argc);
       }
 
-      auto extension = jsctx.get_extension<NetworkExtension>();
+      auto* extension = jsctx.get_extension<NetworkExtension>();
 
-      auto network = extension->network_state;
+      auto* network = extension->network_state;
       if (network == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Network state is not set");
       }
 
-      auto tx_ptr = extension->tx;
+      auto* tx_ptr = extension->tx;
 
       if (tx_ptr == nullptr)
       {
@@ -64,7 +66,9 @@ namespace ccf::js::extensions
       int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      (void)this_val;
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       if (argc != 3)
       {
@@ -72,9 +76,9 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected 3", argc);
       }
 
-      auto extension = jsctx.get_extension<NetworkExtension>();
+      auto* extension = jsctx.get_extension<NetworkExtension>();
 
-      auto network = extension->network_state;
+      auto* network = extension->network_state;
       if (network == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Network state is not set");
@@ -132,7 +136,9 @@ namespace ccf::js::extensions
       int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      (void)this_val;
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       if (argc != 2)
       {
@@ -140,9 +146,9 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected 2", argc);
       }
 
-      auto extension = jsctx.get_extension<NetworkExtension>();
+      auto* extension = jsctx.get_extension<NetworkExtension>();
 
-      auto network = extension->network_state;
+      auto* network = extension->network_state;
       if (network == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Network state is not set");
@@ -205,6 +211,8 @@ namespace ccf::js::extensions
         ctx, js_network_generate_certificate, "generateNetworkCertificate", 0));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
+    // NOLINTBEGIN(performance-move-const-arg)
     ccf.set("network", std::move(network));
+    // NOLINTEND(performance-move-const-arg)
   }
 }

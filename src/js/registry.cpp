@@ -63,7 +63,7 @@ namespace ccf::js
     // interpreter is unsafe to use. If this value is written to, the
     // version_of_previous_write will advance, and all cached interpreters
     // will be flushed.
-    const auto interpreter_flush =
+    auto* const interpreter_flush =
       endpoint_ctx.tx.ro<ccf::InterpreterFlush>(interpreter_flush_map);
     const auto flush_marker =
       interpreter_flush->get_version_of_previous_write().value_or(0);
@@ -137,7 +137,7 @@ namespace ccf::js
         endpoint_ctx.rpc_ctx.get());
     local_extensions.push_back(request_extension);
 
-    for (auto extension : local_extensions)
+    for (const auto& extension : local_extensions)
     {
       ctx.add_extension(extension);
     }
@@ -152,6 +152,11 @@ namespace ccf::js
     {
       const auto& props = endpoint->properties;
       auto module_val = ctx.get_module(props.js_module);
+      if (!module_val.has_value())
+      {
+        throw std::logic_error(
+          fmt::format("Module '{}' could not be loaded", props.js_module));
+      }
       export_func = ctx.get_exported_function(
         *module_val, props.js_function, props.js_module);
     }
@@ -176,7 +181,7 @@ namespace ccf::js
       options,
       ccf::js::core::RuntimeLimitsPolicy::NONE);
 
-    for (auto extension : local_extensions)
+    for (const auto& extension : local_extensions)
     {
       ctx.remove_extension(extension);
     }
@@ -207,7 +212,7 @@ namespace ccf::js
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           std::move(error_msg),
-          std::move(details));
+          details);
       }
       else
       {
@@ -236,14 +241,14 @@ namespace ccf::js
       if (!response_body_js.is_undefined())
       {
         std::vector<uint8_t> response_body;
-        size_t buf_size;
-        size_t buf_offset;
+        size_t buf_size = 0;
+        size_t buf_offset = 0;
         auto typed_array_buffer = ctx.get_typed_array_buffer(
           response_body_js, &buf_offset, &buf_size, nullptr);
-        uint8_t* array_buffer;
+        uint8_t* array_buffer = nullptr;
         if (!typed_array_buffer.is_exception())
         {
-          size_t buf_size_total;
+          size_t buf_size_total = 0;
           array_buffer =
             JS_GetArrayBuffer(ctx, &buf_size_total, typed_array_buffer.val);
           array_buffer += buf_offset;
@@ -253,7 +258,7 @@ namespace ccf::js
           array_buffer =
             JS_GetArrayBuffer(ctx, &buf_size, response_body_js.val);
         }
-        if (array_buffer)
+        if (array_buffer != nullptr)
         {
           endpoint_ctx.rpc_ctx->set_response_header(
             http::headers::CONTENT_TYPE,
@@ -299,7 +304,7 @@ namespace ccf::js
                   ccf::errors::InternalError,
                   "Invalid endpoint function return value (error during JSON "
                   "conversion of body)",
-                  std::move(details));
+                  details);
               }
               else
               {
@@ -336,7 +341,7 @@ namespace ccf::js
                 ccf::errors::InternalError,
                 "Invalid endpoint function return value (error during string "
                 "conversion of body).",
-                std::move(details));
+                details);
             }
             else
             {
@@ -392,7 +397,8 @@ namespace ccf::js
     int response_status_code = HTTP_STATUS_OK;
     {
       auto status_code_js = val["statusCode"];
-      if (!status_code_js.is_undefined() && !JS_IsNull(status_code_js.val))
+      if (
+        !status_code_js.is_undefined() && (JS_IsNull(status_code_js.val) == 0))
       {
         if (JS_VALUE_GET_TAG(status_code_js.val) != JS_TAG_INT)
         {
@@ -446,12 +452,14 @@ namespace ccf::js
           ccf::historical::StatePtr state) {
           auto add_historical_globals = [&](js::core::Context& ctx) {
             auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-            auto extension =
+            auto* extension =
               ctx.get_extension<ccf::js::extensions::HistoricalExtension>();
             if (extension != nullptr)
             {
               auto val = extension->create_historical_state_object(ctx, state);
+              // NOLINTBEGIN(performance-move-const-arg)
               ccf.set("historicalState", std::move(val));
+              // NOLINTEND(performance-move-const-arg)
             }
             else
             {
@@ -476,6 +484,7 @@ namespace ccf::js
     ccf::endpoints::CommandEndpointContext& endpoint_ctx,
     const ccf::TxID& tx_id)
   {
+    (void)endpoint;
     ccf::endpoints::default_locally_committed_func(endpoint_ctx, tx_id);
   }
 
@@ -520,7 +529,7 @@ namespace ccf::js
         // CommonContext also adds many extensions
         auto interpreter = std::make_shared<ccf::js::CommonContext>(access);
 
-        for (auto extension : extensions)
+        for (const auto& extension : extensions)
         {
           interpreter->add_extension(extension);
         }
@@ -534,7 +543,7 @@ namespace ccf::js
   {
     try
     {
-      auto endpoints =
+      auto* endpoints =
         tx.template rw<ccf::endpoints::EndpointsMap>(metadata_map);
       endpoints->clear();
       for (const auto& [url, methods] : bundle.metadata.endpoints)
@@ -548,7 +557,7 @@ namespace ccf::js
         }
       }
 
-      auto modules = tx.template rw<ccf::Modules>(modules_map);
+      auto* modules = tx.template rw<ccf::Modules>(modules_map);
       modules->clear();
       for (const auto& moduledef : bundle.modules)
       {
@@ -557,7 +566,7 @@ namespace ccf::js
 
       // Trigger interpreter flush, in case interpreter reuse
       // is enabled for some endpoints
-      auto interpreter_flush =
+      auto* interpreter_flush =
         tx.template rw<ccf::InterpreterFlush>(interpreter_flush_map);
       interpreter_flush->put(true);
 
@@ -567,9 +576,9 @@ namespace ccf::js
         tx.ro<ccf::JSEngine>(runtime_options_map)->get(),
         ccf::js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
-      auto quickjs_version =
+      auto* quickjs_version =
         tx.wo<ccf::ModulesQuickJsVersion>(modules_quickjs_version_map);
-      auto quickjs_bytecode =
+      auto* quickjs_bytecode =
         tx.wo<ccf::ModulesQuickJsBytecode>(modules_quickjs_bytecode_map);
 
       quickjs_version->put(ccf::quickjs_version);
@@ -584,8 +593,8 @@ namespace ccf::js
           name.c_str(),
           JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
 
-        uint8_t* out_buf;
-        size_t out_buf_len;
+        uint8_t* out_buf = nullptr;
+        size_t out_buf_len = 0;
         int flags = JS_WRITE_OBJ_BYTECODE;
         out_buf = JS_WriteObject(jsctx, &out_buf_len, module_val.val, flags);
         if (!out_buf)
@@ -614,7 +623,7 @@ namespace ccf::js
   {
     try
     {
-      auto endpoints_handle =
+      auto* endpoints_handle =
         tx.template ro<ccf::endpoints::EndpointsMap>(metadata_map);
       endpoints_handle->foreach([&endpoints = bundle.metadata.endpoints](
                                   const auto& endpoint_key,
@@ -637,7 +646,7 @@ namespace ccf::js
         return true;
       });
 
-      auto modules_handle = tx.template ro<ccf::Modules>(modules_map);
+      auto* modules_handle = tx.template ro<ccf::Modules>(modules_map);
       modules_handle->foreach(
         [&modules =
            bundle.modules](const auto& module_name, const auto& module_src) {
@@ -663,7 +672,7 @@ namespace ccf::js
   {
     try
     {
-      auto endpoints = tx.ro<ccf::endpoints::EndpointsMap>(metadata_map);
+      auto* endpoints = tx.ro<ccf::endpoints::EndpointsMap>(metadata_map);
       const auto key = ccf::endpoints::EndpointKey{uri, verb};
 
       auto it = endpoints->get(key);
@@ -672,10 +681,8 @@ namespace ccf::js
         properties = it.value();
         return ApiResult::OK;
       }
-      else
-      {
-        return ApiResult::NotFound;
-      }
+
+      return ApiResult::NotFound;
     }
     catch (const std::exception& e)
     {
@@ -689,7 +696,7 @@ namespace ccf::js
   {
     try
     {
-      auto modules = tx.template ro<ccf::Modules>(modules_map);
+      auto* modules = tx.template ro<ccf::Modules>(modules_map);
 
       auto it = modules->get(normalised_module_path(module_name));
       if (it.has_value())
@@ -697,10 +704,8 @@ namespace ccf::js
         code = it.value();
         return ApiResult::OK;
       }
-      else
-      {
-        return ApiResult::NotFound;
-      }
+
+      return ApiResult::NotFound;
     }
     catch (const std::exception& e)
     {
@@ -710,9 +715,9 @@ namespace ccf::js
   }
 
   void BaseDynamicJSEndpointRegistry::set_js_kv_namespace_restriction(
-    const ccf::js::NamespaceRestriction& nr)
+    const ccf::js::NamespaceRestriction& restriction)
   {
-    namespace_restriction = nr;
+    namespace_restriction = restriction;
   }
 
   ccf::ApiResult BaseDynamicJSEndpointRegistry::set_js_runtime_options_v1(
@@ -754,7 +759,7 @@ namespace ccf::js
     const auto method = rpc_ctx.get_method();
     const auto verb = rpc_ctx.get_request_verb();
 
-    auto endpoints = tx.ro<ccf::endpoints::EndpointsMap>(metadata_map);
+    auto* endpoints = tx.ro<ccf::endpoints::EndpointsMap>(metadata_map);
     const auto key = ccf::endpoints::EndpointKey{method, verb};
 
     // Look for a direct match of the given path
@@ -793,7 +798,7 @@ namespace ccf::js
               {
                 if (matches.empty())
                 {
-                  auto ctx_impl = static_cast<ccf::RpcContextImpl*>(&rpc_ctx);
+                  auto* ctx_impl = dynamic_cast<ccf::RpcContextImpl*>(&rpc_ctx);
                   if (ctx_impl == nullptr)
                   {
                     throw std::logic_error("Unexpected type of RpcContext");
@@ -844,7 +849,7 @@ namespace ccf::js
     ccf::endpoints::EndpointContext& endpoint_ctx)
   {
     // Handle endpoint execution
-    auto endpoint = dynamic_cast<const CustomJSEndpoint*>(e.get());
+    const auto* endpoint = dynamic_cast<const CustomJSEndpoint*>(e.get());
     if (endpoint != nullptr)
     {
       execute_request(endpoint, endpoint_ctx);
@@ -859,7 +864,7 @@ namespace ccf::js
     ccf::endpoints::CommandEndpointContext& endpoint_ctx,
     const ccf::TxID& tx_id)
   {
-    auto endpoint = dynamic_cast<const CustomJSEndpoint*>(e.get());
+    const auto* endpoint = dynamic_cast<const CustomJSEndpoint*>(e.get());
     if (endpoint != nullptr)
     {
       execute_request_locally_committed(endpoint, endpoint_ctx, tx_id);
@@ -877,7 +882,7 @@ namespace ccf::js
   {
     ccf::UserEndpointRegistry::build_api(document, tx);
 
-    auto endpoints = tx.ro<ccf::endpoints::EndpointsMap>(metadata_map);
+    auto* endpoints = tx.ro<ccf::endpoints::EndpointsMap>(metadata_map);
 
     endpoints->foreach([&document](const auto& key, const auto& properties) {
       const auto http_verb = key.verb.get_http_method();
@@ -916,7 +921,8 @@ namespace ccf::js
     std::set<RESTVerb> verbs =
       ccf::endpoints::EndpointRegistry::get_allowed_verbs(tx, rpc_ctx);
 
-    auto endpoints = tx.template ro<ccf::endpoints::EndpointsMap>(metadata_map);
+    auto* endpoints =
+      tx.template ro<ccf::endpoints::EndpointsMap>(metadata_map);
 
     endpoints->foreach_key([this, &verbs, &method](const auto& key) {
       const auto opt_spec =
@@ -956,7 +962,7 @@ namespace ccf::js
 
       using RecentActions = ccf::kv::Set<std::string>;
 
-      auto recent_actions = tx.rw<RecentActions>(recent_actions_map);
+      auto* recent_actions = tx.rw<RecentActions>(recent_actions_map);
       auto key =
         fmt::format("{}:{}", created_at_str, ds::to_hex(action_digest));
 
@@ -980,7 +986,7 @@ namespace ccf::js
       {
         const auto [min_created_at, _] =
           ccf::nonstd::split_1(replay_keys[replay_keys.size() / 2], ":");
-        auto [key_ts, __] = ccf::nonstd::split_1(key, ":");
+        auto [key_ts, ignored] = ccf::nonstd::split_1(key, ":");
         if (key_ts < min_created_at)
         {
           reason = ccf::InvalidArgsReason::StaleActionCreatedTimestamp;
@@ -994,7 +1000,7 @@ namespace ccf::js
       // Only keep the most recent window_size proposals, do not
       // allow the set to grow indefinitely.
       // Should this be configurable through runtime options?
-      size_t window_size = 100;
+      constexpr size_t window_size = 100;
       if (replay_keys.size() >= (window_size - 1) /* We just added one */)
       {
         for (size_t i = 0; i < (replay_keys.size() - (window_size - 1)); i++)
@@ -1024,10 +1030,10 @@ namespace ccf::js
       using AuditInputValue = ccf::kv::Value<std::vector<uint8_t>>;
       using AuditInfoValue = ccf::kv::Value<AuditInfo>;
 
-      auto audit_input = tx.template rw<AuditInputValue>(audit_input_map);
+      auto* audit_input = tx.template rw<AuditInputValue>(audit_input_map);
       audit_input->put(action_body);
 
-      auto audit_info = tx.template rw<AuditInfoValue>(audit_info_map);
+      auto* audit_info = tx.template rw<AuditInfoValue>(audit_info_map);
       audit_info->put({format, user_id, action_name});
 
       return ApiResult::OK;
