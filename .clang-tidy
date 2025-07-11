@@ -40,7 +40,8 @@ Checks: >
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
   -misc-non-private-member-variables-in-classes,
   -readability-convert-member-functions-to-static,
-  -performance-unnecessary-value-param
+  -performance-unnecessary-value-param,
+  -readability-use-anyofallof
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: '?!(3rdparty)'
