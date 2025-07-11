@@ -14,10 +14,11 @@ namespace ccf::js::extensions
   namespace
   {
     JSValue js_consensus_get_last_committed_txid(
-      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      int argc,
+      [[maybe_unused]] JSValueConst* argv)
     {
-      (void)this_val;
-      (void)argv;
       if (argc != 0)
       {
         return JS_ThrowTypeError(
@@ -59,9 +60,11 @@ namespace ccf::js::extensions
     }
 
     JSValue js_consensus_get_status_for_txid(
-      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      int argc,
+      JSValueConst* argv)
     {
-      (void)this_val;
       if (argc != 2)
       {
         return JS_ThrowTypeError(
@@ -115,10 +118,11 @@ namespace ccf::js::extensions
     }
 
     JSValue js_consensus_get_view_for_seqno(
-      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      int argc,
+      JSValueConst* argv)
     {
-      (void)this_val;
-
       if (argc != 1)
       {
         return JS_ThrowTypeError(

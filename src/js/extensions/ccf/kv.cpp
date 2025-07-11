@@ -79,10 +79,9 @@ namespace ccf::js::extensions
     int js_kv_lookup(
       JSContext* ctx,
       JSPropertyDescriptor* desc,
-      JSValueConst this_val,
+      [[maybe_unused]] JSValueConst this_val,
       JSAtom property)
     {
-      (void)this_val;
       js::core::Context& jsctx =
         *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
       const auto map_name = jsctx.to_str(property).value_or("");

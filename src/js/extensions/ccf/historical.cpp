@@ -31,10 +31,11 @@ namespace ccf::js::extensions
   namespace
   {
     JSValue js_historical_get_state_range(
-      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      int argc,
+      JSValueConst* argv)
     {
-      (void)this_val;
-
       if (argc != 4)
       {
         return JS_ThrowTypeError(
@@ -120,10 +121,11 @@ namespace ccf::js::extensions
     }
 
     JSValue js_historical_drop_cached_states(
-      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      int argc,
+      JSValueConst* argv)
     {
-      (void)this_val;
-
       if (argc != 1)
       {
         return JS_ThrowTypeError(

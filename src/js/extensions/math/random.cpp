@@ -17,11 +17,11 @@ namespace ccf::js::extensions
     constexpr uint64_t mantissa_shift = 12;
 
     JSValue js_random_impl(
-      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      [[maybe_unused]] int argc,
+      [[maybe_unused]] JSValueConst* argv)
     {
-      (void)this_val;
-      (void)argc;
-      (void)argv;
       ccf::crypto::EntropyPtr entropy = ccf::crypto::get_entropy();
 
       // Generate a random 64 bit unsigned int, and transform that to a double

@@ -18,10 +18,11 @@ namespace ccf::js::extensions
   namespace
   {
     JSValue js_refresh_app_bytecode_cache(
-      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      int argc,
+      [[maybe_unused]] JSValueConst* argv)
     {
-      (void)this_val;
-      (void)argv;
       js::core::Context& jsctx =
         *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 

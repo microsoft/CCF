@@ -13,9 +13,11 @@ namespace ccf::js::extensions
   namespace
   {
     JSValue js_rpc_set_apply_writes(
-      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      int argc,
+      JSValueConst* argv)
     {
-      (void)this_val;
       js::core::Context& jsctx =
         *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
@@ -48,9 +50,11 @@ namespace ccf::js::extensions
     }
 
     JSValue js_rpc_set_claims_digest(
-      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      int argc,
+      JSValueConst* argv)
     {
-      (void)this_val;
       js::core::Context& jsctx =
         *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
