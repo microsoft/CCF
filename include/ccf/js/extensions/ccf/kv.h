@@ -28,7 +28,7 @@ namespace ccf::js::extensions
 
     ccf::js::NamespaceRestriction namespace_restriction;
 
-    KvExtension(ccf::kv::Tx* t, const ccf::js::NamespaceRestriction& nr = {});
+    KvExtension(ccf::kv::Tx* t, ccf::js::NamespaceRestriction nr = {});
     ~KvExtension();
 
     void install(js::core::Context& ctx);

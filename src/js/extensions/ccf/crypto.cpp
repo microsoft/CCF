@@ -15,24 +15,32 @@
 #include "js/checks.h"
 #include "tls/ca.h"
 
+#include <climits>
+
 namespace ccf::js::extensions
 {
   namespace
   {
-    static JSValue js_generate_aes_key(
+    JSValue js_generate_aes_key(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 1", argc);
+      }
 
-      int32_t key_size;
+      int32_t key_size = 0;
       if (JS_ToInt32(ctx, &key_size, argv[0]) < 0)
       {
         return ccf::js::core::constants::Exception;
       }
       // Supported key sizes for AES.
+      // NOLINTBEGIN(readability-magic-numbers)
+      // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
       if (key_size != 128 && key_size != 192 && key_size != 256)
+      // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
+      // NOLINTEND(readability-magic-numbers)
       {
         return JS_ThrowRangeError(
           ctx, "invalid key size (not one of 128, 192, 256)");
@@ -41,7 +49,7 @@ namespace ccf::js::extensions
       try
       {
         std::vector<uint8_t> key =
-          ccf::crypto::get_entropy()->random(key_size / 8);
+          ccf::crypto::get_entropy()->random(key_size / CHAR_BIT);
         return JS_NewArrayBufferCopy(ctx, key.data(), key.size());
       }
       catch (const std::exception& exc)
@@ -51,14 +59,17 @@ namespace ccf::js::extensions
       }
     }
 
-    static JSValue js_generate_rsa_key_pair(
+    JSValue js_generate_rsa_key_pair(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1 && argc != 2)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 1 or 2", argc);
+      }
 
-      uint32_t key_size = 0, key_exponent = 0;
+      uint32_t key_size = 0;
+      uint32_t key_exponent = 0;
       if (JS_ToUint32(ctx, &key_size, argv[0]) < 0)
       {
         return ccf::js::core::constants::Exception;
@@ -87,7 +98,8 @@ namespace ccf::js::extensions
           ctx, "Failed to generate RSA key pair: %s", exc.what());
       }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       try
       {
@@ -96,11 +108,11 @@ namespace ccf::js::extensions
 
         auto r = jsctx.new_obj();
         JS_CHECK_EXC(r);
-        auto private_key = jsctx.new_string_len((char*)prv.data(), prv.size());
+        auto private_key = jsctx.new_string(prv.str());
         OPENSSL_cleanse(prv.data(), prv.size());
         JS_CHECK_EXC(private_key);
         JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
-        auto public_key = jsctx.new_string_len((char*)pub.data(), pub.size());
+        auto public_key = jsctx.new_string(pub.str());
         JS_CHECK_EXC(public_key);
         JS_CHECK_SET(r.set("publicKey", std::move(public_key)));
 
@@ -113,21 +125,24 @@ namespace ccf::js::extensions
       }
     }
 
-    static JSValue js_generate_ecdsa_key_pair(
+    JSValue js_generate_ecdsa_key_pair(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 1", argc);
+      }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
       auto curve = jsctx.to_str(argv[0]);
       if (!curve)
       {
         return ccf::js::core::constants::Exception;
       }
 
-      ccf::crypto::CurveID cid;
+      ccf::crypto::CurveID cid = {};
       if (curve == "secp256r1")
       {
         cid = ccf::crypto::CurveID::SECP256R1;
@@ -151,11 +166,11 @@ namespace ccf::js::extensions
 
         auto r = jsctx.new_obj();
         JS_CHECK_EXC(r);
-        auto private_key = jsctx.new_string_len((char*)prv.data(), prv.size());
+        auto private_key = jsctx.new_string(prv.str());
         OPENSSL_cleanse(prv.data(), prv.size());
         JS_CHECK_EXC(private_key);
         JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
-        auto public_key = jsctx.new_string_len((char*)pub.data(), pub.size());
+        auto public_key = jsctx.new_string(pub.str());
         JS_CHECK_EXC(public_key);
         JS_CHECK_SET(r.set("publicKey", std::move(public_key)));
 
@@ -168,21 +183,24 @@ namespace ccf::js::extensions
       }
     }
 
-    static JSValue js_generate_eddsa_key_pair(
+    JSValue js_generate_eddsa_key_pair(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 1", argc);
+      }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
       auto curve = jsctx.to_str(argv[0]);
       if (!curve)
       {
         return ccf::js::core::constants::Exception;
       }
 
-      ccf::crypto::CurveID cid;
+      ccf::crypto::CurveID cid = {};
       if (curve == "curve25519")
       {
         cid = ccf::crypto::CurveID::CURVE25519;
@@ -206,11 +224,11 @@ namespace ccf::js::extensions
 
         auto r = jsctx.new_obj();
         JS_CHECK_EXC(r);
-        auto private_key = jsctx.new_string_len((char*)prv.data(), prv.size());
+        auto private_key = jsctx.new_string(prv.str());
         OPENSSL_cleanse(prv.data(), prv.size());
         JS_CHECK_EXC(private_key);
         JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
-        auto public_key = jsctx.new_string_len((char*)pub.data(), pub.size());
+        auto public_key = jsctx.new_string(pub.str());
         JS_CHECK_EXC(public_key);
         JS_CHECK_SET(r.set("publicKey", std::move(public_key)));
 
@@ -223,14 +241,17 @@ namespace ccf::js::extensions
       }
     }
 
-    static JSValue js_digest(
+    JSValue js_digest(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 2)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 2", argc);
+      }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
       auto digest_algo_name_str = jsctx.to_str(argv[0]);
       if (!digest_algo_name_str)
       {
@@ -243,9 +264,9 @@ namespace ccf::js::extensions
           ctx, "unsupported digest algorithm, supported: SHA-256");
       }
 
-      size_t data_size;
+      size_t data_size = 0;
       uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[1]);
-      if (!data)
+      if (data == nullptr)
       {
         return ccf::js::core::constants::Exception;
       }
@@ -261,14 +282,17 @@ namespace ccf::js::extensions
       }
     }
 
-    static JSValue js_is_valid_x509_cert_bundle(
+    JSValue js_is_valid_x509_cert_bundle(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 1", argc);
+      }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       auto pem = jsctx.to_str(argv[0]);
       if (!pem)
@@ -294,19 +318,22 @@ namespace ccf::js::extensions
       return ccf::js::core::constants::True;
     }
 
-    static JSValue js_is_valid_x509_cert_chain(
+    JSValue js_is_valid_x509_cert_chain(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       // first arg: chain (concatenated PEM certs, first cert = target)
       // second arg: trusted (concatenated PEM certs)
       if (argc != 2)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 2", argc);
+      }
 
       auto chain_js = argv[0];
       auto trusted_js = argv[1];
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       auto chain_str = jsctx.to_str(chain_js);
       if (!chain_str)
@@ -336,6 +363,7 @@ namespace ccf::js::extensions
           chain_ptr.push_back(&*it);
         }
         std::vector<const ccf::crypto::Pem*> trusted_ptr;
+        trusted_ptr.reserve(trusted_vec.size());
         for (auto& pem : trusted_vec)
         {
           trusted_ptr.push_back(&pem);
@@ -362,14 +390,17 @@ namespace ccf::js::extensions
     }
 
     template <typename T>
-    static JSValue js_pem_to_jwk(
+    JSValue js_pem_to_jwk(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1 && argc != 2)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 1 or 2", argc);
+      }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       auto pem_str = jsctx.to_str(argv[0]);
       if (!pem_str)
@@ -447,17 +478,20 @@ namespace ccf::js::extensions
     }
 
     template <typename T>
-    static JSValue js_jwk_to_pem(
+    JSValue js_jwk_to_pem(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 1)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 1", argc);
+      }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       auto jwk_str = jsctx.to_str(jsctx.json_stringify(jsctx.wrap(argv[0])));
-      if (!jwk_str)
+      if (!jwk_str.has_value())
       {
         return ccf::js::core::constants::Exception;
       }
@@ -511,36 +545,38 @@ namespace ccf::js::extensions
           ctx, "Failed to convert jwk to pem %s", ex.what());
       }
 
-      auto pem_str = pem.str();
       return JS_NewString(ctx, pem.str().c_str());
     }
 
-    static JSValue js_wrap_key(
+    JSValue js_wrap_key(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 3)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 3", argc);
+      }
 
       // API loosely modeled after
       // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/wrapKey.
 
-      size_t key_size;
+      size_t key_size = 0;
       uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
-      if (!key)
+      if (key == nullptr)
       {
         return ccf::js::core::constants::Exception;
       }
 
-      size_t wrapping_key_size;
+      size_t wrapping_key_size = 0;
       uint8_t* wrapping_key =
         JS_GetArrayBuffer(ctx, &wrapping_key_size, argv[1]);
-      if (!wrapping_key)
+      if (wrapping_key == nullptr)
       {
         return ccf::js::core::constants::Exception;
       }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       auto parameters = argv[2];
       auto wrap_algo_name_val = jsctx.get_property(parameters, "name");
@@ -568,7 +604,7 @@ namespace ccf::js::extensions
             JS_GetArrayBuffer(ctx, &label_buf_size, label_val.val);
 
           std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
-          if (label_buf && label_buf_size > 0)
+          if ((label_buf != nullptr) && (label_buf_size > 0))
           {
             label_opt = {label_buf, label_buf + label_buf_size};
           }
@@ -581,7 +617,8 @@ namespace ccf::js::extensions
           return JS_NewArrayBufferCopy(
             ctx, wrapped_key.data(), wrapped_key.size());
         }
-        else if (algo_name == "AES-KWP")
+
+        if (algo_name == "AES-KWP")
         {
           std::vector<uint8_t> privateKey(
             wrapping_key, wrapping_key + wrapping_key_size);
@@ -593,7 +630,8 @@ namespace ccf::js::extensions
           return JS_NewArrayBufferCopy(
             ctx, wrapped_key.data(), wrapped_key.size());
         }
-        else if (algo_name == "RSA-OAEP-AES-KWP")
+
+        if (algo_name == "RSA-OAEP-AES-KWP")
         {
           auto aes_key_size_value =
             jsctx.get_property(parameters, "aesKeySize");
@@ -613,7 +651,7 @@ namespace ccf::js::extensions
             JS_GetArrayBuffer(ctx, &label_buf_size, label_val.val);
 
           std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
-          if (label_buf && label_buf_size > 0)
+          if ((label_buf != nullptr) && (label_buf_size > 0))
           {
             label_opt = {label_buf, label_buf + label_buf_size};
           }
@@ -627,13 +665,11 @@ namespace ccf::js::extensions
           return JS_NewArrayBufferCopy(
             ctx, wrapped_key.data(), wrapped_key.size());
         }
-        else
-        {
-          return JS_ThrowRangeError(
-            ctx,
-            "unsupported key wrapping algorithm, supported: RSA-OAEP, AES-KWP, "
-            "RSA-OAEP-AES-KWP");
-        }
+
+        return JS_ThrowRangeError(
+          ctx,
+          "unsupported key wrapping algorithm, supported: RSA-OAEP, AES-KWP, "
+          "RSA-OAEP-AES-KWP");
       }
       catch (std::exception& ex)
       {
@@ -645,32 +681,35 @@ namespace ccf::js::extensions
       }
     }
 
-    static JSValue js_unwrap_key(
+    JSValue js_unwrap_key(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
       if (argc != 3)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 3", argc);
+      }
 
       // API loosely modeled after
       // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/unwrapKey.
 
-      size_t key_size;
+      size_t key_size = 0;
       uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
-      if (!key)
+      if (key == nullptr)
       {
         return ccf::js::core::constants::Exception;
       }
 
-      size_t unwrapping_key_size;
+      size_t unwrapping_key_size = 0;
       uint8_t* unwrapping_key =
         JS_GetArrayBuffer(ctx, &unwrapping_key_size, argv[1]);
-      if (!unwrapping_key)
+      if (unwrapping_key == nullptr)
       {
         return ccf::js::core::constants::Exception;
       }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       auto parameters = argv[2];
       auto wrap_algo_name_val = jsctx.get_property(parameters, "name");
@@ -698,7 +737,7 @@ namespace ccf::js::extensions
             JS_GetArrayBuffer(ctx, &label_buf_size, label_val.val);
 
           std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
-          if (label_buf && label_buf_size > 0)
+          if ((label_buf != nullptr) && (label_buf_size > 0))
           {
             label_opt = {label_buf, label_buf + label_buf_size};
           }
@@ -714,7 +753,8 @@ namespace ccf::js::extensions
           return JS_NewArrayBufferCopy(
             ctx, unwrapped_key.data(), unwrapped_key.size());
         }
-        else if (algo_name == "AES-KWP")
+
+        if (algo_name == "AES-KWP")
         {
           std::vector<uint8_t> privateKey(
             unwrapping_key, unwrapping_key + unwrapping_key_size);
@@ -727,7 +767,8 @@ namespace ccf::js::extensions
           return JS_NewArrayBufferCopy(
             ctx, unwrapped_key.data(), unwrapped_key.size());
         }
-        else if (algo_name == "RSA-OAEP-AES-KWP")
+
+        if (algo_name == "RSA-OAEP-AES-KWP")
         {
           auto aes_key_size_value =
             jsctx.get_property(parameters, "aesKeySize");
@@ -747,7 +788,7 @@ namespace ccf::js::extensions
             JS_GetArrayBuffer(ctx, &label_buf_size, label_val.val);
 
           std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
-          if (label_buf && label_buf_size > 0)
+          if ((label_buf != nullptr) && (label_buf_size > 0))
           {
             label_opt = {label_buf, label_buf + label_buf_size};
           }
@@ -763,14 +804,12 @@ namespace ccf::js::extensions
           return JS_NewArrayBufferCopy(
             ctx, unwrapped_key.data(), unwrapped_key.size());
         }
-        else
-        {
-          return JS_ThrowRangeError(
-            ctx,
-            "unsupported key unwrapping algorithm, supported: RSA-OAEP, "
-            "AES-KWP, "
-            "RSA-OAEP-AES-KWP");
-        }
+
+        return JS_ThrowRangeError(
+          ctx,
+          "unsupported key unwrapping algorithm, supported: RSA-OAEP, "
+          "AES-KWP, "
+          "RSA-OAEP-AES-KWP");
       }
       catch (std::exception& ex)
       {
@@ -783,10 +822,10 @@ namespace ccf::js::extensions
       }
     }
 
-    static JSValue js_sign(
-      JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+    JSValue js_sign(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       if (argc != 3)
       {
@@ -815,9 +854,9 @@ namespace ccf::js::extensions
       }
       auto key = *key_str;
 
-      size_t data_size;
+      size_t data_size = 0;
       uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[2]);
-      if (!data)
+      if (data == nullptr)
       {
         return ccf::js::core::constants::Exception;
       }
@@ -851,20 +890,24 @@ namespace ccf::js::extensions
         auto algo_name = *algo_name_str;
         auto algo_hash = *algo_hash_str;
 
-        ccf::crypto::MDType mdtype;
+        ccf::crypto::MDType mdtype = ccf::crypto::MDType::NONE;
+
         if (algo_hash == "SHA-256")
         {
           mdtype = ccf::crypto::MDType::SHA256;
         }
-        else if (algo_hash == "SHA-384")
+
+        if (algo_hash == "SHA-384")
         {
           mdtype = ccf::crypto::MDType::SHA384;
         }
-        else if (algo_hash == "SHA-512")
+
+        if (algo_hash == "SHA-512")
         {
           mdtype = ccf::crypto::MDType::SHA512;
         }
-        else
+
+        if (mdtype == ccf::crypto::MDType::NONE)
         {
           return JS_ThrowRangeError(
             ctx,
@@ -879,7 +922,8 @@ namespace ccf::js::extensions
             sig_der, key_pair->get_curve_id());
           return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
         }
-        else if (algo_name == "RSA-PSS")
+
+        if (algo_name == "RSA-PSS")
         {
           auto key_pair = ccf::crypto::make_rsa_key_pair(key);
 
@@ -894,19 +938,18 @@ namespace ccf::js::extensions
 
           return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
         }
-        else if (algo_name == "HMAC")
+
+        if (algo_name == "HMAC")
         {
           std::vector<uint8_t> vkey(key.begin(), key.end());
           const auto sig = ccf::crypto::hmac(mdtype, vkey, contents);
           return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
         }
-        else
-        {
-          return JS_ThrowRangeError(
-            ctx,
-            "Unsupported signing algorithm, supported: RSA-PSS, ECDSA, EdDSA, "
-            "HMAC");
-        }
+
+        return JS_ThrowRangeError(
+          ctx,
+          "Unsupported signing algorithm, supported: RSA-PSS, ECDSA, EdDSA, "
+          "HMAC");
       }
       catch (const std::exception& ex)
       {
@@ -914,7 +957,7 @@ namespace ccf::js::extensions
       }
     }
 
-    static bool verify_eddsa_signature(
+    bool verify_eddsa_signature(
       uint8_t* contents,
       size_t contents_size,
       uint8_t* signature,
@@ -926,10 +969,11 @@ namespace ccf::js::extensions
         contents, contents_size, signature, signature_size);
     }
 
-    static JSValue js_verify_signature(
+    JSValue js_verify_signature(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       if (argc != 4)
       {
@@ -940,16 +984,16 @@ namespace ccf::js::extensions
       // API loosely modeled after
       // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/verify.
 
-      size_t signature_size;
+      size_t signature_size = 0;
       uint8_t* signature = JS_GetArrayBuffer(ctx, &signature_size, argv[2]);
-      if (!signature)
+      if (signature == nullptr)
       {
         return ccf::js::core::constants::Exception;
       }
 
-      size_t data_size;
+      size_t data_size = 0;
       uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[3]);
-      if (!data)
+      if (data == nullptr)
       {
         return ccf::js::core::constants::Exception;
       }
@@ -981,8 +1025,8 @@ namespace ccf::js::extensions
         {
           return JS_NewBool(
             ctx,
-            verify_eddsa_signature(
-              data, data_size, signature, signature_size, *key_str));
+            static_cast<int>(verify_eddsa_signature(
+              data, data_size, signature, signature_size, *key_str)));
         }
         catch (const std::exception& ex)
         {
@@ -1003,7 +1047,7 @@ namespace ccf::js::extensions
         auto algo_hash = *algo_hash_str;
         auto key = *key_str;
 
-        ccf::crypto::MDType mdtype;
+        ccf::crypto::MDType mdtype = {};
         if (algo_hash == "SHA-256")
         {
           mdtype = ccf::crypto::MDType::SHA256;
@@ -1062,7 +1106,7 @@ namespace ccf::js::extensions
             mdtype,
             static_cast<size_t>(salt_length));
         }
-        return JS_NewBool(ctx, valid);
+        return JS_NewBool(ctx, static_cast<int>(valid));
       }
       catch (const std::exception& ex)
       {
@@ -1224,6 +1268,8 @@ namespace ccf::js::extensions
         ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
+    // NOLINTBEGIN(performance-move-const-arg)
     ccf.set("crypto", std::move(crypto));
+    // NOLINTEND(performance-move-const-arg)
   }
 }

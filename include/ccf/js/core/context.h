@@ -96,7 +96,7 @@ namespace ccf::js::core
 
     // Construct RAII wrapper around raw QuickJS value
     JSWrappedValue wrap(JSValue&& val) const;
-    JSWrappedValue wrap(const JSValue& x) const;
+    JSWrappedValue wrap(const JSValue& val) const;
 
     // If the first argument is a string-array, populates the second, and
     // returns undefined. Otherwise returns a JS error value.

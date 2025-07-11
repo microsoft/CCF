@@ -40,29 +40,30 @@ namespace ccf::js::extensions
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected between 2 and 4", argc);
     }
-    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx =
+      *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
-    size_t evidence_size;
+    size_t evidence_size = 0;
     uint8_t* evidence = JS_GetArrayBuffer(ctx, &evidence_size, argv[0]);
-    if (!evidence)
+    if (evidence == nullptr)
     {
       return ccf::js::core::constants::Exception;
     }
 
-    size_t endorsements_size;
+    size_t endorsements_size = 0;
     uint8_t* endorsements = JS_GetArrayBuffer(ctx, &endorsements_size, argv[1]);
-    if (!endorsements)
+    if (endorsements == nullptr)
     {
       return ccf::js::core::constants::Exception;
     }
 
     std::optional<std::vector<uint8_t>> uvm_endorsements;
-    if (!JS_IsUndefined(argv[2]))
+    if (JS_IsUndefined(argv[2]) == 0)
     {
-      size_t uvm_endorsements_size;
+      size_t uvm_endorsements_size = 0;
       uint8_t* uvm_endorsements_array =
         JS_GetArrayBuffer(ctx, &uvm_endorsements_size, argv[2]);
-      if (!uvm_endorsements_array)
+      if (uvm_endorsements_array == nullptr)
       {
         return ccf::js::core::constants::Exception;
       }
@@ -71,7 +72,7 @@ namespace ccf::js::extensions
     }
 
     std::optional<std::string> endorsed_tcb;
-    if (!JS_IsUndefined(argv[3]))
+    if (JS_IsUndefined(argv[3]) == 0)
     {
       endorsed_tcb = jsctx.to_str(argv[3]);
       if (!endorsed_tcb)
@@ -294,22 +295,19 @@ namespace ccf::js::extensions
       JS_CHECK_EXC(u);
 
       {
-        auto did =
-          jsctx.new_string(parsed_uvm_endorsements.value().did.c_str());
+        auto did = jsctx.new_string(parsed_uvm_endorsements.value().did);
         JS_CHECK_EXC(did);
         JS_CHECK_SET(u.set("did", std::move(did)));
       }
 
       {
-        auto feed =
-          jsctx.new_string(parsed_uvm_endorsements.value().feed.c_str());
+        auto feed = jsctx.new_string(parsed_uvm_endorsements.value().feed);
         JS_CHECK_EXC(feed);
         JS_CHECK_SET(u.set("feed", std::move(feed)));
       }
 
       {
-        auto svn =
-          jsctx.new_string(parsed_uvm_endorsements.value().svn.c_str());
+        auto svn = jsctx.new_string(parsed_uvm_endorsements.value().svn);
         JS_CHECK_EXC(svn);
         JS_CHECK_SET(u.set("svn", std::move(svn)));
         JS_CHECK_SET(r.set("uvm_endorsements", std::move(u)));
