@@ -311,6 +311,7 @@ set(CCF_JS_SOURCES
 
 add_host_library(ccf_js "${CCF_JS_SOURCES}")
 add_san(ccf_js)
+add_tidy(ccf_js)
 target_link_libraries(ccf_js PUBLIC ccfcrypto quickjs)
 target_compile_definitions(ccf_js PRIVATE CCF_LOGGER_NO_DEPRECATE)
 add_warning_checks(ccf_js)
