@@ -480,7 +480,6 @@ target_include_directories(
 target_link_libraries(
   ccf
   PUBLIC ${LINK_LIBCXX}
-         -lgcc
          http_parser
          ccf_js
          ccf_endpoints
