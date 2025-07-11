@@ -590,7 +590,7 @@
           "type": "string",
           "enum": ["Trace", "Debug", "Info", "Fail", "Fatal"],
           "default": "Info",
-          "description": "Logging level for the untrusted host."
+          "description": "Logging level for the untrusted host. DEPRECATED, use the --log-level CLI switch instead."
         },
         "format": {
           "type": "string",

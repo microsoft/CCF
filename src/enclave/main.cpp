@@ -45,7 +45,7 @@ extern "C"
     size_t enclave_version_size,
     size_t* enclave_version_len,
     StartType start_type,
-    ccf::LoggerLevel enclave_log_level,
+    ccf::LoggerLevel log_level,
     size_t num_worker_threads,
     void* time_location,
     const ccf::ds::WorkBeaconPtr& work_beacon)
@@ -132,7 +132,7 @@ extern "C"
     // while other platforms can permit any level at compile-time and then bind
     // the run-time choice in attestations.
     const auto mv = ccf::logger::MOST_VERBOSE;
-    const auto requested = enclave_log_level;
+    const auto requested = log_level;
     const auto permitted = std::max(mv, requested);
     if (requested != permitted)
     {

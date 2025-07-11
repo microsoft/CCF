@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev1]
+
+[7.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev1
+
+### Changed
+
+- CCF no longer has platform-specific builds. The single build configuration will run on both SNP and Virtual, automatically detecting the current platform at runtime. This means the `COMPILE_TARGET` CMake option is no longer required, and all release artifacts no longer have a platform in their path.
+- The `logging.host_level` configuration option and `--enclave-log-level` CLI switch are replaced by a combined `--log-level` CLI switch (#7104).
+
 ## [7.0.0-dev0]
 
 [7.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev0

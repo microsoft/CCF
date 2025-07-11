@@ -25,7 +25,6 @@ import re
 import hashlib
 from datetime import datetime, timedelta, timezone
 from infra.consortium import slurp_file
-from infra.snp import IS_SNP
 from collections import deque
 
 
@@ -168,8 +167,7 @@ class Network:
     node_args_to_forward = [
         "enclave_type",
         "enclave_platform",
-        "host_log_level",
-        "enclave_log_level",
+        "log_level",
         "sig_tx_interval",
         "sig_ms_interval",
         "election_timeout_ms",
@@ -540,7 +538,7 @@ class Network:
             ), f"Could not copy governance {fragment} to {self.common_dir}"
         # It is more convenient to create a symlink in the common directory than generate
         # certs and keys in the top directory and move them across
-        cmd = ["cp"] if IS_SNP else ["ln", "-s"]
+        cmd = ["ln", "-s"]
         cmd += [self.key_generator, self.common_dir]
         assert (
             infra.proc.ccall(*cmd).returncode == 0
