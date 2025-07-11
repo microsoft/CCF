@@ -180,7 +180,8 @@ namespace ccf::js::extensions
         const auto* any_cert_ident =
           dynamic_cast<const ccf::AnyCertAuthnIdentity*>(ident.get()))
       {
-        auto policy_name = ccf::get_policy_name_from_ident(any_cert_ident);
+        const auto* policy_name =
+          ccf::get_policy_name_from_ident(any_cert_ident);
         caller.set("policy", ctx.new_string(policy_name));
         auto pem_cert = ccf::crypto::cert_der_to_pem(any_cert_ident->cert);
         caller.set("cert", ctx.new_string(pem_cert.str()));

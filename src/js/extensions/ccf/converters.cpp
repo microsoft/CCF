@@ -24,7 +24,8 @@ namespace ccf::js::extensions
     JSValue js_str_to_buf(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
       if (argc != 1)
       {
@@ -32,13 +33,13 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments, but expected 1", argc);
       }
 
-      if (!JS_IsString(argv[0]))
+      if (JS_IsString(argv[0]) == 0)
       {
         return JS_ThrowTypeError(ctx, "Argument must be a string");
       }
 
       auto str = jsctx.to_str(argv[0]);
-      if (!str)
+      if (!str.has_value())
       {
         return ccf::js::core::constants::Exception;
       }

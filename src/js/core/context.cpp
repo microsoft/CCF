@@ -474,7 +474,7 @@ namespace ccf::js::core
   {
     std::vector<JSValue> argvn;
     argvn.reserve(argv.size());
-    for (auto& a : argv)
+    for (const auto& a : argv)
     {
       argvn.push_back(a.val);
     }
@@ -510,8 +510,8 @@ namespace ccf::js::core
 
   std::optional<std::string> Context::to_str(const JSWrappedValue& x) const
   {
-    auto val = JS_ToCString(ctx, x.val);
-    if (!val)
+    const auto* val = JS_ToCString(ctx, x.val);
+    if (val == nullptr)
     {
       new_type_error("value is not a string");
       return std::nullopt;
@@ -523,8 +523,8 @@ namespace ccf::js::core
 
   std::optional<std::string> Context::to_str(const JSValue& x) const
   {
-    auto val = JS_ToCString(ctx, x);
-    if (!val)
+    const auto* val = JS_ToCString(ctx, x);
+    if (val == nullptr)
     {
       new_type_error("value is not a string");
       return std::nullopt;
@@ -537,8 +537,8 @@ namespace ccf::js::core
   std::optional<std::string> Context::to_str(
     const JSValue& x, size_t& len) const
   {
-    auto val = JS_ToCStringLen(ctx, &len, x);
-    if (!val)
+    const auto* val = JS_ToCStringLen(ctx, &len, x);
+    if (val == nullptr)
     {
       new_type_error("value is not a string");
       return std::nullopt;
@@ -550,8 +550,8 @@ namespace ccf::js::core
 
   std::optional<std::string> Context::to_str(const JSAtom& atom) const
   {
-    auto val = JS_AtomToCString(ctx, atom);
-    if (!val)
+    const auto* val = JS_AtomToCString(ctx, atom);
+    if (val == nullptr)
     {
       new_type_error("atom is not a string");
       return std::nullopt;
@@ -583,7 +583,8 @@ extern "C"
 {
   int qjs_gettimeofday(struct JSContext* ctx, struct timeval* tv, void* tz)
   {
-    if (tv != NULL)
+    (void)tz;
+    if (tv != nullptr)
     {
       // Opaque may be null, when this is called during Context construction
       const ccf::js::core::Context* jsctx =
