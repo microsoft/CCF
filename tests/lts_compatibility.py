@@ -706,7 +706,7 @@ if __name__ == "__main__":
     args.sig_ms_interval = 1000  # Set to cchost default value
 
     # Hardcoded because host only accepts info log on release builds
-    args.host_log_level = "info"
+    args.log_level = "info"
 
     repo = infra.github.Repository()
     local_branch = infra.github.GitEnv.local_branch()

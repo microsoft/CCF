@@ -14,9 +14,6 @@ with section("parse"):
                 "LINK_LIBS": "*",
             },
         },
-        "add_client_exe": {
-            "kwargs": {"SRCS": "*", "INCLUDE_DIRS": "*", "LINK_LIBS": "*"},
-        },
         "add_e2e_test": {
             "kwargs": {
                 "NAME": "*",
@@ -25,16 +22,6 @@ with section("parse"):
                 "LABEL": "*",
                 "CURL_CLIENT": "*",
                 "CONFIGURATIONS": "*",
-                "ADDITIONAL_ARGS": "*",
-            },
-        },
-        "add_perf_test": {
-            "kwargs": {
-                "NAME": "*",
-                "PYTHON_SCRIPT": "*",
-                "CONSTITUTION": "*",
-                "CLIENT_BIN": "*",
-                "LABEL": "*",
                 "ADDITIONAL_ARGS": "*",
             },
         },

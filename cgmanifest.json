@@ -95,15 +95,6 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/evanj/tpccbench",
-          "commitHash": "715f394ade83e545ffc0aa79c14fefc1c0987f21"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
           "repositoryUrl": "https://github.com/tristanpenman/valijson",
           "commitHash": "fc9ddf14db683c9443c48ae3a6bf83e0ce3ad37c"
         }

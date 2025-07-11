@@ -44,7 +44,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DWORKER_THREADS=2 -DBUILD_TPCC=ON ..
+          cmake -GNinja -DWORKER_THREADS=2 ..
           ninja
           # Microbenchmarks
           ./tests.sh -VV -L benchmark
@@ -86,7 +86,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DWORKER_THREADS=2 -DBUILD_TPCC=ON ..
+          cmake -GNinja -DWORKER_THREADS=2 ..
           ninja
           # Microbenchmarks
           ./tests.sh -VV -L benchmark
