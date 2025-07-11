@@ -23,8 +23,8 @@ namespace ccf
     // Uses KV-defined roots of trust (did -> (feed, svn)) to verify the
     // UVM measurement against endorsements in the quote.
     std::vector<pal::UVMEndorsements> uvm_roots_of_trust_from_kv;
-    auto uvmes = tx.ro<SNPUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
-    if (uvmes)
+    auto* uvmes = tx.ro<SNPUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
+    if (uvmes != nullptr)
     {
       uvmes->foreach(
         [&uvm_roots_of_trust_from_kv](
@@ -209,7 +209,7 @@ namespace ccf
           return std::nullopt;
         }
 
-        return digest.from_representation(rep);
+        return HostData::from_representation(rep);
       }
 
       default:
@@ -240,13 +240,13 @@ namespace ccf
 
     if (quote_info.format == QuoteFormat::insecure_virtual)
     {
-      auto accepted_policies_table =
+      auto* accepted_policies_table =
         tx.ro<VirtualHostDataMap>(Tables::VIRTUAL_HOST_DATA);
       accepted_policy = accepted_policies_table->contains(host_data.value());
     }
     else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
     {
-      auto accepted_policies_table = tx.ro<SnpHostDataMap>(Tables::HOST_DATA);
+      auto* accepted_policies_table = tx.ro<SnpHostDataMap>(Tables::HOST_DATA);
       accepted_policy = accepted_policies_table->has(host_data.value());
     }
 
