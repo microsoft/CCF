@@ -106,7 +106,7 @@ namespace host
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& service_cert,
       StartType start_type,
-      ccf::LoggerLevel enclave_log_level,
+      ccf::LoggerLevel log_level,
       size_t num_worker_thread,
       void* time_location,
       const ccf::ds::WorkBeaconPtr& work_beacon)
@@ -128,8 +128,8 @@ namespace host
     startup_snapshot.data(), startup_snapshot.size(), node_cert.data(), \
     node_cert.size(), &node_cert_len, service_cert.data(), \
     service_cert.size(), &service_cert_len, enclave_version_buf.data(), \
-    enclave_version_buf.size(), &enclave_version_len, start_type, \
-    enclave_log_level, num_worker_thread, time_location, work_beacon
+    enclave_version_buf.size(), &enclave_version_len, start_type, log_level, \
+    num_worker_thread, time_location, work_beacon
 
       oe_result_t err = OE_FAILURE;
 

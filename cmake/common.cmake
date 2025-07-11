@@ -51,22 +51,6 @@ function(add_test_bin name)
   add_san(${name})
 endfunction()
 
-# Helper for building clients inheriting from perf_client
-function(add_client_exe name)
-
-  cmake_parse_arguments(
-    PARSE_ARGV 1 PARSED_ARGS "" "" "SRCS;INCLUDE_DIRS;LINK_LIBS"
-  )
-
-  add_executable(${name} ${PARSED_ARGS_SRCS})
-
-  target_link_libraries(${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto)
-  target_include_directories(
-    ${name} PRIVATE ${CCF_DIR}/src/clients/perf ${PARSED_ARGS_INCLUDE_DIRS}
-  )
-
-endfunction()
-
 # Helper for building end-to-end function tests using the python infrastructure
 function(add_e2e_test)
   cmake_parse_arguments(
@@ -176,65 +160,6 @@ function(add_e2e_test)
       )
     endif()
   endif()
-endfunction()
-
-# Helper for building end-to-end perf tests using the python infrastucture
-function(add_perf_test)
-
-  cmake_parse_arguments(
-    PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;PERF_LABEL" "ADDITIONAL_ARGS"
-  )
-
-  if(NOT PARSED_ARGS_CONSTITUTION)
-    set(PARSED_ARGS_CONSTITUTION ${CCF_NETWORK_TEST_DEFAULT_CONSTITUTION})
-  endif()
-
-  set(TEST_NAME "${PARSED_ARGS_NAME}")
-
-  if(NOT PARSED_ARGS_PERF_LABEL)
-    set(PARSED_ARGS_PERF_LABEL ${TEST_NAME})
-  endif()
-
-  add_test(
-    NAME "${PARSED_ARGS_NAME}"
-    COMMAND
-      ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-      ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --write-tx-times
-      --label ${TEST_NAME} --snapshot-tx-interval 10000 --perf-label
-      ${PARSED_ARGS_PERF_LABEL} ${PARSED_ARGS_ADDITIONAL_ARGS} ${NODES}
-    CONFIGURATIONS perf
-  )
-
-  # Make python test client framework importable
-  set_property(
-    TEST ${TEST_NAME}
-    APPEND
-    PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
-  )
-
-  set_property(
-    TEST ${TEST_NAME}
-    APPEND
-    PROPERTY LABELS perf
-  )
-  set_property(
-    TEST ${TEST_NAME}
-    APPEND
-    PROPERTY ENVIRONMENT
-             "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
-  )
-  set_property(
-    TEST ${TEST_NAME}
-    APPEND
-    PROPERTY ENVIRONMENT "ASAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
-  )
-
-  set_property(
-    TEST ${TEST_NAME}
-    APPEND
-    PROPERTY ENVIRONMENT "TSAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
-  )
 endfunction()
 
 # Helper for building end-to-end perf tests using the python infrastucture
