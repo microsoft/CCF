@@ -890,7 +890,8 @@ namespace ccf::js::extensions
         auto algo_name = *algo_name_str;
         auto algo_hash = *algo_hash_str;
 
-        ccf::crypto::MDType mdtype = {};
+        ccf::crypto::MDType mdtype = ccf::crypto::MDType::NONE;
+
         if (algo_hash == "SHA-256")
         {
           mdtype = ccf::crypto::MDType::SHA256;
@@ -906,9 +907,12 @@ namespace ccf::js::extensions
           mdtype = ccf::crypto::MDType::SHA512;
         }
 
-        return JS_ThrowRangeError(
-          ctx,
-          "Unsupported hash algorithm, supported: SHA-256, SHA-384, SHA-512");
+        if (mdtype == ccf::crypto::MDType::NONE)
+        {
+          return JS_ThrowRangeError(
+            ctx,
+            "Unsupported hash algorithm, supported: SHA-256, SHA-384, SHA-512");
+        }
 
         if (algo_name == "ECDSA")
         {

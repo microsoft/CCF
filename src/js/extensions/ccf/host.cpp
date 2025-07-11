@@ -15,8 +15,6 @@ namespace ccf::js::extensions
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
       (void)this_val;
-      (void)argc;
-      (void)argv;
 
       js::core::Context& jsctx =
         *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
@@ -40,7 +38,7 @@ namespace ccf::js::extensions
       {
         size_t size = 0;
         uint8_t* buf = JS_GetArrayBuffer(ctx, &size, argv[1]);
-        if (buf != nullptr)
+        if (buf == nullptr)
         {
           return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
         }
