@@ -27,21 +27,18 @@ namespace ccf::kv
 
     size_t get_unchunked_size(Version up_to) const
     {
-      decltype(transaction_sizes)::const_iterator begin;
-      if (!chunk_ends.empty())
+      auto begin = transaction_sizes.cbegin();
+      auto end = transaction_sizes.upper_bound(up_to);
+
+      auto chunk_before = chunk_ends.lower_bound(up_to);
+      if (chunk_before != chunk_ends.begin())
       {
-        begin = transaction_sizes.upper_bound(*chunk_ends.rbegin());
-      }
-      else
-      {
-        begin = transaction_sizes.cbegin();
+        std::advance(chunk_before, -1);
+        begin = transaction_sizes.upper_bound(*chunk_before);
       }
 
       return std::accumulate(
-        begin,
-        transaction_sizes.upper_bound(up_to),
-        0,
-        [](size_t n, const auto& p) { return n + p.second; });
+        begin, end, 0, [](size_t n, const auto& p) { return n + p.second; });
     }
 
   public:
@@ -74,13 +71,27 @@ namespace ccf::kv
 
     bool is_chunk_end_requested(Version v) override
     {
-      const auto it = forced_chunk_versions.lower_bound(v);
-      if (it != forced_chunk_versions.end())
+      if (!forced_chunk_versions.empty())
       {
-        return true;
+        // There is an outstanding forced-chunk request for this if there is a
+        // forced-chunk request at f <= v, and no chunk_end >= f
+
+        // upper_bound > v
+        auto forced_it = forced_chunk_versions.upper_bound(v);
+        if (forced_it != forced_chunk_versions.begin())
+        {
+          // There is some f before forced_it, which is <= v
+          std::advance(forced_it, -1);
+          Version f = *forced_it;
+
+          const auto ender_it = chunk_ends.lower_bound(f);
+          if (ender_it == chunk_ends.end())
+          {
+            return true;
+          }
+        }
       }
 
-      const auto us = get_unchunked_size(v);
       return get_unchunked_size(v) >= chunk_threshold;
     }
 

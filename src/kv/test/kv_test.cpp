@@ -3242,6 +3242,7 @@ TEST_CASE("Ledger entry chunk request")
     }
 
     // Ledger chunk flag is not set in the store anymore
+    chunker->produced_chunk_at(store.current_version());
     REQUIRE(!store.should_create_ledger_chunk(store.current_version()));
   }
 

@@ -372,7 +372,8 @@ TEST_CASE("LedgerChunker")
         "When a chunk is produced, we re-calculate whether a chunk is "
         "requested");
       chunker.produced_chunk_at(3);
-      REQUIRE_FALSE(chunker.is_chunk_end_requested(3));
+      REQUIRE(chunker.is_chunk_end_requested(3));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(4));
     }
 
     {
@@ -388,33 +389,36 @@ TEST_CASE("LedgerChunker")
 
       // ## ## #| #### #### ###### ##### ##|
       chunker.produced_chunk_at(8);
-      REQUIRE_FALSE(chunker.is_chunk_end_requested(8));
     }
 
     {
       INFO("Chunks can be explicitly requested");
-      // ## ## #| #### #### ###### ##### ##| #!
+      // ## ## #| #### #### ###### ##### ##| #
       REQUIRE_FALSE(chunker.is_chunk_end_requested(9));
-      chunker.force_end_of_chunk(9);
       chunker.append_entry_size(1);
+
+      // ## ## #| #### #### ###### ##### ##| #?
+      chunker.force_end_of_chunk(9);
       REQUIRE(chunker.is_chunk_end_requested(9));
 
+      // ## ## #| #### #### ###### ##### ##| #!
       chunker.produced_chunk_at(9);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(9));
     }
 
     {
       INFO("Rollbacks are accurately tracked");
-      // ## ## #| #### #### ###### ##### ##| #! ### ##
+      // ## ## #| #### #### ###### ##### ##| #! ### ## #####
       chunker.append_entry_size(3);
       chunker.append_entry_size(2);
-      REQUIRE(chunker.is_chunk_end_requested(11));
-
-      // ## ## #| #### #### ###### ##### ##| #! ### ## #####
       chunker.append_entry_size(5);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(10));
+      REQUIRE(chunker.is_chunk_end_requested(11));
       REQUIRE(chunker.is_chunk_end_requested(12));
 
       // ## ## #| #### #### ###### ##### ##| #! ### ##
       chunker.rolled_back_to(11);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(10));
       REQUIRE(chunker.is_chunk_end_requested(11));
 
       // ## ## #| #### #### ###### ##### ##| #! ###
@@ -425,7 +429,7 @@ TEST_CASE("LedgerChunker")
       // ## ## #| #### #### ###### ##### ##| #! ### # #
       chunker.append_entry_size(1);
       chunker.append_entry_size(1);
-
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(10));
       REQUIRE_FALSE(chunker.is_chunk_end_requested(11));
       REQUIRE(chunker.is_chunk_end_requested(12));
     }
@@ -508,7 +512,8 @@ TEST_CASE("LedgerChunker")
 
       // 6 7      8    9   10 11 12 13  14
       // # #####| ###! ### #  #  #| ##! ####
-      REQUIRE(chunker.is_chunk_end_requested(13));
+
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(13));
       REQUIRE_FALSE(chunker.is_chunk_end_requested(14));
 
       // Only compacts to the latest known chunk boundary so we can accurately
@@ -516,18 +521,75 @@ TEST_CASE("LedgerChunker")
       // 9   10 11 12 13  14
       // ### #  #  #| ##! ####
       chunker.compacted_to(10);
-      REQUIRE(chunker.is_chunk_end_requested(13));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(13));
       REQUIRE_FALSE(chunker.is_chunk_end_requested(14));
 
       // 9   10
       // ### #
       chunker.rolled_back_to(10);
-      REQUIRE_FALSE(chunker.is_chunk_end_requested(11));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(9));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(10));
 
       // 9   10 11
       // ### #  ##
       chunker.append_entry_size(2);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(9));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(10));
       REQUIRE(chunker.is_chunk_end_requested(11));
+
+      // 9   10 11
+      // ### #  ##|
+      chunker.produced_chunk_at(11);
+    }
+
+    {
+      INFO("Explicit requests correctly affect other transactions");
+      chunker.append_entry_size(1); // 12
+      chunker.append_entry_size(1); // 13
+      chunker.append_entry_size(1); // 14
+      chunker.append_entry_size(1); // 15
+      chunker.append_entry_size(1); // 16
+      chunker.append_entry_size(1); // 17
+      chunker.append_entry_size(1); // 18
+
+      // Note this execution order shouldn't happen in-practice, but since
+      // LedgerChunker aims to be permissive we can test the behaviour here
+      chunker.force_end_of_chunk(14);
+      chunker.force_end_of_chunk(17);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(12));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(13));
+      REQUIRE(chunker.is_chunk_end_requested(14));
+      REQUIRE(chunker.is_chunk_end_requested(15));
+      REQUIRE(chunker.is_chunk_end_requested(16));
+      REQUIRE(chunker.is_chunk_end_requested(17));
+      REQUIRE(chunker.is_chunk_end_requested(18));
+
+      chunker.produced_chunk_at(15);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(12));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(13));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(14));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(15));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(16));
+      REQUIRE(chunker.is_chunk_end_requested(17));
+      REQUIRE(chunker.is_chunk_end_requested(18));
+
+      chunker.produced_chunk_at(16);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(12));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(13));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(14));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(15));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(16));
+      REQUIRE(chunker.is_chunk_end_requested(17));
+      REQUIRE(chunker.is_chunk_end_requested(18));
+
+      chunker.produced_chunk_at(17);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(12));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(13));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(14));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(15));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(16));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(17));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(18));
     }
   }
 }
