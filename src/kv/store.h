@@ -8,6 +8,7 @@
 #include "ccf/pal/locking.h"
 #include "deserialise.h"
 #include "kv/committable_tx.h"
+#include "kv/ledger_chunker_interface.h"
 #include "kv/snapshot.h"
 #include "kv/untyped_map.h"
 #include "kv_serialiser.h"
@@ -93,6 +94,7 @@ namespace ccf::kv
 
     std::shared_ptr<Consensus> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
+    std::shared_ptr<ILedgerChunker> chunker = nullptr;
     EncryptorPtr encryptor = nullptr;
     SnapshotterPtr snapshotter = nullptr;
 
@@ -108,6 +110,9 @@ namespace ccf::kv
 
     // Ledger entry header flags
     uint8_t flags = 0;
+
+    size_t size_since_chunk = 0;
+    size_t chunk_threshold = 0;
 
     bool commit_deserialised(
       OrderedChanges& changes,
@@ -201,6 +206,16 @@ namespace ccf::kv
     void set_history(const std::shared_ptr<TxHistory>& history_)
     {
       history = history_;
+    }
+
+    std::shared_ptr<ILedgerChunker> get_chunker() override
+    {
+      return chunker;
+    }
+
+    void set_chunker(const std::shared_ptr<ILedgerChunker>& chunker_)
+    {
+      chunker = chunker_;
     }
 
     void set_encryptor(const EncryptorPtr& encryptor_)
@@ -537,6 +552,11 @@ namespace ccf::kv
         snapshotter->commit(v, generate_snapshot);
       }
 
+      if (chunker)
+      {
+        chunker->compacted_to(v);
+      }
+
       std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
 
       if (v > current_version())
@@ -591,6 +611,11 @@ namespace ccf::kv
         snapshotter->rollback(tx_id.version);
       }
 
+      if (chunker)
+      {
+        chunker->rolled_back_to(tx_id.version);
+      }
+
       std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
 
       {
@@ -623,7 +648,6 @@ namespace ccf::kv
 
         version = tx_id.version;
         last_replicated = tx_id.version;
-        unset_flag_unsafe(StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
         unset_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
@@ -801,7 +825,12 @@ namespace ccf::kv
       const std::optional<TxID>& expected_txid = std::nullopt) override
     {
       auto exec = std::make_unique<CFTExecutionWrapper>(
-        this, get_history(), std::move(data), public_only, expected_txid);
+        this,
+        get_history(),
+        get_chunker(),
+        std::move(data),
+        public_only,
+        expected_txid);
       return exec;
     }
 
@@ -984,6 +1013,11 @@ namespace ccf::kv
             replication_view);
         }
 
+        if (chunker)
+        {
+          chunker->append_entry_size(data_shared->size());
+        }
+
         LOG_DEBUG_FMT(
           "Batching {} ({}) during commit of {}.{}",
           last_replicated + offset,
@@ -1014,19 +1048,23 @@ namespace ccf::kv
       }
     }
 
-    bool must_force_ledger_chunk(Version version) override
+    bool should_create_ledger_chunk(Version version) override
     {
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-      return must_force_ledger_chunk_unsafe(version);
+      return should_create_ledger_chunk_unsafe(version);
     }
 
-    bool must_force_ledger_chunk_unsafe(Version version) override
+    bool should_create_ledger_chunk_unsafe(Version version) override
     {
       // Note that snapshotter->record_committable, and therefore this function,
       // assumes that `version` is a committable entry/signature.
 
-      bool r = flag_enabled_unsafe(StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE) ||
-        flag_enabled_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      bool r = flag_enabled_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+
+      if (chunker)
+      {
+        r |= chunker->is_chunk_end_requested(version);
+      }
 
       if (snapshotter)
       {

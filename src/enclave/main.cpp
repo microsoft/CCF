@@ -162,6 +162,7 @@ extern "C"
         ringbuffer_logger,
         cc.ledger_signatures.tx_count,
         cc.ledger_signatures.delay.count_ms(),
+        cc.ledger.chunk_size,
         cc.consensus,
         cc.node_certificate.curve_id,
         work_beacon);
