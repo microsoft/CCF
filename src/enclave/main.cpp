@@ -24,8 +24,10 @@ std::atomic<uint16_t> num_complete_threads = 0;
 std::unique_ptr<threading::ThreadMessaging>
   threading::ThreadMessaging::singleton = nullptr;
 
+constexpr size_t min_gap_between_initiation_attempts_us =
+  2'000'000; // 2 seconds
 std::chrono::microseconds ccf::Channel::min_gap_between_initiation_attempts(
-  2'000'000);
+  min_gap_between_initiation_attempts_us);
 
 extern "C"
 {
@@ -78,7 +80,7 @@ extern "C"
     // Note: because logger uses ringbuffer, logger can only be initialised once
     // ringbuffer memory has been verified
     auto new_logger = std::make_unique<ccf::RingbufferLogger>(*writer_factory);
-    auto ringbuffer_logger = new_logger.get();
+    auto* ringbuffer_logger = new_logger.get();
     ccf::logger::config::loggers().push_back(std::move(new_logger));
 
     {
@@ -92,8 +94,10 @@ extern "C"
         return CreateNodeStatus::VersionMismatch;
       }
 
+      // NOLINTBEGIN(bugprone-not-null-terminated-result)
       ::memcpy(
         enclave_version, ccf_version_string.data(), ccf_version_string.size());
+      // NOLINTEND(bugprone-not-null-terminated-result)
       *enclave_version_len = ccf_version_string.size();
 
       num_pending_threads = (uint16_t)num_worker_threads + 1;
@@ -150,6 +154,7 @@ extern "C"
 
     try
     {
+      // NOLINTBEGIN(cppcoreguidelines-owning-memory)
       enclave = new ccf::Enclave(
         std::move(circuit),
         std::move(basic_writer_factory),
@@ -161,6 +166,7 @@ extern "C"
         cc.consensus,
         cc.node_certificate.curve_id,
         work_beacon);
+      // NOLINTEND(cppcoreguidelines-owning-memory)
     }
     catch (const ccf::ccf_openssl_rdrand_init_error& e)
     {
@@ -202,13 +208,17 @@ extern "C"
     }
     catch (...)
     {
+      // NOLINTBEGIN(cppcoreguidelines-owning-memory)
       delete enclave;
+      // NOLINTEND(cppcoreguidelines-owning-memory)
       throw;
     }
 
     if (status != CreateNodeStatus::OK)
     {
+      // NOLINTBEGIN(cppcoreguidelines-owning-memory)
       delete enclave;
+      // NOLINTEND(cppcoreguidelines-owning-memory)
       return status;
     }
 
@@ -228,7 +238,7 @@ extern "C"
   {
     if (e.load() != nullptr)
     {
-      uint16_t tid;
+      uint16_t tid = 0;
       {
         std::lock_guard<ccf::pal::Mutex> guard(create_lock);
 
@@ -254,16 +264,10 @@ extern "C"
         threading::ThreadMessaging::shutdown();
         return s;
       }
-      else
-      {
-        auto s = e.load()->run_worker();
-        num_complete_threads.fetch_add(1);
-        return s;
-      }
+      auto s = e.load()->run_worker();
+      num_complete_threads.fetch_add(1);
+      return s;
     }
-    else
-    {
-      return false;
-    }
+    return false;
   }
 }

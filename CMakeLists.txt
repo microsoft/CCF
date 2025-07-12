@@ -491,6 +491,7 @@ target_link_libraries(
 
 set_property(TARGET ccf PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_san(ccf)
+add_tidy(ccf)
 
 if(CCF_DEVEL)
   install(

@@ -82,7 +82,7 @@ namespace ccf
     {
       UsefulBufC msg{uvm_endorsements_raw.data(), uvm_endorsements_raw.size()};
 
-      QCBORError qcbor_result;
+      QCBORError qcbor_result = QCBOR_SUCCESS;
 
       QCBORDecodeContext ctx;
       QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
@@ -100,10 +100,10 @@ namespace ccf
         throw COSEDecodeError("Failed to parse COSE_Sign1 tag");
       }
 
-      struct q_useful_buf_c protected_parameters;
+      struct q_useful_buf_c protected_parameters = {};
       QCBORDecode_EnterBstrWrapped(
         &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
-      QCBORDecode_EnterMap(&ctx, NULL);
+      QCBORDecode_EnterMap(&ctx, nullptr);
 
       enum
       {
@@ -220,6 +220,7 @@ namespace ccf
     }
 
     std::vector<std::string> pem_chain;
+    pem_chain.reserve(phdr.x5_chain.size());
     for (auto const& c : phdr.x5_chain)
     {
       pem_chain.emplace_back(ccf::crypto::cert_der_to_pem(c).str());
