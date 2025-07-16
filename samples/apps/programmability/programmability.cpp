@@ -49,7 +49,7 @@ namespace programmabilityapp
   {
     using RoleSet = ccf::kv::Set<std::string>;
 
-    auto users_handle = tx.ro<ccf::UserInfo>(ccf::Tables::USER_INFO);
+    auto * users_handle = tx.ro<ccf::UserInfo>(ccf::Tables::USER_INFO);
     const auto user_info = users_handle->get(user_id);
     if (user_info.has_value())
     {
@@ -59,7 +59,7 @@ namespace programmabilityapp
         const auto roles = roles_it->get<std::vector<std::string>>();
         for (const auto& role : roles)
         {
-          auto role_handle = tx.ro<RoleSet>(
+          auto * role_handle = tx.ro<RoleSet>(
             fmt::format("public:programmability.roles.{}", role));
           if (role_handle->contains(action))
           {
