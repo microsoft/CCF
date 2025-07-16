@@ -181,8 +181,7 @@ namespace nobuiltins
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           fmt::format(
-            "Failed to generate OpenAPI: {}",
-            ccf::api_result_to_str(result)));
+            "Failed to generate OpenAPI: {}", ccf::api_result_to_str(result)));
       };
       make_endpoint(
         "/api", HTTP_GET, ccf::json_adapter(openapi), ccf::no_auth_required)
@@ -274,7 +273,9 @@ namespace nobuiltins
         .set_auto_schema<void, TransactionIDResponse>()
         .install();
 
-      auto get_time = [this]([[maybe_unused]] auto& ctx, [[maybe_unused]] nlohmann::json&& req) {
+      auto get_time = [this](
+                        [[maybe_unused]] auto& ctx,
+                        [[maybe_unused]] nlohmann::json&& req) {
         ::timespec time = {};
         ccf::ApiResult result = get_untrusted_host_time_v1(time);
         if (result != ccf::ApiResult::OK)
