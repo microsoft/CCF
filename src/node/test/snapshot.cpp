@@ -14,9 +14,6 @@
 #undef FAIL
 #include <string>
 
-std::unique_ptr<threading::ThreadMessaging>
-  threading::ThreadMessaging::singleton = nullptr;
-
 TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 {
   auto source_consensus = std::make_shared<ccf::kv::test::StubConsensus>();

@@ -237,7 +237,11 @@ namespace threading
       return tasks[task_id];
     }
 
-    static std::unique_ptr<ThreadMessaging> singleton;
+    static std::unique_ptr<ThreadMessaging>& get_singleton()
+    {
+      static std::unique_ptr<ThreadMessaging> singleton = nullptr;
+      return singleton;
+    }
 
   public:
     static constexpr uint16_t max_num_threads = 24;
@@ -262,6 +266,7 @@ namespace threading
 
     static void init(uint16_t num_task_queues)
     {
+      auto& singleton = get_singleton();
       if (singleton != nullptr)
       {
         throw std::logic_error("Called init() multiple times");
@@ -272,11 +277,12 @@ namespace threading
 
     static void shutdown()
     {
-      singleton.reset();
+      get_singleton().reset();
     }
 
     static ThreadMessaging& instance()
     {
+      auto& singleton = get_singleton();
       if (singleton == nullptr)
       {
         throw std::logic_error(
