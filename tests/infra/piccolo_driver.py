@@ -192,8 +192,6 @@ def run(get_command, args):
                     time.sleep(5)
 
                 perf_label = args.perf_label
-                if infra.platform_detection.is_virtual():
-                    perf_label += "_virtual"
 
                 for remote_client in clients:
                     analysis = analyzer.Analyze()
