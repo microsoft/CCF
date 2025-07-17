@@ -4,6 +4,7 @@
 
 #include "ccf/service/consensus_type.h"
 #include "common/enclave_interface_types.h"
+#include "enclave/entry_points.h"
 
 #include <dlfcn.h>
 #include <stdlib.h>
@@ -86,32 +87,7 @@ extern "C"
     void* time_location,
     const ccf::ds::WorkBeaconPtr& work_beacon)
   {
-    using create_node_func_t = CreateNodeStatus (*)(
-      void*,
-      uint8_t*,
-      size_t,
-      uint8_t*,
-      size_t,
-      uint8_t*,
-      size_t,
-      size_t*,
-      uint8_t*,
-      size_t,
-      size_t*,
-      uint8_t*,
-      size_t,
-      size_t*,
-      StartType,
-      ccf::LoggerLevel,
-      size_t,
-      void*,
-      const ccf::ds::WorkBeaconPtr&);
-
-    static create_node_func_t create_node_func =
-      get_enclave_exported_function<create_node_func_t>(
-        virtual_enclave_handle, "enclave_create_node");
-
-    CreateNodeStatus status = create_node_func(
+    CreateNodeStatus status = enclave_create_node(
       enclave_config,
       ccf_config,
       ccf_config_size,
@@ -137,12 +113,7 @@ extern "C"
 
   inline bool virtual_run(void* virtual_enclave_handle)
   {
-    using run_func_t = bool (*)();
-
-    static run_func_t run_func = get_enclave_exported_function<run_func_t>(
-      virtual_enclave_handle, "enclave_run");
-
-    bool retval = run_func();
+    bool retval = enclave_run();
     return retval;
   }
 

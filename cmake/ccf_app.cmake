@@ -21,8 +21,9 @@ function(add_ccf_app name)
     "SRCS;INCLUDE_DIRS;SYSTEM_INCLUDE_DIRS;LINK_LIBS;DEPS;INSTALL_LIBS"
   )
 
-  # Build app "enclave", loaded as a shared library
+  # Build app library
   add_library(${name} SHARED ${PARSED_ARGS_SRCS})
+
 
   target_include_directories(${name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS})
   target_include_directories(
@@ -54,6 +55,9 @@ function(add_ccf_app name)
     install(TARGETS ${name} DESTINATION lib)
   endif()
 
+  # Build app executable
+  add_executable(cchost_${name} ${CCF_DIR}/src/host/main.cpp)
+  target_link_libraries(cchost_${name} PRIVATE ${name} cchost)
 endfunction()
 
 function(add_host_library name)

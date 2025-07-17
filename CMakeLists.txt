@@ -243,11 +243,11 @@ else()
   list(APPEND CCHOST_SOURCES src/host/snmalloc.cpp)
 endif()
 
-list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/main.cpp
+list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/entry_point.cpp
      ${CCF_DIR}/src/host/env.cpp
 )
 
-add_executable(cchost ${CCHOST_SOURCES})
+add_library(cchost SHARED ${CCHOST_SOURCES})
 
 add_warning_checks(cchost)
 add_san(cchost)
