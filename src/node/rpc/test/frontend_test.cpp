@@ -26,12 +26,6 @@
 #include <iostream>
 #include <string>
 
-namespace threading
-{
-  std::unique_ptr<::threading::ThreadMessaging> ThreadMessaging::singleton =
-    nullptr;
-};
-
 using namespace ccf;
 using namespace std;
 
