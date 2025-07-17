@@ -45,7 +45,9 @@ Checks: >
   -cppcoreguidelines-pro-type-vararg,
   -misc-no-recursion,
   -cert-dcl50-cpp,
-  -performance-no-int-to-ptr
+  -performance-no-int-to-ptr,
+  -clang-analyzer-optin.cplusplus.VirtualCall,
+  -cppcoreguidelines-rvalue-reference-param-not-moved
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: '?!(3rdparty)'

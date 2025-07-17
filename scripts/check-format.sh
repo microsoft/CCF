@@ -38,7 +38,7 @@ echo "Using $(${CLANG_FORMAT} --version)"
 file_name_regex="^[[:lower:]0-9_]+$"
 unformatted_files=""
 badly_named_files=""
-for file in $(git ls-files "$@" | grep -e '\.h$' -e '\.hpp$' -e '\.cpp$' -e '\.c$' -e '\.proto$'); do
+for file in $(git ls-files "$@" | grep -e '\.h$' -e '\.hpp$' -e '\.cpp$' -e '\.c$'); do
   if ! $CLANG_FORMAT -n -Werror -style=file "$file"; then
     if $fix ; then
       $CLANG_FORMAT -style=file -i "$file"

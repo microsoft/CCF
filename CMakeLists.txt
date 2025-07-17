@@ -249,9 +249,9 @@ list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/main.cpp
 
 add_executable(cchost ${CCHOST_SOURCES})
 
-add_warning_checks(cchost)
 add_san(cchost)
 add_tidy(cchost)
+add_warning_checks(cchost)
 
 target_compile_options(
   cchost PRIVATE ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
@@ -310,11 +310,13 @@ set(CCF_JS_SOURCES
 )
 
 add_host_library(ccf_js "${CCF_JS_SOURCES}")
+
 add_san(ccf_js)
 add_tidy(ccf_js)
+add_warning_checks(ccf_js)
+
 target_link_libraries(ccf_js PUBLIC ccfcrypto quickjs)
 target_compile_definitions(ccf_js PRIVATE CCF_LOGGER_NO_DEPRECATE)
-add_warning_checks(ccf_js)
 if(CCF_DEVEL)
   install(
     TARGETS ccf_js
@@ -330,9 +332,11 @@ set(CCF_KV_SOURCES
 )
 
 add_host_library(ccf_kv "${CCF_KV_SOURCES}")
+
 add_san(ccf_kv)
-add_warning_checks(ccf_kv)
 add_tidy(ccf_kv)
+add_warning_checks(ccf_kv)
+
 target_compile_definitions(ccf_kv PRIVATE CCF_LOGGER_NO_DEPRECATE)
 if(CCF_DEVEL)
   install(
@@ -345,12 +349,14 @@ endif()
 # CCF endpoints lib
 add_host_library(ccf_endpoints "${CCF_ENDPOINTS_SOURCES}")
 target_include_directories(ccf_endpoints PRIVATE ${CCF_DIR}/src/endpoints)
-add_tidy(ccf_endpoints)
 target_link_libraries(
   ccf_endpoints PUBLIC qcbor t_cose http_parser ccfcrypto ccf_kv
 )
+
 add_san(ccf_endpoints)
+add_tidy(ccf_endpoints)
 add_warning_checks(ccf_endpoints)
+
 target_compile_definitions(ccf_endpoints PRIVATE CCF_LOGGER_NO_DEPRECATE)
 if(CCF_DEVEL)
   install(
@@ -464,7 +470,6 @@ add_library(ccf STATIC ${CCF_IMPL_SOURCE})
 target_compile_definitions(ccf PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE)
 
 target_compile_options(ccf PUBLIC ${COMPILE_LIBCXX})
-add_warning_checks(ccf)
 target_compile_definitions(ccf PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 target_include_directories(
@@ -490,8 +495,10 @@ target_link_libraries(
 )
 
 set_property(TARGET ccf PROPERTY POSITION_INDEPENDENT_CODE ON)
+
 add_san(ccf)
 add_tidy(ccf)
+add_warning_checks(ccf)
 
 if(CCF_DEVEL)
   install(
