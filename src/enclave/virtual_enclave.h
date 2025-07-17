@@ -29,37 +29,10 @@ T get_enclave_exported_function(
   return (T)sym;
 }
 
-// If this build does not also include OE definitions, then recreate them here.
-// It should not matter if these do not match precisely OE's, so long as they
-// can be used consistently by the virtual build.
-using oe_result_t = int;
-constexpr oe_result_t OE_OK = 0;
-constexpr oe_result_t OE_FAILURE = 1;
-
-using oe_enclave_t = void;
-using oe_log_level_t = size_t;
-
-enum oe_enclave_type_t
-{
-  OE_ENCLAVE_TYPE_SGX = 2,
-};
-
-#define oe_result_str(x) x
-
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-
-  typedef void (*oe_ocall_func_t)(
-    const uint8_t* input_buffer,
-    size_t input_buffer_size,
-    uint8_t* output_buffer,
-    size_t output_buffer_size,
-    size_t* output_bytes_written);
-
-  /*ocall function table*/
-  static oe_ocall_func_t __ccf_ocall_function_table[] = {nullptr};
 
   inline void* load_virtual_enclave(const char* path)
   {
@@ -91,9 +64,8 @@ extern "C"
     }
   }
 
-  inline oe_result_t virtual_create_node(
+  inline CreateNodeStatus virtual_create_node(
     void* virtual_enclave_handle,
-    CreateNodeStatus* status,
     void* enclave_config,
     uint8_t* ccf_config,
     size_t ccf_config_size,
@@ -139,7 +111,7 @@ extern "C"
       get_enclave_exported_function<create_node_func_t>(
         virtual_enclave_handle, "enclave_create_node");
 
-    *status = create_node_func(
+    CreateNodeStatus status = create_node_func(
       enclave_config,
       ccf_config,
       ccf_config_size,
@@ -160,26 +132,18 @@ extern "C"
       time_location,
       work_beacon);
 
-    // Only return OE_OK when the error isn't OE related
-    switch (*status)
-    {
-      case CreateNodeStatus::EnclaveInitFailed:
-      case CreateNodeStatus::MemoryNotOutsideEnclave:
-        return OE_FAILURE;
-      default:
-        return OE_OK;
-    }
+    return status;
   }
 
-  inline oe_result_t virtual_run(void* virtual_enclave_handle, bool* _retval)
+  inline bool virtual_run(void* virtual_enclave_handle)
   {
     using run_func_t = bool (*)();
 
     static run_func_t run_func = get_enclave_exported_function<run_func_t>(
       virtual_enclave_handle, "enclave_run");
 
-    *_retval = run_func();
-    return *_retval ? OE_OK : OE_FAILURE;
+    bool retval = run_func();
+    return retval;
   }
 
 #ifdef __cplusplus
