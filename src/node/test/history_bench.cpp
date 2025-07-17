@@ -10,14 +10,6 @@
 #define PICOBENCH_IMPLEMENT
 #include <picobench/picobench.hpp>
 
-std::unique_ptr<threading::ThreadMessaging>
-  threading::ThreadMessaging::singleton = nullptr;
-
-namespace threading
-{
-  std::map<std::thread::id, uint16_t> thread_ids;
-}
-
 using namespace ccf;
 
 class DummyConsensus : public ccf::kv::test::StubConsensus

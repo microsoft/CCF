@@ -21,9 +21,6 @@ static std::atomic<ccf::Enclave*> e;
 std::atomic<uint16_t> num_pending_threads = 0;
 std::atomic<uint16_t> num_complete_threads = 0;
 
-std::unique_ptr<threading::ThreadMessaging>
-  threading::ThreadMessaging::singleton = nullptr;
-
 constexpr size_t min_gap_between_initiation_attempts_us =
   2'000'000; // 2 seconds
 std::chrono::microseconds ccf::Channel::min_gap_between_initiation_attempts(

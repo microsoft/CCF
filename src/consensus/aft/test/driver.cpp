@@ -15,14 +15,6 @@
 
 using namespace std;
 
-std::unique_ptr<threading::ThreadMessaging>
-  threading::ThreadMessaging::singleton = nullptr;
-
-namespace threading
-{
-  std::map<std::thread::id, uint16_t> thread_ids;
-}
-
 constexpr auto shash = ccf::ds::fnv_1a<size_t>;
 
 int main(int argc, char** argv)
