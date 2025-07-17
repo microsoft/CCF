@@ -375,8 +375,6 @@ def run(args):
                     remote_client.stop()
 
                 perf_label = args.perf_label
-                if infra.platform_detection.is_virtual():
-                    perf_label += "_virtual"
 
                 if not args.stop_primary_after_s:
                     primary, _ = network.find_primary()
