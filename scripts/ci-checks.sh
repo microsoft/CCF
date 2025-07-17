@@ -68,9 +68,9 @@ endgroup
 
 group "Release notes"
 if [ $FIX -ne 0 ]; then
-  python3 "$SCRIPT_DIR"/extract-release-notes.py -f
+  "$SCRIPT_DIR"/extract-release-notes.py -f
 else
-  python3 "$SCRIPT_DIR"/extract-release-notes.py
+  "$SCRIPT_DIR"/extract-release-notes.py
 fi
 endgroup
 
