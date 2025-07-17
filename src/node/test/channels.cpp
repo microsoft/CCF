@@ -40,9 +40,6 @@ void sleep_to_reinitiate()
     2 * ccf::Channel::min_gap_between_initiation_attempts);
 }
 
-std::unique_ptr<threading::ThreadMessaging>
-  threading::ThreadMessaging::singleton = nullptr;
-
 class IORingbuffersFixture
 {
 protected:
