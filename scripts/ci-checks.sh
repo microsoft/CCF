@@ -68,19 +68,22 @@ endgroup
 
 group "Release notes"
 if [ $FIX -ne 0 ]; then
-  python3 "$SCRIPT_DIR"/extract-release-notes.py -f
+  "$SCRIPT_DIR"/extract-release-notes.py -f
 else
-  python3 "$SCRIPT_DIR"/extract-release-notes.py
+  "$SCRIPT_DIR"/extract-release-notes.py
 fi
 endgroup
 
-group "C/C++/Proto format"
+group "C/C++ format"
 if [ $FIX -ne 0 ]; then
   "$SCRIPT_DIR"/check-format.sh -f include src samples
 else
   "$SCRIPT_DIR"/check-format.sh include src samples
 fi
 endgroup
+
+group "Headers are included"
+"$SCRIPT_DIR"/headers-are-included.sh
 
 group "TypeScript, JavaScript, Markdown, TypeSpec, YAML and JSON format"
 npm install --loglevel=error --no-save prettier @typespec/prettier-plugin-typespec 1>/dev/null

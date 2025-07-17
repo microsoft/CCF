@@ -13,7 +13,7 @@ namespace nobuiltins
 {
   struct NodeQuote
   {
-    ccf::QuoteFormat quote_format;
+    ccf::QuoteFormat quote_format = ccf::QuoteFormat::insecure_virtual;
     std::vector<uint8_t> quote;
     std::vector<uint8_t> endorsements;
   };
@@ -23,8 +23,8 @@ namespace nobuiltins
 
   struct NodeSummary : public NodeQuote
   {
-    ccf::View committed_view;
-    ccf::SeqNo committed_seqno;
+    ccf::View committed_view = {};
+    ccf::SeqNo committed_seqno = {};
 
     ccf::NodeId node_id;
   };
@@ -72,7 +72,7 @@ namespace nobuiltins
       ccf::BaseEndpointRegistry("app", context)
     {
       auto node_summary = [this](auto& ctx) {
-        ccf::ApiResult result;
+        ccf::ApiResult result = ccf::ApiResult::OK;
 
         NodeSummary summary;
 
@@ -133,7 +133,7 @@ namespace nobuiltins
         .install();
 
       auto all_nodes = [this](auto& ctx) {
-        ccf::ApiResult result;
+        ccf::ApiResult result = ccf::ApiResult::OK;
 
         std::map<ccf::NodeId, ccf::QuoteInfo> node_id_to_quote_info;
         result =
@@ -164,7 +164,7 @@ namespace nobuiltins
         .set_auto_schema<void, AllNodesSummary>()
         .install();
 
-      auto openapi = [this](auto& ctx, nlohmann::json&&) {
+      auto openapi = [this](auto& ctx, [[maybe_unused]] nlohmann::json&& req) {
         nlohmann::json document;
         const auto result = generate_openapi_document_v1(
           ctx.tx,
@@ -177,24 +177,20 @@ namespace nobuiltins
         {
           return ccf::make_success(document);
         }
-        else
-        {
-          return ccf::make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format(
-              "Failed to generate OpenAPI: {}",
-              ccf::api_result_to_str(result)));
-        }
+        return ccf::make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          fmt::format(
+            "Failed to generate OpenAPI: {}", ccf::api_result_to_str(result)));
       };
       make_endpoint(
         "/api", HTTP_GET, ccf::json_adapter(openapi), ccf::no_auth_required)
         .set_auto_schema<void, nlohmann::json>()
         .install();
 
-      auto get_commit = [this](auto&, nlohmann::json&&) {
-        ccf::View view;
-        ccf::SeqNo seqno;
+      auto get_commit = [this](auto&, [[maybe_unused]] nlohmann::json&& req) {
+        ccf::View view = {};
+        ccf::SeqNo seqno = {};
         const auto result = get_last_committed_txid_v1(view, seqno);
 
         if (result == ccf::ApiResult::OK)
@@ -204,15 +200,12 @@ namespace nobuiltins
           out.transaction_id.seqno = seqno;
           return ccf::make_success(out);
         }
-        else
-        {
-          return ccf::make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format(
-              "Failed to get committed transaction: {}",
-              ccf::api_result_to_str(result)));
-        }
+        return ccf::make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          fmt::format(
+            "Failed to get committed transaction: {}",
+            ccf::api_result_to_str(result)));
       };
       make_command_endpoint(
         "/commit",
@@ -222,7 +215,7 @@ namespace nobuiltins
         .set_auto_schema<void, GetCommit>()
         .install();
 
-      auto get_txid = [this](auto& ctx, nlohmann::json&&) {
+      auto get_txid = [this](auto& ctx, [[maybe_unused]] nlohmann::json&& req) {
         const auto query_string = ctx.rpc_ctx->get_request_query();
         const auto query_params = ccf::nonstd::split(query_string, "&");
         for (const auto& query_param : query_params)
@@ -231,7 +224,7 @@ namespace nobuiltins
             ccf::nonstd::split_1(query_param, "=");
           if (query_key == "seqno")
           {
-            ccf::SeqNo seqno;
+            ccf::SeqNo seqno = {};
             const auto qv_begin = query_value.data();
             const auto qv_end = qv_begin + query_value.size();
             const auto [p, ec] = std::from_chars(qv_begin, qv_end, seqno);
@@ -245,7 +238,7 @@ namespace nobuiltins
                   query_value));
             }
 
-            ccf::View view;
+            ccf::View view = {};
             const auto result = get_view_for_seqno_v1(seqno, view);
             if (result == ccf::ApiResult::OK)
             {
@@ -258,15 +251,12 @@ namespace nobuiltins
 
               return ccf::make_success(resp);
             }
-            else
-            {
-              return ccf::make_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                fmt::format(
-                  "Unable to construct TxID: {}",
-                  ccf::api_result_to_str(result)));
-            }
+            return ccf::make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format(
+                "Unable to construct TxID: {}",
+                ccf::api_result_to_str(result)));
           }
         }
 
@@ -283,8 +273,10 @@ namespace nobuiltins
         .set_auto_schema<void, TransactionIDResponse>()
         .install();
 
-      auto get_time = [this](auto& ctx, nlohmann::json&&) {
-        ::timespec time;
+      auto get_time = [this](
+                        [[maybe_unused]] auto& ctx,
+                        [[maybe_unused]] nlohmann::json&& req) {
+        ::timespec time = {};
         ccf::ApiResult result = get_untrusted_host_time_v1(time);
         if (result != ccf::ApiResult::OK)
         {
@@ -295,7 +287,7 @@ namespace nobuiltins
               "Unable to get time: {}", ccf::api_result_to_str(result)));
         }
 
-        std::tm calendar_time;
+        std::tm calendar_time = {};
         gmtime_r(&time.tv_sec, &calendar_time);
 
         // 20 characters for a (timezoneless) ISO 8601 datetime, plus a
@@ -313,8 +305,9 @@ namespace nobuiltins
         // Build full time, with 6 decimals of sub-second precision, and a
         // Python-friendly +00:00 UTC offset
         TimeResponse response;
+        constexpr size_t usec_per_nsec = 1'000;
         response.timestamp =
-          fmt::format("{}.{:06}+00:00", buf, time.tv_nsec / 1'000);
+          fmt::format("{}.{:06}+00:00", buf, time.tv_nsec / usec_per_nsec);
         return ccf::make_success(response);
       };
       make_command_endpoint(
