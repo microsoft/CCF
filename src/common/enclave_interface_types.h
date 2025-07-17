@@ -33,9 +33,6 @@ enum CreateNodeStatus
   /** The reconfiguration method is not supported */
   ReconfigurationMethodNotSupported = 8,
 
-  /** Host and enclave versions must match */
-  VersionMismatch = 9,
-
   /** When reading from host memory, the source must be 8-byte aligned **/
   UnalignedArguments = 10,
 };
@@ -79,10 +76,6 @@ constexpr char const* create_node_result_to_str(CreateNodeStatus result)
     case CreateNodeStatus::ReconfigurationMethodNotSupported:
     {
       return "ReconfigurationMethodNotSupported";
-    }
-    case CreateNodeStatus::VersionMismatch:
-    {
-      return "VersionMismatch";
     }
     case CreateNodeStatus::UnalignedArguments:
     {

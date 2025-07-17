@@ -32,20 +32,11 @@ std::chrono::microseconds ccf::Channel::min_gap_between_initiation_attempts(
 extern "C"
 {
   CreateNodeStatus enclave_create_node(
-    void* enclave_config,
-    uint8_t* ccf_config,
-    size_t ccf_config_size,
-    uint8_t* startup_snapshot_data,
-    size_t startup_snapshot_size,
-    uint8_t* node_cert,
-    size_t node_cert_size,
-    size_t* node_cert_len,
-    uint8_t* service_cert,
-    size_t service_cert_size,
-    size_t* service_cert_len,
-    uint8_t* enclave_version,
-    size_t enclave_version_size,
-    size_t* enclave_version_len,
+    const EnclaveConfig& enclave_config,
+    const ccf::StartupConfig& ccf_config,
+    std::vector<uint8_t>&& startup_snapshot,
+    std::vector<uint8_t>& node_cert,
+    std::vector<uint8_t>& service_cert,
     StartType start_type,
     ccf::LoggerLevel log_level,
     size_t num_worker_threads,
@@ -59,23 +50,21 @@ extern "C"
       return CreateNodeStatus::NodeAlreadyCreated;
     }
 
-    EnclaveConfig ec = *static_cast<EnclaveConfig*>(enclave_config);
-
     // Setup logger to allow enclave logs to reach the host before node is
     // actually created
     auto circuit = std::make_unique<ringbuffer::Circuit>(
       ringbuffer::BufferDef{
-        ec.to_enclave_buffer_start,
-        ec.to_enclave_buffer_size,
-        ec.to_enclave_buffer_offsets},
+        enclave_config.to_enclave_buffer_start,
+        enclave_config.to_enclave_buffer_size,
+        enclave_config.to_enclave_buffer_offsets},
       ringbuffer::BufferDef{
-        ec.from_enclave_buffer_start,
-        ec.from_enclave_buffer_size,
-        ec.from_enclave_buffer_offsets});
+        enclave_config.from_enclave_buffer_start,
+        enclave_config.from_enclave_buffer_size,
+        enclave_config.from_enclave_buffer_offsets});
     auto basic_writer_factory =
       std::make_unique<ringbuffer::WriterFactory>(*circuit);
     auto writer_factory = std::make_unique<oversized::WriterFactory>(
-      *basic_writer_factory, ec.writer_config);
+      *basic_writer_factory, enclave_config.writer_config);
 
     // Note: because logger uses ringbuffer, logger can only be initialised once
     // ringbuffer memory has been verified
@@ -84,22 +73,6 @@ extern "C"
     ccf::logger::config::loggers().push_back(std::move(new_logger));
 
     {
-      auto ccf_version_string = std::string(ccf::ccf_version);
-      if (ccf_version_string.size() > enclave_version_size)
-      {
-        LOG_FAIL_FMT(
-          "Version mismatch: host {}, enclave {}",
-          ccf_version_string,
-          std::string(enclave_version, enclave_version + enclave_version_size));
-        return CreateNodeStatus::VersionMismatch;
-      }
-
-      // NOLINTBEGIN(bugprone-not-null-terminated-result)
-      ::memcpy(
-        enclave_version, ccf_version_string.data(), ccf_version_string.size());
-      // NOLINTEND(bugprone-not-null-terminated-result)
-      *enclave_version_len = ccf_version_string.size();
-
       num_pending_threads = (uint16_t)num_worker_threads + 1;
 
       if (num_pending_threads > threading::ThreadMessaging::max_num_threads)
@@ -116,14 +89,11 @@ extern "C"
         static_cast<decltype(ccf::enclavetime::host_time_us)>(time_location);
     }
 
-    ccf::StartupConfig cc =
-      nlohmann::json::parse(ccf_config, ccf_config + ccf_config_size);
-
     // 2-tx reconfiguration is currently experimental, disable it in release
     // enclaves
     if (
-      cc.start.service_configuration.reconfiguration_type.has_value() &&
-      cc.start.service_configuration.reconfiguration_type.value() !=
+      ccf_config.start.service_configuration.reconfiguration_type.has_value() &&
+      ccf_config.start.service_configuration.reconfiguration_type.value() !=
         ccf::ReconfigurationType::ONE_TRANSACTION)
     {
       LOG_FAIL_FMT(
@@ -160,11 +130,11 @@ extern "C"
         std::move(basic_writer_factory),
         std::move(writer_factory),
         ringbuffer_logger,
-        cc.ledger_signatures.tx_count,
-        cc.ledger_signatures.delay.count_ms(),
-        cc.ledger.chunk_size,
-        cc.consensus,
-        cc.node_certificate.curve_id,
+        ccf_config.ledger_signatures.tx_count,
+        ccf_config.ledger_signatures.delay.count_ms(),
+        ccf_config.ledger.chunk_size,
+        ccf_config.consensus,
+        ccf_config.node_certificate.curve_id,
         work_beacon);
       // NOLINTEND(cppcoreguidelines-owning-memory)
     }
@@ -193,18 +163,12 @@ extern "C"
 
     try
     {
-      std::vector<uint8_t> startup_snapshot(
-        startup_snapshot_data, startup_snapshot_data + startup_snapshot_size);
       status = enclave->create_new_node(
         start_type,
-        std::move(cc),
+        std::move(ccf_config),
         std::move(startup_snapshot),
         node_cert,
-        node_cert_size,
-        node_cert_len,
-        service_cert,
-        service_cert_size,
-        service_cert_len);
+        service_cert);
     }
     catch (...)
     {

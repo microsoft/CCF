@@ -10,23 +10,14 @@
 extern "C"
 {
   CreateNodeStatus enclave_create_node(
-    void* enclave_config,
-    uint8_t* ccf_config,
-    size_t ccf_config_size,
-    uint8_t* startup_snapshot_data,
-    size_t startup_snapshot_size,
-    uint8_t* node_cert,
-    size_t node_cert_size,
-    size_t* node_cert_len,
-    uint8_t* service_cert,
-    size_t service_cert_size,
-    size_t* service_cert_len,
-    uint8_t* enclave_version,
-    size_t enclave_version_size,
-    size_t* enclave_version_len,
+    const EnclaveConfig& enclave_config,
+    const ccf::StartupConfig& ccf_config,
+    std::vector<uint8_t>&& startup_snapshot,
+    std::vector<uint8_t>& node_cert,
+    std::vector<uint8_t>& service_cert,
     StartType start_type,
     ccf::LoggerLevel log_level,
-    size_t num_worker_threads,
+    size_t num_worker_thread,
     void* time_location,
     const ccf::ds::WorkBeaconPtr& work_beacon);
 

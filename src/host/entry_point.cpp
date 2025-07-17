@@ -383,8 +383,6 @@ int start(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     return static_cast<int>(CLI::ExitCodes::ValidationError);
   }
 
-  host::Enclave enclave(enclave_file_path);
-
   // messaging ring buffers
   const auto buffer_size = config.memory.circuit_size;
 
@@ -910,7 +908,7 @@ int start(int argc, char** argv) // NOLINT(bugprone-exception-escape)
       } while (!ecall_completed);
     };
     std::thread flusher_thread(flush_outbound);
-    auto create_status = enclave.create_node(
+    auto create_status = host::Enclave::create_node(
       enclave_config,
       startup_config,
       std::move(startup_snapshot),
@@ -959,7 +957,7 @@ int start(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     auto enclave_thread_start = [&]() {
       try
       {
-        enclave.run();
+        host::Enclave::run();
       }
       catch (const std::exception& e)
       {

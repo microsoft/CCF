@@ -24,7 +24,6 @@ function(add_ccf_app name)
   # Build app library
   add_library(${name} SHARED ${PARSED_ARGS_SRCS})
 
-
   target_include_directories(${name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS})
   target_include_directories(
     ${name} SYSTEM PRIVATE ${PARSED_ARGS_SYSTEM_INCLUDE_DIRS}

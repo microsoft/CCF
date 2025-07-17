@@ -192,19 +192,11 @@ namespace ccf
 
     CreateNodeStatus create_new_node(
       StartType start_type_,
-      ccf::StartupConfig&& ccf_config_,
+      const ccf::StartupConfig& ccf_config_,
       std::vector<uint8_t>&& startup_snapshot,
-      uint8_t* node_cert,
-      size_t node_cert_size,
-      size_t* node_cert_len,
-      uint8_t* service_cert,
-      size_t service_cert_size,
-      size_t* service_cert_len)
+      std::vector<uint8_t>& node_cert,
+      std::vector<uint8_t>& service_cert)
     {
-      // node_cert_size and service_cert_size are ignored here, but we pass them
-      // in because it allows us to set EDL an annotation so that node_cert_len
-      // <= node_cert_size is checked by the EDL-generated wrapper
-
       start_type = start_type_;
 
       rpcsessions->update_listening_interface_options(ccf_config_.network);
@@ -220,13 +212,13 @@ namespace ccf
         std::chrono::milliseconds(ccf_config_.consensus.election_timeout) * 4;
       node->set_n2n_idle_timeout(idle_timeout);
 
-      ccf::NodeCreateInfo r;
+      ccf::NodeCreateInfo create_info;
       try
       {
         LOG_TRACE_FMT(
           "Creating node with start_type {}", start_type_to_str(start_type));
-        r = node->create(
-          start_type, std::move(ccf_config_), std::move(startup_snapshot));
+        create_info =
+          node->create(start_type, ccf_config_, std::move(startup_snapshot));
       }
       catch (const std::exception& e)
       {
@@ -235,35 +227,13 @@ namespace ccf
       }
 
       // Copy node and service certs out
-      if (r.self_signed_node_cert.size() > node_cert_size)
-      {
-        LOG_FAIL_FMT(
-          "Insufficient space ({}) to copy node_cert out ({})",
-          node_cert_size,
-          r.self_signed_node_cert.size());
-        return CreateNodeStatus::InternalError;
-      }
-      pal::safe_memcpy(
-        node_cert,
-        r.self_signed_node_cert.data(),
-        r.self_signed_node_cert.size());
-      *node_cert_len = r.self_signed_node_cert.size();
+      node_cert = create_info.self_signed_node_cert.raw();
 
       if (start_type == StartType::Start || start_type == StartType::Recover)
       {
         // When starting a node in start or recover modes, fresh network secrets
         // are created and the associated certificate can be passed to the host
-        if (r.service_cert.size() > service_cert_size)
-        {
-          LOG_FAIL_FMT(
-            "Insufficient space ({}) to copy service_cert out ({})",
-            service_cert_size,
-            r.service_cert.size());
-          return CreateNodeStatus::InternalError;
-        }
-        pal::safe_memcpy(
-          service_cert, r.service_cert.data(), r.service_cert.size());
-        *service_cert_len = r.service_cert.size();
+        service_cert = create_info.service_cert.raw();
       }
 
       return CreateNodeStatus::OK;
