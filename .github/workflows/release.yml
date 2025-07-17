@@ -51,13 +51,13 @@ jobs:
       - name: "Check Release Notes"
         run: |
           set -ex
-          python scripts/extract-release-notes.py --target-git-version
+          scripts/extract-release-notes.py --target-git-version
         shell: bash
       - name: "Produce Release Notes"
         run: |
           set -ex
           set -o pipefail
-          python ./scripts/extract-release-notes.py --target-git-version --describe-path-changes "./samples/constitution" | tee rel-notes.md
+          ./scripts/extract-release-notes.py --target-git-version --describe-path-changes "./samples/constitution" | tee rel-notes.md
       - name: "Upload Release Notes"
         uses: actions/upload-artifact@v4
         with:
