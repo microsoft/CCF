@@ -6,10 +6,10 @@
 #include <optional>
 #include <string>
 
-namespace fs = std::filesystem;
-
 namespace snapshots
 {
+  namespace fs = std::filesystem;
+
   static constexpr auto snapshot_file_prefix = "snapshot";
   static constexpr auto snapshot_idx_delimiter = "_";
   static constexpr auto snapshot_committed_suffix = ".committed";
