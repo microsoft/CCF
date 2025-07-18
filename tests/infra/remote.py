@@ -264,15 +264,6 @@ class LocalRemote(CmdMixin):
             return self._get_perf(result)
 
 
-CCF_TO_OE_LOG_LEVEL = {
-    "trace": "VERBOSE",
-    "debug": "INFO",
-    "info": "WARNING",
-    "fail": "ERROR",
-    "fatal": "FATAL",
-}
-
-
 class CCFRemote(object):
     BIN = "cchost"
     TEMPLATE_CONFIGURATION_FILE = "config.jinja"
@@ -360,10 +351,6 @@ class CCFRemote(object):
                 env[snp_security_context_directory_envvar] = (
                     snp_uvm_security_context_dir
                 )
-
-        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("log_level"))
-        if oe_log_level:
-            env["OE_LOG_LEVEL"] = oe_log_level
 
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type

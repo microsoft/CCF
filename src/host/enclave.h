@@ -124,23 +124,21 @@ namespace host
       auto config_s = nlohmann::json(ccf_config).dump();
 
 #define CREATE_NODE_ARGS \
-  &status, (void*)&enclave_config, (uint8_t*)config_s.data(), config_s.size(), \
+  (void*)&enclave_config, (uint8_t*)config_s.data(), config_s.size(), \
     startup_snapshot.data(), startup_snapshot.size(), node_cert.data(), \
     node_cert.size(), &node_cert_len, service_cert.data(), \
     service_cert.size(), &service_cert_len, enclave_version_buf.data(), \
     enclave_version_buf.size(), &enclave_version_len, start_type, log_level, \
     num_worker_thread, time_location, work_beacon
 
-      oe_result_t err = OE_FAILURE;
-
       // Assume that constructor correctly set the appropriate field, and call
       // appropriate function
       if (virtual_handle != nullptr)
       {
-        err = virtual_create_node(virtual_handle, CREATE_NODE_ARGS);
+        status = virtual_create_node(virtual_handle, CREATE_NODE_ARGS);
       }
 
-      if (err != OE_OK || status != CreateNodeStatus::OK)
+      if (status != CreateNodeStatus::OK)
       {
         // Logs have described the errors already, we just need to allow the
         // host to read them (via read_all()).
@@ -171,18 +169,16 @@ namespace host
     // from a thread
     bool run()
     {
-      bool ret = true;
-      oe_result_t err = OE_FAILURE;
+      bool ret = false;
 
       if (virtual_handle != nullptr)
       {
-        err = virtual_run(virtual_handle, &ret);
+        ret = virtual_run(virtual_handle);
       }
 
-      if (err != OE_OK)
+      if (!ret)
       {
-        throw std::logic_error(
-          fmt::format("Failed to call in enclave_run: {}", oe_result_str(err)));
+        throw std::logic_error(fmt::format("Failure in virtual_run"));
       }
 
       return ret;
