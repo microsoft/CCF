@@ -60,7 +60,7 @@ class LocalRemote(CmdMixin):
         **kwargs,
     ):
         self.hostname = hostname
-        self.exe_files = exe_files
+        self.exe_files = set(exe_files)
         self.data_files = data_files
         self.cmd = cmd
         self.root = os.path.join(workspace, name)
@@ -365,6 +365,11 @@ class CCFRemote(object):
         ):
             self.BIN = "cchost.virtual"
         self.BIN = infra.path.build_bin_path(self.BIN, binary_dir=binary_dir)
+
+        # 7.x releases combined binaries and removed the separate cchost entry-point
+        if major_version is None or major_version >= 7:
+            self.BIN = enclave_file
+
         self.common_dir = common_dir
         self.pub_host = host.get_primary_interface().public_host
         self.enclave_file = os.path.join(".", os.path.basename(enclave_file))
@@ -593,7 +598,7 @@ class CCFRemote(object):
                         log_level,
                     ]
 
-        if v is None or v >= Version("4.0.11"):
+        if v is not None and v >= Version("4.0.11") and v <= Version("7.0.0-dev1"):
             cmd += [
                 "--enclave-file",
                 self.enclave_file,
