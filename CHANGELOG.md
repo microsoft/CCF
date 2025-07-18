@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [5.0.18]: https://github.com/microsoft/CCF/releases/tag/5.0.18
 
+### Dependencies
+
+- Updated Open Enclave from 0.19.11 to 0.19.13.
+
+## [5.0.18]
+
+[5.0.18]: https://github.com/microsoft/CCF/releases/tag/5.0.18
+
 ### Fixed
 
 - CCF will no longer create in-progress snapshot files with a `.committed` suffix. It will only rename files to `.committed` when they are complete and ready for reading (#7029).
