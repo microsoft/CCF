@@ -27,7 +27,7 @@
 #include "ds/non_blocking.h"
 #include "ds/notifying.h"
 #include "ds/oversized.h"
-#include "enclave.h"
+#include "enclave/entry_points.h"
 #include "handle_ring_buffer.h"
 #include "host/env.h"
 #include "json_schema.h"
@@ -154,12 +154,6 @@ int start(int argc, char** argv) // NOLINT(bugprone-exception-escape)
       log_level,
       "Logging level for the node (security critical)")
     ->transform(CLI::CheckedTransformer(log_level_options, CLI::ignore_case));
-
-  std::string enclave_file_path;
-  app.add_option(
-    "--enclave-file",
-    enclave_file_path,
-    "Path to enclave application (security critical)");
 
   try
   {
@@ -364,24 +358,7 @@ int start(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   asynchost::TimeBoundLogger::default_max_time =
     config.slow_io_logging_threshold;
 
-  // create the enclave
-  if (!config.enclave.file.empty())
-  {
-    LOG_FAIL_FMT(
-      "DEPRECATED: Enclave path was specified in config file! This should be "
-      "removed from the config, and passed directly to the CLI instead");
-
-    if (enclave_file_path.empty())
-    {
-      enclave_file_path = config.enclave.file;
-    }
-  }
-
-  if (enclave_file_path.empty())
-  {
-    LOG_FATAL_FMT("No enclave file path specified");
-    return static_cast<int>(CLI::ExitCodes::ValidationError);
-  }
+  // create the enclave:
 
   // messaging ring buffers
   const auto buffer_size = config.memory.circuit_size;
@@ -679,7 +656,7 @@ int start(int argc, char** argv) // NOLINT(bugprone-exception-escape)
 
     if (ccf::pal::platform == ccf::pal::Platform::Virtual)
     {
-      ccf::pal::emit_virtual_measurement(enclave_file_path);
+      ccf::pal::emit_virtual_measurement();
     }
 
     if (config.node_data_json_file.has_value())
@@ -908,7 +885,7 @@ int start(int argc, char** argv) // NOLINT(bugprone-exception-escape)
       } while (!ecall_completed);
     };
     std::thread flusher_thread(flush_outbound);
-    auto create_status = host::Enclave::create_node(
+    auto create_status = enclave_create_node(
       enclave_config,
       startup_config,
       std::move(startup_snapshot),
@@ -957,7 +934,12 @@ int start(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     auto enclave_thread_start = [&]() {
       try
       {
-        host::Enclave::run();
+        bool ret = enclave_run();
+
+        if (!ret)
+        {
+          throw std::logic_error(fmt::format("Failure in enclave_run"));
+        }
       }
       catch (const std::exception& e)
       {
