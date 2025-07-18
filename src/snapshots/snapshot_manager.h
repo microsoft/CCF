@@ -110,10 +110,28 @@ namespace snapshots
       {
         asynchost::TimeBoundLogger log_if_slow(
           fmt::format("Committing snapshot - fsync({})", data->tmp_file_name));
-        fsync(data->snapshot_fd);
+        if (fsync(data->snapshot_fd) != 0)
+        {
+          throw std::logic_error(
+            fmt::format("Failed to sync snapshot file: {}", strerror(errno)));
+        }
       }
 
       close(data->snapshot_fd);
+
+      auto parent_dir = fopen(data->dir.c_str(), "r");
+      if (parent_dir)
+      {
+        asynchost::TimeBoundLogger log_if_slow(fmt::format(
+          "Committing snapshot - fsync({}) (after file close)", data->dir));
+        if (fsync(fileno(parent_dir)) != 0)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to sync snapshot directory after closing committed "
+            "snapshot file: {}",
+            strerror(errno)));
+        }
+      }
 
       // e.g. snapshot_100_105.committed
       data->committed_file_name =
@@ -122,6 +140,20 @@ namespace snapshots
 
       const auto full_tmp_path = data->dir / data->tmp_file_name;
       files::rename(full_tmp_path, full_committed_path);
+
+      if (parent_dir)
+      {
+        asynchost::TimeBoundLogger log_if_slow(fmt::format(
+          "Committing snapshot - fsync({}) (after rename)", data->dir));
+        if (fsync(fileno(parent_dir)) != 0)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to sync snapshot directory after renaming file: {}",
+            strerror(errno)));
+        }
+      }
+
+      fclose(parent_dir);
     }
 
     static void on_snapshot_sync_and_rename_complete(uv_work_t* req, int status)
@@ -161,6 +193,26 @@ namespace snapshots
               snapshot_idx_delimiter,
               it->second.evidence_idx);
             auto full_snapshot_path = snapshot_dir / file_name;
+
+#define THROW_ON_ERROR(x) \
+  do \
+  { \
+    auto rc = x; \
+    if (rc == -1) \
+    { \
+      throw std::runtime_error(fmt::format( \
+        "Error ({}) writing snapshot {} in " #x, errno, file_name)); \
+    } \
+  } while (0)
+
+            int dir_fd = open(snapshot_dir.c_str(), O_DIRECTORY);
+            if (dir_fd == -1)
+            {
+              throw std::runtime_error(fmt::format(
+                "Error ({}) opening snapshots directory {}",
+                errno,
+                snapshot_dir));
+            }
 
             int snapshot_fd = open(
               full_snapshot_path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0664);
@@ -221,6 +273,8 @@ namespace snapshots
                 &on_snapshot_sync_and_rename_complete);
 #endif
             }
+
+#undef THROW_ON_ERROR
 
             pending_snapshots.erase(it);
 
