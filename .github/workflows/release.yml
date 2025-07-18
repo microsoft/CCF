@@ -80,7 +80,7 @@ jobs:
             cmake_options: -DLVI_MITIGATIONS=ON
     runs-on: ${{ matrix.platform.nodes }}
     container:
-      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-21-05-2025
+      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-18-07-2025
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro ${{ matrix.platform.container_options }}"
     steps:
       - uses: actions/checkout@v4

@@ -10,7 +10,7 @@ jobs:
     name: "Scan build"
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-21-05-2025
+      image: ghcr.io/microsoft/ccf/ci/default:build-18-07-2025
 
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
     name: ASAN
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-21-05-2025
+      image: ghcr.io/microsoft/ccf/ci/default:build-18-07-2025
 
     steps:
       - uses: actions/checkout@v4
@@ -69,7 +69,7 @@ jobs:
     name: TSAN
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-21-05-2025
+      image: ghcr.io/microsoft/ccf/ci/default:build-18-07-2025
 
     steps:
       - uses: actions/checkout@v4

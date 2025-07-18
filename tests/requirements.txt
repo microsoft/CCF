@@ -2,7 +2,7 @@ wheel
 paramiko
 loguru
 psutil
-openapi-spec-validator
+openapi-spec-validator == 0.7.1
 PyJWT
 docutils
 python-iptables
