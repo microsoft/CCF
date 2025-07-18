@@ -258,6 +258,7 @@ namespace ccf::indexing::strategies
                 // This class previously wrote a bucket to disk which is no
                 // longer available or corrupted. Reset the watermark of what
                 // has been indexed, to re-index and rewrite those files.
+                // NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores)
                 complete = false;
                 const auto* problem =
                   fetch_result == FetchResult::NotFound ? "missing" : "corrupt";
