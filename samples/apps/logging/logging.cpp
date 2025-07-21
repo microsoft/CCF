@@ -483,6 +483,8 @@ namespace loggingapp
 
     void init_handlers() override
     {
+      CommonEndpointRegistry::init_handlers();
+
       constexpr size_t seqnos_per_bucket = 10000;
       constexpr size_t buckets_per_key = 20;
 

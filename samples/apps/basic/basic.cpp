@@ -35,6 +35,8 @@ namespace basicapp
 
     void init_handlers() override
     {
+      CommonEndpointRegistry::init_handlers();
+
       auto put = [this](ccf::endpoints::EndpointContext& ctx) {
         std::string key;
         std::string error;
