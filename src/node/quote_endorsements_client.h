@@ -302,8 +302,9 @@ namespace ccf
       LOG_INFO_FMT(
         "Fetching endorsements for attestation report at {}", request->url);
 
-      curl::CurlRequest::attach_to_multi_curl(
-        curl::CurlmLibuvContextSingleton::get_instance().curlm(), request);
+      curl::CurlmLibuvContextSingleton::get_instance_unsafe()
+        ->curlm()
+        .attach_curl_request(request);
     }
 
   public:

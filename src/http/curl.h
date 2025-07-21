@@ -9,6 +9,7 @@
 #include <curl/curl.h>
 #include <curl/multi.h>
 #include <memory>
+#include <regex>
 #include <span>
 #include <stdexcept>
 #include <uv.h>
@@ -104,42 +105,53 @@ namespace ccf::curl
 
   class RequestBody
   {
-    std::vector<uint8_t> buffer_vec;
-    std::span<const uint8_t> buffer_span;
+    std::vector<uint8_t> buffer;
+    std::span<const uint8_t> unsent;
 
   public:
-    RequestBody(std::vector<uint8_t>& buffer) : buffer_vec(std::move(buffer))
+    RequestBody(std::vector<uint8_t>& buffer) : buffer(buffer)
     {
-      buffer_span =
-        std::span<const uint8_t>(buffer_vec.data(), buffer_vec.size());
+      unsent = std::span<const uint8_t>(buffer.data(), buffer.size());
     }
 
-    template <typename Jsonable>
-    RequestBody(Jsonable jsonable)
+    RequestBody(std::vector<uint8_t>&& buffer) : buffer(std::move(buffer))
     {
-      auto json_str = nlohmann::json(jsonable).dump();
-      buffer_vec = std::vector<uint8_t>(
+      unsent = std::span<const uint8_t>(buffer.data(), buffer.size());
+    }
+
+    RequestBody(nlohmann::json json)
+    {
+      auto json_str = json.dump();
+      buffer = std::vector<uint8_t>(
         json_str.begin(), json_str.end()); // Convert to vector of bytes
-      buffer_span =
-        std::span<const uint8_t>(buffer_vec.data(), buffer_vec.size());
+      unsent = std::span<const uint8_t>(buffer.data(), buffer.size());
     }
 
     static size_t send_data(
-      char* ptr, size_t size, size_t nitems, void* userdata)
+      char* ptr, size_t size, size_t nitems, RequestBody* data)
     {
-      auto* data = static_cast<RequestBody*>(userdata);
-      auto bytes_to_copy = std::min(data->buffer_span.size(), size * nitems);
-      memcpy(ptr, data->buffer_span.data(), bytes_to_copy);
-      data->buffer_span = data->buffer_span.subspan(bytes_to_copy);
+      if (data == nullptr)
+      {
+        LOG_FAIL_FMT("send_data called with null userdata");
+        return 0;
+      }
+      auto bytes_to_copy = std::min(data->unsent.size(), size * nitems);
+      memcpy(ptr, data->unsent.data(), bytes_to_copy);
+      data->unsent = data->unsent.subspan(bytes_to_copy);
       return bytes_to_copy;
     }
 
     void attach_to_curl(CURL* curl)
     {
+      if (curl == nullptr)
+      {
+        throw std::logic_error(
+          "Cannot attach request body to a null CURL handle");
+      }
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_READDATA, this);
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_READFUNCTION, send_data);
       CHECK_CURL_EASY_SETOPT(
-        curl, CURLOPT_INFILESIZE, static_cast<curl_off_t>(buffer_span.size()));
+        curl, CURLOPT_INFILESIZE, static_cast<curl_off_t>(unsent.size()));
     }
   };
 
@@ -152,35 +164,46 @@ namespace ccf::curl
     long status_code = 0;
 
     static size_t write_response_chunk(
-      uint8_t* ptr, size_t size, size_t nmemb, void* userdata)
+      uint8_t* ptr, size_t size, size_t nmemb, Response* response)
     {
-      auto* data = static_cast<Response*>(userdata);
+      if (response == nullptr)
+      {
+        LOG_FAIL_FMT(
+          "write_response_chunk called with a null response pointer");
+        return 0;
+      }
       auto bytes_to_copy = size * nmemb;
-      data->buffer.insert(data->buffer.end(), ptr, ptr + bytes_to_copy);
+      response->buffer.insert(response->buffer.end(), ptr, ptr + bytes_to_copy);
       // Should probably set a maximum response size here
       return bytes_to_copy;
     }
 
-    static size_t append_header(
+    static size_t recv_header_line(
       char* buffer, size_t size, size_t nitems, Response* response)
     {
-      if (size != 1)
+      if (response == nullptr)
       {
-        LOG_FAIL_FMT(
-          "Unexpected value in curl HEADERFUNCTION callback: size = {}", size);
+        LOG_FAIL_FMT("recv_header_line called with a null response pointer");
         return 0;
       }
+      auto bytes_to_read = size * nitems;
+      std::string_view header(buffer, bytes_to_read);
 
-      const std::string_view header =
-        ccf::nonstd::trim(std::string_view(buffer, nitems));
+      // strip /r/n etc
+      header = ccf::nonstd::trim(header);
 
-      // Ignore HTTP status line, and empty line
-      if (!header.empty() && !header.starts_with("HTTP/1.1"))
+      // Ignore empty headers, and the http response line (e.g. "HTTP/1.1 200")
+      static const std::regex http_status_line_regex(R"(^HTTP\/[1-9]+.*)");
+      if (
+        !header.empty() &&
+        !std::regex_match(std::string(header), http_status_line_regex))
       {
         const auto [field, value] = ccf::nonstd::split_1(header, ": ");
         if (!value.empty())
         {
-          response->headers[std::string(field)] = ccf::nonstd::trim(value);
+          std::string field_str(field);
+          nonstd::to_lower(field_str);
+          response->headers[field_str] = ccf::nonstd::trim(value);
         }
         else
         {
@@ -188,39 +211,21 @@ namespace ccf::curl
         }
       }
 
-      return nitems * size;
+      return bytes_to_read;
     }
 
     void attach_to_curl(CURL* curl)
     {
+      if (curl == nullptr)
+      {
+        throw std::logic_error("Cannot attach response to a null CURL handle");
+      }
       // Body
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_WRITEDATA, this);
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_WRITEFUNCTION, write_response_chunk);
       // Headers
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_HEADERDATA, this);
-      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_HEADERFUNCTION, append_header);
-    }
-  };
-
-  // Use in conjunction with the iter_CURLM_CurlRequest function
-  // to force only requests with the corresponding CurlRequest private data
-  class CurlRequestCURLM
-  {
-  private:
-    CURLM* curl_multi;
-
-  public:
-    CurlRequestCURLM(CURLM* curl_multi) : curl_multi(curl_multi)
-    {
-      if (curl_multi == nullptr)
-      {
-        throw std::runtime_error("CURLM handle cannot be null");
-      }
-    }
-
-    [[nodiscard]] CURLM* get() const
-    {
-      return curl_multi;
+      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_HEADERFUNCTION, recv_header_line);
     }
   };
 
@@ -287,76 +292,110 @@ namespace ccf::curl
     {
       return curl_handle;
     }
+  };
 
-    static void attach_to_multi_curl(
-      const CurlRequestCURLM& curl_multi, std::unique_ptr<CurlRequest>& request)
+  // non-owning wrapper around a CURLM handle which supports CurlRequest
+  class CurlRequestCURLM
+  {
+  private:
+    CURLM* curl_multi;
+
+    CurlRequestCURLM(CURLM* curl_multi) : curl_multi(curl_multi)
     {
+      if (curl_multi == nullptr)
+      {
+        throw std::runtime_error("CURLM handle cannot be null");
+      }
+    }
+
+  public:
+    [[nodiscard]] CURLM* get() const
+    {
+      return curl_multi;
+    }
+
+    void attach_curl_request(std::unique_ptr<CurlRequest>& request)
+    {
+      if(request == nullptr)
+      {
+        throw std::logic_error("Cannot attach a null CurlRequest");
+      }
       request->attach_to_curl();
       CURL* curl_handle = request->curl_handle;
       CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_PRIVATE, request.release());
-      CHECK_CURL_MULTI(curl_multi_add_handle, curl_multi.get(), curl_handle);
+      CHECK_CURL_MULTI(curl_multi_add_handle, curl_multi, curl_handle);
+    }
+
+    static CurlRequestCURLM create_unsafe(CURLM* curl_multi)
+    {
+      if(curl_multi == nullptr)
+      {
+        throw std::runtime_error("CURLM handle cannot be null");
+      }
+      return {curl_multi};
+    }
+
+    int perform_unsafe()
+    {
+      int running_handles = 0;
+      CHECK_CURL_MULTI(curl_multi_perform, curl_multi, &running_handles);
+
+      // handle all completed curl requests
+      int msgq = 0;
+      CURLMsg* msg = nullptr;
+      do
+      {
+        msg = curl_multi_info_read(curl_multi, &msgq);
+
+        if ((msg != nullptr) && msg->msg == CURLMSG_DONE)
+        {
+          auto* easy = msg->easy_handle;
+          auto result = msg->data.result;
+
+          LOG_TRACE_FMT(
+            "CURL request response handling with result: {} ({})",
+            result,
+            curl_easy_strerror(result));
+
+          // retrieve the request data and attach a lifetime to it
+          ccf::curl::CurlRequest* request = nullptr;
+          curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
+          if (request == nullptr)
+          {
+            throw std::runtime_error(
+              "CURLMSG_DONE received with no associated request data");
+          }
+          std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request);
+
+          if (request->response != nullptr)
+          {
+            CHECK_CURL_EASY_GETINFO(
+              easy, CURLINFO_RESPONSE_CODE, &request->response->status_code);
+          }
+
+          // Clean up the easy handle and corresponding resources
+          curl_multi_remove_handle(curl_multi, easy);
+          if (request->response_callback.has_value())
+          {
+            if (request->response != nullptr)
+            {
+              request->response_callback.value()(*request);
+            }
+          }
+          // Handled by the destructor of CurlRequest
+          LOG_INFO_FMT(
+            "Finished handling CURLMSG: msg_nullptr: {}, remaining: {}",
+            msg != nullptr,
+            msgq);
+        }
+      } while (msgq > 0);
+      return running_handles;
     }
   };
 
-  inline int iter_CURLM_CurlRequest(const CurlRequestCURLM& p)
-  {
-    int running_handles = 0;
-    CHECK_CURL_MULTI(curl_multi_perform, p.get(), &running_handles);
-
-    // handle all completed curl requests
-    int msgq = 0;
-    CURLMsg* msg = nullptr;
-    do
-    {
-      msg = curl_multi_info_read(p.get(), &msgq);
-
-      if ((msg != nullptr) && msg->msg == CURLMSG_DONE)
-      {
-        auto* easy = msg->easy_handle;
-        auto result = msg->data.result;
-
-        LOG_TRACE_FMT(
-          "CURL request response handling with result: {} ({})",
-          result,
-          curl_easy_strerror(result));
-
-        // retrieve the request data and attach a lifetime to it
-        ccf::curl::CurlRequest* request = nullptr;
-        curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
-        if (request == nullptr)
-        {
-          throw std::runtime_error(
-            "CURLMSG_DONE received with no associated request data");
-        }
-        std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request);
-
-        if (request->response != nullptr)
-        {
-          CHECK_CURL_EASY_GETINFO(
-            easy, CURLINFO_RESPONSE_CODE, &request->response->status_code);
-        }
-
-        // Clean up the easy handle and corresponding resources
-        curl_multi_remove_handle(p.get(), easy);
-        if (request->response_callback.has_value())
-        {
-          if (request->response != nullptr)
-          {
-            request->response_callback.value()(*request);
-          }
-        }
-        // Handled by the destructor of CurlRequest
-        LOG_INFO_FMT(
-          "Finished handling CURLMSG: msg_nullptr: {}, remaining: {}",
-          msg != nullptr,
-          msgq);
-      }
-    } while (msgq > 0);
-    return running_handles;
-  }
-
   class CurlmLibuvContext
   {
+  private:
     uv_loop_t* loop;
     uv_timer_t timeout_tracker{};
     // lifetime handler of curl_multi interface
@@ -374,7 +413,7 @@ namespace ccf::curl
   public:
     void handle_request_messages()
     {
-      iter_CURLM_CurlRequest(curl_request_curlm);
+      curl_request_curlm.perform_unsafe();
     }
 
     static void libuv_timeout_callback(uv_timer_t* handle)
@@ -512,7 +551,7 @@ namespace ccf::curl
 
     CurlmLibuvContext(uv_loop_t* loop) :
       loop(loop),
-      curl_request_curlm(curl_multi)
+      curl_request_curlm(CurlRequestCURLM::create_unsafe(curl_multi))
     {
       uv_timer_init(loop, &timeout_tracker);
       timeout_tracker.data = this; // Attach this instance to the timer
@@ -536,7 +575,7 @@ namespace ccf::curl
     }
 
     // should this return a reference or a pointer?
-    [[nodiscard]] const CurlRequestCURLM& curlm() const
+    [[nodiscard]] CurlRequestCURLM& curlm()
     {
       return curl_request_curlm;
     }
