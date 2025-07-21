@@ -13,14 +13,6 @@ VERSION_FILE="${PATH_HERE}"/../share/VERSION_LONG
 is_package_specified=false
 is_js_bundle_specified=false
 
-# Install tree
-PLATFORM_FILE="${PATH_HERE}"/../share/PLATFORM
-# If not there, try locally
-if [ ! -f "${VERSION_FILE}" ]; then
-    PLATFORM_FILE=PLATFORM
-fi
-platform=$(<"${PLATFORM_FILE}")
-
 extra_args=()
 while [ "$1" != "" ]; do
     case $1 in
@@ -114,7 +106,6 @@ export CURL_CLIENT=ON
 export INITIAL_MEMBER_COUNT=1
 exec python "${START_NETWORK_SCRIPT}" \
     --binary-dir "${BINARY_DIR}" \
-    --enclave-platform "${platform}" \
     --constitution "${CONSTITUTION_DIR}"/actions.js \
     --constitution "${CONSTITUTION_DIR}"/validate.js \
     --constitution "${CONSTITUTION_DIR}"/resolve.js \

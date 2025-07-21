@@ -18,8 +18,8 @@ The cchost executable exposes the following command-line interface (CLI) options
         --config-timeout TEXT       Configuration file read timeout, for example 5s or 1min
         --check                     Verify configuration file and exit
         -v,--version                Display CCF host version and exit
-        --enclave-log-level ENUM:value in {debug->1,fail->3,fatal->4,info->2,trace->0} OR {1,3,4,2,0}
-                                    Logging level for the enclave code (security critical)
+        --log-level ENUM:value in {debug->1,fail->3,fatal->4,info->2,trace->0} OR {1,3,4,2,0}
+                                    Logging level for the node (security critical)
         --enclave-file TEXT         Path to enclave application (security critical)
 
 Note that the ``--enclave-file`` and ``--enclave-log-level`` options are security critical.

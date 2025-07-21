@@ -13,8 +13,11 @@ namespace ccf::js::extensions
 {
   namespace
   {
-    static JSValue js_consensus_get_last_committed_txid(
-      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+    JSValue js_consensus_get_last_committed_txid(
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      int argc,
+      [[maybe_unused]] JSValueConst* argv)
     {
       if (argc != 0)
       {
@@ -22,23 +25,24 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments, but expected 0", argc);
       }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
-      auto extension = jsctx.get_extension<ConsensusExtension>();
+      auto* extension = jsctx.get_extension<ConsensusExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto endpoint_registry = extension->endpoint_registry;
+      auto* endpoint_registry = extension->endpoint_registry;
       if (endpoint_registry == nullptr)
       {
         return JS_ThrowInternalError(
           ctx, "Failed to get endpoint registry object");
       }
 
-      ccf::View view;
-      ccf::SeqNo seqno;
+      ccf::View view = 0;
+      ccf::SeqNo seqno = 0;
       auto result = endpoint_registry->get_last_committed_txid_v1(view, seqno);
       if (result != ccf::ApiResult::OK)
       {
@@ -55,15 +59,20 @@ namespace ccf::js::extensions
       return obj.take();
     }
 
-    static JSValue js_consensus_get_status_for_txid(
-      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+    JSValue js_consensus_get_status_for_txid(
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      int argc,
+      JSValueConst* argv)
     {
       if (argc != 2)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 2", argc);
+      }
 
-      int64_t view;
-      int64_t seqno;
+      int64_t view = 0;
+      int64_t seqno = 0;
       if (JS_ToInt64(ctx, &view, argv[0]) < 0)
       {
         return ccf::js::core::constants::Exception;
@@ -78,22 +87,23 @@ namespace ccf::js::extensions
           ctx, "Invalid view or seqno: cannot be negative");
       }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
-      auto extension = jsctx.get_extension<ConsensusExtension>();
+      auto* extension = jsctx.get_extension<ConsensusExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto endpoint_registry = extension->endpoint_registry;
+      auto* endpoint_registry = extension->endpoint_registry;
       if (endpoint_registry == nullptr)
       {
         return JS_ThrowInternalError(
           ctx, "Failed to get endpoint registry object");
       }
 
-      ccf::TxStatus status;
+      ccf::TxStatus status = ccf::TxStatus::Unknown;
       auto result =
         endpoint_registry->get_status_for_txid_v1(view, seqno, status);
       if (result != ccf::ApiResult::OK)
@@ -103,18 +113,23 @@ namespace ccf::js::extensions
           "Failed to get status for txid: %s",
           ccf::api_result_to_str(result));
       }
-      auto status_str = ccf::tx_status_to_str(status);
+      const auto* status_str = ccf::tx_status_to_str(status);
       return JS_NewString(ctx, status_str);
     }
 
-    static JSValue js_consensus_get_view_for_seqno(
-      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+    JSValue js_consensus_get_view_for_seqno(
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      int argc,
+      JSValueConst* argv)
     {
       if (argc != 1)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 1", argc);
+      }
 
-      int64_t seqno;
+      int64_t seqno = 0;
       if (JS_ToInt64(ctx, &seqno, argv[0]) < 0)
       {
         return ccf::js::core::constants::Exception;
@@ -124,21 +139,22 @@ namespace ccf::js::extensions
         return JS_ThrowRangeError(ctx, "Invalid seqno: cannot be negative");
       }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
-      auto extension = jsctx.get_extension<ConsensusExtension>();
+      auto* extension = jsctx.get_extension<ConsensusExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto endpoint_registry = extension->endpoint_registry;
+      auto* endpoint_registry = extension->endpoint_registry;
       if (endpoint_registry == nullptr)
       {
         return JS_ThrowInternalError(
           ctx, "Failed to get endpoint registry object");
       }
-      ccf::View view;
+      ccf::View view = 0;
       auto result = endpoint_registry->get_view_for_seqno_v1(seqno, view);
       if (result == ccf::ApiResult::NotFound)
       {
@@ -180,6 +196,8 @@ namespace ccf::js::extensions
         ctx, js_consensus_get_view_for_seqno, "getViewForSeqno", 1));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
+    // NOLINTBEGIN(performance-move-const-arg)
     ccf.set("consensus", std::move(consensus));
+    // NOLINTEND(performance-move-const-arg)
   }
 }

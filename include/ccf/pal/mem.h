@@ -28,8 +28,6 @@ namespace ccf::pal
     size_t peak_allocated_heap_size = 0;
   };
 
-#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
-
   static inline void* safe_memcpy(void* dest, const void* src, size_t count)
   {
     return ::memcpy(dest, src, count);
@@ -63,27 +61,4 @@ namespace ccf::pal
 
     return true;
   }
-
-#else
-
-  static inline void* safe_memcpy(void* dest, const void* src, size_t count)
-  {
-    return oe_memcpy_with_barrier(dest, src, count);
-  }
-
-  static bool get_mallinfo(MallocInfo& info)
-  {
-    oe_mallinfo_t oe_info;
-    auto rc = oe_allocator_mallinfo(&oe_info);
-    if (rc != OE_OK)
-    {
-      return false;
-    }
-    info.max_total_heap_size = oe_info.max_total_heap_size;
-    info.current_allocated_heap_size = oe_info.current_allocated_heap_size;
-    info.peak_allocated_heap_size = oe_info.peak_allocated_heap_size;
-    return true;
-  }
-
-#endif
 }

@@ -18,15 +18,14 @@ namespace ccf::js::extensions
   struct KvExtension::Impl
   {
     ccf::kv::Tx* tx;
-    std::unordered_map<std::string, ccf::kv::untyped::Map::Handle*> kv_handles =
-      {};
+    std::unordered_map<std::string, ccf::kv::untyped::Map::Handle*> kv_handles;
 
     Impl(ccf::kv::Tx* t) : tx(t) {};
   };
 
   namespace
   {
-    static kvhelpers::KVMap::Handle* get_map_handle(
+    kvhelpers::KVMap::Handle* get_map_handle(
       js::core::Context& jsctx, JSValueConst _this_val)
     {
       auto this_val = jsctx.duplicate_value(_this_val);
@@ -39,7 +38,7 @@ namespace ccf::js::extensions
         return nullptr;
       }
 
-      auto extension = jsctx.get_extension<KvExtension>();
+      auto* extension = jsctx.get_extension<KvExtension>();
       if (extension == nullptr)
       {
         LOG_FAIL_FMT("No KV extension available");
@@ -67,7 +66,7 @@ namespace ccf::js::extensions
       return it->second;
     }
 
-    static kvhelpers::KVMap::ReadOnlyHandle* get_ro_map_handle(
+    kvhelpers::KVMap::ReadOnlyHandle* get_ro_map_handle(
       js::core::Context& jsctx, JSValueConst this_val)
     {
       // NB: This creates (and stores) a writeable handle internally, but
@@ -77,17 +76,18 @@ namespace ccf::js::extensions
       return get_map_handle(jsctx, this_val);
     }
 
-    static int js_kv_lookup(
+    int js_kv_lookup(
       JSContext* ctx,
       JSPropertyDescriptor* desc,
-      JSValueConst this_val,
+      [[maybe_unused]] JSValueConst this_val,
       JSAtom property)
     {
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
       const auto map_name = jsctx.to_str(property).value_or("");
       LOG_TRACE_FMT("Looking for kv map '{}'", map_name);
 
-      auto extension = jsctx.get_extension<KvExtension>();
+      auto* extension = jsctx.get_extension<KvExtension>();
       if (extension == nullptr)
       {
         LOG_FAIL_FMT("No KV extension available");
@@ -120,7 +120,7 @@ namespace ccf::js::extensions
         kvhelpers::create_kv_map_handle<get_ro_map_handle, get_map_handle>(
           jsctx, map_name, access_permission, explanation);
 
-      if (JS_IsException(handle_val))
+      if (JS_IsException(handle_val) != 0)
       {
         return -1;
       }
@@ -128,13 +128,12 @@ namespace ccf::js::extensions
       desc->flags = 0;
       desc->value = handle_val;
 
-      return true;
+      return 1;
     }
   }
 
-  KvExtension::KvExtension(
-    ccf::kv::Tx* t, const ccf::js::NamespaceRestriction& nr) :
-    namespace_restriction(nr)
+  KvExtension::KvExtension(ccf::kv::Tx* t, ccf::js::NamespaceRestriction nr) :
+    namespace_restriction(std::move(nr))
   {
     impl = std::make_unique<KvExtension::Impl>(t);
   }

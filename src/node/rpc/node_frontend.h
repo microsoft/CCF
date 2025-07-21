@@ -1579,8 +1579,8 @@ namespace ccf
           {
             throw std::logic_error("Could not cast tx to CommittableTx");
           }
-          tx_->set_flag(
-            ccf::kv::CommittableTx::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
+          tx_->set_tx_flag(
+            ccf::kv::CommittableTx::TxFlag::LEDGER_CHUNK_BEFORE_THIS_TX);
         }
 
         auto endorsed_certificates =
@@ -1969,8 +1969,8 @@ namespace ccf
           return;
         }
 
-        fs::path snapshot_path =
-          fs::path(snapshots_config.directory) / snapshot_name;
+        files::fs::path snapshot_path =
+          files::fs::path(snapshots_config.directory) / snapshot_name;
 
         std::ifstream f(snapshot_path, std::ios::binary);
         if (!f.good())

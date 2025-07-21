@@ -5,30 +5,22 @@
 #include "ccf/ds/logger.h"
 #include "ccf/version.h"
 #include "enclave/interface.h"
+#include "enclave/virtual_enclave.h"
 
 #include <dlfcn.h>
 #include <filesystem>
 
-#if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
-// Include order matters. virtual_enclave.h uses the OE definitions if
-// available, else creates its own stubs
-#  include "enclave/virtual_enclave.h"
-#endif
-
 namespace host
 {
   void expect_enclave_file_suffix(
-    const std::string& file,
-    char const* expected_suffix,
-    host::EnclaveType type)
+    const std::string& file, char const* expected_suffix)
   {
     if (!file.ends_with(expected_suffix))
     {
       // Remove possible suffixes to try and get root of filename, to build
       // suggested filename
       auto basename = file;
-      for (const char* suffix :
-           {".signed", ".debuggable", ".so", ".enclave", ".virtual", ".snp"})
+      for (const char* suffix : {".signed", ".debuggable", ".so", ".enclave"})
       {
         if (basename.ends_with(suffix))
         {
@@ -37,11 +29,9 @@ namespace host
       }
       const auto suggested = fmt::format("{}{}", basename, expected_suffix);
       throw std::logic_error(fmt::format(
-        "Given enclave file '{}' does not have suffix expected for enclave "
-        "type "
-        "{}. Did you mean '{}'?",
+        "Given enclave file '{}' does not have suffix expected.. Did you mean "
+        "'{}'?",
         file,
-        nlohmann::json(type).dump(),
         suggested));
     }
   }
@@ -66,20 +56,15 @@ namespace host
   class Enclave
   {
   private:
-#if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
     void* virtual_handle = nullptr;
-#endif
 
   public:
     /**
      * Create an uninitialized enclave hosting the given library.
      *
-     * @param path Path to signed enclave library file
-     * @param type Type of enclave to load
-     * @param platform Trusted Execution Platform of enclave, influencing what
-     * flags should be passed to OE, or whether to dlload a virtual enclave
+     * @param path Path to library file
      */
-    Enclave(const std::string& path, EnclaveType type, EnclavePlatform platform)
+    Enclave(const std::string& path)
     {
       if (!std::filesystem::exists(path))
       {
@@ -87,52 +72,31 @@ namespace host
           fmt::format("No enclave file found at {}", path));
       }
 
-      switch (platform)
+      switch (ccf::pal::platform)
       {
-        case host::EnclavePlatform::SNP:
+        case ccf::pal::Platform::SNP:
+        case ccf::pal::Platform::Virtual:
         {
-#if defined(PLATFORM_SNP)
-          expect_enclave_file_suffix(path, ".snp.so", type);
+          expect_enclave_file_suffix(path, ".so");
           virtual_handle = load_virtual_enclave(path.c_str());
-#else
-          throw std::logic_error(fmt::format(
-            "SNP enclaves are not supported in current build - cannot launch "
-            "{}",
-            path));
-#endif // defined(PLATFORM_SNP)
-          break;
-        }
-
-        case host::EnclavePlatform::VIRTUAL:
-        {
-#if defined(PLATFORM_VIRTUAL)
-          expect_enclave_file_suffix(path, ".virtual.so", type);
-          virtual_handle = load_virtual_enclave(path.c_str());
-#else
-          throw std::logic_error(fmt::format(
-            "Virtual enclaves are not supported in current build - cannot "
-            "launch {}",
-            path));
-#endif // defined(PLATFORM_VIRTUAL)
           break;
         }
 
         default:
         {
           throw std::logic_error(fmt::format(
-            "Unsupported enclave type: {}", nlohmann::json(type).dump()));
+            "Unsupported enclave type: {}",
+            nlohmann::json(ccf::pal::platform).dump()));
         }
       }
     }
 
     ~Enclave()
     {
-#if defined(PLATFORM_SNP) || defined(PLATFORM_VIRTUAL)
       if (virtual_handle != nullptr)
       {
         terminate_virtual_enclave(virtual_handle);
       }
-#endif
     }
 
     CreateNodeStatus create_node(
@@ -142,7 +106,7 @@ namespace host
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& service_cert,
       StartType start_type,
-      ccf::LoggerLevel enclave_log_level,
+      ccf::LoggerLevel log_level,
       size_t num_worker_thread,
       void* time_location,
       const ccf::ds::WorkBeaconPtr& work_beacon)
@@ -160,25 +124,21 @@ namespace host
       auto config_s = nlohmann::json(ccf_config).dump();
 
 #define CREATE_NODE_ARGS \
-  &status, (void*)&enclave_config, (uint8_t*)config_s.data(), config_s.size(), \
+  (void*)&enclave_config, (uint8_t*)config_s.data(), config_s.size(), \
     startup_snapshot.data(), startup_snapshot.size(), node_cert.data(), \
     node_cert.size(), &node_cert_len, service_cert.data(), \
     service_cert.size(), &service_cert_len, enclave_version_buf.data(), \
-    enclave_version_buf.size(), &enclave_version_len, start_type, \
-    enclave_log_level, num_worker_thread, time_location, work_beacon
+    enclave_version_buf.size(), &enclave_version_len, start_type, log_level, \
+    num_worker_thread, time_location, work_beacon
 
-      oe_result_t err = OE_FAILURE;
-
-// Assume that constructor correctly set the appropriate field, and call
-// appropriate function
-#if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
+      // Assume that constructor correctly set the appropriate field, and call
+      // appropriate function
       if (virtual_handle != nullptr)
       {
-        err = virtual_create_node(virtual_handle, CREATE_NODE_ARGS);
+        status = virtual_create_node(virtual_handle, CREATE_NODE_ARGS);
       }
-#endif
 
-      if (err != OE_OK || status != CreateNodeStatus::OK)
+      if (status != CreateNodeStatus::OK)
       {
         // Logs have described the errors already, we just need to allow the
         // host to read them (via read_all()).
@@ -209,20 +169,16 @@ namespace host
     // from a thread
     bool run()
     {
-      bool ret = true;
-      oe_result_t err = OE_FAILURE;
+      bool ret = false;
 
-#if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
       if (virtual_handle != nullptr)
       {
-        err = virtual_run(virtual_handle, &ret);
+        ret = virtual_run(virtual_handle);
       }
-#endif
 
-      if (err != OE_OK)
+      if (!ret)
       {
-        throw std::logic_error(
-          fmt::format("Failed to call in enclave_run: {}", oe_result_str(err)));
+        throw std::logic_error(fmt::format("Failure in virtual_run"));
       }
 
       return ret;

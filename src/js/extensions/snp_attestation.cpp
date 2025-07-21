@@ -5,6 +5,7 @@
 
 #include "ccf/js/core/context.h"
 #include "ccf/pal/attestation.h"
+#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/version.h"
 #include "js/checks.h"
 #include "node/uvm_endorsements.h"
@@ -18,16 +19,11 @@ namespace ccf::js::extensions
 {
 #pragma clang diagnostic push
   static JSValue make_js_tcb_version(
-    js::core::Context& jsctx, pal::snp::TcbVersion tcb)
+    js::core::Context& jsctx, pal::snp::TcbVersionRaw tcb)
   {
-    auto js_tcb = jsctx.new_obj();
-    JS_CHECK_EXC(js_tcb);
-
-    JS_CHECK_SET(js_tcb.set_uint32("boot_loader", tcb.boot_loader));
-    JS_CHECK_SET(js_tcb.set_uint32("tee", tcb.tee));
-    JS_CHECK_SET(js_tcb.set_uint32("snp", tcb.snp));
-    JS_CHECK_SET(js_tcb.set_uint32("microcode", tcb.microcode));
-    return js_tcb.take();
+    auto data_hex = jsctx.new_string(tcb.to_hex());
+    JS_CHECK_EXC(data_hex);
+    return data_hex.take();
   }
 
   static JSValue JS_NewArrayBuffer2(
@@ -44,29 +40,30 @@ namespace ccf::js::extensions
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected between 2 and 4", argc);
     }
-    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx =
+      *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
-    size_t evidence_size;
+    size_t evidence_size = 0;
     uint8_t* evidence = JS_GetArrayBuffer(ctx, &evidence_size, argv[0]);
-    if (!evidence)
+    if (evidence == nullptr)
     {
       return ccf::js::core::constants::Exception;
     }
 
-    size_t endorsements_size;
+    size_t endorsements_size = 0;
     uint8_t* endorsements = JS_GetArrayBuffer(ctx, &endorsements_size, argv[1]);
-    if (!endorsements)
+    if (endorsements == nullptr)
     {
       return ccf::js::core::constants::Exception;
     }
 
     std::optional<std::vector<uint8_t>> uvm_endorsements;
-    if (!JS_IsUndefined(argv[2]))
+    if (JS_IsUndefined(argv[2]) == 0)
     {
-      size_t uvm_endorsements_size;
+      size_t uvm_endorsements_size = 0;
       uint8_t* uvm_endorsements_array =
         JS_GetArrayBuffer(ctx, &uvm_endorsements_size, argv[2]);
-      if (!uvm_endorsements_array)
+      if (uvm_endorsements_array == nullptr)
       {
         return ccf::js::core::constants::Exception;
       }
@@ -75,7 +72,7 @@ namespace ccf::js::extensions
     }
 
     std::optional<std::string> endorsed_tcb;
-    if (!JS_IsUndefined(argv[3]))
+    if (JS_IsUndefined(argv[3]) == 0)
     {
       endorsed_tcb = jsctx.to_str(argv[3]);
       if (!endorsed_tcb)
@@ -298,22 +295,19 @@ namespace ccf::js::extensions
       JS_CHECK_EXC(u);
 
       {
-        auto did =
-          jsctx.new_string(parsed_uvm_endorsements.value().did.c_str());
+        auto did = jsctx.new_string(parsed_uvm_endorsements.value().did);
         JS_CHECK_EXC(did);
         JS_CHECK_SET(u.set("did", std::move(did)));
       }
 
       {
-        auto feed =
-          jsctx.new_string(parsed_uvm_endorsements.value().feed.c_str());
+        auto feed = jsctx.new_string(parsed_uvm_endorsements.value().feed);
         JS_CHECK_EXC(feed);
         JS_CHECK_SET(u.set("feed", std::move(feed)));
       }
 
       {
-        auto svn =
-          jsctx.new_string(parsed_uvm_endorsements.value().svn.c_str());
+        auto svn = jsctx.new_string(parsed_uvm_endorsements.value().svn);
         JS_CHECK_EXC(svn);
         JS_CHECK_SET(u.set("svn", std::move(svn)));
         JS_CHECK_SET(r.set("uvm_endorsements", std::move(u)));

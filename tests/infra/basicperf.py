@@ -374,6 +374,8 @@ def run(args):
                 for remote_client in clients:
                     remote_client.stop()
 
+                perf_label = args.perf_label
+
                 if not args.stop_primary_after_s:
                     primary, _ = network.find_primary()
                     with primary.client() as nc:
@@ -386,7 +388,7 @@ def run(args):
 
                         bf = infra.bencher.Bencher()
                         bf.set(
-                            args.perf_label,
+                            perf_label,
                             infra.bencher.Memory(
                                 current_value,
                                 high_value=peak_value,
@@ -590,7 +592,7 @@ def run(args):
 
                 bf = infra.bencher.Bencher()
                 bf.set(
-                    args.perf_label,
+                    perf_label,
                     infra.bencher.Throughput(round(throughput, 1)),
                 )
 

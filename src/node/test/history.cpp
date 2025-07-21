@@ -18,9 +18,6 @@
 #include <doctest/doctest.h>
 #undef FAIL
 
-std::unique_ptr<threading::ThreadMessaging>
-  threading::ThreadMessaging::singleton = nullptr;
-
 using MapT = ccf::kv::Map<size_t, size_t>;
 
 constexpr size_t certificate_validity_period_days = 365;

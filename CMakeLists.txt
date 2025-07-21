@@ -2,13 +2,7 @@
 # Licensed under the Apache 2.0 License.
 cmake_minimum_required(VERSION 3.16)
 
-set(ALLOWED_TARGETS "snp;virtual")
-
-set(COMPILE_TARGET
-    "snp"
-    CACHE STRING
-          "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
-)
+set(ALLOWED_TEST_PLATFORMS "snp;virtual")
 
 # Default CMakeLists processing path. To exclude building and installing testing
 # stuff set this to OFF, e.g. to build the run-only RPM.
@@ -202,12 +196,6 @@ if(CCF_DEVEL)
   )
 endif()
 
-if(COMPILE_TARGET STREQUAL "snp")
-  set(INSTALL_VIRTUAL_LIBRARIES OFF)
-elseif(CCF_DEVEL)
-  set(INSTALL_VIRTUAL_LIBRARIES ON)
-endif()
-
 set(HTTP_PARSER_SOURCES
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/api.c
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/http.c
@@ -261,9 +249,9 @@ list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/main.cpp
 
 add_executable(cchost ${CCHOST_SOURCES})
 
-add_warning_checks(cchost)
 add_san(cchost)
 add_tidy(cchost)
+add_warning_checks(cchost)
 
 target_compile_options(
   cchost PRIVATE ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
@@ -272,12 +260,6 @@ target_include_directories(
   cchost PRIVATE ${CCF_GENERATED_DIR} ${SNMALLOC_INCLUDE_DIRS}
 )
 
-if(COMPILE_TARGET STREQUAL "snp")
-  target_compile_definitions(cchost PUBLIC PLATFORM_SNP)
-elseif(COMPILE_TARGET STREQUAL "virtual")
-  target_compile_definitions(cchost PUBLIC PLATFORM_VIRTUAL)
-endif()
-
 target_link_libraries(
   cchost
   PRIVATE uv
@@ -285,32 +267,20 @@ target_link_libraries(
           ${CMAKE_DL_LIBS}
           ${CMAKE_THREAD_LIBS_INIT}
           ${LINK_LIBCXX}
-          ccfcrypto.host
+          ccfcrypto
           curl
-          http_parser.host
+          http_parser
 )
 target_compile_definitions(cchost PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 install(TARGETS cchost DESTINATION bin)
 
 # HTTP parser
-if(COMPILE_TARGET STREQUAL "snp")
-  add_library(http_parser.snp "${HTTP_PARSER_SOURCES}")
-  set_property(TARGET http_parser.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
-  if(CCF_DEVEL)
-    install(
-      TARGETS http_parser.snp
-      EXPORT ccf
-      DESTINATION lib
-    )
-  endif()
-endif()
-
-add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
-set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-if(INSTALL_VIRTUAL_LIBRARIES)
+add_library(http_parser "${HTTP_PARSER_SOURCES}")
+set_property(TARGET http_parser PROPERTY POSITION_INDEPENDENT_CODE ON)
+if(CCF_DEVEL)
   install(
-    TARGETS http_parser.host
+    TARGETS http_parser
     EXPORT ccf
     DESTINATION lib
   )
@@ -339,29 +309,17 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/registry.cpp
 )
 
-if(COMPILE_TARGET STREQUAL "snp")
-  add_host_library(ccf_js.snp "${CCF_JS_SOURCES}")
-  add_san(ccf_js.snp)
-  target_link_libraries(ccf_js.snp PUBLIC ccfcrypto.snp quickjs.snp)
-  target_compile_definitions(ccf_js.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
-  add_warning_checks(ccf_js.snp)
-  if(CCF_DEVEL)
-    install(
-      TARGETS ccf_js.snp
-      EXPORT ccf
-      DESTINATION lib
-    )
-  endif()
-endif()
+add_host_library(ccf_js "${CCF_JS_SOURCES}")
 
-add_host_library(ccf_js.host "${CCF_JS_SOURCES}")
-add_san(ccf_js.host)
-target_link_libraries(ccf_js.host PUBLIC ccfcrypto.host quickjs.host)
-target_compile_definitions(ccf_js.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
-add_warning_checks(ccf_js.host)
-if(INSTALL_VIRTUAL_LIBRARIES)
+add_san(ccf_js)
+add_tidy(ccf_js)
+add_warning_checks(ccf_js)
+
+target_link_libraries(ccf_js PUBLIC ccfcrypto quickjs)
+target_compile_definitions(ccf_js PRIVATE CCF_LOGGER_NO_DEPRECATE)
+if(CCF_DEVEL)
   install(
-    TARGETS ccf_js.host
+    TARGETS ccf_js
     EXPORT ccf
     DESTINATION lib
   )
@@ -373,68 +331,36 @@ set(CCF_KV_SOURCES
     ${CCF_DIR}/src/kv/untyped_map_diff.cpp
 )
 
-if(COMPILE_TARGET STREQUAL "snp")
-  add_host_library(ccf_kv.snp "${CCF_KV_SOURCES}")
-  add_san(ccf_kv.snp)
-  add_warning_checks(ccf_kv.snp)
-  add_tidy(ccf_kv.snp)
-  target_compile_definitions(ccf_kv.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
-  if(CCF_DEVEL)
-    install(
-      TARGETS ccf_kv.snp
-      EXPORT ccf
-      DESTINATION lib
-    )
-  endif()
-endif()
+add_host_library(ccf_kv "${CCF_KV_SOURCES}")
 
-add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
-add_san(ccf_kv.host)
-add_warning_checks(ccf_kv.host)
-add_tidy(ccf_kv.host)
-target_compile_definitions(ccf_kv.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
-if(INSTALL_VIRTUAL_LIBRARIES)
+add_san(ccf_kv)
+add_tidy(ccf_kv)
+add_warning_checks(ccf_kv)
+
+target_compile_definitions(ccf_kv PRIVATE CCF_LOGGER_NO_DEPRECATE)
+if(CCF_DEVEL)
   install(
-    TARGETS ccf_kv.host
+    TARGETS ccf_kv
     EXPORT ccf
     DESTINATION lib
   )
 endif()
 
-# CCF endpoints libs
-if(COMPILE_TARGET STREQUAL "snp")
-  add_host_library(ccf_endpoints.snp "${CCF_ENDPOINTS_SOURCES}")
-  target_include_directories(ccf_endpoints.snp PRIVATE ${CCF_DIR}/src/endpoints)
-  target_link_libraries(
-    ccf_endpoints.snp PUBLIC qcbor.snp t_cose.snp http_parser.snp ccfcrypto.snp
-                             ccf_kv.snp
-  )
-  add_san(ccf_endpoints.snp)
-  add_warning_checks(ccf_endpoints.snp)
-  add_tidy(ccf_endpoints.snp)
-  target_compile_definitions(ccf_endpoints.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
-  if(CCF_DEVEL)
-    install(
-      TARGETS ccf_endpoints.snp
-      EXPORT ccf
-      DESTINATION lib
-    )
-  endif()
-endif()
-
-add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
-target_include_directories(ccf_endpoints.host PRIVATE ${CCF_DIR}/src/endpoints)
+# CCF endpoints lib
+add_host_library(ccf_endpoints "${CCF_ENDPOINTS_SOURCES}")
+target_include_directories(ccf_endpoints PRIVATE ${CCF_DIR}/src/endpoints)
 target_link_libraries(
-  ccf_endpoints.host PUBLIC qcbor.host t_cose.host http_parser.host
-                            ccfcrypto.host ccf_kv.host
+  ccf_endpoints PUBLIC qcbor t_cose http_parser ccfcrypto ccf_kv
 )
-add_san(ccf_endpoints.host)
-add_warning_checks(ccf_endpoints.host)
-add_tidy(ccf_endpoints.host)
-target_compile_definitions(ccf_endpoints.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
-if(INSTALL_VIRTUAL_LIBRARIES)
+
+add_san(ccf_endpoints)
+add_tidy(ccf_endpoints)
+add_warning_checks(ccf_endpoints)
+
+target_compile_definitions(ccf_endpoints PRIVATE CCF_LOGGER_NO_DEPRECATE)
+if(CCF_DEVEL)
   install(
-    TARGETS ccf_endpoints.host
+    TARGETS ccf_endpoints
     EXPORT ccf
     DESTINATION lib
   )
@@ -456,9 +382,8 @@ set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
     --constitution
     ${CCF_DIR}/samples/constitutions/default/apply.js
 )
-set(CCF_NETWORK_TEST_ARGS
-    --host-log-level ${TEST_LOGGING_LEVEL} --enclave-log-level
-    ${TEST_LOGGING_LEVEL} --worker-threads ${WORKER_THREADS}
+set(CCF_NETWORK_TEST_ARGS --log-level ${TEST_LOGGING_LEVEL} --worker-threads
+                          ${WORKER_THREADS}
 )
 
 # SNIPPET_START: JS generic application
@@ -475,11 +400,6 @@ if(CCF_DEVEL)
 endif()
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
-
-if(CCF_DEVEL)
-  file(WRITE ${CMAKE_BINARY_DIR}/PLATFORM "${COMPILE_TARGET}")
-  install(FILES ${CMAKE_BINARY_DIR}/PLATFORM DESTINATION share)
-endif()
 
 set(CMAKE_GENERATED_COMMENT
     "This file was auto-generated by CMake from a corresponding *.in file. DO NOT EDIT"
@@ -532,7 +452,6 @@ configure_file(
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(CLIENT_PROTOCOLS_TEST "Test client protocols (TLS, HTTP/2)" OFF)
-option(BUILD_TPCC "Build TPPC sample app and clients" OFF)
 
 option(CCF_RAFT_TRACING "Enable tracing of Raft consensus" OFF)
 if(CCF_RAFT_TRACING)
@@ -540,121 +459,57 @@ if(CCF_RAFT_TRACING)
 endif()
 
 # Build common library for CCF enclaves
-add_custom_target(ccf ALL)
-
 set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/node/quote.cpp
     ${CCF_DIR}/src/node/uvm_endorsements.cpp
 )
 
-# Same as virtual for the time being but will diverge soon
-if(COMPILE_TARGET STREQUAL "snp")
+add_library(ccf STATIC ${CCF_IMPL_SOURCE})
 
-  # SNP version
-  add_library(ccf.snp STATIC ${CCF_IMPL_SOURCE})
+target_compile_definitions(ccf PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE)
 
-  target_compile_definitions(
-    ccf.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                   _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+target_compile_options(ccf PUBLIC ${COMPILE_LIBCXX})
+target_compile_definitions(ccf PRIVATE CCF_LOGGER_NO_DEPRECATE)
+
+target_include_directories(
+  ccf SYSTEM
+  PUBLIC $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+         $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
+                                           #< which are currently under src, and
+                                           #< should be removed or renamed
+         $<INSTALL_INTERFACE:include/>
+         $<INSTALL_INTERFACE:include/3rdparty/>
+)
+
+target_link_libraries(
+  ccf
+  PUBLIC ${LINK_LIBCXX}
+         http_parser
+         ccf_js
+         ccf_endpoints
+         ccfcrypto
+         ccf_kv
+         nghttp2
+         ${CMAKE_THREAD_LIBS_INIT}
+         curl
+)
+
+set_property(TARGET ccf PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+add_san(ccf)
+add_tidy(ccf)
+add_warning_checks(ccf)
+
+if(CCF_DEVEL)
+  install(
+    TARGETS ccf
+    EXPORT ccf
+    DESTINATION lib
   )
-
-  target_compile_options(ccf.snp PUBLIC ${COMPILE_LIBCXX})
-  add_warning_checks(ccf.snp)
-  target_compile_definitions(ccf.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
-
-  target_include_directories(
-    ccf.snp SYSTEM
-    PUBLIC
-      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-      $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
-                                        #< which are currently under src, and
-                                        #< should be removed or renamed
-      $<INSTALL_INTERFACE:include/>
-      $<INSTALL_INTERFACE:include/3rdparty/>
-  )
-
-  target_link_libraries(
-    ccf.snp
-    PUBLIC ${LINK_LIBCXX}
-           -lgcc
-           http_parser.snp
-           ccf_js.snp
-           ccf_endpoints.snp
-           ccfcrypto.snp
-           ccf_kv.snp
-           nghttp2
-           ${CMAKE_THREAD_LIBS_INIT}
-           curl
-  )
-
-  set_property(TARGET ccf.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
-
-  add_san(ccf.snp)
-
-  if(CCF_DEVEL)
-    install(
-      TARGETS ccf.snp
-      EXPORT ccf
-      DESTINATION lib
-    )
-  endif()
-
-  add_dependencies(ccf ccf.snp)
-
-elseif(COMPILE_TARGET STREQUAL "virtual")
-
-  # virtual version
-  add_library(ccf.virtual STATIC ${CCF_IMPL_SOURCE})
-
-  target_compile_definitions(
-    ccf.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                       _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_VIRTUAL
-  )
-
-  target_compile_options(ccf.virtual PUBLIC ${COMPILE_LIBCXX})
-  add_warning_checks(ccf.virtual)
-  target_compile_definitions(ccf.virtual PRIVATE CCF_LOGGER_NO_DEPRECATE)
-
-  target_include_directories(
-    ccf.virtual SYSTEM
-    PUBLIC
-      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-      $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
-                                        #< which are currently under src, and
-                                        #< should be removed or renamed
-      $<INSTALL_INTERFACE:include/>
-      $<INSTALL_INTERFACE:include/3rdparty/>
-  )
-
-  target_link_libraries(
-    ccf.virtual
-    PUBLIC ${LINK_LIBCXX}
-           -lgcc
-           http_parser.host
-           ccf_js.host
-           ccf_endpoints.host
-           ccfcrypto.host
-           ccf_kv.host
-           nghttp2
-           ${CMAKE_THREAD_LIBS_INIT}
-           curl
-  )
-
-  set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
-
-  add_san(ccf.virtual)
-
-  if(CCF_DEVEL)
-    install(
-      TARGETS ccf.virtual
-      EXPORT ccf
-      DESTINATION lib
-    )
-  endif()
-
-  add_dependencies(ccf ccf.virtual)
 endif()
+
+add_dependencies(ccf ccf)
 
 if(CCF_DEVEL)
   install(
@@ -717,12 +572,10 @@ if(BUILD_TESTS)
 
   # Unit tests
   if(BUILD_UNIT_TESTS)
-    if(COMPILE_TARGET STREQUAL "snp")
-      add_unit_test(
-        snp_ioctl_test
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
-      )
-    endif()
+    add_unit_test(
+      snp_ioctl_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
+    )
 
     add_unit_test(
       snp_attestation_test
@@ -747,7 +600,7 @@ if(BUILD_TESTS)
     add_unit_test(
       openapi_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/openapi.cpp
     )
-    target_link_libraries(openapi_test PRIVATE http_parser.host)
+    target_link_libraries(openapi_test PRIVATE http_parser)
 
     add_unit_test(
       logger_json_test
@@ -763,7 +616,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
     )
     target_link_libraries(
-      kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_kv.host
+      kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_kv
     )
 
     add_unit_test(
@@ -795,27 +648,27 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/committable_suffix.cpp
     )
-    target_link_libraries(raft_test PRIVATE ccfcrypto.host)
+    target_link_libraries(raft_test PRIVATE ccfcrypto)
 
     add_unit_test(
       raft_enclave_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/enclave.cpp
     )
     target_include_directories(raft_enclave_test PRIVATE ${CCFCRYPTO_INC})
-    target_link_libraries(raft_enclave_test PRIVATE ccfcrypto.host)
+    target_link_libraries(raft_enclave_test PRIVATE ccfcrypto)
 
     add_unit_test(
       crypto_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp
     )
     target_include_directories(crypto_test PRIVATE ${CCFCRYPTO_INC})
-    target_link_libraries(crypto_test PRIVATE ccfcrypto.host)
+    target_link_libraries(crypto_test PRIVATE ccfcrypto)
 
     add_unit_test(
       sharing_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/secret_sharing.cpp
     )
     target_include_directories(sharing_test PRIVATE ${CCFCRYPTO_INC})
-    target_link_libraries(sharing_test PRIVATE ccfcrypto.host)
+    target_link_libraries(sharing_test PRIVATE ccfcrypto)
 
     add_unit_test(
       key_exchange_test
@@ -827,19 +680,16 @@ if(BUILD_TESTS)
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
     )
-    target_link_libraries(
-      history_test PRIVATE ccfcrypto.host http_parser.host ccf_kv.host
-    )
+    target_link_libraries(history_test PRIVATE ccfcrypto http_parser ccf_kv)
 
     add_unit_test(
       encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
     )
-    target_link_libraries(encryptor_test PRIVATE ccfcrypto.host ccf_kv.host)
+    target_link_libraries(encryptor_test PRIVATE ccfcrypto ccf_kv)
 
     add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
     target_link_libraries(
-      js_test PRIVATE ccf_js.host ccf_kv.host ccf_endpoints.host ccfcrypto.host
-                      http_parser.host
+      js_test PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto http_parser
     )
 
     add_unit_test(
@@ -862,28 +712,25 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/receipt.cpp
     )
     target_link_libraries(
-      historical_queries_test PRIVATE http_parser.host ccf_kv.host
-                                      ccf_endpoints.host
+      historical_queries_test PRIVATE http_parser ccf_kv ccf_endpoints
     )
     add_unit_test(
       indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp
     )
-    target_link_libraries(indexing_test PRIVATE ccf_endpoints.host ccf_kv.host)
+    target_link_libraries(indexing_test PRIVATE ccf_endpoints ccf_kv)
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
     )
-    target_link_libraries(snapshot_test PRIVATE ccf_kv.host)
+    target_link_libraries(snapshot_test PRIVATE ccf_kv)
 
     add_unit_test(
       snapshotter_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshotter.cpp
     )
-    target_link_libraries(
-      snapshotter_test PRIVATE ccf_kv.host ccf_endpoints.host
-    )
+    target_link_libraries(snapshotter_test PRIVATE ccf_kv ccf_endpoints)
 
     add_unit_test(
       node_info_json_test
@@ -902,7 +749,7 @@ if(BUILD_TESTS)
       cose_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cose.cpp
     )
     target_link_libraries(
-      cose_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto.host qcbor.host
+      cose_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto qcbor
     )
 
     add_unit_test(pem_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/pem.cpp)
@@ -921,7 +768,7 @@ if(BUILD_TESTS)
     add_unit_test(
       http_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_test.cpp
     )
-    target_link_libraries(http_test PRIVATE http_parser.host)
+    target_link_libraries(http_test PRIVATE http_parser)
 
     add_unit_test(
       http_etag_test
@@ -936,9 +783,8 @@ if(BUILD_TESTS)
       ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
-      frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_js.host
-              ccf_endpoints.host ccfcrypto.host ccf_kv.host
+      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
+                            ccf_endpoints ccfcrypto ccf_kv
     )
 
     add_unit_test(
@@ -948,13 +794,13 @@ if(BUILD_TESTS)
     target_include_directories(
       endpoint_registry_test PRIVATE ${CCF_DIR}/src/endpoints
     )
-    target_link_libraries(endpoint_registry_test PRIVATE ccf_endpoints.host)
+    target_link_libraries(endpoint_registry_test PRIVATE ccf_endpoints)
 
     add_unit_test(
       jwt_auth_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/test_jwt_auth.cpp
     )
-    target_link_libraries(jwt_auth_test PRIVATE ccf_endpoints.host)
+    target_link_libraries(jwt_auth_test PRIVATE ccf_endpoints)
 
     add_unit_test(
       tx_status_test
@@ -967,9 +813,8 @@ if(BUILD_TESTS)
       ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
-      node_frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_js.host
-              ccf_endpoints.host ccfcrypto.host ccf_kv.host
+      node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
+                                 ccf_endpoints ccfcrypto ccf_kv
     )
 
     add_unit_test(
@@ -980,8 +825,7 @@ if(BUILD_TESTS)
     add_executable(merkle_mem src/node/test/merkle_mem.cpp)
     target_compile_options(merkle_mem PRIVATE ${COMPILE_LIBCXX})
     target_link_libraries(
-      merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX}
-                         ccfcrypto.host
+      merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX} ccfcrypto
     )
     target_compile_definitions(merkle_mem PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
@@ -990,7 +834,7 @@ if(BUILD_TESTS)
       raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
                   src/enclave/thread_local.cpp
     )
-    target_link_libraries(raft_driver PRIVATE ccfcrypto.host)
+    target_link_libraries(raft_driver PRIVATE ccfcrypto)
     target_include_directories(raft_driver PRIVATE src/aft)
     target_compile_definitions(raft_driver PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
@@ -1020,7 +864,7 @@ if(BUILD_TESTS)
     )
   endif()
 
-  if(NOT TSAN)
+  if(NOT (TSAN OR USE_LIBCXX))
     # Picobench benchmarks
     add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
@@ -1035,13 +879,13 @@ if(BUILD_TESTS)
       history_bench
       SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
            ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
-      LINK_LIBS ccf_kv.host
+      LINK_LIBS ccf_kv
     )
 
     add_picobench(
       kv_bench
       SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
-      LINK_LIBS ccf_kv.host
+      LINK_LIBS ccf_kv
     )
     add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
@@ -1049,12 +893,6 @@ if(BUILD_TESTS)
     if(LONG_TESTS)
       set(ADDITIONAL_RECOVERY_ARGS --with-load --with-election
                                    --with-unsigned-suffix
-      )
-
-      add_e2e_test(
-        NAME recovery_test_cft_api_0
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-        ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "classic"
       )
     endif()
 
@@ -1201,10 +1039,6 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
     )
 
-    if(BUILD_TPCC)
-      include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/tpcc/tpcc.cmake)
-    endif()
-
     if(CLIENT_PROTOCOLS_TEST)
       add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
@@ -1265,14 +1099,6 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS --js-app-bundle
                       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js --http2
     )
-
-    if(LONG_TESTS)
-      add_e2e_test(
-        NAME membership_api_0
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
-        ADDITIONAL_ARGS --gov-api-version "classic"
-      )
-    endif()
 
     add_e2e_test(
       NAME membership_api_1
@@ -1462,7 +1288,7 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME historical_query_perf_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
-      LABEL perf PERF_LABEL "Historical Queries"
+      LABEL perf
       CONFIGURATIONS perf
     )
 
@@ -1493,7 +1319,7 @@ if(CCF_DEVEL)
   )
 endif()
 
-if(CCF_DEVEL)
+if(CCF_DEVEL AND (NOT USE_LIBCXX))
   # Perf tool executable
   include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
 endif()

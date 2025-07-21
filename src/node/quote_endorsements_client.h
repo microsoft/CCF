@@ -50,7 +50,6 @@ namespace ccf
     // Uniquely identify each received request. We assume that this client sends
     // requests in series, after receiving the response to each one or after a
     // long timeout.
-    size_t last_received_request_id = 0;
     size_t last_submitted_request_id = 0;
     bool has_completed = false;
     size_t server_retries_count = 0;
@@ -194,8 +193,6 @@ namespace ccf
                                        curl::CurlRequest& request) {
         std::lock_guard<ccf::pal::Mutex> guard(this->lock);
         auto* response = request.response.get();
-
-        last_received_request_id++;
 
         if (response->status_code == HTTP_STATUS_OK)
         {

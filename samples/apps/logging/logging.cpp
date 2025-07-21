@@ -43,7 +43,7 @@ namespace loggingapp
   struct CustomIdentity : public ccf::AuthnIdentity
   {
     std::string name;
-    size_t age;
+    size_t age = 0;
   };
   // SNIPPET_END: custom_identity
 
@@ -57,12 +57,12 @@ namespace loggingapp
       if_none_match(rpc_ctx->get_request_header("if-none-match"))
     {}
 
-    bool conflict() const
+    [[nodiscard]] bool conflict() const
     {
       return if_match.has_value() && if_none_match.has_value();
     }
 
-    bool empty() const
+    [[nodiscard]] bool empty() const
     {
       return !if_match.has_value() && !if_none_match.has_value();
     }
@@ -73,7 +73,7 @@ namespace loggingapp
   {
   public:
     std::unique_ptr<ccf::AuthnIdentity> authenticate(
-      ccf::kv::ReadOnlyTx&,
+      [[maybe_unused]] ccf::kv::ReadOnlyTx& ro_tx,
       const std::shared_ptr<ccf::RpcContext>& ctx,
       std::string& error_reason) override
     {
@@ -116,7 +116,7 @@ namespace loggingapp
       }
 
       const auto& age_s = age_header_it->second;
-      size_t age;
+      size_t age = 0;
       const auto [p, ec] =
         std::from_chars(age_s.data(), age_s.data() + age_s.size(), age);
       if (ec != std::errc())
@@ -139,8 +139,8 @@ namespace loggingapp
       return ident;
     }
 
-    std::optional<ccf::OpenAPISecuritySchema> get_openapi_security_schema()
-      const override
+    [[nodiscard]] std::optional<ccf::OpenAPISecuritySchema>
+    get_openapi_security_schema() const override
     {
       // There is no OpenAPI-compliant way to describe this auth scheme, so we
       // return nullopt
@@ -171,11 +171,11 @@ namespace loggingapp
     {}
 
     void handle_committed_transaction(
-      const ccf::TxID& tx_id, const ccf::kv::ReadOnlyStorePtr& store)
+      const ccf::TxID& tx_id, const ccf::kv::ReadOnlyStorePtr& store) override
     {
       std::lock_guard<std::mutex> lock(txid_lock);
       auto tx_diff = store->create_tx_diff();
-      auto m = tx_diff.template diff<RecordsMap>(map_name);
+      auto* m = tx_diff.template diff<RecordsMap>(map_name);
       m->foreach([this](const size_t& k, std::optional<std::string> v) -> bool {
         if (v.has_value())
         {
@@ -192,7 +192,7 @@ namespace loggingapp
       current_txid = tx_id;
     }
 
-    std::optional<ccf::SeqNo> next_requested()
+    std::optional<ccf::SeqNo> next_requested() override
     {
       std::lock_guard<std::mutex> lock(txid_lock);
       return current_txid.seqno + 1;
@@ -219,11 +219,11 @@ namespace loggingapp
   class LoggerHandlers : public ccf::UserEndpointRegistry
   {
   private:
-    const nlohmann::json record_public_params_schema;
-    const nlohmann::json record_public_result_schema;
+    nlohmann::json record_public_params_schema;
+    nlohmann::json record_public_result_schema;
 
-    const nlohmann::json get_public_params_schema;
-    const nlohmann::json get_public_result_schema;
+    nlohmann::json get_public_params_schema;
+    nlohmann::json get_public_result_schema;
 
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
     std::shared_ptr<CommittedRecords> committed_records = nullptr;
@@ -233,7 +233,7 @@ namespace loggingapp
       const std::unique_ptr<ccf::AuthnIdentity>& caller)
     {
       if (
-        auto user_cert_ident =
+        const auto* user_cert_ident =
           dynamic_cast<const ccf::UserCertAuthnIdentity*>(caller.get()))
       {
         auto response = std::string("User TLS cert");
@@ -260,8 +260,9 @@ namespace loggingapp
 
         return response;
       }
-      else if (
-        auto member_cert_ident =
+
+      if (
+        const auto* member_cert_ident =
           dynamic_cast<const ccf::MemberCertAuthnIdentity*>(caller.get()))
       {
         auto response = std::string("Member TLS cert");
@@ -290,8 +291,9 @@ namespace loggingapp
 
         return response;
       }
-      else if (
-        auto any_cert_ident =
+
+      if (
+        const auto* any_cert_ident =
           dynamic_cast<const ccf::AnyCertAuthnIdentity*>(caller.get()))
       {
         auto response = std::string("Any TLS cert");
@@ -301,8 +303,9 @@ namespace loggingapp
           fmt::format("\nThe caller's cert is:\n{}", caller_cert.str());
         return response;
       }
-      else if (
-        auto jwt_ident =
+
+      if (
+        const auto* jwt_ident =
           dynamic_cast<const ccf::JwtAuthnIdentity*>(caller.get()))
       {
         auto response = std::string("JWT");
@@ -316,8 +319,9 @@ namespace loggingapp
 
         return response;
       }
-      else if (
-        auto cose_ident =
+
+      if (
+        const auto* cose_ident =
           dynamic_cast<const ccf::UserCOSESign1AuthnIdentity*>(caller.get()))
       {
         auto response = std::string("User COSE Sign1");
@@ -331,14 +335,16 @@ namespace loggingapp
 
         return response;
       }
-      else if (
-        auto no_ident =
+
+      if (
+        const auto* no_ident =
           dynamic_cast<const ccf::EmptyAuthnIdentity*>(caller.get()))
       {
         return "Unauthenticated";
       }
-      else if (
-        auto all_of_ident =
+
+      if (
+        const auto* all_of_ident =
           dynamic_cast<const ccf::AllOfAuthnIdentity*>(caller.get()))
       {
         auto response = fmt::format(
@@ -352,21 +358,19 @@ namespace loggingapp
 
         return response;
       }
-      else
-      {
-        return "";
-      }
+
+      return "";
     }
 
     std::optional<ccf::TxStatus> get_tx_status(ccf::SeqNo seqno)
     {
-      ccf::ApiResult result;
+      ccf::ApiResult result = ccf::ApiResult::OK;
 
-      ccf::View view_of_seqno;
+      ccf::View view_of_seqno = 0;
       result = get_view_for_seqno_v1(seqno, view_of_seqno);
       if (result == ccf::ApiResult::OK)
       {
-        ccf::TxStatus status;
+        ccf::TxStatus status = {};
         result = get_status_for_txid_v1(view_of_seqno, seqno, status);
         if (result == ccf::ApiResult::OK)
         {
@@ -473,8 +477,11 @@ namespace loggingapp
 
       openapi_info.document_version = "2.8.0";
 
+      constexpr size_t seqnos_per_bucket = 10000;
+      constexpr size_t buckets_per_key = 20;
+
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
-        PUBLIC_RECORDS, context, 10000, 20);
+        PUBLIC_RECORDS, context, seqnos_per_bucket, buckets_per_key);
       context.get_indexing_strategies().install_strategy(index_per_public_key);
 
       const ccf::AuthnPolicies auth_policies = {
@@ -517,7 +524,7 @@ namespace loggingapp
         ctx.rpc_ctx->set_response_header(CCF_TX_ID, tx_id.to_str());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
 
-        auto out = static_cast<LoggingPut::Out*>(ctx.rpc_ctx->get_user_data());
+        auto* out = static_cast<LoggingPut::Out*>(ctx.rpc_ctx->get_user_data());
 
         if (out == nullptr)
         {
@@ -580,13 +587,13 @@ namespace loggingapp
           ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
-        size_t id;
+        size_t id = 0;
         if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidQueryParameterValue,
-            std::move(error_reason));
+            error_reason);
         }
 
         auto records_handle =
@@ -637,8 +644,8 @@ namespace loggingapp
           return;
         }
 
-        ccf::View view;
-        ccf::SeqNo seqno;
+        ccf::View view = 0;
+        ccf::SeqNo seqno = 0;
         auto result = get_last_committed_txid_v1(view, seqno);
         if (result != ccf::ApiResult::OK)
         {
@@ -695,7 +702,7 @@ namespace loggingapp
           ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
-        size_t id;
+        size_t id = 0;
         if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           auto response = nlohmann::json{{
@@ -746,13 +753,13 @@ namespace loggingapp
           ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
-        size_t id;
+        size_t id = 0;
         if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidQueryParameterValue,
-            std::move(error_reason));
+            error_reason);
         }
 
         auto records_handle =
@@ -893,13 +900,13 @@ namespace loggingapp
           ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
-        size_t id;
+        size_t id = 0;
         if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidQueryParameterValue,
-            std::move(error_reason));
+            error_reason);
         }
 
         auto public_records_handle =
@@ -986,13 +993,13 @@ namespace loggingapp
           ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
-        size_t id;
+        size_t id = 0;
         if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidQueryParameterValue,
-            std::move(error_reason));
+            error_reason);
         }
 
         auto records_handle =
@@ -1158,14 +1165,11 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_body(std::move(response));
           return;
         }
-        else
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InvalidInput,
-            "Unhandled auth type");
-          return;
-        }
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InvalidInput,
+          "Unhandled auth type");
+        return;
       };
       make_endpoint(
         "/multi_auth",
@@ -1207,7 +1211,7 @@ namespace loggingapp
 
       // SNIPPET_START: log_record_text
       auto log_record_text = [this](auto& ctx) {
-        const auto expected = ccf::http::headervalues::contenttype::TEXT;
+        const auto* const expected = ccf::http::headervalues::contenttype::TEXT;
         const auto actual =
           ctx.rpc_ctx->get_request_header(ccf::http::headers::CONTENT_TYPE)
             .value_or("");
@@ -1257,7 +1261,7 @@ namespace loggingapp
           ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
-        size_t id;
+        size_t id = 0;
         if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           ctx.rpc_ctx->set_error(
@@ -1268,7 +1272,7 @@ namespace loggingapp
         }
 
         auto historical_tx = historical_state->store->create_read_only_tx();
-        auto records_handle =
+        auto* records_handle =
           historical_tx.template ro<RecordsMap>(private_records(ctx));
         const auto v = records_handle->get(id);
 
@@ -1312,7 +1316,7 @@ namespace loggingapp
             ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
           std::string error_reason;
-          size_t id;
+          size_t id = 0;
           if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
           {
             ctx.rpc_ctx->set_error(
@@ -1323,7 +1327,7 @@ namespace loggingapp
           }
 
           auto historical_tx = historical_state->store->create_read_only_tx();
-          auto records_handle =
+          auto* records_handle =
             historical_tx.template ro<RecordsMap>(private_records(ctx));
           const auto v = records_handle->get(id);
 
@@ -1361,7 +1365,7 @@ namespace loggingapp
             ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
           std::string error_reason;
-          size_t id;
+          size_t id = 0;
           if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
           {
             ctx.rpc_ctx->set_error(
@@ -1372,7 +1376,7 @@ namespace loggingapp
           }
 
           auto historical_tx = historical_state->store->create_read_only_tx();
-          auto records_handle =
+          auto* records_handle =
             historical_tx.template ro<RecordsMap>(public_records(ctx));
           const auto v = records_handle->get(id);
 
@@ -1418,7 +1422,7 @@ namespace loggingapp
 
         std::string error_reason;
 
-        size_t id;
+        size_t id = 0;
         if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           ctx.rpc_ctx->set_error(
@@ -1428,7 +1432,7 @@ namespace loggingapp
           return;
         }
 
-        size_t from_seqno;
+        size_t from_seqno = 0;
         if (!ccf::http::get_query_value(
               parsed_query, "from_seqno", from_seqno, error_reason))
         {
@@ -1437,13 +1441,13 @@ namespace loggingapp
           from_seqno = 1;
         }
 
-        size_t to_seqno;
+        size_t to_seqno = 0;
         if (!ccf::http::get_query_value(
               parsed_query, "to_seqno", to_seqno, error_reason))
         {
           // If no end point is specified, use the last time this ID was
           // written to
-          auto records = ctx.tx.ro<RecordsMap>(public_records(ctx));
+          auto* records = ctx.tx.ro<RecordsMap>(public_records(ctx));
           const auto last_written_version =
             records->get_version_of_previous_write(id);
           if (last_written_version.has_value())
@@ -1455,8 +1459,8 @@ namespace loggingapp
             // If there's no last written version, it may have never been
             // written but may simply be currently deleted. Use current commit
             // index as end point to ensure we include any deleted entries.
-            ccf::View view;
-            ccf::SeqNo seqno;
+            ccf::View view = 0;
+            ccf::SeqNo seqno = 0;
             const auto result = get_last_committed_txid_v1(view, seqno);
             if (result != ccf::ApiResult::OK)
             {
@@ -1490,7 +1494,7 @@ namespace loggingapp
           !tx_status.has_value() ||
           tx_status.value() != ccf::TxStatus::Committed)
         {
-          const auto tx_status_msg = tx_status.has_value() ?
+          const auto* const tx_status_msg = tx_status.has_value() ?
             tx_status_to_str(tx_status.value()) :
             "not found";
           ctx.rpc_ctx->set_error(
@@ -1508,7 +1512,7 @@ namespace loggingapp
         if (indexed_txid.seqno < to_seqno)
         {
           {
-            ccf::View view_of_to_seqno;
+            ccf::View view_of_to_seqno = 0;
             const auto result =
               get_view_for_seqno_v1(to_seqno, view_of_to_seqno);
             if (result == ccf::ApiResult::OK)
@@ -1565,7 +1569,7 @@ namespace loggingapp
           size_t raw[] = {begin, end, id};
           auto size = sizeof(raw);
           std::vector<uint8_t> v(size);
-          memcpy(v.data(), (const uint8_t*)raw, size);
+          memcpy(v.data(), reinterpret_cast<const uint8_t*>(raw), size);
           return std::hash<decltype(v)>()(v);
         };
 
@@ -1608,7 +1612,7 @@ namespace loggingapp
         for (auto& store : stores)
         {
           auto historical_tx = store->create_read_only_tx();
-          auto records_handle =
+          auto* records_handle =
             historical_tx.template ro<RecordsMap>(public_records(ctx));
           const auto v = records_handle->get(id);
 
@@ -1687,7 +1691,7 @@ namespace loggingapp
 
         std::string error_reason;
 
-        size_t id;
+        size_t id = 0;
         if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           ctx.rpc_ctx->set_error(
@@ -1713,7 +1717,7 @@ namespace loggingapp
           const auto terms = ccf::nonstd::split(seqnos_s, ",");
           for (const auto& term : terms)
           {
-            size_t val;
+            size_t val = 0;
             const auto [p, ec] = std::from_chars(term.begin(), term.end(), val);
             if (ec != std::errc() || p != term.end())
             {
@@ -1764,11 +1768,11 @@ namespace loggingapp
           size_t raw[] = {begin, end, id};
           auto size = sizeof(raw);
           std::vector<uint8_t> v(size);
-          memcpy(v.data(), (const uint8_t*)raw, size);
+          memcpy(v.data(), reinterpret_cast<const uint8_t*>(raw), size);
           return std::hash<decltype(v)>()(v);
         };
 
-        ccf::historical::RequestHandle handle;
+        ccf::historical::RequestHandle handle = 0;
         {
           std::hash<size_t> h;
           handle = h(id);
@@ -1803,7 +1807,7 @@ namespace loggingapp
         for (const auto& store : stores)
         {
           auto historical_tx = store->create_read_only_tx();
-          auto records_handle =
+          auto* records_handle =
             historical_tx.template ro<RecordsMap>(private_records(ctx));
           const auto v = records_handle->get(id);
 
@@ -1879,7 +1883,7 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto view = ctx.tx.template rw<RecordsMap>(private_records(ctx));
+        auto* view = ctx.tx.template rw<RecordsMap>(private_records(ctx));
         view->put(in.id, in.msg);
         return ccf::make_success(true);
       };
@@ -2054,7 +2058,7 @@ namespace loggingapp
           return;
         }
 
-        int64_t vdp = 396;
+        constexpr int64_t vdp = 396;
         auto inclusion_proof = ccf::cose::edit::pos::AtKey{-1};
 
         ccf::cose::edit::desc::Value desc{inclusion_proof, vdp, *proof};

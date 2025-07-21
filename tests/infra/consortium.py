@@ -106,16 +106,12 @@ class Consortium:
         for cls in (
             infra.member.MemberAPI.Preview_v1,
             infra.member.MemberAPI.v1,
-            infra.member.MemberAPI.Classic,
         ):
             if version_s == cls.API_VERSION:
                 self.gov_api_impl = cls
                 break
         else:
-            LOG.warning(
-                f"No gov API version found to match '{version_s}' specified - defaulting to classic API"
-            )
-            self.gov_api_impl = infra.member.MemberAPI.Classic
+            raise ValueError(f"Unsupported gov API version: {version_s}")
 
     def make_proposal(self, proposal_name, **kwargs):
         action = {
@@ -844,6 +840,15 @@ class Consortium:
     def set_snp_minimum_tcb_version(self, remote_node, cpuid, new_tcb_version):
         proposal_body, careful_vote = self.make_proposal(
             "set_snp_minimum_tcb_version",
+            cpuid=cpuid,
+            tcb_version=new_tcb_version,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def set_snp_minimum_tcb_version_hex(self, remote_node, cpuid, new_tcb_version):
+        proposal_body, careful_vote = self.make_proposal(
+            "set_snp_minimum_tcb_version_hex",
             cpuid=cpuid,
             tcb_version=new_tcb_version,
         )

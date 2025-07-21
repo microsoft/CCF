@@ -623,8 +623,8 @@ namespace ccf::gov::endpoints
             tcb_versions_handle->foreach(
               [&snp_tcb_versions](
                 const std::string& cpuid,
-                const pal::snp::TcbVersion& tcb_version) {
-                snp_tcb_versions[cpuid] = tcb_version;
+                const pal::snp::TcbVersionPolicy& tcb_policy) {
+                snp_tcb_versions[cpuid] = tcb_policy;
                 return true;
               });
             snp_policy["tcbVersions"] = snp_tcb_versions;

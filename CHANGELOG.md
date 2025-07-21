@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev1]
+
+[7.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev1
+
+### Changed
+
+- CCF no longer has platform-specific builds. The single build configuration will run on both SNP and Virtual, automatically detecting the current platform at runtime. This means the `COMPILE_TARGET` CMake option is no longer required, and all release artifacts no longer have a platform in their path.
+- The `logging.host_level` configuration option and `--enclave-log-level` CLI switch are replaced by a combined `--log-level` CLI switch (#7104).
+
+### Removed
+
+- The `ccf/pal/hardware_info.h` header has been removed (#7117).
+
+## [7.0.0-dev0]
+
+[7.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev0
+
+### Removed
+
+- The classic governance API which was deprecated in 5.0.0 has now been removed. Any operations under `/gov` which do not take an `api-version` query parameter are no longer available.
+
+### Fixed
+
+- Improved error messages when failing to fetch collateral. (#7103)
+
+## [6.0.9]
+
+[6.0.9]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.9
+
+### Added
+
+- Add governance action that supports specifying minimum TCB versions in hexstring format. This is intended to be the default format going forward. (#7078)
+
 ## [6.0.8]
 
 [6.0.8]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.8
@@ -3202,3 +3235,4 @@ Initial pre-release
 [3.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc0
 [3.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc2
 [5.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0
+[7.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev0

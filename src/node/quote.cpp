@@ -4,6 +4,8 @@
 #include "ccf/node/quote.h"
 
 #include "ccf/pal/attestation.h"
+#include "ccf/pal/attestation_sev_snp.h"
+#include "ccf/pal/sev_snp_cpuid.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/tcb_verification.h"
@@ -21,8 +23,8 @@ namespace ccf
     // Uses KV-defined roots of trust (did -> (feed, svn)) to verify the
     // UVM measurement against endorsements in the quote.
     std::vector<pal::UVMEndorsements> uvm_roots_of_trust_from_kv;
-    auto uvmes = tx.ro<SNPUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
-    if (uvmes)
+    auto* uvmes = tx.ro<SNPUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
+    if (uvmes != nullptr)
     {
       uvmes->foreach(
         [&uvm_roots_of_trust_from_kv](
@@ -207,7 +209,7 @@ namespace ccf
           return std::nullopt;
         }
 
-        return digest.from_representation(rep);
+        return HostData::from_representation(rep);
       }
 
       default:
@@ -238,13 +240,13 @@ namespace ccf
 
     if (quote_info.format == QuoteFormat::insecure_virtual)
     {
-      auto accepted_policies_table =
+      auto* accepted_policies_table =
         tx.ro<VirtualHostDataMap>(Tables::VIRTUAL_HOST_DATA);
       accepted_policy = accepted_policies_table->contains(host_data.value());
     }
     else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
     {
-      auto accepted_policies_table = tx.ro<SnpHostDataMap>(Tables::HOST_DATA);
+      auto* accepted_policies_table = tx.ro<SnpHostDataMap>(Tables::HOST_DATA);
       accepted_policy = accepted_policies_table->has(host_data.value());
     }
 
@@ -276,40 +278,40 @@ namespace ccf
       return QuoteVerificationResult::Verified;
     }
 
-    std::optional<pal::snp::TcbVersion> min_tcb_opt = std::nullopt;
-
-    auto h = tx.ro<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
-    // expensive but there should not be many entries
-    h->foreach([&min_tcb_opt, &attestation](
-                 const std::string cpuid_hex, const pal::snp::TcbVersion& v) {
-      auto cpuid = pal::snp::cpuid_from_hex(cpuid_hex);
-      if (
-        cpuid.get_family_id() == attestation.cpuid_fam_id &&
-        cpuid.get_model_id() == attestation.cpuid_mod_id &&
-        cpuid.stepping == attestation.cpuid_step)
-      {
-        min_tcb_opt = v;
-        return false;
-      }
-      return true;
-    });
+    std::optional<pal::snp::TcbVersionPolicy> min_tcb_opt = std::nullopt;
+    auto* h = tx.ro<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+    h->foreach(
+      [&min_tcb_opt, &attestation](
+        const std::string& cpuid_hex, const pal::snp::TcbVersionPolicy& v) {
+        auto cpuid = pal::snp::cpuid_from_hex(cpuid_hex);
+        if (
+          cpuid.get_family_id() == attestation.cpuid_fam_id &&
+          cpuid.get_model_id() == attestation.cpuid_mod_id &&
+          cpuid.stepping == attestation.cpuid_step)
+        {
+          min_tcb_opt = v;
+          return false;
+        }
+        return true;
+      });
 
     if (!min_tcb_opt.has_value())
     {
       return QuoteVerificationResult::FailedInvalidCPUID;
     }
+    // CPUID of the attested cpu must now be equal to the min_tcb_opt's cpuid
 
-    auto min_tcb = min_tcb_opt.value();
+    auto product_family = pal::snp::get_sev_snp_product(
+      attestation.cpuid_fam_id, attestation.cpuid_mod_id);
+    auto attestation_tcb_policy =
+      attestation.reported_tcb.to_policy(product_family);
 
-    // only check snp and microcode as these are AMD controlled
-    if (
-      min_tcb.snp > attestation.reported_tcb.snp ||
-      min_tcb.microcode > attestation.reported_tcb.microcode)
+    if (pal::snp::TcbVersionPolicy::is_valid(
+          min_tcb_opt.value(), attestation_tcb_policy))
     {
-      return QuoteVerificationResult::FailedInvalidTcbVersion;
+      return QuoteVerificationResult::Verified;
     }
-
-    return QuoteVerificationResult::Verified;
+    return QuoteVerificationResult::FailedInvalidTcbVersion;
   }
 
   QuoteVerificationResult AttestationProvider::verify_quote_against_store(

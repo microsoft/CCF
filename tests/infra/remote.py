@@ -8,6 +8,7 @@ import infra.path
 import signal
 import re
 import shutil
+import infra.platform_detection
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 import json
 import infra.snp as snp
@@ -263,15 +264,6 @@ class LocalRemote(CmdMixin):
             return self._get_perf(result)
 
 
-CCF_TO_OE_LOG_LEVEL = {
-    "trace": "VERBOSE",
-    "debug": "INFO",
-    "info": "WARNING",
-    "fail": "ERROR",
-    "fatal": "FATAL",
-}
-
-
 class CCFRemote(object):
     BIN = "cchost"
     TEMPLATE_CONFIGURATION_FILE = "config.jinja"
@@ -296,8 +288,7 @@ class CCFRemote(object):
         constitution=None,
         curve_id=None,
         version=None,
-        host_log_level="Info",
-        enclave_log_level="Info",
+        log_level="Info",
         major_version=None,
         node_address=None,
         config_file=None,
@@ -337,10 +328,8 @@ class CCFRemote(object):
         snp_security_context_directory_envvar = None
 
         env = kwargs.get("env", {})
-        if enclave_platform == "snp":
-            env.update(snp.get_aci_env())
 
-        if enclave_platform == "virtual":
+        if infra.platform_detection.is_virtual():
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"
             ubsan_opts = kwargs.get("ubsan_options")
             if ubsan_opts:
@@ -349,7 +338,9 @@ class CCFRemote(object):
             env["ASAN_OPTIONS"] = os.environ.get("ASAN_OPTIONS", "")
             env["ASAN_SYMBOLIZER_PATH"] = os.environ.get("ASAN_SYMBOLIZER_PATH", "")
             env["TSAN_SYMBOLIZER_PATH"] = os.environ.get("TSAN_SYMBOLIZER_PATH", "")
-        elif enclave_platform == "snp":
+
+        elif infra.platform_detection.is_snp():
+            env.update(snp.get_aci_env())
             snp_security_context_directory_envvar = (
                 snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
                 if set_snp_uvm_security_context_dir_envvar
@@ -360,10 +351,6 @@ class CCFRemote(object):
                 env[snp_security_context_directory_envvar] = (
                     snp_uvm_security_context_dir
                 )
-
-        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
-        if oe_log_level:
-            env["OE_LOG_LEVEL"] = oe_log_level
 
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
@@ -501,15 +488,19 @@ class CCFRemote(object):
                 auto_dr_args["previous_sealed_ledger_secret_location"] = (
                     previous_sealed_ledger_secret_location
                 )
+
+            enclave_platform = infra.platform_detection.get_platform()
+            enclave_platform = (
+                "Virtual"
+                if enclave_platform.lower() == "virtual"
+                else enclave_platform.upper()
+            )
+
             output = t.render(
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
-                enclave_type=enclave_type.title(),
-                enclave_platform=(
-                    enclave_platform.title()
-                    if enclave_platform == "virtual"
-                    else enclave_platform.upper()
-                ),
+                enclave_type="Release",
+                enclave_platform=enclave_platform,  # Ignored, but paased for LTS compat
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(
                     LocalRemote.make_host(host)
                 ),
@@ -522,7 +513,7 @@ class CCFRemote(object):
                 read_only_snapshots_dir=self.read_only_snapshots_dir_name,
                 constitution=constitution,
                 curve_id=curve_id.name.title(),
-                host_log_level=host_log_level.title(),
+                host_log_level=log_level.title(),
                 join_timer=f"{join_timer_s}s" if join_timer_s else None,
                 signature_interval_duration=f"{sig_ms_interval}ms",
                 jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",
@@ -588,13 +579,19 @@ class CCFRemote(object):
             if version is not None
             else None
         )
-        if v is None or v >= Version("4.0.5"):
-            # Avoid passing too-low level to debug SGX nodes
-            if not (enclave_type == "debug" and enclave_platform == "sgx"):
-                cmd += [
-                    "--enclave-log-level",
-                    enclave_log_level,
-                ]
+        if v is None or v >= Version("7.0.0.dev0"):
+            cmd += [
+                "--log-level",
+                log_level,
+            ]
+        else:
+            if v >= Version("4.0.5"):
+                # Avoid passing too-low level to debug SGX nodes
+                if not (enclave_type == "debug" and enclave_platform == "sgx"):
+                    cmd += [
+                        "--enclave-log-level",
+                        log_level,
+                    ]
 
         if v is None or v >= Version("4.0.11"):
             cmd += [
