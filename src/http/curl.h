@@ -316,7 +316,7 @@ namespace ccf::curl
 
     void attach_curl_request(std::unique_ptr<CurlRequest>& request)
     {
-      if(request == nullptr)
+      if (request == nullptr)
       {
         throw std::logic_error("Cannot attach a null CurlRequest");
       }
@@ -328,7 +328,7 @@ namespace ccf::curl
 
     static CurlRequestCURLM create_unsafe(CURLM* curl_multi)
     {
-      if(curl_multi == nullptr)
+      if (curl_multi == nullptr)
       {
         throw std::runtime_error("CURLM handle cannot be null");
       }
