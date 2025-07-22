@@ -20,7 +20,7 @@ from cryptography.hazmat.primitives.asymmetric import utils, ec
 
 from ccf.merkletree import MerkleTree
 from ccf.tx_id import TxID
-from ccf.cose import validate_cose_sign1
+import ccf.cose
 import ccf.receipt
 from hashlib import sha256
 
@@ -474,11 +474,11 @@ class BaseValidator:
     @staticmethod
     def _verify_root_cose_signature(service_cert, root, cose_sign1):
         try:
-            cert = load_pem_x509_certificate(
-                service_cert.encode("ascii"), default_backend()
-            )
-            validate_cose_sign1(
-                cose_sign1=cose_sign1, pubkey=cert.public_key(), payload=root
+            ccf.cose.verify_cose_sign1(
+                certificate=service_cert.encode("ascii"),
+                cose_sign1=cose_sign1,
+                use_key=True,
+                payload=root,
             )
         except Exception as exc:
             raise InvalidRootCoseSignatureException(

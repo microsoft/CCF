@@ -7,9 +7,10 @@ import sys
 from typing import Optional, Type
 
 import base64
+import cwt
 import cbor2
 import json
-from hashlib import sha256
+import hashlib
 from datetime import datetime
 import pycose.headers  # type: ignore
 from pycose.keys.ec2 import EC2Key  # type: ignore
@@ -125,6 +126,14 @@ def cert_fingerprint(cert_pem: Pem):
     return cert.fingerprint(hashes.SHA256()).hex().encode("utf-8")
 
 
+def key_fingerprint_from_cert(cert_pem: Pem):
+    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
+    pub_key = cert.public_key().public_bytes(
+        Encoding.DER, PublicFormat.SubjectPublicKeyInfo
+    )
+    return hashlib.sha256(pub_key).hexdigest()
+
+
 def create_cose_sign1(
     payload: bytes,
     key_priv_pem: Pem,
@@ -203,6 +212,13 @@ def validate_cose_sign1(pubkey, cose_sign1, payload=None):
         raise ValueError("signature is invalid")
 
 
+def verify_cose_sign1(certificate, cose_sign1, use_key=True, payload=None):
+    cose_ctx = cwt.COSE.new()
+    cert_pem = certificate.decode()
+    cose_key = cwt.COSEKey.from_pem(cert_pem, kid=key_fingerprint_from_cert(cert_pem))
+    cose_ctx.decode(cose_sign1, cose_key, detached_payload=payload)
+
+
 def verify_receipt(
     receipt_bytes: bytes, key: CertificatePublicKeyTypes, claim_digest: bytes
 ):
@@ -214,7 +230,9 @@ def verify_receipt(
     # and check it against the value set in the COSE header before using
     # it to verify the proofs.
     expected_kid = (
-        sha256(key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo))
+        hashlib.sha256(
+            key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+        )
         .digest()
         .hex()
         .encode()
@@ -241,16 +259,16 @@ def verify_receipt(
         proof = cbor2.loads(inclusion_proof)
         assert CCF_PROOF_LEAF_LABEL in proof, "Leaf must be present"
         leaf = proof[CCF_PROOF_LEAF_LABEL]
-        accumulator = sha256(
-            leaf[0] + sha256(leaf[1].encode()).digest() + leaf[2]
+        accumulator = hashlib.sha256(
+            leaf[0] + hashlib.sha256(leaf[1].encode()).digest() + leaf[2]
         ).digest()
         assert CCF_PROOF_PATH_LABEL in proof, "Path must be present"
         path = proof[CCF_PROOF_PATH_LABEL]
         for left, digest in path:
             if left:
-                accumulator = sha256(digest + accumulator).digest()
+                accumulator = hashlib.sha256(digest + accumulator).digest()
             else:
-                accumulator = sha256(accumulator + digest).digest()
+                accumulator = hashlib.sha256(accumulator + digest).digest()
         if not receipt.verify_signature(accumulator):
             raise ValueError("Signature verification failed")
         if claim_digest != leaf[2]:
