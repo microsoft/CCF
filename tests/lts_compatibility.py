@@ -700,7 +700,7 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args(add)
 
     # JS generic is the only app included in CCF install
-    args.package = "libjs_generic"
+    args.package = "js_generic"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.jwt_key_refresh_interval_s = 3
     args.sig_ms_interval = 1000  # Set to cchost default value

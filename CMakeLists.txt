@@ -975,7 +975,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
       ADDITIONAL_ARGS
         --package
-        libjs_generic
+        js_generic
         --election-timeout-ms
         10000 # Larger election timeout as recording
         # large JS applications may trigger leadership changes
@@ -985,7 +985,7 @@ if(BUILD_TESTS)
       NAME auth
       PYTHON_SCRIPT
         ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
-      ADDITIONAL_ARGS --package libjs_generic --js-app-bundle
+      ADDITIONAL_ARGS --package js_generic --js-app-bundle
                       ${CMAKE_SOURCE_DIR}/tests
     )
 
@@ -1234,7 +1234,7 @@ if(BUILD_TESTS)
       NAME pi_ls
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
       CLIENT_BIN ./submit PERF_LABEL "Logging"
-      ADDITIONAL_ARGS --package "samples/apps/logging/liblogging"
+      ADDITIONAL_ARGS --package "samples/apps/logging/logging"
                       --max-writes-ahead 1000 --repetitions 10000
     )
 
@@ -1242,7 +1242,7 @@ if(BUILD_TESTS)
       NAME pi_basic
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
       CLIENT_BIN ./submit PERF_LABEL "Basic"
-      ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
+      ADDITIONAL_ARGS --package "samples/apps/basic/basic" --client-def
                       "1,write,100000,primary"
     )
 
@@ -1259,7 +1259,7 @@ if(BUILD_TESTS)
         NAME pi_basic_mt
         PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
         CLIENT_BIN ./submit PERF_LABEL "Basic Multi-Threaded"
-        ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
+        ADDITIONAL_ARGS --package "samples/apps/basic/basic" --client-def
                         "${WORKER_THREADS},write,100000,primary"
       )
     endif()
@@ -1270,7 +1270,7 @@ if(BUILD_TESTS)
       CLIENT_BIN ./submit PERF_LABEL "Logging JWT"
       ADDITIONAL_ARGS
         --package
-        "samples/apps/logging/liblogging"
+        "samples/apps/logging/logging"
         --max-writes-ahead
         1000
         --repetitions

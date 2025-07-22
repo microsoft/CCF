@@ -53,7 +53,7 @@ if [ -f "${VERSION_FILE}" ]; then
     if [ ${is_package_specified} == false ] && [ ${is_js_bundle_specified} == false ]; then
         # Only on install tree, default to installed js logging app
         echo "No package/app specified. Defaulting to installed JS logging app"
-        extra_args+=(--package "${PATH_HERE}/../lib/libjs_generic")
+        extra_args+=(--package "${PATH_HERE}/../lib/js_generic") # TODO: This should really be installed in bin now!
         extra_args+=(--js-app-bundle "${PATH_HERE}/../samples/logging/js")
     fi
 else
