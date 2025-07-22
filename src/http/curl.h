@@ -62,6 +62,22 @@ namespace ccf::curl
     {
       return p.get();
     }
+
+    void set_blob_opt(auto option, const uint8_t* data, size_t length)
+    {
+      struct curl_blob blob
+      {
+        .data = const_cast<uint8_t*>(data), .len = length,
+        .flags = CURL_BLOB_COPY,
+      };
+
+      CHECK_CURL_EASY_SETOPT(p.get(), option, blob);
+    }
+
+    void set_opt(auto option, auto value)
+    {
+      CHECK_CURL_EASY_SETOPT(p.get(), option, value);
+    }
   };
 
   class UniqueCURLM
@@ -247,61 +263,47 @@ namespace ccf::curl
   private:
     UniqueCURL curl_handle;
     std::string url;
+    ccf::curl::UniqueSlist headers;
     std::unique_ptr<ccf::curl::RequestBody> request_body = nullptr;
     std::unique_ptr<ccf::curl::Response> response = nullptr;
-    ccf::curl::UniqueSlist headers;
     std::optional<std::function<void(CurlRequest&)>> response_callback =
-      std::nullopt;
+      nullptr;
 
   public:
-    void set_url(const std::string& new_url)
+    CurlRequest(
+      UniqueCURL&& curl_handle_,
+      std::string&& url_,
+      UniqueSlist&& headers_,
+      std::unique_ptr<RequestBody>&& request_body_,
+      std::optional<std::function<void(CurlRequest&)>>&& response_callback_) :
+      curl_handle(std::move(curl_handle_)),
+      url(std::move(url_)),
+      headers(std::move(headers_)),
+      request_body(std::move(request_body_)),
+      response_callback(std::move(response_callback_))
     {
-      if (new_url.empty())
+      if (url.empty())
       {
         throw std::invalid_argument("URL cannot be empty");
       }
-      url = new_url;
       CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_URL, url.c_str());
-    }
 
-    void set_body(std::unique_ptr<RequestBody> body)
-    {
-      if (body == nullptr)
+      if (request_body != nullptr)
       {
-        throw std::invalid_argument("Request body cannot be null");
+        request_body->attach_to_curl(curl_handle);
+        CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_UPLOAD, 1L);
       }
-      request_body = std::move(body);
-      request_body->attach_to_curl(curl_handle);
-      CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_UPLOAD, 1L);
-    }
 
-    void set_response_callback(std::function<void(CurlRequest&)> callback)
-    {
-      if (response != nullptr || response_callback.has_value())
+      if (response_callback != std::nullopt)
       {
-        throw std::logic_error(
-          "Only one response callback can be set for a request.");
+        response = std::make_unique<Response>();
+        response->attach_to_curl(curl_handle);
       }
-      response_callback = std::move(callback);
-      response = std::make_unique<Response>();
-      response->attach_to_curl(curl_handle);
-    }
 
-    void set_headers(UniqueSlist&& new_headers)
-    {
-      headers = std::move(new_headers);
-      CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPHEADER, headers.get());
-    }
-
-    void set_blob_opt(auto option, const uint8_t* data, size_t length)
-    {
-      struct curl_blob blob
+      if (headers.get() != nullptr)
       {
-        .data = const_cast<uint8_t*>(data), .len = length,
-        .flags = CURL_BLOB_COPY,
-      };
-
-      CHECK_CURL_EASY_SETOPT(curl_handle, option, blob);
+        CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPHEADER, headers.get());
+      }
     }
 
     void handle_response()
@@ -320,10 +322,6 @@ namespace ccf::curl
     [[nodiscard]] std::string get_url() const
     {
       return url;
-    }
-    [[nodiscard]] const ccf::curl::UniqueSlist& get_headers() const
-    {
-      return headers;
     }
 
     [[nodiscard]] Response* get_response() const

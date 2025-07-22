@@ -6,6 +6,8 @@
 #include "enclave/rpc_sessions.h"
 #include "http/curl.h"
 
+#include <curl/curl.h>
+
 namespace ccf
 {
   using QuoteEndorsementsFetchedCallback =
@@ -156,18 +158,18 @@ namespace ccf
       auto request_id = ++last_submitted_request_id;
       auto endpoint = server.front();
 
-      auto request = std::make_unique<curl::CurlRequest>();
+      curl::UniqueCURL curl_handle;
 
       // set curl get
-      CHECK_CURL_EASY_SETOPT(request->get_easy_handle(), CURLOPT_HTTPGET, 1L);
+      curl_handle.set_opt(CURLOPT_HTTPGET, 1L);
 
-      request->set_url(fmt::format(
+      auto url = fmt::format(
         "{}://{}:{}{}{}",
         endpoint.tls ? "https" : "http",
         endpoint.host,
         endpoint.port,
         endpoint.uri,
-        get_formatted_query(endpoint.params)));
+        get_formatted_query(endpoint.params));
 
       if (endpoint.tls)
       {
@@ -175,12 +177,9 @@ namespace ccf
         // private data. If the server was malicious and the certificate chain
         // was bogus, the verification of the endorsement of the quote would
         // fail anyway.
-        CHECK_CURL_EASY_SETOPT(
-          request->get_easy_handle(), CURLOPT_SSL_VERIFYHOST, 0L);
-        CHECK_CURL_EASY_SETOPT(
-          request->get_easy_handle(), CURLOPT_SSL_VERIFYPEER, 0L);
-        CHECK_CURL_EASY_SETOPT(
-          request->get_easy_handle(), CURLOPT_SSL_VERIFYSTATUS, 0L);
+        curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 0L);
+        curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_handle.set_opt(CURLOPT_SSL_VERIFYSTATUS, 0L);
       }
 
       auto headers = ccf::curl::UniqueSlist();
@@ -189,10 +188,9 @@ namespace ccf
         headers.append(k, v);
       }
       headers.append(http::headers::HOST, endpoint.host);
-      request->set_headers(std::move(headers));
 
-      request->set_response_callback([this, server, endpoint](
-                                       curl::CurlRequest& request) {
+      auto response_callback = ([this, server, endpoint](
+                                  curl::CurlRequest& request) {
         std::lock_guard<ccf::pal::Mutex> guard(this->lock);
         auto* response = request.get_response();
 
@@ -243,6 +241,13 @@ namespace ccf
         }
         return;
       });
+
+      auto request = std::make_unique<curl::CurlRequest>(
+        std::move(curl_handle),
+        std::move(url),
+        std::move(headers),
+        nullptr,
+        std::move(response_callback));
 
       // Start watchdog to send request on new server if it is unresponsive
       auto msg = std::make_unique<
