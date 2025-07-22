@@ -161,13 +161,13 @@ namespace ccf
       // set curl get
       CHECK_CURL_EASY_SETOPT(request->get_easy_handle(), CURLOPT_HTTPGET, 1L);
 
-      request->url = fmt::format(
+      request->set_url(fmt::format(
         "{}://{}:{}{}{}",
         endpoint.tls ? "https" : "http",
         endpoint.host,
         endpoint.port,
         endpoint.uri,
-        get_formatted_query(endpoint.params));
+        get_formatted_query(endpoint.params)));
 
       if (endpoint.tls)
       {
@@ -183,16 +183,18 @@ namespace ccf
           request->get_easy_handle(), CURLOPT_SSL_VERIFYSTATUS, 0L);
       }
 
+      auto headers = ccf::curl::UniqueSlist();
       for (auto const& [k, v] : endpoint.headers)
       {
-        request->set_header(k, v);
+        headers.append(k, v);
       }
-      request->set_header(http::headers::HOST, endpoint.host);
+      headers.append(http::headers::HOST, endpoint.host);
+      request->set_headers(std::move(headers));
 
       request->set_response_callback([this, server, endpoint](
                                        curl::CurlRequest& request) {
         std::lock_guard<ccf::pal::Mutex> guard(this->lock);
-        auto* response = request.response.get();
+        auto* response = request.get_response();
 
         if (response->status_code == HTTP_STATUS_OK)
         {
@@ -300,7 +302,8 @@ namespace ccf
         std::chrono::milliseconds(server_connection_timeout_s * 1000));
 
       LOG_INFO_FMT(
-        "Fetching endorsements for attestation report at {}", request->url);
+        "Fetching endorsements for attestation report at {}",
+        request->get_url());
 
       curl::CurlmLibuvContextSingleton::get_instance_unsafe()
         ->curlm()
