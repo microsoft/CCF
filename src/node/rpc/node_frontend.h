@@ -1964,8 +1964,8 @@ namespace ccf
           return;
         }
 
-        fs::path snapshot_path =
-          fs::path(snapshots_config.directory) / snapshot_name;
+        files::fs::path snapshot_path =
+          files::fs::path(snapshots_config.directory) / snapshot_name;
 
         std::ifstream f(snapshot_path, std::ios::binary);
         if (!f.good())

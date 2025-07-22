@@ -44,6 +44,7 @@ function(add_ccf_app name)
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   add_san(${name})
+  add_tidy(${name})
 
   add_dependencies(${name} ${name})
   if(PARSED_ARGS_DEPS)

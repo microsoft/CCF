@@ -412,7 +412,7 @@ namespace std
     } \
     catch (ccf::JsonParseError & jpe) \
     { \
-      jpe.pointer_elements.push_back(JSON_FIELD); \
+      jpe.pointer_elements.emplace_back(JSON_FIELD); \
       throw; \
     } \
   }

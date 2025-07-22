@@ -15,11 +15,6 @@
 #include <doctest/doctest.h>
 #include <string>
 
-// Because snapshot serialisation is costly, the snapshotter serialises
-// snapshots asynchronously.
-std::unique_ptr<threading::ThreadMessaging>
-  threading::ThreadMessaging::singleton = nullptr;
-
 constexpr auto buffer_size = 1024 * 16;
 auto node_kp = ccf::crypto::make_key_pair();
 
