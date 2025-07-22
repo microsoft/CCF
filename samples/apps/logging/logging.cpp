@@ -219,6 +219,8 @@ namespace loggingapp
   class LoggerHandlers : public ccf::UserEndpointRegistry
   {
   private:
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
+    ccf::AbstractNodeContext& _context;
     nlohmann::json record_public_params_schema;
     nlohmann::json record_public_result_schema;
 
@@ -464,6 +466,7 @@ namespace loggingapp
   public:
     LoggerHandlers(ccf::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context),
+      _context(context),
       record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
       record_public_result_schema(nlohmann::json::parse(j_record_public_out)),
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
@@ -476,6 +479,11 @@ namespace loggingapp
         "the features available to CCF apps.";
 
       openapi_info.document_version = "2.8.0";
+    };
+
+    void init_handlers() override
+    {
+      CommonEndpointRegistry::init_handlers();
 
       constexpr size_t seqnos_per_bucket = 10000;
       constexpr size_t buckets_per_key = 20;
@@ -636,7 +644,7 @@ namespace loggingapp
       // install the committed index and tell the historical fetcher to keep
       // track of deleted keys too, so that the index can observe the deleted
       // keys.
-      auto install_committed_index = [this, &context](auto& ctx) {
+      auto install_committed_index = [this](auto& ctx) {
         if (committed_records != nullptr)
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_PRECONDITION_FAILED);
@@ -657,7 +665,7 @@ namespace loggingapp
 
         // tracking committed records also wants to track deletes so enable that
         // in the historical queries too
-        context.get_historical_state().track_deletes_on_missing_keys(true);
+        _context.get_historical_state().track_deletes_on_missing_keys(true);
 
         // Indexing from the start of time may be expensive. Since this is a
         // locally-targetted sample, we only index from the _currently_
@@ -665,7 +673,7 @@ namespace loggingapp
         committed_records = std::make_shared<CommittedRecords>(
           PRIVATE_RECORDS, ccf::TxID{view, seqno});
 
-        context.get_indexing_strategies().install_strategy(committed_records);
+        _context.get_indexing_strategies().install_strategy(committed_records);
       };
 
       make_command_endpoint(
@@ -676,7 +684,7 @@ namespace loggingapp
         .set_auto_schema<void, void>()
         .install();
 
-      auto uninstall_committed_index = [this, &context](auto& ctx) {
+      auto uninstall_committed_index = [this](auto& ctx) {
         if (committed_records == nullptr)
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_PRECONDITION_FAILED);
@@ -684,7 +692,8 @@ namespace loggingapp
           return;
         }
 
-        context.get_indexing_strategies().uninstall_strategy(committed_records);
+        _context.get_indexing_strategies().uninstall_strategy(
+          committed_records);
         committed_records = nullptr;
       };
 
