@@ -150,8 +150,7 @@ namespace ccf::curl
       }
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_READDATA, this);
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_READFUNCTION, send_data);
-      CHECK_CURL_EASY_SETOPT(
-        curl, CURLOPT_INFILESIZE, static_cast<curl_off_t>(unsent.size()));
+      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_INFILESIZE, unsent.size());
     }
   };
 
