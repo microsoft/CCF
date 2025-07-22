@@ -80,6 +80,7 @@ namespace ccf
       std::unique_ptr<ringbuffer::Circuit> circuit_,
       std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory_,
       std::unique_ptr<oversized::WriterFactory> writer_factory_,
+      size_t sig_tx_interval,
       size_t sig_ms_interval,
       size_t chunk_threshold,
       const ccf::consensus::Configuration& consensus_config,
