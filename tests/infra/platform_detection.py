@@ -11,16 +11,11 @@ class Platform(StrEnum):
     SNP = "snp"
 
 
-# Path to the SEV guest device on patched 5.x kernels
-_SEV_DEVICE_LINUX_5 = "/dev/sev"
-
 # Path to the SEV guest device from 6.0 onwards
 # https://www.kernel.org/doc/html/v6.0/virt/coco/sev-guest.html
 _SEV_DEVICE_LINUX_6 = "/dev/sev-guest"
 
-SNP_SUPPORT = any(
-    path.exists(dev) for dev in [_SEV_DEVICE_LINUX_5, _SEV_DEVICE_LINUX_6]
-)
+SNP_SUPPORT = any(path.exists(dev) for dev in [_SEV_DEVICE_LINUX_6])
 
 
 def _detect_platform():
