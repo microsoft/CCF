@@ -162,7 +162,7 @@ namespace ccf
       CHECK_CURL_EASY_SETOPT(request->get_easy_handle(), CURLOPT_HTTPGET, 1L);
 
       request->url = fmt::format(
-        "{}://{}:{}/{}{}",
+        "{}://{}:{}{}{}",
         endpoint.tls ? "https" : "http",
         endpoint.host,
         endpoint.port,
