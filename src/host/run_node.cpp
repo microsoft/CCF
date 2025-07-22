@@ -997,7 +997,7 @@ int run_node(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   return loop_close_rc;
 }
 
-// Avoid namespacing and re-identing the above main function
+// Avoid namespacing and re-indenting the above main function
 namespace ccf
 {
   int run_node(int argc, char** argv)
