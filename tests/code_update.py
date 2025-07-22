@@ -648,9 +648,7 @@ def test_add_node_with_different_package(network, args):
 
 def get_replacement_package(args):
     return (
-        "samples/apps/logging/logging"
-        if args.package == "js_generic"
-        else "js_generic"
+        "samples/apps/logging/logging" if args.package == "js_generic" else "js_generic"
     )
 
 

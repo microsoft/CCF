@@ -274,7 +274,11 @@ target_link_libraries(
 target_compile_definitions(cchost PRIVATE CCF_LOGGER_NO_DEPRECATE)
 set_property(TARGET cchost PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-install(TARGETS cchost EXPORT ccf DESTINATION lib)
+install(
+  TARGETS cchost
+  EXPORT ccf
+  DESTINATION lib
+)
 
 # HTTP parser
 add_library(http_parser "${HTTP_PARSER_SOURCES}")

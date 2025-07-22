@@ -11,4 +11,6 @@ if(NOT TARGET "ccf")
   find_package(${CCF_PROJECT} REQUIRED)
 endif()
 
-add_ccf_app(programmability SRCS programmability.cpp ${CCF_DIR}/samples/apps/main.cpp)
+add_ccf_app(
+  programmability SRCS programmability.cpp ${CCF_DIR}/samples/apps/main.cpp
+)
