@@ -154,7 +154,7 @@ extern "C"
     {
       status = enclave->create_new_node(
         start_type,
-        std::move(ccf_config),
+        ccf_config,
         std::move(startup_snapshot),
         node_cert,
         service_cert);
