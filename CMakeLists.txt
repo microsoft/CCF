@@ -243,7 +243,7 @@ else()
   list(APPEND CCHOST_SOURCES src/host/snmalloc.cpp)
 endif()
 
-list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/entry_point.cpp
+list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/run_node.cpp
      ${CCF_DIR}/src/host/env.cpp
 )
 

@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "entry_point.h"
+#include "ccf/run_node.h"
 
-int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
+int main(int argc, char** argv)
 {
-  return start(argc, argv);
+  return ccf::run_node(argc, argv);
 }

@@ -2,4 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-int start(int argc, char** argv);
+namespace ccf
+{
+  int run_node(int argc, char** argv);
+}
