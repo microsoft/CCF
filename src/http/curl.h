@@ -394,6 +394,28 @@ namespace ccf::curl
 
   class CurlmLibuvContext
   {
+    /* Very high level:
+     * CURLM triggers timeout callback with some delay for libuv
+     * libuv calls the timeout callback which then triggers the curl socket
+     *   action
+     * curl calls the socket callback to register the libuv polling
+     * libuv waits on the socket events and calls the socket poll callback
+     * socket poll callback triggers relevant libuv action
+     * etc.
+     *
+     * Example flow:
+     *
+     * Initially a CURL* is attached to the curl_multi CURLM* handle
+     * This calls the curl_multi's timeout function curl_timeout_callback with 0
+     *   delay
+     * which then registers the libuv timeout callback with 0 delay
+     * libuv_timeout_callback then registers a timeout socket_action with curl
+     * which then registers the socket polling at the libuv level
+     *
+     * At this point, either the relevant timeout will fire and call the
+     * relevant timeout callbacks, or the socket polling will trigger allowing
+     * data to be sent/received
+     */
   private:
     uv_loop_t* loop;
     uv_timer_t timeout_tracker{};
@@ -571,6 +593,19 @@ namespace ccf::curl
         curl_multi,
         CURLMOPT_SOCKETFUNCTION,
         curl_socket_callback);
+
+      LOG_INFO_FMT("Created CURLM libuv context");
+
+      // kickstart timeout, probably a no-op but allows curl to initialise
+      int running_handles = 0;
+      CHECK_CURL_MULTI(
+        curl_multi_socket_action,
+        curl_multi,
+        CURL_SOCKET_TIMEOUT,
+        0,
+        &running_handles);
+
+      LOG_INFO_FMT("Kickstarted CURLM libuv context");
     }
 
     // should this return a reference or a pointer?
