@@ -172,8 +172,9 @@ namespace ccf
       config_file_path,
       true /* return an empty string if the file does not exist */);
     nlohmann::json config_json;
-    const auto config_timeout_end = // NOLINT(clang-analyzer-deadcode.DeadStores)
-                                    // line 195
+    const auto
+      config_timeout_end = // NOLINT(clang-analyzer-deadcode.DeadStores)
+                           // line 195
       std::chrono::high_resolution_clock::now() +
       std::chrono::microseconds(config_timeout);
     std::string config_parsing_error;
