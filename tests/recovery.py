@@ -23,7 +23,6 @@ import tempfile
 import http
 import base64
 import shutil
-import cwt
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
@@ -90,7 +89,7 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
             time.time() - cose_msg.phdr[CWT_KEY][IAT_CWT_LABEL] < last_five_minutes
         ), cose_msg.phdr
 
-        endorsement_filename = "prev_service_identoty_endorsement.cose"
+        endorsement_filename = "prev_service_identity_endorsement.cose"
         with open(endorsement_filename, "wb") as f:
             f.write(endorsement)
         subprocess.run(
