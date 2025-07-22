@@ -641,24 +641,21 @@ namespace ccf::curl
 
   class CurlmLibuvContextSingleton
   {
-    static CurlmLibuvContext* curlm_libuv_context_instance;
-
   public:
     static CurlmLibuvContext*& get_instance_unsafe()
-    {
+    {  
+      static CurlmLibuvContext* curlm_libuv_context_instance = nullptr;
       return curlm_libuv_context_instance;
     }
     static CurlmLibuvContext& get_instance()
     {
-      if (curlm_libuv_context_instance == nullptr)
+      auto*& instance = get_instance_unsafe();
+      if (instance == nullptr)
       {
         throw std::logic_error(
           "CurlmLibuvContextSingleton instance not initialized");
       }
-      return *curlm_libuv_context_instance;
+      return *instance;
     }
   };
-
-  inline CurlmLibuvContext*
-    CurlmLibuvContextSingleton::curlm_libuv_context_instance = nullptr;
 } // namespace ccf::curl
