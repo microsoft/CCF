@@ -301,7 +301,9 @@ class Node:
         Creates a CCFRemote instance, sets it up (connects, creates the directory
         and ships over the files)
         """
-        if self.version is None or self.version > "7.0.0-dev0":
+        if self.version is None or Version(strip_version(self.version)) > Version(
+            "7.0.0-dev0"
+        ):
             lib_path = lib_name
         else:
             lib_path = infra.path.build_lib_path(

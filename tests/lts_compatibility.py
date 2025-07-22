@@ -271,6 +271,7 @@ def run_code_upgrade_from(
                         infra.platform_detection.get_platform(),
                         args.package,
                         library_dir=to_library_dir,
+                        binary_dir=to_binary_dir,
                         version=to_version,
                     )
                 )
@@ -365,6 +366,7 @@ def run_code_upgrade_from(
                         infra.platform_detection.get_platform(),
                         args.package,
                         library_dir=from_library_dir,
+                        binary_dir=from_binary_dir,
                         version=from_version,
                     )
                 )
