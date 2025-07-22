@@ -549,6 +549,11 @@ namespace ccf::curl
       CurlmLibuvContext* self,
       RequestContext* request_context)
     {
+      if (self == nullptr)
+      {
+        throw std::logic_error(
+          "curl_socket_callback called with null self pointer");
+      }
       (void)easy;
       switch (action)
       {
