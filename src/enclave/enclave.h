@@ -88,7 +88,7 @@ namespace ccf
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),
-      work_beacon(work_beacon_)
+      work_beacon(work_beacon_),
       network(),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))

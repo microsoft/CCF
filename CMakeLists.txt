@@ -812,7 +812,10 @@ if(BUILD_TESTS)
     )
 
     # Merkle Tree memory test
-    add_executable(merkle_mem src/node/test/merkle_mem.cpp ${CCF_DIR}/src/enclave/thread_local.cpp)
+    add_executable(
+      merkle_mem src/node/test/merkle_mem.cpp
+                 ${CCF_DIR}/src/enclave/thread_local.cpp
+    )
     target_compile_options(merkle_mem PRIVATE ${COMPILE_LIBCXX})
     target_link_libraries(
       merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX} ccfcrypto
