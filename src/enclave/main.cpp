@@ -8,7 +8,6 @@
 #include "common/enclave_interface_types.h"
 #include "enclave.h"
 #include "enclave_time.h"
-#include "ringbuffer_logger.h"
 
 #include <chrono>
 #include <cstdint>
@@ -65,12 +64,6 @@ extern "C"
       std::make_unique<ringbuffer::WriterFactory>(*circuit);
     auto writer_factory = std::make_unique<oversized::WriterFactory>(
       *basic_writer_factory, enclave_config.writer_config);
-
-    // Note: because logger uses ringbuffer, logger can only be initialised once
-    // ringbuffer memory has been verified
-    auto new_logger = std::make_unique<ccf::RingbufferLogger>(*writer_factory);
-    auto* ringbuffer_logger = new_logger.get();
-    ccf::logger::config::loggers().push_back(std::move(new_logger));
 
     {
       num_pending_threads = (uint16_t)num_worker_threads + 1;
@@ -129,7 +122,6 @@ extern "C"
         std::move(circuit),
         std::move(basic_writer_factory),
         std::move(writer_factory),
-        ringbuffer_logger,
         ccf_config.ledger_signatures.tx_count,
         ccf_config.ledger_signatures.delay.count_ms(),
         ccf_config.ledger.chunk_size,

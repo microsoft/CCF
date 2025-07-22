@@ -32,7 +32,6 @@
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/node_operation.h"
 #include "node/rpc/user_frontend.h"
-#include "ringbuffer_logger.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
 
@@ -47,7 +46,6 @@ namespace ccf
     std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory;
     std::unique_ptr<oversized::WriterFactory> writer_factory;
     ccf::ds::WorkBeaconPtr work_beacon;
-    RingbufferLogger* ringbuffer_logger = nullptr;
     ccf::NetworkState network;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpcsessions;
@@ -82,8 +80,6 @@ namespace ccf
       std::unique_ptr<ringbuffer::Circuit> circuit_,
       std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory_,
       std::unique_ptr<oversized::WriterFactory> writer_factory_,
-      RingbufferLogger* ringbuffer_logger_,
-      size_t sig_tx_interval,
       size_t sig_ms_interval,
       size_t chunk_threshold,
       const ccf::consensus::Configuration& consensus_config,
@@ -92,8 +88,7 @@ namespace ccf
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),
-      work_beacon(work_beacon_),
-      ringbuffer_logger(ringbuffer_logger_),
+      work_beacon(work_beacon_)
       network(),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
@@ -243,9 +238,7 @@ namespace ccf
     {
       ccf::crypto::openssl_sha256_init();
       LOG_DEBUG_FMT("Running main thread");
-#ifndef VIRTUAL_ENCLAVE
-      try
-#endif
+
       {
         messaging::BufferProcessor bp("Enclave");
 
@@ -277,7 +270,6 @@ namespace ccf
               AdminMessage::work_stats, to_host, j.dump());
 
             const auto time_now = ccf::get_enclave_time();
-            ringbuffer_logger->set_time(time_now);
 
             const auto elapsed_ms =
               std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -432,18 +424,6 @@ namespace ccf
 
         return true;
       }
-#ifndef VIRTUAL_ENCLAVE
-      catch (const std::exception& e)
-      {
-        // It is expected that all enclave modules consuming ring buffer
-        // messages catch any thrown exception they can recover from. Uncaught
-        // exceptions bubble up to here and cause the node to shutdown.
-        RINGBUFFER_WRITE_MESSAGE(
-          AdminMessage::fatal_error_msg, to_host, std::string(e.what()));
-        ccf::crypto::openssl_sha256_shutdown();
-        return false;
-      }
-#endif
     }
 
     struct Msg
@@ -460,9 +440,7 @@ namespace ccf
     {
       ccf::crypto::openssl_sha256_init();
       LOG_DEBUG_FMT("Running worker thread");
-#ifndef VIRTUAL_ENCLAVE
-      try
-#endif
+
       {
         auto msg = std::make_unique<::threading::Tmsg<Msg>>(&init_thread_cb);
         msg->data.tid = ccf::threading::get_current_thread_id();
@@ -472,15 +450,7 @@ namespace ccf
         ::threading::ThreadMessaging::instance().run();
         ccf::crypto::openssl_sha256_shutdown();
       }
-#ifndef VIRTUAL_ENCLAVE
-      catch (const std::exception& e)
-      {
-        RINGBUFFER_WRITE_MESSAGE(
-          AdminMessage::fatal_error_msg, to_host, std::string(e.what()));
-        ccf::crypto::openssl_sha256_shutdown();
-        return false;
-      }
-#endif
+
       return true;
     }
   };

@@ -243,8 +243,6 @@ namespace ccf::pal
     }
   }
 
-#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
-
   static void verify_quote(
     const QuoteInfo& quote_info,
     PlatformAttestationMeasurement& measurement,
@@ -264,7 +262,6 @@ namespace ccf::pal
         "SGX attestation reports are no longer supported from 6.0.0 onwards");
     }
   }
-#endif
 
   class AttestationCollateralFetchingTimeout : public std::exception
   {
