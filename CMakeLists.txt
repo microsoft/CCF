@@ -247,7 +247,7 @@ list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/run_node.cpp
      ${CCF_DIR}/src/host/env.cpp
 )
 
-add_library(cchost SHARED ${CCHOST_SOURCES})
+add_library(cchost STATIC ${CCHOST_SOURCES})
 
 add_san(cchost)
 add_tidy(cchost)
@@ -272,8 +272,9 @@ target_link_libraries(
           http_parser
 )
 target_compile_definitions(cchost PRIVATE CCF_LOGGER_NO_DEPRECATE)
+set_property(TARGET cchost PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-install(TARGETS cchost DESTINATION bin)
+install(TARGETS cchost EXPORT ccf DESTINATION lib)
 
 # HTTP parser
 add_library(http_parser "${HTTP_PARSER_SOURCES}")
@@ -388,8 +389,8 @@ set(CCF_NETWORK_TEST_ARGS --log-level ${TEST_LOGGING_LEVEL} --worker-threads
 
 # SNIPPET_START: JS generic application
 add_ccf_app(
-  js_generic SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp INSTALL_LIBS
-                  ${CCF_DEVEL}
+  js_generic SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
+                  ${CCF_DIR}/samples/apps/main.cpp INSTALL_LIBS ${CCF_DEVEL}
 )
 # SNIPPET_END: JS generic application
 
@@ -981,10 +982,8 @@ if(BUILD_TESTS)
       NAME modules_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
       ADDITIONAL_ARGS
-        --package
-        js_generic
-        --election-timeout-ms
-        10000 # Larger election timeout as recording
+        --package js_generic --election-timeout-ms 10000 # Larger election
+                                                         # timeout as recording
         # large JS applications may trigger leadership changes
     )
 

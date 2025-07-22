@@ -22,7 +22,7 @@ function(add_ccf_app name)
   )
 
   # Build app executable
-  add_executable(${name} ${PARSED_ARGS_SRCS} ${CCF_DIR}/src/host/main.cpp)
+  add_executable(${name} ${PARSED_ARGS_SRCS})
 
   target_include_directories(${name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS})
   target_include_directories(
@@ -52,7 +52,7 @@ function(add_ccf_app name)
   endif()
 
   if(${PARSED_ARGS_INSTALL_LIBS})
-    install(TARGETS ${name} DESTINATION lib)
+    install(TARGETS ${name} DESTINATION bin)
   endif()
 endfunction()
 

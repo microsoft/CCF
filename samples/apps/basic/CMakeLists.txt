@@ -11,4 +11,4 @@ if(NOT TARGET "ccf")
   find_package(${CCF_PROJECT} REQUIRED)
 endif()
 
-add_ccf_app(basic SRCS basic.cpp)
+add_ccf_app(basic SRCS basic.cpp ${CCF_DIR}/samples/apps/main.cpp)
