@@ -4,5 +4,5 @@
 
 namespace ccf
 {
-  int run_node(int argc, char** argv);
+  int run(int argc, char** argv);
 }
