@@ -31,6 +31,11 @@ namespace basicapp
       openapi_info.description =
         "Lightweight application for benchmarking purposes";
       openapi_info.document_version = "0.0.1";
+    }
+
+    void init_handlers() override
+    {
+      CommonEndpointRegistry::init_handlers();
 
       auto put = [this](ccf::endpoints::EndpointContext& ctx) {
         std::string key;
