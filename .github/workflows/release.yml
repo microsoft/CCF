@@ -328,7 +328,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: DOWNLOAD_DIR
-          pattern: pkg-*
+          pattern: pkg*
           merge-multiple: true
       - name: Download Reproducibility Metadata
         uses: actions/download-artifact@v4
