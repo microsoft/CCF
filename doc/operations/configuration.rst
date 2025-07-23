@@ -12,7 +12,7 @@ The configuration for each CCF node must be contained in a single JSON configura
     - Complete ``join`` configuration: :ccf_repo:`join_config.json </samples/config/join_config.json>`
     - Complete ``recover`` configuration: :ccf_repo:`recover_config.json </samples/config/recover_config.json>`
 
-    A single configuration file can be verified using the executable, but without launching the enclave application, using the ``--check`` option:
+    A single configuration file can be verified using the executable, but without launching a node, using the ``--check`` option:
 
     .. code-block:: bash
 

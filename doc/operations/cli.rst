@@ -7,7 +7,7 @@ Each CCF executable exposes the following command-line interface (CLI) options:
 
     $ /opt/ccf/bin/js_generic --help
 
-        CCF Host launcher. Runs a single CCF node, based on the given configuration file.
+        Run a single CCF node, based on the given configuration file.
         Some parameters are marked "(security critical)" - these must be passed on the CLI rather than within a configuration file, so that (on relevant platforms) their value is captured in an attestation even if the configuration file itself is unattested.
 
         Usage: /opt/ccf/bin/js_generic [OPTIONS]
@@ -17,7 +17,7 @@ Each CCF executable exposes the following command-line interface (CLI) options:
         -c,--config TEXT REQUIRED   Path to JSON configuration file
         --config-timeout TEXT       Configuration file read timeout, for example 5s or 1min
         --check                     Verify configuration file and exit
-        -v,--version                Display CCF host version and exit
+        -v,--version                Display CCF version and exit
         --log-level ENUM:value in {debug->1,fail->3,fatal->4,info->2,trace->0} OR {1,3,4,2,0}
                                     Logging level for the node (security critical)
 

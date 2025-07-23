@@ -114,14 +114,11 @@ namespace ccf
     ccf::crypto::openssl_sha256_init();
 
     CLI::App app{
-      "CCF Host launcher. Runs a single CCF node, based on the given "
-      "configuration file.\n"
+      "Run a single CCF node, based on the given configuration file.\n"
       "Some parameters are marked \"(security critical)\" - these must be "
-      "passed "
-      "on the CLI rather than within a configuration file, so that (on "
-      "relevant "
-      "platforms) their value is captured in an attestation even if the "
-      "configuration file itself is unattested.\n"};
+      "passed on the CLI rather than within a configuration file, so that (on "
+      "relevant platforms) their value is captured in an attestation even if "
+      "the configuration file itself is unattested.\n"};
 
     std::string config_file_path;
     app
@@ -140,7 +137,7 @@ namespace ccf
       "--check", check_config_only, "Verify configuration file and exit");
 
     app.add_flag(
-      "-v, --version", print_version, "Display CCF host version and exit");
+      "-v, --version", print_version, "Display CCF version and exit");
 
     ccf::LoggerLevel log_level = ccf::LoggerLevel::INFO;
     std::map<std::string, ccf::LoggerLevel> log_level_options;

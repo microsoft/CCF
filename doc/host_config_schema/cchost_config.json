@@ -664,7 +664,7 @@
         },
         "pid_file": {
           "type": "string",
-          "default": "my_node.pid",
+          "default": "node.pid",
           "description": "Path to file in which process identifier (PID) will be written to on startup"
         },
         "node_to_node_address_file": {
