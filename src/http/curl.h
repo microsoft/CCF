@@ -232,6 +232,15 @@ namespace ccf::curl
         {
           std::string field_str(field);
           nonstd::to_lower(field_str);
+          if (response->headers.contains(field_str))
+          {
+            auto current = response->headers[field_str];
+            LOG_FAIL_FMT(
+              "Duplicate header for '{}', current = '{}', new = '{}'",
+              field_str,
+              current,
+              value);
+          }
           response->headers[field_str] = ccf::nonstd::trim(value);
         }
         else
