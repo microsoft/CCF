@@ -9,7 +9,7 @@
       "properties": {
         "file": {
           "type": "string",
-          "description": "DEPRECATED: Replaced by --enclave-file CLI argument. Path to enclave application"
+          "description": "DEPRECATED: No longer required."
         },
         "platform": {
           "type": "string",
