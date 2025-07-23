@@ -474,7 +474,7 @@ class BaseValidator:
     @staticmethod
     def _verify_root_cose_signature(service_cert, root, cose_sign1):
         try:
-            ccf.cose.verify_cose_sign1(
+            ccf.cose.verify_cose_sign1_with_cert(
                 certificate=service_cert.encode("ascii"),
                 cose_sign1=cose_sign1,
                 use_key=True,

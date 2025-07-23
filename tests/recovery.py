@@ -26,8 +26,7 @@ import shutil
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
-from ccf.cose import validate_cose_sign1
-from pycose.messages import Sign1Message  # type: ignore
+from ccf.cose import verify_cose_sign1_with_key  # type: ignore
 import random
 from loguru import logger as LOG
 
@@ -69,25 +68,20 @@ def query_endorsements_chain(node, txid):
 
 def verify_endorsements_chain(primary, endorsements, pubkey):
     for endorsement in endorsements:
-        validate_cose_sign1(cose_sign1=endorsement, pubkey=pubkey)
+        phdr, _, payload = verify_cose_sign1_with_key(pubkey, endorsement)
 
-        cose_msg = Sign1Message.decode(endorsement)
-        last_tx = ccf.tx_id.TxID.from_str(cose_msg.phdr["ccf.v1"]["epoch.end.txid"])
+        last_tx = ccf.tx_id.TxID.from_str(phdr["ccf.v1"]["epoch.end.txid"])
         receipt = primary.get_receipt(last_tx.view, last_tx.seqno)
         root_from_receipt = bytes.fromhex(receipt.json()["leaf"])
-        root_from_headers = cose_msg.phdr["ccf.v1"]["epoch.end.merkle.root"]
+        root_from_headers = phdr["ccf.v1"]["epoch.end.merkle.root"]
         assert root_from_receipt == root_from_headers
 
         CWT_KEY = 15
         IAT_CWT_LABEL = 6
-        assert (
-            CWT_KEY in cose_msg.phdr and IAT_CWT_LABEL in cose_msg.phdr[CWT_KEY]
-        ), cose_msg.phdr
+        assert CWT_KEY in phdr and IAT_CWT_LABEL in phdr[CWT_KEY], phdr
 
         last_five_minutes = 5 * 60
-        assert (
-            time.time() - cose_msg.phdr[CWT_KEY][IAT_CWT_LABEL] < last_five_minutes
-        ), cose_msg.phdr
+        assert time.time() - phdr[CWT_KEY][IAT_CWT_LABEL] < last_five_minutes, phdr
 
         endorsement_filename = "prev_service_identity_endorsement.cose"
         with open(endorsement_filename, "wb") as f:
@@ -102,8 +96,8 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
             check=True,
         )
 
-        next_key_bytes = cose_msg.payload
-        pubkey = serialization.load_der_public_key(next_key_bytes, default_backend())
+        next_key_bytes = payload
+        pubkey = infra.crypto.pub_key_der_to_pem(next_key_bytes).encode("ascii")
 
 
 def restart_network(old_network, args, current_ledger_dir, committed_ledger_dirs):
@@ -509,7 +503,14 @@ def test_recover_service_with_wrong_identity(network, args):
             base64.b64decode(x) for x in response.body.json()["endorsements"]
         ]
         assert len(endorsements) == 2  # 2 recoveries behind
-        verify_endorsements_chain(primary, endorsements, cert.public_key())
+        verify_endorsements_chain(
+            primary,
+            endorsements,
+            cert.public_key().public_bytes(
+                serialization.Encoding.PEM,
+                serialization.PublicFormat.SubjectPublicKeyInfo,
+            ),
+        )
 
     for tx in txids[1:4]:
         response = query_endorsements_chain(primary, tx)
@@ -518,7 +519,14 @@ def test_recover_service_with_wrong_identity(network, args):
             base64.b64decode(x) for x in response.body.json()["endorsements"]
         ]
         assert len(endorsements) == 1  # 1 recovery behind
-        verify_endorsements_chain(primary, endorsements, cert.public_key())
+        verify_endorsements_chain(
+            primary,
+            endorsements,
+            cert.public_key().public_bytes(
+                serialization.Encoding.PEM,
+                serialization.PublicFormat.SubjectPublicKeyInfo,
+            ),
+        )
 
     for tx in txids[4:]:
         response = query_endorsements_chain(primary, tx)

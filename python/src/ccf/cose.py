@@ -25,7 +25,10 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.hazmat.primitives.serialization import (
+    load_pem_private_key,
+    load_pem_public_key,
+)
 from cryptography.x509.base import CertificatePublicKeyTypes
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
@@ -134,6 +137,12 @@ def key_fingerprint_from_cert(cert_pem: Pem):
     return hashlib.sha256(pub_key).hexdigest()
 
 
+def key_fingerprint_from_key(key_pem: Pem):
+    key = load_pem_public_key(key_pem.encode("ascii"), default_backend())
+    pub_key = key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+    return hashlib.sha256(pub_key).hexdigest()
+
+
 def create_cose_sign1(
     payload: bytes,
     key_priv_pem: Pem,
@@ -199,24 +208,18 @@ def create_cose_sign1_finish(
     return msg.encode(sign=False)
 
 
-def validate_cose_sign1(pubkey, cose_sign1, payload=None):
-    cose_key = from_cryptography_eckey_obj(pubkey)
-    msg = Sign1Message.decode(cose_sign1)
-    msg.key = cose_key
-
-    if payload:
-        # Detached payload
-        msg.payload = payload
-
-    if not msg.verify_signature():
-        raise ValueError("signature is invalid")
-
-
-def verify_cose_sign1(certificate, cose_sign1, use_key=True, payload=None):
+def verify_cose_sign1_with_cert(certificate, cose_sign1, use_key=True, payload=None):
     cose_ctx = cwt.COSE.new()
     cert_pem = certificate.decode()
     cose_key = cwt.COSEKey.from_pem(cert_pem, kid=key_fingerprint_from_cert(cert_pem))
-    cose_ctx.decode(cose_sign1, cose_key, detached_payload=payload)
+    return cose_ctx.decode_with_headers(cose_sign1, cose_key, detached_payload=payload)
+
+
+def verify_cose_sign1_with_key(key, cose_sign1, payload=None):
+    cose_ctx = cwt.COSE.new()
+    key_pem = key.decode()
+    cose_key = cwt.COSEKey.from_pem(key_pem, kid=key_fingerprint_from_key(key_pem))
+    return cose_ctx.decode_with_headers(cose_sign1, cose_key, detached_payload=payload)
 
 
 def verify_receipt(
