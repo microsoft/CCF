@@ -492,6 +492,7 @@ target_link_libraries(
          ccf_kv
          nghttp2
          ${CMAKE_THREAD_LIBS_INIT}
+         curl
 )
 
 set_property(TARGET ccf PROPERTY POSITION_INDEPENDENT_CODE ON)
