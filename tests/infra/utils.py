@@ -24,7 +24,7 @@ def get_host_data_and_security_policy(
         host_data = sha256(security_policy.encode()).hexdigest()
         return host_data, security_policy
     elif enclave_platform == "virtual":
-        if version is None or Version(strip_version(version)) > Version("7.0.0-dev0"):
+        if version is None or Version(strip_version(version)) > Version("7.0.0-dev1"):
             lib_path = os.path.join(binary_dir, package)
         else:
             lib_path = infra.path.build_lib_path(package, library_dir, version=version)

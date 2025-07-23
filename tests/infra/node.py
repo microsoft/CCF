@@ -302,7 +302,7 @@ class Node:
         and ships over the files)
         """
         if self.version is None or Version(strip_version(self.version)) > Version(
-            "7.0.0-dev0"
+            "7.0.0-dev1"
         ):
             lib_path = lib_name
         else:
