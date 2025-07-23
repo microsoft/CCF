@@ -10,7 +10,7 @@ This page describes how the validity period of node and service certificates can
 Node Certificates
 -----------------
 
-At startup, operators can set the validity period for a node using the ``node_certificate.initial_validity_days`` :doc:`configuration entry </operations/configuration>`. The default value is set to 1 day and it is expected that members will issue a proposal to renew the certificate before it expires, when the service is open. Initial nodes certificates are valid from the current system time when the ``cchost`` executable is launched.
+At startup, operators can set the validity period for a node using the ``node_certificate.initial_validity_days`` :doc:`configuration entry </operations/configuration>`. The default value is set to 1 day and it is expected that members will issue a proposal to renew the certificate before it expires, when the service is open. A node's initial certificates are valid from the current system time when the executable is launched.
 
 The ``command.start.service_configuration.maximum_node_certificate_validity_days`` :doc:`configuration entry </operations/configuration>` (defaults to 365 days) can be used to set the maximum allowed validity period for nodes certificates when they are renewed by members. It is used as the default value for the validity period when a node certificate is renewed but the validity period is omitted.
 
@@ -52,7 +52,7 @@ The procedure that operators and members should follow is summarised in the foll
 Service Certificate
 -------------------
 
-The service certificate is output by the first node of a service at startup at the location specified by the ``command.service_certificate_file`` :doc:`configuration entry </operations/configuration>`. Operators can set the validity period for this certificate using the ``command.start.initial_service_certificate_validity_days`` :doc:`configuration entry </operations/configuration>`. The default value is set to 1 day and it is expected that members will issue :ref:`proposal to renew the certificate before it expires <governance/common_member_operations:Renewing Service Certificate>`, when the service is open. The initial service certificate is valid from the current system time when the ``cchost`` executable is launched.
+The service certificate is output by the first node of a service at startup at the location specified by the ``command.service_certificate_file`` :doc:`configuration entry </operations/configuration>`. Operators can set the validity period for this certificate using the ``command.start.initial_service_certificate_validity_days`` :doc:`configuration entry </operations/configuration>`. The default value is set to 1 day and it is expected that members will issue :ref:`proposal to renew the certificate before it expires <governance/common_member_operations:Renewing Service Certificate>`, when the service is open. The initial service certificate is valid from the current system time when the first node is started.
 
 The ``command.start.service_configuration.maximum_service_certificate_validity_days`` :doc:`configuration entry </operations/configuration>` (defaults to 365 days) can be used to set the maximum allowed validity period for nodes certificates when they are renewed by members. It is used as the default value for the validity period when the service certificate is renewed but the validity period is omitted.
 
@@ -87,9 +87,9 @@ Unendorsed, self-signed (CA) service certificates are a complication for clients
 
 1. Get a globally reachable DNS name for your CCF network, e.g. ``my-ccf.example.com``, which resolves to the address of at least one node in the network. Multiple nodes or a load balancer address are fine too.
 
-2. ACME `http-01 <https://letsencrypt.org/docs/challenge-types/>`_ challenges require a challenge server to be reachable on port 80 (non-negotiable). To be able to bind to that port, the ``cchost`` binary may need to be given special permission, e.g. by running ``sudo setcap CAP_NET_BIND_SERVICE=+eip cchost``. Alternatively, port 80 can be redirected to a non-privileged port that ``cchost`` may bind to without special permission.
+2. ACME `http-01 <https://letsencrypt.org/docs/challenge-types/>`_ challenges require a challenge server to be reachable on port 80 (non-negotiable). To be able to bind to that port, the executable may need to be given special permission, e.g. by running ``sudo setcap CAP_NET_BIND_SERVICE=+eip <start node command>``. Alternatively, port 80 can be redirected to a non-privileged port that the executable may bind to without special permission.
 
-3. Each interface defined in the ``cchost`` configuration file can be given the name of an ACME configuration to use. The settings of each ACME configuration are defined in ``network.acme`` :doc:`configuration entry </operations/configuration>`. Note that this information is required by *all* nodes as they might have to renew the certificate(s) later. Further, an additional interface for the challenge server is required.
+3. Each interface defined in the configuration file can be given the name of an ACME configuration to use. The settings of each ACME configuration are defined in ``network.acme`` :doc:`configuration entry </operations/configuration>`. Note that this information is required by *all* nodes as they might have to renew the certificate(s) later. Further, an additional interface for the challenge server is required.
 
 .. note:: ACME-endorsed interfaces *cannot* be used by new nodes to join a service, since they are not endorsed by the service certificate. Therefore, at least one interface must be configured to use "Service" as an endorsement authority.
 

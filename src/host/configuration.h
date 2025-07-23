@@ -76,7 +76,7 @@ namespace host
     struct OutputFiles
     {
       std::string node_certificate_file = "nodecert.pem";
-      std::string pid_file = "cchost.pid";
+      std::string pid_file = "my_node.pid";
 
       // Addresses files
       std::string node_to_node_address_file = "";

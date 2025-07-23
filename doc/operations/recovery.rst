@@ -25,7 +25,7 @@ The recovery procedure consists of two phases:
 Establishing a Recovered Public Network
 ---------------------------------------
 
-To initiate the first phase of the recovery procedure, one or several nodes should be started with the ``Recover`` command in the ``cchost`` config file (see also the sample recovery configuration file :ccf_repo:`recover_config.json </samples/config/recover_config.json>`):
+To initiate the first phase of the recovery procedure, one or several nodes should be started with the ``Recover`` command in their config file (see also the sample recovery configuration file :ccf_repo:`recover_config.json </samples/config/recover_config.json>`):
 
 .. code-block:: bash
 
@@ -38,9 +38,9 @@ To initiate the first phase of the recovery procedure, one or several nodes shou
           "initial_service_certificate_validity_days": 1
         }
       ...
-    $ cchost --config /path/to/config/file
+    $ /opt/ccf/bin/js_generic --config /path/to/config/file
 
-Each node will then immediately restore the public entries of its ledger ("ledger.directory`` and ``ledger.read_only_ledger_dir`` configuration entries). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling :http:GET:`/node/state` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
+Each node will then immediately restore the public entries of its ledger (``ledger.directory`` and ``ledger.read_only_ledger_dir`` configuration entries). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling :http:GET:`/node/state` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
 
 The recovery procedure can be accelerated by specifying a valid snapshot file created by the previous service in the directory specified via the ``snapshots.directory`` configuration entry. If specified, the ``recover`` node will automatically recover the snapshot and the ledger entries following that snapshot, which in practice should be a fraction of the total time required to recover the entire historical ledger.`
 
@@ -82,11 +82,11 @@ Summary Diagram
         participant Node 1
         participant Node 2
 
-        Operators->>+Node 0: cchost recover
+        Operators->>+Node 0: recover
         Node 0-->>Operators: Service Certificate 0
         Note over Node 0: Reading Public Ledger...
 
-        Operators->>+Node 1: cchost recover
+        Operators->>+Node 1: recover
         Node 1-->>Operators: Service Certificate 1
         Note over Node 1: Reading Public Ledger...
 
@@ -104,9 +104,9 @@ Summary Diagram
 
         Note over Operators, Node 1: Operators select Node 0 to start the new network (243 > 203)
 
-        Operators->>+Node 1: cchost shutdown
+        Operators->>+Node 1: shutdown
 
-        Operators->>+Node 2: cchost join
+        Operators->>+Node 2: join
         Node 2->>+Node 0: Join network (over TLS)
         Node 0-->>Node 2: Join network response
         Note over Node 2: Part of Public Network
@@ -143,7 +143,7 @@ Which of these two paths is taken is noted in the `public:ccf.internal.last_reco
         "sealed_ledger_secret_location": "/path/to/new/secret"
       }
       ...
-    $ cchost --config /path/to/config/file
+    $ /opt/ccf/bin/js_generic --config /path/to/config/file
 
 Notes
 -----

@@ -1,7 +1,7 @@
 Setup CCF Runtime Environment
 =============================
 
-To run a CCF application, installing the ``ccf`` RPM package is sufficient. This package contains cchost and expresses runtime dependencies.
+To run a CCF application, installing the ``ccf`` RPM package is sufficient. This package contains a sample app and expresses runtime dependencies.
 
 CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases>`_. They can be installed as follows:
 
@@ -18,6 +18,6 @@ The following command can be run to verify that CCF was installed successfully:
 
 .. code-block:: bash
 
-    $ /opt/ccf/bin/cchost --version
+    $ /opt/ccf/bin/js_generic --version
     CCF host: ccf-<version>
     Platform: SNP
