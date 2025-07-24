@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave.h"
 #include "signal.h"
 
 #include <chrono>

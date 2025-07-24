@@ -30,18 +30,9 @@
     deb: "{{ ccf_deb_url.stdout }}"
   become: true
 
-- name: Copy cchost
-  copy:
-    src: "/opt/ccf_{{ platform }}/bin/cchost"
-    dest: "/usr/bin/cchost"
-    remote_src: true
-    mode: a=rx
-  become: true
-  when: run_only|bool
-
-- name: Create ccf folder in /usr/lib
+- name: Create ccf folder in /usr/bin
   file:
-    path: "/usr/lib/ccf"
+    path: "/usr/bin/ccf"
     state: directory
     recurse: yes
   become: true
@@ -49,8 +40,8 @@
 
 - name: Copy JS generic
   copy:
-    src: "/opt/ccf/lib/{{ ccf_js_app_name }}.so"
-    dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.so"
+    src: "/opt/ccf/bin/{{ ccf_js_app_name }}"
+    dest: "/usr/bin/ccf/{{ ccf_js_app_name }}"
     remote_src: true
   become: true
 

@@ -252,7 +252,7 @@ if __name__ == "__main__":
         cr.add(
             "cft",
             run,
-            package="samples/apps/logging/liblogging",
+            package="samples/apps/logging/logging",
             nodes=infra.e2e_args.min_nodes(args, f=1),
             election_timeout_ms=1000,
             consensus="CFT",

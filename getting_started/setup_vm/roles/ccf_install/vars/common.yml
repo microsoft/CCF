@@ -1,4 +1,4 @@
 ccf_ver: "latest"
 run_js: false
-ccf_js_app_name: "libjs_generic"
+ccf_js_app_name: "js_generic"
 platform: "snp"

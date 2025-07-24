@@ -64,8 +64,10 @@ TEST_CASE("ThreadMessaging API" * doctest::test_suite("threadmessaging"))
     // thread
     ::threading::ThreadMessaging tm(2);
 
-    static constexpr auto worker_a_id = ccf::threading::MAIN_THREAD_ID + 1;
-    static constexpr auto worker_b_id = worker_a_id + 1;
+    static constexpr auto worker_a_id = 1;
+    static constexpr auto worker_b_id = 2;
+
+    ccf::threading::reset_thread_id_generator(worker_a_id);
 
     bool happened_0 = false;
     bool happened_1 = false;

@@ -627,7 +627,7 @@ if __name__ == "__main__":
     cr.add(
         "programmability",
         run,
-        package="samples/apps/programmability/libprogrammability",
+        package="samples/apps/programmability/programmability",
         js_app_bundle=None,
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         initial_user_count=2,

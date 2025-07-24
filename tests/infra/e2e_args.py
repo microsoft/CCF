@@ -112,7 +112,7 @@ def cli_args(
     parser.add_argument(
         "-p",
         "--package",
-        help="The enclave package to load (e.g., liblogging)",
+        help="The enclave package to load (e.g., logging)",
     )
     parser.add_argument(
         "--constitution",
@@ -421,7 +421,7 @@ def cli_args(
             args.library_dir = args.binary_dir
 
     if not args.package and args.js_app_bundle:
-        args.package = "libjs_generic"
+        args.package = "js_generic"
 
     if accept_unknown:
         return args, unknown_args

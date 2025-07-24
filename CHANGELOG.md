@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev2]
+
+[7.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev2
+
+### Changed
+
+- `cchost` is removed, and each application now provides its own executable:
+  - CCF nodes no longer contain a separate `cchost` executable and enclave library (`.so`) file. Each former enclave library is now its own executable, currently sharing the same set configuration format as the previous `cchost`.
+  - The `js_generic` sample app is no longer a library installed at `/ccf/lib/libjs_generic.so`, it is now an executable installed at `/ccf/bin/js_generic`.
+  - The `add_ccf_app` function in CMake now builds an executable rather than a library. The caller should provide a `main` function, and call `ccf::run()` from `include/ccf/run.h` to start the node (see `samples/apps/main.cpp` for a minimal example).
+- Application logging no longer traverses the ringbuffer. As current target platforms do not require distinct enclave and host components, what was previously "in-enclave" logging that was deferred via the ringbuffer can now be immediately sent to stdout.
+
 ## [7.0.0-dev1]
 
 [7.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev1

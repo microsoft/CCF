@@ -21,8 +21,8 @@ function(add_ccf_app name)
     "SRCS;INCLUDE_DIRS;SYSTEM_INCLUDE_DIRS;LINK_LIBS;DEPS;INSTALL_LIBS"
   )
 
-  # Build app "enclave", loaded as a shared library
-  add_library(${name} SHARED ${PARSED_ARGS_SRCS})
+  # Build app executable
+  add_executable(${name} ${PARSED_ARGS_SRCS})
 
   target_include_directories(${name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS})
   target_include_directories(
@@ -30,7 +30,7 @@ function(add_ccf_app name)
   )
   add_warning_checks(${name})
 
-  target_link_libraries(${name} PRIVATE ${PARSED_ARGS_LINK_LIBS} ccf)
+  target_link_libraries(${name} PRIVATE ${PARSED_ARGS_LINK_LIBS} ccf cchost)
 
   if(NOT (SAN OR TSAN))
     target_link_options(${name} PRIVATE LINKER:--no-undefined)
@@ -52,9 +52,8 @@ function(add_ccf_app name)
   endif()
 
   if(${PARSED_ARGS_INSTALL_LIBS})
-    install(TARGETS ${name} DESTINATION lib)
+    install(TARGETS ${name} DESTINATION bin)
   endif()
-
 endfunction()
 
 function(add_host_library name)

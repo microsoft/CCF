@@ -226,7 +226,9 @@ function(add_picobench name)
     PARSE_ARGV 1 PARSED_ARGS "" "" "SRCS;INCLUDE_DIRS;LINK_LIBS"
   )
 
-  add_executable(${name} ${PARSED_ARGS_SRCS})
+  add_executable(
+    ${name} ${PARSED_ARGS_SRCS} ${CCF_DIR}/src/enclave/thread_local.cpp
+  )
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
 

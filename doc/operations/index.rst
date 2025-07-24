@@ -29,7 +29,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
     :fa:`laptop-code` :doc:`cli`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Command-Line Interface for the `cchost` executable.
+    Command-Line Interface for CCF executables.
 
     ---
 

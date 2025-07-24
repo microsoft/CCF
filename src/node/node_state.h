@@ -570,14 +570,14 @@ namespace ccf
 
     NodeCreateInfo create(
       StartType start_type_,
-      ccf::StartupConfig&& config_,
+      const ccf::StartupConfig& config_,
       std::vector<uint8_t>&& startup_snapshot_)
     {
       std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
       start_type = start_type_;
 
-      config = std::move(config_);
+      config = config_;
       startup_snapshot = std::move(startup_snapshot_);
       subject_alt_names = get_subject_alternative_names();
 

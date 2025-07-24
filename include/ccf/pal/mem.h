@@ -2,24 +2,15 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include <cstring>
+#include <limits>
 #include <stdlib.h>
-
-#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
-#  include <cstring>
-#  include <limits>
-#  include <sys/resource.h>
-#else
-#  include "ccf/pal/hardware_info.h"
-
-#  include <openenclave/advanced/mallinfo.h>
-#  include <openenclave/bits/security.h>
-#endif
+#include <sys/resource.h>
 
 namespace ccf::pal
 {
   /**
-   * Malloc information formatted based on the OE type, but avoiding to expose
-   * the actual OE type in non-OE code.
+   * Malloc information
    */
   struct MallocInfo
   {

@@ -19,7 +19,7 @@ There are a large number of additional configuration options, documented by pass
 This script automates the steps described in :doc:`/operations/start_network`, in summary:
 
 - generating new identities (private keys and certs) for the initial members and users
-- starting the initial ``cchost`` node
+- starting the initial node
 - starting multiple additional nodes, instructed to ``join`` the initial node
 - verifying that each node has successfully joined the new service
 - proposing and passing governance votes using the generated member identities
