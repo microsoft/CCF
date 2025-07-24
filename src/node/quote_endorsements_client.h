@@ -190,11 +190,12 @@ namespace ccf
       headers.append(http::headers::HOST, endpoint.host);
 
       auto response_callback = ([this, server, endpoint](
-                                  curl::CurlRequest& request) {
+                                  curl::CurlRequest& request,
+                                  long status_code) {
         std::lock_guard<ccf::pal::Mutex> guard(this->lock);
         auto* response = request.get_response();
 
-        if (response->status_code == HTTP_STATUS_OK)
+        if (status_code == HTTP_STATUS_OK)
         {
           LOG_INFO_FMT(
             "Successfully retrieved endorsements for attestation report: "
@@ -207,8 +208,8 @@ namespace ccf
 
         LOG_DEBUG_FMT(
           "Error fetching endorsements for attestation report: {}",
-          response->status_code);
-        if (response->status_code == HTTP_STATUS_TOO_MANY_REQUESTS)
+          status_code);
+        if (status_code == HTTP_STATUS_TOO_MANY_REQUESTS)
         {
           constexpr size_t default_retry_after_s = 3;
           size_t retry_after_s = default_retry_after_s;
@@ -244,6 +245,7 @@ namespace ccf
 
       auto request = std::make_unique<curl::CurlRequest>(
         std::move(curl_handle),
+        HTTP_GET,
         std::move(url),
         std::move(headers),
         nullptr,

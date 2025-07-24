@@ -66,7 +66,6 @@ namespace snapshots
           std::move(initial_url),
           std::move(headers),
           nullptr, // No request body
-          true, // Expect a response
           std::nullopt // No response callback
         );
 
@@ -189,7 +188,7 @@ namespace snapshots
           EXPECT_HTTP_RESPONSE_STATUS(
             snapshot_range_request,
             snapshot_range_status_code,
-            HTTP_STATUS_PARTIAL_CONTENT)
+            HTTP_STATUS_PARTIAL_CONTENT);
 
           LOG_TRACE_FMT(
             "Received {}-byte chunk from {}: {} bytes",
