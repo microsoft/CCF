@@ -4,11 +4,13 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/ds/nonstd.h"
+#include "ccf/rest_verb.h"
 
 #include <cstdint>
 #include <curl/curl.h>
 #include <curl/multi.h>
 #include <memory>
+#include <optional>
 #include <regex>
 #include <span>
 #include <stdexcept>
@@ -63,7 +65,7 @@ namespace ccf::curl
       return p.get();
     }
 
-    void set_blob_opt(auto option, const uint8_t* data, size_t length)
+    void set_blob_opt(auto option, const auto* data, size_t length)
     {
       struct curl_blob blob
       {
@@ -190,7 +192,6 @@ namespace ccf::curl
     std::vector<uint8_t> buffer;
     using HeaderMap = std::unordered_map<std::string, std::string>;
     HeaderMap headers;
-    long status_code = 0;
 
     static size_t write_response_chunk(
       uint8_t* ptr, size_t size, size_t nmemb, Response* response)
@@ -271,21 +272,25 @@ namespace ccf::curl
   {
   private:
     UniqueCURL curl_handle;
+    RESTVerb method = HTTP_GET;
     std::string url;
     ccf::curl::UniqueSlist headers;
     std::unique_ptr<ccf::curl::RequestBody> request_body = nullptr;
     std::unique_ptr<ccf::curl::Response> response = nullptr;
-    std::optional<std::function<void(CurlRequest&)>> response_callback =
+    std::optional<std::function<void(CurlRequest&, long)>> response_callback =
       nullptr;
 
   public:
     CurlRequest(
       UniqueCURL&& curl_handle_,
+      RESTVerb method_,
       std::string&& url_,
       UniqueSlist&& headers_,
       std::unique_ptr<RequestBody>&& request_body_,
-      std::optional<std::function<void(CurlRequest&)>>&& response_callback_) :
+      std::optional<std::function<void(CurlRequest&, long)>>&&
+        response_callback_) :
       curl_handle(std::move(curl_handle_)),
+      method(method_),
       url(std::move(url_)),
       headers(std::move(headers_)),
       request_body(std::move(request_body_)),
@@ -300,10 +305,9 @@ namespace ccf::curl
       if (request_body != nullptr)
       {
         request_body->attach_to_curl(curl_handle);
-        CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_UPLOAD, 1L);
       }
 
-      if (response_callback != std::nullopt)
+      if (response_callback.has_value())
       {
         response = std::make_unique<Response>();
         response->attach_to_curl(curl_handle);
@@ -313,19 +317,71 @@ namespace ccf::curl
       {
         CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPHEADER, headers.get());
       }
+
+      if (!method.get_http_method().has_value())
+      {
+        throw std::logic_error(
+          fmt::format("Unsupported HTTP method: {}", method.c_str()));
+      }
+      switch (method.get_http_method().value())
+      {
+        case HTTP_GET:
+          CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPGET, 1L);
+          break;
+        case HTTP_HEAD:
+          CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_NOBODY, 1L);
+          break;
+        case HTTP_PUT:
+          CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_UPLOAD, 1L);
+          break;
+        case HTTP_POST:
+          // libcurl sets the post verb when CURLOPT_POSTFIELDS is set, so we
+          // skip doing so here, and we assume that the user has already set
+          // these fields
+          break;
+        default:
+          throw std::logic_error(
+            fmt::format("Unsupported HTTP method: {}", method.c_str()));
+      }
     }
 
     void handle_response()
     {
       if (response_callback.has_value())
       {
-        response_callback.value()(*this);
+        long status_code = 0;
+        CHECK_CURL_EASY_GETINFO(
+          curl_handle, CURLINFO_RESPONSE_CODE, &status_code);
+        response_callback.value()(*this, status_code);
       }
+    }
+
+    long syncronous_perform()
+    {
+      if (curl_handle == nullptr)
+      {
+        throw std::logic_error(
+          "Cannot curl_easy_perform on a null CURL handle");
+      }
+
+      CHECK_CURL_EASY(curl_easy_perform, curl_handle);
+
+      handle_response(); // handle the response callback if set
+
+      long status_code = 0;
+      CHECK_CURL_EASY_GETINFO(
+        curl_handle, CURLINFO_RESPONSE_CODE, &status_code);
+      return status_code;
     }
 
     [[nodiscard]] CURL* get_easy_handle() const
     {
       return curl_handle;
+    }
+
+    [[nodiscard]] RESTVerb get_method() const
+    {
+      return method;
     }
 
     [[nodiscard]] std::string get_url() const
@@ -405,14 +461,6 @@ namespace ccf::curl
               "CURLMSG_DONE received with no associated request data");
           }
           std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request);
-
-          if (request->get_response() != nullptr)
-          {
-            CHECK_CURL_EASY_GETINFO(
-              easy,
-              CURLINFO_RESPONSE_CODE,
-              &request->get_response()->status_code);
-          }
 
           // detach the easy handle such that it can be cleaned up with the
           // destructor of CurlRequest
@@ -652,7 +700,7 @@ namespace ccf::curl
   {
   public:
     static CurlmLibuvContext*& get_instance_unsafe()
-    {  
+    {
       static CurlmLibuvContext* curlm_libuv_context_instance = nullptr;
       return curlm_libuv_context_instance;
     }
