@@ -145,7 +145,7 @@ def run(args):
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
-    args.package = "samples/apps/logging/liblogging"
+    args.package = "samples/apps/logging/logging"
 
     args.nodes = infra.e2e_args.nodes(args, 1)
     run(args)

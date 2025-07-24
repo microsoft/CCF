@@ -693,7 +693,7 @@ if __name__ == "__main__":
     cr.add(
         "auto",
         run_auto,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         jwt_key_refresh_interval_s=1,
         issuer_port=12345,
@@ -702,7 +702,7 @@ if __name__ == "__main__":
     cr.add(
         "manual",
         run_manual,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         jwt_key_refresh_interval_s=100000,
         issuer_port=12346,
@@ -711,7 +711,7 @@ if __name__ == "__main__":
     cr.add(
         "ca_cert",
         run_ca_cert,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 

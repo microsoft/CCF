@@ -444,14 +444,14 @@ if __name__ == "__main__":
     cr.add(
         "robustness",
         run_node_socket_robustness_tests,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.nodes(cr.args, 1),
     )
 
     cr.add(
         "idletimeout",
         run_idle_timeout_tests,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.nodes(cr.args, 1),
     )
 
@@ -464,7 +464,7 @@ if __name__ == "__main__":
     cr.add(
         "caps",
         run_connection_caps_tests,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.nodes(cr.args, 1),
         initial_user_count=1,
     )

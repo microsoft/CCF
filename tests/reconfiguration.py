@@ -926,7 +926,7 @@ if __name__ == "__main__":
     cr.add(
         "reconfiguration",
         run_all,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
     )
 

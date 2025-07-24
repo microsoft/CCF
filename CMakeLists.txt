@@ -243,11 +243,11 @@ else()
   list(APPEND CCHOST_SOURCES src/host/snmalloc.cpp)
 endif()
 
-list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/main.cpp
+list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/run.cpp
      ${CCF_DIR}/src/host/env.cpp
 )
 
-add_executable(cchost ${CCHOST_SOURCES})
+add_library(cchost STATIC ${CCHOST_SOURCES})
 
 add_san(cchost)
 add_tidy(cchost)
@@ -272,8 +272,13 @@ target_link_libraries(
           http_parser
 )
 target_compile_definitions(cchost PRIVATE CCF_LOGGER_NO_DEPRECATE)
+set_property(TARGET cchost PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-install(TARGETS cchost DESTINATION bin)
+install(
+  TARGETS cchost
+  EXPORT ccf
+  DESTINATION lib
+)
 
 # HTTP parser
 add_library(http_parser "${HTTP_PARSER_SOURCES}")
@@ -388,8 +393,8 @@ set(CCF_NETWORK_TEST_ARGS --log-level ${TEST_LOGGING_LEVEL} --worker-threads
 
 # SNIPPET_START: JS generic application
 add_ccf_app(
-  js_generic SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp INSTALL_LIBS
-                  ${CCF_DEVEL}
+  js_generic SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
+                  ${CCF_DIR}/samples/apps/main.cpp INSTALL_LIBS ${CCF_DEVEL}
 )
 # SNIPPET_END: JS generic application
 
@@ -466,8 +471,6 @@ set(CCF_IMPL_SOURCE
 )
 
 add_library(ccf STATIC ${CCF_IMPL_SOURCE})
-
-target_compile_definitions(ccf PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE)
 
 target_compile_options(ccf PUBLIC ${COMPILE_LIBCXX})
 target_compile_definitions(ccf PRIVATE CCF_LOGGER_NO_DEPRECATE)
@@ -821,7 +824,10 @@ if(BUILD_TESTS)
     )
 
     # Merkle Tree memory test
-    add_executable(merkle_mem src/node/test/merkle_mem.cpp)
+    add_executable(
+      merkle_mem src/node/test/merkle_mem.cpp
+                 ${CCF_DIR}/src/enclave/thread_local.cpp
+    )
     target_compile_options(merkle_mem PRIVATE ${COMPILE_LIBCXX})
     target_link_libraries(
       merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX} ccfcrypto
@@ -980,10 +986,8 @@ if(BUILD_TESTS)
       NAME modules_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
       ADDITIONAL_ARGS
-        --package
-        libjs_generic
-        --election-timeout-ms
-        10000 # Larger election timeout as recording
+        --package js_generic --election-timeout-ms 10000 # Larger election
+                                                         # timeout as recording
         # large JS applications may trigger leadership changes
     )
 
@@ -991,7 +995,7 @@ if(BUILD_TESTS)
       NAME auth
       PYTHON_SCRIPT
         ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
-      ADDITIONAL_ARGS --package libjs_generic --js-app-bundle
+      ADDITIONAL_ARGS --package js_generic --js-app-bundle
                       ${CMAKE_SOURCE_DIR}/tests
     )
 
@@ -1240,7 +1244,7 @@ if(BUILD_TESTS)
       NAME pi_ls
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
       CLIENT_BIN ./submit PERF_LABEL "Logging"
-      ADDITIONAL_ARGS --package "samples/apps/logging/liblogging"
+      ADDITIONAL_ARGS --package "samples/apps/logging/logging"
                       --max-writes-ahead 1000 --repetitions 10000
     )
 
@@ -1248,7 +1252,7 @@ if(BUILD_TESTS)
       NAME pi_basic
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
       CLIENT_BIN ./submit PERF_LABEL "Basic"
-      ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
+      ADDITIONAL_ARGS --package "samples/apps/basic/basic" --client-def
                       "1,write,100000,primary"
     )
 
@@ -1265,7 +1269,7 @@ if(BUILD_TESTS)
         NAME pi_basic_mt
         PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
         CLIENT_BIN ./submit PERF_LABEL "Basic Multi-Threaded"
-        ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
+        ADDITIONAL_ARGS --package "samples/apps/basic/basic" --client-def
                         "${WORKER_THREADS},write,100000,primary"
       )
     endif()
@@ -1276,7 +1280,7 @@ if(BUILD_TESTS)
       CLIENT_BIN ./submit PERF_LABEL "Logging JWT"
       ADDITIONAL_ARGS
         --package
-        "samples/apps/logging/liblogging"
+        "samples/apps/logging/logging"
         --max-writes-ahead
         1000
         --repetitions

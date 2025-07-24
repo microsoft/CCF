@@ -75,7 +75,7 @@ if __name__ == "__main__":
         cr.add(
             "parser_limits",
             run_parser_limits_checks,
-            package="samples/apps/logging/liblogging",
+            package="samples/apps/logging/logging",
             nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         )
 

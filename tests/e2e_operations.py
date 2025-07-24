@@ -590,13 +590,11 @@ def run_config_timeout_check(args):
 
     proc = subprocess.Popen(
         [
-            "./cchost",
+            os.path.join(".", os.path.basename(node.remote.BIN)),
             "--config",
             "0.config.json",
             "--config-timeout",
             f"{config_timeout}s",
-            "--enclave-file",
-            node.remote.enclave_file,
         ],
         cwd=start_node_path,
         env=env,
@@ -645,9 +643,7 @@ def run_configuration_file_checks(args):
     LOG.info(
         f"Verifying JSON configuration samples in {args.config_samples_dir} directory"
     )
-    CCHOST_BINARY_NAME = "cchost"
-
-    bin_path = infra.path.build_bin_path(CCHOST_BINARY_NAME, binary_dir=args.binary_dir)
+    bin_path = args.package
 
     config_files_to_check = [
         os.path.join(args.config_samples_dir, c)

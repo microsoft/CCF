@@ -187,7 +187,7 @@ For deployments where nodes are not directly accessible, redirections can still 
       P->>P: Execute request
       P-->>U: 200 OK "Copied {a} from {A} to {B}"
 
-To use redirection behaviour, and choose whether to redirect to a node or a load balancer, set the ``redirections`` field in the :doc:`cchost launch configuration </operations/configuration>`.
+To use redirection behaviour, and choose whether to redirect to a node or a load balancer, set the ``redirections`` field in the :doc:`launch configuration </operations/configuration>`.
 
 External executor flow
 ----------------------

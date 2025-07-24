@@ -301,11 +301,16 @@ class Node:
         Creates a CCFRemote instance, sets it up (connects, creates the directory
         and ships over the files)
         """
-        lib_path = infra.path.build_lib_path(
-            lib_name,
-            library_dir=self.library_dir,
-            version=self.version,
-        )
+        if self.version is None or Version(strip_version(self.version)) > Version(
+            "7.0.0-dev1"
+        ):
+            lib_path = lib_name
+        else:
+            lib_path = infra.path.build_lib_path(
+                lib_name,
+                library_dir=self.library_dir,
+                version=self.version,
+            )
         self.common_dir = common_dir
         members_info = members_info or []
         self.label = label
