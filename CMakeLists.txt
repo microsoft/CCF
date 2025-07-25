@@ -353,7 +353,6 @@ endif()
 
 # CCF endpoints lib
 add_host_library(ccf_endpoints "${CCF_ENDPOINTS_SOURCES}")
-target_include_directories(ccf_endpoints PRIVATE ${CCF_DIR}/src/endpoints)
 target_link_libraries(
   ccf_endpoints PUBLIC qcbor t_cose http_parser ccfcrypto ccf_kv
 )
