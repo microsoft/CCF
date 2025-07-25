@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev2
 
+
 ### Changed
 
 - `cchost` is removed, and each application now provides its own executable:
