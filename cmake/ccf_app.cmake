@@ -30,7 +30,9 @@ function(add_ccf_app name)
   )
   add_warning_checks(${name})
 
-  target_link_libraries(${name} PRIVATE ${PARSED_ARGS_LINK_LIBS} ccf ccf_launcher)
+  target_link_libraries(
+    ${name} PRIVATE ${PARSED_ARGS_LINK_LIBS} ccf ccf_launcher
+  )
 
   if(NOT (SAN OR TSAN))
     target_link_options(${name} PRIVATE LINKER:--no-undefined)
