@@ -241,6 +241,7 @@ add_ccf_static_library(
 target_include_directories(
   ccf_launcher PRIVATE ${CCF_GENERATED_DIR} ${SNMALLOC_INCLUDE_DIRS}
 )
+target_compile_options(ccf_launcher PRIVATE ${SNMALLOC_COMPILE_OPTIONS})
 
 # HTTP parser
 add_library(http_parser "${HTTP_PARSER_SOURCES}")
