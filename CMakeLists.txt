@@ -202,34 +202,12 @@ set(HTTP_PARSER_SOURCES
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
 )
 
-set(CCF_ENDPOINTS_SOURCES
-    ${CCF_DIR}/src/endpoints/endpoint.cpp
-    ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
-    ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
-    ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
-    ${CCF_DIR}/src/endpoints/user_endpoint_registry.cpp
-    ${CCF_DIR}/src/endpoints/json_handler.cpp
-    ${CCF_DIR}/src/endpoints/authentication/cose_auth.cpp
-    ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
-    ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
-    ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
-    ${CCF_DIR}/src/endpoints/authentication/all_of_auth.cpp
-    ${CCF_DIR}/src/endpoints/endpoint_utils.cpp
-    ${CCF_DIR}/src/enclave/enclave_time.cpp
-    ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
-    ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
-    ${CCF_DIR}/src/indexing/strategies/visit_each_entry_in_map.cpp
-    ${CCF_DIR}/src/node/historical_queries_adapter.cpp
-    ${CCF_DIR}/src/node/historical_queries_utils.cpp
-    ${CCF_DIR}/src/node/receipt.cpp
-)
-
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
 
-# Host Executable
+# Launcher library
 if(SAN
    OR TSAN
    OR NOT USE_SNMALLOC
@@ -247,37 +225,21 @@ list(APPEND CCF_LAUNCHER_SOURCES ${CCF_DIR}/src/host/run.cpp
      ${CCF_DIR}/src/host/env.cpp
 )
 
-add_library(ccf_launcher STATIC ${CCF_LAUNCHER_SOURCES})
-
-add_san(ccf_launcher)
-add_tidy(ccf_launcher)
-add_warning_checks(ccf_launcher)
-
-target_compile_options(
-  ccf_launcher PRIVATE ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
+add_ccf_static_library(
+  ccf_launcher
+  SRCS ${CCF_LAUNCHER_SOURCES}
+  LINK_LIBS uv
+            ${TLS_LIBRARY}
+            ${CMAKE_DL_LIBS}
+            ${CMAKE_THREAD_LIBS_INIT}
+            ${LINK_LIBCXX}
+            ccfcrypto
+            curl
+            http_parser
 )
+
 target_include_directories(
   ccf_launcher PRIVATE ${CCF_GENERATED_DIR} ${SNMALLOC_INCLUDE_DIRS}
-)
-
-target_link_libraries(
-  ccf_launcher
-  PRIVATE uv
-          ${TLS_LIBRARY}
-          ${CMAKE_DL_LIBS}
-          ${CMAKE_THREAD_LIBS_INIT}
-          ${LINK_LIBCXX}
-          ccfcrypto
-          curl
-          http_parser
-)
-target_compile_definitions(ccf_launcher PRIVATE CCF_LOGGER_NO_DEPRECATE)
-set_property(TARGET ccf_launcher PROPERTY POSITION_INDEPENDENT_CODE ON)
-
-install(
-  TARGETS ccf_launcher
-  EXPORT ccf
-  DESTINATION lib
 )
 
 # HTTP parser
@@ -291,47 +253,59 @@ if(CCF_DEVEL)
   )
 endif()
 
-# CCF js libs
-set(CCF_JS_SOURCES
-    ${CCF_DIR}/src/js/global_class_ids.cpp
-    ${CCF_DIR}/src/js/core/wrapped_value.cpp
-    ${CCF_DIR}/src/js/core/runtime.cpp
-    ${CCF_DIR}/src/js/core/context.cpp
-    ${CCF_DIR}/src/js/extensions/console.cpp
-    ${CCF_DIR}/src/js/extensions/math/random.cpp
-    ${CCF_DIR}/src/js/extensions/snp_attestation.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/crypto.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/gov_effects.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/historical.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/host.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/kv.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/network.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/node.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/request.cpp
-    ${CCF_DIR}/src/js/registry.cpp
-)
-
+# CCF js lib
 add_ccf_static_library(
   ccf_js
-  SRCS "${CCF_JS_SOURCES}"
+  SRCS ${CCF_DIR}/src/js/global_class_ids.cpp
+       ${CCF_DIR}/src/js/core/wrapped_value.cpp
+       ${CCF_DIR}/src/js/core/runtime.cpp
+       ${CCF_DIR}/src/js/core/context.cpp
+       ${CCF_DIR}/src/js/extensions/console.cpp
+       ${CCF_DIR}/src/js/extensions/math/random.cpp
+       ${CCF_DIR}/src/js/extensions/snp_attestation.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/crypto.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/gov_effects.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/historical.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/host.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/kv.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/network.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/node.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/request.cpp
+       ${CCF_DIR}/src/js/registry.cpp
   LINK_LIBS ccfcrypto quickjs
 )
 
-# CCF kv libs
-set(CCF_KV_SOURCES
-    ${CCF_DIR}/src/kv/tx.cpp ${CCF_DIR}/src/kv/untyped_map_handle.cpp
-    ${CCF_DIR}/src/kv/untyped_map_diff.cpp
+# CCF kv lib
+add_ccf_static_library(
+  ccf_kv SRCS ${CCF_DIR}/src/kv/tx.cpp ${CCF_DIR}/src/kv/untyped_map_handle.cpp
+              ${CCF_DIR}/src/kv/untyped_map_diff.cpp
 )
-
-add_ccf_static_library(ccf_kv SRCS "${CCF_KV_SOURCES}")
 
 # CCF endpoints lib
 add_ccf_static_library(
   ccf_endpoints
-  SRCS "${CCF_ENDPOINTS_SOURCES}"
+  SRCS ${CCF_DIR}/src/endpoints/endpoint.cpp
+       ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
+       ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
+       ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
+       ${CCF_DIR}/src/endpoints/user_endpoint_registry.cpp
+       ${CCF_DIR}/src/endpoints/json_handler.cpp
+       ${CCF_DIR}/src/endpoints/authentication/cose_auth.cpp
+       ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
+       ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
+       ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
+       ${CCF_DIR}/src/endpoints/authentication/all_of_auth.cpp
+       ${CCF_DIR}/src/endpoints/endpoint_utils.cpp
+       ${CCF_DIR}/src/enclave/enclave_time.cpp
+       ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
+       ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
+       ${CCF_DIR}/src/indexing/strategies/visit_each_entry_in_map.cpp
+       ${CCF_DIR}/src/node/historical_queries_adapter.cpp
+       ${CCF_DIR}/src/node/historical_queries_utils.cpp
+       ${CCF_DIR}/src/node/receipt.cpp
   LINK_LIBS qcbor t_cose http_parser ccfcrypto ccf_kv
 )
 
