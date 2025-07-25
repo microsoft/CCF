@@ -240,28 +240,28 @@ else()
   add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
   set(SNMALLOC_COMPILE_OPTIONS "-mcx16")
   set(SNMALLOC_INCLUDE_DIRS 3rdparty/exported/snmalloc/src)
-  list(APPEND CCHOST_SOURCES src/host/snmalloc.cpp)
+  list(APPEND CCF_LAUNCHER_SOURCES src/host/snmalloc.cpp)
 endif()
 
-list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/run.cpp
+list(APPEND CCF_LAUNCHER_SOURCES ${CCF_DIR}/src/host/run.cpp
      ${CCF_DIR}/src/host/env.cpp
 )
 
-add_library(cchost STATIC ${CCHOST_SOURCES})
+add_library(ccf_launcher STATIC ${CCF_LAUNCHER_SOURCES})
 
-add_san(cchost)
-add_tidy(cchost)
-add_warning_checks(cchost)
+add_san(ccf_launcher)
+add_tidy(ccf_launcher)
+add_warning_checks(ccf_launcher)
 
 target_compile_options(
-  cchost PRIVATE ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
+  ccf_launcher PRIVATE ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
 )
 target_include_directories(
-  cchost PRIVATE ${CCF_GENERATED_DIR} ${SNMALLOC_INCLUDE_DIRS}
+  ccf_launcher PRIVATE ${CCF_GENERATED_DIR} ${SNMALLOC_INCLUDE_DIRS}
 )
 
 target_link_libraries(
-  cchost
+  ccf_launcher
   PRIVATE uv
           ${TLS_LIBRARY}
           ${CMAKE_DL_LIBS}
@@ -271,11 +271,11 @@ target_link_libraries(
           curl
           http_parser
 )
-target_compile_definitions(cchost PRIVATE CCF_LOGGER_NO_DEPRECATE)
-set_property(TARGET cchost PROPERTY POSITION_INDEPENDENT_CODE ON)
+target_compile_definitions(ccf_launcher PRIVATE CCF_LOGGER_NO_DEPRECATE)
+set_property(TARGET ccf_launcher PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 install(
-  TARGETS cchost
+  TARGETS ccf_launcher
   EXPORT ccf
   DESTINATION lib
 )
@@ -434,10 +434,18 @@ set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/node/uvm_endorsements.cpp
 )
 
-add_library(ccf STATIC ${CCF_IMPL_SOURCE})
-
-target_compile_options(ccf PUBLIC ${COMPILE_LIBCXX})
-target_compile_definitions(ccf PRIVATE CCF_LOGGER_NO_DEPRECATE)
+add_ccf_static_library(
+  ccf
+  SRCS ${CCF_IMPL_SOURCE}
+  LINK_LIBS ${LINK_LIBCXX}
+            http_parser
+            ccf_js
+            ccf_endpoints
+            ccfcrypto
+            ccf_kv
+            nghttp2
+            ${CMAKE_THREAD_LIBS_INIT}
+)
 
 target_include_directories(
   ccf SYSTEM
@@ -448,32 +456,6 @@ target_include_directories(
          $<INSTALL_INTERFACE:include/>
          $<INSTALL_INTERFACE:include/3rdparty/>
 )
-
-target_link_libraries(
-  ccf
-  PUBLIC ${LINK_LIBCXX}
-         http_parser
-         ccf_js
-         ccf_endpoints
-         ccfcrypto
-         ccf_kv
-         nghttp2
-         ${CMAKE_THREAD_LIBS_INIT}
-)
-
-set_property(TARGET ccf PROPERTY POSITION_INDEPENDENT_CODE ON)
-
-add_san(ccf)
-add_tidy(ccf)
-add_warning_checks(ccf)
-
-if(CCF_DEVEL)
-  install(
-    TARGETS ccf
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
 
 add_dependencies(ccf ccf)
 
