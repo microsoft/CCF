@@ -314,21 +314,11 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/registry.cpp
 )
 
-add_host_library(ccf_js "${CCF_JS_SOURCES}")
-
-add_san(ccf_js)
-add_tidy(ccf_js)
-add_warning_checks(ccf_js)
-
-target_link_libraries(ccf_js PUBLIC ccfcrypto quickjs)
-target_compile_definitions(ccf_js PRIVATE CCF_LOGGER_NO_DEPRECATE)
-if(CCF_DEVEL)
-  install(
-    TARGETS ccf_js
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
+add_ccf_static_library(
+  ccf_js
+  SRCS "${CCF_JS_SOURCES}"
+  LINK_LIBS ccfcrypto quickjs
+)
 
 # CCF kv libs
 set(CCF_KV_SOURCES
@@ -336,39 +326,14 @@ set(CCF_KV_SOURCES
     ${CCF_DIR}/src/kv/untyped_map_diff.cpp
 )
 
-add_host_library(ccf_kv "${CCF_KV_SOURCES}")
-
-add_san(ccf_kv)
-add_tidy(ccf_kv)
-add_warning_checks(ccf_kv)
-
-target_compile_definitions(ccf_kv PRIVATE CCF_LOGGER_NO_DEPRECATE)
-if(CCF_DEVEL)
-  install(
-    TARGETS ccf_kv
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
+add_ccf_static_library(ccf_kv SRCS "${CCF_KV_SOURCES}")
 
 # CCF endpoints lib
-add_host_library(ccf_endpoints "${CCF_ENDPOINTS_SOURCES}")
-target_link_libraries(
-  ccf_endpoints PUBLIC qcbor t_cose http_parser ccfcrypto ccf_kv
+add_ccf_static_library(
+  ccf_endpoints
+  SRCS "${CCF_ENDPOINTS_SOURCES}"
+  LINK_LIBS qcbor t_cose http_parser ccfcrypto ccf_kv
 )
-
-add_san(ccf_endpoints)
-add_tidy(ccf_endpoints)
-add_warning_checks(ccf_endpoints)
-
-target_compile_definitions(ccf_endpoints PRIVATE CCF_LOGGER_NO_DEPRECATE)
-if(CCF_DEVEL)
-  install(
-    TARGETS ccf_endpoints
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
 
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS

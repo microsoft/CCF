@@ -56,10 +56,27 @@ function(add_ccf_app name)
   endif()
 endfunction()
 
-function(add_host_library name)
-  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "")
-  set(files ${PARSED_ARGS_UNPARSED_ARGUMENTS})
-  add_library(${name} ${files})
+function(add_ccf_static_library name)
+  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "SRCS;LINK_LIBS")
+
+  add_library(${name} ${PARSED_ARGS_SRCS})
+
+  target_link_libraries(${name} PUBLIC ${PARSED_ARGS_LINK_LIBS})
+
   target_compile_options(${name} PUBLIC ${COMPILE_LIBCXX})
+  target_compile_definitions(${name} PRIVATE CCF_LOGGER_NO_DEPRECATE)
+
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+  add_san(${name})
+  add_tidy(${name})
+  add_warning_checks(${name})
+
+  if(CCF_DEVEL)
+    install(
+      TARGETS ${name}
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
 endfunction()
