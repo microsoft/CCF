@@ -130,8 +130,7 @@ function(add_e2e_test)
       )
     endif()
 
-  add_san_test_properties(${PARSED_ARGS_NAME})
-    
+    add_san_test_properties(${PARSED_ARGS_NAME})
 
     set_property(
       TEST ${PARSED_ARGS_NAME}
@@ -230,6 +229,6 @@ function(add_picobench name)
   set_property(TEST ${name} PROPERTY LABELS benchmark)
 
   add_san_test_properties(${name})
-  
+
   target_compile_definitions(${name} PRIVATE CCF_LOGGER_NO_DEPRECATE)
 endfunction()
