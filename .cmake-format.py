@@ -14,6 +14,12 @@ with section("parse"):
                 "LINK_LIBS": "*",
             },
         },
+        "add_ccf_static_library": {
+            "kwargs": {
+                "SRCS": "*",
+                "LINK_LIBS": "*",
+            },
+        },
         "add_e2e_test": {
             "kwargs": {
                 "NAME": "*",
