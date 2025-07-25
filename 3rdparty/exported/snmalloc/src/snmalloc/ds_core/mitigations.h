@@ -1,7 +1,7 @@
 #pragma once
 #include "defines.h"
 
-#include <cstddef>
+#include <stddef.h>
 
 namespace snmalloc
 {
@@ -19,7 +19,7 @@ namespace snmalloc
   {
     if (SNMALLOC_UNLIKELY(!test))
     {
-      if constexpr (!DEBUG)
+      if constexpr (!Debug)
       {
         UNUSED(str, args...);
         SNMALLOC_FAST_FAIL();

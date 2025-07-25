@@ -156,7 +156,7 @@ namespace snmalloc
      */
     SNMALLOC_UNUSED_FUNCTION
     static constexpr size_t LargestRegisterSize =
-      std::max(sizeof(uint64_t), sizeof(void*));
+      bits::max(sizeof(uint64_t), sizeof(void*));
 
     /**
      * Hook for architecture-specific optimisations.
@@ -418,7 +418,7 @@ namespace snmalloc
 #elif defined(__powerpc64__)
     PPC64Arch
 #else
-    std::conditional_t<
+    stl::conditional_t<
       aal_supports<StrictProvenance>,
       GenericStrictProvenance,
       GenericArch>

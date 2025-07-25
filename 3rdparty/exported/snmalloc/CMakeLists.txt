@@ -29,6 +29,7 @@ option(SNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS "Build tests and ld_preload for
 option(SNMALLOC_ENABLE_DYNAMIC_LOADING "Build such that snmalloc can be dynamically loaded. This is not required for LD_PRELOAD, and will harm performance if enabled." OFF)
 option(SNMALLOC_ENABLE_WAIT_ON_ADDRESS "Use wait on address backoff strategy if it is available" ON)
 option(SNMALLOC_ENABLE_FUZZING "Enable fuzzing instrumentation tests" OFF)
+option(SNMALLOC_USE_SELF_VENDORED_STL "Avoid using system STL" OFF)
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_STATIC_LIBRARY "Build static libraries" ON "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
@@ -85,10 +86,37 @@ if (NOT CHECK_LINKER_FLAG)
   endfunction()
 endif ()
 
+# FORTIFY_SOURCE prevents overriding memcpy, disable memcpy if detected.
+# This checks if memcpy can be overridden.
+CHECK_CXX_SOURCE_COMPILES("
+#include <string.h>
+extern \"C\" void* memcpy(void *, const void*, size_t) {}
+int main() { return 0; }
+" SNMALLOC_MEMCPY_OVERRIDE)
+if (NOT SNMALLOC_MEMCPY_OVERRIDE)
+  message(WARNING "Unable to override memcpy (possbily due to _FORTIFY_SOURCE).")
+  if (SNMALLOC_CHECK_LOADS)
+    message(FATAL_ERROR "SNMALLOC_CHECK_LOADS is incompatible as memcpy could not be overridden. (possbily due to _FORTIFY_SOURCE)")
+  endif()
+endif()
+
+# Detect if nostdlib++ works
+# Use custom code to detect failure with glibcxx assertions define.
+set(CMAKE_REQUIRED_LINK_OPTIONS -nostdlib++)
+check_cxx_source_compiles("
+#include <array>
+
+char foo(std::array<int, 10> p, int i)
+{ return p[i]; }
+
+int main()
+{ return 0; }"
+ SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
+set(CMAKE_REQUIRED_LINK_OPTIONS "")
+
 if (NOT MSVC AND NOT (SNMALLOC_CLEANUP STREQUAL CXX11_DESTRUCTORS))
   # If the target compiler doesn't support -nostdlib++ then we must enable C at
   # the global scope for the fallbacks to work.
-  check_linker_flag(CXX "-nostdlib++" SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
   if (NOT SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX AND NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     enable_language(C)
   endif()
@@ -205,6 +233,14 @@ else()
   target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_WAIT_ON_ADDRESS=0)
 endif()
 
+if(SNMALLOC_REMOTE_BATCH_PROCESS_SIZE)
+  target_compile_definitions(snmalloc INTERFACE SNMALLOC_REMOTE_BATCH_PROCESS_SIZE=${SNMALLOC_REMOTE_BATCH_PROCESS_SIZE})
+endif()
+
+if(SNMALLOC_USE_SELF_VENDORED_STL)
+  target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_SELF_VENDORED_STL)
+endif()
+
 # https://learn.microsoft.com/en-us/cpp/build/reference/zc-cplusplus
 if(MSVC)
   target_compile_options(snmalloc INTERFACE "/Zc:__cplusplus")
@@ -293,11 +329,9 @@ if(${Backtrace_FOUND})
     $<${ci_or_debug}:${Backtrace_INCLUDE_DIRS}>)
 endif()
 
-if(MSVC)
-  target_compile_definitions(snmalloc INTERFACE -D_HAS_EXCEPTIONS=0)
-else()
-  # All symbols are always dynamic on haiku and -rdynamic is redundant (and unsupported).
-  if (NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+if(NOT MSVC)
+  check_linker_flag(CXX "-rdynamic" SNMALLOC_LINKER_SUPPORT_RDYNAMIC)
+  if (SNMALLOC_LINKER_SUPPORT_RDYNAMIC)
     # Get better stack traces in CI and debug builds.
     target_link_options(snmalloc INTERFACE $<${ci_or_debug}:-rdynamic>)
   endif()
@@ -349,7 +383,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
   function(make_tests TAG DEFINES)
     foreach(TEST_CATEGORY ${TEST_CATEGORIES})
-      message(STATUS "Adding ${TAG}/${TEST_CATEGORY} tests")
+      message(VERBOSE "Adding ${TAG}/${TEST_CATEGORY} tests")
       subdirlist(TESTS ${TESTDIR}/${TEST_CATEGORY})
       foreach(TEST ${TESTS})
         unset(SRC)
@@ -423,11 +457,29 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     set(LLD_WORKS FALSE)
   endif()
 
+  if ((NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku") AND (NOT SNMALLOC_ENABLE_DYNAMIC_LOADING))
+    message(STATUS "snmalloc: Using static TLS model")
+    set (SNMALLOC_STATIC_MODE_TLS TRUE)
+  endif()
+
+  if(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE)
+    check_cxx_compiler_flag(-march=native SUPPORT_MARCH_NATIVE)
+    if (NOT SUPPORT_MARCH_NATIVE)
+      message_once(WARNING "Compiler does not support `-march=native` required by SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE")
+      set(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE FALSE)
+    endif()
+endif()
+
+
   function(add_shim name type)
     add_library(${name} ${type} ${ARGN})
     target_link_libraries(${name} snmalloc)
     set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden INTERPROCEDURAL_OPTIMIZATION ${SNMALLOC_COMPILER_SUPPORT_IPO})
     target_compile_definitions(${name} PRIVATE "SNMALLOC_USE_${SNMALLOC_CLEANUP}")
+
+    if(MSVC)
+      target_compile_definitions(${name} INTERFACE -D_HAS_EXCEPTIONS=0)
+    endif()
 
     add_warning_flags(${name})
     if(NOT MSVC)
@@ -440,19 +492,13 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
         target_compile_options(${name} PRIVATE -mprfchw)
       endif()
       # Static TLS model is unsupported on Haiku.
-      if ((NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku") AND (NOT SNMALLOC_ENABLE_DYNAMIC_LOADING))
-        message(STATUS "snmalloc: Using static TLS model")
+      if (SNMALLOC_STATIC_MODE_TLS)
         target_compile_options(${name} PRIVATE -ftls-model=initial-exec)
         target_compile_options(${name} PRIVATE $<$<BOOL:${SNMALLOC_CI_BUILD}>:-g>)
       endif()
 
       if(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE)
-        check_cxx_compiler_flag(-march=native SUPPORT_MARCH_NATIVE)
-        if (SUPPORT_MARCH_NATIVE)
-          target_compile_options(${name} PRIVATE -march=native)
-        else()
-          message(WARNING "Compiler does not support `-march=native` required by SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE")
-        endif()
+        target_compile_options(${name} PRIVATE -march=native)
       endif()
 
       # Ensure that we do not link against C++ stdlib when compiling shims.
@@ -460,9 +506,8 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       # it.  Otherwise, fall back to linking the library as if it were C, which
       # has roughly the same effect.
       if (NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
-        check_linker_flag(CXX "-nostdlib++" SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
         if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
-         target_link_options(${name} PRIVATE -nostdlib++)
+          target_link_options(${name} PRIVATE -nostdlib++)
         else()
           set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
         endif()
@@ -493,8 +538,12 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
   if(NOT WIN32)
     add_shim(snmallocshim SHARED ${SHIM_FILES})
-    add_shim(snmallocshim-checks-memcpy-only SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
-    add_shim(snmallocshim-checks SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
+    if (SNMALLOC_MEMCPY_OVERRIDE)
+      add_shim(snmallocshim-checks-memcpy-only SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
+      add_shim(snmallocshim-checks SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
+    else()
+    add_shim(snmallocshim-checks SHARED ${SHIM_FILES})
+    endif()
     target_compile_definitions(snmallocshim-checks PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
 

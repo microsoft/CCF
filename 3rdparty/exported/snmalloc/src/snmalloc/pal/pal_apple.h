@@ -144,7 +144,7 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
 
-      if constexpr (DEBUG)
+      if constexpr (Debug)
         memset(p, 0x5a, size);
 
       // `MADV_FREE_REUSABLE` can only be applied to writable pages,
@@ -321,35 +321,27 @@ namespace snmalloc
 #  endif
 
     template<class T>
-    static void wait_on_address(std::atomic<T>& addr, T expected)
+    static void wait_on_address(stl::Atomic<T>& addr, T expected)
     {
       [[maybe_unused]] int errno_backup = errno;
-      while (addr.load(std::memory_order_relaxed) == expected)
+      while (addr.load(stl::memory_order_relaxed) == expected)
       {
 #  ifdef SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS
-        if (
-          os_sync_wait_on_address(
-            &addr, static_cast<uint64_t>(expected), sizeof(T), 0) != -1)
-        {
-          errno = errno_backup;
-          return;
-        }
+        os_sync_wait_on_address(
+          &addr, static_cast<uint64_t>(expected), sizeof(T), 0);
 #  else
-        if (
-          __ulock_wait(
-            UL_COMPARE_AND_WAIT | ULF_NO_ERRNO,
-            &addr,
-            static_cast<uint64_t>(expected),
-            0) != -1)
-        {
-          return;
-        }
+        __ulock_wait(
+          UL_COMPARE_AND_WAIT | ULF_NO_ERRNO,
+          &addr,
+          static_cast<uint64_t>(expected),
+          0);
 #  endif
+        errno = errno_backup;
       }
     }
 
     template<class T>
-    static void notify_one_on_address(std::atomic<T>& addr)
+    static void notify_one_on_address(stl::Atomic<T>& addr)
     {
 #  ifdef SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS
       os_sync_wake_by_address_any(&addr, sizeof(T), 0);
@@ -366,7 +358,7 @@ namespace snmalloc
     }
 
     template<class T>
-    static void notify_all_on_address(std::atomic<T>& addr)
+    static void notify_all_on_address(stl::Atomic<T>& addr)
     {
 #  ifdef SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS
       os_sync_wake_by_address_all(&addr, sizeof(T), 0);
