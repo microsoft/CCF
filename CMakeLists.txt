@@ -117,6 +117,11 @@ endif()
 # This option controls whether to link virtual builds against snmalloc rather
 # than use the system allocator.
 option(USE_SNMALLOC "Link against snmalloc" ON)
+if(USE_SNMALLOC)
+  set(SNMALLOC_BUILD_TESTING OFF)
+  set(SNMALLOC_STATIC_LIBRARY_PREFIX "")
+  add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
+endif()
 
 # Useful for debugging with libc++ hardening options
 option(USE_LIBCXX "Use libc++ instead of libstdc++" OFF)
@@ -208,19 +213,6 @@ include(${CCF_DIR}/cmake/qcbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
 
 # Launcher library
-if(SAN
-   OR TSAN
-   OR NOT USE_SNMALLOC
-)
-  set(SNMALLOC_COMPILE_OPTIONS "")
-else()
-  set(SNMALLOC_HEADER_ONLY_LIBRARY ON)
-  add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
-  set(SNMALLOC_COMPILE_OPTIONS "-mcx16")
-  set(SNMALLOC_INCLUDE_DIRS 3rdparty/exported/snmalloc/src)
-  list(APPEND CCF_LAUNCHER_SOURCES src/host/snmalloc.cpp)
-endif()
-
 list(APPEND CCF_LAUNCHER_SOURCES ${CCF_DIR}/src/host/run.cpp
      ${CCF_DIR}/src/host/env.cpp
 )
@@ -238,10 +230,7 @@ add_ccf_static_library(
             http_parser
 )
 
-target_include_directories(
-  ccf_launcher PRIVATE ${CCF_GENERATED_DIR} ${SNMALLOC_INCLUDE_DIRS}
-)
-target_compile_options(ccf_launcher PRIVATE ${SNMALLOC_COMPILE_OPTIONS})
+target_include_directories(ccf_launcher PRIVATE ${CCF_GENERATED_DIR})
 
 # HTTP parser
 add_library(http_parser "${HTTP_PARSER_SOURCES}")

@@ -48,6 +48,12 @@ function(add_ccf_app name)
   add_san(${name})
   add_tidy(${name})
 
+  if(USE_SNMALLOC)
+    target_link_libraries(
+      ${name} INTERFACE snmalloc-new-override snmallocshim-static
+    )
+  endif()
+
   add_dependencies(${name} ${name})
   if(PARSED_ARGS_DEPS)
     add_dependencies(${name} ${PARSED_ARGS_DEPS})
@@ -79,6 +85,12 @@ function(add_ccf_static_library name)
       TARGETS ${name}
       EXPORT ccf
       DESTINATION lib
+    )
+  endif()
+
+  if(USE_SNMALLOC)
+    target_link_libraries(
+      ${name} INTERFACE snmalloc-new-override snmallocshim-static
     )
   endif()
 endfunction()
