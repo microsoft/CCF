@@ -10,6 +10,7 @@
 #include <curl/curl.h>
 #include <curl/multi.h>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <regex>
 #include <span>
@@ -65,15 +66,26 @@ namespace ccf::curl
       return p.get();
     }
 
-    void set_blob_opt(auto option, const auto* data, size_t length)
+    void set_blob_opt(auto option, const uint8_t* data, size_t length)
     {
+      if (data == nullptr || length == 0)
+      {
+        throw std::invalid_argument(
+          "Data pointer cannot be null or length zero");
+      }
+
+      if (p == nullptr)
+      {
+        throw std::logic_error("Cannot set option on a null CURL handle");
+      }
+
       struct curl_blob blob
       {
         .data = const_cast<uint8_t*>(data), .len = length,
         .flags = CURL_BLOB_COPY,
       };
 
-      CHECK_CURL_EASY_SETOPT(p.get(), option, blob);
+      CHECK_CURL_EASY_SETOPT(p.get(), option, &blob);
     }
 
     void set_opt(auto option, auto value)
@@ -270,6 +282,10 @@ namespace ccf::curl
 
   class CurlRequest
   {
+  public:
+    using ResponseCallback = std::function<void(
+      CurlRequest& request, CURLcode curl_response_code, long status_code)>;
+
   private:
     UniqueCURL curl_handle;
     RESTVerb method = HTTP_GET;
@@ -277,8 +293,7 @@ namespace ccf::curl
     ccf::curl::UniqueSlist headers;
     std::unique_ptr<ccf::curl::RequestBody> request_body = nullptr;
     std::unique_ptr<ccf::curl::Response> response = nullptr;
-    std::optional<std::function<void(CurlRequest&, long)>> response_callback =
-      nullptr;
+    std::optional<ResponseCallback> response_callback = nullptr;
 
   public:
     CurlRequest(
@@ -287,8 +302,7 @@ namespace ccf::curl
       std::string&& url_,
       UniqueSlist&& headers_,
       std::unique_ptr<RequestBody>&& request_body_,
-      std::optional<std::function<void(CurlRequest&, long)>>&&
-        response_callback_) :
+      std::optional<ResponseCallback>&& response_callback_) :
       curl_handle(std::move(curl_handle_)),
       method(method_),
       url(std::move(url_)),
@@ -345,18 +359,18 @@ namespace ccf::curl
       }
     }
 
-    void handle_response()
+    void handle_response(CURLcode curl_response_code)
     {
       if (response_callback.has_value())
       {
         long status_code = 0;
         CHECK_CURL_EASY_GETINFO(
           curl_handle, CURLINFO_RESPONSE_CODE, &status_code);
-        response_callback.value()(*this, status_code);
+        response_callback.value()(*this, curl_response_code, status_code);
       }
     }
 
-    long syncronous_perform()
+    void synchronous_perform(CURLcode& curl_code, long& status_code)
     {
       if (curl_handle == nullptr)
       {
@@ -364,14 +378,12 @@ namespace ccf::curl
           "Cannot curl_easy_perform on a null CURL handle");
       }
 
-      CHECK_CURL_EASY(curl_easy_perform, curl_handle);
+      curl_code = curl_easy_perform(curl_handle);
 
-      handle_response(); // handle the response callback if set
+      handle_response(curl_code); // handle the response callback if set
 
-      long status_code = 0;
       CHECK_CURL_EASY_GETINFO(
         curl_handle, CURLINFO_RESPONSE_CODE, &status_code);
-      return status_code;
     }
 
     [[nodiscard]] CURL* get_easy_handle() const
@@ -465,7 +477,7 @@ namespace ccf::curl
           // detach the easy handle such that it can be cleaned up with the
           // destructor of CurlRequest
           curl_multi_remove_handle(curl_multi, easy);
-          request->handle_response();
+          request->handle_response(result);
         }
       } while (msgq > 0);
       return running_handles;
@@ -503,6 +515,13 @@ namespace ccf::curl
     UniqueCURLM curl_multi;
     // utility class to enforce type safety on accesses to curl_multi
     CurlRequestCURLM curl_request_curlm;
+    // We need a lock to prevent a client thread calling curl_multi_add_handle
+    // while the libuv thread is processing a curl callback
+    //
+    // Note that since the a client callback can call curl_multi_add_handle, but
+    // that will be difficult/impossible to detect, we need curlm_lock to be
+    // recursive.
+    std::recursive_mutex curlm_lock;
 
     struct RequestContext
     {
@@ -525,6 +544,7 @@ namespace ccf::curl
         throw std::logic_error(
           "libuv_timeout_callback called with null self pointer");
       }
+      std::lock_guard<std::recursive_mutex> lock(self->curlm_lock);
 
       int running_handles = 0;
       CHECK_CURL_MULTI(
@@ -584,6 +604,7 @@ namespace ccf::curl
         throw std::logic_error(
           "libuv_socket_poll_callback called with null self pointer");
       }
+      std::lock_guard<std::recursive_mutex> lock(self->curlm_lock);
 
       int action = 0;
       action |= ((events & UV_READABLE) != 0) ? CURL_CSELECT_IN : 0;
@@ -689,11 +710,12 @@ namespace ccf::curl
         &running_handles);
     }
 
-    // should this return a reference or a pointer?
-    [[nodiscard]] CurlRequestCURLM& curlm()
+    void attach_request(std::unique_ptr<CurlRequest>& request)
     {
-      return curl_request_curlm;
+      std::lock_guard<std::recursive_mutex> lock(curlm_lock);
+      curl_request_curlm.attach_curl_request(request);
     }
+
   };
 
   class CurlmLibuvContextSingleton

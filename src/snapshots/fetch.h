@@ -69,7 +69,17 @@ namespace snapshots
           std::nullopt // No response callback
         );
 
-        const auto status_code = request.syncronous_perform();
+        long status_code = 0;
+        CURLcode curl_response = CURLE_OK;
+        request.synchronous_perform(curl_response, status_code);
+        if (curl_response != CURLE_OK)
+        {
+          throw std::runtime_error(fmt::format(
+            "Error fetching snapshot redirect from {}: {} ({})",
+            request.get_url(),
+            curl_easy_strerror(curl_response),
+            status_code));
+        }
         if (status_code == HTTP_STATUS_NOT_FOUND)
         {
           LOG_INFO_FMT(
@@ -116,8 +126,19 @@ namespace snapshots
           std::nullopt // No response callback
         );
 
-        auto snapshot_size_status_code =
-          snapshot_size_request.syncronous_perform();
+        CURLcode snapshot_size_curl_code = CURLE_OK;
+        long snapshot_size_status_code = 0;
+        snapshot_size_request.synchronous_perform(
+          snapshot_size_curl_code, snapshot_size_status_code);
+
+        if (snapshot_size_curl_code != CURLE_OK)
+        {
+          throw std::runtime_error(fmt::format(
+            "Error fetching snapshot size from {}: {} ({})",
+            snapshot_size_request.get_url(),
+            curl_easy_strerror(snapshot_size_curl_code),
+            snapshot_size_status_code));
+        }
 
         EXPECT_HTTP_RESPONSE_STATUS(
           snapshot_size_request, snapshot_size_status_code, HTTP_STATUS_OK);
@@ -174,6 +195,19 @@ namespace snapshots
           headers.append(
             "Range", fmt::format("bytes={}-{}", range_start, range_end));
 
+          auto response_callback = [](
+                                     ccf::curl::CurlRequest& request,
+                                     CURLcode curl_response_code,
+                                     long status_code) {
+            if (curl_response_code != CURLE_OK)
+            {
+              throw std::runtime_error(fmt::format(
+                "Error fetching snapshot chunk: {} ({})",
+                curl_easy_strerror(curl_response_code),
+                status_code));
+            }
+          };
+
           ccf::curl::CurlRequest snapshot_range_request(
             std::move(curl_easy),
             HTTP_GET,
@@ -183,8 +217,18 @@ namespace snapshots
             nullptr // No response callback
           );
 
-          auto snapshot_range_status_code =
-            snapshot_range_request.syncronous_perform();
+          CURLcode curl_response = CURLE_OK;
+          long snapshot_range_status_code = 0;
+          snapshot_range_request.synchronous_perform(
+            curl_response, snapshot_range_status_code);
+          if (curl_response != CURLE_OK)
+          {
+            throw std::runtime_error(fmt::format(
+              "Error fetching snapshot chunk range from {}: {} ({})",
+              snapshot_range_request.get_url(),
+              curl_easy_strerror(curl_response),
+              snapshot_range_status_code));
+          }
           EXPECT_HTTP_RESPONSE_STATUS(
             snapshot_range_request,
             snapshot_range_status_code,
