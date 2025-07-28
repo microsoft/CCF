@@ -6,10 +6,11 @@
 #include "ccf/ds/quote_info.h"
 #include "ccf/service/map.h"
 #include "node/identity.h"
+#include "ccf/ds/enum_formatter.h"
 
 using IntrinsicIdentifier = std::string;
 
-struct SelfHealOpenNodeInfo
+struct SelfHealingOpenNodeInfo_t
 {
   ccf::QuoteInfo quote_info;
   std::string published_network_address;
@@ -17,23 +18,50 @@ struct SelfHealOpenNodeInfo
   IntrinsicIdentifier intrinsic_id;
 };
 
-DECLARE_JSON_TYPE(SelfHealOpenNodeInfo);
+DECLARE_JSON_TYPE(SelfHealingOpenNodeInfo_t);
 DECLARE_JSON_REQUIRED_FIELDS(
-  SelfHealOpenNodeInfo, quote_info, published_network_address, cert_der);
+  SelfHealingOpenNodeInfo_t,
+  quote_info,
+  published_network_address,
+  cert_der,
+  intrinsic_id);
+
+enum class SelfHealingOpenSM{
+  GOSSIPPING = 0,
+  VOTING,
+  OPENING, // by chosen replica
+  JOINING, // by all other replicas
+  OPEN,
+};
+
+DECLARE_JSON_ENUM(
+  SelfHealingOpenSM,
+  {{SelfHealingOpenSM::GOSSIPPING, "Gossipping"},
+   {SelfHealingOpenSM::VOTING, "Voting"},
+   {SelfHealingOpenSM::OPENING, "Opening"},
+   {SelfHealingOpenSM::JOINING, "Joining"}});
 
 namespace ccf
 {
-  using SelfHealOpenNodeState = ServiceMap<IntrinsicIdentifier,SelfHealOpenNodeInfo>;
-  using SelfHealOpenGossipState = ServiceMap<IntrinsicIdentifier, ccf::kv::Version>;
-  using SelfHealOpenChosenReplica = ServiceValue<IntrinsicIdentifier>;
-  using SelfHealOpenVotes = ServiceSet<IntrinsicIdentifier>;
+  using SelfHealingOpenNodeInfo =
+    ServiceMap<IntrinsicIdentifier, SelfHealingOpenNodeInfo_t>;
+  using SelfHealingOpenGossipState =
+    ServiceMap<IntrinsicIdentifier, ccf::kv::Version>;
+  using SelfHealingOpenChosenReplica = ServiceValue<IntrinsicIdentifier>;
+  using SelfHealingOpenVotes = ServiceSet<IntrinsicIdentifier>;
+  using SelfHealingOpenSMState = ServiceValue<SelfHealingOpenSM>;
 
   namespace Tables
   {
-    static constexpr auto SELF_HEAL_OPEN_NODES = "public:ccf.gov.selfhealopen.nodes";
-    static constexpr auto SELF_HEAL_OPEN_GOSSIP_STATE = "public:ccf.gov.selfhealopen.gossip";
-    static constexpr auto SELF_HEAL_OPEN_CHOSEN_REPLICA =
-      "public:ccf.gov.selfhealopen.chosen_replica";
-    static constexpr auto SELF_HEAL_OPEN_VOTES = "public:ccf.gov.selfhealopen.votes";
+    static constexpr auto SELF_HEALING_OPEN_NODES =
+      "public:ccf.gov.selfhealingopen.nodes";
+    static constexpr auto SELF_HEALING_OPEN_GOSSIP_STATE =
+      "public:ccf.gov.selfhealingopen.gossip";
+    static constexpr auto SELF_HEALING_OPEN_CHOSEN_REPLICA =
+      "public:ccf.gov.selfhealingopen.chosen_replica";
+    static constexpr auto SELF_HEALING_OPEN_VOTES =
+      "public:ccf.gov.selfhealingopen.votes";
+    static constexpr auto SELF_HEALING_OPEN_SM_STATE =
+      "public:ccf.gov.selfhealingopen.sm_state";
   }
 }

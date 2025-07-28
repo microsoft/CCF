@@ -60,5 +60,7 @@ namespace ccf
     virtual ccf::crypto::Pem get_self_signed_node_certificate() = 0;
 
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
+
+    virtual void self_healing_open_start_retry_timer() = 0;
   };
 }

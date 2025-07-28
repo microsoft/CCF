@@ -109,5 +109,10 @@ namespace ccf
     {
       return impl.get_cose_signatures_config();
     }
+
+    void self_healing_open_start_retry_timer() override
+    {
+      impl.self_healing_open_start_retry_timer();
+    }
   };
 }

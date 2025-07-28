@@ -16,6 +16,7 @@
 #include "ccf/service/tables/modules.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/proposals.h"
+#include "ccf/service/tables/self_heal_open.h"
 #include "ccf/service/tables/service.h"
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/tcb_verification.h"
@@ -244,6 +245,18 @@ namespace ccf
     {
       return std::make_tuple(signatures, serialise_tree);
     }
+
+    // Self-healing open tables
+    const SelfHealingOpenNodeInfo self_healing_open_node_info = {
+      Tables::SELF_HEALING_OPEN_NODES};
+    const SelfHealingOpenGossipState self_healing_open_gossip = {
+      Tables::SELF_HEALING_OPEN_GOSSIP_STATE};
+    const SelfHealingOpenChosenReplica self_healing_open_chosen_replica = {
+      Tables::SELF_HEALING_OPEN_CHOSEN_REPLICA};
+    const SelfHealingOpenVotes self_healing_open_votes = {
+      Tables::SELF_HEALING_OPEN_VOTES};
+    const SelfHealingOpenSMState self_healing_open_sm_state = {
+      Tables::SELF_HEALING_OPEN_SM_STATE};
 
     inline auto get_all_internal_tables() const
     {

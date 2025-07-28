@@ -110,6 +110,11 @@ namespace ccf
     {
       return cose_signatures_config;
     }
+
+    void self_healing_open_start_retry_timer() override
+    {
+      // No-op for stub
+    }
   };
 
   class StubGovernanceEffects : public ccf::AbstractGovernanceEffects

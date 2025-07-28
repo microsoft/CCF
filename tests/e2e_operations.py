@@ -1067,7 +1067,7 @@ def run_initial_uvm_descriptor_checks(args):
         with recovered_primary.client() as c:
             r = c.get("/node/network").body.json()
             recovery_seqno = int(r["current_service_create_txid"].split(".")[1])
-        network.stop_all_nodes()
+        recovered_network.stop_all_nodes()
         ledger = ccf.ledger.Ledger(
             recovered_primary.remote.ledger_paths(),
             committed_only=False,
@@ -1144,7 +1144,7 @@ def run_initial_tcb_version_checks(args):
         with recovered_primary.client() as c:
             r = c.get("/node/network").body.json()
             recovery_seqno = int(r["current_service_create_txid"].split(".")[1])
-        network.stop_all_nodes()
+        recovered_network.stop_all_nodes()
         ledger = ccf.ledger.Ledger(
             recovered_primary.remote.ledger_paths(),
             committed_only=False,
@@ -1438,7 +1438,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
             prev_network = recovery_network
 
 def run_self_healing_open(args):
-    args.nodes = infra.e2e_args.min_nodes()
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -1468,7 +1468,7 @@ def run_self_healing_open(args):
         args.previous_service_identity_file = os.path.join(
             old_common, "service_cert.pem"
         )
-        recovered_network.start_in_auto_dr(
+        recovered_network.start_in_self_healing_open(
             args,
             ledger_dirs=ledger_dirs,
             committed_ledger_dirs=committed_ledger_dirs,

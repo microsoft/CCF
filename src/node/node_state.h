@@ -8,6 +8,7 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/logger.h"
+#include "ccf/ds/unit_strings.h"
 #include "ccf/js/core/context.h"
 #include "ccf/node/cose_signatures_config.h"
 #include "ccf/pal/attestation_sev_snp.h"
@@ -18,6 +19,7 @@
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/service/tables/acme_certificates.h"
+#include "ccf/service/tables/self_heal_open.h"
 #include "ccf/service/tables/service.h"
 #include "ccf/tx.h"
 #include "ccf_acme_client.h"
@@ -27,6 +29,7 @@
 #include "ds/ccf_assert.h"
 #include "ds/files.h"
 #include "ds/state_machine.h"
+#include "ds/thread_messaging.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
@@ -41,6 +44,7 @@
 #include "node/ledger_secrets.h"
 #include "node/local_sealing.h"
 #include "node/node_to_node_channel_manager.h"
+#include "node/self_healing_open.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
 #include "pal/quote_generation.h"
@@ -1981,6 +1985,78 @@ namespace ccf
       return history->get_cose_signatures_config();
     }
 
+    void self_healing_open_start_retry_timer() override
+    {
+      auto timer_msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
+        [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
+          std::lock_guard<pal::Mutex> guard(msg->data.self.lock);
+          // Keep doing this until the node is no longer in recovery
+          if (msg->data.self.sm.check(NodeStartupState::partOfNetwork))
+          {
+            return;
+          }
+
+          auto tx = msg->data.self.network.tables->create_read_only_tx();
+          auto* sm_state_handle =
+            tx.ro(msg->data.self.network.self_healing_open_sm_state);
+          if (!sm_state_handle->get().has_value())
+          {
+            throw std::logic_error(
+              "Self-healing-open state not set, cannot retry "
+              "self-healing-open");
+          }
+          auto sm_state = sm_state_handle->get().value();
+
+          switch (sm_state)
+          {
+            case SelfHealingOpenSM::GOSSIPPING:
+              msg->data.self.self_healing_open_gossip_unsafe();
+              break;
+            case SelfHealingOpenSM::VOTING:
+            {
+              auto* node_info_handle =
+                tx.ro(msg->data.self.network.self_healing_open_node_info);
+              auto* chosen_replica_handle =
+                tx.ro(msg->data.self.network.self_healing_open_chosen_replica);
+              if (!chosen_replica_handle->get().has_value())
+              {
+                throw std::logic_error(
+                  "Self-healing-open chosen node not set, cannot vote");
+              }
+              auto chosen_node_info =
+                node_info_handle->get(chosen_replica_handle->get().value());
+              if (!chosen_node_info.has_value())
+              {
+                throw std::logic_error(fmt::format(
+                  "Self-healing-open chosen node {} not found",
+                  chosen_replica_handle->get().value()));
+              }
+              msg->data.self.self_healing_open_vote_unsafe(
+                chosen_node_info.value());
+              // keep gossiping to allow lagging nodes to eventually vote
+              msg->data.self.self_healing_open_gossip_unsafe();
+              break;
+            }
+            case SelfHealingOpenSM::OPENING:
+              msg->data.self.self_healing_open_iamopen_unsafe();
+              break;
+            case SelfHealingOpenSM::JOINING:
+              return;
+            default:
+              throw std::logic_error(fmt::format(
+                "Unknown self-healing-open state: {}",
+                static_cast<int>(sm_state)));
+          }
+
+          auto delay = msg->data.self.config.join.retry_timeout;
+          ::threading::ThreadMessaging::instance().add_task_after(
+            std::move(msg), delay);
+        },
+        *this);
+      ::threading::ThreadMessaging::instance().add_task_after(
+        std::move(timer_msg), ds::TimeString("0ms"));
+    }
+
   private:
     bool is_ip(const std::string_view& hostname)
     {
@@ -2913,6 +2989,119 @@ namespace ccf
       return find_and_unseal_ledger_secret_from_disk(
         config.recover.previous_sealed_ledger_secret_location.value(),
         max_version);
+    }
+
+    void self_healing_open_gossip_unsafe()
+    {
+      // Caller must ensure that the current node's quote_info is populated:
+      // ie not yet reached partOfNetwork
+      if (!config.recover.self_healing_open_addresses.has_value())
+      {
+        LOG_TRACE_FMT(
+          "Self-healing-open addresses not set, cannot start gossip retries");
+        return;
+      }
+
+      LOG_TRACE_FMT("Broadcasting self-healing-open gossip");
+
+      self_healing_open::GossipRequest request{
+        .info =
+          self_healing_open::RequestNodeInfo{
+            .quote_info = quote_info,
+            .published_network_address =
+              config.network.rpc_interfaces.at("primary_rpc_interface")
+                .published_address,
+            .intrinsic_id =
+              config.network.rpc_interfaces.at("primary_rpc_interface")
+                .published_address,
+          },
+        // TODO fix: This isn't quite right, as it should be the highest txid
+        // with a signature,before the recovery txs
+        .txid = network.tables->current_version(),
+      };
+
+      for (auto& target_address :
+           config.recover.self_healing_open_addresses.value())
+      {
+        self_healing_open::dispatch_authenticated_message(
+          std::move(request),
+          target_address,
+          "gossip",
+          self_signed_node_cert,
+          node_sign_kp->private_key_pem());
+      }
+    }
+
+    void self_healing_open_vote_unsafe(SelfHealingOpenNodeInfo_t& node_info)
+    {
+      // Caller must ensure that the current node's quote_info is populated:
+      // ie not yet reached partOfNetwork
+      LOG_TRACE_FMT(
+        "Sending self-healing-open vote to {} at {}",
+        node_info.intrinsic_id,
+        node_info.published_network_address);
+
+      self_healing_open::VoteRequest request{
+        .info = self_healing_open::RequestNodeInfo{
+          .quote_info = quote_info,
+          .published_network_address =
+            config.network.rpc_interfaces.at("primary_rpc_interface")
+              .published_address,
+          .intrinsic_id =
+            config.network.rpc_interfaces.at("primary_rpc_interface")
+              .published_address,
+        }};
+
+      self_healing_open::dispatch_authenticated_message(
+        std::move(request),
+        node_info.published_network_address,
+        "vote",
+        self_signed_node_cert,
+        node_sign_kp->private_key_pem());
+    }
+
+    void self_healing_open_iamopen_unsafe()
+    {
+      // Caller must ensure that the current node's quote_info is populated:
+      // ie not yet reached partOfNetwork
+      if (!config.recover.self_healing_open_addresses.has_value())
+      {
+        LOG_TRACE_FMT(
+          "Self-healing-open addresses not set, cannot send iamopen");
+        return;
+      }
+
+      LOG_TRACE_FMT("Sending self-healing-open iamopen");
+
+      self_healing_open::IAmOpenRequest request{
+        .info = self_healing_open::RequestNodeInfo{
+          .quote_info = quote_info,
+          .published_network_address =
+            config.network.rpc_interfaces.at("primary_rpc_interface")
+              .published_address,
+          .intrinsic_id =
+            config.network.rpc_interfaces.at("primary_rpc_interface")
+              .published_address,
+        }};
+
+      for (auto& target_address :
+           config.recover.self_healing_open_addresses.value())
+      {
+        if (
+          target_address ==
+          config.network.rpc_interfaces.at("primary_rpc_interface")
+            .published_address)
+        {
+          // Don't send to self
+          continue;
+        }
+        self_healing_open::dispatch_authenticated_message(
+          std::move(request),
+          target_address,
+          "iamopen",
+          self_signed_node_cert,
+          node_sign_kp->private_key_pem());
+      }
     }
 
   public:

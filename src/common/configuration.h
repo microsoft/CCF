@@ -135,7 +135,7 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     StartupConfig::Recover,
     previous_sealed_ledger_secret_location,
-    self_heal_open_addresses);
+    self_healing_open_addresses);
 
   DECLARE_JSON_TYPE_WITH_BASE(StartupConfig, CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(
