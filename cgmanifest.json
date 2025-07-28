@@ -26,8 +26,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/iboB/picobench.git",
-          "commitHash": "5f78fbd47e84af91c8e2409cba676577bd939ee7",
-          "tag": "v2.00"
+          "commitHash": "77b575e0a239de72b581ee8396166519db0d7c87",
+          "tag": "v2.08"
         }
       }
     },
