@@ -1,6 +1,6 @@
 /* ===========================================================================
  * Copyright (c) 2016-2018, The Linux Foundation.
- * Copyright (c) 2018-2024, Laurence Lundblade.
+ * Copyright (c) 2018-2025, Laurence Lundblade.
  * Copyright (c) 2021, Arm Limited.
  * All rights reserved.
  *
@@ -122,13 +122,13 @@ extern "C" {
  * successfully decoded before examining their value or type.
  *
  * The internal decode error state can be reset by reinitializing the
- * decoder or calling QCBORDecode_GetErrorAndReset(). Code calling
+ * decoder or calling QCBORDecode_GetAndResetError(). Code calling
  * QCBOR may take advantage of the internal error state to halt
  * futher decoding and propagate errors it detects using
  * QCBORDecode_SetError().
  *
  * It is only useful to reset the error state by calling
- * QCBORDecode_GetErrorAndReset() on recoverable errors. Examples of
+ * QCBORDecode_GetAndResetError() on recoverable errors. Examples of
  * recoverable errors are a map entry not being found or integer
  * overflow or underflow during conversion. Examples of unrecoverable
  * errors are hitting the end of the input and array or map nesting
@@ -1080,7 +1080,7 @@ QCBORDecode_PeekNext(QCBORDecodeContext *pCtx, QCBORItem *pDecodedItem);
  * at the next item to be decoded as expected.
  *
  * There are some special rules for the traversal cursor when fetching
- * map items by label. See the description of @SpiffyDecode.
+ * map items by label. See the description of @ref SpiffyDecode.
  *
  * When traversal is bounded because an array or map has been entered
  * (e.g., QCBORDecode_EnterMap()) and all items in the array or map

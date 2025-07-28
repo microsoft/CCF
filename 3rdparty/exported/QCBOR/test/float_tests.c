@@ -551,7 +551,7 @@ FloatValuesTests(void)
 
 
 /* Public function. See float_tests.h */
-int32_t 
+int32_t
 HalfPrecisionAgainstRFCCodeTest(void)
 {
    QCBORItem          Item;
@@ -689,7 +689,7 @@ int32_t
 GeneralFloatEncodeTests(void)
 {
    /* See FloatNumberTests() for tests that really cover lots of float values.
-    * Add new tests for new values or decode modes there. 
+    * Add new tests for new values or decode modes there.
     * This test is primarily to cover all the float encode methods. */
 
    UsefulBufC Encoded;
@@ -753,7 +753,7 @@ GeneralFloatEncodeTests(void)
 
 
 /* Public function. See float_tests.h */
-int32_t 
+int32_t
 GeneralFloatDecodeTests(void)
 {
    /* See FloatNumberTests() for tests that really cover lots of float values */

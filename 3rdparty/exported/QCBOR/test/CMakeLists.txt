@@ -68,4 +68,10 @@ if (BUILD_QCBOR_TEST STREQUAL "APP")
             qcbor
             qcbor_test
     )
+
+    message(STATUS "Adding test qcbortest")
+    add_test(
+        NAME qcbortest
+        COMMAND qcbortest
+    )
 endif()
