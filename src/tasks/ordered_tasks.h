@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "./job_board.h"
 #include "ccf/ds/logger.h"
+#include "tasks/job_board.h"
 
 #include <mutex>
 
