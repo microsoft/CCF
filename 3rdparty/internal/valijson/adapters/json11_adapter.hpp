@@ -660,7 +660,7 @@ public:
 
 private:
 
-    /// Iternal copy of the original Json11 iterator
+    /// Internal copy of the original Json11 iterator
     json11::Json::object::const_iterator m_itr;
 };
 

@@ -325,7 +325,7 @@ private:
     /// Schema description (optional)
     opt::optional<std::string> m_description;
 
-    /// Id to apply when resolving the schema URI
+    /// ID to apply when resolving the schema URI
     opt::optional<std::string> m_id;
 
     /// Title string associated with the schema (optional)
