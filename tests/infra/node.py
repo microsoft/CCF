@@ -183,7 +183,6 @@ class Node:
     def start(
         self,
         lib_name,
-        enclave_type,
         workspace,
         label,
         common_dir,
@@ -193,7 +192,6 @@ class Node:
         self._setup(
             infra.remote.StartType.start,
             lib_name,
-            enclave_type,
             workspace,
             label,
             common_dir,
@@ -231,7 +229,6 @@ class Node:
     def join(
         self,
         lib_name,
-        enclave_type,
         workspace,
         label,
         common_dir,
@@ -240,7 +237,6 @@ class Node:
         self._setup(
             infra.remote.StartType.join,
             lib_name,
-            enclave_type,
             workspace,
             label,
             common_dir,
@@ -251,7 +247,6 @@ class Node:
     def prepare_join(
         self,
         lib_name,
-        enclave_type,
         workspace,
         label,
         common_dir,
@@ -260,7 +255,6 @@ class Node:
         self._setup(
             infra.remote.StartType.join,
             lib_name,
-            enclave_type,
             workspace,
             label,
             common_dir,
@@ -270,11 +264,10 @@ class Node:
     def complete_join(self):
         self._start()
 
-    def recover(self, lib_name, enclave_type, workspace, label, common_dir, **kwargs):
+    def recover(self, lib_name, workspace, label, common_dir, **kwargs):
         self._setup(
             infra.remote.StartType.recover,
             lib_name,
-            enclave_type,
             workspace,
             label,
             common_dir,
@@ -287,7 +280,6 @@ class Node:
         self,
         start_type,
         lib_name,
-        enclave_type,
         workspace,
         label,
         common_dir,
@@ -328,7 +320,6 @@ class Node:
         self.remote = infra.remote.CCFRemote(
             start_type,
             lib_path,
-            enclave_type,
             workspace,
             common_dir,
             binary_dir=self.binary_dir,
