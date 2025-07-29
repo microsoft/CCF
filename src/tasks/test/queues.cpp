@@ -90,13 +90,13 @@ void thread_debug_print(const std::string& s)
 template <typename TIter>
 Task job_sort(TIter begin, TIter end)
 {
-  return make_task([begin, end]() { std::sort(begin, end); });
+  return make_basic_task([begin, end]() { std::sort(begin, end); });
 }
 
 template <typename TDuration>
 Task job_sleep(const TDuration& t)
 {
-  return make_task([t]() {
+  return make_basic_task([t]() {
     fmt::print("[{}] I'm going to sleep for {}\n", thread_name(), t);
     std::this_thread::sleep_for(t);
     fmt::print("[{}] I slept for {}\n", thread_name(), t);
@@ -191,40 +191,40 @@ TEST_CASE("OrderedTasks")
   auto p_c = std::make_shared<OrderedTasks>(jb);
 
   OrderedTasks& tasks_a = *p_a;
-  tasks_a.add_task(make_task([]() { thread_print("A (no dependencies)"); }));
-  tasks_a.add_task(make_task([]() { thread_print("B (after A)"); }));
-  tasks_a.add_task(make_task([]() { thread_print("C (after B)"); }));
+  tasks_a.add_action(make_basic_action([]() { thread_print("A (no dependencies)"); }));
+  tasks_a.add_action(make_basic_action([]() { thread_print("B (after A)"); }));
+  tasks_a.add_action(make_basic_action([]() { thread_print("C (after B)"); }));
 
   OrderedTasks& tasks_b = *p_b;
-  tasks_b.add_task(make_task([&tasks_b]() {
+  tasks_b.add_action(make_basic_action([&tasks_b]() {
     thread_print("D (no dependencies)");
-    tasks_b.add_task(make_task([&tasks_b]() {
+    tasks_b.add_action(make_basic_action([&tasks_b]() {
       thread_print("E (after D)");
-      tasks_b.add_task(make_task([&tasks_b]() {
+      tasks_b.add_action(make_basic_action([&tasks_b]() {
         thread_print("F (after E)");
-        tasks_b.add_task(
-          make_task([&tasks_b]() { thread_print("G (after F)"); }));
+        tasks_b.add_action(
+          make_basic_action([&tasks_b]() { thread_print("G (after F)"); }));
       }));
     }));
   }));
 
   OrderedTasks& tasks_c = *p_c;
-  tasks_c.add_task(make_task([&tasks_a, &tasks_b, &tasks_c]() {
+  tasks_c.add_action(make_basic_action([&tasks_a, &tasks_b, &tasks_c]() {
     thread_print("I (no dependencies)");
 
-    tasks_a.add_task(make_task([&tasks_a, &tasks_c]() {
+    tasks_a.add_action(make_basic_action([&tasks_a, &tasks_c]() {
       thread_print("J (after I and C)");
-      tasks_a.add_task(make_task([&tasks_c]() {
+      tasks_a.add_action(make_basic_action([&tasks_c]() {
         thread_print("K (after J)");
-        tasks_c.add_task(make_task([]() { thread_print("L (after K)"); }));
+        tasks_c.add_action(make_basic_action([]() { thread_print("L (after K)"); }));
       }));
     }));
 
-    tasks_b.add_task(make_task([&tasks_a, &tasks_c]() {
+    tasks_b.add_action(make_basic_action([&tasks_a, &tasks_c]() {
       thread_print("M (after I and D)");
-      tasks_a.add_task(make_task([&tasks_c]() {
+      tasks_a.add_action(make_basic_action([&tasks_c]() {
         thread_print("N (after M and C)");
-        tasks_c.add_task(make_task([]() { thread_print("O (after N)"); }));
+        tasks_c.add_action(make_basic_action([]() { thread_print("O (after N)"); }));
       }));
     }));
   }));

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <string>
