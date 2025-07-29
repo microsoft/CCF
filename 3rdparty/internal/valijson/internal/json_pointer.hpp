@@ -133,7 +133,7 @@ inline std::string extractReferenceToken(std::string::const_iterator begin,
  * at least one character in length to be considered valid.
  *
  * Once the next reference token has been identified, it will be used either as
- * an array index or as an the name an object member. The validity of a
+ * an array index or as the name of an object member. The validity of a
  * reference token depends on the type of the node currently being traversed,
  * and the applicability of the token to that node. For example, an array can
  * only be dereferenced by a non-negative integral index.

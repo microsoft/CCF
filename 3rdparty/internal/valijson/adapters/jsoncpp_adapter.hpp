@@ -664,7 +664,7 @@ public:
 
 private:
 
-    /// Iternal copy of the original JsonCpp iterator
+    /// Internal copy of the original JsonCpp iterator
     Json::ValueConstIterator m_itr;
 };
 
