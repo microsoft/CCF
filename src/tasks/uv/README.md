@@ -1,1 +1,0 @@
-Initial exploration of a libuv-based Task system. While it gives us several things "for free", I think the threading affinity requirements (tasks must be scheduled from the main thread) are too large a cost to proceed.
