@@ -80,7 +80,7 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
 
-      if constexpr (DEBUG)
+      if constexpr (Debug)
         memset(p, 0x5a, size);
 
       madvise(p, size, MADV_FREE);
@@ -137,29 +137,26 @@ namespace snmalloc
     using WaitingWord = unsigned int;
 
     template<typename T>
-    static void wait_on_address(std::atomic<T>& addr, T expected)
+    static void wait_on_address(stl::Atomic<T>& addr, T expected)
     {
       static_assert(
         sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
         "T must be the same size and alignment as WaitingWord");
       int backup = errno;
-      while (addr.load(std::memory_order_relaxed) == expected)
+      while (addr.load(stl::memory_order_relaxed) == expected)
       {
-        int ret = _umtx_op(
+        _umtx_op(
           &addr,
           UMTX_OP_WAIT_UINT_PRIVATE,
           static_cast<unsigned long>(expected),
           nullptr,
           nullptr);
-
-        if (ret == 0)
-          break;
       }
       errno = backup;
     }
 
     template<typename T>
-    static void notify_one_on_address(std::atomic<T>& addr)
+    static void notify_one_on_address(stl::Atomic<T>& addr)
     {
       static_assert(
         sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
@@ -168,7 +165,7 @@ namespace snmalloc
     }
 
     template<typename T>
-    static void notify_all_on_address(std::atomic<T>& addr)
+    static void notify_all_on_address(stl::Atomic<T>& addr)
     {
       static_assert(
         sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
