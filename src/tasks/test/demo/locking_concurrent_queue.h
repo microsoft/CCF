@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "tasks/types/concurrent_queue_interface.h"
+#include "./concurrent_queue_interface.h"
 
 #include <deque>
 #include <mutex>

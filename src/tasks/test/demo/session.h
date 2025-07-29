@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "tasks/types/locking_concurrent_queue.h"
+#include "./locking_concurrent_queue.h"
 
 #include <string>
 #include <vector>

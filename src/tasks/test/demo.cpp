@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "tasks/types/locking_concurrent_queue.h"
+#include "./demo/locking_concurrent_queue.h"
 
 #include <atomic>
 #include <chrono>
