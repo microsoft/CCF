@@ -25,19 +25,29 @@ public:
         kWeakTypes
     };
 
+    enum DateTimeMode
+    {
+        kStrictDateTime,
+        kPermissiveDateTime
+    };
+
     /**
      * @brief  Construct a Validator that uses strong type checking by default
      */
     ValidatorT()
-      : strictTypes(true) { }
+      : strictTypes(true)
+      , strictDateTime(true)
+    { }
 
     /**
      * @brief  Construct a Validator using a specific type checking mode
      *
      * @param  typeCheckingMode  choice of strong or weak type checking
      */
-    ValidatorT(TypeCheckingMode typeCheckingMode)
-      : strictTypes(typeCheckingMode == kStrongTypes) { }
+    ValidatorT(TypeCheckingMode typeCheckingMode, DateTimeMode dateTimeMode = kStrictDateTime)
+      : strictTypes(typeCheckingMode == kStrongTypes)
+      , strictDateTime(dateTimeMode == kStrictDateTime)
+    { }
 
     /**
      * @brief  Validate a JSON document and optionally return the results.
@@ -63,8 +73,13 @@ public:
             ValidationResults *results)
     {
         // Construct a ValidationVisitor to perform validation at the root level
-        ValidationVisitor<AdapterType, RegexEngine> v(target,
-                std::vector<std::string>(1, "<root>"), strictTypes, results, regexesCache);
+        ValidationVisitor<AdapterType, RegexEngine> v(
+                target,
+                std::vector<std::string>(1, "<root>"),
+                strictTypes,
+                strictDateTime,
+                results,
+                regexesCache);
 
         return v.validateSchema(schema);
     }
@@ -73,6 +88,9 @@ private:
 
     /// Flag indicating that strict type comparisons should be used
     bool strictTypes;
+
+    /// Parse date/time values strictly, according to RFC-3999
+    bool strictDateTime;
 
     /// Cached regex objects for pattern constraint. Key - pattern.
     std::unordered_map<std::string, RegexEngine> regexesCache;
@@ -88,11 +106,11 @@ struct DefaultRegexEngine
 
     static bool search(const std::string& s, const DefaultRegexEngine& r)
     {
-        return std::regex_search(s, r.regex);
+        return internal::regex_search(s, r.regex);
     }
 
 private:
-    std::regex regex;
+    internal::regex regex;
 };
 
 using Validator = ValidatorT<DefaultRegexEngine>;
