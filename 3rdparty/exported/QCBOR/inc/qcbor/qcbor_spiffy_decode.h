@@ -1,7 +1,7 @@
 /* ==========================================================================
  * qcbor_spiffy_decode.h -- higher-level easier-to-use CBOR decoding.
  *
- * Copyright (c) 2020-2024, Laurence Lundblade. All rights reserved.
+ * Copyright (c) 2020-2025, Laurence Lundblade. All rights reserved.
  * Copyright (c) 2021, Arm Limited. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
@@ -1008,62 +1008,62 @@ QCBORDecode_GetItemInMapSZ(QCBORDecodeContext *pCtx,
 
 
 /**
- * @brief Get a group of labeled items all at once from a map
+ * @brief Get multiple labeled items from a CBOR map efficiently.
  *
  * @param[in] pCtx           The decode context.
  * @param[in,out] pItemList  On input, the items to search for. On output,
- *                           the returne *d items.
+ *                           the returned items.
  *
- * This gets several labeled items out of a map.
+ * @c pItemList is an array of items, terminated by an item with
+ * @c uLabelType == @ref QCBOR_TYPE_NONE.
  *
- * @c pItemList is an array of items terminated by an item with @c
- * uLabelType @ref QCBOR_TYPE_NONE.
+ * On input, each item in @c pItemList specifies:
+ * - A label to search for (@c uLabelType and @c label fields).
+ * - An expected CBOR type (@c uDataType).
+ *     - To match any type regardless of its CBOR type, set @c uDataType to
+ *       @ref QCBOR_TYPE_ANY.
  *
- * On input the labels to search for are in the @c uLabelType and
- * label fields in the items in @c pItemList.
+ * On output, each item in @c pItemList may contain a found item:
+ * - @c uDataType is the data type for found items or @ref QCBOR_TYPE_NONE
+ *   if the label was not matched.
+ * - @c value is the value of the found item.
  *
- * Also on input are the requested QCBOR types in the field
- * @c uDataType.  To match any type, searching just by label,
- * @c uDataType can be @ref QCBOR_TYPE_ANY.
+ * This is CPU-efficient because the map is traversed only once,
+ * rather than scanning for each label individually.
  *
- * This is a CPU-efficient way to decode a bunch of items in a map. It
- * is more efficient than scanning each individually because the map
- * only needs to be traversed once.
+ * This function returns maps and arrays contained within the map, but
+ * does not provide a way to descend into or decode them. To process
+ * nested maps and arrays, use functions like
+ * QCBORDecode_EnterMapFromMapN(), QCBORDecode_EnterArrayFromMapN(),
+ * and similar.
  *
- * This will return maps and arrays that are in the map, but provides
- * no way to descend into and decode them. Use
- * QCBORDecode_EnterMapinMapN(), QCBORDecode_EnterArrayInMapN() and
- * such to descend into and process maps and arrays.
- *
- * The position of the traversal cursor is not changed.
+ * The cursor position in the decoder is preserved; it is not advanced
+ * by this function.
  *
  * Please see @ref Decode-Errors-Overview "Decode Errors Overview".
  *
- * The following errors are set:
+ * This function may set the following errors:
  *
- * @ref QCBOR_ERR_MAP_NOT_ENTERED when calling this without previousl
- * calling QCBORDecode_EnterMap() or other methods to enter a map.
+ * - @ref QCBOR_ERR_MAP_NOT_ENTERED --- called before entering a map
+ *    with QCBORDecode_EnterMap() or similar.
  *
- * @ref QCBOR_ERR_DUPLICATE_LABEL when one of the labels being searched
- * for is duplicate.
+ * - @ref QCBOR_ERR_DUPLICATE_LABEL --- One of the labels being
+ *   searched for is duplicated in the input CBOR.
  *
- * @ref QCBOR_ERR_HIT_END or other errors classifed as not-well-formed
- * by QCBORDecode_IsNotWellFormed() as it is not possible to traverse
- * maps that have any non-well formed items.
+ * - @ref QCBOR_ERR_HIT_END --- and other well-formedness errors as
+ *   per QCBORDecode_IsNotWellFormedError().
  *
- * @ref QCBOR_ERR_UNEXPECTED_TYPE when the type of an item found by
- * matching a label is not the type requested.
+ * - @ref QCBOR_ERR_UNEXPECTED_TYPE --- The type of a found item does
+ *   not match the expected @c uDataType.
  *
- * @ref QCBOR_ERR_ARRAY_NESTING_TOO_DEEP and other implementation
- * limit errors as it is not possible to travere a map beyond the
- * limits of the implementation.
+ * - @ref QCBOR_ERR_ARRAY_NESTING_TOO_DEEP --- and other QCBOR implementation
+ *   @ref Limitations errors.
  *
- * The error may occur on items that are not being searched for.  For
- * example, it is impossible to traverse over a map that has an array in
- * it that is not closed or over array and map nesting deeper than this
- * implementation can track.
+ * Because the entire map is traversed, these errors can occur on
+ * unrelated items—not just those being searched for.
  *
- * See also QCBORDecode_GetItemInMapN().
+ * @sa QCBORDecode_GetItemInMapN(), QCBORDecode_GetItemInMapSZ() and
+ * QCBORDecode_GetItemsInMapWithCallback().
  */
 void
 QCBORDecode_GetItemsInMap(QCBORDecodeContext *pCtx, QCBORItem *pItemList);
@@ -2299,13 +2299,13 @@ QCBORDecode_GetArrayFromMapN(QCBORDecodeContext *pMe,
                              QCBORItem          *pItem,
                              UsefulBufC         *pEncodedCBOR)
 {
-   QCBORItem OneItemSeach[2];
-   OneItemSeach[0].uLabelType  = QCBOR_TYPE_INT64;
-   OneItemSeach[0].label.int64 = nLabel;
-   OneItemSeach[0].uDataType   = QCBOR_TYPE_ARRAY;
-   OneItemSeach[1].uLabelType  = QCBOR_TYPE_NONE;
+   QCBORItem OneItemSearch[2];
+   OneItemSearch[0].uLabelType  = QCBOR_TYPE_INT64;
+   OneItemSearch[0].label.int64 = nLabel;
+   OneItemSearch[0].uDataType   = QCBOR_TYPE_ARRAY;
+   OneItemSearch[1].uLabelType  = QCBOR_TYPE_NONE;
 
-   QCBORDecode_Private_SearchAndGetArrayOrMap(pMe, OneItemSeach, pItem, pEncodedCBOR);
+   QCBORDecode_Private_SearchAndGetArrayOrMap(pMe, OneItemSearch, pItem, pEncodedCBOR);
 }
 
 
@@ -2316,13 +2316,13 @@ QCBORDecode_GetArrayFromMapSZ(QCBORDecodeContext *pMe,
                               UsefulBufC         *pEncodedCBOR)
 {
 #ifndef QCBOR_DISABLE_NON_INTEGER_LABELS
-   QCBORItem OneItemSeach[2];
-   OneItemSeach[0].uLabelType   = QCBOR_TYPE_TEXT_STRING;
-   OneItemSeach[0].label.string = UsefulBuf_FromSZ(szLabel);
-   OneItemSeach[0].uDataType    = QCBOR_TYPE_ARRAY;
-   OneItemSeach[1].uLabelType   = QCBOR_TYPE_NONE;
+   QCBORItem OneItemSearch[2];
+   OneItemSearch[0].uLabelType   = QCBOR_TYPE_TEXT_STRING;
+   OneItemSearch[0].label.string = UsefulBuf_FromSZ(szLabel);
+   OneItemSearch[0].uDataType    = QCBOR_TYPE_ARRAY;
+   OneItemSearch[1].uLabelType   = QCBOR_TYPE_NONE;
 
-   QCBORDecode_Private_SearchAndGetArrayOrMap(pMe, OneItemSeach, pItem, pEncodedCBOR);
+   QCBORDecode_Private_SearchAndGetArrayOrMap(pMe, OneItemSearch, pItem, pEncodedCBOR);
 #else
    (void)szLabel;
    (void)pItem;
@@ -2346,13 +2346,13 @@ QCBORDecode_GetMapFromMapN(QCBORDecodeContext *pMe,
                            QCBORItem          *pItem,
                            UsefulBufC         *pEncodedCBOR)
 {
-   QCBORItem OneItemSeach[2];
-   OneItemSeach[0].uLabelType  = QCBOR_TYPE_INT64;
-   OneItemSeach[0].label.int64 = nLabel;
-   OneItemSeach[0].uDataType   = QCBOR_TYPE_MAP;
-   OneItemSeach[1].uLabelType  = QCBOR_TYPE_NONE;
+   QCBORItem OneItemSearch[2];
+   OneItemSearch[0].uLabelType  = QCBOR_TYPE_INT64;
+   OneItemSearch[0].label.int64 = nLabel;
+   OneItemSearch[0].uDataType   = QCBOR_TYPE_MAP;
+   OneItemSearch[1].uLabelType  = QCBOR_TYPE_NONE;
 
-   QCBORDecode_Private_SearchAndGetArrayOrMap(pMe, OneItemSeach, pItem, pEncodedCBOR);
+   QCBORDecode_Private_SearchAndGetArrayOrMap(pMe, OneItemSearch, pItem, pEncodedCBOR);
 }
 
 
@@ -2363,13 +2363,13 @@ QCBORDecode_GetMapFromMapSZ(QCBORDecodeContext *pMe,
                             UsefulBufC         *pEncodedCBOR)
 {
 #ifndef QCBOR_DISABLE_NON_INTEGER_LABELS
-   QCBORItem OneItemSeach[2];
-   OneItemSeach[0].uLabelType   = QCBOR_TYPE_TEXT_STRING;
-   OneItemSeach[0].label.string = UsefulBuf_FromSZ(szLabel);
-   OneItemSeach[0].uDataType    = QCBOR_TYPE_MAP;
-   OneItemSeach[1].uLabelType   = QCBOR_TYPE_NONE;
+   QCBORItem OneItemSearch[2];
+   OneItemSearch[0].uLabelType   = QCBOR_TYPE_TEXT_STRING;
+   OneItemSearch[0].label.string = UsefulBuf_FromSZ(szLabel);
+   OneItemSearch[0].uDataType    = QCBOR_TYPE_MAP;
+   OneItemSearch[1].uLabelType   = QCBOR_TYPE_NONE;
 
-   QCBORDecode_Private_SearchAndGetArrayOrMap(pMe, OneItemSeach, pItem, pEncodedCBOR);
+   QCBORDecode_Private_SearchAndGetArrayOrMap(pMe, OneItemSearch, pItem, pEncodedCBOR);
 #else
    (void)szLabel;
    (void)pItem;

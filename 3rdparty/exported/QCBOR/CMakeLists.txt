@@ -11,7 +11,7 @@ cmake_minimum_required(VERSION 3.15)
 project(qcbor
     DESCRIPTION "QCBOR"
     LANGUAGES C
-    VERSION 1.5.0
+    VERSION 1.5.2
 )
 
 set(BUILD_QCBOR_TEST  "OFF"  CACHE STRING "Build QCBOR test suite [OFF, LIB, APP]")
@@ -94,5 +94,6 @@ install(
 )
 
 if (NOT BUILD_QCBOR_TEST STREQUAL "OFF")
+    enable_testing()
     add_subdirectory(test)
 endif()
