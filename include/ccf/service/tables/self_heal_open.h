@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/enum_formatter.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/service/map.h"
 #include "node/identity.h"
-#include "ccf/ds/enum_formatter.h"
 
 using IntrinsicIdentifier = std::string;
 
@@ -26,7 +26,8 @@ DECLARE_JSON_REQUIRED_FIELDS(
   cert_der,
   intrinsic_id);
 
-enum class SelfHealingOpenSM{
+enum class SelfHealingOpenSM
+{
   GOSSIPPING = 0,
   VOTING,
   OPENING, // by chosen replica
@@ -45,7 +46,7 @@ namespace ccf
 {
   using SelfHealingOpenNodeInfo =
     ServiceMap<IntrinsicIdentifier, SelfHealingOpenNodeInfo_t>;
-  using SelfHealingOpenGossipState =
+  using SelfHealingOpenGossips =
     ServiceMap<IntrinsicIdentifier, ccf::kv::Version>;
   using SelfHealingOpenChosenReplica = ServiceValue<IntrinsicIdentifier>;
   using SelfHealingOpenVotes = ServiceSet<IntrinsicIdentifier>;
@@ -55,7 +56,7 @@ namespace ccf
   {
     static constexpr auto SELF_HEALING_OPEN_NODES =
       "public:ccf.gov.selfhealingopen.nodes";
-    static constexpr auto SELF_HEALING_OPEN_GOSSIP_STATE =
+    static constexpr auto SELF_HEALING_OPEN_GOSSIPS =
       "public:ccf.gov.selfhealingopen.gossip";
     static constexpr auto SELF_HEALING_OPEN_CHOSEN_REPLICA =
       "public:ccf.gov.selfhealingopen.chosen_replica";

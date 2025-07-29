@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/quote_info.h"
+#include "ccf/node/startup_config.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/service/acme_client_config.h"
 #include "ccf/service/node_info_network.h"
@@ -64,7 +65,8 @@ namespace ccf
     virtual size_t get_jwt_attempts() = 0;
     virtual ccf::crypto::Pem get_self_signed_certificate() = 0;
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
-    virtual void self_healing_open_start_retry_timer() = 0;
+    virtual void self_healing_open_try_start_timers(ccf::kv::Tx& tx, bool recovering) = 0;
+    virtual void self_healing_open_advance(ccf::kv::Tx&, const ccf::StartupConfig&, bool) = 0;
     virtual const ccf::StartupConfig& get_node_config() const = 0;
     virtual ccf::crypto::Pem get_network_cert() = 0;
     virtual void stop_notice() = 0;

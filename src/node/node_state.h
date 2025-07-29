@@ -10,7 +10,9 @@
 #include "ccf/ds/logger.h"
 #include "ccf/ds/unit_strings.h"
 #include "ccf/js/core/context.h"
+#include "ccf/json_handler.h"
 #include "ccf/node/cose_signatures_config.h"
+#include "ccf/odata_error.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/locking.h"
 #include "ccf/pal/platform.h"
@@ -21,6 +23,7 @@
 #include "ccf/service/tables/acme_certificates.h"
 #include "ccf/service/tables/self_heal_open.h"
 #include "ccf/service/tables/service.h"
+#include "ccf/threading/thread_ids.h"
 #include "ccf/tx.h"
 #include "ccf_acme_client.h"
 #include "consensus/aft/raft.h"
@@ -33,6 +36,7 @@
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
+#include "http/curl.h"
 #include "http/http_parser.h"
 #include "indexing/indexer.h"
 #include "js/global_class_ids.h"
@@ -1985,16 +1989,24 @@ namespace ccf
       return history->get_cose_signatures_config();
     }
 
-    void self_healing_open_start_retry_timer() override
+    void self_healing_open_try_start_timers(
+      ccf::kv::Tx& tx, bool recovering) override
     {
-      auto timer_msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
+      if (
+        !recovering || !config.recover.self_healing_open_addresses.has_value())
+      {
+        LOG_TRACE_FMT(
+          "Not recovering, or no self-healing-open addresses configured, "
+          "not starting self-healing-open timers");
+        return;
+      }
+
+      auto* state_handle = tx.rw(network.self_healing_open_sm_state);
+      state_handle->put(SelfHealingOpenSM::GOSSIPPING);
+
+      auto retry_timer_msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
         [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
           std::lock_guard<pal::Mutex> guard(msg->data.self.lock);
-          // Keep doing this until the node is no longer in recovery
-          if (msg->data.self.sm.check(NodeStartupState::partOfNetwork))
-          {
-            return;
-          }
 
           auto tx = msg->data.self.network.tables->create_read_only_tx();
           auto* sm_state_handle =
@@ -2006,6 +2018,14 @@ namespace ccf
               "self-healing-open");
           }
           auto sm_state = sm_state_handle->get().value();
+
+          // Keep doing this until the node is no longer in recovery
+          if (
+            msg->data.self.sm.check(NodeStartupState::partOfNetwork) ||
+            sm_state == SelfHealingOpenSM::OPEN)
+          {
+            return;
+          }
 
           switch (sm_state)
           {
@@ -2048,13 +2068,158 @@ namespace ccf
                 static_cast<int>(sm_state)));
           }
 
-          auto delay = msg->data.self.config.join.retry_timeout;
+          auto delay =
+            msg->data.self.config.recover.self_healing_open_retry_timeout;
+          ::threading::ThreadMessaging::instance().add_task_after(
+            std::move(msg), delay);
+        },
+        *this);
+      // kick this off asynchronously as this can be called from a curl callback
+      ::threading::ThreadMessaging::instance().add_task(
+        threading::get_current_thread_id(), std::move(retry_timer_msg));
+
+      // Dispatch timeouts
+      auto timeout_msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
+        [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
+          std::lock_guard<pal::Mutex> guard(msg->data.self.lock);
+          LOG_TRACE_FMT(
+            "Self-healing-open timeout, sending timeout to internal handlers");
+
+          curl::UniqueCURL curl_handle;
+
+          auto cert = msg->data.self.self_signed_node_cert;
+          curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 0L);
+          curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 0L);
+          curl_handle.set_opt(CURLOPT_SSL_VERIFYSTATUS, 0L);
+
+          curl_handle.set_blob_opt(
+            CURLOPT_SSLCERT_BLOB, cert.data(), cert.size());
+          curl_handle.set_opt(CURLOPT_SSLCERTTYPE, "PEM");
+
+          auto privkey_pem = msg->data.self.node_sign_kp->private_key_pem();
+          curl_handle.set_blob_opt(
+            CURLOPT_SSLKEY_BLOB, privkey_pem.data(), privkey_pem.size());
+          curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
+
+          auto url = fmt::format(
+            "https://{}/{}/self_healing_open/timeout",
+            msg->data.self.config.network.rpc_interfaces
+              .at("primary_rpc_interface")
+              .published_address,
+            get_actor_prefix(ActorsType::nodes));
+
+          curl::UniqueSlist headers;
+          headers.append("Content-Type: application/json");
+
+          // This is simpler than going via the internal handlers...
+          auto curl_request = std::make_unique<curl::CurlRequest>(
+            std::move(curl_handle),
+            HTTP_PUT,
+            std::move(url),
+            std::move(headers),
+            nullptr,
+            std::nullopt);
+          curl::CurlmLibuvContextSingleton::get_instance().attach_request(
+            curl_request);
+
+          auto delay = msg->data.self.config.recover.self_healing_open_timeout;
           ::threading::ThreadMessaging::instance().add_task_after(
             std::move(msg), delay);
         },
         *this);
       ::threading::ThreadMessaging::instance().add_task_after(
-        std::move(timer_msg), ds::TimeString("0ms"));
+        std::move(timeout_msg), config.recover.self_healing_open_timeout);
+    }
+
+    void self_healing_open_advance(
+      ccf::kv::Tx& tx,
+      const ccf::StartupConfig& node_config,
+      bool timeout) override
+    {
+      auto* sm_state_handle = tx.rw(network.self_healing_open_sm_state);
+      if (!sm_state_handle->get().has_value())
+      {
+        throw std::logic_error(
+          "Self-healing-open state not set, cannot advance self-healing-open");
+      }
+
+      switch (sm_state_handle->get().value())
+      {
+        case SelfHealingOpenSM::GOSSIPPING:
+        {
+          auto* gossip_handle = tx.ro(network.self_healing_open_gossip);
+          if (
+            gossip_handle->size() ==
+              node_config.recover.self_healing_open_addresses.value().size() ||
+            timeout)
+          {
+            if (gossip_handle->size() == 0)
+            {
+              throw std::logic_error("No gossip addresses provided yet");
+            }
+
+            std::optional<std::pair<std::string, ccf::kv::Version>> min_iid;
+            gossip_handle->foreach(
+              [&min_iid](const auto& iid, const auto& txid) {
+                if (
+                  !min_iid.has_value() || min_iid->second < txid ||
+                  (min_iid->second == txid && min_iid->first > iid))
+                {
+                  min_iid = std::make_pair(iid, txid);
+                }
+                return true;
+              });
+
+            auto* chosen_replica =
+              tx.rw(network.self_healing_open_chosen_replica);
+            chosen_replica->put(min_iid->first);
+            sm_state_handle->put(SelfHealingOpenSM::VOTING);
+          }
+          return;
+        }
+        case SelfHealingOpenSM::VOTING:
+        {
+          auto* votes = tx.rw(network.self_healing_open_votes);
+          if (
+            votes->size() >=
+              node_config.recover.self_healing_open_addresses.value().size() /
+                  2 +
+                1 ||
+            timeout)
+          {
+            if (votes->size() == 0)
+            {
+              throw std::logic_error(
+                "We didn't even vote for ourselves, so why should we open?");
+            }
+            LOG_INFO_FMT("******************************");
+            LOG_INFO_FMT(
+              "Self-healing-open suceeded we should open the network");
+            LOG_INFO_FMT("******************************");
+
+            sm_state_handle->put(SelfHealingOpenSM::OPENING);
+
+            // TODO open the network
+            // have a utility function that kicks off the opening
+          }
+          return;
+        }
+        case SelfHealingOpenSM::JOINING:
+        {
+          // TODO restart in join
+          return;
+        }
+        case SelfHealingOpenSM::OPENING:
+        case SelfHealingOpenSM::OPEN:
+        {
+          // Nothing to do here, we are already opening or open
+          return;
+        }
+        default:
+          throw std::logic_error(fmt::format(
+            "Unknown self-healing-open state: {}",
+            static_cast<int>(sm_state_handle->get().value())));
+      }
     }
 
   private:
@@ -2976,7 +3141,7 @@ namespace ccf
     {
       CCF_ASSERT(
         snp_tcb_version.has_value(),
-        "TCB version must be set when unsealing ledger secret");
+        "TCB version must be set when unsealing ledger sec/ret");
 
       CCF_ASSERT(
         config.recover.previous_sealed_ledger_secret_location.has_value(),

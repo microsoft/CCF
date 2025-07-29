@@ -70,6 +70,7 @@ namespace ccf::self_healing_open
 
     curl_handle.set_blob_opt(
       CURLOPT_SSLKEY_BLOB, privkey_pem.data(), privkey_pem.size());
+      curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
 
     auto url = fmt::format(
       "https://{}/{}/self_healing_open/{}",

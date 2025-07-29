@@ -249,8 +249,8 @@ namespace ccf
     // Self-healing open tables
     const SelfHealingOpenNodeInfo self_healing_open_node_info = {
       Tables::SELF_HEALING_OPEN_NODES};
-    const SelfHealingOpenGossipState self_healing_open_gossip = {
-      Tables::SELF_HEALING_OPEN_GOSSIP_STATE};
+    const SelfHealingOpenGossips self_healing_open_gossip = {
+      Tables::SELF_HEALING_OPEN_GOSSIPS};
     const SelfHealingOpenChosenReplica self_healing_open_chosen_replica = {
       Tables::SELF_HEALING_OPEN_CHOSEN_REPLICA};
     const SelfHealingOpenVotes self_healing_open_votes = {

@@ -110,9 +110,15 @@ namespace ccf
       return impl.get_cose_signatures_config();
     }
 
-    void self_healing_open_start_retry_timer() override
+    void self_healing_open_try_start_timers(ccf::kv::Tx& tx, bool recovering);
     {
-      impl.self_healing_open_start_retry_timer();
+      impl.self_healing_open_try_start_timers(tx, recovering);
+    }
+
+    void self_healing_open_advance(
+      ccf::kv::Tx& tx, const ccf::StartupConfig& startup_config, bool is_recovery) override
+    {
+      impl.self_healing_open_advance(tx, startup_config, is_recovery);
     }
   };
 }

@@ -6,6 +6,7 @@
 #include "ccf/ds/quote_info.h"
 #include "ccf/node/cose_signatures_config.h"
 #include "ccf/node/quote.h"
+#include "ccf/node/startup_config.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/service/tables/code_id.h"
@@ -61,6 +62,8 @@ namespace ccf
 
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
 
-    virtual void self_healing_open_start_retry_timer() = 0;
+    virtual void self_healing_open_try_start_timers(ccf::kv::Tx& tx, bool recovering) = 0;
+    virtual void self_healing_open_advance(
+      ccf::kv::Tx&, const ccf::StartupConfig&, bool) = 0;
   };
 }

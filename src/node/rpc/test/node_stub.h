@@ -111,7 +111,13 @@ namespace ccf
       return cose_signatures_config;
     }
 
-    void self_healing_open_start_retry_timer() override
+    void self_healing_open_try_start_timers(ccf::kv::Tx& tx, bool recovering) override
+    {
+      // No-op for stub
+    }
+
+    void self_healing_open_advance(
+      ccf::kv::Tx& tx, const ccf::StartupConfig& config, bool timeout) override
     {
       // No-op for stub
     }
