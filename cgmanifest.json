@@ -104,8 +104,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/tristanpenman/valijson",
-          "commitHash": "fc9ddf14db683c9443c48ae3a6bf83e0ce3ad37c",
-          "tag": "v1.0.3"
+          "commitHash": "4edda758546436462da479bb8c8514f8a95c35ad",
+          "tag": "v1.0.6"
         }
       }
     },
