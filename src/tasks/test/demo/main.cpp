@@ -409,7 +409,6 @@ TEST_CASE("Run")
 
 int main(int argc, char** argv)
 {
-  // ccf::tasks::TaskSystem::init();
   ccf::logger::config::default_init();
   ccf::logger::config::level() = ccf::LoggerLevel::INFO;
 
