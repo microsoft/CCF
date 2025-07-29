@@ -1,31 +1,30 @@
 #pragma once
 
 #include "../aal/aal.h"
-#include "../pal/pal.h"
-
-#include <atomic>
+#include "snmalloc/ds_core/ds_core.h"
+#include "snmalloc/stl/atomic.h"
 
 namespace snmalloc
 {
   /**
    * @brief The DebugFlagWord struct
-   * Wrapper for std::atomic_flag so that we can examine
+   * Wrapper for stl::AtomicBool so that we can examine
    * the re-entrancy problem at debug mode.
    */
   struct DebugFlagWord
   {
-    using ThreadIdentity = DefaultPal::ThreadIdentity;
+    using ThreadIdentity = size_t;
 
     /**
      * @brief flag
      * The underlying atomic field.
      */
-    std::atomic_bool flag{false};
+    stl::AtomicBool flag{false};
 
     constexpr DebugFlagWord() = default;
 
     template<typename... Args>
-    constexpr DebugFlagWord(Args&&... args) : flag(std::forward<Args>(args)...)
+    constexpr DebugFlagWord(Args&&... args) : flag(stl::forward<Args>(args)...)
     {}
 
     /**
@@ -62,7 +61,7 @@ namespace snmalloc
      * @brief owner
      * We use the Pal to provide the ThreadIdentity.
      */
-    std::atomic<ThreadIdentity> owner = ThreadIdentity();
+    stl::Atomic<ThreadIdentity> owner = ThreadIdentity();
 
     /**
      * @brief get_thread_identity
@@ -70,7 +69,7 @@ namespace snmalloc
      */
     static ThreadIdentity get_thread_identity()
     {
-      return DefaultPal::get_tid();
+      return debug_get_tid();
     }
   };
 
@@ -82,13 +81,13 @@ namespace snmalloc
    */
   struct ReleaseFlagWord
   {
-    std::atomic_bool flag{false};
+    stl::AtomicBool flag{false};
 
     constexpr ReleaseFlagWord() = default;
 
     template<typename... Args>
     constexpr ReleaseFlagWord(Args&&... args)
-    : flag(std::forward<Args>(args)...)
+    : flag(stl::forward<Args>(args)...)
     {}
 
     void set_owner() {}
@@ -112,7 +111,7 @@ namespace snmalloc
   public:
     FlagLock(FlagWord& lock) : lock(lock)
     {
-      while (lock.flag.exchange(true, std::memory_order_acquire))
+      while (lock.flag.exchange(true, stl::memory_order_acquire))
       {
         // assert_not_owned_by_current_thread is only called when the first
         // acquiring is failed; which means the lock is already held somewhere
@@ -120,7 +119,7 @@ namespace snmalloc
         lock.assert_not_owned_by_current_thread();
         // This loop is better for spin-waiting because it won't issue
         // expensive write operation (xchg for example).
-        while (lock.flag.load(std::memory_order_relaxed))
+        while (lock.flag.load(stl::memory_order_relaxed))
         {
           Aal::pause();
         }
@@ -131,7 +130,7 @@ namespace snmalloc
     ~FlagLock()
     {
       lock.clear_owner();
-      lock.flag.store(false, std::memory_order_release);
+      lock.flag.store(false, stl::memory_order_release);
     }
   };
 
