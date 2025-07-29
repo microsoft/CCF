@@ -1,6 +1,6 @@
 /* ===========================================================================
  * Copyright (c) 2016-2018, The Linux Foundation.
- * Copyright (c) 2018-2024, Laurence Lundblade.
+ * Copyright (c) 2018-2025, Laurence Lundblade.
  * Copyright (c) 2021, Arm Limited.
  * All rights reserved.
  *
@@ -348,6 +348,8 @@ extern "C" {
  * @ref QCBOR_ERR_ALL_FLOAT_DISABLED if a floating point value is
  * encountered during decoding. Functions that are encoding floating
  * point values are not available.
+ *
+ * @anchor Limitations
  *
  * ## Limitations
  *
