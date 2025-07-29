@@ -148,6 +148,8 @@ namespace ccf
         std::nullopt;
       std::optional<std::vector<ccf::NodeInfoNetwork::NetAddress>>
         self_healing_open_addresses = std::nullopt;
+      ccf::ds::TimeString self_healing_open_retry_timeout = {"100ms"};
+      ccf::ds::TimeString self_healing_open_timeout = {"2000ms"};
     };
     Recover recover = {};
   };

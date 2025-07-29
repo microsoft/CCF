@@ -827,6 +827,10 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
       }
       startup_config.recover.self_healing_open_addresses =
         config.command.recover.self_healing_open_addresses;
+      startup_config.recover.self_healing_open_retry_timeout =
+        config.command.recover.self_healing_open_retry_timeout;
+      startup_config.recover.self_healing_open_timeout =
+        config.command.recover.self_healing_open_timeout;
     }
     else
     {

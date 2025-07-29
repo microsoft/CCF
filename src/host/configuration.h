@@ -143,6 +143,8 @@ namespace host
           std::nullopt;
         std::optional<std::vector<std::string>> self_healing_open_addresses =
           std::nullopt;
+        ccf::ds::TimeString self_healing_open_retry_timeout = {"100ms"};
+        ccf::ds::TimeString self_healing_open_timeout = {"2000ms"};
         bool operator==(const Recover&) const = default;
       };
       Recover recover = {};
@@ -198,7 +200,9 @@ namespace host
     initial_service_certificate_validity_days,
     previous_service_identity_file,
     previous_sealed_ledger_secret_location,
-    self_healing_open_addresses);
+    self_healing_open_addresses,
+    self_healing_open_retry_timeout,
+    self_healing_open_timeout);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);

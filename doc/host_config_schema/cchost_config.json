@@ -448,6 +448,16 @@
                       "type": "string"
                     },
                     "description": "List of addresses (host:port) of the cluster that should open via self-healing-open"
+                  },
+                  "self_healing_open_retry_timeout": {
+                    "type": "string",
+                    "default": "100ms",
+                    "description": "Interval (time string) at which the node re-sends self-healing-open messages. This should be leass than 'self_healing_open_timeout'"
+                  },
+                  "self_healing_open_timeout": {
+                    "type": "string",
+                    "default": "2000ms",
+                    "description": "Interval (time string) after which the node forcibly advances to the next phase of the self-healing-open protocol"
                   }
                 },
                 "required": ["previous_service_identity_file"],
