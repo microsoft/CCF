@@ -3,6 +3,7 @@
 #pragma once
 
 #include "./task.h"
+#include "ds/work_beacon.h"
 
 #include <mutex>
 #include <queue>
@@ -21,11 +22,15 @@ struct JobBoard : public IJobBoard
 {
   std::mutex mutex;
   std::queue<Task> queue;
+  ccf::ds::WorkBeacon work_beacon;
 
   void add_task(Task&& t) override
   {
-    std::lock_guard<std::mutex> lock(mutex);
-    queue.emplace(std::move(t));
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      queue.emplace(std::move(t));
+    }
+    work_beacon.notify_work_available();
   }
 
   Task get_task() override
@@ -49,7 +54,6 @@ struct JobBoard : public IJobBoard
 
   Task wait_for_task(const std::chrono::milliseconds& timeout) override
   {
-    // TODO: Add a condition_variable to remove spinloop
     using TClock = std::chrono::system_clock;
 
     const auto start = TClock::now();
@@ -63,7 +67,7 @@ struct JobBoard : public IJobBoard
         return task;
       }
 
-      std::this_thread::yield();
+      work_beacon.wait_for_work_with_timeout(timeout);
     }
   }
 };
