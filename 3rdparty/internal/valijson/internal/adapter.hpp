@@ -68,7 +68,7 @@ public:
      *
      * This function shall return a boolean value if the Adapter contains either
      * an actual boolean value, or one of the strings 'true' or 'false'.
-     * The string comparison is case sensitive.
+     * The string comparison is case-sensitive.
      *
      * An exception shall be thrown if the value cannot be cast to a boolean.
      *
@@ -81,7 +81,7 @@ public:
      *
      * This function shall retrieve a boolean value if the Adapter contains
      * either an actual boolean value, or one of the strings 'true' or 'false'.
-     * The string comparison is case sensitive.
+     * The string comparison is case-sensitive.
      *
      * The retrieved value is returned via reference.
      *

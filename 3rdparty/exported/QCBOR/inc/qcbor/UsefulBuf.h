@@ -1385,7 +1385,7 @@ UsefulBufC UsefulOutBuf_CopyOut(UsefulOutBuf *pUOutBuf, UsefulBuf Dest);
 
 
 /**
- * @beief Return a substring of the output data.
+ * @brief Return a substring of the output data.
  *
  * @param[in] pUOutBuf  Pointer to the @ref UsefulOutBuf.
  * @param[in] uStart    Offset of start of substring.
