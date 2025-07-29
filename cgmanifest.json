@@ -6,8 +6,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nlohmann/json.git",
-          "commitHash": "bc889afb4c5bf1c0d8ee29ef35eaaf4c8bef8a5d",
-          "tag": "v3.11.2"
+          "commitHash": "55f93686c01528224f448c19128836e7df245f72",
+          "tag": "v3.12.0"
         }
       }
     },
@@ -16,8 +16,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/onqtam/doctest.git",
-          "commitHash": "ae7a13539fb71f270b87eb2e874fbac80bc8dda2",
-          "tag": "v2.4.11"
+          "commitHash": "1da23a3e8119ec5cce4f9388e91b065e20bf06f5",
+          "tag": "v2.4.12"
         }
       }
     },
@@ -94,8 +94,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/merklecpp",
-          "commitHash": "1a8a3a000c16fee62bc55d2efdb10d2ebd2b0173",
-          "tag": "v1.1.0"
+          "commitHash": "30d1dc7dc3b46b7da71124fb8df385a8b67ef59b",
+          "tag": "v1.1.1"
         }
       }
     },
@@ -104,8 +104,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/tristanpenman/valijson",
-          "commitHash": "fc9ddf14db683c9443c48ae3a6bf83e0ce3ad37c",
-          "tag": "v1.0.3"
+          "commitHash": "4edda758546436462da479bb8c8514f8a95c35ad",
+          "tag": "v1.0.6"
         }
       }
     },
@@ -114,8 +114,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/laurencelundblade/QCBOR",
-          "commitHash": "24cd62a415161c2851327e96a023b47bb0897e64",
-          "tag": "v1.5"
+          "commitHash": "4ace4620d549f22c1163c5b00d3ae0c0dae1d207",
+          "tag": "v1.5.3"
         }
       }
     },
