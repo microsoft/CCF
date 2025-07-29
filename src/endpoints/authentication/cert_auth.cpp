@@ -10,7 +10,6 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/users.h"
 #include "ds/lru.h"
-#include "enclave/enclave_time.h"
 
 namespace ccf
 {
@@ -73,7 +72,9 @@ namespace ccf
 
       using namespace std::chrono;
       const auto time_now =
-        duration_cast<seconds>(ccf::get_enclave_time()).count();
+        duration_cast<seconds>(
+          std::chrono::steady_clock::now().time_since_epoch())
+          .count();
 
       if (time_now < valid_from_unix_time)
       {

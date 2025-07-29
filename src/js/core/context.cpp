@@ -4,11 +4,11 @@
 #include "ccf/js/core/context.h"
 
 #include "ccf/ds/hex.h"
+#include "ccf/ds/logger.h"
 #include "ccf/js/core/runtime.h"
 #include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/tx_access.h"
-#include "enclave/enclave_time.h"
 #include "js/global_class_ids.h"
 
 #include <chrono>
@@ -431,7 +431,7 @@ namespace ccf::js::core
   {
     (void)rt;
     auto* inter = reinterpret_cast<InterruptData*>(opaque);
-    auto now = ccf::get_enclave_time();
+    auto now = std::chrono::high_resolution_clock::now();
     auto elapsed_time = now - inter->start_time;
     auto elapsed_ms =
       std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time);
@@ -456,7 +456,7 @@ namespace ccf::js::core
     RuntimeLimitsPolicy policy)
   {
     rt.set_runtime_options(options, policy);
-    const auto curr_time = ccf::get_enclave_time();
+    const auto curr_time = InterruptData::TClock::now();
     interrupt_data.start_time = curr_time;
     interrupt_data.max_execution_time = rt.get_max_exec_time();
     JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);
@@ -576,32 +576,5 @@ namespace ccf::js::core
       return true;
     }
     return false;
-  }
-}
-
-extern "C"
-{
-  int qjs_gettimeofday(struct JSContext* ctx, struct timeval* tv, void* tz)
-  {
-    (void)tz;
-    if (tv != nullptr)
-    {
-      // Opaque may be null, when this is called during Context construction
-      const ccf::js::core::Context* jsctx =
-        reinterpret_cast<ccf::js::core::Context*>(JS_GetContextOpaque(ctx));
-      if (jsctx != nullptr && jsctx->implement_untrusted_time)
-      {
-        const auto microseconds_since_epoch = ccf::get_enclave_time();
-        tv->tv_sec = std::chrono::duration_cast<std::chrono::seconds>(
-                       microseconds_since_epoch)
-                       .count();
-        tv->tv_usec = microseconds_since_epoch.count() % std::micro::den;
-      }
-      else
-      {
-        memset(tv, 0, sizeof(struct timeval));
-      }
-    }
-    return 0;
   }
 }

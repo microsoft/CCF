@@ -17,7 +17,6 @@
 #include "ccf/tx.h"
 #include "consensus/aft/raft_types.h"
 #include "crypto/openssl/cose_sign.h"
-#include "enclave/enclave_time.h"
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
 #include "service/tables/governance_history.h"
@@ -588,7 +587,7 @@ namespace ccf
 
       const auto time_since_epoch =
         std::chrono::duration_cast<std::chrono::seconds>(
-          ccf::get_enclave_time())
+          std::chrono::steady_clock::now().time_since_epoch())
           .count();
 
       auto cwt_headers =
