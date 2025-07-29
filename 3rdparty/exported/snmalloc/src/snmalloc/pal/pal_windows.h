@@ -1,12 +1,13 @@
 #pragma once
 
 #include "../aal/aal.h"
-#include "pal_tid_default.h"
+#include "../ds_aal/ds_aal.h"
 #include "pal_timer_default.h"
 
 #ifdef _WIN32
 #  ifndef _MSC_VER
-#    include <cstdio>
+#    include <errno.h>
+#    include <stdio.h>
 #  endif
 #  define WIN32_LEAN_AND_MEAN
 #  ifndef NOMINMAX
@@ -24,18 +25,15 @@
 #    endif
 #  endif
 
-#  include <chrono>
-
 namespace snmalloc
 {
-  class PALWindows : public PalTimerDefaultImpl<PALWindows>,
-                     public PalTidDefault
+  class PALWindows : public PalTimerDefaultImpl<PALWindows>
   {
     /**
      * A flag indicating that we have tried to register for low-memory
      * notifications.
      */
-    static inline std::atomic<bool> registered_for_notifications;
+    static inline stl::Atomic<bool> registered_for_notifications;
     static inline HANDLE lowMemoryObject;
 
     /**
@@ -52,13 +50,76 @@ namespace snmalloc
       low_memory_callbacks.notify_all();
     }
 
+    // A list of reserved ranges, used to handle lazy commit on readonly pages.
+    // We currently only need one, so haven't implemented a backup if the
+    // initial 16 is insufficient.
+    inline static stl::Array<stl::Pair<address_t, size_t>, 16> reserved_ranges;
+
+    // Lock for the reserved ranges.
+    inline static FlagWord reserved_ranges_lock{};
+
+    // Exception handler for handling lazy commit on readonly pages.
+    static LONG NTAPI
+    HandleReadonlyLazyCommit(struct _EXCEPTION_POINTERS* ExceptionInfo)
+    {
+      // Check this is an AV
+      if (
+        ExceptionInfo->ExceptionRecord->ExceptionCode !=
+        EXCEPTION_ACCESS_VIOLATION)
+        return EXCEPTION_CONTINUE_SEARCH;
+
+      // Check this is a read access
+      if (ExceptionInfo->ExceptionRecord->ExceptionInformation[0] != 0)
+        return EXCEPTION_CONTINUE_SEARCH;
+
+      // Get faulting address from exception info.
+      snmalloc::address_t faulting_address =
+        ExceptionInfo->ExceptionRecord->ExceptionInformation[1];
+
+      bool found = false;
+      {
+        FlagLock lock(reserved_ranges_lock);
+        // Check if the address is in a reserved range.
+        for (auto& r : reserved_ranges)
+        {
+          if ((faulting_address - r.first) < r.second)
+          {
+            found = true;
+            break;
+          }
+        }
+      }
+
+      if (!found)
+        return EXCEPTION_CONTINUE_SEARCH;
+
+      // Commit the page as readonly
+      auto pagebase = snmalloc::bits::align_down(faulting_address, page_size);
+      VirtualAlloc((void*)pagebase, page_size, MEM_COMMIT, PAGE_READONLY);
+
+      // Resume execution
+      return EXCEPTION_CONTINUE_EXECUTION;
+    }
+
+    static void initialise_for_singleton(size_t*) noexcept
+    {
+      AddVectoredExceptionHandler(1, HandleReadonlyLazyCommit);
+    }
+
+    // Ensure the exception handler is registered.
+    static void initialise_readonly_av() noexcept
+    {
+      static Singleton<size_t, &initialise_for_singleton> init;
+      init.get();
+    }
+
   public:
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.  This PAL supports low-memory notifications.
      */
     static constexpr uint64_t pal_features = LowMemoryNotification | Entropy |
-      Time
+      Time | LazyCommit
 #  if defined(PLATFORM_HAS_VIRTUALALLOC2) && !defined(USE_SYSTEMATIC_TESTING)
       | AlignedAllocation
 #  endif
@@ -159,6 +220,26 @@ namespace snmalloc
           "out of memory: {} ({}) could not be committed", p, size);
     }
 
+    static void notify_using_readonly(void* p, size_t size) noexcept
+    {
+      initialise_readonly_av();
+
+      {
+        FlagLock lock(reserved_ranges_lock);
+        for (auto& r : reserved_ranges)
+        {
+          if (r.first == 0)
+          {
+            r.first = (address_t)p;
+            r.second = size;
+            return;
+          }
+        }
+      }
+
+      error("Implementation error: Too many lazy commit regions!");
+    }
+
     /// OS specific function for zeroing memory
     template<bool page_aligned = false>
     static void zero(void* p, size_t size) noexcept
@@ -230,33 +311,43 @@ namespace snmalloc
 
     static uint64_t internal_time_in_ms()
     {
-      return static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-          std::chrono::steady_clock::now().time_since_epoch())
-          .count());
+      // Performance counter is a high-precision monotonic clock.
+      static stl::Atomic<uint64_t> freq_cache = 0;
+      constexpr uint64_t ms_per_second = 1000;
+      SNMALLOC_UNINITIALISED LARGE_INTEGER buf;
+      auto freq = freq_cache.load(stl::memory_order_relaxed);
+      if (SNMALLOC_UNLIKELY(freq == 0))
+      {
+        // On systems that run Windows XP or later, the function will always
+        // succeed and will thus never return zero.
+        ::QueryPerformanceFrequency(&buf);
+        freq = static_cast<uint64_t>(buf.QuadPart);
+        freq_cache.store(freq, stl::memory_order_relaxed);
+      }
+      ::QueryPerformanceCounter(&buf);
+      return (static_cast<uint64_t>(buf.QuadPart) * ms_per_second) / freq;
     }
 
 #  ifdef PLATFORM_HAS_WAITONADDRESS
     using WaitingWord = char;
 
     template<class T>
-    static void wait_on_address(std::atomic<T>& addr, T expected)
+    static void wait_on_address(stl::Atomic<T>& addr, T expected)
     {
-      while (addr.load(std::memory_order_relaxed) == expected)
+      while (addr.load(stl::memory_order_relaxed) == expected)
       {
-        if (::WaitOnAddress(&addr, &expected, sizeof(T), INFINITE))
-          break;
+        ::WaitOnAddress(&addr, &expected, sizeof(T), INFINITE);
       }
     }
 
     template<class T>
-    static void notify_one_on_address(std::atomic<T>& addr)
+    static void notify_one_on_address(stl::Atomic<T>& addr)
     {
       ::WakeByAddressSingle(&addr);
     }
 
     template<class T>
-    static void notify_all_on_address(std::atomic<T>& addr)
+    static void notify_all_on_address(stl::Atomic<T>& addr)
     {
       ::WakeByAddressAll(&addr);
     }
