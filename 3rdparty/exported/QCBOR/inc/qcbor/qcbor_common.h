@@ -1,6 +1,6 @@
 /* ==========================================================================
  * Copyright (c) 2016-2018, The Linux Foundation.
- * Copyright (c) 2018-2024, Laurence Lundblade.
+ * Copyright (c) 2018-2025, Laurence Lundblade.
  * Copyright (c) 2021, Arm Limited.
  * All rights reserved.
  *
@@ -59,7 +59,7 @@ extern "C" {
  */
 #define QCBOR_VERSION_MAJOR 1
 #define QCBOR_VERSION_MINOR 5
-#define QCBOR_VERSION_PATCH 0
+#define QCBOR_VERSION_PATCH 3
 
 
 /**
