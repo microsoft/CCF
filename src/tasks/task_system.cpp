@@ -1,12 +1,16 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "tasks/task_system.h"
+
 #include "tasks/task.h"
 
 #include <stdexcept>
 
 namespace ccf::tasks
 {
+  static thread_local BaseTask* current_task = nullptr;
+
   size_t BaseTask::do_task()
   {
     if (cancelled.load())
@@ -37,8 +41,6 @@ namespace ccf::tasks
   {
     return cancelled.load();
   }
-
-  using Task = std::shared_ptr<BaseTask>;
 
   Resumable pause_current_task()
   {

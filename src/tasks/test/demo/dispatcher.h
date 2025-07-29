@@ -6,6 +6,7 @@
 #include "./looping_thread.h"
 #include "tasks/job_board.h"
 #include "tasks/ordered_tasks.h"
+#include "tasks/task_system.h"
 
 #include <future>
 

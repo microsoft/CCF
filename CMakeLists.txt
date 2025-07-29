@@ -310,7 +310,7 @@ add_ccf_static_library(
   LINK_LIBS qcbor t_cose http_parser ccfcrypto ccf_kv
 )
 
-add_ccf_static_library(ccf_tasks SRCS ${CCF_DIR}/src/tasks/task.cpp ${CCF_DIR}/src/tasks/job_board.cpp)
+add_ccf_static_library(ccf_tasks SRCS ${CCF_DIR}/src/tasks/task_system.cpp ${CCF_DIR}/src/tasks/job_board.cpp)
 
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS

@@ -4,6 +4,7 @@
 #include "./actions.h"
 #include "./clients.h"
 #include "./node.h"
+#include "tasks/basic_task.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>

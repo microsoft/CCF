@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "tasks/basic_task.h"
 #include "tasks/job_board.h"
 #include "tasks/ordered_tasks.h"
 
