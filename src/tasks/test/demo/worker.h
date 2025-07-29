@@ -6,7 +6,7 @@
 
 struct WorkerState
 {
-  IJobBoard& job_board;
+  ccf::tasks::IJobBoard& job_board;
 
   size_t work_completed;
 
@@ -15,7 +15,7 @@ struct WorkerState
 
 struct Worker : public LoopingThread<WorkerState>
 {
-  Worker(IJobBoard& jb, size_t idx) :
+  Worker(ccf::tasks::IJobBoard& jb, size_t idx) :
     LoopingThread<WorkerState>(fmt::format("w{}", idx), jb)
   {}
 

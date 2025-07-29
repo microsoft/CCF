@@ -73,19 +73,19 @@ TEST_CASE("OrderedTasks")
   using Result = std::atomic<size_t>;
   std::vector<Result> results(num_sessions);
 
-  JobBoard job_board;
+  ccf::tasks::JobBoard job_board;
   {
     // Record next x to send for each session
-    std::vector<std::pair<std::shared_ptr<OrderedTasks>, size_t>> all_tasks;
+    std::vector<std::pair<std::shared_ptr<ccf::tasks::OrderedTasks>, size_t>> all_tasks;
     for (auto i = 0; i < num_sessions; ++i)
     {
       all_tasks.emplace_back(
-        std::make_shared<OrderedTasks>(job_board, std::to_string(i)), 0);
+        std::make_shared<ccf::tasks::OrderedTasks>(job_board, std::to_string(i)), 0);
     }
 
     auto add_action = [&](size_t idx, size_t sleep_time_ms) {
       auto& [tasks, n] = all_tasks[idx];
-      tasks->add_action(make_basic_action([=, &n, &results]() {
+      tasks->add_action(ccf::tasks::make_basic_action([=, &n, &results]() {
         std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time_ms));
         const auto x = ++n;
         LOG_TRACE_FMT("{} {}", tasks->get_name(), x);
@@ -137,19 +137,19 @@ TEST_CASE("OrderedTasks")
 
 TEST_CASE("PauseAndResume")
 {
-  JobBoard job_board;
+  ccf::tasks::JobBoard job_board;
   {
     size_t x = 0;
     size_t y = 0;
 
     auto increment = [](size_t& n) {
-      return make_basic_action([&n]() { ++n; });
+      return ccf::tasks::make_basic_action([&n]() { ++n; });
     };
 
-    std::shared_ptr<OrderedTasks> x_tasks =
-      std::make_shared<OrderedTasks>(job_board, "x");
-    std::shared_ptr<OrderedTasks> y_tasks =
-      std::make_shared<OrderedTasks>(job_board, "y");
+    std::shared_ptr<ccf::tasks::OrderedTasks> x_tasks =
+      std::make_shared<ccf::tasks::OrderedTasks>(job_board, "x");
+    std::shared_ptr<ccf::tasks::OrderedTasks> y_tasks =
+      std::make_shared<ccf::tasks::OrderedTasks>(job_board, "y");
 
     x_tasks->add_action(increment(x));
     y_tasks->add_action(increment(y));
@@ -196,7 +196,7 @@ TEST_CASE("PauseAndResume")
       ccf::tasks::Resumable resumable;
 
       x_tasks->add_action(increment(x));
-      x_tasks->add_action(make_basic_action([&]() {
+      x_tasks->add_action(ccf::tasks::make_basic_action([&]() {
         // NB: This doesn't need to _know_ the current task, just that it is
         // executed _as part of a task_. This means it could occur deep within a
         // call-stack.
@@ -235,7 +235,7 @@ TEST_CASE("PauseAndResume")
       // A task might be paused multiple times during its life
       resumable = nullptr;
       x_tasks->add_action(increment(x));
-      x_tasks->add_action(make_basic_action(
+      x_tasks->add_action(ccf::tasks::make_basic_action(
         [&]() { resumable = ccf::tasks::pause_current_task(); }));
       x_tasks->add_action(increment(x));
 
@@ -272,7 +272,7 @@ void describe_session_manager(SessionManager& sm)
   }
 }
 
-void describe_job_board(JobBoard& jb)
+void describe_job_board(ccf::tasks::JobBoard& jb)
 {
   std::lock_guard<std::mutex> lock(jb.mutex);
   fmt::print("JobBoard contains {} tasks\n", jb.queue.size());
@@ -285,7 +285,7 @@ void describe_job_board(JobBoard& jb)
 void describe_dispatcher(Dispatcher& d)
 {
   describe_session_manager(d.state.session_manager);
-  describe_job_board((JobBoard&)d.state.job_board);
+  describe_job_board((ccf::tasks::JobBoard&)d.state.job_board);
 
   fmt::print(
     "Dispatcher is tracking {} sessions\n",
@@ -310,7 +310,7 @@ TEST_CASE("Run")
 
   {
     // Create a node
-    JobBoard job_board;
+    ccf::tasks::JobBoard job_board;
     Node node(4, job_board);
     node.start();
 

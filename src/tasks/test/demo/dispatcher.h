@@ -9,7 +9,7 @@
 
 #include <future>
 
-struct Action_ProcessClientAction : public ITaskAction
+struct Action_ProcessClientAction : public ccf::tasks::ITaskAction
 {
   const SerialisedAction input_action;
   Session& client_session;
@@ -107,10 +107,10 @@ struct Action_ProcessClientAction : public ITaskAction
 
 struct DispatcherState
 {
-  IJobBoard& job_board;
+  ccf::tasks::IJobBoard& job_board;
   SessionManager& session_manager;
 
-  std::unordered_map<Session*, std::shared_ptr<OrderedTasks>>
+  std::unordered_map<Session*, std::shared_ptr<ccf::tasks::OrderedTasks>>
     ordered_tasks_per_client;
 
   std::atomic<bool> consider_termination = false;
@@ -118,7 +118,7 @@ struct DispatcherState
 
 struct Dispatcher : public LoopingThread<DispatcherState>
 {
-  Dispatcher(IJobBoard& jb, SessionManager& sm) :
+  Dispatcher(ccf::tasks::IJobBoard& jb, SessionManager& sm) :
     LoopingThread<DispatcherState>(fmt::format("dsp"), jb, sm)
   {}
 
@@ -147,7 +147,7 @@ struct Dispatcher : public LoopingThread<DispatcherState>
         it = state.ordered_tasks_per_client.emplace_hint(
           it,
           session.get(),
-          std::make_shared<OrderedTasks>(
+          std::make_shared<ccf::tasks::OrderedTasks>(
             state.job_board, fmt::format("Tasks for {}", session->name)));
       }
 

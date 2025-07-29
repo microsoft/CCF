@@ -19,12 +19,12 @@ struct Node
 {
   SessionManager session_manager;
 
-  IJobBoard& job_board;
+  ccf::tasks::IJobBoard& job_board;
 
   Dispatcher dispatcher;
   std::vector<std::unique_ptr<Worker>> workers;
 
-  Node(size_t num_workers, IJobBoard& jb) :
+  Node(size_t num_workers, ccf::tasks::IJobBoard& jb) :
     job_board(jb),
     dispatcher(jb, session_manager)
   {
