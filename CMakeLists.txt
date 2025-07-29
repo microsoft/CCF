@@ -310,6 +310,8 @@ add_ccf_static_library(
   LINK_LIBS qcbor t_cose http_parser ccfcrypto ccf_kv
 )
 
+add_ccf_static_library(ccf_tasks SRCS ${CCF_DIR}/src/tasks/task.cpp ${CCF_DIR}/src/tasks/job_board.cpp)
+
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS
     0
@@ -563,15 +565,15 @@ if(BUILD_TESTS)
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_unit_test(
-      task_system_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/queues.cpp
+      task_system_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/queues.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/demo.cpp
     )
+    target_link_libraries(task_system_test PRIVATE ccf_tasks)
 
     add_unit_test(
-      task_system_demo
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/demo/main.cpp
+      task_system_demo ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/demo/main.cpp
     )
+    target_link_libraries(task_system_demo PRIVATE ccf_tasks)
 
     add_unit_test(
       ledger_test ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp

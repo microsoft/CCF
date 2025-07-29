@@ -90,15 +90,15 @@ void thread_debug_print(const std::string& s)
 }
 
 template <typename TIter>
-Task job_sort(TIter begin, TIter end)
+ccf::tasks::Task job_sort(TIter begin, TIter end)
 {
-  return make_basic_task([begin, end]() { std::sort(begin, end); });
+  return ccf::tasks::make_basic_task([begin, end]() { std::sort(begin, end); });
 }
 
 template <typename TDuration>
-Task job_sleep(const TDuration& t)
+ccf::tasks::Task job_sleep(const TDuration& t)
 {
-  return make_basic_task([t]() {
+  return ccf::tasks::make_basic_task([t]() {
     fmt::print("[{}] I'm going to sleep for {}\n", thread_name(), t);
     std::this_thread::sleep_for(t);
     fmt::print("[{}] I slept for {}\n", thread_name(), t);

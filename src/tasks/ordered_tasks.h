@@ -124,7 +124,7 @@ namespace ccf::tasks
   // order they are added. To self-schedule, this instance will ensure that it
   // is posted to the given JobBoard whenever more sub-tasks are available for
   // execution.
-  class OrderedTasks : public ITask,
+  class OrderedTasks : public BaseTask,
                        public std::enable_shared_from_this<OrderedTasks>
   {
   protected:

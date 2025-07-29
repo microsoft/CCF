@@ -30,7 +30,7 @@ TEST_CASE("Tasks")
 
   // Basic tasks
   const std::string name_1 = "Set x to 1";
-  auto set_1 = make_basic_task([&x]() { x = 1; }, name_1);
+  auto set_1 = ccf::tasks::make_basic_task([&x]() { x = 1; }, name_1);
   REQUIRE(set_1->get_name() == name_1);
   REQUIRE(x == 0);
   set_1->do_task();
@@ -38,7 +38,7 @@ TEST_CASE("Tasks")
 
   // Cancelling pre-execution
   const std::string name_2 = "Set x to 2";
-  auto set_2 = make_basic_task([&x]() { x = 2; }, name_2);
+  auto set_2 = ccf::tasks::make_basic_task([&x]() { x = 2; }, name_2);
   REQUIRE(set_2->get_name() == name_2);
   REQUIRE(x == 1);
   REQUIRE_FALSE(set_2->is_cancelled());
@@ -50,7 +50,7 @@ TEST_CASE("Tasks")
 
   // Cancelling post-execution
   const std::string name_3 = "Set x to 3";
-  auto set_3 = make_basic_task([&x]() { x = 3; }, name_3);
+  auto set_3 = ccf::tasks::make_basic_task([&x]() { x = 3; }, name_3);
   REQUIRE(set_3->get_name() == name_3);
   REQUIRE(x == 1);
   REQUIRE_FALSE(set_3->is_cancelled());
@@ -76,11 +76,14 @@ TEST_CASE("OrderedTasks")
   ccf::tasks::JobBoard job_board;
   {
     // Record next x to send for each session
-    std::vector<std::pair<std::shared_ptr<ccf::tasks::OrderedTasks>, size_t>> all_tasks;
+    std::vector<std::pair<std::shared_ptr<ccf::tasks::OrderedTasks>, size_t>>
+      all_tasks;
     for (auto i = 0; i < num_sessions; ++i)
     {
       all_tasks.emplace_back(
-        std::make_shared<ccf::tasks::OrderedTasks>(job_board, std::to_string(i)), 0);
+        std::make_shared<ccf::tasks::OrderedTasks>(
+          job_board, std::to_string(i)),
+        0);
     }
 
     auto add_action = [&](size_t idx, size_t sleep_time_ms) {
