@@ -4,10 +4,10 @@
 
 #include "./actions.h"
 #include "./dispatcher.h"
-#include "./job_board.h"
-#include "./ordered_tasks.h"
 #include "./session.h"
 #include "./worker.h"
+#include "tasks/job_board.h"
+#include "tasks/ordered_tasks.h"
 
 #include <atomic>
 #include <string>

@@ -3,9 +3,9 @@
 #pragma once
 
 #include "./actions.h"
-#include "./job_board.h"
 #include "./looping_thread.h"
-#include "./ordered_tasks.h"
+#include "tasks/job_board.h"
+#include "tasks/ordered_tasks.h"
 
 #include <future>
 

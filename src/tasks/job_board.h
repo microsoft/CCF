@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "./task.h"
 #include "ds/work_beacon.h"
-#include "tasks/task.h"
 
 #include <mutex>
 #include <queue>
