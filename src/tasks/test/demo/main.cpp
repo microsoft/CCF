@@ -297,12 +297,15 @@ void describe_dispatcher(Dispatcher& d)
 
   for (auto& [session, tasks] : d.state.ordered_tasks_per_client)
   {
+    size_t pending;
+    bool active;
+    tasks->get_queue_summary(pending, active);
     fmt::print(
       "  {}: {} (active: {}, queue.size: {})\n",
       session->name,
       tasks->get_name(),
-      tasks->actions.active,
-      tasks->actions.pending.size());
+      active,
+      pending);
   }
 }
 

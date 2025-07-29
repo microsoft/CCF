@@ -4,6 +4,7 @@
 #include "tasks/basic_task.h"
 #include "tasks/job_board.h"
 #include "tasks/ordered_tasks.h"
+#include "tasks/sub_task_queue.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
