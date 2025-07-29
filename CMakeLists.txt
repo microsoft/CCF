@@ -566,7 +566,6 @@ if(BUILD_TESTS)
 
     add_unit_test(
       task_system_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/queues.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/demo.cpp
     )
     target_link_libraries(task_system_test PRIVATE ccf_tasks)
 
