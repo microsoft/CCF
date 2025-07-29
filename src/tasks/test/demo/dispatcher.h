@@ -14,13 +14,16 @@ struct Action_ProcessClientAction : public ccf::tasks::ITaskAction
 {
   const SerialisedAction input_action;
   Session& client_session;
+  std::atomic<size_t>& responses_sent;
 
-  Action_ProcessClientAction(const SerialisedAction& action, Session& cs) :
+  Action_ProcessClientAction(
+    const SerialisedAction& action, Session& cs, std::atomic<size_t>& rs) :
     input_action(action),
-    client_session(cs)
+    client_session(cs),
+    responses_sent(rs)
   {}
 
-  size_t do_action() override
+  void do_action() override
   {
     // Separate into parse, exec, and respond tasks, to show it is
     // possible?
@@ -80,20 +83,20 @@ struct Action_ProcessClientAction : public ccf::tasks::ITaskAction
         std::launch::async,
         [paused_task = std::move(paused_task),
          result = std::move(result),
-         client_session = &client_session]() mutable {
+         client_session = &client_session,
+         responses_sent = &responses_sent]() mutable {
           std::this_thread::sleep_for(std::chrono::milliseconds(100));
           client_session->from_node.push_back(std::move(result));
+          ++responses_sent;
           ccf::tasks::resume_task(std::move(paused_task));
         });
-      return 0;
     }
     else
     {
       // TODO: Add some CallObligation type to ensure this is
       // eventually done?
       client_session.from_node.push_back(std::move(result));
-
-      return 1;
+      ++responses_sent;
     }
   }
 
@@ -110,6 +113,7 @@ struct DispatcherState
 {
   ccf::tasks::IJobBoard& job_board;
   SessionManager& session_manager;
+  std::atomic<size_t>& responses_sent;
 
   std::unordered_map<Session*, std::shared_ptr<ccf::tasks::OrderedTasks>>
     ordered_tasks_per_client;
@@ -119,8 +123,11 @@ struct DispatcherState
 
 struct Dispatcher : public LoopingThread<DispatcherState>
 {
-  Dispatcher(ccf::tasks::IJobBoard& jb, SessionManager& sm) :
-    LoopingThread<DispatcherState>(fmt::format("dsp"), jb, sm)
+  Dispatcher(
+    ccf::tasks::IJobBoard& jb,
+    SessionManager& sm,
+    std::atomic<size_t>& response_count) :
+    LoopingThread<DispatcherState>(fmt::format("dsp"), jb, sm, response_count)
   {}
 
   ~Dispatcher() override
@@ -172,7 +179,7 @@ struct Dispatcher : public LoopingThread<DispatcherState>
           ret_val = Stage::Running;
 
           tasks.add_action(std::make_shared<Action_ProcessClientAction>(
-            incoming.value(), *session));
+            incoming.value(), *session, state.responses_sent));
 
           incoming = session->to_node.try_pop();
         }

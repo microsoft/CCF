@@ -33,7 +33,9 @@ struct Worker : public LoopingThread<WorkerState>
     auto task = state.job_board.wait_for_task(std::chrono::milliseconds(10));
     if (task != nullptr)
     {
-      state.work_completed += task->do_task();
+      // TODO: Increment some count _inside_ the doer?
+      task->do_task();
+      state.work_completed += 1;
     }
     else if (state.consider_termination.load())
     {

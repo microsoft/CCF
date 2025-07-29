@@ -11,8 +11,7 @@ namespace ccf::tasks
 {
   struct ITaskAction
   {
-    // Return some value indicating how much work was done.
-    virtual size_t do_action() = 0;
+    virtual void do_action() = 0;
 
     virtual std::string get_name() const = 0;
   };
@@ -31,10 +30,9 @@ namespace ccf::tasks
       name(s)
     {}
 
-    size_t do_action() override
+    void do_action() override
     {
       fn();
-      return 1;
     }
 
     std::string get_name() const override
@@ -68,7 +66,7 @@ namespace ccf::tasks
     OrderedTasks(IJobBoard& jb, const std::string& s = "[Ordered]");
     ~OrderedTasks();
 
-    size_t do_task_implementation() override;
+    void do_task_implementation() override;
     ccf::tasks::Resumable pause() override;
     std::string get_name() const override;
 

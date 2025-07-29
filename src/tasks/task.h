@@ -22,10 +22,9 @@ namespace ccf::tasks
   public:
     virtual ~BaseTask() = default;
 
-    size_t do_task();
+    void do_task();
 
-    // Return some value indicating how much work was done.
-    virtual size_t do_task_implementation() = 0;
+    virtual void do_task_implementation() = 0;
     virtual std::string get_name() const = 0;
 
     void cancel_task();

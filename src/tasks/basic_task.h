@@ -16,10 +16,9 @@ namespace ccf::tasks
     BasicTask(const Fn& _fn, const std::string& s = "[Anon]") : fn(_fn), name(s)
     {}
 
-    size_t do_task_implementation() override
+    void do_task_implementation() override
     {
       fn();
-      return 1;
     }
 
     std::string get_name() const override

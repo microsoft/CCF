@@ -312,13 +312,13 @@ void describe_dispatcher(Dispatcher& d)
 TEST_CASE("Run")
 {
   size_t total_requests_sent = 0;
+  std::atomic<size_t> total_responses_sent = 0;
   size_t total_responses_seen = 0;
-  size_t total_tasks_processed = 0;
 
   {
     // Create a node
     ccf::tasks::JobBoard job_board;
-    Node node(4, job_board);
+    Node node(4, job_board, total_responses_sent);
     node.start();
 
     {
@@ -389,7 +389,6 @@ TEST_CASE("Run")
     {
       worker->state.consider_termination.store(true);
       worker->shutdown();
-      total_tasks_processed += worker->state.work_completed;
     }
 
     // TODO
@@ -401,11 +400,11 @@ TEST_CASE("Run")
   LOG_INFO_FMT(
     "{} vs {} vs {}",
     total_requests_sent,
-    total_tasks_processed,
+    total_responses_sent,
     total_responses_seen);
 
-  REQUIRE(total_requests_sent >= total_tasks_processed);
-  REQUIRE(total_tasks_processed >= total_responses_seen);
+  REQUIRE(total_requests_sent >= total_responses_sent);
+  REQUIRE(total_responses_sent >= total_responses_seen);
 }
 
 int main(int argc, char** argv)

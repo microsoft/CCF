@@ -11,20 +11,18 @@ namespace ccf::tasks
 {
   static thread_local BaseTask* current_task = nullptr;
 
-  size_t BaseTask::do_task()
+  void BaseTask::do_task()
   {
     if (cancelled.load())
     {
-      return 0;
+      return;
     }
 
     ccf::tasks::current_task = this;
 
-    const auto n = do_task_implementation();
+    do_task_implementation();
 
     ccf::tasks::current_task = nullptr;
-
-    return n;
   }
 
   ccf::tasks::Resumable BaseTask::pause()

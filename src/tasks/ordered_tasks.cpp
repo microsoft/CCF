@@ -40,15 +40,13 @@ namespace ccf::tasks
     pimpl(std::make_unique<OrderedTasks::PImpl>(s, jb))
   {}
 
-  size_t OrderedTasks::do_task_implementation()
+  void OrderedTasks::do_task_implementation()
   {
-    size_t n = 0;
     if (pimpl->actions.pop_and_visit(
-          [this, &n](TaskAction&& action) { n += action->do_action(); }))
+          [this](TaskAction&& action) { action->do_action(); }))
     {
       enqueue_on_board();
     }
-    return n;
   }
 
   ccf::tasks::Resumable OrderedTasks::pause()
