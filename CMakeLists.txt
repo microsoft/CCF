@@ -665,7 +665,7 @@ if(BUILD_TESTS)
       snapshotter_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshotter.cpp
     )
-    target_link_libraries(snapshotter_test PRIVATE ccf_kv ccf_endpoints)
+    target_link_libraries(snapshotter_test PRIVATE ccf_kv ccf_endpoints ccf_tasks)
 
     add_unit_test(
       node_info_json_test

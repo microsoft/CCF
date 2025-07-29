@@ -22,4 +22,7 @@ namespace ccf::tasks
   };
 
   using Resumable = std::unique_ptr<IResumable>;
+
+  Resumable pause_current_task();
+  void resume_task(Resumable&& resumable);
 }

@@ -3,12 +3,15 @@
 
 #include "tasks/task_system.h"
 
+#include "tasks/job_board.h"
+#include "tasks/resumable.h"
 #include "tasks/task.h"
 
 #include <stdexcept>
 
 namespace ccf::tasks
 {
+  // Implementation of BaseTask
   static thread_local BaseTask* current_task = nullptr;
 
   void BaseTask::do_task()
@@ -40,6 +43,29 @@ namespace ccf::tasks
     return cancelled.load();
   }
 
+  // Implementation of ccf::tasks namespace static functions
+  IJobBoard& get_main_job_board()
+  {
+    static JobBoard main_job_board;
+    return main_job_board;
+  }
+
+  void add_task(Task task)
+  {
+    get_main_job_board().add_task(std::move(task));
+  }
+
+  void add_task_after(Task task, std::chrono::milliseconds ms)
+  {
+    // TODO: via uv_timer?
+  }
+
+  void cancel_task(Task task)
+  {
+    // TODO: Is this needed? Or does caller have their own task->cancel()?
+  }
+
+  // From resumable.h
   Resumable pause_current_task()
   {
     if (current_task == nullptr)

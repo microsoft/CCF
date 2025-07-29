@@ -30,6 +30,6 @@ namespace ccf::tasks
   template <typename... Ts>
   Task make_basic_task(Ts&&... ts)
   {
-    return make_task<BasicTask>(std::forward<Ts>(ts)...);
+    return std::make_shared<BasicTask>(std::forward<Ts>(ts)...);
   }
 }
