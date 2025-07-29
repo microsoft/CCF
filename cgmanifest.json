@@ -94,8 +94,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/merklecpp",
-          "commitHash": "1a8a3a000c16fee62bc55d2efdb10d2ebd2b0173",
-          "tag": "v1.1.0"
+          "commitHash": "30d1dc7dc3b46b7da71124fb8df385a8b67ef59b",
+          "tag": "v1.1.1"
         }
       }
     },
