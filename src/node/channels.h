@@ -158,7 +158,7 @@ namespace ccf
   class Channel
   {
   public:
-    using TClock = std::chrono::steady_clock;
+    using TClock = std::chrono::system_clock;
 
     static TClock::duration& min_gap_between_initiation_attempts()
     {

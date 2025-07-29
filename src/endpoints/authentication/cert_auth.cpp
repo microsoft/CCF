@@ -72,9 +72,7 @@ namespace ccf
 
       using namespace std::chrono;
       const auto time_now =
-        duration_cast<seconds>(
-          std::chrono::steady_clock::now().time_since_epoch())
-          .count();
+        duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
 
       if (time_now < valid_from_unix_time)
       {

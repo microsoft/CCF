@@ -257,7 +257,7 @@ namespace ccf
       // Check that the Not Before and Expiration Time claims are valid
       const size_t time_now =
         std::chrono::duration_cast<std::chrono::seconds>(
-          std::chrono::steady_clock::now().time_since_epoch())
+          std::chrono::system_clock::now().time_since_epoch())
           .count();
       if (token.payload_typed.nbf && time_now < *token.payload_typed.nbf)
       {

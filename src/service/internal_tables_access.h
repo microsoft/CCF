@@ -587,7 +587,7 @@ namespace ccf
 
       const auto time_since_epoch =
         std::chrono::duration_cast<std::chrono::seconds>(
-          std::chrono::steady_clock::now().time_since_epoch())
+          std::chrono::system_clock::now().time_since_epoch())
           .count();
 
       auto cwt_headers =
