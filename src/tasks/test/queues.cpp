@@ -77,6 +77,8 @@ uint8_t thread_name()
 
 void thread_print(const std::string& s)
 {
+  static std::mutex logging_mutex;
+  std::lock_guard<std::mutex> guard(logging_mutex);
   fmt::print("[{:0x}] {}\n", thread_name(), s);
 }
 
