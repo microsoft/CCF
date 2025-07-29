@@ -46,8 +46,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "8303d140a1a11f19b982a9f664bbe59a1ccda3f4",
-          "tag": "11.1.2"
+          "commitHash": "40626af88bd7df9a5fb80be7b25ac85b122d6c21",
+          "tag": "11.2.0"
         }
       }
     },
