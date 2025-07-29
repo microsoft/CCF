@@ -6,8 +6,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nlohmann/json.git",
-          "commitHash": "bc889afb4c5bf1c0d8ee29ef35eaaf4c8bef8a5d",
-          "tag": "v3.11.2"
+          "commitHash": "55f93686c01528224f448c19128836e7df245f72",
+          "tag": "v3.12.0"
         }
       }
     },
