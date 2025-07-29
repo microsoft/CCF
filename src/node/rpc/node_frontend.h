@@ -1435,10 +1435,6 @@ namespace ccf
         .install();
 
       auto memory_usage = [](auto& args) {
-
-// Do not attempt to call get_mallinfo when used from
-// unit tests such as the frontend_test
-#ifdef INSIDE_ENCLAVE
         ccf::pal::MallocInfo info;
         if (ccf::pal::get_mallinfo(info))
         {
@@ -1449,7 +1445,6 @@ namespace ccf
           args.rpc_ctx->set_response_body(nlohmann::json(mu).dump());
           return;
         }
-#endif
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
         args.rpc_ctx->set_response_body("Failed to read memory usage");
@@ -1579,8 +1574,8 @@ namespace ccf
           {
             throw std::logic_error("Could not cast tx to CommittableTx");
           }
-          tx_->set_flag(
-            ccf::kv::CommittableTx::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
+          tx_->set_tx_flag(
+            ccf::kv::CommittableTx::TxFlag::LEDGER_CHUNK_BEFORE_THIS_TX);
         }
 
         auto endorsed_certificates =
@@ -1969,8 +1964,8 @@ namespace ccf
           return;
         }
 
-        fs::path snapshot_path =
-          fs::path(snapshots_config.directory) / snapshot_name;
+        files::fs::path snapshot_path =
+          files::fs::path(snapshots_config.directory) / snapshot_name;
 
         std::ifstream f(snapshot_path, std::ios::binary);
         if (!f.good())

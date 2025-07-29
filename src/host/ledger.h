@@ -706,9 +706,6 @@ namespace asynchost
   class Ledger
   {
   private:
-    static constexpr size_t max_chunk_threshold_size =
-      std::numeric_limits<uint32_t>::max(); // 4GB
-
     ringbuffer::WriterPtr to_enclave;
 
     // Main ledger directory (write and read)
@@ -726,7 +723,6 @@ namespace asynchost
     std::list<std::shared_ptr<LedgerFile>> files_read_cache;
     ccf::pal::Mutex read_cache_lock;
 
-    const size_t chunk_threshold;
     size_t last_idx = 0;
     size_t committed_idx = 0;
 
@@ -1018,21 +1014,12 @@ namespace asynchost
     Ledger(
       const fs::path& ledger_dir,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      size_t chunk_threshold,
       size_t max_read_cache_files = ledger_max_read_cache_files_default,
       const std::vector<std::string>& read_ledger_dirs_ = {}) :
       to_enclave(writer_factory.create_writer_to_inside()),
       ledger_dir(ledger_dir),
-      max_read_cache_files(max_read_cache_files),
-      chunk_threshold(chunk_threshold)
+      max_read_cache_files(max_read_cache_files)
     {
-      if (chunk_threshold == 0 || chunk_threshold > max_chunk_threshold_size)
-      {
-        throw std::logic_error(fmt::format(
-          "Error: Ledger chunk threshold should be between 1-{}",
-          max_chunk_threshold_size));
-      }
-
       // Recover last idx from read-only ledger directories
       for (const auto& read_dir : read_ledger_dirs_)
       {
@@ -1083,7 +1070,10 @@ namespace asynchost
 
       if (fs::is_directory(ledger_dir))
       {
-        // If the ledger directory exists, recover ledger files from it
+        // If the ledger directory exists, populate this->files with the
+        // writeable files from it. These must have no suffix, and must not
+        // end-before the current committed_idx found from the read-only
+        // directories
         LOG_INFO_FMT("Recovering main ledger directory {}", ledger_dir);
 
         for (auto const& f : fs::directory_iterator(ledger_dir))
@@ -1094,6 +1084,42 @@ namespace asynchost
           {
             LOG_INFO_FMT(
               "Ignoring ledger file {} in main ledger directory", file_name);
+
+            ignore_ledger_file(file_name);
+
+            continue;
+          }
+
+          const auto file_end_idx = get_last_idx_from_file_name(file_name);
+
+          if (is_ledger_file_name_committed(file_name))
+          {
+            if (!file_end_idx.has_value())
+            {
+              LOG_FAIL_FMT(
+                "Unexpected file {} in {}: committed but not completed",
+                file_name,
+                ledger_dir);
+            }
+            else
+            {
+              if (file_end_idx.value() > committed_idx)
+              {
+                committed_idx = file_end_idx.value();
+                end_of_committed_files_idx = file_end_idx.value();
+              }
+            }
+
+            continue;
+          }
+
+          if (file_end_idx.has_value() && file_end_idx.value() <= committed_idx)
+          {
+            LOG_INFO_FMT(
+              "Ignoring ledger file {} in main ledger directory - already "
+              "discovered commit up to {} from read-only directories",
+              file_name,
+              committed_idx);
 
             ignore_ledger_file(file_name);
 
@@ -1135,7 +1161,20 @@ namespace asynchost
             "Main ledger directory {} is empty: no ledger file to "
             "recover",
             ledger_dir);
+
+          // If we had any uncommitted files, we wouldn't be in this path and
+          // we'd populate last_idx below. In this branch, we need to ensure
+          // last_idx is correctly initialised. Since there are no uncommitted
+          // files, it must match the last committed_idx we've discovered.
+          last_idx = committed_idx;
           return;
+        }
+        else
+        {
+          LOG_INFO_FMT(
+            "Main ledger directory {} contains {} restored (writeable) files",
+            ledger_dir,
+            files.size());
         }
 
         files.sort([](
@@ -1144,29 +1183,11 @@ namespace asynchost
           return a->get_last_idx() < b->get_last_idx();
         });
 
-        auto main_ledger_dir_last_idx = get_latest_file(false)->get_last_idx();
+        const auto main_ledger_dir_last_idx =
+          get_latest_file(false)->get_last_idx();
         if (main_ledger_dir_last_idx > last_idx)
         {
           last_idx = main_ledger_dir_last_idx;
-        }
-
-        // Remove committed files from list of writable files
-        for (auto f = files.begin(); f != files.end();)
-        {
-          if ((*f)->is_committed())
-          {
-            const auto f_last_idx = (*f)->get_last_idx();
-            if (f_last_idx > committed_idx)
-            {
-              committed_idx = f_last_idx;
-              end_of_committed_files_idx = f_last_idx;
-            }
-            f = files.erase(f);
-          }
-          else
-          {
-            f++;
-          }
         }
       }
       else
@@ -1395,9 +1416,7 @@ namespace asynchost
         committable,
         force_chunk_after);
 
-      if (
-        committable &&
-        (force_chunk_after || file->get_current_size() >= chunk_threshold))
+      if (committable && force_chunk_after)
       {
         file->complete();
         LOG_DEBUG_FMT("Ledger chunk completed at {}", last_idx);

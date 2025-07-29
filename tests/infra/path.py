@@ -4,6 +4,9 @@ import os
 from contextlib import contextmanager
 from shutil import copy2, rmtree
 import hashlib
+import infra.node
+import infra.platform_detection
+from packaging.version import Version  # type: ignore
 
 from loguru import logger as LOG
 
@@ -20,29 +23,32 @@ def mk_new(name, contents):
         mk(name, contents)
 
 
-def build_lib_path(
-    lib_name, enclave_type=None, enclave_platform="sgx", library_dir="."
-):
-    if enclave_platform == "virtual" or enclave_type == "virtual":
-        ext = ".virtual.so"
+def build_lib_path(lib_name, library_dir=".", version=None):
+    if not lib_name.startswith("lib"):
+        lib_name = f"lib{lib_name}"
+
+    if version is None or Version(infra.node.strip_version(version)).major >= 7:
+        ext = ".so"
+    else:
+        if infra.platform_detection.is_virtual():
+            ext = ".virtual.so"
+        elif infra.platform_detection.is_snp():
+            ext = ".snp.so"
+
+    if infra.platform_detection.is_virtual():
         mode = "Virtual mode"
-    elif enclave_platform == "sgx":
-        if enclave_type == "debug":
-            ext = ".enclave.so.debuggable"
-            mode = "Debuggable SGX enclave"
-        elif enclave_type == "release":
-            ext = ".enclave.so.signed"
-            mode = "Release SGX enclave"
-        else:
-            raise ValueError(f"Invalid enclave_type {enclave_type} for SGX enclave")
-    elif enclave_platform == "snp":
-        ext = ".snp.so"
+    elif infra.platform_detection.is_snp():
         mode = "SNP enclave"
     else:
-        raise ValueError(f"Invalid enclave_platform passed {enclave_platform}")
+        raise ValueError(
+            f"Unexpected platform: {infra.platform_detection.get_platform()}"
+        )
+
     if os.path.isfile(lib_name):
         if ext not in lib_name:
-            raise ValueError(f"{mode} requires {ext} enclave image")
+            raise ValueError(
+                f"{mode} requires {ext} enclave image (could not find {lib_name})"
+            )
         return lib_name
     else:
         # Make sure relative paths include current directory. Absolute paths will be unaffected

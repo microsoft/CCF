@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <unistd.h>
 #include <vector>
 
 #define FMT_HEADER_ONLY
@@ -202,5 +203,19 @@ namespace ccf::nonstd
       f(std::get<I>(t));
       tuple_for_each<I + 1>(t, f);
     }
+  }
+
+  static void close_fd(int* fd)
+  {
+    if (fd != nullptr && *fd >= 0)
+    {
+      close(*fd);
+      *fd = -1;
+    }
+  }
+  using CloseFdGuard = std::unique_ptr<int, decltype(&close_fd)>;
+  static inline CloseFdGuard make_close_fd_guard(int* fd)
+  {
+    return CloseFdGuard(fd, close_fd);
   }
 }

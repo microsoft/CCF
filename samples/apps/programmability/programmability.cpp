@@ -49,7 +49,7 @@ namespace programmabilityapp
   {
     using RoleSet = ccf::kv::Set<std::string>;
 
-    auto users_handle = tx.ro<ccf::UserInfo>(ccf::Tables::USER_INFO);
+    auto* users_handle = tx.ro<ccf::UserInfo>(ccf::Tables::USER_INFO);
     const auto user_info = users_handle->get(user_id);
     if (user_info.has_value())
     {
@@ -59,8 +59,8 @@ namespace programmabilityapp
         const auto roles = roles_it->get<std::vector<std::string>>();
         for (const auto& role : roles)
         {
-          auto role_handle =
-            tx.ro<RoleSet>(fmt::format("public:ccf.gov.roles.{}", role));
+          auto* role_handle = tx.ro<RoleSet>(
+            fmt::format("public:programmability.roles.{}", role));
           if (role_handle->contains(action))
           {
             return true;
@@ -89,7 +89,10 @@ namespace programmabilityapp
   // This is the signature for a function exposed to JS, interacting directly
   // with JS interpreter state
   JSValue js_has_role_permitting_action(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+    JSContext* ctx,
+    [[maybe_unused]] JSValueConst this_val,
+    int argc,
+    JSValueConst* argv)
   {
     // Check correct number of args were passed, to avoid unsafe accesses to
     // argv
@@ -100,16 +103,16 @@ namespace programmabilityapp
 
     // Retrieve the CCF context object from QuickJS's opaque pointer
     ccf::js::core::Context& jsctx =
-      *(ccf::js::core::Context*)JS_GetContextOpaque(ctx);
+      *reinterpret_cast<ccf::js::core::Context*>(JS_GetContextOpaque(ctx));
 
     // Get the extension (by type), and the Tx* stashed on it
-    auto extension = jsctx.get_extension<MyExtension>();
+    auto* extension = jsctx.get_extension<MyExtension>();
     if (extension == nullptr)
     {
       return JS_ThrowInternalError(ctx, "Failed to get extension object");
     }
 
-    auto tx_ptr = extension->tx;
+    auto* tx_ptr = extension->tx;
     if (tx_ptr == nullptr)
     {
       return JS_ThrowInternalError(ctx, "No transaction available");
@@ -138,7 +141,7 @@ namespace programmabilityapp
         has_role_permitting_action(tx, user_id.value(), action.value());
 
       // Return result (converting C++ type to QuickJS value)
-      return JS_NewBool(ctx, permitted);
+      return JS_NewBool(ctx, static_cast<int>(permitted));
     }
     catch (const std::exception& exc)
     {
@@ -192,12 +195,14 @@ namespace programmabilityapp
       {
         return cose_ident->user_id;
       }
-      else if (
+
+      if (
         const auto* cert_ident =
           ctx.try_get_caller<ccf::UserCertAuthnIdentity>())
       {
         return cert_ident->user_id;
       }
+
       return std::nullopt;
     }
 
@@ -217,13 +222,8 @@ namespace programmabilityapp
           cose_ident->content,
           cose_ident->protected_header.msg_created_at};
       }
-      else
-      {
-        return {
-          ccf::ActionFormat::JSON,
-          ctx.rpc_ctx->get_request_body(),
-          std::nullopt};
-      }
+      return {
+        ccf::ActionFormat::JSON, ctx.rpc_ctx->get_request_body(), std::nullopt};
     }
 
     bool set_error_details(
@@ -290,7 +290,7 @@ namespace programmabilityapp
           return;
         }
 
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto* records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         records_handle->put(key, ctx.rpc_ctx->get_request_body());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       };
@@ -312,7 +312,7 @@ namespace programmabilityapp
           return;
         }
 
-        auto records_handle = ctx.tx.template ro<RecordsMap>(PRIVATE_RECORDS);
+        auto* records_handle = ctx.tx.template ro<RecordsMap>(PRIVATE_RECORDS);
         auto record = records_handle->get(key);
 
         if (record.has_value())
@@ -341,7 +341,7 @@ namespace programmabilityapp
 
         const auto records = body.get<std::map<std::string, std::string>>();
 
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto* records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         for (const auto& [key, value] : records)
         {
           const std::vector<uint8_t> value_vec(value.begin(), value.end());
@@ -450,7 +450,7 @@ namespace programmabilityapp
               fmt::format("Missing {} protected header", CREATED_AT_NAME));
             return;
           }
-          ccf::InvalidArgsReason reason;
+          ccf::InvalidArgsReason reason = {};
           result = check_action_not_replayed_v1(
             ctx.tx,
             created_at.value(),
@@ -500,11 +500,7 @@ namespace programmabilityapp
           return;
         }
 
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CONTENT_TYPE,
-          ccf::http::headervalues::contenttype::JSON);
-        ctx.rpc_ctx->set_response_body(nlohmann::json(bundle).dump(2));
+        ctx.rpc_ctx->set_response_json(bundle, HTTP_STATUS_OK);
       };
 
       make_endpoint(
@@ -649,7 +645,7 @@ namespace programmabilityapp
                 fmt::format("Missing {} protected header", CREATED_AT_NAME));
               return;
             }
-            ccf::InvalidArgsReason reason;
+            ccf::InvalidArgsReason reason = {};
             result = check_action_not_replayed_v1(
               ctx.tx,
               created_at.value(),
@@ -673,11 +669,7 @@ namespace programmabilityapp
             return;
           }
 
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::CONTENT_TYPE,
-            ccf::http::headervalues::contenttype::JSON);
-          ctx.rpc_ctx->set_response_body(nlohmann::json(options).dump(2));
+          ctx.rpc_ctx->set_response_json(options, HTTP_STATUS_OK);
         };
       make_endpoint(
         "/custom_endpoints/runtime_options",
@@ -701,11 +693,7 @@ namespace programmabilityapp
           return;
         }
 
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CONTENT_TYPE,
-          ccf::http::headervalues::contenttype::JSON);
-        ctx.rpc_ctx->set_response_body(nlohmann::json(options).dump(2));
+        ctx.rpc_ctx->set_response_json(options, HTTP_STATUS_OK);
       };
       make_endpoint(
         "/custom_endpoints/runtime_options",

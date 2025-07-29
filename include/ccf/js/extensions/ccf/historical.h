@@ -32,6 +32,6 @@ namespace ccf::js::extensions
     void install(js::core::Context& ctx) override;
 
     JSValue create_historical_state_object(
-      js::core::Context& ctx, ccf::historical::StatePtr state);
+      js::core::Context& ctx, ccf::historical::StatePtr state) const;
   };
 }

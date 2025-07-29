@@ -143,93 +143,21 @@ class MemberAPI:
     class v1(v1_Base):
         API_VERSION = infra.clients.API_VERSION_01
 
-    class Classic:
-        API_VERSION = infra.clients.API_VERSION_CLASSIC
-
-        def propose(self, member, remote_node, proposal):
-            with remote_node.client(*member.auth(write=True)) as mc:
-                r = mc.post("/gov/proposals", proposal)
-                if r.status_code != http.HTTPStatus.OK.value:
-                    raise infra.proposal.ProposalNotCreated(r)
-
-                return infra.proposal.Proposal(
-                    proposer_id=member.local_id,
-                    proposal_id=r.body.json()["proposal_id"],
-                    state=infra.proposal.ProposalState(r.body.json()["state"]),
-                    view=r.view,
-                    seqno=r.seqno,
-                )
-
-        def get_proposal_raw(self, remote_node, proposal_id):
-            with remote_node.client() as c:
-                r = c.get(f"/gov/proposals/{proposal_id}")
-                if r.status_code != http.HTTPStatus.OK.value:
-                    raise MemberEndpointException(r)
-
-                return r.body.json()
-
-        def get_proposal(self, remote_node, proposal_id):
-            body = self.get_proposal_raw(remote_node, proposal_id)
-            return infra.proposal.Proposal(
-                proposer_id=body["proposer_id"],
-                proposal_id=proposal_id,
-                state=infra.proposal.ProposalState(body["state"]),
-            )
-
-        def vote(self, member, remote_node, proposal, ballot):
-            with remote_node.client(*member.auth(write=True)) as mc:
-                r = mc.post(
-                    f"/gov/proposals/{proposal.proposal_id}/ballots",
-                    body=ballot,
-                )
-                return r
-
-        def withdraw(self, member, remote_node, proposal):
-            with remote_node.client(*member.auth(write=True)) as c:
-                r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw")
-                if (
-                    r.status_code == http.HTTPStatus.OK.value
-                    and r.body.json()["state"] == "Withdrawn"
-                ):
-                    proposal.state = infra.proposal.ProposalState.WITHDRAWN
-                return r
-
-        def update_ack_state_digest(self, member, remote_node):
-            with remote_node.client(*member.auth()) as mc:
-                return mc.post("/gov/ack/update_state_digest")
-
-        def ack(self, member, remote_node, state_digest):
-            with remote_node.client(*member.auth(write=True)) as mc:
-                r = mc.post("/gov/ack", body=state_digest)
-                if r.status_code == http.HTTPStatus.UNAUTHORIZED:
-                    raise UnauthenticatedMember(
-                        f"Failed to ack member {member.local_id}: {r.status_code}"
-                    )
-                assert r.status_code == http.HTTPStatus.NO_CONTENT, r
-                member.status = MemberStatus.ACTIVE
-                return r
-
-        def get_recovery_share(self, member, remote_node):
-            with remote_node.client() as mc:
-                r = mc.get(f"/gov/encrypted_recovery_share/{member.service_id}")
-                if r.status_code != http.HTTPStatus.OK.value:
-                    raise NoRecoveryShareFound(r)
-                return r.body.json()["encrypted_share"]
-
     # A special client used only for lts_compatibility tests. Attempts to use latest
     # API by default, but checks node version to fallback to a supported older API
     # where required
     class LtsCompat:
         def __init__(self):
             self._preview_v1 = MemberAPI.Preview_v1()
-            self._classic = MemberAPI.Classic()
 
         def _by_node_version(self, remote_node):
             min_version = "4.0.0"
             if remote_node.version_after(min_version):
                 return self._preview_v1
             else:
-                return self._classic
+                raise ValueError(
+                    f"No longer support speaking to nodes using the classic governance API. Min supported version is {min_version}"
+                )
 
         def propose(self, member, remote_node, proposal):
             return self._by_node_version(remote_node).propose(
@@ -279,11 +207,11 @@ class Member:
     def __init__(
         self,
         local_id,
-        curve,
         common_dir,
         share_script,
         recovery_role=RecoveryRole.Participant,
         key_generator=None,
+        curve=None,
         member_data=None,
         authenticate_session=True,
         gov_api_impl=None,
@@ -318,6 +246,8 @@ class Member:
             self.member_info["recovery_role"] = "Owner"
 
         if key_generator is not None:
+            assert curve is not None
+
             key_generator_args = [
                 "--name",
                 self.local_id,

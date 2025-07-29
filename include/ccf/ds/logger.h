@@ -66,11 +66,7 @@ namespace ccf::logger
       }
       else
       {
-        // #ifdef INSIDE_ENCLAVE
         thread_id = ccf::threading::get_current_thread_name();
-        // #else
-        //         thread_id = 100;
-        // #endif
       }
     }
 
@@ -120,7 +116,6 @@ namespace ccf::logger
       const std::optional<double>& enclave_offset = std::nullopt) = 0;
   };
 
-#ifndef INSIDE_ENCLAVE
   class JsonConsoleLogger : public AbstractLogger
   {
   public:
@@ -134,7 +129,7 @@ namespace ccf::logger
       std::tm host_tm;
       ::gmtime_r(&host_ts.tv_sec, &host_tm);
 
-#  ifdef CCF_RAFT_TRACING
+#ifdef CCF_RAFT_TRACING
       auto escaped_msg = ll.msg;
       if (!nlohmann::json::accept(escaped_msg))
       {
@@ -143,9 +138,9 @@ namespace ccf::logger
         // https://json.nlohmann.me/features/parsing/parse_exceptions/#use-accept-function
         escaped_msg = nlohmann::json(ll.msg).dump();
       }
-#  else
+#else
       const auto escaped_msg = nlohmann::json(ll.msg).dump();
-#  endif
+#endif
 
       std::string s;
       if (enclave_offset.has_value())
@@ -260,7 +255,6 @@ namespace ccf::logger
       emit(format_to_text(ll, enclave_offset));
     }
   };
-#endif
 
   class config
   {
@@ -270,7 +264,6 @@ namespace ccf::logger
       return get_loggers();
     }
 
-#ifndef INSIDE_ENCLAVE
     static inline void add_text_console_logger()
     {
       get_loggers().emplace_back(std::make_unique<TextConsoleLogger>());
@@ -286,7 +279,6 @@ namespace ccf::logger
       get_loggers().clear();
       add_text_console_logger();
     }
-#endif
 
     static inline LoggerLevel& level()
     {

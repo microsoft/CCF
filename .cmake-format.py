@@ -11,13 +11,14 @@ with section("parse"):
                 "SRCS": "*",
                 "INCLUDE_DIRS": "*",
                 "SYSTEM_INCLUDE_DIRS": "*",
-                "LINK_LIBS_ENCLAVE": "*",
-                "LINK_LIBS_VIRTUAL": "*",
-                "LINK_LIBS_SNP": "*",
+                "LINK_LIBS": "*",
             },
         },
-        "add_client_exe": {
-            "kwargs": {"SRCS": "*", "INCLUDE_DIRS": "*", "LINK_LIBS": "*"},
+        "add_ccf_static_library": {
+            "kwargs": {
+                "SRCS": "*",
+                "LINK_LIBS": "*",
+            },
         },
         "add_e2e_test": {
             "kwargs": {
@@ -30,24 +31,12 @@ with section("parse"):
                 "ADDITIONAL_ARGS": "*",
             },
         },
-        "add_perf_test": {
-            "kwargs": {
-                "NAME": "*",
-                "PYTHON_SCRIPT": "*",
-                "CONSTITUTION": "*",
-                "CLIENT_BIN": "*",
-                "VERIFICATION_FILE": "*",
-                "LABEL": "*",
-                "ADDITIONAL_ARGS": "*",
-            },
-        },
         "add_piccolo_test": {
             "kwargs": {
                 "NAME": "*",
                 "PYTHON_SCRIPT": "*",
                 "CONSTITUTION": "*",
                 "CLIENT_BIN": "*",
-                "VERIFICATION_FILE": "*",
                 "LABEL": "*",
                 "ADDITIONAL_ARGS": "*",
             },

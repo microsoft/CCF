@@ -30,38 +30,20 @@
     deb: "{{ ccf_deb_url.stdout }}"
   become: true
 
-- name: Copy cchost
-  copy:
-    src: "/opt/ccf_{{ platform }}/bin/cchost"
-    dest: "/usr/bin/cchost"
-    remote_src: true
-    mode: a=rx
-  become: true
-  when: run_only|bool
-
-- name: Create ccf folder in /usr/lib
+- name: Create ccf folder in /usr/bin
   file:
-    path: "/usr/lib/ccf"
+    path: "/usr/bin/ccf"
     state: directory
     recurse: yes
   become: true
   when: run_js|bool
 
-- name: Copy JS generic (Virtual)
+- name: Copy JS generic
   copy:
-    src: "/opt/ccf_{{ platform }}/lib/{{ ccf_js_app_name }}.virtual.so"
-    dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.virtual.so"
+    src: "/opt/ccf/bin/{{ ccf_js_app_name }}"
+    dest: "/usr/bin/ccf/{{ ccf_js_app_name }}"
     remote_src: true
   become: true
-  when: (run_js|bool) and (platform == "virtual")
-
-- name: Copy JS generic (SNP)
-  copy:
-    src: "/opt/ccf_{{ platform }}/lib/{{ ccf_js_app_name }}.snp.so"
-    dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.snp.so"
-    remote_src: true
-  become: true
-  when: (run_js|bool) and (platform == "snp")
 
 - name: Remove release
   apt:

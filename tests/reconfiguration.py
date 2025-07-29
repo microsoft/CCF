@@ -3,6 +3,7 @@
 import infra.e2e_args
 import infra.network
 import infra.proc
+import infra.platform_detection
 import infra.net
 import infra.logging_app as app
 from infra.tx_status import TxStatus
@@ -18,7 +19,7 @@ import infra.crypto
 from datetime import datetime
 from infra.checker import check_can_progress
 from governance_history import check_signatures
-from infra.snp import IS_SNP
+from infra.snp import SNP_SUPPORT
 from infra.runner import ConcurrentRunner
 import http
 import random
@@ -255,7 +256,7 @@ def test_add_node_endorsements_endpoints(network, args):
     # However, we still want to support fetching those from a remote server, which is
     # tested here
     primary, _ = network.find_primary()
-    if not IS_SNP:
+    if not SNP_SUPPORT:
         LOG.warning("Skipping test as running on non SEV-SNP")
         return network
 
@@ -570,13 +571,7 @@ def test_issue_fake_join(network, args):
         r = c.post("/node/join", body=req)
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED
         assert r.body.json()["error"]["code"] == "InvalidQuote"
-        if args.enclave_platform != "sgx":
-            assert r.body.json()["error"]["message"] == "Quote could not be verified"
-        else:
-            assert (
-                r.body.json()["error"]["message"]
-                == "Quote report data does not contain node's public key hash"
-            )
+        assert r.body.json()["error"]["message"] == "Quote could not be verified"
 
         for platform, info, format in (
             (
@@ -596,10 +591,10 @@ def test_issue_fake_join(network, args):
                 "quote": own_quote["raw"],
                 "endorsements": own_quote["endorsements"],
             }
-            if args.enclave_platform == "snp":
+            if "uvm_endorsements" in own_quote:
                 req["quote_info"]["uvm_endorsements"] = own_quote["uvm_endorsements"]
             r = c.post("/node/join", body=req)
-            if args.enclave_platform != platform:
+            if infra.platform_detection.get_platform() != platform:
                 assert r.status_code == http.HTTPStatus.UNAUTHORIZED
                 assert r.body.json()["error"]["code"] == "InvalidQuote"
                 assert (
@@ -931,7 +926,7 @@ if __name__ == "__main__":
     cr.add(
         "reconfiguration",
         run_all,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
     )
 

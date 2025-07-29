@@ -77,7 +77,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
           ninja
         shell: bash
 
@@ -112,13 +112,19 @@ jobs:
           set -ex
           ./scripts/setup-ci.sh
 
+      - name: "Confirm running on Virtual"
+        run: |
+          set -ex
+          python3 tests/infra/platform_detection.py virtual
+        shell: bash
+
       - name: "Build Debug"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
 
@@ -128,12 +134,14 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # End to end tests
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
           # Partitions tests
+          # Note that those are only run on the virtual CI, as they require enough
+          # privileges to configure iptables. ACI-based pools run unprivileged
+          # containers, and so cannot run these tests unfortunately.
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash
 
@@ -168,9 +176,18 @@ jobs:
           echo "::group::Disk usage"
           df -kh
           echo "::endgroup::"
+          echo "::group::Mounts"
+          mount
+          echo "::endgroup::"
           echo "::group::CPU Info"
           cat /proc/cpuinfo
           echo "::endgroup::"
+        shell: bash
+
+      - name: "Confirm running on SEV-SNP"
+        run: |
+          set -ex
+          python3 tests/infra/platform_detection.py snp
         shell: bash
 
       - name: "Build Debug"
@@ -179,7 +196,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
 
@@ -189,25 +206,10 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-
           # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit|reconfiguration"
-
-          # DISABLED until Pool issue causing the CI to stop after 30 minutes is resolved
-          # Reconfiguration tests
-          # ./tests.sh --timeout 360 --output-on-failure -L reconfiguration -C reconfiguration
-        shell: bash
-
-      - name: "Partition Tests"
-        run: |
-          set -ex
-          cd build
-          # DISABLED until Pool issue causing the CI to stop after 30 minutes is resolved
-          # Partitions tests
-          # ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
         shell: bash
 
       - name: "Capture dmesg"
@@ -224,6 +226,91 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-caci-snp
+          path: |
+            dmesg.log
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*/*.ledger/*
+          if-no-files-found: ignore
+        if: success() || failure()
+
+  build_and_test_caci_genoa:
+    name: "Confidential Container CI on Genoa"
+    runs-on: [self-hosted, 1ES.Pool=gha-c-caci-ci-south-central-us]
+    needs: checks
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Ensure running on Genoa hardware"
+        run: |
+          cat /proc/cpuinfo | grep "model.*: 17"
+        shell: bash
+
+      - name: "Dump environment"
+        run: |
+          set -ex
+          # Dump environment variables, extract Fabric_NodeIPOrFQDN
+          # and save it to a file for reconfiguration test using THIM.
+          cat /proc/*/environ | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
+          echo "::group::Disk usage"
+          df -kh
+          echo "::endgroup::"
+          echo "::group::Mounts"
+          mount
+          echo "::endgroup::"
+          echo "::group::CPU Info"
+          cat /proc/cpuinfo
+          echo "::endgroup::"
+        shell: bash
+
+      - name: "Confirm running on SEV-SNP"
+        run: |
+          set -ex
+          python3 tests/infra/platform_detection.py snp
+        shell: bash
+
+      - name: "Build Debug"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          ninja
+        shell: bash
+
+      - name: "Tests"
+        run: |
+          set -ex
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+          # Limited set of tests because Genoa pools have limited resources
+          # focusing on architecture-specific functionality.
+          # Unit test for sealing
+          ./tests.sh --output-on-failure -R snp_ioctl_test
+          # End to end tests for code update (attestation verification)
+          ./tests.sh --timeout 360 --output-on-failure -R code_update
+        shell: bash
+
+      - name: "Capture dmesg"
+        run: |
+          set -ex
+          echo "::group::Disk usage"
+          df -kh
+          echo "::endgroup::"
+          dmesg > dmesg.log
+        shell: bash
+        if: success() || failure()
+
+      - name: "Upload logs"
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-caci-snp-genoa
           path: |
             dmesg.log
             build/workspace/*/*.config.json

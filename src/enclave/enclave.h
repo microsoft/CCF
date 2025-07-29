@@ -15,6 +15,7 @@
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
 #include "js/interpreter_cache.h"
+#include "kv/ledger_chunker.h"
 #include "node/acme_challenge_frontend.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"
@@ -31,7 +32,6 @@
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/node_operation.h"
 #include "node/rpc/user_frontend.h"
-#include "ringbuffer_logger.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
 
@@ -46,7 +46,6 @@ namespace ccf
     std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory;
     std::unique_ptr<oversized::WriterFactory> writer_factory;
     ccf::ds::WorkBeaconPtr work_beacon;
-    RingbufferLogger* ringbuffer_logger = nullptr;
     ccf::NetworkState network;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpcsessions;
@@ -81,9 +80,9 @@ namespace ccf
       std::unique_ptr<ringbuffer::Circuit> circuit_,
       std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory_,
       std::unique_ptr<oversized::WriterFactory> writer_factory_,
-      RingbufferLogger* ringbuffer_logger_,
       size_t sig_tx_interval,
       size_t sig_ms_interval,
+      size_t chunk_threshold,
       const ccf::consensus::Configuration& consensus_config,
       const ccf::crypto::CurveID& curve_id,
       const ccf::ds::WorkBeaconPtr& work_beacon_) :
@@ -91,7 +90,6 @@ namespace ccf
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),
       work_beacon(work_beacon_),
-      ringbuffer_logger(ringbuffer_logger_),
       network(),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
@@ -102,6 +100,9 @@ namespace ccf
 
       LOG_TRACE_FMT("Creating ledger secrets");
       network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+
+      network.tables->set_chunker(
+        std::make_shared<ccf::kv::LedgerChunker>(chunk_threshold));
 
       LOG_TRACE_FMT("Creating node");
       node = std::make_unique<ccf::NodeState>(
@@ -187,19 +188,11 @@ namespace ccf
 
     CreateNodeStatus create_new_node(
       StartType start_type_,
-      ccf::StartupConfig&& ccf_config_,
+      const ccf::StartupConfig& ccf_config_,
       std::vector<uint8_t>&& startup_snapshot,
-      uint8_t* node_cert,
-      size_t node_cert_size,
-      size_t* node_cert_len,
-      uint8_t* service_cert,
-      size_t service_cert_size,
-      size_t* service_cert_len)
+      std::vector<uint8_t>& node_cert,
+      std::vector<uint8_t>& service_cert)
     {
-      // node_cert_size and service_cert_size are ignored here, but we pass them
-      // in because it allows us to set EDL an annotation so that node_cert_len
-      // <= node_cert_size is checked by the EDL-generated wrapper
-
       start_type = start_type_;
 
       rpcsessions->update_listening_interface_options(ccf_config_.network);
@@ -215,13 +208,13 @@ namespace ccf
         std::chrono::milliseconds(ccf_config_.consensus.election_timeout) * 4;
       node->set_n2n_idle_timeout(idle_timeout);
 
-      ccf::NodeCreateInfo r;
+      ccf::NodeCreateInfo create_info;
       try
       {
         LOG_TRACE_FMT(
           "Creating node with start_type {}", start_type_to_str(start_type));
-        r = node->create(
-          start_type, std::move(ccf_config_), std::move(startup_snapshot));
+        create_info =
+          node->create(start_type, ccf_config_, std::move(startup_snapshot));
       }
       catch (const std::exception& e)
       {
@@ -230,35 +223,13 @@ namespace ccf
       }
 
       // Copy node and service certs out
-      if (r.self_signed_node_cert.size() > node_cert_size)
-      {
-        LOG_FAIL_FMT(
-          "Insufficient space ({}) to copy node_cert out ({})",
-          node_cert_size,
-          r.self_signed_node_cert.size());
-        return CreateNodeStatus::InternalError;
-      }
-      pal::safe_memcpy(
-        node_cert,
-        r.self_signed_node_cert.data(),
-        r.self_signed_node_cert.size());
-      *node_cert_len = r.self_signed_node_cert.size();
+      node_cert = create_info.self_signed_node_cert.raw();
 
       if (start_type == StartType::Start || start_type == StartType::Recover)
       {
         // When starting a node in start or recover modes, fresh network secrets
         // are created and the associated certificate can be passed to the host
-        if (r.service_cert.size() > service_cert_size)
-        {
-          LOG_FAIL_FMT(
-            "Insufficient space ({}) to copy service_cert out ({})",
-            service_cert_size,
-            r.service_cert.size());
-          return CreateNodeStatus::InternalError;
-        }
-        pal::safe_memcpy(
-          service_cert, r.service_cert.data(), r.service_cert.size());
-        *service_cert_len = r.service_cert.size();
+        service_cert = create_info.service_cert.raw();
       }
 
       return CreateNodeStatus::OK;
@@ -268,9 +239,7 @@ namespace ccf
     {
       ccf::crypto::openssl_sha256_init();
       LOG_DEBUG_FMT("Running main thread");
-#ifndef VIRTUAL_ENCLAVE
-      try
-#endif
+
       {
         messaging::BufferProcessor bp("Enclave");
 
@@ -302,7 +271,6 @@ namespace ccf
               AdminMessage::work_stats, to_host, j.dump());
 
             const auto time_now = ccf::get_enclave_time();
-            ringbuffer_logger->set_time(time_now);
 
             const auto elapsed_ms =
               std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -457,18 +425,6 @@ namespace ccf
 
         return true;
       }
-#ifndef VIRTUAL_ENCLAVE
-      catch (const std::exception& e)
-      {
-        // It is expected that all enclave modules consuming ring buffer
-        // messages catch any thrown exception they can recover from. Uncaught
-        // exceptions bubble up to here and cause the node to shutdown.
-        RINGBUFFER_WRITE_MESSAGE(
-          AdminMessage::fatal_error_msg, to_host, std::string(e.what()));
-        ccf::crypto::openssl_sha256_shutdown();
-        return false;
-      }
-#endif
     }
 
     struct Msg
@@ -485,9 +441,7 @@ namespace ccf
     {
       ccf::crypto::openssl_sha256_init();
       LOG_DEBUG_FMT("Running worker thread");
-#ifndef VIRTUAL_ENCLAVE
-      try
-#endif
+
       {
         auto msg = std::make_unique<::threading::Tmsg<Msg>>(&init_thread_cb);
         msg->data.tid = ccf::threading::get_current_thread_id();
@@ -497,15 +451,7 @@ namespace ccf
         ::threading::ThreadMessaging::instance().run();
         ccf::crypto::openssl_sha256_shutdown();
       }
-#ifndef VIRTUAL_ENCLAVE
-      catch (const std::exception& e)
-      {
-        RINGBUFFER_WRITE_MESSAGE(
-          AdminMessage::fatal_error_msg, to_host, std::string(e.what()));
-        ccf::crypto::openssl_sha256_shutdown();
-        return false;
-      }
-#endif
+
       return true;
     }
   };

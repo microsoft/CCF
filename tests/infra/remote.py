@@ -5,10 +5,10 @@ import time
 from enum import Enum, auto
 import subprocess
 import infra.path
-import ctypes
 import signal
 import re
 import shutil
+import infra.platform_detection
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 import json
 import infra.snp as snp
@@ -23,21 +23,7 @@ DBG = os.getenv("DBG", "lldb")
 
 # Duration after which unresponsive node is declared as crashed on startup
 REMOTE_STARTUP_TIMEOUT_S = 5
-
-
 FILE_TIMEOUT_S = 60
-
-_libc = ctypes.CDLL("libc.so.6")
-
-
-def _term_on_pdeathsig():
-    # usr/include/linux/prctl.h: #define PR_SET_PDEATHSIG 1
-    _libc.prctl(1, signal.SIGTERM)
-
-
-def popen(*args, **kwargs):
-    kwargs["preexec_fn"] = _term_on_pdeathsig
-    return subprocess.Popen(*args, **kwargs)
 
 
 class CmdMixin(object):
@@ -73,11 +59,8 @@ class LocalRemote(CmdMixin):
         env=None,
         **kwargs,
     ):
-        """
-        Local Equivalent to the SSHRemote
-        """
         self.hostname = hostname
-        self.exe_files = exe_files
+        self.exe_files = set(exe_files)
         self.data_files = data_files
         self.cmd = cmd
         self.root = os.path.join(workspace, name)
@@ -165,7 +148,7 @@ class LocalRemote(CmdMixin):
         LOG.info(f"[{self.hostname}] {cmd} (env: {self.env.keys()})")
         self.stdout = open(self.out, "wb")
         self.stderr = open(self.err, "wb")
-        self.proc = popen(
+        self.proc = subprocess.Popen(
             self.cmd,
             cwd=self.root,
             stdout=self.stdout,
@@ -281,15 +264,6 @@ class LocalRemote(CmdMixin):
             return self._get_perf(result)
 
 
-CCF_TO_OE_LOG_LEVEL = {
-    "trace": "VERBOSE",
-    "debug": "INFO",
-    "info": "WARNING",
-    "fail": "ERROR",
-    "fatal": "FATAL",
-}
-
-
 class CCFRemote(object):
     BIN = "cchost"
     TEMPLATE_CONFIGURATION_FILE = "config.jinja"
@@ -300,7 +274,6 @@ class CCFRemote(object):
         start_type,
         enclave_file,
         enclave_type,
-        remote_class,
         workspace,
         common_dir,
         label="",
@@ -315,8 +288,7 @@ class CCFRemote(object):
         constitution=None,
         curve_id=None,
         version=None,
-        host_log_level="Info",
-        enclave_log_level="Info",
+        log_level="Info",
         major_version=None,
         node_address=None,
         config_file=None,
@@ -356,17 +328,19 @@ class CCFRemote(object):
         snp_security_context_directory_envvar = None
 
         env = kwargs.get("env", {})
-        if enclave_platform == "snp":
-            env.update(snp.get_aci_env())
 
-        if enclave_platform == "virtual":
+        if infra.platform_detection.is_virtual():
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"
             ubsan_opts = kwargs.get("ubsan_options")
             if ubsan_opts:
                 env["UBSAN_OPTIONS"] += ":" + ubsan_opts
             env["TSAN_OPTIONS"] = os.environ.get("TSAN_OPTIONS", "")
             env["ASAN_OPTIONS"] = os.environ.get("ASAN_OPTIONS", "")
-        elif enclave_platform == "snp":
+            env["ASAN_SYMBOLIZER_PATH"] = os.environ.get("ASAN_SYMBOLIZER_PATH", "")
+            env["TSAN_SYMBOLIZER_PATH"] = os.environ.get("TSAN_SYMBOLIZER_PATH", "")
+
+        elif infra.platform_detection.is_snp():
+            env.update(snp.get_aci_env())
             snp_security_context_directory_envvar = (
                 snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
                 if set_snp_uvm_security_context_dir_envvar
@@ -377,10 +351,6 @@ class CCFRemote(object):
                 env[snp_security_context_directory_envvar] = (
                     snp_uvm_security_context_dir
                 )
-
-        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
-        if oe_log_level:
-            env["OE_LOG_LEVEL"] = oe_log_level
 
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
@@ -395,6 +365,11 @@ class CCFRemote(object):
         ):
             self.BIN = "cchost.virtual"
         self.BIN = infra.path.build_bin_path(self.BIN, binary_dir=binary_dir)
+
+        # 7.x releases combined binaries and removed the separate cchost entry-point
+        if major_version is None or major_version >= 7:
+            self.BIN = enclave_file
+
         self.common_dir = common_dir
         self.pub_host = host.get_primary_interface().public_host
         self.enclave_file = os.path.join(".", os.path.basename(enclave_file))
@@ -416,6 +391,11 @@ class CCFRemote(object):
             self.read_only_ledger_dirs_names.append(os.path.basename(d))
         if common_read_only_ledger_dir is not None:
             self.read_only_ledger_dirs_names.append(common_read_only_ledger_dir)
+
+        if self.ledger_dir_name in self.read_only_ledger_dirs_names:
+            raise RuntimeError(
+                f"Ledger directory named '{self.ledger_dir_name}' already appears in this node's read-only ledger directories, it cannot also be the node's main writeable directory"
+            )
 
         # Snapshots
         self.snapshots_dir = os.path.normpath(snapshots_dir) if snapshots_dir else None
@@ -513,17 +493,21 @@ class CCFRemote(object):
                 auto_dr_args["previous_sealed_ledger_secret_location"] = (
                     previous_sealed_ledger_secret_location
                 )
+
+            enclave_platform = infra.platform_detection.get_platform()
+            enclave_platform = (
+                "Virtual"
+                if enclave_platform.lower() == "virtual"
+                else enclave_platform.upper()
+            )
+
             output = t.render(
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
-                enclave_type=enclave_type.title(),
-                enclave_platform=(
-                    enclave_platform.title()
-                    if enclave_platform == "virtual"
-                    else enclave_platform.upper()
-                ),
+                enclave_type="Release",
+                enclave_platform=enclave_platform,  # Ignored, but paased for LTS compat
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(
-                    remote_class.make_host(host)
+                    LocalRemote.make_host(host)
                 ),
                 node_certificate_file=self.pem,
                 node_address_file=self.node_address_file,
@@ -534,7 +518,7 @@ class CCFRemote(object):
                 read_only_snapshots_dir=self.read_only_snapshots_dir_name,
                 constitution=constitution,
                 curve_id=curve_id.name.title(),
-                host_log_level=host_log_level.title(),
+                host_log_level=log_level.title(),
                 join_timer=f"{join_timer_s}s" if join_timer_s else None,
                 signature_interval_duration=f"{sig_ms_interval}ms",
                 jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",
@@ -547,7 +531,7 @@ class CCFRemote(object):
                 node_pid_file=node_pid_file,
                 snp_security_context_directory_envvar=snp_security_context_directory_envvar,  # Ignored by current jinja, but passed for LTS compat
                 ignore_first_sigterm=ignore_first_sigterm,
-                node_address=remote_class.get_node_address(node_address),
+                node_address=LocalRemote.get_node_address(node_address),
                 follow_redirect=follow_redirect,
                 fetch_recent_snapshot=fetch_recent_snapshot,
                 max_uncommitted_tx_count=max_uncommitted_tx_count,
@@ -600,15 +584,21 @@ class CCFRemote(object):
             if version is not None
             else None
         )
-        if v is None or v >= Version("4.0.5"):
-            # Avoid passing too-low level to debug SGX nodes
-            if not (enclave_type == "debug" and enclave_platform == "sgx"):
-                cmd += [
-                    "--enclave-log-level",
-                    enclave_log_level,
-                ]
+        if v is None or v >= Version("7.0.0.dev0"):
+            cmd += [
+                "--log-level",
+                log_level,
+            ]
+        else:
+            if v >= Version("4.0.5"):
+                # Avoid passing too-low level to debug SGX nodes
+                if not (enclave_type == "debug" and enclave_platform == "sgx"):
+                    cmd += [
+                        "--enclave-log-level",
+                        log_level,
+                    ]
 
-        if v is None or v >= Version("4.0.11"):
+        if v is not None and v >= Version("4.0.11") and v <= Version("7.0.0-dev1"):
             cmd += [
                 "--enclave-file",
                 self.enclave_file,
@@ -633,7 +623,7 @@ class CCFRemote(object):
         if start_type == StartType.join:
             data_files += [os.path.join(self.common_dir, "service_cert.pem")]
 
-        self.remote = remote_class(
+        self.remote = LocalRemote(
             self.name,
             self.pub_host,
             exe_files,

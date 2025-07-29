@@ -13,14 +13,6 @@ VERSION_FILE="${PATH_HERE}"/../share/VERSION_LONG
 is_package_specified=false
 is_js_bundle_specified=false
 
-# Install tree
-PLATFORM_FILE="${PATH_HERE}"/../share/PLATFORM
-# If not there, try locally
-if [ ! -f "${VERSION_FILE}" ]; then
-    PLATFORM_FILE=PLATFORM
-fi
-platform=$(<"${PLATFORM_FILE}")
-
 extra_args=()
 while [ "$1" != "" ]; do
     case $1 in
@@ -61,7 +53,7 @@ if [ -f "${VERSION_FILE}" ]; then
     if [ ${is_package_specified} == false ] && [ ${is_js_bundle_specified} == false ]; then
         # Only on install tree, default to installed js logging app
         echo "No package/app specified. Defaulting to installed JS logging app"
-        extra_args+=(--package "${PATH_HERE}/../lib/libjs_generic")
+        extra_args+=(--package "${PATH_HERE}/../bin/js_generic")
         extra_args+=(--js-app-bundle "${PATH_HERE}/../samples/logging/js")
     fi
 else
@@ -114,7 +106,6 @@ export CURL_CLIENT=ON
 export INITIAL_MEMBER_COUNT=1
 exec python "${START_NETWORK_SCRIPT}" \
     --binary-dir "${BINARY_DIR}" \
-    --enclave-platform "${platform}" \
     --constitution "${CONSTITUTION_DIR}"/actions.js \
     --constitution "${CONSTITUTION_DIR}"/validate.js \
     --constitution "${CONSTITUTION_DIR}"/resolve.js \

@@ -18,7 +18,7 @@ namespace ccf::js::core
     JSWrappedValue(JSContext* ctx, JSValue&& val);
     JSWrappedValue(JSContext* ctx, const JSValue& value);
     JSWrappedValue(const JSWrappedValue& other);
-    JSWrappedValue(JSWrappedValue&& other);
+    JSWrappedValue(JSWrappedValue&& other) noexcept;
     ~JSWrappedValue();
 
     JSWrappedValue& operator=(const JSWrappedValue& other);

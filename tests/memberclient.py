@@ -151,7 +151,7 @@ def test_governance(network, args):
     assert new_member_proposal.state == ProposalState.ACCEPTED
 
     # Manually add new member to consortium
-    network.consortium.members.append(new_member)
+    network.consortium.add_member(new_member)
 
     LOG.debug("Further vote requests fail as the proposal has already been accepted")
     params_error = http.HTTPStatus.BAD_REQUEST.value
@@ -172,11 +172,7 @@ def test_governance(network, args):
 
     LOG.info("New non-active member should get insufficient rights response")
     current_recovery_thresold = network.consortium.recovery_threshold
-    expected_error = (
-        http.HTTPStatus.FORBIDDEN
-        if new_member.gov_api_impl_inst.API_VERSION == infra.clients.API_VERSION_CLASSIC
-        else http.HTTPStatus.UNAUTHORIZED
-    )
+    expected_error = http.HTTPStatus.UNAUTHORIZED
     try:
         proposal_recovery_threshold, careful_vote = network.consortium.make_proposal(
             "set_recovery_threshold", recovery_threshold=current_recovery_thresold
@@ -219,14 +215,9 @@ def test_governance(network, args):
     proposal = network.consortium.get_proposal(node, proposal.proposal_id)
     assert proposal.state == infra.proposal.ProposalState.WITHDRAWN
 
-    if new_member.gov_api_impl_inst.API_VERSION == infra.clients.API_VERSION_CLASSIC:
-        LOG.debug("Further withdraw proposals fail")
-        response = new_member.withdraw(node, proposal)
-        assert response.status_code == params_error
-    else:
-        LOG.debug("Further withdraws idempotently pass")
-        response = new_member.withdraw(node, proposal)
-        assert response.status_code == http.HTTPStatus.OK
+    LOG.debug("Further withdraws idempotently pass")
+    response = new_member.withdraw(node, proposal)
+    assert response.status_code == http.HTTPStatus.OK
 
     LOG.debug("Further votes fail")
     response = new_member.vote(node, proposal, careful_vote)

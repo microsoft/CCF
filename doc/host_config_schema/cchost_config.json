@@ -2,14 +2,14 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "title": "CCF node configuration",
-  "description": "JSON schema for configuration of a single CCF node (cchost executable)",
+  "description": "JSON schema for configuration of a single CCF node",
   "properties": {
     "enclave": {
       "type": "object",
       "properties": {
         "file": {
           "type": "string",
-          "description": "DEPRECATED: Replaced by --enclave-file CLI argument. Path to enclave application"
+          "description": "DEPRECATED: No longer required."
         },
         "platform": {
           "type": "string",
@@ -590,7 +590,7 @@
           "type": "string",
           "enum": ["Trace", "Debug", "Info", "Fail", "Fatal"],
           "default": "Info",
-          "description": "Logging level for the untrusted host."
+          "description": "Logging level for the untrusted host. DEPRECATED, use the --log-level CLI switch instead."
         },
         "format": {
           "type": "string",
@@ -664,8 +664,8 @@
         },
         "pid_file": {
           "type": "string",
-          "default": "cchost.pid",
-          "description": "Path to file in which 'cchost' process identifier (PID) will be written to on startup"
+          "default": "node.pid",
+          "description": "Path to file in which process identifier (PID) will be written to on startup"
         },
         "node_to_node_address_file": {
           "type": "string",

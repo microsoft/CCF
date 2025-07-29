@@ -104,7 +104,7 @@ namespace ccf
     std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
     pal::PlatformAttestationMeasurement node_measurement;
-    std::optional<pal::snp::TcbVersion> snp_tcb_version = std::nullopt;
+    std::optional<pal::snp::TcbVersionRaw> snp_tcb_version = std::nullopt;
     ccf::StartupConfig config;
     std::optional<pal::UVMEndorsements> snp_uvm_endorsements = std::nullopt;
     std::vector<uint8_t> startup_snapshot;
@@ -570,14 +570,14 @@ namespace ccf
 
     NodeCreateInfo create(
       StartType start_type_,
-      ccf::StartupConfig&& config_,
+      const ccf::StartupConfig& config_,
       std::vector<uint8_t>&& startup_snapshot_)
     {
       std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
       start_type = start_type_;
 
-      config = std::move(config_);
+      config = config_;
       startup_snapshot = std::move(startup_snapshot_);
       subject_alt_names = get_subject_alternative_names();
 
@@ -1501,8 +1501,8 @@ namespace ccf
       {
         throw std::logic_error("Could not cast tx to CommittableTx");
       }
-      tx_->set_flag(
-        ccf::kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      tx_->set_tx_flag(
+        ccf::kv::CommittableTx::TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
     }
 
     void trigger_snapshot(ccf::kv::Tx& tx) override
@@ -1512,8 +1512,8 @@ namespace ccf
       {
         throw std::logic_error("Could not cast tx to CommittableTx");
       }
-      committable_tx->set_flag(
-        ccf::kv::CommittableTx::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      committable_tx->set_tx_flag(
+        ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
     }
 
     void trigger_acme_refresh(

@@ -26,6 +26,13 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     ---
 
+    :fa:`laptop-code` :doc:`cli`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Command-Line Interface for CCF executables.
+
+    ---
+
     :fa:`upload` :doc:`ledger_snapshot`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -100,6 +107,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
     run_setup
     start_network
     configuration
+    cli
     ledger_snapshot
     data_persistence
     code_upgrade

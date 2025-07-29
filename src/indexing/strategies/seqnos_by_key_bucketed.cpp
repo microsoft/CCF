@@ -45,7 +45,7 @@ namespace ccf::indexing::strategies
     ccf::TxID& current_txid;
 
     Impl(
-      const std::string& name_,
+      std::string name_,
       ccf::pal::Mutex& current_txid_lock_,
       ccf::TxID& current_txid_,
       const std::shared_ptr<AbstractLFSAccess>& lfs_access_,
@@ -53,7 +53,7 @@ namespace ccf::indexing::strategies
       size_t max_buckets_) :
       seqnos_per_bucket(seqnos_per_bucket_),
       old_results(max_buckets_),
-      name(name_),
+      name(std::move(name_)),
       lfs_access(lfs_access_),
       current_txid_lock(current_txid_lock_),
       current_txid(current_txid_)
@@ -65,7 +65,9 @@ namespace ccf::indexing::strategies
       }
     }
 
-    LFSContents serialise(SeqNoCollection&& seqnos)
+    static LFSContents serialise(
+      SeqNoCollection&&
+        seqnos) // NOLINT(cppcoreguidelines-rvalue-reference-param-not-moved)
     {
       LFSContents blob;
 
@@ -73,7 +75,7 @@ namespace ccf::indexing::strategies
         // Write number of seqnos
         const auto orig_size = blob.size();
         blob.resize(orig_size + sizeof(seqnos.size()));
-        auto data = blob.data() + orig_size;
+        auto* data = blob.data() + orig_size;
         auto size = blob.size() - orig_size;
         serialized::write(data, size, seqnos.size());
       }
@@ -83,7 +85,7 @@ namespace ccf::indexing::strategies
       {
         const auto orig_size = blob.size();
         blob.resize(orig_size + sizeof(seqno));
-        auto data = blob.data() + orig_size;
+        auto* data = blob.data() + orig_size;
         auto size = blob.size() - orig_size;
         serialized::write(data, size, seqno);
       }
@@ -96,14 +98,14 @@ namespace ccf::indexing::strategies
       corrupt = false;
       try
       {
-        auto data = raw.data();
+        const auto* data = raw.data();
         auto size = raw.size();
 
         // Read number of seqnos
         const auto seqno_count = serialized::read<size_t>(data, size);
         SeqNoCollection seqnos;
 
-        for (auto j = 0u; j < seqno_count; ++j)
+        for (auto j = 0U; j < seqno_count; ++j)
         {
           seqnos.insert(serialized::read<ccf::SeqNo>(data, size));
         }
@@ -246,12 +248,9 @@ namespace ccf::indexing::strategies
                   bucket_value.first = nullptr;
                   break;
                 }
-                else
-                {
-                  // Deliberately fall through to the case below. If this can't
-                  // deserialise the value, consider the file corrupted
-                  LOG_FAIL_FMT("Deserialisation failed");
-                }
+                // Deliberately fall through to the case below. If this can't
+                // deserialise the value, consider the file corrupted
+                LOG_FAIL_FMT("Deserialisation failed");
               }
               case (FetchResult::NotFound):
               case (FetchResult::Corrupt):
@@ -259,8 +258,7 @@ namespace ccf::indexing::strategies
                 // This class previously wrote a bucket to disk which is no
                 // longer available or corrupted. Reset the watermark of what
                 // has been indexed, to re-index and rewrite those files.
-                complete = false;
-                const auto problem =
+                const auto* problem =
                   fetch_result == FetchResult::NotFound ? "missing" : "corrupt";
                 LOG_FAIL_FMT(
                   "A file that {} requires is {}. Re-indexing.", name, problem);
@@ -282,7 +280,6 @@ namespace ccf::indexing::strategies
                 current_results.clear();
 
                 return std::nullopt;
-                break;
               }
             }
           }
@@ -336,11 +333,8 @@ namespace ccf::indexing::strategies
         {
           break;
         }
-        else
-        {
-          from_range.first += seqnos_per_bucket;
-          from_range.second += seqnos_per_bucket;
-        }
+        from_range.first += seqnos_per_bucket;
+        from_range.second += seqnos_per_bucket;
       }
 
       if (complete)
@@ -364,6 +358,7 @@ namespace ccf::indexing::strategies
   void SeqnosByKey_Bucketed_Untyped::visit_entry(
     const ccf::TxID& tx_id, const ccf::ByteVector& k, const ccf::ByteVector& v)
   {
+    (void)v;
     const auto range = impl->get_range_for(tx_id.seqno);
 
     std::lock_guard<ccf::pal::Mutex> guard(impl->results_access);

@@ -6,10 +6,10 @@
 #include <optional>
 #include <string>
 
-namespace fs = std::filesystem;
-
 namespace snapshots
 {
+  namespace fs = std::filesystem;
+
   static constexpr auto snapshot_file_prefix = "snapshot";
   static constexpr auto snapshot_idx_delimiter = "_";
   static constexpr auto snapshot_committed_suffix = ".committed";
@@ -132,7 +132,7 @@ namespace snapshots
     return read_idx(file_name.substr(evidence_idx_pos + 1, end_str));
   }
 
-  std::optional<fs::path> find_latest_committed_snapshot_in_directory(
+  inline std::optional<fs::path> find_latest_committed_snapshot_in_directory(
     const fs::path& directory, size_t& latest_committed_snapshot_idx)
   {
     std::optional<fs::path> latest_committed_snapshot_file_name = std::nullopt;

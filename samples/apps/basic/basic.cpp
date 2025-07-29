@@ -31,6 +31,11 @@ namespace basicapp
       openapi_info.description =
         "Lightweight application for benchmarking purposes";
       openapi_info.document_version = "0.0.1";
+    }
+
+    void init_handlers() override
+    {
+      CommonEndpointRegistry::init_handlers();
 
       auto put = [this](ccf::endpoints::EndpointContext& ctx) {
         std::string key;
@@ -45,7 +50,7 @@ namespace basicapp
           return;
         }
 
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto* records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         records_handle->put(key, ctx.rpc_ctx->get_request_body());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       };
@@ -67,7 +72,7 @@ namespace basicapp
           return;
         }
 
-        auto records_handle = ctx.tx.template ro<RecordsMap>(PRIVATE_RECORDS);
+        auto* records_handle = ctx.tx.template ro<RecordsMap>(PRIVATE_RECORDS);
         auto record = records_handle->get(key);
 
         if (record.has_value())
@@ -96,7 +101,7 @@ namespace basicapp
 
         const auto records = body.get<std::map<std::string, std::string>>();
 
-        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        auto* records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         for (const auto& [key, value] : records)
         {
           const std::vector<uint8_t> value_vec(value.begin(), value.end());

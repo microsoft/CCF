@@ -23,9 +23,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
-std::unique_ptr<threading::ThreadMessaging>
-  threading::ThreadMessaging::singleton = nullptr;
-
 using NumToString = ccf::kv::Map<size_t, std::string>;
 
 constexpr size_t certificate_validity_period_days = 365;

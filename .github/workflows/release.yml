@@ -3,13 +3,16 @@ name: Release
 on:
   push:
     tags:
-      - "ccf-[56].*"
+      - "ccf-[567].*"
   workflow_dispatch:
 
 permissions:
   contents: write
   actions: read
   checks: write
+
+env:
+  IMAGE: mcr.microsoft.com/azurelinux/base/core:3.0
 
 jobs:
   make_sbom:
@@ -48,45 +51,57 @@ jobs:
       - name: "Check Release Notes"
         run: |
           set -ex
-          python scripts/extract-release-notes.py --target-git-version
+          scripts/extract-release-notes.py --target-git-version
         shell: bash
       - name: "Produce Release Notes"
         run: |
           set -ex
           set -o pipefail
-          python ./scripts/extract-release-notes.py --target-git-version --describe-path-changes "./samples/constitution" | tee rel-notes.md
+          ./scripts/extract-release-notes.py --target-git-version --describe-path-changes "./samples/constitution" | tee rel-notes.md
       - name: "Upload Release Notes"
         uses: actions/upload-artifact@v4
         with:
           name: relnotes
           path: rel-notes.md
 
+  image_digest:
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    outputs:
+      image_digest: ${{ steps.digest.outputs.digest }}
+    steps:
+      - id: digest
+        run: |
+          set -ex
+          docker pull $IMAGE
+          echo "digest=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE)" >> "$GITHUB_OUTPUT"
+
   build_release:
     name: Build Release
-    needs: release_notes
-    strategy:
-      matrix:
-        platform:
-          - name: virtual
-            os: azure-linux
-            image: mcr.microsoft.com/azurelinux/base/core:3.0
-            test_filter: "benchmark|unit"
-          - name: snp
-            os: azure-linux
-            image: mcr.microsoft.com/azurelinux/base/core:3.0
-
+    needs: [release_notes, image_digest]
+    outputs:
+      SOURCE_DATE_EPOCH: ${{ steps.set_epoch.outputs.SOURCE_DATE_EPOCH }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ${{ matrix.platform.image }}
+      image: ${{ needs.image_digest.outputs.image_digest }}
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
 
     steps:
+      - name: Set SOURCE_DATE_EPOCH env variable
+        id: set_epoch
+        run: |
+          set -ex
+          epoch=$(date +%s)
+          echo "SOURCE_DATE_EPOCH=$epoch" >> $GITHUB_ENV
+          echo "SOURCE_DATE_EPOCH=$epoch" >> $GITHUB_OUTPUT
+          echo "$epoch"
+
       - name: "Checkout dependencies"
         shell: bash
         run: |
+          set -ex
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
+          tdnf --snapshottime=$SOURCE_DATE_EPOCH -y update
+          tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install ca-certificates git
 
       - uses: actions/checkout@v4
         with:
@@ -98,37 +113,35 @@ jobs:
           set -ex
           ./scripts/setup-ci.sh
 
-      - name: "Build Release ${{ matrix.platform.name }}"
+      - name: "Build Release"
         shell: bash
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
+          cmake -GNinja -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
           ninja -v | tee build.log
 
-      - name: "Test ${{ matrix.platform.name }}"
-        if: "${{ matrix.platform.name == 'virtual' }}"
+      - name: "Test"
         run: |
           set -ex
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # Suite tests
           ./tests.sh --timeout 600 --output-on-failure -L "suite"
           # Most tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "suite|${{ matrix.platform.test_filter }}"
+          ./tests.sh --timeout 360 --output-on-failure -LE "suite|benchmark|unit"
         shell: bash
 
-      - name: "Upload logs for ${{ matrix.platform.name }}"
+      - name: "Upload logs"
         if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ matrix.platform.name }}
+          name: logs
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
@@ -161,7 +174,7 @@ jobs:
 
           # Reset cmake config to affect cpack settings
           rm CMakeCache.txt
-          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Release -DCCF_DEVEL=OFF ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCCF_DEVEL=OFF ..
 
           cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
           cpack -V -G RPM
@@ -181,7 +194,6 @@ jobs:
         shell: bash
 
       - name: "Test Installed CCF"
-        if: "${{ matrix.platform.name == 'virtual' }}"
         run: |
           set -ex
           set -o pipefail
@@ -190,7 +202,6 @@ jobs:
         shell: bash
 
       - name: "Recovery Benchmark for Installed CCF"
-        if: "${{ matrix.platform.name == 'virtual' }}"
         run: |
           set -ex
           set -o pipefail
@@ -201,37 +212,34 @@ jobs:
       - name: "Test Building a Sample Against Installed CCF"
         run: |
           set -ex
-          ./tests/test_install_build.sh -DCOMPILE_TARGET=${{ matrix.platform.name }}
+          ./tests/test_install_build.sh
         shell: bash
 
       - name: "Upload .rpm Package"
         uses: actions/upload-artifact@v4
         with:
-          name: pkg-${{ matrix.platform.name }}
+          name: pkg
           path: build/${{ steps.make_rpm_run.outputs.name }}
 
       - name: "Upload -devel.rpm Package"
         uses: actions/upload-artifact@v4
         with:
-          name: pkg-${{ matrix.platform.name }}-devel
+          name: pkg-devel
           path: build/${{ steps.make_rpm_devel.outputs.name }}
 
       - name: "Upload Compatibility Report"
-        if: "${{ matrix.platform.name == 'virtual' }}"
         uses: actions/upload-artifact@v4
         with:
           name: compatibility
           path: build/compatibility_report.json
 
       - name: "Upload TLS Report"
-        if: "${{ matrix.platform.name == 'virtual' }}"
         uses: actions/upload-artifact@v4
         with:
           name: tls
           path: build/tls_report.html
 
       - name: "Build Python Wheel"
-        if: "${{ matrix.platform.name == 'virtual' }}"
         id: build_wheel
         run: |
           set -ex
@@ -245,14 +253,12 @@ jobs:
         shell: bash
 
       - name: "Upload Python Wheel"
-        if: "${{ matrix.platform.name == 'virtual' }}"
         uses: actions/upload-artifact@v4
         with:
           name: wheel
           path: python/${{ steps.build_wheel.outputs.name }}
 
       - name: "Build TS Package"
-        if: "${{ matrix.platform.name == 'virtual' }}"
         id: build_tstgz
         run: |
           set -ex
@@ -267,14 +273,100 @@ jobs:
         shell: bash
 
       - name: "Upload TS Package"
-        if: "${{ matrix.platform.name == 'virtual' }}"
         uses: actions/upload-artifact@v4
         with:
           name: tstgz
           path: js/ccf-app/${{ steps.build_tstgz.outputs.name }}
 
+      - name: "Generate Reproducibility Metadata"
+        id: metadata
+        shell: bash
+        run: |
+          set -ex
+          commit_id=$(git rev-parse HEAD)
+          echo "commit_sha=$commit_id" >> $GITHUB_OUTPUT
+          filename=reproduce.json
+
+          cat <<EOF > $filename
+          {
+            "build_container_image": "${{needs.image_digest.outputs.image_digest}}",
+            "tdnf_snapshottime": $SOURCE_DATE_EPOCH,
+            "commit_sha": "$commit_id"
+          }
+          EOF
+          cat $filename
+
+      - name: "Upload Reproducibility Metadata"
+        uses: actions/upload-artifact@v4
+        with:
+          name: reproduce-metadata
+          path: reproduce.json
+
+  reproduce_rpm:
+    name: Test Reproducibility
+    needs:
+      - build_release
+      - image_digest
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    env:
+      REPRO_DIR: /tmp/reproduced
+    container:
+      image: ${{ needs.image_digest.outputs.image_digest }}
+      options: "--user root"
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          set -ex
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf --snapshottime=${{ needs.build_release.outputs.SOURCE_DATE_EPOCH }} -y update
+          tdnf --snapshottime=${{ needs.build_release.outputs.SOURCE_DATE_EPOCH }} -y install ca-certificates git
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download Prebuilt Packages
+        uses: actions/download-artifact@v4
+        with:
+          path: DOWNLOAD_DIR
+          pattern: pkg*
+          merge-multiple: true
+      - name: Download Reproducibility Metadata
+        uses: actions/download-artifact@v4
+        with:
+          path: repro
+          pattern: reproduce-metadata
+          merge-multiple: true
+      - name: Reproduce RPMs
+        id: reproduce
+        shell: bash
+        run: |
+          set -ex
+          tdnf install --snapshottime=${{ needs.build_release.outputs.SOURCE_DATE_EPOCH }} -y jq
+          git config --global --add safe.directory /__w/CCF/CCF
+          ./reproduce/reproduce_rpm.sh repro/reproduce.json
+          RPM_NAMES=$(ls "$REPRO_DIR" || true)
+          if [ -z "$RPM_NAMES" ]; then
+            echo "ERROR: No reproduced package found in $REPRO_DIR"
+            exit 1
+          fi
+      - name: Verify reproducibility
+        id: verify
+        shell: bash
+        run: |
+          set -ex
+          for pkg in "$REPRO_DIR"/*; do
+            cmp "$pkg" "DOWNLOAD_DIR/$(basename "$pkg")"
+          done
+      - name: Upload Non-Reproduced Package
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: not-reproduced
+          path: ${{ env.REPRO_DIR }}
+
   create_release:
     needs:
+      - reproduce_rpm
       - build_release
       - make_sbom
     name: Create Release
@@ -316,11 +408,17 @@ jobs:
         with:
           path: sbom
           name: sbom
+      - name: Download Reproducibility Metadata
+        uses: actions/download-artifact@v4
+        with:
+          path: repro
+          pattern: reproduce*
+          merge-multiple: true
       - run: |
           set -ex
           CCF_VERSION=${{ github.ref_name }}
           CCF_VERSION=${CCF_VERSION#ccf-}
-          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json
+          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json repro/* ./reproduce/start_container_and_reproduce_rpm.sh
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

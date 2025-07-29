@@ -78,6 +78,10 @@ namespace ccf::js
               {
                 return KVAccessPermissions::READ_ONLY;
               }
+              case (TxAccess::GOV_RW):
+              {
+                return KVAccessPermissions::WRITE_ONLY;
+              }
               default:
               {
                 return KVAccessPermissions::ILLEGAL;
@@ -99,7 +103,8 @@ namespace ccf::js
   {
     char const* table_kind = permission == KVAccessPermissions::READ_ONLY ?
       "read-only" :
-      "inaccessible";
+      (permission == KVAccessPermissions::WRITE_ONLY ? "write-only" :
+                                                       "inaccessible");
 
     char const* exec_context = "unknown";
     switch (access)

@@ -52,9 +52,6 @@ def max_f(args, number_nodes):
 
 
 def default_platform():
-    if os.path.exists("PLATFORM"):
-        with open("PLATFORM") as f:
-            return f.read().strip()
     return "virtual"
 
 
@@ -98,34 +95,11 @@ def cli_args(
         action="append",
         default=[],
     )
-    # "virtual" is deprecated (use enclave-platform)
-    parser.add_argument(
-        "-e",
-        "--enclave-type",
-        help="Enclave type",
-        default=os.getenv("TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_TYPE", "release")),
-        choices=("release", "debug", "virtual"),
-    )
-    parser.add_argument(
-        "-t",
-        "--enclave-platform",
-        help="Enclave platform (Trusted Execution Environment)",
-        default=os.getenv(
-            "TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_PLATFORM", default_platform())
-        ),
-        choices=("sgx", "snp", "virtual"),
-    )
     log_level_choices = ("trace", "debug", "info", "fail", "fatal")
     default_log_level = "info"
     parser.add_argument(
-        "--host-log-level",
-        help="Runtime host log level",
-        default=default_log_level,
-        choices=log_level_choices,
-    )
-    parser.add_argument(
-        "--enclave-log-level",
-        help="Runtime enclave log level",
+        "--log-level",
+        help="Runtime log level",
         default=default_log_level,
         choices=log_level_choices,
     )
@@ -138,7 +112,7 @@ def cli_args(
     parser.add_argument(
         "-p",
         "--package",
-        help="The enclave package to load (e.g., liblogging)",
+        help="The enclave package to load (e.g., logging)",
     )
     parser.add_argument(
         "--constitution",
@@ -405,11 +379,7 @@ def cli_args(
         help="Servers used to retrieve attestation report endorsement certificates (AMD SEV-SNP only)",
         action="append",
         # ACI default
-        default=(
-            ["THIM:$Fabric_NodeIPOrFQDN:2377"]
-            if os.getenv("DEFAULT_ENCLAVE_PLATFORM") == "snp"
-            else []
-        ),
+        default=(["THIM:$Fabric_NodeIPOrFQDN:2377"]),
     )
     parser.add_argument(
         "--forwarding-timeout-ms",
@@ -451,7 +421,7 @@ def cli_args(
             args.library_dir = args.binary_dir
 
     if not args.package and args.js_app_bundle:
-        args.package = "libjs_generic"
+        args.package = "js_generic"
 
     if accept_unknown:
         return args, unknown_args

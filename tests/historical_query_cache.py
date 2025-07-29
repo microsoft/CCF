@@ -5,14 +5,11 @@ import infra.network
 import infra.proc
 import infra.commit
 import http
-from infra.snp import IS_SNP
 import infra.jwt_issuer
 import time
 import infra.bencher
 
 from loguru import logger as LOG
-
-DEFAULT_TIMEOUT_S = 10 if IS_SNP else 5
 
 
 def format_message(idx):
@@ -121,7 +118,7 @@ if __name__ == "__main__":
         pass
 
     args = infra.e2e_args.cli_args(add=add)
-    args.package = "samples/apps/logging/liblogging"
+    args.package = "samples/apps/logging/logging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.initial_member_count = 1
     args.sig_ms_interval = 1000  # Set to cchost default value

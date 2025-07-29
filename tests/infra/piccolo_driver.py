@@ -49,11 +49,8 @@ def filter_nodes(primary, backups, filter_type):
 
 
 def my_configure_remote_client(args, client_id, client_host, node, command_args):
-    if client_host == "localhost":
-        client_host = infra.net.expand_localhost()
-        remote_impl = infra.remote.LocalRemote
-    else:
-        remote_impl = infra.remote.SSHRemote
+    client_host = infra.net.expand_localhost()
+
     try:
         remote_client = infra.remote_client.CCFRemoteClient(
             f"client_{client_id}",
@@ -65,7 +62,6 @@ def my_configure_remote_client(args, client_id, client_host, node, command_args)
             args.label,
             args.config,
             command_args,
-            remote_impl,
             piccolo_run=True,
         )
         remote_client.setup()
@@ -195,6 +191,8 @@ def run(get_command, args):
 
                     time.sleep(5)
 
+                perf_label = args.perf_label
+
                 for remote_client in clients:
                     analysis = analyzer.Analyze()
 
@@ -214,7 +212,7 @@ def run(get_command, args):
                     # see basicperf.py for a better, cross-client approach.
                     bf = infra.bencher.Bencher()
                     bf.set(
-                        args.perf_label,
+                        perf_label,
                         infra.bencher.Throughput(perf_result),
                     )
 
@@ -228,7 +226,7 @@ def run(get_command, args):
 
                     bf = infra.bencher.Bencher()
                     bf.set(
-                        args.perf_label,
+                        perf_label,
                         infra.bencher.Memory(current_value, high_value=peak_value),
                     )
 
@@ -296,11 +294,6 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         help="Number of requests to send",
         type=int,
         default=100,
-    )
-    parser.add_argument(
-        "--write-tx-times",
-        help="Unused, swallowed for compatibility with old args",
-        action="store_true",
     )
     parser.add_argument("--config", help="Path to config for client binary", default="")
 

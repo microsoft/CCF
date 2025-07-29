@@ -7,7 +7,8 @@ set -ex
 tdnf -y install  \
     vim  \
     clang-tools-extra  \
-    python-pip
+    python-pip \
+    jq
 
 # For LTS test to extract binaries from rpms
 tdnf -y install cpio

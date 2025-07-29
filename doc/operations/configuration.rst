@@ -1,7 +1,7 @@
 Configuration
 =============
 
-The configuration for each CCF node must be contained in a single JSON configuration file specified to the ``cchost`` executable via the ``--config /path/to/config/file`` argument.
+The configuration for each CCF node must be contained in a single JSON configuration file specified to the executable via the ``--config /path/to/config/file`` argument.
 
 .. tip::
 
@@ -12,11 +12,11 @@ The configuration for each CCF node must be contained in a single JSON configura
     - Complete ``join`` configuration: :ccf_repo:`join_config.json </samples/config/join_config.json>`
     - Complete ``recover`` configuration: :ccf_repo:`recover_config.json </samples/config/recover_config.json>`
 
-    A single configuration file can be verified using the ``cchost`` executable, but without launching the enclave application, using the ``--check`` option:
+    A single configuration file can be verified using the executable, but without launching a node, using the ``--check`` option:
 
     .. code-block:: bash
 
-        $ cchost --config /path/to/config/file --check
+        $ /opt/ccf/bin/js_generic --config /path/to/config/file --check
 
 .. include:: generated_config.rst
 

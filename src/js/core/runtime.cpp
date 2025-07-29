@@ -9,9 +9,8 @@
 
 namespace ccf::js::core
 {
-  Runtime::Runtime()
+  Runtime::Runtime() : rt(JS_NewRuntime())
   {
-    rt = JS_NewRuntime();
     if (rt == nullptr)
     {
       throw std::runtime_error("Failed to initialise QuickJS runtime");
@@ -37,8 +36,10 @@ namespace ccf::js::core
     {
       auto ret = JS_NewClass(rt, class_id, class_def);
       if (ret != 0)
+      {
         throw std::logic_error(fmt::format(
           "Failed to register JS class definition {}", class_def->class_name));
+      }
     }
   }
 

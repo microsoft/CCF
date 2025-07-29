@@ -167,7 +167,7 @@ def test_module_access(network, args):
 
 
 @reqs.description("Test module bytecode caching")
-@reqs.installed_package("libjs_generic")
+@reqs.installed_package("js_generic")
 def test_bytecode_cache(network, args):
     primary, _ = network.find_nodes()
 

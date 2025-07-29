@@ -3,13 +3,21 @@
 #pragma once
 
 #include "ccf/ds/enum_formatter.h"
+#include "ccf/ds/json.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/report_data.h"
+#include "ccf/pal/sev_snp_cpuid.h"
 
+#include <algorithm>
 #include <array>
+#include <cstdint>
+#include <cstring>
 #include <map>
+#include <optional>
+#include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace ccf::pal::snp
 {
@@ -35,27 +43,253 @@ pCCoMNit2uLo9M18fHz10lOMT8nWAUvRZFzteXCm+7PHdYPlmQwUw3LvenJ/ILXo
 QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 -----END PUBLIC KEY-----
 )";
+  constexpr auto amd_genoa_root_signing_public_key =
+    R"(-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA3Cd95S/uFOuRIskW9vz9
+VDBF69NDQF79oRhL/L2PVQGhK3YdfEBgpF/JiwWFBsT/fXDhzA01p3LkcT/7Ldjc
+RfKXjHl+0Qq/M4dZkh6QDoUeKzNBLDcBKDDGWo3v35NyrxbA1DnkYwUKU5AAk4P9
+4tKXLp80oxt84ahyHoLmc/LqsGsp+oq1Bz4PPsYLwTG4iMKVaaT90/oZ4I8oibSr
+u92vJhlqWO27d/Rxc3iUMyhNeGToOvgx/iUo4gGpG61NDpkEUvIzuKcaMx8IdTpW
+g2DF6SwF0IgVMffnvtJmA68BwJNWo1E4PLJdaPfBifcJpuBFwNVQIPQEVX3aP89H
+JSp8YbY9lySS6PlVEqTBBtaQmi4ATGmMR+n2K/e+JAhU2Gj7jIpJhOkdH9firQDn
+mlA2SFfJ/Cc0mGNzW9RmIhyOUnNFoclmkRhl3/AQU5Ys9Qsan1jT/EiyT+pCpmnA
++y9edvhDCbOG8F2oxHGRdTBkylungrkXJGYiwGrR8kaiqv7NN8QhOBMqYjcbrkEr
+0f8QMKklIS5ruOfqlLMCBw8JLB3LkjpWgtD7OpxkzSsohN47Uom86RY6lp72g8eX
+HP1qYrnvhzaG1S70vw6OkbaaC9EjiH/uHgAJQGxon7u0Q7xgoREWA/e7JcBQwLg8
+0Hq/sbRuqesxz7wBWSY254cCAwEAAQ==
+-----END PUBLIC KEY-----
+)";
+  constexpr auto amd_turin_root_signing_public_key =
+    R"(-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAwaAriB7EIuVc4ZB1wD3Y
+fDxL+9eyS7+izm0Jj3W772NINCWl8Bj3w/JD2ZjmbRxWdIq/4d9iarCKorXloJUB
+1jRdgxqccTx1aOoig4+2w1XhVVJT7K457wT5ZLNJgQaxqa9Etkwjd6+9sOhlCDE9
+l43kQ0R2BikVJa/uyyVOSwEk5w5tXKOuG9jvq6QtAMJasW38wlqRDaKEGtZ9VUgG
+on27ZuL4sTJuC/azz9/iQBw8kEilzOl95AiTkeY5jSEBDWbAqnZk5qlM7kISKG20
+kgQm14mhNKDI2p2oua+zuAG7i52epoRF2GfU0TYk/yf+vCNB2tnechFQuP2e8bLk
+95ZdqPi9/UWw4JXjtdEA4u2JYplSSUPQVAXKt6LVqujtJcM59JKr2u0XQ75KwxcM
+p15gSXhBfInvPAwuAY4dEwwGqT8oIg4esPHwEsmChhYeDIxPG9R4fx9O0q6p8Gb+
+HXlTiS47P9YNeOpidOUKzDl/S1OvyhDtSL8LJc24QATFydo/iD/KUdvFTRlD0crk
+AMkZLoWQ8hLDGc6BZJXsdd7Zf2e4UW3tI/1oh/2t23Ot3zyhTcv5gDbABu0LjVe9
+8uRnS15SMwK//lJt9e5BqKvgABkSoABf+B4VFtPVEX0ygrYaFaI9i5ABrxnVBmzX
+pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
+-----END PUBLIC KEY-----
+)";
 
+  inline const std::map<ProductName, const char*> amd_root_signing_keys{
+    {ProductName::Milan, amd_milan_root_signing_public_key},
+    {ProductName::Genoa, amd_genoa_root_signing_public_key},
+    // Disabled until we can test this
+    //{ProductName::turin, amd_turin_root_signing_public_key},
+  };
+
+  static uint8_t MIN_TCB_VERIF_VERSION = 3;
 #pragma pack(push, 1)
   // Table 3
-  struct TcbVersion
+  constexpr size_t snp_tcb_version_size = 8;
+
+  struct TcbVersionMilanGenoa
   {
     uint8_t boot_loader = 0;
     uint8_t tee = 0;
     uint8_t reserved[4];
     uint8_t snp = 0;
     uint8_t microcode = 0;
-
-    bool operator==(const TcbVersion&) const = default;
   };
-#pragma pack(pop)
   static_assert(
-    sizeof(TcbVersion) == sizeof(uint64_t),
-    "Can't cast TcbVersion to uint64_t");
-  DECLARE_JSON_TYPE(TcbVersion);
-  DECLARE_JSON_REQUIRED_FIELDS(TcbVersion, boot_loader, tee, snp, microcode);
+    sizeof(TcbVersionMilanGenoa) == snp_tcb_version_size,
+    "Milan/Genoa TCB version size mismatch");
 
+  struct TcbVersionTurin
+  {
+    uint8_t fmc = 0;
+    uint8_t boot_loader = 0;
+    uint8_t tee = 0;
+    uint8_t snp = 0;
+    uint8_t reserved[3];
+    uint8_t microcode = 0;
+  };
+  static_assert(
+    sizeof(TcbVersionTurin) == snp_tcb_version_size,
+    "Turin TCB version size mismatch");
+#pragma pack(pop)
+
+  struct TcbVersionPolicy
+  {
+    std::optional<std::string> hexstring = std::nullopt;
+    std::optional<uint32_t> microcode = std::nullopt;
+    std::optional<uint32_t> snp = std::nullopt;
+    std::optional<uint32_t> tee = std::nullopt;
+    std::optional<uint32_t> boot_loader = std::nullopt;
+    std::optional<uint32_t> fmc = std::nullopt;
+
+    [[nodiscard]] TcbVersionMilanGenoa to_milan_genoa() const
+    {
+      auto valid = true;
+      valid &= microcode.has_value();
+      valid &= snp.has_value();
+      valid &= tee.has_value();
+      valid &= boot_loader.has_value();
+      if (!valid)
+      {
+        throw std::logic_error(
+          fmt::format("Invalid TCB version policy for Milan or Genoa"));
+      }
+      return TcbVersionMilanGenoa{
+        static_cast<uint8_t>(boot_loader.value()),
+        static_cast<uint8_t>(tee.value()),
+        {0, 0, 0, 0}, // reserved
+        static_cast<uint8_t>(snp.value()),
+        static_cast<uint8_t>(microcode.value())};
+    }
+
+    [[nodiscard]] TcbVersionTurin to_turin() const
+    {
+      auto valid = true;
+      valid &= microcode.has_value();
+      valid &= snp.has_value();
+      valid &= tee.has_value();
+      valid &= boot_loader.has_value();
+      valid &= fmc.has_value();
+      if (!valid)
+      {
+        throw std::logic_error(
+          fmt::format("Invalid TCB version policy for Turin"));
+      }
+      return TcbVersionTurin{
+        static_cast<uint8_t>(fmc.value()),
+        static_cast<uint8_t>(boot_loader.value()),
+        static_cast<uint8_t>(tee.value()),
+        static_cast<uint8_t>(snp.value()),
+        {0, 0, 0}, // reserved
+        static_cast<uint8_t>(microcode.value())};
+    }
+
+    static bool is_valid(TcbVersionPolicy& minimum, TcbVersionPolicy& test)
+    {
+      auto more_than_min =
+        [](std::optional<uint32_t>& min, std::optional<uint32_t>& test) {
+          if ((min.has_value() != test.has_value()))
+          {
+            return false;
+          }
+          if (!min.has_value() && !test.has_value())
+          {
+            return true;
+          }
+          // both set
+          return min.value() <= test.value();
+        };
+      auto valid = true;
+      valid &= more_than_min(minimum.microcode, test.microcode);
+      valid &= more_than_min(minimum.snp, test.snp);
+      valid &= more_than_min(minimum.tee, test.tee);
+      valid &= more_than_min(minimum.boot_loader, test.boot_loader);
+      valid &= more_than_min(minimum.fmc, test.fmc);
+      return valid;
+    }
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(TcbVersionPolicy);
+  DECLARE_JSON_REQUIRED_FIELDS(TcbVersionPolicy);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    TcbVersionPolicy, fmc, boot_loader, tee, snp, microcode, hexstring);
+
+  struct TcbVersionRaw
+  {
+  private:
+    uint8_t underlying_data[snp_tcb_version_size];
+
+  public:
+    bool operator==(const TcbVersionRaw& other) const = default;
+
+    [[nodiscard]] std::vector<uint8_t> data() const
+    {
+      return {
+        static_cast<const uint8_t*>(underlying_data),
+        static_cast<const uint8_t*>(underlying_data) + snp_tcb_version_size};
+    }
+    [[nodiscard]] std::string to_hex() const
+    {
+      auto data = this->data();
+      // reverse to match endianness
+      std::reverse(data.begin(), data.end());
+      return ccf::ds::to_hex(data);
+    }
+    static TcbVersionRaw from_hex(const std::string& hex)
+    {
+      auto data = ccf::ds::from_hex(hex);
+      if (data.size() != snp_tcb_version_size)
+      {
+        throw std::logic_error(
+          fmt::format("Invalid TCB version data size: {}", data.size()));
+      }
+      // reverse to match endianness
+      std::reverse(data.begin(), data.end());
+      TcbVersionRaw tcb_version{};
+      std::memcpy(
+        static_cast<void*>(tcb_version.underlying_data),
+        data.data(),
+        snp_tcb_version_size);
+      return tcb_version;
+    }
+
+    [[nodiscard]] TcbVersionPolicy to_policy(ProductName product) const
+    {
+      switch (product)
+      {
+        case ProductName::Milan:
+        case ProductName::Genoa:
+        {
+          auto tcb = *reinterpret_cast<const TcbVersionMilanGenoa*>(this);
+          return TcbVersionPolicy{
+            .hexstring = this->to_hex(),
+            .microcode = tcb.microcode,
+            .snp = tcb.snp,
+            .tee = tcb.tee,
+            .boot_loader = tcb.boot_loader,
+            .fmc = std::nullopt // fmc is not applicable for Milan/Genoa
+          };
+        }
+        case ProductName::Turin:
+        {
+          auto tcb = *reinterpret_cast<const TcbVersionTurin*>(this);
+          return TcbVersionPolicy{
+            .hexstring = this->to_hex(),
+            .microcode = tcb.microcode,
+            .snp = tcb.snp,
+            .tee = tcb.tee,
+            .boot_loader = tcb.boot_loader,
+            .fmc = tcb.fmc};
+        }
+        default:
+          throw std::logic_error(
+            "Unsupported SEV-SNP product for TCB version policy");
+      }
+    }
+  };
+  static_assert(
+    sizeof(TcbVersionRaw) == snp_tcb_version_size,
+    "TCB version raw size mismatch");
 #pragma pack(push, 1)
+  inline void to_json(nlohmann::json& j, const TcbVersionRaw& tcb_version)
+  {
+    j = tcb_version.to_hex();
+  }
+  inline void from_json(const nlohmann::json& j, TcbVersionRaw& tcb_version_raw)
+  {
+    if (!j.is_string())
+    {
+      throw std::logic_error(
+        fmt::format("Invalid TCB version raw data: {}", j.dump()));
+    }
+    tcb_version_raw = TcbVersionRaw::from_hex(j.get<std::string>());
+  }
+  inline std::string schema_name(const TcbVersionRaw& tcb_version)
+  {
+    (void)tcb_version;
+    return "TcbVersionRaw";
+  }
+
   struct Signature
   {
     uint8_t r[72];
@@ -87,7 +321,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 #pragma pack(pop)
   static_assert(
     sizeof(GuestPolicy) == sizeof(uint64_t),
-    "Can't cast GuestPolicy to uint64_t");
+    "Cannot cast GuestPolicy to uint64_t");
 
   static constexpr uint8_t attestation_flags_signing_key_vcek = 0;
 
@@ -101,7 +335,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
   };
 #pragma pack(pop)
   static_assert(
-    sizeof(Flags) == sizeof(uint32_t), "Can't cast Flags to uint32_t");
+    sizeof(Flags) == sizeof(uint32_t), "Cannot cast Flags to uint32_t");
 
 #pragma pack(push, 1)
   // Table 22
@@ -114,7 +348,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 #pragma pack(pop)
   static_assert(
     sizeof(PlatformInfo) == sizeof(uint64_t),
-    "Can't cast PlatformInfo to uint64_t");
+    "Cannot cast PlatformInfo to uint64_t");
 
 #pragma pack(push, 1)
   // Table 21
@@ -131,7 +365,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     uint8_t image_id[16]; /* 0x020 */
     uint32_t vmpl; /* 0x030 */
     SignatureAlgorithm signature_algo; /* 0x034 */
-    struct TcbVersion platform_version; /* 0x038 */
+    TcbVersionRaw platform_version; /* 0x038 */
     PlatformInfo platform_info; /* 0x040 */
     Flags flags; /* 0x048 */
     uint32_t reserved0; /* 0x04C */
@@ -142,13 +376,13 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     uint8_t author_key_digest[48]; /* 0x110 */
     uint8_t report_id[32]; /* 0x140 */
     uint8_t report_id_ma[32]; /* 0x160 */
-    struct TcbVersion reported_tcb; /* 0x180 */
+    TcbVersionRaw reported_tcb; /* 0x180 */
     uint8_t cpuid_fam_id; /* 0x188*/
     uint8_t cpuid_mod_id; /* 0x189 */
     uint8_t cpuid_step; /* 0x18A */
     uint8_t reserved1[21]; /* 0x18B */
     uint8_t chip_id[64]; /* 0x1A0 */
-    struct TcbVersion committed_tcb; /* 0x1E0 */
+    TcbVersionRaw committed_tcb; /* 0x1E0 */
     uint8_t current_minor; /* 0x1E8 */
     uint8_t current_build; /* 0x1E9 */
     uint8_t current_major; /* 0x1EA */
@@ -157,7 +391,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     uint8_t committed_minor; /* 0x1ED */
     uint8_t committed_major; /* 0x1EE */
     uint8_t reserved3; /* 0x1EF */
-    struct TcbVersion launch_tcb; /* 0x1F0 */
+    TcbVersionRaw launch_tcb; /* 0x1F0 */
     uint8_t reserved4[168]; /* 0x1F8 */
     struct Signature signature; /* 0x2A0 */
   };
@@ -222,10 +456,40 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
         }
         case EndorsementsEndpointType::AMD:
         {
-          auto boot_loader = fmt::format("{}", quote.reported_tcb.boot_loader);
-          auto tee = fmt::format("{}", quote.reported_tcb.tee);
-          auto snp = fmt::format("{}", quote.reported_tcb.snp);
-          auto microcode = fmt::format("{}", quote.reported_tcb.microcode);
+          auto product =
+            get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
+
+          std::string boot_loader;
+          std::string tee;
+          std::string snp;
+          std::string microcode;
+          switch (product)
+          {
+            case ProductName::Milan:
+            case ProductName::Genoa:
+            {
+              auto tcb = quote.reported_tcb.to_policy(product).to_milan_genoa();
+              boot_loader = fmt::format("{}", tcb.boot_loader);
+              tee = fmt::format("{}", tcb.tee);
+              snp = fmt::format("{}", tcb.snp);
+              microcode = fmt::format("{}", tcb.microcode);
+              break;
+            }
+            case ProductName::Turin:
+            {
+              auto tcb = quote.reported_tcb.to_policy(product).to_turin();
+              boot_loader = fmt::format("{}", tcb.boot_loader);
+              tee = fmt::format("{}", tcb.tee);
+              snp = fmt::format("{}", tcb.snp);
+              microcode = fmt::format("{}", tcb.microcode);
+              break;
+            }
+            default:
+            {
+              throw std::logic_error(
+                fmt::format("Unsupported SEV-SNP product: {}", product));
+            }
+          }
 
           auto loc =
             get_endpoint_loc(server, default_amd_endorsements_endpoint);
@@ -236,6 +500,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
             tee,
             snp,
             microcode,
+            product,
             max_retries_count));
           break;
         }
@@ -267,76 +532,6 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     virtual ~AttestationInterface() = default;
   };
 
-  static uint8_t MIN_TCB_VERIF_VERSION = 3;
-#pragma pack(push, 1)
-  // AMD CPUID specification. Chapter 2 Fn0000_0001_EAX
-  // Milan: 0x00A00F11
-  // Genoa: 0X00A10F11
-  // Note: The CPUID is little-endian so the hex_string is reversed
-  struct CPUID
-  {
-    uint8_t stepping : 4;
-    uint8_t base_model : 4;
-    uint8_t base_family : 4;
-    uint8_t reserved : 4;
-    uint8_t extended_model : 4;
-    uint8_t extended_family : 8;
-    uint8_t reserved2 : 4;
-
-    bool operator==(const CPUID&) const = default;
-    std::string hex_str() const
-    {
-      CPUID buf = *this;
-      auto buf_ptr = reinterpret_cast<uint8_t*>(&buf);
-      const std::span<const uint8_t> tcb_bytes{
-        buf_ptr, buf_ptr + sizeof(CPUID)};
-      return fmt::format(
-        "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
-    }
-    inline uint8_t get_family_id() const
-    {
-      return this->base_family + this->extended_family;
-    }
-    inline uint8_t get_model_id() const
-    {
-      return (this->extended_model << 4) | this->base_model;
-    }
-  };
-#pragma pack(pop)
-  DECLARE_JSON_TYPE(CPUID);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    CPUID, stepping, base_model, base_family, extended_model, extended_family);
-  static_assert(
-    sizeof(CPUID) == sizeof(uint32_t), "Can't cast CPUID to uint32_t");
-  static CPUID cpuid_from_hex(const std::string& hex_str)
-  {
-    CPUID ret;
-    auto buf_ptr = reinterpret_cast<uint8_t*>(&ret);
-    ccf::ds::from_hex(hex_str, buf_ptr, buf_ptr + sizeof(CPUID));
-    std::reverse(
-      buf_ptr, buf_ptr + sizeof(CPUID)); // fix little endianness of AMD
-    return ret;
-  }
-
-  // On SEVSNP cpuid cannot be trusted and must be validated against an
-  // attestation.
-  static CPUID get_cpuid_untrusted()
-  {
-    uint32_t ieax = 1;
-    uint64_t iebx = 0;
-    uint64_t iecx = 0;
-    uint64_t iedx = 0;
-    uint32_t oeax = 0;
-    uint64_t oebx = 0;
-    uint64_t oecx = 0;
-    uint64_t oedx = 0;
-    // pass in e{b,c,d}x to prevent cpuid from blatting other registers
-    asm volatile("cpuid"
-                 : "=a"(oeax), "=b"(oebx), "=c"(oecx), "=d"(oedx)
-                 : "a"(ieax), "b"(iebx), "c"(iecx), "d"(iedx));
-    auto cpuid = *reinterpret_cast<CPUID*>(&oeax);
-    return cpuid;
-  }
 }
 
 namespace ccf::kv::serialisers

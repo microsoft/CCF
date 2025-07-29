@@ -2,10 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/nonstd.h"
 #include "ccf/pal/attestation_sev_snp.h"
 
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <fcntl.h>
 #include <openssl/crypto.h>
 #include <stdint.h>
@@ -136,7 +138,7 @@ namespace ccf::pal::snp::ioctl6
     uint64_t guest_field_select = 0;
     uint32_t vmpl = 0;
     uint32_t guest_svn = 0;
-    TcbVersion tcb_version = TcbVersion();
+    TcbVersionRaw tcb_version = {};
   }; // snp_derived_key_req in (linux) include/uapi/linux/sev-guest.h
 #pragma pack(pop)
   static_assert(
@@ -198,7 +200,7 @@ namespace ccf::pal::snp::ioctl6
   constexpr int SEV_SNP_GUEST_MSG_DERIVED_KEY =
     _IOWR(SEV_GUEST_IOC_TYPE, 0x1, GuestRequestDerivedKey);
 
-  static inline bool is_sev_snp()
+  static inline bool supports_sev_snp()
   {
     return access(DEVICE, W_OK) == 0;
   }
@@ -229,6 +231,7 @@ namespace ccf::pal::snp::ioctl6
         throw std::logic_error(
           fmt::format("Failed to open \"{}\" ({})", DEVICE, fd));
       }
+      auto close_guard = nonstd::make_close_fd_guard(&fd);
 
       // Documented at
       // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
@@ -271,11 +274,11 @@ namespace ccf::pal::snp::ioctl6
 
   class DerivedKey
   {
-    IoctlSentinel<PaddedDerivedKeyResp> resp_with_sentinel = {};
+    IoctlSentinel<PaddedDerivedKeyResp> resp_with_sentinel;
     PaddedDerivedKeyResp& padded_resp = resp_with_sentinel.data;
 
   public:
-    DerivedKey(TcbVersion tcb = {})
+    DerivedKey(const TcbVersionRaw tcb = {})
     {
       int fd = open(DEVICE, O_RDWR | O_CLOEXEC);
       if (fd < 0)
@@ -283,6 +286,7 @@ namespace ccf::pal::snp::ioctl6
         throw std::logic_error(
           fmt::format("Failed to open \"{}\" ({})", DEVICE, fd));
       }
+      auto close_guard = nonstd::make_close_fd_guard(&fd);
 
       // This req by default mixes in HostData and the CPU VCEK
       DerivedKeyReq req = {};

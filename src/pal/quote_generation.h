@@ -16,8 +16,9 @@ namespace ccf::pal
     return fmt::format("ccf_virtual_attestation.{}.{}", ::getpid(), suffix);
   };
 
-  static void emit_virtual_measurement(const std::string& package_path)
+  static void emit_virtual_measurement()
   {
+    const auto package_path = std::filesystem::canonical("/proc/self/exe");
     auto hasher = ccf::crypto::make_incremental_sha256();
     std::ifstream f(package_path, std::ios::binary | std::ios::ate);
     if (!f)
@@ -53,9 +54,7 @@ namespace ccf::pal
     files::dump(j.dump(2), virtual_attestation_path("measurement"));
   }
 
-#if defined(PLATFORM_VIRTUAL)
-
-  static void generate_quote(
+  static void generate_virtual_quote(
     PlatformAttestationReportData& report_data,
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
@@ -77,9 +76,7 @@ namespace ccf::pal
       {});
   }
 
-#elif defined(PLATFORM_SNP)
-
-  static void generate_quote(
+  static void generate_snp_quote(
     PlatformAttestationReportData& report_data,
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
@@ -98,5 +95,32 @@ namespace ccf::pal
           attestation->get(), endorsements_servers));
     }
   }
-#endif
+
+  static void generate_quote(
+    PlatformAttestationReportData& report_data,
+    RetrieveEndorsementCallback endorsement_cb,
+    const snp::EndorsementsServers& endorsements_servers = {})
+  {
+    switch (ccf::pal::platform)
+    {
+      case (ccf::pal::Platform::SNP):
+      {
+        generate_snp_quote(report_data, endorsement_cb, endorsements_servers);
+        break;
+      }
+
+      case (ccf::pal::Platform::Virtual):
+      {
+        generate_virtual_quote(
+          report_data, endorsement_cb, endorsements_servers);
+        break;
+      }
+
+      default:
+      {
+        throw std::logic_error(fmt::format(
+          "Unsupported platform for quote generation: {}", ccf::pal::platform));
+      }
+    }
+  }
 }

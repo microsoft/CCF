@@ -7,9 +7,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
-std::unique_ptr<threading::ThreadMessaging>
-  threading::ThreadMessaging::singleton = nullptr;
-
 using ms = std::chrono::milliseconds;
 
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))

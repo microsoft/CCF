@@ -7,7 +7,7 @@ import shutil
 import infra.logging_app as app
 import infra.e2e_args
 import infra.network
-import infra.snp
+import infra.platform_detection
 import ccf.ledger
 from ccf.tx_id import TxID
 import base64
@@ -30,6 +30,8 @@ from cryptography.hazmat.backends import default_backend
 from pycose.messages import Sign1Message
 import sys
 import pathlib
+import infra.concurrency
+from collections import defaultdict
 
 from loguru import logger as LOG
 
@@ -57,14 +59,62 @@ def test_save_committed_ledger_files(network, args):
 
 
 def test_parse_snapshot_file(network, args):
-    primary, _ = network.find_primary()
-    network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
-    committed_snapshots_dir = network.get_committed_snapshots(primary)
-    for snapshot in os.listdir(committed_snapshots_dir):
-        with ccf.ledger.Snapshot(os.path.join(committed_snapshots_dir, snapshot)) as s:
-            assert len(
-                s.get_public_domain().get_tables()
-            ), "No public table in snapshot"
+    class ReaderThread(infra.concurrency.StoppableThread):
+        def __init__(self, network):
+            super().__init__(name="reader")
+            primary, _ = network.find_primary()
+            self.snapshots_dir = os.path.join(
+                primary.remote.remote.root,
+                primary.remote.snapshots_dir_name,
+            )
+
+        def run(self):
+            seen = set()
+            while not self.is_stopped():
+                for snapshot in os.listdir(self.snapshots_dir):
+                    if (
+                        ccf.ledger.is_snapshot_file_committed(snapshot)
+                        and snapshot not in seen
+                    ):
+                        seen.add(snapshot)
+                        with ccf.ledger.Snapshot(
+                            os.path.join(self.snapshots_dir, snapshot)
+                        ) as s:
+                            assert len(
+                                s.get_public_domain().get_tables()
+                            ), "No public table in snapshot"
+                            LOG.success(f"Successfully parsed snapshot: {snapshot}")
+            LOG.info(f"Tested {len(seen)} snapshots")
+            assert len(seen) > 0, "No snapshots seen, so this tested nothing"
+
+    class WriterThread(infra.concurrency.StoppableThread):
+        def __init__(self, network, reader):
+            super().__init__(name="writer")
+            self.primary, _ = network.find_primary()
+            self.member = network.consortium.get_any_active_member()
+            self.reader = reader
+
+        def run(self):
+            while not self.is_stopped() and self.reader.is_alive():
+                self.member.update_ack_state_digest(self.primary)
+
+    reader_thread = ReaderThread(network)
+    reader_thread.start()
+
+    writer_thread = WriterThread(network, reader_thread)
+    writer_thread.start()
+
+    # When this test was added, the original failure was occurring 100% of the time within 0.5s.
+    # This fix has been manually verified across multi-minute runs.
+    # 5s is a plausible run-time in the CI, that should still provide convincing coverage.
+    time.sleep(5)
+
+    writer_thread.stop()
+    writer_thread.join()
+
+    reader_thread.stop()
+    reader_thread.join()
+
     return network
 
 
@@ -534,18 +584,17 @@ def run_config_timeout_check(args):
     LOG.info(f"Attempt to start node without a config under {start_node_path}")
     config_timeout = 10
     env = {}
-    if args.enclave_platform == "snp":
-        env = snp.get_aci_env()
+
+    if infra.platform_detection.is_snp():
+        env.update(snp.get_aci_env())
 
     proc = subprocess.Popen(
         [
-            "./cchost",
+            os.path.join(".", os.path.basename(node.remote.BIN)),
             "--config",
             "0.config.json",
             "--config-timeout",
             f"{config_timeout}s",
-            "--enclave-file",
-            node.remote.enclave_file,
         ],
         cwd=start_node_path,
         env=env,
@@ -594,9 +643,7 @@ def run_configuration_file_checks(args):
     LOG.info(
         f"Verifying JSON configuration samples in {args.config_samples_dir} directory"
     )
-    CCHOST_BINARY_NAME = "cchost"
-
-    bin_path = infra.path.build_bin_path(CCHOST_BINARY_NAME, binary_dir=args.binary_dir)
+    bin_path = args.package
 
     config_files_to_check = [
         os.path.join(args.config_samples_dir, c)
@@ -1387,6 +1434,204 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
             prev_network = recovery_network
 
 
+def run_read_ledger_on_testdata(args):
+    for testdata_dir in os.scandir(args.historical_testdata):
+        assert testdata_dir.is_dir()
+        testdata_path = os.path.join(
+            args.historical_testdata, testdata_dir.name, "ledger"
+        )
+        LOG.info(f"Reading and validating ledger in {testdata_path}")
+        tx_count = 0
+        ledger = ccf.ledger.Ledger(
+            [testdata_path],
+            committed_only=False,
+            read_recovery_files=False,
+        )
+        for chunk in ledger:
+            for tx in chunk:
+                tables = tx.get_public_domain().get_tables()
+                tx_count += 1
+        LOG.info(f"Read {tx_count} transactions from {testdata_path}")
+        snapshot_path = os.path.join(
+            args.historical_testdata, testdata_dir.name, "snapshots"
+        )
+        for snapshot_file in os.scandir(snapshot_path):
+            if snapshot_file.is_file() and snapshot_file.name.endswith(".committed"):
+                snapshot_path = os.path.join(snapshot_path, snapshot_file.name)
+                LOG.info(f"Reading and validating snapshot {snapshot_path}")
+                with ccf.ledger.Snapshot(snapshot_file.path) as snapshot:
+                    tables = snapshot.get_public_domain().get_tables()
+                    LOG.info(
+                        f"Valid snapshot at {snapshot_file.path} with {len(tables)} tables"
+                    )
+
+
+def run_ledger_chunk_bytes_check(const_args):
+    LOG.info("Confirm that ledger chunks are determined by the primary")
+    args = copy.deepcopy(const_args)
+
+    # Don't emit snapshots
+    args.snapshot_tx_interval = 10000000
+
+    # Don't sign too-often; give time to store many entries in a single chunk
+    args.sig_ms_interval = 1000
+
+    args.nodes = infra.e2e_args.nodes(args, 3)
+
+    with infra.network.network(args.nodes, args.binary_dir) as network:
+        # Start each node with a different chunk size
+        unit_size = 16384
+        size_0 = unit_size
+        size_1 = unit_size * 3
+        size_2 = unit_size * 9
+
+        51869
+        51893
+
+        def overhead(num_transactions, num_signatures):
+            # From checking a sample run, the overhead consists of:
+            # - 24 bytes of header + footer
+            # - 202 bytes of framing/encoding for each of our transactions
+            #   - Comes from
+            #      16384 content
+            #      + table name
+            #      + JSON quoting
+            #      + size prefixes
+            #      + transaction header
+            #      = 16586
+            # - ~2100 bytes per signature transaction
+            #   - Some variation from cert sizes
+            #   - Increasing over time as the mini-tree grows
+            #   - Adding 2400 bytes here to be safe
+            return 24 + (202 * num_transactions) + (2400 * num_signatures)
+
+        network.per_node_args_override[0] = {"ledger_chunk_bytes": f"{size_0}B"}
+        network.per_node_args_override[1] = {"ledger_chunk_bytes": f"{size_1}B"}
+        network.per_node_args_override[2] = {"ledger_chunk_bytes": f"{size_2}B"}
+
+        network.start_and_open(args)
+
+        def force_become_primary(node):
+            # Ensure all nodes are equally up-to-date
+            network.wait_for_node_commit_sync()
+            p, _ = network.find_primary()
+            if p != node:
+                sleep_time = args.election_timeout_ms / 1000
+                LOG.info(
+                    f"Suspending {node.node_id} and sleeping {sleep_time}s to trigger election"
+                )
+                # Suspend the target so they trigger an election on resume
+                node.suspend()
+                time.sleep(sleep_time)
+                node.resume()
+
+                primary, _ = network.wait_for_new_primary_in({node.node_id})
+                assert primary == node
+
+        primary, backups = network.find_nodes()
+
+        nodes_and_sizes = [
+            (primary, size_0),
+            (backups[0], size_1),
+            (backups[1], size_2),
+        ]
+
+        chunks_per_node = 2
+
+        chunk_ends_by_size = defaultdict(list)
+
+        for node, chunk_size in nodes_and_sizes:
+            force_become_primary(node)
+            with node.client("user0") as c:
+                for _ in range(chunks_per_node):
+                    written = 0
+                    while written < chunk_size:
+                        r = c.post(
+                            "/app/log/public",
+                            {"id": chunk_size, "msg": "X" * unit_size},
+                        )
+                        assert r.status_code == http.HTTPStatus.OK, r
+                        written += unit_size
+                    c.wait_for_commit(r)
+                    r = c.get("/node/commit")
+                    assert r.status_code == http.HTTPStatus.OK, r
+                    chunk_ends_by_size[chunk_size].append(
+                        TxID.from_str(r.body.json()["transaction_id"])
+                    )
+
+        # When a node becomes primary, it may discover the current chunk is already over
+        # the local chunk threshold, and should immediately terminate this chunk.
+        # Confirm it has been correctly tracking chunk sizes while it was backup in this case.
+        smallest_node, smallest_size = nodes_and_sizes[0]
+        for node, chunk_size in nodes_and_sizes[1:]:
+            force_become_primary(node)
+            with node.client("user0") as c:
+                written = 0
+                # Stop just before this node completes the chunk
+                target_chunk_size = chunk_size - unit_size
+                while written < target_chunk_size:
+                    r = c.post(
+                        "/app/log/public",
+                        {"id": chunk_size, "msg": "X" * unit_size},
+                    )
+                    assert r.status_code == http.HTTPStatus.OK, r
+                    written += unit_size
+                c.wait_for_commit(r)
+
+            force_become_primary(smallest_node)
+            with smallest_node.client("user0") as c:
+                r = c.get("/node/commit")
+                assert r.status_code == http.HTTPStatus.OK, r
+                chunk_ends_by_size[target_chunk_size].append(
+                    TxID.from_str(r.body.json()["transaction_id"])
+                )
+
+        # Add a further write to trigger .committed rename of all chunks above
+        with primary.client("user0") as c:
+            r = c.post(
+                "/app/log/public",
+                {"id": 42, "msg": "Make a new chunk"},
+            )
+            assert r.status_code == http.HTTPStatus.OK, r
+            c.wait_for_commit(r)
+
+        # This explicitly checks that ledger chunks match on each node, which is the critical property
+        network.stop_all_nodes(accept_ledger_diff=False)
+
+        # Confirm that at least one ledger chunk of each expected size was produced
+        current, committeds = primary.get_ledger()
+        chunks = [
+            os.path.join(ledger_dir, basename)
+            for ledger_dir in (current, *committeds)
+            for basename in os.listdir(ledger_dir)
+        ]
+        actual_chunk_sizes = {chunk: os.path.getsize(chunk) for chunk in chunks}
+
+        chunk_ends_to_expected_size = {
+            tx_id.seqno: size
+            for size, tx_ids in chunk_ends_by_size.items()
+            for tx_id in tx_ids
+        }
+
+        for path, actual_size in actual_chunk_sizes.items():
+            start, end = ccf.ledger.range_from_filename(path)
+            if end in chunk_ends_to_expected_size:
+                chunk_size = chunk_ends_to_expected_size[end]
+                num_transactions = 1 + end - start
+                min_expected = chunk_size + overhead(num_transactions, num_signatures=0)
+                max_expected = chunk_size + overhead(num_transactions, num_signatures=2)
+
+                r = range(min_expected, max_expected)
+                assert (
+                    actual_size in r
+                ), f"Expected {os.path.basename(path)} (produced by a node with chunk-size {chunk_size:,}) to be between {min_expected:,} and {max_expected:,} bytes. It is actually {actual_size:,} bytes"
+
+                del chunk_ends_to_expected_size[end]
+
+        # Confirm we've seen all expected chunk ends
+        assert len(chunk_ends_to_expected_size) == 0
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
@@ -1400,7 +1645,8 @@ def run(args):
     run_cose_signatures_config_check(args)
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
-    if infra.snp.is_snp():
+
+    if infra.platform_detection.is_snp():
         run_initial_uvm_descriptor_checks(args)
         run_initial_tcb_version_checks(args)
         run_recovery_local_unsealing(args)
@@ -1409,3 +1655,5 @@ def run(args):
         run_recovery_local_unsealing(args, recovery_f=1)
         run_recovery_unsealing_corrupt(args)
         run_recovery_unsealing_validate_audit(args)
+    run_read_ledger_on_testdata(args)
+    run_ledger_chunk_bytes_check(args)

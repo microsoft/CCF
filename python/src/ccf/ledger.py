@@ -10,10 +10,11 @@ from typing import NamedTuple, Optional, Tuple, Dict, List
 import json
 import base64
 from dataclasses import dataclass
+import functools
 
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import utils, ec
 
@@ -86,6 +87,10 @@ def is_ledger_chunk_committed(file_name):
     return file_name.endswith(COMMITTED_FILE_SUFFIX)
 
 
+def is_snapshot_file_committed(file_name):
+    return file_name.endswith(COMMITTED_FILE_SUFFIX)
+
+
 def digest(data):
     return sha256(data).digest()
 
@@ -107,6 +112,15 @@ def unpack_array(buf, fmt):
         except StopIteration:
             break
     return ret
+
+
+@functools.lru_cache(maxsize=64)
+def spki_from_cert(cert: bytes) -> bytes:
+    cert_obj = load_pem_x509_certificate(cert, default_backend())
+    return cert_obj.public_key().public_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
 
 
 def range_from_filename(filename: str) -> Tuple[int, Optional[int]]:
@@ -420,14 +434,17 @@ class BaseValidator:
     @staticmethod
     def _verify_node_status(tx_info: TxBundleInfo):
         """Verify item 1, The merkle root is signed by a valid node in the given network"""
-        # Note: A retired primary will still issue signature transactions until
-        # its retirement is committed
+        if tx_info.signing_node not in tx_info.node_activity:
+            raise UntrustedNodeException(
+                f"The signing node {tx_info.signing_node} is not part of the network"
+            )
         node_info = tx_info.node_activity[tx_info.signing_node]
         node_status = NodeStatus(node_info[0])
-        if node_status not in (
-            NodeStatus.TRUSTED,
-            NodeStatus.RETIRED,
-        ) or (node_status == NodeStatus.RETIRED and node_info[2]):
+        # Note: Even nodes that are Retired, and for which retired_committed is True
+        # may be issuing signatures, to ensure the liveness of a reconfiguring
+        # network. They will stop doing so once the transaction that sets retired_committed is itself committed,
+        # but that is unfortunately not observable from the ledger alone.
+        if node_status == NodeStatus.PENDING:
             raise UntrustedNodeException(
                 f"The signing node {tx_info.signing_node} has unexpected status {node_status.value}"
             )
@@ -589,9 +606,13 @@ class LedgerValidator(BaseValidator):
                 existing_root = bytes.fromhex(signature["root"])
                 sig = base64.b64decode(signature["sig"])
 
-                # Check that cert in signature matches locally tracked
-                sig_cert = signature["cert"].encode("utf-8")
-                assert cert == sig_cert
+                # Check that key in cert matches that in node table
+                # when present
+                if "cert" in signature:
+                    sig_cert = signature["cert"].encode("utf-8")
+                    assert spki_from_cert(cert) == spki_from_cert(
+                        sig_cert
+                    ), f"Mismatch in public key for node {signing_node}"
 
                 tx_info = TxBundleInfo(
                     self.merkle,
@@ -817,6 +838,9 @@ class Snapshot(Entry):
         self._filename = filename
         self._file_size = os.path.getsize(filename)
 
+        if self._file_size == 0:
+            raise InvalidSnapshotException(f"{filename} is currently empty")
+
         entry_start_pos = super()._read_header()
 
         # 1.x snapshots do not include evidence
@@ -824,7 +848,13 @@ class Snapshot(Entry):
             receipt_pos = entry_start_pos + self._header.size
             receipt_bytes = _peek_all(self._file, pos=receipt_pos)
 
-            receipt = json.loads(receipt_bytes.decode("utf-8"))
+            try:
+                receipt = json.loads(receipt_bytes.decode("utf-8"))
+            except json.decoder.JSONDecodeError as e:
+                raise InvalidSnapshotException(
+                    f"Cannot read receipt from snapshot {os.path.basename(self._filename)}: Receipt starts at {receipt_pos} (file is {self._file_size} bytes), and contains {receipt_bytes}"
+                ) from e
+
             # Receipts included in snapshots always contain leaf components,
             # including a claims digest and commit evidence, from 2.0.0-rc0 onwards.
             # This verification code deliberately does not support snapshots
@@ -1178,3 +1208,7 @@ class UntrustedNodeException(Exception):
 
 class UnknownTransaction(Exception):
     """The transaction at seqno does not exist in ledger"""
+
+
+class InvalidSnapshotException(Exception):
+    """The given snapshot file is invalid and cannot be parsed"""

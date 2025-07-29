@@ -15,11 +15,6 @@
 #include <doctest/doctest.h>
 #include <string>
 
-// Because snapshot serialisation is costly, the snapshotter serialises
-// snapshots asynchronously.
-std::unique_ptr<threading::ThreadMessaging>
-  threading::ThreadMessaging::singleton = nullptr;
-
 constexpr auto buffer_size = 1024 * 16;
 auto node_kp = ccf::crypto::make_key_pair();
 
@@ -395,7 +390,7 @@ TEST_CASE("Rollback before snapshot is committed")
     size_t snapshot_idx = network.tables->current_version();
 
     network.tables->set_flag(
-      ccf::kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
     REQUIRE_FALSE(record_signature(history, snapshotter, snapshot_idx));
     snapshotter->commit(snapshot_idx, true);
@@ -411,7 +406,7 @@ TEST_CASE("Rollback before snapshot is committed")
     REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
 
     REQUIRE(!network.tables->flag_enabled(
-      ccf::kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE));
+      ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
 
     // Commit evidence
     issue_transactions(network, 1);

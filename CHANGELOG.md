@@ -5,9 +5,105 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev2]
+
+[7.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev2
+
+### Changed
+
+- `cchost` is removed, and each application now provides its own executable:
+  - CCF nodes no longer contain a separate `cchost` executable and enclave library (`.so`) file. Each former enclave library is now its own executable, currently sharing the same set configuration format as the previous `cchost`.
+  - The `js_generic` sample app is no longer a library installed at `/ccf/lib/libjs_generic.so`, it is now an executable installed at `/ccf/bin/js_generic`.
+  - The `add_ccf_app` function in CMake now builds an executable rather than a library. The caller should provide a `main` function, and call `ccf::run()` from `include/ccf/run.h` to start the node (see `samples/apps/main.cpp` for a minimal example).
+- Application logging no longer traverses the ringbuffer. As current target platforms do not require distinct enclave and host components, what was previously "in-enclave" logging that was deferred via the ringbuffer can now be immediately sent to stdout.
+
+## [7.0.0-dev1]
+
+[7.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev1
+
+### Changed
+
+- CCF no longer has platform-specific builds. The single build configuration will run on both SNP and Virtual, automatically detecting the current platform at runtime. This means the `COMPILE_TARGET` CMake option is no longer required, and all release artifacts no longer have a platform in their path.
+- The `logging.host_level` configuration option and `--enclave-log-level` CLI switch are replaced by a combined `--log-level` CLI switch (#7104).
+- Drop support for `5.*` Linux kernels exposing `/dev/sev`. Only `6.*+` Linux kernels exposing `/dev/sev-guest` are now supported (#7109).
+
+### Removed
+
+- The `ccf/pal/hardware_info.h` header has been removed (#7117).
+
+## [7.0.0-dev0]
+
+[7.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev0
+
+### Removed
+
+- The classic governance API which was deprecated in 5.0.0 has now been removed. Any operations under `/gov` which do not take an `api-version` query parameter are no longer available.
+
+### Fixed
+
+- Improved error messages when failing to fetch collateral. (#7103)
+
+## [6.0.9]
+
+[6.0.9]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.9
+
+### Added
+
+- Add governance action that supports specifying minimum TCB versions in hexstring format. This is intended to be the default format going forward. (#7078)
+
+## [6.0.8]
+
+[6.0.8]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.8
+
+### Changed
+
+- The constitution's `apply()` function may now write directly to public application (ie - non-governance) tables. Note that this access is _write-only_, so these tables can still not be read from. (#7088)
+
+## [6.0.7]
+
+[6.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.7
+
+### Added
+
+- Reproducibility support for RPM releases: each release now includes a manifest and script to reproduce published RPM packages (#7063, #7069)
+- Documentation added for users to reproduce and verify CCF RPMs (#7072)
+
+## [6.0.6]
+
+[6.0.6]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.6
+
+### Added
+
+- Collateral can be fetched from AMD servers directly on Genoa machines (#7054).
+
+### Fixed
+
+- Addressed issues in `read_ledger` and `ccf.ledger` that could prevent old ledger from being read (#7056, #7057).
+
+## [6.0.5]
+
+[6.0.5]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.5
+
+### Fixed
+
+- Nodes will now avoid re-parsing `.committed` files in the main directory if they have established a later commit point in the `read_only` directories. This should significantly reduce start-up time for nodes with large existing ledgers.
+- Added support for validating Genoa attestations (#7051).
+
+### Changed
+
+- Allow `:` within regex matched templated URL components again, while still terminating matched segments correctly (#7046).
+
+### Dependencies
+
+- Updated didx509cpp to 0.11.0 (#7050).
+
 ## [6.0.4]
 
 [6.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.4
+
+### Fixed
+
+- CCF will no longer create in-progress snapshot files with a `.committed` suffix. It will only rename files to `.committed` when they are complete and ready for reading (#7029).
 
 ### Changed
 
@@ -1653,13 +1749,11 @@ Key-Value Store
 #### Certificate(s) Validity Period
 
 - Nodes certificates validity period is no longer hardcoded and must instead be set by operators and renewed by members (#2924):
-
   - The new `node_certificate.initial_validity_days` (defaults to 1 day) configuration entry lets operators set the initial validity period for the node certificate (valid from the current system time).
   - The new `command.start.service_configuration.maximum_node_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for node certificates.
   - The new `set_node_certificate_validity` proposal action allows members to renew a node certificate (or `set_all_nodes_certificate_validity` equivalent action to renew _all_ trusted nodes certificates).
 
 - Service certificate validity period is no longer hardcoded and must instead be set by operators and renewed by members (#3363):
-
   - The new `service_certificate_initial_validity_days` (defaults to 1 day) configuration entry lets operators set the initial validity period for the service certificate (valid from the current system time).
   - The new `maximum_service_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for service certificate.
   - The new `set_service_certificate_validity` proposal action allows members to renew the service certificate.
@@ -1940,13 +2034,11 @@ Key-Value Store
 #### Certificate(s) Validity Period
 
 - Nodes certificates validity period is no longer hardcoded and must instead be set by operators and renewed by members (#2924):
-
   - The new `node_certificate.initial_validity_days` (defaults to 1 day) configuration entry lets operators set the initial validity period for the node certificate (valid from the current system time).
   - The new `command.start.service_configuration.maximum_node_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for node certificates.
   - The new `set_node_certificate_validity` proposal action allows members to renew a node certificate (or `set_all_nodes_certificate_validity` equivalent action to renew _all_ trusted nodes certificates).
 
 - Service certificate validity period is no longer hardcoded and must instead be set by operators and renewed by members (#3363):
-
   - The new `service_certificate_initial_validity_days` (defaults to 1 day) configuration entry lets operators set the initial validity period for the service certificate (valid from the current system time).
   - The new `maximum_service_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for service certificate.
   - The new `set_service_certificate_validity` proposal action allows members to renew the service certificate.
@@ -2689,17 +2781,14 @@ The 1.0 release will require minimal changes from this release.
 ### Added
 
 - Experimental
-
   - New CCF nodes can now join from a [snapshot](https://microsoft.github.io/CCF/ccf-0.13.0/operators/start_network.html#resuming-from-existing-snapshot) (#1500, #1532)
   - New KV maps can now be created dynamically in a transaction (#1507, #1528)
 
 - CLI
-
   - Subject Name and Subject Alternative Names for the node certificates can now be passed to cchost using the --sn and --san CLI switches (#1537)
   - Signature and ledger splitting [flags](https://microsoft.github.io/CCF/ccf-0.13.0/operators/start_network.html#signature-interval) have been renamed more accurately (#1534)
 
 - Governance
-
   - `user_data` can be set at user creation, as well as later (#1488)
 
 - Javascript
@@ -3159,3 +3248,4 @@ Initial pre-release
 [3.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc0
 [3.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc2
 [5.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0
+[7.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev0
