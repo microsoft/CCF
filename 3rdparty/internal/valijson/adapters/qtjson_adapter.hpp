@@ -671,7 +671,7 @@ public:
 
 private:
 
-    /// Iternal copy of the original QtJson iterator
+    /// Internal copy of the original QtJson iterator
     QJsonObject::const_iterator m_itr;
 };
 

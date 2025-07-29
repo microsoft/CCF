@@ -94,8 +94,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/merklecpp",
-          "commitHash": "1a8a3a000c16fee62bc55d2efdb10d2ebd2b0173",
-          "tag": "v1.1.0"
+          "commitHash": "30d1dc7dc3b46b7da71124fb8df385a8b67ef59b",
+          "tag": "v1.1.1"
         }
       }
     },
@@ -104,8 +104,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/tristanpenman/valijson",
-          "commitHash": "fc9ddf14db683c9443c48ae3a6bf83e0ce3ad37c",
-          "tag": "v1.0.3"
+          "commitHash": "4edda758546436462da479bb8c8514f8a95c35ad",
+          "tag": "v1.0.6"
         }
       }
     },
@@ -114,8 +114,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/laurencelundblade/QCBOR",
-          "commitHash": "24cd62a415161c2851327e96a023b47bb0897e64",
-          "tag": "v1.5"
+          "commitHash": "4ace4620d549f22c1163c5b00d3ae0c0dae1d207",
+          "tag": "v1.5.3"
         }
       }
     },

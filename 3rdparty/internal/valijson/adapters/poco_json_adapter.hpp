@@ -665,7 +665,7 @@ public:
 
 private:
 
-    /// Iternal copy of the original PocoJson iterator
+    /// Internal copy of the original PocoJson iterator
     Poco::JSON::Object::ConstIterator m_itr;
 };
 
