@@ -403,9 +403,8 @@ endif()
 
 # Build common library for CCF enclaves
 set(CCF_IMPL_SOURCE
-    ${CCF_DIR}/src/enclave/main.cpp
-    ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/node/quote.cpp
-    ${CCF_DIR}/src/node/uvm_endorsements.cpp
+    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/thread_local.cpp
+    ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
 )
 
 add_ccf_static_library(
@@ -698,8 +697,7 @@ if(BUILD_TESTS)
     add_unit_test(
       frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
-      ${CCF_DIR}/src/node/quote.cpp
-      ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
       frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js

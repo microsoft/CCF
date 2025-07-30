@@ -260,7 +260,6 @@ namespace ccf
 
         last_tick_time = decltype(last_tick_time)::clock::now();
 
-        // TODO: Remove this entirely?
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp,
           AdminMessage::tick,
