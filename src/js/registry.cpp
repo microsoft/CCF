@@ -34,7 +34,6 @@
 #include "ccf/js/extensions/ccf/rpc.h"
 #include "ccf/js/interpreter_cache_interface.h"
 #include "ds/actors.h"
-#include "enclave/enclave_time.h"
 #include "js/modules/chained_module_loader.h"
 #include "js/modules/kv_bytecode_module_loader.h"
 #include "js/modules/kv_module_loader.h"
@@ -416,11 +415,8 @@ namespace ccf::js
     // Log execution metrics
     if (ctx.log_execution_metrics)
     {
-      const auto time_now = ccf::get_enclave_time();
-      // Although enclave time returns a microsecond value, the actual
-      // precision/granularity depends on the host's TimeUpdater. By default
-      // this only advances each millisecond. Avoid implying more precision
-      // than that, by rounding to milliseconds
+      const auto time_now = ccf::js::core::InterruptData::TClock::now();
+
       const auto exec_time =
         std::chrono::duration_cast<std::chrono::milliseconds>(
           time_now - ctx.interrupt_data.start_time);
