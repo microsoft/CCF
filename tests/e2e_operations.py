@@ -1475,6 +1475,15 @@ def run_self_healing_open(args):
             common_dir=network.common_dir,
         )
 
+        # Wait for the first node to be in RecoveryShares
+        for node in recovered_network.nodes[0:1]:
+            recovered_network.wait_for_statuses(
+                node,
+                ["WaitingForRecoveryShares", "Open"],
+                timeout=30,
+            )
+        recovered_network.consortium.recover_with_shares(recovered_network.find_random_node())
+
         # Wait for all replicas to report being part of the network
         for node in recovered_network.nodes():
             recovered_network.wait_for_state(
@@ -1525,6 +1534,15 @@ def run_self_healing_open_single_replica(args):
             common_dir=network.common_dir,
             start_all_nodes=False,
         )
+
+        # Wait for the first node to be in RecoveryShares
+        for node in recovered_network.nodes[0:1]:
+            recovered_network.wait_for_statuses(
+                node,
+                ["WaitingForRecoveryShares", "Open"],
+                timeout=30,
+            )
+        recovered_network.consortium.recover_with_shares(recovered_network.find_random_node())
 
         # Wait for all replicas to report being part of the network
         for node in recovered_network.nodes[0:1]:

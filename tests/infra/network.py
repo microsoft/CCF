@@ -1335,6 +1335,25 @@ class Network:
     def wait_for_state(self, node, state, timeout=3):
         self.wait_for_states(node, [state], timeout=timeout)
 
+    def wait_for_statuses(self, node, statuses, timeout=3):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+          try:
+            with node.client(connection_timeout=timeout) as c:
+              r = c.get("/node/network").body.json()
+              if r["service_status"] in statuses:
+                break
+          except ConnectionRefusedError:
+            pass
+          time.sleep(0.1)
+        else:
+          raise TimeoutError(
+            f"Timed out waiting for a network status in {statuses} on node {node.node_id}"
+          )
+    
+    def wait_for_status(self, node, status, timeout=3):
+        self.wait_for_statuses(node, [status], timeout=timeout)
+
     def _wait_for_app_open(self, node, timeout=3):
         end_time = time.time() + timeout
         logs = []

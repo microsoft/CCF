@@ -2192,20 +2192,32 @@ namespace ccf
               throw std::logic_error(
                 "We didn't even vote for ourselves, so why should we open?");
             }
-            LOG_INFO_FMT("******************************");
-            LOG_INFO_FMT(
-              "Self-healing-open suceeded we should open the network");
-            LOG_INFO_FMT("******************************");
+            LOG_INFO_FMT("Self-healing-open succeeded, now opening network");
 
             sm_state_handle->put(SelfHealingOpenSM::OPENING);
 
-            // TODO open the network
-            // have a utility function that kicks off the opening
+            auto* service = tx.ro<Service>(Tables::SERVICE);
+            auto service_info = service->get();
+            if (!service_info.has_value())
+            {
+              throw std::logic_error(
+                "Service information cannot be found to transition service to "
+                "open");
+            }
+            const auto prev_ident =
+              tx.ro<PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
+                ->get();
+            AbstractGovernanceEffects::ServiceIdentities identities{
+              .previous = prev_ident, .next = service_info->cert};
+
+            transition_service_to_open(tx, identities);
           }
           return;
         }
         case SelfHealingOpenSM::JOINING:
         {
+          LOG_INFO_FMT(
+            "Self-healing-open in JOINING state, but no logic implemented");
           // TODO restart in join
           return;
         }
