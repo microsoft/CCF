@@ -165,7 +165,6 @@ class Network:
     KEY_GEN = "keygenerator.sh"
     SHARE_SCRIPT = "submit_recovery_share.sh"
     node_args_to_forward = [
-        "enclave_platform",
         "log_level",
         "sig_tx_interval",
         "sig_ms_interval",

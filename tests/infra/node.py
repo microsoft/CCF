@@ -284,7 +284,6 @@ class Node:
         label,
         common_dir,
         members_info=None,
-        enclave_platform="sgx",
         enable_local_sealing=False,
         previous_sealed_ledger_secret_location=None,
         **kwargs,
@@ -306,7 +305,6 @@ class Node:
         self.common_dir = common_dir
         members_info = members_info or []
         self.label = label
-        self.enclave_platform = enclave_platform
         self.enable_local_sealing = enable_local_sealing
         if enable_local_sealing:
             self.sealed_ledger_secret_location = "sealed_ledger_secret"
@@ -335,7 +333,6 @@ class Node:
             version=self.version,
             major_version=self.major_version,
             node_data_json_file=self.initial_node_data_json_file,
-            enclave_platform=enclave_platform,
             enable_local_sealing=enable_local_sealing,
             sealed_ledger_secret_location=self.sealed_ledger_secret_location,
             previous_sealed_ledger_secret_location=previous_sealed_ledger_secret_location,
