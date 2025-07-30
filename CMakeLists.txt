@@ -790,31 +790,33 @@ if(BUILD_TESTS)
     )
   endif()
 
-  if(NOT (TSAN OR USE_LIBCXX))
-    # Picobench benchmarks
-    add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
-    add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
-    add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
-    add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
-    add_picobench(
-      crypto_bench
-      SRCS src/crypto/test/bench.cpp
-      LINK_LIBS
-    )
-    add_picobench(
-      history_bench
-      SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
-           ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
-      LINK_LIBS ccf_kv
-    )
+  if(NOT TSAN)
+    if(NOT USE_LIBCXX)
+      # Picobench benchmarks
+      add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
+      add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
+      add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
+      add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
+      add_picobench(
+        crypto_bench
+        SRCS src/crypto/test/bench.cpp
+        LINK_LIBS
+      )
+      add_picobench(
+        history_bench
+        SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
+        LINK_LIBS ccf_kv
+      )
 
-    add_picobench(
-      kv_bench
-      SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
-      LINK_LIBS ccf_kv
-    )
-    add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
-    add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
+      add_picobench(
+        kv_bench
+        SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
+        LINK_LIBS ccf_kv
+      )
+      add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
+      add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
+    endif()
 
     if(LONG_TESTS)
       set(ADDITIONAL_RECOVERY_ARGS --with-load --with-election
