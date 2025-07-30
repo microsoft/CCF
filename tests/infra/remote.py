@@ -358,6 +358,7 @@ class CCFRemote(object):
         self.node_address_file = f"{local_node_id}.node_address"
         self.rpc_addresses_file = f"{local_node_id}.rpc_addresses"
 
+        self.BIN = infra.path.build_bin_path(self.BIN, binary_dir=binary_dir)
         # 7.x releases combined binaries and removed the separate cchost entry-point
         if major_version is None or major_version >= 7:
             self.BIN = enclave_file
