@@ -547,7 +547,7 @@ class CCFRemote(object):
                 # Parse and re-emit output to produce consistently formatted (indented) JSON.
                 # This will also ensure the render produced valid JSON
                 j = json.loads(output)
-                
+
                 if major_version is None or major_version >= 7:
                     # Enclave config removed starting from 7.x onwards.
                     del j["enclave"]
