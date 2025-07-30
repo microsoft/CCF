@@ -3,11 +3,13 @@
 
 #include "tasks/task_system.h"
 
+#include "ccf/ds/logger.h"
 #include "tasks/job_board.h"
 #include "tasks/resumable.h"
 #include "tasks/task.h"
 
 #include <stdexcept>
+#include <uv.h>
 
 namespace ccf::tasks
 {
@@ -55,17 +57,65 @@ namespace ccf::tasks
     get_main_job_board().add_task(std::move(task));
   }
 
-  void add_task_after(Task task, std::chrono::milliseconds ms)
+  struct TaskLifetime
   {
-    // TODO: via uv_timer?
+    Task task;
+  };
+
+  static void uv_timer_cb(uv_timer_t* handle)
+  {
+    auto* lifetime = (TaskLifetime*)handle->data;
+    add_task(lifetime->task);
+
+    const auto repeat = uv_timer_get_repeat(handle);
+    if (repeat == 0)
+    {
+      delete lifetime;
+      delete handle;
+    }
+  }
+
+  void add_task_via_uv_callback(
+    Task task,
+    std::chrono::milliseconds initial_delay,
+    std::chrono::milliseconds repeat_period)
+  {
+    // TODO: The lifetime of this handle is rubbish. Can we make the caller
+    // responsible for it?
+    uv_timer_t* uv_handle = new uv_timer_t;
+
+    int rc;
+    rc = uv_timer_init(uv_default_loop(), uv_handle);
+    if (rc < 0)
+    {
+      LOG_FAIL_FMT("uv_timer_init failed: {}", uv_strerror(rc));
+      delete uv_handle;
+      throw std::logic_error("uv_timer_init failed");
+    }
+
+    uv_handle->data = new TaskLifetime{task};
+
+    rc = uv_timer_start(
+      uv_handle, uv_timer_cb, initial_delay.count(), repeat_period.count());
+    if (rc < 0)
+    {
+      LOG_FAIL_FMT("uv_timer_start failed: {}", uv_strerror(rc));
+      delete uv_handle;
+      throw std::logic_error("uv_timer_start failed");
+    }
+  }
+
+  void add_task_after(Task task, std::chrono::milliseconds delay)
+  {
+    add_task_via_uv_callback(task, delay, {});
   }
 
   void add_periodic_task(
     Task task,
     std::chrono::milliseconds initial_delay,
-    std::chrono::milliseconds perioidic_delay)
+    std::chrono::milliseconds repeat_period)
   {
-    // TODO: via uv_timer
+    add_task_via_uv_callback(task, initial_delay, repeat_period);
   }
 
   // From resumable.h

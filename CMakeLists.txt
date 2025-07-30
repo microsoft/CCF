@@ -310,7 +310,12 @@ add_ccf_static_library(
   LINK_LIBS qcbor t_cose http_parser ccfcrypto ccf_kv
 )
 
-add_ccf_static_library(ccf_tasks SRCS ${CCF_DIR}/src/tasks/task_system.cpp ${CCF_DIR}/src/tasks/job_board.cpp ${CCF_DIR}/src/tasks/ordered_tasks.cpp)
+add_ccf_static_library(
+  ccf_tasks
+  SRCS ${CCF_DIR}/src/tasks/task_system.cpp ${CCF_DIR}/src/tasks/job_board.cpp
+       ${CCF_DIR}/src/tasks/ordered_tasks.cpp
+  LINK_LIBS uv
+)
 
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS
@@ -666,7 +671,9 @@ if(BUILD_TESTS)
       snapshotter_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshotter.cpp
     )
-    target_link_libraries(snapshotter_test PRIVATE ccf_kv ccf_endpoints ccf_tasks)
+    target_link_libraries(
+      snapshotter_test PRIVATE ccf_kv ccf_endpoints ccf_tasks
+    )
 
     add_unit_test(
       node_info_json_test
@@ -719,8 +726,14 @@ if(BUILD_TESTS)
       ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
-                            ccf_endpoints ccfcrypto ccf_kv ccf_tasks
+      frontend_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser
+              ccf_js
+              ccf_endpoints
+              ccfcrypto
+              ccf_kv
+              ccf_tasks
     )
 
     add_unit_test(
