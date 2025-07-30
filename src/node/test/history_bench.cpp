@@ -158,7 +158,6 @@ PICOBENCH(append_compact<1000>).iterations(sizes).samples(10);
 int main(int argc, char* argv[])
 {
   ccf::logger::config::level() = ccf::LoggerLevel::FATAL;
-  ::threading::ThreadMessaging::init(1);
   ccf::crypto::openssl_sha256_init();
 
   picobench::runner runner;

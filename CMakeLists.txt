@@ -420,6 +420,7 @@ add_ccf_static_library(
             ccf_endpoints
             ccfcrypto
             ccf_kv
+            ccf_tasks
             nghttp2
             ${CMAKE_THREAD_LIBS_INIT}
 )
@@ -583,7 +584,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/committable_suffix.cpp
     )
-    target_link_libraries(raft_test PRIVATE ccfcrypto)
+    target_link_libraries(raft_test PRIVATE ccfcrypto ccf_tasks)
 
     add_unit_test(
       raft_enclave_test
@@ -719,7 +720,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
-                            ccf_endpoints ccfcrypto ccf_kv
+                            ccf_endpoints ccfcrypto ccf_kv ccf_tasks
     )
 
     add_unit_test(
@@ -772,7 +773,7 @@ if(BUILD_TESTS)
       raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
                   src/enclave/thread_local.cpp
     )
-    target_link_libraries(raft_driver PRIVATE ccfcrypto)
+    target_link_libraries(raft_driver PRIVATE ccfcrypto ccf_tasks)
     target_include_directories(raft_driver PRIVATE src/aft)
     target_compile_definitions(raft_driver PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
