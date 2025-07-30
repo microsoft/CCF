@@ -497,7 +497,8 @@ class CCFRemote(object):
             output = t.render(
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
-                enclave_platform=enclave_platform,  # Ignored, but paased for LTS compat
+                enclave_type="Release",  # Ignored, but passed for LTS compat
+                enclave_platform=enclave_platform,  # Ignored, but passed for LTS compat
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(
                     LocalRemote.make_host(host)
                 ),
