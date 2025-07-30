@@ -497,7 +497,6 @@ class CCFRemote(object):
             output = t.render(
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
-                enclave_type="Release",  # Ignored, but passed for LTS compat
                 enclave_platform=enclave_platform,  # Ignored, but passed for LTS compat
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(
                     LocalRemote.make_host(host)
@@ -548,9 +547,12 @@ class CCFRemote(object):
                 # This will also ensure the render produced valid JSON
                 j = json.loads(output)
 
-                if major_version is None or major_version >= 7:
-                    # Enclave config removed starting from 7.x onwards.
-                    del j["enclave"]
+                # Enclave config removed from 7.x onwards.
+                if major_version is not None and major_version < 7:
+                    j["enclave"] = {
+                        "type": "Release",
+                        "platform": enclave_platform,
+                    }
 
                 json.dump(j, f, indent=2)
 
