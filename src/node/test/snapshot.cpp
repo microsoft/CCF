@@ -178,7 +178,6 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
 int main(int argc, char** argv)
 {
-  threading::ThreadMessaging::init(1);
   ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
