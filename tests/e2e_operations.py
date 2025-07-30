@@ -1474,6 +1474,67 @@ def run_self_healing_open(args):
             committed_ledger_dirs=committed_ledger_dirs,
             common_dir=network.common_dir,
         )
+
+        # Wait for all replicas to report being part of the network
+        for node in recovered_network.nodes():
+            recovered_network.wait_for_state(
+                node,
+                infra.node.State.PART_OF_NETWORK.value,
+                timeout=10,
+            )
+            recovered_network._wait_for_app_open(node)
+
+        recovered_network.stop_all_nodes()
+
+def run_self_healing_open_single_replica(args):
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+    ) as network:
+        LOG.info("Start a network and stop it")
+        network.start_and_open(args)
+        old_common = infra.network.get_common_folder_name(args.workspace, args.label)
+        network.stop_all_nodes()
+
+        ledger_dirs = {}
+        committed_ledger_dirs = {}
+        for i, node in enumerate(network.nodes):
+            l, c = node.get_ledger()
+            ledger_dirs[i] = l
+            committed_ledger_dirs[i] = c
+
+        LOG.info("Start a recovery network and stop it")
+        recovered_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            args.perf_nodes,
+            existing_network=network,
+        )
+        args.previous_service_identity_file = os.path.join(
+            old_common, "service_cert.pem"
+        )
+
+        recovered_network.start_in_self_healing_open(
+            args,
+            ledger_dirs=ledger_dirs,
+            committed_ledger_dirs=committed_ledger_dirs,
+            common_dir=network.common_dir,
+            start_all_nodes=False,
+        )
+
+        # Wait for all replicas to report being part of the network
+        for node in recovered_network.nodes[0:1]:
+            recovered_network.wait_for_state(
+                node,
+                infra.node.State.PART_OF_NETWORK.value,
+                timeout=30,
+            )
+            recovered_network._wait_for_app_open(node)
+
         recovered_network.stop_all_nodes()
 
 def run_read_ledger_on_testdata(args):

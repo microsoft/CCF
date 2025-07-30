@@ -773,6 +773,7 @@ class Network:
         snapshot_dirs= None,
         common_dir=None,
         set_authenticate_session=None,
+        start_all_nodes=True,
         **kwargs,
     ):
         self.common_dir = common_dir or get_common_folder_name(
@@ -801,11 +802,52 @@ class Network:
         for node in self.nodes:
           LOG.info(node.host)
 
-        primary = self._start_all_nodes(
-            args,
-            recovery=True,
-            self_healing_open=True,
-            **kwargs,
+        self.status =  ServiceStatus.RECOVERING
+        LOG.debug(f"Opening CCF service on {self.hosts}")
+
+        forwarded_args = {
+            arg: getattr(args, arg, None)
+            for arg in infra.network.Network.node_args_to_forward
+        }
+        self_healing_open_addresses = [
+          node.get_public_rpc_address() for node in self.nodes
+        ]
+
+        for i, node in enumerate(self.nodes):
+          forwarded_args_with_overrides = forwarded_args.copy()
+          forwarded_args_with_overrides.update(
+              self.per_node_args_override.get(i, {})
+          )
+          if not start_all_nodes and i > 0:
+            break
+
+          try:
+              node_kwargs = {
+                  "lib_name": args.package,
+                  "workspace": args.workspace,
+                  "label": args.label,
+                  "common_dir": self.common_dir,
+              }
+              self_healing_open_kwargs = {"self_healing_open_addresses": self_healing_open_addresses}
+              # If a kwarg is passed in override automatically set variants
+              node_kwargs = node_kwargs | self_healing_open_kwargs | forwarded_args_with_overrides | kwargs
+              node.recover(**node_kwargs)
+              self.wait_for_state(
+                  node,
+                  infra.node.State.PART_OF_PUBLIC_NETWORK.value,
+                  timeout=args.ledger_recovery_timeout,
+              )
+          except Exception:
+              LOG.exception(f"Failed to start node {node.local_node_id}")
+              raise
+
+        self.election_duration = args.election_timeout_ms / 1000
+        self.observed_election_duration = self.election_duration + 1
+
+        LOG.info("All nodes started")
+
+        primary, _ = self.find_primary(
+            timeout=args.ledger_recovery_timeout
         )
 
         if set_authenticate_session is not None:

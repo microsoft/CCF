@@ -2484,7 +2484,7 @@ namespace ccf
         try
         {
           this->node_operation.self_healing_open_advance(
-            args.tx, node_configuration_subsystem->get().node_config, false);
+            args.tx, node_configuration_subsystem->get().node_config, true);
         }
         catch (const std::logic_error& e)
         {
@@ -2501,7 +2501,7 @@ namespace ccf
 
       make_endpoint(
         "/self_healing_open/timeout",
-        HTTP_POST,
+        HTTP_PUT,
         json_adapter(self_healing_open_timeout),
         {std::make_shared<NodeCertAuthnPolicy>()})
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
