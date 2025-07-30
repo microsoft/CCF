@@ -316,6 +316,38 @@ namespace ccf::curl
       }
       CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_URL, url.c_str());
 
+      if (!method.get_http_method().has_value())
+      {
+        throw std::logic_error(
+          fmt::format("Unsupported HTTP method: {}", method.c_str()));
+      }
+      switch (method.get_http_method().value())
+      {
+        case HTTP_GET:
+          CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPGET, 1L);
+          break;
+        case HTTP_HEAD:
+          CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_NOBODY, 1L);
+          break;
+        case HTTP_PUT: {
+          CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_UPLOAD, 1L);
+          if (request_body == nullptr)
+          {
+            // If no request body is provided, curl will try reading from stdin, which causes a blockage
+            request_body = std::make_unique<RequestBody>(std::vector<uint8_t>());
+          }
+        }
+          break;
+        case HTTP_POST:
+          // libcurl sets the post verb when CURLOPT_POSTFIELDS is set, so we
+          // skip doing so here, and we assume that the user has already set
+          // these fields
+          break;
+        default:
+          throw std::logic_error(
+            fmt::format("Unsupported HTTP method: {}", method.c_str()));
+      }
+
       if (request_body != nullptr)
       {
         request_body->attach_to_curl(curl_handle);
@@ -332,31 +364,6 @@ namespace ccf::curl
         CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPHEADER, headers.get());
       }
 
-      if (!method.get_http_method().has_value())
-      {
-        throw std::logic_error(
-          fmt::format("Unsupported HTTP method: {}", method.c_str()));
-      }
-      switch (method.get_http_method().value())
-      {
-        case HTTP_GET:
-          CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPGET, 1L);
-          break;
-        case HTTP_HEAD:
-          CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_NOBODY, 1L);
-          break;
-        case HTTP_PUT:
-          CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_UPLOAD, 1L);
-          break;
-        case HTTP_POST:
-          // libcurl sets the post verb when CURLOPT_POSTFIELDS is set, so we
-          // skip doing so here, and we assume that the user has already set
-          // these fields
-          break;
-        default:
-          throw std::logic_error(
-            fmt::format("Unsupported HTTP method: {}", method.c_str()));
-      }
     }
 
     void handle_response(CURLcode curl_response_code)
@@ -715,7 +722,6 @@ namespace ccf::curl
       std::lock_guard<std::recursive_mutex> lock(curlm_lock);
       curl_request_curlm.attach_curl_request(request);
     }
-
   };
 
   class CurlmLibuvContextSingleton
