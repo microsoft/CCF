@@ -26,8 +26,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/iboB/picobench.git",
-          "commitHash": "5f78fbd47e84af91c8e2409cba676577bd939ee7",
-          "tag": "v2.00"
+          "commitHash": "77b575e0a239de72b581ee8396166519db0d7c87",
+          "tag": "v2.08"
         }
       }
     },
@@ -36,8 +36,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/CLIUtils/CLI11.git",
-          "commitHash": "6c7b07a878ad834957b98d0f9ce1dbe0cb204fc9",
-          "tag": "v2.4.2"
+          "commitHash": "4160d259d961cd393fd8d67590a8c7d210207348",
+          "tag": "v2.5.0"
         }
       }
     },
@@ -46,8 +46,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "8303d140a1a11f19b982a9f664bbe59a1ccda3f4",
-          "tag": "11.1.2"
+          "commitHash": "40626af88bd7df9a5fb80be7b25ac85b122d6c21",
+          "tag": "11.2.0"
         }
       }
     },
