@@ -25,7 +25,10 @@ namespace ccf::tasks
     void do_task();
 
     virtual void do_task_implementation() = 0;
-    virtual std::string get_name() const = 0;
+    virtual std::string get_name() const
+    {
+      return "[Anon]";
+    }
 
     void cancel_task();
     bool is_cancelled();

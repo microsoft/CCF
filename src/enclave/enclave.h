@@ -410,6 +410,16 @@ namespace ccf
             thread_msg++;
           }
 
+          // Then, execute some tasks
+          ccf::tasks::Task task = ccf::tasks::get_main_job_board().get_task();
+          size_t tasks_done = 0;
+          while (task != nullptr && tasks_done < max_messages)
+          {
+            task->do_task();
+            ++tasks_done;
+            task = ccf::tasks::get_main_job_board().get_task();
+          }
+
           // If no messages were read from the ringbuffer and no thread
           // messages were executed, idle
           if (read == 0 && thread_msg == 0)

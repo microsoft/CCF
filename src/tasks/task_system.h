@@ -13,7 +13,15 @@ namespace ccf::tasks
   void add_task(Task task);
   void add_task_after(Task task, std::chrono::milliseconds ms);
 
-  void cancel_task(Task task);
+  void add_periodic_task(
+    Task task,
+    std::chrono::milliseconds initial_delay,
+    std::chrono::milliseconds perioidic_delay);
+
+  inline void add_periodic_task(Task task, std::chrono::milliseconds period)
+  {
+    add_periodic_task(task, period, period);
+  }
 
   // TODO: How to pass time to this central, delayed queueuer? Is
   // that a separate subsystem or something?

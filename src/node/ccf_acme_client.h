@@ -180,9 +180,10 @@ namespace ccf
       client->send_request(std::move(req));
     }
 
-    struct ACMEClientMsg
+    struct ACMEClientTask : public ccf::tasks::BaseTask,
+                            public std::enable_shared_from_this<ACMEClientTask>
     {
-      ACMEClientMsg(
+      ACMEClientTask(
         ACMEClient& client,
         const std::shared_ptr<ACMEChallengeHandler> handler,
         const std::string& token) :
@@ -193,6 +194,19 @@ namespace ccf
       ACMEClient& client;
       std::shared_ptr<ACMEChallengeHandler> handler;
       std::string token;
+
+      void do_task_implementation() override
+      {
+        if (handler->ready(token))
+        {
+          client.start_challenge(token);
+        }
+        else
+        {
+          ccf::tasks::add_task_after(
+            shared_from_this(), std::chrono::seconds(1));
+        }
+      }
     };
 
     virtual void on_challenge(
@@ -207,27 +221,9 @@ namespace ccf
 
       challenge_handler->token_responses[token] = response;
 
-      auto msg = std::make_unique<Tmsg<ACMEClientMsg>>(
-        [](std::unique_ptr<Tmsg<ACMEClientMsg>> msg) {
-          auto& client = msg->data.client;
-          auto& handler = msg->data.handler;
-          auto& token = msg->data.token;
-          if (handler->ready(token))
-          {
-            client.start_challenge(token);
-          }
-          else
-          {
-            ThreadMessaging::instance().add_task_after(
-              std::move(msg), std::chrono::seconds(1));
-          }
-        },
-        *this,
-        challenge_handler,
-        token);
-
-      ThreadMessaging::instance().add_task_after(
-        std::move(msg), std::chrono::seconds(1));
+      ccf::tasks::add_task_after(
+        std::make_shared<ACMEClientTask>(*this, challenge_handler, token),
+        std::chrono::seconds(1));
     }
 
     virtual void on_challenge_finished(const std::string& token) override

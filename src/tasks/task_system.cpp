@@ -60,9 +60,12 @@ namespace ccf::tasks
     // TODO: via uv_timer?
   }
 
-  void cancel_task(Task task)
+  void add_periodic_task(
+    Task task,
+    std::chrono::milliseconds initial_delay,
+    std::chrono::milliseconds perioidic_delay)
   {
-    // TODO: Is this needed? Or does caller have their own task->cancel()?
+    // TODO: via uv_timer
   }
 
   // From resumable.h

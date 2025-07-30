@@ -139,9 +139,8 @@ namespace ACME
             cit->second.challenge_url,
             [this, order_url = order.order_url, &challenge = cit->second](
               const ccf::http::HeaderMap& headers, const nlohmann::json& j) {
-              threading::ThreadMessaging::instance().add_task_after(
-                schedule_check_challenge(order_url, challenge),
-                std::chrono::milliseconds(0));
+              ccf::tasks::add_task(
+                make_challenge_wait_task(order_url, challenge));
               return true;
             });
         }
@@ -901,38 +900,36 @@ namespace ACME
       on_challenge(token, response);
     }
 
-    struct ChallengeWaitMsg
+    struct ChallengeWaitTask
+      : public ccf::tasks::BaseTask,
+        public std::enable_shared_from_this<ChallengeWaitTask>
     {
-      ChallengeWaitMsg(
+      ChallengeWaitTask(
         const std::string& order_url, Challenge challenge, Client* client) :
         order_url(order_url),
         challenge(challenge),
         client(client)
       {}
+
       std::string order_url;
       Challenge challenge;
       Client* client;
+
+      void do_task_implementation() override
+      {
+        if (client->check_challenge(order_url, challenge))
+        {
+          LOG_TRACE_FMT("ACME: scheduling next challenge check");
+          ccf::tasks::add_task_after(
+            shared_from_this(), std::chrono::seconds(5));
+        }
+      }
     };
 
-    std::unique_ptr<threading::Tmsg<ChallengeWaitMsg>> schedule_check_challenge(
+    std::shared_ptr<ChallengeWaitTask> make_challenge_wait_task(
       const std::string& order_url, Challenge& challenge)
     {
-      return std::make_unique<threading::Tmsg<ChallengeWaitMsg>>(
-        [](std::unique_ptr<threading::Tmsg<ChallengeWaitMsg>> msg) {
-          std::string& order_url = msg->data.order_url;
-          Challenge& challenge = msg->data.challenge;
-          Client* client = msg->data.client;
-
-          if (client->check_challenge(order_url, challenge))
-          {
-            LOG_TRACE_FMT("ACME: scheduling next challenge check");
-            threading::ThreadMessaging::instance().add_task_after(
-              std::move(msg), std::chrono::seconds(5));
-          }
-        },
-        order_url,
-        challenge,
-        this);
+      return std::make_shared<ChallengeWaitTask>(order_url, challenge, this);
     }
 
     bool check_challenge(
@@ -1084,33 +1081,32 @@ namespace ACME
       return true;
     }
 
-    struct FinalizationWaitMsg
+    struct FinalizationWaitTask
+      : public ccf::tasks::BaseTask,
+        public std::enable_shared_from_this<FinalizationWaitTask>
     {
-      FinalizationWaitMsg(const std::string& order_url, Client* client) :
+      FinalizationWaitTask(const std::string& order_url, Client* client) :
         order_url(order_url),
         client(client)
       {}
       std::string order_url;
       Client* client;
+
+      void do_task_implementation() override
+      {
+        if (client->check_finalization(order_url))
+        {
+          LOG_TRACE_FMT("ACME: scheduling next finalization check");
+          ccf::tasks::add_task_after(
+            shared_from_this(), std::chrono::seconds(5));
+        }
+      }
     };
 
-    std::unique_ptr<threading::Tmsg<FinalizationWaitMsg>>
-    schedule_check_finalization(const std::string& order_url)
+    std::shared_ptr<FinalizationWaitTask> make_check_finalization_task(
+      const std::string& order_url)
     {
-      return std::make_unique<threading::Tmsg<FinalizationWaitMsg>>(
-        [](std::unique_ptr<threading::Tmsg<FinalizationWaitMsg>> msg) {
-          Client* client = msg->data.client;
-          const std::string& order_url = msg->data.order_url;
-
-          if (client->check_finalization(order_url))
-          {
-            LOG_TRACE_FMT("ACME: scheduling next finalization check");
-            threading::ThreadMessaging::instance().add_task_after(
-              std::move(msg), std::chrono::seconds(5));
-          }
-        },
-        order_url,
-        this);
+      return std::make_shared<FinalizationWaitTask>(order_url, this);
     }
 
     virtual std::vector<uint8_t> get_service_csr()
@@ -1181,9 +1177,7 @@ namespace ACME
             else
             {
               LOG_TRACE_FMT("ACME: scheduling finalization check");
-              threading::ThreadMessaging::instance().add_task_after(
-                schedule_check_finalization(order_url),
-                std::chrono::milliseconds(0));
+              ccf::tasks::add_task(make_check_finalization_task(order_url));
             }
           });
       }

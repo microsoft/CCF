@@ -11,9 +11,14 @@ namespace ccf::tasks
 {
   struct ITaskAction
   {
+    virtual ~ITaskAction() = default;
+
     virtual void do_action() = 0;
 
-    virtual std::string get_name() const = 0;
+    virtual std::string get_name() const
+    {
+      return "[Anon]";
+    }
   };
 
   using TaskAction = std::shared_ptr<ITaskAction>;
@@ -47,10 +52,12 @@ namespace ccf::tasks
     return std::make_shared<BasicTaskAction>(std::forward<Ts>(ts)...);
   }
 
-  // Self-scheduling collection of in-order tasks. Tasks will be executed in the
-  // order they are added. To self-schedule, this instance will ensure that it
-  // is posted to the given JobBoard whenever more sub-tasks are available for
-  // execution.
+  // TODO: Juggle types here so that it's hard to make an OrderedTasks _not_
+  // owned by a shared ptr
+  // Self-scheduling collection of in-order tasks. Tasks
+  // will be executed in the order they are added. To self-schedule, this
+  // instance will ensure that it is posted to the given JobBoard whenever more
+  // sub-tasks are available for execution.
   class OrderedTasks : public BaseTask,
                        public std::enable_shared_from_this<OrderedTasks>
   {

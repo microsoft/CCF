@@ -3,8 +3,9 @@
 #pragma once
 
 #include "ccf/node/session.h"
-#include "ds/thread_messaging.h"
 #include "enclave/tls_session.h"
+#include "tasks/ordered_tasks.h"
+#include "tasks/task.h"
 #include "tcp/msg_types.h"
 
 #include <span>
@@ -15,20 +16,47 @@ namespace ccf
                           public std::enable_shared_from_this<ThreadedSession>
   {
   private:
-    size_t execution_thread;
+    std::shared_ptr<ccf::tasks::OrderedTasks> task_scheduler;
 
-    struct SendRecvMsg
+    struct SessionDataTask : public ccf::tasks::ITaskAction
     {
       std::vector<uint8_t> data;
       std::shared_ptr<ThreadedSession> self;
+
+      SessionDataTask(
+        std::span<const uint8_t> d, std::shared_ptr<ThreadedSession> s) :
+        self(s)
+      {
+        data.assign(d.begin(), d.end());
+      }
+    };
+
+    struct HandleIncomingDataTask : public SessionDataTask
+    {
+      using SessionDataTask::SessionDataTask;
+
+      void do_action() override
+      {
+        self->handle_incoming_data_thread(std::move(data));
+      }
+    };
+
+    struct SendDataTask : public SessionDataTask
+    {
+      using SessionDataTask::SessionDataTask;
+
+      void do_action() override
+      {
+        self->send_data_thread(std::move(data));
+      }
     };
 
   public:
-    ThreadedSession(int64_t thread_affinity)
+    ThreadedSession(int64_t session_id)
     {
-      execution_thread =
-        ::threading::ThreadMessaging::instance().get_execution_thread(
-          thread_affinity);
+      task_scheduler = std::make_shared<ccf::tasks::OrderedTasks>(
+        ccf::tasks::get_main_job_board(),
+        fmt::format("Session {}", session_id));
     }
 
     // Implement Session::handle_incoming_data by dispatching a thread message
@@ -37,19 +65,8 @@ namespace ccf
     {
       auto [_, body] = ringbuffer::read_message<::tcp::tcp_inbound>(data);
 
-      auto msg = std::make_unique<::threading::Tmsg<SendRecvMsg>>(
-        &handle_incoming_data_cb);
-      msg->data.self = this->shared_from_this();
-      msg->data.data.assign(body.data, body.data + body.size);
-
-      ::threading::ThreadMessaging::instance().add_task(
-        execution_thread, std::move(msg));
-    }
-
-    static void handle_incoming_data_cb(
-      std::unique_ptr<::threading::Tmsg<SendRecvMsg>> msg)
-    {
-      msg->data.self->handle_incoming_data_thread(std::move(msg->data.data));
+      task_scheduler->add_action(
+        std::make_shared<HandleIncomingDataTask>(body, shared_from_this()));
     }
 
     virtual void handle_incoming_data_thread(std::vector<uint8_t>&& data) = 0;
@@ -58,19 +75,8 @@ namespace ccf
     // that eventually invokes the virtual send_data_thread()
     void send_data(std::span<const uint8_t> data) override
     {
-      auto msg =
-        std::make_unique<::threading::Tmsg<SendRecvMsg>>(&send_data_cb);
-      msg->data.self = this->shared_from_this();
-      msg->data.data.assign(data.begin(), data.end());
-
-      ::threading::ThreadMessaging::instance().add_task(
-        execution_thread, std::move(msg));
-    }
-
-    static void send_data_cb(
-      std::unique_ptr<::threading::Tmsg<SendRecvMsg>> msg)
-    {
-      msg->data.self->send_data_thread(std::move(msg->data.data));
+      task_scheduler->add_action(
+        std::make_shared<SendDataTask>(data, shared_from_this()));
     }
 
     virtual void send_data_thread(std::vector<uint8_t>&& data) = 0;
