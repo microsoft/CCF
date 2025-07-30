@@ -301,7 +301,6 @@ class CCFRemote(object):
         service_data_json_file=None,
         snp_endorsements_servers=None,
         node_pid_file="node.pid",
-        enclave_platform="sgx",
         snp_uvm_security_context_dir=None,
         set_snp_uvm_security_context_dir_envvar=True,
         ignore_first_sigterm=False,
@@ -487,17 +486,8 @@ class CCFRemote(object):
                     previous_sealed_ledger_secret_location
                 )
 
-            enclave_platform = infra.platform_detection.get_platform()
-            enclave_platform = (
-                "Virtual"
-                if enclave_platform.lower() == "virtual"
-                else enclave_platform.upper()
-            )
-
             output = t.render(
                 start_type=start_type.name.title(),
-                enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
-                enclave_platform=enclave_platform,  # Ignored, but passed for LTS compat
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(
                     LocalRemote.make_host(host)
                 ),
@@ -549,6 +539,12 @@ class CCFRemote(object):
 
                 # Enclave config removed from 7.x onwards.
                 if major_version is not None and major_version < 7:
+                    enclave_platform = infra.platform_detection.get_platform()
+                    enclave_platform = (
+                        "Virtual"
+                        if enclave_platform.lower() == "virtual"
+                        else enclave_platform.upper()
+                    )
                     j["enclave"] = {
                         "type": "Release",
                         "platform": enclave_platform,
