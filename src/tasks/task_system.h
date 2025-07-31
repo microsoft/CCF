@@ -11,19 +11,13 @@ namespace ccf::tasks
   IJobBoard& get_main_job_board();
 
   void add_task(Task task);
-  void add_task_after(Task task, std::chrono::milliseconds ms);
+
+  void add_delayed_task(Task task, std::chrono::milliseconds delay);
 
   void add_periodic_task(
     Task task,
     std::chrono::milliseconds initial_delay,
-    std::chrono::milliseconds perioidic_delay);
+    std::chrono::milliseconds periodic_delay);
 
-  inline void add_periodic_task(Task task, std::chrono::milliseconds period)
-  {
-    add_periodic_task(task, period, period);
-  }
-
-  // TODO: How to pass time to this central, delayed queueuer? Is
-  // that a separate subsystem or something?
-  void tick();
+  void tick(std::chrono::milliseconds elapsed);
 }

@@ -57,57 +57,36 @@ namespace ccf::tasks
     get_main_job_board().add_task(std::move(task));
   }
 
-  struct TaskLifetime
+  struct DelayedTask
   {
     Task task;
+    std::optional<std::chrono::milliseconds> repeat = std::nullopt;
   };
 
-  static void uv_timer_cb(uv_timer_t* handle)
-  {
-    auto* lifetime = (TaskLifetime*)handle->data;
-    add_task(lifetime->task);
+  using DelayedTasks = std::vector<DelayedTask>;
 
-    const auto repeat = uv_timer_get_repeat(handle);
-    if (repeat == 0)
-    {
-      delete lifetime;
-      delete handle;
-    }
-  }
+  using DelayedTasksByTime = std::map<std::chrono::milliseconds, DelayedTasks>;
 
-  void add_task_via_uv_callback(
+  using namespace std::chrono_literals;
+  static std::atomic<std::chrono::milliseconds> total_elapsed = 0ms;
+
+  static DelayedTasksByTime delayed_tasks;
+  static std::mutex delayed_tasks_mutex;
+
+  void add_delayed_task(
     Task task,
     std::chrono::milliseconds initial_delay,
-    std::chrono::milliseconds repeat_period)
+    std::optional<std::chrono::milliseconds> periodic_delay)
   {
-    // TODO: The lifetime of this handle is rubbish. Can we make the caller
-    // responsible for it?
-    uv_timer_t* uv_handle = new uv_timer_t;
+    std::lock_guard<std::mutex> lock(delayed_tasks_mutex);
 
-    int rc;
-    rc = uv_timer_init(uv_default_loop(), uv_handle);
-    if (rc < 0)
-    {
-      LOG_FAIL_FMT("uv_timer_init failed: {}", uv_strerror(rc));
-      delete uv_handle;
-      throw std::logic_error("uv_timer_init failed");
-    }
-
-    uv_handle->data = new TaskLifetime{task};
-
-    rc = uv_timer_start(
-      uv_handle, uv_timer_cb, initial_delay.count(), repeat_period.count());
-    if (rc < 0)
-    {
-      LOG_FAIL_FMT("uv_timer_start failed: {}", uv_strerror(rc));
-      delete uv_handle;
-      throw std::logic_error("uv_timer_start failed");
-    }
+    const auto trigger_time = total_elapsed.load() + initial_delay;
+    delayed_tasks[trigger_time].emplace_back(task, periodic_delay);
   }
 
-  void add_task_after(Task task, std::chrono::milliseconds delay)
+  void add_delayed_task(Task task, std::chrono::milliseconds delay)
   {
-    add_task_via_uv_callback(task, delay, {});
+    add_delayed_task(task, delay, std::nullopt);
   }
 
   void add_periodic_task(
@@ -115,7 +94,49 @@ namespace ccf::tasks
     std::chrono::milliseconds initial_delay,
     std::chrono::milliseconds repeat_period)
   {
-    add_task_via_uv_callback(task, initial_delay, repeat_period);
+    add_delayed_task(task, initial_delay, repeat_period);
+  }
+
+  void tick(std::chrono::milliseconds elapsed)
+  {
+    elapsed += total_elapsed.load();
+
+    {
+      std::lock_guard<std::mutex> lock(delayed_tasks_mutex);
+      auto end_it = delayed_tasks.upper_bound(elapsed);
+
+      DelayedTasksByTime repeats;
+
+      for (auto it = delayed_tasks.begin(); it != end_it; ++it)
+      {
+        DelayedTasks& ready = it->second;
+
+        for (DelayedTask& dt : ready)
+        {
+          // Don't schedule (or repeat) cancelled tasks
+          if (dt.task->is_cancelled())
+          {
+            continue;
+          }
+
+          add_task(dt.task);
+          if (dt.repeat.has_value())
+          {
+            repeats[elapsed + dt.repeat.value()].emplace_back(dt);
+          }
+        }
+      }
+
+      delayed_tasks.erase(delayed_tasks.begin(), end_it);
+
+      for (auto&& [k, v] : repeats)
+      {
+        DelayedTasks& dts = delayed_tasks[k];
+        dts.insert(dts.end(), v.begin(), v.end());
+      }
+    }
+
+    total_elapsed.store(elapsed);
   }
 
   // From resumable.h
