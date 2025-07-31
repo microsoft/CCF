@@ -1,9 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.e2e_args
+
 import infra.network
-import infra.proc
-import infra.remote
 import infra.crypto
 import ccf.ledger
 import infra.doc
@@ -16,8 +14,9 @@ from loguru import logger as LOG
 import suite.test_requirements as reqs
 import ccf.read_ledger
 import infra.logging_app as app
-import infra.signing
 from ccf.tx_id import TxID
+from ccf.cose import cert_fingerprint
+import cwt
 
 
 def check_operations(ledger, operations):
@@ -68,20 +67,26 @@ def check_operations(ledger, operations):
                     assert member_id in members
                     cert = members[member_id]
 
-                    msg = infra.signing.verify_cose_sign1(
-                        base64.b64decode(cose_sign1), cert.decode()
+                    cose_ctx = cwt.COSE.new()
+                    cert_pem = cert.decode()
+                    cose_key = cwt.COSEKey.from_pem(
+                        cert_pem, kid=cert_fingerprint(cert_pem)
                     )
-                    assert "ccf.gov.msg.type" in msg.phdr
-                    msg_type = msg.phdr["ccf.gov.msg.type"]
+                    phdr, uhdr, payload = cose_ctx.decode_with_headers(
+                        base64.b64decode(cose_sign1), cose_key
+                    )
+
+                    assert "ccf.gov.msg.type" in phdr
+                    msg_type = phdr["ccf.gov.msg.type"]
                     if msg_type == "ballot":
                         op = (
-                            msg.phdr["ccf.gov.msg.proposal_id"],
+                            phdr["ccf.gov.msg.proposal_id"],
                             member_id.decode(),
                             "vote",
                         )
                     elif msg_type == "withdrawal":
                         op = (
-                            msg.phdr["ccf.gov.msg.proposal_id"],
+                            phdr["ccf.gov.msg.proposal_id"],
                             member_id.decode(),
                             "withdraw",
                         )
@@ -89,7 +94,7 @@ def check_operations(ledger, operations):
                         (proposal_id,) = tables["public:ccf.gov.proposals"].keys()
                         op = (proposal_id.decode(), member_id.decode(), "propose")
                     else:
-                        assert False, msg
+                        assert False, (phdr, uhdr, payload)
 
                     if op in operations:
                         operations.remove(op)
