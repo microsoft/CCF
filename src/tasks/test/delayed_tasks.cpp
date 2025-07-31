@@ -63,6 +63,17 @@ TEST_CASE("DelayedTasks" * doctest::test_suite("delayed_tasks"))
   }
 }
 
+void do_all_tasks()
+{
+  auto& job_board = ccf::tasks::get_main_job_board();
+  auto task = job_board.get_task();
+  while (task != nullptr)
+  {
+    task->do_task();
+    task = job_board.get_task();
+  }
+}
+
 TEST_CASE("ExplicitTicks" * doctest::test_suite("delayed_tasks"))
 {
   std::atomic<bool> a = false;
@@ -77,18 +88,7 @@ TEST_CASE("ExplicitTicks" * doctest::test_suite("delayed_tasks"))
   ccf::tasks::add_periodic_task(set_a, 5ms, 5ms);
   ccf::tasks::add_periodic_task(set_b, 7ms, 8ms);
   ccf::tasks::add_delayed_task(set_c, 20ms);
-
-  auto do_all_tasks = []() {
-    auto& job_board = ccf::tasks::get_main_job_board();
-    auto task = job_board.get_task();
-    while (task != nullptr)
-    {
-      task->do_task();
-      task = job_board.get_task();
-    }
-  };
-
-  auto do_all_check_and_reset = [&do_all_tasks, &a, &b, &c](
+  auto do_all_check_and_reset = [&a, &b, &c](
                                   std::string_view label,
                                   bool expected_a,
                                   bool expected_b,
@@ -159,4 +159,25 @@ TEST_CASE("ExplicitTicks" * doctest::test_suite("delayed_tasks"))
 
   ccf::tasks::tick(3ms);
   do_all_check_and_reset("34ms", false, true, false);
+}
+
+TEST_CASE("TickEnqueue" * doctest::test_suite("delayed_tasks"))
+{
+  INFO(
+    "Each tick will only trigger a single instance of a task, even if multiple "
+    "periods have elapsed");
+
+  std::atomic<size_t> n = 0;
+
+  auto incrementer = ccf::tasks::make_basic_task([&n]() { ++n; });
+
+  using namespace std::chrono_literals;
+  ccf::tasks::add_periodic_task(incrementer, 1ms, 1ms);
+
+  REQUIRE(n == 0);
+  ccf::tasks::tick(100ms);
+  do_all_tasks();
+  REQUIRE(n == 1);
+  do_all_tasks();
+  REQUIRE(n == 1);
 }
