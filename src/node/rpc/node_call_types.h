@@ -74,6 +74,8 @@ namespace ccf
 
       // Only set on genesis transaction, but not on recovery
       std::optional<StartupConfig::Start> genesis_info = std::nullopt;
+      // Constitution to set on recovery
+      std::optional<std::string> recovery_constitution = std::nullopt;
     };
   };
 

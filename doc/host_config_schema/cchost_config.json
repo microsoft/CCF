@@ -414,6 +414,13 @@
                   "previous_service_identity_file": {
                     "type": "string",
                     "description": "Path to the previous service certificate (PEM) file"
+                  },
+                  "constitution_files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "List of constitution files. These typically include actions.js, validate.js, resolve.js and apply.js"
                   }
                 },
                 "required": ["previous_service_identity_file"],

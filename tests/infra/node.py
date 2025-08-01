@@ -286,6 +286,7 @@ class Node:
         common_dir,
         members_info=None,
         enclave_platform="sgx",
+        recovery_constitution_files=None,
         **kwargs,
     ):
         """
@@ -298,6 +299,8 @@ class Node:
         self.common_dir = common_dir
         members_info = members_info or []
         self.label = label
+
+        self.recovery_constitution_files = recovery_constitution_files or []
 
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         self.remote = infra.remote.CCFRemote(
@@ -321,6 +324,7 @@ class Node:
             major_version=self.major_version,
             node_data_json_file=self.initial_node_data_json_file,
             enclave_platform=enclave_platform,
+            recovery_constitution_files=recovery_constitution_files,
             **kwargs,
         )
         self.remote.setup()

@@ -675,6 +675,26 @@ int main(int argc, char** argv)
       }
       LOG_INFO_FMT("Reading previous service identity from {}", idf);
       startup_config.recover.previous_service_identity = files::slurp(idf);
+
+      if (!config.command.recover.constitution_files.empty())
+      {
+        LOG_INFO_FMT(
+          "Reading [{}] constitution file(s) for recovery",
+          fmt::join(config.command.recover.constitution_files, ", "));
+        startup_config.recover.constitution = "";
+        for (const auto& constitution_path :
+             config.command.recover.constitution_files)
+        {
+          // Separate with single newlines
+          if (!startup_config.recover.constitution->empty())
+          {
+            startup_config.recover.constitution.value() += '\n';
+          }
+
+          startup_config.recover.constitution.value() +=
+            files::slurp_string(constitution_path);
+        }
+      }
     }
     else
     {

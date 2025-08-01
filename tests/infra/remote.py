@@ -631,6 +631,7 @@ class CCFRemote(object):
         snp_uvm_endorsements_file=None,
         service_subject_name="CN=CCF Test Service",
         historical_cache_soft_limit=None,
+        recovery_constitution_files=None,
         **kwargs,
     ):
         """
@@ -823,6 +824,7 @@ class CCFRemote(object):
                 snp_uvm_endorsements_file=snp_uvm_endorsements_file,
                 service_subject_name=service_subject_name,
                 historical_cache_soft_limit=historical_cache_soft_limit,
+                recovery_constitution_files=recovery_constitution_files or [],
                 **kwargs,
             )
 
