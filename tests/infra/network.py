@@ -204,6 +204,7 @@ class Network:
         "idle_connection_timeout_s",
         "enable_local_sealing",
         "previous_sealed_ledger_secret_location",
+        "recovery_constitution_files"
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
