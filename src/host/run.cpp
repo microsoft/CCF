@@ -799,21 +799,24 @@ namespace ccf
         LOG_INFO_FMT("Reading previous service identity from {}", idf);
         startup_config.recover.previous_service_identity = files::slurp(idf);
 
-        LOG_INFO_FMT(
-          "Reading [{}] constitution file(s) for recovery",
-          fmt::join(config.command.recover.constitution_files, ", "));
-        startup_config.recover.constitution = "";
-        for (const auto& constitution_path :
-             config.command.recover.constitution_files)
+        if (!config.command.recover.constitution_files.empty())
         {
-          // Separate with single newlines
-          if (!startup_config.recover.constitution->empty())
+          LOG_INFO_FMT(
+            "Reading [{}] constitution file(s) for recovery",
+            fmt::join(config.command.recover.constitution_files, ", "));
+          startup_config.recover.constitution = "";
+          for (const auto& constitution_path :
+               config.command.recover.constitution_files)
           {
-            startup_config.recover.constitution.value() += '\n';
-          }
+            // Separate with single newlines
+            if (!startup_config.recover.constitution->empty())
+            {
+              startup_config.recover.constitution.value() += '\n';
+            }
 
-          startup_config.recover.constitution.value() +=
-            files::slurp_string(constitution_path);
+            startup_config.recover.constitution.value() +=
+              files::slurp_string(constitution_path);
+          }
         }
 
         if (config.command.recover.previous_sealed_ledger_secret_location
