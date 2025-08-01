@@ -137,7 +137,7 @@ class CCFPolyfill implements CCF {
           .toLowerCase();
         const hmac = jscrypto.createHmac(hashAlg, key);
         hmac.update(new Uint8Array(data));
-        return hmac.digest();
+        return nodeBufToArrBuf(hmac.digest());
       }
       let padding = undefined;
       const privKey = jscrypto.createPrivateKey(key);
@@ -159,17 +159,17 @@ class CCFPolyfill implements CCF {
         throw new Error("unrecognized signing algorithm");
       }
       if (algorithm.name === "EdDSA") {
-        return jscrypto.sign(null, new Uint8Array(data), privKey);
+        return nodeBufToArrBuf(jscrypto.sign(null, new Uint8Array(data), privKey));
       }
       const hashAlg = (algorithm.hash as string).replace("-", "").toLowerCase();
       const signer = jscrypto.createSign(hashAlg);
       signer.update(new Uint8Array(data));
-      return signer.sign({
+      return nodeBufToArrBuf(signer.sign({
         key: privKey,
         dsaEncoding: "ieee-p1363",
         padding: padding,
         saltLength: algorithm.saltLength ?? 0,
-      });
+      }));
     },
     verifySignature(
       algorithm: SigningAlgorithm,
@@ -651,7 +651,17 @@ function nodeBufToArrBuf(buf: Buffer): ArrayBuffer {
 }
 
 function typedArrToArrBuf(ta: ArrayBufferView) {
-  return ta.buffer.slice(ta.byteOffset, ta.byteOffset + ta.byteLength);
+  const sliced = ta.buffer.slice(ta.byteOffset, ta.byteOffset + ta.byteLength);
+  // Ensure we return an ArrayBuffer, not a SharedArrayBuffer
+  if (sliced instanceof ArrayBuffer) {
+    return sliced;
+  } else {
+    // If it's a SharedArrayBuffer, copy it to an ArrayBuffer
+    const sharedBuffer = sliced as SharedArrayBuffer;
+    const arrayBuffer = new ArrayBuffer(sharedBuffer.byteLength);
+    new Uint8Array(arrayBuffer).set(new Uint8Array(sharedBuffer));
+    return arrayBuffer;
+  }
 }
 
 function base64(buf: ArrayBuffer): string {

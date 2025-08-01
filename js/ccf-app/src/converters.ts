@@ -257,7 +257,17 @@ export interface TypedArrayConstructor<T extends TypedArray> {
 class TypedArrayConverter<T extends TypedArray> implements DataConverter<T> {
   constructor(private clazz: TypedArrayConstructor<T>) {}
   encode(val: T): ArrayBuffer {
-    return val.buffer.slice(val.byteOffset, val.byteOffset + val.byteLength);
+    const sliced = val.buffer.slice(val.byteOffset, val.byteOffset + val.byteLength);
+    // Ensure we return an ArrayBuffer, not a SharedArrayBuffer
+    if (sliced instanceof ArrayBuffer) {
+      return sliced;
+    } else {
+      // If it's a SharedArrayBuffer, copy it to an ArrayBuffer
+      const sharedBuffer = sliced as SharedArrayBuffer;
+      const arrayBuffer = new ArrayBuffer(sharedBuffer.byteLength);
+      new Uint8Array(arrayBuffer).set(new Uint8Array(sharedBuffer));
+      return arrayBuffer;
+    }
   }
   decode(buf: ArrayBuffer): T {
     return new this.clazz(buf);
