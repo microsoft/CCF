@@ -116,9 +116,9 @@ namespace ccf
     }
 
     void self_healing_open_advance(
-      ccf::kv::Tx& tx, const ccf::StartupConfig& startup_config, bool is_recovery) override
+      ccf::kv::Tx& tx,  bool is_recovery) override
     {
-      impl.self_healing_open_advance(tx, startup_config, is_recovery);
+      impl.self_healing_open_advance(tx, is_recovery);
     }
   };
 }

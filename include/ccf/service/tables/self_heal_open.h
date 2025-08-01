@@ -15,6 +15,7 @@ struct SelfHealingOpenNodeInfo_t
   ccf::QuoteInfo quote_info;
   std::string published_network_address;
   std::vector<uint8_t> cert_der;
+  std::string service_identity;
   IntrinsicIdentifier intrinsic_id;
 };
 
@@ -24,6 +25,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   quote_info,
   published_network_address,
   cert_der,
+  service_identity,
   intrinsic_id);
 
 enum class SelfHealingOpenSM

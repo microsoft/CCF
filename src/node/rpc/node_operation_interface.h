@@ -64,6 +64,6 @@ namespace ccf
 
     virtual void self_healing_open_try_start_timers(ccf::kv::Tx& tx, bool recovering) = 0;
     virtual void self_healing_open_advance(
-      ccf::kv::Tx&, const ccf::StartupConfig&, bool) = 0;
+      ccf::kv::Tx&, bool) = 0;
   };
 }

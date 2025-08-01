@@ -145,6 +145,10 @@ namespace host
           std::nullopt;
         ccf::ds::TimeString self_healing_open_retry_timeout = {"100ms"};
         ccf::ds::TimeString self_healing_open_timeout = {"2000ms"};
+        std::string self_healing_open_join_config_file =
+          "self_healing_open_join_config.json";
+        std::string self_healing_open_join_service_identity_file =
+          "self_healing_open_join_service_identity.pem";
         bool operator==(const Recover&) const = default;
       };
       Recover recover = {};

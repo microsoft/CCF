@@ -28,6 +28,7 @@
 #include "enclave.h"
 #include "handle_ring_buffer.h"
 #include "host/env.h"
+#include "host/self_healing_open.h"
 #include "http/curl.h"
 #include "json_schema.h"
 #include "lfs_file_handler.h"
@@ -541,6 +542,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     rpc_udp->behaviour.register_udp_message_handlers(
       buffer_processor.get_dispatcher());
 
+    ccf::SelfHealingOpenSingleton::initialise(writer_factory);
+
     ResolvedAddresses resolved_rpc_addresses;
     for (auto& [name, interface] : config.network.rpc_interfaces)
     {
@@ -1014,6 +1017,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   while ((uv_loop_alive(uv_default_loop()) != 0) && (close_iterations > 0))
   {
     uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+    const uint millisecond = 1000;
+    usleep(millisecond);
     close_iterations--;
   }
   LOG_INFO_FMT(
@@ -1027,5 +1032,66 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   }
   ccf::crypto::openssl_sha256_shutdown();
 
-  return loop_close_rc;
+  if (!ccf::SelfHealingOpenSingleton::instance()->join_info.has_value())
+  {
+    return loop_close_rc;
+  }
+
+  auto join_info = ccf::SelfHealingOpenSingleton::instance()->join_info.value();
+  LOG_INFO_FMT(
+    "Self-healing open URL: {}, {}",
+    join_info.url,
+    ccf::ds::to_hex(join_info.service_identity));
+
+  files::dump(
+    join_info.service_identity,
+    config.command.recover.self_healing_open_join_service_identity_file);
+
+  host::CCHostConfig::Command::Join join_config;
+  join_config.target_rpc_address = join_info.url;
+
+  host::CCHostConfig::Command command_config;
+  command_config.type = StartType::Join;
+  command_config.service_certificate_file =
+    config.command.recover.self_healing_open_join_service_identity_file;
+  command_config.join = join_config;
+
+  auto new_config_json = config_json;
+  new_config_json["command"] = command_config;
+  new_config_json["output_files"]["pid_file"] =
+    "self_healing_open_join.pid";
+
+  files::dump(
+    new_config_json.dump(),
+    config.command.recover.self_healing_open_join_config_file);
+
+  std::vector<const char*> new_argv{
+    argv[0], // The executable name
+    "--config",
+    config.command.recover.self_healing_open_join_config_file.c_str(),
+    "--log-level",
+    ccf::logger::to_string(log_level),
+    "--enclave-file",
+    enclave_file_path.c_str(),
+  };
+
+  std::string cmd = fmt::format("\"{}\"", fmt::join(new_argv, "\" \""));
+  LOG_INFO_FMT("Joining network via an exec of: {}", cmd);
+
+  // null terminator for execve
+  new_argv.push_back(nullptr);
+
+  if (fflush(stdout) != 0)
+  {
+    LOG_FAIL_FMT("Failed to flush stdout");
+  }
+  if (fflush(stderr) != 0)
+  {
+    LOG_FAIL_FMT("Failed to flush stderr");
+  }
+
+  int rc = execve(argv[0], const_cast<char* const*>(new_argv.data()), environ);
+
+  LOG_FAIL_FMT("Failed to execve new process: {}. Exiting.", strerror(rc));
+  return 1;
 }

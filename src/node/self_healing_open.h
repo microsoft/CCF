@@ -21,10 +21,15 @@ namespace ccf::self_healing_open
     QuoteInfo quote_info;
     std::string published_network_address;
     std::string intrinsic_id;
+    std::string service_identity;
   };
   DECLARE_JSON_TYPE(RequestNodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(
-    RequestNodeInfo, quote_info, published_network_address, intrinsic_id);
+    RequestNodeInfo,
+    quote_info,
+    published_network_address,
+    intrinsic_id,
+    service_identity);
 
   struct GossipRequest
   {
@@ -70,7 +75,7 @@ namespace ccf::self_healing_open
 
     curl_handle.set_blob_opt(
       CURLOPT_SSLKEY_BLOB, privkey_pem.data(), privkey_pem.size());
-      curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
+    curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
 
     auto url = fmt::format(
       "https://{}/{}/self_healing_open/{}",

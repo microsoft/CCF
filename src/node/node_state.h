@@ -31,8 +31,10 @@
 #include "crypto/certs.h"
 #include "ds/ccf_assert.h"
 #include "ds/files.h"
+#include "ds/ring_buffer_types.h"
 #include "ds/state_machine.h"
 #include "ds/thread_messaging.h"
+#include "enclave/interface.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
@@ -2131,10 +2133,7 @@ namespace ccf
         std::move(timeout_msg), config.recover.self_healing_open_timeout);
     }
 
-    void self_healing_open_advance(
-      ccf::kv::Tx& tx,
-      const ccf::StartupConfig& node_config,
-      bool timeout) override
+    void self_healing_open_advance(ccf::kv::Tx& tx, bool timeout) override
     {
       auto* sm_state_handle = tx.rw(network.self_healing_open_sm_state);
       if (!sm_state_handle->get().has_value())
@@ -2150,7 +2149,7 @@ namespace ccf
           auto* gossip_handle = tx.ro(network.self_healing_open_gossip);
           if (
             gossip_handle->size() ==
-              node_config.recover.self_healing_open_addresses.value().size() ||
+              config.recover.self_healing_open_addresses.value().size() ||
             timeout)
           {
             if (gossip_handle->size() == 0)
@@ -2182,8 +2181,7 @@ namespace ccf
           auto* votes = tx.rw(network.self_healing_open_votes);
           if (
             votes->size() >=
-              node_config.recover.self_healing_open_addresses.value().size() /
-                  2 +
+              config.recover.self_healing_open_addresses.value().size() / 2 +
                 1 ||
             timeout)
           {
@@ -2216,15 +2214,37 @@ namespace ccf
         }
         case SelfHealingOpenSM::JOINING:
         {
+          auto chosen_replica =
+            tx.ro(network.self_healing_open_chosen_replica)->get();
+          if (!chosen_replica.has_value())
+          {
+            throw std::logic_error(
+              "Self-healing-open chosen node not set, cannot join");
+          }
+          auto node_config = tx.ro(this->network.self_healing_open_node_info)
+                               ->get(chosen_replica.value());
+          if (!node_config.has_value())
+          {
+            throw std::logic_error(fmt::format(
+              "Self-healing-open chosen node {} not found",
+              chosen_replica.value()));
+          }
+
           LOG_INFO_FMT(
-            "Self-healing-open in JOINING state, but no logic implemented");
-          // TODO restart in join
-          return;
+            "Self-healing-open joining {} with service identity {}",
+            node_config->published_network_address,
+            node_config->service_identity);
+
+          RINGBUFFER_WRITE_MESSAGE(
+            AdminMessage::restart_and_join,
+            to_host,
+            node_config->published_network_address,
+            node_config->service_identity);
         }
         case SelfHealingOpenSM::OPENING:
         case SelfHealingOpenSM::OPEN:
         {
-          // Nothing to do here, we are already opening or open
+          // Nothing to do here, we are already opening or open or joining
           return;
         }
         default:
@@ -3168,6 +3188,20 @@ namespace ccf
         max_version);
     }
 
+    self_healing_open::RequestNodeInfo self_healing_open_node_info()
+    {
+      return {
+        .quote_info = quote_info,
+        .published_network_address =
+          config.network.rpc_interfaces.at("primary_rpc_interface")
+            .published_address,
+        .intrinsic_id =
+          config.network.rpc_interfaces.at("primary_rpc_interface")
+            .published_address,
+        .service_identity = network.identity->cert.str(),
+      };
+    }
+
     void self_healing_open_gossip_unsafe()
     {
       // Caller must ensure that the current node's quote_info is populated:
@@ -3182,16 +3216,7 @@ namespace ccf
       LOG_TRACE_FMT("Broadcasting self-healing-open gossip");
 
       self_healing_open::GossipRequest request{
-        .info =
-          self_healing_open::RequestNodeInfo{
-            .quote_info = quote_info,
-            .published_network_address =
-              config.network.rpc_interfaces.at("primary_rpc_interface")
-                .published_address,
-            .intrinsic_id =
-              config.network.rpc_interfaces.at("primary_rpc_interface")
-                .published_address,
-          },
+        .info = self_healing_open_node_info(),
         // TODO fix: This isn't quite right, as it should be the highest txid
         // with a signature,before the recovery txs
         .txid = network.tables->current_version(),
@@ -3219,15 +3244,7 @@ namespace ccf
         node_info.published_network_address);
 
       self_healing_open::VoteRequest request{
-        .info = self_healing_open::RequestNodeInfo{
-          .quote_info = quote_info,
-          .published_network_address =
-            config.network.rpc_interfaces.at("primary_rpc_interface")
-              .published_address,
-          .intrinsic_id =
-            config.network.rpc_interfaces.at("primary_rpc_interface")
-              .published_address,
-        }};
+        .info = self_healing_open_node_info()};
 
       self_healing_open::dispatch_authenticated_message(
         std::move(request),
@@ -3251,15 +3268,7 @@ namespace ccf
       LOG_TRACE_FMT("Sending self-healing-open iamopen");
 
       self_healing_open::IAmOpenRequest request{
-        .info = self_healing_open::RequestNodeInfo{
-          .quote_info = quote_info,
-          .published_network_address =
-            config.network.rpc_interfaces.at("primary_rpc_interface")
-              .published_address,
-          .intrinsic_id =
-            config.network.rpc_interfaces.at("primary_rpc_interface")
-              .published_address,
-        }};
+        .info = self_healing_open_node_info()};
 
       for (auto& target_address :
            config.recover.self_healing_open_addresses.value())

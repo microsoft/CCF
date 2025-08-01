@@ -117,7 +117,7 @@ namespace ccf
     }
 
     void self_healing_open_advance(
-      ccf::kv::Tx& tx, const ccf::StartupConfig& config, bool timeout) override
+      ccf::kv::Tx& tx, bool timeout) override
     {
       // No-op for stub
     }

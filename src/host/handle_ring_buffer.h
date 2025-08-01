@@ -5,6 +5,8 @@
 #include "../ds/files.h"
 #include "../enclave/interface.h"
 #include "ccf/ds/logger.h"
+#include "ds/non_blocking.h"
+#include "self_healing_open.h"
 #include "timer.h"
 
 #include <chrono>
@@ -98,6 +100,15 @@ namespace asynchost
         bp, AdminMessage::stopped, [](const uint8_t*, size_t) {
           uv_stop(uv_default_loop());
           LOG_INFO_FMT("Host stopped successfully");
+        });
+
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        bp,
+        AdminMessage::restart_and_join,
+        [&](const uint8_t* data, size_t size) {
+          auto [url, service_identity] = ringbuffer::read_message<AdminMessage::restart_and_join>(
+            data, size);
+          ccf::SelfHealingOpenSingleton::instance()->trigger_restart_and_join_url(url, service_identity);
         });
     }
 

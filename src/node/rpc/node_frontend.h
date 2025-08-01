@@ -17,6 +17,7 @@
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "ds/files.h"
+#include "ds/ring_buffer_types.h"
 #include "ds/std_formatters.h"
 #include "frontend.h"
 #include "node/network_state.h"
@@ -31,6 +32,7 @@
 #include "snapshots/filenames.h"
 
 #include <llhttp/llhttp.h>
+#include <stdexcept>
 
 namespace ccf
 {
@@ -471,6 +473,7 @@ namespace ccf
           .quote_info = in.quote_info,
           .published_network_address = in.published_network_address,
           .cert_der = cert_der,
+          .service_identity = in.service_identity,
           .intrinsic_id = in.intrinsic_id};
         node_info_handle->put(in.intrinsic_id, src_info);
       }
@@ -2285,16 +2288,6 @@ namespace ccf
 
       auto self_healing_open_gossip =
         [this](auto& args, const nlohmann::json& params) {
-          auto node_configuration_subsystem =
-            this->context.get_subsystem<NodeConfigurationSubsystem>();
-          if (!node_configuration_subsystem)
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "NodeConfigurationSubsystem is not available");
-          }
-
           auto in = params.get<self_healing_open::GossipRequest>();
 
           auto valid = self_healing_open_validate_and_store_node_info(
@@ -2331,8 +2324,7 @@ namespace ccf
 
           try
           {
-            this->node_operation.self_healing_open_advance(
-              args.tx, node_configuration_subsystem->get().node_config, false);
+            this->node_operation.self_healing_open_advance(args.tx, false);
           }
           catch (const std::logic_error& e)
           {
@@ -2359,16 +2351,6 @@ namespace ccf
 
       auto self_healing_open_vote =
         [this](auto& args, const nlohmann::json& params) {
-          auto node_configuration_subsystem =
-            this->context.get_subsystem<NodeConfigurationSubsystem>();
-          if (!node_configuration_subsystem)
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "NodeConfigurationSubsystem is not available");
-          }
-
           auto in = params.get<self_healing_open::VoteRequest>();
           auto valid = self_healing_open_validate_and_store_node_info(
             args, args.tx, in.info);
@@ -2385,8 +2367,7 @@ namespace ccf
 
           try
           {
-            this->node_operation.self_healing_open_advance(
-              args.tx, node_configuration_subsystem->get().node_config, false);
+            this->node_operation.self_healing_open_advance(args.tx, false);
           }
           catch (const std::logic_error& e)
           {
@@ -2425,9 +2406,31 @@ namespace ccf
             return make_error(code, ccf::errors::InvalidQuote, message);
           }
 
+          auto* sm_state = args.tx.rw(this->network.self_healing_open_sm_state);
+          sm_state->put(SelfHealingOpenSM::JOINING);
+
           LOG_INFO_FMT("******************************");
           LOG_INFO_FMT("Self-healing-open is JOINING {}", in.info.intrinsic_id);
           LOG_INFO_FMT("******************************");
+
+          auto* chosen_replica =
+            args.tx.rw(this->network.self_healing_open_chosen_replica);
+          chosen_replica->put(in.info.intrinsic_id);
+
+          try
+          {
+            this->node_operation.self_healing_open_advance(args.tx, false);
+          }
+          catch (const std::logic_error& e)
+          {
+            LOG_FAIL_FMT(
+              "Self-healing-open gossip failed to advance state: {}", e.what());
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format(
+                "Failed to advance self-healing-open state: {}", e.what()));
+          }
 
           return make_success(fmt::format(
             "Node {} is joining self-healing-open", in.info.intrinsic_id));
@@ -2447,16 +2450,6 @@ namespace ccf
         (void)params; // Unused, but required by the adapter
 
         LOG_TRACE_FMT("Self-healing-open timeout received");
-
-        auto node_configuration_subsystem =
-          this->context.get_subsystem<NodeConfigurationSubsystem>();
-        if (!node_configuration_subsystem)
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "NodeConfigurationSubsystem is not available");
-        }
 
         // Must ensure that the request originates from the primary
         auto primary_id = consensus->primary();
@@ -2483,8 +2476,7 @@ namespace ccf
 
         try
         {
-          this->node_operation.self_healing_open_advance(
-            args.tx, node_configuration_subsystem->get().node_config, true);
+          this->node_operation.self_healing_open_advance(args.tx, true);
         }
         catch (const std::logic_error& e)
         {
