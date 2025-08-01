@@ -359,6 +359,7 @@ namespace ccf
       {
         case StartType::Start:
         {
+          LOG_INFO_FMT("Creating boot request");
           create_and_send_boot_request(
             aft::starting_view_change, true /* Create new consortium */);
           return;
@@ -1903,6 +1904,16 @@ namespace ccf
       if (create_consortium)
       {
         create_params.genesis_info = config.start;
+      }
+      create_params.recovery_constitution = config.recover.constitution;
+      LOG_INFO_FMT("serialise_create_request, set recovery_constitution to:");
+      if (create_params.recovery_constitution.has_value())
+      {
+        LOG_INFO_FMT("{}", create_params.recovery_constitution.value());
+      }
+      else
+      {
+        LOG_INFO_FMT("No recovery constitution provided");
       }
 
       create_params.node_id = self;

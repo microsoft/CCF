@@ -84,6 +84,7 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     CreateNetworkNodeToNode::In,
     genesis_info,
+    recovery_constitution,
     node_data,
     service_data,
     snp_security_policy,

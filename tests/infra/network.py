@@ -202,6 +202,7 @@ class Network:
         "snp_uvm_endorsements_file",
         "subject_name",
         "idle_connection_timeout_s",
+        "recovery_constitution_files",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -700,7 +701,12 @@ class Network:
         self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
 
-    def recover(self, args, expected_recovery_count=None):
+    def recover(
+        self,
+        args,
+        expected_recovery_count=None,
+        set_constitution=True,
+    ):
         """
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
@@ -717,9 +723,10 @@ class Network:
         )
         self.wait_for_all_nodes_to_be_trusted(self.find_random_node())
 
-        # The new service may be running a newer version of the constitution,
-        # so we make sure that we're running the right one.
-        self.consortium.set_constitution(random_node, args.constitution)
+        if set_constitution:
+            # The new service may be running a newer version of the constitution,
+            # so we make sure that we're running the right one.
+            self.consortium.set_constitution(random_node, args.constitution)
 
         prev_service_identity = None
         if args.previous_service_identity_file:

@@ -114,6 +114,7 @@ struct StartupConfig : CCFConfig
   {
     std::optional<std::vector<uint8_t>> previous_service_identity =
       std::nullopt;
+    std::optional<std::string> constitution = std::nullopt;
   };
   Recover recover = {};
 };
