@@ -342,7 +342,7 @@ export function eddsaJwkToPem(
 }
 
 function b64ToBuf(b64: string): ArrayBuffer {
-  return Base64.toUint8Array(b64).buffer;
+  return Base64.toUint8Array(b64).buffer as ArrayBuffer;
 }
 
 function hex(buf: ArrayBuffer) {

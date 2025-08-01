@@ -88,15 +88,15 @@ export function verifySnpAttestation(
     const body = request.body.json();
     const evidence = ccfapp
       .typedArray(Uint8Array)
-      .encode(Base64.toUint8Array(body.evidence));
+      .encode(Base64.toUint8Array(body.evidence) as Uint8Array<ArrayBuffer>);
     const endorsements = ccfapp
       .typedArray(Uint8Array)
-      .encode(Base64.toUint8Array(body.endorsements));
+      .encode(Base64.toUint8Array(body.endorsements) as Uint8Array<ArrayBuffer>);
     const uvm_endorsements =
       body.uvm_endorsements !== undefined
         ? ccfapp
             .typedArray(Uint8Array)
-            .encode(Base64.toUint8Array(body.uvm_endorsements))
+            .encode(Base64.toUint8Array(body.uvm_endorsements) as Uint8Array<ArrayBuffer>)
         : undefined;
 
     const r = ccfsnp.verifySnpAttestation(
