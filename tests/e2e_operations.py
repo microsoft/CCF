@@ -1442,14 +1442,15 @@ def run_recovery_change_constitution(const_args):
 actions.set(
     "hello_world",
     new Action(
-        function validate(args) {{ console.log("Validating hello") }},
-        function apply(args, proposalId) {{ console.log("Applying hello")}}
+        function validate(args) { console.log("Validating hello") },
+        function apply(args, proposalId) { console.log("Applying hello")}
     )
 )""")
       c_new.flush()
 
       network = infra.network.Network(args.nodes, args.binary_dir)
       network.start_and_open(args)
+      network.save_service_identity(args)
       network.stop_all_nodes()
 
       recovery_args = copy.deepcopy(args)
@@ -1467,11 +1468,11 @@ actions.set(
           ledger_dir=current_ledger_dir,
           committed_ledger_dirs=committed_ledger_dirs,
       )
-      recovery_network.recover(recovery_args)
+      recovery_network.recover(recovery_args, set_constitution=False)
 
       primary, _ = recovery_network.find_primary()
-      proposal_body, vote = network.consortium.make_proposal("hello_world1")
-      proposal = consortium.get_any_active_member().propose(primary, proposal_body)
+      proposal_body, vote = network.consortium.make_proposal("hello_world")
+      proposal = network.consortium.get_any_active_member().propose(primary, proposal_body)
       network.consortium.vote_using_majority(primary, proposal, vote)
 
       recovery_network.stop_all_nodes()
