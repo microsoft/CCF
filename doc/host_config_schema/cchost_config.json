@@ -417,6 +417,13 @@
                   "previous_sealed_ledger_secret_location": {
                     "type": ["string"],
                     "description": "Path to the sealed ledger secret folder, the ledger secrets for the recovered service will be unsealed from here instead of reconstructed from recovery shares."
+                  },
+                  "constitution_files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "List of constitution files. These typically include actions.js, validate.js, resolve.js and apply.js"
                   }
                 },
                 "required": ["previous_service_identity_file"],
