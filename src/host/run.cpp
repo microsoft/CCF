@@ -804,7 +804,7 @@ namespace ccf
           fmt::join(config.command.recover.constitution_files, ", "));
         startup_config.recover.constitution = "";
         for (const auto& constitution_path :
-            config.command.recover.constitution_files)
+             config.command.recover.constitution_files)
         {
           // Separate with single newlines
           if (!startup_config.recover.constitution->empty())

@@ -130,8 +130,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     StartupConfig::Recover,
     previous_service_identity,
-    previous_sealed_ledger_secret_location
-  );
+    previous_sealed_ledger_secret_location);
   DECLARE_JSON_OPTIONAL_FIELDS(StartupConfig::Recover, constitution);
 
   DECLARE_JSON_TYPE_WITH_BASE(StartupConfig, CCFConfig);
