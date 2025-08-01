@@ -651,7 +651,10 @@ function nodeBufToArrBuf(buf: Buffer): ArrayBuffer {
 }
 
 function typedArrToArrBuf(ta: ArrayBufferView) {
-  const sliced = ta.buffer.slice(ta.byteOffset, ta.byteOffset + ta.byteLength);
+  const sliced = ta.buffer.slice(
+    ta.byteOffset,
+    ta.byteOffset + ta.byteLength,
+  );
   // Ensure we return an ArrayBuffer, not a SharedArrayBuffer
   if (sliced instanceof ArrayBuffer) {
     return sliced;
