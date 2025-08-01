@@ -2127,6 +2127,7 @@ namespace ccf
       {
         create_params.genesis_info = config.start;
       }
+      create_params.recovery_constitution = config.recover.constitution.value();
 
       create_params.node_id = self;
       create_params.certificate_signing_request = node_sign_kp->create_csr(

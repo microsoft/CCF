@@ -146,7 +146,8 @@ namespace ccf
         std::nullopt;
       std::optional<std::string> previous_sealed_ledger_secret_location =
         std::nullopt;
-    };
+      std::optional<std::string> constitution = std::nullopt;
+  };
     Recover recover = {};
   };
 }
