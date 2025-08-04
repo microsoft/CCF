@@ -119,7 +119,12 @@ endif()
 option(USE_SNMALLOC "Link against snmalloc" ON)
 if(USE_SNMALLOC)
   set(SNMALLOC_BUILD_TESTING OFF)
-  set(SNMALLOC_STATIC_LIBRARY_PREFIX "")
+  # It is necessary to override the cached value, to ensure that the snmalloc
+  # CMakeLists.txt picks up this change and applies it correctly.
+  set(SNMALLOC_STATIC_LIBRARY_PREFIX
+      ""
+      CACHE STRING "Prefix for snmalloc static library"
+  )
   add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
 endif()
 
