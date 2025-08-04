@@ -1434,6 +1434,55 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
             prev_network = recovery_network
 
 
+def run_recovery_change_constitution(const_args):
+    LOG.info("Running recovery with constitution change")
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.min_nodes(args, f=0)
+    with tempfile.NamedTemporaryFile("w") as c_new:
+        c_new.write(
+            """
+actions.set(
+    "hello_world",
+    new Action(
+        function validate(args) { console.log("Validating hello") },
+        function apply(args, proposalId) { console.log("Applying hello")}
+    )
+)"""
+        )
+        c_new.flush()
+
+        network = infra.network.Network(args.nodes, args.binary_dir)
+        network.start_and_open(args)
+        network.save_service_identity(args)
+        network.stop_all_nodes()
+
+        recovery_args = copy.deepcopy(args)
+        recovery_args.recovery_constitution_files = args.constitution + [c_new.name]
+
+        recovery_network = infra.network.Network(
+            recovery_args.nodes,
+            recovery_args.binary_dir,
+            existing_network=network,
+        )
+
+        current_ledger_dir, committed_ledger_dirs = network.nodes[0].get_ledger()
+        recovery_network.start_in_recovery(
+            recovery_args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+        )
+        recovery_network.recover(recovery_args, set_constitution=False)
+
+        primary, _ = recovery_network.find_primary()
+        proposal_body, vote = network.consortium.make_proposal("hello_world")
+        proposal = network.consortium.get_any_active_member().propose(
+            primary, proposal_body
+        )
+        network.consortium.vote_using_majority(primary, proposal, vote)
+
+        recovery_network.stop_all_nodes()
+
+
 def run_read_ledger_on_testdata(args):
     for testdata_dir in os.scandir(args.historical_testdata):
         assert testdata_dir.is_dir()
@@ -1658,3 +1707,4 @@ def run(args):
         run_recovery_unsealing_validate_audit(args)
     run_read_ledger_on_testdata(args)
     run_ledger_chunk_bytes_check(args)
+    run_recovery_change_constitution(args)
