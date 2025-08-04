@@ -59,7 +59,6 @@ def run_parser_limits_checks(args):
         new_args.nodes,
         new_args.binary_dir,
         new_args.debug_nodes,
-        new_args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start_and_open(new_args)

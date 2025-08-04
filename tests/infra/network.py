@@ -151,7 +151,7 @@ def log_errors(
             fatal_error_lines = [
                 line
                 for line in lines.readlines()
-                if not line.startswith("[get_qpl_handle ")
+                if not line.startswith("[ perf record:")
             ]
             if fatal_error_lines:
                 LOG.error(f"Contents of {err_path}:\n{''.join(fatal_error_lines)}")
@@ -215,7 +215,6 @@ class Network:
         hosts,
         binary_dir=".",
         dbg_nodes=None,
-        perf_nodes=None,
         existing_network=None,
         txs=None,
         jwt_issuer=None,
@@ -271,7 +270,6 @@ class Network:
                 f"Could not find key generator script at '{self.key_generator}' - is binary directory set correctly?"
             )
         self.dbg_nodes = dbg_nodes
-        self.perf_nodes = perf_nodes
         self.version = version
         self.args = None
         self.service_certificate_valid_from = None
@@ -302,9 +300,6 @@ class Network:
         debug = (
             (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
         )
-        perf = (
-            (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
-        )
 
         if isinstance(host, str):
             interface = infra.interfaces.RPCInterface()
@@ -319,7 +314,6 @@ class Network:
             binary_dir or self.binary_dir,
             library_dir or self.library_dir,
             debug,
-            perf,
             **kwargs,
         )
         self.nodes.append(node)
@@ -1763,7 +1757,6 @@ def network(
     hosts,
     binary_directory=".",
     dbg_nodes=None,
-    perf_nodes=None,
     pdb=False,
     txs=None,
     jwt_issuer=None,
@@ -1779,7 +1772,6 @@ def network(
     :param binary_directory: the directory where CCF's binaries are located
     :param library_directory: the directory where CCF's libraries are located
     :param dbg_nodes: default: []. List of node id's that will not start (user is prompted to start them manually)
-    :param perf_nodes: default: []. List of node ids that will run under perf record
     :param pdb: default: False. Debugger.
     :param txs: default: None. Transactions committed on that network.
     :return: a Network instance that can be used to create/access nodes, handle the genesis state (add members, create
@@ -1787,15 +1779,12 @@ def network(
     """
     if dbg_nodes is None:
         dbg_nodes = []
-    if perf_nodes is None:
-        perf_nodes = []
 
     net = Network(
         hosts=hosts,
         binary_dir=binary_directory,
         library_dir=library_directory,
         dbg_nodes=dbg_nodes,
-        perf_nodes=perf_nodes,
         txs=txs,
         jwt_issuer=jwt_issuer,
         init_partitioner=init_partitioner,

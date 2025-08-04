@@ -74,7 +74,6 @@ def run(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         txs=txs,
         jwt_issuer=jwt_issuer,
     )

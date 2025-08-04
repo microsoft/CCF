@@ -467,7 +467,6 @@ def run_file_operations(args):
                 args.nodes,
                 args.binary_dir,
                 args.debug_nodes,
-                args.perf_nodes,
                 pdb=args.pdb,
                 txs=txs,
             ) as network:
@@ -501,7 +500,6 @@ def run_tls_san_checks(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args)
@@ -560,7 +558,6 @@ def run_config_timeout_check(args):
         ["local://localhost"],
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args)
@@ -626,7 +623,6 @@ def run_sighup_check(args):
         ["local://localhost"],
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args)
@@ -664,7 +660,6 @@ def run_preopen_readiness_check(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start(args)
@@ -687,7 +682,6 @@ def run_pid_file_check(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args)
@@ -721,7 +715,6 @@ def run_max_uncommitted_tx_count(args):
         ["local://localhost", "local://localhost"],
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         uncommitted_cap = 20
@@ -762,7 +755,6 @@ def run_service_subject_name_check(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args, service_subject_name="CN=This test service")
@@ -788,7 +780,6 @@ def run_cose_signatures_config_check(args):
         nargs.nodes,
         nargs.binary_dir,
         nargs.debug_nodes,
-        nargs.perf_nodes,
         pdb=nargs.pdb,
     ) as network:
         network.start_and_open(
@@ -846,7 +837,6 @@ def run_late_mounted_ledger_check(args):
         nargs.nodes,
         nargs.binary_dir,
         nargs.debug_nodes,
-        nargs.perf_nodes,
         pdb=nargs.pdb,
     ) as network:
         network.start_and_open(
@@ -975,7 +965,6 @@ def run_empty_ledger_dir_check(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         LOG.info("Check that empty ledger directory is handled correctly")
@@ -1016,7 +1005,6 @@ def run_initial_uvm_descriptor_checks(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         LOG.info("Start a network and stop it")
@@ -1044,7 +1032,6 @@ def run_initial_uvm_descriptor_checks(args):
             args.nodes,
             args.binary_dir,
             args.debug_nodes,
-            args.perf_nodes,
             existing_network=network,
         )
 
@@ -1096,7 +1083,6 @@ def run_initial_tcb_version_checks(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         LOG.info("Start a network and stop it")
@@ -1122,7 +1108,6 @@ def run_initial_tcb_version_checks(args):
             args.nodes,
             args.binary_dir,
             args.debug_nodes,
-            args.perf_nodes,
             existing_network=network,
         )
         args.previous_service_identity_file = os.path.join(
