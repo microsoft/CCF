@@ -30,7 +30,7 @@
     "node-forge": "^1.2.0",
     "ts-node": "^10.4.0",
     "typedoc": "^0.28.1",
-    "typescript": "5.8.3"
+    "typescript": "5.9.2"
   },
   "bin": {
     "ccf-build-bundle": "scripts/build_bundle.js"
