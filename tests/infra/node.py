@@ -371,8 +371,6 @@ class Node:
             print("")
             input("Press Enter to continue...")
         else:
-            if self.perf:
-                self.remote.set_perf()
             self.remote.start()
 
         # Detect whether node started up successfully

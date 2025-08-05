@@ -779,7 +779,6 @@ def run_all(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -827,7 +826,6 @@ def run_join_old_snapshot(args):
             nodes,
             args.binary_dir,
             args.debug_nodes,
-            args.perf_nodes,
             pdb=args.pdb,
             txs=txs,
         ) as network:

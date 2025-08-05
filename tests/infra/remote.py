@@ -27,14 +27,12 @@ FILE_TIMEOUT_S = 60
 
 
 class CmdMixin(object):
-    def set_perf(self):
-        self.cmd = [
-            "perf",
-            "record",
-            "--freq=1000",
-            "--call-graph=dwarf",
-            "-s",
-        ] + self.cmd
+    @property
+    def cmd(self):
+        if os.getenv("CCF_PERF"):
+            return ["perf", "record"] + self._cmd
+        else:
+            return self._cmd
 
     def _get_perf(self, lines):
         pattern = "=> (.*)tx/s"
@@ -62,7 +60,7 @@ class LocalRemote(CmdMixin):
         self.hostname = hostname
         self.exe_files = set(exe_files)
         self.data_files = data_files
-        self.cmd = cmd
+        self._cmd = cmd
         self.root = os.path.join(workspace, name)
         self.common_dir = common_dir
         self.proc = None
@@ -674,9 +672,6 @@ class CCFRemote(object):
 
     def check_done(self):
         return self.remote.check_done()
-
-    def set_perf(self):
-        self.remote.set_perf()
 
     def _resilient_copy(
         self,

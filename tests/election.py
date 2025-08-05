@@ -182,7 +182,6 @@ def run(args):
             args.nodes,
             args.binary_dir,
             args.debug_nodes,
-            args.perf_nodes,
             pdb=args.pdb,
             service_load=load,
         ) as network:

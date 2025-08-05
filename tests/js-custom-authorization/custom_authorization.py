@@ -38,7 +38,7 @@ def test_custom_auth(network, args):
 
 def run(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network = test_custom_auth(network, args)
@@ -269,7 +269,7 @@ def test_execution_time_limit(network, args):
 
 def run_limits(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network = test_stack_size_limit(network, args)
@@ -734,7 +734,7 @@ def test_role_based_access(network, args):
 
 def run_authn(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network = test_cert_auth(network, args)
@@ -883,7 +883,7 @@ def test_unknown_path(network, args):
 
 def run_content_types(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network = test_content_types(network, args)
@@ -908,7 +908,7 @@ def test_random_api(args):
     n_repeats = 3
     for _ in range(n_repeats):
         with infra.network.network(
-            args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+            args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
         ) as network:
             network.start_and_open(args)
             primary, _ = network.find_nodes()
@@ -1087,7 +1087,7 @@ def run_api(args):
     test_random_api(args)
 
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network = test_request_object_api(network, args)
@@ -1317,7 +1317,7 @@ def run_interpreter_reuse(args):
     args.js_app_bundle = os.path.join(js_src_dir, "dist")
 
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 
