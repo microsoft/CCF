@@ -4,6 +4,8 @@
 #include "defines.h"
 #include "snmalloc/stl/atomic.h"
 
+#include <stdint.h>
+
 namespace snmalloc
 {
   /*
@@ -514,21 +516,6 @@ namespace snmalloc
     {
       return CapPtr<T, bounds>::unsafe_from(
         this->unsafe_capptr.exchange(desired.unsafe_ptr(), order));
-    }
-
-    SNMALLOC_FAST_PATH bool operator==(const AtomicCapPtr& rhs) const
-    {
-      return this->unsafe_capptr == rhs.unsafe_capptr;
-    }
-
-    SNMALLOC_FAST_PATH bool operator!=(const AtomicCapPtr& rhs) const
-    {
-      return this->unsafe_capptr != rhs.unsafe_capptr;
-    }
-
-    SNMALLOC_FAST_PATH bool operator<(const AtomicCapPtr& rhs) const
-    {
-      return this->unsafe_capptr < rhs.unsafe_capptr;
     }
   };
 
