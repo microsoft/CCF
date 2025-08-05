@@ -183,7 +183,6 @@ class Node:
     def start(
         self,
         lib_name,
-        enclave_type,
         workspace,
         label,
         common_dir,
@@ -193,7 +192,6 @@ class Node:
         self._setup(
             infra.remote.StartType.start,
             lib_name,
-            enclave_type,
             workspace,
             label,
             common_dir,
@@ -231,7 +229,6 @@ class Node:
     def join(
         self,
         lib_name,
-        enclave_type,
         workspace,
         label,
         common_dir,
@@ -240,7 +237,6 @@ class Node:
         self._setup(
             infra.remote.StartType.join,
             lib_name,
-            enclave_type,
             workspace,
             label,
             common_dir,
@@ -251,7 +247,6 @@ class Node:
     def prepare_join(
         self,
         lib_name,
-        enclave_type,
         workspace,
         label,
         common_dir,
@@ -260,7 +255,6 @@ class Node:
         self._setup(
             infra.remote.StartType.join,
             lib_name,
-            enclave_type,
             workspace,
             label,
             common_dir,
@@ -270,11 +264,10 @@ class Node:
     def complete_join(self):
         self._start()
 
-    def recover(self, lib_name, enclave_type, workspace, label, common_dir, **kwargs):
+    def recover(self, lib_name, workspace, label, common_dir, **kwargs):
         self._setup(
             infra.remote.StartType.recover,
             lib_name,
-            enclave_type,
             workspace,
             label,
             common_dir,
@@ -287,29 +280,32 @@ class Node:
         self,
         start_type,
         lib_name,
-        enclave_type,
         workspace,
         label,
         common_dir,
         members_info=None,
-        enclave_platform="sgx",
         enable_local_sealing=False,
         previous_sealed_ledger_secret_location=None,
+        recovery_constitution_files=None,
         **kwargs,
     ):
         """
         Creates a CCFRemote instance, sets it up (connects, creates the directory
         and ships over the files)
         """
-        lib_path = infra.path.build_lib_path(
-            lib_name,
-            library_dir=self.library_dir,
-            version=self.version,
-        )
+        if self.version is None or Version(strip_version(self.version)) > Version(
+            "7.0.0-dev1"
+        ):
+            lib_path = lib_name
+        else:
+            lib_path = infra.path.build_lib_path(
+                lib_name,
+                library_dir=self.library_dir,
+                version=self.version,
+            )
         self.common_dir = common_dir
         members_info = members_info or []
         self.label = label
-        self.enclave_platform = enclave_platform
         self.enable_local_sealing = enable_local_sealing
         if enable_local_sealing:
             self.sealed_ledger_secret_location = "sealed_ledger_secret"
@@ -319,11 +315,12 @@ class Node:
             previous_sealed_ledger_secret_location
         )
 
+        self.recovery_constitution_files = recovery_constitution_files or []
+
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         self.remote = infra.remote.CCFRemote(
             start_type,
             lib_path,
-            enclave_type,
             workspace,
             common_dir,
             binary_dir=self.binary_dir,
@@ -339,10 +336,10 @@ class Node:
             version=self.version,
             major_version=self.major_version,
             node_data_json_file=self.initial_node_data_json_file,
-            enclave_platform=enclave_platform,
             enable_local_sealing=enable_local_sealing,
             sealed_ledger_secret_location=self.sealed_ledger_secret_location,
             previous_sealed_ledger_secret_location=previous_sealed_ledger_secret_location,
+            recovery_constitution_files=recovery_constitution_files,
             **kwargs,
         )
         self.remote.setup()

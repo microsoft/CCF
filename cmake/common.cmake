@@ -1,6 +1,31 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+function(add_san_test_properties name)
+  if(SAN)
+    set_property(
+      TEST ${name}
+      APPEND
+      PROPERTY ENVIRONMENT "ASAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
+    )
+  endif()
+
+  if(TSAN)
+    set_property(
+      TEST ${name}
+      APPEND
+      PROPERTY ENVIRONMENT
+               "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+    )
+
+    set_property(
+      TEST ${name}
+      APPEND
+      PROPERTY ENVIRONMENT "TSAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
+    )
+  endif()
+endfunction()
+
 # Unit test wrapper
 function(add_unit_test name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
@@ -19,24 +44,7 @@ function(add_unit_test name)
     PROPERTY LABELS unit
   )
 
-  set_property(
-    TEST ${name}
-    APPEND
-    PROPERTY ENVIRONMENT
-             "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
-  )
-
-  set_property(
-    TEST ${name}
-    APPEND
-    PROPERTY ENVIRONMENT "ASAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
-  )
-
-  set_property(
-    TEST ${name}
-    APPEND
-    PROPERTY ENVIRONMENT "TSAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
-  )
+  add_san_test_properties(${name})
 
   target_compile_definitions(${name} PRIVATE CCF_LOGGER_NO_DEPRECATE)
 endfunction()
@@ -122,24 +130,7 @@ function(add_e2e_test)
       )
     endif()
 
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY ENVIRONMENT
-               "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
-    )
-
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY ENVIRONMENT "ASAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
-    )
-
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY ENVIRONMENT "TSAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
-    )
+    add_san_test_properties(${PARSED_ARGS_NAME})
 
     set_property(
       TEST ${PARSED_ARGS_NAME}
@@ -202,22 +193,8 @@ function(add_piccolo_test)
     APPEND
     PROPERTY LABELS perf
   )
-  set_property(
-    TEST ${TEST_NAME}
-    APPEND
-    PROPERTY ENVIRONMENT
-             "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
-  )
-  set_property(
-    TEST ${TEST_NAME}
-    APPEND
-    PROPERTY ENVIRONMENT "ASAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
-  )
-  set_property(
-    TEST ${TEST_NAME}
-    APPEND
-    PROPERTY ENVIRONMENT "TSAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
-  )
+
+  add_san_test_properties(${TEST_NAME})
 endfunction()
 
 # Picobench wrapper
@@ -226,7 +203,9 @@ function(add_picobench name)
     PARSE_ARGV 1 PARSED_ARGS "" "" "SRCS;INCLUDE_DIRS;LINK_LIBS"
   )
 
-  add_executable(${name} ${PARSED_ARGS_SRCS})
+  add_executable(
+    ${name} ${PARSED_ARGS_SRCS} ${CCF_DIR}/src/enclave/thread_local.cpp
+  )
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
 
@@ -249,21 +228,7 @@ function(add_picobench name)
 
   set_property(TEST ${name} PROPERTY LABELS benchmark)
 
-  set_property(
-    TEST ${name}
-    APPEND
-    PROPERTY ENVIRONMENT
-             "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
-  )
-  set_property(
-    TEST ${name}
-    APPEND
-    PROPERTY ENVIRONMENT "ASAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
-  )
-  set_property(
-    TEST ${name}
-    APPEND
-    PROPERTY ENVIRONMENT "TSAN_SYMBOLIZER_PATH=${LLVM_SYMBOLIZER}"
-  )
+  add_san_test_properties(${name})
+
   target_compile_definitions(${name} PRIVATE CCF_LOGGER_NO_DEPRECATE)
 endfunction()

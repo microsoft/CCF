@@ -60,7 +60,7 @@ class LocalRemote(CmdMixin):
         **kwargs,
     ):
         self.hostname = hostname
-        self.exe_files = exe_files
+        self.exe_files = set(exe_files)
         self.data_files = data_files
         self.cmd = cmd
         self.root = os.path.join(workspace, name)
@@ -273,7 +273,6 @@ class CCFRemote(object):
         self,
         start_type,
         enclave_file,
-        enclave_type,
         workspace,
         common_dir,
         label="",
@@ -302,7 +301,6 @@ class CCFRemote(object):
         service_data_json_file=None,
         snp_endorsements_servers=None,
         node_pid_file="node.pid",
-        enclave_platform="sgx",
         snp_uvm_security_context_dir=None,
         set_snp_uvm_security_context_dir_envvar=True,
         ignore_first_sigterm=False,
@@ -319,6 +317,7 @@ class CCFRemote(object):
         cose_signatures_subject="ledger.signature",
         sealed_ledger_secret_location=None,
         previous_sealed_ledger_secret_location=None,
+        recovery_constitution_files=None,
         **kwargs,
     ):
         """
@@ -359,12 +358,11 @@ class CCFRemote(object):
         self.node_address_file = f"{local_node_id}.node_address"
         self.rpc_addresses_file = f"{local_node_id}.rpc_addresses"
 
-        # 1.x releases have a separate cchost.virtual binary for virtual enclaves
-        if enclave_type == "virtual" and (
-            major_version is not None and major_version <= 1
-        ):
-            self.BIN = "cchost.virtual"
         self.BIN = infra.path.build_bin_path(self.BIN, binary_dir=binary_dir)
+        # 7.x releases combined binaries and removed the separate cchost entry-point
+        if major_version is None or major_version >= 7:
+            self.BIN = enclave_file
+
         self.common_dir = common_dir
         self.pub_host = host.get_primary_interface().public_host
         self.enclave_file = os.path.join(".", os.path.basename(enclave_file))
@@ -489,18 +487,8 @@ class CCFRemote(object):
                     previous_sealed_ledger_secret_location
                 )
 
-            enclave_platform = infra.platform_detection.get_platform()
-            enclave_platform = (
-                "Virtual"
-                if enclave_platform.lower() == "virtual"
-                else enclave_platform.upper()
-            )
-
             output = t.render(
                 start_type=start_type.name.title(),
-                enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
-                enclave_type="Release",
-                enclave_platform=enclave_platform,  # Ignored, but paased for LTS compat
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(
                     LocalRemote.make_host(host)
                 ),
@@ -537,6 +525,7 @@ class CCFRemote(object):
                 historical_cache_soft_limit=historical_cache_soft_limit,
                 cose_signatures_issuer=cose_signatures_issuer,
                 cose_signatures_subject=cose_signatures_subject,
+                recovery_constitution_files=recovery_constitution_files or [],
                 **auto_dr_args,
                 **kwargs,
             )
@@ -549,6 +538,20 @@ class CCFRemote(object):
                 # Parse and re-emit output to produce consistently formatted (indented) JSON.
                 # This will also ensure the render produced valid JSON
                 j = json.loads(output)
+
+                # Enclave config removed from 7.x onwards.
+                if major_version is not None and major_version < 7:
+                    enclave_platform = infra.platform_detection.get_platform()
+                    enclave_platform = (
+                        "Virtual"
+                        if enclave_platform.lower() == "virtual"
+                        else enclave_platform.upper()
+                    )
+                    j["enclave"] = {
+                        "type": "Release",
+                        "platform": enclave_platform,
+                    }
+
                 json.dump(j, f, indent=2)
 
         exe_files += [self.BIN, enclave_file] + self.DEPS
@@ -584,16 +587,13 @@ class CCFRemote(object):
                 "--log-level",
                 log_level,
             ]
-        else:
-            if v >= Version("4.0.5"):
-                # Avoid passing too-low level to debug SGX nodes
-                if not (enclave_type == "debug" and enclave_platform == "sgx"):
-                    cmd += [
-                        "--enclave-log-level",
-                        log_level,
-                    ]
+        elif v >= Version("4.0.5"):
+            cmd += [
+                "--enclave-log-level",
+                log_level,
+            ]
 
-        if v is None or v >= Version("4.0.11"):
+        if v is not None and v >= Version("4.0.11") and v <= Version("7.0.0-dev1"):
             cmd += [
                 "--enclave-file",
                 self.enclave_file,

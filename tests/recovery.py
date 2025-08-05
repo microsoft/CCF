@@ -1356,7 +1356,7 @@ checked. Note that the key for each logging message is unique (per table).
     cr.add(
         "recovery",
         run,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=30,
@@ -1375,7 +1375,7 @@ checked. Note that the key for each logging message is unique (per table).
         cr.add(
             f"recovery_from_{directory}",
             run_recovery_from_files,
-            package="samples/apps/logging/liblogging",
+            package="samples/apps/logging/logging",
             nodes=infra.e2e_args.min_nodes(cr.args, f=1),
             ledger_chunk_bytes="50KB",
             snapshot_tx_interval=30,
@@ -1393,7 +1393,7 @@ checked. Note that the key for each logging message is unique (per table).
     cr.add(
         "recovery_corrupt_ledger",
         run_corrupted_ledger,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
         sig_ms_interval=1000,
         ledger_chunk_bytes="1GB",
@@ -1403,28 +1403,28 @@ checked. Note that the key for each logging message is unique (per table).
     cr.add(
         "recovery_snapshot_alone",
         run_recover_snapshot_alone,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
     )
 
     cr.add(
         "recovery_via_initial_recovery_owner",
         run_recover_via_initial_recovery_owner,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
     )
 
     cr.add(
         "recovery_via_added_recovery_owner",
         run_recover_via_added_recovery_owner,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
     )
 
     cr.add(
         "recovery_with_incomplete_ledger",
         run_recovery_with_incomplete_ledger,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=10000,

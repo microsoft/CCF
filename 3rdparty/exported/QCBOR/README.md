@@ -10,6 +10,17 @@ Replaced by RFC 8949.
 * [RFC8742](https://tools.ietf.org/html/rfc8742) CBOR Sequences
 * [RFC8943](https://tools.ietf.org/html/rfc8943) CBOR Dates
 
+## QCBOR v2 alpha release
+
+Alpha releases of QCBOR 2.0 are available [here](https://github.com/laurencelundblade/QCBOR/tree/dev).
+It includes:
+
+* Better tag handling
+* Map sorting
+* Modes for CDE and Preferred Serialization
+* dCBOR support
+* Better big number support
+
 ## QCBOR Characteristics
 
 **Implemented in C with minimal dependency** – Dependent only
@@ -19,7 +30,7 @@ Replaced by RFC 8949.
   QCBOR to run correctly.
 
 **Focused on C / native data representation** – Careful conversion of
-  CBOR data types in to C data types,  handling over and
+  CBOR data types in to C data types, handling over and
   underflow, strict typing and such so the caller doesn't have to
   worry so much about this and so code using QCBOR passes static
   analyzers easier.  Simpler code because there is no support for
@@ -65,6 +76,11 @@ Replaced by RFC 8949.
 **Comprehensive test suite** – Easy to verify on a new platform or OS
   with the test suite. The test suite dependencies are minimal and the
   same as the library's.
+
+## Documentation
+
+Full API documentation is at https://www.securitytheory.com/qcbor-docs/
+
 
 ## Spiffy Decode
 
@@ -168,7 +184,7 @@ QCBOR.
 
 ## Code Status
 
-The official current release is version 1.5 Changes over the last few
+The official current release is version 1.5.3. Changes over the last few
 years have been only minor bug fixes, minor feature additions and
 documentation improvements. QCBOR 1.x is highly stable.
 
@@ -541,5 +557,5 @@ EAT and CWT.
 
 ### Copyright for this README
 
-Copyright (c) 2018-2024, Laurence Lundblade. All rights reserved.
+Copyright (c) 2018-2025, Laurence Lundblade. All rights reserved.
 Copyright (c) 2021-2023, Arm Limited. All rights reserved.

@@ -24,6 +24,9 @@ def mk_new(name, contents):
 
 
 def build_lib_path(lib_name, library_dir=".", version=None):
+    if not lib_name.startswith("lib"):
+        lib_name = f"lib{lib_name}"
+
     if version is None or Version(infra.node.strip_version(version)).major >= 7:
         ext = ".so"
     else:
@@ -43,7 +46,9 @@ def build_lib_path(lib_name, library_dir=".", version=None):
 
     if os.path.isfile(lib_name):
         if ext not in lib_name:
-            raise ValueError(f"{mode} requires {ext} enclave image")
+            raise ValueError(
+                f"{mode} requires {ext} enclave image (could not find {lib_name})"
+            )
         return lib_name
     else:
         # Make sure relative paths include current directory. Absolute paths will be unaffected

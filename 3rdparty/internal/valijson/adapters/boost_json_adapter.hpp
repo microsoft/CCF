@@ -268,7 +268,7 @@ public:
       : m_value(emptyObject()) { }
 
     /**
-     * @brief  Construct a BoostJsonValue for for a specific Boost.JSON value
+     * @brief  Construct a BoostJsonValue for a specific Boost.JSON value
      */
     BoostJsonValue(const boost::json::value &value)
       : m_value(value) { }
@@ -673,7 +673,7 @@ public:
 
 private:
 
-    /// Iternal copy of the original Boost.JSON iterator
+    /// Internal copy of the original Boost.JSON iterator
     boost::json::object::const_iterator m_itr;
 };
 

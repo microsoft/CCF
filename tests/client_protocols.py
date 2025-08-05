@@ -96,7 +96,15 @@ def test_tls(network, args):
     cond_removal("tls_report.json")
     cond_removal("tls_report.log")
     r = subprocess.run(
-        ["testssl/testssl.sh", "--outfile", report_basename, endpoint], check=False
+        [
+            "testssl/testssl.sh",
+            "--add-ca",
+            network.cert_path,
+            "--outfile",
+            report_basename,
+            endpoint,
+        ],
+        check=False,
     )
     assert r.returncode == 0
     # Sort csv output lines to simplify comparison
@@ -145,7 +153,7 @@ def run(args):
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
-    args.package = "samples/apps/logging/liblogging"
+    args.package = "samples/apps/logging/logging"
 
     args.nodes = infra.e2e_args.nodes(args, 1)
     run(args)

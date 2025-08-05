@@ -207,21 +207,21 @@ if __name__ == "__main__":
     cr.add(
         "schema",
         run,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.nodes(cr.args, 1),
     )
 
     cr.add(
         "nobuiltins",
         run_nobuiltins,
-        package="samples/apps/nobuiltins/libnobuiltins",
+        package="samples/apps/nobuiltins/nobuiltins",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
     )
 
     cr.add(
         "tutorial",
         e2e_tutorial.run,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=["local://127.0.0.1:8000"],
         initial_member_count=1,
     )
@@ -229,7 +229,7 @@ if __name__ == "__main__":
     cr.add(
         "operations",
         e2e_operations.run,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         initial_user_count=1,
         ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction

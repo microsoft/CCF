@@ -1,8 +1,9 @@
 #pragma once
 
-#include <array>
-#include <cstddef>
-#include <cstdint>
+#include "snmalloc/stl/array.h"
+
+#include <stddef.h>
+#include <stdint.h>
 
 namespace snmalloc
 {
@@ -60,7 +61,7 @@ namespace snmalloc
         } -> ConceptSameModRef<const typename Rep::Contents>;
       {
         typename Rep::Handle{const_cast<
-          std::remove_const_t<std::remove_reference_t<decltype(Rep::root)>>*>(
+          stl::remove_const_t<stl::remove_reference_t<decltype(Rep::root)>>*>(
           &Rep::root)}
         } -> ConceptSame<typename Rep::Handle>;
     };
@@ -70,7 +71,7 @@ namespace snmalloc
     RBRepTypes<Rep> //
     && RBRepMethods<Rep> //
     &&
-    ConceptSame<decltype(Rep::null), std::add_const_t<typename Rep::Contents>>;
+    ConceptSame<decltype(Rep::null), stl::add_const_t<typename Rep::Contents>>;
 #endif
 
   /**
@@ -86,7 +87,7 @@ namespace snmalloc
    */
   template<
     SNMALLOC_CONCEPT(RBRep) Rep,
-    bool run_checks = DEBUG,
+    bool run_checks = Debug,
     bool TRACE = false>
   class RBTree
   {
@@ -156,7 +157,7 @@ namespace snmalloc
     };
 
     // Root field of the tree
-    typename std::remove_const_t<std::remove_reference_t<decltype(Rep::root)>>
+    typename stl::remove_const_t<stl::remove_reference_t<decltype(Rep::root)>>
       root{Rep::root};
 
     static ChildRef get_dir(bool direction, K k)
@@ -259,7 +260,7 @@ namespace snmalloc
     {
       friend class RBTree;
 
-      std::array<RBStep, 128> path;
+      stl::Array<RBStep, 128> path;
       size_t length = 0;
 
       RBPath(typename Rep::Handle root)

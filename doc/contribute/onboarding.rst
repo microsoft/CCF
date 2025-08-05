@@ -22,11 +22,11 @@ Walk through a sample application
 
 The logging application is simple, but exercises most features of the framework, and is extensively used in the end to end tests.
 
-To run a locally built copy of this application in a sandbox, see :doc:`/build_apps/run_app`. The package name will be ``samples/apps/logging/liblogging``:
+To run a locally built copy of this application in a sandbox, see :doc:`/build_apps/run_app`. The package name will be ``samples/apps/logging/logging``:
 
 .. code-block:: bash
 
-    ~/CCF/build$ ../tests/sandbox/sandbox.sh -p samples/apps/logging/liblogging
+    ~/CCF/build$ ../tests/sandbox/sandbox.sh -p samples/apps/logging/logging
 
     Setting up Python environment...
     Python environment successfully setup
@@ -34,7 +34,7 @@ To run a locally built copy of this application in a sandbox, see :doc:`/build_a
     [11:44:33.376] Virtual mode enabled
     [11:44:35.025] Started CCF network with the following nodes:
     [11:44:35.025]   Node [0] = https://127.0.0.1:8000
-    [11:44:35.025] You can now issue business transactions to the samples/apps/logging/liblogging application
+    [11:44:35.025] You can now issue business transactions to the samples/apps/logging/logging application
     [11:44:35.025] Keys and certificates have been copied to the common folder: /home/$USER/CCF/build/workspace/sandbox_common
     [11:44:35.025] See https://microsoft.github.io/CCF/main/use_apps/issue_commands.html for more information
     [11:44:35.025] Press Ctrl+C to shutdown the network

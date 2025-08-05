@@ -12,8 +12,8 @@ namespace ccf::threading
     return this_thread_id;
   }
 
-  void reset_thread_id_generator()
+  void reset_thread_id_generator(ThreadID to)
   {
-    next_thread_id.store(MAIN_THREAD_ID);
+    next_thread_id.store(to);
   }
 }
