@@ -287,7 +287,6 @@ def test_all_members(network, args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         existing_network=network,
     )
     recovered_network.start_in_recovery(
@@ -545,7 +544,7 @@ def gov(args):
         node.rpc_interfaces.update(infra.interfaces.make_secondary_interface())
 
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network.consortium.set_authenticate_session(args.authenticate_session)
@@ -581,7 +580,6 @@ def single_node(args):
             args.nodes,
             args.binary_dir,
             args.debug_nodes,
-            args.perf_nodes,
             pdb=args.pdb,
             node_data_json_file=ntf.name,
         ) as network:
@@ -713,7 +711,7 @@ def single_node(args):
 
 def js_gov(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network.consortium.set_authenticate_session(args.authenticate_session)
@@ -740,7 +738,7 @@ def js_gov(args):
 
 def gov_replay(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network.consortium.set_authenticate_session(args.authenticate_session)
