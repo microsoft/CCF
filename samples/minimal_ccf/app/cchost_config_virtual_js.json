@@ -1,0 +1,33 @@
+{
+  "enclave": {
+    "file": "/opt/ccf_virtual/lib/libjs_generic.virtual.so",
+    "type": "Virtual",
+    "platform": "Virtual"
+  },
+  "network": {
+    "node_to_node_interface": { "bind_address": "127.0.0.1:8081" },
+    "rpc_interfaces": {
+      "main_interface": {
+        "bind_address": "0.0.0.0:8080"
+      }
+    }
+  },
+  "command": {
+    "type": "Start",
+    "service_certificate_file": "/app/service_cert.pem",
+    "start": {
+      "constitution_files": [
+        "/app/validate.js",
+        "/app/apply.js",
+        "/app/resolve.js",
+        "/app/actions.js"
+      ],
+      "members": [
+        {
+          "certificate_file": "/app/member0_cert.pem",
+          "encryption_public_key_file": "/app/member0_enc_pubk.pem"
+        }
+      ]
+    }
+  }
+}
