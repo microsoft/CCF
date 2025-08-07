@@ -6,10 +6,20 @@ namespace ccf::threading
 {
   static std::atomic<ThreadID> next_thread_id = MAIN_THREAD_ID;
 
-  uint16_t get_current_thread_id()
+  uint16_t& current_thread_id()
   {
     thread_local ThreadID this_thread_id = next_thread_id.fetch_add(1);
     return this_thread_id;
+  }
+
+  uint16_t get_current_thread_id()
+  {
+    return current_thread_id();
+  }
+
+  void set_current_thread_id(ThreadID to)
+  {
+    current_thread_id() = to;
   }
 
   void reset_thread_id_generator(ThreadID to)
