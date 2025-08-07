@@ -19,7 +19,7 @@ namespace ccf::threading
 
   void set_current_thread_id(ThreadID to)
   {
-    get_current_thread_id_unsafe() = to;
+    current_thread_id() = to;
   }
 
   void reset_thread_id_generator(ThreadID to)
