@@ -975,7 +975,8 @@ namespace ccf
           config.command.service_certificate_file);
       }
 
-      auto enclave_thread_start = [&]() {
+      auto enclave_thread_start = [&](threading::ThreadID thread_id) {
+        threading::set_current_thread_id(thread_id);
         try
         {
           bool ret = enclave_run();
@@ -1003,7 +1004,7 @@ namespace ccf
       std::vector<std::thread> threads;
       for (uint32_t i = 0; i < (config.worker_threads + 1); ++i)
       {
-        threads.emplace_back(enclave_thread_start);
+        threads.emplace_back(enclave_thread_start, i);
       }
 
       LOG_INFO_FMT("Entering event loop");
