@@ -14,7 +14,7 @@ namespace ccf::threading
 
   uint16_t get_current_thread_id()
   {
-    return get_current_thread_id_unsafe();
+    return current_thread_id();
   }
 
   void set_current_thread_id(ThreadID to)
