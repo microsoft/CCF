@@ -35,7 +35,7 @@ void shape(size_t size)
     // the memcpys. constexpr size_t alignment = 16; offset = (my_random() %
     // size / alignment) * alignment;
     Shape s;
-    s.object = ThreadAlloc::get().alloc(rsize);
+    s.object = snmalloc::alloc(rsize);
     s.dst = static_cast<unsigned char*>(s.object) + offset;
     // Bring into cache the destination of the copy.
     memset(s.dst, 0xFF, size);
@@ -47,7 +47,7 @@ void unshape()
 {
   for (auto& s : allocs)
   {
-    ThreadAlloc::get().dealloc(s.object);
+    snmalloc::dealloc(s.object);
   }
   allocs.clear();
 }
@@ -68,7 +68,7 @@ void test(
   Memcpy mc,
   std::vector<std::pair<size_t, std::chrono::nanoseconds>>& stats)
 {
-  auto src = ThreadAlloc::get().alloc(size);
+  auto src = snmalloc::alloc(size);
   shape(size);
   for (size_t i = 0; i < 10; i++)
   {
@@ -77,7 +77,7 @@ void test(
     auto time = m.get_time();
     stats.push_back({size, time});
   }
-  ThreadAlloc::get().dealloc(src);
+  snmalloc::dealloc(src);
   unshape();
 }
 
@@ -94,21 +94,18 @@ void memcpy_unchecked(void* dst, const void* src, size_t size)
 }
 
 NOINLINE
-void memcpy_platform_checked(void* dst, const void* src, size_t size)
+void* memcpy_platform_checked(void* dst, const void* src, size_t size)
 {
-  if (SNMALLOC_UNLIKELY(!check_bounds(dst, size)))
-  {
-    report_fatal_bounds_error(dst, size, "");
-    return;
-  }
-
-  memcpy(dst, src, size);
+  return check_bound(
+    dst,
+    size,
+    "memcpy with destination out of bounds of heap allocation",
+    [&]() { return memcpy(dst, src, size); });
 }
 
 int main(int argc, char** argv)
 {
   opt::Opt opt(argc, argv);
-#ifndef SNMALLOC_PASS_THROUGH
   bool full_test = opt.has("--full_test");
 
   //  size_t size = 0;
@@ -182,8 +179,5 @@ int main(int argc, char** argv)
     stats_platform.clear();
     stats_platform_checked.clear();
   }
-#else
-  snmalloc::UNUSED(opt);
-#endif
   return 0;
 }

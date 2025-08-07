@@ -1,4 +1,5 @@
 #pragma once
+#include "globalalloc.h"
 #include "threadalloc.h"
 
 namespace snmalloc
@@ -61,18 +62,17 @@ namespace snmalloc
     }
     else
     {
-      auto& alloc = ThreadAlloc::get();
       void* p = const_cast<void*>(ptr);
 
       auto range_end = pointer_offset(p, len);
-      auto object_end = alloc.template external_pointer<OnePastEnd>(p);
+      auto object_end = external_pointer<OnePastEnd>(p);
       report_fatal_error(
         "Fatal Error!\n{}: \n\trange [{}, {})\n\tallocation [{}, "
         "{})\nrange goes beyond allocation by {} bytes \n",
         msg,
         p,
         range_end,
-        alloc.template external_pointer<Start>(p),
+        external_pointer<Start>(p),
         object_end,
         pointer_diff(object_end, range_end));
     }
@@ -81,23 +81,33 @@ namespace snmalloc
   /**
    * Check whether a pointer + length is in the same object as the pointer.
    *
-   * Returns true if the checks succeeds.
+   * Returns the result of the supplied continuation
    *
    * The template parameter indicates whether the check should be performed.  It
-   * defaults to true. If it is false, the check will always succeed.
+   * defaults to true. If it is false, it short cuts to calling the continuation
+   * directly.
    */
-  template<bool PerformCheck = true>
-  SNMALLOC_FAST_PATH_INLINE bool check_bounds(const void* ptr, size_t len)
+  template<
+    bool PerformCheck = true,
+    typename F,
+    SNMALLOC_CONCEPT(IsConfig) Config = Config>
+  SNMALLOC_FAST_PATH_INLINE auto check_bound(
+    const void* ptr, size_t len, const char* msg, F f = []() {})
   {
     if constexpr (PerformCheck)
     {
-      auto& alloc = ThreadAlloc::get();
-      return alloc.check_bounds(ptr, len);
+      if (SNMALLOC_LIKELY(len != 0))
+      {
+        if (SNMALLOC_UNLIKELY(remaining_bytes<Config>(address_cast(ptr)) < len))
+        {
+          return report_fatal_bounds_error(ptr, len, msg);
+        }
+      }
     }
     else
     {
-      UNUSED(ptr, len);
-      return true;
+      UNUSED(ptr, len, msg);
     }
+    return f();
   }
 } // namespace snmalloc

@@ -1,6 +1,12 @@
 #ifdef SNMALLOC_USE_PTHREAD_DESTRUCTORS
 #  undef SNMALLOC_USE_PTHREAD_DESTRUCTORS
 #endif
+#ifdef SNMALLOC_USE_CXX11_THREAD_ATEXIT_DIRECT
+#  undef SNMALLOC_USE_CXX11_THREAD_ATEXIT_DIRECT
+#endif
+#ifdef SNMALLOC_USE_CXX11_DESTRUCTORS
+#  undef SNMALLOC_USE_CXX11_DESTRUCTORS
+#endif
 
 #include <new>
 #include <snmalloc/snmalloc_core.h>
@@ -13,8 +19,8 @@
 
 namespace snmalloc
 {
-  using Alloc = snmalloc::LocalAllocator<
-    snmalloc::StandardConfigClientMeta<NoClientMetaDataProvider>>;
+  using Config = snmalloc::StandardConfigClientMeta<NoClientMetaDataProvider>;
+  using Alloc = snmalloc::Allocator<Config>;
 }
 
 using namespace snmalloc;
@@ -47,13 +53,12 @@ void allocator_thread_init(void)
   }
   // Initialize the thread-local allocator
   ThreadAllocExternal::get_inner() = new (aptr) snmalloc::Alloc();
-  ThreadAllocExternal::get().init();
 }
 
 void allocator_thread_cleanup(void)
 {
   // Teardown the thread-local allocator
-  ThreadAllocExternal::get().teardown();
+  ThreadAlloc::teardown();
   // Need a bootstrap allocator to deallocate the thread-local allocator
   auto a = snmalloc::ScopedAllocator();
   // Deallocate the storage for the thread local allocator
@@ -65,16 +70,14 @@ int main()
   setup();
   allocator_thread_init();
 
-  auto& a = ThreadAlloc::get();
-
   for (size_t i = 0; i < 1000; i++)
   {
-    auto r1 = a.alloc(i);
+    auto r1 = snmalloc::alloc(i);
 
-    a.dealloc(r1);
+    snmalloc::dealloc(r1);
   }
 
-  ThreadAlloc::get().teardown();
+  snmalloc::debug_teardown();
 
   // This checks that the scoped allocator does not call
   // register clean up, as this configuration will fault

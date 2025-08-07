@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.21)
 
 set(ALLOWED_TEST_PLATFORMS "snp;virtual")
 
@@ -119,12 +119,7 @@ endif()
 option(USE_SNMALLOC "Link against snmalloc" ON)
 if(USE_SNMALLOC)
   set(SNMALLOC_BUILD_TESTING OFF)
-  # It is necessary to override the cached value, to ensure that the snmalloc
-  # CMakeLists.txt picks up this change and applies it correctly.
-  set(SNMALLOC_STATIC_LIBRARY_PREFIX
-      ""
-      CACHE STRING "Prefix for snmalloc static library"
-  )
+  set(SNMALLOC_STATIC_LIBRARY_PREFIX "")
   add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
 endif()
 
