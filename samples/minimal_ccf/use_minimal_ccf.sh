@@ -3,7 +3,7 @@
 set -eu
 
 PLATFORM=${PLATFORM:-virtual}
-CCF_VERSION=${CCF_VERSION:-$(curl -Ls -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')}
+CCF_VERSION=${CCF_VERSION:-$(curl -Ls -o /dev/null -w '%{url_effective}' https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')}
 ccf_target=ccf_runtime
 
 docker build \
@@ -16,7 +16,7 @@ docker build \
 
 # Using ccf_runtime image to the sample app build to use as final image
 my_app_target=my_app
-MYAPP_VERSION=${MYAPP_VERSION:-$(curl -Ls -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')}
+MYAPP_VERSION=${MYAPP_VERSION:-$(curl -Ls -o /dev/null -w '%{url_effective}' https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')}
 docker build \
     -t ${my_app_target} \
     --no-cache \
