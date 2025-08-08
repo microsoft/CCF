@@ -1,10 +1,7 @@
 import { assert } from "chai";
 import * as util from "../src/utils.js";
 
-function uint8ArrayBufferEquality(
-  a: Uint8Array,
-  b: Uint8Array,
-): boolean {
+function uint8ArrayBufferEquality(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) {
     return false;
   }
@@ -31,7 +28,7 @@ describe("utils", function () {
     const uint8Array = new Uint8Array(sharedBuffer);
     const result = util.toUint8ArrayBuffer(uint8Array);
     assert.instanceOf(result, Uint8Array);
-    assert.notStrictEqual((result.buffer as any), (sharedBuffer as any));
+    assert.notStrictEqual(result.buffer as any, sharedBuffer as any);
     assert.isTrue(uint8ArrayBufferEquality(result, new Uint8Array([1, 2, 3])));
   });
 
@@ -48,7 +45,12 @@ describe("utils", function () {
     const result = util.toArrayBuffer(buffer);
     assert.instanceOf(result, ArrayBuffer);
     assert.notStrictEqual(result as any, buffer as any);
-    assert.isTrue(uint8ArrayBufferEquality(new Uint8Array(result), new Uint8Array([1, 2, 3])));
+    assert.isTrue(
+      uint8ArrayBufferEquality(
+        new Uint8Array(result),
+        new Uint8Array([1, 2, 3]),
+      ),
+    );
   });
   it("toArrayBuffer(Uint8Array<ArrayBuffer>)", function () {
     const buffer = new Uint8Array([1, 2, 3]);
@@ -63,16 +65,29 @@ describe("utils", function () {
     const buffer = new Uint8Array(sharedBuffer);
     const result = util.toArrayBuffer(buffer);
     assert.instanceOf(result, ArrayBuffer);
-    assert.notStrictEqual((result as any), (sharedBuffer as any));
-    assert.isTrue(uint8ArrayBufferEquality(new Uint8Array(result), new Uint8Array([1, 2, 3])));
+    assert.notStrictEqual(result as any, sharedBuffer as any);
+    assert.isTrue(
+      uint8ArrayBufferEquality(
+        new Uint8Array(result),
+        new Uint8Array([1, 2, 3]),
+      ),
+    );
   });
   it("toArrayBuffer(Buffer)", function () {
     const buffer = Buffer.from([1, 2, 3]);
     const result = util.toArrayBuffer(buffer);
     assert.instanceOf(result, ArrayBuffer);
-    assert.isTrue(uint8ArrayBufferEquality(new Uint8Array(result), new Uint8Array([1, 2, 3])));
+    assert.isTrue(
+      uint8ArrayBufferEquality(
+        new Uint8Array(result),
+        new Uint8Array([1, 2, 3]),
+      ),
+    );
   });
   it("toArrayBuffer(unsupported type)", function () {
-    assert.throws(() => util.toArrayBuffer("string" as any), /Unsupported buffer type/);
+    assert.throws(
+      () => util.toArrayBuffer("string" as any),
+      /Unsupported buffer type/,
+    );
   });
 });

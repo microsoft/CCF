@@ -30,7 +30,7 @@ export function toArrayBuffer(
     return buffer;
   }
   if (buffer instanceof SharedArrayBuffer) {
-    const view = new Uint8Array( buffer);
+    const view = new Uint8Array(buffer);
     return toUint8ArrayBuffer(view).buffer;
   }
   if (buffer instanceof Uint8Array || (buffer as any) instanceof Buffer) {
