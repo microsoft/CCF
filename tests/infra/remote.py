@@ -27,9 +27,11 @@ FILE_TIMEOUT_S = 60
 
 
 class CmdMixin(object):
+    perfable = True
+
     @property
     def cmd(self):
-        if os.getenv("CCF_PERF"):
+        if self.perfable and os.getenv("CCF_PERF"):
             return ["perf", "record"] + self._cmd
         else:
             return self._cmd

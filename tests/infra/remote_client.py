@@ -66,6 +66,10 @@ class CCFRemoteClient(object):
         self.remote = infra.remote.LocalRemote(
             name, host, [self.BIN], self.DEPS, cmd, workspace, self.common_dir
         )
+        # We do not want to record perf data for the remote client
+        # and we may not be able to without additional setup depending
+        # on their use of mmap
+        self.remote.perfable = False
 
     def setup(self):
         self.remote.setup()
@@ -125,6 +129,10 @@ class CCFRemoteCmd(object):
             self.common_dir,
             pid_file="cmd.pid",
         )
+        # We do not want to record perf data for the remote client
+        # and we may not be able to without additional setup depending
+        # on their use of mmap
+        self.remote.perfable = False
 
         self.description = self.name
 
