@@ -25,7 +25,7 @@ The operator can establish if it is safe to remove a node by calling :http:GET:`
 Updating Code Version
 ---------------------
 
-For new nodes to be able to join the network, the version of the code they run (as specified by ``enclave.file``) should be first trusted by the consortium of members.
+For new nodes to be able to join the network, the version of the code they run should be first trusted by the consortium of members.
 
 The specifics of how to manage code updates depends on the :doc:`platform <../operations/platforms/index>` being run.
 

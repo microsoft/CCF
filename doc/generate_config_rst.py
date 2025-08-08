@@ -43,7 +43,7 @@ class MinimalRstGenerator:
     def start_section(self, header, prefix=""):
         if prefix:
             prefix = f"`{prefix}`"
-            self._start_header_section(f"{prefix}\ {header}")
+            self._start_header_section(f"{prefix} {header}")
         else:
             self._start_header_section(header)
         self._depth += 1
