@@ -139,9 +139,9 @@ Examples:
 Updating UVM endorsements
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To update the UVM endorsements, for instance, to rev up the SVN version, use ``add_snp_uvm_endorsement`` and ``remove_snp_uvm_endorsement`` governance actions:
-* If you're performing a code upgrade, and the old measurement can't be verified with the new UVM endorsement, you must add the endorsements first.
-* After upgrading the code (if applicable) and adding new endorsements, you can remove the old ones using ``remove_snp_uvm_endorsement``.
+To update the UVM endorsements, for instance, to rev up the SVN version, use ``add_snp_uvm_endorsement`` and ``remove_snp_uvm_endorsement`` governance actions.
+
+* If performing a platform upgrade, new UVM endorsements should be added to the current network before joining new nodes.
 * Every endorsement is uniquely identified by (DID, feed) pair.
 
 Examples:
