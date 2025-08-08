@@ -2,6 +2,7 @@ import { Base64 } from "js-base64";
 
 import * as ccfapp from "@microsoft/ccf-app";
 import * as ccfsnp from "@microsoft/ccf-app/snp_attestation";
+import { toUint8ArrayBuffer } from "@microsoft/ccf-app/utils";
 
 interface ErrorResponse {
   error: {
@@ -88,15 +89,17 @@ export function verifySnpAttestation(
     const body = request.body.json();
     const evidence = ccfapp
       .typedArray(Uint8Array)
-      .encode(Base64.toUint8Array(body.evidence));
+      .encode(toUint8ArrayBuffer(Base64.toUint8Array(body.evidence)));
     const endorsements = ccfapp
       .typedArray(Uint8Array)
-      .encode(Base64.toUint8Array(body.endorsements));
+      .encode(toUint8ArrayBuffer(Base64.toUint8Array(body.endorsements)));
     const uvm_endorsements =
       body.uvm_endorsements !== undefined
         ? ccfapp
             .typedArray(Uint8Array)
-            .encode(Base64.toUint8Array(body.uvm_endorsements))
+            .encode(
+              toUint8ArrayBuffer(Base64.toUint8Array(body.uvm_endorsements)),
+            )
         : undefined;
 
     const r = ccfsnp.verifySnpAttestation(

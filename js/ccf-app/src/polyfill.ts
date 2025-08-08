@@ -39,6 +39,7 @@ import {
   JsonWebKeyEdDSAPublic,
   JsonWebKeyEdDSAPrivate,
 } from "./global.js";
+import { toArrayBuffer } from "./utils.js";
 
 // JavaScript's Map uses reference equality for non-primitive types,
 // whereas CCF compares the content of the ArrayBuffer.
@@ -136,8 +137,8 @@ class CCFPolyfill implements CCF {
           .replace("-", "")
           .toLowerCase();
         const hmac = jscrypto.createHmac(hashAlg, key);
-        hmac.update(new Uint8Array(data));
-        return hmac.digest();
+        hmac.update(new Uint8Array<ArrayBuffer>(data));
+        return nodeBufToArrBuf(hmac.digest());
       }
       let padding = undefined;
       const privKey = jscrypto.createPrivateKey(key);
@@ -159,17 +160,21 @@ class CCFPolyfill implements CCF {
         throw new Error("unrecognized signing algorithm");
       }
       if (algorithm.name === "EdDSA") {
-        return jscrypto.sign(null, new Uint8Array(data), privKey);
+        return nodeBufToArrBuf(
+          jscrypto.sign(null, new Uint8Array(data), privKey),
+        );
       }
       const hashAlg = (algorithm.hash as string).replace("-", "").toLowerCase();
       const signer = jscrypto.createSign(hashAlg);
       signer.update(new Uint8Array(data));
-      return signer.sign({
-        key: privKey,
-        dsaEncoding: "ieee-p1363",
-        padding: padding,
-        saltLength: algorithm.saltLength ?? 0,
-      });
+      return nodeBufToArrBuf(
+        signer.sign({
+          key: privKey,
+          dsaEncoding: "ieee-p1363",
+          padding: padding,
+          saltLength: algorithm.saltLength ?? 0,
+        }),
+      );
     },
     verifySignature(
       algorithm: SigningAlgorithm,
@@ -650,8 +655,10 @@ function nodeBufToArrBuf(buf: Buffer): ArrayBuffer {
   return arrBuf;
 }
 
-function typedArrToArrBuf(ta: ArrayBufferView) {
-  return ta.buffer.slice(ta.byteOffset, ta.byteOffset + ta.byteLength);
+function typedArrToArrBuf(ta: ArrayBufferView): ArrayBuffer {
+  return toArrayBuffer(
+    ta.buffer.slice(ta.byteOffset, ta.byteOffset + ta.byteLength),
+  );
 }
 
 function base64(buf: ArrayBuffer): string {

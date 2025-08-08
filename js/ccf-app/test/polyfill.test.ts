@@ -10,6 +10,7 @@ import {
 } from "../src/global.js";
 import * as textcodec from "../src/textcodec.js";
 import { generateSelfSignedCert, generateCertChain } from "./crypto.js";
+import { toArrayBuffer } from "../src/utils.js";
 
 beforeEach(function () {
   // clear KV before each test
@@ -206,7 +207,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           publicKey,
-          signature,
+          toArrayBuffer(signature),
           data,
         ),
       );
@@ -271,7 +272,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           publicKey,
-          signature,
+          toArrayBuffer(signature),
           data,
         ),
       );
@@ -365,20 +366,24 @@ describe("polyfill", function () {
 
           {
             // Re-calculate directly, check for match
-            let node_hmac = crypto
-              .createHmac(nodeHash, key)
-              .update(new Uint8Array(data))
-              .digest();
+            let node_hmac = toArrayBuffer(
+              crypto
+                .createHmac(nodeHash, key)
+                .update(new Uint8Array(data))
+                .digest(),
+            );
             assert.deepEqual(signature, node_hmac);
           }
           assert.deepEqual(5, 6);
 
           {
             // Check for mismatch
-            let node_hmac = crypto
-              .createHmac(nodeHash, key)
-              .update(new Uint8Array(ccf.strToBuf("bar")))
-              .digest();
+            let node_hmac = toArrayBuffer(
+              crypto
+                .createHmac(nodeHash, key)
+                .update(new Uint8Array(ccf.strToBuf("bar")))
+                .digest(),
+            );
             assert.notDeepEqual(signature, node_hmac);
           }
         });
@@ -404,7 +409,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           cert,
-          signature,
+          toArrayBuffer(signature),
           data,
         ),
       );
@@ -415,7 +420,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           publicKey,
-          signature,
+          toArrayBuffer(signature),
           data,
         ),
       );
@@ -426,7 +431,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           cert,
-          signature,
+          toArrayBuffer(signature),
           ccf.strToBuf("bar"),
         ),
       );
@@ -437,7 +442,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           publicKey,
-          signature,
+          toArrayBuffer(signature),
           data,
         ),
       );
@@ -471,7 +476,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           publicKey,
-          signature,
+          toArrayBuffer(signature),
           data,
         ),
       );
@@ -482,7 +487,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           publicKey,
-          signature,
+          toArrayBuffer(signature),
           ccf.strToBuf("bar"),
         ),
       );
@@ -493,7 +498,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           publicKey,
-          signature,
+          toArrayBuffer(signature),
           data,
         ),
       );
@@ -521,7 +526,7 @@ describe("polyfill", function () {
             name: "EdDSA",
           },
           publicKey,
-          signature,
+          toArrayBuffer(signature),
           data,
         ),
       );
@@ -531,7 +536,7 @@ describe("polyfill", function () {
             name: "EdDSA",
           },
           publicKey,
-          signature,
+          toArrayBuffer(signature),
           ccf.strToBuf("bar"),
         ),
       );
@@ -542,7 +547,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           publicKey,
-          signature,
+          toArrayBuffer(signature),
           data,
         ),
       );
