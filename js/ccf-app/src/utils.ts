@@ -14,7 +14,7 @@ export function toUint8ArrayBuffer(
     const view = new Uint8Array(
       new ArrayBuffer((buffer.buffer as SharedArrayBuffer).byteLength),
     );
-    view.set(new Uint8Array(buffer.buffer));
+    view.set(buffer);
     return new Uint8Array(view.buffer, buffer.byteOffset, buffer.byteLength);
   }
   throw new Error("Unsupported buffer type");
@@ -30,9 +30,7 @@ export function toArrayBuffer(
     return buffer;
   }
   if (buffer instanceof SharedArrayBuffer) {
-    const view = new Uint8Array(
-      new ArrayBuffer((buffer as SharedArrayBuffer).byteLength),
-    );
+    const view = new Uint8Array( buffer);
     return toUint8ArrayBuffer(view).buffer;
   }
   if (buffer instanceof Uint8Array || (buffer as any) instanceof Buffer) {
