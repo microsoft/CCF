@@ -82,7 +82,7 @@ Similar to the ``forwarding_required`` property which specified each endpoint's 
 
 And a field on the endpoint in JS's ``app.json``:
 
-.. code-block:: json
+.. code-block:: text
 
     {
         "endpoints": {
