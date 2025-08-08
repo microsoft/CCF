@@ -25,3 +25,4 @@ polars
 plotext
 boofuzz
 numpy<2
+cwt
