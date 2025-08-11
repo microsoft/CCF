@@ -216,8 +216,6 @@ namespace ccf
         throw std::runtime_error("No ACME challenge handler");
       }
 
-      using namespace ::threading;
-
       challenge_handler->token_responses[token] = response;
 
       ccf::tasks::add_delayed_task(
