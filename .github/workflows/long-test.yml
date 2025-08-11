@@ -203,7 +203,7 @@ jobs:
           set -ex
           ./scripts/setup-ci.sh
           # This run requires libc++ to run with hardening mode
-          tdnf -y install libcxx-devel llvm-libunwind-static
+          tdnf -y install libcxx-devel libunwind-devel
 
       - name: "Build"
         run: |
@@ -211,7 +211,7 @@ jobs:
           mkdir build
           cd build
           # Use libc++ to enable hardening/bounds checking during tests
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DUSE_LIBCXX=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DUSE_LIBCXX=ON -DUSE_SNMALLOC=OFF ..
           ninja
 
       - name: "Test"
