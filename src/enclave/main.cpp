@@ -65,16 +65,6 @@ extern "C"
     {
       num_pending_threads = (uint16_t)num_worker_threads + 1;
 
-      if (num_pending_threads > threading::ThreadMessaging::max_num_threads)
-      {
-        LOG_FAIL_FMT("Too many threads: {}", num_pending_threads);
-        return CreateNodeStatus::TooManyThreads;
-      }
-
-      // Initialise singleton instance of ThreadMessaging, now that number of
-      // threads are known
-      threading::ThreadMessaging::init(num_pending_threads);
-
       ccf::enclavetime::host_time_us =
         static_cast<decltype(ccf::enclavetime::host_time_us)>(time_location);
     }
@@ -203,11 +193,9 @@ extern "C"
       if (tid == ccf::threading::MAIN_THREAD_ID)
       {
         auto s = e.load()->run_main();
-        while (num_complete_threads !=
-               threading::ThreadMessaging::instance().thread_count() - 1)
-        {
-        }
-        threading::ThreadMessaging::shutdown();
+
+        // TODO: Do you need to wait for workers to complete? I don't think so!
+
         return s;
       }
       auto s = e.load()->run_worker();

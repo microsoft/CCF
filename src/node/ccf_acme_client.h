@@ -5,7 +5,6 @@
 #include "ccf/http_status.h"
 #include "ccf/service/acme_client_config.h"
 #include "ccf/service/tables/acme_certificates.h"
-#include "ds/thread_messaging.h"
 #include "enclave/rpc_sessions.h"
 #include "node/acme_challenge_frontend.h"
 #include "node/acme_client.h"

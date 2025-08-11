@@ -52,6 +52,7 @@ namespace ccf
     std::unique_ptr<ccf::NodeState> node;
     ringbuffer::WriterPtr to_host = nullptr;
     std::chrono::microseconds last_tick_time;
+    std::atomic<bool> worker_stop_signal = false;
 
     StartType start_type;
 
@@ -249,9 +250,9 @@ namespace ccf
         lfs_access->register_message_handlers(bp.get_dispatcher());
 
         DISPATCHER_SET_MESSAGE_HANDLER(
-          bp, AdminMessage::stop, [&bp](const uint8_t*, size_t) {
+          bp, AdminMessage::stop, [this, &bp](const uint8_t*, size_t) {
             bp.set_finished();
-            ::threading::ThreadMessaging::instance().set_finished();
+            this->worker_stop_signal.store(true);
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
@@ -281,7 +282,6 @@ namespace ccf
 
               node->tick(elapsed_ms);
               historical_state_cache->tick(elapsed_ms);
-              ::threading::ThreadMessaging::instance().tick(elapsed_ms);
               ccf::tasks::tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // public ledger is being read
@@ -403,27 +403,24 @@ namespace ccf
           // First, read some messages from the ringbuffer
           auto read = bp.read_n(max_messages, circuit->read_from_outside());
 
-          // Then, execute some thread messages
-          size_t thread_msg = 0;
-          while (thread_msg < max_messages &&
-                 ::threading::ThreadMessaging::instance().run_one())
-          {
-            thread_msg++;
-          }
-
           // Then, execute some tasks
-          ccf::tasks::Task task = ccf::tasks::get_main_job_board().get_task();
+          auto& job_board = ccf::tasks::get_main_job_board();
+          ccf::tasks::Task task = job_board.get_task();
           size_t tasks_done = 0;
-          while (task != nullptr && tasks_done < max_messages)
+          while (task != nullptr)
           {
             task->do_task();
             ++tasks_done;
-            task = ccf::tasks::get_main_job_board().get_task();
+            if (tasks_done >= max_messages)
+            {
+              break;
+            }
+            task = job_board.get_task();
           }
 
-          // If no messages were read from the ringbuffer and no thread
-          // messages were executed, idle
-          if (read == 0 && thread_msg == 0)
+          // If no messages were read from the ringbuffer and tasks were
+          // executed, idle
+          if (read == 0 && tasks_done == 0)
           {
             std::this_thread::yield();
           }
@@ -438,30 +435,26 @@ namespace ccf
       }
     }
 
-    struct Msg
-    {
-      uint64_t tid;
-    };
-
-    static void init_thread_cb(std::unique_ptr<::threading::Tmsg<Msg>> msg)
-    {
-      LOG_DEBUG_FMT("First thread CB:{}", msg->data.tid);
-    }
-
     bool run_worker()
     {
       ccf::crypto::openssl_sha256_init();
       LOG_DEBUG_FMT("Running worker thread");
 
       {
-        auto msg = std::make_unique<::threading::Tmsg<Msg>>(&init_thread_cb);
-        msg->data.tid = ccf::threading::get_current_thread_id();
-        ::threading::ThreadMessaging::instance().add_task(
-          msg->data.tid, std::move(msg));
+        auto& job_board = ccf::tasks::get_main_job_board();
+        const auto timeout = std::chrono::milliseconds(100);
 
-        ::threading::ThreadMessaging::instance().run();
-        ccf::crypto::openssl_sha256_shutdown();
+        while (!worker_stop_signal.load())
+        {
+          auto task = job_board.wait_for_task(timeout);
+          if (task != nullptr)
+          {
+            task->do_task();
+          }
+        }
       }
+
+      ccf::crypto::openssl_sha256_shutdown();
 
       return true;
     }

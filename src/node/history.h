@@ -10,7 +10,6 @@
 #include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/key_pair.h"
-#include "ds/thread_messaging.h"
 #include "enclave/enclave_time.h"
 #include "endian.h"
 #include "kv/kv_types.h"

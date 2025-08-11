@@ -15,7 +15,6 @@
 #include "crypto/key_exchange.h"
 #include "ds/serialized.h"
 #include "ds/state_machine.h"
-#include "ds/thread_messaging.h"
 #include "enclave/enclave_time.h"
 #include "node_types.h"
 
