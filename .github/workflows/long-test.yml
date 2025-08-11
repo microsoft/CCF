@@ -203,7 +203,7 @@ jobs:
           set -ex
           ./scripts/setup-ci.sh
           # This run requires libc++ to run with hardening mode
-          tdnf -y install libcxx-devel libunwind-devel
+          tdnf -y install libcxx-devel llvm-libunwind-static
 
       - name: "Build"
         run: |
