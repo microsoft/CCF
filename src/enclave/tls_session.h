@@ -164,7 +164,7 @@ namespace ccf
 
       switch (r)
       {
-        case 0:
+        // case 0: // HMMMM TODO
         case TLS_ERR_CONN_CLOSE_NOTIFY:
         {
           LOG_TRACE_FMT(
