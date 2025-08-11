@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.21)
 project(snmalloc CXX)
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -29,24 +29,32 @@ option(SNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS "Build tests and ld_preload for
 option(SNMALLOC_ENABLE_DYNAMIC_LOADING "Build such that snmalloc can be dynamically loaded. This is not required for LD_PRELOAD, and will harm performance if enabled." OFF)
 option(SNMALLOC_ENABLE_WAIT_ON_ADDRESS "Use wait on address backoff strategy if it is available" ON)
 option(SNMALLOC_ENABLE_FUZZING "Enable fuzzing instrumentation tests" OFF)
+option(SNMALLOC_USE_SELF_VENDORED_STL "Avoid using system STL" OFF)
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
+cmake_dependent_option(SNMALLOC_RUST_LIBC_API "Include libc API in the rust library" OFF "SNMALLOC_RUST_SUPPORT" OFF)
 cmake_dependent_option(SNMALLOC_STATIC_LIBRARY "Build static libraries" ON "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_CHECK_LOADS "Perform bounds checks on the source argument to memcpy with heap objects" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_PAGEID "Set an id to memory regions" OFF "NOT SNMALLOC_PAGEID" OFF)
+
+# GwpAsan secondary allocator
+option(SNMALLOC_ENABLE_GWP_ASAN_INTEGRATION "Enable GwpAsan as a secondary allocator" OFF)
+set(SNMALLOC_GWP_ASAN_INCLUDE_PATH "" CACHE PATH "GwpAsan header directory")
+set(SNMALLOC_GWP_ASAN_LIBRARY_PATH "" CACHE PATH "GwpAsan library directory")
+
 if (NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   # Pick a sensible default for the thread cleanup mechanism
   if (${CMAKE_SYSTEM_NAME} STREQUAL FreeBSD)
     set(SNMALLOC_CLEANUP_DEFAULT THREAD_CLEANUP)
   elseif (UNIX AND NOT APPLE)
-    set(SNMALLOC_CLEANUP_DEFAULT PTHREAD_DESTRUCTORS)
+    set(SNMALLOC_CLEANUP_DEFAULT CXX11_THREAD_ATEXIT_DIRECT)
   else ()
     set(SNMALLOC_CLEANUP_DEFAULT CXX11_DESTRUCTORS)
   endif()
   # Specify the thread cleanup mechanism to use.
-  set(SNMALLOC_CLEANUP ${SNMALLOC_CLEANUP_DEFAULT} CACHE STRING "The mechanism that snmalloc will use for thread destructors.  Valid options are: CXX11_DESTRUCTORS (use C++11 destructors, may depend on the C++ runtime library), PTHREAD_DESTRUCTORS (use pthreads, may interact badly with C++ on some platforms, such as macOS) THREAD_CLEANUP (depend on an explicit call to _malloc_thread_cleanup on thread exit, supported by FreeBSD's threading implementation and possibly elsewhere)")
-  set_property(CACHE SNMALLOC_CLEANUP PROPERTY STRINGS THREAD_CLEANUP PTHREAD_DESTRUCTORS CXX11_DESTRUCTORS)
+  set(SNMALLOC_CLEANUP ${SNMALLOC_CLEANUP_DEFAULT} CACHE STRING "The mechanism that snmalloc will use for thread destructors.  Valid options are: CXX11_DESTRUCTORS (use C++11 destructors, may depend on the C++ runtime library), CXX11_THREAD_ATEXIT_DIRECT (use the glibc call for libstdc++ directly), PTHREAD_DESTRUCTORS (use pthreads, may interact badly with C++ on some platforms, such as macOS) THREAD_CLEANUP (depend on an explicit call to _malloc_thread_cleanup on thread exit, supported by FreeBSD's threading implementation and possibly elsewhere)")
+  set_property(CACHE SNMALLOC_CLEANUP PROPERTY STRINGS THREAD_CLEANUP PTHREAD_DESTRUCTORS CXX11_THREAD_ATEXIT_DIRECT CXX11_DESTRUCTORS)
 
   set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
   set(SNMALLOC_COMPILER_SUPPORT_IPO FALSE)
@@ -85,10 +93,50 @@ if (NOT CHECK_LINKER_FLAG)
   endfunction()
 endif ()
 
+# FORTIFY_SOURCE prevents overriding memcpy, disable memcpy if detected.
+# This checks if memcpy can be overridden.
+CHECK_CXX_SOURCE_COMPILES("
+#include <string.h>
+extern \"C\" void* memcpy(void *, const void*, size_t) {}
+int main() { return 0; }
+" SNMALLOC_MEMCPY_OVERRIDE)
+if (NOT SNMALLOC_MEMCPY_OVERRIDE)
+  message(WARNING "Unable to override memcpy (possbily due to _FORTIFY_SOURCE).")
+  if (SNMALLOC_CHECK_LOADS)
+    message(FATAL_ERROR "SNMALLOC_CHECK_LOADS is incompatible as memcpy could not be overridden. (possbily due to _FORTIFY_SOURCE)")
+  endif()
+endif()
+
+# Detect if nostdlib++ works
+# Use custom code to detect failure with glibcxx assertions define.
+set(CMAKE_REQUIRED_LINK_OPTIONS -nostdlib++)
+check_cxx_source_compiles("
+#include <array>
+
+char foo(std::array<int, 10> p, int i)
+{ return p[i]; }
+
+int main()
+{ return 0; }"
+ SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
+set(CMAKE_REQUIRED_LINK_OPTIONS "")
+
+# Detect if pthread_atfork works
+CHECK_CXX_SOURCE_COMPILES("
+#include <pthread.h>
+void prepare() {}
+void parent() {}
+void child() {}
+int main() {
+  pthread_atfork(prepare, parent, child);
+  return 0;
+}
+" SNMALLOC_PTHREAD_ATFORK_WORKS)
+
+
 if (NOT MSVC AND NOT (SNMALLOC_CLEANUP STREQUAL CXX11_DESTRUCTORS))
   # If the target compiler doesn't support -nostdlib++ then we must enable C at
   # the global scope for the fallbacks to work.
-  check_linker_flag(CXX "-nostdlib++" SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
   if (NOT SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX AND NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     enable_language(C)
   endif()
@@ -205,6 +253,28 @@ else()
   target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_WAIT_ON_ADDRESS=0)
 endif()
 
+if(SNMALLOC_REMOTE_BATCH_PROCESS_SIZE)
+  target_compile_definitions(snmalloc INTERFACE SNMALLOC_REMOTE_BATCH_PROCESS_SIZE=${SNMALLOC_REMOTE_BATCH_PROCESS_SIZE})
+endif()
+
+if(SNMALLOC_USE_SELF_VENDORED_STL)
+  target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_SELF_VENDORED_STL)
+endif()
+
+if (SNMALLOC_ENABLE_GWP_ASAN_INTEGRATION)
+  if (NOT EXISTS ${SNMALLOC_GWP_ASAN_INCLUDE_PATH})
+    message(FATAL_ERROR "GwpAsan cannot be enabled without setting SNMALLOC_GWP_ASAN_INCLUDE_PATH")
+  endif()
+  if (NOT EXISTS ${SNMALLOC_GWP_ASAN_LIBRARY_PATH})
+    message(FATAL_ERROR "GwpAsan cannot be enabled without setting SNMALLOC_GWP_ASAN_LIBRARY_PATH")
+  endif()
+  message(STATUS "GwpAsan is enabled: ${SNMALLOC_GWP_ASAN_LIBRARY_PATH}/libclang_rt.gwp_asan-${CMAKE_SYSTEM_PROCESSOR}.a")
+  target_include_directories(snmalloc INTERFACE ${SNMALLOC_GWP_ASAN_INCLUDE_PATH})
+  target_link_directories(snmalloc INTERFACE ${SNMALLOC_GWP_ASAN_LIBRARY_PATH})
+  target_compile_definitions(snmalloc INTERFACE -DSNMALLOC_ENABLE_GWP_ASAN_INTEGRATION)
+  target_link_libraries(snmalloc INTERFACE clang_rt.gwp_asan-${CMAKE_SYSTEM_PROCESSOR})
+endif()
+
 # https://learn.microsoft.com/en-us/cpp/build/reference/zc-cplusplus
 if(MSVC)
   target_compile_options(snmalloc INTERFACE "/Zc:__cplusplus")
@@ -264,6 +334,7 @@ add_as_define(SNMALLOC_QEMU_WORKAROUND)
 add_as_define(SNMALLOC_TRACING)
 add_as_define(SNMALLOC_CI_BUILD)
 add_as_define(SNMALLOC_PLATFORM_HAS_GETENTROPY)
+add_as_define(SNMALLOC_PTHREAD_ATFORK_WORKS)
 add_as_define(SNMALLOC_HAS_LINUX_RANDOM_H)
 add_as_define(SNMALLOC_HAS_LINUX_FUTEX_H)
 if (SNMALLOC_NO_REALLOCARRAY)
@@ -293,11 +364,9 @@ if(${Backtrace_FOUND})
     $<${ci_or_debug}:${Backtrace_INCLUDE_DIRS}>)
 endif()
 
-if(MSVC)
-  target_compile_definitions(snmalloc INTERFACE -D_HAS_EXCEPTIONS=0)
-else()
-  # All symbols are always dynamic on haiku and -rdynamic is redundant (and unsupported).
-  if (NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+if(NOT MSVC)
+  check_linker_flag(CXX "-rdynamic" SNMALLOC_LINKER_SUPPORT_RDYNAMIC)
+  if (SNMALLOC_LINKER_SUPPORT_RDYNAMIC)
     # Get better stack traces in CI and debug builds.
     target_link_options(snmalloc INTERFACE $<${ci_or_debug}:-rdynamic>)
   endif()
@@ -310,7 +379,7 @@ endif()
 function(add_warning_flags name)
   target_compile_options(${name} PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/Zi /W4 /WX /wd4127 /wd4324 /wd4201>
-    $<$<NOT:$<OR:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${CMAKE_CXX_SIMULATE_ID},MSVC>>>:-fno-exceptions -fno-rtti -Wall -Wextra -Werror -Wundef>
+    $<$<NOT:$<OR:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${CMAKE_CXX_SIMULATE_ID},MSVC>>>:-fno-rtti -Wall -Wextra -Werror -Wundef>
     $<$<CXX_COMPILER_ID:Clang>:-Wsign-conversion -Wconversion>)
   target_link_options(${name} PRIVATE 
     $<$<BOOL:${SNMALLOC_LINKER_SUPPORT_NO_ALLOW_SHLIB_UNDEF}>:-Wl,--no-undefined>
@@ -349,7 +418,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
   function(make_tests TAG DEFINES)
     foreach(TEST_CATEGORY ${TEST_CATEGORIES})
-      message(STATUS "Adding ${TAG}/${TEST_CATEGORY} tests")
+      message(VERBOSE "Adding ${TAG}/${TEST_CATEGORY} tests")
       subdirlist(TESTS ${TESTDIR}/${TEST_CATEGORY})
       foreach(TEST ${TESTS})
         unset(SRC)
@@ -423,51 +492,52 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     set(LLD_WORKS FALSE)
   endif()
 
-  function(add_shim name type)
-    add_library(${name} ${type} ${ARGN})
+  if ((NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku") AND (NOT SNMALLOC_ENABLE_DYNAMIC_LOADING))
+    message(STATUS "snmalloc: Using static TLS model")
+    set (SNMALLOC_STATIC_MODE_TLS TRUE)
+  endif()
+
+  if(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE)
+    check_cxx_compiler_flag(-march=native SUPPORT_MARCH_NATIVE)
+    if (NOT SUPPORT_MARCH_NATIVE)
+      message(WARNING "Compiler does not support `-march=native` required by SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE")
+      set(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE FALSE)
+    endif()
+  endif()
+
+
+  function(compile name TYPE ${ARGN})
+    add_library(${name} ${TYPE} ${ARGN})
     target_link_libraries(${name} snmalloc)
-    set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden INTERPROCEDURAL_OPTIMIZATION ${SNMALLOC_COMPILER_SUPPORT_IPO})
     target_compile_definitions(${name} PRIVATE "SNMALLOC_USE_${SNMALLOC_CLEANUP}")
 
     add_warning_flags(${name})
     if(NOT MSVC)
       target_compile_definitions(${name} PRIVATE "SNMALLOC_EXPORT=__attribute__((visibility(\"default\")))")
-      target_compile_options(${name} PRIVATE
-        -fomit-frame-pointer -ffunction-sections)
+      set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden INTERPROCEDURAL_OPTIMIZATION ${SNMALLOC_COMPILER_SUPPORT_IPO})
+      # Make debugging harder, and code faster.
+      target_compile_options(${name} PRIVATE -fomit-frame-pointer)
 
+      set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+      # Check for prefetch write support.
       check_cxx_compiler_flag("-Werror -Wextra -Wall -mprfchw" SUPPORT_PREFETCH_WRITE)
       if (SUPPORT_PREFETCH_WRITE)
         target_compile_options(${name} PRIVATE -mprfchw)
       endif()
+
       # Static TLS model is unsupported on Haiku.
-      if ((NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku") AND (NOT SNMALLOC_ENABLE_DYNAMIC_LOADING))
-        message(STATUS "snmalloc: Using static TLS model")
+      if (SNMALLOC_STATIC_MODE_TLS)
         target_compile_options(${name} PRIVATE -ftls-model=initial-exec)
         target_compile_options(${name} PRIVATE $<$<BOOL:${SNMALLOC_CI_BUILD}>:-g>)
       endif()
 
       if(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE)
-        check_cxx_compiler_flag(-march=native SUPPORT_MARCH_NATIVE)
-        if (SUPPORT_MARCH_NATIVE)
-          target_compile_options(${name} PRIVATE -march=native)
-        else()
-          message(WARNING "Compiler does not support `-march=native` required by SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE")
-        endif()
+        target_compile_options(${name} PRIVATE -march=native)
       endif()
 
-      # Ensure that we do not link against C++ stdlib when compiling shims.
-      # If the compiler supports excluding the C++ stdlib implementation, use
-      # it.  Otherwise, fall back to linking the library as if it were C, which
-      # has roughly the same effect.
-      if (NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
-        check_linker_flag(CXX "-nostdlib++" SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
-        if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
-         target_link_options(${name} PRIVATE -nostdlib++)
-        else()
-          set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
-        endif()
-      endif()
       # Remove all the duplicate new/malloc and free/delete definitions
+      target_compile_options(${name} PRIVATE -ffunction-sections)
       target_link_options(${name} PRIVATE $<$<BOOL:${LLD_WORKS}>:$<$<BOOL:${SNMALLOC_LINK_ICF}>:-Wl,--icf=all> -fuse-ld=lld>)
     endif()
 
@@ -476,51 +546,65 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     target_compile_definitions(${name} PRIVATE
       SNMALLOC_PAGEID=$<IF:$<BOOL:${SNMALLOC_PAGEID}>,true,false>)
 
-    install(TARGETS ${name} EXPORT snmallocConfig)
+    if(MSVC)
+    else()
+      # We can't do --nostdlib++ as we are using exceptions, but we 
+      # can make it a static dependency, which we aren't really using
+      # as the interesting stuff for exceptions is in libgcc_s
+      target_link_options(${name} PRIVATE -static-libstdc++)
+    endif()
 
+    if (SNMALLOC_RUST_LIBC_API)
+      target_compile_definitions(${name} PRIVATE SNMALLOC_RUST_LIBC_API)
+    endif()
+    install(TARGETS ${name} EXPORT snmallocConfig)
   endfunction()
 
-  set(SHIM_FILES src/snmalloc/override/malloc.cc src/snmalloc/override/new.cc)
-  set(SHIM_FILES_MEMCPY src/snmalloc/override/memcpy.cc)
+  # Various files for overriding libc/rust behaviours.
+  set(MALLOC src/snmalloc/override/malloc.cc)
+  set(NEW src/snmalloc/override/new.cc)
+  set(MEMCPY src/snmalloc/override/memcpy.cc)
+  set(RUST src/snmalloc/override/rust.cc)
 
-  add_shim(snmalloc-new-override STATIC src/snmalloc/override/new.cc)
+  set(ALLOC ${MALLOC} ${NEW})
+  set(ALL ${ALLOC} ${MEMCPY})
 
   if (SNMALLOC_STATIC_LIBRARY)
-    add_shim(snmallocshim-static STATIC ${SHIM_FILES})
+    compile(snmallocshim-static STATIC ${ALLOC})
     target_compile_definitions(snmallocshim-static PRIVATE
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
   endif ()
 
+  compile(snmalloc-new-override STATIC ${NEW})
+
   if(NOT WIN32)
-    add_shim(snmallocshim SHARED ${SHIM_FILES})
-    add_shim(snmallocshim-checks-memcpy-only SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
-    add_shim(snmallocshim-checks SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
+    compile(snmallocshim SHARED ${ALLOC})
+
+    if (SNMALLOC_MEMCPY_OVERRIDE)
+      compile(snmallocshim-checks-memcpy-only SHARED ${ALL})
+      compile(snmallocshim-checks SHARED ${ALL})
+    else()
+      compile(snmallocshim-checks SHARED ${ALLOC})
+    endif()
     target_compile_definitions(snmallocshim-checks PRIVATE SNMALLOC_CHECK_CLIENT)
+  
+    compile(snmalloc-minimal SHARED ${MALLOC})
+    target_compile_options(snmalloc-minimal PRIVATE -fno-exceptions)
+    if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX AND NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
+      target_compile_options(snmalloc-minimal PRIVATE -fno-exceptions -nostdlib++)
+    endif ()
   endif()
 
   if(SNMALLOC_RUST_SUPPORT)
-    add_shim(snmallocshim-rust STATIC src/snmalloc/override/rust.cc)
-    add_shim(snmallocshim-checks-rust STATIC src/snmalloc/override/rust.cc)
+    compile(snmallocshim-rust STATIC ${RUST})
+    compile(snmallocshim-checks-rust STATIC ${RUST})
     target_compile_definitions(snmallocshim-checks-rust PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
 
   if (SNMALLOC_BUILD_TESTING)
-    if (WIN32
-    OR (CMAKE_SYSTEM_NAME STREQUAL NetBSD)
-    OR (CMAKE_SYSTEM_NAME STREQUAL OpenBSD)
-    OR (CMAKE_SYSTEM_NAME STREQUAL SunOS))
-    # Windows does not support aligned allocation well enough
-    # for pass through.
-    # NetBSD, OpenBSD and DragonFlyBSD do not support malloc*size calls.
-      set(FLAVOURS fast;check)
-    else()
-      set(FLAVOURS fast;check;malloc)
-    endif()
+    set(FLAVOURS fast;check)
 
     foreach(FLAVOUR ${FLAVOURS})
-      if (${FLAVOUR} STREQUAL "malloc")
-        set(DEFINES SNMALLOC_PASS_THROUGH)
-      endif()
       if (${FLAVOUR} STREQUAL "check")
         set(DEFINES SNMALLOC_CHECK_CLIENT)
       endif()
@@ -550,7 +634,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
     foreach (MITIGATION ${MITIGATIONS})
       set(DEFINES "SNMALLOC_CHECK_CLIENT_MITIGATIONS=${MITIGATION}")
-      add_shim(snmallocshim-${MITIGATION} SHARED ${SHIM_FILES})
+      compile(snmallocshim-${MITIGATION} SHARED ${ALLOC})
       target_compile_definitions(snmallocshim-${MITIGATION} PRIVATE ${DEFINES})
       if (SNMALLOC_BUILD_TESTING)
         make_tests(${MITIGATION} ${DEFINES})
@@ -565,7 +649,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       set(MITIGATIONSET "${MITIGATIONSET}+${MITIGATION}")
       message(STATUS "MITIGATIONSET: ${COUNT} -> ${MITIGATIONSET}")
       set(DEFINES "-DSNMALLOC_CHECK_CLIENT_MITIGATIONS=${MITIGATIONSET}")
-      add_shim(snmallocshim-${MITIGATIONNAME} SHARED ${SHIM_FILES})
+      compile(snmallocshim-${MITIGATIONNAME} SHARED ${ALLOC})
       target_compile_definitions(snmallocshim-${MITIGATIONNAME} PRIVATE ${DEFINES})
       if (SNMALLOC_BUILD_TESTING)
         make_tests(${MITIGATIONNAME} ${DEFINES})
@@ -584,11 +668,16 @@ install(TARGETS EXPORT snmallocConfig DESTINATION ${CMAKE_INSTALL_LIBDIR}
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/snmalloc)
 
 install(DIRECTORY src/snmalloc/aal DESTINATION include/snmalloc)
-install(DIRECTORY src/snmalloc/ds DESTINATION include/snmalloc)
-install(DIRECTORY src/snmalloc/override DESTINATION include/snmalloc)
 install(DIRECTORY src/snmalloc/backend DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/backend_helpers DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/ds DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/ds_aal DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/ds_core DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/global DESTINATION include/snmalloc)
 install(DIRECTORY src/snmalloc/mem DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/override DESTINATION include/snmalloc)
 install(DIRECTORY src/snmalloc/pal DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/stl DESTINATION include/snmalloc)
 install(FILES
     src/test/measuretime.h
     src/test/opt.h
@@ -596,7 +685,7 @@ install(FILES
     src/test/usage.h
     src/test/xoroshiro.h
   DESTINATION include/snmalloc/test
-  )
+)
 install(FILES src/snmalloc/snmalloc.h;src/snmalloc/snmalloc_core.h;src/snmalloc/snmalloc_front.h DESTINATION include/snmalloc)
 
 install(EXPORT snmallocConfig

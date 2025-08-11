@@ -3,13 +3,11 @@
 #include "../backend_helpers/backend_helpers.h"
 #include "backend.h"
 #include "meta_protected_range.h"
+#include "snmalloc/mem/secondary/default.h"
 #include "standard_range.h"
 
 namespace snmalloc
 {
-  // Forward reference to thread local cleanup.
-  void register_clean_up();
-
   /**
    * The default configuration for a global snmalloc.  It contains all the
    * datastructures to manage the memory from the OS.  It had several internal
@@ -24,16 +22,19 @@ namespace snmalloc
    * The Configuration sets up a Pagemap for the backend to use, and the state
    * required to build new allocators (GlobalPoolState).
    */
-  template<typename ClientMetaDataProvider = NoClientMetaDataProvider>
+  template<
+    typename ClientMetaDataProvider = NoClientMetaDataProvider,
+    typename SecondaryAllocator_ = DefaultSecondaryAllocator>
   class StandardConfigClientMeta final : public CommonConfig
   {
-    using GlobalPoolState = PoolState<
-      CoreAllocator<StandardConfigClientMeta<ClientMetaDataProvider>>>;
+    using GlobalPoolState = PoolState<Allocator<
+      StandardConfigClientMeta<ClientMetaDataProvider, SecondaryAllocator_>>>;
 
   public:
     using Pal = DefaultPal;
     using PagemapEntry = DefaultPagemapEntry<ClientMetaDataProvider>;
     using ClientMeta = ClientMetaDataProvider;
+    using SecondaryAllocator = SecondaryAllocator_;
 
   private:
     using ConcretePagemap =
@@ -65,7 +66,7 @@ namespace snmalloc
     /**
      * Use one of the default range configurations
      */
-    using LocalState = std::conditional_t<
+    using LocalState = stl::conditional_t<
       mitigations(metadata_protection),
       MetaProtectedRangeLocalState<Pal, Pagemap, Base>,
       StandardLocalState<Pal, Pagemap, Base>>;
@@ -84,7 +85,7 @@ namespace snmalloc
      * Specifies if the Configuration has been initialised.
      */
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static std::atomic<bool> initialised{false};
+    inline static stl::Atomic<bool> initialised{false};
 
     /**
      * Used to prevent two threads attempting to initialise the configuration
@@ -107,6 +108,8 @@ namespace snmalloc
         if (initialised)
           return;
 
+        SecondaryAllocator::initialize();
+
         LocalEntropy entropy;
         entropy.init<Pal>();
         // Initialise key for remote deallocation lists
@@ -126,7 +129,7 @@ namespace snmalloc
           Authmap::init();
         }
 
-        initialised.store(true, std::memory_order_release);
+        initialised.store(true, stl::memory_order_release);
       });
     }
 
@@ -146,7 +149,7 @@ namespace snmalloc
     // and concurrency safe.
     SNMALLOC_FAST_PATH static void ensure_init()
     {
-      if (SNMALLOC_LIKELY(initialised.load(std::memory_order_acquire)))
+      if (SNMALLOC_LIKELY(initialised.load(stl::memory_order_acquire)))
         return;
 
       ensure_init_slow();
@@ -155,15 +158,6 @@ namespace snmalloc
     static bool is_initialised()
     {
       return initialised;
-    }
-
-    // This needs to be a forward reference as the
-    // thread local state will need to know about this.
-    // This may allocate, so should only be called once
-    // a thread local allocator is available.
-    static void register_clean_up()
-    {
-      snmalloc::register_clean_up();
     }
   };
 } // namespace snmalloc

@@ -24,13 +24,13 @@
     "@types/node-forge": "^1.0.0",
     "chai": "^5.0.0",
     "colors": "1.4.0",
-    "cross-env": "^7.0.3",
+    "cross-env": "^10.0.0",
     "get-func-name": "3.0.0",
     "mocha": "^11.0.1",
     "node-forge": "^1.2.0",
     "ts-node": "^10.4.0",
     "typedoc": "^0.28.1",
-    "typescript": "^5.7.2"
+    "typescript": "5.8.3"
   },
   "bin": {
     "ccf-build-bundle": "scripts/build_bundle.js"

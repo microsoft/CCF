@@ -1,4 +1,5 @@
 #include <functional>
+#include <limits.h>
 #include <stdio.h>
 #include <test/helpers.h>
 #include <test/setup.h>
@@ -172,10 +173,12 @@ namespace
         size * 2);
       EXPECT(
         ptr[size] == 0,
-        "Memory not zero initialised for {} byte reallocation from {} "
+        "Memory not zero initialised for {} byte reallocation from {} with "
+        "align {}"
         "byte allocation",
         size * 2,
-        size);
+        size,
+        align);
       // The second time we run this test, we if we're allocating from a free
       // list then we will reuse this, so make sure it requires explicit
       // zeroing.
@@ -288,7 +291,7 @@ namespace
   {
     START_TEST("allocm out-of-memory behaviour");
     void* ptr = nullptr;
-    int ret = Allocm(&ptr, nullptr, std::numeric_limits<size_t>::max() / 2, 0);
+    int ret = Allocm(&ptr, nullptr, SIZE_MAX / 2, 0);
     EXPECT(
       (ptr == nullptr) && (ret == OUR_ALLOCM_ERR_OOM),
       "Expected massive allocation to fail with out of memory ({}), received "
@@ -301,25 +304,8 @@ namespace
   }
 }
 
-extern "C"
-{
-  /**
-   * The jemalloc 3.x experimental APIs are gone from the headers in newer
-   * versions, but are still present in FreeBSD libc, so declare them here
-   * for testing.
-   */
-  int allocm(void**, size_t*, size_t, int);
-  int rallocm(void**, size_t*, size_t, size_t, int);
-  int sallocm(const void*, size_t*, int);
-  int dallocm(void*, int);
-  int nallocm(size_t*, size_t, int);
-}
-
 int main()
 {
-#ifdef SNMALLOC_PASS_THROUGH
-  return 0;
-#endif
   check_lg_align_macro<63>();
   static_assert(
     OUR_MALLOCX_ZERO == MALLOCX_ZERO, "Our MALLOCX_ZERO macro is wrong");
@@ -365,6 +351,5 @@ int main()
   test_size<mallocx, dallocx, sallocx, nallocx>();
   test_zeroing<mallocx, dallocx, rallocx>();
   test_xallocx<mallocx, dallocx, xallocx>();
-  test_legacy_experimental_apis<allocm, rallocm, sallocm, dallocm, nallocm>();
 #endif
 }

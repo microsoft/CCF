@@ -424,7 +424,14 @@ namespace merkle
     /// @brief The size of the serialised path in number of bytes
     size_t serialised_size() const
     {
-      return sizeof(_leaf) + elements.size() * sizeof(Element);
+      return sizeof(_leaf) +
+      sizeof(uint64_t) + // leaf index
+      sizeof(uint64_t) + // max index
+      sizeof(uint64_t) + // number of elements
+      elements.size() * (
+        sizeof(Element::hash) + // hash
+        sizeof(uint8_t) // direction
+      );
     }
 
     /// @brief Index of the leaf of the path

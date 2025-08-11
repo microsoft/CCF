@@ -9,10 +9,20 @@ namespace ccf::threading
   static thread_local std::optional<std::string> this_thread_name =
     std::nullopt;
 
-  uint16_t get_current_thread_id()
+  uint16_t& current_thread_id()
   {
     thread_local ThreadID this_thread_id = next_thread_id.fetch_add(1);
     return this_thread_id;
+  }
+
+  uint16_t get_current_thread_id()
+  {
+    return current_thread_id();
+  }
+
+  void set_current_thread_id(ThreadID to)
+  {
+    current_thread_id() = to;
   }
 
   void reset_thread_id_generator(ThreadID to)

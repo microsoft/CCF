@@ -219,7 +219,7 @@ def run(args):
 
     LOG.info("Starting nodes on {}".format(hosts))
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        hosts, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         # Manipulate election timeouts to produce a deterministic successor to the primary
         # when it is stopped, allowing the submitters to be configured to fail over accordingly

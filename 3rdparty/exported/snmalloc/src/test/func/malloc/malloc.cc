@@ -15,11 +15,7 @@ constexpr int SUCCESS = 0;
 void check_result(size_t size, size_t align, void* p, int err, bool null)
 {
   bool failed = false;
-  EXPECT(
-    (errno == err) || (err == SUCCESS),
-    "Expected error: {} but got {}",
-    err,
-    errno);
+  EXPECT((errno == err), "Expected error: {} but got {}", err, errno);
   if (null)
   {
     EXPECT(p == nullptr, "Expected null but got {}", p);
@@ -33,21 +29,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
   }
   const auto alloc_size = our_malloc_usable_size(p);
   auto expected_size = our_malloc_good_size(size);
-#ifdef SNMALLOC_PASS_THROUGH
-  // Calling system allocator may allocate a larger block than
-  // snmalloc. Note, we have called the system allocator with
-  // the size snmalloc would allocate, so it won't be smaller.
-  const auto exact_size = false;
-  // We allocate MIN_ALLOC_SIZE byte for 0-sized allocations (and so round_size
-  // will tell us that the minimum size is MIN_ALLOC_SIZE), but the system
-  // allocator may return a 0-sized allocation.
-  if (size == 0)
-  {
-    expected_size = 0;
-  }
-#else
   const auto exact_size = align == 1;
-#endif
 #ifdef __CHERI_PURE_CAPABILITY__
   const auto cheri_size = __builtin_cheri_length_get(p);
   if (cheri_size != alloc_size && (size != 0))
@@ -232,7 +214,8 @@ int main(int argc, char** argv)
     1234567};
   if (
     strcmp(
-      "testing pointer 0x42 size_t 0x2a message, hello world, null is 0x0, "
+      "testing pointer 0x42 size_t 0x2a message, hello world, null is "
+      "(nullptr), "
       "-123456 is -123456, 1234567 is 1234567",
       b.get_message()) != 0)
   {
@@ -282,6 +265,9 @@ int main(int argc, char** argv)
     test_calloc(0, size, SUCCESS, false);
   }
 
+  // Check realloc(nullptr,0) behaves like malloc(1)
+  test_realloc(nullptr, 0, SUCCESS, false);
+
   for (smallsizeclass_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
   {
     const size_t size = sizeclass_to_size(sc);
@@ -294,6 +280,8 @@ int main(int argc, char** argv)
       test_realloc(our_malloc(size), size2, SUCCESS, false);
       test_realloc(our_malloc(size + 1), size2, SUCCESS, false);
     }
+    // Check realloc(p,0), behaves like free(p), if p != nullptr
+    test_realloc(our_malloc(size), 0, SUCCESS, true);
   }
 
   for (smallsizeclass_t sc = 0; sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
@@ -320,6 +308,9 @@ int main(int argc, char** argv)
   for (size_t align = sizeof(uintptr_t); align < MAX_SMALL_SIZECLASS_SIZE * 8;
        align <<= 1)
   {
+    // Check overflow with alignment taking it round to 0.
+    test_memalign(1 - align, align, ENOMEM, true);
+
     for (smallsizeclass_t sc = 0; sc < NUM_SMALL_SIZECLASSES - 6; sc++)
     {
       const size_t size = sizeclass_to_size(sc);
@@ -375,6 +366,6 @@ int main(int argc, char** argv)
     our_malloc_usable_size(nullptr) == 0,
     "malloc_usable_size(nullptr) should be zero");
 
-  snmalloc::debug_check_empty<snmalloc::Alloc::Config>();
+  snmalloc::debug_check_empty();
   return 0;
 }
