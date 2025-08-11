@@ -51,7 +51,7 @@ def wait_for_certificates(
     args, network_name, root_cert, interface_name, challenge_interface, timeout=5
 ):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 
@@ -427,7 +427,7 @@ def run_unsecured(args):
         node.rpc_interfaces["unsecured_interface"] = challenge_server_interface
 
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         test_unsecured_interfaces(network, "secured_interface", "unsecured_interface")

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev2
 
+### Added
+
+- Allow changing the constitution during disaster recovery via the `command.recover.constitution_files` entry in cchost. (#7155)
+
 ### Changed
 
 - `cchost` is removed, and each application now provides its own executable:

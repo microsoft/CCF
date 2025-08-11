@@ -89,12 +89,6 @@ def cli_args(
         action="append",
         default=[],
     )
-    parser.add_argument(
-        "--perf-nodes",
-        help="List of node ids. Nodes that should be run under perf, capturing performance data",
-        action="append",
-        default=[],
-    )
     log_level_choices = ("trace", "debug", "info", "fail", "fatal")
     default_log_level = "info"
     parser.add_argument(

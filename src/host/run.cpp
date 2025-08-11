@@ -795,6 +795,26 @@ namespace ccf
         LOG_INFO_FMT("Reading previous service identity from {}", idf);
         startup_config.recover.previous_service_identity = files::slurp(idf);
 
+        if (!config.command.recover.constitution_files.empty())
+        {
+          LOG_INFO_FMT(
+            "Reading [{}] constitution file(s) for recovery",
+            fmt::join(config.command.recover.constitution_files, ", "));
+          startup_config.recover.constitution = "";
+          for (const auto& constitution_path :
+               config.command.recover.constitution_files)
+          {
+            // Separate with single newlines
+            if (!startup_config.recover.constitution->empty())
+            {
+              startup_config.recover.constitution.value() += '\n';
+            }
+
+            startup_config.recover.constitution.value() +=
+              files::slurp_string(constitution_path);
+          }
+        }
+
         if (config.command.recover.previous_sealed_ledger_secret_location
               .has_value())
         {
@@ -950,7 +970,8 @@ namespace ccf
           config.command.service_certificate_file);
       }
 
-      auto enclave_thread_start = [&]() {
+      auto enclave_thread_start = [&](threading::ThreadID thread_id) {
+        threading::set_current_thread_id(thread_id);
         try
         {
           bool ret = enclave_run();
@@ -978,7 +999,7 @@ namespace ccf
       std::vector<std::thread> threads;
       for (uint32_t i = 0; i < (config.worker_threads + 1); ++i)
       {
-        threads.emplace_back(enclave_thread_start);
+        threads.emplace_back(enclave_thread_start, i);
       }
 
       LOG_INFO_FMT("Entering event loop");
