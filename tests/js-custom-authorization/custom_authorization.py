@@ -1013,8 +1013,12 @@ def test_datetime_api(network, args):
 
         # Assume less than 5ms of execution time between grabbing timestamps, and confirm that untrustedDateTime has no effect
         service_time = datetime.datetime.fromisoformat(definitely_now)
-        untrusted_on = datetime.datetime.fromisoformat(body["untrusted_on"].replace("Z", "+00:00"))
-        untrusted_off = datetime.datetime.fromisoformat(body["untrusted_off"].replace("Z", "+00:00"))
+        untrusted_on = datetime.datetime.fromisoformat(
+            body["untrusted_on"].replace("Z", "+00:00")
+        )
+        untrusted_off = datetime.datetime.fromisoformat(
+            body["untrusted_off"].replace("Z", "+00:00")
+        )
         diff = (untrusted_on - service_time).total_seconds()
         assert diff < 0.005, diff
         diff = (untrusted_off - untrusted_on).total_seconds()
