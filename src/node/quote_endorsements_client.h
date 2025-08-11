@@ -35,7 +35,8 @@ namespace ccf
 
     // Resend request after this interval if no response was received from
     // remote server
-    static constexpr size_t server_connection_timeout_s = 3;
+    static constexpr std::chrono::seconds server_connection_timeout =
+      std::chrono::seconds(3);
 
     std::shared_ptr<RPCSessions> rpcsessions;
 
@@ -52,35 +53,6 @@ namespace ccf
     size_t last_submitted_request_id = 0;
     bool has_completed = false;
     size_t server_retries_count = 0;
-
-    struct QuoteEndorsementsClientMsg
-    {
-      QuoteEndorsementsClientMsg(
-        const std::shared_ptr<QuoteEndorsementsClient>& self_,
-        const Server& server_) :
-        self(self_),
-        server(server_)
-      {}
-
-      std::shared_ptr<QuoteEndorsementsClient> self;
-      Server server;
-    };
-
-    struct QuoteEndorsementsClientTimeoutMsg
-    {
-      QuoteEndorsementsClientTimeoutMsg(
-        const std::shared_ptr<QuoteEndorsementsClient>& self_,
-        const EndpointInfo& endpoint_,
-        size_t request_id_) :
-        self(self_),
-        endpoint(endpoint_),
-        request_id(request_id_)
-      {}
-
-      std::shared_ptr<QuoteEndorsementsClient> self;
-      EndpointInfo endpoint;
-      size_t request_id;
-    };
 
     std::shared_ptr<ClientSession> create_unauthenticated_client()
     {
@@ -123,18 +95,16 @@ namespace ccf
       }
 
       // Start watchdog to send request on new server if it is unresponsive
-      auto msg = std::make_unique<
-        ::threading::Tmsg<QuoteEndorsementsClientTimeoutMsg>>(
-        [](std::unique_ptr<::threading::Tmsg<QuoteEndorsementsClientTimeoutMsg>>
-             msg) {
-          std::lock_guard<ccf::pal::Mutex> guard(msg->data.self->lock);
-          if (msg->data.self->has_completed)
+      ccf::tasks::add_delayed_task(
+        ccf::tasks::make_basic_task([this, endpoint, request_id]() {
+          std::lock_guard<ccf::pal::Mutex> guard(this->lock);
+          if (this->has_completed)
           {
             return;
           }
-          if (msg->data.request_id >= msg->data.self->last_submitted_request_id)
+          if (request_id >= this->last_submitted_request_id)
           {
-            auto& servers = msg->data.self->config.servers;
+            auto& servers = this->config.servers;
             // Should always contain at least one server,
             // installed by ccf::pal::make_endorsement_endpoint_configuration()
             if (servers.empty())
@@ -143,10 +113,9 @@ namespace ccf
                 "No server specified to fetch endorsements");
             }
 
-            msg->data.self->server_retries_count++;
+            this->server_retries_count++;
             if (
-              msg->data.self->server_retries_count >=
-              max_retries_count(servers.front()))
+              this->server_retries_count >= max_retries_count(servers.front()))
             {
               if (servers.size() > 1)
               {
@@ -161,6 +130,8 @@ namespace ccf
                   "{} after {} attempts",
                   server.front().host,
                   server.front().max_retries_count);
+                // TODO: Do we have a test for this? How do we handle exceptions
+                // in tasks?
                 throw ccf::pal::AttestationCollateralFetchingTimeout(
                   "Timed out fetching attestation endorsements from all "
                   "configured servers");
@@ -168,16 +139,10 @@ namespace ccf
               }
             }
 
-            msg->data.self->fetch(servers.front());
+            this->fetch(servers.front());
           }
-        },
-        shared_from_this(),
-        endpoint,
-        request_id);
-
-      ::threading::ThreadMessaging::instance().add_task_after(
-        std::move(msg),
-        std::chrono::milliseconds(server_connection_timeout_s * 1000));
+        }),
+        server_connection_timeout);
     }
 
     void handle_success_response(
@@ -276,14 +241,7 @@ namespace ccf
                 retry_after_value.data() + retry_after_value.size(),
                 retry_after_s);
             }
-
-            auto msg =
-              std::make_unique<::threading::Tmsg<QuoteEndorsementsClientMsg>>(
-                [](
-                  std::unique_ptr<::threading::Tmsg<QuoteEndorsementsClientMsg>>
-                    msg) { msg->data.self->fetch(msg->data.server); },
-                shared_from_this(),
-                server);
+            const std::chrono::seconds retry_after(retry_after_s);
 
             LOG_INFO_FMT(
               "{} endorsements endpoint had too many requests. Retrying "
@@ -291,8 +249,10 @@ namespace ccf
               endpoint,
               retry_after_s);
 
-            ::threading::ThreadMessaging::instance().add_task_after(
-              std::move(msg), std::chrono::milliseconds(retry_after_s * 1000));
+            ccf::tasks::add_delayed_task(
+              ccf::tasks::make_basic_task(
+                [this, server]() { this->fetch(server); }),
+              retry_after);
           }
           return;
         },

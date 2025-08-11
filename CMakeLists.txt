@@ -609,7 +609,7 @@ if(BUILD_TESTS)
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
     )
-    target_link_libraries(history_test PRIVATE ccfcrypto http_parser ccf_kv)
+    target_link_libraries(history_test PRIVATE ccfcrypto http_parser ccf_kv ccf_tasks)
 
     add_unit_test(
       encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
@@ -641,7 +641,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/receipt.cpp
     )
     target_link_libraries(
-      historical_queries_test PRIVATE http_parser ccf_kv ccf_endpoints
+      historical_queries_test PRIVATE http_parser ccf_kv ccf_endpoints ccf_tasks
     )
     add_unit_test(
       indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
@@ -653,7 +653,7 @@ if(BUILD_TESTS)
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
     )
-    target_link_libraries(snapshot_test PRIVATE ccf_kv)
+    target_link_libraries(snapshot_test PRIVATE ccf_kv ccf_tasks)
 
     add_unit_test(
       snapshotter_test
@@ -820,7 +820,7 @@ if(BUILD_TESTS)
         history_bench
         SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
-        LINK_LIBS ccf_kv
+        LINK_LIBS ccf_kv ccf_tasks
       )
 
       add_picobench(

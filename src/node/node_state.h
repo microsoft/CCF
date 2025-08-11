@@ -113,21 +113,6 @@ namespace ccf
 
     std::atomic<bool> stop_noticed = false;
 
-    struct NodeStateMsg
-    {
-      NodeStateMsg(
-        NodeState& self_,
-        View create_view_ = 0,
-        bool create_consortium_ = true) :
-        self(self_),
-        create_view(create_view_),
-        create_consortium(create_consortium_)
-      {}
-      NodeState& self;
-      View create_view;
-      bool create_consortium;
-    };
-
     //
     // kv store, replication, and I/O
     //
@@ -174,6 +159,8 @@ namespace ccf
     // Set to the snapshot seqno when a node starts from one and remembered for
     // the lifetime of the node
     ccf::kv::Version startup_seqno = 0;
+
+    ccf::tasks::Task join_periodic_task;
 
     // ACME certificate endorsement client
     std::map<NodeInfoNetwork::RpcInterfaceID, std::shared_ptr<ACMEClient>>
@@ -873,6 +860,12 @@ namespace ccf
               sm.advance(NodeStartupState::partOfNetwork);
             }
 
+            if (join_periodic_task != nullptr)
+            {
+              join_periodic_task->cancel_task();
+              join_periodic_task = nullptr;
+            }
+
             LOG_INFO_FMT(
               "Node has now joined the network as node {}: {}",
               self,
@@ -933,23 +926,18 @@ namespace ccf
     {
       initiate_join_unsafe();
 
-      auto timer_msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
-        [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
-          std::lock_guard<pal::Mutex> guard(msg->data.self.lock);
-          if (msg->data.self.sm.check(NodeStartupState::pending))
-          {
-            msg->data.self.initiate_join_unsafe();
-            auto delay = std::chrono::milliseconds(
-              msg->data.self.config.join.retry_timeout);
+      join_periodic_task = ccf::tasks::make_basic_task([this]() {
+        std::lock_guard<pal::Mutex> guard(this->lock);
+        if (this->sm.check(NodeStartupState::pending))
+        {
+          this->initiate_join_unsafe();
+        }
+      });
 
-            ::threading::ThreadMessaging::instance().add_task_after(
-              std::move(msg), delay);
-          }
-        },
-        *this);
-
-      ::threading::ThreadMessaging::instance().add_task_after(
-        std::move(timer_msg), config.join.retry_timeout);
+      ccf::tasks::add_periodic_task(
+        join_periodic_task,
+        config.join.retry_timeout,
+        config.join.retry_timeout);
     }
 
     void auto_refresh_jwt_keys()
@@ -2233,30 +2221,23 @@ namespace ccf
     {
       // Service creation transaction is asynchronous to avoid deadlocks
       // (e.g. https://github.com/microsoft/CCF/issues/3788)
-      auto msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
-        [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
-          if (!msg->data.self.send_create_request(
-                msg->data.self.serialize_create_request(
-                  msg->data.create_view, msg->data.create_consortium)))
+      ccf::tasks::add_task(
+        ccf::tasks::make_basic_task([this, create_view, create_consortium]() {
+          if (!this->send_create_request(
+                this->serialize_create_request(create_view, create_consortium)))
           {
             throw std::runtime_error(
               "Service creation request could not be committed");
           }
-          if (msg->data.create_consortium)
+          if (create_consortium)
           {
-            msg->data.self.advance_part_of_network();
+            this->advance_part_of_network();
           }
           else
           {
-            msg->data.self.advance_part_of_public_network();
+            this->advance_part_of_public_network();
           }
-        },
-        *this,
-        create_view,
-        create_consortium);
-
-      ::threading::ThreadMessaging::instance().add_task(
-        threading::get_current_thread_id(), std::move(msg));
+        }));
     }
 
     void begin_private_recovery()
@@ -2848,39 +2829,31 @@ namespace ccf
 
         // Start task to periodically check whether any of the certs are
         // expired.
-        auto msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
-          [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
-            auto& state = msg->data.self;
-
-            if (state.consensus && state.consensus->can_replicate())
+        ccf::tasks::add_periodic_task(
+          ccf::tasks::make_basic_task([this]() {
+            if (this->consensus && this->consensus->can_replicate())
             {
-              if (state.acme_clients.size() != state.num_acme_interfaces)
+              if (this->acme_clients.size() != this->num_acme_interfaces)
               {
-                auto tx = state.network.tables->create_tx();
-                state.trigger_acme_refresh(tx);
+                auto tx = this->network.tables->create_tx();
+                this->trigger_acme_refresh(tx);
                 tx.commit();
               }
               else
               {
-                for (auto& [cfg_name, client] : state.acme_clients)
+                for (auto& [cfg_name, client] : this->acme_clients)
                 {
                   if (client)
                   {
                     client->check_expiry(
-                      state.network.tables, state.network.identity);
+                      this->network.tables, this->network.identity);
                   }
                 }
               }
             }
-
-            auto delay = std::chrono::minutes(1);
-            ::threading::ThreadMessaging::instance().add_task_after(
-              std::move(msg), delay);
-          },
-          *this);
-
-        ::threading::ThreadMessaging::instance().add_task_after(
-          std::move(msg), std::chrono::seconds(2));
+          }),
+          std::chrono::seconds(2),
+          std::chrono::minutes(1));
       }
     }
 
