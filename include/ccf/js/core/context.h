@@ -36,9 +36,7 @@ namespace ccf::js::core
 {
   struct InterruptData
   {
-    using TClock = std::chrono::high_resolution_clock;
-
-    TClock::time_point start_time;
+    std::chrono::high_resolution_clock::time_point start_time;
     std::chrono::milliseconds max_execution_time;
     ccf::js::TxAccess access;
     bool request_timed_out = false;

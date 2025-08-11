@@ -415,7 +415,8 @@ namespace ccf::js
     // Log execution metrics
     if (ctx.log_execution_metrics)
     {
-      const auto time_now = ccf::js::core::InterruptData::TClock::now();
+      const auto time_now =
+        decltype(ccf::js::core::InterruptData::start_time)::clock::now();
 
       const auto exec_time =
         std::chrono::duration_cast<std::chrono::milliseconds>(

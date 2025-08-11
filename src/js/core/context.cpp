@@ -456,7 +456,7 @@ namespace ccf::js::core
     RuntimeLimitsPolicy policy)
   {
     rt.set_runtime_options(options, policy);
-    const auto curr_time = InterruptData::TClock::now();
+    const auto curr_time = decltype(InterruptData::start_time)::clock::now();
     interrupt_data.start_time = curr_time;
     interrupt_data.max_execution_time = rt.get_max_exec_time();
     JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);

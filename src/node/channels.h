@@ -158,11 +158,11 @@ namespace ccf
   class Channel
   {
   public:
-    using TClock = std::chrono::system_clock;
-
-    static TClock::duration& min_gap_between_initiation_attempts()
+    static std::chrono::system_clock::duration&
+    min_gap_between_initiation_attempts()
     {
-      static TClock::duration value = std::chrono::seconds(2);
+      static std::chrono::system_clock::duration value =
+        std::chrono::seconds(2);
       return value;
     }
 
@@ -198,7 +198,7 @@ namespace ccf
     // Used for key exchange
     ::tls::KeyExchangeContext kex_ctx;
     ::ds::StateMachine<ChannelStatus> status;
-    TClock::time_point last_initiation_time;
+    std::chrono::system_clock::time_point last_initiation_time;
     static constexpr size_t salt_len = 32;
     static constexpr size_t shared_key_size = 32;
     std::vector<uint8_t> hkdf_salt;
@@ -412,7 +412,8 @@ namespace ccf
       }
       else if (status.check(INITIATED))
       {
-        const auto time_since_initiated = TClock::now() - last_initiation_time;
+        const auto time_since_initiated =
+          decltype(last_initiation_time)::clock::now() - last_initiation_time;
         if (time_since_initiated >= min_gap_between_initiation_attempts())
         {
           // If this node attempts to initiate too early when the peer node
@@ -851,7 +852,7 @@ namespace ccf
       // status.expect(INACTIVE);
       status.advance(INITIATED);
 
-      last_initiation_time = TClock::now();
+      last_initiation_time = decltype(last_initiation_time)::clock::now();
 
       send_key_exchange_init();
     }
