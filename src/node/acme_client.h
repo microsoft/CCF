@@ -920,7 +920,7 @@ namespace ACME
         if (client->check_challenge(order_url, challenge))
         {
           LOG_TRACE_FMT("ACME: scheduling next challenge check");
-          ccf::tasks::add_task_after(
+          ccf::tasks::add_delayed_task(
             shared_from_this(), std::chrono::seconds(5));
         }
       }
@@ -1097,7 +1097,7 @@ namespace ACME
         if (client->check_finalization(order_url))
         {
           LOG_TRACE_FMT("ACME: scheduling next finalization check");
-          ccf::tasks::add_task_after(
+          ccf::tasks::add_delayed_task(
             shared_from_this(), std::chrono::seconds(5));
         }
       }

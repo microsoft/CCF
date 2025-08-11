@@ -203,7 +203,7 @@ namespace ccf
         }
         else
         {
-          ccf::tasks::add_task_after(
+          ccf::tasks::add_delayed_task(
             shared_from_this(), std::chrono::seconds(1));
         }
       }
@@ -221,7 +221,7 @@ namespace ccf
 
       challenge_handler->token_responses[token] = response;
 
-      ccf::tasks::add_task_after(
+      ccf::tasks::add_delayed_task(
         std::make_shared<ACMEClientTask>(*this, challenge_handler, token),
         std::chrono::seconds(1));
     }
