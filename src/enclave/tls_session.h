@@ -5,7 +5,9 @@
 #include "ccf/ds/logger.h"
 #include "ds/messaging.h"
 #include "ds/ring_buffer.h"
-#include "ds/thread_messaging.h"
+#include "tasks/ordered_tasks.h"
+#include "tasks/task.h"
+#include "tasks/task_system.h"
 #include "tcp/msg_types.h"
 #include "tls/context.h"
 #include "tls/tls.h"
@@ -32,7 +34,7 @@ namespace ccf
   protected:
     ringbuffer::WriterPtr to_host;
     ::tcp::ConnID session_id;
-    size_t execution_thread;
+    std::shared_ptr<ccf::tasks::OrderedTasks> task_scheduler;
 
   private:
     std::vector<uint8_t> pending_write;
@@ -57,17 +59,6 @@ namespace ccf
       return status == ready || status == handshake;
     }
 
-    struct SendRecvMsg
-    {
-      std::vector<uint8_t> data;
-      std::shared_ptr<TLSSession> self;
-    };
-
-    struct EmptyMsg
-    {
-      std::shared_ptr<TLSSession> self;
-    };
-
   public:
     TLSSession(
       int64_t session_id_,
@@ -78,9 +69,9 @@ namespace ccf
       ctx(std::move(ctx_)),
       status(handshake)
     {
-      execution_thread =
-        ::threading::ThreadMessaging::instance().get_execution_thread(
-          session_id);
+      task_scheduler = std::make_shared<ccf::tasks::OrderedTasks>(
+        ccf::tasks::get_main_job_board(),
+        fmt::format("TLSSession {}", session_id));
       ctx->set_bio(this, send_callback_openssl, recv_callback_openssl);
     }
 
@@ -236,11 +227,6 @@ namespace ccf
 
     void recv_buffered(const uint8_t* data, size_t size)
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called recv_buffered from incorrect thread");
-      }
-
       if (can_recv())
       {
         pending_read.insert(pending_read.end(), data, data + size);
@@ -252,33 +238,13 @@ namespace ccf
     void close()
     {
       status = closing;
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        auto msg = std::make_unique<::threading::Tmsg<EmptyMsg>>(&close_cb);
-        msg->data.self = this->shared_from_this();
 
-        ::threading::ThreadMessaging::instance().add_task(
-          execution_thread, std::move(msg));
-      }
-      else
-      {
-        // Close inline immediately
-        close_thread();
-      }
-    }
-
-    static void close_cb(std::unique_ptr<::threading::Tmsg<EmptyMsg>> msg)
-    {
-      msg->data.self->close_thread();
+      task_scheduler->add_action(
+        ccf::tasks::make_basic_action([this]() { this->close_thread(); }));
     }
 
     virtual void close_thread()
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called close_thread from incorrect thread");
-      }
-
       switch (status)
       {
         case handshake:
@@ -329,37 +295,16 @@ namespace ccf
 
     void send_raw(const uint8_t* data, size_t size)
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        auto msg =
-          std::make_unique<::threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
-        msg->data.self = this->shared_from_this();
-        msg->data.data = std::vector<uint8_t>(data, data + size);
-
-        ::threading::ThreadMessaging::instance().add_task(
-          execution_thread, std::move(msg));
-      }
-      else
-      {
-        // Send inline immediately
-        send_raw_thread(data, size);
-      }
+      std::vector<uint8_t> vec(data, data + size);
+      task_scheduler->add_action(
+        ccf::tasks::make_basic_action([this, vec = std::move(vec)]() {
+          this->send_raw_thread(vec.data(), vec.size());
+        }));
     }
 
   private:
-    static void send_raw_cb(std::unique_ptr<::threading::Tmsg<SendRecvMsg>> msg)
-    {
-      msg->data.self->send_raw_thread(
-        msg->data.data.data(), msg->data.data.size());
-    }
-
     void send_raw_thread(const uint8_t* data, size_t size)
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error(
-          "Called send_raw_thread from incorrect thread");
-      }
       // Writes as much of the data as possible. If the data cannot all
       // be written now, we store the remainder. We
       // will try to send pending writes again whenever write() is called.
@@ -383,21 +328,11 @@ namespace ccf
 
     void send_buffered(const std::vector<uint8_t>& data)
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called send_buffered from incorrect thread");
-      }
-
       pending_write.insert(pending_write.end(), data.begin(), data.end());
     }
 
     void flush()
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called flush from incorrect thread");
-      }
-
       do_handshake();
 
       if (!can_send())
@@ -574,10 +509,6 @@ namespace ccf
 
     int handle_recv(uint8_t* buf, size_t len)
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called handle_recv from incorrect thread");
-      }
       if (pending_read.size() > 0)
       {
         // Use the pending data vector. This is populated when the host

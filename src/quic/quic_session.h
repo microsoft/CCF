@@ -6,7 +6,6 @@
 #include "ds/messaging.h"
 #include "ds/pending_io.h"
 #include "ds/ring_buffer.h"
-#include "ds/thread_messaging.h"
 #include "enclave/session.h"
 #include "udp/msg_types.h"
 

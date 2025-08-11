@@ -282,6 +282,7 @@ namespace ccf
               node->tick(elapsed_ms);
               historical_state_cache->tick(elapsed_ms);
               ::threading::ThreadMessaging::instance().tick(elapsed_ms);
+              ccf::tasks::tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // public ledger is being read
               if (!node->is_reading_public_ledger())

@@ -4,6 +4,7 @@
 
 #include "ccf/node/session.h"
 #include "enclave/tls_session.h"
+#include "tasks/task_system.h"
 #include "tasks/ordered_tasks.h"
 #include "tasks/task.h"
 #include "tcp/msg_types.h"

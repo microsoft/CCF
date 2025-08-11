@@ -118,7 +118,7 @@ namespace ccf
           this->send_timeout_error_response(to, client_session_id, timeout);
         });
         timeout_tasks[command_id] = task;
-        ccf::tasks::add_task_after(task, timeout);
+        ccf::tasks::add_delayed_task(task, timeout);
       }
 
       const auto view_opt = session_ctx->active_view;

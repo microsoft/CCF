@@ -24,6 +24,8 @@ namespace ccf
     ccf::crypto::Pem node_cert;
     std::atomic_size_t attempts;
 
+    ccf::tasks::Task periodic_refresh_task;
+
   public:
     JwtKeyAutoRefresh(
       size_t refresh_interval_s,
@@ -43,27 +45,38 @@ namespace ccf
       attempts(0)
     {}
 
+    ~JwtKeyAutoRefresh()
+    {
+      stop();
+    }
+
     void start()
     {
-      LOG_DEBUG_FMT(
-        "JWT key initial auto-refresh: Scheduling in {}s", refresh_interval_s);
-      auto delay = std::chrono::seconds(refresh_interval_s);
-      ccf::tasks::add_periodic_task(
-        ccf::tasks::make_basic_task([delay, this]() {
-          if (!this->consensus->can_replicate())
-          {
-            LOG_DEBUG_FMT(
-              "JWT key auto-refresh: Node is not primary, skipping");
-          }
-          else
-          {
-            this->refresh_jwt_keys();
-          }
+      LOG_DEBUG_FMT("JWT key initial auto-refresh");
+      periodic_refresh_task = ccf::tasks::make_basic_task([this]() {
+        if (!this->consensus->can_replicate())
+        {
+          LOG_DEBUG_FMT("JWT key auto-refresh: Node is not primary, skipping");
+        }
+        else
+        {
+          this->refresh_jwt_keys();
+        }
 
-          LOG_DEBUG_FMT(
-            "JWT key auto-refresh: Scheduling in {}s", delay.count());
-        }),
-        delay);
+        LOG_DEBUG_FMT(
+          "JWT key auto-refresh: Scheduling in {}s", this->refresh_interval_s);
+      });
+
+      const std::chrono::seconds period(refresh_interval_s);
+      ccf::tasks::add_periodic_task(periodic_refresh_task, period, period);
+    }
+
+    void stop()
+    {
+      if (periodic_refresh_task != nullptr)
+      {
+        periodic_refresh_task->cancel_task();
+      }
     }
 
     void schedule_once()
