@@ -252,7 +252,9 @@ namespace ccf
           message_limit);
 
         send_key = nullptr;
+        send_nonce = 0;
         recv_key = nullptr;
+        local_recv_nonce = 0;
         reset_key_exchange();
         initiate();
       }
