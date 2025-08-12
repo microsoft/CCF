@@ -128,6 +128,8 @@ Virtual Mode
 
 CCF will run in virtual mode if no SEV-SNP hardware is detected :ref:`operations/platforms/virtual:Insecure Virtual`.
 
+.. warning:: Nodes started in virtual mode provide no security guarantees. They should never be used for production purposes.
+
 Node and Service Data
 ---------------------
 
