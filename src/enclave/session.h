@@ -4,9 +4,9 @@
 
 #include "ccf/node/session.h"
 #include "enclave/tls_session.h"
-#include "tasks/task_system.h"
 #include "tasks/ordered_tasks.h"
 #include "tasks/task.h"
+#include "tasks/task_system.h"
 #include "tcp/msg_types.h"
 
 #include <span>
@@ -58,6 +58,11 @@ namespace ccf
       task_scheduler = std::make_shared<ccf::tasks::OrderedTasks>(
         ccf::tasks::get_main_job_board(),
         fmt::format("Session {}", session_id));
+    }
+
+    ~ThreadedSession()
+    {
+      task_scheduler->cancel_task();
     }
 
     // Implement Session::handle_incoming_data by dispatching a thread message

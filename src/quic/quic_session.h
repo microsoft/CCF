@@ -62,6 +62,7 @@ namespace quic
 
     ~QUICSession()
     {
+      task_scheduler->cancel_task();
       // RINGBUFFER_WRITE_MESSAGE(quic::quic_closed, to_host, session_id);
     }
 
@@ -267,8 +268,9 @@ namespace quic
 
     void close_session() override
     {
+      auto self = shared_from_this();
       task_scheduler->add_action(
-        ccf::tasks::make_basic_action([this]() { this->close_thread(); }));
+        ccf::tasks::make_basic_action([self]() { self->close_thread(); }));
     }
 
     void close_thread()

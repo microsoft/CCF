@@ -95,16 +95,17 @@ namespace ccf
       }
 
       // Start watchdog to send request on new server if it is unresponsive
+      auto self = shared_from_this();
       ccf::tasks::add_delayed_task(
-        ccf::tasks::make_basic_task([this, endpoint, request_id]() {
-          std::lock_guard<ccf::pal::Mutex> guard(this->lock);
-          if (this->has_completed)
+        ccf::tasks::make_basic_task([self, endpoint, request_id]() {
+          std::lock_guard<ccf::pal::Mutex> guard(self->lock);
+          if (self->has_completed)
           {
             return;
           }
-          if (request_id >= this->last_submitted_request_id)
+          if (request_id >= self->last_submitted_request_id)
           {
-            auto& servers = this->config.servers;
+            auto& servers = self->config.servers;
             // Should always contain at least one server,
             // installed by ccf::pal::make_endorsement_endpoint_configuration()
             if (servers.empty())
@@ -113,9 +114,9 @@ namespace ccf
                 "No server specified to fetch endorsements");
             }
 
-            this->server_retries_count++;
+            self->server_retries_count++;
             if (
-              this->server_retries_count >= max_retries_count(servers.front()))
+              self->server_retries_count >= max_retries_count(servers.front()))
             {
               if (servers.size() > 1)
               {
@@ -139,7 +140,7 @@ namespace ccf
               }
             }
 
-            this->fetch(servers.front());
+            self->fetch(servers.front());
           }
         }),
         server_connection_timeout);
@@ -249,9 +250,10 @@ namespace ccf
               endpoint,
               retry_after_s);
 
+            auto self = shared_from_this();
             ccf::tasks::add_delayed_task(
               ccf::tasks::make_basic_task(
-                [this, server]() { this->fetch(server); }),
+                [self, server]() { self->fetch(server); }),
               retry_after);
           }
           return;

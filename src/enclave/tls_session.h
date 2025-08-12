@@ -77,6 +77,7 @@ namespace ccf
 
     virtual ~TLSSession()
     {
+      task_scheduler->cancel_task();
       RINGBUFFER_WRITE_MESSAGE(::tcp::tcp_closed, to_host, session_id);
     }
 
@@ -239,8 +240,9 @@ namespace ccf
     {
       status = closing;
 
+      auto self = shared_from_this();
       task_scheduler->add_action(
-        ccf::tasks::make_basic_action([this]() { this->close_thread(); }));
+        ccf::tasks::make_basic_action([self]() { self->close_thread(); }));
     }
 
     virtual void close_thread()
@@ -296,9 +298,10 @@ namespace ccf
     void send_raw(const uint8_t* data, size_t size)
     {
       std::vector<uint8_t> vec(data, data + size);
+      auto self = shared_from_this();
       task_scheduler->add_action(
-        ccf::tasks::make_basic_action([this, vec = std::move(vec)]() {
-          this->send_raw_thread(vec.data(), vec.size());
+        ccf::tasks::make_basic_action([self, vec = std::move(vec)]() {
+          self->send_raw_thread(vec.data(), vec.size());
         }));
     }
 
