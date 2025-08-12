@@ -17,7 +17,7 @@ namespace ccf::tasks
   void add_periodic_task(
     Task task,
     std::chrono::milliseconds initial_delay,
-    std::chrono::milliseconds periodic_delay);
+    std::chrono::milliseconds repeat_period);
 
   void tick(std::chrono::milliseconds elapsed);
 }

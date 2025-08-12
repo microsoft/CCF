@@ -34,7 +34,7 @@ namespace ccf::threading
   {
     if (!this_thread_name.has_value())
     {
-      set_current_thread_name(fmt::format("{}", get_current_thread_id()));
+      this_thread_name = fmt::format("{}", get_current_thread_id());
     }
 
     return this_thread_name.value();

@@ -18,7 +18,7 @@ namespace ccf::tasks
   {
     std::shared_ptr<OrderedTasks> tasks;
 
-    ResumeOrderedTasks(std::shared_ptr<OrderedTasks> t) : tasks(t) {}
+    ResumeOrderedTasks(std::shared_ptr<OrderedTasks> t) : tasks(std::move(t)) {}
 
     void resume() override
     {
@@ -71,6 +71,6 @@ namespace ccf::tasks
 
   void OrderedTasks::get_queue_summary(size_t& num_pending, bool& is_active)
   {
-    return pimpl->actions.get_queue_summary(num_pending, is_active);
+    pimpl->actions.get_queue_summary(num_pending, is_active);
   }
 }
