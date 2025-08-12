@@ -82,15 +82,15 @@ Similar to the ``forwarding_required`` property which specified each endpoint's 
 
 And a field on the endpoint in JS's ``app.json``:
 
-.. code-block:: text
+.. code-block:: json5
 
     {
         "endpoints": {
             "/foo/{bar}": {
                 "get": {
-                    ...
+                    // ...
                     "redirection_strategy": "none",
-                    ...
+                    // ...
                 }
             }
         }
