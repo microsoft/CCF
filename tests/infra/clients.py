@@ -486,7 +486,10 @@ class CurlClient:
         assert signing_auth is None, signing_auth
         self.cose_signing_auth = cose_signing_auth
         self.common_headers = common_headers or {}
-        self.ca_curve = get_curve(self.ca)
+        if self.ca:
+          self.ca_curve = get_curve(self.ca)
+        else:
+          self.ca_curve = None
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
         self.extra_args = []
         if kwargs.get("http2"):
@@ -579,6 +582,8 @@ class CurlClient:
             if self.session_auth:
                 cmd.extend(["--key", self.session_auth.key])
                 cmd.extend(["--cert", self.session_auth.cert])
+            if not self.ca and not self.session_auth:
+                cmd.extend(["-k"]) # Allow insecure connections
 
             for arg in self.extra_args:
                 cmd.append(arg)
@@ -600,9 +605,11 @@ class CurlClient:
 
             if rc.returncode != 0:
                 if rc.returncode in [
+                    7,
                     35,
+                    55,
                     60,
-                ]:  # PEER_FAILED_VERIFICATION, SSL_CONNECT_ERROR
+                ]:  # COULDNT_CONNECT, PEER_FAILED_VERIFICATION, SEND_ERROR, SSL_CONNECT_ERROR
                     raise CCFConnectionException
                 if rc.returncode == 28:  # OPERATION_TIMEDOUT
                     raise TimeoutError
