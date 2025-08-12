@@ -5,7 +5,7 @@ import time
 
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
-from infra.clients import flush_info
+from infra.clients import flush_info, CCFConnectionException
 import infra.member
 import infra.path
 import infra.proc
@@ -814,54 +814,46 @@ class Network:
         ]
 
         for i, node in enumerate(self.nodes):
-          forwarded_args_with_overrides = forwarded_args.copy()
-          forwarded_args_with_overrides.update(
-              self.per_node_args_override.get(i, {})
-          )
-          if not start_all_nodes and i > 0:
-            break
+            forwarded_args_with_overrides = forwarded_args.copy()
+            forwarded_args_with_overrides.update(
+                self.per_node_args_override.get(i, {})
+            )
+            if not start_all_nodes and i > 0:
+                break
 
-          try:
-              node_kwargs = {
-                  "lib_name": args.package,
-                  "workspace": args.workspace,
-                  "label": args.label,
-                  "common_dir": self.common_dir,
-              }
-              self_healing_open_kwargs = {"self_healing_open_addresses": self_healing_open_addresses}
-              # If a kwarg is passed in override automatically set variants
-              node_kwargs = node_kwargs | self_healing_open_kwargs | forwarded_args_with_overrides | kwargs
-              node.recover(**node_kwargs)
-              self.wait_for_state(
-                  node,
-                  infra.node.State.PART_OF_PUBLIC_NETWORK.value,
-                  timeout=args.ledger_recovery_timeout,
-              )
-          except Exception:
-              LOG.exception(f"Failed to start node {node.local_node_id}")
-              raise
+            try:
+                node_kwargs = {
+                    "lib_name": args.package,
+                    "workspace": args.workspace,
+                    "label": args.label,
+                    "common_dir": self.common_dir,
+                }
+                self_healing_open_kwargs = {"self_healing_open_addresses": self_healing_open_addresses}
+                # If a kwarg is passed in override automatically set variants
+                node_kwargs = node_kwargs | self_healing_open_kwargs | forwarded_args_with_overrides | kwargs
+                node.recover(**node_kwargs)
+            except Exception:
+                LOG.exception(f"Failed to start node {node.local_node_id}")
+                raise
 
         self.election_duration = args.election_timeout_ms / 1000
         self.observed_election_duration = self.election_duration + 1
 
+        for i, node in enumerate(self.nodes):
+          while True:
+            try:
+              self.wait_for_states(
+                  node,
+                  [infra.node.State.PART_OF_PUBLIC_NETWORK.value, infra.node.State.PART_OF_NETWORK],
+                  timeout=args.ledger_recovery_timeout,
+                  verify_ca=False, # Certs are volatile until the recovery is complete
+              )
+              break
+            except CCFConnectionException:
+              time.sleep(0.1)
+
         LOG.info("All nodes started")
 
-        primary, _ = self.find_primary(
-            timeout=args.ledger_recovery_timeout
-        )
-
-        if set_authenticate_session is not None:
-            self.consortium.set_authenticate_session(set_authenticate_session)
-
-        for node in self.get_joined_nodes():
-            self.wait_for_state(
-                node,
-                infra.node.State.PART_OF_PUBLIC_NETWORK.value,
-                timeout=args.ledger_recovery_timeout,
-            )
-        # Catch-up in recovery can take a long time, so extend this timeout
-        self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
-        LOG.success("All nodes joined public network")
 
     def recover(
         self,
@@ -1312,12 +1304,12 @@ class Network:
     def get_f(self):
         return infra.e2e_args.max_f(self.args, len(self.nodes))
 
-    def wait_for_states(self, node, states, timeout=3):
+    def wait_for_states(self, node, states, timeout=3, **client_kwargs):
         end_time = time.time() + timeout
         final_state = None
         while time.time() < end_time:
             try:
-                with node.client(connection_timeout=timeout) as c:
+                with node.client(connection_timeout=timeout, **client_kwargs) as c:
                     r = c.get("/node/state").body.json()
                     if r["state"] in states:
                         final_state = r["state"]
@@ -1335,15 +1327,17 @@ class Network:
     def wait_for_state(self, node, state, timeout=3):
         self.wait_for_states(node, [state], timeout=timeout)
 
-    def wait_for_statuses(self, node, statuses, timeout=3):
+    def wait_for_statuses(self, node, statuses, timeout=3, **client_kwargs):
         end_time = time.time() + timeout
         while time.time() < end_time:
           try:
-            with node.client(connection_timeout=timeout) as c:
+            with node.client(connection_timeout=timeout, **client_kwargs) as c:
               r = c.get("/node/network").body.json()
               if r["service_status"] in statuses:
                 break
           except ConnectionRefusedError:
+            pass
+          except CCFConnectionException:
             pass
           time.sleep(0.1)
         else:
@@ -1846,7 +1840,7 @@ class Network:
         connections pick up the new service certificate.
         """
         primary = self.find_random_node()
-        with primary.client() as c:
+        with primary.client(verify_ca=False) as c:
             r = c.get("/node/network")
             assert r.status_code == 200, r
             new_service_identity = r.body.json()["service_certificate"]
