@@ -422,6 +422,7 @@ namespace ccf
     process_launcher.register_message_handlers(
       buffer_processor.get_dispatcher());
 
+    uv_work_t work_handle;
     {
       // provide regular ticks to the enclave
       const asynchost::Ticker ticker(config.tick_interval, writer_factory);
@@ -1006,6 +1007,13 @@ namespace ccf
       {
         threads.emplace_back(enclave_thread_start, i);
       }
+
+      auto do_work = [](uv_work_t* handle) {
+        (void)handle;
+        std::this_thread::sleep_for(5s);
+        LOG_INFO_FMT("Accessing global resources");
+      };
+      uv_queue_work(uv_default_loop(), &work_handle, do_work, nullptr);
 
       LOG_INFO_FMT("Entering event loop");
       uv_run(uv_default_loop(), UV_RUN_DEFAULT);
