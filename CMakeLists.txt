@@ -138,6 +138,10 @@ endif()
 if(SAN OR TSAN)
   find_program(LLVM_SYMBOLIZER NAMES "llvm-symbolizer")
   message(STATUS "Using llvm symbolizer: ${LLVM_SYMBOLIZER}")
+
+  if(USE_SNMALLOC)
+    message(FATAL_ERROR "snmalloc cannot be used with SAN or TSAN")
+  endif()
 endif()
 
 enable_language(ASM)
