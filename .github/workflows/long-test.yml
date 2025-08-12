@@ -45,7 +45,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSAN=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSAN=ON -DUSE_SNMALLOC=OFF ..
           ninja
 
       - name: "Test"
@@ -99,7 +99,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DTSAN=ON -DWORKER_THREADS=2 ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DTSAN=ON -DUSE_SNMALLOC=OFF -DWORKER_THREADS=2 ..
           ninja
 
       - name: "Test"
@@ -211,7 +211,7 @@ jobs:
           mkdir build
           cd build
           # Use libc++ to enable hardening/bounds checking during tests
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DUSE_LIBCXX=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DUSE_LIBCXX=ON -DUSE_SNMALLOC=OFF ..
           ninja
 
       - name: "Test"
