@@ -1564,7 +1564,7 @@ namespace aft
       // Ignore if we're not the leader.
       if (state->leadership_state != ccf::kv::LeadershipState::Leader)
       {
-        RAFT_FAIL_FMT(
+        RAFT_INFO_FMT(
           "Recv append entries response to {} from {}: no longer leader",
           state->node_id,
           from);
