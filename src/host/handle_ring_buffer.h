@@ -106,9 +106,11 @@ namespace asynchost
         bp,
         AdminMessage::restart_and_join,
         [&](const uint8_t* data, size_t size) {
-          auto [url, service_identity] = ringbuffer::read_message<AdminMessage::restart_and_join>(
-            data, size);
-          ccf::SelfHealingOpenSingleton::instance()->trigger_restart_and_join_url(url, service_identity);
+          auto [url, service_identity] =
+            ringbuffer::read_message<AdminMessage::restart_and_join>(
+              data, size);
+          ccf::SelfHealingOpenSingleton::instance()
+            ->trigger_restart_and_join_url(url, service_identity);
         });
     }
 

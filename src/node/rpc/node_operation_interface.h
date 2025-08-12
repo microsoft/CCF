@@ -62,8 +62,8 @@ namespace ccf
 
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
 
-    virtual void self_healing_open_try_start_timers(ccf::kv::Tx& tx, bool recovering) = 0;
-    virtual void self_healing_open_advance(
-      ccf::kv::Tx&, bool) = 0;
+    virtual void self_healing_open_try_start_timers(
+      ccf::kv::Tx& tx, bool recovering) = 0;
+    virtual void self_healing_open_advance(ccf::kv::Tx&, bool) = 0;
   };
 }

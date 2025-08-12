@@ -6,7 +6,6 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/service/map.h"
-#include "node/identity.h"
 
 using IntrinsicIdentifier = std::string;
 

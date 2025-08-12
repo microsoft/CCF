@@ -1058,8 +1058,7 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
 
   auto new_config_json = config_json;
   new_config_json["command"] = command_config;
-  new_config_json["output_files"]["pid_file"] =
-    "self_healing_open_join.pid";
+  new_config_json["output_files"]["pid_file"] = "self_healing_open_join.pid";
 
   files::dump(
     new_config_json.dump(),

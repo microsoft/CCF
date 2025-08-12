@@ -51,7 +51,8 @@ DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stop_notice);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stopped);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::tick);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::work_stats, std::string);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::restart_and_join, std::string, std::string);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  AdminMessage::restart_and_join, std::string, std::string);
 
 /// Messages sent from app endpoints
 enum AppMessage : ringbuffer::Message

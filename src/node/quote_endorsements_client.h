@@ -212,7 +212,9 @@ namespace ccf
           curl_easy_strerror(curl_response),
           curl_response,
           status_code);
-        if (curl_response == CURLE_OK && status_code == HTTP_STATUS_TOO_MANY_REQUESTS)
+        if (
+          curl_response == CURLE_OK &&
+          status_code == HTTP_STATUS_TOO_MANY_REQUESTS)
         {
           constexpr size_t default_retry_after_s = 3;
           size_t retry_after_s = default_retry_after_s;
@@ -315,8 +317,8 @@ namespace ccf
         "Fetching endorsements for attestation report at {}",
         request->get_url());
 
-      curl::CurlmLibuvContextSingleton::get_instance_unsafe()
-        ->attach_request(request);
+      curl::CurlmLibuvContextSingleton::get_instance_unsafe()->attach_request(
+        request);
     }
 
   public:

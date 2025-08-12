@@ -2025,8 +2025,7 @@ namespace ccf
           auto sm_state = sm_state_handle->get().value();
 
           // Keep doing this until the node is no longer in recovery
-          if (
-            sm_state == SelfHealingOpenSM::OPEN)
+          if (sm_state == SelfHealingOpenSM::OPEN)
           {
             LOG_INFO_FMT("Self-healing-open complete, stopping timers.");
             return;
