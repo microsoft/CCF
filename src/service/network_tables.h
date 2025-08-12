@@ -257,6 +257,8 @@ namespace ccf
       Tables::SELF_HEALING_OPEN_VOTES};
     const SelfHealingOpenSMState self_healing_open_sm_state = {
       Tables::SELF_HEALING_OPEN_SM_STATE};
+    const SelfHealingOpenSMState self_healing_open_timeout_sm_state = {
+      Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE};
 
     inline auto get_all_internal_tables() const
     {

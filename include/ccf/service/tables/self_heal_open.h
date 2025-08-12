@@ -42,7 +42,8 @@ DECLARE_JSON_ENUM(
   {{SelfHealingOpenSM::GOSSIPPING, "Gossipping"},
    {SelfHealingOpenSM::VOTING, "Voting"},
    {SelfHealingOpenSM::OPENING, "Opening"},
-   {SelfHealingOpenSM::JOINING, "Joining"}});
+   {SelfHealingOpenSM::JOINING, "Joining"},
+   {SelfHealingOpenSM::OPEN, "Open"}});
 
 namespace ccf
 {
@@ -53,6 +54,7 @@ namespace ccf
   using SelfHealingOpenChosenReplica = ServiceValue<IntrinsicIdentifier>;
   using SelfHealingOpenVotes = ServiceSet<IntrinsicIdentifier>;
   using SelfHealingOpenSMState = ServiceValue<SelfHealingOpenSM>;
+  using SelfHealingOpenTimeoutSMState = ServiceValue<SelfHealingOpenSM>;
 
   namespace Tables
   {
@@ -66,5 +68,7 @@ namespace ccf
       "public:ccf.gov.selfhealingopen.votes";
     static constexpr auto SELF_HEALING_OPEN_SM_STATE =
       "public:ccf.gov.selfhealingopen.sm_state";
+    static constexpr auto SELF_HEALING_OPEN_TIMEOUT_SM_STATE =
+      "public:ccf.gov.selfhealingopen.timeout_sm_state";
   }
 }

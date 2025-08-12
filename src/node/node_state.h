@@ -2005,6 +2005,9 @@ namespace ccf
 
       auto* state_handle = tx.rw(network.self_healing_open_sm_state);
       state_handle->put(SelfHealingOpenSM::GOSSIPPING);
+      auto* timeout_state_handle =
+        tx.rw(network.self_healing_open_timeout_sm_state);
+      timeout_state_handle->put(SelfHealingOpenSM::GOSSIPPING);
 
       auto retry_timer_msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
         [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
@@ -2023,9 +2026,9 @@ namespace ccf
 
           // Keep doing this until the node is no longer in recovery
           if (
-            msg->data.self.sm.check(NodeStartupState::partOfNetwork) ||
             sm_state == SelfHealingOpenSM::OPEN)
           {
+            LOG_INFO_FMT("Self-healing-open complete, stopping timers.");
             return;
           }
 
@@ -2136,10 +2139,38 @@ namespace ccf
     void self_healing_open_advance(ccf::kv::Tx& tx, bool timeout) override
     {
       auto* sm_state_handle = tx.rw(network.self_healing_open_sm_state);
-      if (!sm_state_handle->get().has_value())
+      auto* timeout_state_handle =
+        tx.rw(network.self_healing_open_timeout_sm_state);
+      if (
+        !sm_state_handle->get().has_value() ||
+        !timeout_state_handle->get().has_value())
       {
         throw std::logic_error(
           "Self-healing-open state not set, cannot advance self-healing-open");
+      }
+
+      bool valid_timeout = timeout &&
+        timeout_state_handle->get().value() == sm_state_handle->get().value();
+
+      // Advance timeout SM
+      if (timeout)
+      {
+        switch (timeout_state_handle->get().value())
+        {
+          case SelfHealingOpenSM::GOSSIPPING:
+            LOG_TRACE_FMT("Advancing timeout SM to VOTING");
+            timeout_state_handle->put(SelfHealingOpenSM::VOTING);
+            break;
+          case SelfHealingOpenSM::VOTING:
+            LOG_TRACE_FMT("Advancing timeout SM to OPENING");
+            timeout_state_handle->put(SelfHealingOpenSM::OPENING);
+            break;
+          case SelfHealingOpenSM::OPENING:
+          case SelfHealingOpenSM::JOINING:
+          case SelfHealingOpenSM::OPEN:
+          default:
+            LOG_TRACE_FMT("Timeout SM complete");
+        }
       }
 
       switch (sm_state_handle->get().value())
@@ -2150,7 +2181,7 @@ namespace ccf
           if (
             gossip_handle->size() ==
               config.recover.self_healing_open_addresses.value().size() ||
-            timeout)
+            valid_timeout)
           {
             if (gossip_handle->size() == 0)
             {
@@ -2183,7 +2214,7 @@ namespace ccf
             votes->size() >=
               config.recover.self_healing_open_addresses.value().size() / 2 +
                 1 ||
-            timeout)
+            valid_timeout)
           {
             if (votes->size() == 0)
             {
@@ -2193,22 +2224,6 @@ namespace ccf
             LOG_INFO_FMT("Self-healing-open succeeded, now opening network");
 
             sm_state_handle->put(SelfHealingOpenSM::OPENING);
-
-            auto* service = tx.ro<Service>(Tables::SERVICE);
-            auto service_info = service->get();
-            if (!service_info.has_value())
-            {
-              throw std::logic_error(
-                "Service information cannot be found to transition service to "
-                "open");
-            }
-            const auto prev_ident =
-              tx.ro<PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
-                ->get();
-            AbstractGovernanceEffects::ServiceIdentities identities{
-              .previous = prev_ident, .next = service_info->cert};
-
-            transition_service_to_open(tx, identities);
           }
           return;
         }
@@ -2242,6 +2257,31 @@ namespace ccf
             node_config->service_identity);
         }
         case SelfHealingOpenSM::OPENING:
+        {
+          // TODO: Add fast path if enough replicas have joined already
+          // THIS IS POSSIBLY DANGEROUS as these joining replicas are not signed
+          // off...
+          if (valid_timeout)
+          {
+            auto* service = tx.ro<Service>(Tables::SERVICE);
+            auto service_info = service->get();
+            if (!service_info.has_value())
+            {
+              throw std::logic_error(
+                "Service information cannot be found to transition service to "
+                "open");
+            }
+            const auto prev_ident =
+              tx.ro<PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
+                ->get();
+            AbstractGovernanceEffects::ServiceIdentities identities{
+              .previous = prev_ident, .next = service_info->cert};
+
+            sm_state_handle->put(SelfHealingOpenSM::OPEN);
+
+            transition_service_to_open(tx, identities);
+          }
+        }
         case SelfHealingOpenSM::OPEN:
         {
           // Nothing to do here, we are already opening or open or joining

@@ -1732,6 +1732,9 @@ namespace ccf
           auto* state_handle = tx.rw<ccf::SelfHealingOpenSMState>(
             Tables::SELF_HEALING_OPEN_SM_STATE);
           state_handle->clear();
+          auto* timeout_state_handle =
+            tx.rw<ccf::SelfHealingOpenTimeoutSMState>(
+              Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE);
           auto* node_info_handle = tx.rw<ccf::SelfHealingOpenNodeInfo>(
             Tables::SELF_HEALING_OPEN_NODES);
           node_info_handle->clear();
@@ -2286,60 +2289,76 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
-      auto self_healing_open_gossip =
-        [this](auto& args, const nlohmann::json& params) {
-          auto in = params.get<self_healing_open::GossipRequest>();
+      auto self_healing_open_gossip = [this](
+                                        auto& args,
+                                        const nlohmann::json& params) {
+        auto config = this->context.get_subsystem<NodeConfigurationSubsystem>();
+        if (!config)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfigurationSubsystem is not available");
+        }
+        if (!config->get()
+               .node_config.recover.self_healing_open_addresses.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidNodeState,
+            "Self-healing-open addresses are not configured");
+        }
 
-          auto valid = self_healing_open_validate_and_store_node_info(
-            args, args.tx, in.info);
-          if (valid.has_value())
-          {
-            auto [code, message] = valid.value();
-            return make_error(code, ccf::errors::InvalidQuote, message);
-          }
+        auto in = params.get<self_healing_open::GossipRequest>();
+        auto valid = self_healing_open_validate_and_store_node_info(
+          args, args.tx, in.info);
+        if (valid.has_value())
+        {
+          auto [code, message] = valid.value();
+          return make_error(code, ccf::errors::InvalidQuote, message);
+        }
 
-          LOG_TRACE_FMT("Processing self-healing-open gossip RPC");
-          LOG_TRACE_FMT("Self-healing-open gossip params: {}", params.dump());
+        LOG_TRACE_FMT("Processing self-healing-open gossip RPC");
+        LOG_TRACE_FMT("Self-healing-open gossip params: {}", params.dump());
 
-          auto chosen_replica =
-            args.tx.rw(this->network.self_healing_open_chosen_replica);
-          // This freezes the gossips at the point where it votes
-          if (chosen_replica->get().has_value())
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "This replica has already voted");
-          }
+        auto chosen_replica =
+          args.tx.rw(this->network.self_healing_open_chosen_replica);
+        // This freezes the gossips at the point where it votes
+        if (chosen_replica->get().has_value())
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "This replica has already voted");
+        }
 
-          auto gossip_handle =
-            args.tx.rw(this->network.self_healing_open_gossip);
-          if (gossip_handle->get(in.info.intrinsic_id).has_value())
-          {
-            LOG_INFO_FMT("Node {} already gossiped", in.info.intrinsic_id);
-            return make_success(
-              fmt::format("Node {} already gossiped", in.info.intrinsic_id));
-          }
-          gossip_handle->put(in.info.intrinsic_id, in.txid);
+        auto gossip_handle = args.tx.rw(this->network.self_healing_open_gossip);
+        if (gossip_handle->get(in.info.intrinsic_id).has_value())
+        {
+          LOG_INFO_FMT("Node {} already gossiped", in.info.intrinsic_id);
+          return make_success(
+            fmt::format("Node {} already gossiped", in.info.intrinsic_id));
+        }
+        gossip_handle->put(in.info.intrinsic_id, in.txid);
 
-          try
-          {
-            this->node_operation.self_healing_open_advance(args.tx, false);
-          }
-          catch (const std::logic_error& e)
-          {
-            LOG_FAIL_FMT(
-              "Self-healing-open gossip failed to advance state: {}", e.what());
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              fmt::format(
-                "Failed to advance self-healing-open state: {}", e.what()));
-          }
+        try
+        {
+          this->node_operation.self_healing_open_advance(args.tx, false);
+        }
+        catch (const std::logic_error& e)
+        {
+          LOG_FAIL_FMT(
+            "Self-healing-open gossip failed to advance state: {}", e.what());
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to advance self-healing-open state: {}", e.what()));
+        }
 
-          return make_success(fmt::format(
-            "Node {} gossiped for self-healing-open", in.info.intrinsic_id));
-        };
+        return make_success(fmt::format(
+          "Node {} gossiped for self-healing-open", in.info.intrinsic_id));
+      };
       make_endpoint(
         "/self_healing_open/gossip",
         HTTP_PUT,
@@ -2351,6 +2370,24 @@ namespace ccf
 
       auto self_healing_open_vote =
         [this](auto& args, const nlohmann::json& params) {
+          auto config =
+            this->context.get_subsystem<NodeConfigurationSubsystem>();
+          if (!config)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "NodeConfigurationSubsystem is not available");
+          }
+          if (!config->get()
+                 .node_config.recover.self_healing_open_addresses.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidNodeState,
+              "Self-healing-open addresses are not configured");
+          }
+
           auto in = params.get<self_healing_open::VoteRequest>();
           auto valid = self_healing_open_validate_and_store_node_info(
             args, args.tx, in.info);
@@ -2395,7 +2432,23 @@ namespace ccf
 
       auto self_healing_open_iamopen =
         [this](auto& args, const nlohmann::json& params) {
-          LOG_TRACE_FMT("Processing self-healing-open iamopen RPC");
+          auto config =
+            this->context.get_subsystem<NodeConfigurationSubsystem>();
+          if (!config)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "NodeConfigurationSubsystem is not available");
+          }
+          if (!config->get()
+                 .node_config.recover.self_healing_open_addresses.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidNodeState,
+              "Self-healing-open addresses are not configured");
+          }
 
           auto in = params.get<self_healing_open::IAmOpenRequest>();
           auto valid = self_healing_open_validate_and_store_node_info(
@@ -2447,7 +2500,23 @@ namespace ccf
       auto self_healing_open_timeout = [this](
                                          auto& args,
                                          const nlohmann::json& params) {
-        (void)params; // Unused, but required by the adapter
+        (void)params;
+        auto config = this->context.get_subsystem<NodeConfigurationSubsystem>();
+        if (!config)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfigurationSubsystem is not available");
+        }
+        if (!config->get()
+               .node_config.recover.self_healing_open_addresses.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidNodeState,
+            "Self-healing-open addresses are not configured");
+        }
 
         LOG_TRACE_FMT("Self-healing-open timeout received");
 
