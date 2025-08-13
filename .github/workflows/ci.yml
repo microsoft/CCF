@@ -124,7 +124,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DUSE_SNMALLOC=OFF ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
 
