@@ -102,3 +102,8 @@ The end-to-end service performance tests can also be from the CCF build director
 Each of these tests creates a temporary CCF service on the local machine, then sends a high volume of transactions to measure peak and average throughput. The python test wrappers will print summary statistics including a transaction rate histogram when the test completes. These statistics can be retrieved from any CCF service via the ``getMetrics`` RPC.
 
 For a finer grained view of performance the clients in these tests can also dump the precise times each transaction was sent and its response received, for later analysis. The ``samples`` folder contains a ``plot_tx_times`` Python script which produces plots from this data.
+
+Profiling
+---------
+
+End-to-end performance tests can be run with the linux utility ``perf`` attached to the nodes to produce profile data. Set the `CCF_PERF` environment variable before running a test to enable this.
