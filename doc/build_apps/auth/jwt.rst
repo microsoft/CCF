@@ -84,6 +84,10 @@ The CA certificate is stored with a ``set_ca_cert_bundle`` proposal:
       ]
     }
 
+.. note::
+
+    The ``cert_bundle`` in the example proposal above is a placeholder. The actual value should contain PEM-encoded certificates of all the root CAs for the given issuer, separated by newlines. For Microsoft Entra, the list of root CAs is here: https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-CA-details
+
 Now the issuer can be created with auto-refresh enabled:
 
 .. code-block:: json
