@@ -1029,6 +1029,7 @@ namespace ccf
         break;
       }
       uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+      --close_iterations;
       std::this_thread::sleep_for(10ms);
     }
     LOG_INFO_FMT(
