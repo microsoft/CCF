@@ -1021,7 +1021,7 @@ namespace ccf
     constexpr size_t max_close_iterations = 1000;
     int close_iterations = max_close_iterations;
     int loop_close_rc = 0;
-    while (close_iterations > 0)
+    while (close_iterations-- > 0)
     {
       loop_close_rc = uv_loop_close(uv_default_loop());
       if (loop_close_rc != UV_EBUSY)
@@ -1030,7 +1030,6 @@ namespace ccf
       }
       uv_run(uv_default_loop(), UV_RUN_NOWAIT);
       std::this_thread::sleep_for(10ms);
-      --close_iterations;
     }
     LOG_INFO_FMT(
       "Ran an extra {} cleanup iteration(s)",
