@@ -379,7 +379,7 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           path: pkg
-          pattern: pkg-*
+          pattern: pkg*
           merge-multiple: true
       - name: Download Release Notes
         uses: actions/download-artifact@v5
