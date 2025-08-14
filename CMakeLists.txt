@@ -1199,9 +1199,12 @@ write_basic_package_version_file(
   ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
   COMPATIBILITY SameMajorVersion
 )
-install(FILES ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
-              ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
-        DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
+install(
+  FILES ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
+        ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/cpack_ccfapp.cmake
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/cpack_versions_pin.cmake
+  DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
 )
 
 if(NOT USE_LIBCXX)
