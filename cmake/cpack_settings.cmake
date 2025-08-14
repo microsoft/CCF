@@ -27,28 +27,22 @@ set(NGHTTP2_MINIMAL_VERSION "1.40.0")
 set(CPACK_RPM_PACKAGE_LICENSE "Apache-2.0")
 set(CPACK_RPM_PACKAGE_DESCRIPTION "${PROJECT_DESCRIPTION}")
 
-if(CCF_DEVEL)
-  set(CCF_RPM_BASE_DEPENDENCIES
-      "openssl-devel >= ${OPENSSL_MINIMAL_VERSION}, nghttp2-devel >= ${NGHTTP2_MINIMAL_VERSION}"
-  )
-  # + build toolchain
-  set(CCF_RPM_BASE_DEPENDENCIES
-      "${CCF_RPM_BASE_DEPENDENCIES}, cmake >= 3.30, build-essential >= 3.0, clang >= 18.1.2, ninja-build >= 1.11.1"
-  )
-  # + alter name
-  set(CPACK_PACKAGE_NAME "${CPACK_PACKAGE_NAME}_devel")
-  # + alter summary
-  set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
-      "${CPACK_PACKAGE_DESCRIPTION_SUMMARY} (development)"
-  )
-else()
-  set(CCF_RPM_BASE_DEPENDENCIES
-      "openssl >= ${OPENSSL_MINIMAL_VERSION}, nghttp2 >= ${NGHTTP2_MINIMAL_VERSION}"
-  )
-endif()
-
 set(CCF_RPM_DEPENDENCIES
-    "${CCF_RPM_BASE_DEPENDENCIES}, libuv >= 1.34.2, curl >= 7.68.0, libcxxabi >= 18.1.2"
+    "openssl-devel >= ${OPENSSL_MINIMAL_VERSION}, nghttp2-devel >= ${NGHTTP2_MINIMAL_VERSION}"
+)
+# + build toolchain
+set(CCF_RPM_DEPENDENCIES
+    "${CCF_RPM_DEPENDENCIES}, cmake >= 3.30, build-essential >= 3.0, clang >= 18.1.2, ninja-build >= 1.11.1"
+)
+# + runtime dependencies
+set(CCF_RPM_DEPENDENCIES
+    "${CCF_RPM_DEPENDENCIES}, libuv-devel >= 1.34.2, curl-devel >= 7.68.0, libcxxabi-devel >= 18.1.2"
+)
+# + alter name
+set(CPACK_PACKAGE_NAME "${CPACK_PACKAGE_NAME}_devel")
+# + alter summary
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+    "${CPACK_PACKAGE_DESCRIPTION_SUMMARY} (development)"
 )
 
 message(STATUS "RPM package dependencies: ${CCF_RPM_DEPENDENCIES}")

@@ -43,7 +43,7 @@ build_pkg() {
   echo "Reproducing run package..."
   # Reset cmake config to affect cpack settings
   rm CMakeCache.txt
-  cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCCF_DEVEL=OFF ..
+  cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..
   cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
   cpack -V -G RPM
   for f in *.rpm; do
