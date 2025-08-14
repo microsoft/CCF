@@ -35,7 +35,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install TLC dependencies
         run: |
           tdnf install -y jre wget
@@ -64,7 +64,7 @@ jobs:
         working-directory: tla
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install TLC dependencies
         run: |
           sudo apt update
@@ -84,7 +84,7 @@ jobs:
         working-directory: tla
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install TLC dependencies
         run: |
           sudo apt update
@@ -117,7 +117,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install TLC dependencies
         run: |
           tdnf install -y jre wget
@@ -144,7 +144,7 @@ jobs:
         working-directory: tla
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install TLC dependencies
         run: |
           sudo apt update
@@ -177,7 +177,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
