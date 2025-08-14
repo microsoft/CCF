@@ -22,6 +22,7 @@ from cryptography.hazmat.primitives.asymmetric.utils import (
     encode_dss_signature,
 )
 from cryptography.hazmat.primitives.serialization import (
+    load_der_public_key,
     load_pem_private_key,
     load_pem_public_key,
     Encoding,
@@ -319,6 +320,13 @@ def cert_pem_to_der(pem: str) -> bytes:
 def cert_der_to_pem(der: bytes) -> str:
     cert = load_der_x509_certificate(der, default_backend())
     return cert.public_bytes(Encoding.PEM).decode("ascii")
+
+
+def pub_key_der_to_pem(der: bytes) -> str:
+    pub_key = load_der_public_key(der, default_backend())
+    return pub_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode(
+        "ascii"
+    )
 
 
 def are_certs_equal(pem1: str, pem2: str) -> bool:
