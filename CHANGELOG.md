@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Allow changing the constitution during disaster recovery via the `command.recover.constitution_files` entry in cchost. (#7155)
+- Added `toArrayBuffer` to `ccfapp/utils` which converts `ArrayBufferLike` to `ArrayBuffer`. (#7171)
 
 ### Changed
 
