@@ -78,7 +78,7 @@ The CA certificate is stored with a ``set_ca_cert_bundle`` proposal:
           "name": "set_ca_cert_bundle",
           "args": {
             "name": "jwt_ms",
-            "cert_bundle": "-----BEGIN CERTIFICATE-----\nMIICtDCCAZygAwIBAgIUD7xmXLQWbN/q+tuH97Aq2krO0GAwDQYJKoZIhvcNAQEL\nBQAwFDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTIyMDExMjEzNDMzNloXDTIyMDEy\nMjEzNDMzNlowFDESMBAGA1UEAwwJbG9jYWxob3N0MIIBIjANBgkqhkiG9w0BAQEF\nAAOCAQ8AMIIBCgKCAQEAoWXwixcQ0CrZQAD9Ojo0kxKtrsJB0dmxwKGx/JH2VQYh\nYQ9+8zSuXKW7L0dJL3Qf9R7eJvj1w4i/gPHSggsgrp+MbYLos3DK1M3wdATpsn/r\nhVFCuVpq9nVOZQh9Uiq1fbsYBpoJZ+aSpRJrqK8VaQDr/zPVnU72zYSxgEvwll+e\nvw1+erna3nZevf02hGvD1HU2DBEIkyj50yRzfKufGbw70ySxDAxCpkM+Qsw+WD5/\ncI2D8mhMFA7NdPIbB0OWwCOqrFxtwkA2N11nqJlodzFmcdCDE/fyZc2/Fer+C4ol\nhnYBXVqEodlbytmYHIWB3+XbymDrbqPeCvr2I6nK2QIDAQABMA0GCSqGSIb3DQEB\nCwUAA4IBAQBrHD9cUy5mfkelWzJRknaK3BszUWSwOjjXYh0vFTW8ixZUjKfQDpbe\nPEL3aV3IgnBEwFnormhGCLcOatAGLCgZ//FREts8KaNgyrObKyuMLPQi5vf5/ucG\n/68mGwq2hdh0+ysVqcjjLQCTfbPJPUQ5V2hOh79jOy29JdavcBGR4SeRdOgzdcwA\nd9/T8VuoC6tjt2OF7IJ59JOSBWMcxCbr7KyyJjuxykzyjDa/XQs2Egt4WE+ZVUgc\nav1tQB2leiJGbjhswhLMe7NbuOtwcELsILpPo3pbdKEMlRFngj7H80IFurxtdu/M\nN2D/+LkySi6UDM8q6ADSdjG+cnNzSjEo\n-----END CERTIFICATE-----\n"
+            "cert_bundle": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n"
           }
         }
       ]
