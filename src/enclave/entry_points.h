@@ -18,7 +18,6 @@ extern "C"
     StartType start_type,
     ccf::LoggerLevel log_level,
     size_t num_worker_thread,
-    void* time_location,
     const ccf::ds::WorkBeaconPtr& work_beacon);
 
   bool enclave_run();

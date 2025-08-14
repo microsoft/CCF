@@ -18,26 +18,13 @@
 #include <queue>
 #include <random>
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
-
-namespace ccf::enclavetime
-{
-  std::atomic<long long>* host_time_us = nullptr;
-  std::atomic<std::chrono::microseconds> last_value(
-    std::chrono::microseconds(0));
-}
-
-namespace ccf
-{
-  std::chrono::microseconds Channel::min_gap_between_initiation_attempts(5'000);
-}
 
 void sleep_to_reinitiate()
 {
-  ccf::enclavetime::last_value.store(
-    ccf::enclavetime::last_value.load() +
-    2 * ccf::Channel::min_gap_between_initiation_attempts);
+  std::this_thread::sleep_for(
+    2 * ccf::Channel::min_gap_between_initiation_attempts());
 }
 
 class IORingbuffersFixture
@@ -1832,4 +1819,19 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Timeout idle channels")
     channels2.tick(not_quite_idle);
     REQUIRE_FALSE(channels2.have_channel(nid1));
   }
+}
+
+int main(int argc, char** argv)
+{
+  // We regularly sleep to re-initiate during this test, so reduce this value to
+  // reduce total test run-time
+  Channel::min_gap_between_initiation_attempts() =
+    std::chrono::microseconds(5'000);
+
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int res = context.run();
+  if (context.shouldExit())
+    return res;
+  return res;
 }

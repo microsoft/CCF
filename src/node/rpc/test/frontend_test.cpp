@@ -10,7 +10,6 @@
 #include "ccf/kv/map.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
-#include "enclave/enclave_time.h"
 #include "frontend_test_infra.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
@@ -1786,10 +1785,6 @@ TEST_CASE("Manual conflicts")
 
 int main(int argc, char** argv)
 {
-  ccf::enclavetime::last_value =
-    std::chrono::duration_cast<std::chrono::microseconds>(
-      std::chrono::system_clock::now().time_since_epoch());
-
   ::threading::ThreadMessaging::init(1);
   ccf::crypto::openssl_sha256_init();
   doctest::Context context;
