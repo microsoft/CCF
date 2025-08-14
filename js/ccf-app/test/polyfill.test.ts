@@ -207,7 +207,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           publicKey,
-          toArrayBuffer(signature),
+          signature,
           data,
         ),
       );
@@ -272,7 +272,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           publicKey,
-          toArrayBuffer(signature),
+          signature,
           data,
         ),
       );
@@ -393,15 +393,15 @@ describe("polyfill", function () {
   describe("verifySignature", function () {
     it("performs RSA-PSS validation correctly", function () {
       const { cert, publicKey, privateKey } = generateSelfSignedCert();
-      const signer = crypto.createSign("sha256");
       const data = ccf.strToBuf("foo");
-      signer.update(new Uint8Array(data));
-      signer.end();
-      const signature = signer.sign({
-        key: crypto.createPrivateKey(privateKey),
-        padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
-        saltLength: 0,
-      });
+      const signature = ccf.crypto.sign(
+        {
+          name: "RSA-PSS",
+          hash: "SHA-256",
+        },
+        privateKey,
+        data,
+      );
       assert.isTrue(
         ccf.crypto.verifySignature(
           {
@@ -409,7 +409,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           cert,
-          toArrayBuffer(signature),
+          signature,
           data,
         ),
       );
@@ -420,7 +420,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           publicKey,
-          toArrayBuffer(signature),
+          signature,
           data,
         ),
       );
@@ -431,7 +431,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           cert,
-          toArrayBuffer(signature),
+          signature,
           ccf.strToBuf("bar"),
         ),
       );
@@ -442,7 +442,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           publicKey,
-          toArrayBuffer(signature),
+          signature,
           data,
         ),
       );
@@ -461,14 +461,16 @@ describe("polyfill", function () {
           format: "pem",
         },
       });
-      const signer = crypto.createSign("sha256");
       const data = ccf.strToBuf("foo");
-      signer.update(new Uint8Array(data));
-      signer.end();
-      const signature = signer.sign({
-        key: crypto.createPrivateKey(privateKey),
-        dsaEncoding: "ieee-p1363",
-      });
+      const signature = ccf.crypto.sign(
+        {
+          name: "ECDSA",
+          hash: "SHA-256",
+        },
+        privateKey,
+        data,
+      );
+
       assert.isTrue(
         ccf.crypto.verifySignature(
           {
@@ -476,7 +478,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           publicKey,
-          toArrayBuffer(signature),
+          signature,
           data,
         ),
       );
@@ -487,7 +489,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           publicKey,
-          toArrayBuffer(signature),
+          signature,
           ccf.strToBuf("bar"),
         ),
       );
@@ -498,7 +500,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           publicKey,
-          toArrayBuffer(signature),
+          signature,
           data,
         ),
       );
@@ -515,10 +517,12 @@ describe("polyfill", function () {
         },
       });
       const data = ccf.strToBuf("foo");
-      const signature = crypto.sign(
-        null,
-        new Uint8Array(data),
-        crypto.createPrivateKey(privateKey),
+      const signature = ccf.crypto.sign(
+        {
+          name: "EdDSA",
+        },
+        privateKey,
+        data,
       );
       assert.isTrue(
         ccf.crypto.verifySignature(
@@ -526,7 +530,7 @@ describe("polyfill", function () {
             name: "EdDSA",
           },
           publicKey,
-          toArrayBuffer(signature),
+          signature,
           data,
         ),
       );
@@ -536,7 +540,7 @@ describe("polyfill", function () {
             name: "EdDSA",
           },
           publicKey,
-          toArrayBuffer(signature),
+          signature,
           ccf.strToBuf("bar"),
         ),
       );
@@ -547,7 +551,7 @@ describe("polyfill", function () {
             hash: "SHA-256",
           },
           publicKey,
-          toArrayBuffer(signature),
+          signature,
           data,
         ),
       );
