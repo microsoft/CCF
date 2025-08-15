@@ -4,6 +4,7 @@
 
 #include "kv/encryptor.h"
 
+#include "ccf/crypto/openssl_init.h"
 #include "crypto/openssl/hash.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"

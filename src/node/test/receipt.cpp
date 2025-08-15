@@ -4,6 +4,7 @@
 #include "ccf/receipt.h"
 
 #include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/openssl_init.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/openssl/hash.h"

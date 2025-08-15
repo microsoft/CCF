@@ -3,6 +3,7 @@
 
 #include "ccf/run.h"
 
+#include "ccf/crypto/openssl_init.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"

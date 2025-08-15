@@ -3,6 +3,8 @@
 
 #include "crypto/openssl/hash.h"
 
+#include "ccf/crypto/openssl_init.h"
+
 #include <limits>
 #include <openssl/evp.h>
 #include <openssl/sha.h>
