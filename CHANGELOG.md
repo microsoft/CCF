@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.10]
+
+[6.0.10]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.10
+
+### Changed
+
+- Compatibility with TypeScript 5.9. (#7171)
+- Compatibility with TLS clients that require the `keyUsage` extension, such as Python 3.13+. (#7134)
+
 ## [6.0.9]
 
 [6.0.9]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.9
