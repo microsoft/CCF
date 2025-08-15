@@ -4,6 +4,8 @@
 #include "node/history.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
+#include "ccf/crypto/openssl_init.h"
+
 #include <doctest/doctest.h>
 
 ccf::crypto::Sha256Hash rand_hash()
