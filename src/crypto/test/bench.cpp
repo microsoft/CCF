@@ -401,8 +401,8 @@ static void sha256_noopt_bench(picobench::state& s)
   s.start_timer();
   for (size_t i = 0; i < 10; ++i)
   {
-    auto *md = EVP_MD_fetch(nullptr, "SHA2-256", nullptr);
-    auto *ctx = EVP_MD_CTX_new();
+    auto* md = EVP_MD_fetch(nullptr, "SHA2-256", nullptr);
+    auto* ctx = EVP_MD_CTX_new();
     EVP_DigestInit_ex(ctx, md, NULL);
     EVP_DigestUpdate(ctx, v.data(), v.size());
     EVP_DigestFinal_ex(ctx, out.data(), nullptr);
