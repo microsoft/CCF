@@ -194,16 +194,16 @@ namespace ccf
                                   CURLcode curl_response,
                                   long status_code) {
         std::lock_guard<ccf::pal::Mutex> guard(this->lock);
-        auto* response = request.get_response();
+        auto response = request.get_response();
 
         if (curl_response == CURLE_OK && status_code == HTTP_STATUS_OK)
         {
           LOG_INFO_FMT(
             "Successfully retrieved endorsements for attestation report: "
             "{} bytes",
-            response->buffer.size());
+            response.buffer.size());
 
-          handle_success_response(std::move(response->buffer), endpoint);
+          handle_success_response(std::move(response.buffer), endpoint);
           return;
         }
 
@@ -212,12 +212,14 @@ namespace ccf
           curl_easy_strerror(curl_response),
           curl_response,
           status_code);
-        if (curl_response == CURLE_OK && status_code == HTTP_STATUS_TOO_MANY_REQUESTS)
+        if (
+          curl_response == CURLE_OK &&
+          status_code == HTTP_STATUS_TOO_MANY_REQUESTS)
         {
           constexpr size_t default_retry_after_s = 3;
           size_t retry_after_s = default_retry_after_s;
-          auto h = response->headers.find(http::headers::RETRY_AFTER);
-          if (h != response->headers.end())
+          auto h = response.headers.find(http::headers::RETRY_AFTER);
+          if (h != response.headers.end())
           {
             const auto& retry_after_value = h->second;
             // If value is invalid, retry_after_s is unchanged
@@ -315,8 +317,8 @@ namespace ccf
         "Fetching endorsements for attestation report at {}",
         request->get_url());
 
-      curl::CurlmLibuvContextSingleton::get_instance_unsafe()
-        ->attach_request(request);
+      curl::CurlmLibuvContextSingleton::get_instance_unsafe()->attach_request(
+        request);
     }
 
   public:

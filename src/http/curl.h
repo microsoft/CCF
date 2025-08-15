@@ -301,7 +301,7 @@ namespace ccf::curl
     std::string url;
     ccf::curl::UniqueSlist headers;
     std::unique_ptr<ccf::curl::RequestBody> request_body = nullptr;
-    std::unique_ptr<ccf::curl::Response> response = nullptr;
+    ccf::curl::Response response;
     std::optional<ResponseCallback> response_callback = nullptr;
 
   public:
@@ -338,15 +338,18 @@ namespace ccf::curl
         case HTTP_HEAD:
           CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_NOBODY, 1L);
           break;
-        case HTTP_PUT: {
+        case HTTP_PUT:
+        {
           CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_UPLOAD, 1L);
           if (request_body == nullptr)
           {
-            // If no request body is provided, curl will try reading from stdin, which causes a blockage
-            request_body = std::make_unique<RequestBody>(std::vector<uint8_t>());
+            // If no request body is provided, curl will try reading from stdin,
+            // which causes a blockage
+            request_body =
+              std::make_unique<RequestBody>(std::vector<uint8_t>());
           }
         }
-          break;
+        break;
         case HTTP_POST:
           // libcurl sets the post verb when CURLOPT_POSTFIELDS is set, so we
           // skip doing so here, and we assume that the user has already set
@@ -362,17 +365,12 @@ namespace ccf::curl
         request_body->attach_to_curl(curl_handle);
       }
 
-      if (response_callback.has_value())
-      {
-        response = std::make_unique<Response>();
-        response->attach_to_curl(curl_handle);
-      }
+      response.attach_to_curl(curl_handle);
 
       if (headers.get() != nullptr)
       {
         CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPHEADER, headers.get());
       }
-
     }
 
     void handle_response(CURLcode curl_response_code)
@@ -417,9 +415,9 @@ namespace ccf::curl
       return url;
     }
 
-    [[nodiscard]] Response* get_response() const
+    [[nodiscard]] ccf::curl::Response& get_response()
     {
-      return response.get();
+      return response;
     }
   };
 
