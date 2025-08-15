@@ -41,8 +41,6 @@ struct EnclaveConfig
   ringbuffer::Offsets* from_enclave_buffer_offsets;
 
   oversized::WriterConfig writer_config = {};
-
-  ccf::curl::CurlmLibuvContext* curl_libuv_context;
 };
 
 static constexpr auto node_to_node_interface_name = "node_to_node_interface";

@@ -597,9 +597,6 @@ namespace ccf
 
       enclave_config.writer_config = writer_config;
 
-    enclave_config.curl_libuv_context =
-      &ccf::curl::CurlmLibuvContextSingleton::get_instance();
-
       ccf::StartupConfig startup_config(config);
 
       if (startup_config.attestation.snp_security_policy_file.has_value())
