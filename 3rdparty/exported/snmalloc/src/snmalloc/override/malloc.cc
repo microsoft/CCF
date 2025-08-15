@@ -42,7 +42,7 @@ extern "C"
 
 #ifdef _WIN32
   SNMALLOC_EXPORT
-  size_t SNMALLOC_NAME_MANGLE(_msize)(MALLOC_USABLE_SIZE_QUALIFIER void* ptr)
+  size_t SNMALLOC_NAME_MANGLE(_msize)(void* ptr)
   {
     return snmalloc::libc::malloc_usable_size(ptr);
   }
@@ -109,7 +109,7 @@ extern "C"
 #if __has_include(<features.h>)
 #  include <features.h>
 #endif
-#if defined(__GLIBC__) && !defined(SNMALLOC_PASS_THROUGH)
+#if defined(__GLIBC__)
   // glibc uses these hooks to replace malloc.
   // This is required when RTL_DEEPBIND is used and the library is
   // LD_PRELOADed.

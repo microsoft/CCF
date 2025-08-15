@@ -204,7 +204,7 @@ def recovery_shares_scenario(args):
 
     # Recovery threshold is initially set to number of recovery members (2)
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 
@@ -400,7 +400,7 @@ def recovery_shares_with_owners_scenario(args):
 
     # Recovery threshold is initially set to number of recovery participants (2)
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 
@@ -645,7 +645,7 @@ if __name__ == "__main__":
     cr.add(
         "membership",
         run,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=0,
     )
@@ -653,7 +653,7 @@ if __name__ == "__main__":
     cr.add(
         "member_client",
         memberclient.run,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=1),
     )
 

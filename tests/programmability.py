@@ -598,7 +598,6 @@ def run(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args)
@@ -627,7 +626,7 @@ if __name__ == "__main__":
     cr.add(
         "programmability",
         run,
-        package="samples/apps/programmability/libprogrammability",
+        package="samples/apps/programmability/programmability",
         js_app_bundle=None,
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         initial_user_count=2,

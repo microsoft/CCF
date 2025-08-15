@@ -2,32 +2,8 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "title": "CCF node configuration",
-  "description": "JSON schema for configuration of a single CCF node (cchost executable)",
+  "description": "JSON schema for configuration of a single CCF node",
   "properties": {
-    "enclave": {
-      "type": "object",
-      "properties": {
-        "file": {
-          "type": "string",
-          "description": "DEPRECATED: Replaced by --enclave-file CLI argument. Path to enclave application"
-        },
-        "platform": {
-          "type": "string",
-          "enum": ["SNP", "Virtual"],
-          "default": "SNP",
-          "description": "Trusted Execution Environment platform"
-        },
-        "type": {
-          "type": "string",
-          "enum": ["Release", "Debug", "Virtual"],
-          "default": "Release",
-          "description": "Type of enclave application (only if platform is SGX, now deprecated). \"Virtual\" is deprecated (use ``platform`` instead)"
-        }
-      },
-      "description": "This section includes configuration for the enclave application launched by this node",
-      "required": ["platform", "type"],
-      "additionalProperties": false
-    },
     "network": {
       "type": "object",
       "properties": {
@@ -441,6 +417,13 @@
                   "previous_sealed_ledger_secret_location": {
                     "type": ["string"],
                     "description": "Path to the sealed ledger secret folder, the ledger secrets for the recovered service will be unsealed from here instead of reconstructed from recovery shares."
+                  },
+                  "constitution_files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "List of constitution files. These typically include actions.js, validate.js, resolve.js and apply.js"
                   }
                 },
                 "required": ["previous_service_identity_file"],
@@ -664,8 +647,8 @@
         },
         "pid_file": {
           "type": "string",
-          "default": "cchost.pid",
-          "description": "Path to file in which 'cchost' process identifier (PID) will be written to on startup"
+          "default": "node.pid",
+          "description": "Path to file in which process identifier (PID) will be written to on startup"
         },
         "node_to_node_address_file": {
           "type": "string",
@@ -751,7 +734,7 @@
       "description": "Historical queries cache soft limit (as size string)"
     }
   },
-  "required": ["enclave", "network", "command"],
+  "required": ["network", "command"],
   "additionalProperties": false,
   "$defs": {
     "RedirectionResolver": {

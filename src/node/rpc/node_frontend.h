@@ -1435,10 +1435,6 @@ namespace ccf
         .install();
 
       auto memory_usage = [](auto& args) {
-
-// Do not attempt to call get_mallinfo when used from
-// unit tests such as the frontend_test
-#ifdef INSIDE_ENCLAVE
         ccf::pal::MallocInfo info;
         if (ccf::pal::get_mallinfo(info))
         {
@@ -1449,7 +1445,6 @@ namespace ccf
           args.rpc_ctx->set_response_body(nlohmann::json(mu).dump());
           return;
         }
-#endif
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
         args.rpc_ctx->set_response_body("Failed to read memory usage");
@@ -1573,6 +1568,11 @@ namespace ccf
         }
         else
         {
+          if (in.recovery_constitution.has_value())
+          {
+            InternalTablesAccess::set_constitution(
+              ctx.tx, in.recovery_constitution.value());
+          }
           // On recovery, force a new ledger chunk
           auto tx_ = static_cast<ccf::kv::CommittableTx*>(&ctx.tx);
           if (tx_ == nullptr)

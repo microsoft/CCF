@@ -900,7 +900,7 @@ def test_genesis_receipt(network, args):
             "/gov/service/constitution?api-version=2023-06-01-preview"
         ).body.text()
 
-    if args.package == "samples/apps/logging/liblogging":
+    if args.package == "samples/apps/logging/logging":
         # Only the logging app sets a claim on the genesis
         assert claims_digest == sha256(constitution.encode()).hexdigest()
     else:
@@ -1398,7 +1398,7 @@ def test_forwarding_frontends(network, args):
     else:
         assert args.http2 is False
 
-    if args.package == "samples/apps/logging/liblogging" and not args.http2:
+    if args.package == "samples/apps/logging/logging" and not args.http2:
         with backup.client("user0") as c:
             escaped_query_tests(c, "request_query")
 
@@ -2150,7 +2150,6 @@ def run_udp_tests(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -2179,7 +2178,6 @@ def run(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -2194,7 +2192,6 @@ def run_app_space_js(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -2268,7 +2265,7 @@ def run_main_tests(network, args):
     test_remove(network, args)
     test_clear(network, args)
     test_record_count(network, args)
-    if args.package == "samples/apps/logging/liblogging":
+    if args.package == "samples/apps/logging/logging":
         test_cbor_merkle_proof(network, args)
         test_cose_signature_schema(network, args)
         test_cose_receipt_schema(network, args)
@@ -2289,7 +2286,7 @@ def run_main_tests(network, args):
     test_historical_query_range(network, args)
     test_view_history(network, args)
     test_empty_path(network, args)
-    if args.package == "samples/apps/logging/liblogging":
+    if args.package == "samples/apps/logging/logging":
         # Local-commit lambda is currently only supported in C++
         test_post_local_commit_failure(network, args)
         # Custom indexers currently only supported in C++
@@ -2298,13 +2295,13 @@ def run_main_tests(network, args):
     test_rekey(network, args)
     test_liveness(network, args)
     test_random_receipts(network, args, False)
-    if args.package == "samples/apps/logging/liblogging":
+    if args.package == "samples/apps/logging/logging":
         test_receipts(network, args)
         test_historical_query_sparse(network, args)
     test_historical_receipts(network, args)
     test_historical_receipts_with_claims(network, args)
     test_genesis_receipt(network, args)
-    if args.package == "samples/apps/logging/liblogging":
+    if args.package == "samples/apps/logging/logging":
         test_etags(network, args)
         test_cose_config(network, args)
 
@@ -2315,7 +2312,6 @@ def run_parsing_errors(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -2332,7 +2328,7 @@ if __name__ == "__main__":
     cr.add(
         "js",
         run,
-        package="libjs_generic",
+        package="js_generic",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,
         initial_member_count=2,
@@ -2341,7 +2337,7 @@ if __name__ == "__main__":
     cr.add(
         "app_space_js",
         run_app_space_js,
-        package="samples/apps/programmability/libprogrammability",
+        package="samples/apps/programmability/programmability",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,
         initial_member_count=2,
@@ -2350,7 +2346,7 @@ if __name__ == "__main__":
     cr.add(
         "cpp",
         run,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         js_app_bundle=None,
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,
@@ -2360,7 +2356,7 @@ if __name__ == "__main__":
     cr.add(
         "common",
         e2e_common_endpoints.run,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
@@ -2368,14 +2364,14 @@ if __name__ == "__main__":
     cr.add(
         "js_illegal",
         run_parsing_errors,
-        package="libjs_generic",
+        package="js_generic",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
     cr.add(
         "cpp_illegal",
         run_parsing_errors,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
@@ -2383,7 +2379,7 @@ if __name__ == "__main__":
     cr.add(
         "udp",
         run_udp_tests,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 

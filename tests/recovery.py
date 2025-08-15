@@ -111,7 +111,6 @@ def restart_network(old_network, args, current_ledger_dir, committed_ledger_dirs
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         existing_network=old_network,
     )
     network.start_in_recovery(
@@ -244,7 +243,6 @@ def test_recover_service(
             args.nodes,
             args.binary_dir,
             args.debug_nodes,
-            args.perf_nodes,
             existing_network=network,
             node_data_json_file=node_data_tf.name,
         )
@@ -358,7 +356,6 @@ def test_recover_service_with_wrong_identity(network, args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         existing_network=network,
     )
 
@@ -390,7 +387,6 @@ def test_recover_service_with_wrong_identity(network, args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         existing_network=network,
     )
 
@@ -424,7 +420,6 @@ def test_recover_service_with_wrong_identity(network, args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         existing_network=network,
     )
 
@@ -610,7 +605,7 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
     aborted_network = infra.network.Network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
+        args.nodes, args.binary_dir, args.debug_nodes, network
     )
     aborted_network.start_in_recovery(
         args,
@@ -654,7 +649,6 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         existing_network=aborted_network,
     )
     recovered_network.start_in_recovery(
@@ -728,7 +722,6 @@ def test_persistence_old_snapshot(network, args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         existing_network=network,
     )
     recovered_network.start_in_recovery(args, ledger_dir=new_node_ledger_path)
@@ -757,7 +750,7 @@ def test_share_resilience(network, args, from_snapshot=False):
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
     recovered_network = infra.network.Network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
+        args.nodes, args.binary_dir, args.debug_nodes, network
     )
     recovered_network.start_in_recovery(
         args,
@@ -870,7 +863,7 @@ def test_recover_service_truncated_ledger(network, args, get_truncation_point):
     )
 
     recovered_network = infra.network.Network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
+        args.nodes, args.binary_dir, args.debug_nodes, network
     )
     recovered_network.start_in_recovery(
         args,
@@ -888,7 +881,6 @@ def run_corrupted_ledger(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -997,7 +989,6 @@ def run(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -1194,7 +1185,6 @@ def run_recover_snapshot_alone(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -1217,7 +1207,6 @@ def run_recovery_with_election(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -1238,7 +1227,6 @@ def run_recovery_with_incomplete_ledger(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -1259,7 +1247,6 @@ def run_recover_via_initial_recovery_owner(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -1283,7 +1270,6 @@ def run_recover_via_added_recovery_owner(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -1348,7 +1334,7 @@ checked. Note that the key for each logging message is unique (per table).
     cr.add(
         "recovery",
         run,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=30,
@@ -1367,7 +1353,7 @@ checked. Note that the key for each logging message is unique (per table).
         cr.add(
             f"recovery_from_{directory}",
             run_recovery_from_files,
-            package="samples/apps/logging/liblogging",
+            package="samples/apps/logging/logging",
             nodes=infra.e2e_args.min_nodes(cr.args, f=1),
             ledger_chunk_bytes="50KB",
             snapshot_tx_interval=30,
@@ -1385,7 +1371,7 @@ checked. Note that the key for each logging message is unique (per table).
     cr.add(
         "recovery_corrupt_ledger",
         run_corrupted_ledger,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
         sig_ms_interval=1000,
         ledger_chunk_bytes="1GB",
@@ -1395,28 +1381,28 @@ checked. Note that the key for each logging message is unique (per table).
     cr.add(
         "recovery_snapshot_alone",
         run_recover_snapshot_alone,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
     )
 
     cr.add(
         "recovery_via_initial_recovery_owner",
         run_recover_via_initial_recovery_owner,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
     )
 
     cr.add(
         "recovery_via_added_recovery_owner",
         run_recover_via_added_recovery_owner,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
     )
 
     cr.add(
         "recovery_with_incomplete_ledger",
         run_recovery_with_incomplete_ledger,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=10000,

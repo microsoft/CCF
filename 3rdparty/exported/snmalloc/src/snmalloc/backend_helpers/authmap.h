@@ -13,8 +13,10 @@ namespace snmalloc
   {
     static SNMALLOC_FAST_PATH void init() {}
 
-    static SNMALLOC_FAST_PATH void register_range(capptr::Arena<void>, size_t)
-    {}
+    static SNMALLOC_FAST_PATH bool register_range(capptr::Arena<void>, size_t)
+    {
+      return true;
+    }
 
     template<bool potentially_out_of_range = false>
     static SNMALLOC_FAST_PATH capptr::Arena<void> amplify(capptr::Alloc<void> c)
@@ -31,7 +33,7 @@ namespace snmalloc
   struct BasicAuthmap
   {
     static_assert(
-      std::is_same_v<capptr::Arena<void>, typename ConcreteMap::EntryType>,
+      stl::is_same_v<capptr::Arena<void>, typename ConcreteMap::EntryType>,
       "BasicAuthmap's ConcreteMap must have capptr::Arena<void> element type!");
 
   private:
@@ -44,7 +46,7 @@ namespace snmalloc
       concreteAuthmap.template init</* randomize_location */ false>();
     }
 
-    static SNMALLOC_FAST_PATH void
+    static SNMALLOC_FAST_PATH bool
     register_range(capptr::Arena<void> base, size_t size)
     {
       concreteAuthmap.register_range(address_cast(base), size);
@@ -55,6 +57,7 @@ namespace snmalloc
       {
         concreteAuthmap.set(a, base);
       }
+      return true;
     }
 
     template<bool potentially_out_of_range = false>
@@ -70,7 +73,7 @@ namespace snmalloc
    * Pick between the two above implementations based on StrictProvenance
    */
   template<typename CA>
-  using DefaultAuthmap = std::conditional_t<
+  using DefaultAuthmap = stl::conditional_t<
     aal_supports<StrictProvenance>,
     BasicAuthmap<CA>,
     DummyAuthmap>;

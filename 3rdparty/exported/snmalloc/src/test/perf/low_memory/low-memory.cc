@@ -1,3 +1,4 @@
+#include <atomic>
 #include <iostream>
 #include <snmalloc/snmalloc.h>
 #include <test/opt.h>
@@ -19,7 +20,7 @@ class Queue
 
   Node* new_node(size_t size)
   {
-    auto result = (Node*)ThreadAlloc::get().alloc(size);
+    auto result = (Node*)snmalloc::alloc(size);
     result->next = nullptr;
     return result;
   }
@@ -43,7 +44,7 @@ public:
       return false;
 
     Node* next = head->next;
-    ThreadAlloc::get().dealloc(head);
+    snmalloc::dealloc(head);
     head = next;
     return true;
   }

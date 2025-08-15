@@ -118,7 +118,7 @@ public:
     void addConstraintToSubschema(const Constraint &constraint,
             const Subschema *subschema)
     {
-        // TODO: Check heirarchy for subschemas that do not belong...
+        // TODO: Check hierarchy for subschemas that do not belong...
 
         mutableSubschema(subschema)->addConstraint(constraint);
     }

@@ -55,9 +55,18 @@ namespace snmalloc
     /**
      * Ensure this range of pagemap is accessible
      */
-    void register_range(address_t p, size_t length)
+    bool register_range(address_t p, size_t length)
     {
       SNMALLOC_ASSERT(is_initialised());
+
+      if constexpr (has_bounds)
+      {
+        if ((p - base >= size) || (p + length - base > size))
+        {
+          PAL::error("Internal error: Pagemap registering out of range.");
+        }
+        p = p - base;
+      }
 
       // Calculate range in pagemap that is associated to this space.
       auto first = &body[p >> SHIFT];
@@ -67,11 +76,18 @@ namespace snmalloc
       auto page_start = pointer_align_down<OS_PAGE_SIZE, char>(first);
       auto page_end = pointer_align_up<OS_PAGE_SIZE, char>(last);
       size_t using_size = pointer_diff(page_start, page_end);
-      PAL::template notify_using<NoZero>(page_start, using_size);
+      auto result = PAL::template notify_using<NoZero>(page_start, using_size);
+      if (!result)
+      {
+        // If notify_using fails, fails this call.
+        return false;
+      }
       if constexpr (pal_supports<CoreDump, PAL>)
       {
         PAL::notify_do_dump(page_start, using_size);
       }
+
+      return true;
     }
 
     constexpr FlatPagemap() = default;
@@ -83,7 +99,7 @@ namespace snmalloc
      * fixed-range pagemaps, whose size depends on dynamic configuration.
      */
     template<bool has_bounds_ = has_bounds>
-    static constexpr std::enable_if_t<!has_bounds_, size_t> required_size()
+    static constexpr stl::enable_if_t<!has_bounds_, size_t> required_size()
     {
       static_assert(
         has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
@@ -99,7 +115,7 @@ namespace snmalloc
      * `required_size` is enabled for the has-bounds case.
      */
     template<bool has_bounds_ = has_bounds>
-    std::enable_if_t<!has_bounds_> init(T* address)
+    stl::enable_if_t<!has_bounds_> init(T* address)
     {
       SNMALLOC_ASSERT(!is_initialised());
 
@@ -115,7 +131,7 @@ namespace snmalloc
      * Returns usable range after pagemap has been allocated
      */
     template<bool has_bounds_ = has_bounds>
-    std::enable_if_t<has_bounds_, std::pair<void*, size_t>>
+    stl::enable_if_t<has_bounds_, stl::Pair<void*, size_t>>
     init(void* b, size_t s)
     {
       SNMALLOC_ASSERT(!is_initialised());
@@ -174,7 +190,7 @@ namespace snmalloc
      * Initialise the pagemap without bounds.
      */
     template<bool randomize_position, bool has_bounds_ = has_bounds>
-    std::enable_if_t<!has_bounds_> init()
+    stl::enable_if_t<!has_bounds_> init()
     {
       SNMALLOC_ASSERT(!is_initialised());
 
@@ -225,22 +241,35 @@ namespace snmalloc
           // Only commit readonly memory for this range, if the platform
           // supports lazy commit.  Otherwise, this would be a lot of memory to
           // have mapped.
-          PAL::notify_using_readonly(
+          auto result = PAL::notify_using_readonly(
             start_page, pointer_diff(start_page, end_page));
+          if (!result)
+          {
+            PAL::error("Failed to initialise snmalloc.");
+          }
         }
       }
       else
       {
         if constexpr (pal_supports<LazyCommit, PAL>)
         {
-          PAL::notify_using_readonly(new_body_untyped, REQUIRED_SIZE);
+          auto result =
+            PAL::notify_using_readonly(new_body_untyped, REQUIRED_SIZE);
+          if (!result)
+          {
+            PAL::error("Failed to initialise snmalloc.");
+          }
         }
         new_body = static_cast<T*>(new_body_untyped);
       }
       // Ensure bottom page is committed
       // ASSUME: new memory is zeroed.
-      PAL::template notify_using<NoZero>(
+      auto result = PAL::template notify_using<NoZero>(
         pointer_align_down<OS_PAGE_SIZE>(new_body), OS_PAGE_SIZE);
+      if (!result)
+      {
+        PAL::error("Failed to initialise snmalloc.");
+      }
 
       // Set up zero page
       new_body[0] = body[0];
@@ -250,7 +279,7 @@ namespace snmalloc
     }
 
     template<bool has_bounds_ = has_bounds>
-    std::enable_if_t<has_bounds_, std::pair<address_t, size_t>> get_bounds()
+    stl::enable_if_t<has_bounds_, stl::Pair<address_t, size_t>> get_bounds()
     {
       SNMALLOC_ASSERT(is_initialised());
 
@@ -355,7 +384,8 @@ namespace snmalloc
 
     /**
      * Return the starting address corresponding to a given entry within the
-     * Pagemap. Also checks that the reference actually points to a valid entry.
+     * Pagemap. Also checks that the reference actually points to a valid
+     * entry.
      */
     [[nodiscard]] address_t get_address(const T& t) const
     {

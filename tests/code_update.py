@@ -648,9 +648,7 @@ def test_add_node_with_different_package(network, args):
 
 def get_replacement_package(args):
     return (
-        "samples/apps/logging/liblogging"
-        if args.package == "libjs_generic"
-        else "libjs_generic"
+        "samples/apps/logging/logging" if args.package == "js_generic" else "js_generic"
     )
 
 
@@ -876,7 +874,7 @@ def test_add_node_with_no_uvm_endorsements_in_kv(network, args):
 
 def run(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 
@@ -922,6 +920,6 @@ def run(args):
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
 
-    args.package = "samples/apps/logging/liblogging"
+    args.package = "samples/apps/logging/logging"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     run(args)

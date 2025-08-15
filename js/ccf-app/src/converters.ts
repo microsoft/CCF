@@ -22,6 +22,7 @@
  */
 
 import { ccf } from "./global.js";
+import { toArrayBuffer } from "./utils.js";
 
 // This should eventually cover all JSON-compatible values.
 // There are attempts at https://github.com/microsoft/TypeScript/issues/1897
@@ -257,7 +258,9 @@ export interface TypedArrayConstructor<T extends TypedArray> {
 class TypedArrayConverter<T extends TypedArray> implements DataConverter<T> {
   constructor(private clazz: TypedArrayConstructor<T>) {}
   encode(val: T): ArrayBuffer {
-    return val.buffer.slice(val.byteOffset, val.byteOffset + val.byteLength);
+    return toArrayBuffer(
+      val.buffer.slice(val.byteOffset, val.byteOffset + val.byteLength),
+    );
   }
   decode(buf: ArrayBuffer): T {
     return new this.clazz(buf);

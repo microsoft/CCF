@@ -10,7 +10,7 @@ from loguru import logger as LOG
 
 def run(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 
@@ -33,7 +33,7 @@ if __name__ == "__main__":
         )
 
     args = infra.e2e_args.cli_args(add=add)
-    args.package = "samples/apps/logging/liblogging"
+    args.package = "samples/apps/logging/logging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.initial_member_count = 1
     run(args)

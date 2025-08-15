@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev2]
+
+[7.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev2
+
+### Added
+
+- Allow changing the constitution during disaster recovery via the `command.recover.constitution_files` entry in cchost. (#7155)
+- Added `toArrayBuffer` to `ccfapp/utils` which converts `ArrayBufferLike` to `ArrayBuffer`. (#7171)
+
+### Changed
+
+- `cchost` is removed, and each application now provides its own executable:
+  - CCF nodes no longer contain a separate `cchost` executable and enclave library (`.so`) file. Each former enclave library is now its own executable, currently sharing the same set configuration format as the previous `cchost`.
+  - The `js_generic` sample app is no longer a library installed at `/ccf/lib/libjs_generic.so`, it is now an executable installed at `/ccf/bin/js_generic`.
+  - The `add_ccf_app` function in CMake now builds an executable rather than a library. The caller should provide a `main` function, and call `ccf::run()` from `include/ccf/run.h` to start the node (see `samples/apps/main.cpp` for a minimal example).
+- Application logging no longer traverses the ringbuffer. As current target platforms do not require distinct enclave and host components, what was previously "in-enclave" logging that was deferred via the ringbuffer can now be immediately sent to stdout.
+- CA certificates issued by CCF (ie - `service_cert.pem`) now include a `keyUsage` extension, to comply with RFC5280 (#7134).
+
+### Dependencies
+
+- Updated snmalloc to 0.7.1.
+
 ## [7.0.0-dev1]
 
 [7.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev1
@@ -13,6 +35,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - CCF no longer has platform-specific builds. The single build configuration will run on both SNP and Virtual, automatically detecting the current platform at runtime. This means the `COMPILE_TARGET` CMake option is no longer required, and all release artifacts no longer have a platform in their path.
 - The `logging.host_level` configuration option and `--enclave-log-level` CLI switch are replaced by a combined `--log-level` CLI switch (#7104).
+- Drop support for `5.*` Linux kernels exposing `/dev/sev`. Only `6.*+` Linux kernels exposing `/dev/sev-guest` are now supported (#7109).
 
 ### Removed
 

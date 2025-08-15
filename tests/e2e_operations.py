@@ -467,7 +467,6 @@ def run_file_operations(args):
                 args.nodes,
                 args.binary_dir,
                 args.debug_nodes,
-                args.perf_nodes,
                 pdb=args.pdb,
                 txs=txs,
             ) as network:
@@ -501,7 +500,6 @@ def run_tls_san_checks(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args)
@@ -560,7 +558,6 @@ def run_config_timeout_check(args):
         ["local://localhost"],
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args)
@@ -590,13 +587,11 @@ def run_config_timeout_check(args):
 
     proc = subprocess.Popen(
         [
-            "./cchost",
+            os.path.join(".", os.path.basename(node.remote.BIN)),
             "--config",
             "0.config.json",
             "--config-timeout",
             f"{config_timeout}s",
-            "--enclave-file",
-            node.remote.enclave_file,
         ],
         cwd=start_node_path,
         env=env,
@@ -628,7 +623,6 @@ def run_sighup_check(args):
         ["local://localhost"],
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args)
@@ -645,9 +639,7 @@ def run_configuration_file_checks(args):
     LOG.info(
         f"Verifying JSON configuration samples in {args.config_samples_dir} directory"
     )
-    CCHOST_BINARY_NAME = "cchost"
-
-    bin_path = infra.path.build_bin_path(CCHOST_BINARY_NAME, binary_dir=args.binary_dir)
+    bin_path = args.package
 
     config_files_to_check = [
         os.path.join(args.config_samples_dir, c)
@@ -668,7 +660,6 @@ def run_preopen_readiness_check(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start(args)
@@ -691,7 +682,6 @@ def run_pid_file_check(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args)
@@ -725,7 +715,6 @@ def run_max_uncommitted_tx_count(args):
         ["local://localhost", "local://localhost"],
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         uncommitted_cap = 20
@@ -766,7 +755,6 @@ def run_service_subject_name_check(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args, service_subject_name="CN=This test service")
@@ -792,7 +780,6 @@ def run_cose_signatures_config_check(args):
         nargs.nodes,
         nargs.binary_dir,
         nargs.debug_nodes,
-        nargs.perf_nodes,
         pdb=nargs.pdb,
     ) as network:
         network.start_and_open(
@@ -850,7 +837,6 @@ def run_late_mounted_ledger_check(args):
         nargs.nodes,
         nargs.binary_dir,
         nargs.debug_nodes,
-        nargs.perf_nodes,
         pdb=nargs.pdb,
     ) as network:
         network.start_and_open(
@@ -979,7 +965,6 @@ def run_empty_ledger_dir_check(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         LOG.info("Check that empty ledger directory is handled correctly")
@@ -1020,7 +1005,6 @@ def run_initial_uvm_descriptor_checks(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         LOG.info("Start a network and stop it")
@@ -1048,7 +1032,6 @@ def run_initial_uvm_descriptor_checks(args):
             args.nodes,
             args.binary_dir,
             args.debug_nodes,
-            args.perf_nodes,
             existing_network=network,
         )
 
@@ -1100,7 +1083,6 @@ def run_initial_tcb_version_checks(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         LOG.info("Start a network and stop it")
@@ -1126,7 +1108,6 @@ def run_initial_tcb_version_checks(args):
             args.nodes,
             args.binary_dir,
             args.debug_nodes,
-            args.perf_nodes,
             existing_network=network,
         )
         args.previous_service_identity_file = os.path.join(
@@ -1438,6 +1419,55 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
             prev_network = recovery_network
 
 
+def run_recovery_change_constitution(const_args):
+    LOG.info("Running recovery with constitution change")
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.min_nodes(args, f=0)
+    with tempfile.NamedTemporaryFile("w") as c_new:
+        c_new.write(
+            """
+actions.set(
+    "hello_world",
+    new Action(
+        function validate(args) { console.log("Validating hello") },
+        function apply(args, proposalId) { console.log("Applying hello")}
+    )
+)"""
+        )
+        c_new.flush()
+
+        network = infra.network.Network(args.nodes, args.binary_dir)
+        network.start_and_open(args)
+        network.save_service_identity(args)
+        network.stop_all_nodes()
+
+        recovery_args = copy.deepcopy(args)
+        recovery_args.recovery_constitution_files = args.constitution + [c_new.name]
+
+        recovery_network = infra.network.Network(
+            recovery_args.nodes,
+            recovery_args.binary_dir,
+            existing_network=network,
+        )
+
+        current_ledger_dir, committed_ledger_dirs = network.nodes[0].get_ledger()
+        recovery_network.start_in_recovery(
+            recovery_args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+        )
+        recovery_network.recover(recovery_args, set_constitution=False)
+
+        primary, _ = recovery_network.find_primary()
+        proposal_body, vote = network.consortium.make_proposal("hello_world")
+        proposal = network.consortium.get_any_active_member().propose(
+            primary, proposal_body
+        )
+        network.consortium.vote_using_majority(primary, proposal, vote)
+
+        recovery_network.stop_all_nodes()
+
+
 def run_read_ledger_on_testdata(args):
     for testdata_dir in os.scandir(args.historical_testdata):
         assert testdata_dir.is_dir()
@@ -1661,3 +1691,4 @@ def run(args):
         run_recovery_unsealing_validate_audit(args)
     run_read_ledger_on_testdata(args)
     run_ledger_chunk_bytes_check(args)
+    run_recovery_change_constitution(args)
