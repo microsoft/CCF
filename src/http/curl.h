@@ -729,8 +729,6 @@ namespace ccf::curl
         case CURL_POLL_REMOVE:
           if (request_context != nullptr)
           {
-            LOG_TRACE_FMT(
-              "Removing socket {} from libuv", request_context->socket);
             uv_poll_stop(&request_context->poll_handle);
             std::unique_ptr<RequestContext> request_context_ptr(
               request_context);

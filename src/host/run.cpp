@@ -54,6 +54,7 @@
 #include <csignal>
 #include <cstdint>
 #include <cstdlib>
+#include <curl/curl.h>
 #include <exception>
 #include <filesystem>
 #include <iostream>
@@ -359,6 +360,7 @@ namespace ccf
     files::dump(fmt::format("{}", ::getpid()), config.output_files.pid_file);
 
     // Initialise curlm libuv interface
+    curl_global_init(CURL_GLOBAL_DEFAULT);
     ccf::curl::CurlmLibuvContext curl_libuv_context(uv_default_loop());
     ccf::curl::CurlmLibuvContextSingleton::get_instance_unsafe() =
       &curl_libuv_context;
@@ -1047,6 +1049,7 @@ namespace ccf
       LOG_FAIL_FMT(
         "Failed to close uv loop cleanly: {}", uv_err_name(loop_close_rc));
     }
+    curl_global_cleanup();
     ccf::crypto::openssl_sha256_shutdown();
 
     return loop_close_rc;
