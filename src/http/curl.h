@@ -108,6 +108,15 @@ namespace ccf::curl
       }
     }
 
+    CURLM* release()
+    {
+      if (!p)
+      {
+        return p.release();
+      }
+      return nullptr;
+    }
+
     operator CURLM*() const
     {
       return p.get();
@@ -420,15 +429,7 @@ namespace ccf::curl
   class CurlRequestCURLM
   {
   private:
-    CURLM* curl_multi;
-
-    CurlRequestCURLM(CURLM* curl_multi) : curl_multi(curl_multi)
-    {
-      if (curl_multi == nullptr)
-      {
-        throw std::runtime_error("CURLM handle cannot be null");
-      }
-    }
+    UniqueCURLM curl_multi;
 
   public:
     [[nodiscard]] CURLM* get() const
@@ -445,15 +446,6 @@ namespace ccf::curl
       CURL* curl_handle = request->get_easy_handle();
       CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_PRIVATE, request.release());
       CHECK_CURL_MULTI(curl_multi_add_handle, curl_multi, curl_handle);
-    }
-
-    static CurlRequestCURLM create_unsafe(CURLM* curl_multi)
-    {
-      if (curl_multi == nullptr)
-      {
-        throw std::runtime_error("CURLM handle cannot be null");
-      }
-      return {curl_multi};
     }
 
     int perform()
@@ -491,6 +483,11 @@ namespace ccf::curl
       } while (msgq > 0);
       return running_handles;
     }
+
+    CURLM* release()
+    {
+      return curl_multi.release();
+    }
   };
 
   class CurlmLibuvContext
@@ -520,10 +517,10 @@ namespace ccf::curl
   private:
     uv_loop_t* loop;
     uv_timer_t timeout_tracker{};
-    // lifetime handler of curl_multi interface
-    UniqueCURLM curl_multi;
-    // utility class to enforce type safety on accesses to curl_multi
+    // utility class to enforce type safety on accesses to curl_multi wrapping a
+    // UniqueCURLM
     CurlRequestCURLM curl_request_curlm;
+
     // We need a lock to prevent a client thread calling curl_multi_add_handle
     // while the libuv thread is processing a curl callback
     //
@@ -540,6 +537,53 @@ namespace ccf::curl
     };
 
   public:
+    // Stop all curl transfers and remove handles from libuv
+    void stop()
+    {
+      std::lock_guard<std::recursive_mutex> lock(curlm_lock);
+      LOG_INFO_FMT("Stopping curl transfers and removing handles from libuv");
+      if (curl_request_curlm.get() == nullptr)
+      {
+        throw std::logic_error(
+          "Cannot stop curl transfers on a null CURLM handle");
+      }
+      // Stop all curl easy handles
+      {
+        CURL** easy_handles = curl_multi_get_handles(curl_request_curlm.get());
+        for (int i = 0; easy_handles[i] != nullptr; ++i)
+        {
+          auto* easy = easy_handles[i];
+          curl_multi_remove_handle(curl_request_curlm.get(), easy);
+          if (easy != nullptr)
+          {
+            // attach a lifetime to the request
+            ccf::curl::CurlRequest* request = nullptr;
+            curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
+            if (request == nullptr)
+            {
+              LOG_FAIL_FMT(
+                "CURLMSG_DONE received with no associated request data");
+            }
+            std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request);
+            curl_multi_remove_handle(curl_request_curlm.get(), easy);
+            curl_easy_cleanup(easy);
+          }
+        }
+        curl_free(easy_handles);
+        auto* curlm = curl_request_curlm.release();
+        if (curlm != nullptr)
+        {
+          // calls socket callbacks to remove the handles from libuv
+          LOG_INFO_FMT("Cleaning up CURLM handle");
+          curl_multi_cleanup(curlm);
+        }
+      }
+
+      // There should be no more sockets from curl in libuv, so we can stop the
+      // timeout
+      uv_close(reinterpret_cast<uv_handle_t*>(&timeout_tracker), nullptr);
+    }
+
     void handle_request_messages()
     {
       curl_request_curlm.perform();
@@ -555,10 +599,16 @@ namespace ccf::curl
       }
       std::lock_guard<std::recursive_mutex> lock(self->curlm_lock);
 
+      if (self->curl_request_curlm.get() == nullptr)
+      {
+        LOG_FAIL_FMT("libuv_timeout_callback called with null CURLM handle");
+        return;
+      }
+
       int running_handles = 0;
       CHECK_CURL_MULTI(
         curl_multi_socket_action,
-        self->curl_multi,
+        self->curl_request_curlm.get(),
         CURL_SOCKET_TIMEOUT,
         0,
         &running_handles);
@@ -615,13 +665,20 @@ namespace ccf::curl
       }
       std::lock_guard<std::recursive_mutex> lock(self->curlm_lock);
 
+      if (self->curl_request_curlm.get() == nullptr)
+      {
+        LOG_FAIL_FMT(
+          "libuv_socket_poll_callback called with null CURLM handle");
+        return;
+      }
+
       int action = 0;
       action |= ((events & UV_READABLE) != 0) ? CURL_CSELECT_IN : 0;
       action |= ((events & UV_WRITABLE) != 0) ? CURL_CSELECT_OUT : 0;
       int running_handles = 0;
       CHECK_CURL_MULTI(
         curl_multi_socket_action,
-        self->curl_multi,
+        self->curl_request_curlm.get(),
         request_context->socket,
         action,
         &running_handles);
@@ -660,7 +717,10 @@ namespace ccf::curl
             // attach the lifetime to the socket handle
             request_context = request_context_ptr.release();
             CHECK_CURL_MULTI(
-              curl_multi_assign, self->curl_multi, s, request_context);
+              curl_multi_assign,
+              self->curl_request_curlm.get(),
+              s,
+              request_context);
           }
 
           int events = 0;
@@ -673,10 +733,12 @@ namespace ccf::curl
         case CURL_POLL_REMOVE:
           if (request_context != nullptr)
           {
+            LOG_TRACE_FMT(
+              "Removing socket {} from libuv", request_context->socket);
             uv_poll_stop(&request_context->poll_handle);
             std::unique_ptr<RequestContext> request_context_ptr(
               request_context);
-            curl_multi_assign(self->curl_multi, s, nullptr);
+            curl_multi_assign(self->curl_request_curlm.get(), s, nullptr);
           }
           break;
         default:
@@ -685,27 +747,26 @@ namespace ccf::curl
       return 0;
     }
 
-    CurlmLibuvContext(uv_loop_t* loop) :
-      loop(loop),
-      curl_request_curlm(CurlRequestCURLM::create_unsafe(curl_multi))
+    CurlmLibuvContext(uv_loop_t* loop) : loop(loop)
     {
       uv_timer_init(loop, &timeout_tracker);
       timeout_tracker.data = this; // Attach this instance to the timer
 
       // attach timeouts
-      CHECK_CURL_MULTI(curl_multi_setopt, curl_multi, CURLMOPT_TIMERDATA, this);
+      CHECK_CURL_MULTI(
+        curl_multi_setopt, curl_request_curlm.get(), CURLMOPT_TIMERDATA, this);
       CHECK_CURL_MULTI(
         curl_multi_setopt,
-        curl_multi,
+        curl_request_curlm.get(),
         CURLMOPT_TIMERFUNCTION,
         curl_timeout_callback);
 
       // attach socket events
       CHECK_CURL_MULTI(
-        curl_multi_setopt, curl_multi, CURLMOPT_SOCKETDATA, this);
+        curl_multi_setopt, curl_request_curlm.get(), CURLMOPT_SOCKETDATA, this);
       CHECK_CURL_MULTI(
         curl_multi_setopt,
-        curl_multi,
+        curl_request_curlm.get(),
         CURLMOPT_SOCKETFUNCTION,
         curl_socket_callback);
 
@@ -713,7 +774,7 @@ namespace ccf::curl
       int running_handles = 0;
       CHECK_CURL_MULTI(
         curl_multi_socket_action,
-        curl_multi,
+        curl_request_curlm.get(),
         CURL_SOCKET_TIMEOUT,
         0,
         &running_handles);

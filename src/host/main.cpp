@@ -1008,6 +1008,7 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   }
 
   process_launcher.stop();
+  curl_libuv_context.stop();
 
   // Continue running the loop long enough for the on_close
   // callbacks to be despatched, so as to avoid memory being
