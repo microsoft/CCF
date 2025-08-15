@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-include(cmake/cpack_versions_pin.cmake)
+include(${CCF_DIR}/cmake/cpack_versions_pin.cmake)
 
 set(CCF_RPM_DEPENDENCIES "openssl >= ${OPENSSL_MINIMAL_VERSION}")
 set(CCF_RPM_DEPENDENCIES
