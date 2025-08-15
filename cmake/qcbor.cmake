@@ -19,10 +19,8 @@ target_include_directories(
 set_property(TARGET qcbor PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_san(qcbor)
 
-if(CCF_DEVEL)
-  install(
-    TARGETS qcbor
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
+install(
+  TARGETS qcbor
+  EXPORT ccf
+  DESTINATION lib
+)

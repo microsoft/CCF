@@ -77,13 +77,11 @@ function(add_ccf_static_library name)
   add_tidy(${name})
   add_warning_checks(${name})
 
-  if(CCF_DEVEL)
-    install(
-      TARGETS ${name}
-      EXPORT ccf
-      DESTINATION lib
-    )
-  endif()
+  install(
+    TARGETS ${name}
+    EXPORT ccf
+    DESTINATION lib
+  )
 
   if(USE_SNMALLOC)
     target_link_libraries(${name} INTERFACE snmallocshim-static)
