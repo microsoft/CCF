@@ -8,6 +8,7 @@
 #include "common/enclave_interface_types.h"
 #include "enclave.h"
 #include "enclave_time.h"
+#include "http/curl.h"
 
 #include <chrono>
 #include <cstdint>

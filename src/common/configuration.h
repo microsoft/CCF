@@ -17,6 +17,7 @@
 #include "common/enclave_interface_types.h"
 #include "consensus/consensus_types.h"
 #include "ds/oversized.h"
+#include "http/curl.h"
 #include "service/tables/config.h"
 
 #include <optional>
