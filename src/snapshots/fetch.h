@@ -114,10 +114,12 @@ namespace snapshots
 
         ccf::curl::UniqueSlist headers;
 
+        std::string current_snapshot_url = snapshot_url;
+
         ccf::curl::CurlRequest snapshot_size_request(
           std::move(curl_easy),
           HTTP_HEAD,
-          std::move(snapshot_url),
+          std::move(current_snapshot_url),
           std::move(headers),
           nullptr, // No request body
           std::nullopt // No response callback
@@ -206,13 +208,15 @@ namespace snapshots
             }
           };
 
+          std::string current_snapshot_url = snapshot_url;
+
           ccf::curl::CurlRequest snapshot_range_request(
             std::move(curl_easy),
             HTTP_GET,
-            std::move(snapshot_url),
+            std::move(current_snapshot_url),
             std::move(headers),
             nullptr, // No request body
-            nullptr // No response callback
+            std::nullopt // No response callback
           );
 
           CURLcode curl_response = CURLE_OK;

@@ -302,7 +302,7 @@ namespace ccf::curl
     ccf::curl::UniqueSlist headers;
     std::unique_ptr<ccf::curl::RequestBody> request_body = nullptr;
     ccf::curl::Response response;
-    std::optional<ResponseCallback> response_callback = nullptr;
+    std::optional<ResponseCallback> response_callback = std::nullopt;
 
   public:
     CurlRequest(
