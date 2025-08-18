@@ -72,7 +72,7 @@ def run_connection_caps_tests(args):
     args.ubsan_options = "suppressions=" + str(supp_file)
 
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         check = infra.checker.Checker()
         network.start_and_open(args)
@@ -288,7 +288,7 @@ def run_idle_timeout_tests(args):
         args.idle_connection_timeout_s = timeout
 
         with infra.network.network(
-            args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+            args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
         ) as network:
             network.start_and_open(args)
 
@@ -343,7 +343,7 @@ def node_tcp_socket(node):
 # NB: This does rudimentary smoke testing. See fuzzing.py for more thorough test
 def run_node_socket_robustness_tests(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 
@@ -444,14 +444,14 @@ if __name__ == "__main__":
     cr.add(
         "robustness",
         run_node_socket_robustness_tests,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.nodes(cr.args, 1),
     )
 
     cr.add(
         "idletimeout",
         run_idle_timeout_tests,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.nodes(cr.args, 1),
     )
 
@@ -464,7 +464,7 @@ if __name__ == "__main__":
     cr.add(
         "caps",
         run_connection_caps_tests,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.nodes(cr.args, 1),
         initial_user_count=1,
     )

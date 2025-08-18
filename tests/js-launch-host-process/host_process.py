@@ -79,7 +79,7 @@ def test_host_process_launch_many(network, args):
 
 def run(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network = test_host_process_launch(network, args)
@@ -88,6 +88,6 @@ def run(args):
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
-    args.package = "libjs_generic"
+    args.package = "js_generic"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)

@@ -19,7 +19,7 @@ jobs:
     name: SBOM Generation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 1
       - name: "Install SBOM tool"
@@ -45,7 +45,7 @@ jobs:
     name: Release Notes
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 1
       - name: "Check Release Notes"
@@ -103,7 +103,7 @@ jobs:
           tdnf --snapshottime=$SOURCE_DATE_EPOCH -y update
           tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install ca-certificates git
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -321,17 +321,17 @@ jobs:
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf --snapshottime=${{ needs.build_release.outputs.SOURCE_DATE_EPOCH }} -y update
           tdnf --snapshottime=${{ needs.build_release.outputs.SOURCE_DATE_EPOCH }} -y install ca-certificates git
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Download Prebuilt Packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: DOWNLOAD_DIR
-          pattern: pkg-*
+          pattern: pkg*
           merge-multiple: true
       - name: Download Reproducibility Metadata
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: repro
           pattern: reproduce-metadata
@@ -372,44 +372,44 @@ jobs:
     name: Create Release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 1
       - name: Download Packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: pkg
-          pattern: pkg-*
+          pattern: pkg*
           merge-multiple: true
       - name: Download Release Notes
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: relnotes
       - name: Download Compatibility Report
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: compatibility
       - name: Download TLS Report
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: tls
       - name: Download Python Wheel
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: wheel
           name: wheel
       - name: Download TS Package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: tstgz
           name: tstgz
       - name: Download SBOM
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: sbom
           name: sbom
       - name: Download Reproducibility Metadata
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: repro
           pattern: reproduce*

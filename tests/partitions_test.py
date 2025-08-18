@@ -744,7 +744,6 @@ def test_recovery_elections(orig_network, args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         existing_network=orig_network,
     )
     network.start_in_recovery(
@@ -841,7 +840,6 @@ def test_recovery_elections(orig_network, args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         existing_network=network,
     )
     recovery_network.start_in_recovery(
@@ -864,7 +862,6 @@ def run(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
         init_partitioner=True,
@@ -890,7 +887,7 @@ def run(args):
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.package = "samples/apps/logging/liblogging"
+    args.package = "samples/apps/logging/logging"
     args.snapshot_tx_interval = (
         20  # Increase snapshot frequency for faster reconfigurations
     )

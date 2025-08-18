@@ -6,9 +6,8 @@
 #include "metadata.h"
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
-
-#include <array>
-#include <atomic>
+#include "snmalloc/stl/array.h"
+#include "snmalloc/stl/atomic.h"
 
 namespace snmalloc
 {
@@ -33,8 +32,8 @@ namespace snmalloc
   {
     static_assert(RINGS > 0);
 
-    std::array<freelist::Builder<false, true>, RINGS> open_builder;
-    std::array<address_t, RINGS> open_meta = {0};
+    stl::Array<freelist::Builder<false, true>, RINGS> open_builder;
+    stl::Array<address_t, RINGS> open_meta = {0};
 
     SNMALLOC_FAST_PATH size_t
     ring_set(typename Config::PagemapEntry::SlabMetadata* meta)
@@ -180,7 +179,7 @@ namespace snmalloc
   };
 
   template<typename Config>
-  using RemoteDeallocCacheBatchingImpl = std::conditional_t<
+  using RemoteDeallocCacheBatchingImpl = stl::conditional_t<
     (DEALLOC_BATCH_RINGS > 0),
     RemoteDeallocCacheBatching<Config, DEALLOC_BATCH_RINGS>,
     RemoteDeallocCacheNoBatching<Config>>;
@@ -191,7 +190,7 @@ namespace snmalloc
   template<typename Config>
   struct RemoteDeallocCache
   {
-    std::array<freelist::Builder<false>, REMOTE_SLOTS> list;
+    stl::Array<freelist::Builder<false>, REMOTE_SLOTS> list;
 
     RemoteDeallocCacheBatchingImpl<Config> batching;
 
@@ -269,7 +268,7 @@ namespace snmalloc
         entropy,
         [this](
           RemoteAllocator::alloc_id_t target_id,
-          capptr::Alloc<RemoteMessage> msg) {
+          capptr::Alloc<RemoteMessage> msg) SNMALLOC_FAST_PATH_LAMBDA {
           forward<allocator_size>(target_id, msg);
         });
     }

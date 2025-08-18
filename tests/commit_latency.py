@@ -79,7 +79,7 @@ def measure_commit_latency(args, sig_interval=100):
 
     times = []
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 
@@ -143,7 +143,7 @@ def run(args):
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
-    args.package = "samples/apps/logging/liblogging"
+    args.package = "samples/apps/logging/logging"
     args.nodes = infra.e2e_args.min_nodes(args, f=0)
 
     run(args)

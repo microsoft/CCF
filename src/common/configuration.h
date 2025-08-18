@@ -41,8 +41,6 @@ struct EnclaveConfig
   ringbuffer::Offsets* from_enclave_buffer_offsets;
 
   oversized::WriterConfig writer_config = {};
-
-  ccf::curl::CurlmLibuvContext* curl_libuv_context;
 };
 
 static constexpr auto node_to_node_interface_name = "node_to_node_interface";
@@ -135,6 +133,7 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     StartupConfig::Recover,
     previous_sealed_ledger_secret_location,
+    constitution,
     self_healing_open_addresses,
     self_healing_open_retry_timeout,
     self_healing_open_timeout);

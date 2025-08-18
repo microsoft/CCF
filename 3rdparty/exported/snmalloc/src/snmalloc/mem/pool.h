@@ -3,8 +3,6 @@
 #include "../ds/ds.h"
 #include "pooled.h"
 
-#include <new>
-
 namespace snmalloc
 {
   /**
@@ -204,7 +202,6 @@ namespace snmalloc
         else
         {
           last->next = pool.front;
-          pool.back->next = capptr::Alloc<T>::unsafe_from(first);
         }
         pool.front = capptr::Alloc<T>::unsafe_from(first);
       });

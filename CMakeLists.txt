@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.21)
 
 set(ALLOWED_TEST_PLATFORMS "snp;virtual")
 
@@ -117,6 +117,11 @@ endif()
 # This option controls whether to link virtual builds against snmalloc rather
 # than use the system allocator.
 option(USE_SNMALLOC "Link against snmalloc" ON)
+if(USE_SNMALLOC)
+  set(SNMALLOC_BUILD_TESTING OFF)
+  set(SNMALLOC_STATIC_LIBRARY_PREFIX "")
+  add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
+endif()
 
 # Useful for debugging with libc++ hardening options
 option(USE_LIBCXX "Use libc++ instead of libstdc++" OFF)
@@ -133,6 +138,10 @@ endif()
 if(SAN OR TSAN)
   find_program(LLVM_SYMBOLIZER NAMES "llvm-symbolizer")
   message(STATUS "Using llvm symbolizer: ${LLVM_SYMBOLIZER}")
+
+  if(USE_SNMALLOC)
+    message(FATAL_ERROR "snmalloc cannot be used with SAN or TSAN")
+  endif()
 endif()
 
 enable_language(ASM)
@@ -202,78 +211,30 @@ set(HTTP_PARSER_SOURCES
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
 )
 
-set(CCF_ENDPOINTS_SOURCES
-    ${CCF_DIR}/src/endpoints/endpoint.cpp
-    ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
-    ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
-    ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
-    ${CCF_DIR}/src/endpoints/user_endpoint_registry.cpp
-    ${CCF_DIR}/src/endpoints/json_handler.cpp
-    ${CCF_DIR}/src/endpoints/authentication/cose_auth.cpp
-    ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
-    ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
-    ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
-    ${CCF_DIR}/src/endpoints/authentication/all_of_auth.cpp
-    ${CCF_DIR}/src/endpoints/endpoint_utils.cpp
-    ${CCF_DIR}/src/enclave/enclave_time.cpp
-    ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
-    ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
-    ${CCF_DIR}/src/indexing/strategies/visit_each_entry_in_map.cpp
-    ${CCF_DIR}/src/node/historical_queries_adapter.cpp
-    ${CCF_DIR}/src/node/historical_queries_utils.cpp
-    ${CCF_DIR}/src/node/receipt.cpp
-)
-
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
 
-# Host Executable
-if(SAN
-   OR TSAN
-   OR NOT USE_SNMALLOC
-)
-  set(SNMALLOC_COMPILE_OPTIONS "")
-else()
-  set(SNMALLOC_HEADER_ONLY_LIBRARY ON)
-  add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
-  set(SNMALLOC_COMPILE_OPTIONS "-mcx16")
-  set(SNMALLOC_INCLUDE_DIRS 3rdparty/exported/snmalloc/src)
-  list(APPEND CCHOST_SOURCES src/host/snmalloc.cpp)
-endif()
-
-list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/main.cpp
+# Launcher library
+list(APPEND CCF_LAUNCHER_SOURCES ${CCF_DIR}/src/host/run.cpp
      ${CCF_DIR}/src/host/env.cpp
 )
 
-add_executable(cchost ${CCHOST_SOURCES})
-
-add_san(cchost)
-add_tidy(cchost)
-add_warning_checks(cchost)
-
-target_compile_options(
-  cchost PRIVATE ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
+add_ccf_static_library(
+  ccf_launcher
+  SRCS ${CCF_LAUNCHER_SOURCES}
+  LINK_LIBS uv
+            ${TLS_LIBRARY}
+            ${CMAKE_DL_LIBS}
+            ${CMAKE_THREAD_LIBS_INIT}
+            ${LINK_LIBCXX}
+            ccfcrypto
+            curl
+            http_parser
 )
-target_include_directories(
-  cchost PRIVATE ${CCF_GENERATED_DIR} ${SNMALLOC_INCLUDE_DIRS}
-)
 
-target_link_libraries(
-  cchost
-  PRIVATE uv
-          ${TLS_LIBRARY}
-          ${CMAKE_DL_LIBS}
-          ${CMAKE_THREAD_LIBS_INIT}
-          ${LINK_LIBCXX}
-          ccfcrypto
-          curl
-          http_parser
-)
-target_compile_definitions(cchost PRIVATE CCF_LOGGER_NO_DEPRECATE)
-
-install(TARGETS cchost DESTINATION bin)
+target_include_directories(ccf_launcher PRIVATE ${CCF_GENERATED_DIR})
 
 # HTTP parser
 add_library(http_parser "${HTTP_PARSER_SOURCES}")
@@ -286,85 +247,61 @@ if(CCF_DEVEL)
   )
 endif()
 
-# CCF js libs
-set(CCF_JS_SOURCES
-    ${CCF_DIR}/src/js/global_class_ids.cpp
-    ${CCF_DIR}/src/js/core/wrapped_value.cpp
-    ${CCF_DIR}/src/js/core/runtime.cpp
-    ${CCF_DIR}/src/js/core/context.cpp
-    ${CCF_DIR}/src/js/extensions/console.cpp
-    ${CCF_DIR}/src/js/extensions/math/random.cpp
-    ${CCF_DIR}/src/js/extensions/snp_attestation.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/crypto.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/gov_effects.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/historical.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/host.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/kv.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/network.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/node.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/request.cpp
-    ${CCF_DIR}/src/js/registry.cpp
+# CCF js lib
+add_ccf_static_library(
+  ccf_js
+  SRCS ${CCF_DIR}/src/js/global_class_ids.cpp
+       ${CCF_DIR}/src/js/core/wrapped_value.cpp
+       ${CCF_DIR}/src/js/core/runtime.cpp
+       ${CCF_DIR}/src/js/core/context.cpp
+       ${CCF_DIR}/src/js/extensions/console.cpp
+       ${CCF_DIR}/src/js/extensions/math/random.cpp
+       ${CCF_DIR}/src/js/extensions/snp_attestation.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/crypto.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/gov_effects.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/historical.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/host.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/kv.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/network.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/node.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/request.cpp
+       ${CCF_DIR}/src/js/registry.cpp
+  LINK_LIBS ccfcrypto quickjs
 )
 
-add_host_library(ccf_js "${CCF_JS_SOURCES}")
-
-add_san(ccf_js)
-add_tidy(ccf_js)
-add_warning_checks(ccf_js)
-
-target_link_libraries(ccf_js PUBLIC ccfcrypto quickjs)
-target_compile_definitions(ccf_js PRIVATE CCF_LOGGER_NO_DEPRECATE)
-if(CCF_DEVEL)
-  install(
-    TARGETS ccf_js
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
-
-# CCF kv libs
-set(CCF_KV_SOURCES
-    ${CCF_DIR}/src/kv/tx.cpp ${CCF_DIR}/src/kv/untyped_map_handle.cpp
-    ${CCF_DIR}/src/kv/untyped_map_diff.cpp
+# CCF kv lib
+add_ccf_static_library(
+  ccf_kv SRCS ${CCF_DIR}/src/kv/tx.cpp ${CCF_DIR}/src/kv/untyped_map_handle.cpp
+              ${CCF_DIR}/src/kv/untyped_map_diff.cpp
 )
-
-add_host_library(ccf_kv "${CCF_KV_SOURCES}")
-
-add_san(ccf_kv)
-add_tidy(ccf_kv)
-add_warning_checks(ccf_kv)
-
-target_compile_definitions(ccf_kv PRIVATE CCF_LOGGER_NO_DEPRECATE)
-if(CCF_DEVEL)
-  install(
-    TARGETS ccf_kv
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
 
 # CCF endpoints lib
-add_host_library(ccf_endpoints "${CCF_ENDPOINTS_SOURCES}")
-target_include_directories(ccf_endpoints PRIVATE ${CCF_DIR}/src/endpoints)
-target_link_libraries(
-  ccf_endpoints PUBLIC qcbor t_cose http_parser ccfcrypto ccf_kv
+add_ccf_static_library(
+  ccf_endpoints
+  SRCS ${CCF_DIR}/src/endpoints/endpoint.cpp
+       ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
+       ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
+       ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
+       ${CCF_DIR}/src/endpoints/user_endpoint_registry.cpp
+       ${CCF_DIR}/src/endpoints/json_handler.cpp
+       ${CCF_DIR}/src/endpoints/authentication/cose_auth.cpp
+       ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
+       ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
+       ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
+       ${CCF_DIR}/src/endpoints/authentication/all_of_auth.cpp
+       ${CCF_DIR}/src/endpoints/endpoint_utils.cpp
+       ${CCF_DIR}/src/enclave/enclave_time.cpp
+       ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
+       ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
+       ${CCF_DIR}/src/indexing/strategies/visit_each_entry_in_map.cpp
+       ${CCF_DIR}/src/node/historical_queries_adapter.cpp
+       ${CCF_DIR}/src/node/historical_queries_utils.cpp
+       ${CCF_DIR}/src/node/receipt.cpp
+  LINK_LIBS qcbor t_cose http_parser ccfcrypto ccf_kv
 )
-
-add_san(ccf_endpoints)
-add_tidy(ccf_endpoints)
-add_warning_checks(ccf_endpoints)
-
-target_compile_definitions(ccf_endpoints PRIVATE CCF_LOGGER_NO_DEPRECATE)
-if(CCF_DEVEL)
-  install(
-    TARGETS ccf_endpoints
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
 
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS
@@ -388,8 +325,8 @@ set(CCF_NETWORK_TEST_ARGS --log-level ${TEST_LOGGING_LEVEL} --worker-threads
 
 # SNIPPET_START: JS generic application
 add_ccf_app(
-  js_generic SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp INSTALL_LIBS
-                  ${CCF_DEVEL}
+  js_generic SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
+                  ${CCF_DIR}/samples/apps/main.cpp INSTALL_LIBS ${CCF_DEVEL}
 )
 # SNIPPET_END: JS generic application
 
@@ -465,12 +402,19 @@ set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/node/uvm_endorsements.cpp
 )
 
-add_library(ccf STATIC ${CCF_IMPL_SOURCE})
-
-target_compile_definitions(ccf PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE)
-
-target_compile_options(ccf PUBLIC ${COMPILE_LIBCXX})
-target_compile_definitions(ccf PRIVATE CCF_LOGGER_NO_DEPRECATE)
+add_ccf_static_library(
+  ccf
+  SRCS ${CCF_IMPL_SOURCE}
+  LINK_LIBS ${LINK_LIBCXX}
+            http_parser
+            ccf_js
+            ccf_endpoints
+            ccfcrypto
+            ccf_kv
+            nghttp2
+            ${CMAKE_THREAD_LIBS_INIT}
+            curl
+)
 
 target_include_directories(
   ccf SYSTEM
@@ -481,33 +425,6 @@ target_include_directories(
          $<INSTALL_INTERFACE:include/>
          $<INSTALL_INTERFACE:include/3rdparty/>
 )
-
-target_link_libraries(
-  ccf
-  PUBLIC ${LINK_LIBCXX}
-         http_parser
-         ccf_js
-         ccf_endpoints
-         ccfcrypto
-         ccf_kv
-         nghttp2
-         ${CMAKE_THREAD_LIBS_INIT}
-         curl
-)
-
-set_property(TARGET ccf PROPERTY POSITION_INDEPENDENT_CODE ON)
-
-add_san(ccf)
-add_tidy(ccf)
-add_warning_checks(ccf)
-
-if(CCF_DEVEL)
-  install(
-    TARGETS ccf
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
 
 add_dependencies(ccf ccf)
 
@@ -822,7 +739,10 @@ if(BUILD_TESTS)
     )
 
     # Merkle Tree memory test
-    add_executable(merkle_mem src/node/test/merkle_mem.cpp)
+    add_executable(
+      merkle_mem src/node/test/merkle_mem.cpp
+                 ${CCF_DIR}/src/enclave/thread_local.cpp
+    )
     target_compile_options(merkle_mem PRIVATE ${COMPILE_LIBCXX})
     target_link_libraries(
       merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX} ccfcrypto
@@ -864,31 +784,33 @@ if(BUILD_TESTS)
     )
   endif()
 
-  if(NOT (TSAN OR USE_LIBCXX))
-    # Picobench benchmarks
-    add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
-    add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
-    add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
-    add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
-    add_picobench(
-      crypto_bench
-      SRCS src/crypto/test/bench.cpp
-      LINK_LIBS
-    )
-    add_picobench(
-      history_bench
-      SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
-           ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
-      LINK_LIBS ccf_kv
-    )
+  if(NOT TSAN)
+    if(NOT USE_LIBCXX)
+      # Picobench benchmarks
+      add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
+      add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
+      add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
+      add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
+      add_picobench(
+        crypto_bench
+        SRCS src/crypto/test/bench.cpp
+        LINK_LIBS
+      )
+      add_picobench(
+        history_bench
+        SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
+        LINK_LIBS ccf_kv
+      )
 
-    add_picobench(
-      kv_bench
-      SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
-      LINK_LIBS ccf_kv
-    )
-    add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
-    add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
+      add_picobench(
+        kv_bench
+        SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
+        LINK_LIBS ccf_kv
+      )
+      add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
+      add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
+    endif()
 
     if(LONG_TESTS)
       set(ADDITIONAL_RECOVERY_ARGS --with-load --with-election
@@ -981,10 +903,8 @@ if(BUILD_TESTS)
       NAME modules_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
       ADDITIONAL_ARGS
-        --package
-        libjs_generic
-        --election-timeout-ms
-        10000 # Larger election timeout as recording
+        --package js_generic --election-timeout-ms 10000 # Larger election
+                                                         # timeout as recording
         # large JS applications may trigger leadership changes
     )
 
@@ -992,7 +912,7 @@ if(BUILD_TESTS)
       NAME auth
       PYTHON_SCRIPT
         ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
-      ADDITIONAL_ARGS --package libjs_generic --js-app-bundle
+      ADDITIONAL_ARGS --package js_generic --js-app-bundle
                       ${CMAKE_SOURCE_DIR}/tests
     )
 
@@ -1241,7 +1161,7 @@ if(BUILD_TESTS)
       NAME pi_ls
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
       CLIENT_BIN ./submit PERF_LABEL "Logging"
-      ADDITIONAL_ARGS --package "samples/apps/logging/liblogging"
+      ADDITIONAL_ARGS --package "samples/apps/logging/logging"
                       --max-writes-ahead 1000 --repetitions 10000
     )
 
@@ -1249,7 +1169,7 @@ if(BUILD_TESTS)
       NAME pi_basic
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
       CLIENT_BIN ./submit PERF_LABEL "Basic"
-      ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
+      ADDITIONAL_ARGS --package "samples/apps/basic/basic" --client-def
                       "1,write,100000,primary"
     )
 
@@ -1266,7 +1186,7 @@ if(BUILD_TESTS)
         NAME pi_basic_mt
         PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
         CLIENT_BIN ./submit PERF_LABEL "Basic Multi-Threaded"
-        ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
+        ADDITIONAL_ARGS --package "samples/apps/basic/basic" --client-def
                         "${WORKER_THREADS},write,100000,primary"
       )
     endif()
@@ -1277,7 +1197,7 @@ if(BUILD_TESTS)
       CLIENT_BIN ./submit PERF_LABEL "Logging JWT"
       ADDITIONAL_ARGS
         --package
-        "samples/apps/logging/liblogging"
+        "samples/apps/logging/logging"
         --max-writes-ahead
         1000
         --repetitions
@@ -1295,6 +1215,15 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME historical_query_cache_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_cache.py
+    )
+
+    add_test_bin(
+      curl_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/curl_test.cpp
+    )
+    target_link_libraries(curl_test PRIVATE curl uv http_parser)
+
+    add_e2e_test(
+      NAME e2e_curl PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_curl.py
     )
   endif()
 endif()

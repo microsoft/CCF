@@ -1,6 +1,6 @@
 #include <iostream>
 
-#if defined(SNMALLOC_PASS_THROUGH) || !defined(__CHERI_PURE_CAPABILITY__)
+#if !defined(__CHERI_PURE_CAPABILITY__)
 // This test does not make sense in pass-through or w/o CHERI
 int main()
 {
@@ -91,7 +91,7 @@ int main()
   {
     static const size_t sz = 1024 * 1024;
     errno = 0;
-    void* olarge = alloc->alloc<YesZero>(sz);
+    void* olarge = alloc->alloc<Zero>(sz);
     int err = errno;
 
     SNMALLOC_CHECK(alarge == address_cast(olarge));
@@ -123,15 +123,15 @@ int main()
   }
 
   /*
-   * Grab another CoreAlloc pointer from the pool and examine it.
+   * Grab another Alloc pointer from the pool and examine it.
    *
-   * CoreAlloc-s come from the metadata pools of snmalloc, and so do not flow
+   * Alloc-s come from the metadata pools of snmalloc, and so do not flow
    * through the usual allocation machinery.
    */
-  message("Grab CoreAlloc from pool for inspection");
+  message("Grab Alloc from pool for inspection");
   {
     static_assert(
-      std::is_same_v<decltype(alloc.alloc), LocalAllocator<StandardConfig>>);
+      std::is_same_v<decltype(alloc.alloc), Allocator<StandardConfig>>);
 
     auto* ca = AllocPool<StandardConfig>::acquire();
 

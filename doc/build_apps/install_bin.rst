@@ -24,7 +24,7 @@ The following commands can be run to verify that CCF was installed successfully:
 
 .. code-block:: bash
 
-    $ /opt/ccf/bin/cchost --version
+    $ /opt/ccf/bin/js_generic --version
     CCF host: ccf-<version>
     Platform: SNP
 
@@ -45,7 +45,7 @@ The following commands can be run to verify that CCF was installed successfully:
 
 The CCF install notably contains:
 
-- The ``cchost`` binary required to spin up a CCF application
+- A sample ``js_generic`` application built with CCF, which may be used to host JS applications
 - The ``cmake`` files required to build CCF applications
 - Header files and libraries to build CCF applications (under ``include/`` and ``lib/``)
 - A limited set of Python utilities to start a basic CCF service for local testing

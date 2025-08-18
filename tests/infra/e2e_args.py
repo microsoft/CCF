@@ -89,12 +89,6 @@ def cli_args(
         action="append",
         default=[],
     )
-    parser.add_argument(
-        "--perf-nodes",
-        help="List of node ids. Nodes that should be run under perf, capturing performance data",
-        action="append",
-        default=[],
-    )
     log_level_choices = ("trace", "debug", "info", "fail", "fatal")
     default_log_level = "info"
     parser.add_argument(
@@ -112,7 +106,7 @@ def cli_args(
     parser.add_argument(
         "-p",
         "--package",
-        help="The enclave package to load (e.g., liblogging)",
+        help="The enclave package to load (e.g., logging)",
     )
     parser.add_argument(
         "--constitution",
@@ -421,7 +415,7 @@ def cli_args(
             args.library_dir = args.binary_dir
 
     if not args.package and args.js_app_bundle:
-        args.package = "libjs_generic"
+        args.package = "js_generic"
 
     if accept_unknown:
         return args, unknown_args

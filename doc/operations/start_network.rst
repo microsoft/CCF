@@ -13,7 +13,7 @@ To create a new CCF network, the first node of the network should be started wit
 
 .. code-block:: bash
 
-    $ cchost --config /path/to/config/file
+    $ /opt/ccf/bin/js_generic --config /path/to/config/file
 
 .. mermaid::
 
@@ -40,7 +40,7 @@ To add a new node to an existing opening network, other nodes should be started 
 
 .. code-block:: bash
 
-    $ cchost --config /path/to/config/file
+    $ /opt/ccf/bin/js_generic --config /path/to/config/file
 
 .. mermaid::
 
@@ -76,7 +76,7 @@ The following diagram summarises the steps that operators and members should fol
 
         Note over Node 0: Already "PartOfNetwork" (rpc-address=ip0:port0)
 
-        Operators->>+Node 1: cchost join (config: service_certificate_file=Service Certificate target_rpc_address=ip0:port0)
+        Operators->>+Node 1: join (config: service_certificate_file=Service Certificate target_rpc_address=ip0:port0)
 
         Node 1->>+Node 0: Join request (includes quote)
         Node 0->>+Node 0: Verify Node 1 attestation
@@ -126,8 +126,7 @@ Once a CCF network is successfully started and an acceptable number of nodes hav
 Virtual Mode
 ------------
 
-To run a CCF node on a system without hardware TEE support, or to debug an application, a ``virtual`` enclave should be used.
-To start a CCF node in ``virtual`` mode, the JSON configuration file should specify ``enclave.type`` as ``"virtual"``.
+CCF will run in virtual mode if no SEV-SNP hardware is detected :ref:`operations/platforms/virtual:Insecure Virtual`.
 
 .. warning:: Nodes started in virtual mode provide no security guarantees. They should never be used for production purposes.
 

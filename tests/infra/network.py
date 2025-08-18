@@ -151,7 +151,7 @@ def log_errors(
             fatal_error_lines = [
                 line
                 for line in lines.readlines()
-                if not line.startswith("[get_qpl_handle ")
+                if not line.startswith("[ perf record:")
             ]
             if fatal_error_lines:
                 LOG.error(f"Contents of {err_path}:\n{''.join(fatal_error_lines)}")
@@ -165,8 +165,6 @@ class Network:
     KEY_GEN = "keygenerator.sh"
     SHARE_SCRIPT = "submit_recovery_share.sh"
     node_args_to_forward = [
-        "enclave_type",
-        "enclave_platform",
         "log_level",
         "sig_tx_interval",
         "sig_ms_interval",
@@ -206,6 +204,7 @@ class Network:
         "idle_connection_timeout_s",
         "enable_local_sealing",
         "previous_sealed_ledger_secret_location",
+        "recovery_constitution_files",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -216,7 +215,6 @@ class Network:
         hosts,
         binary_dir=".",
         dbg_nodes=None,
-        perf_nodes=None,
         existing_network=None,
         txs=None,
         jwt_issuer=None,
@@ -272,7 +270,6 @@ class Network:
                 f"Could not find key generator script at '{self.key_generator}' - is binary directory set correctly?"
             )
         self.dbg_nodes = dbg_nodes
-        self.perf_nodes = perf_nodes
         self.version = version
         self.args = None
         self.service_certificate_valid_from = None
@@ -303,9 +300,6 @@ class Network:
         debug = (
             (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
         )
-        perf = (
-            (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
-        )
 
         if isinstance(host, str):
             interface = infra.interfaces.RPCInterface()
@@ -320,7 +314,6 @@ class Network:
             binary_dir or self.binary_dir,
             library_dir or self.library_dir,
             debug,
-            perf,
             **kwargs,
         )
         self.nodes.append(node)
@@ -861,6 +854,7 @@ class Network:
         expected_recovery_count=None,
         via_recovery_owner=False,
         via_local_sealing=False,
+        set_constitution=True,
     ):
         """
         Recovers a CCF network previously started in recovery mode.
@@ -878,9 +872,10 @@ class Network:
         )
         self.wait_for_all_nodes_to_be_trusted(self.find_random_node())
 
-        # The new service may be running a newer version of the constitution,
-        # so we make sure that we're running the right one.
-        self.consortium.set_constitution(random_node, args.constitution)
+        if set_constitution:
+            # The new service may be running a newer version of the constitution,
+            # so we make sure that we're running the right one.
+            self.consortium.set_constitution(random_node, args.constitution)
 
         prev_service_identity = None
         if args.previous_service_identity_file:
@@ -1885,7 +1880,6 @@ def network(
     hosts,
     binary_directory=".",
     dbg_nodes=None,
-    perf_nodes=None,
     pdb=False,
     txs=None,
     jwt_issuer=None,
@@ -1901,7 +1895,6 @@ def network(
     :param binary_directory: the directory where CCF's binaries are located
     :param library_directory: the directory where CCF's libraries are located
     :param dbg_nodes: default: []. List of node id's that will not start (user is prompted to start them manually)
-    :param perf_nodes: default: []. List of node ids that will run under perf record
     :param pdb: default: False. Debugger.
     :param txs: default: None. Transactions committed on that network.
     :return: a Network instance that can be used to create/access nodes, handle the genesis state (add members, create
@@ -1909,15 +1902,12 @@ def network(
     """
     if dbg_nodes is None:
         dbg_nodes = []
-    if perf_nodes is None:
-        perf_nodes = []
 
     net = Network(
         hosts=hosts,
         binary_dir=binary_directory,
         library_dir=library_directory,
         dbg_nodes=dbg_nodes,
-        perf_nodes=perf_nodes,
         txs=txs,
         jwt_issuer=jwt_issuer,
         init_partitioner=init_partitioner,

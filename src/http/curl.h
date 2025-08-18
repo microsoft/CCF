@@ -297,12 +297,12 @@ namespace ccf::curl
 
   private:
     UniqueCURL curl_handle;
-    RESTVerb method = HTTP_GET;
+    RESTVerb method;
     std::string url;
     ccf::curl::UniqueSlist headers;
-    std::unique_ptr<ccf::curl::RequestBody> request_body = nullptr;
-    std::unique_ptr<ccf::curl::Response> response = nullptr;
-    std::optional<ResponseCallback> response_callback = nullptr;
+    std::unique_ptr<ccf::curl::RequestBody> request_body;
+    std::unique_ptr<ccf::curl::Response> response;
+    std::optional<ResponseCallback> response_callback;
 
   public:
     CurlRequest(
@@ -311,12 +311,16 @@ namespace ccf::curl
       std::string&& url_,
       UniqueSlist&& headers_,
       std::unique_ptr<RequestBody>&& request_body_,
-      std::optional<ResponseCallback>&& response_callback_) :
+      std::optional<ResponseCallback>&& response_callback_,
+      std::unique_ptr<ccf::curl::Response>&& _response = nullptr) :
       curl_handle(std::move(curl_handle_)),
       method(method_),
       url(std::move(url_)),
       headers(std::move(headers_)),
       request_body(std::move(request_body_)),
+      response(
+        _response != nullptr ? std::move(_response) :
+                               std::make_unique<Response>()),
       response_callback(std::move(response_callback_))
     {
       if (url.empty())
@@ -330,6 +334,7 @@ namespace ccf::curl
         throw std::logic_error(
           fmt::format("Unsupported HTTP method: {}", method.c_str()));
       }
+
       switch (method.get_http_method().value())
       {
         case HTTP_GET:
@@ -365,11 +370,7 @@ namespace ccf::curl
         request_body->attach_to_curl(curl_handle);
       }
 
-      if (response_callback.has_value())
-      {
-        response = std::make_unique<Response>();
-        response->attach_to_curl(curl_handle);
-      }
+      response->attach_to_curl(curl_handle);
 
       if (headers.get() != nullptr)
       {
@@ -419,9 +420,14 @@ namespace ccf::curl
       return url;
     }
 
-    [[nodiscard]] Response* get_response() const
+    [[nodiscard]] ccf::curl::Response* get_response()
     {
       return response.get();
+    }
+
+    [[nodiscard]] std::unique_ptr<Response>& get_response_ptr()
+    {
+      return response;
     }
   };
 
@@ -517,12 +523,11 @@ namespace ccf::curl
   private:
     uv_loop_t* loop;
     uv_timer_t timeout_tracker{};
-    // utility class to enforce type safety on accesses to curl_multi wrapping a
-    // UniqueCURLM
     CurlRequestCURLM curl_request_curlm;
 
-    // We need a lock to prevent a client thread calling curl_multi_add_handle
-    // while the libuv thread is processing a curl callback
+    // We need a lock to prevent a client in another thread calling
+    // curl_multi_add_handle while the libuv thread is processing a curl
+    // callback
     //
     // Note that since the a client callback can call curl_multi_add_handle, but
     // that will be difficult/impossible to detect, we need curlm_lock to be
@@ -538,10 +543,11 @@ namespace ccf::curl
 
   public:
     // Stop all curl transfers and remove handles from libuv
+    // Cannot be safely called while the uv loop is running
     void stop()
     {
       std::lock_guard<std::recursive_mutex> lock(curlm_lock);
-      LOG_INFO_FMT("Stopping curl transfers and removing handles from libuv");
+      LOG_TRACE_FMT("Stopping curl transfers and removing handles from libuv");
       if (curl_request_curlm.get() == nullptr)
       {
         throw std::logic_error(
@@ -549,6 +555,7 @@ namespace ccf::curl
       }
       // Stop all curl easy handles
       {
+        // returns the handles as a null-terminated array
         CURL** easy_handles = curl_multi_get_handles(curl_request_curlm.get());
         for (int i = 0; easy_handles[i] != nullptr; ++i)
         {
@@ -565,7 +572,6 @@ namespace ccf::curl
                 "CURLMSG_DONE received with no associated request data");
             }
             std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request);
-            curl_multi_remove_handle(curl_request_curlm.get(), easy);
             curl_easy_cleanup(easy);
           }
         }
@@ -574,7 +580,7 @@ namespace ccf::curl
         if (curlm != nullptr)
         {
           // calls socket callbacks to remove the handles from libuv
-          LOG_INFO_FMT("Cleaning up CURLM handle");
+          LOG_TRACE_FMT("Cleaning up CURLM handle");
           curl_multi_cleanup(curlm);
         }
       }

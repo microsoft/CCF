@@ -271,6 +271,7 @@ def run_code_upgrade_from(
                         infra.platform_detection.get_platform(),
                         args.package,
                         library_dir=to_library_dir,
+                        binary_dir=to_binary_dir,
                         version=to_version,
                     )
                 )
@@ -365,6 +366,7 @@ def run_code_upgrade_from(
                         infra.platform_detection.get_platform(),
                         args.package,
                         library_dir=from_library_dir,
+                        binary_dir=from_binary_dir,
                         version=from_version,
                     )
                 )
@@ -700,7 +702,7 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args(add)
 
     # JS generic is the only app included in CCF install
-    args.package = "libjs_generic"
+    args.package = "js_generic"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.jwt_key_refresh_interval_s = 3
     args.sig_ms_interval = 1000  # Set to cchost default value

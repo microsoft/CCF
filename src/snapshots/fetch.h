@@ -86,11 +86,8 @@ namespace snapshots
             "Peer has no snapshot newer than {}", latest_local_snapshot);
           return std::nullopt;
         }
-        if (status_code != HTTP_STATUS_PERMANENT_REDIRECT)
-        {
-          EXPECT_HTTP_RESPONSE_STATUS(
-            request, status_code, HTTP_STATUS_PERMANENT_REDIRECT);
-        }
+        EXPECT_HTTP_RESPONSE_STATUS(
+          request, status_code, HTTP_STATUS_PERMANENT_REDIRECT);
 
         auto* response = request.get_response();
         auto location_it = response->headers.find(ccf::http::headers::LOCATION);
@@ -117,10 +114,12 @@ namespace snapshots
 
         ccf::curl::UniqueSlist headers;
 
+        std::string current_snapshot_url = snapshot_url;
+
         ccf::curl::CurlRequest snapshot_size_request(
           std::move(curl_easy),
           HTTP_HEAD,
-          std::move(snapshot_url),
+          std::move(current_snapshot_url),
           std::move(headers),
           nullptr, // No request body
           std::nullopt // No response callback
@@ -180,7 +179,7 @@ namespace snapshots
         content_size,
         range_size);
 
-      std::vector<uint8_t> snapshot(content_size);
+      auto snapshot_response = std::make_unique<ccf::curl::Response>();
 
       {
         auto range_start = 0;
@@ -195,27 +194,17 @@ namespace snapshots
           headers.append(
             "Range", fmt::format("bytes={}-{}", range_start, range_end));
 
-          auto response_callback = [](
-                                     ccf::curl::CurlRequest& request,
-                                     CURLcode curl_response_code,
-                                     long status_code) {
-            if (curl_response_code != CURLE_OK)
-            {
-              throw std::runtime_error(fmt::format(
-                "Error fetching snapshot chunk: {} ({})",
-                curl_easy_strerror(curl_response_code),
-                status_code));
-            }
-          };
+          std::string current_snapshot_url = snapshot_url;
 
+          snapshot_response->headers.clear();
           ccf::curl::CurlRequest snapshot_range_request(
             std::move(curl_easy),
             HTTP_GET,
-            std::move(snapshot_url),
+            std::move(current_snapshot_url),
             std::move(headers),
             nullptr, // No request body
-            nullptr // No response callback
-          );
+            std::nullopt, // No response callback
+            std::move(snapshot_response));
 
           CURLcode curl_response = CURLE_OK;
           long snapshot_range_status_code = 0;
@@ -240,13 +229,8 @@ namespace snapshots
             snapshot_range_request.get_url(),
             snapshot_range_status_code);
 
-          auto* snapshot_range_response = snapshot_range_request.get_response();
-          // This is an extra copy which would be good to avoid, but avoiding it
-          // with the current response interface is very messy...
-          memcpy(
-            snapshot.data() + range_start,
-            snapshot_range_response->buffer.data(),
-            snapshot_range_response->buffer.size());
+          snapshot_response =
+            std::move(snapshot_range_request.get_response_ptr());
 
           if (range_end == content_size)
           {
@@ -261,7 +245,8 @@ namespace snapshots
       const auto url_components = ccf::nonstd::split(snapshot_url, "/");
       const std::string snapshot_name(url_components.back());
 
-      return SnapshotResponse{snapshot_name, std::move(snapshot)};
+      return SnapshotResponse{
+        snapshot_name, std::move(snapshot_response->buffer)};
     }
     catch (const std::exception& e)
     {

@@ -74,7 +74,6 @@ def run(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
         txs=txs,
         jwt_issuer=jwt_issuer,
     )
@@ -226,7 +225,7 @@ if __name__ == "__main__":
         )
 
     args = infra.e2e_args.cli_args(add)
-    args.package = "samples/apps/logging/liblogging"
+    args.package = "samples/apps/logging/logging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.initial_user_count = 3
     args.jwt_key_refresh_interval_s = 1

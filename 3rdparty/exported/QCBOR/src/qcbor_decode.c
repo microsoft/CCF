@@ -1,6 +1,6 @@
 /*==============================================================================
  Copyright (c) 2016-2018, The Linux Foundation.
- Copyright (c) 2018-2024, Laurence Lundblade.
+ Copyright (c) 2018-2025, Laurence Lundblade.
  Copyright (c) 2021, Arm Limited.
  All rights reserved.
 
@@ -3139,6 +3139,8 @@ QCBORDecode_SetMemPool(QCBORDecodeContext *pMe,
  * @param[in]  pMe              The decoder context.
  * @param[in]  pItemToConsume   The array/map whose contents are to be
  *                              consumed.
+ * @param[out] pbBreak          Set to true if extra break was consumed.
+ *                              Can be NULL.
  * @param[out] puNextNestLevel  The next nesting level after the item was
  *                              fully consumed.
  *
@@ -3178,8 +3180,11 @@ QCBORDecode_Private_ConsumeItem(QCBORDecodeContext *pMe,
 
    } else {
       /* pItemToConsume is not a map or array. Just pass the nesting
-       * level through. */
+       * level through.  Ensure pbBreak is false. */
       *puNextNestLevel = pItemToConsume->uNextNestLevel;
+      if(pbBreak) {
+         *pbBreak = false;
+      }
 
       uReturn = QCBOR_SUCCESS;
    }
@@ -3339,6 +3344,11 @@ QCBORDecode_Private_MapSearch(QCBORDecodeContext *pMe,
    QCBORError uReturn;
    uint64_t   uFoundItemBitMap = 0;
 
+   if(pInfo != NULL) {
+      pInfo->uItemCount = 0;
+      pInfo->uStartOffset = UINT32_MAX;
+   }
+
    if(pMe->uLastError != QCBOR_SUCCESS) {
       uReturn = pMe->uLastError;
       goto Done2;
@@ -3346,21 +3356,21 @@ QCBORDecode_Private_MapSearch(QCBORDecodeContext *pMe,
 
    if(!DecodeNesting_IsBoundedType(&(pMe->nesting), QCBOR_TYPE_MAP) &&
       pItemArray->uLabelType != QCBOR_TYPE_NONE) {
-      /* QCBOR_TYPE_NONE as first item indicates just looking
-         for the end of an array, so don't give error. */
+      /* QCBOR_TYPE_NONE as first item indicates just looking for the
+       * end of an array, so don't give error. */
       uReturn = QCBOR_ERR_MAP_NOT_ENTERED;
       goto Done2;
    }
 
    if(DecodeNesting_IsBoundedEmpty(&(pMe->nesting))) {
-      // It is an empty bounded array or map
+      /* It is an empty bounded array or map */
       if(pItemArray->uLabelType == QCBOR_TYPE_NONE) {
-         // Just trying to find the end of the map or array
+         /* Just trying to find the end of the map or array */
          pMe->uMapEndOffsetCache = DecodeNesting_GetMapOrArrayStart(&(pMe->nesting));
          uReturn = QCBOR_SUCCESS;
       } else {
-         // Nothing is ever found in an empty array or map. All items
-         // are marked as not found below.
+         /* Nothing is ever found in an empty array or map. All items
+          * are marked as not found below. */
          uReturn = QCBOR_SUCCESS;
       }
       goto Done2;
@@ -3373,38 +3383,35 @@ QCBORDecode_Private_MapSearch(QCBORDecodeContext *pMe,
    /* Reposition to search from the start of the map / array */
    QCBORDecode_Private_RewindMapOrArray(pMe);
 
-   /*
-    Loop over all the items in the map or array. Each item
-    could be a map or array, but label matching is only at
-    the main level. This handles definite- and indefinite-
-    length maps and arrays. The only reason this is ever
-    called on arrays is to find their end position.
-
-    This will always run over all items in order to do
-    duplicate detection.
-
-    This will exit with failure if it encounters an
-    unrecoverable error, but continue on for recoverable
-    errors.
-
-    If a recoverable error occurs on a matched item, then
-    that error code is returned.
+   /* Loop over all the items in the map or array. Each item could be
+    * a map or array, but label matching is only at the main
+    * level. This handles definite- and indefinite- length maps and
+    * arrays. The only reason this is ever called on arrays is to find
+    * their end position.
+    *
+    * This will always run over all items in order to do duplicate
+    * detection.
+    *
+    * This will exit with failure if it encounters an unrecoverable
+    * error, but continue on for recoverable errors.
+    *
+    * If a recoverable error occurs on a matched item, then that error
+    * code is returned.
     */
    const uint8_t uMapNestLevel = DecodeNesting_GetBoundedModeLevel(&(pMe->nesting));
-   if(pInfo) {
-      pInfo->uItemCount = 0;
-   }
    uint8_t       uNextNestLevel;
    do {
+      QCBORItem   Item;
+      bool        bMatched;
+      QCBORError  uResult;
       /* Remember offset of the item because sometimes it has to be returned */
       const size_t uOffset = UsefulInputBuf_Tell(&(pMe->InBuf));
 
       /* Get the item */
-      QCBORItem Item;
       /* QCBORDecode_Private_GetNextTagContent() rather than GetNext()
        * because a label match is performed on recoverable errors to
        * be able to return the the error code for the found item. */
-      QCBORError uResult = QCBORDecode_Private_GetNextTagContent(pMe, &Item);
+      uResult = QCBORDecode_Private_GetNextTagContent(pMe, &Item);
       if(QCBORDecode_IsUnrecoverableError(uResult)) {
          /* The map/array can't be decoded when unrecoverable errors occur */
          uReturn = uResult;
@@ -3417,7 +3424,7 @@ QCBORDecode_Private_MapSearch(QCBORDecodeContext *pMe,
       }
 
       /* See if item has one of the labels that are of interest */
-      bool bMatched = false;
+      bMatched = false;
       for(int nIndex = 0; pItemArray[nIndex].uLabelType != QCBOR_TYPE_NONE; nIndex++) {
          if(QCBORItem_MatchLabel(Item, pItemArray[nIndex])) {
             /* A label match has been found */
@@ -3441,7 +3448,7 @@ QCBORDecode_Private_MapSearch(QCBORDecodeContext *pMe,
             /* Successful match. Return the item. */
             pItemArray[nIndex] = Item;
             uFoundItemBitMap |= 0x01ULL << nIndex;
-            if(pInfo) {
+            if(pInfo != NULL) {
                pInfo->uStartOffset = uOffset;
             }
             bMatched = true;
@@ -3450,31 +3457,26 @@ QCBORDecode_Private_MapSearch(QCBORDecodeContext *pMe,
 
 
       if(!bMatched && pCallBack != NULL) {
-         /*
-          Call the callback on unmatched labels.
-          (It is tempting to do duplicate detection here, but that would
-          require dynamic memory allocation because the number of labels
-          that might be encountered is unbounded.)
-         */
+         /* Call the callback on unmatched labels.
+          * (It is tempting to do duplicate detection here, but that
+          * would require dynamic memory allocation because the number
+          * of labels that might be encountered is unbounded.) */
          uReturn = (*(pCallBack->pfCallback))(pCallBack->pCBContext, &Item);
          if(uReturn != QCBOR_SUCCESS) {
             goto Done;
          }
       }
 
-      /*
-       Consume the item whether matched or not. This
-       does the work of traversing maps and array and
-       everything in them. In this loop only the
-       items at the current nesting level are examined
-       to match the labels.
-       */
+      /* Consume the item whether matched or not. This does the work
+       * of traversing maps and array and everything in them. In this
+       * loop only the items at the current nesting level are examined
+       * to match the labels. */
       uReturn = QCBORDecode_Private_ConsumeItem(pMe, &Item, NULL, &uNextNestLevel);
       if(uReturn != QCBOR_SUCCESS) {
          goto Done;
       }
 
-      if(pInfo) {
+      if(pInfo != NULL) {
          pInfo->uItemCount++;
       }
 
@@ -3484,10 +3486,12 @@ QCBORDecode_Private_MapSearch(QCBORDecodeContext *pMe,
 
    const size_t uEndOffset = UsefulInputBuf_Tell(&(pMe->InBuf));
 
-   // Check here makes sure that this won't accidentally be
-   // QCBOR_MAP_OFFSET_CACHE_INVALID which is larger than
-   // QCBOR_MAX_DECODE_INPUT_SIZE.
-   // Cast to uint32_t to possibly address cases where SIZE_MAX < UINT32_MAX
+   /* Check here makes sure that this won't accidentally be
+    * QCBOR_MAP_OFFSET_CACHE_INVALID which is larger than
+    * QCBOR_MAX_DECODE_INPUT_SIZE.  Cast to uint32_t to possibly
+    * address cases where SIZE_MAX < UINT32_MAX. It is near-impossible
+    * to test this, so test coverage of this function is not 100%,
+    * but it is 100% when this is commented out. */
    if((uint32_t)uEndOffset >= QCBOR_MAX_DECODE_INPUT_SIZE) {
       uReturn = QCBOR_ERR_INPUT_TOO_LARGE;
       goto Done;
@@ -3525,13 +3529,13 @@ QCBORDecode_GetItemInMapN(QCBORDecodeContext *pMe,
       return;
    }
 
-   QCBORItem OneItemSeach[2];
-   OneItemSeach[0].uLabelType  = QCBOR_TYPE_INT64;
-   OneItemSeach[0].label.int64 = nLabel;
-   OneItemSeach[0].uDataType   = uQcborType;
-   OneItemSeach[1].uLabelType  = QCBOR_TYPE_NONE; // Indicates end of array
+   QCBORItem OneItemSearch[2];
+   OneItemSearch[0].uLabelType  = QCBOR_TYPE_INT64;
+   OneItemSearch[0].label.int64 = nLabel;
+   OneItemSearch[0].uDataType   = uQcborType;
+   OneItemSearch[1].uLabelType  = QCBOR_TYPE_NONE; // Indicates end of array
 
-   QCBORError uReturn = QCBORDecode_Private_MapSearch(pMe, OneItemSeach, NULL, NULL);
+   QCBORError uReturn = QCBORDecode_Private_MapSearch(pMe, OneItemSearch, NULL, NULL);
 
    if(uReturn != QCBOR_SUCCESS) {
       pItem->uDataType  = QCBOR_TYPE_NONE;
@@ -3539,11 +3543,11 @@ QCBORDecode_GetItemInMapN(QCBORDecodeContext *pMe,
       goto Done;
    }
 
-   if(OneItemSeach[0].uDataType == QCBOR_TYPE_NONE) {
+   if(OneItemSearch[0].uDataType == QCBOR_TYPE_NONE) {
       uReturn = QCBOR_ERR_LABEL_NOT_FOUND;
    }
 
-   *pItem = OneItemSeach[0];
+   *pItem = OneItemSearch[0];
    QCBORDecode_Private_CopyTags(pMe, pItem);
 
  Done:
@@ -3565,25 +3569,25 @@ QCBORDecode_GetItemInMapSZ(QCBORDecodeContext *pMe,
    }
 
 #ifndef QCBOR_DISABLE_NON_INTEGER_LABELS
-   QCBORItem OneItemSeach[2];
-   OneItemSeach[0].uLabelType   = QCBOR_TYPE_TEXT_STRING;
-   OneItemSeach[0].label.string = UsefulBuf_FromSZ(szLabel);
-   OneItemSeach[0].uDataType    = uQcborType;
-   OneItemSeach[1].uLabelType   = QCBOR_TYPE_NONE; // Indicates end of array
+   QCBORItem OneItemSearch[2];
+   OneItemSearch[0].uLabelType   = QCBOR_TYPE_TEXT_STRING;
+   OneItemSearch[0].label.string = UsefulBuf_FromSZ(szLabel);
+   OneItemSearch[0].uDataType    = uQcborType;
+   OneItemSearch[1].uLabelType   = QCBOR_TYPE_NONE; // Indicates end of array
 
-   QCBORError uReturn = QCBORDecode_Private_MapSearch(pMe, OneItemSeach, NULL, NULL);
+   QCBORError uReturn = QCBORDecode_Private_MapSearch(pMe, OneItemSearch, NULL, NULL);
 
    if(uReturn != QCBOR_SUCCESS) {
       pItem->uDataType  = QCBOR_TYPE_NONE;
       pItem->uLabelType = QCBOR_TYPE_NONE;
       goto Done;
    }
-   if(OneItemSeach[0].uDataType == QCBOR_TYPE_NONE) {
+   if(OneItemSearch[0].uDataType == QCBOR_TYPE_NONE) {
       uReturn = QCBOR_ERR_LABEL_NOT_FOUND;
       goto Done;
    }
 
-   *pItem = OneItemSeach[0];
+   *pItem = OneItemSearch[0];
    QCBORDecode_Private_CopyTags(pMe, pItem);
 
 Done:
@@ -3711,34 +3715,40 @@ Done:
  * @param[out] pItem         The item for the array/map.
  * @param[out] pEncodedCBOR  Pointer and length of the encoded map or array.
  *
- * The next item to be decoded must be a map or array as specified by @c uType.
- *
  * When this is complete, the traversal cursor is unchanged.
- */void
+ */
+void
 QCBORDecode_Private_SearchAndGetArrayOrMap(QCBORDecodeContext *pMe,
                                            QCBORItem          *pTarget,
                                            QCBORItem          *pItem,
                                            UsefulBufC         *pEncodedCBOR)
 {
+   /* Heavy stack use, but it's only for a few QCBOR public methods */
    MapSearchInfo      Info;
    QCBORDecodeNesting SaveNesting;
    size_t             uSaveCursor;
 
+   /* Find the array or map of interest */
    pMe->uLastError = (uint8_t)QCBORDecode_Private_MapSearch(pMe, pTarget, &Info, NULL);
    if(pMe->uLastError != QCBOR_SUCCESS) {
       return;
    }
 
-   /* Save the whole position of things so they can be restored.
-    * so the cursor position is unchanged by this operation, like
-    * all the other GetXxxxInMap() operations. */
+   if(pTarget->uDataType == QCBOR_TYPE_NONE) {
+      pMe->uLastError = QCBOR_ERR_LABEL_NOT_FOUND;
+      return;
+   }
+
+   /* Save the traversal cursor and related */
    DecodeNesting_PrepareForMapSearch(&(pMe->nesting), &SaveNesting);
    uSaveCursor = UsefulInputBuf_Tell(&(pMe->InBuf));
 
+   /* Get the array or map of interest */
    DecodeNesting_ResetMapOrArrayCount(&(pMe->nesting));
    UsefulInputBuf_Seek(&(pMe->InBuf), Info.uStartOffset);
    QCBORDecode_Private_GetArrayOrMap(pMe, pTarget[0].uDataType, pItem, pEncodedCBOR);
 
+   /* Restore the traversal cursor */
    UsefulInputBuf_Seek(&(pMe->InBuf), uSaveCursor);
    DecodeNesting_RestoreFromMapSearch(&(pMe->nesting), &SaveNesting);
 }
@@ -4053,14 +4063,14 @@ QCBORDecode_Private_SearchAndEnter(QCBORDecodeContext *pMe, QCBORItem pSearch[])
 void
 QCBORDecode_EnterMapFromMapN(QCBORDecodeContext *pMe, int64_t nLabel)
 {
-   QCBORItem OneItemSeach[2];
-   OneItemSeach[0].uLabelType  = QCBOR_TYPE_INT64;
-   OneItemSeach[0].label.int64 = nLabel;
-   OneItemSeach[0].uDataType   = QCBOR_TYPE_MAP;
-   OneItemSeach[1].uLabelType  = QCBOR_TYPE_NONE;
+   QCBORItem OneItemSearch[2];
+   OneItemSearch[0].uLabelType  = QCBOR_TYPE_INT64;
+   OneItemSearch[0].label.int64 = nLabel;
+   OneItemSearch[0].uDataType   = QCBOR_TYPE_MAP;
+   OneItemSearch[1].uLabelType  = QCBOR_TYPE_NONE;
 
    /* The map to enter was found, now finish off entering it. */
-   QCBORDecode_Private_SearchAndEnter(pMe, OneItemSeach);
+   QCBORDecode_Private_SearchAndEnter(pMe, OneItemSearch);
 }
 
 
@@ -4071,13 +4081,13 @@ void
 QCBORDecode_EnterMapFromMapSZ(QCBORDecodeContext *pMe, const char  *szLabel)
 {
 #ifndef QCBOR_DISABLE_NON_INTEGER_LABELS
-   QCBORItem OneItemSeach[2];
-   OneItemSeach[0].uLabelType   = QCBOR_TYPE_TEXT_STRING;
-   OneItemSeach[0].label.string = UsefulBuf_FromSZ(szLabel);
-   OneItemSeach[0].uDataType    = QCBOR_TYPE_MAP;
-   OneItemSeach[1].uLabelType   = QCBOR_TYPE_NONE;
+   QCBORItem OneItemSearch[2];
+   OneItemSearch[0].uLabelType   = QCBOR_TYPE_TEXT_STRING;
+   OneItemSearch[0].label.string = UsefulBuf_FromSZ(szLabel);
+   OneItemSearch[0].uDataType    = QCBOR_TYPE_MAP;
+   OneItemSearch[1].uLabelType   = QCBOR_TYPE_NONE;
 
-   QCBORDecode_Private_SearchAndEnter(pMe, OneItemSeach);
+   QCBORDecode_Private_SearchAndEnter(pMe, OneItemSearch);
 #else
    (void)szLabel;
    pMe->uLastError = QCBOR_ERR_LABEL_NOT_FOUND;
@@ -4090,13 +4100,13 @@ QCBORDecode_EnterMapFromMapSZ(QCBORDecodeContext *pMe, const char  *szLabel)
 void
 QCBORDecode_EnterArrayFromMapN(QCBORDecodeContext *pMe, int64_t nLabel)
 {
-   QCBORItem OneItemSeach[2];
-   OneItemSeach[0].uLabelType  = QCBOR_TYPE_INT64;
-   OneItemSeach[0].label.int64 = nLabel;
-   OneItemSeach[0].uDataType   = QCBOR_TYPE_ARRAY;
-   OneItemSeach[1].uLabelType  = QCBOR_TYPE_NONE;
+   QCBORItem OneItemSearch[2];
+   OneItemSearch[0].uLabelType  = QCBOR_TYPE_INT64;
+   OneItemSearch[0].label.int64 = nLabel;
+   OneItemSearch[0].uDataType   = QCBOR_TYPE_ARRAY;
+   OneItemSearch[1].uLabelType  = QCBOR_TYPE_NONE;
 
-   QCBORDecode_Private_SearchAndEnter(pMe, OneItemSeach);
+   QCBORDecode_Private_SearchAndEnter(pMe, OneItemSearch);
 }
 
 /*
@@ -4106,13 +4116,13 @@ void
 QCBORDecode_EnterArrayFromMapSZ(QCBORDecodeContext *pMe, const char  *szLabel)
 {
 #ifndef QCBOR_DISABLE_NON_INTEGER_LABELS
-   QCBORItem OneItemSeach[2];
-   OneItemSeach[0].uLabelType   = QCBOR_TYPE_TEXT_STRING;
-   OneItemSeach[0].label.string = UsefulBuf_FromSZ(szLabel);
-   OneItemSeach[0].uDataType    = QCBOR_TYPE_ARRAY;
-   OneItemSeach[1].uLabelType   = QCBOR_TYPE_NONE;
+   QCBORItem OneItemSearch[2];
+   OneItemSearch[0].uLabelType   = QCBOR_TYPE_TEXT_STRING;
+   OneItemSearch[0].label.string = UsefulBuf_FromSZ(szLabel);
+   OneItemSearch[0].uDataType    = QCBOR_TYPE_ARRAY;
+   OneItemSearch[1].uLabelType   = QCBOR_TYPE_NONE;
 
-   QCBORDecode_Private_SearchAndEnter(pMe, OneItemSeach);
+   QCBORDecode_Private_SearchAndEnter(pMe, OneItemSearch);
 #else
    (void)szLabel;
    pMe->uLastError = QCBOR_ERR_LABEL_NOT_FOUND;
@@ -4238,7 +4248,7 @@ QCBORDecode_Private_ExitBoundedLevel(QCBORDecodeContext *pMe,
     * level is reached.  It may do nothing, or ascend all the way to
     * the top level.
     */
-   uErr = QCBORDecode_Private_NestLevelAscender(pMe, NULL, false);
+   uErr = QCBORDecode_Private_NestLevelAscender(pMe, NULL, NULL);
    if(uErr != QCBOR_SUCCESS) {
       goto Done;
    }
@@ -5453,6 +5463,7 @@ QCBOR_Private_ConvertNegativeBigNumToSigned(const UsefulBufC BigNum,
  * @retval QCBOR_ERR_UNEXPECTED_TYPE  Of a type that can't be converted
  * @retval QCBOR_ERR_CONVERSION_UNDER_OVER_FLOW  Conversion result is too large
  *                                               or too small.
+ * @retval QCBOR_ERR_FLOAT_EXCEPTION   Encountered NaN or infinity or such.
  */
 static QCBORError
 QCBOR_Private_ConvertInt64(const QCBORItem *pItem,
@@ -5460,33 +5471,68 @@ QCBOR_Private_ConvertInt64(const QCBORItem *pItem,
                            int64_t         *pnValue)
 {
    switch(pItem->uDataType) {
-      case QCBOR_TYPE_FLOAT:
-      case QCBOR_TYPE_DOUBLE:
 #ifndef QCBOR_DISABLE_FLOAT_HW_USE
-         if(uConvertTypes & QCBOR_CONVERT_TYPE_FLOAT) {
-            /* https://pubs.opengroup.org/onlinepubs/009695399/functions/llround.html
-             http://www.cplusplus.com/reference/cmath/llround/
-             */
-            // Not interested in FE_INEXACT
-            feclearexcept(FE_INVALID|FE_OVERFLOW|FE_UNDERFLOW|FE_DIVBYZERO);
-            if(pItem->uDataType == QCBOR_TYPE_DOUBLE) {
-               *pnValue = llround(pItem->val.dfnum);
-            } else {
-               *pnValue = lroundf(pItem->val.fnum);
-            }
-            if(fetestexcept(FE_INVALID|FE_OVERFLOW|FE_UNDERFLOW|FE_DIVBYZERO)) {
-               // llround() shouldn't result in divide by zero, but catch
-               // it here in case it unexpectedly does.  Don't try to
-               // distinguish between the various exceptions because it seems
-               // they vary by CPU, compiler and OS.
-               return QCBOR_ERR_FLOAT_EXCEPTION;
-            }
-         } else {
+      case QCBOR_TYPE_FLOAT:
+         if(!(uConvertTypes & QCBOR_CONVERT_TYPE_FLOAT)) {
             return  QCBOR_ERR_UNEXPECTED_TYPE;
          }
-#else
+         if(isnan(pItem->val.fnum)) {
+            /* In some environments, llround() will succeed on NaN
+             * when it really shouldn't, so catch the error here. */
+            return QCBOR_ERR_FLOAT_EXCEPTION;
+         }
+         if(pItem->val.fnum == INFINITY || pItem->val.fnum == -INFINITY) {
+            return QCBOR_ERR_FLOAT_EXCEPTION;
+         }
+         /* https://pubs.opengroup.org/onlinepubs/009695399/functions/llround.html
+          * http://www.cplusplus.com/reference/cmath/llround/
+          */
+         /* Not interested in FE_INEXACT */
+         feclearexcept(FE_INVALID|FE_OVERFLOW|FE_UNDERFLOW|FE_DIVBYZERO);
+         *pnValue = lroundf(pItem->val.fnum);
+         if(fetestexcept(FE_INVALID|FE_OVERFLOW|FE_UNDERFLOW|FE_DIVBYZERO)) {
+            /* llround() shouldn't result in divide by zero, but catch
+             * it here in case it unexpectedly does.  Don't try to
+             * distinguish between the various exceptions because it seems
+             * they vary by CPU, compiler and OS.
+             */
+            return QCBOR_ERR_FLOAT_EXCEPTION;
+         }
+         break;
+
+      case QCBOR_TYPE_DOUBLE:
+         if(!(uConvertTypes & QCBOR_CONVERT_TYPE_FLOAT)) {
+            return  QCBOR_ERR_UNEXPECTED_TYPE;
+         }
+         if(isnan(pItem->val.dfnum)) {
+            /* In some environments, llround() will succeed on NaN
+             * when it really shouldn't, so catch the error here. */
+            return QCBOR_ERR_FLOAT_EXCEPTION;
+         }
+         if(pItem->val.dfnum == INFINITY || pItem->val.dfnum == -INFINITY) {
+            return QCBOR_ERR_FLOAT_EXCEPTION;
+         }
+         /* https://pubs.opengroup.org/onlinepubs/009695399/functions/llround.html
+          * http://www.cplusplus.com/reference/cmath/llround/
+          */
+         /* Not interested in FE_INEXACT */
+         feclearexcept(FE_INVALID|FE_OVERFLOW|FE_UNDERFLOW|FE_DIVBYZERO);
+         *pnValue = llround(pItem->val.dfnum);
+         if(fetestexcept(FE_INVALID|FE_OVERFLOW|FE_UNDERFLOW|FE_DIVBYZERO)) {
+            /* llround() shouldn't result in divide by zero, but catch
+             * it here in case it unexpectedly does.  Don't try to
+             * distinguish between the various exceptions because it seems
+             * they vary by CPU, compiler and OS.
+             */
+            return QCBOR_ERR_FLOAT_EXCEPTION;
+         }
+         break;
+
+#else /* ! QCBOR_DISABLE_FLOAT_HW_USE */
+      case QCBOR_TYPE_FLOAT:
+      case QCBOR_TYPE_DOUBLE:
          return QCBOR_ERR_HW_FLOAT_DISABLED;
-#endif /* QCBOR_DISABLE_FLOAT_HW_USE */
+#endif /* ! QCBOR_DISABLE_FLOAT_HW_USE */
          break;
 
       case QCBOR_TYPE_INT64:

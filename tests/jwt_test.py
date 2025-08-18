@@ -643,7 +643,7 @@ def with_timeout(fn, timeout):
 
 def run_auto(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         test_jwt_mulitple_issuers_same_kids_different_pem(network, args)
@@ -667,7 +667,7 @@ def run_auto(args):
 
 def run_manual(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         test_jwt_key_initial_refresh(network, args)
@@ -681,7 +681,7 @@ def run_manual(args):
 
 def run_ca_cert(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         ca_certs.test_cert_store(network, args)
@@ -693,7 +693,7 @@ if __name__ == "__main__":
     cr.add(
         "auto",
         run_auto,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         jwt_key_refresh_interval_s=1,
         issuer_port=12345,
@@ -702,7 +702,7 @@ if __name__ == "__main__":
     cr.add(
         "manual",
         run_manual,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         jwt_key_refresh_interval_s=100000,
         issuer_port=12346,
@@ -711,7 +711,7 @@ if __name__ == "__main__":
     cr.add(
         "ca_cert",
         run_ca_cert,
-        package="samples/apps/logging/liblogging",
+        package="samples/apps/logging/logging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 

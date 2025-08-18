@@ -16,8 +16,9 @@ namespace ccf::pal
     return fmt::format("ccf_virtual_attestation.{}.{}", ::getpid(), suffix);
   };
 
-  static void emit_virtual_measurement(const std::string& package_path)
+  static void emit_virtual_measurement()
   {
+    const auto package_path = std::filesystem::canonical("/proc/self/exe");
     auto hasher = ccf::crypto::make_incremental_sha256();
     std::ifstream f(package_path, std::ios::binary | std::ios::ate);
     if (!f)

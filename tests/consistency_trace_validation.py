@@ -13,7 +13,7 @@ from loguru import logger as LOG
 
 def run(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         targets = [
@@ -51,7 +51,7 @@ def run(args):
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
-    args.package = "libjs_generic"
+    args.package = "js_generic"
     args.js_app_bundle = "../samples/apps/basic_tv/js/"
     args.nodes = infra.e2e_args.nodes(args, 3)
     # Long signature interval to maximise the chance of an InvalidStatus transaction

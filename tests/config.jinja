@@ -1,8 +1,4 @@
 {
-  "enclave": {
-    "type": "{{ enclave_type }}",
-    "platform": "{{ enclave_platform }}"
-  },
   "network": {
     "node_to_node_interface": { "bind_address": "{{ node_address }}", "published_address": "{{ published_node_address }}" },
     "rpc_interfaces": {{ rpc_interfaces|tojson }}
@@ -57,14 +53,13 @@
     "recover": {
       "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }},
       "previous_service_identity_file": "{{ previous_service_identity_file }}" {% if previous_sealed_ledger_secret_location %},
-        "previous_sealed_ledger_secret_location": "{{ previous_sealed_ledger_secret_location }}",
-      {% endif %} {% if self_healing_open_addresses %},
+        "previous_sealed_ledger_secret_location": "{{ previous_sealed_ledger_secret_location }}"{% endif %}{% if recovery_constitution_files %},
+      "constitution_files": {{ recovery_constitution_files|tojson }} {% endif %} {% if self_healing_open_addresses %},
       "self_healing_open_addresses" : [
         {% for address in self_healing_open_addresses %}
           "{{ address }}" {% if not loop.last %},{% endif %}
         {% endfor %}
-      ]
-      {% endif %}
+      ] {% endif %}
     }
   },
   "ledger":

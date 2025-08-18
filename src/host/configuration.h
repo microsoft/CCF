@@ -12,18 +12,6 @@
 
 namespace host
 {
-  enum class EnclaveType
-  {
-    RELEASE,
-    DEBUG,
-    VIRTUAL // Deprecated (use ccf::pal::Platform instead)
-  };
-  DECLARE_JSON_ENUM(
-    EnclaveType,
-    {{EnclaveType::RELEASE, "Release"},
-     {EnclaveType::DEBUG, "Debug"},
-     {EnclaveType::VIRTUAL, "Virtual"}});
-
   enum class LogFormat
   {
     TEXT,
@@ -52,17 +40,6 @@ namespace host
 
   struct CCHostConfig : public ccf::CCFConfig
   {
-    struct Enclave
-    {
-      std::string file;
-      EnclaveType type;
-      ccf::pal::Platform platform;
-
-      bool operator==(const Enclave&) const = default;
-    };
-    Enclave enclave = {};
-
-    // Other
     ccf::ds::TimeString tick_interval = {"10ms"};
     ccf::ds::TimeString slow_io_logging_threshold = {"10ms"};
     std::optional<std::string> node_client_interface = std::nullopt;
@@ -76,7 +53,7 @@ namespace host
     struct OutputFiles
     {
       std::string node_certificate_file = "nodecert.pem";
-      std::string pid_file = "cchost.pid";
+      std::string pid_file = "my_node.pid";
 
       // Addresses files
       std::string node_to_node_address_file = "";
@@ -141,6 +118,7 @@ namespace host
         std::string previous_service_identity_file;
         std::optional<std::string> previous_sealed_ledger_secret_location =
           std::nullopt;
+        std::vector<std::string> constitution_files = {};
         std::optional<std::vector<std::string>> self_healing_open_addresses =
           std::nullopt;
         ccf::ds::TimeString self_healing_open_retry_timeout = {"100ms"};
@@ -155,10 +133,6 @@ namespace host
     };
     Command command = {};
   };
-
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Enclave);
-  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Enclave, type, platform);
-  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Enclave, file);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::OutputFiles);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::OutputFiles);
@@ -204,6 +178,7 @@ namespace host
     initial_service_certificate_validity_days,
     previous_service_identity_file,
     previous_sealed_ledger_secret_location,
+    constitution_files,
     self_healing_open_addresses,
     self_healing_open_retry_timeout,
     self_healing_open_timeout);
@@ -214,7 +189,7 @@ namespace host
     CCHostConfig::Command, service_certificate_file, start, join, recover);
 
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, ccf::CCFConfig);
-  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave, command);
+  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, command);
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCHostConfig,
     tick_interval,
