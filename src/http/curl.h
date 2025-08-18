@@ -297,12 +297,12 @@ namespace ccf::curl
 
   private:
     UniqueCURL curl_handle;
-    RESTVerb method = HTTP_GET;
+    RESTVerb method;
     std::string url;
     ccf::curl::UniqueSlist headers;
-    std::unique_ptr<ccf::curl::RequestBody> request_body = nullptr;
+    std::unique_ptr<ccf::curl::RequestBody> request_body;
     std::unique_ptr<ccf::curl::Response> response;
-    std::optional<ResponseCallback> response_callback = std::nullopt;
+    std::optional<ResponseCallback> response_callback;
 
   public:
     CurlRequest(
@@ -523,12 +523,11 @@ namespace ccf::curl
   private:
     uv_loop_t* loop;
     uv_timer_t timeout_tracker{};
-    // utility class to enforce type safety on accesses to curl_multi wrapping a
-    // UniqueCURLM
     CurlRequestCURLM curl_request_curlm;
 
-    // We need a lock to prevent a client thread calling curl_multi_add_handle
-    // while the libuv thread is processing a curl callback
+    // We need a lock to prevent a client in another thread calling
+    // curl_multi_add_handle while the libuv thread is processing a curl
+    // callback
     //
     // Note that since the a client callback can call curl_multi_add_handle, but
     // that will be difficult/impossible to detect, we need curlm_lock to be
