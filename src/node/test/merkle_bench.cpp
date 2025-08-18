@@ -4,6 +4,8 @@
 #include "../history.h"
 
 #define FMT_HEADER_ONLY
+#include "ccf/crypto/openssl_init.h"
+
 #include <algorithm>
 #include <fmt/format.h>
 #include <picobench/picobench.hpp>

@@ -7,6 +7,7 @@
 
 #include "node/historical_queries.h"
 
+#include "ccf/crypto/openssl_init.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/pal/locking.h"
 #include "ccf/receipt.h"
