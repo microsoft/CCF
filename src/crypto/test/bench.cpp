@@ -6,6 +6,7 @@
 #include "ccf/crypto/hash_provider.h"
 #include "ccf/crypto/hmac.h"
 #include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/openssl_init.h"
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "crypto/openssl/base64.h"
