@@ -120,7 +120,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
+          cmake -GNinja -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
           ninja -v | tee build.log
 
       - name: "Test"
@@ -158,7 +158,7 @@ jobs:
 
           # Reset cmake config to affect cpack settings
           rm CMakeCache.txt
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DPACKAGING=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPACKAGING=ON ..
 
           cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
           cpack -V -G RPM
