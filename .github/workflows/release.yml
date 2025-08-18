@@ -203,7 +203,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pkg
-          path: build/${{ steps.make_rpm_run.outputs.name }}
+          path: build/${{ steps.make_rpm_devel.outputs.name }}
 
       - name: "Upload Compatibility Report"
         uses: actions/upload-artifact@v4
