@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 # Never include this from main CCF CMakeLists, it's meant to be a standalone
-# CMake thing for testing against CCF packages.
+# CMake file for testing against CCF packages.
 
 cmake_minimum_required(VERSION 3.21)
 
