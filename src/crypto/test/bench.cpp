@@ -15,6 +15,7 @@
 #include "crypto/openssl/rsa_key_pair.h"
 #include "crypto/sharing.h"
 
+#define PICOBENCH_UNIQUE_SYM_SUFFIX __COUNTER__
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 #include <picobench/picobench.hpp>
 
@@ -361,24 +362,52 @@ static void sha256_bench(picobench::state& s)
   ccf::crypto::openssl_sha256_shutdown();
 }
 
-PICOBENCH_SUITE("digest sha256");
-namespace SHA256_bench
+// Variant of the code above that uses the OpenSSL API
+// directly without any MD or CTX caching/pre-creation
+// for comparison. This is fine for larger inputs, but
+// substantially slower for smaller inputs, such as
+// digests in Merkle Trees.
+template <size_t size>
+static void sha256_noopt_bench(picobench::state& s)
 {
-  auto openssl_sha256_base = sha256_bench<2 << 6>;
-  PICOBENCH(openssl_sha256_base).PICO_HASH_SUFFIX();
+  std::vector<uint8_t> v(size);
+  for (size_t i = 0; i < size; ++i)
+  {
+    v[i] = rand();
+  }
 
-  auto openssl_sha256_8 = sha256_bench<2 << 8>;
-  PICOBENCH(openssl_sha256_8).PICO_HASH_SUFFIX();
+  std::vector<uint8_t> out(EVP_MD_size(EVP_sha256()));
 
-  auto openssl_sha256_12 = sha256_bench<2 << 12>;
-  PICOBENCH(openssl_sha256_12).PICO_HASH_SUFFIX();
-
-  auto openssl_sha256_16 = sha256_bench<2 << 16>;
-  PICOBENCH(openssl_sha256_16).PICO_HASH_SUFFIX();
-
-  auto openssl_sha256_18 = sha256_bench<2 << 18>;
-  PICOBENCH(openssl_sha256_18).PICO_HASH_SUFFIX();
+  s.start_timer();
+  for (size_t i = 0; i < 10; ++i)
+  {
+    auto* md = EVP_MD_fetch(nullptr, "SHA2-256", nullptr);
+    auto* ctx = EVP_MD_CTX_new();
+    EVP_DigestInit_ex(ctx, md, NULL);
+    EVP_DigestUpdate(ctx, v.data(), v.size());
+    EVP_DigestFinal_ex(ctx, out.data(), nullptr);
+    EVP_MD_free(md);
+    EVP_MD_CTX_free(ctx);
+  }
+  s.stop_timer();
 }
+
+#define DEFINE_SHA256_BENCH(SHIFT) \
+  PICOBENCH_SUITE("digest sha256 (2 << " #SHIFT ")"); \
+  namespace SHA256_bench_##SHIFT \
+  { \
+    auto openssl_sha256_##SHIFT##_no = sha256_noopt_bench<2 << SHIFT>; \
+    PICOBENCH(openssl_sha256_##SHIFT##_no).PICO_HASH_SUFFIX().baseline(); \
+    auto openssl_sha256_##SHIFT = sha256_bench<2 << SHIFT>; \
+    PICOBENCH(openssl_sha256_##SHIFT).PICO_HASH_SUFFIX(); \
+  }
+
+DEFINE_SHA256_BENCH(6)
+DEFINE_SHA256_BENCH(8)
+DEFINE_SHA256_BENCH(10)
+DEFINE_SHA256_BENCH(12)
+DEFINE_SHA256_BENCH(14)
+DEFINE_SHA256_BENCH(16)
 
 PICOBENCH_SUITE("base64");
 namespace Base64_bench
