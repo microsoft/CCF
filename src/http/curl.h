@@ -543,10 +543,11 @@ namespace ccf::curl
 
   public:
     // Stop all curl transfers and remove handles from libuv
+    // Cannot be safely called while the uv loop is running
     void stop()
     {
       std::lock_guard<std::recursive_mutex> lock(curlm_lock);
-      LOG_INFO_FMT("Stopping curl transfers and removing handles from libuv");
+      LOG_TRACE_FMT("Stopping curl transfers and removing handles from libuv");
       if (curl_request_curlm.get() == nullptr)
       {
         throw std::logic_error(
@@ -554,6 +555,7 @@ namespace ccf::curl
       }
       // Stop all curl easy handles
       {
+        // returns the handles as a null-terminated array
         CURL** easy_handles = curl_multi_get_handles(curl_request_curlm.get());
         for (int i = 0; easy_handles[i] != nullptr; ++i)
         {
@@ -570,7 +572,6 @@ namespace ccf::curl
                 "CURLMSG_DONE received with no associated request data");
             }
             std::unique_ptr<ccf::curl::CurlRequest> request_data_ptr(request);
-            curl_multi_remove_handle(curl_request_curlm.get(), easy);
             curl_easy_cleanup(easy);
           }
         }
@@ -579,7 +580,7 @@ namespace ccf::curl
         if (curlm != nullptr)
         {
           // calls socket callbacks to remove the handles from libuv
-          LOG_INFO_FMT("Cleaning up CURLM handle");
+          LOG_TRACE_FMT("Cleaning up CURLM handle");
           curl_multi_cleanup(curlm);
         }
       }
