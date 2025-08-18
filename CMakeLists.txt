@@ -120,7 +120,7 @@ option(USE_SNMALLOC "Link against snmalloc" ON)
 if(USE_SNMALLOC)
   set(SNMALLOC_BUILD_TESTING OFF)
   set(SNMALLOC_STATIC_LIBRARY_PREFIX "")
-  add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
+  add_subdirectory(3rdparty/internal/snmalloc EXCLUDE_FROM_ALL)
 endif()
 
 # Useful for debugging with libc++ hardening options
