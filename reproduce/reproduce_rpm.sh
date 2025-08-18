@@ -25,37 +25,17 @@ install_deps() {
 build_pkg() {
   mkdir -p /tmp/reproduced
   mkdir -p build && cd build
-  echo "Reproducing devel package..."
+  echo "Reproducing CCF package..."
   cmake -G Ninja -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
   ninja -v
+  rm CMakeCache.txt
+  cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DPACKAGING=ON ..
   cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
   cpack -V -G RPM
-  for f in *.rpm; do
-    if [[ "$f" == *devel* ]]; then
-      D_INITIAL_PKG="$f"
-      break
-    fi
-  done
+  D_INITIAL_PKG=`ls *.rpm`
   D_FINAL_PKG=${D_INITIAL_PKG//\~/_}
   if [ "$D_INITIAL_PKG" != "$D_FINAL_PKG" ]; then mv "$D_INITIAL_PKG" "$D_FINAL_PKG"; fi
   cp -v $D_FINAL_PKG /tmp/reproduced || true
-
-  echo "Reproducing run package..."
-  # Reset cmake config to affect cpack settings
-  rm CMakeCache.txt
-  cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCCF_DEVEL=OFF ..
-  cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
-  cpack -V -G RPM
-  for f in *.rpm; do
-    if [[ "$f" != *devel* ]]; then
-      INITIAL_PKG="$f"
-      break
-    fi
-  done
-  FINAL_PKG=${INITIAL_PKG//\~/_}
-  if [ "$INITIAL_PKG" != "$FINAL_PKG" ]; then mv "$INITIAL_PKG" "$FINAL_PKG"; fi
-  cp -v $FINAL_PKG /tmp/reproduced || true
-
 }
 
 if [ "$#" -ne 1 ]; then

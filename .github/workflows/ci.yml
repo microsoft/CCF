@@ -82,7 +82,6 @@ jobs:
         shell: bash
 
   ensure-snmalloc:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: "Ensure using snmalloc"
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:

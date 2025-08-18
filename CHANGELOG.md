@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Application logging no longer traverses the ringbuffer. As current target platforms do not require distinct enclave and host components, what was previously "in-enclave" logging that was deferred via the ringbuffer can now be immediately sent to stdout.
 - CA certificates issued by CCF (ie - `service_cert.pem`) now include a `keyUsage` extension, to comply with RFC5280 (#7134).
 
+### Removed
+
+- CCF no longer publishes a "run" package (cchost + runtime dependencies). Instead, only the -devel package is published, which has to be used by CCF application developers. CCF also provides ccfapp CPack settings to pull in all CCF runtime dependencies. Check [Packaging your C++ app](https://microsoft.github.io/CCF/main/build_apps/get_started.html#packaging-your-c-app) for documentation (#7187).
+
 ### Dependencies
 
 - Updated snmalloc to 0.7.1.
