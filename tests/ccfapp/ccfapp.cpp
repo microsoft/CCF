@@ -20,8 +20,5 @@ namespace ccf
 
 int main()
 {
-  std::cout
-    << "I'm a CCF test app " << ccf::ccf_version
-    << ", I won't kick off anything, but this output is a good sign, hehehe"
-    << std::endl;
+  std::cout << "I'm a CCF test app " << ccf::ccf_version << std::endl;
 }

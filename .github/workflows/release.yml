@@ -320,7 +320,7 @@ jobs:
           CC=clang CXX=clang++ cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
           ninja -v
           ./ccfapp > out.txt
-          grep "good sign" out.txt
+          grep "I'm a CCF test app" out.txt
           /opt/ccf/bin/ensure-snmalloc.sh ccfapp
 
   reproduce_rpm:

@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Removed
 
-- CCF no longer publishes a "run" package (cchost + runtime dependencies). Instead, only the -devel package is published, which has to be used by CCF application developers. CCF also provides ccfapp CPack settings to pull in all CCF runtime dependencies (#7187).
+- CCF no longer publishes a "run" package (cchost + runtime dependencies). Instead, only the -devel package is published, which has to be used by CCF application developers. CCF also provides ccfapp CPack settings to pull in all CCF runtime dependencies. Check [Packaging your C++ app](https://microsoft.github.io/CCF/main/build_apps/get_started.html#packaging-your-c-app) for documentation (#7187).
 
 ### Dependencies
 
