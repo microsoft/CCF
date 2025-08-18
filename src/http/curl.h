@@ -301,7 +301,7 @@ namespace ccf::curl
     std::string url;
     ccf::curl::UniqueSlist headers;
     std::unique_ptr<ccf::curl::RequestBody> request_body = nullptr;
-    ccf::curl::Response response;
+    std::unique_ptr<ccf::curl::Response> response;
     std::optional<ResponseCallback> response_callback = std::nullopt;
 
   public:
@@ -311,12 +311,16 @@ namespace ccf::curl
       std::string&& url_,
       UniqueSlist&& headers_,
       std::unique_ptr<RequestBody>&& request_body_,
-      std::optional<ResponseCallback>&& response_callback_) :
+      std::optional<ResponseCallback>&& response_callback_,
+      std::unique_ptr<ccf::curl::Response>&& _response = nullptr) :
       curl_handle(std::move(curl_handle_)),
       method(method_),
       url(std::move(url_)),
       headers(std::move(headers_)),
       request_body(std::move(request_body_)),
+      response(
+        _response != nullptr ? std::move(_response) :
+                               std::make_unique<Response>()),
       response_callback(std::move(response_callback_))
     {
       if (url.empty())
@@ -330,6 +334,7 @@ namespace ccf::curl
         throw std::logic_error(
           fmt::format("Unsupported HTTP method: {}", method.c_str()));
       }
+
       switch (method.get_http_method().value())
       {
         case HTTP_GET:
@@ -365,7 +370,7 @@ namespace ccf::curl
         request_body->attach_to_curl(curl_handle);
       }
 
-      response.attach_to_curl(curl_handle);
+      response->attach_to_curl(curl_handle);
 
       if (headers.get() != nullptr)
       {
@@ -415,7 +420,12 @@ namespace ccf::curl
       return url;
     }
 
-    [[nodiscard]] ccf::curl::Response& get_response()
+    [[nodiscard]] ccf::curl::Response* get_response()
+    {
+      return response.get();
+    }
+
+    [[nodiscard]] std::unique_ptr<Response>& get_response_ptr()
     {
       return response;
     }
