@@ -10,25 +10,140 @@
 #include <map>
 #include <optional>
 #include <string_view>
+#include <cctype>
+
+namespace ccf::http
+{
+  // Simple URL decoding function
+  static std::string url_decode(const std::string_view& s_)
+  {
+    std::string s(s_);
+    char const* src = s.c_str();
+    char const* end = s.c_str() + s.size();
+    char* dst = s.data();
+
+    while (src < end)
+    {
+      char const c = *src++;
+      if (c == '%' && (src + 1) < end && std::isxdigit(src[0]) && std::isxdigit(src[1]))
+      {
+        // Convert hex chars to int
+        auto hex_char_to_int = [](char c) -> int {
+          if (c >= '0' && c <= '9') return c - '0';
+          if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+          if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+          return 0;
+        };
+        const auto a = hex_char_to_int(*src++);
+        const auto b = hex_char_to_int(*src++);
+        *dst++ = (a << 4) | b;
+      }
+      else if (c == '+')
+      {
+        *dst++ = ' ';
+      }
+      else
+      {
+        *dst++ = c;
+      }
+    }
+
+    s.resize(dst - s.data());
+    return s;
+  }
 
 namespace ccf::http
 {
   // Query is parsed into a multimap, so that duplicate keys are retained.
   // Handling of duplicates (or ignoring them entirely) is left to the caller.
-  // Keys and values are both string_views, pointing at subranges of original
-  // query string.
-  using ParsedQuery = std::multimap<std::string_view, std::string_view>;
+  // Keys and values are URL-decoded strings.
+  using ParsedQuery = std::multimap<std::string, std::string>;
 
   static ParsedQuery parse_query(const std::string_view& query)
   {
     ParsedQuery parsed;
-    const auto params = ccf::nonstd::split(query, "&");
+    
+    // Find parameter boundaries by looking for unescaped '&' characters
+    std::vector<std::string_view> params;
+    size_t start = 0;
+    size_t pos = 0;
+    
+    while (pos < query.length())
+    {
+      if (query[pos] == '%' && pos + 2 < query.length() && 
+          std::isxdigit(query[pos + 1]) && std::isxdigit(query[pos + 2]))
+      {
+        // Skip URL-encoded sequence
+        pos += 3;
+      }
+      else if (query[pos] == '&')
+      {
+        // Found parameter separator
+        if (pos > start)
+        {
+          params.push_back(query.substr(start, pos - start));
+        }
+        start = pos + 1;
+        pos = start;
+      }
+      else
+      {
+        pos++;
+      }
+    }
+    
+    // Add the last parameter
+    if (start < query.length())
+    {
+      params.push_back(query.substr(start));
+    }
+    
+    // Parse each parameter 
     for (const auto& param : params)
     {
-      // NB: This means both `foo=` and `foo` will be accepted and result in a
-      // `{"foo": ""}` in the map
-      const auto& [key, value] = ccf::nonstd::split_1(param, "=");
-      parsed.emplace(key, value);
+      if (param.empty()) continue;
+      
+      // Find the first unescaped '=' character
+      size_t eq_pos = std::string_view::npos;
+      size_t i = 0;
+      while (i < param.length())
+      {
+        if (param[i] == '%' && i + 2 < param.length() &&
+            std::isxdigit(param[i + 1]) && std::isxdigit(param[i + 2]))
+        {
+          // Skip URL-encoded sequence
+          i += 3;
+        }
+        else if (param[i] == '=' && eq_pos == std::string_view::npos)
+        {
+          // Found the first unescaped equals sign
+          eq_pos = i;
+          break;
+        }
+        else
+        {
+          i++;
+        }
+      }
+      
+      std::string_view encoded_key, encoded_value;
+      if (eq_pos != std::string_view::npos)
+      {
+        encoded_key = param.substr(0, eq_pos);
+        encoded_value = param.substr(eq_pos + 1);
+      }
+      else
+      {
+        // No '=' found, treat entire param as key with empty value
+        encoded_key = param;
+        encoded_value = "";
+      }
+      
+      // URL-decode the key and value
+      std::string decoded_key = url_decode(encoded_key);
+      std::string decoded_value = url_decode(encoded_value);
+      
+      parsed.emplace(std::move(decoded_key), std::move(decoded_value));
     }
 
     return parsed;
@@ -41,7 +156,9 @@ namespace ccf::http
     T& val,
     std::string& error_reason)
   {
-    const auto it = pq.find(param_key);
+    // Convert string_view to string for map lookup
+    std::string key_str(param_key);
+    const auto it = pq.find(key_str);
 
     if (it == pq.end())
     {
@@ -49,11 +166,11 @@ namespace ccf::http
       return false;
     }
 
-    const std::string_view& param_val = it->second;
+    const std::string& param_val = it->second;
 
     if constexpr (std::is_same_v<T, std::string>)
     {
-      val = T(param_val);
+      val = param_val;
       return true;
     }
     else if constexpr (std::is_same_v<T, bool>)

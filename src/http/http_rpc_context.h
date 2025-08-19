@@ -112,7 +112,7 @@ namespace http
       const auto [path_, query_, fragment_] = split_url_path(url);
       path = path_;
       whole_path = path_;
-      query = url_decode(query_);
+      query = query_; // Store raw query without URL decoding
       fragment = url_decode(fragment_);
 
       if (!serialised_request.empty())
