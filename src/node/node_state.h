@@ -2090,6 +2090,24 @@ namespace ccf
           LOG_TRACE_FMT(
             "Self-healing-open timeout, sending timeout to internal handlers");
 
+          // Stop the timer if the node has completed its self-healing-open
+          auto tx = msg->data.self.network.tables->create_read_only_tx();
+          auto* sm_state_handle =
+            tx.ro(msg->data.self.network.self_healing_open_sm_state);
+          if (!sm_state_handle->get().has_value())
+          {
+            throw std::logic_error(
+              "Self-healing-open state not set, cannot retry "
+              "self-healing-open");
+          }
+          auto sm_state = sm_state_handle->get().value();
+          if (sm_state == SelfHealingOpenSM::OPEN)
+          {
+            LOG_INFO_FMT("Self-healing-open complete, stopping timers.");
+            return;
+          }
+
+          // Send a timeout to the internal handlers
           curl::UniqueCURL curl_handle;
 
           auto cert = msg->data.self.self_signed_node_cert;
@@ -2173,6 +2191,7 @@ namespace ccf
         }
       }
 
+      // Advance self-healing-open SM
       switch (sm_state_handle->get().value())
       {
         case SelfHealingOpenSM::GOSSIPPING:
@@ -2188,21 +2207,20 @@ namespace ccf
               throw std::logic_error("No gossip addresses provided yet");
             }
 
-            std::optional<std::pair<std::string, ccf::kv::Version>> min_iid;
-            gossip_handle->foreach(
-              [&min_iid](const auto& iid, const auto& txid) {
-                if (
-                  !min_iid.has_value() || min_iid->second < txid ||
-                  (min_iid->second == txid && min_iid->first > iid))
-                {
-                  min_iid = std::make_pair(iid, txid);
-                }
-                return true;
-              });
+            // Lexographically maximum <txid, iid> pair
+            std::optional<std::pair<ccf::kv::Version, std::string>> maximum;
+            gossip_handle->foreach([&maximum](
+                                     const auto& iid, const auto& txid) {
+              if (!maximum.has_value() || maximum.value() < std::tie(txid, iid))
+              {
+                maximum = std::make_pair(iid, txid);
+              }
+              return true;
+            });
 
             auto* chosen_replica =
               tx.rw(network.self_healing_open_chosen_replica);
-            chosen_replica->put(min_iid->first);
+            chosen_replica->put(maximum->second);
             sm_state_handle->put(SelfHealingOpenSM::VOTING);
           }
           return;
@@ -2223,7 +2241,23 @@ namespace ccf
             }
             LOG_INFO_FMT("Self-healing-open succeeded, now opening network");
 
-            sm_state_handle->put(SelfHealingOpenSM::OPENING);
+            auto* service = tx.ro<Service>(Tables::SERVICE);
+            auto service_info = service->get();
+            if (!service_info.has_value())
+            {
+              throw std::logic_error(
+                "Service information cannot be found to transition service to "
+                "open");
+            }
+            const auto prev_ident =
+              tx.ro<PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
+                ->get();
+            AbstractGovernanceEffects::ServiceIdentities identities{
+              .previous = prev_ident, .next = service_info->cert};
+
+            sm_state_handle->put(SelfHealingOpenSM::OPEN);
+
+            transition_service_to_open(tx, identities);
           }
           return;
         }
@@ -2258,28 +2292,9 @@ namespace ccf
         }
         case SelfHealingOpenSM::OPENING:
         {
-          // TODO: Add fast path if enough replicas have joined already
-          // THIS IS POSSIBLY DANGEROUS as these joining replicas are not signed
-          // off...
           if (valid_timeout)
           {
-            auto* service = tx.ro<Service>(Tables::SERVICE);
-            auto service_info = service->get();
-            if (!service_info.has_value())
-            {
-              throw std::logic_error(
-                "Service information cannot be found to transition service to "
-                "open");
-            }
-            const auto prev_ident =
-              tx.ro<PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
-                ->get();
-            AbstractGovernanceEffects::ServiceIdentities identities{
-              .previous = prev_ident, .next = service_info->cert};
-
             sm_state_handle->put(SelfHealingOpenSM::OPEN);
-
-            transition_service_to_open(tx, identities);
           }
         }
         case SelfHealingOpenSM::OPEN:
