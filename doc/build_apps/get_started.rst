@@ -95,7 +95,7 @@ Please check `run ccf-app-template using docker <https://github.com/microsoft/cc
 Packaging your C++ app
 ~~~~~~~~~~~~~~~~~~~~~~
 
-To create distributable packages for your CCF application, create a ``cpack.cmake`` file that includes CCF's packaging configuration and add it to your ``CMakeLists.txt``. See :ref:`tests/ccfapp/CMakeLists.txt <build_apps/ccfapp_example:CMakeLists.txt>` and :ref:`tests/ccfapp/cpack.cmake <build_apps/ccfapp_example:cpack.cmake>` for a complete working example.
+To create distributable packages for your CCF application, create a ``cpack.cmake`` file that includes CCF's packaging configuration and add it to your ``CMakeLists.txt``. See :ccf_repo:`tests/ccfapp/CMakeLists.txt` and :ccf_repo:`tests/ccfapp/cpack.cmake` for a complete working example.
 
 Network Governance
 ------------------
