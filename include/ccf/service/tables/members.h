@@ -70,7 +70,7 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewMember)
   DECLARE_JSON_REQUIRED_FIELDS(NewMember, cert)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    NewMember, encryption_pub_key, member_data, recovery_role)
+    NewMember, encryption_pub_key, member_data, recovery_role);
 
   struct MemberDetails
   {
