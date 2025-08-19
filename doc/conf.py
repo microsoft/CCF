@@ -307,14 +307,14 @@ def typedoc_role(
 ):
     """
     Supported syntaxes:
-    :typedoc:package:`ccf-app`
-    :typedoc:module:`ccf-app/global`
-    :typedoc:function:`ccf-app/crypto#wrapKey`
-    :typedoc:interface:`ccf-app/endpoints/Body`
-    :typedoc:class:`ccf-app/kv/TypedKvMap`
-    :typedoc:classmethod:`ccf-app/kv/TypedKvMap#delete`
-    :typedoc:interfacemethod:`ccf-app/endpoints/Body#json`
-    :typedoc:interface:`Body <ccf-app/endpoints/Body>`
+    :typedoc-package:`ccf-app`
+    :typedoc-module:`ccf-app/global`
+    :typedoc-function:`ccf-app/crypto#wrapKey`
+    :typedoc-interface:`ccf-app/endpoints/Body`
+    :typedoc-class:`ccf-app/kv/TypedKvMap`
+    :typedoc-classmethod:`ccf-app/kv/TypedKvMap#delete`
+    :typedoc-interfacemethod:`ccf-app/endpoints/Body#json`
+    :typedoc-interface:`Body <ccf-app/endpoints/Body>`
     """
     # check for custom label
     if "<" in text:
@@ -329,7 +329,7 @@ def typedoc_role(
 
     # translate role kind into typedoc subfolder
     # and add '()' for functions/methods
-    kind_name = name.replace("typedoc:", "")
+    kind_name = name.replace("typedoc-", "")
     is_kind_package = False
     if kind_name == "package":
         is_kind_package = True
@@ -454,7 +454,7 @@ def config_inited(app, config):
             "interfacemethod",
             "classmethod",
         ]:
-            app.add_role(f"typedoc:{kind}", typedoc_role)
+            app.add_role(f"typedoc-{kind}", typedoc_role)
 
 
 def setup(app):

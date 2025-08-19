@@ -124,7 +124,7 @@ JavaScript provides a set of built-in
 `global functions, objects, and values <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects>`_.
 
 CCF provides the additional global variable ``ccf`` to access native CCF functionality.
-It is an object implementing the :typedoc:interface:`CCF <ccf-app/global/CCF>` interface.
+It is an object implementing the :typedoc-interface:`CCF <ccf-app/global/CCF>` interface.
 
 .. note::
   `Web APIs <https://developer.mozilla.org/en-US/docs/Web/API>`_ are not available.
@@ -132,7 +132,7 @@ It is an object implementing the :typedoc:interface:`CCF <ccf-app/global/CCF>` i
 Endpoint handlers
 ~~~~~~~~~~~~~~~~~
 
-An endpoint handler is an exported function that receives a :typedoc:interface:`Request <ccf-app/endpoints/Request>` object, returns a :typedoc:interface:`Response <ccf-app/endpoints/Response>` object, and is referenced in the ``app.json`` file of the app bundle (see above).
+An endpoint handler is an exported function that receives a :typedoc-interface:`Request <ccf-app/endpoints/Request>` object, returns a :typedoc-interface:`Response <ccf-app/endpoints/Response>` object, and is referenced in the ``app.json`` file of the app bundle (see above).
 
 See the following handler from the example app bundle in the :ccf_repo:`tests/js-app-bundle/` folder of the CCF git repository. It validates the request body and returns the result of a mathematical operation:
 
