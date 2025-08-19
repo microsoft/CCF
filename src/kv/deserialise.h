@@ -22,7 +22,6 @@ namespace ccf::kv
       bool public_only,
       ccf::kv::Version& v,
       ccf::kv::Term& view,
-      ccf::kv::EntryFlags& entry_flags,
       ccf::kv::OrderedChanges& changes,
       ccf::kv::MapCollection& new_maps,
       ccf::ClaimsDigest& claims_digest,
@@ -48,7 +47,6 @@ namespace ccf::kv
     bool public_only;
     ccf::kv::Version version;
     Term term;
-    EntryFlags entry_flags;
     OrderedChanges changes;
     MapCollection new_maps;
     ccf::kv::ConsensusHookPtrs hooks;
@@ -91,7 +89,6 @@ namespace ccf::kv
             public_only,
             version,
             term,
-            entry_flags,
             changes,
             new_maps,
             claims_digest,
@@ -181,16 +178,6 @@ namespace ccf::kv
       if (chunker)
       {
         chunker->append_entry_size(data.size());
-
-        if (entry_flags & ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE)
-        {
-          chunker->produced_chunk_at(version - 1);
-        }
-
-        if (entry_flags & ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER)
-        {
-          chunker->produced_chunk_at(version);
-        }
       }
 
       return success;

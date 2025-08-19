@@ -300,7 +300,6 @@ namespace ccf::kv
       const uint8_t* data,
       size_t size,
       ccf::kv::Term& term,
-      EntryFlags& flags,
       bool historical_hint = false)
     {
       current_reader = &public_reader;
@@ -309,8 +308,6 @@ namespace ccf::kv
 
       const auto tx_header =
         serialized::read<SerialisedEntryHeader>(data_, size_);
-
-      flags = static_cast<EntryFlags>(tx_header.flags);
 
       if (tx_header.size != size_)
       {
