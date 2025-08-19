@@ -155,30 +155,14 @@ jobs:
           set -ex
           set -o pipefail
           cd build
-          cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
-          cpack -V -G RPM
-          INITIAL_PKG=`ls *devel*.rpm`
-          CCF_GITHUB_PKG=${INITIAL_PKG//\~/_}
-          if [[ "$INITIAL_PKG" != "$CCF_GITHUB_PKG" ]]; then
-            mv $INITIAL_PKG $CCF_GITHUB_PKG
-          fi
-          echo "name=$CCF_GITHUB_PKG" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: "Make .rpm (run) Package"
-        id: make_rpm_run
-        run: |
-          set -ex
-          set -o pipefail
-          cd build
 
           # Reset cmake config to affect cpack settings
           rm CMakeCache.txt
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCCF_DEVEL=OFF ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DPACKAGING=ON ..
 
           cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
           cpack -V -G RPM
-          INITIAL_PKG=`ls *.rpm | grep -v devel`
+          INITIAL_PKG=`ls *devel*.rpm`
           CCF_GITHUB_PKG=${INITIAL_PKG//\~/_}
           if [[ "$INITIAL_PKG" != "$CCF_GITHUB_PKG" ]]; then
             mv $INITIAL_PKG $CCF_GITHUB_PKG
@@ -219,12 +203,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pkg
-          path: build/${{ steps.make_rpm_run.outputs.name }}
-
-      - name: "Upload -devel.rpm Package"
-        uses: actions/upload-artifact@v4
-        with:
-          name: pkg-devel
           path: build/${{ steps.make_rpm_devel.outputs.name }}
 
       - name: "Upload Compatibility Report"
@@ -302,6 +280,49 @@ jobs:
           name: reproduce-metadata
           path: reproduce.json
 
+  test_rpm_against_app:
+    name: "Test building against CCF package"
+    needs: build_release
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          set -ex
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Download RPM
+        uses: actions/download-artifact@v5
+        with:
+          path: DOWNLOAD_DIR
+          pattern: pkg
+          merge-multiple: true
+
+      - name: Test against RPM
+        shell: bash
+        run: |
+          set -ex
+          PKG=`ls DOWNLOAD_DIR/*.rpm`
+          tdnf -y install $PKG
+          cd tests/ccfapp
+          mkdir -p build
+          cd build
+          CC=clang CXX=clang++ cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
+          ninja -v
+          ./ccfapp > out.txt
+          grep "I'm a CCF test app" out.txt
+          /opt/ccf/bin/ensure-snmalloc.sh ccfapp
+
   reproduce_rpm:
     name: Test Reproducibility
     needs:
@@ -328,7 +349,7 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           path: DOWNLOAD_DIR
-          pattern: pkg*
+          pattern: pkg
           merge-multiple: true
       - name: Download Reproducibility Metadata
         uses: actions/download-artifact@v5
@@ -344,8 +365,8 @@ jobs:
           tdnf install --snapshottime=${{ needs.build_release.outputs.SOURCE_DATE_EPOCH }} -y jq
           git config --global --add safe.directory /__w/CCF/CCF
           ./reproduce/reproduce_rpm.sh repro/reproduce.json
-          RPM_NAMES=$(ls "$REPRO_DIR" || true)
-          if [ -z "$RPM_NAMES" ]; then
+          RPM_NAME=$(ls "$REPRO_DIR" || true)
+          if [ -z "$RPM_NAME" ]; then
             echo "ERROR: No reproduced package found in $REPRO_DIR"
             exit 1
           fi
@@ -354,9 +375,8 @@ jobs:
         shell: bash
         run: |
           set -ex
-          for pkg in "$REPRO_DIR"/*; do
-            cmp "$pkg" "DOWNLOAD_DIR/$(basename "$pkg")"
-          done
+          PKG=`ls "$REPRO_DIR"/*.rpm`
+          cmp "$PKG" "DOWNLOAD_DIR/$(basename "$PKG")"
       - name: Upload Non-Reproduced Package
         if: failure()
         uses: actions/upload-artifact@v4
