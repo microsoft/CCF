@@ -5,7 +5,6 @@
 
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/pem.h"
-#include "ccf/ds/json.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/unit_strings.h"
 #include "ccf/node/startup_config.h"
@@ -126,12 +125,11 @@ namespace ccf
     service_cert,
     follow_redirect);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(StartupConfig::Recover);
+  DECLARE_JSON_TYPE(StartupConfig::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(
     StartupConfig::Recover,
     previous_service_identity,
     previous_sealed_ledger_secret_location);
-  DECLARE_JSON_OPTIONAL_FIELDS(StartupConfig::Recover, constitution);
 
   DECLARE_JSON_TYPE_WITH_BASE(StartupConfig, CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(
