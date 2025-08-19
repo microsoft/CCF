@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "host/ledger.h"
 
+#include "ccf/crypto/openssl_init.h"
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/logger.h"
 #include "crypto/openssl/hash.h"

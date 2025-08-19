@@ -3,6 +3,7 @@
 
 #include "ccf/run.h"
 
+#include "ccf/crypto/openssl_init.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
@@ -1013,21 +1014,23 @@ namespace ccf
 
     process_launcher.stop();
 
-    // Continue running the loop long enough for the on_close
-    // callbacks to be despatched, so as to avoid memory being
-    // leaked by handles. Capped out of abundance of caution.
-    constexpr size_t max_iterations = 1000;
-    size_t close_iterations = max_iterations;
-    while ((uv_loop_alive(uv_default_loop()) != 0) && (close_iterations > 0))
+    constexpr size_t max_close_iterations = 1000;
+    size_t close_iterations = max_close_iterations;
+    int loop_close_rc = 0;
+    while (close_iterations > 0)
     {
+      loop_close_rc = uv_loop_close(uv_default_loop());
+      if (loop_close_rc != UV_EBUSY)
+      {
+        break;
+      }
       uv_run(uv_default_loop(), UV_RUN_NOWAIT);
-      close_iterations--;
+      --close_iterations;
+      std::this_thread::sleep_for(10ms);
     }
     LOG_INFO_FMT(
       "Ran an extra {} cleanup iteration(s)",
-      max_iterations - close_iterations);
-
-    auto loop_close_rc = uv_loop_close(uv_default_loop());
+      max_close_iterations - close_iterations);
     if (loop_close_rc != 0)
     {
       LOG_FAIL_FMT(

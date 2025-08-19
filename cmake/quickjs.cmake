@@ -38,10 +38,8 @@ target_include_directories(
                  $<INSTALL_INTERFACE:include/3rdparty/quickjs>
 )
 
-if(CCF_DEVEL)
-  install(
-    TARGETS quickjs
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
+install(
+  TARGETS quickjs
+  EXPORT ccf
+  DESTINATION lib
+)

@@ -126,8 +126,7 @@ Once a CCF network is successfully started and an acceptable number of nodes hav
 Virtual Mode
 ------------
 
-To run a CCF node on a system without hardware TEE support, or to debug an application, a ``virtual`` enclave should be used.
-To start a CCF node in ``virtual`` mode, the JSON configuration file should specify ``enclave.type`` as ``"virtual"``.
+CCF will run in virtual mode if no SEV-SNP hardware is detected :ref:`operations/platforms/virtual:Insecure Virtual`.
 
 .. warning:: Nodes started in virtual mode provide no security guarantees. They should never be used for production purposes.
 

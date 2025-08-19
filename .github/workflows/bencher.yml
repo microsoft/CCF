@@ -23,7 +23,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -71,7 +71,7 @@ jobs:
     name: Benchmark SNP
     runs-on: [self-hosted, 1ES.Pool=gha-c-aci-ci]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
