@@ -78,11 +78,8 @@ namespace ccf::http
       }
       else if (query[pos] == '&')
       {
-        // Found parameter separator
-        if (pos > start)
-        {
-          params.push_back(query.substr(start, pos - start));
-        }
+        // Found parameter separator - always add the parameter, even if empty
+        params.push_back(query.substr(start, pos - start));
         start = pos + 1;
         pos = start;
       }
@@ -93,7 +90,7 @@ namespace ccf::http
     }
     
     // Add the last parameter
-    if (start < query.length())
+    if (start <= query.length())  // Use <= instead of < to handle trailing &
     {
       params.push_back(query.substr(start));
     }
@@ -101,7 +98,7 @@ namespace ccf::http
     // Parse each parameter 
     for (const auto& param : params)
     {
-      if (param.empty()) continue;
+      // Don't skip empty params - they should create entries with empty keys
       
       // Find the first unescaped '=' character
       size_t eq_pos = std::string_view::npos;
