@@ -12,45 +12,7 @@
 #include <string_view>
 #include <cctype>
 
-namespace ccf::http
-{
-  // Simple URL decoding function
-  static std::string url_decode(const std::string_view& s_)
-  {
-    std::string s(s_);
-    char const* src = s.c_str();
-    char const* end = s.c_str() + s.size();
-    char* dst = s.data();
-
-    while (src < end)
-    {
-      char const c = *src++;
-      if (c == '%' && (src + 1) < end && std::isxdigit(src[0]) && std::isxdigit(src[1]))
-      {
-        // Convert hex chars to int
-        auto hex_char_to_int = [](char c) -> int {
-          if (c >= '0' && c <= '9') return c - '0';
-          if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-          if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-          return 0;
-        };
-        const auto a = hex_char_to_int(*src++);
-        const auto b = hex_char_to_int(*src++);
-        *dst++ = (a << 4) | b;
-      }
-      else if (c == '+')
-      {
-        *dst++ = ' ';
-      }
-      else
-      {
-        *dst++ = c;
-      }
-    }
-
-    s.resize(dst - s.data());
-    return s;
-  }
+#include "http/http_parser.h"
 
 namespace ccf::http
 {
@@ -137,8 +99,8 @@ namespace ccf::http
       }
       
       // URL-decode the key and value
-      std::string decoded_key = url_decode(encoded_key);
-      std::string decoded_value = url_decode(encoded_value);
+      std::string decoded_key = http::url_decode(encoded_key);
+      std::string decoded_value = http::url_decode(encoded_value);
       
       parsed.emplace(std::move(decoded_key), std::move(decoded_value));
     }
