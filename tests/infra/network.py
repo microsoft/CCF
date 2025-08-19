@@ -767,6 +767,7 @@ class Network:
         common_dir=None,
         set_authenticate_session=None,
         start_all_nodes=True,
+        timeout=10,
         **kwargs,
     ):
         self.common_dir = common_dir or get_common_folder_name(
@@ -833,7 +834,9 @@ class Network:
         self.observed_election_duration = self.election_duration + 1
 
         for i, node in enumerate(self.nodes):
-          while True:
+          end_time = time.time() + timeout
+          success = False
+          while time.time() < end_time:
             try:
               self.wait_for_states(
                   node,
@@ -841,9 +844,12 @@ class Network:
                   timeout=args.ledger_recovery_timeout,
                   verify_ca=False, # Certs are volatile until the recovery is complete
               )
+              success = True
               break
             except CCFConnectionException:
               time.sleep(0.1)
+          if not success:
+            raise TimeoutError(f"Failed to get state of node {node.local_node_id} after {timeout} seconds")
 
         LOG.info("All nodes started")
 

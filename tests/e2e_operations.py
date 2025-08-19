@@ -1424,7 +1424,6 @@ def run_self_healing_open(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
     ) as network:
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
@@ -1446,7 +1445,6 @@ def run_self_healing_open(args):
             recovery_args.nodes,
             recovery_args.binary_dir,
             recovery_args.debug_nodes,
-            recovery_args.perf_nodes,
             existing_network=network,
         )
         recovered_network.start_in_self_healing_open(
@@ -1474,18 +1472,31 @@ def run_self_healing_open(args):
             LOG.info(f"Failed to get the status of {node.local_node_id}, retrying...")
             continue
 
+        # Refresh the the declared state of nodes which have shut themselves down to join.
+        for node in recovered_network.nodes:
+          node.refresh_network_state(verify_ca=False)
+
         recovered_network.refresh_service_identity_file(recovery_args)
 
         recovered_network.consortium.recover_with_shares(recovered_network.find_random_node())
 
-        # Wait for all replicas to report being part of the opened network
-        for node in recovered_network.nodes:
-            recovered_network.wait_for_status(
-                node,
-                "Open",
-                timeout=10,
-            )
-            recovered_network._wait_for_app_open(node)
+        LOG.info("Submitted recovery shares")
+
+        # Wait for all live replicas to report being part of the opened network
+        successfully_opened = 0
+        for node in recovered_network.get_joined_nodes():
+            try: 
+              recovered_network.wait_for_status(
+                  node,
+                  "Open",
+                  timeout=10,
+              )
+              recovered_network._wait_for_app_open(node)
+              successfully_opened += 1
+            except TimeoutError as e:
+              pass
+
+        assert successfully_opened == 1
 
         LOG.info("Completed self-healing open successfully")
 
@@ -1497,7 +1508,6 @@ def run_self_healing_open_single_replica(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
-        args.perf_nodes,
     ) as network:
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
@@ -1516,7 +1526,6 @@ def run_self_healing_open_single_replica(args):
             args.nodes,
             args.binary_dir,
             args.debug_nodes,
-            args.perf_nodes,
             existing_network=network,
         )
         args.previous_service_identity_file = os.path.join(
