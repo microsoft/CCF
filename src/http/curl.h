@@ -502,6 +502,7 @@ namespace ccf::curl
           curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
           if (request == nullptr)
           {
+            curl_multi_remove_handle(p.get(), easy);
             throw std::runtime_error(
               "CURLMSG_DONE received with no associated request data");
           }
