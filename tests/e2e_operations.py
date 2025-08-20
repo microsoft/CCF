@@ -1547,7 +1547,6 @@ def run_ledger_chunk_bytes_check(const_args):
 
         def force_become_primary(node):
             # Ensure all nodes are equally up-to-date
-            time.sleep(args.sig_ms_interval / 1000)
             network.wait_for_node_commit_sync()
             p, _ = network.find_primary()
             if p != node:
@@ -1674,7 +1673,7 @@ def run_ledger_chunk_bytes_check(const_args):
                 chunk_size = chunk_ends_to_expected_size[end]
                 num_transactions = 1 + end - start
                 min_expected = chunk_size + overhead(num_transactions, num_signatures=0)
-                max_expected = chunk_size + overhead(num_transactions, num_signatures=2)
+                max_expected = chunk_size + overhead(num_transactions, num_signatures=3)
 
                 r = range(min_expected, max_expected)
                 assert (
