@@ -527,7 +527,8 @@ namespace ccf
 
       // Initialise the curlm singleton
       curl_global_init(CURL_GLOBAL_DEFAULT);
-      auto curl_libuv_context = curl::CurlmLibuvContextSingleton(uv_default_loop());
+      auto curl_libuv_context =
+        curl::CurlmLibuvContextSingleton(uv_default_loop());
 
       ResolvedAddresses resolved_rpc_addresses;
       for (auto& [name, interface] : config.network.rpc_interfaces)

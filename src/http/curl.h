@@ -119,9 +119,7 @@ namespace ccf::curl
       return *this;
     }
 
-    // Transfers ownership of the CURLM* to the caller.
-    // Caller is responsible for eventually calling curl_multi_cleanup().
-    [[nodiscard]] CURLM* release() noexcept
+    [[nodiscard]] CURLM* release()
     {
       return p.release();
     }
@@ -216,15 +214,12 @@ namespace ccf::curl
     }
   };
 
-  class Response
+  class ResponseBody
   {
   public:
     std::vector<uint8_t> buffer;
-    using HeaderMap = std::unordered_map<std::string, std::string>;
-    HeaderMap headers;
-
     static size_t write_response_chunk(
-      uint8_t* ptr, size_t size, size_t nmemb, Response* response)
+      uint8_t* ptr, size_t size, size_t nmemb, ResponseBody* response)
     {
       if (response == nullptr)
       {
@@ -238,8 +233,25 @@ namespace ccf::curl
       return bytes_to_copy;
     }
 
+    void attach_to_curl(CURL* curl)
+    {
+      if (curl == nullptr)
+      {
+        throw std::logic_error("Cannot attach response to a null CURL handle");
+      }
+      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_WRITEDATA, this);
+      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_WRITEFUNCTION, write_response_chunk);
+    }
+  };
+
+  class ResponseHeaders
+  {
+  public:
+    using HeaderMap = std::unordered_map<std::string, std::string>;
+    HeaderMap data;
+
     static size_t recv_header_line(
-      char* buffer, size_t size, size_t nitems, Response* response)
+      char* buffer, size_t size, size_t nitems, ResponseHeaders* response)
     {
       if (response == nullptr)
       {
@@ -263,16 +275,16 @@ namespace ccf::curl
         {
           std::string field_str(field);
           nonstd::to_lower(field_str);
-          if (response->headers.contains(field_str))
+          if (response->data.contains(field_str))
           {
-            auto current = response->headers[field_str];
+            auto current = response->data[field_str];
             LOG_FAIL_FMT(
               "Duplicate header for '{}', current = '{}', new = '{}'",
               field_str,
               current,
               value);
           }
-          response->headers[field_str] = ccf::nonstd::trim(value);
+          response->data[field_str] = ccf::nonstd::trim(value);
         }
         else
         {
@@ -289,10 +301,6 @@ namespace ccf::curl
       {
         throw std::logic_error("Cannot attach response to a null CURL handle");
       }
-      // Body
-      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_WRITEDATA, this);
-      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_WRITEFUNCTION, write_response_chunk);
-      // Headers
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_HEADERDATA, this);
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_HEADERFUNCTION, recv_header_line);
     }
@@ -310,7 +318,8 @@ namespace ccf::curl
     std::string url;
     ccf::curl::UniqueSlist headers;
     std::unique_ptr<ccf::curl::RequestBody> request_body;
-    std::unique_ptr<ccf::curl::Response> response;
+    std::unique_ptr<ccf::curl::ResponseBody> response;
+    ResponseHeaders response_headers;
     std::optional<ResponseCallback> response_callback;
 
   public:
@@ -321,7 +330,7 @@ namespace ccf::curl
       UniqueSlist&& headers_,
       std::unique_ptr<RequestBody>&& request_body_,
       std::optional<ResponseCallback>&& response_callback_,
-      std::unique_ptr<ccf::curl::Response>&& _response = nullptr) :
+      std::unique_ptr<ccf::curl::ResponseBody>&& _response = nullptr) :
       curl_handle(std::move(curl_handle_)),
       method(method_),
       url(std::move(url_)),
@@ -329,7 +338,7 @@ namespace ccf::curl
       request_body(std::move(request_body_)),
       response(
         _response != nullptr ? std::move(_response) :
-                               std::make_unique<Response>()),
+                               std::make_unique<ResponseBody>()),
       response_callback(std::move(response_callback_))
     {
       if (url.empty())
@@ -380,6 +389,7 @@ namespace ccf::curl
       }
 
       response->attach_to_curl(curl_handle);
+      response_headers.attach_to_curl(curl_handle);
 
       if (headers.get() != nullptr)
       {
@@ -429,14 +439,19 @@ namespace ccf::curl
       return url;
     }
 
-    [[nodiscard]] ccf::curl::Response* get_response()
+    [[nodiscard]] ResponseBody* get_response_body()
     {
       return response.get();
     }
 
-    [[nodiscard]] std::unique_ptr<Response>& get_response_ptr()
+    [[nodiscard]] std::unique_ptr<ResponseBody>& get_response_ptr()
     {
       return response;
+    }
+
+    [[nodiscard]] ResponseHeaders& get_response_headers()
+    {
+      return response_headers;
     }
   };
 
