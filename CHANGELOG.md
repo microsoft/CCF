@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [7.0.0-dev3]
 
+[7.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev3
+
 ### Changed
 
 - Improved `parse_query()` function to properly handle all URL-encoded values (including delimiters such as ampersands `%26` and equals signs `%3D`) within query parameters, where parameter keys or values may contain literal values that have been URL-encoded. (#6745)
