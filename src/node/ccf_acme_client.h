@@ -43,7 +43,7 @@ namespace ccf
       DefaultChallengeHandler(
         std::shared_ptr<ACMERpcFrontend> challenge_frontend) :
         ACMEChallengeHandler(),
-        challenge_frontend(challenge_frontend) {};
+        challenge_frontend(challenge_frontend){};
       virtual ~DefaultChallengeHandler() = default;
 
       virtual bool ready(const std::string& token) override

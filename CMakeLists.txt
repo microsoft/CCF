@@ -583,7 +583,8 @@ if(BUILD_TESTS)
 
     add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
     target_link_libraries(
-      js_test PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto http_parser ccf_http
+      js_test PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto http_parser
+                      ccf_http
     )
 
     add_unit_test(
@@ -677,8 +678,14 @@ if(BUILD_TESTS)
       ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_http ccf_js
-                            ccf_endpoints ccfcrypto ccf_kv
+      frontend_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser
+              ccf_http
+              ccf_js
+              ccf_endpoints
+              ccfcrypto
+              ccf_kv
     )
 
     add_unit_test(
@@ -707,8 +714,14 @@ if(BUILD_TESTS)
       ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
-      node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_http ccf_js
-                                 ccf_endpoints ccfcrypto ccf_kv
+      node_frontend_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser
+              ccf_http
+              ccf_js
+              ccf_endpoints
+              ccfcrypto
+              ccf_kv
     )
 
     add_unit_test(

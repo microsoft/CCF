@@ -705,7 +705,7 @@ DOCTEST_TEST_CASE("Query parser getters")
 DOCTEST_TEST_CASE("Query parser with URL-encoded ampersands")
 {
   {
-    // Test the issue described in #6745: URL-encoded ampersands should be 
+    // Test the issue described in #6745: URL-encoded ampersands should be
     // treated as literal ampersands in parameter keys and values
     const std::string request =
       "GET "
@@ -721,134 +721,136 @@ DOCTEST_TEST_CASE("Query parser with URL-encoded ampersands")
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
     DOCTEST_CHECK(m.method == HTTP_GET);
-    
+
     std::string path_, query_, fragment_;
     std::tie(path_, query_, fragment_) = http::split_url_path(m.url);
     DOCTEST_CHECK(path_ == "/foo");
     DOCTEST_CHECK(query_ == "bar%26baz=tom%26jerry");
-    
+
     // Parse the query - this should handle URL-encoded strings properly
     const auto parsed = ccf::http::parse_query(query_);
-    
-    // Should have exactly one parameter with key "bar&baz" and value "tom&jerry"
+
+    // Should have exactly one parameter with key "bar&baz" and value
+    // "tom&jerry"
     DOCTEST_CHECK(parsed.size() == 1);
-    
+
     std::string err = "";
     std::string val;
     DOCTEST_CHECK(ccf::http::get_query_value(parsed, "bar&baz", val, err));
     DOCTEST_CHECK(val == "tom&jerry");
     DOCTEST_CHECK(err.empty());
   }
-  
+
   {
     // Test multiple parameters with URL-encoded ampersands
     const std::string query = "key1%26special=value1%26more&normal=simple";
     const auto parsed = ccf::http::parse_query(query);
-    
+
     // Should have exactly two parameters
     DOCTEST_CHECK(parsed.size() == 2);
-    
+
     std::string err = "";
     std::string val;
-    
+
     // First parameter: key "key1&special" with value "value1&more"
     DOCTEST_CHECK(ccf::http::get_query_value(parsed, "key1&special", val, err));
     DOCTEST_CHECK(val == "value1&more");
     DOCTEST_CHECK(err.empty());
-    
+
     // Second parameter: key "normal" with value "simple"
     DOCTEST_CHECK(ccf::http::get_query_value(parsed, "normal", val, err));
     DOCTEST_CHECK(val == "simple");
     DOCTEST_CHECK(err.empty());
   }
-  
+
   {
     // Test URL-encoded equals signs in keys and values
     const std::string query = "key%3Dname=value%3Ddata&simple=test";
     const auto parsed = ccf::http::parse_query(query);
-    
+
     // Should have exactly two parameters
     DOCTEST_CHECK(parsed.size() == 2);
-    
+
     std::string err = "";
     std::string val;
-    
+
     // First parameter: key "key=name" with value "value=data"
     DOCTEST_CHECK(ccf::http::get_query_value(parsed, "key=name", val, err));
     DOCTEST_CHECK(val == "value=data");
     DOCTEST_CHECK(err.empty());
-    
+
     // Second parameter: key "simple" with value "test"
     DOCTEST_CHECK(ccf::http::get_query_value(parsed, "simple", val, err));
     DOCTEST_CHECK(val == "test");
     DOCTEST_CHECK(err.empty());
   }
-  
+
   {
     // Test multiple URL-escaped query parameters
-    const std::string query = "bar%26baz=tom%26jerry&key1%26special=value1%26more";
+    const std::string query =
+      "bar%26baz=tom%26jerry&key1%26special=value1%26more";
     const auto parsed = ccf::http::parse_query(query);
-    
+
     // Should have exactly two parameters, both with URL-encoded content
     DOCTEST_CHECK(parsed.size() == 2);
-    
+
     std::string err = "";
     std::string val;
-    
+
     // First parameter: key "bar&baz" with value "tom&jerry"
     DOCTEST_CHECK(ccf::http::get_query_value(parsed, "bar&baz", val, err));
     DOCTEST_CHECK(val == "tom&jerry");
     DOCTEST_CHECK(err.empty());
-    
+
     // Second parameter: key "key1&special" with value "value1&more"
     DOCTEST_CHECK(ccf::http::get_query_value(parsed, "key1&special", val, err));
     DOCTEST_CHECK(val == "value1&more");
     DOCTEST_CHECK(err.empty());
   }
-  
+
   {
     // Test URL-escaped query parameter with key-only params
     const std::string query = "key1%26special=value1%26more&bar&baz";
     const auto parsed = ccf::http::parse_query(query);
-    
+
     // Should have exactly three parameters
     DOCTEST_CHECK(parsed.size() == 3);
-    
+
     std::string err = "";
     std::string val;
-    
+
     // First parameter: key "key1&special" with value "value1&more"
     DOCTEST_CHECK(ccf::http::get_query_value(parsed, "key1&special", val, err));
     DOCTEST_CHECK(val == "value1&more");
     DOCTEST_CHECK(err.empty());
-    
+
     // Second parameter: key "bar" with empty value
     DOCTEST_CHECK(ccf::http::get_query_value(parsed, "bar", val, err));
     DOCTEST_CHECK(val == "");
     DOCTEST_CHECK(err.empty());
-    
+
     // Third parameter: key "baz" with empty value
     DOCTEST_CHECK(ccf::http::get_query_value(parsed, "baz", val, err));
     DOCTEST_CHECK(val == "");
     DOCTEST_CHECK(err.empty());
   }
-  
+
   {
     // Test URL-escaping within key-only parameter names
     const std::string query = "a=b&foor%26bar%3Dbaz";
     const auto parsed = ccf::http::parse_query(query);
-    
+
     // Should have exactly two parameters
     DOCTEST_CHECK(parsed.size() == 2);
-    
+
     std::string err = "";
     std::string val;
-    
+
     // First parameter: key "a" with value "b"
     DOCTEST_CHECK(ccf::http::get_query_value(parsed, "a", val, err));
     DOCTEST_CHECK(val == "b");
     DOCTEST_CHECK(err.empty());
-    
+
     // Second parameter: key "foor&bar=baz" with empty value (key-only)
     DOCTEST_CHECK(ccf::http::get_query_value(parsed, "foor&bar=baz", val, err));
     DOCTEST_CHECK(val == "");
