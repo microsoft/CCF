@@ -2211,9 +2211,9 @@ namespace ccf
             std::optional<std::pair<ccf::kv::Version, std::string>> maximum;
             gossip_handle->foreach([&maximum](
                                      const auto& iid, const auto& txid) {
-              if (!maximum.has_value() || maximum.value() < std::tie(txid, iid))
+              if (!maximum.has_value() || maximum.value() < std::make_pair(txid, iid))
               {
-                maximum = std::make_pair(iid, txid);
+                maximum = std::make_pair(txid, iid);
               }
               return true;
             });
@@ -2255,7 +2255,7 @@ namespace ccf
             AbstractGovernanceEffects::ServiceIdentities identities{
               .previous = prev_ident, .next = service_info->cert};
 
-            sm_state_handle->put(SelfHealingOpenSM::OPEN);
+            sm_state_handle->put(SelfHealingOpenSM::OPENING);
 
             transition_service_to_open(tx, identities);
           }
