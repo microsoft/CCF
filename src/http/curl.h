@@ -557,7 +557,7 @@ namespace ccf::curl
       {
         // returns the handles as a null-terminated array
         CURL** easy_handles = curl_multi_get_handles(curl_request_curlm.get());
-        for (int i = 0; easy_handles[i] != nullptr; ++i)
+        for (size_t i = 0; easy_handles[i] != nullptr; ++i)
         {
           auto* easy = easy_handles[i];
           curl_multi_remove_handle(curl_request_curlm.get(), easy);
