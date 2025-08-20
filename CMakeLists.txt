@@ -208,7 +208,7 @@ add_ccf_static_library(
             ccfcrypto
             curl
             http_parser
-            ccfhttp
+            ccf_http
 )
 
 target_include_directories(ccf_launcher PRIVATE ${CCF_GENERATED_DIR})
@@ -224,7 +224,7 @@ install(
 
 # CCF HTTP lib
 add_ccf_static_library(
-  ccfhttp
+  ccf_http
   SRCS ${CCF_DIR}/src/http/http_query.cpp
   LINK_LIBS http_parser
 )
@@ -282,7 +282,7 @@ add_ccf_static_library(
        ${CCF_DIR}/src/node/historical_queries_adapter.cpp
        ${CCF_DIR}/src/node/historical_queries_utils.cpp
        ${CCF_DIR}/src/node/receipt.cpp
-  LINK_LIBS qcbor t_cose http_parser ccfhttp ccfcrypto ccf_kv
+  LINK_LIBS qcbor t_cose http_parser ccf_http ccfcrypto ccf_kv
 )
 
 # Common test args for Python scripts starting up CCF networks
@@ -385,7 +385,7 @@ add_ccf_static_library(
   SRCS ${CCF_IMPL_SOURCE}
   LINK_LIBS ${LINK_LIBCXX}
             http_parser
-            ccfhttp
+            ccf_http
             ccf_js
             ccf_endpoints
             ccfcrypto
@@ -583,7 +583,7 @@ if(BUILD_TESTS)
 
     add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
     target_link_libraries(
-      js_test PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto http_parser ccfhttp
+      js_test PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto http_parser ccf_http
     )
 
     add_unit_test(
@@ -606,7 +606,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/receipt.cpp
     )
     target_link_libraries(
-      historical_queries_test PRIVATE http_parser ccfhttp ccf_kv ccf_endpoints
+      historical_queries_test PRIVATE http_parser ccf_http ccf_kv ccf_endpoints
     )
     add_unit_test(
       indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
@@ -662,7 +662,7 @@ if(BUILD_TESTS)
     add_unit_test(
       http_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_test.cpp
     )
-    target_link_libraries(http_test PRIVATE http_parser ccfhttp)
+    target_link_libraries(http_test PRIVATE http_parser ccf_http)
 
     add_unit_test(
       http_etag_test
@@ -677,7 +677,7 @@ if(BUILD_TESTS)
       ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccfhttp ccf_js
+      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_http ccf_js
                             ccf_endpoints ccfcrypto ccf_kv
     )
 
@@ -707,7 +707,7 @@ if(BUILD_TESTS)
       ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
-      node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccfhttp ccf_js
+      node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_http ccf_js
                                  ccf_endpoints ccfcrypto ccf_kv
     )
 
