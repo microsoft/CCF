@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+include(cmake/cpack_versions_pin.cmake)
+
 set(CPACK_PACKAGE_NAME "${CCF_PROJECT}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Confidential Consortium Framework")
 set(CPACK_PACKAGE_DESCRIPTION ${PROJECT_DESCRIPTION})
@@ -21,34 +23,25 @@ endif()
 
 message(STATUS "RPM package version: ${CPACK_RPM_PACKAGE_VERSION}")
 
-set(OPENSSL_MINIMAL_VERSION "3.3.0")
-set(NGHTTP2_MINIMAL_VERSION "1.40.0")
-
 set(CPACK_RPM_PACKAGE_LICENSE "Apache-2.0")
 set(CPACK_RPM_PACKAGE_DESCRIPTION "${PROJECT_DESCRIPTION}")
 
-if(CCF_DEVEL)
-  set(CCF_RPM_BASE_DEPENDENCIES
-      "openssl-devel >= ${OPENSSL_MINIMAL_VERSION}, nghttp2-devel >= ${NGHTTP2_MINIMAL_VERSION}"
-  )
-  # + build toolchain
-  set(CCF_RPM_BASE_DEPENDENCIES
-      "${CCF_RPM_BASE_DEPENDENCIES}, cmake >= 3.30, build-essential >= 3.0, clang >= 18.1.2, ninja-build >= 1.11.1"
-  )
-  # + alter name
-  set(CPACK_PACKAGE_NAME "${CPACK_PACKAGE_NAME}_devel")
-  # + alter summary
-  set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
-      "${CPACK_PACKAGE_DESCRIPTION_SUMMARY} (development)"
-  )
-else()
-  set(CCF_RPM_BASE_DEPENDENCIES
-      "openssl >= ${OPENSSL_MINIMAL_VERSION}, nghttp2 >= ${NGHTTP2_MINIMAL_VERSION}"
-  )
-endif()
-
 set(CCF_RPM_DEPENDENCIES
-    "${CCF_RPM_BASE_DEPENDENCIES}, libuv >= 1.34.2, curl >= 7.68.0, libcxxabi >= 18.1.2"
+    "openssl-devel >= ${OPENSSL_MINIMAL_VERSION}, nghttp2-devel >= ${NGHTTP2_MINIMAL_VERSION}"
+)
+# + build toolchain
+set(CCF_RPM_DEPENDENCIES
+    "${CCF_RPM_DEPENDENCIES}, cmake >= 3.21, build-essential >= 3.0, clang >= ${CLANG_AND_LIBCXXABI_MINIMAL_VERSION}, ninja-build >= 1.11.1"
+)
+# + runtime dependencies
+set(CCF_RPM_DEPENDENCIES
+    "${CCF_RPM_DEPENDENCIES}, libuv-devel >= ${LIBUV_MINIMAL_VERSION}, curl-devel >= ${CURL_MINIMAL_VERSION}, libcxxabi-devel >= ${CLANG_AND_LIBCXXABI_MINIMAL_VERSION}"
+)
+# + alter name
+set(CPACK_PACKAGE_NAME "${CPACK_PACKAGE_NAME}_devel")
+# + alter summary
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+    "${CPACK_PACKAGE_DESCRIPTION_SUMMARY} (development)"
 )
 
 message(STATUS "RPM package dependencies: ${CCF_RPM_DEPENDENCIES}")

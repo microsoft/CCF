@@ -54,7 +54,7 @@ Dependencies
 ------------
 
 The sample uses several runtime and development packages (see ``package.json``).
-One of them is the :typedoc:package:`ccf-app` package.
+One of them is the :typedoc-package:`ccf-app` package.
 This package references the current branch's version of the ``ccf-app`` package using ``file:``.
 To test against a published version you should adjust the version number accordingly:
 
@@ -101,7 +101,7 @@ An endpoint handler, here named ``abc``, has the following structure:
     }
 
 ``AbcRequest`` and ``AbcResponse`` define the JSON schema of the request and response body, respectively.
-If an endpoint has no request or response body, the type parameters of :typedoc:interface:`ccfapp.Request <ccf-app/endpoints/Request>`/:typedoc:interface:`ccfapp.Response <ccf-app/endpoints/Response>` can be omitted.
+If an endpoint has no request or response body, the type parameters of :typedoc-interface:`ccfapp.Request <ccf-app/endpoints/Request>`/:typedoc-interface:`ccfapp.Response <ccf-app/endpoints/Response>` can be omitted.
 
 As an example, the ``/partition`` endpoint of the sample app is implemented as:
 
@@ -118,8 +118,8 @@ The example also shows how an external library, here ``lodash``, is imported and
     It is up to the application to perform any necessary validation.
 
 .. tip::
-    See the :typedoc:package:`ccf-app` package API documentation for how to access the Key-Value Store and other CCF functionality.
-    Although not recommended, instead of using the :typedoc:package:`ccf-app` package, all native CCF functionality can also be directly accessed through the :typedoc:interface:`ccf <ccf-app/global/CCF>` global variable.
+    See the :typedoc-package:`ccf-app` package API documentation for how to access the Key-Value Store and other CCF functionality.
+    Although not recommended, instead of using the :typedoc-package:`ccf-app` package, all native CCF functionality can also be directly accessed through the :typedoc-interface:`ccf <ccf-app/global/CCF>` global variable.
 
 
 Metadata

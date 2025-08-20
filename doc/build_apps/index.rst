@@ -45,7 +45,7 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     :doc:`js_app_ts`
     ^^^^^^^^^^^^^^^
 
-    Sample CCF application written in TypeScript, using the API specified in :typedoc:package:`ccf-app`.
+    Sample CCF application written in TypeScript, using the API specified in :typedoc-package:`ccf-app`.
 
     ---
 

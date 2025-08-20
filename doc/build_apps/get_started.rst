@@ -64,6 +64,12 @@ To check samples on how to test your application endpoints, please check these r
 -  `CCF-app-template repo <https://github.com/microsoft/ccf-app-template#--javascript>`__
 -  `Banking Application sample <https://github.com/microsoft/ccf-app-samples/tree/main/banking-app#how-to-run-the-tests>`__
 
+Testing: Unit Tests
+~~~~~~~~~~~~~~~~~~~
+
+When writing unit tests that link the `ccfcrypto` library, either directly or because they link other libraries that require it, you must ensure that the library is properly initialized before running the tests.
+This means calling `ccf::crypto::openssl_sha256_init()` at the start of your test suite and `ccf::crypto::openssl_sha256_shutdown()` at the end.
+
 C++ Applications
 ----------------
 
@@ -85,6 +91,11 @@ Run C++ app: Using Docker
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Please check `run ccf-app-template using docker <https://github.com/microsoft/ccf-app-template#docker-1>`__
+
+Packaging your C++ app
+~~~~~~~~~~~~~~~~~~~~~~
+
+To create distributable packages for your CCF application, create a ``cpack.cmake`` file that includes CCF's packaging configuration and add it to your ``CMakeLists.txt``. See :ccf_repo:`tests/ccfapp/CMakeLists.txt` and :ccf_repo:`tests/ccfapp/cpack.cmake` for a complete working example.
 
 Network Governance
 ------------------
