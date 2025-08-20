@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/crypto/openssl_init.h"
 #include "ccf/ds/logger.h"
 #include "crypto/openssl/hash.h"
 #include "kv/compacted_version_conflict.h"

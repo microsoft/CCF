@@ -10,7 +10,6 @@ if(USE_LIBCXX)
   elseif("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
     add_compile_options(-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST)
   endif()
-
 endif()
 
 # Enclave library wrapper
@@ -49,9 +48,7 @@ function(add_ccf_app name)
   add_tidy(${name})
 
   if(USE_SNMALLOC)
-    target_link_libraries(
-      ${name} INTERFACE snmalloc-new-override snmallocshim-static
-    )
+    target_link_libraries(${name} INTERFACE snmallocshim-static)
   endif()
 
   add_dependencies(${name} ${name})
@@ -80,17 +77,13 @@ function(add_ccf_static_library name)
   add_tidy(${name})
   add_warning_checks(${name})
 
-  if(CCF_DEVEL)
-    install(
-      TARGETS ${name}
-      EXPORT ccf
-      DESTINATION lib
-    )
-  endif()
+  install(
+    TARGETS ${name}
+    EXPORT ccf
+    DESTINATION lib
+  )
 
   if(USE_SNMALLOC)
-    target_link_libraries(
-      ${name} INTERFACE snmalloc-new-override snmallocshim-static
-    )
+    target_link_libraries(${name} INTERFACE snmallocshim-static)
   endif()
 endfunction()

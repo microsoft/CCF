@@ -3,6 +3,7 @@
 
 #include "node/snapshotter.h"
 
+#include "ccf/crypto/openssl_init.h"
 #include "ccf/ds/logger.h"
 #include "crypto/openssl/hash.h"
 #include "ds/ring_buffer.h"

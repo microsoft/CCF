@@ -55,8 +55,7 @@
       {% if previous_sealed_ledger_secret_location %}
         "previous_sealed_ledger_secret_location": "{{ previous_sealed_ledger_secret_location }}",
       {% endif %}
-      "previous_service_identity_file": "{{ previous_service_identity_file }}"{% if recovery_constitution_files %},
-      "constitution_files": {{ recovery_constitution_files|tojson }} {% endif %}
+      "previous_service_identity_file": "{{ previous_service_identity_file }}"
     }
   },
   "ledger":

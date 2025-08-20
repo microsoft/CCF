@@ -4,6 +4,7 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/service/node_info_network.h"
+#include "ccf/crypto/openssl_init.h"
 #include "clients/perf/perf_client.h"
 #include "clients/rpc_tls_client.h"
 #include "crypto/openssl/hash.h"

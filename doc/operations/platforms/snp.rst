@@ -6,7 +6,7 @@ How to use the AMD SEV-SNP platform
 
 CCF must run on an AMD CPU which supports SEV-SNP, such as `Azure confidential containers <https://learn.microsoft.com/en-us/azure/confidential-computing/confidential-containers>`_ or `Azure Kubernetes Service with Confidential Containers <https://learn.microsoft.com/en-us/azure/aks/confidential-containers-overview>`_.
 
-To use SNP, in the :ref:`operations/configuration:``enclave``` configuration section, the enclave ``platform`` should be set to ``SNP``.
+CCF will use the SEV-SNP platform features automatically on the supported hardware.
 
 Attestation
 -----------
@@ -45,7 +45,6 @@ AMD VCEK endorsements must be fetched, preferably from the THIM service, but con
 
 .. tip:: See :ccf_repo:`samples/config/start_config_aks_sev_snp.json` for a sample node configuration for Confidential AKS deployments.
 
-
 Non-Azure Deployment
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -74,17 +73,112 @@ Governance Proposals
 
 The following governance proposals can be issued to add/remove these trusted values, e.g. when upgrading the service (see :doc:`/operations/code_upgrade`):
 
-- ``add_snp_host_data``/``remove_snp_host_data``: To add/remove a trusted security policy, e.g. when adding a new trusted container image as part of the code upgrade procedure. 
-- ``add_snp_uvm_endorsement``/``add_snp_uvm_endorsement``: To add remove a trusted UVM endorsement (Azure deployment only).
+- ``add_snp_host_data``/``remove_snp_host_data``: To add/remove a trusted security policy, e.g. when adding a new trusted container image as part of the code upgrade procedure.
+- ``add_snp_uvm_endorsement``/``remove_snp_uvm_endorsement``: To add/remove a trusted UVM endorsement (Azure deployment only).
 - ``add_snp_measurement``/``remove_snp_measurement``: To add/remove a trusted measurement.
 - ``set_snp_minimum_tcb_version_hex``/``remove_snp_minimum_tcb_version``: To add/remove a minimum trusted TCB version.
   - ``set_snp_minimum_tcb_version`` was deprecated in CCF 6.0.9 and replaced by ``set_snp_minimum_tcb_version_hex``.
+
+Code update
+~~~~~~~~~~~
+
+Check :doc:`/operations/code_upgrade` first.
+
+* Use ``add_snp_host_data`` and ``add_snp_measurement`` for the new code version.
+* After adding new nodes and retiring old ones, use ``remove_snp_host_data`` and ``remove_snp_measurement`` to remove the old values.
+
+Examples:
+
+.. code-block:: json
+
+  {
+    "actions": [
+      {
+        "name": "add_snp_host_data",
+        "args": {
+          "host_data": "hex-encoded SHA256 digest of the security policy",
+          "security_policy": "security policy text string"
+        }
+      }
+    ]
+  }
+
+  {
+    "actions": [
+      {
+        "name": "add_snp_measurement",
+        "args": {
+          "measurement": "5feee30d6d7e1a29f403d70a4198237ddfb13051a2d6976439487c609388ed7f98189887920ab2fa0096903a0c23fca1"
+        }
+      }
+    ]
+  }
+
+  {
+    "actions": [
+      {
+        "name": "remove_snp_host_data",
+        "args": {
+          "host_data": "hex-encoded SHA256 digest of the security policy"
+        }
+      }
+    ]
+  }
+
+  {
+    "actions": [
+      {
+        "name": "remove_snp_measurement",
+        "args": {
+          "measurement": "5feee30d6d7e1a29f403d70a4198237ddfb13051a2d6976439487c609388ed7f98189887920ab2fa0096903a0c23fca1"
+        }
+      }
+    ]
+  }
+
+Updating UVM endorsements
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To update the UVM endorsements, for instance, to rev up the SVN version, use ``add_snp_uvm_endorsement`` and ``remove_snp_uvm_endorsement`` governance actions.
+
+* If performing a platform upgrade, new UVM endorsements should be added to the current network before joining new nodes.
+* Every endorsement is uniquely identified by (DID, feed) pair.
+
+Examples:
+
+.. code-block:: json
+
+  {
+    "actions": [
+      {
+        "name": "add_snp_uvm_endorsement",
+        "args": {
+          "did": "did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6.1.4.1.311.76.59.1.2",
+          "feed": "ContainerPlat-AMD-UVM",
+          "svn": "101"
+        }
+      }
+    ]
+  }
+
+  {
+    "actions": [
+      {
+        "name": "remove_snp_uvm_endorsement",
+        "args": {
+          "did": "did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6.1.4.1.311.76.59.1.2",
+          "feed": "ContainerPlat-AMD-UVM"
+        }
+      }
+    ]
+  }
 
 Setting the minimum TCB Version using ``set_snp_minimum_tcb_version_hex``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The `set_snp_minimum_tcb_version_hex` governance action was introduced in CCF 6.0.9 to simplify the process of setting the minimum TCB version for a specific CPU model. This action allows you to specify the CPUID and the TCB version as hex-strings, which are then parsed and stored in the :ref:`audit/builtin_maps:``nodes.snp.tcb_versions``` table.
 To set the minimum TCB version for a specific CPU model, you can use the following governance action:
+
 .. code-block:: json
 
     {
