@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev3]
+
+### Changed
+
+- Improved `parse_query()` function to properly handle all URL-encoded values (including delimiters such as ampersands `%26` and equals signs `%3D`) within query parameters, where parameter keys or values may contain literal values that have been URL-encoded. (#6745)
+- `get_request_query()` method now returns the raw (non-URL-decoded) query string instead of a URL-decoded version. Applications relying on the previous behavior of automatic URL decoding should use the `parse_query()` function which handles URL-encoded parameters correctly. (#6745)
+
 ## [7.0.0-dev2]
 
 [7.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev2
@@ -15,9 +22,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `ccf/crypto/openssl_init.h` header exposing `ccf::crypt::openssl_sha256_init()` and `ccf::crypto::openssl_sha256_shutdown()` for unit tests using `ccfcrypto.a`. (#7118)
 
 ### Changed
-
-- Improved `parse_query()` function to properly handle all URL-encoded values (including delimiters such as ampersands `%26` and equals signs `%3D`) within query parameters, where parameter keys or values may contain literal values that have been URL-encoded. (#6745)
-- `get_request_query()` method now returns the raw (non-URL-decoded) query string instead of a URL-decoded version. Applications relying on the previous behavior of automatic URL decoding should use the `parse_query()` function which handles URL-encoded parameters correctly. (#6745)
 - `cchost` is removed, and each application now provides its own executable:
   - CCF nodes no longer contain a separate `cchost` executable and enclave library (`.so`) file. Each former enclave library is now its own executable, currently sharing the same set configuration format as the previous `cchost`.
   - The `js_generic` sample app is no longer a library installed at `/ccf/lib/libjs_generic.so`, it is now an executable installed at `/ccf/bin/js_generic`.
