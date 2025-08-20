@@ -87,8 +87,8 @@ namespace ccf::http
       }
       
       // URL-decode the key and value
-      std::string decoded_key = http::url_decode(encoded_key);
-      std::string decoded_value = http::url_decode(encoded_value);
+      std::string decoded_key = ::http::url_decode(encoded_key);
+      std::string decoded_value = ::http::url_decode(encoded_value);
       
       parsed.emplace(std::move(decoded_key), std::move(decoded_value));
     }

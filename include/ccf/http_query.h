@@ -68,8 +68,8 @@ namespace ccf::http
     else if constexpr (std::is_integral_v<T>)
     {
       const auto [p, ec] =
-        std::from_chars(param_val.begin(), param_val.end(), val);
-      if (ec != std::errc() || p != param_val.end())
+        std::from_chars(param_val.data(), param_val.data() + param_val.size(), val);
+      if (ec != std::errc() || p != param_val.data() + param_val.size())
       {
         error_reason = fmt::format(
           "Unable to parse value '{}' in parameter '{}'", param_val, param_key);
