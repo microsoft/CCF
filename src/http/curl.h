@@ -56,7 +56,7 @@ namespace ccf::curl
   public:
     UniqueCURL() : p(curl_easy_init(), [](auto x) { curl_easy_cleanup(x); })
     {
-      if (!p)
+      if (p == nullptr)
       {
         throw std::runtime_error("Error initialising curl easy request");
       }
@@ -103,7 +103,7 @@ namespace ccf::curl
   public:
     UniqueCURLM() : p(curl_multi_init(), [](auto x) { curl_multi_cleanup(x); })
     {
-      if (!p)
+      if (p == nullptr)
       {
         throw std::runtime_error("Error initialising curl multi request");
       }
