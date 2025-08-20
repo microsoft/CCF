@@ -317,8 +317,7 @@ namespace ccf
         "Fetching endorsements for attestation report at {}",
         request->get_url());
 
-      curl::CurlmLibuvContextSingleton::get_instance_unsafe()->attach_request(
-        request);
+      curl::CurlmLibuvContextSingleton::get_instance()->attach_request(request);
     }
 
   public:

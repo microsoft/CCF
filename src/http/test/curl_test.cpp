@@ -115,17 +115,18 @@ TEST_CASE("CurlmLibuvContext")
         std::move(body),
         std::move(response_callback));
 
-      ccf::curl::CurlmLibuvContextSingleton::get_instance().attach_request(
+      ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
         request);
     }
   };
 
-  ccf::curl::CurlmLibuvContext context(uv_default_loop());
-  ccf::curl::CurlmLibuvContextSingleton::get_instance_unsafe() = &context;
+  {
+    ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
 
-  uv_work_t work_req;
-  uv_queue_work(uv_default_loop(), &work_req, load_generator, nullptr);
-  uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+    uv_work_t work_req;
+    uv_queue_work(uv_default_loop(), &work_req, load_generator, nullptr);
+    uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+  }
   REQUIRE(response_count == number_requests);
 }
 
