@@ -8,6 +8,7 @@ from typing import Optional, Type
 
 import base64
 import cwt
+import cwt.const
 import cbor2
 import json
 import hashlib
@@ -167,6 +168,20 @@ def create_cose_sign1(
     msg.key = cose_key
 
     return msg.encode()
+
+
+def create_cose_sign1_cwt(
+    payload: bytes,
+    key_priv_pem: Pem,
+    cert_pem: Pem,
+    additional_protected_header: Optional[dict] = None,
+) -> bytes:
+    cose_ctx = cwt.COSE.new(alg_auto_inclusion=True, kid_auto_inclusion=True)
+    cose_key = cwt.COSEKey.from_pem(key_priv_pem, kid=cert_fingerprint(cert_pem))
+    # Does not work because encode() only support cwt.
+    cwt.const.COSE_HEADER_PARAMETERS["app.msg.type"] = "app.msg.type"
+    cwt.const.COSE_HEADER_PARAMETERS["app.msg.created_at"] = "app.msg.created_at"
+    return cose_ctx.encode(payload, cose_key, protected=additional_protected_header, tagged=False)
 
 
 def create_cose_sign1_prepare(
