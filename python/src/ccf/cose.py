@@ -144,6 +144,7 @@ def key_fingerprint_from_key(key_pem: Pem):
     pub_key = key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
     return hashlib.sha256(pub_key).hexdigest()
 
+
 def create_cose_sign1(
     payload: bytes,
     key_priv_pem: Pem,
