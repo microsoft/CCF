@@ -295,7 +295,7 @@ def test_add_node_endorsements_endpoints(network, args):
             assert not expected_result
 
             assert (
-                e.has_stopped == True
+                e.has_stopped
             ), f"Expected node to stop after timing out on fetching collateral ({e.error_line})"
             assert e.retries == 4, f"Expected 4 retry attempts ({e.error_line})"
         else:
@@ -878,7 +878,7 @@ def run_join_old_snapshot(args):
                     f"Node {new_node.local_node_id} started from old snapshot could not join the service, as expected"
                 )
                 assert (
-                    e.has_stopped == True
+                    e.has_stopped
                 ), "Expected node to stop on receiving StartupSeqnoIsOld"
             else:
                 raise RuntimeError(
@@ -901,7 +901,7 @@ def run_join_old_snapshot(args):
                     f"Node {new_node.local_node_id} started without snapshot could not join the service, as expected"
                 )
                 assert (
-                    e.has_stopped == True
+                    e.has_stopped
                 ), "Expected node to stop on receiving StartupSeqnoIsOld"
             else:
                 raise RuntimeError(
