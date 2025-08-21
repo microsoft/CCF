@@ -409,7 +409,8 @@ namespace ccf::kv
                       std::optional<ccf::kv::SecurityDomain>());
 
       ccf::kv::Term term;
-      auto v_ = d.init(data, size, term, is_historical);
+      ccf::kv::EntryFlags entry_flags;
+      auto v_ = d.init(data, size, term, entry_flags, is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
@@ -714,6 +715,7 @@ namespace ccf::kv
       bool public_only,
       ccf::kv::Version& v,
       ccf::kv::Term& view,
+      ccf::kv::EntryFlags& entry_flags,
       OrderedChanges& changes,
       MapCollection& new_maps,
       ccf::ClaimsDigest& claims_digest,
@@ -732,7 +734,8 @@ namespace ccf::kv
         public_only ? ccf::kv::SecurityDomain::PUBLIC :
                       std::optional<ccf::kv::SecurityDomain>());
 
-      auto v_ = d.init(data.data(), data.size(), view, is_historical);
+      auto v_ =
+        d.init(data.data(), data.size(), view, entry_flags, is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
@@ -1002,7 +1005,8 @@ namespace ccf::kv
         // two contiguous signatures are fine
         if (success_ != CommitResult::SUCCESS)
         {
-          LOG_DEBUG_FMT("Failed Tx commit {}", last_replicated + offset);
+          LOG_DEBUG_FMT(
+            "Failed Tx commit {}", previous_last_replicated + offset);
         }
 
         if (h)
@@ -1020,13 +1024,17 @@ namespace ccf::kv
 
         LOG_DEBUG_FMT(
           "Batching {} ({}) during commit of {}.{}",
-          last_replicated + offset,
+          previous_last_replicated + offset,
           data_shared->size(),
           txid.term,
           txid.version);
 
         batch.emplace_back(
-          last_replicated + offset, data_shared, committable_, hooks_shared);
+          previous_last_replicated + offset,
+          data_shared,
+          committable_,
+          hooks_shared);
+
         offset++;
       }
 
