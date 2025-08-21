@@ -366,10 +366,10 @@ namespace ccf::curl
           CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_UPLOAD, 1L);
           if (request_body == nullptr)
           {
-            // If no request body is provided, curl will try reading from stdin,
-            // which causes a blockage
+            // If no request body is provided, curl will try reading from
+            // stdin, which causes a blockage
             request_body =
-              std::make_unique<RequestBody>({});
+              std::make_unique<RequestBody>(std::vector<uint8_t>());
           }
         }
         break;
@@ -532,9 +532,8 @@ namespace ccf::curl
      * Example flow:
      *
      * Initially a CURL* is attached to the curl_multi CURLM* handle
-     * This calls the curl_multi's timeout function curl_timeout_callback with 0
-     *   delay
-     * which then registers the libuv timeout callback with 0 delay
+     * This calls the curl_multi's timeout function curl_timeout_callback with
+     * 0 delay which then registers the libuv timeout callback with 0 delay
      * libuv_timeout_callback then registers a timeout socket_action with curl
      * which then registers the socket polling at the libuv level
      *
@@ -551,9 +550,9 @@ namespace ccf::curl
     // curl_multi_add_handle while the libuv thread is processing a curl
     // callback
     //
-    // Note that since the a client callback can call curl_multi_add_handle, but
-    // that will be difficult/impossible to detect, we need curlm_lock to be
-    // recursive.
+    // Note that since the a client callback can call curl_multi_add_handle,
+    // but that will be difficult/impossible to detect, we need curlm_lock to
+    // be recursive.
     std::recursive_mutex curlm_lock;
 
     struct RequestContext
@@ -817,13 +816,13 @@ namespace ccf::curl
     }
   };
 
-  // Required destructor sequence:
-  // 1. Detach CURLM handle from this object and clean up all CURL handles.
-  //    Detaching prevents new handles being added.
+  // Required destructor sequence triggered by proxy_ptr calling close
+  // 1. Detach CURLM handle from this object and clean up all easy handles.
+  //    Detaching prevents new easy handles being added.
   //    curl_multi_cleanup detaches all sockets from libuv
-  // 2. Close the libuv timer handle via the with_uv_handle.
+  // 2. Close the libuv timer handle.
   //    Prevents any further callbacks from the libuv timer
-  // 3. Delete CurlmLibuvContextImpl via the with_uv_handle on_close callback
+  // 3. Delete CurlmLibuvContextImpl via the on_close callback
   using CurlmLibuvContext = asynchost::proxy_ptr<CurlmLibuvContextImpl>;
 
   class CurlmLibuvContextSingleton
