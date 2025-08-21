@@ -4,11 +4,12 @@
 import argparse
 import sys
 
-from typing import Optional, Type
+from typing import Optional, Type, Any
 
 import base64
 import cwt
 import cwt.const
+import cwt.utils
 import cbor2
 import json
 import hashlib
@@ -144,44 +145,30 @@ def key_fingerprint_from_key(key_pem: Pem):
     return hashlib.sha256(pub_key).hexdigest()
 
 
+def _update_cose_header_parameters(header_params):
+    """
+    Workaround to pass string header parameters with python-cwt at the moment
+    """
+    for key in header_params.keys():
+        if isinstance(key, str) and key not in cwt.const.COSE_HEADER_PARAMETERS:
+            cwt.const.COSE_HEADER_PARAMETERS[key] = key
+
+
 def create_cose_sign1(
     payload: bytes,
     key_priv_pem: Pem,
     cert_pem: Pem,
     additional_protected_header: Optional[dict] = None,
 ) -> bytes:
-    key_type = get_priv_key_type(key_priv_pem)
-
-    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
-    alg = default_algorithm_for_key(cert.public_key())
-    kid = cert_fingerprint(cert_pem)
-
-    protected_header = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
-    protected_header.update(additional_protected_header or {})
-    msg = Sign1Message(phdr=protected_header, payload=payload)
-
-    key = load_pem_private_key(key_priv_pem.encode("ascii"), None, default_backend())
-    if key_type == "ec":
-        cose_key = from_cryptography_eckey_obj(key)
-    else:
-        raise NotImplementedError("unsupported key type")
-    msg.key = cose_key
-
-    return msg.encode()
-
-
-def create_cose_sign1_cwt(
-    payload: bytes,
-    key_priv_pem: Pem,
-    cert_pem: Pem,
-    additional_protected_header: Optional[dict] = None,
-) -> bytes:
-    cose_ctx = cwt.COSE.new(alg_auto_inclusion=True, kid_auto_inclusion=True)
+    cose_ctx = cwt.COSE.new(alg_auto_inclusion=True)
     cose_key = cwt.COSEKey.from_pem(key_priv_pem, kid=cert_fingerprint(cert_pem))
-    # Does not work because encode() only support cwt.
-    cwt.const.COSE_HEADER_PARAMETERS["app.msg.type"] = "app.msg.type"
-    cwt.const.COSE_HEADER_PARAMETERS["app.msg.created_at"] = "app.msg.created_at"
-    return cose_ctx.encode(payload, cose_key, protected=additional_protected_header, tagged=False)
+    # kid is passed explicitly in the protected header, because kid_auto_inclusion
+    # sets the kid in the unprotected header
+    phdr: dict[Any, Any] = {4: cert_fingerprint(cert_pem)}
+    additional_header = additional_protected_header or {}
+    _update_cose_header_parameters(additional_header)
+    phdr.update(additional_header)
+    return cose_ctx.encode_and_sign(payload, cose_key, protected=phdr)
 
 
 def create_cose_sign1_prepare(
@@ -193,10 +180,11 @@ def create_cose_sign1_prepare(
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
 
-    protected_header = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
+    protected_header = {1: alg, 4: kid}
     protected_header.update(additional_protected_header or {})
-    msg = Sign1Message(phdr=protected_header, payload=payload)
-    tbs = cbor2.dumps(["Signature1", msg.phdr_encoded, b"", payload])
+    protected_header = cwt.utils.sort_keys_for_deterministic_encoding(protected_header)
+    phdr_encoded = cbor2.dumps(protected_header)
+    tbs = cbor2.dumps(["Signature1", phdr_encoded, b"", payload])
 
     assert cert.signature_hash_algorithm
     digester = hashes.Hash(cert.signature_hash_algorithm)
@@ -215,12 +203,15 @@ def create_cose_sign1_finish(
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
 
-    protected_header = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
+    protected_header = {1: alg, 4: kid}
     protected_header.update(additional_protected_header or {})
-    msg = Sign1Message(phdr=protected_header, payload=payload)
+    protected_header = cwt.utils.sort_keys_for_deterministic_encoding(protected_header)
+    phdr_encoded = cbor2.dumps(protected_header)
 
-    msg._signature = base64.urlsafe_b64decode(signature)
-    return msg.encode(sign=False)
+    sig = base64.urlsafe_b64decode(signature)
+    assert isinstance(sig, bytes)
+    msg = cbor2.CBORTag(18, [phdr_encoded, b"", payload, sig])
+    return cbor2.dumps(msg)
 
 
 def verify_cose_sign1_with_cert(certificate, cose_sign1, use_key=True, payload=None):
