@@ -1678,7 +1678,7 @@ def run_ledger_chunk_bytes_check(const_args):
 
                 r = range(min_expected, max_expected)
                 if actual_size not in r:
-                    LOG.warning(f"About to fail. Giving some verbose logging output")
+                    LOG.warning("About to fail. Giving some verbose logging output")
                     for ledger_dir in (current, *committeds):
                         cmd = f"ls -alv {ledger_dir}"
                         LOG.warning(f"{cmd}")
