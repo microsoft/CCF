@@ -1005,7 +1005,8 @@ namespace ccf::kv
         // two contiguous signatures are fine
         if (success_ != CommitResult::SUCCESS)
         {
-          LOG_DEBUG_FMT("Failed Tx commit {}", last_replicated + offset);
+          LOG_DEBUG_FMT(
+            "Failed Tx commit {}", previous_last_replicated + offset);
         }
 
         if (h)
@@ -1023,13 +1024,17 @@ namespace ccf::kv
 
         LOG_DEBUG_FMT(
           "Batching {} ({}) during commit of {}.{}",
-          last_replicated + offset,
+          previous_last_replicated + offset,
           data_shared->size(),
           txid.term,
           txid.version);
 
         batch.emplace_back(
-          last_replicated + offset, data_shared, committable_, hooks_shared);
+          previous_last_replicated + offset,
+          data_shared,
+          committable_,
+          hooks_shared);
+
         offset++;
       }
 
