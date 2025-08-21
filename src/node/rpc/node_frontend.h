@@ -1568,11 +1568,6 @@ namespace ccf
         }
         else
         {
-          if (in.recovery_constitution.has_value())
-          {
-            InternalTablesAccess::set_constitution(
-              ctx.tx, in.recovery_constitution.value());
-          }
           // On recovery, force a new ledger chunk
           auto tx_ = static_cast<ccf::kv::CommittableTx*>(&ctx.tx);
           if (tx_ == nullptr)

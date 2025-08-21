@@ -987,20 +987,11 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS --gov-api-version "2024-07-01"
     )
 
-    set(PARTITIONS_TEST_ARGS
-        # Higher snapshot interval as the test currently assumes that no
-        # transactions
-        # are emitted while partitions are up. To be removed when
-        # https://github.com/microsoft/CCF/issues/2577 is implemented
-        --snapshot-tx-interval 10000
-    )
-
     add_e2e_test(
       NAME partitions_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
       LABEL partitions
       CONFIGURATIONS partitions
-      ADDITIONAL_ARGS ${PARTITIONS_TEST_ARGS}
     )
 
     execute_process(
