@@ -4,7 +4,7 @@
 import argparse
 import sys
 
-from typing import Optional, Type, Any
+from typing import Optional, Any
 
 import base64
 import cwt
@@ -14,11 +14,6 @@ import cbor2
 import json
 import hashlib
 from datetime import datetime
-import pycose.headers  # type: ignore
-from pycose.keys.ec2 import EC2Key  # type: ignore
-from pycose.keys.curves import P256, P384, P521, CoseCurve  # type: ignore
-from pycose.keys.keyparam import EC2KpCurve, EC2KpX, EC2KpY, EC2KpD  # type: ignore
-from pycose.messages import Sign1Message  # type: ignore
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePrivateKey,
@@ -47,7 +42,6 @@ GOV_MSG_TYPES = [
 ] + GOV_MSG_TYPES_WITH_PROPOSAL_ID
 
 # See https://datatracker.ietf.org/doc/draft-ietf-cose-merkle-tree-proofs/
-# should move to a pycose.header value after RFC publication
 
 COSE_PHDR_VDP_LABEL = 396
 COSE_PHDR_VDS_LABEL = 395
@@ -58,47 +52,6 @@ COSE_RECEIPT_INCLUSION_PROOF_LABEL = -1
 
 CCF_PROOF_LEAF_LABEL = 1
 CCF_PROOF_PATH_LABEL = 2
-
-
-def from_cryptography_eckey_obj(ext_key) -> EC2Key:
-    """
-    Returns an initialized COSE Key object of type EC2Key.
-    :param ext_key: Python cryptography key.
-    :return: an initialized EC key
-    """
-    if hasattr(ext_key, "private_numbers"):
-        priv_nums = ext_key.private_numbers()
-        pub_nums = priv_nums.public_numbers
-    else:
-        priv_nums = None
-        pub_nums = ext_key.public_numbers()
-
-    curve: Type[CoseCurve]
-    if pub_nums.curve.name == "secp256r1":
-        curve = P256
-    elif pub_nums.curve.name == "secp384r1":
-        curve = P384
-    elif pub_nums.curve.name == "secp521r1":
-        curve = P521
-    else:
-        raise NotImplementedError("unsupported curve")
-
-    cose_key = {}
-    if pub_nums:
-        cose_key.update(
-            {
-                EC2KpCurve: curve,
-                EC2KpX: pub_nums.x.to_bytes(curve.size, "big"),
-                EC2KpY: pub_nums.y.to_bytes(curve.size, "big"),
-            }
-        )
-    if priv_nums:
-        cose_key.update(
-            {
-                EC2KpD: priv_nums.private_value.to_bytes(curve.size, "big"),
-            }
-        )
-    return EC2Key.from_dict(cose_key)
 
 
 def default_algorithm_for_key(key) -> str:
@@ -225,39 +178,39 @@ def verify_receipt(
     Verify a COSE Sign1 receipt as defined in https://datatracker.ietf.org/doc/draft-ietf-cose-merkle-tree-proofs/,
     using the CCF tree algorithm defined in https://datatracker.ietf.org/doc/draft-birkholz-cose-receipts-ccf-profile/
     """
-    # Extract the expected KID from the public key used for verification,
-    # and check it against the value set in the COSE header before using
-    # it to verify the proofs.
-    expected_kid = (
-        hashlib.sha256(
-            key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
-        )
-        .digest()
-        .hex()
-        .encode()
+    key_pem = key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode(
+        "ascii"
     )
-    receipt = Sign1Message.decode(receipt_bytes)
-    cose_key = from_cryptography_eckey_obj(key)
-    assert receipt.phdr[pycose.headers.KID] == expected_kid
-    receipt.key = cose_key
+    expected_kid = key_fingerprint_from_key(key_pem)
+    cose_key = cwt.COSEKey.from_pem(key_pem, kid=expected_kid)
+    cose_ctx = cwt.COSE.new()
 
+    receipt = cbor2.loads(receipt_bytes)
+    assert receipt.tag == 18
+    phdr, uhdr, payload, sig = receipt.value
+    phdr = cbor2.loads(phdr)
+
+    assert phdr[4] == expected_kid.encode("utf-8")
+
+    assert COSE_PHDR_VDS_LABEL in phdr, "Verifiable data structure type is required"
     assert (
-        COSE_PHDR_VDS_LABEL in receipt.phdr
-    ), "Verifiable data structure type is required"
-    assert (
-        receipt.phdr[COSE_PHDR_VDS_LABEL] == COSE_PHDR_VDS_CCF_LEDGER_SHA256
+        phdr[COSE_PHDR_VDS_LABEL] == COSE_PHDR_VDS_CCF_LEDGER_SHA256
     ), "vds(395) protected header must be CCF_LEDGER_SHA256(2)"
 
-    assert COSE_PHDR_VDP_LABEL in receipt.uhdr, "Verifiable data proof is required"
-    proof = receipt.uhdr[COSE_PHDR_VDP_LABEL]
+    assert COSE_PHDR_VDP_LABEL in uhdr, "Verifiable data proof is required"
+    proof = uhdr[COSE_PHDR_VDP_LABEL]
     assert COSE_RECEIPT_INCLUSION_PROOF_LABEL in proof, "Inclusion proof is required"
     inclusion_proofs = proof[COSE_RECEIPT_INCLUSION_PROOF_LABEL]
     assert inclusion_proofs, "At least one inclusion proof is required"
+
+    ic_phdr = None
     for inclusion_proof in inclusion_proofs:
         assert isinstance(inclusion_proof, bytes), "Inclusion proof must be bstr"
         proof = cbor2.loads(inclusion_proof)
         assert CCF_PROOF_LEAF_LABEL in proof, "Leaf must be present"
         leaf = proof[CCF_PROOF_LEAF_LABEL]
+        if claim_digest != leaf[2]:
+            raise ValueError(f"Claim digest mismatch: {leaf[2]!r} != {claim_digest!r}")
         accumulator = hashlib.sha256(
             leaf[0] + hashlib.sha256(leaf[1].encode()).digest() + leaf[2]
         ).digest()
@@ -268,11 +221,10 @@ def verify_receipt(
                 accumulator = hashlib.sha256(digest + accumulator).digest()
             else:
                 accumulator = hashlib.sha256(accumulator + digest).digest()
-        if not receipt.verify_signature(accumulator):
-            raise ValueError("Signature verification failed")
-        if claim_digest != leaf[2]:
-            raise ValueError(f"Claim digest mismatch: {leaf[2]!r} != {claim_digest!r}")
-    return receipt.phdr
+        ic_phdr, _, _ = cose_ctx.decode_with_headers(
+            receipt_bytes, cose_key, detached_payload=accumulator
+        )
+    return ic_phdr
 
 
 _SIGN_DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance
