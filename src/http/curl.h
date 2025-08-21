@@ -369,7 +369,7 @@ namespace ccf::curl
             // If no request body is provided, curl will try reading from stdin,
             // which causes a blockage
             request_body =
-              std::make_unique<RequestBody>(std::vector<uint8_t>());
+              std::make_unique<RequestBody>({});
           }
         }
         break;
