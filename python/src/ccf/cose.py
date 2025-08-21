@@ -144,16 +144,6 @@ def key_fingerprint_from_key(key_pem: Pem):
     pub_key = key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
     return hashlib.sha256(pub_key).hexdigest()
 
-
-def _update_cose_header_parameters(header_params):
-    """
-    Workaround to pass string header parameters with python-cwt at the moment
-    """
-    for key in header_params.keys():
-        if isinstance(key, str) and key not in cwt.const.COSE_HEADER_PARAMETERS:
-            cwt.const.COSE_HEADER_PARAMETERS[key] = key
-
-
 def create_cose_sign1(
     payload: bytes,
     key_priv_pem: Pem,
@@ -166,7 +156,6 @@ def create_cose_sign1(
     # sets the kid in the unprotected header
     phdr: dict[Any, Any] = {4: cert_fingerprint(cert_pem)}
     additional_header = additional_protected_header or {}
-    _update_cose_header_parameters(additional_header)
     phdr.update(additional_header)
     return cose_ctx.encode_and_sign(payload, cose_key, protected=phdr)
 

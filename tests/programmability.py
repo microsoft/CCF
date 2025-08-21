@@ -86,10 +86,8 @@ def sign_payload(identity, msg_type, json_payload):
         "app.msg.type": msg_type,
         "app.msg.created_at": int(infra.clients.get_clock().moment().timestamp()),
     }
-    print(ccf.cose.create_cose_sign1_prepare(serialised_payload, cert, phdr))
-    print(ccf.cose.create_cose_sign1_prepare_cbor2(serialised_payload, cert, phdr))
 
-    return ccf.cose.create_cose_sign1_cwt(serialised_payload, key, cert, phdr)
+    return ccf.cose.create_cose_sign1(serialised_payload, key, cert, phdr)
 
 
 def test_custom_endpoints(network, args):
