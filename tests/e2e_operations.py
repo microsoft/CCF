@@ -32,6 +32,7 @@ import sys
 import pathlib
 import infra.concurrency
 from collections import defaultdict
+import ccf.read_ledger
 
 from loguru import logger as LOG
 
@@ -1676,6 +1677,19 @@ def run_ledger_chunk_bytes_check(const_args):
                 max_expected = chunk_size + overhead(num_transactions, num_signatures=3)
 
                 r = range(min_expected, max_expected)
+                if actual_size not in r:
+                    LOG.warning(f"About to fail. Giving some verbose logging output")
+                    for ledger_dir in (current, *committeds):
+                        cmd = f"ls -alv {ledger_dir}"
+                        LOG.warning(f"{cmd}")
+                        subprocess.run(cmd.split(" "))
+
+                    ccf.read_ledger.run(
+                        paths=[path],
+                        print_mode=ccf.read_ledger.PrintMode.Contents,
+                        insecure_skip_verification=True,
+                    )
+
                 assert (
                     actual_size in r
                 ), f"Expected {os.path.basename(path)} (produced by a node with chunk-size {chunk_size:,}) to be between {min_expected:,} and {max_expected:,} bytes. It is actually {actual_size:,} bytes"
