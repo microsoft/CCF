@@ -131,7 +131,7 @@ jobs:
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+      options: --user root
 
     steps:
       - name: "Install and checkout andependencies"
