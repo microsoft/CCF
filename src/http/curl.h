@@ -219,9 +219,13 @@ namespace ccf::curl
   {
   public:
     std::vector<uint8_t> buffer;
-    static constexpr size_t mb = 1024L * 1024L;
-    // Maximum size of the response body, set to 0 to disable limit
-    size_t maximum_size = 1 * mb;
+    size_t maximum_size;
+
+    // Ensure there is always a maximum size set
+    ResponseBody() = delete;
+
+    // _max_size is the maximum size of the response body
+    ResponseBody(size_t max_size_) : maximum_size(max_size_) {}
 
     static size_t write_response_chunk(
       uint8_t* ptr, size_t size, size_t nmemb, ResponseBody* response)
@@ -233,9 +237,7 @@ namespace ccf::curl
         return CURL_WRITEFUNC_ERROR;
       }
       auto bytes_to_copy = size * nmemb;
-      if (
-        response->maximum_size > 0 &&
-        response->buffer.size() + bytes_to_copy > response->maximum_size)
+      if (response->buffer.size() + bytes_to_copy > response->maximum_size)
       {
         LOG_FAIL_FMT(
           "Response size limit exceeded: {} bytes, maximum is {} bytes",
@@ -245,7 +247,6 @@ namespace ccf::curl
       }
 
       response->buffer.insert(response->buffer.end(), ptr, ptr + bytes_to_copy);
-      // Should probably set a maximum response size here
       return bytes_to_copy;
     }
 
@@ -257,6 +258,25 @@ namespace ccf::curl
       }
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_WRITEDATA, this);
       CHECK_CURL_EASY_SETOPT(curl, CURLOPT_WRITEFUNCTION, write_response_chunk);
+    }
+
+    static size_t noop_write_function(
+      uint8_t* ptr, size_t size, size_t nmemb, ResponseBody* response)
+    {
+      (void)ptr;
+      (void)response;
+      return size * nmemb;
+    }
+
+    static void attach_noop_response(CURL* curl)
+    {
+      if (curl == nullptr)
+      {
+        throw std::logic_error(
+          "Cannot attach noop response to a null CURL handle");
+      }
+      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_WRITEDATA, nullptr);
+      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_WRITEFUNCTION, noop_write_function);
     }
   };
 
@@ -359,16 +379,14 @@ namespace ccf::curl
       std::string&& url_,
       UniqueSlist&& headers_,
       std::unique_ptr<RequestBody>&& request_body_,
-      std::optional<ResponseCallback>&& response_callback_,
-      std::unique_ptr<ccf::curl::ResponseBody>&& _response = nullptr) :
+      std::unique_ptr<ccf::curl::ResponseBody>&& response_,
+      std::optional<ResponseCallback>&& response_callback_) :
       curl_handle(std::move(curl_handle_)),
       method(method_),
       url(std::move(url_)),
       headers(std::move(headers_)),
       request_body(std::move(request_body_)),
-      response(
-        _response != nullptr ? std::move(_response) :
-                               std::make_unique<ResponseBody>()),
+      response(std::move(response_)),
       response_callback(std::move(response_callback_))
     {
       if (url.empty())
@@ -418,7 +436,15 @@ namespace ccf::curl
         request_body->attach_to_curl(curl_handle);
       }
 
-      response->attach_to_curl(curl_handle);
+      if (response != nullptr)
+      {
+        response->attach_to_curl(curl_handle);
+      }
+      else
+      {
+        ResponseBody::attach_noop_response(curl_handle);
+      }
+
       response_headers.attach_to_curl(curl_handle);
 
       if (headers.get() != nullptr)

@@ -66,6 +66,7 @@ namespace snapshots
           std::move(initial_url),
           std::move(headers),
           nullptr, // No request body
+          nullptr, // No response body
           std::nullopt // No response callback
         );
 
@@ -123,6 +124,7 @@ namespace snapshots
           std::move(current_snapshot_url),
           std::move(headers),
           nullptr, // No request body
+          nullptr, // No response body
           std::nullopt // No response callback
         );
 
@@ -181,7 +183,7 @@ namespace snapshots
         content_size,
         range_size);
 
-      auto snapshot_response = std::make_unique<ccf::curl::ResponseBody>();
+      auto snapshot_response = std::make_unique<ccf::curl::ResponseBody>(content_size);
 
       {
         auto range_start = 0;
@@ -204,8 +206,9 @@ namespace snapshots
             std::move(current_snapshot_url),
             std::move(headers),
             nullptr, // No request body
-            std::nullopt, // No response callback
-            std::move(snapshot_response));
+            std::move(snapshot_response),
+            std::nullopt // No response callback
+          );
 
           CURLcode curl_response = CURLE_OK;
           long snapshot_range_status_code = 0;

@@ -55,6 +55,7 @@ TEST_CASE("Synchronous")
       std::move(url),
       std::move(headers),
       std::move(body),
+      std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
       std::nullopt);
 
     CURLcode curl_code = CURLE_OK;
@@ -113,6 +114,7 @@ TEST_CASE("CurlmLibuvContext")
         std::move(url),
         std::move(headers),
         std::move(body),
+        std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
         std::move(response_callback));
 
       ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(

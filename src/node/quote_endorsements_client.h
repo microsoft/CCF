@@ -249,12 +249,14 @@ namespace ccf
         return;
       });
 
+      constexpr size_t max_response_size = 100L * 1024 * 1024; // 100MB
       auto request = std::make_unique<curl::CurlRequest>(
         std::move(curl_handle),
         HTTP_GET,
         std::move(url),
         std::move(headers),
         nullptr,
+        std::make_unique<ccf::curl::ResponseBody>(max_response_size),
         std::move(response_callback));
 
       // Start watchdog to send request on new server if it is unresponsive
