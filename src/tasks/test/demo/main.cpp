@@ -143,10 +143,10 @@ TEST_CASE("PauseAndResume")
 {
   ccf::tasks::JobBoard job_board;
   {
-    size_t x = 0;
-    size_t y = 0;
+    std::atomic<size_t> x = 0;
+    std::atomic<size_t> y = 0;
 
-    auto increment = [](size_t& n) {
+    auto increment = [](std::atomic<size_t>& n) {
       return ccf::tasks::make_basic_action([&n]() { ++n; });
     };
 
@@ -196,8 +196,9 @@ TEST_CASE("PauseAndResume")
 
       // If we need to block, we can ask for a task to be paused. Note that the
       // current action will still complete
-      bool happened = false;
+      std::atomic<bool> happened = false;
       ccf::tasks::Resumable resumable;
+      ccf::ds::WorkBeacon beacon;
 
       x_tasks->add_action(increment(x));
       x_tasks->add_action(ccf::tasks::make_basic_action([&]() {
@@ -207,11 +208,12 @@ TEST_CASE("PauseAndResume")
         resumable = ccf::tasks::pause_current_task();
         // NB: The current _action_ will still complete execution!
         happened = true;
+        beacon.notify_work_available();
       }));
       x_tasks->add_action(increment(x));
 
       worker.start();
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      beacon.wait_for_work_with_timeout(std::chrono::milliseconds(100));
       REQUIRE(x == 102); // One increment action happened
       REQUIRE(happened == true); // Then the pause action ran to completion
       REQUIRE(
@@ -225,25 +227,27 @@ TEST_CASE("PauseAndResume")
         y_tasks->add_action(increment(y));
       }
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      beacon.wait_for_work_with_timeout(std::chrono::milliseconds(100));
       REQUIRE(x == 102);
       REQUIRE(y == 202);
 
       // After resume, all queued actions will (be able to) execute, in-order
       ccf::tasks::resume_task(std::move(resumable));
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      beacon.wait_for_work_with_timeout(std::chrono::milliseconds(100));
       REQUIRE(x == 203);
       REQUIRE(y == 202);
 
       // A task might be paused multiple times during its life
       resumable = nullptr;
       x_tasks->add_action(increment(x));
-      x_tasks->add_action(ccf::tasks::make_basic_action(
-        [&]() { resumable = ccf::tasks::pause_current_task(); }));
+      x_tasks->add_action(ccf::tasks::make_basic_action([&]() {
+        resumable = ccf::tasks::pause_current_task();
+        beacon.notify_work_available();
+      }));
       x_tasks->add_action(increment(x));
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      beacon.wait_for_work_with_timeout(std::chrono::milliseconds(100));
       REQUIRE(x == 204);
       REQUIRE(resumable != nullptr);
 
@@ -253,7 +257,7 @@ TEST_CASE("PauseAndResume")
       // Cancellation supercedes resumption - nothing more happens on this task
       ccf::tasks::resume_task(std::move(resumable));
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      beacon.wait_for_work_with_timeout(std::chrono::milliseconds(100));
       REQUIRE(x == 204);
     }
   }
