@@ -248,6 +248,7 @@ namespace ccf::curl
   {
   public:
     using HeaderMap = std::unordered_map<std::string, std::string>;
+    bool is_first_header = true;
     HeaderMap data;
 
     static size_t recv_header_line(
@@ -264,31 +265,44 @@ namespace ccf::curl
       // strip \r\n etc
       header = ccf::nonstd::trim(header);
 
-      // Ignore empty headers, and the http response line (e.g. "HTTP/1.1 200")
+      // Ignore the http status line (e.g. "HTTP/1.1 200") which should be the
+      // first header
       static const std::regex http_status_line_regex(R"(^HTTP\/[1-9]+.*)");
-      if (
-        !header.empty() &&
-        !std::regex_match(std::string(header), http_status_line_regex))
+      if (response->is_first_header)
       {
-        const auto [field, value] = ccf::nonstd::split_1(header, ": ");
-        if (!value.empty())
+        response->is_first_header = false;
+        if (!std::regex_match(std::string(header), http_status_line_regex))
         {
-          std::string field_str(field);
-          nonstd::to_lower(field_str);
-          if (response->data.contains(field_str))
-          {
-            auto current = response->data[field_str];
-            LOG_FAIL_FMT(
-              "Duplicate header for '{}', current = '{}', new = '{}'",
-              field_str,
-              current,
-              value);
-          }
-          response->data[field_str] = ccf::nonstd::trim(value);
+          LOG_FAIL_FMT(
+            "Expected HTTP status line as first header, got '{}'", header);
+          return bytes_to_read; // Not a valid HTTP response
         }
-        else
+      }
+      else
+      {
+        // ignore empty headers
+        if (!header.empty())
         {
-          LOG_INFO_FMT("Ignoring invalid-looking HTTP Header '{}'", header);
+          const auto [field, value] = ccf::nonstd::split_1(header, ": ");
+          if (!value.empty())
+          {
+            std::string field_str(field);
+            nonstd::to_lower(field_str);
+            if (response->data.contains(field_str))
+            {
+              auto current = response->data[field_str];
+              LOG_FAIL_FMT(
+                "Duplicate header for '{}', current = '{}', new = '{}'",
+                field_str,
+                current,
+                value);
+            }
+            response->data[field_str] = ccf::nonstd::trim(value);
+          }
+          else
+          {
+            LOG_INFO_FMT("Ignoring invalid-looking HTTP Header '{}'", header);
+          }
         }
       }
 
