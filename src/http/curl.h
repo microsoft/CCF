@@ -7,6 +7,7 @@
 #include "ccf/rest_verb.h"
 #include "host/proxy.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <curl/curl.h>
 #include <curl/multi.h>
@@ -218,6 +219,10 @@ namespace ccf::curl
   {
   public:
     std::vector<uint8_t> buffer;
+    static constexpr size_t mb = 1024L * 1024L;
+    // Maximum size of the response body, set to 0 to disable limit
+    size_t maximum_size = 1 * mb;
+
     static size_t write_response_chunk(
       uint8_t* ptr, size_t size, size_t nmemb, ResponseBody* response)
     {
@@ -225,9 +230,20 @@ namespace ccf::curl
       {
         LOG_FAIL_FMT(
           "write_response_chunk called with a null response pointer");
-        return 0;
+        return CURL_WRITEFUNC_ERROR;
       }
       auto bytes_to_copy = size * nmemb;
+      if (
+        response->maximum_size > 0 &&
+        response->buffer.size() + bytes_to_copy > response->maximum_size)
+      {
+        LOG_FAIL_FMT(
+          "Response size limit exceeded: {} bytes, maximum is {} bytes",
+          response->buffer.size() + bytes_to_copy,
+          response->maximum_size);
+        return CURL_WRITEFUNC_ERROR;
+      }
+
       response->buffer.insert(response->buffer.end(), ptr, ptr + bytes_to_copy);
       // Should probably set a maximum response size here
       return bytes_to_copy;
