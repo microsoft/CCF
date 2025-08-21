@@ -226,6 +226,12 @@ assert not re.match(smv_branch_whitelist, "release/2.x")
 assert re.match(smv_branch_whitelist, "release/100.x")
 assert not re.match(smv_branch_whitelist, "release/1.x_feature")
 
+# -- Warnings filter (https://www.sphinx-doc.org/en/master/usage/configuration.html)
+
+suppress_warnings = [
+    "autosectionlabel",
+]
+
 # Intercept command line arguments passed by sphinx-multiversion to retrieve doc version.
 # This is a little hacky with sphinx-multiversion 0.2.4 and the `SPHINX_MULTIVERSION_NAME`
 # envvar should be used for further versions (release pending).
