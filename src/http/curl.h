@@ -261,7 +261,7 @@ namespace ccf::curl
       auto bytes_to_read = size * nitems;
       std::string_view header(buffer, bytes_to_read);
 
-      // strip /r/n etc
+      // strip \r\n etc
       header = ccf::nonstd::trim(header);
 
       // Ignore empty headers, and the http response line (e.g. "HTTP/1.1 200")
