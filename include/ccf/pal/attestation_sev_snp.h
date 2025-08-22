@@ -429,7 +429,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     auto reported_tcb = fmt::format("{:0x}", *(uint64_t*)(&quote.reported_tcb));
 
     constexpr size_t default_max_retries_count = 10;
-    static const ds::SizeString default_max_response_size =
+    static const ds::SizeString default_max_client_response_size =
       ds::SizeString("100mb");
 
     if (endorsements_servers.empty())
@@ -440,7 +440,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         chip_id_hex,
         reported_tcb,
         default_max_retries_count,
-        default_max_response_size));
+        default_max_client_response_size));
       return config;
     }
 
@@ -448,8 +448,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     {
       size_t max_retries_count =
         server.max_retries_count.value_or(default_max_retries_count);
-      size_t max_response_size =
-        server.max_response_size.value_or(default_max_response_size);
+      size_t max_client_response_size =
+        server.max_client_response_size.value_or(default_max_client_response_size);
       switch (server.type)
       {
         case EndorsementsEndpointType::Azure:
@@ -461,7 +461,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             chip_id_hex,
             reported_tcb,
             max_retries_count,
-            max_response_size));
+            max_client_response_size));
           break;
         }
         case EndorsementsEndpointType::AMD:
@@ -512,7 +512,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             microcode,
             product,
             max_retries_count,
-            max_response_size));
+            max_client_response_size));
           break;
         }
         case EndorsementsEndpointType::THIM:
@@ -524,7 +524,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             chip_id_hex,
             reported_tcb,
             max_retries_count,
-            max_response_size));
+            max_client_response_size));
           break;
         }
         default:
