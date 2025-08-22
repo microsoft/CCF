@@ -550,7 +550,9 @@ def test_recover_service_from_files(
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
 
-        args.previous_service_identity_file = os.path.join(old_common, "service_cert.pem")
+        args.previous_service_identity_file = os.path.join(
+            old_common, "service_cert.pem"
+        )
 
         network.start_in_recovery(
             args,
