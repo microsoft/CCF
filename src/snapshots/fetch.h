@@ -183,7 +183,8 @@ namespace snapshots
         content_size,
         range_size);
 
-      auto snapshot_response = std::make_unique<ccf::curl::ResponseBody>(content_size);
+      auto snapshot_response =
+        std::make_unique<ccf::curl::ResponseBody>(content_size);
 
       {
         auto range_start = 0;

@@ -101,8 +101,7 @@ namespace ccf::pal::snp
     const std::string& chip_id_hex,
     const std::string& reported_tcb,
     size_t max_retries_count,
-    size_t max_response_size
-  )
+    size_t max_response_size)
   {
     std::map<std::string, std::string> params;
     params["api-version"] = "2020-10-15-preview";
@@ -111,7 +110,7 @@ namespace ccf::pal::snp
       endpoint.port,
       fmt::format("/SevSnpVM/certificates/{}/{}", chip_id_hex, reported_tcb),
       params,
-      };
+    };
 
     info.max_retries_count = max_retries_count;
     info.max_response_size = max_response_size;
@@ -133,8 +132,7 @@ namespace ccf::pal::snp
     const std::string& microcode,
     const ProductName& product_name,
     size_t max_retries_count,
-    size_t max_response_size
-  )
+    size_t max_response_size)
   {
     std::map<std::string, std::string> params;
     params["blSPL"] = boot_loader;
@@ -174,8 +172,7 @@ namespace ccf::pal::snp
     const std::string& chip_id_hex,
     const std::string& reported_tcb,
     size_t max_retries_count,
-    size_t max_response_size
-  )
+    size_t max_response_size)
   {
     std::map<std::string, std::string> params;
     params["tcbVersion"] = reported_tcb;
