@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Allow changing the constitution during disaster recovery via the `command.recover.constitution_files` entry in cchost. (#7155)
 - Added `toArrayBuffer` to `ccfapp/utils` which converts `ArrayBufferLike` to `ArrayBuffer`. (#7171)
+- `ccf/crypto/openssl_init.h` header exposing `ccf::crypt::openssl_sha256_init()` and `ccf::crypto::openssl_sha256_shutdown()` for unit tests using `ccfcrypto.a`. (#7118)
 
 ### Changed
 
@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - The `add_ccf_app` function in CMake now builds an executable rather than a library. The caller should provide a `main` function, and call `ccf::run()` from `include/ccf/run.h` to start the node (see `samples/apps/main.cpp` for a minimal example).
 - Application logging no longer traverses the ringbuffer. As current target platforms do not require distinct enclave and host components, what was previously "in-enclave" logging that was deferred via the ringbuffer can now be immediately sent to stdout.
 - CA certificates issued by CCF (ie - `service_cert.pem`) now include a `keyUsage` extension, to comply with RFC5280 (#7134).
+
+### Removed
+
+- CCF no longer publishes a "run" package (cchost + runtime dependencies). Instead, only the -devel package is published, which has to be used by CCF application developers. CCF also provides ccfapp CPack settings to pull in all CCF runtime dependencies. Check [Packaging your C++ app](https://microsoft.github.io/CCF/main/build_apps/get_started.html#packaging-your-c-app) for documentation (#7187).
 
 ### Dependencies
 

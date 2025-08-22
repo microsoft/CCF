@@ -3,6 +3,7 @@
 #include "node/history.h"
 
 #include "ccf/app_interface.h"
+#include "ccf/crypto/openssl_init.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/service/tables/nodes.h"

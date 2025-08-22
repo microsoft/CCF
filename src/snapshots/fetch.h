@@ -66,6 +66,7 @@ namespace snapshots
           std::move(initial_url),
           std::move(headers),
           nullptr, // No request body
+          nullptr, // No response body
           std::nullopt // No response callback
         );
 
@@ -89,9 +90,10 @@ namespace snapshots
         EXPECT_HTTP_RESPONSE_STATUS(
           request, status_code, HTTP_STATUS_PERMANENT_REDIRECT);
 
-        auto* response = request.get_response();
-        auto location_it = response->headers.find(ccf::http::headers::LOCATION);
-        if (location_it == response->headers.end())
+        auto& response_headers = request.get_response_headers();
+        auto location_it =
+          response_headers.data.find(ccf::http::headers::LOCATION);
+        if (location_it == response_headers.data.end())
         {
           throw std::runtime_error(fmt::format(
             "Expected {} header in redirect response from {} {}, none found",
@@ -122,6 +124,7 @@ namespace snapshots
           std::move(current_snapshot_url),
           std::move(headers),
           nullptr, // No request body
+          nullptr, // No response body
           std::nullopt // No response callback
         );
 
@@ -142,12 +145,13 @@ namespace snapshots
         EXPECT_HTTP_RESPONSE_STATUS(
           snapshot_size_request, snapshot_size_status_code, HTTP_STATUS_OK);
 
-        auto* snapshot_size_response = snapshot_size_request.get_response();
+        auto& snapshot_size_response_headers =
+          snapshot_size_request.get_response_headers();
 
-        auto content_size_it = snapshot_size_response->headers.find(
+        auto content_size_it = snapshot_size_response_headers.data.find(
           ccf::http::headers::CONTENT_LENGTH);
 
-        if (content_size_it == snapshot_size_response->headers.end())
+        if (content_size_it == snapshot_size_response_headers.data.end())
         {
           throw std::runtime_error(fmt::format(
             "Expected {} header in response from {} {}, none found",
@@ -179,7 +183,8 @@ namespace snapshots
         content_size,
         range_size);
 
-      auto snapshot_response = std::make_unique<ccf::curl::Response>();
+      auto snapshot_response =
+        std::make_unique<ccf::curl::ResponseBody>(content_size);
 
       {
         auto range_start = 0;
@@ -196,15 +201,15 @@ namespace snapshots
 
           std::string current_snapshot_url = snapshot_url;
 
-          snapshot_response->headers.clear();
           ccf::curl::CurlRequest snapshot_range_request(
             std::move(curl_easy),
             HTTP_GET,
             std::move(current_snapshot_url),
             std::move(headers),
             nullptr, // No request body
-            std::nullopt, // No response callback
-            std::move(snapshot_response));
+            std::move(snapshot_response),
+            std::nullopt // No response callback
+          );
 
           CURLcode curl_response = CURLE_OK;
           long snapshot_range_status_code = 0;

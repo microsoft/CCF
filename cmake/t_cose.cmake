@@ -29,10 +29,8 @@ target_link_libraries(t_cose PUBLIC qcbor crypto)
 set_property(TARGET t_cose PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_san(t_cose)
 
-if(CCF_DEVEL)
-  install(
-    TARGETS t_cose
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
+install(
+  TARGETS t_cose
+  EXPORT ccf
+  DESTINATION lib
+)

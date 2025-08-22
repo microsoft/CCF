@@ -118,7 +118,6 @@ namespace host
         std::string previous_service_identity_file;
         std::optional<std::string> previous_sealed_ledger_secret_location =
           std::nullopt;
-        std::vector<std::string> constitution_files = {};
         std::optional<std::vector<std::string>> self_healing_open_addresses =
           std::nullopt;
         ccf::ds::TimeString self_healing_open_retry_timeout = {"100ms"};
@@ -178,7 +177,6 @@ namespace host
     initial_service_certificate_validity_days,
     previous_service_identity_file,
     previous_sealed_ledger_secret_location,
-    constitution_files,
     self_healing_open_addresses,
     self_healing_open_retry_timeout,
     self_healing_open_timeout);

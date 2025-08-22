@@ -3,6 +3,7 @@
 
 #include "ccf/run.h"
 
+#include "ccf/crypto/openssl_init.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
@@ -55,7 +56,6 @@
 #include <csignal>
 #include <cstdint>
 #include <cstdlib>
-#include <curl/curl.h>
 #include <exception>
 #include <filesystem>
 #include <iostream>
@@ -360,12 +360,6 @@ namespace ccf
     // Write PID to disk
     files::dump(fmt::format("{}", ::getpid()), config.output_files.pid_file);
 
-    // Initialise curlm libuv interface
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    ccf::curl::CurlmLibuvContext curl_libuv_context(uv_default_loop());
-    ccf::curl::CurlmLibuvContextSingleton::get_instance_unsafe() =
-      &curl_libuv_context;
-
     // set the host log level
     ccf::logger::config::level() = log_level;
 
@@ -532,6 +526,11 @@ namespace ccf
         config.idle_connection_timeout);
       rpc_udp->behaviour.register_udp_message_handlers(
         buffer_processor.get_dispatcher());
+
+      // Initialise the curlm singleton
+      curl_global_init(CURL_GLOBAL_DEFAULT);
+      auto curl_libuv_context =
+        curl::CurlmLibuvContextSingleton(uv_default_loop());
 
       ccf::SelfHealingOpenSingleton::initialise(writer_factory);
 
@@ -810,26 +809,6 @@ namespace ccf
         LOG_INFO_FMT("Reading previous service identity from {}", idf);
         startup_config.recover.previous_service_identity = files::slurp(idf);
 
-        if (!config.command.recover.constitution_files.empty())
-        {
-          LOG_INFO_FMT(
-            "Reading [{}] constitution file(s) for recovery",
-            fmt::join(config.command.recover.constitution_files, ", "));
-          startup_config.recover.constitution = "";
-          for (const auto& constitution_path :
-               config.command.recover.constitution_files)
-          {
-            // Separate with single newlines
-            if (!startup_config.recover.constitution->empty())
-            {
-              startup_config.recover.constitution.value() += '\n';
-            }
-
-            startup_config.recover.constitution.value() +=
-              files::slurp_string(constitution_path);
-          }
-        }
-
         if (config.command.recover.previous_sealed_ledger_secret_location
               .has_value())
         {
@@ -1034,7 +1013,6 @@ namespace ccf
     }
 
     process_launcher.stop();
-    curl_libuv_context.stop();
 
     constexpr size_t max_close_iterations = 1000;
     size_t close_iterations = max_close_iterations;

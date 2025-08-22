@@ -286,7 +286,6 @@ class Node:
         members_info=None,
         enable_local_sealing=False,
         previous_sealed_ledger_secret_location=None,
-        recovery_constitution_files=None,
         **kwargs,
     ):
         """
@@ -315,8 +314,6 @@ class Node:
             previous_sealed_ledger_secret_location
         )
 
-        self.recovery_constitution_files = recovery_constitution_files or []
-
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         self.remote = infra.remote.CCFRemote(
             start_type,
@@ -339,7 +336,6 @@ class Node:
             enable_local_sealing=enable_local_sealing,
             sealed_ledger_secret_location=self.sealed_ledger_secret_location,
             previous_sealed_ledger_secret_location=previous_sealed_ledger_secret_location,
-            recovery_constitution_files=recovery_constitution_files,
             **kwargs,
         )
         self.remote.setup()

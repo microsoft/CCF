@@ -204,7 +204,6 @@ class Network:
         "idle_connection_timeout_s",
         "enable_local_sealing",
         "previous_sealed_ledger_secret_location",
-        "recovery_constitution_files",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -860,7 +859,6 @@ class Network:
         expected_recovery_count=None,
         via_recovery_owner=False,
         via_local_sealing=False,
-        set_constitution=True,
     ):
         """
         Recovers a CCF network previously started in recovery mode.
@@ -878,10 +876,9 @@ class Network:
         )
         self.wait_for_all_nodes_to_be_trusted(self.find_random_node())
 
-        if set_constitution:
-            # The new service may be running a newer version of the constitution,
-            # so we make sure that we're running the right one.
-            self.consortium.set_constitution(random_node, args.constitution)
+        # The new service may be running a newer version of the constitution,
+        # so we make sure that we're running the right one.
+        self.consortium.set_constitution(random_node, args.constitution)
 
         prev_service_identity = None
         if args.previous_service_identity_file:
