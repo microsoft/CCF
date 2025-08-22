@@ -1018,7 +1018,7 @@ class Network:
                                 has_stopped,
                                 error,
                                 endorsement_server=match.group(1),
-                                retries=int(match.group(1)),
+                                retries=int(match.group(2)),
                             ) from e
                 raise
 
