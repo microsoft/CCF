@@ -126,6 +126,44 @@ jobs:
           ninja
           ../scripts/ensure-snmalloc.sh samples/apps/basic/basic
 
+  check-doc:
+    name: "Build docs successfully"
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root
+
+    steps:
+      - name: "Install and checkout andependencies"
+        shell: bash
+        run: |
+          set -ex
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+          tdnf -y install doxygen npm
+
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+
+      - name: "Check doc builds with no warnings"
+        run: |
+          set -ex
+          python3 -m venv env
+          source env/bin/activate
+          pip install -U pip
+          pip install -U -e ./python
+          pip install -U -r doc/requirements.txt
+          pip install -U -r doc/historical_ccf_requirements.txt
+          sphinx-build --fail-on-warning -b html doc doc/html
+
   build_and_test_virtual:
     name: "Virtual CI"
     needs: checks

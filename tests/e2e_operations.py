@@ -1585,6 +1585,9 @@ def run_ledger_chunk_bytes_check(const_args):
                 c.wait_for_commit(r)
 
             force_become_primary(smallest_node)
+            # Sleep long enough that this new primary node can produce a new time-based signature,
+            # if they want to, to ensure they're tracking chunk sizes accurately
+            time.sleep(args.sig_ms_interval / 1000)
             with smallest_node.client("user0") as c:
                 r = c.get("/node/commit")
                 assert r.status_code == http.HTTPStatus.OK, r
