@@ -548,7 +548,7 @@ def test_recover_service_from_files(
             infra.proc.ccall(*cmd).returncode == 0
         ), f"Could not copy {file} to {new_common}"
 
-    with infra.network.Network(args.nodes, args.binary_dir) as network:
+    with infra.network.network(args.nodes, args.binary_dir) as network:
 
         args.previous_service_identity_file = os.path.join(old_common, "service_cert.pem")
 
