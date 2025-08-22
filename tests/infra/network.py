@@ -69,7 +69,7 @@ class PrimaryNotFound(Exception):
 
 class NodeJoinException(Exception):
     def __init__(self, node, has_stopped, error_line, *args, **kwargs):
-        super(Exception, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.node = node
         self.has_stopped = has_stopped
         self.error_line = error_line
@@ -93,7 +93,7 @@ class StartupSeqnoIsOld(NodeJoinException):
 
 class CollateralFetchTimeout(NodeJoinException):
     def __init__(self, *args, endorsement_server, retries, **kwargs):
-        super(NodeJoinException, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.endorsement_server = endorsement_server
         self.retries = retries
 
