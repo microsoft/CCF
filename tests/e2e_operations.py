@@ -1513,6 +1513,26 @@ def run_ledger_chunk_bytes_check(const_args):
                 primary, _ = network.wait_for_new_primary_in({node.node_id})
                 assert primary == node
 
+            # Wait for this node to emit and commit a signature
+            with node.client("user0") as c:
+                sig_interval = args.sig_ms_interval / 1000
+                t0 = time.time()
+                timeout = 3 * sig_interval
+                while time.time() - t0 < timeout:
+                    r = c.get("/node/commit")
+                    assert r.status_code == http.HTTPStatus.OK, r
+                    tx_id = TxID.from_str(r.body.json()["transaction_id"])
+                    receipt = node.get_receipt(view=tx_id.view, seqno=tx_id.seqno)
+                    receipt_issuer = receipt.json()["node_id"]
+                    if receipt_issuer == node.node_id:
+                        break
+
+                    time.sleep(sig_interval / 2)
+                else:
+                    raise TimeoutError(
+                        f"New primary did not produce signature (and receipt) in new term after {timeout}s"
+                    )
+
         primary, backups = network.find_nodes()
 
         nodes_and_sizes = [
@@ -1564,6 +1584,9 @@ def run_ledger_chunk_bytes_check(const_args):
                 c.wait_for_commit(r)
 
             force_become_primary(smallest_node)
+            # Sleep long enough that this new primary node can produce a new time-based signature,
+            # if they want to, to ensure they're tracking chunk sizes accurately
+            time.sleep(args.sig_ms_interval / 1000)
             with smallest_node.client("user0") as c:
                 r = c.get("/node/commit")
                 assert r.status_code == http.HTTPStatus.OK, r
@@ -1604,7 +1627,7 @@ def run_ledger_chunk_bytes_check(const_args):
                 chunk_size = chunk_ends_to_expected_size[end]
                 num_transactions = 1 + end - start
                 min_expected = chunk_size + overhead(num_transactions, num_signatures=0)
-                max_expected = chunk_size + overhead(num_transactions, num_signatures=2)
+                max_expected = chunk_size + overhead(num_transactions, num_signatures=3)
 
                 r = range(min_expected, max_expected)
                 assert (
