@@ -449,7 +449,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
       size_t max_retries_count =
         server.max_retries_count.value_or(default_max_retries_count);
       size_t max_client_response_size =
-        server.max_client_response_size.value_or(default_max_client_response_size);
+        server.max_client_response_size.value_or(
+          default_max_client_response_size);
       switch (server.type)
       {
         case EndorsementsEndpointType::Azure:

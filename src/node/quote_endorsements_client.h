@@ -255,7 +255,8 @@ namespace ccf
         std::move(url),
         std::move(headers),
         nullptr,
-        std::make_unique<ccf::curl::ResponseBody>(endpoint.max_client_response_size),
+        std::make_unique<ccf::curl::ResponseBody>(
+          endpoint.max_client_response_size),
         std::move(response_callback));
 
       // Start watchdog to send request on new server if it is unresponsive
