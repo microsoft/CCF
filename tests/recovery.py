@@ -590,6 +590,8 @@ def test_recover_service_from_files(
     if test_receipt:
         r = primary.get_receipt(2, 3)
         verify_receipt(r.json(), network.cert)
+        
+    network.stop_all_nodes()
 
 
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
