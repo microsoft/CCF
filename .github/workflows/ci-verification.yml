@@ -22,7 +22,7 @@ permissions:
 jobs:
   model-checking-consistency:
     name: Model Checking - Consistency
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -104,7 +104,7 @@ jobs:
 
   model-checking-consensus:
     name: Model Checking - Consensus
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -164,7 +164,7 @@ jobs:
 
   trace-validation-consensus:
     name: Trace Validation - Consensus
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
