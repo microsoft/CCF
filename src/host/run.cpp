@@ -31,6 +31,8 @@
 #include "enclave/entry_points.h"
 #include "handle_ring_buffer.h"
 #include "host/env.h"
+#include "host/self_healing_open.h"
+#include "http/curl.h"
 #include "json_schema.h"
 #include "lfs_file_handler.h"
 #include "load_monitor.h"
@@ -525,6 +527,13 @@ namespace ccf
       rpc_udp->behaviour.register_udp_message_handlers(
         buffer_processor.get_dispatcher());
 
+      // Initialise the curlm singleton
+      curl_global_init(CURL_GLOBAL_DEFAULT);
+      auto curl_libuv_context =
+        curl::CurlmLibuvContextSingleton(uv_default_loop());
+
+      ccf::SelfHealingOpenSingleton::initialise(writer_factory);
+
       ResolvedAddresses resolved_rpc_addresses;
       for (auto& [name, interface] : config.network.rpc_interfaces)
       {
@@ -809,6 +818,12 @@ namespace ccf
           startup_config.recover.previous_sealed_ledger_secret_location =
             config.command.recover.previous_sealed_ledger_secret_location;
         }
+        startup_config.recover.self_healing_open_addresses =
+          config.command.recover.self_healing_open_addresses;
+        startup_config.recover.self_healing_open_retry_timeout =
+          config.command.recover.self_healing_open_retry_timeout;
+        startup_config.recover.self_healing_open_timeout =
+          config.command.recover.self_healing_open_timeout;
       }
       else
       {
@@ -1021,6 +1036,7 @@ namespace ccf
       LOG_FAIL_FMT(
         "Failed to close uv loop cleanly: {}", uv_err_name(loop_close_rc));
     }
+    curl_global_cleanup();
     ccf::crypto::openssl_sha256_shutdown();
 
     return loop_close_rc;
