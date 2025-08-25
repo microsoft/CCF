@@ -27,7 +27,7 @@ import struct
 import infra.snp as snp
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-from pycose.messages import Sign1Message
+import cbor2
 import sys
 import pathlib
 import infra.concurrency
@@ -810,11 +810,15 @@ def run_cose_signatures_config_check(args):
                         )
                         with open(signature_filename, "wb") as f:
                             f.write(signature)
-                        sig = Sign1Message.decode(signature)
-                        assert sig.phdr[15][1] == "test.issuer.example.com"
-                        assert sig.phdr[15][2] == "test.subject"
+                        sig = cbor2.loads(signature)
+                        assert sig.tag == 18
+                        phdr = cbor2.loads(sig.value[0])
+                        assert 15 in phdr, "CWT_Claims"
+                        assert phdr[15][1] == "test.issuer.example.com"
+                        assert phdr[15][2] == "test.subject"
+                        assert sig.value[2] is None, "Detached payload"
                         LOG.debug(
-                            "Checked COSE signature schema for issuer and subject"
+                            "Well-formed COSE signature schema for issuer and subject"
                         )
                         break
                     elif response.status_code == http.HTTPStatus.ACCEPTED:
