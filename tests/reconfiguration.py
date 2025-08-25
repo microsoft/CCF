@@ -888,9 +888,9 @@ def run_join_old_snapshot(args):
                 LOG.info(
                     f"Node {new_node.local_node_id} started from old snapshot could not join the service, as expected"
                 )
-                assert e.args == (
-                    True,
-                ), "Node has stopped on receiving StartupSeqnoIsOld"
+                assert (
+                    e.has_stopped
+                ), "Expected node to stop on receiving StartupSeqnoIsOld"
             else:
                 raise RuntimeError(
                     f"Node {new_node.local_node_id} started from old snapshot unexpectedly joined the service"
@@ -911,9 +911,9 @@ def run_join_old_snapshot(args):
                 LOG.info(
                     f"Node {new_node.local_node_id} started without snapshot could not join the service, as expected"
                 )
-                assert e.args == (
-                    True,
-                ), "Node has stopped on receiving StartupSeqnoIsOld"
+                assert (
+                    e.has_stopped
+                ), "Expected node to stop on receiving StartupSeqnoIsOld"
             else:
                 raise RuntimeError(
                     f"Node {new_node.local_node_id} started without snapshot unexpectedly joined the service successfully"
