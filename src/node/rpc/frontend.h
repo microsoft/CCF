@@ -13,7 +13,6 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
 #include "common/configuration.h"
-#include "enclave/enclave_time.h"
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
@@ -577,11 +576,11 @@ namespace ccf
       size_t attempts = 0;
       endpoints::EndpointDefinitionPtr endpoint = nullptr;
 
-      const auto start_time = ccf::get_enclave_time();
+      const auto start_time = std::chrono::high_resolution_clock::now();
 
       process_command_inner(ctx, endpoint, attempts);
 
-      const auto end_time = ccf::get_enclave_time();
+      const auto end_time = std::chrono::high_resolution_clock::now();
 
       if (endpoint != nullptr)
       {
