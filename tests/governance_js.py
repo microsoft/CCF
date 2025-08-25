@@ -450,7 +450,7 @@ def test_proposal_replay_protection(network, args):
         # Re-submitting the last proposal is detected as a replay
         last_index = window_size - 1
         c.set_created_at_override((now + last_index).moment())
-        r = c.post("/gov/members/proposals:create", submitted[last_index])
+        r = c.repeat_last_request()
         assert (
             r.status_code == 400 and r.body.json()["error"]["code"] == "ProposalReplay"
         ), r.body.text()
