@@ -18,8 +18,8 @@ import ccf.cose
 import cbor2
 
 
-def make_private_key(curve: ec.EllipticCurve = ec.SECP256R1):
-    return ec.generate_private_key(curve=curve(), backend=default_backend())
+def make_private_key(curve: ec.EllipticCurve):
+    return ec.generate_private_key(curve=curve, backend=default_backend())
 
 
 def make_pem_pair(priv) -> Tuple[str, str]:
@@ -55,7 +55,7 @@ def test_create_cose_sign1_finish():
     Check create_cose_sign1_finish() produces the same output when passed
     a signature as create_cose_sign1().
     """
-    priv = make_private_key()
+    priv = make_private_key(ec.SECP256R1())
     priv_pem, pub_pem = make_pem_pair(priv)
     cert = make_self_signed_cert(priv, "example.com")
 
