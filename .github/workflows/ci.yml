@@ -81,6 +81,12 @@ jobs:
           ninja
         shell: bash
 
+      - name: "Run tests for Python package"
+        run: |
+          set -ex
+          cd python
+          pytest
+
   ensure-snmalloc:
     name: "Ensure using snmalloc"
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
