@@ -812,7 +812,8 @@ namespace ccf::curl
     void attach_request(std::unique_ptr<CurlRequest>& request)
     {
       std::lock_guard<std::recursive_mutex> lock(curlm_lock);
-      if (curl_request_curlm == nullptr) {
+      if (curl_request_curlm == nullptr)
+      {
         LOG_FAIL_FMT("CurlmLibuvContext already closed, cannot attach request");
         return;
       }
