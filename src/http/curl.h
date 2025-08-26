@@ -455,6 +455,7 @@ namespace ccf::curl
 
     void handle_response(CURLcode curl_response_code)
     {
+      LOG_TRACE_FMT("Handling response for {}", url);
       if (response_callback.has_value())
       {
         long status_code = 0;
@@ -526,6 +527,7 @@ namespace ccf::curl
       {
         throw std::logic_error("Cannot attach a null CurlRequest");
       }
+      LOG_TRACE_FMT("Attaching CurlRequest to {} to Curlm", request->get_url());
       CURL* curl_handle = request->get_easy_handle();
       CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_PRIVATE, request.release());
       CHECK_CURL_MULTI(curl_multi_add_handle, p.get(), curl_handle);
