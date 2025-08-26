@@ -137,18 +137,7 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments, but expected 1", argc);
       }
 
-      const auto v = argv[0];
-      if (JS_IsBool(v) == 0)
-      {
-        return JS_ThrowTypeError(ctx, "First argument must be a boolean");
-      }
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
-
-      const auto previous = jsctx.implement_untrusted_time;
-      jsctx.implement_untrusted_time = (JS_ToBool(ctx, v) != 0);
-
-      return JS_NewBool(ctx, static_cast<int>(previous));
+      return JS_NewBool(ctx, JS_ToBool(ctx, argv[0]));
     }
 
     JSValue js_enable_metrics_logging(
