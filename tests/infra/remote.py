@@ -349,6 +349,14 @@ class CCFRemote(object):
                 env[snp_security_context_directory_envvar] = (
                     snp_uvm_security_context_dir
                 )
+            env["UBSAN_OPTIONS"] = "print_stacktrace=1"
+            ubsan_opts = kwargs.get("ubsan_options")
+            if ubsan_opts:
+                env["UBSAN_OPTIONS"] += ":" + ubsan_opts
+            env["TSAN_OPTIONS"] = os.environ.get("TSAN_OPTIONS", "")
+            env["ASAN_OPTIONS"] = os.environ.get("ASAN_OPTIONS", "")
+            env["ASAN_SYMBOLIZER_PATH"] = os.environ.get("ASAN_SYMBOLIZER_PATH", "")
+            env["TSAN_SYMBOLIZER_PATH"] = os.environ.get("TSAN_SYMBOLIZER_PATH", "")
 
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
