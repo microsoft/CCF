@@ -785,7 +785,11 @@ namespace ccf::curl
         case CURL_POLL_REMOVE:
           if (request_context != nullptr)
           {
+            // close then delete the poll handle
             uv_poll_stop(&request_context->poll_handle);
+            uv_close(
+              reinterpret_cast<uv_handle_t*>(&request_context->poll_handle),
+              nullptr);
             std::unique_ptr<RequestContext> request_context_ptr(
               request_context);
             curl_multi_assign(self->curl_request_curlm, s, nullptr);
