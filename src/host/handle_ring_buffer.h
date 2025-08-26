@@ -37,52 +37,6 @@ namespace asynchost
       r(r),
       nbwf(nbwf)
     {
-      // Register message handler for log message from enclave
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        bp, AdminMessage::log_msg, [](const uint8_t* data, size_t size) {
-          auto
-            [log_time_us_count,
-             file_name,
-             line_number,
-             log_level,
-             tag,
-             thread_id,
-             msg] = ringbuffer::read_message<AdminMessage::log_msg>(data, size);
-
-          ccf::logger::LogLine ll(
-            log_level, tag, file_name.c_str(), line_number, thread_id);
-          ll.msg = msg;
-
-          // Represent offset as a real (counting seconds) to handle both small
-          // negative _and_ positive numbers. Since the system clock used is not
-          // monotonic, the offset we calculate could go in either direction,
-          // and tm can't represent small negative values.
-          std::optional<double> offset_time = std::nullopt;
-
-          // If enclave doesn't know the
-          // current time yet, don't try to produce an offset, just give them
-          // the host's time (producing offset of 0)
-          if (log_time_us_count != 0)
-          {
-            // Enclave time is recomputed every time. If multiple threads
-            // log inside the enclave, offsets may not always increase
-            const double enclave_time_s = log_time_us_count / 1'000'000.0;
-
-            ::timespec ts;
-            ::timespec_get(&ts, TIME_UTC);
-            const double host_time_s =
-              ts.tv_sec + (ts.tv_nsec / 1'000'000'000.0);
-
-            offset_time = enclave_time_s - host_time_s;
-          }
-
-          auto& loggers = ccf::logger::config::loggers();
-          for (auto const& logger : loggers)
-          {
-            logger->write(ll, offset_time);
-          }
-        });
-
       DISPATCHER_SET_MESSAGE_HANDLER(
         bp,
         AdminMessage::fatal_error_msg,
