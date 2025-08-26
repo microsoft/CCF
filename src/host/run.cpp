@@ -1001,7 +1001,7 @@ namespace ccf
       {
         thread.join();
       }
-    }
+    @}
 
     process_launcher.stop();
 
@@ -1026,6 +1026,15 @@ namespace ccf
     {
       LOG_FAIL_FMT(
         "Failed to close uv loop cleanly: {}", uv_err_name(loop_close_rc));
+      // walk loop to diagnose unclosed handles
+      auto cb = [](uv_handle_t* handle, void* arg) {
+        (void)arg;
+        LOG_FAIL_FMT(
+          "Leaked handle: type={}, ptr={}",
+          uv_handle_type_name(handle->type),
+          fmt::ptr(handle));
+      };
+      uv_walk(uv_default_loop(), cb, nullptr);
     }
     curl_global_cleanup();
     ccf::crypto::openssl_sha256_shutdown();
