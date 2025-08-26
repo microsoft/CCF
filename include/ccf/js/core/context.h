@@ -36,7 +36,7 @@ namespace ccf::js::core
 {
   struct InterruptData
   {
-    std::chrono::microseconds start_time;
+    std::chrono::high_resolution_clock::time_point start_time;
     std::chrono::milliseconds max_execution_time;
     ccf::js::TxAccess access;
     bool request_timed_out = false;
@@ -64,7 +64,6 @@ namespace ccf::js::core
 
     const TxAccess access;
     InterruptData interrupt_data;
-    bool implement_untrusted_time = false;
     bool log_execution_metrics = true;
 
     Context(TxAccess acc);
