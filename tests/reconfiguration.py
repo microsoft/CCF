@@ -286,7 +286,7 @@ def test_add_node_endorsements_endpoints(network, args):
                 new_node,
                 args.package,
                 args_copy,
-                timeout=15,
+                timeout=16,
             )
         except infra.network.CollateralFetchTimeout as e:
             LOG.info(

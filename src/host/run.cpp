@@ -46,7 +46,6 @@
 #include "tcp.h"
 #include "ticker.h"
 #include "time_bound_logger.h"
-#include "time_updater.h"
 #include "udp.h"
 
 #include <CLI11/CLI11.hpp>
@@ -433,9 +432,6 @@ namespace ccf
 
       // reset the inbound-UDP processing quota each iteration
       const asynchost::ResetUDPReadQuota reset_udp_quota;
-
-      // regularly update the time given to the enclave
-      asynchost::TimeUpdater time_updater(1ms);
 
       // regularly record some load statistics
       const asynchost::LoadMonitor load_monitor(500ms, buffer_processor);
@@ -918,7 +914,6 @@ namespace ccf
         config.command.type,
         log_level,
         config.worker_threads,
-        time_updater->behaviour.get_value(),
         notifying_factory.get_inbound_work_beacon());
       ecall_completed.store(true);
       flusher_thread.join();

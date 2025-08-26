@@ -267,7 +267,6 @@ add_ccf_static_library(
        ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
        ${CCF_DIR}/src/endpoints/authentication/all_of_auth.cpp
        ${CCF_DIR}/src/endpoints/endpoint_utils.cpp
-       ${CCF_DIR}/src/enclave/enclave_time.cpp
        ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
        ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
        ${CCF_DIR}/src/indexing/strategies/visit_each_entry_in_map.cpp
@@ -367,9 +366,8 @@ endif()
 
 # Build common library for CCF enclaves
 set(CCF_IMPL_SOURCE
-    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp
-    ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/node/quote.cpp
-    ${CCF_DIR}/src/node/uvm_endorsements.cpp
+    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/thread_local.cpp
+    ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
 )
 
 add_ccf_static_library(
@@ -564,7 +562,6 @@ if(BUILD_TESTS)
 
     add_unit_test(
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
     )
     target_link_libraries(history_test PRIVATE ccfcrypto http_parser ccf_kv)
 
@@ -608,7 +605,6 @@ if(BUILD_TESTS)
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
     )
     target_link_libraries(snapshot_test PRIVATE ccf_kv)
 
@@ -664,9 +660,7 @@ if(BUILD_TESTS)
     add_unit_test(
       frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
-      ${CCF_DIR}/src/node/quote.cpp
-      ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
       frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
@@ -768,7 +762,6 @@ if(BUILD_TESTS)
       add_picobench(
         history_bench
         SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
         LINK_LIBS ccf_kv
       )
 
