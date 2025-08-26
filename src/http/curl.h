@@ -576,6 +576,16 @@ namespace ccf::curl
     }
   };
 
+  class CurlmLibuvContextImpl;
+
+  class CurlmLibuvRequestContextImpl : asynchost::with_uv_handle<uv_poll_t>{
+    friend class CurlmLibuvContextImpl;
+    public:
+      curl_socket_t socket;
+      CurlmLibuvContextImpl* context;
+  };
+  using CurlmLibuvRequestContext = std::shared_ptr<CurlmLibuvRequestContextImpl>;
+
   class CurlmLibuvContextImpl
   {
     /* Very high level:
@@ -613,13 +623,6 @@ namespace ccf::curl
     // but that will be difficult/impossible to detect, we need curlm_lock to
     // be recursive.
     std::recursive_mutex curlm_lock;
-
-    struct RequestContext
-    {
-      uv_poll_t poll_handle;
-      curl_socket_t socket;
-      CurlmLibuvContextImpl* context;
-    };
 
   public:
     void handle_request_messages()
@@ -698,14 +701,14 @@ namespace ccf::curl
         return;
       }
 
-      auto* request_context = static_cast<RequestContext*>(req->data);
+      auto* request_context = static_cast<CurlmLibuvRequestContext*>(req->data);
       if (request_context == nullptr)
       {
         throw std::logic_error(
           "libuv_socket_poll_callback called with null request context");
       }
 
-      auto* self = request_context->context;
+      auto* self = request_context->get()->context;
       if (self == nullptr)
       {
         throw std::logic_error(
@@ -726,7 +729,7 @@ namespace ccf::curl
       CHECK_CURL_MULTI(
         curl_multi_socket_action,
         self->curl_request_curlm,
-        request_context->socket,
+        request_context->get()->socket,
         action,
         &running_handles);
       self->handle_request_messages();
@@ -738,7 +741,7 @@ namespace ccf::curl
       curl_socket_t s,
       int action,
       CurlmLibuvContextImpl* self,
-      RequestContext* request_context)
+      CurlmLibuvRequestContext* request_context)
     {
       if (self == nullptr)
       {
@@ -762,12 +765,12 @@ namespace ccf::curl
 
           if (request_context == nullptr)
           {
-            auto request_context_ptr = std::make_unique<RequestContext>();
-            request_context_ptr->context = self;
-            request_context_ptr->socket = s;
+            auto request_context_ptr = std::make_unique<CurlmLibuvRequestContext>();
+            request_context_ptr->get()->context = self;
+            request_context_ptr->get()->socket = s;
             uv_poll_init_socket(
-              self->loop, &request_context_ptr->poll_handle, s);
-            request_context_ptr->poll_handle.data =
+              self->loop, &request_context_ptr->get()->uv_handle, s);
+            request_context_ptr->get()->uv_handle.data =
               request_context_ptr.get(); // Attach the context
             // attach the lifetime to the socket handle
             request_context = request_context_ptr.release();
@@ -779,14 +782,14 @@ namespace ccf::curl
           events |= (action == CURL_POLL_IN) ? 0 : UV_WRITABLE;
           events |= (action == CURL_POLL_OUT) ? 0 : UV_READABLE;
           uv_poll_start(
-            &request_context->poll_handle, events, libuv_socket_poll_callback);
+            &request_context->get()->uv_handle, events, libuv_socket_poll_callback);
           break;
         }
         case CURL_POLL_REMOVE:
           if (request_context != nullptr)
           {
-            uv_poll_stop(&request_context->poll_handle);
-            std::unique_ptr<RequestContext> request_context_ptr(
+            uv_poll_stop(&request_context->get()->uv_handle);
+            std::unique_ptr<CurlmLibuvRequestContext> request_context_ptr(
               request_context);
             curl_multi_assign(self->curl_request_curlm, s, nullptr);
           }
