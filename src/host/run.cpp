@@ -1001,7 +1001,7 @@ namespace ccf
       {
         thread.join();
       }
-    @}
+    }
 
     process_launcher.stop();
 
