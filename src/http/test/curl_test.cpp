@@ -31,13 +31,11 @@ struct Data
 DECLARE_JSON_TYPE(Data);
 DECLARE_JSON_REQUIRED_FIELDS(Data, foo, bar, iter);
 
-constexpr size_t number_requests = 1000;
-
 TEST_CASE("Synchronous")
 {
   Data data = {.foo = "alpha", .bar = "beta"};
   size_t response_count = 0;
-  constexpr size_t sync_number_requests = number_requests / 10;
+  constexpr size_t sync_number_requests = 100;
   for (int i = 0; i < sync_number_requests; ++i)
   {
     data.iter = i;
@@ -71,16 +69,16 @@ TEST_CASE("Synchronous")
   REQUIRE(response_count == sync_number_requests);
 }
 
-static size_t response_count = 0;
-
 TEST_CASE("CurlmLibuvContext")
 {
+  size_t response_count = 0;
+  constexpr size_t number_requests = 1000;
   auto load_generator = [](uv_work_t* req) {
     thread_local std::random_device rd;
     thread_local std::mt19937 gen(rd());
     constexpr size_t max_delay_ms = 10;
     thread_local std::uniform_int_distribution<> uniform_dist(1, max_delay_ms);
-    (void)req;
+    auto* response_count_ptr = reinterpret_cast<size_t*>(req->data);
     Data data = {.foo = "alpha", .bar = "beta"};
     for (int i = 0; i < number_requests; ++i)
     {
@@ -96,7 +94,7 @@ TEST_CASE("CurlmLibuvContext")
 
       auto curl_handle = ccf::curl::UniqueCURL();
 
-      auto response_callback = [](
+      auto response_callback = [response_count_ptr](
                                  ccf::curl::CurlRequest& request,
                                  CURLcode curl_response,
                                  long status_code) {
@@ -104,7 +102,7 @@ TEST_CASE("CurlmLibuvContext")
         constexpr size_t HTTP_SUCCESS = 200;
         if (curl_response == CURLE_OK && status_code == HTTP_SUCCESS)
         {
-          response_count++;
+          (*response_count_ptr)++;
         }
       };
 
@@ -126,10 +124,146 @@ TEST_CASE("CurlmLibuvContext")
     ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
 
     uv_work_t work_req;
+    work_req.data = &response_count;
     uv_queue_work(uv_default_loop(), &work_req, load_generator, nullptr);
     uv_run(uv_default_loop(), UV_RUN_DEFAULT);
   }
   REQUIRE(response_count == number_requests);
+}
+
+TEST_CASE("CurlmLibuvContext slow")
+{
+  size_t response_count = 0;
+  constexpr size_t slow_number_requests = 10;
+  auto load_generator = [](uv_work_t* req) {
+    thread_local std::random_device rd;
+    thread_local std::mt19937 gen(rd());
+    constexpr size_t max_delay_ms = 2000;
+    thread_local std::uniform_int_distribution<> uniform_dist(1, max_delay_ms);
+    auto* response_count_ptr = reinterpret_cast<size_t*>(req->data);
+    (void)req;
+    Data data = {.foo = "alpha", .bar = "beta"};
+    for (int i = 0; i < slow_number_requests; ++i)
+    {
+      auto delay = uniform_dist(gen);
+      std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+
+      data.iter = i;
+      std::string url = fmt::format("http://localhost:8080/{}", i);
+      auto body = std::make_unique<ccf::curl::RequestBody>(data);
+
+      auto headers = ccf::curl::UniqueSlist();
+      headers.append("Content-Type", "application/json");
+
+      auto curl_handle = ccf::curl::UniqueCURL();
+
+      auto response_callback = [response_count_ptr](
+                                 ccf::curl::CurlRequest& request,
+                                 CURLcode curl_response,
+                                 long status_code) {
+        (void)request;
+        constexpr size_t HTTP_SUCCESS = 200;
+        if (curl_response == CURLE_OK && status_code == HTTP_SUCCESS)
+        {
+          (*response_count_ptr)++;
+        }
+      };
+
+      auto request = std::make_unique<ccf::curl::CurlRequest>(
+        std::move(curl_handle),
+        HTTP_PUT,
+        std::move(url),
+        std::move(headers),
+        std::move(body),
+        std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+        std::move(response_callback));
+
+      ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+        request);
+    }
+  };
+
+  {
+    ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
+
+    uv_work_t work_req;
+    work_req.data = &response_count;
+    uv_queue_work(uv_default_loop(), &work_req, load_generator, nullptr);
+    uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+  }
+  REQUIRE(response_count == slow_number_requests);
+}
+
+TEST_CASE("CurlmLibuvContext timeouts")
+{
+  size_t response_count = 0;
+  constexpr size_t number_requests = 1000;
+
+  auto load_generator = [](uv_work_t* req) {
+    thread_local std::random_device rd;
+    thread_local std::mt19937 gen(rd());
+    constexpr size_t max_delay_ms = 40;
+    thread_local std::uniform_int_distribution<> uniform_dist(1, max_delay_ms);
+    auto* response_count_ptr = reinterpret_cast<size_t*>(req->data);
+    (void)req;
+
+    Data data = {.foo = "alpha", .bar = "beta"};
+    for (int i = 0; i < number_requests; ++i)
+    {
+      auto delay = uniform_dist(gen);
+      std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+
+      data.iter = i;
+
+      // 192.0.2.0/24 (TEST-NET-1) is reserved (RFC 5737) and should be
+      // unroutable.
+      const std::string unreachable_base = "http://192.0.2.1:65535";
+      std::string url = fmt::format("{}/{}", unreachable_base, i);
+      auto body = std::make_unique<ccf::curl::RequestBody>(data);
+
+      auto headers = ccf::curl::UniqueSlist();
+      headers.append("Content-Type", "application/json");
+
+      auto curl_handle = ccf::curl::UniqueCURL();
+      curl_handle.set_opt(CURLOPT_TIMEOUT_MS, max_delay_ms);
+
+      auto response_callback = [response_count_ptr](
+                                 ccf::curl::CurlRequest& request,
+                                 CURLcode curl_response,
+                                 long status_code) {
+        (void)request;
+        // We expect all to fail to connect; count only unexpected successes.
+        constexpr size_t HTTP_SUCCESS = 200;
+        if (curl_response == CURLE_OK && status_code == HTTP_SUCCESS)
+        {
+          (*response_count_ptr)++;
+        }
+      };
+
+      auto request = std::make_unique<ccf::curl::CurlRequest>(
+        std::move(curl_handle),
+        HTTP_PUT,
+        std::move(url),
+        std::move(headers),
+        std::move(body),
+        std::make_unique<ccf::curl::ResponseBody>(SIZE_MAX),
+        std::move(response_callback));
+
+      ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+        request);
+    }
+  };
+
+  {
+    ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
+
+    uv_work_t work_req;
+    work_req.data = &response_count;
+    uv_queue_work(uv_default_loop(), &work_req, load_generator, nullptr);
+    uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+  }
+  // All should fail to reach the unreachable host.
+  REQUIRE(response_count == 0);
 }
 
 int main(int argc, char** argv)
