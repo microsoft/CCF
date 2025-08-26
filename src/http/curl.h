@@ -640,6 +640,8 @@ namespace ccf::curl
         return;
       }
 
+      LOG_TRACE_FMT("Curlm Libuv timeout");
+
       int running_handles = 0;
       CHECK_CURL_MULTI(
         curl_multi_socket_action,
@@ -660,6 +662,8 @@ namespace ccf::curl
           "libuv_timeout_callback called with null self pointer");
       }
 
+      LOG_TRACE_FMT("Processing curl timeout: {}ms", timeout_ms);
+
       if (timeout_ms < 0)
       {
         // No timeout set, stop the timer
@@ -667,7 +671,8 @@ namespace ccf::curl
       }
       else
       {
-        // If timeout is zero, this will trigger immediately
+        // If timeout is zero, this will trigger immediately, possibly within a
+        // callback so clamp it to at least 1ms
         timeout_ms = std::max(timeout_ms, 1L);
         uv_timer_start(&self->uv_handle, libuv_timeout_callback, timeout_ms, 0);
       }
@@ -830,6 +835,8 @@ namespace ccf::curl
     void close()
     {
       std::lock_guard<std::recursive_mutex> lock(curlm_lock);
+
+      LOG_TRACE_FMT("Closing CurlmLibuvContext");
 
       // Prevent multiple close calls
       if (curl_request_curlm == nullptr)
