@@ -603,6 +603,7 @@ namespace ccf::curl
     uv_loop_t* loop;
     uv_timer_t uv_handle{};
     CurlRequestCURLM curl_request_curlm;
+    std::atomic<bool> is_stopping = false;
 
     // We need a lock to prevent a client in another thread calling
     // curl_multi_add_handle while the libuv thread is processing a curl
@@ -636,9 +637,9 @@ namespace ccf::curl
       }
       std::lock_guard<std::recursive_mutex> lock(self->curlm_lock);
 
-      if (self->curl_request_curlm == nullptr)
+      if (self->is_stopping)
       {
-        LOG_FAIL_FMT("libuv_timeout_callback called with null CURLM handle");
+        LOG_FAIL_FMT("libuv_timeout_callback called while stopping");
         return;
       }
 
@@ -662,6 +663,12 @@ namespace ccf::curl
       {
         throw std::logic_error(
           "libuv_timeout_callback called with null self pointer");
+      }
+
+      if (self->is_stopping)
+      {
+        LOG_FAIL_FMT("curl_timeout_callback called while stopping");
+        return 0;
       }
 
       LOG_TRACE_FMT("Processing curl timeout: {}ms", timeout_ms);
@@ -706,10 +713,9 @@ namespace ccf::curl
       }
       std::lock_guard<std::recursive_mutex> lock(self->curlm_lock);
 
-      if (self->curl_request_curlm == nullptr)
+      if (self->is_stopping)
       {
-        LOG_FAIL_FMT(
-          "libuv_socket_poll_callback called with null CURLM handle");
+        LOG_FAIL_FMT("libuv_socket_poll_callback called while stopping");
         return;
       }
 
@@ -740,12 +746,20 @@ namespace ccf::curl
           "curl_socket_callback called with null self pointer");
       }
       (void)easy;
+
       switch (action)
       {
         case CURL_POLL_IN:
         case CURL_POLL_OUT:
         case CURL_POLL_INOUT:
         {
+          // Possibly called during shutdown
+          if (self->is_stopping)
+          {
+            LOG_FAIL_FMT("curl_socket_callback called while stopping");
+            return 0;
+          }
+
           if (request_context == nullptr)
           {
             auto request_context_ptr = std::make_unique<RequestContext>();
@@ -819,7 +833,7 @@ namespace ccf::curl
     void attach_request(std::unique_ptr<CurlRequest>& request)
     {
       std::lock_guard<std::recursive_mutex> lock(curlm_lock);
-      if (curl_request_curlm == nullptr)
+      if (is_stopping)
       {
         LOG_FAIL_FMT("CurlmLibuvContext already closed, cannot attach request");
         return;
@@ -841,23 +855,23 @@ namespace ccf::curl
       LOG_TRACE_FMT("Closing CurlmLibuvContext");
 
       // Prevent multiple close calls
-      if (curl_request_curlm == nullptr)
+      if (is_stopping)
       {
         LOG_INFO_FMT(
           "CurlmLibuvContext already closed, nothing to stop or remove");
         return;
       }
-      UniqueCURLM curlm(std::move(curl_request_curlm));
+      is_stopping = true;
 
       // remove, stop and cleanup all curl easy handles
       std::unique_ptr<CURL*, void (*)(CURL**)> easy_handles(
-        curl_multi_get_handles(curlm),
+        curl_multi_get_handles(curl_request_curlm),
         [](CURL** handles) { curl_free(handles); });
       // curl_multi_get_handles returns the handles as a null-terminated array
       for (size_t i = 0; easy_handles.get()[i] != nullptr; ++i)
       {
         auto* easy = easy_handles.get()[i];
-        curl_multi_remove_handle(curlm, easy);
+        curl_multi_remove_handle(curl_request_curlm, easy);
         if (easy != nullptr)
         {
           // attach a lifetime to the request
