@@ -606,7 +606,7 @@ namespace ccf::curl
     CurlRequestCURLM curl_request_curlm;
     std::atomic<bool> is_stopping = false;
 
-    class SocketContext : public asynchost::with_uv_handle<uv_poll_t>
+    class SocketContextImpl : public asynchost::with_uv_handle<uv_poll_t>
     {
       friend class CurlmLibuvContextImpl;
 
@@ -614,6 +614,8 @@ namespace ccf::curl
       curl_socket_t socket{};
       CurlmLibuvContextImpl* context = nullptr;
     };
+
+    using SocketContext = asynchost::proxy_ptr<SocketContextImpl>;
 
     uv_async_t async_requests_handle{};
     std::mutex requests_mutex;
@@ -719,7 +721,7 @@ namespace ccf::curl
         return;
       }
 
-      auto* socket_context = static_cast<SocketContext*>(req->data);
+      auto* socket_context = static_cast<SocketContextImpl*>(req->data);
       if (socket_context == nullptr)
       {
         throw std::logic_error(
@@ -763,7 +765,7 @@ namespace ccf::curl
       curl_socket_t s,
       int action,
       CurlmLibuvContextImpl* self,
-      SocketContext* socket_context)
+      SocketContextImpl* socket_context)
     {
       if (self == nullptr)
       {
@@ -789,14 +791,14 @@ namespace ccf::curl
             "Curl socket callback: listen on socket {}", static_cast<int>(s));
           if (socket_context == nullptr)
           {
-            auto request_context_ptr = std::make_unique<SocketContext>();
-            request_context_ptr->context = self;
-            request_context_ptr->socket = s;
-            uv_poll_init_socket(self->loop, &request_context_ptr->uv_handle, s);
-            request_context_ptr->uv_handle.data =
-              request_context_ptr.get(); // Attach the context
+            auto socket_context_ptr = std::make_unique<SocketContextImpl>();
+            socket_context_ptr->context = self;
+            socket_context_ptr->socket = s;
+            uv_poll_init_socket(self->loop, &socket_context_ptr->uv_handle, s);
+            socket_context_ptr->uv_handle.data =
+              socket_context_ptr.get(); // Attach the context
             // attach the lifetime to the socket handle
-            socket_context = request_context_ptr.release();
+            socket_context = socket_context_ptr.release();
             CHECK_CURL_MULTI(
               curl_multi_assign, self->curl_request_curlm, s, socket_context);
           }
@@ -815,9 +817,10 @@ namespace ccf::curl
             LOG_INFO_FMT(
               "CurlmLibuv: curl socket callback: remove socket {}",
               static_cast<int>(s));
-            curl_multi_assign(self->curl_request_curlm, s, nullptr);
+            SocketContext socket_context_ptr(socket_context);
             uv_poll_stop(&socket_context->uv_handle);
-            std::unique_ptr<SocketContext> socket_context_ptr(socket_context);
+            CHECK_CURL_MULTI(
+              curl_multi_assign, self->curl_request_curlm, s, nullptr);
           }
           break;
         default:

@@ -36,7 +36,7 @@ async def echo_handler(request):
     return web.json_response(response_data)
 
 
-async def main():
+async def main(debug):
     app = web.Application()
     app.router.add_route("*", "/{path:.*}", echo_handler)
 
@@ -47,8 +47,11 @@ async def main():
 
     print("Echo server running on http://::1:8080")
 
-    # call ./curl_test to run the load generator
     cmd = "./curl_test"
+    if (debug):
+        print(f"Run '{cmd}' to run the load generator")
+        # wait forever
+        await asyncio.Event().wait()
     process = await asyncio.create_subprocess_shell(cmd)
     await process.wait()
 
@@ -57,5 +60,9 @@ async def main():
 
 if __name__ == "__main__":
     import asyncio
+    import argparse
+    parser = argparse.ArgumentParser(description="Run echo server")
+    parser.add_argument("-d", "--debug", action="store_true", help="Enable debug logging")
+    args = parser.parse_args()
 
-    asyncio.run(main())
+    asyncio.run(main(args.debug))
