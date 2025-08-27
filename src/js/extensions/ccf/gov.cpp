@@ -44,7 +44,12 @@ namespace ccf::js::extensions
       {
         try
         {
-          jsctx.get_exported_function(constitution.value(), fn_name, path);
+          // Create a new context to lookup this function, since doing so
+          // requires evaluating the model, and that must have no side effects
+          // or write to the parent's global environment.
+          ccf::js::core::Context sub_context(ccf::js::TxAccess::GOV_RO);
+          sub_context.get_exported_function(
+            constitution.value(), fn_name, path);
         }
         catch (const std::exception& e)
         {

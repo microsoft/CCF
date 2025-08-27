@@ -186,24 +186,33 @@ bool str_contains(const std::optional<std::string>& s, std::string_view sv)
 
 // Returns error string, or nullopt if validation succeeded
 std::optional<std::string> call_validate_constitution(
-  const std::string& constitution)
+  const std::string& constitution,
+  ccf::js::extensions::ExtensionPtr extra_extension = nullptr,
+  const std::string& module_suffix = "")
 {
   ccf::js::core::Context ctx(TxAccess::GOV_RO);
 
   ctx.add_extension(std::make_shared<ccf::js::extensions::GovExtension>());
 
+  if (extra_extension != nullptr)
+  {
+    ctx.add_extension(extra_extension);
+  }
+
   const auto path = "/path/to/constitution";
 
   auto module = fmt::format(
-    "export function call_validate () {{\n"
-    "  let constitution = {};\n"
-    "  return ccf.gov.validateConstitution(constitution);\n"
-    "}}",
-    constitution);
+                  "export function call_validate () {{\n"
+                  "  let constitution = {};\n"
+                  "  return ccf.gov.validateConstitution(constitution);\n"
+                  "}}",
+                  constitution) +
+    module_suffix;
 
   auto func = ctx.get_exported_function(module, "call_validate", path);
 
-  const auto result = ctx.inner_call(func, {});
+  const auto result = ctx.call_with_rt_options(
+    func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
   if (result.is_true())
   {
     return std::nullopt;
@@ -212,6 +221,41 @@ std::optional<std::string> call_validate_constitution(
   auto [reason, trace] = ctx.error_message();
   return reason;
 }
+
+int64_t global_side_effect_value = 0;
+
+JSValue js_side_effect(
+  [[maybe_unused]] JSContext* ctx,
+  [[maybe_unused]] JSValueConst this_val,
+  [[maybe_unused]] int argc,
+  [[maybe_unused]] JSValueConst* argv)
+{
+  if (argc != 1)
+  {
+    return JS_ThrowTypeError(ctx, "Passed %d arguments, but expected 1", argc);
+  }
+
+  if (JS_ToInt64(ctx, &global_side_effect_value, argv[0]) < 0)
+  {
+    return ccf::js::core::constants::Exception;
+  }
+
+  return ccf::js::core::constants::Undefined;
+}
+
+class SideEffectExtension : public ccf::js::extensions::ExtensionInterface
+{
+public:
+  size_t n = 0;
+
+  SideEffectExtension() = default;
+
+  void install(ccf::js::core::Context& ctx) override
+  {
+    auto side_effect_func = ctx.new_c_function(js_side_effect, "setGlobal", 1);
+    ctx.get_or_create_global_property("setGlobal", side_effect_func);
+  }
+};
 
 TEST_CASE("Constitution validation")
 {
@@ -254,7 +298,7 @@ export function resolve() {}
     {
       const auto error = call_validate_constitution(c);
       REQUIRE(error.has_value());
-      REQUIRE(str_contains(error, "not find function validate"));
+      REQUIRE(str_contains(error, "Failed to find export 'validate'"));
     }
   }
 
@@ -267,7 +311,7 @@ export function resolve() {}
     {
       const auto error = call_validate_constitution(c);
       REQUIRE(error.has_value());
-      REQUIRE(str_contains(error, "not find function apply"));
+      REQUIRE(str_contains(error, "Failed to find export 'apply'"));
     }
   }
 
@@ -280,12 +324,12 @@ export function apply() {}
     {
       const auto error = call_validate_constitution(c);
       REQUIRE(error.has_value());
-      REQUIRE(str_contains(error, "not find function resolve"));
+      REQUIRE(str_contains(error, "Failed to find export 'resolve'"));
     }
   }
 
   {
-    INFO("good");
+    INFO("valid");
     for (const auto& c : {R"!!!(`
 export function validate() {}
 export function apply() {}
@@ -293,6 +337,87 @@ export function resolve() {}
 `)!!!"})
     {
       const auto error = call_validate_constitution(c);
+      REQUIRE(!error.has_value());
+    }
+  }
+
+  {
+    INFO("sandboxing");
+
+    {
+      INFO(
+        "code in outer module (existing constitution) may have side effects");
+      const auto constitution = R"!!!(`
+export function validate() {}
+export function apply() {}
+export function resolve() {}
+`)!!!";
+
+      auto side_effect_extension = std::make_shared<SideEffectExtension>();
+      REQUIRE(global_side_effect_value == 0);
+      const auto error = call_validate_constitution(
+        constitution, {side_effect_extension}, "\nsetGlobal(42);");
+      REQUIRE(!error.has_value());
+      REQUIRE(global_side_effect_value == 42);
+    }
+
+    {
+      INFO("code inside proposed constitution has no side effects");
+      const auto constitution = R"!!!(`
+export function validate() {}
+export function apply() {}
+export function resolve() {}
+setGlobal(100)
+`)!!!";
+
+      auto side_effect_extension = std::make_shared<SideEffectExtension>();
+      REQUIRE(global_side_effect_value == 42);
+      auto error =
+        call_validate_constitution(constitution, {side_effect_extension});
+      REQUIRE(!error.has_value());
+      REQUIRE(global_side_effect_value == 42); // No change
+    }
+  }
+
+  {
+    INFO("error detectability");
+
+    {
+      INFO("global throws");
+      const auto constitution = R"!!!(`
+export function validate() {}
+export function apply() {}
+export function resolve() {}
+
+throw new Error(`I'm not happy`);
+`)!!!";
+
+      REQUIRE_THROWS(call_validate_constitution(constitution));
+    }
+
+    {
+      INFO("invalid signatures");
+      const auto constitution = R"!!!(`
+export function validate(a) { return null; }
+export function apply(a) { return null;}
+export function resolve(a) { return null;}
+`)!!!";
+
+      auto error = call_validate_constitution(constitution);
+      REQUIRE(!error.has_value());
+    }
+
+    {
+      INFO("null accesses");
+      const auto constitution = R"!!!(`
+export function validate() {}
+export function apply() {}
+export function resolve() {}
+
+foo.bar.baz;
+`)!!!";
+
+      auto error = call_validate_constitution(constitution);
       REQUIRE(!error.has_value());
     }
   }
