@@ -49,14 +49,14 @@ namespace ccf::js::extensions
       struct ArgsSpec
       {
         std::vector<std::string> required_args;
-        std::vector<std::string> optional_args = {};
+        std::vector<std::string> optional_args;
       };
 
       std::map<std::string, ArgsSpec> funcs_to_args;
-      funcs_to_args["validate"] = {{"input"}};
+      funcs_to_args["validate"] = {{"input"}, {}};
       funcs_to_args["resolve"] = {
         {"proposal", "proposerId", "votes"}, {"proposalId"}};
-      funcs_to_args["apply"] = {{"proposal", "proposerId"}};
+      funcs_to_args["apply"] = {{"proposal", "proposerId"}, {}};
       for (const auto& [fn_name, args_spec] : funcs_to_args)
       {
         try
@@ -69,7 +69,7 @@ namespace ccf::js::extensions
             constitution.value(), fn_name, path);
 
           auto length_val = sub_context.get_property(func.val, "length");
-          uint32_t length;
+          uint32_t length = 0;
           if (JS_ToUint32(ctx, &length, length_val.val) < 0)
           {
             return ccf::js::core::constants::Exception;
