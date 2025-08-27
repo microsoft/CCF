@@ -27,25 +27,31 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments, but expected 1", argc);
       }
 
-      auto constitution = jsctx.to_str(argv[0]);
-      if (!JS_IsString(argv[0]) || !constitution.has_value())
+      auto arg = jsctx.wrap(argv[0]);
+      if (!arg.is_str())
       {
         return JS_ThrowTypeError(ctx, "constitution is not a string");
       }
 
-      if (constitution->size() == 0)
+      auto constitution = jsctx.to_str(arg);
+      if (!constitution.has_value())
+      {
+        return JS_ThrowTypeError(ctx, "constitution is not a string");
+      }
+
+      if (constitution->empty())
       {
         return JS_ThrowTypeError(ctx, "constitution is empty");
       }
 
-      const auto path = "proposed constitution";
+      const char* path = "proposed constitution";
 
       for (const auto& fn_name : {"validate", "apply", "resolve"})
       {
         try
         {
           // Create a new context to lookup this function, since doing so
-          // requires evaluating the model, and that must have no side effects
+          // requires evaluating the module, and that must have no side effects
           // or write to the parent's global environment.
           ccf::js::core::Context sub_context(ccf::js::TxAccess::GOV_RO);
           sub_context.get_exported_function(
@@ -54,7 +60,11 @@ namespace ccf::js::extensions
         catch (const std::exception& e)
         {
           return JS_ThrowTypeError(
-            ctx, "Did not find function %s in %s: %s", fn_name, path, e.what());
+            ctx,
+            "%s does not export a function named %s: %s",
+            path,
+            fn_name,
+            e.what());
         }
       }
 
@@ -74,6 +84,8 @@ namespace ccf::js::extensions
         ctx, js_validate_constitution, "validateConstitution", 1));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
+    // NOLINTBEGIN(performance-move-const-arg)
     ccf.set("gov", std::move(gov));
+    // NOLINTEND(performance-move-const-arg)
   }
 }
