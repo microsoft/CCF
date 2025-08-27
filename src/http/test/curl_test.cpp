@@ -93,6 +93,7 @@ TEST_CASE("CurlmLibuvContext")
       headers.append("Content-Type", "application/json");
 
       auto curl_handle = ccf::curl::UniqueCURL();
+      curl_handle.set_opt(CURLOPT_FORBID_REUSE, 1L);
 
       auto response_callback = [response_count_ptr](
                                  ccf::curl::CurlRequest& request,
@@ -116,7 +117,7 @@ TEST_CASE("CurlmLibuvContext")
         std::move(response_callback));
 
       ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
-        request);
+        std::move(request));
     }
   };
 
@@ -156,6 +157,7 @@ TEST_CASE("CurlmLibuvContext slow")
       headers.append("Content-Type", "application/json");
 
       auto curl_handle = ccf::curl::UniqueCURL();
+      curl_handle.set_opt(CURLOPT_FORBID_REUSE, 1L);
 
       auto response_callback = [response_count_ptr](
                                  ccf::curl::CurlRequest& request,
@@ -179,7 +181,7 @@ TEST_CASE("CurlmLibuvContext slow")
         std::move(response_callback));
 
       ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
-        request);
+        std::move(request));
     }
   };
 
@@ -226,6 +228,7 @@ TEST_CASE("CurlmLibuvContext timeouts")
 
       auto curl_handle = ccf::curl::UniqueCURL();
       curl_handle.set_opt(CURLOPT_TIMEOUT_MS, max_delay_ms);
+      curl_handle.set_opt(CURLOPT_FORBID_REUSE, 1L);
 
       auto response_callback = [response_count_ptr](
                                  ccf::curl::CurlRequest& request,
@@ -250,7 +253,7 @@ TEST_CASE("CurlmLibuvContext timeouts")
         std::move(response_callback));
 
       ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
-        request);
+        std::move(request));
     }
   };
 

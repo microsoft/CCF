@@ -516,7 +516,7 @@ namespace ccf::curl
   class CurlRequestCURLM : public UniqueCURLM
   {
   public:
-    void attach_curl_request(std::unique_ptr<CurlRequest>& request)
+    void attach_curl_request(std::unique_ptr<CurlRequest>&& request)
     {
       if (p == nullptr)
       {
@@ -576,6 +576,7 @@ namespace ccf::curl
     }
   };
 
+  // Must be created on the same thread as the uv loop is running
   class CurlmLibuvContextImpl
   {
     /* Very high level:
@@ -605,28 +606,49 @@ namespace ccf::curl
     CurlRequestCURLM curl_request_curlm;
     std::atomic<bool> is_stopping = false;
 
-    // We need a lock to prevent a client in another thread calling
-    // curl_multi_add_handle while the libuv thread is processing a curl
-    // callback
-    //
-    // Note that since the a client callback can call curl_multi_add_handle,
-    // but that will be difficult/impossible to detect, we need curlm_lock to
-    // be recursive.
-    std::recursive_mutex curlm_lock;
-
-    struct RequestContext
+    class SocketContext : public asynchost::with_uv_handle<uv_poll_t>
     {
-      uv_poll_t poll_handle;
-      curl_socket_t socket;
-      CurlmLibuvContextImpl* context;
+      friend class CurlmLibuvContextImpl;
+
+    public:
+      curl_socket_t socket{};
+      CurlmLibuvContextImpl* context = nullptr;
     };
 
-  public:
-    void handle_request_messages()
+    uv_async_t async_requests_handle{};
+    std::mutex requests_mutex;
+    std::deque<std::unique_ptr<CurlRequest>> pending_requests;
+
+    static void async_requests_callback(uv_async_t* handle)
     {
-      curl_request_curlm.perform();
+      auto* self = static_cast<CurlmLibuvContextImpl*>(handle->data);
+      if (self == nullptr)
+      {
+        throw std::logic_error(
+          "async_requests_callback called with null self pointer");
+      }
+
+      if (self->is_stopping)
+      {
+        LOG_FAIL_FMT("async_requests_callback called while stopping");
+        return;
+      }
+
+      LOG_TRACE_FMT("Libuv: processing pending curl requests");
+
+      std::deque<std::unique_ptr<CurlRequest>> requests_to_add;
+      {
+        std::lock_guard<std::mutex> requests_lock(self->requests_mutex);
+        requests_to_add.swap(self->pending_requests);
+      }
+
+      for (auto& req : requests_to_add)
+      {
+        self->curl_request_curlm.attach_curl_request(std::move(req));
+      }
     }
 
+  public:
     static void libuv_timeout_callback(uv_timer_t* handle)
     {
       auto* self = static_cast<CurlmLibuvContextImpl*>(handle->data);
@@ -635,7 +657,6 @@ namespace ccf::curl
         throw std::logic_error(
           "libuv_timeout_callback called with null self pointer");
       }
-      std::lock_guard<std::recursive_mutex> lock(self->curlm_lock);
 
       if (self->is_stopping)
       {
@@ -643,7 +664,7 @@ namespace ccf::curl
         return;
       }
 
-      LOG_TRACE_FMT("Curlm Libuv timeout");
+      LOG_TRACE_FMT("Libuv timeout");
 
       int running_handles = 0;
       CHECK_CURL_MULTI(
@@ -652,7 +673,7 @@ namespace ccf::curl
         CURL_SOCKET_TIMEOUT,
         0,
         &running_handles);
-      self->handle_request_messages();
+      self->curl_request_curlm.perform();
     }
 
     static int curl_timeout_callback(
@@ -671,7 +692,7 @@ namespace ccf::curl
         return 0;
       }
 
-      LOG_TRACE_FMT("Processing curl timeout: {}ms", timeout_ms);
+      LOG_TRACE_FMT("Curl timeout {}ms", timeout_ms);
 
       if (timeout_ms < 0)
       {
@@ -698,26 +719,30 @@ namespace ccf::curl
         return;
       }
 
-      auto* request_context = static_cast<RequestContext*>(req->data);
-      if (request_context == nullptr)
+      auto* socket_context = static_cast<SocketContext*>(req->data);
+      if (socket_context == nullptr)
       {
         throw std::logic_error(
           "libuv_socket_poll_callback called with null request context");
       }
 
-      auto* self = request_context->context;
+      auto* self = socket_context->context;
       if (self == nullptr)
       {
         throw std::logic_error(
           "libuv_socket_poll_callback called with null self pointer");
       }
-      std::lock_guard<std::recursive_mutex> lock(self->curlm_lock);
 
       if (self->is_stopping)
       {
         LOG_FAIL_FMT("libuv_socket_poll_callback called while stopping");
         return;
       }
+
+      LOG_TRACE_FMT(
+        "Libuv socket poll callback on {}: {}",
+        static_cast<int>(socket_context->socket),
+        static_cast<int>(events));
 
       int action = 0;
       action |= ((events & UV_READABLE) != 0) ? CURL_CSELECT_IN : 0;
@@ -726,10 +751,10 @@ namespace ccf::curl
       CHECK_CURL_MULTI(
         curl_multi_socket_action,
         self->curl_request_curlm,
-        request_context->socket,
+        socket_context->socket,
         action,
         &running_handles);
-      self->handle_request_messages();
+      self->curl_request_curlm.perform();
     }
 
     // Called when the status of a socket changes (creation/deletion)
@@ -738,7 +763,7 @@ namespace ccf::curl
       curl_socket_t s,
       int action,
       CurlmLibuvContextImpl* self,
-      RequestContext* request_context)
+      SocketContext* socket_context)
     {
       if (self == nullptr)
       {
@@ -760,39 +785,39 @@ namespace ccf::curl
             return 0;
           }
 
-          if (request_context == nullptr)
+          LOG_INFO_FMT(
+            "Curl socket callback: listen on socket {}", static_cast<int>(s));
+          if (socket_context == nullptr)
           {
-            auto request_context_ptr = std::make_unique<RequestContext>();
+            auto request_context_ptr = std::make_unique<SocketContext>();
             request_context_ptr->context = self;
             request_context_ptr->socket = s;
-            uv_poll_init_socket(
-              self->loop, &request_context_ptr->poll_handle, s);
-            request_context_ptr->poll_handle.data =
+            uv_poll_init_socket(self->loop, &request_context_ptr->uv_handle, s);
+            request_context_ptr->uv_handle.data =
               request_context_ptr.get(); // Attach the context
             // attach the lifetime to the socket handle
-            request_context = request_context_ptr.release();
+            socket_context = request_context_ptr.release();
             CHECK_CURL_MULTI(
-              curl_multi_assign, self->curl_request_curlm, s, request_context);
+              curl_multi_assign, self->curl_request_curlm, s, socket_context);
           }
 
           int events = 0;
-          events |= (action == CURL_POLL_IN) ? 0 : UV_WRITABLE;
-          events |= (action == CURL_POLL_OUT) ? 0 : UV_READABLE;
+          events |= (action != CURL_POLL_IN) ? UV_WRITABLE : 0;
+          events |= (action != CURL_POLL_OUT) ? UV_READABLE : 0;
+
           uv_poll_start(
-            &request_context->poll_handle, events, libuv_socket_poll_callback);
+            &socket_context->uv_handle, events, libuv_socket_poll_callback);
           break;
         }
         case CURL_POLL_REMOVE:
-          if (request_context != nullptr)
+          if (socket_context != nullptr)
           {
-            // close then delete the poll handle
-            uv_poll_stop(&request_context->poll_handle);
-            uv_close(
-              reinterpret_cast<uv_handle_t*>(&request_context->poll_handle),
-              nullptr);
-            std::unique_ptr<RequestContext> request_context_ptr(
-              request_context);
+            LOG_INFO_FMT(
+              "CurlmLibuv: curl socket callback: remove socket {}",
+              static_cast<int>(s));
             curl_multi_assign(self->curl_request_curlm, s, nullptr);
+            uv_poll_stop(&socket_context->uv_handle);
+            std::unique_ptr<SocketContext> socket_context_ptr(socket_context);
           }
           break;
         default:
@@ -805,6 +830,12 @@ namespace ccf::curl
     {
       uv_timer_init(loop, &uv_handle);
       uv_handle.data = this; // Attach this instance to the timer
+
+      uv_async_init(loop, &async_requests_handle, async_requests_callback);
+      async_requests_handle.data = this;
+      uv_unref(reinterpret_cast<uv_handle_t*>(
+        &async_requests_handle)); // allow the loop to exit if this is the only
+                                  // active handle
 
       // attach timeouts
       CHECK_CURL_MULTI(
@@ -823,26 +854,19 @@ namespace ccf::curl
         curl_request_curlm,
         CURLMOPT_SOCKETFUNCTION,
         curl_socket_callback);
-
-      // kickstart timeout, probably a no-op but allows curl to initialise
-      int running_handles = 0;
-      CHECK_CURL_MULTI(
-        curl_multi_socket_action,
-        curl_request_curlm,
-        CURL_SOCKET_TIMEOUT,
-        0,
-        &running_handles);
     }
 
-    void attach_request(std::unique_ptr<CurlRequest>& request)
+    void attach_request(std::unique_ptr<CurlRequest>&& request)
     {
-      std::lock_guard<std::recursive_mutex> lock(curlm_lock);
       if (is_stopping)
       {
         LOG_FAIL_FMT("CurlmLibuvContext already closed, cannot attach request");
         return;
       }
-      curl_request_curlm.attach_curl_request(request);
+      LOG_INFO_FMT("Adding request to {} to queue", request->get_url());
+      std::lock_guard<std::mutex> requests_lock(requests_mutex);
+      pending_requests.push_back(std::move(request));
+      uv_async_send(&async_requests_handle);
     }
 
   private:
@@ -850,12 +874,11 @@ namespace ccf::curl
     // Make the templated asynchost::close_ptr a friend so it can call close()
     template <typename T>
     friend class ::asynchost::close_ptr;
+    size_t closed_uv_handle_count = 0;
 
     // called by the close_ptr within the destructor of the proxy_ptr
     void close()
     {
-      std::lock_guard<std::recursive_mutex> lock(curlm_lock);
-
       LOG_TRACE_FMT("Closing CurlmLibuvContext");
 
       // Prevent multiple close calls
@@ -891,11 +914,18 @@ namespace ccf::curl
         }
       }
       // Dispatch uv_close to asynchronously close the timer handle
+      uv_close(
+        reinterpret_cast<uv_handle_t*>(&async_requests_handle), on_close);
       uv_close(reinterpret_cast<uv_handle_t*>(&uv_handle), on_close);
     }
     static void on_close(uv_handle_t* handle)
     {
-      static_cast<CurlmLibuvContextImpl*>(handle->data)->on_close();
+      auto& close_count =
+        static_cast<CurlmLibuvContextImpl*>(handle->data)->closed_uv_handle_count;
+      if (close_count++ >= 2)
+      {
+        static_cast<CurlmLibuvContextImpl*>(handle->data)->on_close();
+      }
     }
     void on_close()
     {

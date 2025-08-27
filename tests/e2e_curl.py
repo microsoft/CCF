@@ -15,9 +15,11 @@ async def echo_handler(request):
 
     time_received = datetime.now(UTC)
 
-    # Add random delay between 0 and 1 second
-    delay = random.random() / 100  # Returns float between 0.0 and 1.0
+    # Add random delay between 0 and 10 millisecond
+    delay = random.random() / 100
     await asyncio.sleep(delay)
+
+    #print(f"{datetime.now(UTC)}: Replying to request to {request.path_qs} after {delay:.3f}s delay")
 
     # Build response data
     response_data = {
@@ -40,10 +42,10 @@ async def main():
 
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "127.0.0.1", 8080)
+    site = web.TCPSite(runner, "::1", 8080)
     await site.start()
 
-    print("Echo server running on http://127.0.0.1:8080")
+    print("Echo server running on http://::1:8080")
 
     # call ./curl_test to run the load generator
     cmd = "./curl_test"
