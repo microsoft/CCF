@@ -691,7 +691,6 @@ class HttpxClient:
         timeout: int,
     ):
         self._last_request = (request, request_body, auth, extra_headers, timeout)
-        print(self._last_request)
         try:
             response = self.session.request(
                 request.http_verb,

@@ -11,9 +11,6 @@
 /// General administrative messages
 enum AdminMessage : ringbuffer::Message
 {
-  /// Log message. Enclave -> Host
-  DEFINE_RINGBUFFER_MSG_TYPE(log_msg),
-
   /// Fatal error message. Enclave -> Host
   DEFINE_RINGBUFFER_MSG_TYPE(fatal_error_msg),
 
@@ -33,15 +30,6 @@ enum AdminMessage : ringbuffer::Message
   DEFINE_RINGBUFFER_MSG_TYPE(work_stats)
 };
 
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  AdminMessage::log_msg,
-  std::chrono::microseconds::rep,
-  std::string,
-  size_t,
-  ccf::LoggerLevel,
-  std::string,
-  uint16_t,
-  std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::fatal_error_msg, std::string);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stop);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stop_notice);
