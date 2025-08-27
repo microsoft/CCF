@@ -14,6 +14,7 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
     NoEncryption,
 )
+from cryptography.hazmat.primitives.asymmetric import utils
 import ccf.cose
 import cbor2
 
@@ -69,3 +70,32 @@ def test_create_cose_sign1_finish():
     ccf.cose.validate_cose_sign1(priv.public_key(), cose_sign1)
     finished_cose_sign1 = ccf.cose.create_cose_sign1_finish(payload, cert, b64_sig)
     assert cose_sign1 == finished_cose_sign1
+
+
+def test_create_cose_sign1_prepare_and_finish():
+    """
+    Check adding performing a signature externally on the output of
+    cose.create_cose_sign1_prepare() and packaging it with
+    cose.create_cose_sign1_finish() produces a valid COSE_Sign1.
+    """
+    priv = make_private_key(ec.SECP256R1())
+    priv_pem, pub_pem = make_pem_pair(priv)
+    cert = make_self_signed_cert(priv, "example.com")
+
+    payload = b"Hello World"
+
+    tbs = ccf.cose.create_cose_sign1_prepare(payload, cert)
+
+    alg = tbs["alg"]
+    raw_value = base64.b64decode(tbs["value"])
+
+    assert alg == "ES256"
+    signature = priv.sign(raw_value, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+    r, s = utils.decode_dss_signature(signature)
+    raw_signature = r.to_bytes((r.bit_length() + 7) // 8, "big") + s.to_bytes(
+        (r.bit_length() + 7) // 8, "big"
+    )
+
+    b64_sig = base64.urlsafe_b64encode(raw_signature)
+    finished_cose_sign1 = ccf.cose.create_cose_sign1_finish(payload, cert, b64_sig)
+    ccf.cose.validate_cose_sign1(priv.public_key(), finished_cose_sign1)
