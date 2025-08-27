@@ -916,6 +916,12 @@ namespace ccf::curl
           curl_easy_cleanup(easy);
         }
       }
+      // Drain the deque rather than letting it destruct
+      std::deque<std::unique_ptr<CurlRequest>> requests_to_cleanup;
+      {
+        std::lock_guard<std::mutex> requests_lock(requests_mutex);
+        requests_to_cleanup.swap(pending_requests);
+      }
       // Dispatch uv_close to asynchronously close the timer handle
       uv_close(
         reinterpret_cast<uv_handle_t*>(&async_requests_handle), on_close);
