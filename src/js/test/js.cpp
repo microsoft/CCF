@@ -236,6 +236,16 @@ TEST_CASE("Constitution validation")
   }
 
   {
+    INFO("does not compile");
+    for (const auto& c : {"`this is not syntactically valid JavaScript`"})
+    {
+      const auto error = call_validate_constitution(c);
+      REQUIRE(error.has_value());
+      REQUIRE(str_contains(error, "Failed to compile"));
+    }
+  }
+
+  {
     INFO("missing validate");
     for (const auto& c : {R"!!!(`
 export function apply() {}
