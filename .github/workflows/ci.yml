@@ -91,7 +91,6 @@ jobs:
           cd python
           pytest
 
-
   ensure-snmalloc:
     name: "Ensure using snmalloc"
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
