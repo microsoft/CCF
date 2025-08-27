@@ -122,8 +122,6 @@ TEST_CASE("CurlmLibuvContext")
   };
 
   {
-    ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
-
     uv_work_t work_req;
     work_req.data = &response_count;
     uv_queue_work(uv_default_loop(), &work_req, load_generator, nullptr);
@@ -186,8 +184,6 @@ TEST_CASE("CurlmLibuvContext slow")
   };
 
   {
-    ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
-
     uv_work_t work_req;
     work_req.data = &response_count;
     uv_queue_work(uv_default_loop(), &work_req, load_generator, nullptr);
@@ -258,8 +254,6 @@ TEST_CASE("CurlmLibuvContext timeouts")
   };
 
   {
-    ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
-
     uv_work_t work_req;
     work_req.data = &response_count;
     uv_queue_work(uv_default_loop(), &work_req, load_generator, nullptr);
@@ -273,9 +267,12 @@ int main(int argc, char** argv)
 {
   ccf::logger::config::default_init();
   curl_global_init(CURL_GLOBAL_DEFAULT);
+  ccf::curl::CurlmLibuvContextSingleton singleton(uv_default_loop());
+
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+
   curl_global_cleanup();
   return res;
 }
