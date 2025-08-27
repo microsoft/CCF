@@ -176,7 +176,12 @@ TEST_CASE("Check KV Map access")
 
 bool str_contains(const std::string& s, std::string_view sv)
 {
-  return s.find(sv) != std::string::npos;
+  const auto b = s.find(sv) != std::string::npos;
+  if (!b)
+  {
+    fmt::print("Didn't find\n {}\nin\n {}\n", sv, s);
+  }
+  return b;
 }
 
 bool str_contains(const std::optional<std::string>& s, std::string_view sv)
@@ -292,8 +297,8 @@ TEST_CASE("Constitution validation")
   {
     INFO("missing validate");
     for (const auto& c : {R"!!!(`
-export function apply() {}
-export function resolve() {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
 `)!!!"})
     {
       const auto error = call_validate_constitution(c);
@@ -303,23 +308,10 @@ export function resolve() {}
   }
 
   {
-    INFO("missing apply");
-    for (const auto& c : {R"!!!(`
-export function validate() {}
-export function resolve() {}
-`)!!!"})
-    {
-      const auto error = call_validate_constitution(c);
-      REQUIRE(error.has_value());
-      REQUIRE(str_contains(error, "Failed to find export 'apply'"));
-    }
-  }
-
-  {
     INFO("missing resolve");
     for (const auto& c : {R"!!!(`
-export function validate() {}
-export function apply() {}
+export function validate(input) {}
+export function apply(proposal, proposerId) {}
 `)!!!"})
     {
       const auto error = call_validate_constitution(c);
@@ -329,11 +321,32 @@ export function apply() {}
   }
 
   {
-    INFO("valid");
+    INFO("missing apply");
     for (const auto& c : {R"!!!(`
-export function validate() {}
-export function apply() {}
-export function resolve() {}
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+`)!!!"})
+    {
+      const auto error = call_validate_constitution(c);
+      REQUIRE(error.has_value());
+      REQUIRE(str_contains(error, "Failed to find export 'apply'"));
+    }
+  }
+
+  {
+    INFO("valid");
+
+    for (const auto& c :
+         {R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
+`)!!!",
+          // Alternate signature for resolve, taking additional proposalId arg
+          R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes, proposalId) {}
+export function apply(proposal, proposerId) {}
 `)!!!"})
     {
       const auto error = call_validate_constitution(c);
@@ -348,9 +361,9 @@ export function resolve() {}
       INFO(
         "code in outer module (existing constitution) may have side effects");
       const auto constitution = R"!!!(`
-export function validate() {}
-export function apply() {}
-export function resolve() {}
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
 `)!!!";
 
       auto side_effect_extension = std::make_shared<SideEffectExtension>();
@@ -364,9 +377,9 @@ export function resolve() {}
     {
       INFO("code inside proposed constitution has no side effects");
       const auto constitution = R"!!!(`
-export function validate() {}
-export function apply() {}
-export function resolve() {}
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
 setGlobal(100)
 `)!!!";
 
@@ -385,9 +398,9 @@ setGlobal(100)
     {
       INFO("global throws");
       const auto constitution = R"!!!(`
-export function validate() {}
-export function apply() {}
-export function resolve() {}
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
 
 throw new Error(`I'm not happy`);
 `)!!!";
@@ -396,29 +409,131 @@ throw new Error(`I'm not happy`);
     }
 
     {
-      INFO("invalid signatures");
-      const auto constitution = R"!!!(`
-export function validate(a) { return null; }
-export function apply(a) { return null;}
-export function resolve(a) { return null;}
+      INFO("incorrect signatures");
+
+      {
+        INFO("arg count is checked");
+
+        {
+          INFO("validate low");
+          const auto constitution = R"!!!(`
+export function validate() {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
 `)!!!";
 
-      auto error = call_validate_constitution(constitution);
-      REQUIRE(!error.has_value());
+          auto error = call_validate_constitution(constitution);
+          REQUIRE(error.has_value());
+          REQUIRE(str_contains(
+            error,
+            "exports function validate with 0 args, expected 1 arg (input)"));
+        }
+
+        {
+          INFO("validate high");
+          const auto constitution = R"!!!(`
+export function validate(a, b) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
+`)!!!";
+
+          auto error = call_validate_constitution(constitution);
+          REQUIRE(error.has_value());
+          REQUIRE(str_contains(
+            error,
+            "exports function validate with 2 args, expected 1 arg (input)"));
+        }
+
+        {
+          INFO("resolve low");
+          const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(a, b) {}
+export function apply(proposal, proposerId) {}
+`)!!!";
+
+          auto error = call_validate_constitution(constitution);
+          REQUIRE(error.has_value());
+          REQUIRE(str_contains(
+            error,
+            "exports function resolve with 2 args, expected between 3 and 4 "
+            "args (proposal, proposerId, votes[, proposalId])"));
+        }
+
+        {
+          INFO("resolve high");
+          const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(a, b, c, d, e) {}
+export function apply(proposal, proposerId) {}
+`)!!!";
+
+          auto error = call_validate_constitution(constitution);
+          REQUIRE(error.has_value());
+          REQUIRE(str_contains(
+            error,
+            "exports function resolve with 5 args, expected between 3 and 4 "
+            "args (proposal, proposerId, votes[, proposalId])"));
+        }
+
+        {
+          INFO("apply low");
+          const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(a) {}
+`)!!!";
+
+          auto error = call_validate_constitution(constitution);
+          REQUIRE(error.has_value());
+          REQUIRE(str_contains(
+            error,
+            "exports function apply with 1 arg, expected 2 args (proposal, "
+            "proposerId)"));
+        }
+
+        {
+          INFO("apply high");
+          const auto constitution = R"!!!(`
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(a, b, c) {}
+`)!!!";
+
+          auto error = call_validate_constitution(constitution);
+          REQUIRE(error.has_value());
+          REQUIRE(str_contains(
+            error,
+            "exports function apply with 3 args, expected 2 args (proposal, "
+            "proposerId)"));
+        }
+      }
+
+      {
+        INFO("arg names are not checked");
+        const auto constitution = R"!!!(`
+export function validate(a) {}
+export function resolve(a, b, c) {}
+export function apply(a, b) {}
+`)!!!";
+
+        auto error = call_validate_constitution(constitution);
+        REQUIRE_FALSE(error.has_value());
+      }
     }
 
     {
-      INFO("null accesses");
+      INFO("null accesses can't be checked");
       const auto constitution = R"!!!(`
-export function validate() {}
-export function apply() {}
-export function resolve() {}
+export function validate(input) {}
+export function resolve(proposal, proposerId, votes) {}
+export function apply(proposal, proposerId) {}
 
 foo.bar.baz;
 `)!!!";
 
       auto error = call_validate_constitution(constitution);
-      REQUIRE(!error.has_value());
+      REQUIRE_FALSE(error.has_value());
     }
   }
 }
