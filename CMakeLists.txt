@@ -234,6 +234,7 @@ add_ccf_static_library(
        ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
        ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
        ${CCF_DIR}/src/js/extensions/ccf/crypto.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/gov.cpp
        ${CCF_DIR}/src/js/extensions/ccf/gov_effects.cpp
        ${CCF_DIR}/src/js/extensions/ccf/historical.cpp
        ${CCF_DIR}/src/js/extensions/ccf/host.cpp
