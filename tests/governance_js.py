@@ -1052,6 +1052,51 @@ def test_set_constitution(network, args):
     return network
 
 
+@reqs.description("Test validation in set_constitution")
+def test_set_constitution_validation(network, args):
+    node = choose_node(network)
+
+    # NB: This tests the behaviour of the current default sample constitution,
+    # and the validation it applies. In particular, it explicitly checks that
+    # the proposed constitution is a string, before calling the CCF-provided
+    # validateConstitution API (resulting in the specific errors below).
+    # Other constitutions may choose to do more or less validation.
+    for constitution, error_snippet in (
+        ("", "is empty"),
+        (1, "must be of type string"),
+        (["a", "b", "c"], "must be of type string"),
+        (None, "must be of type string"),
+        ("Not syntactically valid JS", "Failed to compile"),
+        (
+            "export function resolve() {}; export function apply() {};",
+            "Failed to find export 'validate'",
+        ),
+        (
+            "export function validate() {}; export function apply() {};",
+            "Failed to find export 'resolve'",
+        ),
+        (
+            "export function validate() {}; export function resolve() {};",
+            "Failed to find export 'apply'",
+        ),
+    ):
+        try:
+            network.consortium.set_constitution_raw(node, constitution)
+        except infra.proposal.ProposalNotCreated as e:
+            r = e.response
+            assert r.status_code == 400, r
+            message = r.body.json()["error"]["message"]
+            assert (
+                error_snippet in message
+            ), f"Expected content ({error_snippet}) not found in response:\n{r.body.text()}"
+        else:
+            assert (
+                False
+            ), f"Expected error from validateConstitution for: '{constitution}'"
+
+    return network
+
+
 @contextmanager
 def temporary_constitution(network, args, js_constitution_suffix):
     primary, _ = network.find_primary()
