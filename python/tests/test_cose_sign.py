@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives.serialization import (
 from cryptography.hazmat.primitives.asymmetric import utils
 import ccf.cose
 import cbor2
+import pytest
 
 
 def make_private_key(curve: ec.EllipticCurve):
@@ -34,6 +35,29 @@ def make_pem_pair(priv) -> Tuple[str, str]:
     return priv_pem, pub_pem
 
 
+def i2osp(x: int, x_len: int) -> bytes:
+    """
+    cwt.algs.ec2.i2osp
+    """
+    if x >= 256**x_len:
+        raise ValueError("integer too large")
+    digits = []
+    while x:
+        digits.append(int(x % 256))
+        x //= 256
+    for _ in range(x_len - len(digits)):
+        digits.append(0)
+    return bytes.fromhex("".join("%.2x" % x for x in digits[::-1]))
+
+
+def hash_algo(priv: ec.EllipticCurvePrivateKey):
+    return {
+        256: hashes.SHA256(),
+        384: hashes.SHA384(),
+        521: hashes.SHA512(),
+    }[priv.key_size]
+
+
 def make_self_signed_cert(priv, subject_name: str):
     subject = issuer = x509.Name(
         [x509.NameAttribute(x509.oid.NameOID.COMMON_NAME, subject_name)]
@@ -46,17 +70,18 @@ def make_self_signed_cert(priv, subject_name: str):
         .serial_number(x509.random_serial_number())
         .not_valid_before(datetime.datetime.now())
         .not_valid_after(datetime.datetime.now() + datetime.timedelta(days=365))
-        .sign(priv, hashes.SHA256(), default_backend())
+        .sign(priv, hash_algo(priv), default_backend())
     )
     return cert.public_bytes(Encoding.PEM).decode("ascii")
 
 
-def test_create_cose_sign1_finish():
+@pytest.mark.parametrize("curve", [ec.SECP256R1(), ec.SECP384R1(), ec.SECP521R1()])
+def test_create_cose_sign1_finish(curve):
     """
     Check create_cose_sign1_finish() produces the same output when passed
     a signature as create_cose_sign1().
     """
-    priv = make_private_key(ec.SECP256R1())
+    priv = make_private_key(curve)
     priv_pem, pub_pem = make_pem_pair(priv)
     cert = make_self_signed_cert(priv, "example.com")
 
@@ -72,29 +97,27 @@ def test_create_cose_sign1_finish():
     assert cose_sign1 == finished_cose_sign1
 
 
-def test_create_cose_sign1_prepare_and_finish():
+@pytest.mark.parametrize("curve", [ec.SECP256R1(), ec.SECP384R1(), ec.SECP521R1()])
+def test_create_cose_sign1_prepare_and_finish(curve):
     """
     Check adding performing a signature externally on the output of
     cose.create_cose_sign1_prepare() and packaging it with
     cose.create_cose_sign1_finish() produces a valid COSE_Sign1.
     """
-    priv = make_private_key(ec.SECP256R1())
-    priv_pem, pub_pem = make_pem_pair(priv)
+    priv = make_private_key(curve)
     cert = make_self_signed_cert(priv, "example.com")
-
-    payload = b"Hello World"
+    payload = b"Hello"
 
     tbs = ccf.cose.create_cose_sign1_prepare(payload, cert)
 
     alg = tbs["alg"]
     raw_value = base64.b64decode(tbs["value"])
 
-    assert alg == "ES256"
-    signature = priv.sign(raw_value, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+    assert alg == ccf.cose.default_algorithm_for_key(priv.public_key())
+    signature = priv.sign(raw_value, ec.ECDSA(utils.Prehashed(hash_algo(priv))))
     r, s = utils.decode_dss_signature(signature)
-    raw_signature = r.to_bytes((r.bit_length() + 7) // 8, "big") + s.to_bytes(
-        (r.bit_length() + 7) // 8, "big"
-    )
+    num_bytes = (priv.key_size + 7) // 8
+    raw_signature = i2osp(r, num_bytes) + i2osp(s, num_bytes)
 
     b64_sig = base64.urlsafe_b64encode(raw_signature)
     finished_cose_sign1 = ccf.cose.create_cose_sign1_finish(payload, cert, b64_sig)
