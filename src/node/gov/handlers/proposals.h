@@ -4,6 +4,7 @@
 
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/js/common_context.h"
+#include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/gov_effects.h"
 #include "js/extensions/ccf/network.h"
 #include "js/extensions/ccf/node.h"
@@ -307,6 +308,8 @@ namespace ccf::gov::endpoints
                 &network, &tx));
             js_context.add_extension(
               std::make_shared<ccf::js::extensions::GovEffectsExtension>(&tx));
+            js_context.add_extension(
+              std::make_shared<ccf::js::extensions::GovExtension>());
 
             auto apply_func = js_context.get_exported_function(
               constitution,
@@ -447,6 +450,9 @@ namespace ccf::gov::endpoints
             }
 
             js::CommonContextWithLocalTx context(js::TxAccess::GOV_RO, &ctx.tx);
+
+            context.add_extension(
+              std::make_shared<ccf::js::extensions::GovExtension>());
 
             auto validate_func = context.get_exported_function(
               constitution.value(),
