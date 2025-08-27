@@ -46,12 +46,6 @@
 #include "libregexp.h"
 #include "libbf.h"
 
-// vvv CCF Patch vvv
-// Shim the implementations of gettimeofday and localtime_r to work within the
-// enclave
-#include "quickjs-time.h"
-// ^^^ CCF Patch ^^^
-
 #define OPTIMIZE         1
 #define SHORT_OPCODES    1
 #if defined(EMSCRIPTEN)
