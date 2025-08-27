@@ -328,6 +328,7 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
     ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
     ${CCF_DIR}/src/js/extensions/ccf/crypto.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/gov.cpp
     ${CCF_DIR}/src/js/extensions/ccf/gov_effects.cpp
     ${CCF_DIR}/src/js/extensions/ccf/historical.cpp
     ${CCF_DIR}/src/js/extensions/ccf/host.cpp
@@ -372,34 +373,6 @@ set(CCF_KV_SOURCES
     ${CCF_DIR}/src/kv/tx.cpp ${CCF_DIR}/src/kv/untyped_map_handle.cpp
     ${CCF_DIR}/src/kv/untyped_map_diff.cpp
 )
-
-if(COMPILE_TARGET STREQUAL "snp")
-  add_host_library(ccf_kv.snp "${CCF_KV_SOURCES}")
-  add_san(ccf_kv.snp)
-  add_warning_checks(ccf_kv.snp)
-  add_tidy(ccf_kv.snp)
-  target_compile_definitions(ccf_kv.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
-  if(CCF_DEVEL)
-    install(
-      TARGETS ccf_kv.snp
-      EXPORT ccf
-      DESTINATION lib
-    )
-  endif()
-endif()
-
-add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
-add_san(ccf_kv.host)
-add_warning_checks(ccf_kv.host)
-add_tidy(ccf_kv.host)
-target_compile_definitions(ccf_kv.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
-if(INSTALL_VIRTUAL_LIBRARIES)
-  install(
-    TARGETS ccf_kv.host
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
 
 # CCF endpoints libs
 if(COMPILE_TARGET STREQUAL "snp")
