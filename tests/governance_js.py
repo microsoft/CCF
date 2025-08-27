@@ -1068,16 +1068,41 @@ def test_set_constitution_validation(network, args):
         (None, "must be of type string"),
         ("Not syntactically valid JS", "Failed to compile"),
         (
-            "export function resolve() {}; export function apply() {};",
+            """
+            export function resolve(proposal, proposerId, votes) {}
+            export function apply(proposal, proposerId) {}
+            """,
             "Failed to find export 'validate'",
         ),
         (
-            "export function validate() {}; export function apply() {};",
+            """
+            export function validate(input) {}
+            export function apply(proposal, proposerId) {}
+            """,
             "Failed to find export 'resolve'",
         ),
         (
-            "export function validate() {}; export function resolve() {};",
+            """
+            export function validate(input) {}
+            export function resolve(proposal, proposerId, votes) {}
+            """,
             "Failed to find export 'apply'",
+        ),
+        (
+            """
+            export function validate(input) {}
+            export function resolve(notEnoughArgs) {}
+            export function apply(proposal, proposerId) {}
+            """,
+            "exports function resolve with 1 arg, expected between 3 and 4 args",
+        ),
+        (
+            """
+            export function validate(too, many, args) {}
+            export function resolve(proposal, proposerId, votes) {}
+            export function apply(proposal, proposerId) {}
+            """,
+            "exports function validate with 3 args, expected 1 arg",
         ),
     ):
         try:
@@ -1093,6 +1118,36 @@ def test_set_constitution_validation(network, args):
             assert (
                 False
             ), f"Expected error from validateConstitution for: '{constitution}'"
+
+    # Minimal valid constitutions
+    apply_body = """
+        const proposed_actions = JSON.parse(proposal)["actions"];
+        if (proposed_actions.length !== 1 || proposed_actions[0].name !== "set_constitution")
+        {
+            throw new Error("This minimal constitution only allows other set_constitution proposals");
+        }
+        ccf.kv["public:ccf.gov.constitution"].set(
+            new ArrayBuffer(8),
+            ccf.jsonCompatibleToBuf(proposed_actions[0].args.constitution));
+        """
+    for constitution in (
+        """
+        export function validate(input) { return {valid: true} }
+        export function resolve(proposal, proposerId, votes) { return "Accepted" }
+        export function apply(proposal, proposerId) { """
+        + apply_body
+        + "}",
+        """
+        export function validate(input) { return {valid: true} }
+        export function resolve(proposal, proposerId, votes, proposalId) { return "Accepted" }
+        export function apply(proposal, proposerId) { """
+        + apply_body
+        + "}",
+    ):
+        network.consortium.set_constitution_raw(node, constitution)
+
+    # Reset original constitution
+    network.consortium.set_constitution(node, args.constitution)
 
     return network
 
