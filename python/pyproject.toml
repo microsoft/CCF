@@ -43,12 +43,3 @@ ccf_cose_sign1_finish = "ccf.cose:finish_cli"
 "ledger_code.py" = "ccf.ledger_code:main"
 "split_ledger.py" = "ccf.split_ledger:main"
 "verify_ledger_secrets_chain.py" = "ccf.verify_ledger_secrets_chain:main"
-
-# pytest is a dev dependency
-
-[project.optional-dependencies]
-test = [
-    "pytest>=8,<9",
-    "pytest-cov>=5,<6",
-]
-
