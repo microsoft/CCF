@@ -399,7 +399,8 @@ const actions = new Map([
     "set_constitution",
     new Action(
       function (args) {
-        checkType(args.constitution, "string");
+        checkType(args.constitution, "string", "constitution");
+        ccf.gov.validateConstitution(args.constitution);
       },
       function (args, proposalId) {
         ccf.kv["public:ccf.gov.constitution"].set(
