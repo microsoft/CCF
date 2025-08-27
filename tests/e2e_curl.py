@@ -19,7 +19,7 @@ async def echo_handler(request):
     delay = random.random() / 100
     await asyncio.sleep(delay)
 
-    #print(f"{datetime.now(UTC)}: Replying to request to {request.path_qs} after {delay:.3f}s delay")
+    # print(f"{datetime.now(UTC)}: Replying to request to {request.path_qs} after {delay:.3f}s delay")
 
     # Build response data
     response_data = {
