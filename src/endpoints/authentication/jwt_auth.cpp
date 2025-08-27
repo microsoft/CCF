@@ -11,7 +11,6 @@
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/jwt.h"
 #include "ds/lru.h"
-#include "enclave/enclave_time.h"
 #include "http/http_jwt.h"
 
 namespace
@@ -256,9 +255,10 @@ namespace ccf
       }
 
       // Check that the Not Before and Expiration Time claims are valid
-      const size_t time_now = std::chrono::duration_cast<std::chrono::seconds>(
-                                ccf::get_enclave_time())
-                                .count();
+      const size_t time_now =
+        std::chrono::duration_cast<std::chrono::seconds>(
+          std::chrono::system_clock::now().time_since_epoch())
+          .count();
       if (token.payload_typed.nbf && time_now < *token.payload_typed.nbf)
       {
         error_reason = fmt::format(

@@ -548,48 +548,50 @@ def test_recover_service_from_files(
             infra.proc.ccall(*cmd).returncode == 0
         ), f"Could not copy {file} to {new_common}"
 
-    network = infra.network.Network(args.nodes, args.binary_dir)
+    with infra.network.network(args.nodes, args.binary_dir) as network:
 
-    args.previous_service_identity_file = os.path.join(old_common, "service_cert.pem")
+        args.previous_service_identity_file = os.path.join(
+            old_common, "service_cert.pem"
+        )
 
-    network.start_in_recovery(
-        args,
-        committed_ledger_dirs=[os.path.join(service_dir, "ledger")],
-        snapshots_dir=os.path.join(service_dir, "snapshots"),
-        common_dir=new_common,
-    )
+        network.start_in_recovery(
+            args,
+            committed_ledger_dirs=[os.path.join(service_dir, "ledger")],
+            snapshots_dir=os.path.join(service_dir, "snapshots"),
+            common_dir=new_common,
+        )
 
-    network.recover(args, expected_recovery_count=expected_recovery_count)
+        network.recover(args, expected_recovery_count=expected_recovery_count)
 
-    primary, _ = network.find_primary()
+        primary, _ = network.find_primary()
 
-    # The member and user certs stored on this service are all currently expired.
-    # Remove user certs and add new users before attempting any user requests
-    primary, _ = network.find_primary()
+        # The member and user certs stored on this service are all currently expired.
+        # Remove user certs and add new users before attempting any user requests
+        primary, _ = network.find_primary()
 
-    user_certs = [
-        os.path.join(old_common, file)
-        for file in os.listdir(old_common)
-        if file.startswith("user") and file.endswith("_cert.pem")
-    ]
-    user_ids = [
-        infra.crypto.compute_cert_der_hash_hex_from_pem(open(cert).read())
-        for cert in user_certs
-    ]
-    for user_id in user_ids:
-        LOG.info(f"Removing expired user {user_id}")
-        network.consortium.remove_user(primary, user_id)
+        user_certs = [
+            os.path.join(old_common, file)
+            for file in os.listdir(old_common)
+            if file.startswith("user") and file.endswith("_cert.pem")
+        ]
+        user_ids = [
+            infra.crypto.compute_cert_der_hash_hex_from_pem(open(cert).read())
+            for cert in user_certs
+        ]
+        for user_id in user_ids:
+            LOG.info(f"Removing expired user {user_id}")
+            network.consortium.remove_user(primary, user_id)
 
-    new_user_local_id = "recovery_user"
-    new_user = network.create_user(new_user_local_id, args.participants_curve)
-    LOG.info(f"Adding new user {new_user.service_id}")
-    network.consortium.add_user(primary, new_user.local_id)
+        new_user_local_id = "recovery_user"
+        new_user = network.create_user(new_user_local_id, args.participants_curve)
+        LOG.info(f"Adding new user {new_user.service_id}")
+        network.consortium.add_user(primary, new_user.local_id)
 
-    infra.checker.check_can_progress(primary, local_user_id=new_user_local_id)
+        infra.checker.check_can_progress(primary, local_user_id=new_user_local_id)
 
-    if test_receipt:
-        r = primary.get_receipt(2, 3)
-        verify_receipt(r.json(), network.cert)
+        if test_receipt:
+            r = primary.get_receipt(2, 3)
+            verify_receipt(r.json(), network.cert)
 
 
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
