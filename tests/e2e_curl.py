@@ -48,7 +48,7 @@ async def main(debug):
     print("Echo server running on http://::1:8080")
 
     cmd = "./curl_test"
-    if (debug):
+    if debug:
         print(f"Run '{cmd}' to run the load generator")
         # wait forever
         await asyncio.Event().wait()
@@ -61,8 +61,11 @@ async def main(debug):
 if __name__ == "__main__":
     import asyncio
     import argparse
+
     parser = argparse.ArgumentParser(description="Run echo server")
-    parser.add_argument("-d", "--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument(
+        "-d", "--debug", action="store_true", help="Enable debug logging"
+    )
     args = parser.parse_args()
 
     asyncio.run(main(args.debug))
