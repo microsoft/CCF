@@ -311,7 +311,7 @@ namespace ccf::curl
         {
           LOG_FAIL_FMT(
             "Expected HTTP status line as first header, got '{}'", header);
-          return bytes_to_read; // Not a valid HTTP response
+          return bytes_to_read;
         }
       }
       else
@@ -512,7 +512,6 @@ namespace ccf::curl
     }
   };
 
-  // non-owning wrapper around a CURLM handle which supports CurlRequest
   class CurlRequestCURLM : public UniqueCURLM
   {
   public:

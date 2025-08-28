@@ -269,7 +269,7 @@ TEST_CASE("CurlmLibuvContext timeouts")
   REQUIRE(response_count == 0);
 }
 
-TEST_CASE("CurlmLibuvContext double init")
+TEST_CASE("CurlmLibuvContext multiple init")
 {
   size_t response_count = 0;
   constexpr size_t number_iterations = 10;
