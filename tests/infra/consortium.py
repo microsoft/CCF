@@ -496,8 +496,11 @@ class Consortium:
 
     def set_constitution(self, remote_node, constitution_paths):
         concatenated = "\n".join(slurp_file(path) for path in constitution_paths)
+        return self.set_constitution_raw(remote_node, concatenated)
+
+    def set_constitution_raw(self, remote_node, constitution_value):
         proposal_body, careful_vote = self.make_proposal(
-            "set_constitution", constitution=concatenated
+            "set_constitution", constitution=constitution_value
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)

@@ -692,10 +692,10 @@ def single_node(args):
     for k, v in warn_counts.items():
         LOG.debug(f"  '{k}': {v}")
 
-    assert info_counts[validate_info] == 1
-    assert warn_counts[validate_warn] == 1
-    assert info_counts[apply_info] == 1
-    assert warn_counts[apply_warn] == 1
+    assert info_counts[validate_info] == 1, info_counts
+    assert warn_counts[validate_warn] == 1, info_counts
+    assert info_counts[apply_info] == 1, info_counts
+    assert warn_counts[apply_warn] == 1, info_counts
 
     # We eval a lot!
     # Each proposal results in 5 separate evaluations for strict sandboxing:
@@ -703,7 +703,7 @@ def single_node(args):
     # - 3 separate ballot submissions (1 per member)
     # - Proposal application
     # And we approve 2 proposals while this proposal is active ("just_log", and "set_constitution" to the original)
-    assert info_counts[eval_info] == 10
+    assert info_counts[eval_info] == 10, info_counts
 
     assert info_counts[validate_error] == 1, info_counts
     assert info_counts[apply_error] == 1, info_counts
@@ -722,6 +722,7 @@ def js_gov(args):
         governance_js.test_ballot_storage(network, args)
         governance_js.test_pure_proposals(network, args)
         governance_js.test_set_constitution(network, args)
+        governance_js.test_set_constitution_validation(network, args)
         governance_js.test_proposals_with_votes(network, args)
         governance_js.test_check_proposal_id_is_set_correctly(network, args)
         governance_js.test_vote_failure_reporting(network, args)
