@@ -121,7 +121,7 @@ fi
 
 source scripts/env/bin/activate
 pip install -U pip
-pip install -U wheel black mypy ruff 1>/dev/null
+pip install -U wheel black pytest-mypy mypy ruff 1>/dev/null
 endgroup
 
 group "Python format"
