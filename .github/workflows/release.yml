@@ -65,7 +65,7 @@ jobs:
           path: rel-notes.md
 
   image_digest:
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     outputs:
       image_digest: ${{ steps.digest.outputs.digest }}
     steps:
@@ -89,7 +89,7 @@ jobs:
           - name: snp
             os: azure-linux
 
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     container:
       image: ${{ needs.image_digest.outputs.image_digest }}
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
@@ -333,7 +333,7 @@ jobs:
             os: azure-linux
           - name: snp
             os: azure-linux
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     env:
       REPRO_DIR: /tmp/reproduced
     container:
