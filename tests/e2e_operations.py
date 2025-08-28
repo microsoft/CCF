@@ -1051,7 +1051,7 @@ def run_initial_uvm_descriptor_checks(args):
         with recovered_primary.client() as c:
             r = c.get("/node/network").body.json()
             recovery_seqno = int(r["current_service_create_txid"].split(".")[1])
-        network.stop_all_nodes()
+        recovered_network.stop_all_nodes()
         ledger = ccf.ledger.Ledger(
             recovered_primary.remote.ledger_paths(),
             committed_only=False,
@@ -1126,7 +1126,7 @@ def run_initial_tcb_version_checks(args):
         with recovered_primary.client() as c:
             r = c.get("/node/network").body.json()
             recovery_seqno = int(r["current_service_create_txid"].split(".")[1])
-        network.stop_all_nodes()
+        recovered_network.stop_all_nodes()
         ledger = ccf.ledger.Ledger(
             recovered_primary.remote.ledger_paths(),
             committed_only=False,
@@ -1419,6 +1419,147 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
             recovery_network.stop_all_nodes()
             prev_network = recovery_network
 
+def run_self_healing_open(args):
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+    ) as network:
+        LOG.info("Start a network and stop it")
+        network.start_and_open(args)
+        old_common = infra.network.get_common_folder_name(args.workspace, args.label)
+        network.save_service_identity(args)
+        network.stop_all_nodes()
+
+        recovery_args = copy.deepcopy(args)
+
+        ledger_dirs = {}
+        committed_ledger_dirs = {}
+        for i, node in enumerate(network.nodes):
+            l, c = node.get_ledger()
+            ledger_dirs[i] = l
+            committed_ledger_dirs[i] = c
+
+        LOG.info("Start a recovery network and stop it")
+        recovered_network = infra.network.Network(
+            recovery_args.nodes,
+            recovery_args.binary_dir,
+            recovery_args.debug_nodes,
+            existing_network=network,
+        )
+        recovered_network.start_in_self_healing_open(
+            recovery_args,
+            ledger_dirs=ledger_dirs,
+            committed_ledger_dirs=committed_ledger_dirs,
+        )
+
+        def cycle(items):
+          while True:
+              for item in items:
+                  yield item
+
+        # Wait for any node to be waiting for RecoveryShares, ie it opened
+        for node in cycle(recovered_network.nodes):
+          try:
+            recovered_network.wait_for_statuses(
+                node,
+                ["WaitingForRecoveryShares", "Open"],
+                timeout=1,
+                verify_ca=False
+            )
+            break
+          except TimeoutError:
+            LOG.info(f"Failed to get the status of {node.local_node_id}, retrying...")
+            continue
+
+        # Refresh the the declared state of nodes which have shut themselves down to join.
+        for node in recovered_network.nodes:
+          node.refresh_network_state(verify_ca=False)
+
+        recovered_network.refresh_service_identity_file(recovery_args)
+
+        recovered_network.consortium.recover_with_shares(recovered_network.find_random_node())
+
+        LOG.info("Submitted recovery shares")
+
+        # Wait for all live replicas to report being part of the opened network
+        successfully_opened = 0
+        for node in recovered_network.get_joined_nodes():
+            try: 
+              recovered_network.wait_for_status(
+                  node,
+                  "Open",
+                  timeout=10,
+              )
+              recovered_network._wait_for_app_open(node)
+              successfully_opened += 1
+            except TimeoutError as e:
+              pass
+
+        assert successfully_opened == 1
+
+        LOG.info("Completed self-healing open successfully")
+
+        recovered_network.stop_all_nodes()
+
+def run_self_healing_open_single_replica(args):
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+    ) as network:
+        LOG.info("Start a network and stop it")
+        network.start_and_open(args)
+        old_common = infra.network.get_common_folder_name(args.workspace, args.label)
+        network.stop_all_nodes()
+
+        ledger_dirs = {}
+        committed_ledger_dirs = {}
+        for i, node in enumerate(network.nodes):
+            l, c = node.get_ledger()
+            ledger_dirs[i] = l
+            committed_ledger_dirs[i] = c
+
+        LOG.info("Start a recovery network and stop it")
+        recovered_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            existing_network=network,
+        )
+        args.previous_service_identity_file = os.path.join(
+            old_common, "service_cert.pem"
+        )
+
+        recovered_network.start_in_self_healing_open(
+            args,
+            ledger_dirs=ledger_dirs,
+            committed_ledger_dirs=committed_ledger_dirs,
+            common_dir=network.common_dir,
+            start_all_nodes=False,
+        )
+
+        # Wait for the first node to be in RecoveryShares
+        for node in recovered_network.nodes[0:1]:
+            recovered_network.wait_for_statuses(
+                node,
+                ["WaitingForRecoveryShares", "Open"],
+                timeout=30,
+            )
+        recovered_network.consortium.recover_with_shares(recovered_network.find_random_node())
+
+        # Wait for all replicas to report being part of the network
+        for node in recovered_network.nodes[0:1]:
+            recovered_network.wait_for_state(
+                node,
+                infra.node.State.PART_OF_NETWORK.value,
+                timeout=30,
+            )
+            recovered_network._wait_for_app_open(node)
+
+        recovered_network.stop_all_nodes()
 
 def run_read_ledger_on_testdata(args):
     for testdata_dir in os.scandir(args.historical_testdata):

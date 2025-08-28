@@ -12,21 +12,27 @@
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/mem.h"
 #include "ccf/service/reconfiguration_type.h"
+#include "ccf/service/tables/self_heal_open.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "ds/files.h"
+#include "ds/ring_buffer_types.h"
 #include "ds/std_formatters.h"
 #include "frontend.h"
 #include "node/network_state.h"
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/no_create_tx_claims_digest.cpp"
 #include "node/rpc/serialization.h"
+#include "node/self_healing_open.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
 #include "service/internal_tables_access.h"
 #include "service/tables/previous_service_identity.h"
 #include "snapshots/filenames.h"
+
+#include <llhttp/llhttp.h>
+#include <stdexcept>
 
 namespace ccf
 {
@@ -413,6 +419,69 @@ namespace ccf
         }
       }
     }
+
+    std::optional<std::tuple<llhttp_status, std::string>>
+    self_healing_open_validate_and_store_node_info(
+      endpoints::EndpointContext& args,
+      ccf::kv::Tx& tx,
+      const self_healing_open::RequestNodeInfo& in)
+    {
+      auto cert_der = ccf::crypto::public_key_der_from_cert(
+        args.rpc_ctx->get_session_context()->caller_cert);
+
+      pal::PlatformAttestationMeasurement measurement;
+      QuoteVerificationResult verify_result = this->node_operation.verify_quote(
+        args.tx, in.quote_info, cert_der, measurement);
+      if (verify_result != QuoteVerificationResult::Verified)
+      {
+        const auto [code, message] = quote_verification_error(verify_result);
+        LOG_FAIL_FMT(
+          "Self-healing-open gossip from intrinsic id {} is invalid: {} ({})",
+          in.intrinsic_id,
+          code,
+          message);
+        return std::make_tuple(code, message);
+      }
+
+      LOG_TRACE_FMT(
+        "Self-healing-open gossip from intrinsic id {}'s quote is valid",
+        in.intrinsic_id);
+
+      // Validating that we haven't heard from this node before, of if we have
+      // that the cert hasn't changed
+      auto* node_info_handle = tx.rw(this->network.self_healing_open_node_info);
+      auto existing_node_info = node_info_handle->get(in.intrinsic_id);
+
+      if (existing_node_info.has_value())
+      {
+        // If we have seen this node before, check that the cert is the same
+        if (existing_node_info->cert_der != cert_der)
+        {
+          LOG_FAIL_FMT(
+            "Self-healing-open gossip from intrinsic id {} is invalid: "
+            "certificate has changed",
+            in.intrinsic_id);
+          return std::make_tuple(
+            HTTP_STATUS_BAD_REQUEST,
+            "Self-healing-open gossip from intrinsic id is invalid: "
+            "certificate has changed");
+        }
+      }
+      else
+      {
+        SelfHealingOpenNodeInfo_t src_info{
+          .quote_info = in.quote_info,
+          .published_network_address = in.published_network_address,
+          .cert_der = cert_der,
+          .service_identity = in.service_identity,
+          .intrinsic_id = in.intrinsic_id};
+        node_info_handle->put(in.intrinsic_id, src_info);
+      }
+
+      // TODO validate that this gossip is for the same network
+
+      return std::nullopt;
+    };
 
   public:
     NodeEndpoints(NetworkState& network_, ccf::AbstractNodeContext& context_) :
@@ -1652,6 +1721,33 @@ namespace ccf
           ctx.rpc_ctx->set_claims_digest(std::move(digest_value));
         }
 
+        {
+          // Reset the self-healing-open state
+          ccf::kv::Tx& tx = ctx.tx;
+          auto* state_handle = tx.rw<ccf::SelfHealingOpenSMState>(
+            Tables::SELF_HEALING_OPEN_SM_STATE);
+          state_handle->clear();
+          auto* timeout_state_handle =
+            tx.rw<ccf::SelfHealingOpenTimeoutSMState>(
+              Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE);
+          auto* node_info_handle = tx.rw<ccf::SelfHealingOpenNodeInfo>(
+            Tables::SELF_HEALING_OPEN_NODES);
+          node_info_handle->clear();
+          auto* gossip_state_handle = tx.rw<ccf::SelfHealingOpenGossips>(
+            Tables::SELF_HEALING_OPEN_GOSSIPS);
+          gossip_state_handle->clear();
+          auto* chosen_replica = tx.rw<ccf::SelfHealingOpenChosenReplica>(
+            Tables::SELF_HEALING_OPEN_CHOSEN_REPLICA);
+          chosen_replica->clear();
+          auto* votes =
+            tx.rw<ccf::SelfHealingOpenVotes>(Tables::SELF_HEALING_OPEN_VOTES);
+          votes->clear();
+
+          // Start timers if necessary
+          this->node_operation.self_healing_open_try_start_timers(
+            tx, recovering);
+        }
+
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };
@@ -2184,6 +2280,286 @@ namespace ccf
         .install();
       make_command_endpoint(
         "/snapshot/{snapshot_name}", HTTP_GET, get_snapshot, no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_openapi_hidden(true)
+        .install();
+
+      auto self_healing_open_gossip = [this](
+                                        auto& args,
+                                        const nlohmann::json& params) {
+        auto config = this->context.get_subsystem<NodeConfigurationSubsystem>();
+        if (!config)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfigurationSubsystem is not available");
+        }
+        if (!config->get()
+               .node_config.recover.self_healing_open_addresses.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidNodeState,
+            "Self-healing-open addresses are not configured");
+        }
+
+        auto in = params.get<self_healing_open::GossipRequest>();
+        auto valid = self_healing_open_validate_and_store_node_info(
+          args, args.tx, in.info);
+        if (valid.has_value())
+        {
+          auto [code, message] = valid.value();
+          return make_error(code, ccf::errors::InvalidQuote, message);
+        }
+
+        LOG_TRACE_FMT("Processing self-healing-open gossip RPC");
+        LOG_TRACE_FMT("Self-healing-open gossip params: {}", params.dump());
+
+        auto chosen_replica =
+          args.tx.rw(this->network.self_healing_open_chosen_replica);
+        // This freezes the gossips at the point where it votes
+        if (chosen_replica->get().has_value())
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "This replica has already voted");
+        }
+
+        auto gossip_handle = args.tx.rw(this->network.self_healing_open_gossip);
+        if (gossip_handle->get(in.info.intrinsic_id).has_value())
+        {
+          LOG_INFO_FMT("Node {} already gossiped", in.info.intrinsic_id);
+          return make_success(
+            fmt::format("Node {} already gossiped", in.info.intrinsic_id));
+        }
+        gossip_handle->put(in.info.intrinsic_id, in.txid);
+
+        try
+        {
+          this->node_operation.self_healing_open_advance(args.tx, false);
+        }
+        catch (const std::logic_error& e)
+        {
+          LOG_FAIL_FMT(
+            "Self-healing-open gossip failed to advance state: {}", e.what());
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to advance self-healing-open state: {}", e.what()));
+        }
+
+        return make_success(fmt::format(
+          "Node {} gossiped for self-healing-open", in.info.intrinsic_id));
+      };
+      make_endpoint(
+        "/self_healing_open/gossip",
+        HTTP_PUT,
+        json_adapter(self_healing_open_gossip),
+        no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_openapi_hidden(true)
+        .install();
+
+      auto self_healing_open_vote =
+        [this](auto& args, const nlohmann::json& params) {
+          auto config =
+            this->context.get_subsystem<NodeConfigurationSubsystem>();
+          if (!config)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "NodeConfigurationSubsystem is not available");
+          }
+          if (!config->get()
+                 .node_config.recover.self_healing_open_addresses.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidNodeState,
+              "Self-healing-open addresses are not configured");
+          }
+
+          auto in = params.get<self_healing_open::VoteRequest>();
+          auto valid = self_healing_open_validate_and_store_node_info(
+            args, args.tx, in.info);
+          if (valid.has_value())
+          {
+            auto [code, message] = valid.value();
+            return make_error(code, ccf::errors::InvalidQuote, message);
+          }
+          LOG_TRACE_FMT("Processing self-healing-open vote RPC");
+          LOG_TRACE_FMT("Self-healing-open vote params: {}", params.dump());
+
+          auto votes = args.tx.rw(this->network.self_healing_open_votes);
+          votes->insert(in.info.intrinsic_id);
+
+          try
+          {
+            this->node_operation.self_healing_open_advance(args.tx, false);
+          }
+          catch (const std::logic_error& e)
+          {
+            LOG_FAIL_FMT(
+              "Self-healing-open gossip failed to advance state: {}", e.what());
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format(
+                "Failed to advance self-healing-open state: {}", e.what()));
+          }
+
+          // if sufficient votes, then we can open the network
+          return make_success(fmt::format(
+            "Node {} voted for self-healing-open", in.info.intrinsic_id));
+        };
+      make_endpoint(
+        "/self_healing_open/vote",
+        HTTP_PUT,
+        json_adapter(self_healing_open_vote),
+        no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_openapi_hidden(true)
+        .install();
+
+      auto self_healing_open_iamopen =
+        [this](auto& args, const nlohmann::json& params) {
+          auto config =
+            this->context.get_subsystem<NodeConfigurationSubsystem>();
+          if (!config)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "NodeConfigurationSubsystem is not available");
+          }
+          if (!config->get()
+                 .node_config.recover.self_healing_open_addresses.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidNodeState,
+              "Self-healing-open addresses are not configured");
+          }
+
+          auto in = params.get<self_healing_open::IAmOpenRequest>();
+          auto valid = self_healing_open_validate_and_store_node_info(
+            args, args.tx, in.info);
+          if (valid.has_value())
+          {
+            auto [code, message] = valid.value();
+            return make_error(code, ccf::errors::InvalidQuote, message);
+          }
+
+          auto* sm_state = args.tx.rw(this->network.self_healing_open_sm_state);
+          sm_state->put(SelfHealingOpenSM::JOINING);
+
+          LOG_INFO_FMT("******************************");
+          LOG_INFO_FMT("Self-healing-open is JOINING {}", in.info.intrinsic_id);
+          LOG_INFO_FMT("******************************");
+
+          auto* chosen_replica =
+            args.tx.rw(this->network.self_healing_open_chosen_replica);
+          chosen_replica->put(in.info.intrinsic_id);
+
+          try
+          {
+            this->node_operation.self_healing_open_advance(args.tx, false);
+          }
+          catch (const std::logic_error& e)
+          {
+            LOG_FAIL_FMT(
+              "Self-healing-open gossip failed to advance state: {}", e.what());
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format(
+                "Failed to advance self-healing-open state: {}", e.what()));
+          }
+
+          return make_success(fmt::format(
+            "Node {} is joining self-healing-open", in.info.intrinsic_id));
+        };
+      make_endpoint(
+        "/self_healing_open/iamopen",
+        HTTP_PUT,
+        json_adapter(self_healing_open_iamopen),
+        no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_openapi_hidden(true)
+        .install();
+
+      auto self_healing_open_timeout = [this](
+                                         auto& args,
+                                         const nlohmann::json& params) {
+        (void)params;
+        auto config = this->context.get_subsystem<NodeConfigurationSubsystem>();
+        if (!config)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfigurationSubsystem is not available");
+        }
+        if (!config->get()
+               .node_config.recover.self_healing_open_addresses.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidNodeState,
+            "Self-healing-open addresses are not configured");
+        }
+
+        LOG_TRACE_FMT("Self-healing-open timeout received");
+
+        // Must ensure that the request originates from the primary
+        auto primary_id = consensus->primary();
+        if (!primary_id.has_value())
+        {
+          LOG_FAIL_FMT("self-healing-open timeout: primary unknown");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Primary is unknown");
+        }
+        const auto& sig_auth_ident =
+          args.template get_caller<ccf::NodeCertAuthnIdentity>();
+        if (primary_id.value() != sig_auth_ident.node_id)
+        {
+          LOG_FAIL_FMT(
+            "self-healing-open timeout: request does not originate from "
+            "primary");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Request does not originate from primary.");
+        }
+
+        try
+        {
+          this->node_operation.self_healing_open_advance(args.tx, true);
+        }
+        catch (const std::logic_error& e)
+        {
+          LOG_FAIL_FMT(
+            "Self-healing-open gossip failed to advance state: {}", e.what());
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to advance self-healing-open state: {}", e.what()));
+        }
+        return make_success("Self-healing-open timeout processed successfully");
+      };
+
+      make_endpoint(
+        "/self_healing_open/timeout",
+        HTTP_PUT,
+        json_adapter(self_healing_open_timeout),
+        {std::make_shared<NodeCertAuthnPolicy>()})
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_openapi_hidden(true)
         .install();

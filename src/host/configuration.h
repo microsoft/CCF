@@ -118,6 +118,14 @@ namespace host
         std::string previous_service_identity_file;
         std::optional<std::string> previous_sealed_ledger_secret_location =
           std::nullopt;
+        std::optional<std::vector<std::string>> self_healing_open_addresses =
+          std::nullopt;
+        ccf::ds::TimeString self_healing_open_retry_timeout = {"100ms"};
+        ccf::ds::TimeString self_healing_open_timeout = {"2000ms"};
+        std::string self_healing_open_join_config_file =
+          "self_healing_open_join_config.json";
+        std::string self_healing_open_join_service_identity_file =
+          "self_healing_open_join_service_identity.pem";
         bool operator==(const Recover&) const = default;
       };
       Recover recover = {};
@@ -168,7 +176,10 @@ namespace host
     CCHostConfig::Command::Recover,
     initial_service_certificate_validity_days,
     previous_service_identity_file,
-    previous_sealed_ledger_secret_location);
+    previous_sealed_ledger_secret_location,
+    self_healing_open_addresses,
+    self_healing_open_retry_timeout,
+    self_healing_open_timeout);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);
