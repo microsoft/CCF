@@ -93,7 +93,7 @@ jobs:
 
   ensure-snmalloc:
     name: "Ensure using snmalloc"
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -138,7 +138,7 @@ jobs:
 
   check-doc:
     name: "Build docs successfully"
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root
