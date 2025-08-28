@@ -931,7 +931,8 @@ namespace ccf::curl
     {
       auto& close_count = static_cast<CurlmLibuvContextImpl*>(handle->data)
                             ->closed_uv_handle_count;
-      if (close_count++ >= 2)
+      close_count++;
+      if (close_count >= 2)
       {
         static_cast<CurlmLibuvContextImpl*>(handle->data)->on_close();
       }
