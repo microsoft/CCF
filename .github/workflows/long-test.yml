@@ -72,7 +72,7 @@ jobs:
     runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+      options: --user root --publish-all --privileged
 
     steps:
       - name: "Checkout dependencies"
