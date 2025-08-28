@@ -23,7 +23,7 @@ jobs:
   analyze:
     name: Analyze
     # Insufficient space to run on public runner, so use custom pool
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root
