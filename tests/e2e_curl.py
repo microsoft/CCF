@@ -4,6 +4,7 @@ from aiohttp import web
 from datetime import datetime, UTC
 import asyncio
 import random
+import os
 
 
 async def echo_handler(request):
@@ -40,15 +41,23 @@ async def main():
 
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "::1", 8080)
+
+    site = web.TCPSite(runner, "::1", 0)
     await site.start()
 
-    print("Echo server running on http://::1:8080")
+    sockets = site._server.sockets
+    if not sockets:
+        raise RuntimeError("Failed to start server")
+    port = sockets[0].getsockname()[1]
+
+    print(f"Echo server running on http://[::1]:{port}")
+
+    env = os.environ.copy()
+    env["ECHO_SERVER_PORT"] = str(port)
 
     cmd = "./curl_test"
-    process = await asyncio.create_subprocess_shell(cmd)
+    process = await asyncio.create_subprocess_shell(cmd, env=env)
     await process.wait()
-
     exit(process.returncode)
 
 

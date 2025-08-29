@@ -8,6 +8,7 @@
 #include "curl/curl.h"
 #include "http/curl.h"
 
+#include <cstdlib>
 #include <curl/header.h>
 #include <iostream>
 #include <llhttp/llhttp.h>
@@ -20,6 +21,8 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
+
+static std::string server_port = "8080";
 
 struct Data
 {
@@ -39,7 +42,7 @@ TEST_CASE("Synchronous")
   for (int i = 0; i < sync_number_requests; ++i)
   {
     data.iter = i;
-    std::string url = fmt::format("http://localhost:8080/{}", i);
+    std::string url = fmt::format("http://[::1]:{}/{}", server_port, i);
     auto body = std::make_unique<ccf::curl::RequestBody>(data);
 
     auto headers = ccf::curl::UniqueSlist();
@@ -86,7 +89,7 @@ TEST_CASE("CurlmLibuvContext")
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
 
       data.iter = i;
-      std::string url = fmt::format("http://localhost:8080/{}", i);
+      std::string url = fmt::format("http://[::1]:{}/{}", server_port, i);
       auto body = std::make_unique<ccf::curl::RequestBody>(data);
 
       auto headers = ccf::curl::UniqueSlist();
@@ -150,7 +153,7 @@ TEST_CASE("CurlmLibuvContext slow")
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
 
       data.iter = i;
-      std::string url = fmt::format("http://localhost:8080/{}", i);
+      std::string url = fmt::format("http://[::1]:{}/{}", server_port, i);
       auto body = std::make_unique<ccf::curl::RequestBody>(data);
 
       auto headers = ccf::curl::UniqueSlist();
@@ -291,7 +294,7 @@ TEST_CASE("CurlmLibuvContext multiple init")
 
       data.iter = i;
 
-      std::string url = fmt::format("http://localhost:8080/{}", i);
+      std::string url = fmt::format("http://[::1]:{}/{}", server_port, i);
       auto body = std::make_unique<ccf::curl::RequestBody>(data);
 
       auto headers = ccf::curl::UniqueSlist();
@@ -350,6 +353,12 @@ TEST_CASE("CurlmLibuvContext multiple init")
 
 int main(int argc, char** argv)
 {
+  // NOLINTNEXTLINE(concurrency-mt-unsafe)
+  auto* port_ptr = std::getenv("ECHO_SERVER_PORT");
+  if (port_ptr != nullptr)
+  {
+    server_port = std::string(port_ptr);
+  }
   ccf::logger::config::default_init();
   curl_global_init(CURL_GLOBAL_DEFAULT);
   doctest::Context context;
