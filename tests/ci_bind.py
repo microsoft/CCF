@@ -4,7 +4,6 @@ from aiohttp import web
 from datetime import datetime, UTC
 import asyncio
 import random
-import os
 
 
 async def echo_handler(request):
@@ -39,20 +38,26 @@ async def main():
     app = web.Application()
     app.router.add_route("*", "/{path:.*}", echo_handler)
 
-    for (url, port) in [("::1", 0), ("127.0.0.1", 0), ("127.100.0.1", 0), ("127.100.0.42", 10001)]:
-      try:
-        runner = web.AppRunner(app)
-        await runner.setup()
+    for url, port in [
+        ("::1", 0),
+        ("127.0.0.1", 0),
+        ("127.100.0.1", 0),
+        ("127.100.0.52", 10001),
+    ]:
+        try:
+            runner = web.AppRunner(app)
+            await runner.setup()
 
-        site = web.TCPSite(runner, url, port)
-        await site.start()
+            site = web.TCPSite(runner, url, port)
+            await site.start()
 
-        print(f"Listening on {url}:{port}")
+            print(f"Listening on {url}:{port}")
 
-        await runner.cleanup()
+            await runner.cleanup()
 
-      except Exception as e:
-        print(f"Failed to bind to {url}:{port}: {e}")
+        except Exception as e:
+            print(f"Failed to bind to {url}:{port}: {e}")
+    exit(1)
 
 
 if __name__ == "__main__":
