@@ -42,18 +42,20 @@ async def main():
     runner = web.AppRunner(app)
     await runner.setup()
 
-    site = web.TCPSite(runner, "::1", 0)
+    base_addr = "127.0.0.1"
+    site = web.TCPSite(runner, base_addr, 0)
     await site.start()
 
     sockets = site._server.sockets
     if not sockets:
         raise RuntimeError("Failed to start server")
     port = sockets[0].getsockname()[1]
+    addr = f"{base_addr}:{port}"
 
-    print(f"Echo server running on http://[::1]:{port}")
+    print(f"Echo server running on http://{addr}")
 
     env = os.environ.copy()
-    env["ECHO_SERVER_PORT"] = str(port)
+    env["ECHO_SERVER_ADDR"] = str(addr)
 
     cmd = "./curl_test"
     process = await asyncio.create_subprocess_shell(cmd, env=env)
