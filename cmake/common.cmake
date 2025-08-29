@@ -45,7 +45,9 @@ endfunction()
 function(add_test_bin name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
   target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
-  target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
+  target_include_directories(
+    ${name} PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
+  )
   enable_coverage(${name})
   target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host)
   add_san(${name})

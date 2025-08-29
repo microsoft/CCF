@@ -617,6 +617,7 @@ if(COMPILE_TARGET STREQUAL "snp")
            ccf_kv.snp
            nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
+           curl
            ccf_pal.snp
   )
 
@@ -670,6 +671,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            ccf_kv.host
            nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
+           curl
            ccf_pal.host
   )
 
@@ -1515,6 +1517,17 @@ if(BUILD_TESTS)
       NAME historical_query_cache_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_cache.py
     )
+
+    add_test_bin(
+      curl_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/curl_test.cpp
+    )
+    target_link_libraries(curl_test PRIVATE curl uv http_parser)
+
+    if(LONG_TESTS)
+      add_e2e_test(
+        NAME e2e_curl PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_curl.py
+      )
+    endif()
   endif()
 endif()
 
