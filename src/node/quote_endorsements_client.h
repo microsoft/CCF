@@ -44,7 +44,7 @@ namespace ccf
 
     std::shared_ptr<RPCSessions> rpcsessions;
 
-    pal::snp::EndorsementEndpointsConfiguration config;
+    const pal::snp::EndorsementEndpointsConfiguration config;
     QuoteEndorsementsFetchedCallback done_cb;
 
     std::vector<uint8_t> endorsements_pem;
@@ -84,9 +84,9 @@ namespace ccf
       size_t request_id;
     };
 
-    void handle_success_response(std::vector<uint8_t>&& data)
+    void handle_success_response_unsafe(std::vector<uint8_t>&& data)
     {
-      auto& server = config.servers.front();
+      auto& server = servers.front();
       if (server.empty())
       {
         return;
@@ -128,7 +128,7 @@ namespace ccf
       }
       else
       {
-        fetch();
+        fetch_unsafe();
       }
     }
 
@@ -148,8 +148,14 @@ namespace ccf
 
     void fetch()
     {
-      const auto server = config.servers.front();
-      const auto endpoint = server.front();
+      std::lock_guard<ccf::pal::Mutex> guard(this->lock);
+      fetch_unsafe();
+    }
+
+    void fetch_unsafe()
+    {
+      const auto& server = servers.front();
+      const auto& endpoint = server.front();
 
       curl::UniqueCURL curl_handle;
 
@@ -186,11 +192,14 @@ namespace ccf
       }
       headers.append(http::headers::HOST, endpoint.host);
 
-      auto response_callback = ([this, &server, &endpoint](
+      auto response_callback = ([this, lifetime = shared_from_this()](
                                   curl::CurlRequest& request,
                                   CURLcode curl_response,
                                   long status_code) {
         std::lock_guard<ccf::pal::Mutex> guard(this->lock);
+
+        const auto& server = servers.front();
+        const auto& endpoint = server.front();
         auto* response_body = request.get_response_body();
         auto& response_headers = request.get_response_headers();
 
@@ -201,7 +210,7 @@ namespace ccf
             "{} bytes",
             response_body->buffer.size());
 
-          handle_success_response(std::move(response_body->buffer));
+          handle_success_response_unsafe(std::move(response_body->buffer));
           return;
         }
 
@@ -226,7 +235,7 @@ namespace ccf
           }
 
           server_retries_count = 0;
-          fetch();
+          fetch_unsafe();
         }
         else
         {
@@ -306,12 +315,10 @@ namespace ccf
     void fetch_endorsements()
     {
       std::lock_guard<ccf::pal::Mutex> guard(this->lock);
-      // This should logically be a deep copy of servers, but might not be in
-      // practise...
-      servers = config.servers;
+      servers = std::list<Server>(config.servers);
       server_retries_count = 0;
 
-      fetch();
+      fetch_unsafe();
     }
   };
 }
