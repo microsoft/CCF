@@ -259,7 +259,8 @@ namespace http
     {
       server_parser->set_outgoing_data_handler(
         [this](std::span<const uint8_t> data) {
-          this->tls_io->send_raw(data.data(), data.size());
+          // TODO: Re-consider
+          send_data(data);
         });
     }
 
@@ -460,9 +461,7 @@ namespace http
       client_parser(*this)
     {
       client_parser.set_outgoing_data_handler(
-        [this](std::span<const uint8_t> data) {
-          this->tls_io->send_raw(data.data(), data.size());
-        });
+        [this](std::span<const uint8_t> data) { send_data(data); });
     }
 
     bool parse(std::span<const uint8_t> data) override

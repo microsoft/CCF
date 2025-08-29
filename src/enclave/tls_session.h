@@ -5,9 +5,6 @@
 #include "ccf/ds/logger.h"
 #include "ds/messaging.h"
 #include "ds/ring_buffer.h"
-#include "tasks/ordered_tasks.h"
-#include "tasks/task.h"
-#include "tasks/task_system.h"
 #include "tcp/msg_types.h"
 #include "tls/context.h"
 #include "tls/tls.h"
@@ -34,7 +31,6 @@ namespace ccf
   protected:
     ringbuffer::WriterPtr to_host;
     ::tcp::ConnID session_id;
-    std::shared_ptr<ccf::tasks::OrderedTasks> task_scheduler;
 
   private:
     std::vector<uint8_t> pending_write;
@@ -69,15 +65,11 @@ namespace ccf
       ctx(std::move(ctx_)),
       status(handshake)
     {
-      task_scheduler = std::make_shared<ccf::tasks::OrderedTasks>(
-        ccf::tasks::get_main_job_board(),
-        fmt::format("TLSSession {}", session_id));
       ctx->set_bio(this, send_callback_openssl, recv_callback_openssl);
     }
 
     virtual ~TLSSession()
     {
-      task_scheduler->cancel_task();
       RINGBUFFER_WRITE_MESSAGE(::tcp::tcp_closed, to_host, session_id);
     }
 
@@ -240,13 +232,6 @@ namespace ccf
     {
       status = closing;
 
-      auto self = shared_from_this();
-      task_scheduler->add_action(
-        ccf::tasks::make_basic_action([self]() { self->close_thread(); }));
-    }
-
-    virtual void close_thread()
-    {
       switch (status)
       {
         case handshake:
@@ -295,18 +280,7 @@ namespace ccf
       }
     }
 
-    void send_raw(const uint8_t* data, size_t size)
-    {
-      std::vector<uint8_t> vec(data, data + size);
-      auto self = shared_from_this();
-      task_scheduler->add_action(
-        ccf::tasks::make_basic_action([self, vec = std::move(vec)]() {
-          self->send_raw_thread(vec.data(), vec.size());
-        }));
-    }
-
-  private:
-    void send_raw_thread(const uint8_t* data, size_t size)
+    void send_data(const uint8_t* data, size_t size)
     {
       // Writes as much of the data as possible. If the data cannot all
       // be written now, we store the remainder. We
@@ -329,6 +303,7 @@ namespace ccf
       flush();
     }
 
+  private:
     void send_buffered(const std::vector<uint8_t>& data)
     {
       pending_write.insert(pending_write.end(), data.begin(), data.end());
