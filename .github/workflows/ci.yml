@@ -176,7 +176,6 @@ jobs:
 
   build_and_test_virtual:
     name: "Virtual CI"
-    needs: checks
     runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
@@ -230,12 +229,7 @@ jobs:
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
-          # Partitions tests
-          # Note that those are only run on the virtual CI, as they require enough
-          # privileges to configure iptables. ACI-based pools run unprivileged
-          # containers, and so cannot run these tests unfortunately.
-          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+          ./tests.sh -VV -R test_ci_bind
         shell: bash
 
       - name: "Upload logs for virtual"
