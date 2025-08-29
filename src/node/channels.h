@@ -15,6 +15,7 @@
 #include "crypto/key_exchange.h"
 #include "ds/serialized.h"
 #include "ds/state_machine.h"
+#include "node/node_types.h"
 
 #include <iostream>
 #include <map>
