@@ -1171,8 +1171,7 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME test_ci_bind
-      PYTHON_SCRIPT ${CMAKE_SOURCED_DIR}/tests/ci_bind.py
+      NAME test_ci_bind PYTHON_SCRIPT ${CMAKE_SOURCED_DIR}/tests/ci_bind.py
     )
   endif()
 endif()
