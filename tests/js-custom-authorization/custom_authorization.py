@@ -224,7 +224,7 @@ def test_execution_time_limit(network, args):
     primary, _ = network.find_nodes()
 
     safe_time = 50
-    unsafe_time = 5000
+    unsafe_time = 10000
 
     with primary.client("user0") as c:
         r = c.post("/app/sleep", body={"time": safe_time})
@@ -1008,17 +1008,23 @@ def test_datetime_api(network, args):
         body = r.body.json()
 
         # Python datetime "ISO" doesn't parse Z suffix, so replace it
-        default = body["default"].replace("Z", "+00:00")
         definitely_now = body["definitely_now"].replace("Z", "+00:00")
         definitely_1970 = body["definitely_1970"].replace("Z", "+00:00")
 
-        # Assume less than 5ms of execution time between grabbing timestamps, and confirm that default call gets real timestamp from global activation
-        default_time = datetime.datetime.fromisoformat(default)
+        # Assume less than 5ms of execution time between grabbing timestamps, and confirm that untrustedDateTime has no effect
         service_time = datetime.datetime.fromisoformat(definitely_now)
-        diff = (service_time - default_time).total_seconds()
+        untrusted_on = datetime.datetime.fromisoformat(
+            body["untrusted_on"].replace("Z", "+00:00")
+        )
+        untrusted_off = datetime.datetime.fromisoformat(
+            body["untrusted_off"].replace("Z", "+00:00")
+        )
+        diff = (untrusted_on - service_time).total_seconds()
+        assert diff < 0.005, diff
+        diff = (untrusted_off - untrusted_on).total_seconds()
         assert diff < 0.005, diff
 
-        # Assume less than 1 second of clock skew + execution time
+        # Assume less than 1 second of clock skew + execution time, and that service time is now
         diff = (local_time - service_time).total_seconds()
         assert abs(diff) < 1, diff
 

@@ -4,6 +4,7 @@ from aiohttp import web
 from datetime import datetime, UTC
 import asyncio
 import random
+import os
 
 
 async def echo_handler(request):
@@ -15,8 +16,8 @@ async def echo_handler(request):
 
     time_received = datetime.now(UTC)
 
-    # Add random delay between 0 and 1 second
-    delay = random.random() / 100  # Returns float between 0.0 and 1.0
+    # Add random delay between 0 and 10 millisecond
+    delay = random.random() / 100
     await asyncio.sleep(delay)
 
     # Build response data
@@ -40,16 +41,25 @@ async def main():
 
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "127.0.0.1", 8080)
+
+    base_addr = "127.0.0.1"
+    site = web.TCPSite(runner, base_addr, 0)
     await site.start()
 
-    print("Echo server running on http://127.0.0.1:8080")
+    sockets = site._server.sockets
+    if not sockets:
+        raise RuntimeError("Failed to start server")
+    port = sockets[0].getsockname()[1]
+    addr = f"{base_addr}:{port}"
 
-    # call ./curl_test to run the load generator
+    print(f"Echo server running on http://{addr}")
+
+    env = os.environ.copy()
+    env["ECHO_SERVER_ADDR"] = str(addr)
+
     cmd = "./curl_test"
-    process = await asyncio.create_subprocess_shell(cmd)
+    process = await asyncio.create_subprocess_shell(cmd, env=env)
     await process.wait()
-
     exit(process.returncode)
 
 

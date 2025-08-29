@@ -27,24 +27,21 @@ export function fibonacci(request) {
   };
 }
 
-ccf.enableUntrustedDateTime(true);
-
 export function time_now(request) {
-  const original = new Date();
-
-  const prev_setting = ccf.enableUntrustedDateTime(false);
-  const definitely_1970 = new Date();
-
-  ccf.enableUntrustedDateTime(true);
+  const definitely_1970 = new Date(0);
   const definitely_now = new Date();
 
-  ccf.enableUntrustedDateTime(prev_setting);
+  ccf.enableUntrustedDateTime(true);
+  const untrusted_on = new Date();
+  ccf.enableUntrustedDateTime(false);
+  const untrusted_off = new Date();
 
   return {
     body: {
-      default: original.toISOString(),
       definitely_1970: definitely_1970.toISOString(),
       definitely_now: definitely_now.toISOString(),
+      untrusted_on: untrusted_on.toISOString(),
+      untrusted_off: untrusted_off.toISOString(),
     },
   };
 }

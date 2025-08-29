@@ -618,6 +618,9 @@ class CurlClient:
 
             return Response.from_raw(rc.stdout)
 
+    def repeat_last_request(self):
+        raise NotImplementedError()
+
     def close(self):
         pass
 
@@ -647,6 +650,7 @@ class HttpxClient:
     _auth_provider = HttpSig
     created_at_override = None
     _corrupt_signature = False
+    _last_request = None
 
     def __init__(
         self,
@@ -684,6 +688,40 @@ class HttpxClient:
                     .hex()
                 )
         self.cose_header_builder = cose_protected_headers_api_classic
+
+    def _request(
+        self,
+        request: Request,
+        request_body: bytes,
+        auth: Any,
+        extra_headers: Optional[dict],
+        timeout: int,
+    ):
+        self._last_request = (request, request_body, auth, extra_headers, timeout)
+        try:
+            response = self.session.request(
+                request.http_verb,
+                url=f"{self.protocol}://{self.hostname}{request.path}",
+                auth=auth,
+                headers=extra_headers,
+                timeout=timeout,
+                content=request_body,
+            )
+        except httpx.TimeoutException as exc:
+            raise TimeoutError from exc
+        except httpx.ConnectError as exc:
+            raise CCFConnectionException from exc
+        except (httpx.WriteError, httpx.ReadError, httpx.RemoteProtocolError) as exc:
+            raise CCFIOException from exc
+        except Exception as exc:
+            raise RuntimeError(
+                f"HttpxClient failed with unexpected error: {exc}"
+            ) from exc
+
+        return Response.from_requests_response(response)
+
+    def repeat_last_request(self):
+        return self._request(*self._last_request)
 
     def request(
         self,
@@ -771,27 +809,13 @@ class HttpxClient:
 
             extra_headers["content-type"] = CONTENT_TYPE_COSE
 
-        try:
-            response = self.session.request(
-                request.http_verb,
-                url=f"{self.protocol}://{self.hostname}{request.path}",
-                auth=auth,
-                headers=extra_headers,
-                timeout=timeout,
-                content=request_body,
-            )
-        except httpx.TimeoutException as exc:
-            raise TimeoutError from exc
-        except httpx.ConnectError as exc:
-            raise CCFConnectionException from exc
-        except (httpx.WriteError, httpx.ReadError, httpx.RemoteProtocolError) as exc:
-            raise CCFIOException from exc
-        except Exception as exc:
-            raise RuntimeError(
-                f"HttpxClient failed with unexpected error: {exc}"
-            ) from exc
-
-        return Response.from_requests_response(response)
+        return self._request(
+            request=request,
+            request_body=request_body,
+            auth=auth,
+            extra_headers=extra_headers,
+            timeout=timeout,
+        )
 
     def close(self):
         self.session.close()
@@ -1289,6 +1313,9 @@ class CCFClient:
             raise ValueError(f"Response seqno and view should not be None: {response}")
 
         infra.commit.wait_for_commit(self, response.seqno, response.view, timeout)
+
+    def repeat_last_request(self):
+        return self.client_impl.repeat_last_request()
 
     def close(self):
         self.client_impl.close()
