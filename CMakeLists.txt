@@ -374,6 +374,34 @@ set(CCF_KV_SOURCES
     ${CCF_DIR}/src/kv/untyped_map_diff.cpp
 )
 
+if(COMPILE_TARGET STREQUAL "snp")
+  add_host_library(ccf_kv.snp "${CCF_KV_SOURCES}")
+  add_san(ccf_kv.snp)
+  add_warning_checks(ccf_kv.snp)
+  add_tidy(ccf_kv.snp)
+  target_compile_definitions(ccf_kv.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
+  if(CCF_DEVEL)
+    install(
+      TARGETS ccf_kv.snp
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
+endif()
+
+add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
+add_san(ccf_kv.host)
+add_warning_checks(ccf_kv.host)
+add_tidy(ccf_kv.host)
+target_compile_definitions(ccf_kv.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS ccf_kv.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+
 # CCF endpoints libs
 if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_endpoints.snp "${CCF_ENDPOINTS_SOURCES}")
