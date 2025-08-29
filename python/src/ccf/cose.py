@@ -4,18 +4,17 @@
 import argparse
 import sys
 
-from typing import Optional, Type
+from typing import Optional, Any
 
 import base64
+import cwt
+import cwt.const
+import cwt.utils
+import cwt.enums
 import cbor2
 import json
-from hashlib import sha256
+import hashlib
 from datetime import datetime
-import pycose.headers  # type: ignore
-from pycose.keys.ec2 import EC2Key  # type: ignore
-from pycose.keys.curves import P256, P384, P521, CoseCurve  # type: ignore
-from pycose.keys.keyparam import EC2KpCurve, EC2KpX, EC2KpY, EC2KpD  # type: ignore
-from pycose.messages import Sign1Message  # type: ignore
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePrivateKey,
@@ -24,7 +23,10 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.hazmat.primitives.serialization import (
+    load_pem_private_key,
+    load_pem_public_key,
+)
 from cryptography.x509.base import CertificatePublicKeyTypes
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
@@ -41,7 +43,6 @@ GOV_MSG_TYPES = [
 ] + GOV_MSG_TYPES_WITH_PROPOSAL_ID
 
 # See https://datatracker.ietf.org/doc/draft-ietf-cose-merkle-tree-proofs/
-# should move to a pycose.header value after RFC publication
 
 COSE_PHDR_VDP_LABEL = 396
 COSE_PHDR_VDS_LABEL = 395
@@ -54,59 +55,18 @@ CCF_PROOF_LEAF_LABEL = 1
 CCF_PROOF_PATH_LABEL = 2
 
 
-def from_cryptography_eckey_obj(ext_key) -> EC2Key:
-    """
-    Returns an initialized COSE Key object of type EC2Key.
-    :param ext_key: Python cryptography key.
-    :return: an initialized EC key
-    """
-    if hasattr(ext_key, "private_numbers"):
-        priv_nums = ext_key.private_numbers()
-        pub_nums = priv_nums.public_numbers
-    else:
-        priv_nums = None
-        pub_nums = ext_key.public_numbers()
-
-    curve: Type[CoseCurve]
-    if pub_nums.curve.name == "secp256r1":
-        curve = P256
-    elif pub_nums.curve.name == "secp384r1":
-        curve = P384
-    elif pub_nums.curve.name == "secp521r1":
-        curve = P521
-    else:
-        raise NotImplementedError("unsupported curve")
-
-    cose_key = {}
-    if pub_nums:
-        cose_key.update(
-            {
-                EC2KpCurve: curve,
-                EC2KpX: pub_nums.x.to_bytes(curve.size, "big"),
-                EC2KpY: pub_nums.y.to_bytes(curve.size, "big"),
-            }
-        )
-    if priv_nums:
-        cose_key.update(
-            {
-                EC2KpD: priv_nums.private_value.to_bytes(curve.size, "big"),
-            }
-        )
-    return EC2Key.from_dict(cose_key)
-
-
-def default_algorithm_for_key(key) -> str:
+def default_algorithm_for_key(key) -> int:
     """
     Get the default algorithm for a given key, based on its
     type and parameters.
     """
     if isinstance(key, EllipticCurvePublicKey):
         if isinstance(key.curve, ec.SECP256R1):
-            return "ES256"
+            return cwt.enums.COSEAlgs.ES256
         elif isinstance(key.curve, ec.SECP384R1):
-            return "ES384"
+            return cwt.enums.COSEAlgs.ES384
         elif isinstance(key.curve, ec.SECP521R1):
-            return "ES512"
+            return cwt.enums.COSEAlgs.ES512
         else:
             raise NotImplementedError("unsupported curve")
     else:
@@ -125,30 +85,34 @@ def cert_fingerprint(cert_pem: Pem):
     return cert.fingerprint(hashes.SHA256()).hex().encode("utf-8")
 
 
+def key_fingerprint_from_cert(cert_pem: Pem):
+    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
+    pub_key = cert.public_key().public_bytes(
+        Encoding.DER, PublicFormat.SubjectPublicKeyInfo
+    )
+    return hashlib.sha256(pub_key).hexdigest()
+
+
+def key_fingerprint_from_key(key_pem: Pem):
+    key = load_pem_public_key(key_pem.encode("ascii"), default_backend())
+    pub_key = key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+    return hashlib.sha256(pub_key).hexdigest()
+
+
 def create_cose_sign1(
     payload: bytes,
     key_priv_pem: Pem,
     cert_pem: Pem,
     additional_protected_header: Optional[dict] = None,
 ) -> bytes:
-    key_type = get_priv_key_type(key_priv_pem)
-
-    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
-    alg = default_algorithm_for_key(cert.public_key())
-    kid = cert_fingerprint(cert_pem)
-
-    protected_header = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
-    protected_header.update(additional_protected_header or {})
-    msg = Sign1Message(phdr=protected_header, payload=payload)
-
-    key = load_pem_private_key(key_priv_pem.encode("ascii"), None, default_backend())
-    if key_type == "ec":
-        cose_key = from_cryptography_eckey_obj(key)
-    else:
-        raise NotImplementedError("unsupported key type")
-    msg.key = cose_key
-
-    return msg.encode()
+    cose_ctx = cwt.COSE.new(alg_auto_inclusion=True, deterministic_header=True)
+    cose_key = cwt.COSEKey.from_pem(key_priv_pem, kid=cert_fingerprint(cert_pem))
+    # kid is passed explicitly in the protected header, because kid_auto_inclusion
+    # sets the kid in the unprotected header
+    phdr: dict[Any, Any] = {int(cwt.COSEHeaders.KID): cert_fingerprint(cert_pem)}
+    additional_header = additional_protected_header or {}
+    phdr.update(additional_header)
+    return cose_ctx.encode_and_sign(payload, cose_key, protected=phdr)
 
 
 def create_cose_sign1_prepare(
@@ -160,10 +124,11 @@ def create_cose_sign1_prepare(
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
 
-    protected_header = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
+    protected_header = {int(cwt.COSEHeaders.ALG): alg, int(cwt.COSEHeaders.KID): kid}
     protected_header.update(additional_protected_header or {})
-    msg = Sign1Message(phdr=protected_header, payload=payload)
-    tbs = cbor2.dumps(["Signature1", msg.phdr_encoded, b"", payload])
+    protected_header = cwt.utils.sort_keys_for_deterministic_encoding(protected_header)
+    phdr_encoded = cbor2.dumps(protected_header)
+    tbs = cbor2.dumps(["Signature1", phdr_encoded, b"", payload])
 
     assert cert.signature_hash_algorithm
     digester = hashes.Hash(cert.signature_hash_algorithm)
@@ -182,25 +147,39 @@ def create_cose_sign1_finish(
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
 
-    protected_header = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
+    protected_header = {int(cwt.COSEHeaders.ALG): alg, int(cwt.COSEHeaders.KID): kid}
     protected_header.update(additional_protected_header or {})
-    msg = Sign1Message(phdr=protected_header, payload=payload)
+    protected_header = cwt.utils.sort_keys_for_deterministic_encoding(protected_header)
+    phdr_encoded = cbor2.dumps(protected_header)
 
-    msg._signature = base64.urlsafe_b64decode(signature)
-    return msg.encode(sign=False)
+    sig = base64.urlsafe_b64decode(signature)
+    assert isinstance(sig, bytes)
+    msg = cbor2.CBORTag(
+        cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1],
+        [phdr_encoded, {}, payload, sig],
+    )
+    return cbor2.dumps(msg)
 
 
-def validate_cose_sign1(pubkey, cose_sign1, payload=None):
-    cose_key = from_cryptography_eckey_obj(pubkey)
-    msg = Sign1Message.decode(cose_sign1)
-    msg.key = cose_key
+def verify_cose_sign1_with_cert(certificate, cose_sign1, use_key=True, payload=None):
+    cose_ctx = cwt.COSE.new()
+    cert_pem = certificate.decode()
+    cose_key = cwt.COSEKey.from_pem(
+        cert_pem,
+        kid=(
+            key_fingerprint_from_cert(cert_pem)
+            if use_key
+            else cert_fingerprint(cert_pem)
+        ),
+    )
+    return cose_ctx.decode_with_headers(cose_sign1, cose_key, detached_payload=payload)
 
-    if payload:
-        # Detached payload
-        msg.payload = payload
 
-    if not msg.verify_signature():
-        raise ValueError("signature is invalid")
+def verify_cose_sign1_with_key(key, cose_sign1, payload=None):
+    cose_ctx = cwt.COSE.new()
+    key_pem = key.decode()
+    cose_key = cwt.COSEKey.from_pem(key_pem, kid=key_fingerprint_from_key(key_pem))
+    return cose_ctx.decode_with_headers(cose_sign1, cose_key, detached_payload=payload)
 
 
 def verify_receipt(
@@ -210,52 +189,53 @@ def verify_receipt(
     Verify a COSE Sign1 receipt as defined in https://datatracker.ietf.org/doc/draft-ietf-cose-merkle-tree-proofs/,
     using the CCF tree algorithm defined in https://datatracker.ietf.org/doc/draft-birkholz-cose-receipts-ccf-profile/
     """
-    # Extract the expected KID from the public key used for verification,
-    # and check it against the value set in the COSE header before using
-    # it to verify the proofs.
-    expected_kid = (
-        sha256(key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo))
-        .digest()
-        .hex()
-        .encode()
+    key_pem = key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode(
+        "ascii"
     )
-    receipt = Sign1Message.decode(receipt_bytes)
-    cose_key = from_cryptography_eckey_obj(key)
-    assert receipt.phdr[pycose.headers.KID] == expected_kid
-    receipt.key = cose_key
+    expected_kid = key_fingerprint_from_key(key_pem)
+    cose_key = cwt.COSEKey.from_pem(key_pem, kid=expected_kid)
+    cose_ctx = cwt.COSE.new()
 
+    receipt = cbor2.loads(receipt_bytes)
+    assert receipt.tag == cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1]
+    phdr, uhdr, payload, sig = receipt.value
+    phdr = cbor2.loads(phdr)
+
+    assert phdr[4] == expected_kid.encode("utf-8")
+
+    assert COSE_PHDR_VDS_LABEL in phdr, "Verifiable data structure type is required"
     assert (
-        COSE_PHDR_VDS_LABEL in receipt.phdr
-    ), "Verifiable data structure type is required"
-    assert (
-        receipt.phdr[COSE_PHDR_VDS_LABEL] == COSE_PHDR_VDS_CCF_LEDGER_SHA256
+        phdr[COSE_PHDR_VDS_LABEL] == COSE_PHDR_VDS_CCF_LEDGER_SHA256
     ), "vds(395) protected header must be CCF_LEDGER_SHA256(2)"
 
-    assert COSE_PHDR_VDP_LABEL in receipt.uhdr, "Verifiable data proof is required"
-    proof = receipt.uhdr[COSE_PHDR_VDP_LABEL]
+    assert COSE_PHDR_VDP_LABEL in uhdr, "Verifiable data proof is required"
+    proof = uhdr[COSE_PHDR_VDP_LABEL]
     assert COSE_RECEIPT_INCLUSION_PROOF_LABEL in proof, "Inclusion proof is required"
     inclusion_proofs = proof[COSE_RECEIPT_INCLUSION_PROOF_LABEL]
     assert inclusion_proofs, "At least one inclusion proof is required"
+
+    ic_phdr = None
     for inclusion_proof in inclusion_proofs:
         assert isinstance(inclusion_proof, bytes), "Inclusion proof must be bstr"
         proof = cbor2.loads(inclusion_proof)
         assert CCF_PROOF_LEAF_LABEL in proof, "Leaf must be present"
         leaf = proof[CCF_PROOF_LEAF_LABEL]
-        accumulator = sha256(
-            leaf[0] + sha256(leaf[1].encode()).digest() + leaf[2]
+        if claim_digest != leaf[2]:
+            raise ValueError(f"Claim digest mismatch: {leaf[2]!r} != {claim_digest!r}")
+        accumulator = hashlib.sha256(
+            leaf[0] + hashlib.sha256(leaf[1].encode()).digest() + leaf[2]
         ).digest()
         assert CCF_PROOF_PATH_LABEL in proof, "Path must be present"
         path = proof[CCF_PROOF_PATH_LABEL]
         for left, digest in path:
             if left:
-                accumulator = sha256(digest + accumulator).digest()
+                accumulator = hashlib.sha256(digest + accumulator).digest()
             else:
-                accumulator = sha256(accumulator + digest).digest()
-        if not receipt.verify_signature(accumulator):
-            raise ValueError("Signature verification failed")
-        if claim_digest != leaf[2]:
-            raise ValueError(f"Claim digest mismatch: {leaf[2]!r} != {claim_digest!r}")
-    return receipt.phdr
+                accumulator = hashlib.sha256(accumulator + digest).digest()
+        ic_phdr, _, _ = cose_ctx.decode_with_headers(
+            receipt_bytes, cose_key, detached_payload=accumulator
+        )
+    return ic_phdr
 
 
 _SIGN_DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance

@@ -92,7 +92,7 @@ def test_create_cose_sign1_finish(curve):
     _, _, _, sig = cbor2.loads(cose_sign1).value
     b64_sig = base64.urlsafe_b64encode(sig)
 
-    ccf.cose.validate_cose_sign1(priv.public_key(), cose_sign1)
+    ccf.cose.verify_cose_sign1_with_cert(cert.encode(), cose_sign1, use_key=False)
     finished_cose_sign1 = ccf.cose.create_cose_sign1_finish(payload, cert, b64_sig)
     assert cose_sign1 == finished_cose_sign1
 
@@ -121,4 +121,6 @@ def test_create_cose_sign1_prepare_and_finish(curve):
 
     b64_sig = base64.urlsafe_b64encode(raw_signature)
     finished_cose_sign1 = ccf.cose.create_cose_sign1_finish(payload, cert, b64_sig)
-    ccf.cose.validate_cose_sign1(priv.public_key(), finished_cose_sign1)
+    ccf.cose.verify_cose_sign1_with_cert(
+        cert.encode(), finished_cose_sign1, use_key=False
+    )
