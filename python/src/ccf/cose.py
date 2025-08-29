@@ -10,6 +10,7 @@ import base64
 import cwt
 import cwt.const
 import cwt.utils
+import cwt.enums
 import cbor2
 import json
 import hashlib
@@ -54,18 +55,18 @@ CCF_PROOF_LEAF_LABEL = 1
 CCF_PROOF_PATH_LABEL = 2
 
 
-def default_algorithm_for_key(key) -> str:
+def default_algorithm_for_key(key) -> int:
     """
     Get the default algorithm for a given key, based on its
     type and parameters.
     """
     if isinstance(key, EllipticCurvePublicKey):
         if isinstance(key.curve, ec.SECP256R1):
-            return "ES256"
+            return cwt.enums.COSEAlgs.ES256
         elif isinstance(key.curve, ec.SECP384R1):
-            return "ES384"
+            return cwt.enums.COSEAlgs.ES384
         elif isinstance(key.curve, ec.SECP521R1):
-            return "ES512"
+            return cwt.enums.COSEAlgs.ES512
         else:
             raise NotImplementedError("unsupported curve")
     else:
@@ -104,11 +105,11 @@ def create_cose_sign1(
     cert_pem: Pem,
     additional_protected_header: Optional[dict] = None,
 ) -> bytes:
-    cose_ctx = cwt.COSE.new(alg_auto_inclusion=True)
+    cose_ctx = cwt.COSE.new(alg_auto_inclusion=True, deterministic_header=True)
     cose_key = cwt.COSEKey.from_pem(key_priv_pem, kid=cert_fingerprint(cert_pem))
     # kid is passed explicitly in the protected header, because kid_auto_inclusion
     # sets the kid in the unprotected header
-    phdr: dict[Any, Any] = {4: cert_fingerprint(cert_pem)}
+    phdr: dict[Any, Any] = {int(cwt.COSEHeaders.KID): cert_fingerprint(cert_pem)}
     additional_header = additional_protected_header or {}
     phdr.update(additional_header)
     return cose_ctx.encode_and_sign(payload, cose_key, protected=phdr)
@@ -123,7 +124,7 @@ def create_cose_sign1_prepare(
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
 
-    protected_header = {1: alg, 4: kid}
+    protected_header = {int(cwt.COSEHeaders.ALG): alg, int(cwt.COSEHeaders.KID): kid}
     protected_header.update(additional_protected_header or {})
     protected_header = cwt.utils.sort_keys_for_deterministic_encoding(protected_header)
     phdr_encoded = cbor2.dumps(protected_header)
@@ -146,21 +147,31 @@ def create_cose_sign1_finish(
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
 
-    protected_header = {1: alg, 4: kid}
+    protected_header = {int(cwt.COSEHeaders.ALG): alg, int(cwt.COSEHeaders.KID): kid}
     protected_header.update(additional_protected_header or {})
     protected_header = cwt.utils.sort_keys_for_deterministic_encoding(protected_header)
     phdr_encoded = cbor2.dumps(protected_header)
 
     sig = base64.urlsafe_b64decode(signature)
     assert isinstance(sig, bytes)
-    msg = cbor2.CBORTag(18, [phdr_encoded, b"", payload, sig])
+    msg = cbor2.CBORTag(
+        cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1],
+        [phdr_encoded, {}, payload, sig],
+    )
     return cbor2.dumps(msg)
 
 
 def verify_cose_sign1_with_cert(certificate, cose_sign1, use_key=True, payload=None):
     cose_ctx = cwt.COSE.new()
     cert_pem = certificate.decode()
-    cose_key = cwt.COSEKey.from_pem(cert_pem, kid=key_fingerprint_from_cert(cert_pem))
+    cose_key = cwt.COSEKey.from_pem(
+        cert_pem,
+        kid=(
+            key_fingerprint_from_cert(cert_pem)
+            if use_key
+            else cert_fingerprint(cert_pem)
+        ),
+    )
     return cose_ctx.decode_with_headers(cose_sign1, cose_key, detached_payload=payload)
 
 
@@ -186,7 +197,7 @@ def verify_receipt(
     cose_ctx = cwt.COSE.new()
 
     receipt = cbor2.loads(receipt_bytes)
-    assert receipt.tag == 18
+    assert receipt.tag == cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1]
     phdr, uhdr, payload, sig = receipt.value
     phdr = cbor2.loads(phdr)
 
