@@ -5,12 +5,12 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "ccf/app_interface.h"
+#include "ccf/crypto/openssl_init.h"
 #include "ccf/ds/logger.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
-#include "enclave/enclave_time.h"
 #include "frontend_test_infra.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
@@ -1786,10 +1786,6 @@ TEST_CASE("Manual conflicts")
 
 int main(int argc, char** argv)
 {
-  ccf::enclavetime::last_value =
-    std::chrono::duration_cast<std::chrono::microseconds>(
-      std::chrono::system_clock::now().time_since_epoch());
-
   ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);

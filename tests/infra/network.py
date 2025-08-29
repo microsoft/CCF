@@ -67,27 +67,38 @@ class PrimaryNotFound(Exception):
     pass
 
 
-class MeasurementNotFound(Exception):
+class NodeJoinException(Exception):
+    def __init__(self, node, has_stopped, error_line, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.node = node
+        self.has_stopped = has_stopped
+        self.error_line = error_line
+
+
+class MeasurementNotFound(NodeJoinException):
     pass
 
 
-class HostDataNotFound(Exception):
+class HostDataNotFound(NodeJoinException):
     pass
 
 
-class UVMEndorsementsNotAuthorised(Exception):
+class UVMEndorsementsNotAuthorised(NodeJoinException):
     pass
 
 
-class StartupSeqnoIsOld(Exception):
+class StartupSeqnoIsOld(NodeJoinException):
     pass
 
 
-class CollateralFetchTimeout(Exception):
-    pass
+class CollateralFetchTimeout(NodeJoinException):
+    def __init__(self, *args, endorsement_server, retries, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.endorsement_server = endorsement_server
+        self.retries = retries
 
 
-class ServiceCertificateInvalid(Exception):
+class ServiceCertificateInvalid(NodeJoinException):
     pass
 
 
@@ -204,7 +215,6 @@ class Network:
         "idle_connection_timeout_s",
         "enable_local_sealing",
         "previous_sealed_ledger_secret_location",
-        "recovery_constitution_files",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -757,7 +767,6 @@ class Network:
         expected_recovery_count=None,
         via_recovery_owner=False,
         via_local_sealing=False,
-        set_constitution=True,
     ):
         """
         Recovers a CCF network previously started in recovery mode.
@@ -775,10 +784,9 @@ class Network:
         )
         self.wait_for_all_nodes_to_be_trusted(self.find_random_node())
 
-        if set_constitution:
-            # The new service may be running a newer version of the constitution,
-            # so we make sure that we're running the right one.
-            self.consortium.set_constitution(random_node, args.constitution)
+        # The new service may be running a newer version of the constitution,
+        # so we make sure that we're running the right one.
+        self.consortium.set_constitution(random_node, args.constitution)
 
         prev_service_identity = None
         if args.previous_service_identity_file:
@@ -985,24 +993,32 @@ class Network:
                 self.nodes.remove(node)
                 if errors:
                     giving_up_fetching = re.compile(
-                        r"Giving up retrying fetching attestation endorsements from .* after (\d+) attempts"
+                        r"Giving up retrying fetching attestation endorsements from (.*) after (\d+) attempts"
                     )
                     # Throw accurate exceptions if known errors found in
                     for error in errors:
                         if "Quote does not contain known enclave measurement" in error:
-                            raise MeasurementNotFound from e
+                            raise MeasurementNotFound(node, has_stopped, error) from e
                         if "Quote host data is not authorised" in error:
-                            raise HostDataNotFound from e
+                            raise HostDataNotFound(node, has_stopped, error) from e
                         if "UVM endorsements are not authorised" in error:
-                            raise UVMEndorsementsNotAuthorised from e
+                            raise UVMEndorsementsNotAuthorised(
+                                node, has_stopped, error
+                            ) from e
                         if "StartupSeqnoIsOld" in error:
-                            raise StartupSeqnoIsOld(has_stopped) from e
+                            raise StartupSeqnoIsOld(node, has_stopped, error) from e
                         if "invalid cert on handshake" in error:
-                            raise ServiceCertificateInvalid from e
+                            raise ServiceCertificateInvalid(
+                                node, has_stopped, error
+                            ) from e
                         match = giving_up_fetching.search(error)
                         if match:
                             raise CollateralFetchTimeout(
-                                has_stopped, int(match.group(1))
+                                node,
+                                has_stopped,
+                                error,
+                                endorsement_server=match.group(1),
+                                retries=int(match.group(2)),
                             ) from e
                 raise
 

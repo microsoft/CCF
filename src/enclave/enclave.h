@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ccf/app_interface.h"
+#include "ccf/crypto/openssl_init.h"
 #include "ccf/ds/logger.h"
 #include "ccf/js/core/context.h"
 #include "ccf/node_context.h"
@@ -10,7 +11,6 @@
 #include "crypto/openssl/hash.h"
 #include "ds/oversized.h"
 #include "ds/work_beacon.h"
-#include "enclave_time.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
@@ -51,7 +51,7 @@ namespace ccf
     std::shared_ptr<RPCSessions> rpcsessions;
     std::unique_ptr<ccf::NodeState> node;
     ringbuffer::WriterPtr to_host = nullptr;
-    std::chrono::microseconds last_tick_time;
+    std::chrono::high_resolution_clock::time_point last_tick_time;
     std::atomic<bool> worker_stop_signal = false;
 
     StartType start_type;
@@ -260,7 +260,7 @@ namespace ccf
             node->stop_notice();
           });
 
-        last_tick_time = ccf::get_enclave_time();
+        last_tick_time = decltype(last_tick_time)::clock::now();
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp,
@@ -271,7 +271,7 @@ namespace ccf
             RINGBUFFER_WRITE_MESSAGE(
               AdminMessage::work_stats, to_host, j.dump());
 
-            const auto time_now = ccf::get_enclave_time();
+            const auto time_now = decltype(last_tick_time)::clock::now();
 
             const auto elapsed_ms =
               std::chrono::duration_cast<std::chrono::milliseconds>(

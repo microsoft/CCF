@@ -7,7 +7,6 @@
 #include "ccf/version.h"
 #include "common/enclave_interface_types.h"
 #include "enclave.h"
-#include "enclave_time.h"
 
 #include <chrono>
 #include <cstdint>
@@ -20,11 +19,6 @@ static std::atomic<ccf::Enclave*> e;
 std::atomic<uint16_t> num_pending_threads = 0;
 std::atomic<uint16_t> num_complete_threads = 0;
 
-constexpr size_t min_gap_between_initiation_attempts_us =
-  2'000'000; // 2 seconds
-std::chrono::microseconds ccf::Channel::min_gap_between_initiation_attempts(
-  min_gap_between_initiation_attempts_us);
-
 extern "C"
 {
   CreateNodeStatus enclave_create_node(
@@ -36,7 +30,6 @@ extern "C"
     StartType start_type,
     ccf::LoggerLevel log_level,
     size_t num_worker_threads,
-    void* time_location,
     const ccf::ds::WorkBeaconPtr& work_beacon)
   {
     std::lock_guard<ccf::pal::Mutex> guard(create_lock);
@@ -64,9 +57,6 @@ extern "C"
 
     {
       num_pending_threads = (uint16_t)num_worker_threads + 1;
-
-      ccf::enclavetime::host_time_us =
-        static_cast<decltype(ccf::enclavetime::host_time_us)>(time_location);
     }
 
     // 2-tx reconfiguration is currently experimental, disable it in release

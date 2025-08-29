@@ -15,8 +15,6 @@
 #include "crypto/key_exchange.h"
 #include "ds/serialized.h"
 #include "ds/state_machine.h"
-#include "enclave/enclave_time.h"
-#include "node_types.h"
 
 #include <iostream>
 #include <map>
@@ -158,7 +156,13 @@ namespace ccf
   class Channel
   {
   public:
-    static std::chrono::microseconds min_gap_between_initiation_attempts;
+    static std::chrono::system_clock::duration&
+    min_gap_between_initiation_attempts()
+    {
+      static std::chrono::system_clock::duration value =
+        std::chrono::seconds(2);
+      return value;
+    }
 
   private:
     struct OutgoingMsg
@@ -192,7 +196,7 @@ namespace ccf
     // Used for key exchange
     ::tls::KeyExchangeContext kex_ctx;
     ::ds::StateMachine<ChannelStatus> status;
-    std::chrono::microseconds last_initiation_time;
+    std::chrono::system_clock::time_point last_initiation_time;
     static constexpr size_t salt_len = 32;
     static constexpr size_t shared_key_size = 32;
     std::vector<uint8_t> hkdf_salt;
@@ -246,7 +250,9 @@ namespace ccf
           message_limit);
 
         send_key = nullptr;
+        send_nonce = 0;
         recv_key = nullptr;
+        local_recv_nonce = 0;
         reset_key_exchange();
         initiate();
       }
@@ -407,8 +413,8 @@ namespace ccf
       else if (status.check(INITIATED))
       {
         const auto time_since_initiated =
-          ccf::get_enclave_time() - last_initiation_time;
-        if (time_since_initiated >= min_gap_between_initiation_attempts)
+          decltype(last_initiation_time)::clock::now() - last_initiation_time;
+        if (time_since_initiated >= min_gap_between_initiation_attempts())
         {
           // If this node attempts to initiate too early when the peer node
           // starts up, they will never receive the init message (they drop it
@@ -846,7 +852,7 @@ namespace ccf
       // status.expect(INACTIVE);
       status.advance(INITIATED);
 
-      last_initiation_time = ccf::get_enclave_time();
+      last_initiation_time = decltype(last_initiation_time)::clock::now();
 
       send_key_exchange_init();
     }

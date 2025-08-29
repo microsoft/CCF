@@ -3,6 +3,7 @@
 
 #include "ccf/run.h"
 
+#include "ccf/crypto/openssl_init.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
@@ -44,7 +45,6 @@
 #include "tcp.h"
 #include "ticker.h"
 #include "time_bound_logger.h"
-#include "time_updater.h"
 #include "udp.h"
 
 #include <CLI11/CLI11.hpp>
@@ -432,9 +432,6 @@ namespace ccf
       // reset the inbound-UDP processing quota each iteration
       const asynchost::ResetUDPReadQuota reset_udp_quota;
 
-      // regularly update the time given to the enclave
-      asynchost::TimeUpdater time_updater(1ms);
-
       // regularly record some load statistics
       const asynchost::LoadMonitor load_monitor(500ms, buffer_processor);
 
@@ -799,26 +796,6 @@ namespace ccf
         LOG_INFO_FMT("Reading previous service identity from {}", idf);
         startup_config.recover.previous_service_identity = files::slurp(idf);
 
-        if (!config.command.recover.constitution_files.empty())
-        {
-          LOG_INFO_FMT(
-            "Reading [{}] constitution file(s) for recovery",
-            fmt::join(config.command.recover.constitution_files, ", "));
-          startup_config.recover.constitution = "";
-          for (const auto& constitution_path :
-               config.command.recover.constitution_files)
-          {
-            // Separate with single newlines
-            if (!startup_config.recover.constitution->empty())
-            {
-              startup_config.recover.constitution.value() += '\n';
-            }
-
-            startup_config.recover.constitution.value() +=
-              files::slurp_string(constitution_path);
-          }
-        }
-
         if (config.command.recover.previous_sealed_ledger_secret_location
               .has_value())
         {
@@ -931,7 +908,6 @@ namespace ccf
         config.command.type,
         log_level,
         config.worker_threads,
-        time_updater->behaviour.get_value(),
         notifying_factory.get_inbound_work_beacon());
       ecall_completed.store(true);
       flusher_thread.join();
@@ -1018,21 +994,23 @@ namespace ccf
 
     process_launcher.stop();
 
-    // Continue running the loop long enough for the on_close
-    // callbacks to be despatched, so as to avoid memory being
-    // leaked by handles. Capped out of abundance of caution.
-    constexpr size_t max_iterations = 1000;
-    size_t close_iterations = max_iterations;
-    while ((uv_loop_alive(uv_default_loop()) != 0) && (close_iterations > 0))
+    constexpr size_t max_close_iterations = 1000;
+    size_t close_iterations = max_close_iterations;
+    int loop_close_rc = 0;
+    while (close_iterations > 0)
     {
+      loop_close_rc = uv_loop_close(uv_default_loop());
+      if (loop_close_rc != UV_EBUSY)
+      {
+        break;
+      }
       uv_run(uv_default_loop(), UV_RUN_NOWAIT);
-      close_iterations--;
+      --close_iterations;
+      std::this_thread::sleep_for(10ms);
     }
     LOG_INFO_FMT(
       "Ran an extra {} cleanup iteration(s)",
-      max_iterations - close_iterations);
-
-    auto loop_close_rc = uv_loop_close(uv_default_loop());
+      max_close_iterations - close_iterations);
     if (loop_close_rc != 0)
     {
       LOG_FAIL_FMT(

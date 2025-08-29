@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/openssl_init.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/openssl/hash.h"
 #include "kv/test/null_encryptor.h"

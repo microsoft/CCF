@@ -3,7 +3,7 @@ Cryptography API
 
 For convenience, CCF provides access to commonly used cryptographic primitives to applications.
 
-.. note:: This page describes the C++ API. For the API for TypeScript/JavaScript applications, see :typedoc:module:`ccf-app/crypto`.
+.. note:: This page describes the C++ API. For the API for TypeScript/JavaScript applications, see :typedoc-module:`ccf-app/crypto` .
 
 Hashing
 -------

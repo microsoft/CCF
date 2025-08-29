@@ -2,14 +2,6 @@
 # Licensed under the Apache 2.0 License.
 cmake_minimum_required(VERSION 3.21)
 
-set(ALLOWED_TEST_PLATFORMS "snp;virtual")
-
-# Default CMakeLists processing path. To exclude building and installing testing
-# stuff set this to OFF, e.g. to build the run-only RPM.
-option(CCF_DEVEL "CCF Devel Mode" ON)
-
-message(STATUS "CCF Devel Mode: ${CCF_DEVEL}")
-
 set(CCF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 include(${CCF_DIR}/cmake/preproject.cmake)
 include(${CCF_DIR}/cmake/version.cmake)
@@ -43,11 +35,9 @@ include(${CCF_DIR}/cmake/cpack_settings.cmake)
 
 message(STATUS "CMAKE_INSTALL_PREFIX is '${CMAKE_INSTALL_PREFIX}'")
 
-if(CCF_DEVEL)
-  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
-          DESTINATION cmake
-  )
-endif()
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
+        DESTINATION cmake
+)
 
 include(GNUInstallDirs)
 
@@ -114,14 +104,8 @@ if(KV_STATE_RB)
   add_compile_definitions(KV_STATE_RB)
 endif()
 
-# This option controls whether to link virtual builds against snmalloc rather
-# than use the system allocator.
 option(USE_SNMALLOC "Link against snmalloc" ON)
-if(USE_SNMALLOC)
-  set(SNMALLOC_BUILD_TESTING OFF)
-  set(SNMALLOC_STATIC_LIBRARY_PREFIX "")
-  add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
-endif()
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc.cmake)
 
 # Useful for debugging with libc++ hardening options
 option(USE_LIBCXX "Use libc++ instead of libstdc++" OFF)
@@ -158,52 +142,44 @@ include_directories(SYSTEM ${CCF_3RD_PARTY_INTERNAL_DIR})
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake)
 
-if(CCF_DEVEL)
-  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
-endif()
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
-if(CCF_DEVEL)
-  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake
-          DESTINATION cmake
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
+
+# Copy and install CCF utilities
+set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh)
+foreach(UTILITY ${CCF_UTILITIES})
+  configure_file(
+    ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
   )
+  install(PROGRAMS ${CCF_DIR}/python/utils/${UTILITY} DESTINATION bin)
+endforeach()
+
+# Copy utilities from tests directory
+set(CCF_TEST_UTILITIES tests.sh convert_pico_to_bencher.py test_install.sh
+                       docker_wrap.sh config.jinja recovery_benchmark.sh
+)
+foreach(UTILITY ${CCF_TEST_UTILITIES})
+  configure_file(
+    ${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
+  )
+endforeach()
+
+# Install additional utilities
+install(PROGRAMS ${CCF_DIR}/samples/scripts/snpinfo.sh DESTINATION bin)
+install(FILES ${CCF_DIR}/tests/config.jinja DESTINATION bin)
+
+if(SAN)
+  install(FILES ${CCF_DIR}/src/san_common.suppressions DESTINATION bin)
 endif()
 
-if(CCF_DEVEL)
-  # Copy and install CCF utilities
-  set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh)
-  foreach(UTILITY ${CCF_UTILITIES})
-    configure_file(
-      ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
-    )
-    install(PROGRAMS ${CCF_DIR}/python/utils/${UTILITY} DESTINATION bin)
-  endforeach()
-
-  # Copy utilities from tests directory
-  set(CCF_TEST_UTILITIES tests.sh convert_pico_to_bencher.py test_install.sh
-                         docker_wrap.sh config.jinja recovery_benchmark.sh
-  )
-  foreach(UTILITY ${CCF_TEST_UTILITIES})
-    configure_file(
-      ${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
-    )
-  endforeach()
-
-  # Install additional utilities
-  install(PROGRAMS ${CCF_DIR}/samples/scripts/snpinfo.sh DESTINATION bin)
-  install(FILES ${CCF_DIR}/tests/config.jinja DESTINATION bin)
-
-  if(SAN)
-    install(FILES ${CCF_DIR}/src/san_common.suppressions DESTINATION bin)
-  endif()
-
-  # Install getting_started scripts for VM creation and setup
-  install(
-    DIRECTORY ${CCF_DIR}/getting_started/
-    DESTINATION getting_started
-    USE_SOURCE_PERMISSIONS
-  )
-endif()
+# Install getting_started scripts for VM creation and setup
+install(
+  DIRECTORY ${CCF_DIR}/getting_started/
+  DESTINATION getting_started
+  USE_SOURCE_PERMISSIONS
+)
 
 set(HTTP_PARSER_SOURCES
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/api.c
@@ -239,13 +215,11 @@ target_include_directories(ccf_launcher PRIVATE ${CCF_GENERATED_DIR})
 # HTTP parser
 add_library(http_parser "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser PROPERTY POSITION_INDEPENDENT_CODE ON)
-if(CCF_DEVEL)
-  install(
-    TARGETS http_parser
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
+install(
+  TARGETS http_parser
+  EXPORT ccf
+  DESTINATION lib
+)
 
 # CCF js lib
 add_ccf_static_library(
@@ -260,6 +234,7 @@ add_ccf_static_library(
        ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
        ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
        ${CCF_DIR}/src/js/extensions/ccf/crypto.cpp
+       ${CCF_DIR}/src/js/extensions/ccf/gov.cpp
        ${CCF_DIR}/src/js/extensions/ccf/gov_effects.cpp
        ${CCF_DIR}/src/js/extensions/ccf/historical.cpp
        ${CCF_DIR}/src/js/extensions/ccf/host.cpp
@@ -293,7 +268,6 @@ add_ccf_static_library(
        ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
        ${CCF_DIR}/src/endpoints/authentication/all_of_auth.cpp
        ${CCF_DIR}/src/endpoints/endpoint_utils.cpp
-       ${CCF_DIR}/src/enclave/enclave_time.cpp
        ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
        ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
        ${CCF_DIR}/src/indexing/strategies/visit_each_entry_in_map.cpp
@@ -332,15 +306,13 @@ set(CCF_NETWORK_TEST_ARGS --log-level ${TEST_LOGGING_LEVEL} --worker-threads
 # SNIPPET_START: JS generic application
 add_ccf_app(
   js_generic SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
-                  ${CCF_DIR}/samples/apps/main.cpp INSTALL_LIBS ${CCF_DEVEL}
+                  ${CCF_DIR}/samples/apps/main.cpp INSTALL_LIBS ON
 )
 # SNIPPET_END: JS generic application
 
-if(CCF_DEVEL)
-  install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
-          DESTINATION samples/logging
-  )
-endif()
+install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
+        DESTINATION samples/logging
+)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
@@ -351,9 +323,7 @@ set(CMAKE_GENERATED_COMMENT
 configure_file(
   ${CCF_DIR}/src/common/version.h.in ${CCF_DIR}/include/ccf/version.h @ONLY
 )
-if(CCF_DEVEL)
-  install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
-endif()
+install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
 file(READ ${CCF_DIR}/doc/host_config_schema/cchost_config.json
      HOST_CONFIG_SCHEMA
@@ -403,9 +373,8 @@ endif()
 
 # Build common library for CCF enclaves
 set(CCF_IMPL_SOURCE
-    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp
-    ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/node/quote.cpp
-    ${CCF_DIR}/src/node/uvm_endorsements.cpp
+    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/thread_local.cpp
+    ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
 )
 
 add_ccf_static_library(
@@ -434,58 +403,57 @@ target_include_directories(
 
 add_dependencies(ccf ccf)
 
-if(CCF_DEVEL)
-  install(
-    EXPORT ccf
-    DESTINATION cmake
-    FILE ccf-targets.cmake
-  )
+install(
+  EXPORT ccf
+  DESTINATION cmake
+  FILE ccf-targets.cmake
+)
 
-  # Install exported 3rd-party library includes
-  install(
-    DIRECTORY 3rdparty/exported/
-    DESTINATION include/3rdparty
-    FILES_MATCHING
-    PATTERN "*.h"
-    PATTERN "*.hpp"
-    PATTERN "*.inc"
-  )
+# Install exported 3rd-party library includes
+install(
+  DIRECTORY 3rdparty/exported/
+  DESTINATION include/3rdparty
+  FILES_MATCHING
+  PATTERN "*.h"
+  PATTERN "*.hpp"
+  PATTERN "*.inc"
+)
 
-  # Install all private CCF headers, which may still be needed
-  install(
-    DIRECTORY src/
-    DESTINATION include/ccf/_private
-    FILES_MATCHING
-    PATTERN "*.h"
-    PATTERN "*/test*" EXCLUDE
-  )
+# Install all private CCF headers, which may still be needed
+install(
+  DIRECTORY src/
+  DESTINATION include/ccf/_private
+  FILES_MATCHING
+  PATTERN "*.h"
+  PATTERN "*/test*" EXCLUDE
+)
 
-  # Install all public CCF headers
-  install(
-    DIRECTORY include/
-    DESTINATION include
-    FILES_MATCHING
-    PATTERN "*.h"
-  )
+# Install all public CCF headers
+install(
+  DIRECTORY include/
+  DESTINATION include
+  FILES_MATCHING
+  PATTERN "*.h"
+)
 
-  # Install CCF Python infrastructure
-  install(
-    DIRECTORY tests/infra/
-    DESTINATION bin/infra
-    FILES_MATCHING
-    PATTERN "*.py"
-    PATTERN "*/__pycache__*" EXCLUDE
-  )
+# Install CCF Python infrastructure
+install(
+  DIRECTORY tests/infra/
+  DESTINATION bin/infra
+  FILES_MATCHING
+  PATTERN "*.py"
+  PATTERN "*/__pycache__*" EXCLUDE
+)
 
-  install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
-  install(PROGRAMS tests/docker_wrap.sh DESTINATION bin)
-  install(FILES samples/constitutions/default/actions.js DESTINATION bin)
-  install(FILES samples/constitutions/default/validate.js DESTINATION bin)
-  install(FILES samples/constitutions/sandbox/resolve.js DESTINATION bin)
-  install(FILES samples/constitutions/default/apply.js DESTINATION bin)
-  install(FILES tests/start_network.py DESTINATION bin)
-  install(FILES tests/requirements.txt DESTINATION bin)
-endif()
+install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
+install(PROGRAMS tests/docker_wrap.sh DESTINATION bin)
+install(PROGRAMS scripts/ensure-snmalloc.sh DESTINATION bin)
+install(FILES samples/constitutions/default/actions.js DESTINATION bin)
+install(FILES samples/constitutions/default/validate.js DESTINATION bin)
+install(FILES samples/constitutions/sandbox/resolve.js DESTINATION bin)
+install(FILES samples/constitutions/default/apply.js DESTINATION bin)
+install(FILES tests/start_network.py DESTINATION bin)
+install(FILES tests/requirements.txt DESTINATION bin)
 
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
@@ -610,7 +578,6 @@ if(BUILD_TESTS)
 
     add_unit_test(
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
     )
     target_link_libraries(history_test PRIVATE ccfcrypto http_parser ccf_kv ccf_tasks)
 
@@ -654,7 +621,6 @@ if(BUILD_TESTS)
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
     )
     target_link_libraries(snapshot_test PRIVATE ccf_kv ccf_tasks)
 
@@ -712,9 +678,7 @@ if(BUILD_TESTS)
     add_unit_test(
       frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
-      ${CCF_DIR}/src/node/quote.cpp
-      ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
       frontend_test
@@ -822,7 +786,6 @@ if(BUILD_TESTS)
       add_picobench(
         history_bench
         SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
         LINK_LIBS ccf_kv ccf_tasks
       )
 
@@ -1049,20 +1012,11 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS --gov-api-version "2024-07-01"
     )
 
-    set(PARTITIONS_TEST_ARGS
-        # Higher snapshot interval as the test currently assumes that no
-        # transactions
-        # are emitted while partitions are up. To be removed when
-        # https://github.com/microsoft/CCF/issues/2577 is implemented
-        --snapshot-tx-interval 10000
-    )
-
     add_e2e_test(
       NAME partitions_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
       LABEL partitions
       CONFIGURATIONS partitions
-      ADDITIONAL_ARGS ${PARTITIONS_TEST_ARGS}
     )
 
     execute_process(
@@ -1242,27 +1196,27 @@ if(BUILD_TESTS)
   endif()
 endif()
 
-if(CCF_DEVEL)
-  # Generate and install CMake export file for consumers using CMake
-  include(CMakePackageConfigHelpers)
-  configure_package_config_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/${CCF_PROJECT}-config.cmake.in
-    ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
-    INSTALL_DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
-    PATH_VARS CMAKE_INSTALL_LIBDIR CMAKE_INSTALL_BINDIR
-              CMAKE_INSTALL_INCLUDEDIR
-  )
-  write_basic_package_version_file(
-    ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
-    COMPATIBILITY SameMajorVersion
-  )
-  install(FILES ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
-                ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
-          DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
-  )
-endif()
+# Generate and install CMake export file for consumers using CMake
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/${CCF_PROJECT}-config.cmake.in
+  ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
+  PATH_VARS CMAKE_INSTALL_LIBDIR CMAKE_INSTALL_BINDIR CMAKE_INSTALL_INCLUDEDIR
+)
+write_basic_package_version_file(
+  ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
+  COMPATIBILITY SameMajorVersion
+)
+install(
+  FILES ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
+        ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/cpack_ccfapp.cmake
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/cpack_versions_pin.cmake
+  DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
+)
 
-if(CCF_DEVEL AND (NOT USE_LIBCXX))
+if(NOT USE_LIBCXX)
   # Perf tool executable
   include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
 endif()

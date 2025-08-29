@@ -121,10 +121,7 @@ html_theme = "furo"
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-html_theme_options = {
-    "light_logo": "ccf.svg",
-    "dark_logo": "ccf.svg",
-}
+html_theme_options = {}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -218,7 +215,7 @@ breathe_default_project = "CCF"
 
 # Set up multiversion extension
 
-smv_tag_whitelist = None
+smv_tag_whitelist = r'(?!.*)' # Match nothing, build no tags. Docs suggest using None, but this produces a Warning
 smv_branch_whitelist = r"^(main)|(release\/([5-9]|\d\d\d*)\.x)$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
@@ -228,6 +225,12 @@ assert not re.match(smv_branch_whitelist, "release/1.x")
 assert not re.match(smv_branch_whitelist, "release/2.x")
 assert re.match(smv_branch_whitelist, "release/100.x")
 assert not re.match(smv_branch_whitelist, "release/1.x_feature")
+
+# -- Warnings filter
+
+suppress_warnings = [
+    "autosectionlabel", # https://stackoverflow.com/a/77577337
+]
 
 # Intercept command line arguments passed by sphinx-multiversion to retrieve doc version.
 # This is a little hacky with sphinx-multiversion 0.2.4 and the `SPHINX_MULTIVERSION_NAME`
@@ -258,7 +261,6 @@ extlinks = {
 
 # Theme options
 
-html_logo = "_static/ccf.svg"
 html_favicon = "_static/favicon.ico"
 
 html_context = {
@@ -307,14 +309,14 @@ def typedoc_role(
 ):
     """
     Supported syntaxes:
-    :typedoc:package:`ccf-app`
-    :typedoc:module:`ccf-app/global`
-    :typedoc:function:`ccf-app/crypto#wrapKey`
-    :typedoc:interface:`ccf-app/endpoints/Body`
-    :typedoc:class:`ccf-app/kv/TypedKvMap`
-    :typedoc:classmethod:`ccf-app/kv/TypedKvMap#delete`
-    :typedoc:interfacemethod:`ccf-app/endpoints/Body#json`
-    :typedoc:interface:`Body <ccf-app/endpoints/Body>`
+    :typedoc-package:`ccf-app`
+    :typedoc-module:`ccf-app/global`
+    :typedoc-function:`ccf-app/crypto#wrapKey`
+    :typedoc-interface:`ccf-app/endpoints/Body`
+    :typedoc-class:`ccf-app/kv/TypedKvMap`
+    :typedoc-classmethod:`ccf-app/kv/TypedKvMap#delete`
+    :typedoc-interfacemethod:`ccf-app/endpoints/Body#json`
+    :typedoc-interface:`Body <ccf-app/endpoints/Body>`
     """
     # check for custom label
     if "<" in text:
@@ -329,7 +331,7 @@ def typedoc_role(
 
     # translate role kind into typedoc subfolder
     # and add '()' for functions/methods
-    kind_name = name.replace("typedoc:", "")
+    kind_name = name.replace("typedoc-", "")
     is_kind_package = False
     if kind_name == "package":
         is_kind_package = True
@@ -454,7 +456,7 @@ def config_inited(app, config):
             "interfacemethod",
             "classmethod",
         ]:
-            app.add_role(f"typedoc:{kind}", typedoc_role)
+            app.add_role(f"typedoc-{kind}", typedoc_role)
 
 
 def setup(app):

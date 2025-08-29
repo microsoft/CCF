@@ -5,13 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev3]
+
+[7.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev3
+
+### Added
+
+- Added `ccf.gov.validateConstitution` function to JS API, which can be used to confirm some basic properties of a proposed constitution (it is a string, parseable by our JS interpreter, exporting functions named `validate`, `resolve` and `apply` with the correct number of arguments). This is called in the default sample constitution's `set_constitution.validate`.
+
 ## [7.0.0-dev2]
 
 [7.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev2
 
 ### Added
 
-- Allow changing the constitution during disaster recovery via the `command.recover.constitution_files` entry in cchost. (#7155)
+- Added `toArrayBuffer` to `ccfapp/utils` which converts `ArrayBufferLike` to `ArrayBuffer`. (#7171)
+- `ccf/crypto/openssl_init.h` header exposing `ccf::crypt::openssl_sha256_init()` and `ccf::crypto::openssl_sha256_shutdown()` for unit tests using `ccfcrypto.a`. (#7118)
 
 ### Changed
 
@@ -21,10 +30,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - The `add_ccf_app` function in CMake now builds an executable rather than a library. The caller should provide a `main` function, and call `ccf::run()` from `include/ccf/run.h` to start the node (see `samples/apps/main.cpp` for a minimal example).
 - Application logging no longer traverses the ringbuffer. As current target platforms do not require distinct enclave and host components, what was previously "in-enclave" logging that was deferred via the ringbuffer can now be immediately sent to stdout.
 - CA certificates issued by CCF (ie - `service_cert.pem`) now include a `keyUsage` extension, to comply with RFC5280 (#7134).
+- Application code (in both C++ and JS) can now access the current time directly, with no concept of enclave time vs untrusted host time.
+
+### Removed
+
+- CCF no longer publishes a "run" package (cchost + runtime dependencies). Instead, only the -devel package is published, which has to be used by CCF application developers. CCF also provides ccfapp CPack settings to pull in all CCF runtime dependencies. Check [Packaging your C++ app](https://microsoft.github.io/CCF/main/build_apps/get_started.html#packaging-your-c-app) for documentation (#7187).
 
 ### Dependencies
 
 - Updated snmalloc to 0.7.1.
+
+### Deprecated
+
+- `get_untrusted_host_time_v1` in the C++ API is deprecated, and will be removed in a future release.
+- `ccf.enableUntrustedDateTime` in the JS API is deprecated, and will be removed in a future release.
 
 ## [7.0.0-dev1]
 
