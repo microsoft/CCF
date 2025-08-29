@@ -1169,6 +1169,11 @@ if(BUILD_TESTS)
       NAME historical_query_cache_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_cache.py
     )
+
+    add_e2e_test(
+      NAME test_ci_bind
+      PYTHON_SCRIPT ${CMAKE_SOURCED_DIR}/tests/ci_bind.py
+    )
   endif()
 endif()
 
