@@ -65,7 +65,7 @@ jobs:
           path: rel-notes.md
 
   image_digest:
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     outputs:
       image_digest: ${{ steps.digest.outputs.digest }}
     steps:
@@ -80,7 +80,7 @@ jobs:
     needs: [release_notes, image_digest]
     outputs:
       SOURCE_DATE_EPOCH: ${{ steps.set_epoch.outputs.SOURCE_DATE_EPOCH }}
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     container:
       image: ${{ needs.image_digest.outputs.image_digest }}
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
@@ -328,7 +328,7 @@ jobs:
     needs:
       - build_release
       - image_digest
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     env:
       REPRO_DIR: /tmp/reproduced
     container:
