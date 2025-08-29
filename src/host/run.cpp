@@ -31,6 +31,7 @@
 #include "enclave/entry_points.h"
 #include "handle_ring_buffer.h"
 #include "host/env.h"
+#include "http/curl.h"
 #include "json_schema.h"
 #include "lfs_file_handler.h"
 #include "load_monitor.h"
@@ -520,6 +521,11 @@ namespace ccf
         config.idle_connection_timeout);
       rpc_udp->behaviour.register_udp_message_handlers(
         buffer_processor.get_dispatcher());
+
+      // Initialise the curlm singleton
+      curl_global_init(CURL_GLOBAL_DEFAULT);
+      auto curl_libuv_context =
+        curl::CurlmLibuvContextSingleton(uv_default_loop());
 
       ResolvedAddresses resolved_rpc_addresses;
       for (auto& [name, interface] : config.network.rpc_interfaces)
@@ -1015,7 +1021,17 @@ namespace ccf
     {
       LOG_FAIL_FMT(
         "Failed to close uv loop cleanly: {}", uv_err_name(loop_close_rc));
+      // walk loop to diagnose unclosed handles
+      auto cb = [](uv_handle_t* handle, void* arg) {
+        (void)arg;
+        LOG_FAIL_FMT(
+          "Leaked handle: type={}, ptr={}",
+          uv_handle_type_name(handle->type),
+          fmt::ptr(handle));
+      };
+      uv_walk(uv_default_loop(), cb, nullptr);
     }
+    curl_global_cleanup();
     ccf::crypto::openssl_sha256_shutdown();
 
     return loop_close_rc;
