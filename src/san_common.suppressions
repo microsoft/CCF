@@ -11,6 +11,3 @@ src:*/3rdparty/exported/quickjs/cutils.c
 src:*/3rdparty/exported/quickjs/cutils.h
 
 #############################################################################
-
-# False-positive race on file descriptors reuse after closing.
-fun:*closedir*
