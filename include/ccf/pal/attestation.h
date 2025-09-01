@@ -151,6 +151,7 @@ namespace ccf::pal
     PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
+    // valid quote metadata for snp
     if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
     {
       throw std::logic_error(fmt::format(
@@ -166,48 +167,7 @@ namespace ccf::pal
         quote_info.quote.size()));
     }
 
-    auto quote =
-      *reinterpret_cast<const snp::Attestation*>(quote_info.quote.data());
-    auto product_family =
-      snp::get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
-
-    if (quote.version < snp::minimum_attestation_version)
-    {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: Attestation version is {} not >= expected minimum {}",
-        quote.version,
-        snp::minimum_attestation_version));
-    }
-
-    if (quote.flags.signing_key != snp::attestation_flags_signing_key_vcek)
-    {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: Attestation report must be signed by VCEK: {}",
-        static_cast<uint8_t>(quote.flags.signing_key)));
-    }
-
-    if (quote.flags.mask_chip_key != 0)
-    {
-      throw std::logic_error(
-        fmt::format("SEV-SNP: Mask chip key must not be set"));
-    }
-
-    // Introduced in
-    // https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/programmer-references/56860.pdf
-    // The guest sets the VMPL field to a value from 0 thru 3 which indicates a
-    // request from the guest. For a Guest requested attestation report this
-    // field will contain the value (0-3). A Host requested attestation report
-    // will have a value of 0xffffffff. CCF current always sets VMPL to 0, and
-    // rejects non-guest values.
-    if (quote.vmpl > 3)
-    {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: VMPL for guest attestations must be in 0-3 range, not {}",
-        quote.vmpl));
-    }
-
-    report_data = SnpAttestationReportData(quote.report_data);
-    measurement = SnpAttestationMeasurement(quote.measurement);
+    // -------------------- Verify the certificate chain --------------------
 
     auto certificates = ccf::crypto::split_x509_cert_bundle(std::string_view(
       reinterpret_cast<const char*>(quote_info.endorsements.data()),
@@ -226,37 +186,6 @@ namespace ccf::pal
 
     auto root_cert_verifier = ccf::crypto::make_verifier(root_certificate);
 
-    std::string expected_root_public_key;
-    if (quote.version < 3)
-    {
-      // before version 3 there are no cpuid fields so we must assume that it is
-      // milan
-      expected_root_public_key = snp::amd_milan_root_signing_public_key;
-    }
-    else
-    {
-      auto key = snp::amd_root_signing_keys.find(product_family);
-      if (key == snp::amd_root_signing_keys.end())
-      {
-        throw std::logic_error(fmt::format(
-          "SEV-SNP: Unsupported CPUID family {} model {}",
-          quote.cpuid_fam_id,
-          quote.cpuid_mod_id));
-      }
-      expected_root_public_key = key->second;
-    }
-    if (root_cert_verifier->public_key_pem().str() != expected_root_public_key)
-    {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: The root of trust public key for this attestation was not "
-        "the expected one for v{} {} {}:  {} != {}",
-        quote.version,
-        quote.cpuid_fam_id,
-        quote.cpuid_mod_id,
-        root_cert_verifier->public_key_pem().str(),
-        expected_root_public_key));
-    }
-
     if (!root_cert_verifier->verify_certificate({&root_certificate}))
     {
       throw std::logic_error(
@@ -264,6 +193,7 @@ namespace ccf::pal
         "self signed as expected");
     }
 
+    // Updated to pass ASK as a chain rather than trusted cert!!
     auto chip_cert_verifier = ccf::crypto::make_verifier(chip_certificate);
     if (!chip_cert_verifier->verify_certificate(
           {&root_certificate}, {&sev_version_certificate}))
@@ -273,60 +203,118 @@ namespace ccf::pal
         "attestation is broken");
     }
 
+    auto attestation =
+      *reinterpret_cast<const snp::Attestation*>(quote_info.quote.data());
+
+    if (attestation.version < snp::minimum_attestation_version)
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: Attestation version is {} not >= expected minimum {}",
+        attestation.version,
+        snp::minimum_attestation_version));
+    }
+
+    // Signature verification
+
     // According to Table 134 (2025-06-12) only ecdsa_p384_sha384 is supported
-    if (quote.signature_algo != snp::SignatureAlgorithm::ecdsa_p384_sha384)
+    if (
+      attestation.signature_algo != snp::SignatureAlgorithm::ecdsa_p384_sha384)
     {
       throw std::logic_error(fmt::format(
         "SEV-SNP: Unsupported signature algorithm: {} (supported: {})",
-        quote.signature_algo,
+        attestation.signature_algo,
         snp::SignatureAlgorithm::ecdsa_p384_sha384));
     }
 
     // Make ASN1 DER signature
     auto quote_signature = ccf::crypto::ecdsa_sig_from_r_s(
-      quote.signature.r,
-      sizeof(quote.signature.r),
-      quote.signature.s,
-      sizeof(quote.signature.s),
+      attestation.signature.r,
+      sizeof(attestation.signature.r),
+      attestation.signature.s,
+      sizeof(attestation.signature.s),
       false /* little endian */
     );
 
     std::span quote_without_signature{
       quote_info.quote.data(),
-      quote_info.quote.size() - sizeof(quote.signature)};
+      quote_info.quote.size() - sizeof(attestation.signature)};
     if (!chip_cert_verifier->verify(quote_without_signature, quote_signature))
     {
       throw std::logic_error(
         "SEV-SNP: Chip certificate (VCEK) did not sign this attestation");
     }
 
-    // We should check this (although not security critical) but the guest
-    // policy ABI is currently set to 0.31, although we are targeting 1.54
-    // if (quote.policy.abi_major < snp::attestation_policy_abi_major)
-    // {
-    //   throw std::logic_error(fmt::format(
-    //     "SEV-SNP: Attestation guest policy ABI major {} must be greater than
-    //     " "or equal to {}", quote.policy.abi_major,
-    //     snp::attestation_policy_abi_major));
-    // }
+    // Ensure that the root certificate matches the expected one for the cpu
+    auto key = snp::amd_root_signing_keys.find(snp::get_sev_snp_product(
+      attestation.cpuid_fam_id, attestation.cpuid_mod_id));
+    if (key == snp::amd_root_signing_keys.end())
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: Unsupported CPUID family {} model {}",
+        attestation.cpuid_fam_id,
+        attestation.cpuid_mod_id));
+    }
+    std::string expected_root_public_key = key->second;
+    if (root_cert_verifier->public_key_pem().str() != expected_root_public_key)
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: The root of trust public key for this attestation was not "
+        "the expected one for v{} {} {}:  {} != {}",
+        attestation.version,
+        attestation.cpuid_fam_id,
+        attestation.cpuid_mod_id,
+        root_cert_verifier->public_key_pem().str(),
+        expected_root_public_key));
+    }
 
-    if (quote.policy.debug != 0)
+    // Ensure that the tcb version in the attestation matches the endorsements
+    // get the relevant oids from the endorsements and then compare to the tcb
+    // version
+
+    // Attestation metadata verification
+    if (
+      attestation.flags.signing_key != snp::attestation_flags_signing_key_vcek)
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: Attestation report must be signed by VCEK: {}",
+        static_cast<uint8_t>(attestation.flags.signing_key)));
+    }
+    if (attestation.flags.mask_chip_key != 0)
+    {
+      throw std::logic_error(
+        fmt::format("SEV-SNP: Mask chip key must not be set"));
+    }
+    if (attestation.policy.debug != 0)
     {
       throw std::logic_error(
         "SEV-SNP: SNP attestation report guest policy debugging must not be "
         "enabled");
     }
-
-    if (quote.policy.migrate_ma != 0)
+    if (attestation.policy.migrate_ma != 0)
     {
       throw std::logic_error("SEV-SNP: Migration agents must not be enabled");
     }
+    // Introduced in
+    // https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/programmer-references/56860.pdf
+    // The guest sets the VMPL field to a value from 0 thru 3 which indicates a
+    // request from the guest. For a Guest requested attestation report this
+    // field will contain the value (0-3). A Host requested attestation report
+    // will have a value of 0xffffffff. CCF current always sets VMPL to 0, and
+    // rejects non-guest values.
+    if (attestation.vmpl > 3)
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: VMPL for guest attestations must be in 0-3 range, not {}",
+        attestation.vmpl));
+    }
 
+    auto product_family = snp::get_sev_snp_product(
+      attestation.cpuid_fam_id, attestation.cpuid_mod_id);
     auto endorsed_tcb = get_endorsed_tcb_from_cert(chip_certificate);
     if (endorsed_tcb.has_value())
     {
       auto endorsed_tcb_policy = endorsed_tcb->to_policy(product_family);
-      auto reported_tcb = quote.reported_tcb.to_policy(product_family);
+      auto reported_tcb = attestation.reported_tcb.to_policy(product_family);
       if (!snp::TcbVersionPolicy::is_valid(endorsed_tcb_policy, reported_tcb))
       {
         throw std::logic_error(fmt::format(
@@ -340,13 +328,16 @@ namespace ccf::pal
     auto endorsed_chip_id = get_endorsed_chip_id_from_cert(chip_certificate);
     if (
       endorsed_chip_id.has_value() &&
-      (endorsed_chip_id->size() != sizeof(quote.chip_id) ||
-       memcmp(endorsed_chip_id->data(), quote.chip_id, sizeof(quote.chip_id)) !=
+      (endorsed_chip_id->size() != sizeof(attestation.chip_id) ||
+       memcmp(endorsed_chip_id->data(), attestation.chip_id, sizeof(attestation.chip_id)) !=
          0))
     {
       throw std::logic_error(
         "SEV-SNP: Chip ID in attestation does not match endorsed chip ID");
     }
+
+    report_data = SnpAttestationReportData(attestation.report_data);
+    measurement = SnpAttestationMeasurement(attestation.measurement);
   }
 
   static void verify_quote(
