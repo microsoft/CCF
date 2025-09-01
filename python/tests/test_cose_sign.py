@@ -69,7 +69,7 @@ def make_self_signed_cert(priv, subject_name: str):
         .public_key(priv.public_key())
         .serial_number(x509.random_serial_number())
         .not_valid_before(datetime.datetime.now())
-        .not_valid_after(datetime.datetime.now() + datetime.timedelta(days=365))
+        .not_valid_after(datetime.datetime.now() + datetime.timedelta(days=30))
         .sign(priv, hash_algo(priv), default_backend())
     )
     return cert.public_bytes(Encoding.PEM).decode("ascii")
