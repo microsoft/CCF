@@ -864,7 +864,7 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS
       --package js_generic --election-timeout-ms 10000 # Larger election
       # timeout as recording # large JS applications may trigger leadership
-                             # changes
+      # changes
   )
 
   add_e2e_test(
