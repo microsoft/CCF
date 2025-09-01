@@ -43,7 +43,7 @@ require setting ``ccf.gov.msg.type``, ``ccf.gov.msg.created_at``, and optionally
 
 A signing script (``ccf_cose_sign1``) is provided as part of the `ccf Python package <https://pypi.org/project/ccf/>`_. The output can be piped directly into curl, or any other HTTP client.
 
-Commands can also be signed using the `pycose <https://github.com/TimothyClaeys/pycose>`_ library, and sent with any standard HTTP library such as `Python HTTPX <https://www.python-httpx.org/>`_.
+Commands can also be signed using the `python-cwt <https://github.com/dajiaji/python-cwt/>`_ library, and sent with any standard HTTP library such as `Python HTTPX <https://www.python-httpx.org/>`_.
 
 Idempotence
 ^^^^^^^^^^^
