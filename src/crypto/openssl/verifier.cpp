@@ -135,9 +135,6 @@ namespace ccf::crypto
       CHECK1(X509_up_ref(cert));
     }
 
-    // Allow to use intermediate CAs as trust anchors
-    CHECK1(X509_STORE_set_flags(store, X509_V_FLAG_PARTIAL_CHAIN));
-
     CHECK1(X509_STORE_CTX_init(store_ctx, store, cert, chain_stack));
 
     if (ignore_time)

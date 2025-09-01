@@ -1351,3 +1351,101 @@ TEST_CASE("Decrypt should validate integrity")
 
   CHECK_THROWS(ccf::crypto::aes_gcm_decrypt(key, broken_ciphertext));
 }
+
+TEST_CASE("Verify leaf with both root and intermediate provided as trust anchors and empty chain")
+{
+  // Goal: Demonstrate current behaviour where supplying both issuing certs as
+  // trusted_certs (and an empty untrusted chain) succeeds.
+  const auto now = ccf::ds::to_x509_time_string(
+    std::chrono::system_clock::now());
+  constexpr size_t ROOT_VALID_DAYS = 365;
+  constexpr size_t INTER_VALID_DAYS = 365;
+  constexpr size_t LEAF_VALID_DAYS = 30;
+
+  // Generate root CA (self-signed, path length unrestricted for this test)
+  auto root_kp = ccf::crypto::make_key_pair();
+  auto root_cert = ccf::crypto::create_self_signed_cert(
+    root_kp, "CN=Root", {}, now, ROOT_VALID_DAYS);
+
+  // Generate intermediate CA endorsed by root (set ca=true)
+  auto inter_kp = ccf::crypto::make_key_pair();
+  auto inter_cert = ccf::crypto::create_endorsed_cert(
+    inter_kp->public_key_pem(),
+    "CN=Intermediate",
+    {},
+    std::make_pair(
+      now, ccf::crypto::compute_cert_valid_to_string(now, INTER_VALID_DAYS)),
+    root_kp->private_key_pem(),
+    root_cert,
+    true /* ca */);
+
+  // Leaf cert signed by intermediate (non-CA)
+  auto leaf_kp = ccf::crypto::make_key_pair();
+  auto leaf_cert = ccf::crypto::create_endorsed_cert(
+    leaf_kp->public_key_pem(),
+    "CN=Leaf",
+    {},
+    std::make_pair(
+      now, ccf::crypto::compute_cert_valid_to_string(now, LEAF_VALID_DAYS)),
+    inter_kp->private_key_pem(),
+    inter_cert,
+    false /* ca */);
+
+  auto leaf_verifier = ccf::crypto::make_verifier(leaf_cert);
+
+  const ccf::crypto::Pem* root_ptr = &root_cert;
+  const ccf::crypto::Pem* inter_ptr = &inter_cert;
+  std::vector<const ccf::crypto::Pem*> trusted = {root_ptr, inter_ptr};
+  std::vector<const ccf::crypto::Pem*> empty_chain;
+
+  CHECK(leaf_verifier->verify_certificate(trusted, empty_chain));
+}
+
+TEST_CASE("Verify leaf with partial chain as trust achors")
+{
+  const auto now = ccf::ds::to_x509_time_string(
+    std::chrono::system_clock::now());
+  constexpr size_t ROOT_VALID_DAYS = 365;
+  constexpr size_t INTER_VALID_DAYS = 365;
+  constexpr size_t LEAF_VALID_DAYS = 30;
+
+  // Generate root CA (self-signed, path length unrestricted for this test)
+  auto root_kp = ccf::crypto::make_key_pair();
+  auto root_cert = ccf::crypto::create_self_signed_cert(
+    root_kp, "CN=Root", {}, now, ROOT_VALID_DAYS);
+
+  auto alternative_root_kp = ccf::crypto::make_key_pair();
+  auto alternative_root_cert = ccf::crypto::create_self_signed_cert(
+    alternative_root_kp, "CN=AlternativeRoot", {}, now, ROOT_VALID_DAYS);
+
+  // Generate intermediate CA which is not endorsed by root (set ca=true)
+  auto inter_kp = ccf::crypto::make_key_pair();
+  auto inter_cert = ccf::crypto::create_endorsed_cert(
+    inter_kp->public_key_pem(),
+    "CN=Intermediate",
+    {},
+    std::make_pair(
+      now, ccf::crypto::compute_cert_valid_to_string(now, INTER_VALID_DAYS)),
+    alternative_root_kp->private_key_pem(),
+    alternative_root_cert,
+    true /* ca */);
+
+  // Leaf cert signed by intermediate (non-CA)
+  auto leaf_kp = ccf::crypto::make_key_pair();
+  auto leaf_cert = ccf::crypto::create_endorsed_cert(
+    leaf_kp->public_key_pem(),
+    "CN=Leaf",
+    {},
+    std::make_pair(
+      now, ccf::crypto::compute_cert_valid_to_string(now, LEAF_VALID_DAYS)),
+    inter_kp->private_key_pem(),
+    inter_cert,
+    false /* ca */);
+
+  auto leaf_verifier = ccf::crypto::make_verifier(leaf_cert);
+
+  std::vector<const ccf::crypto::Pem*> trusted = {&root_cert, &inter_cert};
+  std::vector<const ccf::crypto::Pem*> empty_chain;
+
+  CHECK(!leaf_verifier->verify_certificate(trusted, empty_chain));
+}
