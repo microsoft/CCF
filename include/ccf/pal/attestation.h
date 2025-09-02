@@ -101,9 +101,7 @@ namespace ccf::pal
       raw[byte_idx] = static_cast<uint8_t>(v & UINT8_MAX);
     }
 
-    std::vector<uint8_t> reversed(raw.rbegin(), raw.rend());
-    snp::TcbVersionRaw tcb(reversed);
-    return tcb;
+    return snp::TcbVersionRaw(raw);
   }
 
   static std::optional<std::vector<uint8_t>> get_endorsed_chip_id_from_cert(
