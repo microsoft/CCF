@@ -57,7 +57,6 @@ namespace ccf
     bool has_completed = false;
     size_t server_retries_count = 0;
 
-    // TODO:??? std::shared_ptr<ClientSession> create_unauthenticated_client()
     struct QuoteEndorsementsClientMsg
     {
       QuoteEndorsementsClientMsg(

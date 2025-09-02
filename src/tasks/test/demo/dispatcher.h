@@ -47,8 +47,6 @@ struct Action_ProcessClientAction : public ccf::tasks::ITaskAction
     }
     else
     {
-      // TODO: Add some CallObligation type to ensure this is
-      // eventually done?
       client_session.from_node.push_back(std::move(result));
       ++responses_sent;
     }
@@ -107,7 +105,7 @@ struct Dispatcher : public LoopingThread<DispatcherState>
         it = state.ordered_tasks_per_client.emplace_hint(
           it,
           session.get(),
-          std::make_shared<ccf::tasks::OrderedTasks>(
+          ccf::tasks::make_ordered_tasks(
             state.job_board, fmt::format("Tasks for {}", session->name)));
       }
 

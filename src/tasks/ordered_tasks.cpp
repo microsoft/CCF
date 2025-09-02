@@ -73,4 +73,22 @@ namespace ccf::tasks
   {
     pimpl->actions.get_queue_summary(num_pending, is_active);
   }
+
+  namespace
+  {
+    struct ConcreteOrderedTasks : public OrderedTasks
+    {
+    public:
+      ConcreteOrderedTasks(
+        IJobBoard& jb, const std::string& s) :
+        OrderedTasks(jb, s)
+      {}
+    };
+  }
+
+  std::shared_ptr<OrderedTasks> make_ordered_tasks(
+    IJobBoard& jb, const std::string& s)
+  {
+    return std::make_shared<ConcreteOrderedTasks>(jb, s);
+  }
 }

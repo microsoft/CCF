@@ -69,8 +69,12 @@ namespace ccf::tasks
 
     void enqueue_on_board();
 
+    // Constructor is protected, to ensure this is only created via the
+    // make_ordered_tasks factory function (ensuring this is always owned by a
+    // shared_ptr)
+    OrderedTasks(IJobBoard& jb, const std::string& s);
+
   public:
-    OrderedTasks(IJobBoard& jb, const std::string& s = "[Ordered]");
     ~OrderedTasks();
 
     void do_task_implementation() override;
@@ -81,4 +85,7 @@ namespace ccf::tasks
 
     void get_queue_summary(size_t& num_pending, bool& is_active);
   };
+
+  std::shared_ptr<OrderedTasks> make_ordered_tasks(
+    IJobBoard& jb, const std::string& s = "[Ordered]");
 }

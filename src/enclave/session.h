@@ -55,7 +55,7 @@ namespace ccf
   public:
     ThreadedSession(int64_t session_id)
     {
-      task_scheduler = std::make_shared<ccf::tasks::OrderedTasks>(
+      task_scheduler = ccf::tasks::make_ordered_tasks(
         ccf::tasks::get_main_job_board(),
         fmt::format("Session {}", session_id));
     }

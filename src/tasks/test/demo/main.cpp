@@ -82,7 +82,7 @@ TEST_CASE("OrderedTasks")
     for (auto i = 0; i < num_sessions; ++i)
     {
       all_tasks.emplace_back(
-        std::make_shared<ccf::tasks::OrderedTasks>(
+        ccf::tasks::make_ordered_tasks(
           job_board, std::to_string(i)),
         0);
     }
@@ -151,9 +151,9 @@ TEST_CASE("PauseAndResume")
     };
 
     std::shared_ptr<ccf::tasks::OrderedTasks> x_tasks =
-      std::make_shared<ccf::tasks::OrderedTasks>(job_board, "x");
+      ccf::tasks::make_ordered_tasks(job_board, "x");
     std::shared_ptr<ccf::tasks::OrderedTasks> y_tasks =
-      std::make_shared<ccf::tasks::OrderedTasks>(job_board, "y");
+      ccf::tasks::make_ordered_tasks(job_board, "y");
 
     x_tasks->add_action(increment(x));
     y_tasks->add_action(increment(y));
@@ -394,11 +394,6 @@ TEST_CASE("Run")
       worker->state.consider_termination.store(true);
       worker->shutdown();
     }
-
-    // TODO
-    // Validate results?
-    // Validate clean shutdown?
-    // Print some metrics?
   }
 
   LOG_INFO_FMT(
@@ -423,5 +418,3 @@ int main(int argc, char** argv)
     return res;
   return res;
 }
-
-// TODO: Cancellation, deferment, error responses

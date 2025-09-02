@@ -190,9 +190,9 @@ TEST_CASE("OrderedTasks")
 {
   ccf::tasks::JobBoard jb;
 
-  auto p_a = std::make_shared<ccf::tasks::OrderedTasks>(jb);
-  auto p_b = std::make_shared<ccf::tasks::OrderedTasks>(jb);
-  auto p_c = std::make_shared<ccf::tasks::OrderedTasks>(jb);
+  auto p_a = ccf::tasks::make_ordered_tasks(jb);
+  auto p_b = ccf::tasks::make_ordered_tasks(jb);
+  auto p_c = ccf::tasks::make_ordered_tasks(jb);
 
   ccf::tasks::OrderedTasks& tasks_a = *p_a;
   tasks_a.add_action(ccf::tasks::make_basic_action(
