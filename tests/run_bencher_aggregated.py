@@ -16,24 +16,13 @@ def run_performance_tests(iterations: int):
 
     for i in range(1, iterations + 1):
         LOG.debug(f"Running iteration {i} of {iterations}")
-
-        # Remove existing bencher.json
-        if os.path.exists("bencher.json"):
-            os.remove("bencher.json")
-
-        # Run the performance tests
         try:
             subprocess.run(["./tests.sh", "-C", "perf", "-L", "perf"], check=True)
-
-            if os.path.exists("bencher.json"):
-                # Copy to bencherN.json
-                subprocess.run(["cp", "bencher.json", f"bencher{i}.json"], check=True)
-                LOG.trace(f"Saved results to bencher{i}.json")
-            else:
-                LOG.warning(f"bencher.json not found after iteration {i}")
+            assert os.path.exists("bencher.json")
+            subprocess.run(["cp", "bencher.json", f"bencher{i}.json"], check=True)
+            LOG.trace(f"Saved results to bencher{i}.json")
         except subprocess.CalledProcessError as e:
             LOG.error(f"Error running tests in iteration {i}: {e}")
-
         LOG.debug(f"Completed iteration {i}")
 
 
@@ -46,8 +35,7 @@ def aggregate_results(iterations: int):
 
     for i in range(1, iterations + 1):
         filename = f"bencher{i}.json"
-        if not os.path.exists(filename):
-            continue
+        assert os.path.exists(filename)
 
         LOG.trace(f"Processing {filename}")
         with open(filename, "r") as f:
@@ -56,7 +44,6 @@ def aggregate_results(iterations: int):
         for test_name, metrics in data.items():
             if test_name not in all_data:
                 all_data[test_name] = {}
-
             for metric_name, metric_data in metrics.items():
                 if metric_name not in all_data[test_name]:
                     all_data[test_name][metric_name] = {
@@ -64,26 +51,16 @@ def aggregate_results(iterations: int):
                         "low_values": [],
                         "high_values": [],
                     }
-
                 if isinstance(metric_data, dict):
-                    # Collect value field
-                    if "value" in metric_data:
+                    if metric_data.get("value") is not None:
                         all_data[test_name][metric_name]["values"].append(
                             metric_data["value"]
                         )
-                    # Collect low_value field
-                    if (
-                        "low_value" in metric_data
-                        and metric_data["low_value"] is not None
-                    ):
+                    if metric_data.get("low_value") is not None:
                         all_data[test_name][metric_name]["low_values"].append(
                             metric_data["low_value"]
                         )
-                    # Collect high_value field
-                    if (
-                        "high_value" in metric_data
-                        and metric_data["high_value"] is not None
-                    ):
+                    if metric_data.get("high_value") is not None:
                         all_data[test_name][metric_name]["high_values"].append(
                             metric_data["high_value"]
                         )
