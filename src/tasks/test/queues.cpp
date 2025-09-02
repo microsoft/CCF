@@ -92,37 +92,6 @@ void thread_print(const std::string& s)
 #endif
 }
 
-template <typename TIter>
-ccf::tasks::Task job_sort(TIter begin, TIter end)
-{
-  return ccf::tasks::make_basic_task([begin, end]() { std::sort(begin, end); });
-}
-
-TEST_CASE("JobBoard")
-{
-  ccf::tasks::JobBoard jb;
-
-  std::vector<int> ns;
-  for (size_t i = 0; i < 1'000'000; ++i)
-  {
-    ns.emplace_back(rand());
-  }
-
-  static constexpr auto n_sorters = 10;
-  auto batch_size = ns.size() / n_sorters;
-  auto begin = ns.begin();
-  for (size_t i = 0; i < n_sorters; ++i)
-  {
-    auto batch_begin = begin + i * batch_size;
-    auto batch_end = begin + (i + 1) * batch_size;
-    jb.add_task(job_sort(batch_begin, batch_end));
-  }
-
-  fmt::print("Starting mergey sort thing\n");
-  flush_board(jb, 4);
-  fmt::print("Done\n");
-}
-
 // Confirm expected semantics of SubTaskQueue type
 TEST_CASE("SubTaskQueue")
 {
