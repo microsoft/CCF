@@ -52,8 +52,6 @@ namespace ccf::tasks
     return std::make_shared<BasicTaskAction>(std::forward<Ts>(ts)...);
   }
 
-  // TODO: Juggle types here so that it's hard to make an OrderedTasks _not_
-  // owned by a shared ptr
   // Self-scheduling collection of in-order tasks. Tasks
   // will be executed in the order they are added. To self-schedule, this
   // instance will ensure that it is posted to the given JobBoard whenever more

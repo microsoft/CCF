@@ -295,8 +295,7 @@ namespace ccf
                   "{} after {} attempts",
                   server.front().host,
                   server.front().max_retries_count);
-                // TODO: Do we have a test for this? How do we handle exceptions
-                // in tasks?
+
                 throw ccf::pal::AttestationCollateralFetchingTimeout(
                   "Timed out fetching attestation endorsements from all "
                   "configured servers");

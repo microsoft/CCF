@@ -184,8 +184,6 @@ extern "C"
       {
         auto s = e.load()->run_main();
 
-        // TODO: Do you need to wait for workers to complete? I don't think so!
-
         return s;
       }
       auto s = e.load()->run_worker();

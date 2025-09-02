@@ -34,8 +34,8 @@ void worker(ccf::tasks::IJobBoard& job_board, std::atomic<bool>& stop)
 void flush_board(
   ccf::tasks::IJobBoard& job_board,
   size_t max_workers = 8,
-  std::chrono::seconds stop_after = std::chrono::seconds(5),
-  std::chrono::seconds at_least = std::chrono::seconds(1))
+  std::function<bool(void)> safe_to_end = nullptr,
+  std::chrono::seconds kill_after = std::chrono::seconds(5))
 {
   std::atomic<bool> stop_signal{false};
 
@@ -47,18 +47,24 @@ void flush_board(
 
   using TClock = std::chrono::steady_clock;
   auto now = TClock::now();
-  const auto min_time = now + at_least;
-  const auto end_time = now + stop_after;
+  const auto end_time = now + std::chrono::seconds(1);
+  const auto hard_end = now + kill_after;
+
+  if (safe_to_end == nullptr)
+  {
+    safe_to_end = [&]() { return now > end_time && job_board.empty(); };
+  }
+
   while (true)
   {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     now = TClock::now();
-    if (now > end_time)
+    if (now > hard_end)
     {
       break;
     }
 
-    if (now > min_time && job_board.empty())
+    if (safe_to_end())
     {
       break;
     }
@@ -79,15 +85,10 @@ uint8_t thread_name()
 
 void thread_print(const std::string& s)
 {
+#if false
   static std::mutex logging_mutex;
   std::lock_guard<std::mutex> guard(logging_mutex);
   fmt::print("[{:0x}] {}\n", thread_name(), s);
-}
-
-void thread_debug_print(const std::string& s)
-{
-#if false
-  fmt::print("[{:0x}]   {}\n", thread_name(), s);
 #endif
 }
 
@@ -97,31 +98,9 @@ ccf::tasks::Task job_sort(TIter begin, TIter end)
   return ccf::tasks::make_basic_task([begin, end]() { std::sort(begin, end); });
 }
 
-template <typename TDuration>
-ccf::tasks::Task job_sleep(const TDuration& t)
-{
-  return ccf::tasks::make_basic_task([t]() {
-    fmt::print("[{}] I'm going to sleep for {}\n", thread_name(), t);
-    std::this_thread::sleep_for(t);
-    fmt::print("[{}] I slept for {}\n", thread_name(), t);
-  });
-}
-
 TEST_CASE("JobBoard")
 {
   ccf::tasks::JobBoard jb;
-
-  jb.add_task(job_sleep(std::chrono::seconds(1)));
-  jb.add_task(job_sleep(std::chrono::seconds(1)));
-  jb.add_task(job_sleep(std::chrono::seconds(1)));
-  jb.add_task(job_sleep(std::chrono::seconds(1)));
-  jb.add_task(job_sleep(std::chrono::seconds(1)));
-
-  flush_board(jb, 3);
-
-  jb.add_task(job_sleep(std::chrono::seconds(1)));
-
-  flush_board(jb, 3);
 
   std::vector<int> ns;
   for (size_t i = 0; i < 1'000'000; ++i)
@@ -184,8 +163,6 @@ TEST_CASE("SubTaskQueue")
   REQUIRE_FALSE(fq.pop_and_visit([&](size_t&& n) { fmt::print("{}\n", n); }));
 }
 
-// TODO: Add some assertions that dependency order is preserved, and test across
-// different counts of worker threads
 TEST_CASE("OrderedTasks")
 {
   ccf::tasks::JobBoard jb;
@@ -194,50 +171,96 @@ TEST_CASE("OrderedTasks")
   auto p_b = ccf::tasks::make_ordered_tasks(jb);
   auto p_c = ccf::tasks::make_ordered_tasks(jb);
 
+  std::atomic<bool> executed[14] = {0};
+
   ccf::tasks::OrderedTasks& tasks_a = *p_a;
-  tasks_a.add_action(ccf::tasks::make_basic_action(
-    []() { thread_print("A (no dependencies)"); }));
-  tasks_a.add_action(
-    ccf::tasks::make_basic_action([]() { thread_print("B (after A)"); }));
-  tasks_a.add_action(
-    ccf::tasks::make_basic_action([]() { thread_print("C (after B)"); }));
+  tasks_a.add_action(ccf::tasks::make_basic_action([&]() {
+    thread_print("A (no dependencies)");
+    executed[0].store(true);
+  }));
+  tasks_a.add_action(ccf::tasks::make_basic_action([&]() {
+    thread_print("B (after A)");
+    REQUIRE(executed[0].load());
+    executed[1].store(true);
+  }));
+  tasks_a.add_action(ccf::tasks::make_basic_action([&]() {
+    thread_print("C (after B)");
+    REQUIRE(executed[1].load());
+    executed[2].store(true);
+  }));
 
   ccf::tasks::OrderedTasks& tasks_b = *p_b;
-  tasks_b.add_action(ccf::tasks::make_basic_action([&tasks_b]() {
+  tasks_b.add_action(ccf::tasks::make_basic_action([&]() {
     thread_print("D (no dependencies)");
-    tasks_b.add_action(ccf::tasks::make_basic_action([&tasks_b]() {
+    executed[3].store(true);
+
+    tasks_b.add_action(ccf::tasks::make_basic_action([&]() {
       thread_print("E (after D)");
-      tasks_b.add_action(ccf::tasks::make_basic_action([&tasks_b]() {
+      REQUIRE(executed[3].load());
+      executed[4].store(true);
+
+      tasks_b.add_action(ccf::tasks::make_basic_action([&]() {
         thread_print("F (after E)");
-        tasks_b.add_action(ccf::tasks::make_basic_action(
-          [&tasks_b]() { thread_print("G (after F)"); }));
+        REQUIRE(executed[4].load());
+        executed[5].store(true);
+
+        tasks_b.add_action(ccf::tasks::make_basic_action([&]() {
+          thread_print("G (after F)");
+          REQUIRE(executed[5].load());
+          executed[6].store(true);
+        }));
       }));
     }));
   }));
 
   ccf::tasks::OrderedTasks& tasks_c = *p_c;
-  tasks_c.add_action(
-    ccf::tasks::make_basic_action([&tasks_a, &tasks_b, &tasks_c]() {
-      thread_print("I (no dependencies)");
+  tasks_c.add_action(ccf::tasks::make_basic_action([&]() {
+    thread_print("I (no dependencies)");
+    executed[7].store(true);
 
-      tasks_a.add_action(ccf::tasks::make_basic_action([&tasks_a, &tasks_c]() {
-        thread_print("J (after I and C)");
-        tasks_a.add_action(ccf::tasks::make_basic_action([&tasks_c]() {
-          thread_print("K (after J)");
-          tasks_c.add_action(ccf::tasks::make_basic_action(
-            []() { thread_print("L (after K)"); }));
-        }));
-      }));
+    tasks_a.add_action(ccf::tasks::make_basic_action([&]() {
+      thread_print("J (after I and C)");
+      REQUIRE(executed[2].load());
+      REQUIRE(executed[7].load());
+      executed[8].store(true);
 
-      tasks_b.add_action(ccf::tasks::make_basic_action([&tasks_a, &tasks_c]() {
-        thread_print("M (after I and D)");
-        tasks_a.add_action(ccf::tasks::make_basic_action([&tasks_c]() {
-          thread_print("N (after M and C)");
-          tasks_c.add_action(ccf::tasks::make_basic_action(
-            []() { thread_print("O (after N)"); }));
+      tasks_a.add_action(ccf::tasks::make_basic_action([&]() {
+        thread_print("K (after J)");
+        REQUIRE(executed[8].load());
+        executed[9].store(true);
+
+        tasks_c.add_action(ccf::tasks::make_basic_action([&]() {
+          thread_print("L (after K)");
+          REQUIRE(executed[9].load());
+          executed[10].store(true);
         }));
       }));
     }));
 
-  flush_board(jb, 8);
+    tasks_b.add_action(ccf::tasks::make_basic_action([&]() {
+      thread_print("M (after I and D)");
+      REQUIRE(executed[3].load());
+      REQUIRE(executed[7].load());
+      executed[11].store(true);
+
+      tasks_a.add_action(ccf::tasks::make_basic_action([&]() {
+        thread_print("N (after M and C)");
+        REQUIRE(executed[2].load());
+        REQUIRE(executed[11].load());
+        executed[12].store(true);
+
+        tasks_c.add_action(ccf::tasks::make_basic_action([&]() {
+          thread_print("O (after N)");
+          REQUIRE(executed[12].load());
+          executed[13].store(true);
+        }));
+      }));
+    }));
+  }));
+
+  flush_board(jb, 8, [&]() {
+    return std::all_of(std::begin(executed), std::end(executed), [](auto&& e) {
+      return e.load();
+    });
+  });
 }
