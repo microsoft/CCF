@@ -62,42 +62,32 @@ struct MergeSortTask : public ccf::tasks::BaseTask,
   }
 };
 
-void _worker(ccf::tasks::IJobBoard& job_board, std::atomic<bool>& stop)
-{
-  while (!stop.load())
-  {
-    auto task = job_board.get_task();
-    if (task != nullptr)
-    {
-      task->do_task();
-    }
-    std::this_thread::yield();
-  }
-}
-
-void _flush_board(
-  ccf::tasks::IJobBoard& job_board,
-  size_t max_workers = 8,
-  std::function<bool(void)> safe_to_end = nullptr,
+void loop_until_empty(
+  size_t worker_count,
   std::chrono::seconds kill_after = std::chrono::seconds(5))
 {
   std::atomic<bool> stop_signal{false};
 
   std::vector<std::thread> workers;
-  for (size_t i = 0; i < max_workers; ++i)
+  for (size_t i = 0; i < worker_count; ++i)
   {
-    workers.emplace_back(_worker, std::ref(job_board), std::ref(stop_signal));
+    workers.emplace_back([&stop_signal]() {
+      while (!stop_signal.load())
+      {
+        auto task = ccf::tasks::get_main_job_board().get_task();
+        if (task != nullptr)
+        {
+          task->do_task();
+        }
+        std::this_thread::yield();
+      }
+    });
   }
 
   using TClock = std::chrono::steady_clock;
   auto now = TClock::now();
-  const auto end_time = now + std::chrono::seconds(1);
-  const auto hard_end = now + kill_after;
 
-  if (safe_to_end == nullptr)
-  {
-    safe_to_end = [&]() { return now > end_time && job_board.empty(); };
-  }
+  const auto hard_end = now + kill_after;
 
   while (true)
   {
@@ -108,7 +98,7 @@ void _flush_board(
       break;
     }
 
-    if (safe_to_end())
+    if (ccf::tasks::get_main_job_board().empty())
     {
       break;
     }
@@ -129,14 +119,16 @@ std::chrono::milliseconds do_merge_sort(size_t worker_count, size_t data_size)
   {
     ns.emplace_back(rand());
   }
+  REQUIRE_FALSE(std::is_sorted(ns.begin(), ns.end()));
 
   ccf::tasks::add_task(std::make_shared<MergeSortTask>(ns.begin(), ns.end()));
 
-  auto& jb = ccf::tasks::get_main_job_board();
   auto start = std::chrono::high_resolution_clock::now();
-  _flush_board(jb, worker_count, [&jb]() { return jb.empty(); });
+  loop_until_empty(worker_count);
   auto end = std::chrono::high_resolution_clock::now();
-  REQUIRE(jb.empty());
+
+  REQUIRE(ccf::tasks::get_main_job_board().empty());
+  REQUIRE(std::is_sorted(ns.begin(), ns.end()));
 
   return std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 }
