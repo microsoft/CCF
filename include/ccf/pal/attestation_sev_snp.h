@@ -203,7 +203,9 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   public:
     bool operator==(const TcbVersionRaw& other) const = default;
 
-    TcbVersionRaw(std::vector<uint8_t> data = {})
+    TcbVersionRaw() = default;
+
+    TcbVersionRaw(std::vector<uint8_t> data)
     {
       if (data.size() != snp_tcb_version_size)
       {
