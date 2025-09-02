@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Correctly validate the full AMD ASK endorsement chain (#7233)
+- Validate endorsement metadata (tcb version and chip id) against attestation (#7240)
 
 ## [7.0.0-dev2]
 
