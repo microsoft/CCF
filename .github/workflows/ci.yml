@@ -114,6 +114,7 @@ jobs:
         if: success() || failure()
 
   build_caci:
+    if: ${{ false }}
     name: "Confidential Container (ACI) CI"
     runs-on: [self-hosted, 1ES.Pool=gha-caci-ne-release5x]
     needs: checks
