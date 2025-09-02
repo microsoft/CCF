@@ -198,10 +198,21 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   struct TcbVersionRaw
   {
   private:
-    uint8_t underlying_data[snp_tcb_version_size];
+    uint8_t underlying_data[snp_tcb_version_size]{};
 
   public:
     bool operator==(const TcbVersionRaw& other) const = default;
+
+    TcbVersionRaw(std::vector<uint8_t> data = {})
+    {
+      if (data.size() != snp_tcb_version_size)
+      {
+        throw std::logic_error(
+          fmt::format("Invalid TCB version raw data size: {}", data.size()));
+      }
+      std::memcpy(
+        static_cast<void*>(underlying_data), data.data(), snp_tcb_version_size);
+    }
 
     [[nodiscard]] std::vector<uint8_t> data() const
     {

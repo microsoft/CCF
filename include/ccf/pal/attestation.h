@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/ecdsa.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
@@ -12,8 +13,11 @@
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/snp_ioctl.h"
 
+#include <cstdint>
 #include <fcntl.h>
 #include <functional>
+#include <openssl/asn1.h>
+#include <openssl/crypto.h>
 #include <sys/ioctl.h>
 
 namespace ccf::pal
@@ -39,6 +43,102 @@ namespace ccf::pal
       j["report_data"].get<std::vector<uint8_t>>());
   }
 
+  static snp::TcbVersionRaw get_endorsed_tcb_from_cert(
+    const crypto::Pem& vcek_leaf_cert)
+  {
+    using Unique_ASN1_OBJECT = ccf::crypto::OpenSSL::
+      Unique_SSL_OBJECT<ASN1_OBJECT, ASN1_OBJECT_new, ASN1_OBJECT_free>;
+    using Unique_ASN1_INTEGER = ccf::crypto::OpenSSL::
+      Unique_SSL_OBJECT<ASN1_INTEGER, ASN1_INTEGER_new, ASN1_INTEGER_free>;
+
+    ccf::crypto::OpenSSL::Unique_BIO mem_bio(vcek_leaf_cert);
+    ccf::crypto::OpenSSL::Unique_X509 x509(mem_bio, true);
+
+    const std::string oid_base = "1.3.6.1.4.1.3704.1.3.";
+    std::vector<uint8_t> raw(sizeof(snp::TcbVersionRaw), 0);
+    for (size_t byte_idx = 0; byte_idx < raw.size(); ++byte_idx)
+    {
+      auto oid = fmt::format("{}{}", oid_base, byte_idx + 1);
+      Unique_ASN1_OBJECT target(OBJ_txt2obj(oid.c_str(), 1), ASN1_OBJECT_free);
+
+      size_t ext_loc = X509_get_ext_by_OBJ(x509, target, -1);
+      if (ext_loc < 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Expected TCB version OID {} not present in VCEK certificate", oid));
+      }
+
+      X509_EXTENSION* ext = X509_get_ext(x509, ext_loc);
+      if (ext == nullptr)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to fetch extension at index {} for OID {}", ext_loc, oid));
+      }
+
+      ASN1_OCTET_STRING* data = X509_EXTENSION_get_data(ext);
+      if (data == nullptr)
+      {
+        throw std::logic_error(fmt::format("No data for OID {}", oid));
+      }
+      int len = ASN1_STRING_length(data);
+      const unsigned char* p = ASN1_STRING_get0_data(data);
+
+      Unique_ASN1_INTEGER ai(
+        d2i_ASN1_INTEGER(nullptr, &p, len), ASN1_INTEGER_free);
+      long v = ASN1_INTEGER_get(ai);
+      if (v < 0 || v > UINT8_MAX)
+      {
+        throw std::logic_error(
+          fmt::format("OID {} integer out of byte range: {}", oid, v));
+      }
+      raw[byte_idx] = static_cast<uint8_t>(v & UINT8_MAX);
+    }
+
+    std::vector<uint8_t> reversed(raw.rbegin(), raw.rend());
+    snp::TcbVersionRaw tcb(reversed);
+    return tcb;
+  }
+
+  static std::vector<uint8_t> get_endorsed_chip_id_from_cert(
+    const crypto::Pem& vcek_leaf_cert)
+  {
+    using Unique_ASN1_OBJECT = ccf::crypto::OpenSSL::
+      Unique_SSL_OBJECT<ASN1_OBJECT, ASN1_OBJECT_new, ASN1_OBJECT_free>;
+
+    ccf::crypto::OpenSSL::Unique_BIO mem_bio(vcek_leaf_cert);
+    ccf::crypto::OpenSSL::Unique_X509 x509(mem_bio, true);
+
+    const std::string chip_id_oid = "1.3.6.1.4.1.3704.1.4";
+
+    Unique_ASN1_OBJECT chip_id_obj(
+      OBJ_txt2obj(chip_id_oid.c_str(), 1), ASN1_OBJECT_free);
+
+    int ext_index = X509_get_ext_by_OBJ(x509, chip_id_obj, -1);
+    if (ext_index < 0)
+    {
+      throw std::logic_error(
+        fmt::format("Chip ID OID not present: {}", chip_id_oid));
+    }
+
+    X509_EXTENSION* ext = X509_get_ext(x509, ext_index);
+    if (ext == nullptr)
+    {
+      throw std::logic_error(fmt::format(
+        "Failed to fetch extension at index {} for OID {}",
+        ext_index,
+        chip_id_oid));
+    }
+
+    ASN1_OCTET_STRING* data = X509_EXTENSION_get_data(ext);
+    if (data == nullptr)
+    {
+      throw std::logic_error(fmt::format("No data for OID {}", chip_id_oid));
+    }
+    const unsigned char* p = ASN1_STRING_get0_data(data);
+    int len = ASN1_STRING_length(data);
+    return {p, p + len};
+  }
+
   // Verifying SNP attestation report is available on all platforms.
   static void verify_snp_attestation_report(
     const QuoteInfo& quote_info,
@@ -62,6 +162,8 @@ namespace ccf::pal
 
     auto quote =
       *reinterpret_cast<const snp::Attestation*>(quote_info.quote.data());
+    auto product_family =
+      snp::get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
 
     if (quote.version < snp::minimum_attestation_version)
     {
@@ -127,8 +229,7 @@ namespace ccf::pal
     }
     else
     {
-      auto key = snp::amd_root_signing_keys.find(
-        snp::get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id));
+      auto key = snp::amd_root_signing_keys.find(product_family);
       if (key == snp::amd_root_signing_keys.end())
       {
         throw std::logic_error(fmt::format(
@@ -215,31 +316,25 @@ namespace ccf::pal
       throw std::logic_error("SEV-SNP: Migration agents must not be enabled");
     }
 
-    // Only has value when endorsements are retrieved from environment
-    if (quote_info.endorsed_tcb.has_value())
+    auto endorsed_tcb =
+      get_endorsed_tcb_from_cert(chip_certificate).to_policy(product_family);
+    auto reported_tcb = quote.reported_tcb.to_policy(product_family);
+    if (!snp::TcbVersionPolicy::is_valid(endorsed_tcb, reported_tcb))
     {
-      const auto& endorsed_tcb = quote_info.endorsed_tcb.value();
-      auto raw_tcb = ds::from_hex(quote_info.endorsed_tcb.value());
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: Reported TCB {} does not meet or exceed the endorsed TCB {}",
+        nlohmann::json(reported_tcb).dump(),
+        nlohmann::json(endorsed_tcb).dump()));
+    }
 
-      if (raw_tcb.size() != sizeof(snp::TcbVersionRaw))
-      {
-        throw std::logic_error(fmt::format(
-          "SEV-SNP: TCB of size {}, expected {}",
-          raw_tcb.size(),
-          sizeof(snp::TcbVersionRaw)));
-      }
-
-      if (
-        memcmp(
-          raw_tcb.data(), &quote.reported_tcb, sizeof(snp::TcbVersionRaw)) != 0)
-      {
-        auto* reported_tcb = reinterpret_cast<uint8_t*>(&quote.reported_tcb);
-        throw std::logic_error(fmt::format(
-          "SEV-SNP: endorsed TCB {} does not match reported TCB {}",
-          endorsed_tcb,
-          ds::to_hex(
-            {reported_tcb, reported_tcb + sizeof(quote.reported_tcb)})));
-      }
+    auto endorsed_chip_id = get_endorsed_chip_id_from_cert(chip_certificate);
+    if (
+      endorsed_chip_id.size() != sizeof(quote.chip_id) ||
+      memcmp(endorsed_chip_id.data(), quote.chip_id, sizeof(quote.chip_id)) !=
+        0)
+    {
+      throw std::logic_error(
+        "SEV-SNP: Chip ID in attestation does not match endorsed chip ID");
     }
   }
 
