@@ -14,7 +14,3 @@ race:*/node/*rpc/*frontend.h
 # Race between closedir and epoll_ctl.
 race:closedir
 race:epoll_ctl
-
-# what if?...
-race:fsync
-deadlock:fsync
