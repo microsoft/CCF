@@ -49,7 +49,7 @@ jobs:
           labels: ${{ steps.meta_default.outputs.labels }}
 
       - name: Attest default container
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v3
         with:
           subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/ci/default
           subject-digest: ${{ steps.push_default.outputs.digest }}

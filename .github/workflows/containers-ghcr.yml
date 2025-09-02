@@ -71,7 +71,7 @@ jobs:
         if: ${{ steps.tref.outputs.major_release >= '5'}}
 
       - name: Attest container
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v3
         with:
           subject-name: ${{ steps.tref.outputs.img_name }}
           subject-digest: ${{ steps.push.outputs.digest }}

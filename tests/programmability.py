@@ -86,6 +86,7 @@ def sign_payload(identity, msg_type, json_payload):
         "app.msg.type": msg_type,
         "app.msg.created_at": int(infra.clients.get_clock().moment().timestamp()),
     }
+
     return ccf.cose.create_cose_sign1(serialised_payload, key, cert, phdr)
 
 
