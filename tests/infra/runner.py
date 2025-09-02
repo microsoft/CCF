@@ -16,6 +16,7 @@ import sys
 import better_exceptions
 import re
 import infra.bencher
+import os
 
 from loguru import logger as LOG
 
@@ -258,6 +259,13 @@ class ConcurrentRunner:
 
         if not max_concurrent:
             max_concurrent = len(self.threads)
+
+        if os.getenv("TSAN_OPTIONS"):
+            cores_count = len(os.sched_getaffinity(0))
+            avg_nodes_per_network = 3
+            safety_factor = 0.75
+            max_concurrent = int(safety_factor * cores_count / avg_nodes_per_network)
+            assert max_concurrent > 0
 
         thread_groups = [
             self.threads[i : i + max_concurrent]

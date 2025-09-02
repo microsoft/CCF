@@ -775,9 +775,10 @@ if(BUILD_TESTS)
   endif()
 
   if(LONG_TESTS)
-    set(ADDITIONAL_RECOVERY_ARGS --with-load --with-election
-                                 --with-unsigned-suffix
-    )
+    set(ADDITIONAL_RECOVERY_ARGS --with-election --with-unsigned-suffix)
+    if(NOT TSAN)
+      set(ADDITIONAL_RECOVERY_ARGS ${ADDITIONAL_RECOVERY_ARGS} --with-load)
+    endif()
   endif()
 
   add_e2e_test(
