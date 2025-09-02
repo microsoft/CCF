@@ -53,21 +53,13 @@ namespace ccf::logger
       LoggerLevel level_,
       std::string_view tag_,
       std::string_view file_name_,
-      size_t line_number_,
-      std::optional<std::string> thread_id_ = std::nullopt) :
+      size_t line_number_) :
       log_level(level_),
       tag(tag_),
       file_name(file_name_),
       line_number(line_number_)
     {
-      if (thread_id_.has_value())
-      {
-        thread_id = *thread_id_;
-      }
-      else
-      {
-        thread_id = ccf::threading::get_current_thread_name();
-      }
+      thread_id = ccf::threading::get_current_thread_name();
     }
 
     template <typename T>

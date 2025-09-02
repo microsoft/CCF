@@ -25,6 +25,7 @@ namespace asynchost
     {
       raw = new T(std::forward<Args>(args)...);
     }
+    close_ptr(T* that) : raw(that) {}
 
     ~close_ptr()
     {
@@ -56,6 +57,7 @@ namespace asynchost
     proxy_ptr(const proxy_ptr<T>& that) : internal(that.internal) {}
     proxy_ptr(proxy_ptr<T>&& that) : internal(std::move(that.internal)) {}
     proxy_ptr(std::nullptr_t that) : internal(that) {}
+    proxy_ptr(T* that) : internal(std::make_shared<close_ptr<T>>(that)) {}
 
     template <typename... Args>
     proxy_ptr(Args&&... args) :
