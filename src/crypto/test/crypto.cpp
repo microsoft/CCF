@@ -1352,12 +1352,14 @@ TEST_CASE("Decrypt should validate integrity")
   CHECK_THROWS(ccf::crypto::aes_gcm_decrypt(key, broken_ciphertext));
 }
 
-TEST_CASE("Verify leaf with both root and intermediate provided as trust anchors and empty chain")
+TEST_CASE(
+  "Verify leaf with both root and intermediate provided as trust anchors and "
+  "empty chain")
 {
   // Goal: Demonstrate current behaviour where supplying both issuing certs as
   // trusted_certs (and an empty untrusted chain) succeeds.
-  const auto now = ccf::ds::to_x509_time_string(
-    std::chrono::system_clock::now());
+  const auto now =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now());
   constexpr size_t ROOT_VALID_DAYS = 365;
   constexpr size_t INTER_VALID_DAYS = 365;
   constexpr size_t LEAF_VALID_DAYS = 30;
@@ -1403,8 +1405,8 @@ TEST_CASE("Verify leaf with both root and intermediate provided as trust anchors
 
 TEST_CASE("Verify leaf with partial chain as trust achors")
 {
-  const auto now = ccf::ds::to_x509_time_string(
-    std::chrono::system_clock::now());
+  const auto now =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now());
   constexpr size_t ROOT_VALID_DAYS = 365;
   constexpr size_t INTER_VALID_DAYS = 365;
   constexpr size_t LEAF_VALID_DAYS = 30;
