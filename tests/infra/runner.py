@@ -263,7 +263,7 @@ class ConcurrentRunner:
         if os.getenv("TSAN_OPTIONS"):
             cores_count = len(os.sched_getaffinity(0))
             avg_nodes_per_network = 3
-            safety_factor = 0.75
+            safety_factor = 0.5
             max_concurrent = int(safety_factor * cores_count / avg_nodes_per_network)
             assert max_concurrent > 0
 
