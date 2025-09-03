@@ -347,6 +347,22 @@ namespace ccf::pal
       throw std::logic_error(
         "SEV-SNP: Chip ID in attestation does not match endorsed chip ID");
     }
+
+    if (quote_info.endorsed_tcb.has_value())
+    {
+      const auto& quote_endorsed_tcb = quote_info.endorsed_tcb.value();
+      auto raw_endorsed_tcb = snp::TcbVersionRaw::from_hex(quote_endorsed_tcb);
+
+      if (raw_endorsed_tcb != quote.reported_tcb)
+      {
+        auto endorsed_tcb_hex = raw_endorsed_tcb.to_hex();
+        auto report_tcb_hex = quote.reported_tcb.to_hex();
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: endorsed TCB {} does not match reported TCB {}",
+          endorsed_tcb_hex,
+          report_tcb_hex));
+      }
+    }
   }
 
   static void verify_quote(

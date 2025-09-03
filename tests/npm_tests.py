@@ -811,6 +811,19 @@ def test_npm_app(network, args):
         for key, value in r.body.json().items():
             LOG.info(f"{key} : {value}")
 
+        # Test endorsed TCB too small
+        r = c.post(
+            "/app/verifySnpAttestation",
+            {
+                "evidence": reference_quote["raw"],
+                "endorsements": reference_quote["endorsements"],
+                "uvm_endorsements": reference_quote["uvm_endorsements"],
+                "endorsed_tcb": "0000000000000000",
+            },
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+        assert "does not match reported TCB" in r.body.json()["error"]["message"]
+
         # Test too short a quote
         r = c.post(
             "/app/verifySnpAttestation",
