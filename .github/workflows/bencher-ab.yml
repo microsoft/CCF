@@ -16,6 +16,41 @@ on:
       - reopened
 
 jobs:
+  test-comment:
+    name: Delete me
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root
+    needs: [benchmark_pr, benchmark_main]
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'bench-ab') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    steps:
+      - name: Setup container dependencies
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update && tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@v5
+
+
+      - name: Generate smth
+        run: |
+          echo "hehehe" > report.md
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('report.md', 'utf8');
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+
   # benchmark_pr:
   #   name: Benchmark PR
   #   runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
@@ -158,37 +193,3 @@ jobs:
   #             body: report
   #           });
 
-  test-comment:
-    name: Delete me
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root
-    needs: [benchmark_pr, benchmark_main]
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'bench-ab') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
-    steps:
-      - name: Setup container dependencies
-        run: |
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update && tdnf -y install ca-certificates git
-
-      - uses: actions/checkout@v5
-
-
-      - name: Generate smth
-        run: |
-          echo "hehehe" > report.md
-
-      - name: Comment on PR
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const report = fs.readFileSync('report.md', 'utf8');
-
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: report
-            });
