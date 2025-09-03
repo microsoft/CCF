@@ -33,24 +33,71 @@ def extract_metrics(data: Dict) -> Dict[str, float]:
     return metrics
 
 
-def normalize_value_independent(val1: float, val2: float, width: int) -> tuple:
-    """Normalize two values independently to show relative comparison within each metric"""
-    if val1 is None and val2 is None:
-        return 0, 0
-    if val1 is None:
-        return 0, width
-    if val2 is None:
-        return width, 0
+def is_higher_better(metric_name: str) -> bool:
+    """Determine if higher values are better for this metric"""
+    metric_lower = metric_name.lower()
 
-    # For a single metric comparison, normalize against the larger of the two values
-    max_val = max(val1, val2)
-    if max_val == 0:
-        return width // 2, width // 2
+    # Higher is better for these metrics
+    if any(keyword in metric_lower for keyword in ["throughput", "rate", "queries"]):
+        return True
 
-    bar1_len = int((val1 / max_val) * width)
-    bar2_len = int((val2 / max_val) * width)
+    # Lower is better for these metrics
+    if any(keyword in metric_lower for keyword in ["latency", "memory"]):
+        return False
 
-    return bar1_len, bar2_len
+    # Default assumption: higher is better (for most performance metrics)
+    return True
+
+
+def create_diverging_bar(
+    change_percent: float, metric_name: str, width: int = 40
+) -> str:
+    """Create a diverging bar chart centered at 0 using block characters"""
+    if change_percent == "N/A" or change_percent == "∞":
+        return " " * (width // 2) + "|" + " " * (width // 2) + " N/A"
+
+    try:
+        # Parse the percentage
+        if isinstance(change_percent, str):
+            change_val = float(change_percent.replace("%", "").replace("+", ""))
+        else:
+            change_val = change_percent
+    except (ValueError, AttributeError):
+        return " " * (width // 2) + "|" + " " * (width // 2) + " N/A"
+
+    # Center position
+    center = width // 2
+
+    # Scale the change to fit the bar width (max ±50% uses full width)
+    max_change = 50.0  # Cap at ±50% for reasonable scaling
+    clamped_change = max(-max_change, min(max_change, change_val))
+
+    # Calculate bar length (half width = max extent)
+    bar_length = int(abs(clamped_change) / max_change * center)
+
+    # Determine if this change is actually good or bad
+    higher_is_better = is_higher_better(metric_name)
+    is_improvement = (change_val > 0 and higher_is_better) or (
+        change_val < 0 and not higher_is_better
+    )
+
+    if abs(change_val) < 2:  # No significant change
+        bar = " " * center + "|" + " " * center
+        return bar + f" {change_val:+.1f}%"
+    elif is_improvement:  # This is actually an improvement
+        if change_val > 0:  # Positive change that's good (e.g., higher throughput)
+            bar = " " * center + "|" + "▓" * bar_length + " " * (center - bar_length)
+        else:  # Negative change that's good (e.g., lower latency)
+            left_start = center - bar_length
+            bar = " " * left_start + "▓" * bar_length + "|" + " " * center
+        return bar + f" {change_val:+.1f}%"
+    else:  # This is a regression
+        if change_val > 0:  # Positive change that's bad (e.g., higher latency)
+            bar = " " * center + "|" + "█" * bar_length + " " * (center - bar_length)
+        else:  # Negative change that's bad (e.g., lower throughput)
+            left_start = center - bar_length
+            bar = " " * left_start + "█" * bar_length + "|" + " " * center
+        return bar + f" {change_val:+.1f}%"
 
 
 def create_ascii_bar(
@@ -116,25 +163,26 @@ def create_side_by_side_plot(
     # We don't need global min/max anymore since we normalize each metric independently
 
     # Print header
-    print("=" * 120)
-    print(f"BENCHMARK COMPARISON: {label1} vs {label2}")
-    print("=" * 120)
+    total_width = 120
+    print("=" * total_width)
+    title = f"BENCHMARK COMPARISON: {label1} vs {label2}"
+    print(f"{title:^{total_width}}")
+    print("=" * total_width)
     print()
 
     # Column widths
     metric_width = 40
-    value_width = 15
-    bar_width = 20
-    change_width = 12
+    bar_width = 50  # Width for the diverging bar chart
+    values_width = 30
 
     # Print column headers
     print(
-        f"{'Metric':<{metric_width}} {'Value 1':<{value_width}} {'Bar 1':<{bar_width}} {'Value 2':<{value_width}} {'Bar 2':<{bar_width}} {'Change':<{change_width}}"
+        f"{'Metric':<{metric_width}} {'Performance Change':^{bar_width}} {'Values':^{values_width}}"
     )
     print(
-        f"{label1:<{metric_width}} {'':<{value_width}} {'':<{bar_width}} {label2:<{value_width}} {'':<{bar_width}} {'':<{change_width}}"
+        f"{'':<{metric_width}} {'← Better  |  Worse →':^{bar_width}} {label1 + ' → ' + label2:^{values_width}}"
     )
-    print("-" * 120)
+    print("-" * total_width)
 
     # Process each metric
     for key in all_keys:
@@ -144,42 +192,33 @@ def create_side_by_side_plot(
         # Format metric name
         metric_name = key[: metric_width - 1] if len(key) >= metric_width else key
 
+        # Calculate change
+        change = calculate_percentage_change(val1, val2)
+
+        # Create diverging bar chart with context-aware direction
+        bar_display = create_diverging_bar(change, key, 40)
+
         # Format values
         val1_str = f"{val1:.2f}" if val1 is not None else "N/A"
         val2_str = f"{val2:.2f}" if val2 is not None else "N/A"
-
-        # Create bars (normalized independently for each metric)
-        bar1_len, bar2_len = normalize_value_independent(val1, val2, bar_width)
-        bar1 = "█" * bar1_len + " " * (bar_width - bar1_len)
-        bar2 = "▓" * bar2_len + " " * (bar_width - bar2_len)
-
-        # Calculate change
-        change = calculate_percentage_change(val1, val2)
-        if change != "N/A" and change != "∞":
-            change_val = float(change.replace("%", "").replace("+", ""))
-            if abs(change_val) < 2:
-                change_indicator = "≈"
-            elif change_val > 0:
-                change_indicator = "↑"
-            else:
-                change_indicator = "↓"
-        else:
-            change_indicator = "?"
+        values_display = f"{val1_str} → {val2_str}"
 
         # Print row
         print(
-            f"{metric_name:<{metric_width}} {val1_str:<{value_width}} {bar1} {val2_str:<{value_width}} {bar2} {change_indicator} {change}"
+            f"{metric_name:<{metric_width}} {bar_display:<{bar_width}} {values_display:<{values_width}}"
         )
 
     print()
     print("Legend:")
-    print("  █ = " + label1)
-    print("  ▓ = " + label2)
-    print("  ↑ = Regression (worse performance)")
-    print("  ↓ = Improvement (better performance)")
-    print("  ≈ = No significant change (<2%)")
-    print("  ? = Unable to calculate change")
-    print("  Note: Each metric's bars are normalized independently for A/B comparison")
+    print("  ▓▓▓|         = Improvement (left side, better performance)")
+    print("      |███     = Regression (right side, worse performance)")
+    print("      |         = No significant change (<2%)")
+    print("  ▓ = Better performance (lighter blocks)")
+    print("  █ = Worse performance (darker blocks)")
+    print("  Scale: ±50% change uses full bar width")
+    print(
+        "  Note: For performance metrics, lower latency = better, higher throughput = better"
+    )
 
     # Summary statistics
     print()
