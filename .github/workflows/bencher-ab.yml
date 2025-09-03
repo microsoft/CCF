@@ -35,19 +35,10 @@ jobs:
         run: |
           echo "hehehe" > report.md
 
-      - name: Comment on PR
-        uses: actions/github-script@v7
+      - name: PR comment with file
+        uses: thollander/actions-comment-pull-request@v3
         with:
-          script: |
-            const fs = require('fs');
-            const report = fs.readFileSync('report.md', 'utf8');
-
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: report
-            });
+          file-path: report.md
 
   # benchmark_pr:
   #   name: Benchmark PR
