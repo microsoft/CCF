@@ -128,7 +128,7 @@ namespace ccf::pal
 
     auto chip_cert_verifier = ccf::crypto::make_verifier(chip_certificate);
     if (!chip_cert_verifier->verify_certificate(
-          {&root_certificate, &sev_version_certificate}))
+          {&root_certificate}, {&sev_version_certificate}))
     {
       throw std::logic_error(
         "SEV-SNP: The chain of signatures from the root of trust to this "
