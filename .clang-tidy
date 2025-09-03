@@ -28,7 +28,6 @@ Checks: >
   misc-*,
   -misc-const-correctness,
   -misc-include-cleaner,
-  -misc-use-anonymous-namespace,
   -misc-non-private-member-variables-in-classes,
   -misc-no-recursion,
   modernize-*,

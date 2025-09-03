@@ -24,185 +24,193 @@ namespace ccf
 
   namespace cose
   {
-    static constexpr auto HEADER_PARAM_ISSUER = "iss";
-    static constexpr auto HEADER_PARAM_FEED = "feed";
-
-    static std::vector<std::vector<uint8_t>> decode_x5chain(
-      QCBORDecodeContext& ctx, const QCBORItem& x5chain)
+    namespace
     {
-      std::vector<std::vector<uint8_t>> parsed;
+      constexpr auto HEADER_PARAM_ISSUER = "iss";
+      constexpr auto HEADER_PARAM_FEED = "feed";
 
-      if (x5chain.uDataType == QCBOR_TYPE_ARRAY)
+      std::vector<std::vector<uint8_t>> decode_x5chain(
+        QCBORDecodeContext& ctx, const QCBORItem& x5chain)
       {
-        QCBORDecode_EnterArrayFromMapN(&ctx, headers::PARAM_X5CHAIN);
-        while (true)
+        std::vector<std::vector<uint8_t>> parsed;
+
+        if (x5chain.uDataType == QCBOR_TYPE_ARRAY)
         {
-          QCBORItem item;
-          auto result = QCBORDecode_GetNext(&ctx, &item);
-          if (result == QCBOR_ERR_NO_MORE_ITEMS)
+          QCBORDecode_EnterArrayFromMapN(&ctx, headers::PARAM_X5CHAIN);
+          while (true)
           {
-            break;
+            QCBORItem item;
+            auto result = QCBORDecode_GetNext(&ctx, &item);
+            if (result == QCBOR_ERR_NO_MORE_ITEMS)
+            {
+              break;
+            }
+            if (result != QCBOR_SUCCESS)
+            {
+              throw COSEDecodeError("Item in x5chain is not well-formed");
+            }
+            if (item.uDataType == QCBOR_TYPE_BYTE_STRING)
+            {
+              parsed.push_back(qcbor_buf_to_byte_vector(item.val.string));
+            }
+            else
+            {
+              throw COSEDecodeError(
+                "Next item in x5chain was not of type byte string");
+            }
           }
-          if (result != QCBOR_SUCCESS)
+          QCBORDecode_ExitArray(&ctx);
+          if (parsed.empty())
           {
-            throw COSEDecodeError("Item in x5chain is not well-formed");
-          }
-          if (item.uDataType == QCBOR_TYPE_BYTE_STRING)
-          {
-            parsed.push_back(qcbor_buf_to_byte_vector(item.val.string));
-          }
-          else
-          {
-            throw COSEDecodeError(
-              "Next item in x5chain was not of type byte string");
+            throw COSEDecodeError("x5chain array length was 0 in COSE header");
           }
         }
-        QCBORDecode_ExitArray(&ctx);
-        if (parsed.empty())
+        else if (x5chain.uDataType == QCBOR_TYPE_BYTE_STRING)
         {
-          throw COSEDecodeError("x5chain array length was 0 in COSE header");
+          parsed.push_back(qcbor_buf_to_byte_vector(x5chain.val.string));
         }
-      }
-      else if (x5chain.uDataType == QCBOR_TYPE_BYTE_STRING)
-      {
-        parsed.push_back(qcbor_buf_to_byte_vector(x5chain.val.string));
-      }
-      else
-      {
-        throw COSEDecodeError(fmt::format(
-          "Value type {} of x5chain in COSE header is not array or byte string",
-          x5chain.uDataType));
+        else
+        {
+          throw COSEDecodeError(fmt::format(
+            "Value type {} of x5chain in COSE header is not array or byte "
+            "string",
+            x5chain.uDataType));
+        }
+
+        return parsed;
       }
 
-      return parsed;
+      UvmEndorsementsProtectedHeader decode_protected_header(
+        const std::vector<uint8_t>& uvm_endorsements_raw)
+      {
+        UsefulBufC msg{
+          uvm_endorsements_raw.data(), uvm_endorsements_raw.size()};
+
+        QCBORError qcbor_result = QCBOR_SUCCESS;
+
+        QCBORDecodeContext ctx;
+        QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
+
+        QCBORDecode_EnterArray(&ctx, nullptr);
+        qcbor_result = QCBORDecode_GetError(&ctx);
+        if (qcbor_result != QCBOR_SUCCESS)
+        {
+          throw COSEDecodeError("Failed to parse COSE_Sign1 outer array");
+        }
+
+        uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
+        if (tag != CBOR_TAG_COSE_SIGN1)
+        {
+          throw COSEDecodeError("Failed to parse COSE_Sign1 tag");
+        }
+
+        struct q_useful_buf_c protected_parameters = {};
+        QCBORDecode_EnterBstrWrapped(
+          &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
+        QCBORDecode_EnterMap(&ctx, nullptr);
+
+        enum
+        {
+          ALG_INDEX,
+          CONTENT_TYPE_INDEX,
+          X5_CHAIN_INDEX,
+          ISS_INDEX,
+          FEED_INDEX,
+          END_INDEX
+        };
+        QCBORItem header_items[END_INDEX + 1];
+
+        header_items[ALG_INDEX].label.int64 = headers::PARAM_ALG;
+        header_items[ALG_INDEX].uLabelType = QCBOR_TYPE_INT64;
+        header_items[ALG_INDEX].uDataType = QCBOR_TYPE_INT64;
+
+        header_items[CONTENT_TYPE_INDEX].label.int64 =
+          headers::PARAM_CONTENT_TYPE;
+        header_items[CONTENT_TYPE_INDEX].uLabelType = QCBOR_TYPE_INT64;
+        header_items[CONTENT_TYPE_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+        header_items[X5_CHAIN_INDEX].label.int64 = headers::PARAM_X5CHAIN;
+        header_items[X5_CHAIN_INDEX].uLabelType = QCBOR_TYPE_INT64;
+        header_items[X5_CHAIN_INDEX].uDataType = QCBOR_TYPE_ANY;
+
+        header_items[ISS_INDEX].label.string =
+          UsefulBuf_FromSZ(HEADER_PARAM_ISSUER);
+        header_items[ISS_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
+        header_items[ISS_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+        header_items[FEED_INDEX].label.string =
+          UsefulBuf_FromSZ(HEADER_PARAM_FEED);
+        header_items[FEED_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
+        header_items[FEED_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+        header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
+
+        QCBORDecode_GetItemsInMap(&ctx, header_items);
+        qcbor_result = QCBORDecode_GetError(&ctx);
+        if (qcbor_result != QCBOR_SUCCESS)
+        {
+          throw COSEDecodeError("Failed to decode protected header");
+        }
+
+        UvmEndorsementsProtectedHeader phdr = {};
+
+        if (header_items[ALG_INDEX].uDataType != QCBOR_TYPE_NONE)
+        {
+          phdr.alg = header_items[ALG_INDEX].val.int64;
+        }
+
+        if (header_items[CONTENT_TYPE_INDEX].uDataType != QCBOR_TYPE_NONE)
+        {
+          phdr.content_type =
+            qcbor_buf_to_string(header_items[CONTENT_TYPE_INDEX].val.string);
+        }
+
+        if (header_items[X5_CHAIN_INDEX].uDataType != QCBOR_TYPE_NONE)
+        {
+          phdr.x5_chain = decode_x5chain(ctx, header_items[X5_CHAIN_INDEX]);
+        }
+
+        if (header_items[ISS_INDEX].uDataType != QCBOR_TYPE_NONE)
+        {
+          phdr.iss = qcbor_buf_to_string(header_items[ISS_INDEX].val.string);
+        }
+
+        if (header_items[FEED_INDEX].uDataType != QCBOR_TYPE_NONE)
+        {
+          phdr.feed = qcbor_buf_to_string(header_items[FEED_INDEX].val.string);
+        }
+
+        QCBORDecode_ExitMap(&ctx);
+        QCBORDecode_ExitBstrWrapped(&ctx);
+
+        qcbor_result = QCBORDecode_GetError(&ctx);
+        if (qcbor_result != QCBOR_SUCCESS)
+        {
+          throw COSEDecodeError(
+            fmt::format("Failed to decode protected header: {}", qcbor_result));
+        }
+
+        return phdr;
+      }
     }
 
-    static UvmEndorsementsProtectedHeader decode_protected_header(
+    std::span<const uint8_t> verify_uvm_endorsements_signature(
+      const ccf::crypto::Pem& leaf_cert_pub_key,
       const std::vector<uint8_t>& uvm_endorsements_raw)
     {
-      UsefulBufC msg{uvm_endorsements_raw.data(), uvm_endorsements_raw.size()};
+      auto verifier =
+        ccf::crypto::make_cose_verifier_from_key(leaf_cert_pub_key);
 
-      QCBORError qcbor_result = QCBOR_SUCCESS;
-
-      QCBORDecodeContext ctx;
-      QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
-
-      QCBORDecode_EnterArray(&ctx, nullptr);
-      qcbor_result = QCBORDecode_GetError(&ctx);
-      if (qcbor_result != QCBOR_SUCCESS)
+      std::span<uint8_t> payload;
+      if (!verifier->verify(uvm_endorsements_raw, payload))
       {
-        throw COSEDecodeError("Failed to parse COSE_Sign1 outer array");
+        throw cose::COSESignatureValidationError(
+          "Signature verification failed");
       }
 
-      uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
-      if (tag != CBOR_TAG_COSE_SIGN1)
-      {
-        throw COSEDecodeError("Failed to parse COSE_Sign1 tag");
-      }
-
-      struct q_useful_buf_c protected_parameters = {};
-      QCBORDecode_EnterBstrWrapped(
-        &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
-      QCBORDecode_EnterMap(&ctx, nullptr);
-
-      enum
-      {
-        ALG_INDEX,
-        CONTENT_TYPE_INDEX,
-        X5_CHAIN_INDEX,
-        ISS_INDEX,
-        FEED_INDEX,
-        END_INDEX
-      };
-      QCBORItem header_items[END_INDEX + 1];
-
-      header_items[ALG_INDEX].label.int64 = headers::PARAM_ALG;
-      header_items[ALG_INDEX].uLabelType = QCBOR_TYPE_INT64;
-      header_items[ALG_INDEX].uDataType = QCBOR_TYPE_INT64;
-
-      header_items[CONTENT_TYPE_INDEX].label.int64 =
-        headers::PARAM_CONTENT_TYPE;
-      header_items[CONTENT_TYPE_INDEX].uLabelType = QCBOR_TYPE_INT64;
-      header_items[CONTENT_TYPE_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-      header_items[X5_CHAIN_INDEX].label.int64 = headers::PARAM_X5CHAIN;
-      header_items[X5_CHAIN_INDEX].uLabelType = QCBOR_TYPE_INT64;
-      header_items[X5_CHAIN_INDEX].uDataType = QCBOR_TYPE_ANY;
-
-      header_items[ISS_INDEX].label.string =
-        UsefulBuf_FromSZ(HEADER_PARAM_ISSUER);
-      header_items[ISS_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
-      header_items[ISS_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-      header_items[FEED_INDEX].label.string =
-        UsefulBuf_FromSZ(HEADER_PARAM_FEED);
-      header_items[FEED_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
-      header_items[FEED_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-      header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
-
-      QCBORDecode_GetItemsInMap(&ctx, header_items);
-      qcbor_result = QCBORDecode_GetError(&ctx);
-      if (qcbor_result != QCBOR_SUCCESS)
-      {
-        throw COSEDecodeError("Failed to decode protected header");
-      }
-
-      UvmEndorsementsProtectedHeader phdr = {};
-
-      if (header_items[ALG_INDEX].uDataType != QCBOR_TYPE_NONE)
-      {
-        phdr.alg = header_items[ALG_INDEX].val.int64;
-      }
-
-      if (header_items[CONTENT_TYPE_INDEX].uDataType != QCBOR_TYPE_NONE)
-      {
-        phdr.content_type =
-          qcbor_buf_to_string(header_items[CONTENT_TYPE_INDEX].val.string);
-      }
-
-      if (header_items[X5_CHAIN_INDEX].uDataType != QCBOR_TYPE_NONE)
-      {
-        phdr.x5_chain = decode_x5chain(ctx, header_items[X5_CHAIN_INDEX]);
-      }
-
-      if (header_items[ISS_INDEX].uDataType != QCBOR_TYPE_NONE)
-      {
-        phdr.iss = qcbor_buf_to_string(header_items[ISS_INDEX].val.string);
-      }
-
-      if (header_items[FEED_INDEX].uDataType != QCBOR_TYPE_NONE)
-      {
-        phdr.feed = qcbor_buf_to_string(header_items[FEED_INDEX].val.string);
-      }
-
-      QCBORDecode_ExitMap(&ctx);
-      QCBORDecode_ExitBstrWrapped(&ctx);
-
-      qcbor_result = QCBORDecode_GetError(&ctx);
-      if (qcbor_result != QCBOR_SUCCESS)
-      {
-        throw COSEDecodeError(
-          fmt::format("Failed to decode protected header: {}", qcbor_result));
-      }
-
-      return phdr;
-    }
-  }
-
-  static std::span<const uint8_t> verify_uvm_endorsements_signature(
-    const ccf::crypto::Pem& leaf_cert_pub_key,
-    const std::vector<uint8_t>& uvm_endorsements_raw)
-  {
-    auto verifier = ccf::crypto::make_cose_verifier_from_key(leaf_cert_pub_key);
-
-    std::span<uint8_t> payload;
-    if (!verifier->verify(uvm_endorsements_raw, payload))
-    {
-      throw cose::COSESignatureValidationError("Signature verification failed");
+      return payload;
     }
 
-    return payload;
   }
 
   pal::UVMEndorsements verify_uvm_endorsements(
@@ -254,7 +262,7 @@ namespace ccf
     }
 
     auto raw_payload =
-      verify_uvm_endorsements_signature(pubk, uvm_endorsements_raw);
+      cose::verify_uvm_endorsements_signature(pubk, uvm_endorsements_raw);
 
     if (phdr.content_type != cose::headers::CONTENT_TYPE_APPLICATION_JSON_VALUE)
     {
