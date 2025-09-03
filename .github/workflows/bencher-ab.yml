@@ -3,6 +3,10 @@
 
 name: "Benchmark A/B Testing"
 
+permissions:
+  issues: write
+  pull-requests: write
+
 on:
   pull_request:
     types:
@@ -128,6 +132,11 @@ jobs:
       - name: Generate comparison
         run: |
           echo "# Benchmark Comparison: main vs PR" > report.md
+          echo "" >> report.md
+          echo "**PR Commit:** \`${{ github.event.pull_request.head.sha }}\`" >> report.md
+          echo "**Base Commit:** \`${{ github.event.pull_request.base.sha }}\`" >> report.md
+          echo "**Run ID:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> report.md
+          echo "" >> report.md
           echo '```' >> report.md
           python3 scripts/compare_bencher_ab.py \
             benchmark-main-${{ github.run_id }}/bencher.json \
@@ -142,29 +151,9 @@ jobs:
             const fs = require('fs');
             const report = fs.readFileSync('report.md', 'utf8');
 
-            const comments = await github.rest.issues.listComments({
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
+              body: report
             });
-
-            const existing = comments.data.find(c => 
-              c.user.login === 'github-actions[bot]' && 
-              c.body.includes('Benchmark Comparison')
-            );
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                comment_id: existing.id,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: report
-              });
-            } else {
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: report
-              });
-            }
