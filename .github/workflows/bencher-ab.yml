@@ -35,10 +35,20 @@ jobs:
         run: |
           echo "hehehe" > report.md
 
-      - name: PR comment with file
-        uses: thollander/actions-comment-pull-request@v3
+      - name: Comment on PR
+        uses: actions/github-script@v7
         with:
-          file-path: report.md
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('report.md', 'utf8');
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
 
   # benchmark_pr:
   #   name: Benchmark PR
@@ -171,6 +181,7 @@ jobs:
   #     - name: Comment on PR
   #       uses: actions/github-script@v7
   #       with:
+  #         github-token: ${{ secrets.GITHUB_TOKEN }}
   #         script: |
   #           const fs = require('fs');
   #           const report = fs.readFileSync('report.md', 'utf8');
