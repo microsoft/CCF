@@ -101,10 +101,18 @@ jobs:
 
   compare:
     name: Compare Results
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root
     needs: [benchmark_pr, benchmark_main]
-    if: contains(github.event.label.name, 'bench-ab')
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'bench-ab') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     steps:
+      - name: Setup container dependencies
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update && tdnf -y install ca-certificates git
+
       - uses: actions/checkout@v5
 
       - name: Download artifacts
@@ -117,7 +125,7 @@ jobs:
         run: |
           echo "# Benchmark Comparison: main vs PR" > report.md
           echo '```' >> report.md
-          python3 scripts/compare_bencher_ascii.py \
+          python3 scripts/compare_bencher_ab.py \
             benchmark-main-${{ github.run_id }}/bencher.json \
             benchmark-pr-${{ github.run_id }}/bencher.json \
             --label1 "main" --label2 "PR" >> report.md

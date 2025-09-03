@@ -33,11 +33,24 @@ def extract_metrics(data: Dict) -> Dict[str, float]:
     return metrics
 
 
-def normalize_value(value: float, min_val: float, max_val: float, width: int) -> int:
-    """Normalize a value to fit within the given width"""
-    if max_val == min_val:
-        return width // 2
-    return int((value - min_val) / (max_val - min_val) * (width - 1))
+def normalize_value_independent(val1: float, val2: float, width: int) -> tuple:
+    """Normalize two values independently to show relative comparison within each metric"""
+    if val1 is None and val2 is None:
+        return 0, 0
+    if val1 is None:
+        return 0, width
+    if val2 is None:
+        return width, 0
+
+    # For a single metric comparison, normalize against the larger of the two values
+    max_val = max(val1, val2)
+    if max_val == 0:
+        return width // 2, width // 2
+
+    bar1_len = int((val1 / max_val) * width)
+    bar2_len = int((val2 / max_val) * width)
+
+    return bar1_len, bar2_len
 
 
 def create_ascii_bar(
@@ -52,7 +65,7 @@ def create_ascii_bar(
     return f"{bar} {value:.2f}"
 
 
-def format_metric_name(name: str, max_length: int = 35) -> str:
+def format_metric_name(name: str, max_length: int = 40) -> str:
     """Format metric name to fit within specified length"""
     if len(name) <= max_length:
         return name.ljust(max_length)
@@ -100,20 +113,7 @@ def create_side_by_side_plot(
         print("No metrics found in the files")
         return
 
-    # Calculate min/max for normalization
-    all_values = []
-    for key in all_keys:
-        if key in metrics1 and metrics1[key] is not None:
-            all_values.append(metrics1[key])
-        if key in metrics2 and metrics2[key] is not None:
-            all_values.append(metrics2[key])
-
-    if not all_values:
-        print("No valid numeric values found")
-        return
-
-    min_val = min(all_values)
-    max_val = max(all_values)
+    # We don't need global min/max anymore since we normalize each metric independently
 
     # Print header
     print("=" * 120)
@@ -121,20 +121,20 @@ def create_side_by_side_plot(
     print("=" * 120)
     print()
 
-    # Column headers
-    metric_col_width = 35
-    bar_width = 25
-    value_width = 12
-    change_width = 10
+    # Column widths
+    metric_width = 40
+    value_width = 15
+    bar_width = 20
+    change_width = 12
 
-    header = (
-        f"{'Metric':<{metric_col_width}} "
-        f"{'<-- ' + label1[:bar_width-4] + ' -->':<{bar_width + value_width}} "
-        f"{'<-- ' + label2[:bar_width-4] + ' -->':<{bar_width + value_width}} "
-        f"{'Change':<{change_width}}"
+    # Print column headers
+    print(
+        f"{'Metric':<{metric_width}} {'Value 1':<{value_width}} {'Bar 1':<{bar_width}} {'Value 2':<{value_width}} {'Bar 2':<{bar_width}} {'Change':<{change_width}}"
     )
-    print(header)
-    print("-" * len(header))
+    print(
+        f"{label1:<{metric_width}} {'':<{value_width}} {'':<{bar_width}} {label2:<{value_width}} {'':<{bar_width}} {'':<{change_width}}"
+    )
+    print("-" * 120)
 
     # Process each metric
     for key in all_keys:
@@ -142,35 +142,34 @@ def create_side_by_side_plot(
         val2 = metrics2.get(key)
 
         # Format metric name
-        formatted_key = format_metric_name(key, metric_col_width)
+        metric_name = key[: metric_width - 1] if len(key) >= metric_width else key
 
-        # Create bars
-        bar1 = create_ascii_bar(val1, min_val, max_val, bar_width, "█")
-        bar2 = create_ascii_bar(val2, min_val, max_val, bar_width, "▓")
+        # Format values
+        val1_str = f"{val1:.2f}" if val1 is not None else "N/A"
+        val2_str = f"{val2:.2f}" if val2 is not None else "N/A"
+
+        # Create bars (normalized independently for each metric)
+        bar1_len, bar2_len = normalize_value_independent(val1, val2, bar_width)
+        bar1 = "█" * bar1_len + " " * (bar_width - bar1_len)
+        bar2 = "▓" * bar2_len + " " * (bar_width - bar2_len)
 
         # Calculate change
         change = calculate_percentage_change(val1, val2)
-
-        # Color coding for change (using unicode symbols)
         if change != "N/A" and change != "∞":
             change_val = float(change.replace("%", "").replace("+", ""))
             if abs(change_val) < 2:
-                change_indicator = "≈"  # roughly equal
+                change_indicator = "≈"
             elif change_val > 0:
-                change_indicator = "↑"  # regression
+                change_indicator = "↑"
             else:
-                change_indicator = "↓"  # improvement
+                change_indicator = "↓"
         else:
             change_indicator = "?"
 
         # Print row
-        row = (
-            f"{formatted_key} "
-            f"{bar1:<{bar_width + value_width}} "
-            f"{bar2:<{bar_width + value_width}} "
-            f"{change_indicator} {change:<{change_width-2}}"
+        print(
+            f"{metric_name:<{metric_width}} {val1_str:<{value_width}} {bar1} {val2_str:<{value_width}} {bar2} {change_indicator} {change}"
         )
-        print(row)
 
     print()
     print("Legend:")
@@ -180,6 +179,7 @@ def create_side_by_side_plot(
     print("  ↓ = Improvement (better performance)")
     print("  ≈ = No significant change (<2%)")
     print("  ? = Unable to calculate change")
+    print("  Note: Each metric's bars are normalized independently for A/B comparison")
 
     # Summary statistics
     print()
