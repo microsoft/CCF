@@ -45,7 +45,6 @@ Checks: >
   -readability-identifier-length,
   -readability-avoid-nested-conditional-operator,
   -readability-convert-member-functions-to-static,
-  -readability-use-anyofallof
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: '?!(3rdparty)'
