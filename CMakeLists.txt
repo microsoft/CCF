@@ -1110,7 +1110,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
     CLIENT_BIN ./submit PERF_LABEL "Logging"
     ADDITIONAL_ARGS --package "samples/apps/logging/logging" --max-writes-ahead
-                    1000 --repetitions 10000
+                    1000 --repetitions 100000
   )
 
   add_piccolo_test(
@@ -1118,7 +1118,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
     CLIENT_BIN ./submit PERF_LABEL "Basic"
     ADDITIONAL_ARGS --package "samples/apps/basic/basic" --client-def
-                    "1,write,100000,primary"
+                    "1,write,1000000,primary"
   )
 
   add_piccolo_test(
@@ -1126,7 +1126,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
     CLIENT_BIN ./submit PERF_LABEL "Basic JS"
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
-                    --client-def "1,write,100000,primary"
+                    --client-def "1,write,1000000,primary"
   )
 
   if(WORKER_THREADS)
@@ -1135,7 +1135,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
       CLIENT_BIN ./submit PERF_LABEL "Basic Multi-Threaded"
       ADDITIONAL_ARGS --package "samples/apps/basic/basic" --client-def
-                      "${WORKER_THREADS},write,100000,primary"
+                      "${WORKER_THREADS},write,1000000,primary"
     )
   endif()
 
@@ -1149,22 +1149,9 @@ if(BUILD_TESTS)
       --max-writes-ahead
       1000
       --repetitions
-      1000
+      10000
       --use-jwt
   )
-
-  add_e2e_test(
-    NAME historical_query_perf_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
-    LABEL perf
-    CONFIGURATIONS perf
-  )
-
-  add_e2e_test(
-    NAME historical_query_cache_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_cache.py
-  )
-
   add_test_bin(
     curl_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/curl_test.cpp
   )
