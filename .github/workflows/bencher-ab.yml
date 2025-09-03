@@ -5,7 +5,11 @@ name: "Benchmark A/B Testing"
 
 on:
   pull_request:
-    types: [labeled]
+    types:
+      - labeled
+      - synchronize
+      - opened
+      - reopened
 
 jobs:
   benchmark_pr:
