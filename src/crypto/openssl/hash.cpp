@@ -55,8 +55,11 @@ namespace ccf::crypto
 
   using namespace OpenSSL;
 
-  static thread_local EVP_MD_CTX* mdctx = nullptr;
-  static thread_local EVP_MD_CTX* basectx = nullptr;
+  namespace
+  {
+    thread_local EVP_MD_CTX* mdctx = nullptr;
+    thread_local EVP_MD_CTX* basectx = nullptr;
+  }
 
   void openssl_sha256_init()
   {

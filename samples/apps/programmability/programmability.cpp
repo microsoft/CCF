@@ -20,56 +20,60 @@ using namespace nlohmann;
 namespace programmabilityapp
 {
   using RecordsMap = ccf::kv::Map<std::string, std::vector<uint8_t>>;
-  static constexpr auto PRIVATE_RECORDS = "programmability.records";
-  static constexpr auto CUSTOM_ENDPOINTS_NAMESPACE = "public:custom_endpoints";
 
-  // The programmability sample demonstrates how signed payloads can be used to
-  // provide offline auditability without requiring trusting the hardware or the
-  // service owners/consortium.
-  // COSE Sign1 payloads must set these protected headers in order to guarantee
-  // the specificity of the payload for the endpoint, and avoid possible replay
-  // of payloads signed in the past.
-  static constexpr auto MSG_TYPE_NAME = "app.msg.type";
-  static constexpr auto CREATED_AT_NAME = "app.msg.created_at";
-  // Instances of ccf::TypedUserCOSESign1AuthnPolicy for the endpoints that
-  // support COSE Sign1 authentication.
-  static auto endpoints_user_cose_sign1_auth_policy =
-    std::make_shared<ccf::TypedUserCOSESign1AuthnPolicy>(
-      "custom_endpoints", MSG_TYPE_NAME, CREATED_AT_NAME);
-  static auto options_user_cose_sign1_auth_policy =
-    std::make_shared<ccf::TypedUserCOSESign1AuthnPolicy>(
-      "runtime_options", MSG_TYPE_NAME, CREATED_AT_NAME);
-
-  // This is a pure helper function which can be called from either C++ or JS,
-  // to implement common functionality in a single place
-  static inline bool has_role_permitting_action(
-    ccf::kv::ReadOnlyTx& tx,
-    const std::string& user_id,
-    const std::string& action)
+  namespace
   {
-    using RoleSet = ccf::kv::Set<std::string>;
+    constexpr auto PRIVATE_RECORDS = "programmability.records";
+    constexpr auto CUSTOM_ENDPOINTS_NAMESPACE = "public:custom_endpoints";
 
-    auto* users_handle = tx.ro<ccf::UserInfo>(ccf::Tables::USER_INFO);
-    const auto user_info = users_handle->get(user_id);
-    if (user_info.has_value())
+    // The programmability sample demonstrates how signed payloads can be used
+    // to provide offline auditability without requiring trusting the hardware
+    // or the service owners/consortium. COSE Sign1 payloads must set these
+    // protected headers in order to guarantee the specificity of the payload
+    // for the endpoint, and avoid possible replay of payloads signed in the
+    // past.
+    constexpr auto MSG_TYPE_NAME = "app.msg.type";
+    constexpr auto CREATED_AT_NAME = "app.msg.created_at";
+    // Instances of ccf::TypedUserCOSESign1AuthnPolicy for the endpoints that
+    // support COSE Sign1 authentication.
+    auto endpoints_user_cose_sign1_auth_policy =
+      std::make_shared<ccf::TypedUserCOSESign1AuthnPolicy>(
+        "custom_endpoints", MSG_TYPE_NAME, CREATED_AT_NAME);
+    auto options_user_cose_sign1_auth_policy =
+      std::make_shared<ccf::TypedUserCOSESign1AuthnPolicy>(
+        "runtime_options", MSG_TYPE_NAME, CREATED_AT_NAME);
+
+    // This is a pure helper function which can be called from either C++ or JS,
+    // to implement common functionality in a single place
+    inline bool has_role_permitting_action(
+      ccf::kv::ReadOnlyTx& tx,
+      const std::string& user_id,
+      const std::string& action)
     {
-      const auto roles_it = user_info->user_data.find("roles");
-      if (roles_it != user_info->user_data.end())
+      using RoleSet = ccf::kv::Set<std::string>;
+
+      auto* users_handle = tx.ro<ccf::UserInfo>(ccf::Tables::USER_INFO);
+      const auto user_info = users_handle->get(user_id);
+      if (user_info.has_value())
       {
-        const auto roles = roles_it->get<std::vector<std::string>>();
-        for (const auto& role : roles)
+        const auto roles_it = user_info->user_data.find("roles");
+        if (roles_it != user_info->user_data.end())
         {
-          auto* role_handle = tx.ro<RoleSet>(
-            fmt::format("public:programmability.roles.{}", role));
-          if (role_handle->contains(action))
+          const auto roles = roles_it->get<std::vector<std::string>>();
+          for (const auto& role : roles)
           {
-            return true;
+            auto* role_handle = tx.ro<RoleSet>(
+              fmt::format("public:programmability.roles.{}", role));
+            if (role_handle->contains(action))
+            {
+              return true;
+            }
           }
         }
       }
-    }
 
-    return false;
+      return false;
+    }
   }
 
   class MyExtension : public ccf::js::extensions::ExtensionInterface
