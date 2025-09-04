@@ -340,13 +340,12 @@ namespace Hashes
   PICOBENCH(sha_512_ossl_100k).PICO_HASH_SUFFIX();
 }
 
-template <size_t size>
 static void sha256_bench(picobench::state& s)
 {
   ccf::crypto::openssl_sha256_init();
 
-  std::vector<uint8_t> v(size);
-  for (size_t i = 0; i < size; ++i)
+  std::vector<uint8_t> v(s.iterations());
+  for (size_t i = 0; i < v.size(); ++i)
   {
     v[i] = rand();
   }
@@ -354,12 +353,23 @@ static void sha256_bench(picobench::state& s)
   ccf::crypto::Sha256Hash h;
 
   s.start_timer();
-  for (size_t i = 0; i < 10; ++i)
-  {
-    ccf::crypto::openssl_sha256(v, h.h.data());
-  }
+  ccf::crypto::openssl_sha256(v, h.h.data());
   s.stop_timer();
   ccf::crypto::openssl_sha256_shutdown();
+}
+
+static void tmp_sha256_bench(picobench::state& s)
+{
+  std::vector<uint8_t> v(s.iterations());
+  for (size_t i = 0; i < v.size(); ++i)
+  {
+    v[i] = rand();
+  }
+
+
+  s.start_timer();
+  ccf::crypto::tmp_openssl_sha256(v, h.h.data());
+  s.stop_timer();
 }
 
 // Variant of the code above that uses the OpenSSL API
@@ -367,11 +377,10 @@ static void sha256_bench(picobench::state& s)
 // for comparison. This is fine for larger inputs, but
 // substantially slower for smaller inputs, such as
 // digests in Merkle Trees.
-template <size_t size>
 static void sha256_noopt_bench(picobench::state& s)
 {
-  std::vector<uint8_t> v(size);
-  for (size_t i = 0; i < size; ++i)
+  std::vector<uint8_t> v(s.iterations());
+  for (size_t i = 0; i < v.size(); ++i)
   {
     v[i] = rand();
   }
@@ -379,7 +388,6 @@ static void sha256_noopt_bench(picobench::state& s)
   std::vector<uint8_t> out(EVP_MD_size(EVP_sha256()));
 
   s.start_timer();
-  for (size_t i = 0; i < 10; ++i)
   {
     auto* md = EVP_MD_fetch(nullptr, "SHA2-256", nullptr);
     auto* ctx = EVP_MD_CTX_new();
@@ -392,22 +400,18 @@ static void sha256_noopt_bench(picobench::state& s)
   s.stop_timer();
 }
 
-#define DEFINE_SHA256_BENCH(SHIFT) \
-  PICOBENCH_SUITE("digest sha256 (2 << " #SHIFT ")"); \
-  namespace SHA256_bench_##SHIFT \
-  { \
-    auto openssl_sha256_##SHIFT##_no = sha256_noopt_bench<2 << SHIFT>; \
-    PICOBENCH(openssl_sha256_##SHIFT##_no).PICO_HASH_SUFFIX().baseline(); \
-    auto openssl_sha256_##SHIFT = sha256_bench<2 << SHIFT>; \
-    PICOBENCH(openssl_sha256_##SHIFT).PICO_HASH_SUFFIX(); \
-  }
+PICOBENCH_SUITE("digest sha256");
+namespace SHA256_bench
+{
+  const std::vector<int> sha256_shifts = {
+    2 << 4, 2 << 6, 2 << 8, 2 << 10, 2 << 12, 2 << 14, 2 << 16};
 
-DEFINE_SHA256_BENCH(6)
-DEFINE_SHA256_BENCH(8)
-DEFINE_SHA256_BENCH(10)
-DEFINE_SHA256_BENCH(12)
-DEFINE_SHA256_BENCH(14)
-DEFINE_SHA256_BENCH(16)
+  auto openssl_sha256_opt = sha256_bench;
+  PICOBENCH(openssl_sha256_opt).iterations(sha256_shifts).baseline();
+
+  auto openssl_sha256_noopt = sha256_noopt_bench;
+  PICOBENCH(openssl_sha256_noopt).iterations(sha256_shifts);
+}
 
 PICOBENCH_SUITE("base64");
 namespace Base64_bench
