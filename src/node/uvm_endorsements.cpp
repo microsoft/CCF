@@ -104,7 +104,7 @@ namespace ccf
           &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
         QCBORDecode_EnterMap(&ctx, nullptr);
 
-        enum
+        enum HeaderIndex : uint8_t
         {
           ALG_INDEX,
           CONTENT_TYPE_INDEX,
