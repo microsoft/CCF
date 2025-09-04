@@ -4,7 +4,6 @@
 #include "node/history.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
-#include "ccf/crypto/openssl_init.h"
 
 #include <doctest/doctest.h>
 
@@ -184,10 +183,9 @@ TEST_CASE("First root")
 
 int main(int argc, char** argv)
 {
-  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  ccf::crypto::openssl_sha256_shutdown();
+
   return res;
 }

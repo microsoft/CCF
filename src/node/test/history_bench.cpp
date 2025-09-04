@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/crypto/openssl_init.h"
 #include "crypto/openssl/hash.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
@@ -160,11 +159,10 @@ int main(int argc, char* argv[])
 {
   ccf::logger::config::level() = ccf::LoggerLevel::FATAL;
   ::threading::ThreadMessaging::init(1);
-  ccf::crypto::openssl_sha256_init();
 
   picobench::runner runner;
   runner.parse_cmd_line(argc, argv);
   auto ret = runner.run();
-  ccf::crypto::openssl_sha256_init();
+
   return ret;
 }

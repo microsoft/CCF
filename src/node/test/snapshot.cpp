@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/crypto/key_pair.h"
-#include "ccf/crypto/openssl_init.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/openssl/hash.h"
 #include "kv/test/null_encryptor.h"
@@ -180,11 +179,11 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 int main(int argc, char** argv)
 {
   threading::ThreadMessaging::init(1);
-  ccf::crypto::openssl_sha256_init();
+
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  ccf::crypto::openssl_sha256_shutdown();
+
   if (context.shouldExit())
     return res;
   return res;

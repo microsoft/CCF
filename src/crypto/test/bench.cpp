@@ -6,7 +6,6 @@
 #include "ccf/crypto/hash_provider.h"
 #include "ccf/crypto/hmac.h"
 #include "ccf/crypto/key_pair.h"
-#include "ccf/crypto/openssl_init.h"
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "crypto/openssl/base64.h"
@@ -340,9 +339,93 @@ namespace Hashes
   PICOBENCH(sha_512_ossl_100k).PICO_HASH_SUFFIX();
 }
 
+static constexpr auto sha256_repeats = 10;
+
+namespace sha256_external_ctx
+{
+  using namespace OpenSSL;
+
+  namespace
+  {
+    thread_local EVP_MD_CTX* mdctx = nullptr;
+    thread_local EVP_MD_CTX* basectx = nullptr;
+  }
+
+  void openssl_sha256_init()
+  {
+    if (mdctx != nullptr || basectx != nullptr)
+    {
+      return; // Already initialised
+    }
+
+    mdctx = EVP_MD_CTX_new();
+    if (mdctx == nullptr)
+    {
+      throw std::logic_error("openssl_sha256_init: failed to create mdctx");
+    }
+    basectx = EVP_MD_CTX_new();
+    if (basectx == nullptr)
+    {
+      mdctx = nullptr;
+      throw std::logic_error("openssl_sha256_init: failed to create basectx");
+    }
+    if (EVP_DigestInit_ex(basectx, EVP_sha256(), nullptr) != 1)
+    {
+      mdctx = nullptr;
+      basectx = nullptr;
+      throw std::logic_error("EVP_DigestInit_ex failed");
+    }
+  }
+
+  void openssl_sha256_shutdown()
+  {
+    if (mdctx != nullptr)
+    {
+      EVP_MD_CTX_free(mdctx);
+      mdctx = nullptr;
+    }
+    if (basectx != nullptr)
+    {
+      EVP_MD_CTX_free(basectx);
+      basectx = nullptr;
+    }
+  }
+
+  void openssl_sha256(const std::span<const uint8_t>& data, uint8_t* h)
+  {
+    // EVP_Digest calls are notoriously slow with OpenSSL 3.x (see
+    // https://github.com/openssl/openssl/issues/19612). Instead, we skip the
+    // calls to EVP_DigestInit_ex() by keeping 2 static thread-local contexts
+    // and reusing them between calls. This is about 2x faster than EVP_Digest
+    // for 128-byte buffers.
+
+    if (mdctx == nullptr || basectx == nullptr)
+    {
+      throw std::logic_error(
+        "openssl_sha256 failed: openssl_sha256_init should be called first");
+    }
+
+    int rc = EVP_MD_CTX_copy_ex(mdctx, basectx);
+    if (rc != 1)
+    {
+      throw std::logic_error(fmt::format("EVP_MD_CTX_copy_ex failed: {}", rc));
+    }
+    rc = EVP_DigestUpdate(mdctx, data.data(), data.size());
+    if (rc != 1)
+    {
+      throw std::logic_error(fmt::format("EVP_DigestUpdate failed: {}", rc));
+    }
+    rc = EVP_DigestFinal_ex(mdctx, h, nullptr);
+    if (rc != 1)
+    {
+      throw std::logic_error(fmt::format("EVP_DigestFinal_ex failed: {}", rc));
+    }
+  }
+}
+
 static void sha256_bench(picobench::state& s)
 {
-  ccf::crypto::openssl_sha256_init();
+  sha256_external_ctx::openssl_sha256_init();
 
   std::vector<uint8_t> v(s.iterations());
   for (size_t i = 0; i < v.size(); ++i)
@@ -353,9 +436,13 @@ static void sha256_bench(picobench::state& s)
   ccf::crypto::Sha256Hash h;
 
   s.start_timer();
-  ccf::crypto::openssl_sha256(v, h.h.data());
+  for (auto i = 0; i < sha256_repeats; ++i)
+  {
+    sha256_external_ctx::openssl_sha256(v, h.h.data());
+  }
   s.stop_timer();
-  ccf::crypto::openssl_sha256_shutdown();
+
+  sha256_external_ctx::openssl_sha256_shutdown();
 }
 
 static void sha256_bench_(picobench::state& s)
@@ -369,7 +456,10 @@ static void sha256_bench_(picobench::state& s)
   ccf::crypto::Sha256Hash h;
 
   s.start_timer();
-  ccf::crypto::openssl_sha256_(v, h.h.data());
+  for (auto i = 0; i < sha256_repeats; ++i)
+  {
+    ccf::crypto::openssl_sha256(v, h.h.data());
+  }
   s.stop_timer();
 }
 
@@ -389,6 +479,7 @@ static void sha256_noopt_bench(picobench::state& s)
   std::vector<uint8_t> out(EVP_MD_size(EVP_sha256()));
 
   s.start_timer();
+  for (auto i = 0; i < sha256_repeats; ++i)
   {
     auto* md = EVP_MD_fetch(nullptr, "SHA2-256", nullptr);
     auto* ctx = EVP_MD_CTX_new();
@@ -407,14 +498,14 @@ namespace SHA256_bench
   const std::vector<int> sha256_shifts = {
     2 << 4, 2 << 6, 2 << 8, 2 << 10, 2 << 12, 2 << 14, 2 << 16};
 
-  auto openssl_sha256_preinit = sha256_bench;
-  PICOBENCH(openssl_sha256_preinit).iterations(sha256_shifts).baseline();
+  auto openssl_sha256_noopt = sha256_noopt_bench;
+  PICOBENCH(openssl_sha256_noopt).iterations(sha256_shifts).baseline();
 
-  auto openssl_sha256_tl_init = sha256_bench_;
-  PICOBENCH(openssl_sha256_tl_init).iterations(sha256_shifts);
+  auto openssl_sha256_opt = sha256_bench;
+  PICOBENCH(openssl_sha256_opt).iterations(sha256_shifts);
 
-  auto openssl_sha256_nocache = sha256_noopt_bench;
-  PICOBENCH(openssl_sha256_nocache).iterations(sha256_shifts);
+  auto openssl_sha256_tl = sha256_bench_;
+  PICOBENCH(openssl_sha256_tl).iterations(sha256_shifts);
 }
 
 PICOBENCH_SUITE("base64");

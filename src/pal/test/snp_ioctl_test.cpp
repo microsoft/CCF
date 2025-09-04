@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/crypto/openssl_init.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/snp_ioctl.h"
@@ -90,10 +89,9 @@ int main(int argc, char** argv)
     return 0;
   }
 
-  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  ccf::crypto::openssl_sha256_shutdown();
+
   return res;
 }

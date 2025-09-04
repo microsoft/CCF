@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/crypto/openssl_init.h"
 #include "ccf/ds/hex.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/pal/attestation.h"
@@ -138,10 +137,9 @@ TEST_CASE("Parsing tcb versions from attestaion")
 
 int main(int argc, char** argv)
 {
-  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  ccf::crypto::openssl_sha256_shutdown();
+
   return res;
 }
