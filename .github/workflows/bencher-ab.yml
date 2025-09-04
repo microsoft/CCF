@@ -140,9 +140,4 @@ jobs:
             --label1 "main" --label2 "PR" >> report.md
           echo '```' >> report.md
 
-      - name: Upload comparison report
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-comparison-${{ github.run_id }}
-          path: report.md
-          retention-days: 7
+          cat report.md >> $GITHUB_STEP_SUMMARY
