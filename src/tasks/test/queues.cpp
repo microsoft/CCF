@@ -104,10 +104,10 @@ TEST_CASE("SubTaskQueue")
   REQUIRE_FALSE(fq.push(4));
 
   // pop returns true iff queue is non-empty when it completes
-  REQUIRE_FALSE(fq.pop_and_visit([](size_t&& n) { fmt::print("{}\n", n); }));
+  REQUIRE_FALSE(fq.pop_and_visit([](size_t&& n) {}));
 
   // Visits an empty queue, leaves an empty queue
-  REQUIRE_FALSE(fq.pop_and_visit([](size_t&& n) { fmt::print("{}\n", n); }));
+  REQUIRE_FALSE(fq.pop_and_visit([](size_t&& n) {}));
 
   // Not the first push _ever_, but the first on an empty queue, so gets a true
   // response
@@ -116,20 +116,17 @@ TEST_CASE("SubTaskQueue")
   // If the visitor (or anything concurrent with it) pushes a new element, then
   // the pop returns true to indicate that queue is now non-empty
   REQUIRE(fq.pop_and_visit([&](size_t&& n) {
-    fmt::print("{}\n", n);
-
     // While popping/visiting, the queue is active
     REQUIRE_FALSE(fq.push(6));
   }));
 
   REQUIRE(fq.pop_and_visit([&](size_t&& n) {
-    fmt::print("{}\n", n);
     REQUIRE_FALSE(fq.push(7));
     REQUIRE_FALSE(fq.push(8));
     REQUIRE_FALSE(fq.push(9));
   }));
 
-  REQUIRE_FALSE(fq.pop_and_visit([&](size_t&& n) { fmt::print("{}\n", n); }));
+  REQUIRE_FALSE(fq.pop_and_visit([&](size_t&& n) {}));
 }
 
 TEST_CASE("OrderedTasks")
