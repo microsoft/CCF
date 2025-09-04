@@ -132,6 +132,68 @@ namespace ccf::crypto
     }
   }
 
+  void openssl_sha256_(const std::span<const uint8_t>& data, uint8_t* h)
+  {
+    struct Sha256Context
+    {
+      EVP_MD_CTX* mdctx = nullptr;
+      EVP_MD_CTX* basectx = nullptr;
+
+      Sha256Context()
+      {
+        mdctx = EVP_MD_CTX_new();
+        if (mdctx == nullptr)
+        {
+          throw std::logic_error("failed to create mdctx");
+        }
+        basectx = EVP_MD_CTX_new();
+        if (basectx == nullptr)
+        {
+          mdctx = nullptr;
+          throw std::logic_error("failed to create basectx");
+        }
+        if (EVP_DigestInit_ex(basectx, EVP_sha256(), nullptr) != 1)
+        {
+          mdctx = nullptr;
+          basectx = nullptr;
+          throw std::logic_error("EVP_DigestInit_ex failed");
+        }
+      }
+
+      ~Sha256Context()
+      {
+        if (mdctx != nullptr)
+        {
+          EVP_MD_CTX_free(mdctx);
+          mdctx = nullptr;
+        }
+        if (basectx != nullptr)
+        {
+          EVP_MD_CTX_free(basectx);
+          basectx = nullptr;
+        }
+      }
+    };
+
+    thread_local Sha256Context ctx;
+
+    int rc = EVP_MD_CTX_copy_ex(ctx.mdctx, ctx.basectx);
+    if (rc != 1)
+    {
+      throw std::logic_error(fmt::format("EVP_MD_CTX_copy_ex failed: {}", rc));
+    }
+    rc = EVP_DigestUpdate(ctx.mdctx, data.data(), data.size());
+    if (rc != 1)
+    {
+      throw std::logic_error(fmt::format("EVP_DigestUpdate failed: {}", rc));
+    }
+    rc = EVP_DigestFinal_ex(ctx.mdctx, h, nullptr);
+    if (rc != 1)
+    {
+      throw std::logic_error(fmt::format("EVP_DigestFinal_ex failed: {}", rc));
+    }
+  }
+
   ISha256OpenSSL::ISha256OpenSSL() : ctx(EVP_MD_CTX_new())
   {
     if (ctx == nullptr)

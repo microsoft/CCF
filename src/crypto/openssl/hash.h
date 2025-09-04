@@ -79,4 +79,5 @@ namespace ccf::crypto
   };
 
   void openssl_sha256(const std::span<const uint8_t>& data, uint8_t* h);
+  void openssl_sha256_(const std::span<const uint8_t>& data, uint8_t* h);
 }

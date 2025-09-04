@@ -358,7 +358,7 @@ static void sha256_bench(picobench::state& s)
   ccf::crypto::openssl_sha256_shutdown();
 }
 
-static void tmp_sha256_bench(picobench::state& s)
+static void sha256_bench_(picobench::state& s)
 {
   std::vector<uint8_t> v(s.iterations());
   for (size_t i = 0; i < v.size(); ++i)
@@ -366,9 +366,10 @@ static void tmp_sha256_bench(picobench::state& s)
     v[i] = rand();
   }
 
+  ccf::crypto::Sha256Hash h;
 
   s.start_timer();
-  ccf::crypto::tmp_openssl_sha256(v, h.h.data());
+  ccf::crypto::openssl_sha256_(v, h.h.data());
   s.stop_timer();
 }
 
@@ -406,11 +407,14 @@ namespace SHA256_bench
   const std::vector<int> sha256_shifts = {
     2 << 4, 2 << 6, 2 << 8, 2 << 10, 2 << 12, 2 << 14, 2 << 16};
 
-  auto openssl_sha256_opt = sha256_bench;
-  PICOBENCH(openssl_sha256_opt).iterations(sha256_shifts).baseline();
+  auto openssl_sha256_preinit = sha256_bench;
+  PICOBENCH(openssl_sha256_preinit).iterations(sha256_shifts).baseline();
 
-  auto openssl_sha256_noopt = sha256_noopt_bench;
-  PICOBENCH(openssl_sha256_noopt).iterations(sha256_shifts);
+  auto openssl_sha256_tl_init = sha256_bench_;
+  PICOBENCH(openssl_sha256_tl_init).iterations(sha256_shifts);
+
+  auto openssl_sha256_nocache = sha256_noopt_bench;
+  PICOBENCH(openssl_sha256_nocache).iterations(sha256_shifts);
 }
 
 PICOBENCH_SUITE("base64");
