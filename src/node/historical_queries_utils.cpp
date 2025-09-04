@@ -215,8 +215,11 @@ namespace
 
 namespace ccf
 {
-  static std::map<ccf::crypto::Pem, std::vector<ccf::crypto::Pem>>
-    service_endorsement_cache;
+  namespace
+  {
+    std::map<ccf::crypto::Pem, std::vector<ccf::crypto::Pem>>
+      service_endorsement_cache;
+  }
 
   namespace historical
   {

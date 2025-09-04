@@ -10,3 +10,7 @@ deadlock:*/untyped_map.h
 
 # For governance_test
 race:*/node/*rpc/*frontend.h
+
+# Race between closedir and epoll_ctl.
+race:closedir
+race:epoll_ctl
