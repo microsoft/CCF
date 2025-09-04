@@ -993,7 +993,7 @@ class Network:
                 self.nodes.remove(node)
                 if errors:
                     giving_up_fetching = re.compile(
-                        r"Giving up retrying fetching attestation endorsements from [(.*)] after (\d+) attempts"
+                        r"Giving up retrying fetching attestation endorsements from (.*) after (\d+) attempts"
                     )
                     # Throw accurate exceptions if known errors found in
                     for error in errors:
