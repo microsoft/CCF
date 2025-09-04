@@ -28,18 +28,21 @@ namespace ccf::crypto
 {
   using namespace OpenSSL;
 
-  static std::map<std::string, std::string> parse_name(const std::string& name)
+  namespace
   {
-    std::map<std::string, std::string> result;
-    const auto ns = ccf::nonstd::split(name, ",");
-    for (const auto& n : ns)
+    std::map<std::string, std::string> parse_name(const std::string& name)
     {
-      const auto& [key, value] = ccf::nonstd::split_1(n, "=");
-      result.emplace(
-        std::string(key.data(), key.size()),
-        std::string(value.data(), value.size()));
+      std::map<std::string, std::string> result;
+      const auto ns = ccf::nonstd::split(name, ",");
+      for (const auto& n : ns)
+      {
+        const auto& [key, value] = ccf::nonstd::split_1(n, "=");
+        result.emplace(
+          std::string(key.data(), key.size()),
+          std::string(value.data(), value.size()));
+      }
+      return result;
     }
-    return result;
   }
 
   KeyPair_OpenSSL::KeyPair_OpenSSL(CurveID curve_id)

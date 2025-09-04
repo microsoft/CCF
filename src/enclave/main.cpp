@@ -13,8 +13,11 @@
 #include <thread>
 
 // the central enclave object
-static ccf::pal::Mutex create_lock;
-static std::atomic<ccf::Enclave*> e;
+namespace
+{
+  ccf::pal::Mutex create_lock;
+  std::atomic<ccf::Enclave*> e;
+}
 
 std::atomic<uint16_t> num_pending_threads = 0;
 std::atomic<uint16_t> num_complete_threads = 0;
