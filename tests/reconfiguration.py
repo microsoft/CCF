@@ -282,11 +282,12 @@ def test_add_node_endorsements_endpoints(network, args):
         # Ensure these nodes go to the specified server, and do not get their endorsements from file
         args_copy.snp_endorsements_file = "/dev/null"
         try:
+            per_request_retry_timeout = 3
             network.join_node(
                 new_node,
                 args.package,
                 args_copy,
-                timeout=16,
+                timeout=per_request_retry_timeout * 4 * len(servers) + 5,
             )
         except infra.network.CollateralFetchTimeout as e:
             LOG.info(
