@@ -222,9 +222,7 @@ install(
 )
 
 # CCF platform lib
-add_ccf_static_library(
-  ccf_pal SRCS ${CCF_DIR}/src/pal/attestation.cpp
-)
+add_ccf_static_library(ccf_pal SRCS ${CCF_DIR}/src/pal/attestation.cpp)
 
 # CCF js lib
 add_ccf_static_library(
