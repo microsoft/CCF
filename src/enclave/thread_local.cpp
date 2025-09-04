@@ -4,7 +4,10 @@
 
 namespace ccf::threading
 {
-  static std::atomic<ThreadID> next_thread_id = MAIN_THREAD_ID;
+  namespace
+  {
+    std::atomic<ThreadID> next_thread_id = MAIN_THREAD_ID;
+  }
 
   uint16_t& current_thread_id()
   {
