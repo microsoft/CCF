@@ -1375,6 +1375,8 @@ TEST_CASE("Do not trust non-ca certs")
   }
 
   auto non_ca_cert_verifier = ccf::crypto::make_verifier(non_ca_cert.raw());
-  // Non-CA cert must NOT be accepted as a trusted root (self-signed but CA:FALSE).
-  REQUIRE_FALSE(non_ca_cert_verifier->verify_certificate({&non_ca_cert}, {}, true));
+  // Non-CA cert must NOT be accepted as a trusted root (self-signed but
+  // CA:FALSE).
+  REQUIRE_FALSE(
+    non_ca_cert_verifier->verify_certificate({&non_ca_cert}, {}, true));
 }
