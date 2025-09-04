@@ -205,7 +205,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
     TcbVersionRaw() = default;
 
-    TcbVersionRaw(std::vector<uint8_t> data)
+    TcbVersionRaw(std::vector<uint8_t>& data)
     {
       if (data.size() != snp_tcb_version_size)
       {
@@ -279,6 +279,16 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
           throw std::logic_error(
             "Unsupported SEV-SNP product for TCB version policy");
       }
+    }
+
+    [[nodiscard]] TcbVersionMilanGenoa* as_milan_genoa()
+    {
+      return reinterpret_cast<TcbVersionMilanGenoa*>(this);
+    }
+
+    [[nodiscard]] TcbVersionTurin* as_turin()
+    {
+      return reinterpret_cast<TcbVersionTurin*>(this);
     }
   };
   static_assert(
