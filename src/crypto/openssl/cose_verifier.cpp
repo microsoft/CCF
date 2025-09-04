@@ -53,7 +53,7 @@ namespace
       &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
     QCBORDecode_EnterMap(&ctx, nullptr);
 
-    enum
+    enum HeaderIndex : uint8_t
     {
       ALG_INDEX,
       END_INDEX
@@ -271,7 +271,7 @@ namespace ccf::crypto
       throw std::logic_error("Failed to parse COSE_Sign1 wrapped map");
     }
 
-    enum
+    enum HeaderIndex : uint8_t
     {
       FROM_INDEX,
       TO_INDEX,
