@@ -74,7 +74,8 @@ namespace ccf::pal
 #define RETRIEVE_TCB_FIELD(TCB, FIELD, OID_SUFFIX) \
   do \
   { \
-    auto val_##FIELD = get_integer_from_cert_extensions(x509, TCB_OID_PREFIX OID_SUFFIX); \
+    auto val_##FIELD = \
+      get_integer_from_cert_extensions(x509, TCB_OID_PREFIX OID_SUFFIX); \
     if (!val_##FIELD.has_value()) \
     { \
       return std::nullopt; \
