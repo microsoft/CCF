@@ -18,6 +18,7 @@ namespace ccf
   {
   private:
     std::shared_ptr<ccf::tasks::OrderedTasks> task_scheduler;
+    std::atomic<bool> is_closing = false;
 
     struct SessionDataTask : public ccf::tasks::ITaskAction
     {
@@ -38,6 +39,11 @@ namespace ccf
 
       void do_action() override
       {
+        if (self->is_closing.load())
+        {
+          return;
+        }
+
         self->handle_incoming_data_thread(std::move(data));
       }
     };
@@ -89,6 +95,8 @@ namespace ccf
 
     void close_session() override
     {
+      is_closing.store(true);
+
       task_scheduler->add_action(ccf::tasks::make_basic_action(
         [self = shared_from_this()]() { self->close_session_thread(); }));
     }
