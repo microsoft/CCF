@@ -278,7 +278,7 @@ namespace ccf
           else
           {
             LOG_INFO_FMT(
-              "{} endorsements endpoint failed to respond. Retrying"
+              "{} endorsements endpoint failed to respond. Retrying "
               "in {}s",
               endpoint,
               retry_after_s);
