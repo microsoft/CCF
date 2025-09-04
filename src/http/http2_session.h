@@ -258,9 +258,7 @@ namespace http
       responder_lookup(responder_lookup_)
     {
       server_parser->set_outgoing_data_handler(
-        [this](std::span<const uint8_t> data) {
-          send_data(data);
-        });
+        [this](std::span<const uint8_t> data) { send_data(data); });
     }
 
     ~HTTP2ServerSession()

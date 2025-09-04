@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "tasks/job_board_interface.h"
 #include "ds/work_beacon.h"
+#include "tasks/job_board_interface.h"
 
 #include <mutex>
 #include <queue>

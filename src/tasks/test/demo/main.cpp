@@ -82,9 +82,7 @@ TEST_CASE("OrderedTasks")
     for (auto i = 0; i < num_sessions; ++i)
     {
       all_tasks.emplace_back(
-        ccf::tasks::make_ordered_tasks(
-          job_board, std::to_string(i)),
-        0);
+        ccf::tasks::make_ordered_tasks(job_board, std::to_string(i)), 0);
     }
 
     auto add_action = [&](size_t idx, size_t sleep_time_ms) {

@@ -32,8 +32,7 @@ namespace ccf::tasks
     return queue.empty();
   }
 
-  Task JobBoard::wait_for_task(
-    const std::chrono::milliseconds& timeout)
+  Task JobBoard::wait_for_task(const std::chrono::milliseconds& timeout)
   {
     using TClock = std::chrono::system_clock;
 

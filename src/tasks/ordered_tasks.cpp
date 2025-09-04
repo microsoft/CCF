@@ -79,8 +79,7 @@ namespace ccf::tasks
     struct ConcreteOrderedTasks : public OrderedTasks
     {
     public:
-      ConcreteOrderedTasks(
-        IJobBoard& jb, const std::string& s) :
+      ConcreteOrderedTasks(IJobBoard& jb, const std::string& s) :
         OrderedTasks(jb, s)
       {}
     };
