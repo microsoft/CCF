@@ -531,9 +531,17 @@ if(BUILD_TESTS)
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_unit_test(
-      task_system_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/queues.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/merge_sort.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/delayed_tasks.cpp
+      task_system_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/queues.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/delayed_tasks.cpp
     )
     target_link_libraries(task_system_test PRIVATE ccf_tasks)
+
+    add_picobench(
+      tasks_bench
+      SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/merge_bench.cpp
+           ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/sleep_bench.cpp
+    )
+    target_link_libraries(tasks_bench PRIVATE ccf_tasks)
 
     add_unit_test(
       task_system_demo ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/demo/main.cpp
@@ -580,7 +588,9 @@ if(BUILD_TESTS)
     add_unit_test(
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
     )
-    target_link_libraries(history_test PRIVATE ccfcrypto http_parser ccf_kv ccf_tasks)
+    target_link_libraries(
+      history_test PRIVATE ccfcrypto http_parser ccf_kv ccf_tasks
+    )
 
     add_unit_test(
       encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
@@ -612,7 +622,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/receipt.cpp
     )
     target_link_libraries(
-      historical_queries_test PRIVATE http_parser ccf_kv ccf_endpoints ccf_tasks
+      historical_queries_test PRIVATE http_parser ccf_kv ccf_endpoints
+                                      ccf_tasks
     )
     add_unit_test(
       indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
