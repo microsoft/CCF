@@ -4,7 +4,7 @@
 import json
 import sys
 import argparse
-from typing import Dict, List, Tuple
+from typing import Dict
 
 
 def load_bencher_file(filepath: str) -> Dict:
@@ -98,27 +98,6 @@ def create_diverging_bar(
             left_start = center - bar_length
             bar = " " * left_start + "█" * bar_length + "|" + " " * center
         return bar + f" {change_val:+.1f}%"
-
-
-def create_ascii_bar(
-    value: float, min_val: float, max_val: float, width: int = 40, char: str = "█"
-) -> str:
-    """Create an ASCII bar representation of a value"""
-    if value is None:
-        return " " * width + " N/A"
-
-    bar_length = normalize_value(value, min_val, max_val, width)
-    bar = char * bar_length + " " * (width - bar_length)
-    return f"{bar} {value:.2f}"
-
-
-def format_metric_name(name: str, max_length: int = 40) -> str:
-    """Format metric name to fit within specified length"""
-    if len(name) <= max_length:
-        return name.ljust(max_length)
-    else:
-        # Truncate and add ellipsis
-        return name[: max_length - 3] + "..."
 
 
 def calculate_percentage_change(val1: float, val2: float) -> str:
@@ -234,10 +213,16 @@ def create_side_by_side_plot(
             change_val = ((val2 - val1) / val1) * 100
             if abs(change_val) < 2:
                 no_change += 1
-            elif change_val > 0:
-                regressions += 1
             else:
-                improvements += 1
+                # Use is_higher_better() to determine if this is actually an improvement or regression
+                higher_is_better = is_higher_better(key)
+                is_improvement = (change_val > 0 and higher_is_better) or (
+                    change_val < 0 and not higher_is_better
+                )
+                if is_improvement:
+                    improvements += 1
+                else:
+                    regressions += 1
 
     total_compared = improvements + regressions + no_change
     print(f"  Total metrics compared: {total_compared}")
