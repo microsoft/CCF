@@ -75,7 +75,7 @@ TEST_CASE("Check UVM roots of trust matching")
   ccf::pal::UVMEndorsements current{"issuer1", "subject1", "1"};
   ccf::pal::UVMEndorsements newer{"issuer1", "subject1", "2"};
   ccf::pal::UVMEndorsements other_issuer{"issuer2", "subject1", "2"};
-  ccf::pal::UVMEndorsements other_subject{"issuer2", "subject1", "2"};
+  ccf::pal::UVMEndorsements other_subject{"issuer1", "subject2", "2"};
 
   REQUIRE(ccf::matches_uvm_roots_of_trust(current, {current}));
   REQUIRE(ccf::matches_uvm_roots_of_trust(current, {old}));
