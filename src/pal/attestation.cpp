@@ -69,11 +69,12 @@ namespace ccf::pal
     return ASN1_INTEGER_get(ai);
   }
 
+#define TCB_OID_PREFIX "1.3.6.1.4.1.3704.1.3."
 // Macro to factor repeated pattern (OID lookup -> assign -> early return)
-#define RETRIEVE_TCB_FIELD(TCB, FIELD, OID) \
+#define RETRIEVE_TCB_FIELD(TCB, FIELD, OID_SUFFIX) \
   do \
   { \
-    auto val_##FIELD = get_integer_from_cert_extensions(x509, OID); \
+    auto val_##FIELD = get_integer_from_cert_extensions(x509, TCB_OID_PREFIX OID_SUFFIX); \
     if (!val_##FIELD.has_value()) \
     { \
       return std::nullopt; \
@@ -109,11 +110,10 @@ namespace ccf::pal
     ccf::crypto::OpenSSL::Unique_BIO mem_bio(vcek_leaf_cert);
     ccf::crypto::OpenSSL::Unique_X509 x509(mem_bio, true);
 
-    const std::string tcb_oid_prefix = "1.3.6.1.4.1.3704.1.3.";
-    RETRIEVE_TCB_FIELD(tcb, boot_loader, tcb_oid_prefix + "1"); // blSPL
-    RETRIEVE_TCB_FIELD(tcb, tee, tcb_oid_prefix + "2"); // teeSPL
-    RETRIEVE_TCB_FIELD(tcb, snp, tcb_oid_prefix + "3"); // snpSPL
-    RETRIEVE_TCB_FIELD(tcb, microcode, tcb_oid_prefix + "8"); // ucodeSPL
+    RETRIEVE_TCB_FIELD(tcb, boot_loader, "1"); // blSPL
+    RETRIEVE_TCB_FIELD(tcb, tee, "2"); // teeSPL
+    RETRIEVE_TCB_FIELD(tcb, snp, "3"); // snpSPL
+    RETRIEVE_TCB_FIELD(tcb, microcode, "8"); // ucodeSPL
     return raw;
   }
 
@@ -140,14 +140,12 @@ namespace ccf::pal
     snp::TcbVersionRaw raw;
     auto* tcb = raw.as_turin();
 
-    const std::string tcb_oid_prefix = "1.3.6.1.4.1.3704.1.3.";
-
     // Table 11 mapping
-    RETRIEVE_TCB_FIELD(tcb, fmc, tcb_oid_prefix + "9"); // fmcSPL
-    RETRIEVE_TCB_FIELD(tcb, boot_loader, tcb_oid_prefix + "1"); // blSPL
-    RETRIEVE_TCB_FIELD(tcb, tee, tcb_oid_prefix + "2"); // teeSPL
-    RETRIEVE_TCB_FIELD(tcb, snp, tcb_oid_prefix + "3"); // snpSPL
-    RETRIEVE_TCB_FIELD(tcb, microcode, tcb_oid_prefix + "8"); // ucodeSPL
+    RETRIEVE_TCB_FIELD(tcb, fmc, "9"); // fmcSPL
+    RETRIEVE_TCB_FIELD(tcb, boot_loader, "1"); // blSPL
+    RETRIEVE_TCB_FIELD(tcb, tee, "2"); // teeSPL
+    RETRIEVE_TCB_FIELD(tcb, snp, "3"); // snpSPL
+    RETRIEVE_TCB_FIELD(tcb, microcode, "8"); // ucodeSPL
 
     return raw;
   }
