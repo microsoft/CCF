@@ -297,7 +297,8 @@ def test_add_node_endorsements_endpoints(network, args):
             assert (
                 e.has_stopped
             ), f"Expected node to stop after timing out on fetching collateral ({e.error_line})"
-            assert e.retries == 4, f"Expected 4 retry attempts ({e.error_line})"
+            expected_retries = 4 * len(servers)
+            assert e.retries == expected_retries, f"Expected {expected_retries} retry attempts ({e.error_line})"
         else:
             assert (
                 expected_result

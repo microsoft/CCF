@@ -54,6 +54,7 @@ namespace ccf
     // Iteration variables
     std::list<Server> servers;
     size_t server_retries_count = 0;
+    size_t total_retries_count = 0;
 
     struct QuoteEndorsementsClientMsg
     {
@@ -226,9 +227,18 @@ namespace ccf
 
           if (servers.empty())
           {
+            auto servers_tried = std::accumulate(
+              config.servers.begin(),
+              config.servers.end(),
+              std::string{},
+              [](const std::string& a, const Server& b) {
+                return a + (a.length() > 0 ? ", " : "") + b.front().host;
+              });
             LOG_FAIL_FMT(
-              "Giving up retrying fetching attestation endorsements from all "
-              "configured servers");
+              "Giving up retrying fetching attestation endorsements from [{}] "
+              "after {} attempts",
+              servers_tried,
+              total_retries_count);
             throw ccf::pal::AttestationCollateralFetchingTimeout(
               "Timed out fetching attestation endorsements from all "
               "configured servers");
@@ -240,6 +250,7 @@ namespace ccf
         else
         {
           ++this->server_retries_count;
+          ++this->total_retries_count;
 
           constexpr size_t default_retry_after_s = 3;
           size_t retry_after_s = default_retry_after_s;
