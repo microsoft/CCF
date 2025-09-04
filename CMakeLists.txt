@@ -221,7 +221,7 @@ install(
   DESTINATION lib
 )
 
-# CCF platform lib
+# CCF platform agnostic library
 add_ccf_static_library(ccf_pal SRCS ${CCF_DIR}/src/pal/attestation.cpp)
 
 # CCF js lib
