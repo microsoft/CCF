@@ -205,7 +205,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
     TcbVersionRaw() = default;
 
-    TcbVersionRaw(std::vector<uint8_t>& data)
+    TcbVersionRaw(const std::vector<uint8_t>& data)
     {
       if (data.size() != snp_tcb_version_size)
       {
