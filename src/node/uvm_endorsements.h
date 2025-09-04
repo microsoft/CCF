@@ -58,4 +58,8 @@ namespace ccf
     const std::vector<uint8_t>& uvm_endorsements_raw,
     const pal::PlatformAttestationMeasurement& uvm_measurement,
     const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust);
+
+  bool matches_uvm_roots_of_trust(
+    const pal::UVMEndorsements& endorsements,
+    const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust);
 }
