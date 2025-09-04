@@ -92,6 +92,12 @@ namespace ccf::crypto
           basectx = nullptr;
         }
       }
+
+      Sha256Context(const Sha256Context&) = delete;
+      Sha256Context& operator=(const Sha256Context&) = delete;
+
+      Sha256Context(Sha256Context&&) = delete;
+      Sha256Context& operator=(Sha256Context&&) = delete;
     };
 
     thread_local Sha256Context ctx;
