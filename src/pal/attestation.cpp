@@ -330,8 +330,7 @@ namespace ccf::pal
           {&root_certificate}, {&sev_version_certificate}))
     {
       throw std::logic_error(
-        "SEV-SNP: The chain of signatures from the root of trust to this "
-        "attestation is broken");
+        "SEV-SNP: Could no verify attestation endorsement chain");
     }
 
     // According to Table 134 (2025-06-12) only ecdsa_p384_sha384 is supported
