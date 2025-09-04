@@ -79,10 +79,10 @@ TEST_CASE("Check UVM roots of trust matching")
 
   REQUIRE(ccf::matches_uvm_roots_of_trust(current, {current}));
   REQUIRE(ccf::matches_uvm_roots_of_trust(current, {old}));
-  REQUIRE(!ccf::matches_uvm_roots_of_trust(current, {newer}));
+  REQUIRE_FALSE(ccf::matches_uvm_roots_of_trust(current, {newer}));
 
-  REQUIRE(!ccf::matches_uvm_roots_of_trust(current, {other_issuer}));
-  REQUIRE(!ccf::matches_uvm_roots_of_trust(current, {other_subject}));
+  REQUIRE_FALSE(ccf::matches_uvm_roots_of_trust(current, {other_issuer}));
+  REQUIRE_FALSE(ccf::matches_uvm_roots_of_trust(current, {other_subject}));
 }
 
 int main(int argc, char** argv)
