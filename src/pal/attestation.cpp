@@ -449,7 +449,7 @@ namespace ccf::pal
     else
     {
       throw std::logic_error(
-        "SGX attestation reports are no longer supported from 6.0.0 onwards");
+        "CCF 7.0.0 only supports SNP and Virtual attestation formats");
     }
   }
 }
