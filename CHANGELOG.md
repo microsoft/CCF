@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Correctly validate the full AMD ASK endorsement chain (#7233)
 
+### Removed
+
+- Removed `ccf::crypt::openssl_sha256_init()` and `ccf::crypt::openssl_sha256_shutdown()` interface, as it's now implicitly called by the crypto implementation (#7251).
+
 ## [7.0.0-dev2]
 
 [7.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev2

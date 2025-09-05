@@ -1,6 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "ccf/crypto/openssl_init.h"
 #include "ccf/ds/logger.h"
 #include "crypto/openssl/hash.h"
 #include "kv/compacted_version_conflict.h"
@@ -81,7 +80,6 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   }
 
   auto thread_fn = [](void* a) {
-    ccf::crypto::openssl_sha256_init();
     auto args = static_cast<ThreadArgs*>(a);
 
     for (size_t i = 0u; i < tx_count; ++i)
@@ -140,7 +138,6 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 
     // Notify that this thread has finished
     --*args->counter;
-    ccf::crypto::openssl_sha256_shutdown();
   };
 
   // Start a thread which continually compacts at the latest version, until all
@@ -271,7 +268,6 @@ DOCTEST_TEST_CASE(
   std::atomic<size_t> conflict_count = 0;
 
   auto point_at_previous_write = [&]() {
-    ccf::crypto::openssl_sha256_init();
     auto sleep_time = std::chrono::microseconds(5);
     while (true)
     {
@@ -313,7 +309,6 @@ DOCTEST_TEST_CASE(
       sleep_time =
         std::chrono::microseconds((size_t)(sleep_time.count() * factor));
     }
-    ccf::crypto::openssl_sha256_shutdown();
   };
 
   std::vector<std::thread> threads;

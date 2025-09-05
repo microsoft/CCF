@@ -9,7 +9,6 @@
 #include "ccf/crypto/jwk.h"
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/key_wrap.h"
-#include "ccf/crypto/openssl_init.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
@@ -1150,7 +1149,6 @@ TEST_CASE("PEM to JWK and back")
 
 TEST_CASE("Incremental hash")
 {
-  ccf::crypto::openssl_sha256_init();
   auto simple_hash = ccf::crypto::Sha256Hash(contents);
 
   INFO("Incremental hash");
@@ -1191,7 +1189,6 @@ TEST_CASE("Incremental hash")
       REQUIRE_THROWS_AS(ihash->finalise(), std::logic_error);
     }
   }
-  ccf::crypto::openssl_sha256_shutdown();
 }
 
 TEST_CASE("Sign and verify with RSA key")
