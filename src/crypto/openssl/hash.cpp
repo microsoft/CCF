@@ -28,12 +28,12 @@ namespace
       openssl_sha256_shutdown();
     }
 
-    EVP_MD_CTX* get_basectx() const
+    [[nodiscard]] EVP_MD_CTX* get_basectx() const
     {
       return basectx;
     }
 
-    EVP_MD_CTX* get_mdctx() const
+    [[nodiscard]] EVP_MD_CTX* get_mdctx() const
     {
       return mdctx;
     }
@@ -54,12 +54,12 @@ namespace
       }
 
       basectx = EVP_MD_CTX_new();
-
       if (basectx == nullptr)
       {
         mdctx = nullptr;
         throw std::logic_error("openssl_sha256_init: failed to create basectx");
       }
+
       if (EVP_DigestInit_ex(basectx, EVP_sha256(), nullptr) != 1)
       {
         mdctx = nullptr;
@@ -85,7 +85,6 @@ namespace
       }
     }
 
-  private:
     EVP_MD_CTX* basectx{nullptr};
     EVP_MD_CTX* mdctx{nullptr};
   };
@@ -146,8 +145,8 @@ namespace ccf::crypto
     // and reusing them between calls. This is about 2x faster than EVP_Digest
     // for 128-byte buffers.
 
-    const auto mdctx = sha256_context.get_mdctx();
-    const auto basectx = sha256_context.get_basectx();
+    auto* const mdctx = sha256_context.get_mdctx();
+    auto* const basectx = sha256_context.get_basectx();
 
     if (mdctx == nullptr || basectx == nullptr)
     {
@@ -160,11 +159,13 @@ namespace ccf::crypto
     {
       throw std::logic_error(fmt::format("EVP_MD_CTX_copy_ex failed: {}", rc));
     }
+
     rc = EVP_DigestUpdate(mdctx, data.data(), data.size());
     if (rc != 1)
     {
       throw std::logic_error(fmt::format("EVP_DigestUpdate failed: {}", rc));
     }
+
     rc = EVP_DigestFinal_ex(mdctx, h, nullptr);
     if (rc != 1)
     {
