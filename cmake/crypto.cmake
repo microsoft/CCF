@@ -44,7 +44,6 @@ target_link_libraries(ccfcrypto PUBLIC t_cose)
 target_link_libraries(ccfcrypto PUBLIC crypto)
 target_link_libraries(ccfcrypto PUBLIC ssl)
 set_property(TARGET ccfcrypto PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_compile_definitions(ccfcrypto PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 install(
   TARGETS ccfcrypto
