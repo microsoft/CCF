@@ -470,6 +470,10 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
           ProductName product = ProductName::Milan;
           if (quote.version < MIN_TCB_VERIF_VERSION)
           {
+            LOG_INFO_FMT(
+              "Quote version {} does not support CPUID, using untrusted "
+              "CPUID to determine product for fetching endorsements.",
+              quote.version);
             // This should be safe as the CPUID and family are only used here to
             // retrieve endorsements from AMD If the cpuid was tampered with,
             // the endorsements would fail to validate the quote

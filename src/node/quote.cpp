@@ -275,6 +275,10 @@ namespace ccf
 
     if (attestation.version < pal::snp::MIN_TCB_VERIF_VERSION)
     {
+      LOG_FAIL_FMT(
+        "Quote version ({}) does not support CPUID fields, hence we cannot "
+        "perform TCB version verification.",
+        attestation.version);
       // Necessary until all C-ACI servers are updated
       return QuoteVerificationResult::Verified;
     }
