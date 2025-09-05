@@ -5,14 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [6.0.12]
-
-[6.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.12
-
-### Fixed
-
-- Correctly validate the full AMD ASK endorsement chain (#7233)
-
 ## [6.0.11]
 
 [6.0.11]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.11
@@ -20,6 +12,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added `ccf.gov.validateConstitution` function to JS API, which can be used to confirm some basic properties of a proposed constitution (it is a string, parseable by our JS interpreter, exporting functions named `validate`, `resolve` and `apply` with the correct number of arguments). This is called in the default sample constitution's `set_constitution.validate`.
+- Added logging of the initial node attestation value ("Initial node attestation...") (#7256).
+
+### Fixed
+
+- Correctly validate the full AMD ASK endorsement chain (#7233)
 
 ## [6.0.10]
 
