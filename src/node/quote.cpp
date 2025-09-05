@@ -261,6 +261,7 @@ namespace ccf
   QuoteVerificationResult verify_tcb_version_against_store(
     ccf::kv::ReadOnlyTx& tx, const QuoteInfo& quote_info)
   {
+    // SGX or Virtual
     if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
     {
       return QuoteVerificationResult::Verified;
@@ -274,6 +275,10 @@ namespace ccf
 
     if (attestation.version < pal::snp::MIN_TCB_VERIF_VERSION)
     {
+      LOG_FAIL_FMT(
+        "Quote version ({}) does not support CPUID fields, hence we cannot "
+        "perform TCB version verification.",
+        attestation.version);
       // Necessary until all C-ACI servers are updated
       return QuoteVerificationResult::Verified;
     }
