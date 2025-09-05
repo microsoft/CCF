@@ -69,7 +69,6 @@ function(add_ccf_static_library name)
   target_link_libraries(${name} PUBLIC ${PARSED_ARGS_LINK_LIBS} ${LINK_LIBCXX})
 
   target_compile_options(${name} PUBLIC ${COMPILE_LIBCXX})
-  target_compile_definitions(${name} PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 

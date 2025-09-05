@@ -9,6 +9,7 @@
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/users.h"
+#include "ds/framework_logger.h"
 #include "ds/lru.h"
 
 namespace ccf
