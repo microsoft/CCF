@@ -4,7 +4,6 @@
 #include "ccf/ds/logger.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
-#include "tasks/test/task_system_thread.h"
 
 #include <doctest/doctest.h>
 
@@ -56,7 +55,7 @@ TEST_CASE("DelayedTasks" * doctest::test_suite("delayed_tasks"))
   REQUIRE(n == 0);
 
   {
-    ccf::tasks::test::TaskWorkerThread t;
+    TaskWorkerThread t;
     std::this_thread::sleep_for(t.polling_period * 2);
     REQUIRE(n == 1);
   }
@@ -68,7 +67,7 @@ TEST_CASE("DelayedTasks" * doctest::test_suite("delayed_tasks"))
   REQUIRE(n == 1);
 
   {
-    ccf::tasks::test::TaskWorkerThread t;
+    TaskWorkerThread t;
     std::this_thread::sleep_for(delay * 2);
     REQUIRE(n == 2);
     std::this_thread::sleep_for(delay * 2);
@@ -80,7 +79,7 @@ TEST_CASE("DelayedTasks" * doctest::test_suite("delayed_tasks"))
   std::this_thread::sleep_for(delay * 2);
 
   {
-    ccf::tasks::test::TaskWorkerThread t;
+    TaskWorkerThread t;
 
     std::this_thread::sleep_for(delay * 2);
     const auto a = n.load();

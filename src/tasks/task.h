@@ -19,12 +19,14 @@ namespace ccf::tasks
     friend Resumable ccf::tasks::pause_current_task();
     virtual ccf::tasks::Resumable pause();
 
+  protected:
+    virtual void do_task_implementation() = 0;
+
   public:
     virtual ~BaseTask() = default;
 
     void do_task();
 
-    virtual void do_task_implementation() = 0;
     virtual std::string get_name() const
     {
       return "[Anon]";
