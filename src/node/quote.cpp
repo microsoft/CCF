@@ -261,6 +261,7 @@ namespace ccf
   QuoteVerificationResult verify_tcb_version_against_store(
     ccf::kv::ReadOnlyTx& tx, const QuoteInfo& quote_info)
   {
+    // SGX or Virtual
     if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
     {
       return QuoteVerificationResult::Verified;

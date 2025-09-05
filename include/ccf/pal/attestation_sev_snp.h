@@ -467,8 +467,21 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         }
         case EndorsementsEndpointType::AMD:
         {
-          auto product =
-            get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
+          ProductName product = ProductName::Milan;
+          if (quote.version < MIN_TCB_VERIF_VERSION)
+          {
+            // This should be safe as the CPUID and family are only used here to
+            // retrieve endorsements from AMD If the cpuid was tampered with,
+            // the endorsements would fail to validate the quote
+            auto cpuid = get_cpuid_untrusted();
+            product =
+              get_sev_snp_product(cpuid.get_family_id(), cpuid.get_model_id());
+          }
+          else
+          {
+            product =
+              get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
+          }
 
           std::string boot_loader;
           std::string tee;

@@ -118,12 +118,25 @@ namespace ccf::pal
 
     auto root_cert_verifier = ccf::crypto::make_verifier(root_certificate);
 
-    std::string expected_root_public_key;
-    if (quote.version < 3)
+    // validate expected root public key
+    if (quote.version < snp::MIN_TCB_VERIF_VERSION)
     {
-      // before version 3 there are no cpuid fields so we must assume that it is
-      // milan
-      expected_root_public_key = snp::amd_milan_root_signing_public_key;
+      // Before v3 the cpuid was not included in the attestation report
+      // therefore we try both the Milan and Genoa keys
+      if (
+        root_cert_verifier->public_key_pem().str() !=
+          snp::amd_milan_root_signing_public_key &&
+        root_cert_verifier->public_key_pem().str() !=
+          snp::amd_genoa_root_signing_public_key)
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: The root of trust public key for this attestation was not "
+          "the expected one for v{}:  {} != {} or {}",
+          quote.version,
+          root_cert_verifier->public_key_pem().str(),
+          snp::amd_milan_root_signing_public_key,
+          snp::amd_genoa_root_signing_public_key));
+      }
     }
     else
     {
@@ -136,18 +149,17 @@ namespace ccf::pal
           quote.cpuid_fam_id,
           quote.cpuid_mod_id));
       }
-      expected_root_public_key = key->second;
-    }
-    if (root_cert_verifier->public_key_pem().str() != expected_root_public_key)
-    {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: The root of trust public key for this attestation was not "
-        "the expected one for v{} {} {}:  {} != {}",
-        quote.version,
-        quote.cpuid_fam_id,
-        quote.cpuid_mod_id,
-        root_cert_verifier->public_key_pem().str(),
-        expected_root_public_key));
+      if (root_cert_verifier->public_key_pem().str() != key->second)
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: The root of trust public key for this attestation was not "
+          "the expected one for v{} {} {}:  {} != {}",
+          quote.version,
+          quote.cpuid_fam_id,
+          quote.cpuid_mod_id,
+          root_cert_verifier->public_key_pem().str(),
+          key->second));
+      }
     }
 
     if (!root_cert_verifier->verify_certificate({&root_certificate}))
