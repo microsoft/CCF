@@ -439,6 +439,12 @@ namespace ccf
         // synchronously with the call to pal::generate_quote
         this->quote_info = qi;
 
+        auto b64encoded_quote = ccf::crypto::b64url_from_raw(quote_info.quote);
+        nlohmann::json jq;
+        to_json(jq, quote_info.format);
+        LOG_INFO_FMT(
+          "Initial node attestation ({}): {}", jq.dump(), b64encoded_quote);
+
         if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
         {
           // Use endorsements retrieved from file, if available
