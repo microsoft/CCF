@@ -277,6 +277,13 @@ add_ccf_static_library(
   LINK_LIBS qcbor t_cose http_parser ccfcrypto ccf_kv
 )
 
+# CCF task system library
+add_ccf_static_library(
+  ccf_tasks
+  SRCS ${CCF_DIR}/src/tasks/task_system.cpp ${CCF_DIR}/src/tasks/job_board.cpp
+       ${CCF_DIR}/src/tasks/ordered_tasks.cpp
+)
+
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS
     0
@@ -523,6 +530,17 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/work_beacon.cpp
     )
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+
+    add_unit_test(
+      task_system_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/ordered_tasks.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/delayed_tasks.cpp
+    )
+    target_link_libraries(task_system_test PRIVATE ccf_tasks)
+
+    add_unit_test(
+      task_system_demo ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/demo/main.cpp
+    )
+    target_link_libraries(task_system_demo PRIVATE ccf_tasks)
 
     add_unit_test(
       ledger_test ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp
@@ -772,6 +790,13 @@ if(BUILD_TESTS)
     )
     add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
+
+    add_picobench(
+      task_bench
+      SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/merge_bench.cpp
+           ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/sleep_bench.cpp
+      LINK_LIBS ccf_tasks
+    )
   endif()
 
   if(LONG_TESTS)
