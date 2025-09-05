@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/logger.h"
+#include "ds/framework_logger.h"
 
 #define CCF_ASSERT_FMT_FAIL(...) \
   CCF_ASSERT(false, fmt::format(__VA_ARGS__).c_str())

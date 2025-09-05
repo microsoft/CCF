@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/logger.h"
 #include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
+#include "ds/framework_logger.h"
 #include "ds/thread_messaging.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"

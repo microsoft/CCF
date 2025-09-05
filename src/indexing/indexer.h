@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/logger.h"
 #include "ccf/indexing/indexer_interface.h"
+#include "ds/framework_logger.h"
 #include "indexing/transaction_fetcher_interface.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"

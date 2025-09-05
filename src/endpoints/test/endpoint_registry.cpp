@@ -4,7 +4,7 @@
 
 #include "ccf/endpoint_registry.h"
 
-#include "ccf/ds/logger.h"
+#include "ds/framework_logger.h"
 #include "ds/nonstd.h"
 #include "endpoint_utils.h"
 

@@ -4,11 +4,11 @@
 
 #include "ccf/app_interface.h"
 #include "ccf/crypto/openssl_init.h"
-#include "ccf/ds/logger.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/hash.h"
+#include "ds/framework_logger.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"

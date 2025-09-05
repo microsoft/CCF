@@ -3,6 +3,8 @@
 
 #include "node/uvm_endorsements.h"
 
+#include "ds/framework_logger.h"
+
 namespace ccf
 {
   bool matches_uvm_roots_of_trust(

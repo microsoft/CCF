@@ -4,8 +4,8 @@
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 
 #include "ccf/ds/hex.h"
-#include "ccf/ds/logger.h"
 #include "ccf/pal/locking.h"
+#include "ds/framework_logger.h"
 #include "ds/lru.h"
 #include "ds/serialized.h"
 #include "indexing/lfs_interface.h"

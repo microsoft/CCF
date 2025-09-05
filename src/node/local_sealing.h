@@ -4,12 +4,12 @@
 
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/json.h"
-#include "ccf/ds/logger.h"
 #include "ccf/kv/version.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/snp_ioctl.h"
 #include "ds/ccf_assert.h"
 #include "ds/files.h"
+#include "ds/framework_logger.h"
 #include "node/ledger_secret.h"
 #include "node/ledger_secrets.h"
 

@@ -4,8 +4,8 @@
 #include "node/snapshotter.h"
 
 #include "ccf/crypto/openssl_init.h"
-#include "ccf/ds/logger.h"
 #include "crypto/openssl/hash.h"
+#include "ds/framework_logger.h"
 #include "ds/ring_buffer.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
