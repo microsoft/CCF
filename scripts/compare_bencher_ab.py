@@ -86,17 +86,17 @@ def create_diverging_bar(
         return bar + f" {change_val:+.1f}%"
     elif is_improvement:  # This is actually an improvement
         if change_val > 0:  # Positive change that's good (e.g., higher throughput)
-            bar = " " * center + "|" + "▓" * bar_length + " " * (center - bar_length)
+            bar = " " * center + "|" + "+" * bar_length + " " * (center - bar_length)
         else:  # Negative change that's good (e.g., lower latency)
             left_start = center - bar_length
-            bar = " " * left_start + "▓" * bar_length + "|" + " " * center
+            bar = " " * left_start + "+" * bar_length + "|" + " " * center
         return bar + f" {change_val:+.1f}%"
     else:  # This is a regression
         if change_val > 0:  # Positive change that's bad (e.g., higher latency)
-            bar = " " * center + "|" + "█" * bar_length + " " * (center - bar_length)
+            bar = " " * center + "|" + "-" * bar_length + " " * (center - bar_length)
         else:  # Negative change that's bad (e.g., lower throughput)
             left_start = center - bar_length
-            bar = " " * left_start + "█" * bar_length + "|" + " " * center
+            bar = " " * left_start + "-" * bar_length + "|" + " " * center
         return bar + f" {change_val:+.1f}%"
 
 
@@ -189,11 +189,11 @@ def create_side_by_side_plot(
 
     print()
     print("Legend:")
-    print("  ▓▓▓|         = Improvement (left side, better performance)")
-    print("      |███     = Regression (right side, worse performance)")
+    print("  +++|         = Improvement (left side, better performance)")
+    print("      |---     = Regression (right side, worse performance)")
     print("      |         = No significant change (<2%)")
-    print("  ▓ = Better performance (lighter blocks)")
-    print("  █ = Worse performance (darker blocks)")
+    print("  + = Better performance")
+    print("  - = Worse performance")
     print("  Scale: ±50% change uses full bar width")
     print(
         "  Note: For performance metrics, lower latency = better, higher throughput = better"
