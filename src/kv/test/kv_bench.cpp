@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #define PICOBENCH_IMPLEMENT
 
-#include "ccf/crypto/openssl_init.h"
 #include "crypto/openssl/hash.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
@@ -286,8 +285,6 @@ PICOBENCH(des_snap<1000>).iterations(map_count).samples(snapshot_sample_size);
 
 int main(int argc, char** argv)
 {
-  ccf::crypto::openssl_sha256_init();
-
   picobench::runner runner;
   runner.parse_cmd_line(argc, argv);
   return runner.run();
