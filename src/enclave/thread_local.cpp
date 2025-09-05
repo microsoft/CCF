@@ -7,10 +7,8 @@ namespace ccf::threading
   namespace
   {
     std::atomic<ThreadID> next_thread_id = MAIN_THREAD_ID;
+    thread_local std::optional<std::string> this_thread_name = std::nullopt;
   }
-
-  static thread_local std::optional<std::string> this_thread_name =
-    std::nullopt;
 
   uint16_t& current_thread_id()
   {

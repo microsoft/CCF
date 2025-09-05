@@ -14,7 +14,10 @@
 namespace ccf::tasks
 {
   // Implementation of BaseTask
-  static thread_local BaseTask* current_task = nullptr;
+  namespace
+  {
+    thread_local BaseTask* current_task = nullptr;
+  }
 
   void BaseTask::do_task()
   {
@@ -68,10 +71,14 @@ namespace ccf::tasks
   using DelayedTasksByTime = std::map<std::chrono::milliseconds, DelayedTasks>;
 
   using namespace std::chrono_literals;
-  static std::atomic<std::chrono::milliseconds> total_elapsed = 0ms;
 
-  static DelayedTasksByTime delayed_tasks;
-  static std::mutex delayed_tasks_mutex;
+  namespace
+  {
+    std::atomic<std::chrono::milliseconds> total_elapsed = 0ms;
+
+    DelayedTasksByTime delayed_tasks;
+    std::mutex delayed_tasks_mutex;
+  }
 
   void add_delayed_task(
     Task task,
