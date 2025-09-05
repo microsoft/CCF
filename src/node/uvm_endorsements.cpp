@@ -5,21 +5,16 @@
 
 namespace ccf
 {
-  bool inline matches_uvm_roots_of_trust(
+  bool matches_uvm_roots_of_trust(
     const pal::UVMEndorsements& endorsements,
     const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust)
   {
-    for (const auto& uvm_root_of_trust : uvm_roots_of_trust)
-    {
-      if (
-        uvm_root_of_trust.did == endorsements.did &&
-        uvm_root_of_trust.feed == endorsements.feed &&
-        uvm_root_of_trust.svn <= endorsements.svn)
-      {
-        return true;
-      }
-    }
-    return false;
+    return std::ranges::any_of(
+      uvm_roots_of_trust, [&](const auto& uvm_root_of_trust) {
+        return uvm_root_of_trust.did == endorsements.did &&
+          uvm_root_of_trust.feed == endorsements.feed &&
+          uvm_root_of_trust.svn <= endorsements.svn;
+      });
   }
 
   namespace cose
@@ -109,7 +104,7 @@ namespace ccf
           &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
         QCBORDecode_EnterMap(&ctx, nullptr);
 
-        enum
+        enum HeaderIndex : uint8_t
         {
           ALG_INDEX,
           CONTENT_TYPE_INDEX,

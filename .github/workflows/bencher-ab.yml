@@ -1,0 +1,143 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+
+name: "Benchmark A/B Testing"
+
+on:
+  pull_request:
+    types:
+      - labeled
+      - synchronize
+      - opened
+      - reopened
+
+jobs:
+  benchmark_pr:
+    name: Benchmark PR
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'bench-ab') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root
+    steps:
+      - name: Setup container dependencies
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update && tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: ./scripts/setup-ci.sh
+
+      - name: Confirm platform
+        run: python3 tests/infra/platform_detection.py virtual
+
+      - name: Build and run benchmarks
+        run: |
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DWORKER_THREADS=2 ..
+          ninja
+          # Microbenchmarks
+          ./tests.sh -VV -L benchmark
+          # End to end performance tests
+          ./tests.sh -VV -L perf -C perf
+          # Convert microbenchmark output to bencher json
+          source env/bin/activate
+          PYTHONPATH=../tests python convert_pico_to_bencher.py
+
+      - name: Upload PR results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-pr-${{ github.run_id }}
+          path: build/bencher.json
+          retention-days: 7
+
+  benchmark_main:
+    name: Benchmark Main
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'bench-ab') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root
+    steps:
+      - name: Setup container dependencies
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update && tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: ./scripts/setup-ci.sh
+
+      - name: Confirm platform
+        run: python3 tests/infra/platform_detection.py virtual
+
+      - name: Build and run benchmarks
+        run: |
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DWORKER_THREADS=2 ..
+          ninja
+          # Microbenchmarks
+          ./tests.sh -VV -L benchmark
+          # End to end performance tests
+          ./tests.sh -VV -L perf -C perf
+          # Convert microbenchmark output to bencher json
+          source env/bin/activate
+          PYTHONPATH=../tests python convert_pico_to_bencher.py
+
+      - name: Upload main results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-main-${{ github.run_id }}
+          path: build/bencher.json
+          retention-days: 7
+
+  compare:
+    name: Compare Results
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root
+    needs: [benchmark_pr, benchmark_main]
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'bench-ab') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    steps:
+      - name: Setup container dependencies
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update && tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@v5
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: benchmark-*-${{ github.run_id }}
+          merge-multiple: false
+
+      - name: Generate comparison
+        run: |
+          echo "# Benchmark Comparison: main vs PR" > report.md
+          echo "" >> report.md
+          echo "**PR Commit:** \`${{ github.event.pull_request.head.sha }}\`" >> report.md
+          echo "**Base Commit:** \`${{ github.event.pull_request.base.sha }}\`" >> report.md
+          echo "**Run ID:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> report.md
+          echo "" >> report.md
+          echo '```' >> report.md
+          python3 scripts/compare_bencher_ab.py \
+            benchmark-main-${{ github.run_id }}/bencher.json \
+            benchmark-pr-${{ github.run_id }}/bencher.json \
+            --label1 "main" --label2 "PR" >> report.md
+          echo '```' >> report.md
+
+          cat report.md >> $GITHUB_STEP_SUMMARY
