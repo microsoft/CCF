@@ -980,7 +980,6 @@ def test_npm_app(network, args):
             == "4f4448c67f3c8dfc8de8a5e37125d807dadcc41f06cf23f615dbd52eec777d10"
         )
 
-
         if infra.platform_detection.is_snp():
             LOG.info("Test primary's attestation is verifiable")
 
