@@ -38,7 +38,8 @@ namespace ccf
 
     // Resend request after this interval if no response was received from
     // remote server
-    static constexpr size_t server_connection_timeout_s = 3;
+    static constexpr std::chrono::seconds server_connection_timeout =
+      std::chrono::seconds(3);
 
     std::shared_ptr<RPCSessions> rpcsessions;
 
@@ -230,12 +231,7 @@ namespace ccf
               retry_after_s);
           }
 
-          auto msg =
-            std::make_unique<::threading::Tmsg<QuoteEndorsementsClientMsg>>(
-              [](std::unique_ptr<::threading::Tmsg<QuoteEndorsementsClientMsg>>
-                   msg) { msg->data.self->fetch(msg->data.server); },
-              shared_from_this(),
-              server);
+          const std::chrono::seconds retry_after(retry_after_s);
 
           LOG_INFO_FMT(
             "{} endorsements endpoint had too many requests. Retrying "
@@ -243,8 +239,11 @@ namespace ccf
             endpoint,
             retry_after_s);
 
-          ::threading::ThreadMessaging::instance().add_task_after(
-            std::move(msg), std::chrono::milliseconds(retry_after_s * 1000));
+          auto self = shared_from_this();
+          ccf::tasks::add_delayed_task(
+            ccf::tasks::make_basic_task(
+              [self, server]() { self->fetch(server); }),
+            retry_after);
         }
         return;
       });
@@ -260,18 +259,17 @@ namespace ccf
         std::move(response_callback));
 
       // Start watchdog to send request on new server if it is unresponsive
-      auto msg = std::make_unique<
-        ::threading::Tmsg<QuoteEndorsementsClientTimeoutMsg>>(
-        [](std::unique_ptr<::threading::Tmsg<QuoteEndorsementsClientTimeoutMsg>>
-             msg) {
-          std::lock_guard<ccf::pal::Mutex> guard(msg->data.self->lock);
-          if (msg->data.self->has_completed)
+      auto self = shared_from_this();
+      ccf::tasks::add_delayed_task(
+        ccf::tasks::make_basic_task([self, endpoint, request_id]() {
+          std::lock_guard<ccf::pal::Mutex> guard(self->lock);
+          if (self->has_completed)
           {
             return;
           }
-          if (msg->data.request_id >= msg->data.self->last_submitted_request_id)
+          if (request_id >= self->last_submitted_request_id)
           {
-            auto& servers = msg->data.self->config.servers;
+            auto& servers = self->config.servers;
             // Should always contain at least one server,
             // installed by ccf::pal::make_endorsement_endpoint_configuration()
             if (servers.empty())
@@ -280,10 +278,9 @@ namespace ccf
                 "No server specified to fetch endorsements");
             }
 
-            msg->data.self->server_retries_count++;
+            self->server_retries_count++;
             if (
-              msg->data.self->server_retries_count >=
-              max_retries_count(servers.front()))
+              self->server_retries_count >= max_retries_count(servers.front()))
             {
               if (servers.size() > 1)
               {
@@ -298,6 +295,7 @@ namespace ccf
                   "{} after {} attempts",
                   server.front().host,
                   server.front().max_retries_count);
+
                 throw ccf::pal::AttestationCollateralFetchingTimeout(
                   "Timed out fetching attestation endorsements from all "
                   "configured servers");
@@ -305,21 +303,14 @@ namespace ccf
               }
             }
 
-            msg->data.self->fetch(servers.front());
+            self->fetch(servers.front());
           }
-        },
-        shared_from_this(),
-        endpoint,
-        request_id);
-
-      ::threading::ThreadMessaging::instance().add_task_after(
-        std::move(msg),
-        std::chrono::milliseconds(server_connection_timeout_s * 1000));
+        }),
+        server_connection_timeout);
 
       LOG_INFO_FMT(
         "Fetching endorsements for attestation report at {}",
         request->get_url());
-
       curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
         std::move(request));
     }

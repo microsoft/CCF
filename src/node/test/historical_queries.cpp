@@ -2005,7 +2005,6 @@ TEST_CASE("Valid merkle proof from receipts")
 
 int main(int argc, char** argv)
 {
-  threading::ThreadMessaging::init(1);
   ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);

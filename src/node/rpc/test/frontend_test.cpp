@@ -1786,7 +1786,6 @@ TEST_CASE("Manual conflicts")
 
 int main(int argc, char** argv)
 {
-  ::threading::ThreadMessaging::init(1);
   ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);

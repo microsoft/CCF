@@ -5,7 +5,6 @@
 #include "../non_blocking.h"
 #include "../ring_buffer.h"
 #include "../serialized.h"
-#include "../thread_messaging.h"
 
 #include <array>
 #include <doctest/doctest.h>

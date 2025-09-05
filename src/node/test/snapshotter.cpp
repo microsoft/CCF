@@ -22,6 +22,15 @@ auto node_kp = ccf::crypto::make_key_pair();
 using StringString = ccf::kv::Map<std::string, std::string>;
 using rb_msg = std::pair<ringbuffer::Message, size_t>;
 
+void run_one_task()
+{
+  auto task = ccf::tasks::get_main_job_board().get_task();
+  if (task != nullptr)
+  {
+    task->do_task();
+  }
+}
+
 auto read_ringbuffer_out(ringbuffer::Circuit& circuit)
 {
   std::optional<rb_msg> idx = std::nullopt;
@@ -168,7 +177,7 @@ TEST_CASE("Regular snapshotting")
     REQUIRE_FALSE(record_signature(history, snapshotter, snapshot_idx - 1));
     commit_idx = snapshot_idx - 1;
     snapshotter->commit(commit_idx, true);
-    threading::ThreadMessaging::instance().run_one();
+    run_one_task();
 
     REQUIRE_THROWS_AS(
       read_latest_snapshot_evidence(network.tables), std::logic_error);
@@ -184,7 +193,7 @@ TEST_CASE("Regular snapshotting")
     commit_idx = snapshot_idx + 1;
     snapshotter->commit(commit_idx, true);
 
-    threading::ThreadMessaging::instance().run_one();
+    run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
@@ -222,7 +231,7 @@ TEST_CASE("Regular snapshotting")
     commit_idx = snapshot_idx + 1;
     snapshotter->commit(commit_idx, true);
 
-    threading::ThreadMessaging::instance().run_one();
+    run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
@@ -256,7 +265,7 @@ TEST_CASE("Regular snapshotting")
   {
     commit_idx = snapshot_idx + 2;
     snapshotter->commit(commit_idx, true);
-    threading::ThreadMessaging::instance().run_one();
+    run_one_task();
     REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
   }
 
@@ -271,7 +280,7 @@ TEST_CASE("Regular snapshotting")
     commit_idx = snapshot_idx;
     snapshotter->commit(commit_idx, true);
 
-    threading::ThreadMessaging::instance().run_one();
+    run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
@@ -330,7 +339,7 @@ TEST_CASE("Rollback before snapshot is committed")
     REQUIRE(record_signature(history, snapshotter, snapshot_idx));
     snapshotter->commit(snapshot_idx, true);
 
-    threading::ThreadMessaging::instance().run_one();
+    run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
 
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
@@ -365,7 +374,7 @@ TEST_CASE("Rollback before snapshot is committed")
     REQUIRE(record_signature(history, snapshotter, snapshot_idx));
     snapshotter->commit(snapshot_idx, true);
 
-    threading::ThreadMessaging::instance().run_one();
+    run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
@@ -396,7 +405,7 @@ TEST_CASE("Rollback before snapshot is committed")
     REQUIRE_FALSE(record_signature(history, snapshotter, snapshot_idx));
     snapshotter->commit(snapshot_idx, true);
 
-    threading::ThreadMessaging::instance().run_one();
+    run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
@@ -419,7 +428,7 @@ TEST_CASE("Rollback before snapshot is committed")
       read_ringbuffer_out(eio) ==
       rb_msg({::consensus::snapshot_commit, snapshot_idx}));
 
-    threading::ThreadMessaging::instance().run_one();
+    run_one_task();
   }
 }
 
@@ -485,7 +494,7 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
 
   INFO("Finally, schedule snapshot creation");
   {
-    threading::ThreadMessaging::instance().run_one();
+    run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
@@ -519,7 +528,6 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
 
 int main(int argc, char** argv)
 {
-  threading::ThreadMessaging::init(1);
   ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);

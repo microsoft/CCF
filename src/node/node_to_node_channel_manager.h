@@ -4,6 +4,7 @@
 
 #include "ccf/pal/locking.h"
 #include "channels.h"
+#include "ds/ccf_assert.h"
 #include "node/node_to_node.h"
 
 namespace ccf

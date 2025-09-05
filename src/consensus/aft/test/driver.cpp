@@ -38,8 +38,6 @@ int main(int argc, char** argv)
 #endif
   ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
 
-  threading::ThreadMessaging::init(1);
-
   const std::string filename = argv[1];
 
   std::ifstream fstream;
