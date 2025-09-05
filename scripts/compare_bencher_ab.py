@@ -159,7 +159,7 @@ def create_side_by_side_plot(
         f"{'Metric':<{metric_width}} {'Performance Change':^{bar_width}} {'Values':^{values_width}}"
     )
     print(
-        f"{'':<{metric_width}} {'← Better  |  Worse →':^{bar_width}} {label1 + ' → ' + label2:^{values_width}}"
+        f"{'':<{metric_width}} {'':<{bar_width}} {label1 + ' → ' + label2:^{values_width}}"
     )
     print("-" * total_width)
 
