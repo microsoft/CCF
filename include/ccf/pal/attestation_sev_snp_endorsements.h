@@ -133,8 +133,7 @@ namespace ccf::pal::snp
     const ProductName& product_name,
     size_t max_retries_count,
     size_t max_client_response_size,
-    const std::optional<std::string>& fmc_version = std::nullopt
-  )
+    const std::optional<std::string>& fmc_version = std::nullopt)
   {
     std::map<std::string, std::string> params;
     params["blSPL"] = boot_loader;
