@@ -3,7 +3,7 @@
 #pragma once
 
 #include "./locking_concurrent_queue.h"
-#include "ccf/ds/logger.h"
+#include "ds/framework_logger.h"
 
 #include <atomic>
 #include <string>

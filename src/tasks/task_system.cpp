@@ -3,7 +3,7 @@
 
 #include "tasks/task_system.h"
 
-#include "ccf/ds/logger.h"
+#include "ds/framework_logger.h"
 #include "tasks/job_board.h"
 #include "tasks/resumable.h"
 #include "tasks/task.h"
