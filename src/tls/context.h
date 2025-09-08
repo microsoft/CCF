@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/crypto/base64.h"
-#include "ccf/ds/logger.h"
 #include "cert.h"
+#include "ds/framework_logger.h"
 #include "tls/tls.h"
 
 #include <memory>

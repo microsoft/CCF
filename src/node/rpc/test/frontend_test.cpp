@@ -5,11 +5,11 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "ccf/app_interface.h"
-#include "ccf/ds/logger.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
+#include "ds/framework_logger.h"
 #include "frontend_test_infra.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"

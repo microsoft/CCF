@@ -731,7 +731,6 @@ if(BUILD_TESTS)
     target_link_libraries(
       merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX} ccfcrypto
     )
-    target_compile_definitions(merkle_mem PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
     # Raft driver and scenario test
     add_executable(
@@ -740,7 +739,6 @@ if(BUILD_TESTS)
     )
     target_link_libraries(raft_driver PRIVATE ccfcrypto)
     target_include_directories(raft_driver PRIVATE src/aft)
-    target_compile_definitions(raft_driver PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
     add_test(
       NAME raft_scenario_test
