@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 #include "indexing/transaction_fetcher_interface.h"
 #include "node/historical_queries.h"
 

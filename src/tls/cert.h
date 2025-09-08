@@ -4,7 +4,7 @@
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/key_pair.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 #include "tls/ca.h"
 
 #include <cstring>

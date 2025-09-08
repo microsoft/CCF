@@ -5,7 +5,7 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/js/core/context.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 #include "node/rpc/gov_logging.h"
 
 #include <quickjs/quickjs.h>

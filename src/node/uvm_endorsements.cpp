@@ -3,7 +3,7 @@
 
 #include "node/uvm_endorsements.h"
 
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 
 namespace ccf
 {

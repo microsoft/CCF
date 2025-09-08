@@ -5,7 +5,7 @@
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/hash.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 
 #include <climits>
 #include <openssl/core_names.h>

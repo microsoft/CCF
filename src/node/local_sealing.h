@@ -9,7 +9,7 @@
 #include "ccf/pal/snp_ioctl.h"
 #include "ds/ccf_assert.h"
 #include "ds/files.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 #include "node/ledger_secret.h"
 #include "node/ledger_secrets.h"
 

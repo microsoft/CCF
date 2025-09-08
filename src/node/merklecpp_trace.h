@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 
 // Use the CCF logging infrastructure for merklecpp traces.
 #define MERKLECPP_TRACE_ENABLED

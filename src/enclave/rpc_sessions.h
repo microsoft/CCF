@@ -5,7 +5,7 @@
 #include "ccf/http_responder.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/node_info_network.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "enclave/session.h"
 #include "forwarder_types.h"

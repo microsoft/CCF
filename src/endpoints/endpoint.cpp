@@ -3,7 +3,7 @@
 
 #include "ccf/endpoint.h"
 
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 
 namespace ccf::endpoints
 {

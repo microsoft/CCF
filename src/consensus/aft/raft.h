@@ -7,7 +7,7 @@
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "impl/state.h"
 #include "kv/kv_types.h"

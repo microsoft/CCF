@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/service/node_info_network.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>

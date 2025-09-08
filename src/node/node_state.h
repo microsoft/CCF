@@ -25,7 +25,7 @@
 #include "crypto/certs.h"
 #include "ds/ccf_assert.h"
 #include "ds/files.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 #include "ds/state_machine.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"

@@ -5,7 +5,7 @@
 #include "ccf/kv/set.h"
 #include "ccf/kv/value.h"
 #include "crypto/openssl/hash.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/kv_serialiser.h"
 #include "kv/ledger_chunker.h"

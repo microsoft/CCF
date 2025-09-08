@@ -12,7 +12,7 @@
 #include "ccf/entity_id.h"
 #include "ccf/pal/locking.h"
 #include "crypto/key_exchange.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "ds/state_machine.h"
 #include "ds/thread_messaging.h"

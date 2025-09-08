@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/pal/locking.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 
 #include <unordered_set>
 #include <uv.h>

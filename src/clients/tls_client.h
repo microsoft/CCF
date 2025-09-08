@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 #include "tls/ca.h"
 #include "tls/cert.h"
 

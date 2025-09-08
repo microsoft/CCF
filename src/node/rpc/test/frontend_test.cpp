@@ -9,7 +9,7 @@
 #include "ccf/kv/map.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 #include "frontend_test_infra.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"

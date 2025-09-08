@@ -5,7 +5,7 @@
 #include "ccf/pal/locking.h"
 #include "ccf/version.h"
 #include "common/enclave_interface_types.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 #include "enclave.h"
 
 #include <chrono>

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/http_responder.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 #include "enclave/client_session.h"
 #include "enclave/rpc_handler.h"
 #include "enclave/rpc_map.h"

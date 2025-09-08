@@ -7,7 +7,7 @@
 #include "ccf/pal/locking.h"
 #include "ccf/tx_status.h"
 #include "consensus/aft/raft_types.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 #include "kv/kv_types.h"
 
 #include <deque>

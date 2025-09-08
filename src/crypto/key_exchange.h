@@ -5,7 +5,7 @@
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/public_key.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 
 #include <iostream>
 #include <map>

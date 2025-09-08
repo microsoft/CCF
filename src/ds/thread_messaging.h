@@ -4,7 +4,7 @@
 
 #include "ccf/threading/thread_ids.h"
 #include "ds/ccf_assert.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 
 #include <atomic>
 #include <chrono>

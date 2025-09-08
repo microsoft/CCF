@@ -12,7 +12,7 @@
 #include "ccf/json_handler.h"
 #include "ccf/service/tables/modules.h"
 #include "ccf/version.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY

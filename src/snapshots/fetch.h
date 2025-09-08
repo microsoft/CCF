@@ -4,7 +4,7 @@
 
 #include "ccf/ds/nonstd.h"
 #include "ccf/rest_verb.h"
-#include "ds/internal_logger.h.h"
+#include "ds/internal_logger.h"
 #include "http/curl.h"
 #include "http/http_builder.h"
 
