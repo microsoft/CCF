@@ -3,10 +3,8 @@
 
 #include "ccf/run.h"
 
-#include "ccf/crypto/openssl_init.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
-#include "ccf/ds/logger.h"
 #include "ccf/ds/logger_level.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/ds/unit_strings.h"
@@ -25,6 +23,7 @@
 #include "crypto/openssl/hash.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
+#include "ds/framework_logger.h"
 #include "ds/non_blocking.h"
 #include "ds/notifying.h"
 #include "ds/oversized.h"
@@ -111,8 +110,6 @@ namespace ccf
       LOG_FAIL_FMT("Failed to ignore SIGPIPE");
       return 1;
     }
-
-    ccf::crypto::openssl_sha256_init();
 
     CLI::App app{
       "Run a single CCF node, based on the given configuration file.\n"
@@ -1032,7 +1029,6 @@ namespace ccf
       uv_walk(uv_default_loop(), cb, nullptr);
     }
     curl_global_cleanup();
-    ccf::crypto::openssl_sha256_shutdown();
 
     return loop_close_rc;
   }

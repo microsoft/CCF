@@ -3,12 +3,11 @@
 #include "node/history.h"
 
 #include "ccf/app_interface.h"
-#include "ccf/crypto/openssl_init.h"
-#include "ccf/ds/logger.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/hash.h"
+#include "ds/framework_logger.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
@@ -501,11 +500,9 @@ TEST_CASE(
 int main(int argc, char** argv)
 {
   threading::ThreadMessaging::init(1);
-  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/logger.h"
+#include "ds/framework_logger.h"
 
 #define GOV_TRACE_FMT CCF_LOG_FMT(TRACE, "gov")
 #define GOV_DEBUG_FMT CCF_LOG_FMT(DEBUG, "gov")

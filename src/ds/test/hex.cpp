@@ -3,8 +3,8 @@
 
 #include "ccf/ds/hex.h"
 
-#include "ccf/ds/logger.h"
 #include "ccf/ds/nonstd.h"
+#include "ds/framework_logger.h"
 
 #include <algorithm>
 #include <cctype>

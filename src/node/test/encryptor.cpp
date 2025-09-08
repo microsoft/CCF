@@ -4,7 +4,6 @@
 
 #include "kv/encryptor.h"
 
-#include "ccf/crypto/openssl_init.h"
 #include "crypto/openssl/hash.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
@@ -450,11 +449,9 @@ TEST_CASE("Encryptor rollback")
 int main(int argc, char** argv)
 {
   ccf::logger::config::default_init();
-  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

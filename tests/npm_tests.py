@@ -722,8 +722,12 @@ def test_npm_app(network, args):
             priv_key_pem3, cn="3", issuer_priv_key_pem=priv_key_pem2, issuer_cn="2"
         )
         # validates chains with target being trusted directly
-        r = c.post("/app/isValidX509CertChain", {"chain": pem3, "trusted": pem3})
+        r = c.post("/app/isValidX509CertChain", {"chain": pem2, "trusted": pem2})
         assert r.body.json(), r.body
+        # does not validate trusted certificates where CA=False
+        r = c.post("/app/isValidX509CertChain", {"chain": pem3, "trusted": pem3})
+        assert r.status_code == 200, r.status_code
+        assert r.body.text() == "false", r.body
         # validates chains without intermediates
         r = c.post("/app/isValidX509CertChain", {"chain": pem2, "trusted": pem1})
         assert r.body.json(), r.body
