@@ -4,7 +4,6 @@
 #include "../history.h"
 
 #define FMT_HEADER_ONLY
-#include "ccf/crypto/openssl_init.h"
 
 #include <algorithm>
 #include <fmt/format.h>
@@ -221,9 +220,7 @@ PICOBENCH(serialised_size)
 int main(int argc, char* argv[])
 {
   picobench::runner runner;
-  ccf::crypto::openssl_sha256_init();
   runner.parse_cmd_line(argc, argv);
   auto ret = runner.run();
-  ccf::crypto::openssl_sha256_shutdown();
   return ret;
 }

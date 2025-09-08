@@ -117,6 +117,17 @@ namespace ccf::crypto
         return false;
       }
 
+      auto rc = X509_check_ca(tc);
+      // trusted certs should be a CA
+      // (x509v3 basic constraints CA:TRUE or self-signed x509v1)
+      // Excludes KeyUsage extensions and outdated Netscape extensions
+      auto is_ca = (rc == 1 || rc == 3);
+      if (!is_ca)
+      {
+        LOG_DEBUG_FMT("Trusted certificate is not a CA: {}", pem->str());
+        return false;
+      }
+
       CHECK1(X509_STORE_add_cert(store, tc));
     }
 

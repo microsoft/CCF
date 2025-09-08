@@ -3,7 +3,6 @@
 
 #include "node/snapshotter.h"
 
-#include "ccf/crypto/openssl_init.h"
 #include "crypto/openssl/hash.h"
 #include "ds/framework_logger.h"
 #include "ds/ring_buffer.h"
@@ -520,11 +519,9 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
 int main(int argc, char** argv)
 {
   threading::ThreadMessaging::init(1);
-  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;
