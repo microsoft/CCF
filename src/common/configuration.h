@@ -5,7 +5,6 @@
 
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/pem.h"
-#include "ccf/ds/logger.h"
 #include "ccf/ds/unit_strings.h"
 #include "ccf/node/startup_config.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
@@ -15,6 +14,7 @@
 #include "ccf/service/tables/members.h"
 #include "common/enclave_interface_types.h"
 #include "consensus/consensus_types.h"
+#include "ds/framework_logger.h"
 #include "ds/oversized.h"
 #include "service/tables/config.h"
 

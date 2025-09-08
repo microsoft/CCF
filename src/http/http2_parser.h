@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/logger.h"
 #include "ccf/ds/nonstd.h"
+#include "ds/framework_logger.h"
 #include "enclave/session.h"
 #include "http2_callbacks.h"
 #include "http2_types.h"

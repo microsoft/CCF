@@ -4,8 +4,8 @@
 
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "ccf/ds/logger.h"
 #include "crypto/openssl/public_key.h"
+#include "ds/framework_logger.h"
 
 #include <iostream>
 #include <map>

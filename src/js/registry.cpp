@@ -7,10 +7,12 @@
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/ds/hash.h"
+#include "ccf/ds/logger.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/service/tables/modules.h"
 #include "ccf/version.h"
+#include "ds/framework_logger.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
