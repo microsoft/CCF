@@ -6,7 +6,6 @@
 #include "ccf/crypto/hash_provider.h"
 #include "ccf/crypto/hmac.h"
 #include "ccf/crypto/key_pair.h"
-#include "ccf/crypto/openssl_init.h"
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "crypto/openssl/base64.h"
@@ -343,8 +342,6 @@ namespace Hashes
 template <size_t size>
 static void sha256_bench(picobench::state& s)
 {
-  ccf::crypto::openssl_sha256_init();
-
   std::vector<uint8_t> v(size);
   for (size_t i = 0; i < size; ++i)
   {
@@ -359,7 +356,6 @@ static void sha256_bench(picobench::state& s)
     ccf::crypto::openssl_sha256(v, h.h.data());
   }
   s.stop_timer();
-  ccf::crypto::openssl_sha256_shutdown();
 }
 
 // Variant of the code above that uses the OpenSSL API
