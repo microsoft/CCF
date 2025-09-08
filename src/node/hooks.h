@@ -4,7 +4,7 @@
 
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/reconfiguration_type.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 #include "service/tables/config.h"
 #include "service/tables/signatures.h"
 

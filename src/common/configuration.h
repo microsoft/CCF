@@ -14,7 +14,7 @@
 #include "ccf/service/tables/members.h"
 #include "common/enclave_interface_types.h"
 #include "consensus/consensus_types.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 #include "ds/oversized.h"
 #include "service/tables/config.h"
 

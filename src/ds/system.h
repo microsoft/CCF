@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/ds/nonstd.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 
 #include <array>
 #include <cstdio>

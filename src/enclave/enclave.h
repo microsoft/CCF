@@ -7,7 +7,7 @@
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/pal/mem.h"
 #include "crypto/openssl/hash.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 #include "ds/oversized.h"
 #include "ds/work_beacon.h"
 #include "indexing/enclave_lfs_access.h"

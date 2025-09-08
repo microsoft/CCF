@@ -11,7 +11,7 @@
 #include "ccf/service/tables/tcb_verification.h"
 #include "ccf/service/tables/uvm_endorsements.h"
 #include "ccf/service/tables/virtual_measurements.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 #include "node/uvm_endorsements.h"
 
 namespace ccf

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 
 #include <atomic>
 #include <string>

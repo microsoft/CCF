@@ -8,7 +8,7 @@
 #include "ccf/redirect.h"
 #include "ccf/rpc_context.h"
 #include "ccf/rpc_exception.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 
 #include <llhttp/llhttp.h>
 

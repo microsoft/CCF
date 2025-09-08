@@ -3,7 +3,7 @@
 #include "ccf/ds/openapi.h"
 
 #include "ccf/http_consts.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
