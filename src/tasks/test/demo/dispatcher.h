@@ -37,10 +37,10 @@ struct Action_ProcessClientAction : public ccf::tasks::ITaskAction
         std::launch::async,
         [paused_task = std::move(paused_task),
          result = std::move(result),
-         client_session = &client_session,
-         responses_sent = &responses_sent]() mutable {
+         &client_session = client_session,
+         &responses_sent = responses_sent]() mutable {
           std::this_thread::sleep_for(std::chrono::milliseconds(100));
-          client_session->from_node.push_back(std::move(result));
+          client_session.from_node.push_back(std::move(result));
           ++responses_sent;
           ccf::tasks::resume_task(std::move(paused_task));
         });
