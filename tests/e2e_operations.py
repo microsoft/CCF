@@ -175,7 +175,7 @@ def test_forced_snapshot(network, args):
         LOG.warning(
             f"Skipping as broken when the number of threads ({args.worker_threads}) is > 0"
         )
-        return
+        return network
 
     primary, _ = network.find_primary()
 
