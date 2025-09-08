@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/pal/sev_snp_cpuid.h"
 
 #include <list>
 #include <map>
@@ -14,8 +15,6 @@
 
 namespace ccf::pal::snp
 {
-  constexpr auto product_name = "Milan";
-
   struct ACIReportEndorsements
   {
     std::string cache_control;
@@ -116,7 +115,8 @@ namespace ccf::pal::snp
     const std::string& boot_loader,
     const std::string& tee,
     const std::string& snp,
-    const std::string& microcode)
+    const std::string& microcode,
+    const ProductName& product_name)
   {
     std::map<std::string, std::string> params;
     params["blSPL"] = boot_loader;
@@ -124,19 +124,22 @@ namespace ccf::pal::snp
     params["snpSPL"] = snp;
     params["ucodeSPL"] = microcode;
 
-    EndorsementEndpointsConfiguration::Server server;
-    server.push_back({
+    EndorsementEndpointsConfiguration::EndpointInfo leaf{
       endpoint.host,
       endpoint.port,
-      fmt::format("/vcek/v1/{}/{}", product_name, chip_id_hex),
+      fmt::format("/vcek/v1/{}/{}", to_string(product_name), chip_id_hex),
       params,
       true // DER
-    });
-    server.push_back(
-      {endpoint.host,
-       endpoint.port,
-       fmt::format("/vcek/v1/{}/cert_chain", product_name),
-       {}});
+    };
+    EndorsementEndpointsConfiguration::EndpointInfo chain{
+      endpoint.host,
+      endpoint.port,
+      fmt::format("/vcek/v1/{}/cert_chain", to_string(product_name)),
+      {}};
+
+    EndorsementEndpointsConfiguration::Server server;
+    server.push_back(leaf);
+    server.push_back(chain);
 
     return server;
   }

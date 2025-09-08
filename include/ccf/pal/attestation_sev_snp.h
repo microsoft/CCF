@@ -5,8 +5,10 @@
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/report_data.h"
+#include "ccf/pal/sev_snp_cpuid.h"
 
 #include <array>
+#include <cstdint>
 #include <map>
 #include <string>
 
@@ -34,6 +36,45 @@ pCCoMNit2uLo9M18fHz10lOMT8nWAUvRZFzteXCm+7PHdYPlmQwUw3LvenJ/ILXo
 QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 -----END PUBLIC KEY-----
 )";
+  constexpr auto amd_genoa_root_signing_public_key =
+    R"(-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA3Cd95S/uFOuRIskW9vz9
+VDBF69NDQF79oRhL/L2PVQGhK3YdfEBgpF/JiwWFBsT/fXDhzA01p3LkcT/7Ldjc
+RfKXjHl+0Qq/M4dZkh6QDoUeKzNBLDcBKDDGWo3v35NyrxbA1DnkYwUKU5AAk4P9
+4tKXLp80oxt84ahyHoLmc/LqsGsp+oq1Bz4PPsYLwTG4iMKVaaT90/oZ4I8oibSr
+u92vJhlqWO27d/Rxc3iUMyhNeGToOvgx/iUo4gGpG61NDpkEUvIzuKcaMx8IdTpW
+g2DF6SwF0IgVMffnvtJmA68BwJNWo1E4PLJdaPfBifcJpuBFwNVQIPQEVX3aP89H
+JSp8YbY9lySS6PlVEqTBBtaQmi4ATGmMR+n2K/e+JAhU2Gj7jIpJhOkdH9firQDn
+mlA2SFfJ/Cc0mGNzW9RmIhyOUnNFoclmkRhl3/AQU5Ys9Qsan1jT/EiyT+pCpmnA
++y9edvhDCbOG8F2oxHGRdTBkylungrkXJGYiwGrR8kaiqv7NN8QhOBMqYjcbrkEr
+0f8QMKklIS5ruOfqlLMCBw8JLB3LkjpWgtD7OpxkzSsohN47Uom86RY6lp72g8eX
+HP1qYrnvhzaG1S70vw6OkbaaC9EjiH/uHgAJQGxon7u0Q7xgoREWA/e7JcBQwLg8
+0Hq/sbRuqesxz7wBWSY254cCAwEAAQ==
+-----END PUBLIC KEY-----
+)";
+  constexpr auto amd_turin_root_signing_public_key =
+    R"(-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAwaAriB7EIuVc4ZB1wD3Y
+fDxL+9eyS7+izm0Jj3W772NINCWl8Bj3w/JD2ZjmbRxWdIq/4d9iarCKorXloJUB
+1jRdgxqccTx1aOoig4+2w1XhVVJT7K457wT5ZLNJgQaxqa9Etkwjd6+9sOhlCDE9
+l43kQ0R2BikVJa/uyyVOSwEk5w5tXKOuG9jvq6QtAMJasW38wlqRDaKEGtZ9VUgG
+on27ZuL4sTJuC/azz9/iQBw8kEilzOl95AiTkeY5jSEBDWbAqnZk5qlM7kISKG20
+kgQm14mhNKDI2p2oua+zuAG7i52epoRF2GfU0TYk/yf+vCNB2tnechFQuP2e8bLk
+95ZdqPi9/UWw4JXjtdEA4u2JYplSSUPQVAXKt6LVqujtJcM59JKr2u0XQ75KwxcM
+p15gSXhBfInvPAwuAY4dEwwGqT8oIg4esPHwEsmChhYeDIxPG9R4fx9O0q6p8Gb+
+HXlTiS47P9YNeOpidOUKzDl/S1OvyhDtSL8LJc24QATFydo/iD/KUdvFTRlD0crk
+AMkZLoWQ8hLDGc6BZJXsdd7Zf2e4UW3tI/1oh/2t23Ot3zyhTcv5gDbABu0LjVe9
+8uRnS15SMwK//lJt9e5BqKvgABkSoABf+B4VFtPVEX0ygrYaFaI9i5ABrxnVBmzX
+pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
+-----END PUBLIC KEY-----
+)";
+
+  inline const std::map<ProductName, const char*> amd_root_signing_keys{
+    {ProductName::Milan, amd_milan_root_signing_public_key},
+    {ProductName::Genoa, amd_genoa_root_signing_public_key},
+    // Disabled until we can test this
+    //{ProductName::turin, amd_turin_root_signing_public_key},
+  };
 
 #pragma pack(push, 1)
   // Table 3
@@ -140,7 +181,10 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     uint8_t report_id[32]; /* 0x140 */
     uint8_t report_id_ma[32]; /* 0x160 */
     struct TcbVersion reported_tcb; /* 0x180 */
-    uint8_t reserved1[24]; /* 0x188 */
+    uint8_t cpuid_fam_id; /* 0x188*/
+    uint8_t cpuid_mod_id; /* 0x189 */
+    uint8_t cpuid_step; /* 0x18A */
+    uint8_t reserved1[21]; /* 0x18B */
     uint8_t chip_id[64]; /* 0x1A0 */
     struct TcbVersion committed_tcb; /* 0x1E0 */
     uint8_t current_minor; /* 0x1E8 */
@@ -213,11 +257,13 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
           auto tee = fmt::format("{}", quote.reported_tcb.tee);
           auto snp = fmt::format("{}", quote.reported_tcb.snp);
           auto microcode = fmt::format("{}", quote.reported_tcb.microcode);
+          auto product =
+            get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
 
           auto loc =
             get_endpoint_loc(server, default_amd_endorsements_endpoint);
           config.servers.emplace_back(make_amd_endorsements_server(
-            loc, chip_id_hex, boot_loader, tee, snp, microcode));
+            loc, chip_id_hex, boot_loader, tee, snp, microcode, product));
           break;
         }
         case EndorsementsEndpointType::THIM:
