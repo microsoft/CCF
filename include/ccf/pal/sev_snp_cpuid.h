@@ -10,7 +10,6 @@
 
 namespace ccf::pal::snp
 {
-
   enum class ProductName
   {
     Milan,
