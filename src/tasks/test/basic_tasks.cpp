@@ -206,10 +206,24 @@ TEST_CASE("Scheduling" * doctest::test_suite("basic_tasks"))
   };
 
   std::vector<std::thread> workers;
-  for (size_t i = 0; i < 2; ++i)
+
+  // Potentially 3 parallel jobs => need at least 3 workers
+  for (size_t i = 0; i < 3; ++i)
   {
     workers.emplace_back(worker_fn);
   }
+
+  std::thread watchdog([&]() {
+    using Clock = std::chrono::steady_clock;
+    auto start = Clock::now();
+    while (!stop_signal.load())
+    {
+      auto now = Clock::now();
+      auto elapsed = now - start;
+      REQUIRE(elapsed < std::chrono::seconds(1));
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  });
 
   for (auto& worker : workers)
   {
@@ -218,6 +232,8 @@ TEST_CASE("Scheduling" * doctest::test_suite("basic_tasks"))
 
   thread_a.join();
   thread_b.join();
+
+  watchdog.join();
 
   decltype(count_with_me) target(7);
   std::iota(target.begin(), target.end(), 0);
