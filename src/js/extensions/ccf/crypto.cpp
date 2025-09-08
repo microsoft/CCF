@@ -12,7 +12,7 @@
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/js/core/context.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h.h"
 #include "js/checks.h"
 #include "tls/ca.h"
 

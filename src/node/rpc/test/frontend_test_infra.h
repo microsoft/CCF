@@ -8,7 +8,7 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/service/signed_req.h"
 #include "ds/files.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"

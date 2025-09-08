@@ -5,7 +5,7 @@
 #include "ccf/crypto/sha256_hash.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h.h"
 #include "ds/serialized.h"
 #include "kv/ledger_chunker.h"
 #include "kv/serialised_entry_format.h"

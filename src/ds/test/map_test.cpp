@@ -4,7 +4,7 @@
 #include "ccf/byte_vector.h"
 #include "ccf/kv/serialisers/serialised_entry.h"
 #include "ds/champ_map.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h.h"
 #include "ds/rb_map.h"
 #include "ds/std_formatters.h"
 #include "kv/untyped_change_set.h"

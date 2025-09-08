@@ -6,7 +6,7 @@
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/users.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h.h"
 #include "kv/kv_types.h"
 
 namespace ccf

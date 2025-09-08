@@ -3,7 +3,7 @@
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "crypto/certs.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h.h"
 #include "tcp/msg_types.h"
 #include "tls/client.h"
 #include "tls/server.h"

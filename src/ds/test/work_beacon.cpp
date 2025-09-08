@@ -3,7 +3,7 @@
 
 #include "../work_beacon.h"
 
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h.h"
 
 #include <doctest/doctest.h>
 #include <functional>

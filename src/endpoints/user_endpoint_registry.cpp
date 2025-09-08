@@ -3,7 +3,7 @@
 
 #include "ccf/app_interface.h"
 #include "ds/actors.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h.h"
 
 namespace ccf
 {

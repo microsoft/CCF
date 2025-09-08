@@ -4,7 +4,7 @@
 
 #include "ccf/crypto/base64.h"
 #include "cert.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h.h"
 #include "tls/tls.h"
 
 #include <memory>

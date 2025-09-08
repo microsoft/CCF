@@ -3,7 +3,7 @@
 #pragma once
 
 #include "consensus/aft/raft.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h.h"
 #include "logging_stub.h"
 
 #include <chrono>

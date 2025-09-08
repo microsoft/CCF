@@ -3,7 +3,7 @@
 
 #include "crypto/openssl/cose_sign.h"
 
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h.h"
 
 #include <openssl/evp.h>
 

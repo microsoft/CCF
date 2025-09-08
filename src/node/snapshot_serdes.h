@@ -4,7 +4,7 @@
 
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/service/tables/nodes.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h.h"
 #include "ds/serialized.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"

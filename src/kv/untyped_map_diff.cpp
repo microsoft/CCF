@@ -3,7 +3,7 @@
 
 #include "ccf/kv/untyped_map_diff.h"
 
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h.h"
 #include "kv/untyped_change_set.h"
 
 namespace ccf::kv::untyped

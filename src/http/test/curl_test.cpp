@@ -3,7 +3,7 @@
 
 #include "ccf/ds/json.h"
 #include "curl/curl.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h.h"
 #include "http/curl.h"
 
 #include <cstdlib>

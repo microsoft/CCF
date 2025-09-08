@@ -7,7 +7,7 @@
 #include "ccf/service/tables/nodes.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/hash.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
