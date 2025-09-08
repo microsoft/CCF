@@ -797,6 +797,7 @@ if(BUILD_TESTS)
       task_bench
       SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/merge_bench.cpp
            ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/sleep_bench.cpp
+           ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/contention_bench.cpp
       LINK_LIBS ccf_tasks
     )
   endif()
