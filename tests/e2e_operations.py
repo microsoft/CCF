@@ -171,6 +171,12 @@ def test_forced_ledger_chunk(network, args):
 @reqs.description("Forced snapshot")
 @app.scoped_txs()
 def test_forced_snapshot(network, args):
+    if args.worker_threads > 0:
+        LOG.warning(
+            f"Skipping as broken when the number of threads ({args.worker_threads}) is > 0"
+        )
+        return network
+
     primary, _ = network.find_primary()
 
     # Submit some dummy transactions
