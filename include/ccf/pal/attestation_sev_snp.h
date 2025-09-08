@@ -523,6 +523,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
           std::string tee;
           std::string snp;
           std::string microcode;
+          std::optional<std::string> fmc = std::nullopt;
           switch (product)
           {
             case ProductName::Milan:
@@ -542,6 +543,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
               tee = fmt::format("{}", tcb.tee);
               snp = fmt::format("{}", tcb.snp);
               microcode = fmt::format("{}", tcb.microcode);
+              fmc = fmt::format("{}", tcb.fmc);
               break;
             }
             default:
@@ -562,7 +564,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             microcode,
             product,
             max_retries_count,
-            max_client_response_size));
+            max_client_response_size,
+            fmc));
           break;
         }
         case EndorsementsEndpointType::THIM:
