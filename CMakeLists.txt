@@ -716,7 +716,6 @@ if(BUILD_TESTS)
     target_link_libraries(
       merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX} ccfcrypto
     )
-    target_compile_definitions(merkle_mem PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
     # Raft driver and scenario test
     add_executable(
@@ -725,7 +724,6 @@ if(BUILD_TESTS)
     )
     target_link_libraries(raft_driver PRIVATE ccfcrypto)
     target_include_directories(raft_driver PRIVATE src/aft)
-    target_compile_definitions(raft_driver PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
     add_test(
       NAME raft_scenario_test
@@ -1123,7 +1121,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
     CLIENT_BIN ./submit PERF_LABEL "Basic"
     ADDITIONAL_ARGS --package "samples/apps/basic/basic" --client-def
-                    "1,write,1000000,primary"
+                    "1,write,3000000,primary"
   )
 
   add_piccolo_test(
@@ -1131,7 +1129,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
     CLIENT_BIN ./submit PERF_LABEL "Basic JS"
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
-                    --client-def "1,write,1000000,primary"
+                    --client-def "1,write,300000,primary"
   )
 
   if(WORKER_THREADS)
@@ -1140,7 +1138,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
       CLIENT_BIN ./submit PERF_LABEL "Basic Multi-Threaded"
       ADDITIONAL_ARGS --package "samples/apps/basic/basic" --client-def
-                      "${WORKER_THREADS},write,1000000,primary"
+                      "${WORKER_THREADS},write,2000000,primary"
     )
   endif()
 

@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/crypto/openssl_init.h"
 #include "ccf/pal/measurement.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
@@ -69,14 +68,28 @@ TEST_CASE("Check ECDSA Test endorsement")
   REQUIRE(endorsements == ccf::default_uvm_roots_of_trust[1]);
 }
 
+TEST_CASE("Check UVM roots of trust matching")
+{
+  ccf::pal::UVMEndorsements old{"issuer1", "subject1", "0"};
+  ccf::pal::UVMEndorsements current{"issuer1", "subject1", "1"};
+  ccf::pal::UVMEndorsements newer{"issuer1", "subject1", "2"};
+  ccf::pal::UVMEndorsements other_issuer{"issuer2", "subject1", "2"};
+  ccf::pal::UVMEndorsements other_subject{"issuer1", "subject2", "2"};
+
+  REQUIRE(ccf::matches_uvm_roots_of_trust(current, {current}));
+  REQUIRE(ccf::matches_uvm_roots_of_trust(current, {old}));
+  REQUIRE_FALSE(ccf::matches_uvm_roots_of_trust(current, {newer}));
+
+  REQUIRE_FALSE(ccf::matches_uvm_roots_of_trust(current, {other_issuer}));
+  REQUIRE_FALSE(ccf::matches_uvm_roots_of_trust(current, {other_subject}));
+}
+
 int main(int argc, char** argv)
 {
   ccf::logger::config::default_init();
-  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

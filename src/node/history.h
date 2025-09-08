@@ -3,13 +3,13 @@
 #pragma once
 
 #include "ccf/crypto/cose_verifier.h"
-#include "ccf/ds/logger.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
 #include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/key_pair.h"
+#include "ds/internal_logger.h"
 #include "ds/thread_messaging.h"
 #include "endian.h"
 #include "kv/kv_types.h"

@@ -12,11 +12,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added `ccf.gov.validateConstitution` function to JS API, which can be used to confirm some basic properties of a proposed constitution (it is a string, parseable by our JS interpreter, exporting functions named `validate`, `resolve` and `apply` with the correct number of arguments). This is called in the default sample constitution's `set_constitution.validate`.
+- Added logging of the initial node attestation value ("Initial node attestation...") (#7256).
 
 ### Fixed
 
 - Correctly validate the full AMD ASK endorsement chain (#7233)
 - Validate endorsement metadata (tcb version and chip id) against attestation (#7240)
+
+### Removed
+
+- Removed `ccf::crypt::openssl_sha256_init()` and `ccf::crypt::openssl_sha256_shutdown()` interface, as it's now implicitly called by the crypto implementation (#7251).
 
 ## [7.0.0-dev2]
 

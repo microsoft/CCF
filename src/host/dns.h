@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/logger.h"
 #include "ccf/pal/locking.h"
+#include "ds/internal_logger.h"
 
 #include <unordered_set>
 #include <uv.h>

@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/app_interface.h"
-#include "ccf/ds/logger.h"
 #include "ds/actors.h"
+#include "ds/internal_logger.h"
 
 namespace ccf
 {

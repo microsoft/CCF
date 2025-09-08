@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/logger.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/files.h"
+#include "ds/internal_logger.h"
 #include "ds/messaging.h"
 #include "ds/serialized.h"
 #include "kv/kv_types.h"

@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/logger.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/service/tables/nodes.h"
+#include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"

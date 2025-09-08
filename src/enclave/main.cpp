@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/ds/ccf_exception.h"
 #include "ccf/ds/json.h"
-#include "ccf/ds/logger.h"
 #include "ccf/pal/locking.h"
 #include "ccf/version.h"
 #include "common/enclave_interface_types.h"
+#include "ds/internal_logger.h"
 #include "enclave.h"
 
 #include <chrono>
