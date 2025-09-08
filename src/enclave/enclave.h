@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ccf/app_interface.h"
-#include "ccf/ds/logger.h"
 #include "ccf/js/core/context.h"
 #include "ccf/node_context.h"
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/pal/mem.h"
 #include "crypto/openssl/hash.h"
+#include "ds/framework_logger.h"
 #include "ds/oversized.h"
 #include "ds/work_beacon.h"
 #include "indexing/enclave_lfs_access.h"

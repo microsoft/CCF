@@ -7,6 +7,7 @@
 #include "ccf/kv/read_only_store.h"
 #include "ccf/pal/locking.h"
 #include "deserialise.h"
+#include "ds/framework_logger.h"
 #include "kv/committable_tx.h"
 #include "kv/ledger_chunker_interface.h"
 #include "kv/snapshot.h"

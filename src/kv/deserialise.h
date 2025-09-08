@@ -3,6 +3,7 @@
 #pragma once
 
 #include "apply_changes.h"
+#include "ds/framework_logger.h"
 #include "kv/committable_tx.h"
 #include "kv/ledger_chunker_interface.h"
 #include "kv_types.h"

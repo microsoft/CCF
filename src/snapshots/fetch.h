@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/logger.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/rest_verb.h"
+#include "ds/framework_logger.h"
 #include "http/curl.h"
 #include "http/http_builder.h"
 
