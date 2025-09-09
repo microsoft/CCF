@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 
 namespace ccf
 {

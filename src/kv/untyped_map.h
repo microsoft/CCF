@@ -6,7 +6,7 @@
 #include "ccf/kv/untyped_map_handle.h"
 #include "ccf/pal/locking.h"
 #include "ds/dl_list.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 #include "kv/kv_serialiser.h"
 #include "kv/kv_types.h"
 #include "kv/untyped_change_set.h"

@@ -6,7 +6,7 @@
 #include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/files.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 #include "ds/messaging.h"
 #include "ds/serialized.h"
 #include "kv/kv_types.h"

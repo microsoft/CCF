@@ -605,19 +605,19 @@ def scoped_txs(identity="user0", verify=False):
         def get_fresh_scope(node, identity, headers, attempts=5):
             prefix = func.__name__
             scope = prefix
-            i = 1
-            while attempts > 0:
+            i = 0
+            while i < attempts:
                 with node.client(identity) as c:
                     public_count = get_count(c, headers, scope)
-                    if public_count is None:
-                        attempts -= 1
-                        time.sleep(0.1)
+                    private_count = get_count(c, headers, scope, private=True)
+                    if public_count is None or private_count is None:
+                        break
+
+                    if public_count + private_count == 0:
+                        return scope
                     else:
-                        private_count = get_count(c, headers, scope, private=True)
-                        if public_count + private_count == 0:
-                            return scope
-                        else:
-                            scope = f"{prefix}_{i}"
+                        scope = f"{prefix}_{i}"
+                        i += 1
 
             raise ValueError("fresh scope request failed")
 

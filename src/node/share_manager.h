@@ -7,7 +7,7 @@
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "crypto/sharing.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 #include "kv/encryptor.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
