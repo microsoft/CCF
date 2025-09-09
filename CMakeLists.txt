@@ -282,6 +282,7 @@ add_ccf_static_library(
   ccf_tasks
   SRCS ${CCF_DIR}/src/tasks/task_system.cpp ${CCF_DIR}/src/tasks/job_board.cpp
        ${CCF_DIR}/src/tasks/ordered_tasks.cpp
+       ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
 )
 
 # Common test args for Python scripts starting up CCF networks
@@ -536,6 +537,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/basic_tasks.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/ordered_tasks.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/delayed_tasks.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/fan_in_tasks.cpp
     )
     target_link_libraries(task_system_test PRIVATE ccf_tasks)
 

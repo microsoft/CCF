@@ -66,6 +66,7 @@ namespace ccf::tasks
     struct ResumeOrderedTasks;
 
     void enqueue_on_board();
+    void do_task_implementation() override;
 
     // Constructor is protected, to ensure this is only created via the
     // make_ordered_tasks factory function (ensuring this is always owned by a
@@ -75,7 +76,6 @@ namespace ccf::tasks
   public:
     ~OrderedTasks();
 
-    void do_task_implementation() override;
     ccf::tasks::Resumable pause() override;
     std::string get_name() const override;
 
