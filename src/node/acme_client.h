@@ -12,7 +12,7 @@
 #include "ccf/http_consts.h"
 #include "ccf/http_status.h"
 #include "ccf/pal/locking.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 #include "ds/messaging.h"
 #include "ds/thread_messaging.h"
 #include "http/http_parser.h"

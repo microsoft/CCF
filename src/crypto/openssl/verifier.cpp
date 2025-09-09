@@ -6,7 +6,7 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/public_key.h"
 #include "crypto/openssl/rsa_key_pair.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 #include "x509_time.h"
 
 #include <openssl/evp.h>

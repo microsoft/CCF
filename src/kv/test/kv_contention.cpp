@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "crypto/openssl/hash.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"

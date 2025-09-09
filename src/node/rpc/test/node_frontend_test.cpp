@@ -4,7 +4,7 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/verifier.h"
 #include "crypto/openssl/hash.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 #include "frontend_test_infra.h"
 #include "kv/test/null_encryptor.h"
 #include "nlohmann/json.hpp"

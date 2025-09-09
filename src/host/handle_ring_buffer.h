@@ -4,7 +4,7 @@
 
 #include "../ds/files.h"
 #include "../enclave/interface.h"
-#include "ds/framework_logger.h"
+#include "ds/internal_logger.h"
 #include "timer.h"
 
 #include <chrono>
