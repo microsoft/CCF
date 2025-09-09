@@ -10,7 +10,7 @@
 namespace ccf::tasks
 {
   class FanInTasks : public BaseTask,
-                          public std::enable_shared_from_this<FanInTasks>
+                     public std::enable_shared_from_this<FanInTasks>
   {
   protected:
     struct PImpl;

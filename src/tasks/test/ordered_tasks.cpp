@@ -3,8 +3,8 @@
 
 #include "tasks/ordered_tasks.h"
 
+#include "./utils.h"
 #include "tasks/basic_task.h"
-#include "tasks/job_board.h"
 #include "tasks/sub_task_queue.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -18,67 +18,6 @@
 #include <random>
 #include <set>
 #include <thread>
-
-void worker_loop_func(ccf::tasks::IJobBoard& job_board, std::atomic<bool>& stop)
-{
-  while (!stop.load())
-  {
-    auto task = job_board.get_task();
-    if (task != nullptr)
-    {
-      task->do_task();
-    }
-    std::this_thread::yield();
-  }
-}
-
-void flush_board(
-  ccf::tasks::IJobBoard& job_board,
-  size_t max_workers = 8,
-  std::function<bool(void)> safe_to_end = nullptr,
-  std::chrono::seconds kill_after = std::chrono::seconds(5))
-{
-  std::atomic<bool> stop_signal{false};
-
-  std::vector<std::thread> workers;
-  for (size_t i = 0; i < max_workers; ++i)
-  {
-    workers.emplace_back(
-      worker_loop_func, std::ref(job_board), std::ref(stop_signal));
-  }
-
-  using TClock = std::chrono::steady_clock;
-  auto now = TClock::now();
-  const auto end_time = now + std::chrono::seconds(1);
-  const auto hard_end = now + kill_after;
-
-  if (safe_to_end == nullptr)
-  {
-    safe_to_end = [&]() { return now > end_time && job_board.empty(); };
-  }
-
-  while (true)
-  {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    now = TClock::now();
-    if (now > hard_end)
-    {
-      break;
-    }
-
-    if (safe_to_end())
-    {
-      break;
-    }
-  }
-
-  stop_signal.store(true);
-
-  for (auto& worker : workers)
-  {
-    worker.join();
-  }
-}
 
 uint8_t thread_name()
 {
@@ -226,7 +165,7 @@ TEST_CASE("OrderedTasks" * doctest::test_suite("ordered_tasks"))
     }));
   }));
 
-  flush_board(jb, 8, [&]() {
+  test::utils::flush_board(jb, 8, [&]() {
     return std::all_of(std::begin(executed), std::end(executed), [](auto&& e) {
       return e.load();
     });

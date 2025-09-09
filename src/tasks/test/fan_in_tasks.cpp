@@ -3,6 +3,7 @@
 
 #include "tasks/fan_in_tasks.h"
 
+#include "./utils.h"
 #include "tasks/basic_task.h"
 #include "tasks/job_board.h"
 
@@ -12,68 +13,6 @@
 #define FMT_HEADER_ONLY
 #include <fmt/chrono.h>
 #include <fmt/format.h>
-
-// void worker_loop_func(ccf::tasks::IJobBoard& job_board, std::atomic<bool>&
-// stop)
-// {
-//   while (!stop.load())
-//   {
-//     auto task = job_board.get_task();
-//     if (task != nullptr)
-//     {
-//       task->do_task();
-//     }
-//     std::this_thread::yield();
-//   }
-// }
-
-// void flush_board(
-//   ccf::tasks::IJobBoard& job_board,
-//   size_t max_workers = 8,
-//   std::function<bool(void)> safe_to_end = nullptr,
-//   std::chrono::seconds kill_after = std::chrono::seconds(5))
-// {
-//   std::atomic<bool> stop_signal{false};
-
-//   std::vector<std::thread> workers;
-//   for (size_t i = 0; i < max_workers; ++i)
-//   {
-//     workers.emplace_back(
-//       worker_loop_func, std::ref(job_board), std::ref(stop_signal));
-//   }
-
-//   using TClock = std::chrono::steady_clock;
-//   auto now = TClock::now();
-//   const auto end_time = now + std::chrono::seconds(1);
-//   const auto hard_end = now + kill_after;
-
-//   if (safe_to_end == nullptr)
-//   {
-//     safe_to_end = [&]() { return now > end_time && job_board.empty(); };
-//   }
-
-//   while (true)
-//   {
-//     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-//     now = TClock::now();
-//     if (now > hard_end)
-//     {
-//       break;
-//     }
-
-//     if (safe_to_end())
-//     {
-//       break;
-//     }
-//   }
-
-//   stop_signal.store(true);
-
-//   for (auto& worker : workers)
-//   {
-//     worker.join();
-//   }
-// }
 
 TEST_CASE("ContiguousQueuing" * doctest::test_suite("fan_in_tasks"))
 {
@@ -196,4 +135,52 @@ TEST_CASE("InterleavedCompletions" * doctest::test_suite("fan_in_tasks"))
     REQUIRE(all_done.load());
     REQUIRE(jb.empty());
   }
+}
+
+TEST_CASE("DelayedCompletions" * doctest::test_suite("fan_in_tasks"))
+{
+  ccf::tasks::JobBoard jb;
+
+  static constexpr size_t num_tasks = 100;
+
+  struct CalledInOrder : public ccf::tasks::BaseTask
+  {
+    std::atomic<size_t>& counter;
+    const size_t expected_value;
+
+    CalledInOrder(std::atomic<size_t>& c, size_t ev) :
+      counter(c),
+      expected_value(ev)
+    {}
+
+    void do_task_implementation() override
+    {
+      REQUIRE(counter.load() == expected_value);
+      ++counter;
+    }
+
+    std::string get_name() const override
+    {
+      return fmt::format("CalledInOrder {}", expected_value);
+    }
+  };
+
+  auto completions = ccf::tasks::make_fan_in_tasks(jb);
+  std::atomic<size_t> counter;
+
+  for (auto i = 0; i < num_tasks; ++i)
+  {
+    jb.add_task(ccf::tasks::make_basic_task([&, i]() {
+      const std::chrono::milliseconds sleep_time(rand() % 100);
+      std::this_thread::sleep_for(sleep_time);
+
+      completions->add_task(i, std::make_shared<CalledInOrder>(counter, i));
+    }));
+  }
+
+  test::utils::flush_board(jb, num_tasks);
+
+  // Each task asserted that it executed in-order, and this confirms that all
+  // tasks executed
+  REQUIRE(counter.load() == num_tasks);
 }
