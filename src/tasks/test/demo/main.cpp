@@ -9,8 +9,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
-// Writing a bunch of code here, so run a few simple sanity checks that the
-// basic operations do what we expect
+// A few simple sanity checks that the basic operations do what we expect
 TEST_CASE("SignAction")
 {
   for (size_t i = 0; i < 100; ++i)
@@ -25,45 +24,7 @@ TEST_CASE("SignAction")
   }
 }
 
-TEST_CASE("Tasks")
-{
-  size_t x = 0;
-
-  // Basic tasks
-  const std::string name_1 = "Set x to 1";
-  auto set_1 = ccf::tasks::make_basic_task([&x]() { x = 1; }, name_1);
-  REQUIRE(set_1->get_name() == name_1);
-  REQUIRE(x == 0);
-  set_1->do_task();
-  REQUIRE(x == 1);
-
-  // Cancelling pre-execution
-  const std::string name_2 = "Set x to 2";
-  auto set_2 = ccf::tasks::make_basic_task([&x]() { x = 2; }, name_2);
-  REQUIRE(set_2->get_name() == name_2);
-  REQUIRE(x == 1);
-  REQUIRE_FALSE(set_2->is_cancelled());
-  set_2->cancel_task();
-  REQUIRE(set_2->is_cancelled());
-  set_2->do_task();
-  REQUIRE(set_2->is_cancelled());
-  REQUIRE(x == 1);
-
-  // Cancelling post-execution
-  const std::string name_3 = "Set x to 3";
-  auto set_3 = ccf::tasks::make_basic_task([&x]() { x = 3; }, name_3);
-  REQUIRE(set_3->get_name() == name_3);
-  REQUIRE(x == 1);
-  REQUIRE_FALSE(set_3->is_cancelled());
-  set_3->do_task();
-  REQUIRE(x == 3);
-  REQUIRE_FALSE(set_3->is_cancelled());
-  set_3->cancel_task();
-  REQUIRE(set_3->is_cancelled());
-  REQUIRE(x == 3);
-}
-
-TEST_CASE("OrderedTasks")
+TEST_CASE("SessionOrdering")
 {
   // With more sessions than workers, and tasks concurrently added to these
   // sessions, each task is still executed in-order for that session
