@@ -106,6 +106,11 @@ namespace ccf::tasks
 
   void tick(std::chrono::milliseconds elapsed)
   {
+    LOG_INFO_FMT(
+      "!!! Advancing elapsed time by {}, from {}",
+      elapsed,
+      total_elapsed.load());
+
     elapsed += total_elapsed.load();
 
     {
@@ -125,6 +130,10 @@ namespace ccf::tasks
           {
             continue;
           }
+
+          LOG_INFO_FMT(
+            "!!! Found ready, non-cancelled task named {} - scheduling it now",
+            dt.task->get_name());
 
           add_task(dt.task);
           if (dt.repeat.has_value())

@@ -23,12 +23,15 @@ namespace
       thread = std::thread([this]() {
         while (!this->terminate.load())
         {
+          LOG_INFO_FMT("!!! Ticking for {}", this->polling_period);
           ccf::tasks::tick(this->polling_period);
 
           auto& job_board = ccf::tasks::get_main_job_board();
           auto task = job_board.get_task();
           while (task != nullptr)
           {
+            LOG_INFO_FMT(
+              "!!! TaskWorkerThread doing task {}", task->get_name());
             task->do_task();
             task = job_board.get_task();
           }
@@ -40,6 +43,7 @@ namespace
 
     ~TaskWorkerThread()
     {
+      LOG_INFO_FMT("!!! Terminating TaskWorkerThread");
       terminate.store(true);
       thread.join();
     }
@@ -48,8 +52,11 @@ namespace
 
 TEST_CASE("DelayedTasks" * doctest::test_suite("delayed_tasks"))
 {
+  ccf::logger::config::default_init();
+
   std::atomic<size_t> n = 0;
-  ccf::tasks::Task incrementer = ccf::tasks::make_basic_task([&n]() { ++n; });
+  ccf::tasks::Task incrementer =
+    ccf::tasks::make_basic_task([&n]() { ++n; }, "incrementer");
 
   ccf::tasks::add_task(incrementer);
   // Task is not done when no workers are present
@@ -69,15 +76,19 @@ TEST_CASE("DelayedTasks" * doctest::test_suite("delayed_tasks"))
   std::this_thread::sleep_for(delay * 2);
   REQUIRE(n == 1);
 
+  LOG_INFO_FMT("!!! About to start TaskWorkerThread");
   {
     TaskWorkerThread t;
     // Delayed task is executed when worker thread arrives
+    LOG_INFO_FMT("!!! About to sleep for {}", delay * 2);
     std::this_thread::sleep_for(delay * 2);
+    LOG_INFO_FMT("!!! Slept for {}", delay * 2);
     REQUIRE(n == 2);
     // Task is only executed once
     std::this_thread::sleep_for(delay * 2);
     REQUIRE(n == 2);
   }
+  LOG_INFO_FMT("!!! Completed problematic block");
 
   ccf::tasks::add_periodic_task(incrementer, delay, delay);
   // Periodic task is not done when no workers are present
