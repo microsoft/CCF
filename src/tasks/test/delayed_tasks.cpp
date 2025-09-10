@@ -52,6 +52,7 @@ TEST_CASE("DelayedTasks" * doctest::test_suite("delayed_tasks"))
   ccf::tasks::Task incrementer = ccf::tasks::make_basic_task([&n]() { ++n; });
 
   ccf::tasks::add_task(incrementer);
+  // Task is not done when no workers are present
   REQUIRE(n == 0);
 
   {
@@ -62,33 +63,43 @@ TEST_CASE("DelayedTasks" * doctest::test_suite("delayed_tasks"))
 
   std::chrono::milliseconds delay = std::chrono::milliseconds(50);
   ccf::tasks::add_delayed_task(incrementer, delay);
+  // Delayed task is not done when no workers are present
   REQUIRE(n == 1);
+  // Even after waiting for delay
   std::this_thread::sleep_for(delay * 2);
   REQUIRE(n == 1);
 
   {
     TaskWorkerThread t;
+    // Delayed task is executed when worker thread arrives
     std::this_thread::sleep_for(delay * 2);
     REQUIRE(n == 2);
+    // Task is only executed once
     std::this_thread::sleep_for(delay * 2);
     REQUIRE(n == 2);
   }
 
   ccf::tasks::add_periodic_task(incrementer, delay, delay);
+  // Periodic task is not done when no workers are present
   REQUIRE(n == 2);
+  // Even after waiting for delay
   std::this_thread::sleep_for(delay * 2);
+  REQUIRE(n == 2);
 
   {
     TaskWorkerThread t;
 
+    // Periodic task is executed when worker thread arrives
     std::this_thread::sleep_for(delay * 2);
     const auto a = n.load();
     REQUIRE(a > 2);
 
+    // Periodic task is executed multiple times
     std::this_thread::sleep_for(delay * 2);
     const auto b = n.load();
     REQUIRE(b > a);
 
+    // Periodic task is cancellable
     incrementer->cancel_task();
 
     std::this_thread::sleep_for(delay * 2);
