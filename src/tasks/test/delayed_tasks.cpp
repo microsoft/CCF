@@ -53,38 +53,38 @@ TEST_CASE("DelayedTasks" * doctest::test_suite("delayed_tasks"))
 
   ccf::tasks::add_task(incrementer);
   // Task is not done when no workers are present
-  REQUIRE(n == 0);
+  REQUIRE(n.load() == 0);
 
   {
     TaskWorkerThread t;
     std::this_thread::sleep_for(t.polling_period * 2);
-    REQUIRE(n == 1);
+    REQUIRE(n.load() == 1);
   }
 
   std::chrono::milliseconds delay = std::chrono::milliseconds(50);
   ccf::tasks::add_delayed_task(incrementer, delay);
   // Delayed task is not done when no workers are present
-  REQUIRE(n == 1);
+  REQUIRE(n.load() == 1);
   // Even after waiting for delay
   std::this_thread::sleep_for(delay * 2);
-  REQUIRE(n == 1);
+  REQUIRE(n.load() == 1);
 
   {
     TaskWorkerThread t;
     // Delayed task is executed when worker thread arrives
     std::this_thread::sleep_for(delay * 2);
-    REQUIRE(n == 2);
+    REQUIRE(n.load() == 2);
     // Task is only executed once
     std::this_thread::sleep_for(delay * 2);
-    REQUIRE(n == 2);
+    REQUIRE(n.load() == 2);
   }
 
   ccf::tasks::add_periodic_task(incrementer, delay, delay);
   // Periodic task is not done when no workers are present
-  REQUIRE(n == 2);
+  REQUIRE(n.load() == 2);
   // Even after waiting for delay
   std::this_thread::sleep_for(delay * 2);
-  REQUIRE(n == 2);
+  REQUIRE(n.load() == 2);
 
   {
     TaskWorkerThread t;
@@ -223,10 +223,10 @@ TEST_CASE("TickEnqueue" * doctest::test_suite("delayed_tasks"))
   using namespace std::chrono_literals;
   ccf::tasks::add_periodic_task(incrementer, 1ms, 1ms);
 
-  REQUIRE(n == 0);
+  REQUIRE(n.load() == 0);
   ccf::tasks::tick(100ms);
   do_all_tasks();
-  REQUIRE(n == 1);
+  REQUIRE(n.load() == 1);
   do_all_tasks();
-  REQUIRE(n == 1);
+  REQUIRE(n.load() == 1);
 }
