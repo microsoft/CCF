@@ -17,8 +17,8 @@ namespace ccf::tasks
     std::string name;
     IJobBoard& job_board;
 
-    std::mutex mutex = {};
-    std::map<size_t, Task> pending_tasks = {};
+    std::mutex mutex;
+    std::map<size_t, Task> pending_tasks;
     size_t next_expected_task_index = 0;
     std::atomic<bool> active = false;
   };
