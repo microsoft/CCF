@@ -59,6 +59,21 @@ namespace ccf::js
       Base::add_extension(
         std::make_shared<ccf::js::extensions::KvExtension>(tx));
     }
+
+    ccf::js::core::JSWrappedValue inner_call(
+      const ccf::js::core::JSWrappedValue& f,
+      const std::vector<ccf::js::core::JSWrappedValue>& argv) override
+    {
+      auto ret = Base::inner_call(f, argv);
+      auto* extension =
+        Base::template get_extension<ccf::js::extensions::KvExtension>();
+      if (extension != nullptr)
+      {
+        extension->rethrow_trapped_exceptions();
+      }
+
+      return ret;
+    }
   };
 
   using CommonContext = WithCommonExtensions<js::core::Context>;
