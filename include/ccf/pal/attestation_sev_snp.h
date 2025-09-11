@@ -423,6 +423,15 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     const Attestation& quote,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
+    if (quote.version < MIN_TCB_VERIF_VERSION)
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: attestation version {} is not supported. Minimum "
+        "supported version is {}",
+        quote.version,
+        MIN_TCB_VERIF_VERSION));
+    }
+
     EndorsementEndpointsConfiguration config;
 
     auto chip_id_hex = fmt::format("{:02x}", fmt::join(quote.chip_id, ""));
