@@ -819,49 +819,9 @@ namespace ccf
         {{uvm_endorsements->feed, {uvm_endorsements->svn}}});
     }
 
-    static void trust_static_snp_tcb_version(ccf::kv::Tx& tx)
-    {
-      auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
-
-      constexpr pal::snp::CPUID milan_chip_id{
-        .stepping = 0x1,
-        .base_model = 0x1,
-        .base_family = 0xF,
-        .reserved = 0,
-        .extended_model = 0x0,
-        .extended_family = 0x0A,
-        .reserved2 = 0};
-      constexpr pal::snp::CPUID milan_x_chip_id{
-        .stepping = 0x2,
-        .base_model = 0x1,
-        .base_family = 0xF,
-        .reserved = 0,
-        .extended_model = 0x0,
-        .extended_family = 0x0A,
-        .reserved2 = 0};
-      // ACI reports this as their minimum Milan version
-      const auto milan_tcb_policy =
-        pal::snp::TcbVersionRaw::from_hex("d315000000000004")
-          .to_policy(pal::snp::ProductName::Milan);
-      h->put(milan_chip_id.hex_str(), milan_tcb_policy);
-      h->put(milan_x_chip_id.hex_str(), milan_tcb_policy);
-    }
-
     static void trust_node_snp_tcb_version(
       ccf::kv::Tx& tx, pal::snp::Attestation& attestation)
     {
-      // Fall back to statically configured tcb versions
-      if (attestation.version < pal::snp::MIN_TCB_VERIF_VERSION)
-      {
-        LOG_FAIL_FMT(
-          "SNP attestation version {} older than {}, falling back to static "
-          "minimum TCB values",
-          attestation.version,
-          pal::snp::MIN_TCB_VERIF_VERSION);
-        trust_static_snp_tcb_version(tx);
-        return;
-      }
-
       // As cpuid -> attestation cpuid is surjective, we must use the local
       // cpuid and validate it against the attestation's cpuid
       auto cpuid = pal::snp::get_cpuid_untrusted();

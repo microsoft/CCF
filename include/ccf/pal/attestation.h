@@ -119,25 +119,15 @@ namespace ccf::pal
     auto root_cert_verifier = ccf::crypto::make_verifier(root_certificate);
 
     std::string expected_root_public_key;
-    if (quote.version < 3)
+    auto product_name =
+      snp::get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
+    auto key = snp::amd_root_signing_keys.find(product_name);
+    if (key == snp::amd_root_signing_keys.end())
     {
-      // before version 3 there are no cpuid fields so we must assume that it is
-      // milan
-      expected_root_public_key = snp::amd_milan_root_signing_public_key;
+      throw std::logic_error(
+        fmt::format("SEV-SNP: No known root certificate for {}", product_name));
     }
-    else
-    {
-      auto key = snp::amd_root_signing_keys.find(
-        snp::get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id));
-      if (key == snp::amd_root_signing_keys.end())
-      {
-        throw std::logic_error(fmt::format(
-          "SEV-SNP: Unsupported CPUID family {} model {}",
-          quote.cpuid_fam_id,
-          quote.cpuid_mod_id));
-      }
-      expected_root_public_key = key->second;
-    }
+    expected_root_public_key = key->second;
     if (root_cert_verifier->public_key_pem().str() != expected_root_public_key)
     {
       throw std::logic_error(fmt::format(
