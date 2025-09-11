@@ -1675,16 +1675,16 @@ def test_error_message_on_failure_to_read_aci_sec_context(args):
 
         primary, _ = network.find_primary()
 
-        args_copy = deepcopy(args)
+        args_copy = copy.deepcopy(args)
 
         new_node = network.create_node("local://localhost")
         args_copy.snp_endorsements_servers = ["Azure:invalid.azure.com"]
-        args_copy.snp_security_policy_file = "/dev/null"
-        args_copy.snp_uv_endorsements_file = "/dev/null"
-        args_copy.snp_endorsements_file = "/dev/null"
+        args_copy.snp_security_policy_file = "/a/fake/path"
+        args_copy.snp_uvm_endorsements_file = "/a/fake/path"
+        args_copy.snp_endorsements_file = "/a/fake/path"
         failed = False
         try:
-            network.join_node(new_node, args.package, args_copy)
+            network.join_node(new_node, args.package, args_copy, timeout=20)
         except infra.network.CollateralFetchTimeout:
             LOG.info(
                 "Node with invalid quote endorsement servers could not join as expected"
@@ -1695,9 +1695,9 @@ def test_error_message_on_failure_to_read_aci_sec_context(args):
         ), "Node with invalid quote endorsement servers should not be able to join"
 
         expected_log_messages = [
-            "Could not read snp_security_policy from /dev/null",
-            "Could not read snp_uvm_endorsements form /dev/null",
-            "Could not read snp_endorsements from /dev/null",
+            "Could not read snp_security_policy from /a/fake/path",
+            "Could not read snp_uvm_endorsements form /a/fake/path",
+            "Could not read snp_endorsements from /a/fake/path",
         ]
 
         out_path, _ = new_node.get_logs()
