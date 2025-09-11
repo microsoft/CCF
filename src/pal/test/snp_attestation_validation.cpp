@@ -274,6 +274,7 @@ TEST_CASE("Quote endorsements generation for old tcb version fails")
     *reinterpret_cast<const ccf::pal::snp::Attestation*>(
       ccf::pal::snp::testing::old_milan_attestation.data());
 
+  CHECK_EQ(old_milan_attestation.version, 2);
   CHECK_EQ(old_milan_attestation.cpuid_fam_id, 0x0);
   CHECK_EQ(old_milan_attestation.cpuid_mod_id, 0x0);
 

@@ -823,6 +823,12 @@ namespace ccf
     static void trust_node_snp_tcb_version(
       ccf::kv::Tx& tx, pal::snp::Attestation& attestation)
     {
+      if (attestation.version < pal::snp::minimum_attestation_version) {
+        throw std::runtime_error(fmt::format(
+          "Attestation version {} is less than minimum supported version {}",
+          attestation.version,
+          pal::snp::minimum_attestation_version));
+      }
       // As cpuid -> attestation cpuid is surjective, we must use the local
       // cpuid and validate it against the attestation's cpuid
       auto cpuid = pal::snp::get_cpuid_untrusted();
