@@ -1663,49 +1663,56 @@ def run_ledger_chunk_bytes_check(const_args):
         # Confirm we've seen all expected chunk ends
         assert len(chunk_ends_to_expected_size) == 0
 
+
 def test_error_message_on_failure_to_read_aci_sec_context(args):
-  with network as infra.network.network(
-      args.nodes,
-      args.binary_dir,
-      args.debug_nodes,
-      pdb=args.pdb,
-  ) as network:
-    network.start_and_open(args)
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args)
 
-    primary, _ = network.find_primary()
+        primary, _ = network.find_primary()
 
-    args_copy = deepcopy(args)
+        args_copy = deepcopy(args)
 
-    new_node = network.create_node("local://localhost")
-    args_copy.snp_endorsements_servers = ["Azure:invalid.azure.com"]
-    args_copy.snp_security_policy_file = "/dev/null"
-    args_copy.snp_uv_endorsements_file = "/dev/null"
-    args_copy.snp_endorsements_file = "/dev/null"
-    failed = False
-    try:
-        network.join_node(new_node, args.package, args_copy)
-    except infra.network.CollateralFetchTimeout as e:
-        LOG.info(
-            "Node with invalid quote endorsement servers could not join as expected")
-        failed = True
-    assert failed, "Node with invalid quote endorsement servers should not be able to join"
+        new_node = network.create_node("local://localhost")
+        args_copy.snp_endorsements_servers = ["Azure:invalid.azure.com"]
+        args_copy.snp_security_policy_file = "/dev/null"
+        args_copy.snp_uv_endorsements_file = "/dev/null"
+        args_copy.snp_endorsements_file = "/dev/null"
+        failed = False
+        try:
+            network.join_node(new_node, args.package, args_copy)
+        except infra.network.CollateralFetchTimeout:
+            LOG.info(
+                "Node with invalid quote endorsement servers could not join as expected"
+            )
+            failed = True
+        assert (
+            failed
+        ), "Node with invalid quote endorsement servers should not be able to join"
 
-    expected_log_messages = [
-      "Could not read snp_security_policy from /dev/null",
-      "Could not read snp_uvm_endorsements form /dev/null",
-      "Could not read snp_endorsements from /dev/null",
-    ]
+        expected_log_messages = [
+            "Could not read snp_security_policy from /dev/null",
+            "Could not read snp_uvm_endorsements form /dev/null",
+            "Could not read snp_endorsements from /dev/null",
+        ]
 
-    out_path, _ = new_node.get_logs()
-    for line in open(out_path, "r", encoding="utf-8").readlines():
-      for expected in expected_log_messages:
-        if expected in line:
-          expected_log_messages.remove(expected)
-          LOG.info(f"Found expected log message: {expected}")
-      if len(expected_log_messages) == 0:
-        break
+        out_path, _ = new_node.get_logs()
+        for line in open(out_path, "r", encoding="utf-8").readlines():
+            for expected in expected_log_messages:
+                if expected in line:
+                    expected_log_messages.remove(expected)
+                    LOG.info(f"Found expected log message: {expected}")
+            if len(expected_log_messages) == 0:
+                break
 
-    assert len(expected_log_messages) == 0, f"Did not find expected log messages: {expected_log_messages}"
+        assert (
+            len(expected_log_messages) == 0
+        ), f"Did not find expected log messages: {expected_log_messages}"
+
 
 def run(args):
     run_max_uncommitted_tx_count(args)
