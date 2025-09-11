@@ -606,6 +606,11 @@ namespace ccf
 
         startup_config.attestation.environment.security_policy =
           files::try_slurp_string(security_policy_file);
+        if (!startup_config.attestation.environment.security_policy.has_value())
+        {
+          LOG_FAIL_FMT(
+            "Could not read snp_security_policy from {}", security_policy_file);
+        }
       }
 
       if (startup_config.attestation.snp_uvm_endorsements_file.has_value())
@@ -621,6 +626,13 @@ namespace ccf
 
         startup_config.attestation.environment.uvm_endorsements =
           files::try_slurp_string(snp_uvm_endorsements_file);
+        if (!startup_config.attestation.environment.uvm_endorsements
+               .has_value())
+        {
+          LOG_FAIL_FMT(
+            "Could not read snp_uvm_endorsements from {}",
+            snp_uvm_endorsements_file);
+        }
       }
 
       for (auto endorsement_servers_it =
@@ -666,6 +678,13 @@ namespace ccf
 
         startup_config.attestation.environment.snp_endorsements =
           files::try_slurp_string(snp_endorsements_file);
+
+        if (!startup_config.attestation.environment.snp_endorsements
+               .has_value())
+        {
+          LOG_FAIL_FMT(
+            "Could not read snp_endorsements from {}", snp_endorsements_file);
+        }
       }
 
       if (ccf::pal::platform == ccf::pal::Platform::Virtual)
