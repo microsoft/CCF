@@ -208,18 +208,16 @@ namespace ccf::gov::endpoints
 
           auto vs = js_context.new_array();
           size_t index = 0;
-          for (auto& [mid, vote] : votes)
+          for (auto& [member_id, vote_result] : votes)
           {
-            auto v = JS_NewObject(js_context);
-            auto member_id =
-              JS_NewStringLen(js_context, mid.data(), mid.size());
-            JS_DefinePropertyValueStr(
-              js_context, v, "member_id", member_id, JS_PROP_C_W_E);
-            auto vote_status = JS_NewBool(js_context, vote);
-            JS_DefinePropertyValueStr(
-              js_context, v, "vote", vote_status, JS_PROP_C_W_E);
-            JS_DefinePropertyValueUint32(
-              js_context, vs.val, index++, v, JS_PROP_C_W_E);
+            auto v = js_context.new_obj();
+
+            v.set(
+              "member_id",
+              js_context.new_string_len(member_id.data(), member_id.size()));
+            v.set_bool("vote", vote_result);
+
+            vs.set_at_index(index++, std::move(v));
           }
           argv.push_back(vs);
 
