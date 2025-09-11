@@ -8,7 +8,6 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/sev_snp_cpuid.h"
-
 #include "ds/internal_logger.h"
 
 #include <cstdint>
