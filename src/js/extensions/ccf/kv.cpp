@@ -9,6 +9,7 @@
 #include "js/extensions/ccf/kv_helpers.h"
 #include "js/global_class_ids.h"
 #include "js/permissions_checks.h"
+#include "kv/compacted_version_conflict.h"
 
 #include <map>
 #include <quickjs/quickjs.h>
@@ -19,6 +20,9 @@ namespace ccf::js::extensions
   {
     ccf::kv::Tx* tx;
     std::unordered_map<std::string, ccf::kv::untyped::Map::Handle*> kv_handles;
+
+    std::optional<ccf::kv::CompactedVersionConflict>
+      compacted_version_conflict = std::nullopt;
 
     Impl(ccf::kv::Tx* t) : tx(t) {};
   };
@@ -60,7 +64,18 @@ namespace ccf::js::extensions
           LOG_FAIL_FMT("Can't rehydrate MapHandle - no transaction context");
           return nullptr;
         }
-        it->second = tx->rw<kvhelpers::KVMap>(map_name.value());
+
+        try
+        {
+          it->second = tx->rw<kvhelpers::KVMap>(map_name.value());
+        }
+        catch (const ccf::kv::CompactedVersionConflict& e)
+        {
+          LOG_DEBUG_FMT(
+            "Caught CompactedVersionConflict in JS callback - storing to be "
+            "rethrown later");
+          extension->impl->compacted_version_conflict = e;
+        }
       }
 
       return it->second;
@@ -146,6 +161,15 @@ namespace ccf::js::extensions
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
     ccf.set("kv", std::move(kv));
+  }
+
+  void KvExtension::rethrow_trapped_exceptions() const
+  {
+    auto& exception = impl->compacted_version_conflict;
+    if (exception.has_value())
+    {
+      throw std::move(exception.value());
+    }
   }
 }
 
