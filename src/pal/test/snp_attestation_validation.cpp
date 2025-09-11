@@ -136,7 +136,7 @@ TEST_CASE("Parsing tcb versions from attestaion")
   CHECK_EQ(milan_tcb.boot_loader, 0x04);
 }
 
-struct QuoteEndorsemenstTestCase
+struct QuoteEndorsementsTestCase
 {
   std::vector<uint8_t> attestation;
   ccf::pal::snp::EndorsementsServers servers;
@@ -146,7 +146,7 @@ struct QuoteEndorsemenstTestCase
 TEST_CASE("Quote endorsements url generation")
 {
   constexpr size_t max_retries_count = 10;
-  std::vector<QuoteEndorsemenstTestCase> test_cases{
+  std::vector<QuoteEndorsementsTestCase> test_cases{
     {.attestation = ccf::pal::snp::testing::genoa_attestation,
      .servers = {{
        ccf::pal::snp::EndorsementsEndpointType::Azure,
