@@ -146,6 +146,25 @@ struct QuoteEndorsemenstTestCase
 TEST_CASE("Quote endorsements url generation")
 {
   std::vector<QuoteEndorsemenstTestCase> test_cases{
+    {.attestation = ccf::pal::snp::testing::genoa_attestation,
+     .servers = {{
+       ccf::pal::snp::EndorsementsEndpointType::Azure,
+       "invalid.azure.com:443",
+     }},
+     .expected_urls =
+       {.servers = {{{
+          "invalid.azure.com",
+          "443",
+          "/SevSnpVM/certificates/"
+          "b1e24a27bbc3a4d58090d8b89851dce3b8031544be249b9ac17132bb222b02762234"
+          "7"
+          "ee4d0fe4f689efdfc47a68cefc686cbb448d01436506ee1e28010cab7c0/"
+          "541700000000000a",
+          {
+            {"api-version", "2020-10-15-preview"},
+          },
+          true, // DER
+        }}}}},
     {.attestation = ccf::pal::snp::testing::milan_attestation,
      .servers = {{
        ccf::pal::snp::EndorsementsEndpointType::AMD,
@@ -203,30 +222,20 @@ TEST_CASE("Quote endorsements url generation")
             }}}}},
     {.attestation = ccf::pal::snp::testing::genoa_attestation,
      .servers = {{
-       ccf::pal::snp::EndorsementsEndpointType::AMD,
-       "kdsintf.amd.com:443",
+       ccf::pal::snp::EndorsementsEndpointType::THIM,
+       "invalid.azure.com:443",
      }},
      .expected_urls = {
-       .servers = {
-         {{
-            "kdsintf.amd.com",
-            "443",
-            "/vcek/v1/Genoa/"
-            "b1e24a27bbc3a4d58090d8b89851dce3b8031544be249b9ac17132bb222b027622"
-            "347ee4d0fe4f689efdfc47a68cefc686cbb448d01436506ee1e28010cab7c0",
-            {{"blSPL", "10"},
-             {"teeSPL", "0"},
-             {"snpSPL", "23"},
-             {"ucodeSPL", "84"}},
-            true, // DER
-          },
-          {
-            "kdsintf.amd.com",
-            "443",
-            "/vcek/v1/Genoa/cert_chain",
-            {},
-            true, // DER
-          }}}}}};
+       .servers = {{{
+         "invalid.azure.com",
+         "443",
+         "/metadata/THIM/amd/certification",
+         {{"platformId",
+           "b1e24a27bbc3a4d58090d8b89851dce3b8031544be249b9ac17132bb222b0276223"
+           "47ee4d0fe4f689efdfc47a68cefc686cbb448d01436506ee1e28010cab7c0"},
+          {"tcbVersion", "541700000000000a"}},
+         true, // DER
+       }}}}}};
 
   for (auto [attestation, servers, expected_url] : test_cases)
   {
@@ -285,8 +294,8 @@ TEST_CASE("Quote endorsements generation for old tcb version fails")
         ccf::pal::snp::EndorsementsEndpointType::AMD,
         "kdsintf.amd.com:443",
       }}),
-    "SEV-SNP: attestation version 2 is not supported. Minimum supported version "
-    "is 3");
+    "SEV-SNP: attestation version 2 is not supported. Minimum supported "
+    "version is 3");
 }
 
 int main(int argc, char** argv)
