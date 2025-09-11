@@ -1696,7 +1696,7 @@ def test_error_message_on_failure_to_read_aci_sec_context(args):
 
         expected_log_messages = [
             "Could not read snp_security_policy from /a/fake/path",
-            "Could not read snp_uvm_endorsements form /a/fake/path",
+            "Could not read snp_uvm_endorsements frmm /a/fake/path",
             "Could not read snp_endorsements from /a/fake/path",
         ]
 
