@@ -9,39 +9,29 @@
 
 namespace
 {
-  struct TaskWorkerThread
+  struct SimulatedWorker
   {
-    std::chrono::milliseconds polling_period;
-    std::thread thread;
-    std::atomic<bool> terminate = false;
+    const std::chrono::milliseconds polling_period{1};
 
-    TaskWorkerThread(
-      std::chrono::milliseconds _polling_period =
-        std::chrono::milliseconds(10)) :
-      polling_period(_polling_period)
+    void advance_time(std::chrono::milliseconds duration)
     {
-      thread = std::thread([this]() {
-        while (!this->terminate.load())
+      std::chrono::milliseconds elapsed{0};
+
+      auto& job_board = ccf::tasks::get_main_job_board();
+
+      while (elapsed < duration)
+      {
+        ccf::tasks::tick(polling_period);
+
+        auto task = job_board.get_task();
+        while (task != nullptr)
         {
-          ccf::tasks::tick(this->polling_period);
-
-          auto& job_board = ccf::tasks::get_main_job_board();
-          auto task = job_board.get_task();
-          while (task != nullptr)
-          {
-            task->do_task();
-            task = job_board.get_task();
-          }
-
-          std::this_thread::sleep_for(this->polling_period);
+          task->do_task();
+          task = job_board.get_task();
         }
-      });
-    }
 
-    ~TaskWorkerThread()
-    {
-      terminate.store(true);
-      thread.join();
+        elapsed += polling_period;
+      }
     }
   };
 }
@@ -49,15 +39,16 @@ namespace
 TEST_CASE("DelayedTasks" * doctest::test_suite("delayed_tasks"))
 {
   std::atomic<size_t> n = 0;
-  ccf::tasks::Task incrementer = ccf::tasks::make_basic_task([&n]() { ++n; });
+  ccf::tasks::Task incrementer =
+    ccf::tasks::make_basic_task([&n]() { ++n; }, "incrementer");
 
   ccf::tasks::add_task(incrementer);
   // Task is not done when no workers are present
   REQUIRE(n.load() == 0);
 
   {
-    TaskWorkerThread t;
-    std::this_thread::sleep_for(t.polling_period * 2);
+    SimulatedWorker t;
+    t.advance_time(t.polling_period * 2);
     REQUIRE(n.load() == 1);
   }
 
@@ -70,12 +61,12 @@ TEST_CASE("DelayedTasks" * doctest::test_suite("delayed_tasks"))
   REQUIRE(n.load() == 1);
 
   {
-    TaskWorkerThread t;
+    SimulatedWorker t;
     // Delayed task is executed when worker thread arrives
-    std::this_thread::sleep_for(delay * 2);
+    t.advance_time(delay * 2);
     REQUIRE(n.load() == 2);
     // Task is only executed once
-    std::this_thread::sleep_for(delay * 2);
+    t.advance_time(delay * 2);
     REQUIRE(n.load() == 2);
   }
 
@@ -87,26 +78,26 @@ TEST_CASE("DelayedTasks" * doctest::test_suite("delayed_tasks"))
   REQUIRE(n.load() == 2);
 
   {
-    TaskWorkerThread t;
+    SimulatedWorker t;
 
     // Periodic task is executed when worker thread arrives
-    std::this_thread::sleep_for(delay * 2);
+    t.advance_time(delay * 2);
     const auto a = n.load();
     REQUIRE(a > 2);
 
     // Periodic task is executed multiple times
-    std::this_thread::sleep_for(delay * 2);
+    t.advance_time(delay * 2);
     const auto b = n.load();
     REQUIRE(b > a);
 
     // Periodic task is cancellable
     incrementer->cancel_task();
 
-    std::this_thread::sleep_for(delay * 2);
+    t.advance_time(delay * 2);
     const auto c = n.load();
     REQUIRE(c >= b);
 
-    std::this_thread::sleep_for(delay * 2);
+    t.advance_time(delay * 2);
     const auto d = n.load();
     REQUIRE(d == c);
   }
