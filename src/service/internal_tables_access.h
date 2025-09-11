@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <ostream>
+#include <stdexcept>
 
 namespace ccf
 {
@@ -830,15 +831,13 @@ namespace ccf
         cpuid.get_model_id() != attestation.cpuid_mod_id ||
         cpuid.stepping != attestation.cpuid_step)
       {
-        LOG_FAIL_FMT(
+        throw std::runtime_error(fmt::format(
           "CPU-sourced cpuid does not match attestation cpuid ({} != {}, {}, "
           "{})",
           cpuid.hex_str(),
           attestation.cpuid_fam_id,
           attestation.cpuid_mod_id,
-          attestation.cpuid_step);
-        trust_static_snp_tcb_version(tx);
-        return;
+          attestation.cpuid_step));
       }
       auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
       auto product = pal::snp::get_sev_snp_product(cpuid);
