@@ -94,6 +94,8 @@ def test_rapid_governance(network, args):
         member.ack(node)
         network.consortium.remove_member(node, member)
 
+    return network
+
 
 @reqs.description("Send a corrupted signature where signed request is required")
 def test_corrupted_signature(network, args):
