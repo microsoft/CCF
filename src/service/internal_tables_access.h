@@ -828,7 +828,7 @@ namespace ccf
         throw std::logic_error(fmt::format(
           "SEV-SNP: attestation version {} is not supported. Minimum "
           "supported version is {}",
-          quote.version,
+          attestation.version,
           pal::snp::minimum_attestation_version));
       }
       // As cpuid -> attestation cpuid is surjective, we must use the local
