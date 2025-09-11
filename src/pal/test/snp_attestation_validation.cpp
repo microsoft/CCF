@@ -271,17 +271,17 @@ TEST_CASE("Quote endorsements url generation")
 
 TEST_CASE("Quote endorsements generation for v2 attestation version fails")
 {
-  auto v2_milan_attestation =
+  auto v2_format_milan_attestation =
     *reinterpret_cast<const ccf::pal::snp::Attestation*>(
-      ccf::pal::snp::testing::v2_milan_attestation.data());
+      ccf::pal::snp::testing::v2_format_milan_attestation.data());
 
-  CHECK_EQ(v2_milan_attestation.version, 2);
-  CHECK_EQ(v2_milan_attestation.cpuid_fam_id, 0x0);
-  CHECK_EQ(v2_milan_attestation.cpuid_mod_id, 0x0);
+  CHECK_EQ(v2_format_milan_attestation.version, 2);
+  CHECK_EQ(v2_format_milan_attestation.cpuid_fam_id, 0x0);
+  CHECK_EQ(v2_format_milan_attestation.cpuid_mod_id, 0x0);
 
   CHECK_THROWS_WITH(
     ccf::pal::snp::make_endorsement_endpoint_configuration(
-      (v2_milan_attestation),
+      (v2_format_milan_attestation),
       {{
         ccf::pal::snp::EndorsementsEndpointType::AMD,
         "kdsintf.amd.com:443",
