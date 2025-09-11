@@ -67,9 +67,7 @@ namespace ccf::js::core
     return {ctx, JS_GetPropertyUint32(ctx, val, i)};
   }
 
-  // NOLINTBEGIN(cppcoreguidelines-rvalue-reference-param-not-moved)
   int JSWrappedValue::set(const char* prop, JSWrappedValue&& value) const
-  // NOLINTEND(cppcoreguidelines-rvalue-reference-param-not-moved)
   {
     int rc = JS_SetPropertyStr(ctx, val, prop, value.val);
     if (rc == 1)
@@ -79,10 +77,8 @@ namespace ccf::js::core
     return rc;
   }
 
-  // NOLINTBEGIN(cppcoreguidelines-rvalue-reference-param-not-moved)
   int JSWrappedValue::set_getter(
     const char* prop, JSWrappedValue&& getter) const
-  // NOLINTEND(cppcoreguidelines-rvalue-reference-param-not-moved)
   {
     JSAtom size_atom = JS_NewAtom(ctx, prop);
     if (size_atom == JS_ATOM_NULL)
@@ -139,9 +135,7 @@ namespace ccf::js::core
       ctx, val, prop.c_str(), JS_NewBool(ctx, static_cast<int>(b)));
   }
 
-  // NOLINTBEGIN(readability-make-member-function-const,cppcoreguidelines-rvalue-reference-param-not-moved)
-  int JSWrappedValue::set_at_index(uint32_t index, JSWrappedValue&& value)
-  // NOLINTEND(readability-make-member-function-const,cppcoreguidelines-rvalue-reference-param-not-moved)
+  int JSWrappedValue::set_at_index(uint32_t index, JSWrappedValue&& value) const
   {
     int rc =
       JS_DefinePropertyValueUint32(ctx, val, index, value.val, JS_PROP_C_W_E);
