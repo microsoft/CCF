@@ -285,7 +285,7 @@ TEST_CASE("Quote endorsements generation for old tcb version fails")
         ccf::pal::snp::EndorsementsEndpointType::AMD,
         "kdsintf.amd.com:443",
       }}),
-    "SEV-SNP attestation version 2 is not supported. Minimum supported version "
+    "SEV-SNP: attestation version 2 is not supported. Minimum supported version "
     "is 3");
 }
 

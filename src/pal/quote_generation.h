@@ -89,7 +89,7 @@ namespace ccf::pal
     if (attestation->get().version < pal::snp::minimum_attestation_version)
     {
       throw std::logic_error(fmt::format(
-        "SEV-SNP attestation version {} is less than the minimum supported "
+        "SEV-SNP: attestation version {} is less than the minimum supported "
         "version {}",
         attestation->get().version,
         pal::snp::minimum_attestation_version));
