@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 
 - Removed `ccf::crypt::openssl_sha256_init()` and `ccf::crypt::openssl_sha256_shutdown()` interface, as it's now implicitly called by the crypto implementation (#7251).
-- Removed support for v2 attestations (#7282)
+- Removed support for v2 attestations as the corresponding firmware is [know to be insecure](https://www.amd.com/en/resources/product-security/bulletin/amd-sb-3019.html) (#7282)
 
 ## [7.0.0-dev2]
 
