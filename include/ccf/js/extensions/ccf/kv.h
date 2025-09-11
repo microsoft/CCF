@@ -32,5 +32,7 @@ namespace ccf::js::extensions
     ~KvExtension();
 
     void install(js::core::Context& ctx);
+
+    void rethrow_trapped_exceptions();
   };
 }
