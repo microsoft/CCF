@@ -35,7 +35,7 @@ namespace ccf::js::core
 
     int set(const std::string& prop, JSWrappedValue&& value) const;
 
-    int set(const std::string& prop, JSValue&& value) const;
+    int set(const std::string& prop, JSValue value) const;
 
     int set_null(const std::string& prop) const;
 

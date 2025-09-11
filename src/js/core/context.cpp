@@ -119,14 +119,7 @@ namespace ccf::js::core
     return it->second;
   }
 
-  JSWrappedValue Context::wrap(JSValue&& val) const
-  {
-    // NOLINTBEGIN(performance-move-const-arg)
-    return {ctx, std::move(val)};
-    // NOLINTEND(performance-move-const-arg)
-  };
-
-  JSWrappedValue Context::wrap(const JSValue& val) const
+  JSWrappedValue Context::wrap(JSValue val) const
   {
     return {ctx, val};
   };

@@ -11,9 +11,10 @@ namespace ccf::js::core
     ctx(nullptr),
     val(ccf::js::core::constants::Null)
   {}
+
   JSWrappedValue::JSWrappedValue(JSContext* ctx, JSValue&& val) :
     ctx(ctx),
-    val(std::move(val)) // NOLINT(performance-move-const-arg)
+    val(val)
   {}
 
   JSWrappedValue::JSWrappedValue(JSContext* ctx, const JSValue& value) :
@@ -111,11 +112,9 @@ namespace ccf::js::core
     return set(prop.c_str(), std::move(value));
   }
 
-  int JSWrappedValue::set(const std::string& prop, JSValue&& value) const
+  int JSWrappedValue::set(const std::string& prop, JSValue value) const
   {
-    // NOLINTBEGIN(performance-move-const-arg)
-    return JS_SetPropertyStr(ctx, val, prop.c_str(), std::move(value));
-    // NOLINTEND(performance-move-const-arg)
+    return JS_SetPropertyStr(ctx, val, prop.c_str(), value);
   }
 
   int JSWrappedValue::set_null(const std::string& prop) const

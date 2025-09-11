@@ -180,36 +180,26 @@ namespace ccf::js::extensions
 
   void NetworkExtension::install(js::core::Context& ctx)
   {
-    auto network = JS_NewObject(ctx);
+    auto network = ctx.new_obj();
 
-    JS_SetPropertyStr(
-      ctx,
-      network,
+    network.set(
       "getLatestLedgerSecretSeqno",
-      JS_NewCFunction(
-        ctx,
+      ctx.new_c_function(
         js_network_latest_ledger_secret_seqno,
         "getLatestLedgerSecretSeqno",
         0));
-    JS_SetPropertyStr(
-      ctx,
-      network,
+    network.set(
       "generateEndorsedCertificate",
-      JS_NewCFunction(
-        ctx,
+      ctx.new_c_function(
         js_network_generate_endorsed_certificate,
         "generateEndorsedCertificate",
         0));
-    JS_SetPropertyStr(
-      ctx,
-      network,
+    network.set(
       "generateNetworkCertificate",
-      JS_NewCFunction(
-        ctx, js_network_generate_certificate, "generateNetworkCertificate", 0));
+      ctx.new_c_function(
+        js_network_generate_certificate, "generateNetworkCertificate", 0));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    // NOLINTBEGIN(performance-move-const-arg)
     ccf.set("network", std::move(network));
-    // NOLINTEND(performance-move-const-arg)
   }
 }
