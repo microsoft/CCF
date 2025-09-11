@@ -122,19 +122,19 @@ TEST_CASE("PauseAndResume")
       Worker worker(job_board, 0);
 
       // Worker exists but hasn't started yet - no increments have occurred
-      REQUIRE(x == 0);
-      REQUIRE(y == 0);
+      REQUIRE(x.load() == 0);
+      REQUIRE(y.load() == 0);
 
       // Even if we wait
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      REQUIRE(x == 0);
-      REQUIRE(y == 0);
+      REQUIRE(x.load() == 0);
+      REQUIRE(y.load() == 0);
 
       // If we start the worker (and wait), it will execute the pending tasks
       worker.start();
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      REQUIRE(x == 1);
-      REQUIRE(y == 2);
+      REQUIRE(x.load() == 1);
+      REQUIRE(y.load() == 2);
 
       // We can concurrently queue many more tasks, which will be executed
       // immediately
@@ -145,8 +145,8 @@ TEST_CASE("PauseAndResume")
       }
 
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      REQUIRE(x == 101);
-      REQUIRE(y == 102);
+      REQUIRE(x.load() == 101);
+      REQUIRE(y.load() == 102);
     }
 
     {
@@ -173,7 +173,7 @@ TEST_CASE("PauseAndResume")
 
       worker.start();
       beacon.wait_for_work_with_timeout(std::chrono::milliseconds(100));
-      REQUIRE(x == 102); // One increment action happened
+      REQUIRE(x.load() == 102); // One increment action happened
       REQUIRE(happened == true); // Then the pause action ran to completion
       REQUIRE(
         resumable != nullptr); // We got a handle to later resume this task
@@ -187,15 +187,15 @@ TEST_CASE("PauseAndResume")
       }
 
       beacon.wait_for_work_with_timeout(std::chrono::milliseconds(100));
-      REQUIRE(x == 102);
-      REQUIRE(y == 202);
+      REQUIRE(x.load() == 102);
+      REQUIRE(y.load() == 202);
 
       // After resume, all queued actions will (be able to) execute, in-order
       ccf::tasks::resume_task(std::move(resumable));
 
       beacon.wait_for_work_with_timeout(std::chrono::milliseconds(100));
-      REQUIRE(x == 203);
-      REQUIRE(y == 202);
+      REQUIRE(x.load() == 203);
+      REQUIRE(y.load() == 202);
 
       // A task might be paused multiple times during its life
       resumable = nullptr;
@@ -207,7 +207,7 @@ TEST_CASE("PauseAndResume")
       x_tasks->add_action(increment(x));
 
       beacon.wait_for_work_with_timeout(std::chrono::milliseconds(100));
-      REQUIRE(x == 204);
+      REQUIRE(x.load() == 204);
       REQUIRE(resumable != nullptr);
 
       // A paused task can be cancelled
@@ -217,7 +217,7 @@ TEST_CASE("PauseAndResume")
       ccf::tasks::resume_task(std::move(resumable));
 
       beacon.wait_for_work_with_timeout(std::chrono::milliseconds(100));
-      REQUIRE(x == 204);
+      REQUIRE(x.load() == 204);
     }
   }
 
