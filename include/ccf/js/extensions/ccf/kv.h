@@ -33,6 +33,6 @@ namespace ccf::js::extensions
 
     void install(js::core::Context& ctx);
 
-    void rethrow_trapped_exceptions();
+    void rethrow_trapped_exceptions() const;
   };
 }

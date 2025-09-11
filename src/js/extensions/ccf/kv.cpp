@@ -163,11 +163,12 @@ namespace ccf::js::extensions
     ccf.set("kv", std::move(kv));
   }
 
-  void KvExtension::rethrow_trapped_exceptions()
+  void KvExtension::rethrow_trapped_exceptions() const
   {
-    if (impl->compacted_version_conflict.has_value())
+    auto& exception = impl->compacted_version_conflict;
+    if (exception.has_value())
     {
-      throw impl->compacted_version_conflict.value();
+      throw std::move(exception.value());
     }
   }
 }
