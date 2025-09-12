@@ -727,7 +727,7 @@ namespace asynchost
     ccf::pal::Mutex read_cache_lock;
 
     const size_t chunk_threshold;
-    size_t last_idx = 0;
+    std::atomic<size_t> last_idx = 0;
     size_t committed_idx = 0;
 
     size_t end_of_committed_files_idx = 0;
