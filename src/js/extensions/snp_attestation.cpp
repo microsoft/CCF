@@ -333,25 +333,17 @@ namespace ccf::js::extensions
 
 #pragma clang diagnostic pop
 
-    JSValue create_snp_attestation_obj(JSContext* ctx)
-    {
-      auto snp_attestation = JS_NewObject(ctx);
-
-      JS_SetPropertyStr(
-        ctx,
-        snp_attestation,
-        "verifySnpAttestation",
-        JS_NewCFunction(
-          ctx, js_verify_snp_attestation, "verifySnpAttestation", 4));
-
-      return snp_attestation;
-    }
-
   }
 
   void SnpAttestationExtension::install(js::core::Context& ctx)
   {
+    auto snp_attestation = ctx.new_obj();
+
+    snp_attestation.set(
+      "verifySnpAttestation",
+      ctx.new_c_function(js_verify_snp_attestation, "verifySnpAttestation", 4));
+
     auto global_obj = ctx.get_global_obj();
-    global_obj.set("snp_attestation", create_snp_attestation_obj(ctx));
+    global_obj.set("snp_attestation", std::move(snp_attestation));
   }
 }

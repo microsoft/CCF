@@ -35,9 +35,7 @@ namespace ccf
     }
 
     void set_response(
-      JsonAdapterResponse&&
-        res, // NOLINT(cppcoreguidelines-rvalue-reference-param-not-moved)
-      std::shared_ptr<ccf::RpcContext>& ctx)
+      JsonAdapterResponse&& res, std::shared_ptr<ccf::RpcContext>& ctx)
     {
       auto* error = std::get_if<ErrorDetails>(&res);
       if (error != nullptr)

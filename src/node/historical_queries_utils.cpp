@@ -28,18 +28,12 @@ namespace
     return !endorsement.previous_version.has_value();
   }
 
-  void validate_fetched_endorsement(
-    const std::optional<ccf::CoseEndorsement>& endorsement)
+  void validate_fetched_endorsement(const ccf::CoseEndorsement& endorsement)
   {
-    if (!endorsement)
+    if (!is_self_endorsement(endorsement))
     {
-      throw std::logic_error("Fetched COSE endorsement is invalid");
-    }
-
-    if (!is_self_endorsement(*endorsement))
-    {
-      const auto [from, to] = ccf::crypto::extract_cose_endorsement_validity(
-        endorsement->endorsement);
+      const auto [from, to] =
+        ccf::crypto::extract_cose_endorsement_validity(endorsement.endorsement);
 
       const auto from_txid = ccf::TxID::from_str(from);
       if (!from_txid)
@@ -57,20 +51,20 @@ namespace
           ccf::crypto::COSE_PHEADER_KEY_RANGE_END));
       }
 
-      if (!endorsement->endorsement_epoch_end)
+      if (!endorsement.endorsement_epoch_end)
       {
         throw std::logic_error(
           "COSE endorsement doesn't contain epoch end in the table entry");
       }
       if (
-        endorsement->endorsement_epoch_begin != *from_txid ||
-        *endorsement->endorsement_epoch_end != *to_txid)
+        endorsement.endorsement_epoch_begin != *from_txid ||
+        *endorsement.endorsement_epoch_end != *to_txid)
       {
         throw std::logic_error(fmt ::format(
           "COSE endorsement fetched but range is invalid, epoch begin {}, "
           "epoch end {}, header epoch begin: {}, header epoch end: {}",
-          endorsement->endorsement_epoch_begin.to_str(),
-          endorsement->endorsement_epoch_end->to_str(),
+          endorsement.endorsement_epoch_begin.to_str(),
+          endorsement.endorsement_epoch_end->to_str(),
           from,
           to));
       }
@@ -104,11 +98,16 @@ namespace
         tx.template ro<ccf::PreviousServiceIdentityEndorsement>(
             ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
           ->get();
-      validate_fetched_endorsement(endorsement);
-      // NOLINTBEGIN(bugprone-unchecked-optional-access)
+
+      if (!endorsement.has_value())
+      {
+        throw std::logic_error("Fetched COSE endorsement is invalid");
+      }
+
+      validate_fetched_endorsement(endorsement.value());
+
       // Checked by the validate call above
       cose_endorsements_cache.push_back(*endorsement);
-      // NOLINTEND(bugprone-unchecked-optional-access)
     }
   }
 
@@ -152,12 +151,16 @@ namespace
             ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
           ->get();
 
-      validate_fetched_endorsement(endorsement);
-      // NOLINTBEGIN(bugprone-unchecked-optional-access)
+      if (!endorsement.has_value())
+      {
+        throw std::logic_error("Fetched COSE endorsement is invalid");
+      }
+
+      validate_fetched_endorsement(endorsement.value());
+
       // Checked by the validate call above
       validate_chain_integrity(last_cose_endorsement, endorsement.value());
       cose_endorsements_cache.push_back(endorsement.value());
-      // NOLINTEND(bugprone-unchecked-optional-access)
     }
 
     if (cose_endorsements_cache.size() == 1)
@@ -238,15 +241,13 @@ namespace ccf
       std::optional<ServiceInfo> hservice_info = service->get();
       SeqNo i = -1;
 
-      if (!hservice_info)
-      {
-        throw std::runtime_error("Failed to locate service identity");
-      }
-
       do
       {
-        // NOLINTBEGIN(bugprone-unchecked-optional-access)
-        // Checked on lines 238 and 266
+        if (!hservice_info)
+        {
+          throw std::runtime_error("Failed to locate service identity");
+        }
+
         if (!hservice_info->previous_service_identity_version)
         {
           // Pre 2.0 we did not record the versions of previous identities in
@@ -256,13 +257,13 @@ namespace ccf
             "because it is in a pre-2.0 part of the ledger.");
         }
         i = hservice_info->previous_service_identity_version.value_or(i - 1);
-        // NOLINTEND(bugprone-unchecked-optional-access)
         LOG_TRACE_FMT("historical service identity search at: {}", i);
         auto hstate = state_cache.get_state_at(i, i);
         if (!hstate)
         {
           return std::nullopt; // Not available yet - retry later.
         }
+
         auto htx = hstate->store->create_read_only_tx();
         auto* hservice = htx.ro<Service>(Tables::SERVICE);
         hservice_info = hservice->get();
@@ -295,60 +296,62 @@ namespace ccf
 
         const auto& network_identity = network_identity_subsystem->get();
 
-        if (state && state->receipt && state->receipt->node_cert)
+        if (state && state->receipt)
         {
-          auto& receipt = *state->receipt;
+          auto& receipt = state->receipt;
+          auto& node_cert = receipt->node_cert;
 
-          // NOLINTBEGIN(bugprone-unchecked-optional-access)
-          if (receipt.node_cert->empty())
+          if (node_cert.has_value())
           {
-            // Pre 2.0 receipts did not contain node certs.
-            throw std::runtime_error(
-              "Node certificate in receipt is empty, likely because the "
-              "transaction is in a pre-2.0 part of the ledger.");
-          }
-
-          auto v = ccf::crypto::make_unique_verifier(*receipt.node_cert);
-          // NOLINTEND(bugprone-unchecked-optional-access)
-          if (!v->verify_certificate(
-                {&network_identity->cert}, {}, /* ignore_time */ true))
-          {
-            // The current service identity does not endorse the node
-            // certificate in the receipt, so we search for the the most
-            // recent write to the service info table before the historical
-            // transaction ID to get the historical service identity.
-
-            auto opt_psi =
-              find_previous_service_identity(tx, state, state_cache);
-            if (!opt_psi)
+            if (node_cert->empty())
             {
-              return false;
+              // Pre 2.0 receipts did not contain node certs.
+              throw std::runtime_error(
+                "Node certificate in receipt is empty, likely because the "
+                "transaction is in a pre-2.0 part of the ledger.");
             }
 
-            auto hpubkey = ccf::crypto::public_key_pem_from_cert(
-              ccf::crypto::cert_pem_to_der(opt_psi->cert));
+            auto v = ccf::crypto::make_unique_verifier(node_cert.value());
+            if (!v->verify_certificate(
+                  {&network_identity->cert}, {}, /* ignore_time */ true))
+            {
+              // The current service identity does not endorse the node
+              // certificate in the receipt, so we search for the the most
+              // recent write to the service info table before the historical
+              // transaction ID to get the historical service identity.
 
-            auto eit = service_endorsement_cache.find(hpubkey);
-            if (eit != service_endorsement_cache.end())
-            {
-              // Note: validity period of service certificate may have changed
-              // since we created the cached endorsements.
-              receipt.service_endorsements = eit->second;
-            }
-            else
-            {
-              auto ncv =
-                ccf::crypto::make_unique_verifier(network_identity->cert);
-              auto endorsement = create_endorsed_cert(
-                hpubkey,
-                ccf::crypto::get_subject_name(opt_psi->cert),
-                {},
-                ncv->validity_period(),
-                network_identity->priv_key,
-                network_identity->cert,
-                true /* CA */);
-              service_endorsement_cache[hpubkey] = {endorsement};
-              receipt.service_endorsements = {endorsement};
+              auto opt_psi =
+                find_previous_service_identity(tx, state, state_cache);
+              if (!opt_psi)
+              {
+                return false;
+              }
+
+              auto hpubkey = ccf::crypto::public_key_pem_from_cert(
+                ccf::crypto::cert_pem_to_der(opt_psi->cert));
+
+              auto eit = service_endorsement_cache.find(hpubkey);
+              if (eit != service_endorsement_cache.end())
+              {
+                // Note: validity period of service certificate may have changed
+                // since we created the cached endorsements.
+                receipt->service_endorsements = eit->second;
+              }
+              else
+              {
+                auto ncv =
+                  ccf::crypto::make_unique_verifier(network_identity->cert);
+                auto endorsement = create_endorsed_cert(
+                  hpubkey,
+                  ccf::crypto::get_subject_name(opt_psi->cert),
+                  {},
+                  ncv->validity_period(),
+                  network_identity->priv_key,
+                  network_identity->cert,
+                  true /* CA */);
+                service_endorsement_cache[hpubkey] = {endorsement};
+                receipt->service_endorsements = {endorsement};
+              }
             }
           }
         }

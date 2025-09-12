@@ -65,9 +65,7 @@ namespace ccf::indexing::strategies
       }
     }
 
-    static LFSContents serialise(
-      SeqNoCollection&&
-        seqnos) // NOLINT(cppcoreguidelines-rvalue-reference-param-not-moved)
+    static LFSContents serialise(SeqNoCollection&& seqnos)
     {
       LFSContents blob;
 

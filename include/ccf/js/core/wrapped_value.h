@@ -35,7 +35,7 @@ namespace ccf::js::core
 
     int set(const std::string& prop, JSWrappedValue&& value) const;
 
-    int set(const std::string& prop, JSValue&& value) const;
+    int set(const std::string& prop, JSValue value) const;
 
     int set_null(const std::string& prop) const;
 
@@ -45,7 +45,7 @@ namespace ccf::js::core
 
     int set_bool(const std::string& prop, bool b) const;
 
-    int set_at_index(uint32_t index, JSWrappedValue&& value);
+    int set_at_index(uint32_t index, JSWrappedValue&& value) const;
 
     bool is_exception() const;
 

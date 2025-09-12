@@ -347,15 +347,11 @@ namespace ccf::js::extensions
     request.set("params", std::move(params));
 
     auto body = ctx.new_obj();
-    JS_SetPropertyStr(
-      ctx, body.val, "text", JS_NewCFunction(ctx, js_body_text, "text", 0));
-    JS_SetPropertyStr(
-      ctx, body.val, "json", JS_NewCFunction(ctx, js_body_json, "json", 0));
-    JS_SetPropertyStr(
-      ctx,
-      body.val,
+    body.set("text", ctx.new_c_function(js_body_text, "text", 0));
+    body.set("json", ctx.new_c_function(js_body_json, "json", 0));
+    body.set(
       "arrayBuffer",
-      JS_NewCFunction(ctx, js_body_array_buffer, "arrayBuffer", 0));
+      ctx.new_c_function(js_body_array_buffer, "arrayBuffer", 0));
     request.set("body", std::move(body));
 
     request.set("caller", create_caller_obj(ctx, endpoint_ctx, registry));

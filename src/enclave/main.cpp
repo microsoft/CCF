@@ -16,7 +16,7 @@
 namespace
 {
   ccf::pal::Mutex create_lock;
-  std::atomic<ccf::Enclave*> e;
+  std::unique_ptr<ccf::Enclave> enclave;
 }
 
 std::atomic<uint16_t> num_pending_threads = 0;
@@ -37,7 +37,7 @@ extern "C"
   {
     std::lock_guard<ccf::pal::Mutex> guard(create_lock);
 
-    if (e != nullptr)
+    if (enclave != nullptr)
     {
       return CreateNodeStatus::NodeAlreadyCreated;
     }
@@ -103,12 +103,11 @@ extern "C"
 
     ccf::logger::config::level() = permitted;
 
-    ccf::Enclave* enclave = nullptr;
+    std::unique_ptr<ccf::Enclave> tmp_enclave = nullptr;
 
     try
     {
-      // NOLINTBEGIN(cppcoreguidelines-owning-memory)
-      enclave = new ccf::Enclave(
+      tmp_enclave = std::make_unique<ccf::Enclave>(
         std::move(circuit),
         std::move(basic_writer_factory),
         std::move(writer_factory),
@@ -118,15 +117,14 @@ extern "C"
         ccf_config.consensus,
         ccf_config.node_certificate.curve_id,
         work_beacon);
-      // NOLINTEND(cppcoreguidelines-owning-memory)
     }
-    catch (const ccf::ccf_openssl_rdrand_init_error& e)
+    catch (const ccf::ccf_openssl_rdrand_init_error& exc)
     {
       LOG_FAIL_FMT(
-        "ccf_openssl_rdrand_init_error during enclave init: {}", e.what());
+        "ccf_openssl_rdrand_init_error during enclave init: {}", exc.what());
       return CreateNodeStatus::OpenSSLRDRANDInitFailed;
     }
-    catch (const std::exception& e)
+    catch (const std::exception& exc)
     {
       // In most places, logging exception messages directly is unsafe
       // because they may contain confidential information. In this
@@ -137,45 +135,32 @@ extern "C"
       // node terminates. The debugging benefit is substantial, while the
       // risk is low, so in this case we promote the generic exception
       // message to FAIL.
-      LOG_FAIL_FMT("exception during enclave init: {}", e.what());
+      LOG_FAIL_FMT("exception during enclave init: {}", exc.what());
       return CreateNodeStatus::EnclaveInitFailed;
     }
 
     CreateNodeStatus status = EnclaveInitFailed;
 
-    try
-    {
-      status = enclave->create_new_node(
-        start_type,
-        ccf_config,
-        std::move(startup_snapshot),
-        node_cert,
-        service_cert);
-    }
-    catch (...)
-    {
-      // NOLINTBEGIN(cppcoreguidelines-owning-memory)
-      delete enclave;
-      // NOLINTEND(cppcoreguidelines-owning-memory)
-      throw;
-    }
+    status = tmp_enclave->create_new_node(
+      start_type,
+      ccf_config,
+      std::move(startup_snapshot),
+      node_cert,
+      service_cert);
 
     if (status != CreateNodeStatus::OK)
     {
-      // NOLINTBEGIN(cppcoreguidelines-owning-memory)
-      delete enclave;
-      // NOLINTEND(cppcoreguidelines-owning-memory)
       return status;
     }
 
-    e.store(enclave);
+    enclave.swap(tmp_enclave);
 
     return CreateNodeStatus::OK;
   }
 
   bool enclave_run()
   {
-    if (e.load() != nullptr)
+    if (enclave != nullptr)
     {
       uint16_t tid = 0;
       {
@@ -195,7 +180,7 @@ extern "C"
 
       if (tid == ccf::threading::MAIN_THREAD_ID)
       {
-        auto s = e.load()->run_main();
+        auto s = enclave->run_main();
         while (num_complete_threads !=
                threading::ThreadMessaging::instance().thread_count() - 1)
         {
@@ -203,7 +188,7 @@ extern "C"
         threading::ThreadMessaging::shutdown();
         return s;
       }
-      auto s = e.load()->run_worker();
+      auto s = enclave->run_worker();
       num_complete_threads.fetch_add(1);
       return s;
     }

@@ -103,22 +103,16 @@ namespace ccf::js::extensions
 
   void RpcExtension::install(js::core::Context& ctx)
   {
-    auto rpc = JS_NewObject(ctx);
+    auto rpc = ctx.new_obj();
 
-    JS_SetPropertyStr(
-      ctx,
-      rpc,
+    rpc.set(
       "setApplyWrites",
-      JS_NewCFunction(ctx, js_rpc_set_apply_writes, "setApplyWrites", 1));
-    JS_SetPropertyStr(
-      ctx,
-      rpc,
+      ctx.new_c_function(js_rpc_set_apply_writes, "setApplyWrites", 1));
+    rpc.set(
       "setClaimsDigest",
-      JS_NewCFunction(ctx, js_rpc_set_claims_digest, "setClaimsDigest", 1));
+      ctx.new_c_function(js_rpc_set_claims_digest, "setClaimsDigest", 1));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    // NOLINTBEGIN(performance-move-const-arg)
     ccf.set("rpc", std::move(rpc));
-    // NOLINTEND(performance-move-const-arg)
   }
 }

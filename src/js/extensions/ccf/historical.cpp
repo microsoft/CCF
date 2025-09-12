@@ -112,8 +112,7 @@ namespace ccf::js::extensions
       size_t i = 0;
       for (auto& state : states)
       {
-        auto js_state =
-          jsctx.wrap(extension->create_historical_state_object(jsctx, state));
+        auto js_state = extension->create_historical_state_object(jsctx, state);
         JS_CHECK_SET(states_array.set_at_index(i++, std::move(js_state)));
       }
 
@@ -382,47 +381,60 @@ namespace ccf::js::extensions
 
   void HistoricalExtension::install(js::core::Context& ctx)
   {
-    auto historical = JS_NewObject(ctx);
+    auto historical = ctx.new_obj();
 
-    JS_SetPropertyStr(
-      ctx,
-      historical,
+    historical.set(
       "getStateRange",
-      JS_NewCFunction(ctx, js_historical_get_state_range, "getStateRange", 4));
-    JS_SetPropertyStr(
-      ctx,
-      historical,
+      ctx.new_c_function(js_historical_get_state_range, "getStateRange", 4));
+    historical.set(
       "dropCachedStates",
-      JS_NewCFunction(
-        ctx, js_historical_drop_cached_states, "dropCachedStates", 1));
+      ctx.new_c_function(
+        js_historical_drop_cached_states, "dropCachedStates", 1));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    // NOLINTBEGIN(performance-move-const-arg)
     ccf.set("historical", std::move(historical));
-    // NOLINTEND(performance-move-const-arg)
   }
 
-  JSValue HistoricalExtension::create_historical_state_object(
+  js::core::JSWrappedValue HistoricalExtension::create_historical_state_object(
     js::core::Context& ctx, ccf::historical::StatePtr state) const
   {
+#define WRAPPED_CHECK_EXC(val) \
+  do \
+  { \
+    if ((val).is_exception()) \
+    { \
+      return val; \
+    } \
+  } while (0)
+
+#define WRAPPED_CHECK_SET(val) \
+  do \
+  { \
+    if ((val) != 1) \
+    { \
+      return ctx.wrap(ccf::js::core::constants::Exception); \
+    } \
+  } while (0)
+
     auto js_state = ctx.new_obj_class(historical_state_class_id);
-    JS_CHECK_EXC(js_state);
+    WRAPPED_CHECK_EXC(js_state);
 
     const auto transaction_id = state->transaction_id;
     auto transaction_id_s = ctx.new_string(transaction_id.to_str());
-    JS_CHECK_EXC(transaction_id_s);
-    JS_CHECK_SET(js_state.set("transactionId", std::move(transaction_id_s)));
+    WRAPPED_CHECK_EXC(transaction_id_s);
+    WRAPPED_CHECK_SET(
+      js_state.set("transactionId", std::move(transaction_id_s)));
 
     // NB: ccf_receipt_to_js returns a JSValue (unwrapped), due to its use of
     // macros. So we must rewrap it here, immediately after returning
     auto js_receipt = ctx.wrap(ccf_receipt_to_js(ctx, state->receipt));
-    JS_CHECK_EXC(js_receipt);
-    JS_CHECK_SET(js_state.set("receipt", std::move(js_receipt)));
+    WRAPPED_CHECK_EXC(js_receipt);
+    WRAPPED_CHECK_SET(js_state.set("receipt", std::move(js_receipt)));
 
     auto kv = ctx.new_obj_class(kv_historical_class_id);
-    JS_CHECK_EXC(kv);
+    WRAPPED_CHECK_EXC(kv);
     JS_SetOpaque(kv.val, reinterpret_cast<void*>(transaction_id.seqno));
-    JS_CHECK_SET(js_state.set("kv", std::move(kv)));
+    WRAPPED_CHECK_SET(js_state.set("kv", std::move(kv)));
 
     try
     {
@@ -435,13 +447,14 @@ namespace ccf::js::extensions
     }
     catch (const std::exception& e)
     {
-      return ctx
-        .new_internal_error(
-          "Failed to create read-only historical tx: %s", e.what())
-        .take();
+      return ctx.new_internal_error(
+        "Failed to create read-only historical tx: %s", e.what());
     }
 
-    return js_state.take();
+    return js_state;
+
+#undef WRAPPED_CHECK_EXC
+#undef WRAPPED_CHECK_SET
   }
 }
 
