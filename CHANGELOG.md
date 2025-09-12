@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.12]
+
+[6.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.12
+
+### Added
+
+- Validate endorsement metadata (tcb version and chip id) against attestation (#7240)
+
 ## [6.0.11]
 
 [6.0.11]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.11
@@ -17,7 +25,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Correctly validate the full AMD ASK endorsement chain (#7233)
-- Validate endorsement metadata (tcb version and chip id) against attestation (#7240)
 
 ## [6.0.10]
 
