@@ -433,7 +433,7 @@ namespace ccf::pal
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
-  static void verify_quote(
+  void verify_quote(
     const QuoteInfo& quote_info,
     PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)

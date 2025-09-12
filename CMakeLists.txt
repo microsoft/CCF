@@ -317,7 +317,35 @@ if(INSTALL_VIRTUAL_LIBRARIES)
 endif()
 
 # CCF platform agnostic library
-add_ccf_static_library(ccf_pal SRCS ${CCF_DIR}/src/pal/attestation.cpp)
+set(CCF_PAL_SOURCES ${CCF_DIR}/src/pal/attestation.cpp)
+
+if(COMPILE_TARGET STREQUAL "snp")
+  add_host_library(ccf_pal.snp "${CCF_PAL_SOURCES}")
+  add_san(ccf_pal.snp)
+  add_warning_checks(ccf_pal.snp)
+  add_tidy(ccf_pal.snp)
+  target_compile_definitions(ccf_pal.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
+  if(CCF_DEVEL)
+    install(
+      TARGETS ccf_pal.snp
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
+endif()
+
+add_host_library(ccf_pal.host "${CCF_PAL_SOURCES}")
+add_san(ccf_pal.host)
+add_warning_checks(ccf_pal.host)
+add_tidy(ccf_pal.host)
+target_compile_definitions(ccf_pal.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS ccf_pal.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 
 # CCF js libs
 set(CCF_JS_SOURCES
@@ -411,7 +439,7 @@ if(COMPILE_TARGET STREQUAL "snp")
   target_include_directories(ccf_endpoints.snp PRIVATE ${CCF_DIR}/src/endpoints)
   target_link_libraries(
     ccf_endpoints.snp PUBLIC qcbor.snp t_cose.snp http_parser.snp ccfcrypto.snp
-                             ccf_kv.snp
+                             ccf_kv.snp 
   )
   add_san(ccf_endpoints.snp)
   add_warning_checks(ccf_endpoints.snp)
@@ -589,7 +617,7 @@ if(COMPILE_TARGET STREQUAL "snp")
            ccf_kv.snp
            nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
-           ccf_pal
+           ccf_pal.snp
   )
 
   set_property(TARGET ccf.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -642,7 +670,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            ccf_kv.host
            nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
-           ccf_pal
+           ccf_pal.host
   )
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
