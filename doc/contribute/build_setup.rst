@@ -39,7 +39,19 @@ There's no current way to choose an Azure Linux image in Azure UI, so an Azure L
 .. code-block:: bash
 
     az group create --name [GROUP_NAME] --location eastus2
-    az vm create --name [VM-NAME] --resource-group [GROUP_NAME] --image MicrosoftCBLMariner:azure-linux-3:azure-linux-3:latest --admin-username [USERNAME] --ssh-key-values C:\Users\[USERNAME\.ssh\[KEY].pub --os-disk-size-gb 512
+    az vm create  \
+        --image /sharedGalleries/CblMariner.1P/images/azure-linux-3-gen2/versions/latest  \
+        --tags AzSecPackAutoConfigReady=true                                              \
+        --nsg-rule none --public-ip-sku standard                                          \
+        --resource-group <rg>                                                             \
+        --name <name>                                                                     \
+        --size <sku>                                                                      \
+        --admin-username <ssh-user>                                                       \
+        --location <location>                                                             \
+        --os-disk-size-gb <size>                                                          \
+        --data-disk-sizes-gb <size>
+
+This will use the image with SecPack stuff properly set, the other avaliable azure-linux images will cause your VN to be flagged.
 
 Afterwards, go to your VM and select a proper RAM and CPU profile. If you don't know which one you want, select `Standard D16s v3` (64 RAM and 16 CPU cores).
 
