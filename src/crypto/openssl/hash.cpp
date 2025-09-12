@@ -3,12 +3,94 @@
 
 #include "crypto/openssl/hash.h"
 
-#include "ccf/crypto/openssl_init.h"
-
 #include <limits>
 #include <openssl/evp.h>
 #include <openssl/sha.h>
 #include <stdexcept>
+
+namespace
+{
+  struct Sha256Context
+  {
+    Sha256Context()
+    {
+      openssl_sha256_init();
+    }
+
+    Sha256Context(const Sha256Context&) = delete;
+    Sha256Context& operator=(const Sha256Context&) = delete;
+
+    Sha256Context(Sha256Context&&) = delete;
+    Sha256Context& operator=(Sha256Context&&) = delete;
+
+    ~Sha256Context()
+    {
+      openssl_sha256_shutdown();
+    }
+
+    [[nodiscard]] EVP_MD_CTX* get_basectx() const
+    {
+      return basectx;
+    }
+
+    [[nodiscard]] EVP_MD_CTX* get_mdctx() const
+    {
+      return mdctx;
+    }
+
+  private:
+    void openssl_sha256_init()
+    {
+      if (mdctx != nullptr || basectx != nullptr)
+      {
+        throw std::logic_error(
+          "openssl_sha256_init: double-init of the context");
+      }
+
+      mdctx = EVP_MD_CTX_new();
+      if (mdctx == nullptr)
+      {
+        throw std::logic_error("openssl_sha256_init: failed to create mdctx");
+      }
+
+      basectx = EVP_MD_CTX_new();
+      if (basectx == nullptr)
+      {
+        mdctx = nullptr;
+        throw std::logic_error("openssl_sha256_init: failed to create basectx");
+      }
+
+      if (EVP_DigestInit_ex(basectx, EVP_sha256(), nullptr) != 1)
+      {
+        mdctx = nullptr;
+        basectx = nullptr;
+        throw std::logic_error("EVP_DigestInit_ex failed");
+      }
+
+      EVP_MD_CTX* mdctx{nullptr};
+      EVP_MD_CTX* basectx{nullptr};
+    }
+
+    void openssl_sha256_shutdown()
+    {
+      if (mdctx != nullptr)
+      {
+        EVP_MD_CTX_free(mdctx);
+        mdctx = nullptr;
+      }
+      if (basectx != nullptr)
+      {
+        EVP_MD_CTX_free(basectx);
+        basectx = nullptr;
+      }
+    }
+
+    EVP_MD_CTX* basectx{nullptr};
+    EVP_MD_CTX* mdctx{nullptr};
+  };
+
+  thread_local const Sha256Context sha256_context{};
+}
 
 namespace ccf::crypto
 {
@@ -55,49 +137,6 @@ namespace ccf::crypto
 
   using namespace OpenSSL;
 
-  static thread_local EVP_MD_CTX* mdctx = nullptr;
-  static thread_local EVP_MD_CTX* basectx = nullptr;
-
-  void openssl_sha256_init()
-  {
-    if (mdctx != nullptr || basectx != nullptr)
-    {
-      return; // Already initialised
-    }
-
-    mdctx = EVP_MD_CTX_new();
-    if (mdctx == nullptr)
-    {
-      throw std::logic_error("openssl_sha256_init: failed to create mdctx");
-    }
-    basectx = EVP_MD_CTX_new();
-    if (basectx == nullptr)
-    {
-      mdctx = nullptr;
-      throw std::logic_error("openssl_sha256_init: failed to create basectx");
-    }
-    if (EVP_DigestInit_ex(basectx, EVP_sha256(), nullptr) != 1)
-    {
-      mdctx = nullptr;
-      basectx = nullptr;
-      throw std::logic_error("EVP_DigestInit_ex failed");
-    }
-  }
-
-  void openssl_sha256_shutdown()
-  {
-    if (mdctx != nullptr)
-    {
-      EVP_MD_CTX_free(mdctx);
-      mdctx = nullptr;
-    }
-    if (basectx != nullptr)
-    {
-      EVP_MD_CTX_free(basectx);
-      basectx = nullptr;
-    }
-  }
-
   void openssl_sha256(const std::span<const uint8_t>& data, uint8_t* h)
   {
     // EVP_Digest calls are notoriously slow with OpenSSL 3.x (see
@@ -105,6 +144,9 @@ namespace ccf::crypto
     // calls to EVP_DigestInit_ex() by keeping 2 static thread-local contexts
     // and reusing them between calls. This is about 2x faster than EVP_Digest
     // for 128-byte buffers.
+
+    auto* const mdctx = sha256_context.get_mdctx();
+    auto* const basectx = sha256_context.get_basectx();
 
     if (mdctx == nullptr || basectx == nullptr)
     {
@@ -117,11 +159,13 @@ namespace ccf::crypto
     {
       throw std::logic_error(fmt::format("EVP_MD_CTX_copy_ex failed: {}", rc));
     }
+
     rc = EVP_DigestUpdate(mdctx, data.data(), data.size());
     if (rc != 1)
     {
       throw std::logic_error(fmt::format("EVP_DigestUpdate failed: {}", rc));
     }
+
     rc = EVP_DigestFinal_ex(mdctx, h, nullptr);
     if (rc != 1)
     {

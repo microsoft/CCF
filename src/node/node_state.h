@@ -7,7 +7,6 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
-#include "ccf/ds/logger.h"
 #include "ccf/ds/unit_strings.h"
 #include "ccf/js/core/context.h"
 #include "ccf/json_handler.h"
@@ -32,6 +31,7 @@
 #include "ds/ccf_assert.h"
 #include "ds/files.h"
 #include "ds/ring_buffer_types.h"
+#include "ds/internal_logger.h"
 #include "ds/state_machine.h"
 #include "ds/thread_messaging.h"
 #include "enclave/interface.h"
@@ -448,6 +448,12 @@ namespace ccf
         // Note: Node lock is already taken here as this is called back
         // synchronously with the call to pal::generate_quote
         this->quote_info = qi;
+
+        auto b64encoded_quote = ccf::crypto::b64url_from_raw(quote_info.quote);
+        nlohmann::json jq;
+        to_json(jq, quote_info.format);
+        LOG_INFO_FMT(
+          "Initial node attestation ({}): {}", jq.dump(), b64encoded_quote);
 
         if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
         {

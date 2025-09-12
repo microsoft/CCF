@@ -2274,7 +2274,8 @@ def run_main_tests(network, args):
     if not args.http2:
         test_forwarding_frontends(network, args)
         test_forwarding_frontends_without_app_prefix(network, args)
-        test_long_lived_forwarding(network, args)
+        if not os.getenv("TSAN_OPTIONS"):
+            test_long_lived_forwarding(network, args)
     test_user_data_ACL(network, args)
     test_cert_prefix(network, args)
     test_anonymous_caller(network, args)

@@ -3,7 +3,7 @@
 
 #include "openssl/base64.h"
 
-#include "ccf/ds/logger.h"
+#include "ds/internal_logger.h"
 
 namespace ccf::crypto
 {

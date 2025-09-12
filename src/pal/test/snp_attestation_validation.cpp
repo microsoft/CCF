@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/crypto/openssl_init.h"
 #include "ccf/ds/hex.h"
+#include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp.h"
@@ -10,6 +10,7 @@
 #include "ccf/pal/report_data.h"
 #include "ccf/pal/sev_snp_cpuid.h"
 #include "crypto/openssl/hash.h"
+#include "pal/test/attestation.h"
 #include "pal/test/snp_attestation_validation_data.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -136,12 +137,48 @@ TEST_CASE("Parsing tcb versions from attestaion")
   CHECK_EQ(milan_tcb.boot_loader, 0x04);
 }
 
+TEST_CASE("Extracting metadata from endorsements")
+{
+  using namespace ccf;
+
+  auto milan_quote_info = QuoteInfo{
+    .format = QuoteFormat::amd_sev_snp_v1,
+    .quote = pal::snp::testing::milan_attestation,
+    .endorsements = std::vector<uint8_t>(
+      pal::snp::testing::milan_endorsements.begin(),
+      pal::snp::testing::milan_endorsements.end()),
+    .uvm_endorsements = std::nullopt,
+  };
+
+  auto attestation = *reinterpret_cast<const pal::snp::Attestation*>(
+    milan_quote_info.quote.data());
+
+  auto certificates = ccf::crypto::split_x509_cert_bundle(std::string_view(
+    reinterpret_cast<const char*>(milan_quote_info.endorsements.data()),
+    milan_quote_info.endorsements.size()));
+
+  auto chip_certificate = certificates[0];
+
+  auto endorsed_tcb = pal::get_endorsed_tcb_from_cert(
+    pal::snp::ProductName::Milan, chip_certificate);
+  REQUIRE(endorsed_tcb.has_value());
+  CHECK_EQ(
+    nlohmann::json(endorsed_tcb.value()).dump(),
+    nlohmann::json(attestation.reported_tcb).dump());
+
+  auto endorsed_chip_id = pal::get_endorsed_chip_id_from_cert(chip_certificate);
+  REQUIRE(endorsed_chip_id.has_value());
+  auto printable_reported_chip_id = std::span<uint8_t>(
+    attestation.chip_id, attestation.chip_id + sizeof(attestation.chip_id));
+  CHECK_EQ(
+    ds::to_hex(endorsed_chip_id.value()),
+    ds::to_hex(printable_reported_chip_id));
+}
+
 int main(int argc, char** argv)
 {
-  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  ccf::crypto::openssl_sha256_shutdown();
   return res;
 }

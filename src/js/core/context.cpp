@@ -4,11 +4,11 @@
 #include "ccf/js/core/context.h"
 
 #include "ccf/ds/hex.h"
-#include "ccf/ds/logger.h"
 #include "ccf/js/core/runtime.h"
 #include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/tx_access.h"
+#include "ds/internal_logger.h"
 #include "js/global_class_ids.h"
 
 #include <chrono>
@@ -427,26 +427,29 @@ namespace ccf::js::core
     return wrap(JS_ReadObject(ctx, buf, buf_len, flags));
   }
 
-  static int js_custom_interrupt_handler(JSRuntime* rt, void* opaque)
+  namespace
   {
-    (void)rt;
-    auto* inter = reinterpret_cast<InterruptData*>(opaque);
-    auto now = std::chrono::high_resolution_clock::now();
-    auto elapsed_time = now - inter->start_time;
-    auto elapsed_ms =
-      std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time);
-    if (elapsed_ms.count() >= inter->max_execution_time.count())
+    int js_custom_interrupt_handler(JSRuntime* rt, void* opaque)
     {
-      extensions::ConsoleExtension::log_info_with_tag(
-        inter->access,
-        fmt::format(
-          "JS execution has timed out after {}ms (max is {}ms)",
-          elapsed_ms.count(),
-          inter->max_execution_time.count()));
-      inter->request_timed_out = true;
-      return 1;
+      (void)rt;
+      auto* inter = reinterpret_cast<InterruptData*>(opaque);
+      auto now = std::chrono::high_resolution_clock::now();
+      auto elapsed_time = now - inter->start_time;
+      auto elapsed_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time);
+      if (elapsed_ms.count() >= inter->max_execution_time.count())
+      {
+        extensions::ConsoleExtension::log_info_with_tag(
+          inter->access,
+          fmt::format(
+            "JS execution has timed out after {}ms (max is {}ms)",
+            elapsed_ms.count(),
+            inter->max_execution_time.count()));
+        inter->request_timed_out = true;
+        return 1;
+      }
+      return 0;
     }
-    return 0;
   }
 
   JSWrappedValue Context::call_with_rt_options(

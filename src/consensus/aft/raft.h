@@ -3,11 +3,11 @@
 #pragma once
 
 #include "ccf/ds/ccf_exception.h"
-#include "ccf/ds/logger.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
+#include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "impl/state.h"
 #include "kv/kv_types.h"

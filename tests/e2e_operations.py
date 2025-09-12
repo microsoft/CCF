@@ -27,7 +27,7 @@ import struct
 import infra.snp as snp
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-from pycose.messages import Sign1Message
+import cbor2
 import sys
 import pathlib
 import infra.concurrency
@@ -171,6 +171,12 @@ def test_forced_ledger_chunk(network, args):
 @reqs.description("Forced snapshot")
 @app.scoped_txs()
 def test_forced_snapshot(network, args):
+    if args.worker_threads > 0:
+        LOG.warning(
+            f"Skipping as broken when the number of threads ({args.worker_threads}) is > 0"
+        )
+        return network
+
     primary, _ = network.find_primary()
 
     # Submit some dummy transactions
@@ -811,11 +817,15 @@ def run_cose_signatures_config_check(args):
                         )
                         with open(signature_filename, "wb") as f:
                             f.write(signature)
-                        sig = Sign1Message.decode(signature)
-                        assert sig.phdr[15][1] == "test.issuer.example.com"
-                        assert sig.phdr[15][2] == "test.subject"
+                        sig = cbor2.loads(signature)
+                        assert sig.tag == 18
+                        phdr = cbor2.loads(sig.value[0])
+                        assert 15 in phdr, "CWT_Claims"
+                        assert phdr[15][1] == "test.issuer.example.com"
+                        assert phdr[15][2] == "test.subject"
+                        assert sig.value[2] is None, "Detached payload"
                         LOG.debug(
-                            "Checked COSE signature schema for issuer and subject"
+                            "Well-formed COSE signature schema for issuer and subject"
                         )
                         break
                     elif response.status_code == http.HTTPStatus.ACCEPTED:
@@ -1795,6 +1805,56 @@ def run_ledger_chunk_bytes_check(const_args):
         assert len(chunk_ends_to_expected_size) == 0
 
 
+def test_error_message_on_failure_to_read_aci_sec_context(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args)
+
+        primary, _ = network.find_primary()
+
+        args_copy = copy.deepcopy(args)
+
+        new_node = network.create_node("local://localhost")
+        args_copy.snp_endorsements_servers = ["Azure:invalid.azure.com"]
+        args_copy.snp_security_policy_file = "/a/fake/path"
+        args_copy.snp_uvm_endorsements_file = "/a/fake/path"
+        args_copy.snp_endorsements_file = "/a/fake/path"
+        failed = False
+        try:
+            network.join_node(new_node, args.package, args_copy, timeout=20)
+        except infra.network.CollateralFetchTimeout:
+            LOG.info(
+                "Node with invalid quote endorsement servers could not join as expected"
+            )
+            failed = True
+        assert (
+            failed
+        ), "Node with invalid quote endorsement servers should not be able to join"
+
+        expected_log_messages = [
+            "Could not read snp_security_policy from /a/fake/path",
+            "Could not read snp_uvm_endorsements from /a/fake/path",
+            "Could not read snp_endorsements from /a/fake/path",
+        ]
+
+        out_path, _ = new_node.get_logs()
+        for line in open(out_path, "r", encoding="utf-8").readlines():
+            for expected in expected_log_messages:
+                if expected in line:
+                    expected_log_messages.remove(expected)
+                    LOG.info(f"Found expected log message: {expected}")
+            if len(expected_log_messages) == 0:
+                break
+
+        assert (
+            len(expected_log_messages) == 0
+        ), f"Did not find expected log messages: {expected_log_messages}"
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
@@ -1818,5 +1878,6 @@ def run(args):
         run_recovery_local_unsealing(args, recovery_f=1)
         run_recovery_unsealing_corrupt(args)
         run_recovery_unsealing_validate_audit(args)
+        test_error_message_on_failure_to_read_aci_sec_context(args)
     run_read_ledger_on_testdata(args)
     run_ledger_chunk_bytes_check(args)

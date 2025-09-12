@@ -4,9 +4,9 @@
 
 #include "../ds/files.h"
 #include "../enclave/interface.h"
-#include "ccf/ds/logger.h"
 #include "ds/non_blocking.h"
 #include "self_healing_open.h"
+#include "ds/internal_logger.h"
 #include "timer.h"
 
 #include <chrono>

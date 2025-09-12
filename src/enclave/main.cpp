@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/ds/ccf_exception.h"
 #include "ccf/ds/json.h"
-#include "ccf/ds/logger.h"
 #include "ccf/pal/locking.h"
 #include "ccf/version.h"
 #include "common/enclave_interface_types.h"
+#include "ds/internal_logger.h"
 #include "enclave.h"
 
 #include <chrono>
@@ -13,8 +13,11 @@
 #include <thread>
 
 // the central enclave object
-static ccf::pal::Mutex create_lock;
-static std::atomic<ccf::Enclave*> e;
+namespace
+{
+  ccf::pal::Mutex create_lock;
+  std::atomic<ccf::Enclave*> e;
+}
 
 std::atomic<uint16_t> num_pending_threads = 0;
 std::atomic<uint16_t> num_complete_threads = 0;

@@ -53,21 +53,13 @@ namespace ccf::logger
       LoggerLevel level_,
       std::string_view tag_,
       std::string_view file_name_,
-      size_t line_number_,
-      std::optional<uint16_t> thread_id_ = std::nullopt) :
+      size_t line_number_) :
       log_level(level_),
       tag(tag_),
       file_name(file_name_),
       line_number(line_number_)
     {
-      if (thread_id_.has_value())
-      {
-        thread_id = *thread_id_;
-      }
-      else
-      {
-        thread_id = ccf::threading::get_current_thread_id();
-      }
+      thread_id = ccf::threading::get_current_thread_id();
     }
 
     template <typename T>
@@ -346,31 +338,8 @@ namespace ccf::logger
 #define CCF_LOG_FMT_2(s, ...) fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
 #define CCF_LOG_FMT(LVL, TAG) CCF_LOG_OUT(LVL, TAG) << CCF_LOG_FMT_2
 
-  enum class macro
-  {
-    LOG_TRACE_FMT [[deprecated("Use CCF_APP_TRACE instead")]],
-    LOG_DEBUG_FMT [[deprecated("Use CCF_APP_DEBUG instead")]],
-    LOG_INFO_FMT [[deprecated("Use CCF_APP_INFO instead")]],
-    LOG_FAIL_FMT [[deprecated("Use CCF_APP_FAIL instead")]],
-    LOG_FATAL_FMT [[deprecated("Use CCF_APP_FATAL instead")]],
-  };
-
-#ifndef CCF_LOGGER_NO_DEPRECATE
-#  define CCF_LOGGER_DEPRECATE(MACRO) ccf::logger::macro::MACRO;
-#else
-#  define CCF_LOGGER_DEPRECATE(MACRO)
-#endif
-
-#define LOG_TRACE_FMT CCF_LOGGER_DEPRECATE(LOG_TRACE_FMT) CCF_LOG_FMT(TRACE, "")
-#define LOG_DEBUG_FMT CCF_LOGGER_DEPRECATE(LOG_DEBUG_FMT) CCF_LOG_FMT(DEBUG, "")
-
 #define CCF_APP_TRACE CCF_LOG_FMT(TRACE, "app")
 #define CCF_APP_DEBUG CCF_LOG_FMT(DEBUG, "app")
-
-#define LOG_INFO_FMT CCF_LOGGER_DEPRECATE(LOG_INFO_FMT) CCF_LOG_FMT(INFO, "")
-#define LOG_FAIL_FMT CCF_LOGGER_DEPRECATE(LOG_FAIL_FMT) CCF_LOG_FMT(FAIL, "")
-#define LOG_FATAL_FMT CCF_LOGGER_DEPRECATE(LOG_FATAL_FMT) CCF_LOG_FMT(FATAL, "")
-
 #define CCF_APP_INFO CCF_LOG_FMT(INFO, "app")
 #define CCF_APP_FAIL CCF_LOG_FMT(FAIL, "app")
 #define CCF_APP_FATAL CCF_LOG_FMT(FATAL, "app")

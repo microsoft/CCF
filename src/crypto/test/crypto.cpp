@@ -9,7 +9,6 @@
 #include "ccf/crypto/jwk.h"
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/key_wrap.h"
-#include "ccf/crypto/openssl_init.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
@@ -1150,7 +1149,6 @@ TEST_CASE("PEM to JWK and back")
 
 TEST_CASE("Incremental hash")
 {
-  ccf::crypto::openssl_sha256_init();
   auto simple_hash = ccf::crypto::Sha256Hash(contents);
 
   INFO("Incremental hash");
@@ -1191,7 +1189,6 @@ TEST_CASE("Incremental hash")
       REQUIRE_THROWS_AS(ihash->finalise(), std::logic_error);
     }
   }
-  ccf::crypto::openssl_sha256_shutdown();
 }
 
 TEST_CASE("Sign and verify with RSA key")
@@ -1350,4 +1347,33 @@ TEST_CASE("Decrypt should validate integrity")
     ~broken_ciphertext[ciphertext.size() / 2];
 
   CHECK_THROWS(ccf::crypto::aes_gcm_decrypt(key, broken_ciphertext));
+}
+
+TEST_CASE("Do not trust non-ca certs")
+{
+  auto kp = ccf::crypto::make_key_pair(CurveID::SECP384R1);
+  auto ca_cert = generate_self_signed_cert(kp, "CN=name");
+
+  auto ca_cert_verifier = ccf::crypto::make_verifier(ca_cert.raw());
+  // CA cert is accepted as a trusted root (self-signed, CA:TRUE).
+  REQUIRE(ca_cert_verifier->verify_certificate({&ca_cert}, {}, true));
+
+  ccf::crypto::Pem non_ca_cert;
+  {
+    constexpr size_t certificate_validity_period_days = 365;
+    using namespace std::literals;
+    auto valid_from =
+      ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+    auto valid_to = compute_cert_valid_to_string(
+      valid_from, certificate_validity_period_days);
+    std::vector<SubjectAltName> subject_alt_names = {};
+    non_ca_cert =
+      kp->self_sign("CN=name", valid_from, valid_to, subject_alt_names, false);
+  }
+
+  auto non_ca_cert_verifier = ccf::crypto::make_verifier(non_ca_cert.raw());
+  // Non-CA cert must NOT be accepted as a trusted root (self-signed but
+  // CA:FALSE).
+  REQUIRE_FALSE(
+    non_ca_cert_verifier->verify_certificate({&non_ca_cert}, {}, true));
 }

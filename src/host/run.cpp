@@ -3,10 +3,8 @@
 
 #include "ccf/run.h"
 
-#include "ccf/crypto/openssl_init.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
-#include "ccf/ds/logger.h"
 #include "ccf/ds/logger_level.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/ds/unit_strings.h"
@@ -25,6 +23,7 @@
 #include "crypto/openssl/hash.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
+#include "ds/internal_logger.h"
 #include "ds/non_blocking.h"
 #include "ds/notifying.h"
 #include "ds/oversized.h"
@@ -112,8 +111,6 @@ namespace ccf
       LOG_FAIL_FMT("Failed to ignore SIGPIPE");
       return 1;
     }
-
-    ccf::crypto::openssl_sha256_init();
 
     CLI::App app{
       "Run a single CCF node, based on the given configuration file.\n"
@@ -612,6 +609,11 @@ namespace ccf
 
         startup_config.attestation.environment.security_policy =
           files::try_slurp_string(security_policy_file);
+        if (!startup_config.attestation.environment.security_policy.has_value())
+        {
+          LOG_FAIL_FMT(
+            "Could not read snp_security_policy from {}", security_policy_file);
+        }
       }
 
       if (startup_config.attestation.snp_uvm_endorsements_file.has_value())
@@ -627,6 +629,13 @@ namespace ccf
 
         startup_config.attestation.environment.uvm_endorsements =
           files::try_slurp_string(snp_uvm_endorsements_file);
+        if (!startup_config.attestation.environment.uvm_endorsements
+               .has_value())
+        {
+          LOG_FAIL_FMT(
+            "Could not read snp_uvm_endorsements from {}",
+            snp_uvm_endorsements_file);
+        }
       }
 
       for (auto endorsement_servers_it =
@@ -672,6 +681,13 @@ namespace ccf
 
         startup_config.attestation.environment.snp_endorsements =
           files::try_slurp_string(snp_endorsements_file);
+
+        if (!startup_config.attestation.environment.snp_endorsements
+               .has_value())
+        {
+          LOG_FAIL_FMT(
+            "Could not read snp_endorsements from {}", snp_endorsements_file);
+        }
       }
 
       if (ccf::pal::platform == ccf::pal::Platform::Virtual)
@@ -1041,7 +1057,6 @@ namespace ccf
       uv_walk(uv_default_loop(), cb, nullptr);
     }
     curl_global_cleanup();
-    ccf::crypto::openssl_sha256_shutdown();
 
     return loop_close_rc;
   }

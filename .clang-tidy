@@ -28,7 +28,6 @@ Checks: >
   misc-*,
   -misc-const-correctness,
   -misc-include-cleaner,
-  -misc-use-anonymous-namespace,
   -misc-non-private-member-variables-in-classes,
   -misc-no-recursion,
   modernize-*,
@@ -36,7 +35,6 @@ Checks: >
   -modernize-avoid-c-arrays,
   performance-*,
   -performance-avoid-endl,
-  -performance-enum-size,
   -performance-unnecessary-value-param,
   -performance-no-int-to-ptr,
   portability-*,
@@ -45,7 +43,6 @@ Checks: >
   -readability-identifier-length,
   -readability-avoid-nested-conditional-operator,
   -readability-convert-member-functions-to-static,
-  -readability-use-anyofallof
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: '?!(3rdparty)'

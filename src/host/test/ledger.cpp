@@ -2,11 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #include "host/ledger.h"
 
-#include "ccf/crypto/openssl_init.h"
 #include "ccf/crypto/sha256_hash.h"
-#include "ccf/ds/logger.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
+#include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "kv/ledger_chunker.h"
 #include "kv/serialised_entry_format.h"
@@ -2029,11 +2028,9 @@ TEST_CASE("Ledger init with existing files")
 int main(int argc, char** argv)
 {
   ccf::logger::config::default_init();
-  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

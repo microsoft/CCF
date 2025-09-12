@@ -168,7 +168,7 @@ namespace ccf::js::core
     // Only to be used, as the name indicates, for calls inside an already
     // invoked JS function, where the caller has already set up the necessary
     // limits.
-    JSWrappedValue inner_call(
+    virtual JSWrappedValue inner_call(
       const JSWrappedValue& f, const std::vector<JSWrappedValue>& argv);
 
     // JSON I/O

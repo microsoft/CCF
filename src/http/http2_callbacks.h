@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/logger.h"
 #include "ccf/http_configuration.h"
+#include "ds/internal_logger.h"
 #include "http/http_exceptions.h"
 #include "http2_types.h"
 #include "http2_utils.h"

@@ -198,10 +198,23 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   struct TcbVersionRaw
   {
   private:
-    uint8_t underlying_data[snp_tcb_version_size];
+    uint8_t underlying_data[snp_tcb_version_size]{};
 
   public:
     bool operator==(const TcbVersionRaw& other) const = default;
+
+    TcbVersionRaw() = default;
+
+    TcbVersionRaw(const std::vector<uint8_t>& data)
+    {
+      if (data.size() != snp_tcb_version_size)
+      {
+        throw std::logic_error(
+          fmt::format("Invalid TCB version raw data size: {}", data.size()));
+      }
+      std::memcpy(
+        static_cast<void*>(underlying_data), data.data(), snp_tcb_version_size);
+    }
 
     [[nodiscard]] std::vector<uint8_t> data() const
     {
@@ -266,6 +279,16 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
           throw std::logic_error(
             "Unsupported SEV-SNP product for TCB version policy");
       }
+    }
+
+    [[nodiscard]] TcbVersionMilanGenoa* as_milan_genoa()
+    {
+      return reinterpret_cast<TcbVersionMilanGenoa*>(this);
+    }
+
+    [[nodiscard]] TcbVersionTurin* as_turin()
+    {
+      return reinterpret_cast<TcbVersionTurin*>(this);
     }
   };
   static_assert(
@@ -474,6 +497,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
           std::string tee;
           std::string snp;
           std::string microcode;
+          std::optional<std::string> fmc = std::nullopt;
           switch (product)
           {
             case ProductName::Milan:
@@ -493,6 +517,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
               tee = fmt::format("{}", tcb.tee);
               snp = fmt::format("{}", tcb.snp);
               microcode = fmt::format("{}", tcb.microcode);
+              fmc = fmt::format("{}", tcb.fmc);
               break;
             }
             default:
@@ -513,7 +538,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             microcode,
             product,
             max_retries_count,
-            max_client_response_size));
+            max_client_response_size,
+            fmc));
           break;
         }
         case EndorsementsEndpointType::THIM:
