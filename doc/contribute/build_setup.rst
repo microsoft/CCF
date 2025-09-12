@@ -51,7 +51,7 @@ There's no current way to choose an Azure Linux image in Azure UI, so an Azure L
         --os-disk-size-gb <size>                                                          \
         --data-disk-sizes-gb <size>
 
-This will use the image with SecPack stuff properly set, the other avaliable azure-linux images will cause your VM to be flagged.
+This will use the image with SecPack stuff properly set, the other available azure-linux images will cause your VM to be flagged.
 
 Afterwards, go to your VM and select a proper RAM and CPU profile. If you don't know which one you want, select `Standard D16s v3` (64 RAM and 16 CPU cores).
 
