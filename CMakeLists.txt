@@ -760,7 +760,9 @@ if(BUILD_TESTS)
       snp_attestation_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_attestation_validation.cpp
     )
-    target_link_libraries(snp_attestation_test PRIVATE ccf_pal.host ccfcrypto.host)
+    target_link_libraries(
+      snp_attestation_test PRIVATE ccf_pal.host ccfcrypto.host
+    )
 
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
@@ -970,8 +972,13 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_js.host
-              ccf_endpoints.host ccfcrypto.host ccf_kv.host ccf_pal.host
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser.host
+              ccf_js.host
+              ccf_endpoints.host
+              ccfcrypto.host
+              ccf_kv.host
+              ccf_pal.host
     )
 
     add_unit_test(
@@ -1001,8 +1008,13 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       node_frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_js.host
-              ccf_endpoints.host ccfcrypto.host ccf_kv.host ccf_pal.host
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser.host
+              ccf_js.host
+              ccf_endpoints.host
+              ccfcrypto.host
+              ccf_kv.host
+              ccf_pal.host
     )
 
     add_unit_test(
