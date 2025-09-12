@@ -94,7 +94,8 @@ namespace ccf::js::core
       std::string_view module_name);
 
     // Construct RAII wrapper around raw QuickJS value
-    JSWrappedValue wrap(JSValue val) const;
+    JSWrappedValue wrap(JSValue&& val) const;
+    JSWrappedValue wrap(const JSValue& val) const;
 
     // If the first argument is a string-array, populates the second, and
     // returns undefined. Otherwise returns a JS error value.
@@ -109,7 +110,7 @@ namespace ccf::js::core
     JSWrappedValue get_global_obj() const;
     JSWrappedValue get_global_property(const char* s) const;
     JSWrappedValue get_or_create_global_property(
-      const char* s, JSWrappedValue default_value) const;
+      const char* s, JSWrappedValue&& default_value) const;
     JSWrappedValue get_typed_array_buffer(
       const JSWrappedValue& obj,
       size_t* pbyte_offset,

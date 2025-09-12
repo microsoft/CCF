@@ -119,7 +119,16 @@ namespace ccf::js::core
     return it->second;
   }
 
-  JSWrappedValue Context::wrap(JSValue val) const
+  JSWrappedValue Context::wrap(JSValue&& val) const
+  {
+    // NOLINTBEGIN(performance-move-const-arg)
+    // Retained to call distinct overload of JSWrappedValue constructor, which
+    // avoids DupValue
+    return {ctx, std::move(val)};
+    // NOLINTEND(performance-move-const-arg)
+  };
+
+  JSWrappedValue Context::wrap(const JSValue& val) const
   {
     return {ctx, val};
   };
@@ -212,7 +221,7 @@ namespace ccf::js::core
   }
 
   JSWrappedValue Context::get_or_create_global_property(
-    const char* s, JSWrappedValue default_value) const
+    const char* s, JSWrappedValue&& default_value) const
   {
     auto g = Context::get_global_obj();
     auto val = wrap(JS_GetPropertyStr(ctx, g.val, s));
