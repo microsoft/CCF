@@ -12,6 +12,7 @@
 #include "ccf/pal/sev_snp_cpuid.h"
 #include "crypto/openssl/hash.h"
 #include "pal/test/attestation.h"
+#include "pal/test/attestation_sev_snp_endorsements.h"
 #include "pal/test/snp_attestation_validation_data.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
