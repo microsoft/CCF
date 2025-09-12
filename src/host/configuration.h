@@ -112,21 +112,13 @@ namespace host
       };
       Join join = {};
 
-      struct SelfHealingOpen
-      {
-        std::vector<std::string> addresses{};
-        ccf::ds::TimeString retry_timeout = {"100ms"};
-        ccf::ds::TimeString timeout = {"2000ms"};
-        bool operator==(const SelfHealingOpen&) const = default;
-      };
-
       struct Recover
       {
         size_t initial_service_certificate_validity_days = 1;
         std::string previous_service_identity_file;
         std::optional<std::string> previous_sealed_ledger_secret_location =
           std::nullopt;
-        std::optional<SelfHealingOpen> self_healing_open = std::nullopt;
+        std::optional<ccf::SelfHealingOpen> self_healing_open = std::nullopt;
         bool operator==(const Recover&) const = default;
       };
       Recover recover = {};

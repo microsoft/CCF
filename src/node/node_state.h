@@ -2000,8 +2000,7 @@ namespace ccf
     void self_healing_open_try_start_timers(
       ccf::kv::Tx& tx, bool recovering) override
     {
-      if (
-        !recovering || !config.recover.self_healing_open_addresses.has_value())
+      if (!recovering || !config.recover.self_healing_open.has_value())
       {
         LOG_TRACE_FMT(
           "Not recovering, or no self-healing-open addresses configured, "
@@ -2079,7 +2078,7 @@ namespace ccf
           }
 
           auto delay =
-            msg->data.self.config.recover.self_healing_open_retry_timeout;
+            msg->data.self.config.recover.self_healing_open->retry_timeout;
           ::threading::ThreadMessaging::instance().add_task_after(
             std::move(msg), delay);
         },
@@ -2150,13 +2149,13 @@ namespace ccf
           curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
             std::move(curl_request));
 
-          auto delay = msg->data.self.config.recover.self_healing_open_timeout;
+          auto delay = msg->data.self.config.recover.self_healing_open->timeout;
           ::threading::ThreadMessaging::instance().add_task_after(
             std::move(msg), delay);
         },
         *this);
       ::threading::ThreadMessaging::instance().add_task_after(
-        std::move(timeout_msg), config.recover.self_healing_open_timeout);
+        std::move(timeout_msg), config.recover.self_healing_open->timeout);
     }
 
     void self_healing_open_advance(ccf::kv::Tx& tx, bool timeout) override
@@ -2204,7 +2203,7 @@ namespace ccf
           auto* gossip_handle = tx.ro(network.self_healing_open_gossip);
           if (
             gossip_handle->size() ==
-              config.recover.self_healing_open_addresses.value().size() ||
+              config.recover.self_healing_open->addresses.size() ||
             valid_timeout)
           {
             if (gossip_handle->size() == 0)
@@ -2237,8 +2236,7 @@ namespace ccf
           auto* votes = tx.rw(network.self_healing_open_votes);
           if (
             votes->size() >=
-              config.recover.self_healing_open_addresses.value().size() / 2 +
-                1 ||
+              config.recover.self_healing_open->addresses.size() / 2 + 1 ||
             valid_timeout)
           {
             if (votes->size() == 0)
@@ -3264,7 +3262,7 @@ namespace ccf
     {
       // Caller must ensure that the current node's quote_info is populated:
       // ie not yet reached partOfNetwork
-      if (!config.recover.self_healing_open_addresses.has_value())
+      if (!config.recover.self_healing_open.has_value())
       {
         LOG_TRACE_FMT(
           "Self-healing-open addresses not set, cannot start gossip retries");
@@ -3280,8 +3278,7 @@ namespace ccf
         .txid = network.tables->current_version(),
       };
 
-      for (auto& target_address :
-           config.recover.self_healing_open_addresses.value())
+      for (auto& target_address : config.recover.self_healing_open->addresses)
       {
         self_healing_open::dispatch_authenticated_message(
           std::move(request),
@@ -3316,7 +3313,7 @@ namespace ccf
     {
       // Caller must ensure that the current node's quote_info is populated:
       // ie not yet reached partOfNetwork
-      if (!config.recover.self_healing_open_addresses.has_value())
+      if (!config.recover.self_healing_open.has_value())
       {
         LOG_TRACE_FMT(
           "Self-healing-open addresses not set, cannot send iamopen");
@@ -3328,8 +3325,7 @@ namespace ccf
       self_healing_open::IAmOpenRequest request{
         .info = self_healing_open_node_info()};
 
-      for (auto& target_address :
-           config.recover.self_healing_open_addresses.value())
+      for (auto& target_address : config.recover.self_healing_open->addresses)
       {
         if (
           target_address ==

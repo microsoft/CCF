@@ -830,12 +830,7 @@ namespace ccf
           startup_config.recover.previous_sealed_ledger_secret_location =
             config.command.recover.previous_sealed_ledger_secret_location;
         }
-        startup_config.recover.self_healing_open_addresses =
-          config.command.recover.self_healing_open_addresses;
-        startup_config.recover.self_healing_open_retry_timeout =
-          config.command.recover.self_healing_open_retry_timeout;
-        startup_config.recover.self_healing_open_timeout =
-          config.command.recover.self_healing_open_timeout;
+        startup_config.recover.self_healing_open = config.command.recover.self_healing_open;
       }
       else
       {
