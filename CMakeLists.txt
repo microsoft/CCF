@@ -316,6 +316,37 @@ if(INSTALL_VIRTUAL_LIBRARIES)
   )
 endif()
 
+# CCF platform agnostic library
+set(CCF_PAL_SOURCES ${CCF_DIR}/src/pal/attestation.cpp)
+
+if(COMPILE_TARGET STREQUAL "snp")
+  add_host_library(ccf_pal.snp "${CCF_PAL_SOURCES}")
+  add_san(ccf_pal.snp)
+  add_warning_checks(ccf_pal.snp)
+  add_tidy(ccf_pal.snp)
+  target_compile_definitions(ccf_pal.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
+  if(CCF_DEVEL)
+    install(
+      TARGETS ccf_pal.snp
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
+endif()
+
+add_host_library(ccf_pal.host "${CCF_PAL_SOURCES}")
+add_san(ccf_pal.host)
+add_warning_checks(ccf_pal.host)
+add_tidy(ccf_pal.host)
+target_compile_definitions(ccf_pal.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS ccf_pal.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+
 # CCF js libs
 set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/global_class_ids.cpp
@@ -343,7 +374,7 @@ set(CCF_JS_SOURCES
 if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_js.snp "${CCF_JS_SOURCES}")
   add_san(ccf_js.snp)
-  target_link_libraries(ccf_js.snp PUBLIC ccfcrypto.snp quickjs.snp)
+  target_link_libraries(ccf_js.snp PUBLIC ccfcrypto.snp quickjs.snp ccf_pal.snp)
   target_compile_definitions(ccf_js.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
   add_warning_checks(ccf_js.snp)
   if(CCF_DEVEL)
@@ -586,6 +617,7 @@ if(COMPILE_TARGET STREQUAL "snp")
            ccf_kv.snp
            nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
+           ccf_pal.snp
   )
 
   set_property(TARGET ccf.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -638,6 +670,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            ccf_kv.host
            nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
+           ccf_pal.host
   )
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -726,6 +759,9 @@ if(BUILD_TESTS)
     add_unit_test(
       snp_attestation_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_attestation_validation.cpp
+    )
+    target_link_libraries(
+      snp_attestation_test PRIVATE ccf_pal.host ccfcrypto.host
     )
 
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
@@ -936,8 +972,13 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_js.host
-              ccf_endpoints.host ccfcrypto.host ccf_kv.host
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser.host
+              ccf_js.host
+              ccf_endpoints.host
+              ccfcrypto.host
+              ccf_kv.host
+              ccf_pal.host
     )
 
     add_unit_test(
@@ -967,8 +1008,13 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       node_frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_js.host
-              ccf_endpoints.host ccfcrypto.host ccf_kv.host
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser.host
+              ccf_js.host
+              ccf_endpoints.host
+              ccfcrypto.host
+              ccf_kv.host
+              ccf_pal.host
     )
 
     add_unit_test(
