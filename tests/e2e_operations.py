@@ -1447,8 +1447,8 @@ def run_self_healing_open(args):
         ledger_dirs = {}
         committed_ledger_dirs = {}
         for i, node in enumerate(network.nodes):
-            l, c = node.get_ledger()
-            ledger_dirs[i] = l
+            l_dir, c = node.get_ledger()
+            ledger_dirs[i] = l_dir
             committed_ledger_dirs[i] = c
 
         LOG.info("Start a recovery network and stop it")

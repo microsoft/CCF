@@ -29,7 +29,7 @@ enum AdminMessage : ringbuffer::Message
   /// Notify the host of work done since last message. Enclave -> Host
   DEFINE_RINGBUFFER_MSG_TYPE(work_stats),
 
-  /// Notify the host that it should restart in join
+  /// Notify the host that it should restart
   DEFINE_RINGBUFFER_MSG_TYPE(restart)
 };
 
