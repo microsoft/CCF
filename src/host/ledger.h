@@ -723,7 +723,7 @@ namespace asynchost
     std::list<std::shared_ptr<LedgerFile>> files_read_cache;
     ccf::pal::Mutex read_cache_lock;
 
-    size_t last_idx = 0;
+    std::atomic<size_t> last_idx = 0;
     size_t committed_idx = 0;
 
     size_t end_of_committed_files_idx = 0;
