@@ -54,11 +54,13 @@
       "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }},
       "previous_service_identity_file": "{{ previous_service_identity_file }}" {% if previous_sealed_ledger_secret_location %},
         "previous_sealed_ledger_secret_location": "{{ previous_sealed_ledger_secret_location }}"{% endif %} {% if self_healing_open_addresses %},
-      "self_healing_open_addresses" : [
-        {% for address in self_healing_open_addresses %}
-          "{{ address }}" {% if not loop.last %},{% endif %}
-        {% endfor %}
-      ] {% endif %}
+      "self_healing_open": {
+        "addresses" : [
+          {% for address in self_healing_open_addresses %}
+            "{{ address }}" {% if not loop.last %},{% endif %}
+          {% endfor %}
+        ]
+      } {% endif %}
     }
   },
   "ledger":
