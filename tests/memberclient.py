@@ -79,6 +79,24 @@ def modified_signature(request):
     return request
 
 
+@reqs.description(
+    "Send many governance transactions in a tight loop, with no commit waits in-between"
+)
+def test_rapid_governance(network, args):
+    node = network.find_node_by_role(role=infra.network.NodeRole.PRIMARY)
+
+    repeats = 50
+    for _ in range(repeats):
+        member = network.consortium.generate_and_add_new_member(
+            node,
+            curve=args.participants_curve,
+        )
+        member.ack(node)
+        network.consortium.remove_member(node, member)
+
+    return network
+
+
 @reqs.description("Send a corrupted signature where signed request is required")
 def test_corrupted_signature(network, args):
     node = network.find_node_by_role(role=infra.network.NodeRole.PRIMARY)
@@ -231,5 +249,6 @@ def run(args):
         network.start_and_open(args)
 
         network = test_missing_signature_header(network, args)
+        network = test_rapid_governance(network, args)
         network = test_corrupted_signature(network, args)
         network = test_governance(network, args)
