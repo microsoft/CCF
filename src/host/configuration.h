@@ -112,20 +112,21 @@ namespace host
       };
       Join join = {};
 
+      struct SelfHealingOpen
+      {
+        std::vector<std::string> addresses{};
+        ccf::ds::TimeString retry_timeout = {"100ms"};
+        ccf::ds::TimeString timeout = {"2000ms"};
+        bool operator==(const SelfHealingOpen&) const = default;
+      };
+
       struct Recover
       {
         size_t initial_service_certificate_validity_days = 1;
         std::string previous_service_identity_file;
         std::optional<std::string> previous_sealed_ledger_secret_location =
           std::nullopt;
-        std::optional<std::vector<std::string>> self_healing_open_addresses =
-          std::nullopt;
-        ccf::ds::TimeString self_healing_open_retry_timeout = {"100ms"};
-        ccf::ds::TimeString self_healing_open_timeout = {"2000ms"};
-        std::string self_healing_open_join_config_file =
-          "self_healing_open_join_config.json";
-        std::string self_healing_open_join_service_identity_file =
-          "self_healing_open_join_service_identity.pem";
+        std::optional<SelfHealingOpen> self_healing_open = std::nullopt;
         bool operator==(const Recover&) const = default;
       };
       Recover recover = {};
@@ -170,6 +171,13 @@ namespace host
     follow_redirect,
     fetch_recent_snapshot);
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(
+    CCHostConfig::Command::SelfHealingOpen);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    CCHostConfig::Command::SelfHealingOpen, addresses);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCHostConfig::Command::SelfHealingOpen, retry_timeout, timeout);
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Recover);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -177,9 +185,7 @@ namespace host
     initial_service_certificate_validity_days,
     previous_service_identity_file,
     previous_sealed_ledger_secret_location,
-    self_healing_open_addresses,
-    self_healing_open_retry_timeout,
-    self_healing_open_timeout);
+    self_healing_open);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);
