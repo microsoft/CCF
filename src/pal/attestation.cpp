@@ -229,8 +229,6 @@ namespace ccf::pal
 
     auto quote =
       *reinterpret_cast<const snp::Attestation*>(quote_info.quote.data());
-    auto product_family =
-      snp::get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
 
     if (quote.version < snp::minimum_attestation_version)
     {
@@ -287,25 +285,15 @@ namespace ccf::pal
 
     auto root_cert_verifier = ccf::crypto::make_verifier(root_certificate);
 
-    std::string expected_root_public_key;
-    if (quote.version < 3)
+    auto product_family =
+      snp::get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
+    auto key = snp::amd_root_signing_keys.find(product_family);
+    if (key == snp::amd_root_signing_keys.end())
     {
-      // before version 3 there are no cpuid fields so we must assume that it is
-      // milan
-      expected_root_public_key = snp::amd_milan_root_signing_public_key;
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: No known root certificate for {}", product_family));
     }
-    else
-    {
-      auto key = snp::amd_root_signing_keys.find(product_family);
-      if (key == snp::amd_root_signing_keys.end())
-      {
-        throw std::logic_error(fmt::format(
-          "SEV-SNP: Unsupported CPUID family {} model {}",
-          quote.cpuid_fam_id,
-          quote.cpuid_mod_id));
-      }
-      expected_root_public_key = key->second;
-    }
+    std::string expected_root_public_key = key->second;
     if (root_cert_verifier->public_key_pem().str() != expected_root_public_key)
     {
       throw std::logic_error(fmt::format(
@@ -321,7 +309,7 @@ namespace ccf::pal
     if (!root_cert_verifier->verify_certificate({&root_certificate}))
     {
       throw std::logic_error(
-        "SEV-SNP: The root of trust certificate for this attestation was not "
+        "SEV-SNP: The root of trust public key for this attestation was not "
         "self signed as expected");
     }
 
@@ -330,7 +318,8 @@ namespace ccf::pal
           {&root_certificate}, {&sev_version_certificate}))
     {
       throw std::logic_error(
-        "SEV-SNP: Could no verify attestation endorsement chain");
+        "SEV-SNP: The chain of signatures from the root of trust to this "
+        "attestation is broken");
     }
 
     // According to Table 134 (2025-06-12) only ecdsa_p384_sha384 is supported
