@@ -487,9 +487,9 @@ class CurlClient:
         self.cose_signing_auth = cose_signing_auth
         self.common_headers = common_headers or {}
         if self.ca:
-          self.ca_curve = get_curve(self.ca)
+            self.ca_curve = get_curve(self.ca)
         else:
-          self.ca_curve = None
+            self.ca_curve = None
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
         self.extra_args = []
         if kwargs.get("http2"):
@@ -583,7 +583,7 @@ class CurlClient:
                 cmd.extend(["--key", self.session_auth.key])
                 cmd.extend(["--cert", self.session_auth.cert])
             if not self.ca and not self.session_auth:
-                cmd.extend(["-k"]) # Allow insecure connections
+                cmd.extend(["-k"])  # Allow insecure connections
 
             for arg in self.extra_args:
                 cmd.append(arg)

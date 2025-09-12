@@ -113,12 +113,9 @@ namespace ccf
     node_to_node_message_limit,
     historical_cache_soft_limit);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(
-    SelfHealingOpen);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    SelfHealingOpen, addresses);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    SelfHealingOpen, retry_timeout, timeout);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SelfHealingOpen);
+  DECLARE_JSON_REQUIRED_FIELDS(SelfHealingOpen, addresses);
+  DECLARE_JSON_OPTIONAL_FIELDS(SelfHealingOpen, retry_timeout, timeout);
 
   DECLARE_JSON_TYPE(StartupConfig::Start);
   DECLARE_JSON_REQUIRED_FIELDS(

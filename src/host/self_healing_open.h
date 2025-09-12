@@ -16,7 +16,8 @@ namespace ccf
   public:
     ringbuffer::WriterPtr to_enclave;
 
-    SelfHealingOpenRBHandler(ringbuffer::AbstractWriterFactory& writer_factory) :
+    SelfHealingOpenRBHandler(
+      ringbuffer::AbstractWriterFactory& writer_factory) :
       to_enclave(writer_factory.create_writer_to_inside())
     {}
 

@@ -1429,6 +1429,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
             recovery_network.stop_all_nodes()
             prev_network = recovery_network
 
+
 def run_self_healing_open(args):
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     with infra.network.network(
@@ -1438,7 +1439,6 @@ def run_self_healing_open(args):
     ) as network:
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
-        old_common = infra.network.get_common_folder_name(args.workspace, args.label)
         network.save_service_identity(args)
         network.stop_all_nodes()
 
@@ -1465,53 +1465,58 @@ def run_self_healing_open(args):
         )
 
         def cycle(items):
-          while True:
-              for item in items:
-                  yield item
+            while True:
+                for item in items:
+                    yield item
 
         # Wait for any node to be waiting for RecoveryShares, ie it opened
         for node in cycle(recovered_network.nodes):
-          try:
-            recovered_network.wait_for_statuses(
-                node,
-                ["WaitingForRecoveryShares", "Open"],
-                timeout=1,
-                verify_ca=False
-            )
-            break
-          except TimeoutError:
-            LOG.info(f"Failed to get the status of {node.local_node_id}, retrying...")
-            continue
+            try:
+                recovered_network.wait_for_statuses(
+                    node,
+                    ["WaitingForRecoveryShares", "Open"],
+                    timeout=1,
+                    verify_ca=False,
+                )
+                break
+            except TimeoutError:
+                LOG.info(
+                    f"Failed to get the status of {node.local_node_id}, retrying..."
+                )
+                continue
 
         # Refresh the the declared state of nodes which have shut themselves down to join.
         for node in recovered_network.nodes:
-          node.refresh_network_state(verify_ca=False)
+            node.refresh_network_state(verify_ca=False)
 
         recovered_network.refresh_service_identity_file(recovery_args)
 
-        recovered_network.consortium.recover_with_shares(recovered_network.find_random_node())
+        recovered_network.consortium.recover_with_shares(
+            recovered_network.find_random_node()
+        )
 
         LOG.info("Submitted recovery shares")
 
         # Wait for all live replicas to report being part of the opened network
         successfully_opened = 0
         for node in recovered_network.get_joined_nodes():
-            try: 
-              recovered_network.wait_for_status(
-                  node,
-                  "Open",
-                  timeout=10,
-              )
-              recovered_network._wait_for_app_open(node)
-              successfully_opened += 1
-            except TimeoutError as e:
-              pass
+            try:
+                recovered_network.wait_for_status(
+                    node,
+                    "Open",
+                    timeout=10,
+                )
+                recovered_network._wait_for_app_open(node)
+                successfully_opened += 1
+            except TimeoutError:
+                pass
 
         assert successfully_opened == 1
 
         LOG.info("Completed self-healing open successfully")
 
         recovered_network.stop_all_nodes()
+
 
 def run_self_healing_open_single_replica(args):
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
@@ -1528,8 +1533,8 @@ def run_self_healing_open_single_replica(args):
         ledger_dirs = {}
         committed_ledger_dirs = {}
         for i, node in enumerate(network.nodes):
-            l, c = node.get_ledger()
-            ledger_dirs[i] = l
+            l_dir, c = node.get_ledger()
+            ledger_dirs[i] = l_dir
             committed_ledger_dirs[i] = c
 
         LOG.info("Start a recovery network and stop it")
@@ -1558,7 +1563,9 @@ def run_self_healing_open_single_replica(args):
                 ["WaitingForRecoveryShares", "Open"],
                 timeout=30,
             )
-        recovered_network.consortium.recover_with_shares(recovered_network.find_random_node())
+        recovered_network.consortium.recover_with_shares(
+            recovered_network.find_random_node()
+        )
 
         # Wait for all replicas to report being part of the network
         for node in recovered_network.nodes[0:1]:
@@ -1570,6 +1577,7 @@ def run_self_healing_open_single_replica(args):
             recovered_network._wait_for_app_open(node)
 
         recovered_network.stop_all_nodes()
+
 
 def run_read_ledger_on_testdata(args):
     for testdata_dir in os.scandir(args.historical_testdata):

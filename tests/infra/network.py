@@ -490,9 +490,16 @@ class Network:
                             "read_only_ledger_dirs": read_only_ledger_dirs,
                             "snapshots_dir": snapshots_dir,
                         }
-                        self_healing_open_kwargs = {"self_healing_open_addresses": self_healing_open_addresses}
+                        self_healing_open_kwargs = {
+                            "self_healing_open_addresses": self_healing_open_addresses
+                        }
                         # If a kwarg is passed in override automatically set variants
-                        node_kwargs = node_kwargs | self_healing_open_kwargs | forwarded_args_with_overrides | kwargs
+                        node_kwargs = (
+                            node_kwargs
+                            | self_healing_open_kwargs
+                            | forwarded_args_with_overrides
+                            | kwargs
+                        )
                         node.recover(**node_kwargs)
                         self.wait_for_state(
                             node,
@@ -772,8 +779,8 @@ class Network:
         self,
         args,
         ledger_dirs,
-        committed_ledger_dirs= None,
-        snapshot_dirs= None,
+        committed_ledger_dirs=None,
+        snapshot_dirs=None,
         common_dir=None,
         set_authenticate_session=None,
         start_all_nodes=True,
@@ -784,29 +791,34 @@ class Network:
             args.workspace, args.label
         )
 
-        self.per_node_args_override = self.per_node_args_override or {i: {} for i in range(len(self.nodes))}
-        committed_ledger_dirs = committed_ledger_dirs or {i: None for i in range(len(self.nodes))}
+        self.per_node_args_override = self.per_node_args_override or {
+            i: {} for i in range(len(self.nodes))
+        }
+        committed_ledger_dirs = committed_ledger_dirs or {
+            i: None for i in range(len(self.nodes))
+        }
         snapshot_dirs = snapshot_dirs or {i: None for i in range(len(self.nodes))}
         self.per_node_args_override = {
-            i: 
-            (d | {
-              "ledger_dir" : ledger_dirs[i],
-              "read_only_ledger_dirs" : committed_ledger_dirs[i] or [],
-              "snapshots_dir" : snapshot_dirs[i] or None,
-            })
+            i: (
+                d
+                | {
+                    "ledger_dir": ledger_dirs[i],
+                    "read_only_ledger_dirs": committed_ledger_dirs[i] or [],
+                    "snapshots_dir": snapshot_dirs[i] or None,
+                }
+            )
             for i, d in self.per_node_args_override.items()
         }
-
 
         for i, node in enumerate(self.nodes):
             node.host.get_primary_interface().port = 5000 + (i + 1)
             node.host.get_primary_interface().public_port = 5000 + (i + 1)
 
-        LOG.info(f"Set up nodes")
+        LOG.info("Set up nodes")
         for node in self.nodes:
-          LOG.info(node.host)
+            LOG.info(node.host)
 
-        self.status =  ServiceStatus.RECOVERING
+        self.status = ServiceStatus.RECOVERING
         LOG.debug(f"Opening CCF service on {self.hosts}")
 
         forwarded_args = {
@@ -814,14 +826,12 @@ class Network:
             for arg in infra.network.Network.node_args_to_forward
         }
         self_healing_open_addresses = [
-          node.get_public_rpc_address() for node in self.nodes
+            node.get_public_rpc_address() for node in self.nodes
         ]
 
         for i, node in enumerate(self.nodes):
             forwarded_args_with_overrides = forwarded_args.copy()
-            forwarded_args_with_overrides.update(
-                self.per_node_args_override.get(i, {})
-            )
+            forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
             if not start_all_nodes and i > 0:
                 break
 
@@ -832,9 +842,16 @@ class Network:
                     "label": args.label,
                     "common_dir": self.common_dir,
                 }
-                self_healing_open_kwargs = {"self_healing_open_addresses": self_healing_open_addresses}
+                self_healing_open_kwargs = {
+                    "self_healing_open_addresses": self_healing_open_addresses
+                }
                 # If a kwarg is passed in override automatically set variants
-                node_kwargs = node_kwargs | self_healing_open_kwargs | forwarded_args_with_overrides | kwargs
+                node_kwargs = (
+                    node_kwargs
+                    | self_healing_open_kwargs
+                    | forwarded_args_with_overrides
+                    | kwargs
+                )
                 node.recover(**node_kwargs)
             except Exception:
                 LOG.exception(f"Failed to start node {node.local_node_id}")
@@ -844,25 +861,29 @@ class Network:
         self.observed_election_duration = self.election_duration + 1
 
         for i, node in enumerate(self.nodes):
-          end_time = time.time() + timeout
-          success = False
-          while time.time() < end_time:
-            try:
-              self.wait_for_states(
-                  node,
-                  [infra.node.State.PART_OF_PUBLIC_NETWORK.value, infra.node.State.PART_OF_NETWORK],
-                  timeout=args.ledger_recovery_timeout,
-                  verify_ca=False, # Certs are volatile until the recovery is complete
-              )
-              success = True
-              break
-            except CCFConnectionException:
-              time.sleep(0.1)
-          if not success:
-            raise TimeoutError(f"Failed to get state of node {node.local_node_id} after {timeout} seconds")
+            end_time = time.time() + timeout
+            success = False
+            while time.time() < end_time:
+                try:
+                    self.wait_for_states(
+                        node,
+                        [
+                            infra.node.State.PART_OF_PUBLIC_NETWORK.value,
+                            infra.node.State.PART_OF_NETWORK,
+                        ],
+                        timeout=args.ledger_recovery_timeout,
+                        verify_ca=False,  # Certs are volatile until the recovery is complete
+                    )
+                    success = True
+                    break
+                except CCFConnectionException:
+                    time.sleep(0.1)
+            if not success:
+                raise TimeoutError(
+                    f"Failed to get state of node {node.local_node_id} after {timeout} seconds"
+                )
 
         LOG.info("All nodes started")
-
 
     def recover(
         self,
@@ -1347,21 +1368,21 @@ class Network:
     def wait_for_statuses(self, node, statuses, timeout=3, **client_kwargs):
         end_time = time.time() + timeout
         while time.time() < end_time:
-          try:
-            with node.client(connection_timeout=timeout, **client_kwargs) as c:
-              r = c.get("/node/network").body.json()
-              if r["service_status"] in statuses:
-                break
-          except ConnectionRefusedError:
-            pass
-          except CCFConnectionException:
-            pass
-          time.sleep(0.1)
+            try:
+                with node.client(connection_timeout=timeout, **client_kwargs) as c:
+                    r = c.get("/node/network").body.json()
+                    if r["service_status"] in statuses:
+                        break
+            except ConnectionRefusedError:
+                pass
+            except CCFConnectionException:
+                pass
+            time.sleep(0.1)
         else:
-          raise TimeoutError(
-            f"Timed out waiting for a network status in {statuses} on node {node.node_id}"
-          )
-    
+            raise TimeoutError(
+                f"Timed out waiting for a network status in {statuses} on node {node.node_id}"
+            )
+
     def wait_for_status(self, node, status, timeout=3):
         self.wait_for_statuses(node, [status], timeout=timeout)
 

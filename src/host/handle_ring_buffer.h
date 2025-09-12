@@ -4,9 +4,9 @@
 
 #include "../ds/files.h"
 #include "../enclave/interface.h"
+#include "ds/internal_logger.h"
 #include "ds/non_blocking.h"
 #include "self_healing_open.h"
-#include "ds/internal_logger.h"
 #include "timer.h"
 
 #include <chrono>
@@ -57,11 +57,8 @@ namespace asynchost
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        bp,
-        AdminMessage::restart,
-        [&](const uint8_t*, size_t) {
-          ccf::SelfHealingOpenRBHandlerSingleton::instance()
-            ->trigger_restart();
+        bp, AdminMessage::restart, [&](const uint8_t*, size_t) {
+          ccf::SelfHealingOpenRBHandlerSingleton::instance()->trigger_restart();
         });
     }
 
