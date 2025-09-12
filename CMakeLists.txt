@@ -439,7 +439,7 @@ if(COMPILE_TARGET STREQUAL "snp")
   target_include_directories(ccf_endpoints.snp PRIVATE ${CCF_DIR}/src/endpoints)
   target_link_libraries(
     ccf_endpoints.snp PUBLIC qcbor.snp t_cose.snp http_parser.snp ccfcrypto.snp
-                             ccf_kv.snp 
+                             ccf_kv.snp
   )
   add_san(ccf_endpoints.snp)
   add_warning_checks(ccf_endpoints.snp)
