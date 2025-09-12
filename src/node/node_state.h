@@ -30,8 +30,8 @@
 #include "crypto/certs.h"
 #include "ds/ccf_assert.h"
 #include "ds/files.h"
-#include "ds/ring_buffer_types.h"
 #include "ds/internal_logger.h"
+#include "ds/ring_buffer_types.h"
 #include "ds/state_machine.h"
 #include "ds/thread_messaging.h"
 #include "enclave/interface.h"
@@ -2214,14 +2214,16 @@ namespace ccf
 
             // Lexographically maximum <txid, iid> pair
             std::optional<std::pair<ccf::kv::Version, std::string>> maximum;
-            gossip_handle->foreach([&maximum](
-                                     const auto& iid, const auto& txid) {
-              if (!maximum.has_value() || maximum.value() < std::make_pair(txid, iid))
-              {
-                maximum = std::make_pair(txid, iid);
-              }
-              return true;
-            });
+            gossip_handle->foreach(
+              [&maximum](const auto& iid, const auto& txid) {
+                if (
+                  !maximum.has_value() ||
+                  maximum.value() < std::make_pair(txid, iid))
+                {
+                  maximum = std::make_pair(txid, iid);
+                }
+                return true;
+              });
 
             auto* chosen_replica =
               tx.rw(network.self_healing_open_chosen_replica);
