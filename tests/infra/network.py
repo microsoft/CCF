@@ -5,7 +5,7 @@ import time
 
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
-from infra.clients import flush_info
+from infra.clients import flush_info, CCFConnectionException
 import infra.member
 import infra.path
 import infra.proc
@@ -438,6 +438,7 @@ class Network:
         self,
         args,
         recovery=False,
+        self_healing_open=False,
         ledger_dir=None,
         read_only_ledger_dirs=None,
         snapshots_dir=None,
@@ -459,12 +460,16 @@ class Network:
             for arg in infra.network.Network.node_args_to_forward
         }
 
+        self_healing_open_addresses = [
+            node.get_public_rpc_address() for node in self.nodes
+        ]
+
         for i, node in enumerate(self.nodes):
             forwarded_args_with_overrides = forwarded_args.copy()
             forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
             try:
-                if i == 0:
-                    if not recovery:
+                if i == 0 or self_healing_open:
+                    if not (recovery or self_healing_open):
                         node.start(
                             lib_name=args.package,
                             workspace=args.workspace,
@@ -476,17 +481,26 @@ class Network:
                             **kwargs,
                         )
                     else:
-                        node.recover(
-                            lib_name=args.package,
-                            workspace=args.workspace,
-                            label=args.label,
-                            common_dir=self.common_dir,
-                            ledger_dir=ledger_dir,
-                            read_only_ledger_dirs=read_only_ledger_dirs,
-                            snapshots_dir=snapshots_dir,
-                            **forwarded_args_with_overrides,
-                            **kwargs,
+                        node_kwargs = {
+                            "lib_name": args.package,
+                            "workspace": args.workspace,
+                            "label": args.label,
+                            "common_dir": self.common_dir,
+                            "ledger_dir": ledger_dir,
+                            "read_only_ledger_dirs": read_only_ledger_dirs,
+                            "snapshots_dir": snapshots_dir,
+                        }
+                        self_healing_open_kwargs = {
+                            "self_healing_open_addresses": self_healing_open_addresses
+                        }
+                        # If a kwarg is passed in override automatically set variants
+                        node_kwargs = (
+                            node_kwargs
+                            | self_healing_open_kwargs
+                            | forwarded_args_with_overrides
+                            | kwargs
                         )
+                        node.recover(**node_kwargs)
                         self.wait_for_state(
                             node,
                             infra.node.State.PART_OF_PUBLIC_NETWORK.value,
@@ -758,6 +772,116 @@ class Network:
         # Catch-up in recovery can take a long time, so extend this timeout
         self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
+
+    def start_in_self_healing_open(
+        self,
+        args,
+        ledger_dirs,
+        committed_ledger_dirs=None,
+        snapshot_dirs=None,
+        common_dir=None,
+        set_authenticate_session=None,
+        start_all_nodes=True,
+        timeout=10,
+        **kwargs,
+    ):
+        self.common_dir = common_dir or get_common_folder_name(
+            args.workspace, args.label
+        )
+
+        self.per_node_args_override = self.per_node_args_override or {
+            i: {} for i in range(len(self.nodes))
+        }
+        committed_ledger_dirs = committed_ledger_dirs or {
+            i: None for i in range(len(self.nodes))
+        }
+        snapshot_dirs = snapshot_dirs or {i: None for i in range(len(self.nodes))}
+        self.per_node_args_override = {
+            i: (
+                d
+                | {
+                    "ledger_dir": ledger_dirs[i],
+                    "read_only_ledger_dirs": committed_ledger_dirs[i] or [],
+                    "snapshots_dir": snapshot_dirs[i] or None,
+                }
+            )
+            for i, d in self.per_node_args_override.items()
+        }
+
+        for i, node in enumerate(self.nodes):
+            node.host.get_primary_interface().port = 5000 + (i + 1)
+            node.host.get_primary_interface().public_port = 5000 + (i + 1)
+
+        LOG.info("Set up nodes")
+        for node in self.nodes:
+            LOG.info(node.host)
+
+        self.status = ServiceStatus.RECOVERING
+        LOG.debug(f"Opening CCF service on {self.hosts}")
+
+        forwarded_args = {
+            arg: getattr(args, arg, None)
+            for arg in infra.network.Network.node_args_to_forward
+        }
+        self_healing_open_addresses = [
+            node.get_public_rpc_address() for node in self.nodes
+        ]
+
+        for i, node in enumerate(self.nodes):
+            forwarded_args_with_overrides = forwarded_args.copy()
+            forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
+            if not start_all_nodes and i > 0:
+                break
+
+            try:
+                node_kwargs = {
+                    "lib_name": args.package,
+                    "workspace": args.workspace,
+                    "label": args.label,
+                    "common_dir": self.common_dir,
+                }
+                self_healing_open_kwargs = {
+                    "self_healing_open_addresses": self_healing_open_addresses
+                }
+                # If a kwarg is passed in override automatically set variants
+                node_kwargs = (
+                    node_kwargs
+                    | self_healing_open_kwargs
+                    | forwarded_args_with_overrides
+                    | kwargs
+                )
+                node.recover(**node_kwargs)
+            except Exception:
+                LOG.exception(f"Failed to start node {node.local_node_id}")
+                raise
+
+        self.election_duration = args.election_timeout_ms / 1000
+        self.observed_election_duration = self.election_duration + 1
+
+        for i, node in enumerate(self.nodes):
+            end_time = time.time() + timeout
+            success = False
+            while time.time() < end_time:
+                try:
+                    self.wait_for_states(
+                        node,
+                        [
+                            infra.node.State.PART_OF_PUBLIC_NETWORK.value,
+                            infra.node.State.PART_OF_NETWORK,
+                        ],
+                        timeout=args.ledger_recovery_timeout,
+                        verify_ca=False,  # Certs are volatile until the recovery is complete
+                    )
+                    success = True
+                    break
+                except CCFConnectionException:
+                    time.sleep(0.1)
+            if not success:
+                raise TimeoutError(
+                    f"Failed to get state of node {node.local_node_id} after {timeout} seconds"
+                )
+
+        LOG.info("All nodes started")
 
     def recover(
         self,
@@ -1216,23 +1340,49 @@ class Network:
     def get_f(self):
         return infra.e2e_args.max_f(self.args, len(self.nodes))
 
-    def wait_for_state(self, node, state, timeout=3):
+    def wait_for_states(self, node, states, timeout=3, **client_kwargs):
         end_time = time.time() + timeout
+        final_state = None
         while time.time() < end_time:
             try:
-                with node.client(connection_timeout=timeout) as c:
+                with node.client(connection_timeout=timeout, **client_kwargs) as c:
                     r = c.get("/node/state").body.json()
-                    if r["state"] == state:
+                    if r["state"] in states:
+                        final_state = r["state"]
                         break
             except ConnectionRefusedError:
                 pass
             time.sleep(0.1)
         else:
             raise TimeoutError(
-                f"Timed out waiting for state {state} on node {node.node_id}"
+                f"Timed out waiting for a state in {states} on node {node.node_id}"
             )
-        if state == infra.node.State.PART_OF_NETWORK.value:
+        if final_state == infra.node.State.PART_OF_NETWORK.value:
             self.status = ServiceStatus.OPEN
+
+    def wait_for_state(self, node, state, timeout=3):
+        self.wait_for_states(node, [state], timeout=timeout)
+
+    def wait_for_statuses(self, node, statuses, timeout=3, **client_kwargs):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            try:
+                with node.client(connection_timeout=timeout, **client_kwargs) as c:
+                    r = c.get("/node/network").body.json()
+                    if r["service_status"] in statuses:
+                        break
+            except ConnectionRefusedError:
+                pass
+            except CCFConnectionException:
+                pass
+            time.sleep(0.1)
+        else:
+            raise TimeoutError(
+                f"Timed out waiting for a network status in {statuses} on node {node.node_id}"
+            )
+
+    def wait_for_status(self, node, status, timeout=3):
+        self.wait_for_statuses(node, [status], timeout=timeout)
 
     def _wait_for_app_open(self, node, timeout=3):
         end_time = time.time() + timeout
@@ -1726,7 +1876,7 @@ class Network:
         connections pick up the new service certificate.
         """
         primary = self.find_random_node()
-        with primary.client() as c:
+        with primary.client(verify_ca=False) as c:
             r = c.get("/node/network")
             assert r.status_code == 200, r
             new_service_identity = r.body.json()["service_certificate"]

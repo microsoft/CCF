@@ -113,6 +113,10 @@ namespace ccf
     node_to_node_message_limit,
     historical_cache_soft_limit);
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SelfHealingOpen);
+  DECLARE_JSON_REQUIRED_FIELDS(SelfHealingOpen, addresses);
+  DECLARE_JSON_OPTIONAL_FIELDS(SelfHealingOpen, retry_timeout, timeout);
+
   DECLARE_JSON_TYPE(StartupConfig::Start);
   DECLARE_JSON_REQUIRED_FIELDS(
     StartupConfig::Start, members, constitution, service_configuration);
@@ -127,9 +131,11 @@ namespace ccf
 
   DECLARE_JSON_TYPE(StartupConfig::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(
+    StartupConfig::Recover, previous_service_identity);
+  DECLARE_JSON_OPTIONAL_FIELDS(
     StartupConfig::Recover,
-    previous_service_identity,
-    previous_sealed_ledger_secret_location);
+    previous_sealed_ledger_secret_location,
+    self_healing_open);
 
   DECLARE_JSON_TYPE_WITH_BASE(StartupConfig, CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(

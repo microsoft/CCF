@@ -110,6 +110,17 @@ namespace ccf
     {
       return cose_signatures_config;
     }
+
+    void self_healing_open_try_start_timers(
+      ccf::kv::Tx& tx, bool recovering) override
+    {
+      // No-op for stub
+    }
+
+    void self_healing_open_advance(ccf::kv::Tx& tx, bool timeout) override
+    {
+      // No-op for stub
+    }
   };
 
   class StubGovernanceEffects : public ccf::AbstractGovernanceEffects

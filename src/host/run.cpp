@@ -30,6 +30,7 @@
 #include "enclave/entry_points.h"
 #include "handle_ring_buffer.h"
 #include "host/env.h"
+#include "host/self_healing_open.h"
 #include "http/curl.h"
 #include "json_schema.h"
 #include "lfs_file_handler.h"
@@ -524,6 +525,8 @@ namespace ccf
       auto curl_libuv_context =
         curl::CurlmLibuvContextSingleton(uv_default_loop());
 
+      ccf::SelfHealingOpenRBHandlerSingleton::initialise(writer_factory);
+
       ResolvedAddresses resolved_rpc_addresses;
       for (auto& [name, interface] : config.network.rpc_interfaces)
       {
@@ -834,6 +837,8 @@ namespace ccf
           startup_config.recover.previous_sealed_ledger_secret_location =
             config.command.recover.previous_sealed_ledger_secret_location;
         }
+        startup_config.recover.self_healing_open =
+          config.command.recover.self_healing_open;
       }
       else
       {
