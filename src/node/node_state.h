@@ -2139,16 +2139,16 @@ namespace ccf
           curl::UniqueSlist headers;
           headers.append("Content-Type: application/json");
 
-          // This is simpler than going via the internal handlers...
           auto curl_request = std::make_unique<curl::CurlRequest>(
             std::move(curl_handle),
             HTTP_PUT,
             std::move(url),
             std::move(headers),
             nullptr,
+            nullptr,
             std::nullopt);
-          curl::CurlmLibuvContextSingleton::get_instance().attach_request(
-            curl_request);
+          curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+            std::move(curl_request));
 
           auto delay = msg->data.self.config.recover.self_healing_open_timeout;
           ::threading::ThreadMessaging::instance().add_task_after(

@@ -107,6 +107,7 @@ namespace ccf::self_healing_open
       std::move(url),
       std::move(headers),
       std::move(body),
+      nullptr,
       std::move(response_callback));
 
     LOG_TRACE_FMT(
@@ -115,8 +116,8 @@ namespace ccf::self_healing_open
       curl_request->get_url(),
       request.dump());
 
-    curl::CurlmLibuvContextSingleton::get_instance().attach_request(
-      curl_request);
+    curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+      std::move(curl_request));
   }
 
 }
