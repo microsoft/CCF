@@ -760,7 +760,7 @@ if(BUILD_TESTS)
       snp_attestation_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_attestation_validation.cpp
     )
-    target_link_libraries(snp_attestation_test PRIVATE ccf_pal.host ccfcrypto)
+    target_link_libraries(snp_attestation_test PRIVATE ccf_pal.host ccfcrypto.host)
 
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
