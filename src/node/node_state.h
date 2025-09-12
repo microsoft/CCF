@@ -2291,11 +2291,7 @@ namespace ccf
             node_config->published_network_address,
             node_config->service_identity);
 
-          RINGBUFFER_WRITE_MESSAGE(
-            AdminMessage::restart_and_join,
-            to_host,
-            node_config->published_network_address,
-            node_config->service_identity);
+          RINGBUFFER_WRITE_MESSAGE(AdminMessage::restart, to_host);
         }
         case SelfHealingOpenSM::OPENING:
         {

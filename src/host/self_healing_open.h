@@ -11,28 +11,17 @@
 #include <string>
 namespace ccf
 {
-  struct SelfHealingOpenJoinInfo
-  {
-    std::string url;
-    std::string service_identity;
-  };
-
   class SelfHealingOpen
   {
   public:
     ringbuffer::WriterPtr to_enclave;
-    std::optional<SelfHealingOpenJoinInfo> join_info;
 
     SelfHealingOpen(ringbuffer::AbstractWriterFactory& writer_factory) :
-      to_enclave(writer_factory.create_writer_to_inside()),
-      join_info(std::nullopt)
+      to_enclave(writer_factory.create_writer_to_inside())
     {}
 
-    void trigger_restart_and_join_url(
-      const std::string& url, const std::string& service_identity)
+    void trigger_restart()
     {
-      join_info = SelfHealingOpenJoinInfo{
-        .url = url, .service_identity = service_identity};
       RINGBUFFER_WRITE_MESSAGE(AdminMessage::stop, to_enclave);
     }
   };

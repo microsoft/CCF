@@ -58,13 +58,10 @@ namespace asynchost
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         bp,
-        AdminMessage::restart_and_join,
-        [&](const uint8_t* data, size_t size) {
-          auto [url, service_identity] =
-            ringbuffer::read_message<AdminMessage::restart_and_join>(
-              data, size);
+        AdminMessage::restart,
+        [&](const uint8_t*, size_t) {
           ccf::SelfHealingOpenSingleton::instance()
-            ->trigger_restart_and_join_url(url, service_identity);
+            ->trigger_restart();
         });
     }
 

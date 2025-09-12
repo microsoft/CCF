@@ -30,7 +30,7 @@ enum AdminMessage : ringbuffer::Message
   DEFINE_RINGBUFFER_MSG_TYPE(work_stats),
 
   /// Notify the host that it should restart in join
-  DEFINE_RINGBUFFER_MSG_TYPE(restart_and_join)
+  DEFINE_RINGBUFFER_MSG_TYPE(restart)
 };
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::fatal_error_msg, std::string);
@@ -39,8 +39,7 @@ DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stop_notice);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stopped);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::tick);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::work_stats, std::string);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  AdminMessage::restart_and_join, std::string, std::string);
+DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::restart);
 
 /// Messages sent from app endpoints
 enum AppMessage : ringbuffer::Message
