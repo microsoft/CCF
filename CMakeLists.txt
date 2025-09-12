@@ -316,6 +316,9 @@ if(INSTALL_VIRTUAL_LIBRARIES)
   )
 endif()
 
+# CCF platform agnostic library
+add_ccf_static_library(ccf_pal SRCS ${CCF_DIR}/src/pal/attestation.cpp)
+
 # CCF js libs
 set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/global_class_ids.cpp
@@ -343,7 +346,7 @@ set(CCF_JS_SOURCES
 if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_js.snp "${CCF_JS_SOURCES}")
   add_san(ccf_js.snp)
-  target_link_libraries(ccf_js.snp PUBLIC ccfcrypto.snp quickjs.snp)
+  target_link_libraries(ccf_js.snp PUBLIC ccfcrypto.snp quickjs.snp ccf_pal)
   target_compile_definitions(ccf_js.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
   add_warning_checks(ccf_js.snp)
   if(CCF_DEVEL)
@@ -586,6 +589,7 @@ if(COMPILE_TARGET STREQUAL "snp")
            ccf_kv.snp
            nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
+           ccf_pal
   )
 
   set_property(TARGET ccf.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -638,6 +642,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            ccf_kv.host
            nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
+           ccf_pal
   )
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -727,6 +732,7 @@ if(BUILD_TESTS)
       snp_attestation_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_attestation_validation.cpp
     )
+    target_link_libraries(snp_attestation_test PRIVATE ccf_pal ccfcrypto)
 
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
