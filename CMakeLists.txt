@@ -971,7 +971,7 @@ if(BUILD_TESTS)
     target_link_libraries(
       frontend_test
       PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_js.host
-              ccf_endpoints.host ccfcrypto.host ccf_kv.host
+              ccf_endpoints.host ccfcrypto.host ccf_kv.host ccf_pal.host
     )
 
     add_unit_test(
@@ -1002,7 +1002,7 @@ if(BUILD_TESTS)
     target_link_libraries(
       node_frontend_test
       PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_js.host
-              ccf_endpoints.host ccfcrypto.host ccf_kv.host
+              ccf_endpoints.host ccfcrypto.host ccf_kv.host ccf_pal.host
     )
 
     add_unit_test(
