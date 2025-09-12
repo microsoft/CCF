@@ -11,12 +11,12 @@
 #include <string>
 namespace ccf
 {
-  class SelfHealingOpen
+  class SelfHealingOpenRBHandler
   {
   public:
     ringbuffer::WriterPtr to_enclave;
 
-    SelfHealingOpen(ringbuffer::AbstractWriterFactory& writer_factory) :
+    SelfHealingOpenRBHandler(ringbuffer::AbstractWriterFactory& writer_factory) :
       to_enclave(writer_factory.create_writer_to_inside())
     {}
 
@@ -26,17 +26,17 @@ namespace ccf
     }
   };
 
-  class SelfHealingOpenSingleton
+  class SelfHealingOpenRBHandlerSingleton
   {
   private:
-    static std::unique_ptr<SelfHealingOpen>& instance_unsafe()
+    static std::unique_ptr<SelfHealingOpenRBHandler>& instance_unsafe()
     {
-      static std::unique_ptr<SelfHealingOpen> instance = nullptr;
+      static std::unique_ptr<SelfHealingOpenRBHandler> instance = nullptr;
       return instance;
     }
 
   public:
-    static std::unique_ptr<SelfHealingOpen>& instance()
+    static std::unique_ptr<SelfHealingOpenRBHandler>& instance()
     {
       auto& instance = instance_unsafe();
       if (instance == nullptr)
@@ -55,7 +55,7 @@ namespace ccf
         throw std::logic_error(
           "SelfHealingOpenSingleton instance already initialized");
       }
-      instance = std::make_unique<SelfHealingOpen>(writer_factory);
+      instance = std::make_unique<SelfHealingOpenRBHandler>(writer_factory);
     }
   };
 }

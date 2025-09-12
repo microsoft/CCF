@@ -2296,7 +2296,7 @@ namespace ccf
             "NodeConfigurationSubsystem is not available");
         }
         if (!config->get()
-               .node_config.recover.self_healing_open_addresses.has_value())
+               .node_config.recover.self_healing_open.has_value())
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -2375,7 +2375,7 @@ namespace ccf
               "NodeConfigurationSubsystem is not available");
           }
           if (!config->get()
-                 .node_config.recover.self_healing_open_addresses.has_value())
+                 .node_config.recover.self_healing_open.has_value())
           {
             return make_error(
               HTTP_STATUS_BAD_REQUEST,
@@ -2437,7 +2437,7 @@ namespace ccf
               "NodeConfigurationSubsystem is not available");
           }
           if (!config->get()
-                 .node_config.recover.self_healing_open_addresses.has_value())
+                 .node_config.recover.self_healing_open.has_value())
           {
             return make_error(
               HTTP_STATUS_BAD_REQUEST,
@@ -2505,7 +2505,7 @@ namespace ccf
             "NodeConfigurationSubsystem is not available");
         }
         if (!config->get()
-               .node_config.recover.self_healing_open_addresses.has_value())
+               .node_config.recover.self_healing_open.has_value())
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,

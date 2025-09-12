@@ -163,13 +163,6 @@ namespace host
     follow_redirect,
     fetch_recent_snapshot);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(
-    CCHostConfig::Command::SelfHealingOpen);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    CCHostConfig::Command::SelfHealingOpen, addresses);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Command::SelfHealingOpen, retry_timeout, timeout);
-
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Recover);
   DECLARE_JSON_OPTIONAL_FIELDS(

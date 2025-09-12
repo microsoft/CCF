@@ -525,7 +525,7 @@ namespace ccf
       auto curl_libuv_context =
         curl::CurlmLibuvContextSingleton(uv_default_loop());
 
-      ccf::SelfHealingOpenSingleton::initialise(writer_factory);
+      ccf::SelfHealingOpenRBHandlerSingleton::initialise(writer_factory);
 
       ResolvedAddresses resolved_rpc_addresses;
       for (auto& [name, interface] : config.network.rpc_interfaces)

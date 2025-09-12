@@ -60,7 +60,7 @@ namespace asynchost
         bp,
         AdminMessage::restart,
         [&](const uint8_t*, size_t) {
-          ccf::SelfHealingOpenSingleton::instance()
+          ccf::SelfHealingOpenRBHandlerSingleton::instance()
             ->trigger_restart();
         });
     }
