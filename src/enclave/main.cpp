@@ -81,6 +81,14 @@ extern "C"
     auto ringbuffer_logger = new_logger.get();
     ccf::logger::config::loggers().push_back(std::move(new_logger));
 
+    if (ec.curlm_libuv_context_instance == nullptr)
+    {
+      LOG_FAIL_FMT("CurlmLibuvContext instance is null");
+      return CreateNodeStatus::EnclaveInitFailed;
+    }
+    ccf::curl::CurlmLibuvContextSingleton::set_instance(
+      ec.curlm_libuv_context_instance);
+
     {
       auto ccf_version_string = std::string(ccf::ccf_version);
       if (ccf_version_string.size() > enclave_version_size)

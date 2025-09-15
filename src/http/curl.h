@@ -955,35 +955,55 @@ namespace ccf::curl
   class CurlmLibuvContextSingleton
   {
   private:
-    static std::unique_ptr<CurlmLibuvContext>& instance()
+    static std::weak_ptr<CurlmLibuvContext>& instance()
     {
-      static std::unique_ptr<CurlmLibuvContext> curlm_libuv_context_instance =
-        nullptr;
+      static std::weak_ptr<CurlmLibuvContext> curlm_libuv_context_instance;
       return curlm_libuv_context_instance;
     }
 
   public:
     static CurlmLibuvContext& get_instance()
     {
-      if (instance() == nullptr)
+      if (instance().expired())
       {
         throw std::logic_error(
           "CurlmLibuvContextSingleton instance not initialized");
       }
-      return *instance();
+      return *instance().lock();
     }
-    CurlmLibuvContextSingleton(uv_loop_t* loop)
+
+    static void set_instance(std::shared_ptr<CurlmLibuvContext> ctx)
     {
-      if (instance() != nullptr)
+      if (!instance().expired())
       {
         throw std::logic_error(
           "CurlmLibuvContextSingleton instance already initialized");
       }
-      instance() = std::make_unique<CurlmLibuvContext>(loop);
+      instance() = ctx;
+    }
+
+  private:
+    std::shared_ptr<CurlmLibuvContext> context;
+
+  public:
+    CurlmLibuvContextSingleton(uv_loop_t* loop) :
+      context(std::make_shared<CurlmLibuvContext>(loop))
+    {
+      if (!instance().expired())
+      {
+        throw std::logic_error(
+          "CurlmLibuvContextSingleton instance already initialized");
+      }
+      instance() = context;
     }
     ~CurlmLibuvContextSingleton()
     {
-      instance().reset(); // Clean up the instance
+      instance().reset();
+    }
+
+    std::shared_ptr<CurlmLibuvContext>& get_context()
+    {
+      return context;
     }
 
     CurlmLibuvContextSingleton(const CurlmLibuvContextSingleton&) = delete;

@@ -540,7 +540,7 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     // Initialise the curlm singleton
     curl_global_init(CURL_GLOBAL_DEFAULT);
     auto curl_libuv_context =
-      curl::CurlmLibuvContextSingleton(uv_default_loop());
+      ccf::curl::CurlmLibuvContextSingleton(uv_default_loop());
 
     ResolvedAddresses resolved_rpc_addresses;
     for (auto& [name, interface] : config.network.rpc_interfaces)
@@ -606,6 +606,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     enclave_config.from_enclave_buffer_offsets = &from_enclave_offsets;
 
     enclave_config.writer_config = writer_config;
+
+    enclave_config.curlm_libuv_context_instance = curl_libuv_context.get_context();
 
     ccf::StartupConfig startup_config(config);
 
