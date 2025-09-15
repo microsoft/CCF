@@ -168,7 +168,6 @@ TEST_CASE("Quote endorsements url generation")
               {"api-version", "2020-10-15-preview"},
             },
           .max_retries_count = max_retries_count,
-          .max_client_response_size = ccf::ds::SizeString("100mb"),
         }}}}},
     {.attestation = ccf::pal::snp::testing::milan_attestation,
      .servers = {{
@@ -192,7 +191,6 @@ TEST_CASE("Quote endorsements url generation")
                    {"ucodeSPL", "219"}},
                 .response_is_der = true, // DER response
                 .max_retries_count = max_retries_count,
-                .max_client_response_size = ccf::ds::SizeString("100mb"),
               },
               {
                 .host = "invalid.amd.com",
@@ -201,7 +199,6 @@ TEST_CASE("Quote endorsements url generation")
                 .params = {},
                 .response_is_der = false, // Not DER response
                 .max_retries_count = max_retries_count,
-                .max_client_response_size = ccf::ds::SizeString("100mb"),
               }}}}}},
     {
       .attestation = ccf::pal::snp::testing::genoa_attestation,
@@ -227,7 +224,6 @@ TEST_CASE("Quote endorsements url generation")
                     {"ucodeSPL", "84"}},
                  .response_is_der = true, // DER response
                  .max_retries_count = max_retries_count,
-                 .max_client_response_size = ccf::ds::SizeString("100mb"),
                },
                {
                  .host = "invalid.amd.com",
@@ -236,7 +232,6 @@ TEST_CASE("Quote endorsements url generation")
                  .params = {},
                  .response_is_der = false, // Not DER response
                  .max_retries_count = max_retries_count,
-                 .max_client_response_size = ccf::ds::SizeString("100mb"),
                }}}}},
     },
     {.attestation = ccf::pal::snp::testing::genoa_attestation,
@@ -258,7 +253,6 @@ TEST_CASE("Quote endorsements url generation")
          .headers = {{"Metadata", "true"}},
          .tls = false,
          .max_retries_count = max_retries_count,
-         .max_client_response_size = ccf::ds::SizeString("100mb"),
        }}}}}};
 
   for (auto [attestation, servers, expected_url] : test_cases)
