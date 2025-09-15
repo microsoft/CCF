@@ -618,6 +618,7 @@ if(COMPILE_TARGET STREQUAL "snp")
            nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
            curl
+           uv
            ccf_pal.snp
   )
 
@@ -672,6 +673,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
            curl
+           uv
            ccf_pal.host
   )
 
