@@ -246,15 +246,12 @@ if __name__ == "__main__":
 
     args = copy.deepcopy(cr.args)
 
-    if cr.args.consensus in ("CFT", "ALL"):
-        args.consensus = "CFT"
-        cr.add(
-            "cft",
-            run,
-            package="samples/apps/logging/logging",
-            nodes=infra.e2e_args.min_nodes(args, f=1),
-            election_timeout_ms=1000,
-            consensus="CFT",
-        )
+    cr.add(
+        "cft",
+        run,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(args, f=1),
+        election_timeout_ms=1000,
+    )
 
     cr.run(1)
