@@ -49,7 +49,6 @@ class Consortium:
         common_dir,
         key_generator,
         share_script,
-        consensus,
         authenticate_session="COSE",
         gov_api_version=infra.member.MemberAPI.Preview_v1.API_VERSION,
     ):
@@ -57,7 +56,6 @@ class Consortium:
         self.members = []
         self.key_generator = key_generator
         self.share_script = share_script
-        self.consensus = consensus
         self.recovery_threshold = 0
         self.authenticate_session = authenticate_session
         self.set_gov_api_version(gov_api_version)
