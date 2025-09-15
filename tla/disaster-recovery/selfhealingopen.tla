@@ -1,4 +1,4 @@
----- MODULE autoopen ----
+---- MODULE selfhealingopen ----
 
 EXTENDS Integers, Sequences, FiniteSets, TLC
 
