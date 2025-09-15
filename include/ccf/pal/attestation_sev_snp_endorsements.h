@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/ds/unit_strings.h"
 #include "ccf/pal/sev_snp_cpuid.h"
 
 #include <list>
@@ -47,6 +48,7 @@ namespace ccf::pal::snp
       std::map<std::string, std::string> headers = {};
       bool tls = true;
       size_t max_retries_count = 3;
+      size_t max_client_response_size = SIZE_MAX;
 
       bool operator==(const EndpointInfo&) const = default;
     };
