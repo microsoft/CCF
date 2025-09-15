@@ -1,4 +1,4 @@
-# Auto-open specification in [stateright](https://github.com/stateright/stateright)
+# Self-healing-open specification in [stateright](https://github.com/stateright/stateright)
 
 The properties are specified in [main.rs](./src/main.rs), while the model is specified in [model.rs](./src/model.rs).
 

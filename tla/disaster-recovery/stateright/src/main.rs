@@ -130,6 +130,23 @@ fn invariant_properties(model: ActorModel<Node, ModelCfg, ()>) -> ActorModel<Nod
         )
         .property(
             stateright::Expectation::Always,
+            "Deadlock",
+            |_model, state| {
+                let all_open_join = state
+                    .actor_states
+                    .iter()
+                    .all(|actor_state: &Arc<State>| actor_state.next_step == NextStep::OpenJoin);
+                let all_votes_delivered = state
+                    .network
+                    .iter_all()
+                    .filter(|msg| matches!(msg.msg, Msg::Vote(_)))
+                    .count()
+                    == 0;
+                !(all_open_join && all_votes_delivered)
+            },
+        )
+        .property(
+            stateright::Expectation::Always,
             "Persist committed txs",
             |_model: &ActorModel<Node, ModelCfg>, state: &ActorModelState<Node>| {
                 let majority_idx = state.actor_states.len() / 2;
@@ -165,23 +182,6 @@ fn reachable_properties(model: ActorModel<Node, ModelCfg, ()>) -> ActorModel<Nod
         )
         .property(
             stateright::Expectation::Sometimes,
-            "Deadlock",
-            |_model, state| {
-                let all_open_join = state
-                    .actor_states
-                    .iter()
-                    .all(|actor_state: &Arc<State>| actor_state.next_step == NextStep::OpenJoin);
-                let all_votes_delivered = state
-                    .network
-                    .iter_all()
-                    .filter(|msg| matches!(msg.msg, Msg::Vote(_)))
-                    .count()
-                    == 0;
-                all_open_join && all_votes_delivered
-            },
-        )
-        .property(
-            stateright::Expectation::Sometimes,
             "Majority vote still opens without timeout",
             |_model, state| majority_have_same_maximum(state) && reached_open_timeout(state, false),
         );
@@ -196,7 +196,7 @@ fn properties(model: ActorModel<Node, ModelCfg, ()>) -> ActorModel<Node, ModelCf
 }
 
 #[derive(Parser, Debug)]
-#[command(version, about = "CCF auto-open model", long_about = None)]
+#[command(version, about = "Model for CCF's self-healing-open", long_about = None)]
 struct CliArgs {
     #[clap(short, long, default_value = "3")]
     n_nodes: usize,
