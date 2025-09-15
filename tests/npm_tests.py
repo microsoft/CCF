@@ -946,11 +946,10 @@ def test_npm_app(network, args):
         )
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
 
-        if infra.snp.is_snp():
-            LOG.info("Test primary's attestation is verifiable")
-
-            r = c.get("/node/quotes/self")
-            primary_quote_info = r.body.json()
+        r = c.get("/node/quotes/self")
+        primary_quote_info = r.body.json()
+        if args.enclave_platform == "snp":
+            LOG.info("SNP: Test verifySnpAttestation")
 
             # Test without UVM endorsements
             r = c.post(
