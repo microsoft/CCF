@@ -607,7 +607,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
 
     enclave_config.writer_config = writer_config;
 
-    enclave_config.curlm_libuv_context_instance = curl_libuv_context.get_context();
+    enclave_config.curlm_libuv_context_instance =
+      curl_libuv_context.get_context();
 
     ccf::StartupConfig startup_config(config);
 
