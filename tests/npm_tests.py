@@ -946,7 +946,7 @@ def test_npm_app(network, args):
         )
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
 
-        if infra.platform_detection.is_snp():
+        if infra.snp.is_snp():
             LOG.info("Test primary's attestation is verifiable")
 
             r = c.get("/node/quotes/self")
