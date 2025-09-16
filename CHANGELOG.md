@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Validate endorsement metadata (tcb version and chip id) against attestation (#7240)
 
+### Removed
+
+- Removed support for v2 attestations as the corresponding firmware is [know to be insecure](https://www.amd.com/en/resources/product-security/bulletin/amd-sb-3019.html) (#7282)
+
 ## [6.0.11]
 
 [6.0.11]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.11

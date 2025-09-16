@@ -272,12 +272,6 @@ namespace ccf
     auto attestation =
       *reinterpret_cast<const pal::snp::Attestation*>(quote_info.quote.data());
 
-    if (attestation.version < pal::snp::MIN_TCB_VERIF_VERSION)
-    {
-      // Necessary until all C-ACI servers are updated
-      return QuoteVerificationResult::Verified;
-    }
-
     std::optional<pal::snp::TcbVersionPolicy> min_tcb_opt = std::nullopt;
     auto* h = tx.ro<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
     h->foreach(

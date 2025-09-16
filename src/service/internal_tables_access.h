@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <ostream>
+#include <stdexcept>
 
 namespace ccf
 {
@@ -820,49 +821,17 @@ namespace ccf
         {{uvm_endorsements->feed, {uvm_endorsements->svn}}});
     }
 
-    static void trust_static_snp_tcb_version(ccf::kv::Tx& tx)
-    {
-      auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
-
-      constexpr pal::snp::CPUID milan_chip_id{
-        .stepping = 0x1,
-        .base_model = 0x1,
-        .base_family = 0xF,
-        .reserved = 0,
-        .extended_model = 0x0,
-        .extended_family = 0x0A,
-        .reserved2 = 0};
-      constexpr pal::snp::CPUID milan_x_chip_id{
-        .stepping = 0x2,
-        .base_model = 0x1,
-        .base_family = 0xF,
-        .reserved = 0,
-        .extended_model = 0x0,
-        .extended_family = 0x0A,
-        .reserved2 = 0};
-      // ACI reports this as their minimum Milan version
-      const auto milan_tcb_policy =
-        pal::snp::TcbVersionRaw::from_hex("d315000000000004")
-          .to_policy(pal::snp::ProductName::Milan);
-      h->put(milan_chip_id.hex_str(), milan_tcb_policy);
-      h->put(milan_x_chip_id.hex_str(), milan_tcb_policy);
-    }
-
     static void trust_node_snp_tcb_version(
       ccf::kv::Tx& tx, pal::snp::Attestation& attestation)
     {
-      // Fall back to statically configured tcb versions
-      if (attestation.version < pal::snp::MIN_TCB_VERIF_VERSION)
+      if (attestation.version < pal::snp::minimum_attestation_version)
       {
-        LOG_FAIL_FMT(
-          "SNP attestation version {} older than {}, falling back to static "
-          "minimum TCB values",
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: attestation version {} is not supported. Minimum "
+          "supported version is {}",
           attestation.version,
-          pal::snp::MIN_TCB_VERIF_VERSION);
-        trust_static_snp_tcb_version(tx);
-        return;
+          pal::snp::minimum_attestation_version));
       }
-
       // As cpuid -> attestation cpuid is surjective, we must use the local
       // cpuid and validate it against the attestation's cpuid
       auto cpuid = pal::snp::get_cpuid_untrusted();
@@ -871,15 +840,13 @@ namespace ccf
         cpuid.get_model_id() != attestation.cpuid_mod_id ||
         cpuid.stepping != attestation.cpuid_step)
       {
-        LOG_FAIL_FMT(
+        throw std::runtime_error(fmt::format(
           "CPU-sourced cpuid does not match attestation cpuid ({} != {}, {}, "
           "{})",
           cpuid.hex_str(),
           attestation.cpuid_fam_id,
           attestation.cpuid_mod_id,
-          attestation.cpuid_step);
-        trust_static_snp_tcb_version(tx);
-        return;
+          attestation.cpuid_step));
       }
       auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
       auto product = pal::snp::get_sev_snp_product(cpuid);
