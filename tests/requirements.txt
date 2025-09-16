@@ -23,5 +23,5 @@ polars
 plotext
 boofuzz
 numpy<2
-cwt>=3.1
+cwt
 aiohttp
