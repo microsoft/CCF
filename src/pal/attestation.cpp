@@ -252,8 +252,8 @@ namespace ccf::pal
         "Expected 3 endorsement certificates but got {}", certificates.size()));
     }
 
-    // chip_cert (VCEK) <-signs- sev_version (ASK)
-    // ASK <-signs- root_certificate (ARK)
+    // ark_cert --signs--> ask_cert
+    // ask_cert --signs--> vcek_cert
     auto vcek_cert = certificates[0];
     auto ask_cert = certificates[1];
     auto ark_cert = certificates[2];
