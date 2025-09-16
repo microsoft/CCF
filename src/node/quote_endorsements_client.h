@@ -4,6 +4,7 @@
 
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
+#include "ds/thread_messaging.h"
 #include "enclave/rpc_sessions.h"
 #include "http/curl.h"
 
@@ -194,15 +195,15 @@ namespace ccf
       headers.append(http::headers::HOST, endpoint.host);
 
       auto response_callback = ([this, lifetime = shared_from_this()](
-                                  curl::CurlRequest& request,
+                                  std::unique_ptr<curl::CurlRequest>&& request,
                                   CURLcode curl_response,
                                   long status_code) {
         std::lock_guard<ccf::pal::Mutex> guard(this->lock);
 
         const auto& server = servers.front();
         const auto& endpoint = server.front();
-        auto* response_body = request.get_response_body();
-        auto& response_headers = request.get_response_headers();
+        auto* response_body = request->get_response_body();
+        auto& response_headers = request->get_response_headers();
 
         if (curl_response == CURLE_OK && status_code == HTTP_STATUS_OK)
         {
@@ -296,6 +297,30 @@ namespace ccf
         }
       });
 
+      // Ensure thread afinity with the calling thread
+      auto wrapped_response_callback =
+        [response_ = std::move(response_callback),
+         tid = threading::get_current_thread_id()](
+          std::unique_ptr<curl::CurlRequest>&& request_,
+          CURLcode curl_response_,
+          long status_code_) {
+          using Data = std::tuple<
+            std::unique_ptr<curl::CurlRequest>,
+            CURLcode,
+            long,
+            curl::CurlRequest::ResponseCallback>;
+          ::threading::ThreadMessaging::instance().add_task(
+            tid,
+            std::make_unique<::threading::Tmsg<Data>>(
+              [](std::unique_ptr<::threading::Tmsg<Data>> msg) {
+                auto& [request, curl_response, status_code, response] =
+                  msg->data;
+                response(std::move(request), curl_response, status_code);
+              },
+              std::make_tuple(
+                std::move(request_), curl_response_, status_code_, response_)));
+        };
+
       auto request = std::make_unique<curl::CurlRequest>(
         std::move(curl_handle),
         HTTP_GET,
@@ -304,7 +329,7 @@ namespace ccf
         nullptr,
         std::make_unique<ccf::curl::ResponseBody>(
           endpoint.max_client_response_size),
-        std::move(response_callback));
+        std::move(wrapped_response_callback));
 
       LOG_INFO_FMT(
         "Fetching endorsements for attestation report at {}",
