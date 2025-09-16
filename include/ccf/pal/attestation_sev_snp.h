@@ -84,7 +84,6 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     //{ProductName::turin, amd_turin_root_signing_public_key},
   };
 
-  static uint8_t MIN_TCB_VERIF_VERSION = 3;
 #pragma pack(push, 1)
   // Table 3
   constexpr size_t snp_tcb_version_size = 8;
@@ -377,7 +376,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 #pragma pack(push, 1)
   // Table 21
 
-  static constexpr uint32_t minimum_attestation_version = 2;
+  static constexpr uint32_t minimum_attestation_version = 3;
   static constexpr uint32_t attestation_policy_abi_major = 1;
 
   struct Attestation
@@ -446,6 +445,15 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     const Attestation& quote,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
+    if (quote.version < minimum_attestation_version)
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: attestation version {} is not supported. Minimum "
+        "supported version is {}",
+        quote.version,
+        minimum_attestation_version));
+    }
+
     EndorsementEndpointsConfiguration config;
 
     auto chip_id_hex = fmt::format("{:02x}", fmt::join(quote.chip_id, ""));
