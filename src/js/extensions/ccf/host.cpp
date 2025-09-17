@@ -76,18 +76,14 @@ namespace ccf::js::extensions
 
   void HostExtension::install(js::core::Context& ctx)
   {
-    auto host = JS_NewObject(ctx);
+    auto host = ctx.new_obj();
 
-    JS_SetPropertyStr(
-      ctx,
-      host,
+    host.set(
       "triggerSubprocess",
-      JS_NewCFunction(
-        ctx, js_node_trigger_host_process_launch, "triggerSubprocess", 1));
+      ctx.new_c_function(
+        js_node_trigger_host_process_launch, "triggerSubprocess", 1));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    // NOLINTBEGIN(performance-move-const-arg)
     ccf.set("host", std::move(host));
-    // NOLINTEND(performance-move-const-arg)
   }
 }

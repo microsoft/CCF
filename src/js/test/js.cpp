@@ -258,7 +258,7 @@ public:
   void install(ccf::js::core::Context& ctx) override
   {
     auto side_effect_func = ctx.new_c_function(js_side_effect, "setGlobal", 1);
-    ctx.get_or_create_global_property("setGlobal", side_effect_func);
+    ctx.get_or_create_global_property("setGlobal", std::move(side_effect_func));
   }
 };
 
