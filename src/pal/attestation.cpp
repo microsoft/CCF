@@ -290,7 +290,8 @@ namespace ccf::pal
     }
 
     auto vcek_verifier = ccf::crypto::make_verifier(/* leaf */ vcek_cert);
-    if (!vcek_verifier->verify_certificate(/* root */ {&ark_cert}, /* chain */ {&ask_cert}))
+    if (!vcek_verifier->verify_certificate(
+          /* root */ {&ark_cert}, /* chain */ {&ask_cert}))
     {
       throw std::logic_error(
         "SEV-SNP: The chain of signatures from the root of trust to this "
