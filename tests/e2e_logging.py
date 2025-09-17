@@ -50,6 +50,7 @@ def verify_receipt(
     generic=True,
     skip_endorsement_check=False,
     is_signature_tx=False,
+    skip_cert_chain_checks=False,
 ):
     """
     Raises an exception on failure
@@ -57,14 +58,26 @@ def verify_receipt(
 
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
 
+    service_endorsements = []
+    if "service_endorsements" in receipt:
+        service_endorsements = [
+            load_pem_x509_certificate(endorsement.encode(), default_backend())
+            for endorsement in receipt["service_endorsements"]
+        ]
+
     if not skip_endorsement_check:
-        service_endorsements = []
-        if "service_endorsements" in receipt:
-            service_endorsements = [
-                load_pem_x509_certificate(endo.encode(), default_backend())
-                for endo in receipt["service_endorsements"]
-            ]
-        ccf.receipt.check_endorsements(node_cert, service_cert, service_endorsements)
+        ccf.receipt.check_endorsements(
+            node_cert,
+            service_cert,
+            service_endorsements,
+        )
+
+    if not skip_cert_chain_checks:
+        ccf.receipt.check_cert_chain(
+            node_cert,
+            service_cert,
+            service_endorsements,
+        )
 
     if claims is not None:
         assert "leaf_components" in receipt

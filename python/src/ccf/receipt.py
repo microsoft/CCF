@@ -55,7 +55,9 @@ def check_endorsement(endorsee: Certificate, endorser: Certificate):
 
 
 def check_endorsements(
-    node_cert: Certificate, service_cert: Certificate, endorsements: List[Certificate]
+    node_cert: Certificate,
+    service_cert: Certificate,
+    endorsements: List[Certificate],
 ):
     """
     Check a node certificate is endorsed by a service certificate, transitively through a list of endorsements.
@@ -66,10 +68,18 @@ def check_endorsements(
         cert_i = endorsement
     check_endorsement(cert_i, service_cert)
 
-    # Use higher-level cryptography classes to verify the same chain, with
-    # additional default policy checks
+
+def check_cert_chain(
+    node_cert: Certificate,
+    service_cert: Certificate,
+    endorsements: List[Certificate],
+):
+    """
+    Use default cryptography policy to verify CCF cert chain
+    """
     builder = PolicyBuilder()
     builder = builder.store(Store([service_cert]))
+
     # This would ideally be `build_server_verifier`, but that requires a
     # Subject which is either a valid DNSName or IPAddress. Our node cert's
     # Subject is "CCF Node", and we may not have a better value in SAN
