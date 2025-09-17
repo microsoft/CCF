@@ -289,7 +289,7 @@ namespace ccf::pal
         "self signed as expected");
     }
 
-    auto vcek_verifier = ccf::crypto::make_verifier(vcek_cert);
+    auto vcek_verifier = ccf::crypto::make_verifier(/* leaf */ vcek_cert);
     if (!vcek_verifier->verify_certificate(/* root */ {&ark_cert}, /* chain */ {&ask_cert}))
     {
       throw std::logic_error(
