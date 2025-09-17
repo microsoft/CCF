@@ -7,11 +7,8 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
-#include "ccf/ds/unit_strings.h"
 #include "ccf/js/core/context.h"
-#include "ccf/json_handler.h"
 #include "ccf/node/cose_signatures_config.h"
-#include "ccf/odata_error.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/locking.h"
 #include "ccf/pal/platform.h"
@@ -22,7 +19,6 @@
 #include "ccf/service/tables/acme_certificates.h"
 #include "ccf/service/tables/self_heal_open.h"
 #include "ccf/service/tables/service.h"
-#include "ccf/threading/thread_ids.h"
 #include "ccf/tx.h"
 #include "ccf_acme_client.h"
 #include "consensus/aft/raft.h"
@@ -31,14 +27,10 @@
 #include "ds/ccf_assert.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
-#include "ds/ring_buffer_types.h"
 #include "ds/state_machine.h"
-#include "ds/thread_messaging.h"
-#include "enclave/interface.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
-#include "http/curl.h"
 #include "http/http_parser.h"
 #include "indexing/indexer.h"
 #include "js/global_class_ids.h"
@@ -2920,7 +2912,7 @@ namespace ccf
     {
       CCF_ASSERT(
         snp_tcb_version.has_value(),
-        "TCB version must be set when unsealing ledger sec/ret");
+        "TCB version must be set when unsealing ledger secret");
 
       CCF_ASSERT(
         config.recover.previous_sealed_ledger_secret_location.has_value(),
