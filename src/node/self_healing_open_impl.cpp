@@ -449,9 +449,7 @@ namespace ccf
 
     self_healing_open::GossipRequest request{
       .info = make_node_info(),
-      // TODO fix: This isn't quite right, as it should be the highest txid
-      // with a signature,before the recovery txs
-      .txid = node_state->network.tables->current_version(),
+      .txid = node_state->get_last_recovered_signed_idx(),
     };
 
     for (auto& target_address :
