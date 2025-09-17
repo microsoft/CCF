@@ -58,10 +58,8 @@ namespace ccf
       throw std::logic_error("No receipt included in snapshot");
     }
 
-    LOG_INFO_FMT(
-      "Deserialising snapshot receipt (size: {}).", receipt_size);
-    LOG_INFO_FMT("{}",
-      ds::to_hex(receipt_data, receipt_data + receipt_size));
+    LOG_INFO_FMT("Deserialising snapshot receipt (size: {}).", receipt_size);
+    LOG_INFO_FMT("{}", ds::to_hex(receipt_data, receipt_data + receipt_size));
 
     auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
     auto receipt_p = j.get<ReceiptPtr>();

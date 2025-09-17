@@ -402,6 +402,7 @@ def test_empty_snapshot(network, args):
                     f"Expected empty snapshot file {snapshot_name} to be skipped in node logs"
                 )
 
+
 def test_nulled_snapshot(network, args):
 
     with tempfile.TemporaryDirectory() as snapshots_dir:
@@ -416,7 +417,9 @@ def test_nulled_snapshot(network, args):
             LOG.debug(f"Created empty snapshot {temp_empty_snapshot.name}")
             temp_empty_snapshot.write(b"\x00" * 64)
 
-        LOG.info("Attempt to join a node using the corrupted snapshot copy (should fail)")
+        LOG.info(
+            "Attempt to join a node using the corrupted snapshot copy (should fail)"
+        )
         new_node = network.create_node("local://localhost")
         failed = False
         try:
