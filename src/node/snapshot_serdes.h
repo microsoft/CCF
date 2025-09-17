@@ -50,6 +50,11 @@ namespace ccf
     auto store_snapshot_size =
       sizeof(ccf::kv::SerialisedEntryHeader) + tx_hdr.size;
 
+    if (tx_hdr.size == 0)
+    {
+      throw std::logic_error("Snapshot transaction size should not be zero");
+    }
+
     auto receipt_data = data + store_snapshot_size;
     auto receipt_size = size - store_snapshot_size;
 
@@ -59,7 +64,18 @@ namespace ccf
     }
 
     LOG_INFO_FMT("Deserialising snapshot receipt (size: {}).", receipt_size);
-    LOG_INFO_FMT("{}", ds::to_hex(receipt_data, receipt_data + receipt_size));
+    constexpr size_t max_printed_size = 1024;
+    if (receipt_size > max_printed_size)
+    {
+      LOG_INFO_FMT(
+        "Receipt size ({}) exceeds max printed size ({}), only printing "
+        "first {} bytes",
+        receipt_size,
+        max_printed_size,
+        max_printed_size);
+    }
+    auto printed_size = std::min<size_t>(receipt_size, max_printed_size);
+    LOG_INFO_FMT("{}", ds::to_hex(receipt_data, receipt_data + printed_size));
 
     auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
     auto receipt_p = j.get<ReceiptPtr>();
