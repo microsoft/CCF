@@ -281,21 +281,26 @@ def test_add_node_endorsements_endpoints(network, args):
         # Ensure these nodes go to the specified server, and do not get their endorsements from file
         args_copy.snp_endorsements_file = "/dev/null"
         try:
+            per_request_retry_timeout = 3
             network.join_node(
                 new_node,
                 args.package,
                 args_copy,
-                timeout=15,
+                timeout=per_request_retry_timeout * 4 * len(servers) + 5,
             )
         except infra.network.CollateralFetchTimeout as e:
             LOG.info(
                 f"Node with invalid quote endorsement servers {servers} could not join as expected"
             )
             assert not expected_result
-            assert e.args == (
-                True,
-                4,
-            ), "Node has stopped after timing out on fetching collateral"
+
+            assert (
+                e.has_stopped
+            ), f"Expected node to stop after timing out on fetching collateral ({e.error_line})"
+            expected_retries = 4 * len(servers)
+            assert (
+                e.retries == expected_retries
+            ), f"Expected {expected_retries} retry attempts ({e.error_line})"
         else:
             assert (
                 expected_result
@@ -883,9 +888,9 @@ def run_join_old_snapshot(args):
                 LOG.info(
                     f"Node {new_node.local_node_id} started from old snapshot could not join the service, as expected"
                 )
-                assert e.args == (
-                    True,
-                ), "Node has stopped on receiving StartupSeqnoIsOld"
+                assert (
+                    e.has_stopped
+                ), "Expected node to stop on receiving StartupSeqnoIsOld"
             else:
                 raise RuntimeError(
                     f"Node {new_node.local_node_id} started from old snapshot unexpectedly joined the service"
@@ -906,9 +911,9 @@ def run_join_old_snapshot(args):
                 LOG.info(
                     f"Node {new_node.local_node_id} started without snapshot could not join the service, as expected"
                 )
-                assert e.args == (
-                    True,
-                ), "Node has stopped on receiving StartupSeqnoIsOld"
+                assert (
+                    e.has_stopped
+                ), "Expected node to stop on receiving StartupSeqnoIsOld"
             else:
                 raise RuntimeError(
                     f"Node {new_node.local_node_id} started without snapshot unexpectedly joined the service successfully"

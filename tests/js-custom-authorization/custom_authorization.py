@@ -224,7 +224,7 @@ def test_execution_time_limit(network, args):
     primary, _ = network.find_nodes()
 
     safe_time = 50
-    unsafe_time = 5000
+    unsafe_time = 10000
 
     with primary.client("user0") as c:
         r = c.post("/app/sleep", body={"time": safe_time})

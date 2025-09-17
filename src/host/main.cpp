@@ -537,6 +537,11 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     rpc_udp->behaviour.register_udp_message_handlers(
       buffer_processor.get_dispatcher());
 
+    // Initialise the curlm singleton
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    auto curl_libuv_context =
+      ccf::curl::CurlmLibuvContextSingleton(uv_default_loop());
+
     ResolvedAddresses resolved_rpc_addresses;
     for (auto& [name, interface] : config.network.rpc_interfaces)
     {
@@ -601,6 +606,9 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     enclave_config.from_enclave_buffer_offsets = &from_enclave_offsets;
 
     enclave_config.writer_config = writer_config;
+
+    enclave_config.curlm_libuv_context_instance =
+      curl_libuv_context.get_context();
 
     ccf::StartupConfig startup_config(config);
 
@@ -1010,25 +1018,38 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
 
   process_launcher.stop();
 
-  // Continue running the loop long enough for the on_close
-  // callbacks to be despatched, so as to avoid memory being
-  // leaked by handles. Capped out of abundance of caution.
-  constexpr size_t max_iterations = 1000;
-  size_t close_iterations = max_iterations;
-  while ((uv_loop_alive(uv_default_loop()) != 0) && (close_iterations > 0))
+  constexpr size_t max_close_iterations = 1000;
+  size_t close_iterations = max_close_iterations;
+  int loop_close_rc = 0;
+  while (close_iterations > 0)
   {
+    loop_close_rc = uv_loop_close(uv_default_loop());
+    if (loop_close_rc != UV_EBUSY)
+    {
+      break;
+    }
     uv_run(uv_default_loop(), UV_RUN_NOWAIT);
-    close_iterations--;
+    --close_iterations;
+    std::this_thread::sleep_for(10ms);
   }
   LOG_INFO_FMT(
-    "Ran an extra {} cleanup iteration(s)", max_iterations - close_iterations);
-
-  auto loop_close_rc = uv_loop_close(uv_default_loop());
+    "Ran an extra {} cleanup iteration(s)",
+    max_close_iterations - close_iterations);
   if (loop_close_rc != 0)
   {
     LOG_FAIL_FMT(
       "Failed to close uv loop cleanly: {}", uv_err_name(loop_close_rc));
+    // walk loop to diagnose unclosed handles
+    auto cb = [](uv_handle_t* handle, void* arg) {
+      (void)arg;
+      LOG_FAIL_FMT(
+        "Leaked handle: type={}, ptr={}",
+        uv_handle_type_name(handle->type),
+        fmt::ptr(handle));
+    };
+    uv_walk(uv_default_loop(), cb, nullptr);
   }
+  curl_global_cleanup();
   ccf::crypto::openssl_sha256_shutdown();
 
   return loop_close_rc;

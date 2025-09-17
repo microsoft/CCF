@@ -4,6 +4,7 @@
 
 #include "ccf/ds/enum_formatter.h"
 #include "ccf/ds/json.h"
+#include "ccf/ds/unit_strings.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/report_data.h"
@@ -459,6 +460,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     auto reported_tcb = fmt::format("{:0x}", *(uint64_t*)(&quote.reported_tcb));
 
     constexpr size_t default_max_retries_count = 10;
+    static const ds::SizeString default_max_client_response_size =
+      ds::SizeString("100mb");
 
     if (endorsements_servers.empty())
     {
@@ -467,7 +470,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         default_azure_endorsements_endpoint,
         chip_id_hex,
         reported_tcb,
-        default_max_retries_count));
+        default_max_retries_count,
+        default_max_client_response_size));
       return config;
     }
 
@@ -475,6 +479,9 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     {
       size_t max_retries_count =
         server.max_retries_count.value_or(default_max_retries_count);
+      size_t max_client_response_size =
+        server.max_client_response_size.value_or(
+          default_max_client_response_size);
       switch (server.type)
       {
         case EndorsementsEndpointType::Azure:
@@ -482,7 +489,11 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
           auto loc =
             get_endpoint_loc(server, default_azure_endorsements_endpoint);
           config.servers.emplace_back(make_azure_endorsements_server(
-            loc, chip_id_hex, reported_tcb, max_retries_count));
+            loc,
+            chip_id_hex,
+            reported_tcb,
+            max_retries_count,
+            max_client_response_size));
           break;
         }
         case EndorsementsEndpointType::AMD:
@@ -532,7 +543,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             snp,
             microcode,
             product,
-            max_retries_count));
+            max_retries_count,
+            max_client_response_size));
           break;
         }
         case EndorsementsEndpointType::THIM:
@@ -540,7 +552,11 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
           auto loc =
             get_endpoint_loc(server, default_thim_endorsements_endpoint);
           config.servers.emplace_back(make_thim_endorsements_server(
-            loc, chip_id_hex, reported_tcb, max_retries_count));
+            loc,
+            chip_id_hex,
+            reported_tcb,
+            max_retries_count,
+            max_client_response_size));
           break;
         }
         default:

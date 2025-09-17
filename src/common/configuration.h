@@ -16,6 +16,7 @@
 #include "common/enclave_interface_types.h"
 #include "consensus/consensus_types.h"
 #include "ds/oversized.h"
+#include "http/curl.h"
 #include "service/tables/config.h"
 
 #include <optional>
@@ -39,6 +40,8 @@ struct EnclaveConfig
   ringbuffer::Offsets* from_enclave_buffer_offsets;
 
   oversized::WriterConfig writer_config = {};
+
+  std::shared_ptr<ccf::curl::CurlmLibuvContext> curlm_libuv_context_instance;
 };
 
 static constexpr auto node_to_node_interface_name = "node_to_node_interface";

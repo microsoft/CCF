@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Validate endorsement metadata (tcb version and chip id) against attestation (#7240)
+- Curl multi based fetching of quote endorsements and snapshots
+
+### Fixed
+
+- Fixed quote endorsements retry logic
 
 ### Removed
 
