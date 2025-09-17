@@ -29,12 +29,12 @@ namespace ccf
 {
   /* We can't query the past epochs' TXs if the service hasn't been opened
    * yet. We do guess values based on epoch value and seqno changing rules. */
-  ccf::TxID previous_tx_if_recovery(ccf::TxID txid)
+  inline ccf::TxID previous_tx_if_recovery(ccf::TxID txid)
   {
     return ccf::TxID{
       .view = txid.view - aft::starting_view_change, .seqno = txid.seqno - 1};
   }
-  ccf::TxID next_tx_if_recovery(ccf::TxID txid)
+  inline ccf::TxID next_tx_if_recovery(ccf::TxID txid)
   {
     return ccf::TxID{
       .view = txid.view + aft::starting_view_change, .seqno = txid.seqno + 1};

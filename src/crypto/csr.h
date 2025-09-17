@@ -13,7 +13,7 @@ namespace ccf::crypto
    * @param signing_request CSR to extract the public key from
    * @return extracted public key
    */
-  Pem public_key_pem_from_csr(const Pem& signing_request)
+  inline Pem public_key_pem_from_csr(const Pem& signing_request)
   {
     X509* icrt = NULL;
     OpenSSL::Unique_BIO mem(signing_request);

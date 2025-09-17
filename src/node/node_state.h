@@ -87,7 +87,7 @@ namespace ccf
     ccf::crypto::Pem service_cert;
   };
 
-  void reset_data(std::vector<uint8_t>& data)
+  inline void reset_data(std::vector<uint8_t>& data)
   {
     data.clear();
     data.shrink_to_fit();
