@@ -133,18 +133,13 @@ namespace ccf::js::extensions
 
   void GovExtension::install(js::core::Context& ctx)
   {
-    auto gov = JS_NewObject(ctx);
+    auto gov = ctx.new_obj();
 
-    JS_SetPropertyStr(
-      ctx,
-      gov,
+    gov.set(
       "validateConstitution",
-      JS_NewCFunction(
-        ctx, js_validate_constitution, "validateConstitution", 1));
+      ctx.new_c_function(js_validate_constitution, "validateConstitution", 1));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    // NOLINTBEGIN(performance-move-const-arg)
     ccf.set("gov", std::move(gov));
-    // NOLINTEND(performance-move-const-arg)
   }
 }
