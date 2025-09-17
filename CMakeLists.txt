@@ -667,13 +667,20 @@ if(BUILD_TESTS)
     add_unit_test(
       frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
-      ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/node/quote.cpp
+      ${CCF_DIR}/src/node/uvm_endorsements.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/self_healing_open_impl.cpp
-
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
-                            ccf_endpoints ccfcrypto ccf_kv uv curl
+      frontend_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser
+              ccf_js
+              ccf_endpoints
+              ccfcrypto
+              ccf_kv
+              uv
+              curl
     )
 
     add_unit_test(
@@ -699,12 +706,20 @@ if(BUILD_TESTS)
     add_unit_test(
       node_frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
-      ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/node/quote.cpp
+      ${CCF_DIR}/src/node/uvm_endorsements.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/self_healing_open_impl.cpp
     )
     target_link_libraries(
-      node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
-                                 ccf_endpoints ccfcrypto ccf_kv uv curl
+      node_frontend_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser
+              ccf_js
+              ccf_endpoints
+              ccfcrypto
+              ccf_kv
+              uv
+              curl
     )
 
     add_unit_test(

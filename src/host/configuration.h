@@ -118,7 +118,8 @@ namespace host
         std::string previous_service_identity_file;
         std::optional<std::string> previous_sealed_ledger_secret_location =
           std::nullopt;
-        std::optional<ccf::SelfHealingOpenConfig> self_healing_open = std::nullopt;
+        std::optional<ccf::SelfHealingOpenConfig> self_healing_open =
+          std::nullopt;
         bool operator==(const Recover&) const = default;
       };
       Recover recover = {};
