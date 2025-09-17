@@ -50,7 +50,6 @@
 #include "node/ledger_secrets.h"
 #include "node/local_sealing.h"
 #include "node/node_to_node_channel_manager.h"
-#include "node/self_healing_open.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
 #include "pal/quote_generation.h"
@@ -96,6 +95,8 @@ namespace ccf
 
   class NodeState : public AbstractNodeState
   {
+    friend class SelfHealingOpenService;
+
   private:
     //
     // this node's core state
@@ -243,6 +244,8 @@ namespace ccf
       last_recovered_signed_idx = last_recovered_idx;
     }
 
+    std::unique_ptr<SelfHealingOpenService> self_healing_open_impl;
+
   public:
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
@@ -258,7 +261,8 @@ namespace ccf
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
       rpcsessions(rpcsessions),
-      share_manager(network.ledger_secrets)
+      share_manager(network.ledger_secrets),
+      self_healing_open_impl(std::make_unique<SelfHealingOpenService>(this))
     {}
 
     QuoteVerificationResult verify_quote(
@@ -1997,319 +2001,6 @@ namespace ccf
       return history->get_cose_signatures_config();
     }
 
-    void self_healing_open_try_start_timers(
-      ccf::kv::Tx& tx, bool recovering) override
-    {
-      if (!recovering || !config.recover.self_healing_open.has_value())
-      {
-        LOG_TRACE_FMT(
-          "Not recovering, or no self-healing-open addresses configured, "
-          "not starting self-healing-open timers");
-        return;
-      }
-
-      auto* state_handle = tx.rw(network.self_healing_open_sm_state);
-      state_handle->put(SelfHealingOpenSM::GOSSIPPING);
-      auto* timeout_state_handle =
-        tx.rw(network.self_healing_open_timeout_sm_state);
-      timeout_state_handle->put(SelfHealingOpenSM::GOSSIPPING);
-
-      auto retry_timer_msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
-        [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
-          std::lock_guard<pal::Mutex> guard(msg->data.self.lock);
-
-          auto tx = msg->data.self.network.tables->create_read_only_tx();
-          auto* sm_state_handle =
-            tx.ro(msg->data.self.network.self_healing_open_sm_state);
-          if (!sm_state_handle->get().has_value())
-          {
-            throw std::logic_error(
-              "Self-healing-open state not set, cannot retry "
-              "self-healing-open");
-          }
-          auto sm_state = sm_state_handle->get().value();
-
-          // Keep doing this until the node is no longer in recovery
-          if (sm_state == SelfHealingOpenSM::OPEN)
-          {
-            LOG_INFO_FMT("Self-healing-open complete, stopping timers.");
-            return;
-          }
-
-          switch (sm_state)
-          {
-            case SelfHealingOpenSM::GOSSIPPING:
-              msg->data.self.self_healing_open_gossip_unsafe();
-              break;
-            case SelfHealingOpenSM::VOTING:
-            {
-              auto* node_info_handle =
-                tx.ro(msg->data.self.network.self_healing_open_node_info);
-              auto* chosen_replica_handle =
-                tx.ro(msg->data.self.network.self_healing_open_chosen_replica);
-              if (!chosen_replica_handle->get().has_value())
-              {
-                throw std::logic_error(
-                  "Self-healing-open chosen node not set, cannot vote");
-              }
-              auto chosen_node_info =
-                node_info_handle->get(chosen_replica_handle->get().value());
-              if (!chosen_node_info.has_value())
-              {
-                throw std::logic_error(fmt::format(
-                  "Self-healing-open chosen node {} not found",
-                  chosen_replica_handle->get().value()));
-              }
-              msg->data.self.self_healing_open_vote_unsafe(
-                chosen_node_info.value());
-              // keep gossiping to allow lagging nodes to eventually vote
-              msg->data.self.self_healing_open_gossip_unsafe();
-              break;
-            }
-            case SelfHealingOpenSM::OPENING:
-              msg->data.self.self_healing_open_iamopen_unsafe();
-              break;
-            case SelfHealingOpenSM::JOINING:
-              return;
-            default:
-              throw std::logic_error(fmt::format(
-                "Unknown self-healing-open state: {}",
-                static_cast<int>(sm_state)));
-          }
-
-          auto delay =
-            msg->data.self.config.recover.self_healing_open->retry_timeout;
-          ::threading::ThreadMessaging::instance().add_task_after(
-            std::move(msg), delay);
-        },
-        *this);
-      // kick this off asynchronously as this can be called from a curl callback
-      ::threading::ThreadMessaging::instance().add_task(
-        threading::get_current_thread_id(), std::move(retry_timer_msg));
-
-      // Dispatch timeouts
-      auto timeout_msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
-        [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
-          std::lock_guard<pal::Mutex> guard(msg->data.self.lock);
-          LOG_TRACE_FMT(
-            "Self-healing-open timeout, sending timeout to internal handlers");
-
-          // Stop the timer if the node has completed its self-healing-open
-          auto tx = msg->data.self.network.tables->create_read_only_tx();
-          auto* sm_state_handle =
-            tx.ro(msg->data.self.network.self_healing_open_sm_state);
-          if (!sm_state_handle->get().has_value())
-          {
-            throw std::logic_error(
-              "Self-healing-open state not set, cannot retry "
-              "self-healing-open");
-          }
-          auto sm_state = sm_state_handle->get().value();
-          if (sm_state == SelfHealingOpenSM::OPEN)
-          {
-            LOG_INFO_FMT("Self-healing-open complete, stopping timers.");
-            return;
-          }
-
-          // Send a timeout to the internal handlers
-          curl::UniqueCURL curl_handle;
-
-          auto cert = msg->data.self.self_signed_node_cert;
-          curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 0L);
-          curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 0L);
-          curl_handle.set_opt(CURLOPT_SSL_VERIFYSTATUS, 0L);
-
-          curl_handle.set_blob_opt(
-            CURLOPT_SSLCERT_BLOB, cert.data(), cert.size());
-          curl_handle.set_opt(CURLOPT_SSLCERTTYPE, "PEM");
-
-          auto privkey_pem = msg->data.self.node_sign_kp->private_key_pem();
-          curl_handle.set_blob_opt(
-            CURLOPT_SSLKEY_BLOB, privkey_pem.data(), privkey_pem.size());
-          curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
-
-          auto url = fmt::format(
-            "https://{}/{}/self_healing_open/timeout",
-            msg->data.self.config.network.rpc_interfaces
-              .at("primary_rpc_interface")
-              .published_address,
-            get_actor_prefix(ActorsType::nodes));
-
-          curl::UniqueSlist headers;
-          headers.append("Content-Type: application/json");
-
-          auto curl_request = std::make_unique<curl::CurlRequest>(
-            std::move(curl_handle),
-            HTTP_PUT,
-            std::move(url),
-            std::move(headers),
-            nullptr,
-            nullptr,
-            std::nullopt);
-          curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
-            std::move(curl_request));
-
-          auto delay = msg->data.self.config.recover.self_healing_open->timeout;
-          ::threading::ThreadMessaging::instance().add_task_after(
-            std::move(msg), delay);
-        },
-        *this);
-      ::threading::ThreadMessaging::instance().add_task_after(
-        std::move(timeout_msg), config.recover.self_healing_open->timeout);
-    }
-
-    void self_healing_open_advance(ccf::kv::Tx& tx, bool timeout) override
-    {
-      auto* sm_state_handle = tx.rw(network.self_healing_open_sm_state);
-      auto* timeout_state_handle =
-        tx.rw(network.self_healing_open_timeout_sm_state);
-      if (
-        !sm_state_handle->get().has_value() ||
-        !timeout_state_handle->get().has_value())
-      {
-        throw std::logic_error(
-          "Self-healing-open state not set, cannot advance self-healing-open");
-      }
-
-      bool valid_timeout = timeout &&
-        timeout_state_handle->get().value() == sm_state_handle->get().value();
-
-      // Advance timeout SM
-      if (timeout)
-      {
-        switch (timeout_state_handle->get().value())
-        {
-          case SelfHealingOpenSM::GOSSIPPING:
-            LOG_TRACE_FMT("Advancing timeout SM to VOTING");
-            timeout_state_handle->put(SelfHealingOpenSM::VOTING);
-            break;
-          case SelfHealingOpenSM::VOTING:
-            LOG_TRACE_FMT("Advancing timeout SM to OPENING");
-            timeout_state_handle->put(SelfHealingOpenSM::OPENING);
-            break;
-          case SelfHealingOpenSM::OPENING:
-          case SelfHealingOpenSM::JOINING:
-          case SelfHealingOpenSM::OPEN:
-          default:
-            LOG_TRACE_FMT("Timeout SM complete");
-        }
-      }
-
-      // Advance self-healing-open SM
-      switch (sm_state_handle->get().value())
-      {
-        case SelfHealingOpenSM::GOSSIPPING:
-        {
-          auto* gossip_handle = tx.ro(network.self_healing_open_gossip);
-          if (
-            gossip_handle->size() ==
-              config.recover.self_healing_open->addresses.size() ||
-            valid_timeout)
-          {
-            if (gossip_handle->size() == 0)
-            {
-              throw std::logic_error("No gossip addresses provided yet");
-            }
-
-            // Lexographically maximum <txid, iid> pair
-            std::optional<std::pair<ccf::kv::Version, std::string>> maximum;
-            gossip_handle->foreach(
-              [&maximum](const auto& iid, const auto& txid) {
-                if (
-                  !maximum.has_value() ||
-                  maximum.value() < std::make_pair(txid, iid))
-                {
-                  maximum = std::make_pair(txid, iid);
-                }
-                return true;
-              });
-
-            auto* chosen_replica =
-              tx.rw(network.self_healing_open_chosen_replica);
-            chosen_replica->put(maximum->second);
-            sm_state_handle->put(SelfHealingOpenSM::VOTING);
-          }
-          return;
-        }
-        case SelfHealingOpenSM::VOTING:
-        {
-          auto* votes = tx.rw(network.self_healing_open_votes);
-          if (
-            votes->size() >=
-              config.recover.self_healing_open->addresses.size() / 2 + 1 ||
-            valid_timeout)
-          {
-            if (votes->size() == 0)
-            {
-              throw std::logic_error(
-                "We didn't even vote for ourselves, so why should we open?");
-            }
-            LOG_INFO_FMT("Self-healing-open succeeded, now opening network");
-
-            auto* service = tx.ro<Service>(Tables::SERVICE);
-            auto service_info = service->get();
-            if (!service_info.has_value())
-            {
-              throw std::logic_error(
-                "Service information cannot be found to transition service to "
-                "open");
-            }
-            const auto prev_ident =
-              tx.ro<PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
-                ->get();
-            AbstractGovernanceEffects::ServiceIdentities identities{
-              .previous = prev_ident, .next = service_info->cert};
-
-            sm_state_handle->put(SelfHealingOpenSM::OPENING);
-
-            transition_service_to_open(tx, identities);
-          }
-          return;
-        }
-        case SelfHealingOpenSM::JOINING:
-        {
-          auto chosen_replica =
-            tx.ro(network.self_healing_open_chosen_replica)->get();
-          if (!chosen_replica.has_value())
-          {
-            throw std::logic_error(
-              "Self-healing-open chosen node not set, cannot join");
-          }
-          auto node_config = tx.ro(this->network.self_healing_open_node_info)
-                               ->get(chosen_replica.value());
-          if (!node_config.has_value())
-          {
-            throw std::logic_error(fmt::format(
-              "Self-healing-open chosen node {} not found",
-              chosen_replica.value()));
-          }
-
-          LOG_INFO_FMT(
-            "Self-healing-open joining {} with service identity {}",
-            node_config->published_network_address,
-            node_config->service_identity);
-
-          RINGBUFFER_WRITE_MESSAGE(AdminMessage::restart, to_host);
-        }
-        case SelfHealingOpenSM::OPENING:
-        {
-          if (valid_timeout)
-          {
-            sm_state_handle->put(SelfHealingOpenSM::OPEN);
-          }
-        }
-        case SelfHealingOpenSM::OPEN:
-        {
-          // Nothing to do here, we are already opening or open or joining
-          return;
-        }
-        default:
-          throw std::logic_error(fmt::format(
-            "Unknown self-healing-open state: {}",
-            static_cast<int>(sm_state_handle->get().value())));
-      }
-    }
-
   private:
     bool is_ip(const std::string_view& hostname)
     {
@@ -3244,106 +2935,6 @@ namespace ccf
         max_version);
     }
 
-    self_healing_open::RequestNodeInfo self_healing_open_node_info()
-    {
-      return {
-        .quote_info = quote_info,
-        .published_network_address =
-          config.network.rpc_interfaces.at("primary_rpc_interface")
-            .published_address,
-        .intrinsic_id =
-          config.network.rpc_interfaces.at("primary_rpc_interface")
-            .published_address,
-        .service_identity = network.identity->cert.str(),
-      };
-    }
-
-    void self_healing_open_gossip_unsafe()
-    {
-      // Caller must ensure that the current node's quote_info is populated:
-      // ie not yet reached partOfNetwork
-      if (!config.recover.self_healing_open.has_value())
-      {
-        LOG_TRACE_FMT(
-          "Self-healing-open addresses not set, cannot start gossip retries");
-        return;
-      }
-
-      LOG_TRACE_FMT("Broadcasting self-healing-open gossip");
-
-      self_healing_open::GossipRequest request{
-        .info = self_healing_open_node_info(),
-        // TODO fix: This isn't quite right, as it should be the highest txid
-        // with a signature,before the recovery txs
-        .txid = network.tables->current_version(),
-      };
-
-      for (auto& target_address : config.recover.self_healing_open->addresses)
-      {
-        self_healing_open::dispatch_authenticated_message(
-          std::move(request),
-          target_address,
-          "gossip",
-          self_signed_node_cert,
-          node_sign_kp->private_key_pem());
-      }
-    }
-
-    void self_healing_open_vote_unsafe(SelfHealingOpenNodeInfo_t& node_info)
-    {
-      // Caller must ensure that the current node's quote_info is populated:
-      // ie not yet reached partOfNetwork
-      LOG_TRACE_FMT(
-        "Sending self-healing-open vote to {} at {}",
-        node_info.intrinsic_id,
-        node_info.published_network_address);
-
-      self_healing_open::VoteRequest request{
-        .info = self_healing_open_node_info()};
-
-      self_healing_open::dispatch_authenticated_message(
-        std::move(request),
-        node_info.published_network_address,
-        "vote",
-        self_signed_node_cert,
-        node_sign_kp->private_key_pem());
-    }
-
-    void self_healing_open_iamopen_unsafe()
-    {
-      // Caller must ensure that the current node's quote_info is populated:
-      // ie not yet reached partOfNetwork
-      if (!config.recover.self_healing_open.has_value())
-      {
-        LOG_TRACE_FMT(
-          "Self-healing-open addresses not set, cannot send iamopen");
-        return;
-      }
-
-      LOG_TRACE_FMT("Sending self-healing-open iamopen");
-
-      self_healing_open::IAmOpenRequest request{
-        .info = self_healing_open_node_info()};
-
-      for (auto& target_address : config.recover.self_healing_open->addresses)
-      {
-        if (
-          target_address ==
-          config.network.rpc_interfaces.at("primary_rpc_interface")
-            .published_address)
-        {
-          // Don't send to self
-          continue;
-        }
-        self_healing_open::dispatch_authenticated_message(
-          std::move(request),
-          target_address,
-          "iamopen",
-          self_signed_node_cert,
-          node_sign_kp->private_key_pem());
-      }
-    }
-
   public:
     void set_n2n_message_limit(size_t message_limit)
     {
@@ -3421,6 +3012,11 @@ namespace ccf
     virtual ringbuffer::AbstractWriterFactory& get_writer_factory() override
     {
       return writer_factory;
+    }
+
+    SelfHealingOpenService& self_healing_open() override
+    {
+      return *self_healing_open_impl;
     }
   };
 }

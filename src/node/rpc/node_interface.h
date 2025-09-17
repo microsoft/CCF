@@ -16,6 +16,7 @@
 #include "node/ledger_secret.h"
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/node_operation_interface.h"
+#include "node/self_healing_open_impl.h"
 #include "node/session_metrics.h"
 
 namespace ccf
@@ -65,9 +66,7 @@ namespace ccf
     virtual size_t get_jwt_attempts() = 0;
     virtual ccf::crypto::Pem get_self_signed_certificate() = 0;
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
-    virtual void self_healing_open_try_start_timers(
-      ccf::kv::Tx& tx, bool recovering) = 0;
-    virtual void self_healing_open_advance(ccf::kv::Tx&, bool) = 0;
+    virtual SelfHealingOpenService& self_healing_open() = 0;
     virtual const ccf::StartupConfig& get_node_config() const = 0;
     virtual ccf::crypto::Pem get_network_cert() = 0;
     virtual void stop_notice() = 0;

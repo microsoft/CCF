@@ -24,7 +24,8 @@
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/no_create_tx_claims_digest.cpp"
 #include "node/rpc/serialization.h"
-#include "node/self_healing_open.h"
+#include "node/self_healing_open_impl.h"
+#include "node/self_healing_open_types.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
 #include "service/internal_tables_access.h"
@@ -1721,32 +1722,7 @@ namespace ccf
           ctx.rpc_ctx->set_claims_digest(std::move(digest_value));
         }
 
-        {
-          // Reset the self-healing-open state
-          ccf::kv::Tx& tx = ctx.tx;
-          auto* state_handle = tx.rw<ccf::SelfHealingOpenSMState>(
-            Tables::SELF_HEALING_OPEN_SM_STATE);
-          state_handle->clear();
-          auto* timeout_state_handle =
-            tx.rw<ccf::SelfHealingOpenTimeoutSMState>(
-              Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE);
-          auto* node_info_handle = tx.rw<ccf::SelfHealingOpenNodeInfo>(
-            Tables::SELF_HEALING_OPEN_NODES);
-          node_info_handle->clear();
-          auto* gossip_state_handle = tx.rw<ccf::SelfHealingOpenGossips>(
-            Tables::SELF_HEALING_OPEN_GOSSIPS);
-          gossip_state_handle->clear();
-          auto* chosen_replica = tx.rw<ccf::SelfHealingOpenChosenReplica>(
-            Tables::SELF_HEALING_OPEN_CHOSEN_REPLICA);
-          chosen_replica->clear();
-          auto* votes =
-            tx.rw<ccf::SelfHealingOpenVotes>(Tables::SELF_HEALING_OPEN_VOTES);
-          votes->clear();
-
-          // Start timers if necessary
-          this->node_operation.self_healing_open_try_start_timers(
-            tx, recovering);
-        }
+        this->node_operation.self_healing_open().try_start(ctx.tx, recovering);
 
         LOG_INFO_FMT("Created service");
         return make_success(true);
@@ -2337,7 +2313,7 @@ namespace ccf
 
         try
         {
-          this->node_operation.self_healing_open_advance(args.tx, false);
+          this->node_operation.self_healing_open().advance(args.tx, false);
         }
         catch (const std::logic_error& e)
         {
@@ -2397,7 +2373,7 @@ namespace ccf
 
           try
           {
-            this->node_operation.self_healing_open_advance(args.tx, false);
+            this->node_operation.self_healing_open().advance(args.tx, false);
           }
           catch (const std::logic_error& e)
           {
@@ -2464,7 +2440,7 @@ namespace ccf
 
           try
           {
-            this->node_operation.self_healing_open_advance(args.tx, false);
+            this->node_operation.self_healing_open().advance(args.tx, false);
           }
           catch (const std::logic_error& e)
           {
@@ -2536,7 +2512,7 @@ namespace ccf
 
         try
         {
-          this->node_operation.self_healing_open_advance(args.tx, true);
+          this->node_operation.self_healing_open().advance(args.tx, true);
         }
         catch (const std::logic_error& e)
         {

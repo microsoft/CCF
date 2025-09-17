@@ -8,6 +8,7 @@
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/node_interface.h"
 #include "node/rpc/node_operation_interface.h"
+#include "node/self_healing_open_impl.h"
 
 namespace ccf
 {
@@ -111,15 +112,9 @@ namespace ccf
       return cose_signatures_config;
     }
 
-    void self_healing_open_try_start_timers(
-      ccf::kv::Tx& tx, bool recovering) override
+    SelfHealingOpenService& self_healing_open() override
     {
-      // No-op for stub
-    }
-
-    void self_healing_open_advance(ccf::kv::Tx& tx, bool timeout) override
-    {
-      // No-op for stub
+      throw std::logic_error("Unimplemented");
     }
   };
 

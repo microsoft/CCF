@@ -11,6 +11,7 @@
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/tx.h"
+#include "node/self_healing_open_impl.h"
 #include "node/session_metrics.h"
 
 namespace ccf
@@ -62,8 +63,6 @@ namespace ccf
 
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
 
-    virtual void self_healing_open_try_start_timers(
-      ccf::kv::Tx& tx, bool recovering) = 0;
-    virtual void self_healing_open_advance(ccf::kv::Tx&, bool) = 0;
+    virtual SelfHealingOpenService& self_healing_open() = 0;
   };
 }
