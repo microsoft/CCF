@@ -1,8 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "self_healing_open_impl.h"
-
 #include "node_state.h"
 
 namespace ccf
@@ -266,7 +264,7 @@ namespace ccf
         ::threading::ThreadMessaging::instance().add_task_after(
           std::move(msg), delay);
       },
-      *node_state);
+      *this);
     // kick this off asynchronously as this can be called from a curl callback
     ::threading::ThreadMessaging::instance().add_task(
       threading::get_current_thread_id(), std::move(retry_timer_msg));

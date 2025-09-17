@@ -673,7 +673,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
-                            ccf_endpoints ccfcrypto ccf_kv
+                            ccf_endpoints ccfcrypto ccf_kv uv curl
     )
 
     add_unit_test(
@@ -704,7 +704,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
-                                 ccf_endpoints ccfcrypto ccf_kv
+                                 ccf_endpoints ccfcrypto ccf_kv uv curl
     )
 
     add_unit_test(
