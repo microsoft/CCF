@@ -174,30 +174,22 @@ namespace ccf::js::extensions
 
   void ConsensusExtension::install(js::core::Context& ctx)
   {
-    auto consensus = JS_NewObject(ctx);
+    auto consensus = ctx.new_obj();
 
-    JS_SetPropertyStr(
-      ctx,
-      consensus,
+    consensus.set(
       "getLastCommittedTxId",
-      JS_NewCFunction(
-        ctx, js_consensus_get_last_committed_txid, "getLastCommittedTxId", 0));
-    JS_SetPropertyStr(
-      ctx,
-      consensus,
+      ctx.new_c_function(
+        js_consensus_get_last_committed_txid, "getLastCommittedTxId", 0));
+    consensus.set(
       "getStatusForTxId",
-      JS_NewCFunction(
-        ctx, js_consensus_get_status_for_txid, "getStatusForTxId", 2));
-    JS_SetPropertyStr(
-      ctx,
-      consensus,
+      ctx.new_c_function(
+        js_consensus_get_status_for_txid, "getStatusForTxId", 2));
+    consensus.set(
       "getViewForSeqno",
-      JS_NewCFunction(
-        ctx, js_consensus_get_view_for_seqno, "getViewForSeqno", 1));
+      ctx.new_c_function(
+        js_consensus_get_view_for_seqno, "getViewForSeqno", 1));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    // NOLINTBEGIN(performance-move-const-arg)
     ccf.set("consensus", std::move(consensus));
-    // NOLINTEND(performance-move-const-arg)
   }
 }

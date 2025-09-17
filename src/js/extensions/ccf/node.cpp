@@ -338,48 +338,33 @@ namespace ccf::js::extensions
 
   void NodeExtension::install(js::core::Context& ctx)
   {
-    auto node = JS_NewObject(ctx);
+    auto node = ctx.new_obj();
 
-    JS_SetPropertyStr(
-      ctx,
-      node,
+    node.set(
       "triggerLedgerRekey",
-      JS_NewCFunction(
-        ctx, js_node_trigger_ledger_rekey, "triggerLedgerRekey", 0));
-    JS_SetPropertyStr(
-      ctx,
-      node,
+      ctx.new_c_function(
+        js_node_trigger_ledger_rekey, "triggerLedgerRekey", 0));
+    node.set(
       "transitionServiceToOpen",
-      JS_NewCFunction(
-        ctx, js_node_transition_service_to_open, "transitionServiceToOpen", 2));
-    JS_SetPropertyStr(
-      ctx,
-      node,
+      ctx.new_c_function(
+        js_node_transition_service_to_open, "transitionServiceToOpen", 2));
+    node.set(
       "triggerRecoverySharesRefresh",
-      JS_NewCFunction(
-        ctx,
+      ctx.new_c_function(
         js_node_trigger_recovery_shares_refresh,
         "triggerRecoverySharesRefresh",
         0));
-    JS_SetPropertyStr(
-      ctx,
-      node,
+    node.set(
       "triggerLedgerChunk",
-      JS_NewCFunction(ctx, js_trigger_ledger_chunk, "triggerLedgerChunk", 0));
-    JS_SetPropertyStr(
-      ctx,
-      node,
+      ctx.new_c_function(js_trigger_ledger_chunk, "triggerLedgerChunk", 0));
+    node.set(
       "triggerSnapshot",
-      JS_NewCFunction(ctx, js_trigger_snapshot, "triggerSnapshot", 0));
-    JS_SetPropertyStr(
-      ctx,
-      node,
+      ctx.new_c_function(js_trigger_snapshot, "triggerSnapshot", 0));
+    node.set(
       "triggerACMERefresh",
-      JS_NewCFunction(ctx, js_trigger_acme_refresh, "triggerACMERefresh", 0));
+      ctx.new_c_function(js_trigger_acme_refresh, "triggerACMERefresh", 0));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    // NOLINTBEGIN(performance-move-const-arg)
     ccf.set("node", std::move(node));
-    // NOLINTEND(performance-move-const-arg)
   }
 }
