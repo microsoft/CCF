@@ -5,6 +5,7 @@
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/nonstd.h"
 #include "consensus/ledger_enclave_types.h"
+#include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "time_bound_logger.h"
 
@@ -265,6 +266,10 @@ namespace asynchost
 
     static void on_snapshot_sync_and_rename(uv_work_t* req)
     {
+// don't init / deinit in sync
+#ifndef TEST_MODE_EXECUTE_SYNC_INLINE
+      ccf::crypto::openssl_sha256_init();
+#endif
       auto data = static_cast<AsyncSnapshotSyncAndRename*>(req->data);
 
       {
@@ -290,6 +295,10 @@ namespace asynchost
         data->committed_file_name,
         raw.size(),
         ccf::crypto::Sha256Hash(raw).hex_str());
+
+#ifndef TEST_MODE_EXECUTE_SYNC_INLINE
+      ccf::crypto::openssl_sha256_shutdown();
+#endif
     }
 
     static void on_snapshot_sync_and_rename_complete(uv_work_t* req, int status)
