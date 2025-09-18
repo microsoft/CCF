@@ -2,8 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/nonstd.h"
 #include "consensus/ledger_enclave_types.h"
+#include "ds/files.h"
 #include "time_bound_logger.h"
 
 #include <charconv>
@@ -280,6 +282,14 @@ namespace asynchost
 
       const auto full_tmp_path = data->dir / data->tmp_file_name;
       files::rename(full_tmp_path, full_committed_path);
+
+      // read and log the hash of the written snapshot
+      auto raw = files::slurp(data->committed_file_name);
+      LOG_INFO_FMT(
+        "Written snapshot to {} (size: {} bytes, hash: {} )",
+        data->committed_file_name,
+        raw.size(),
+        ccf::crypto::Sha256Hash(raw).hex_str());
     }
 
     static void on_snapshot_sync_and_rename_complete(uv_work_t* req, int status)
@@ -379,6 +389,10 @@ namespace asynchost
                 &on_snapshot_sync_and_rename_complete);
 #endif
             }
+
+            auto sha = ccf::crypto::Sha256Hash(it->second.snapshot);
+            LOG_INFO_FMT(
+              "Writing snapshot to {} (hash: {})", full_snapshot_path, sha);
 
             pending_snapshots.erase(it);
 

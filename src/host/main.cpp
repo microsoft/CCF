@@ -715,10 +715,13 @@ int main(int argc, char** argv)
         auto& [snapshot_dir, snapshot_file] = latest_committed_snapshot.value();
         startup_snapshot = files::slurp(snapshot_dir / snapshot_file);
 
+        auto sha = ccf::crypto::Sha256Hash(startup_snapshot);
+
         LOG_INFO_FMT(
-          "Found latest snapshot file: {} (size: {})",
+          "Found latest snapshot file: {} (size: {}, hash: {})",
           snapshot_dir / snapshot_file,
-          startup_snapshot.size());
+          startup_snapshot.size(),
+          sha.hex_str());
       }
       else
       {
