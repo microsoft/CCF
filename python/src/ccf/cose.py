@@ -112,7 +112,9 @@ def create_cose_sign1(
     phdr: dict[Any, Any] = {int(cwt.COSEHeaders.KID): cert_fingerprint(cert_pem)}
     additional_header = additional_protected_header or {}
     phdr.update(additional_header)
-    return cose_ctx.encode_and_sign(payload, cose_key, protected=phdr)
+    return cose_ctx.encode_and_sign(
+        payload, cose_key, protected=cwt.utils.ResolvedHeader(phdr)
+    )
 
 
 def create_cose_sign1_prepare(
@@ -124,7 +126,10 @@ def create_cose_sign1_prepare(
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
 
-    protected_header = {int(cwt.COSEHeaders.ALG): alg, int(cwt.COSEHeaders.KID): kid}
+    protected_header: dict[str | int, Any] = {
+        int(cwt.COSEHeaders.ALG): alg,
+        int(cwt.COSEHeaders.KID): kid,
+    }
     protected_header.update(additional_protected_header or {})
     protected_header = cwt.utils.sort_keys_for_deterministic_encoding(protected_header)
     phdr_encoded = cbor2.dumps(protected_header)
@@ -147,7 +152,10 @@ def create_cose_sign1_finish(
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
 
-    protected_header = {int(cwt.COSEHeaders.ALG): alg, int(cwt.COSEHeaders.KID): kid}
+    protected_header: dict[str | int, Any] = {
+        int(cwt.COSEHeaders.ALG): alg,
+        int(cwt.COSEHeaders.KID): kid,
+    }
     protected_header.update(additional_protected_header or {})
     protected_header = cwt.utils.sort_keys_for_deterministic_encoding(protected_header)
     phdr_encoded = cbor2.dumps(protected_header)
