@@ -84,7 +84,6 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     //{ProductName::turin, amd_turin_root_signing_public_key},
   };
 
-  static uint8_t MIN_TCB_VERIF_VERSION = 3;
 #pragma pack(push, 1)
   // Table 3
   constexpr size_t snp_tcb_version_size = 8;
@@ -198,10 +197,23 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   struct TcbVersionRaw
   {
   private:
-    uint8_t underlying_data[snp_tcb_version_size];
+    uint8_t underlying_data[snp_tcb_version_size]{};
 
   public:
     bool operator==(const TcbVersionRaw& other) const = default;
+
+    TcbVersionRaw() = default;
+
+    TcbVersionRaw(const std::vector<uint8_t>& data)
+    {
+      if (data.size() != snp_tcb_version_size)
+      {
+        throw std::logic_error(
+          fmt::format("Invalid TCB version raw data size: {}", data.size()));
+      }
+      std::memcpy(
+        static_cast<void*>(underlying_data), data.data(), snp_tcb_version_size);
+    }
 
     [[nodiscard]] std::vector<uint8_t> data() const
     {
@@ -266,6 +278,16 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
           throw std::logic_error(
             "Unsupported SEV-SNP product for TCB version policy");
       }
+    }
+
+    [[nodiscard]] TcbVersionMilanGenoa* as_milan_genoa()
+    {
+      return reinterpret_cast<TcbVersionMilanGenoa*>(this);
+    }
+
+    [[nodiscard]] TcbVersionTurin* as_turin()
+    {
+      return reinterpret_cast<TcbVersionTurin*>(this);
     }
   };
   static_assert(
@@ -354,7 +376,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 #pragma pack(push, 1)
   // Table 21
 
-  static constexpr uint32_t minimum_attestation_version = 2;
+  static constexpr uint32_t minimum_attestation_version = 3;
   static constexpr uint32_t attestation_policy_abi_major = 1;
 
   struct Attestation
@@ -423,6 +445,15 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     const Attestation& quote,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
+    if (quote.version < minimum_attestation_version)
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: attestation version {} is not supported. Minimum "
+        "supported version is {}",
+        quote.version,
+        minimum_attestation_version));
+    }
+
     EndorsementEndpointsConfiguration config;
 
     auto chip_id_hex = fmt::format("{:02x}", fmt::join(quote.chip_id, ""));

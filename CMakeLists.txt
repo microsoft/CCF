@@ -221,6 +221,9 @@ install(
   DESTINATION lib
 )
 
+# CCF platform agnostic library
+add_ccf_static_library(ccf_pal SRCS ${CCF_DIR}/src/pal/attestation.cpp)
+
 # CCF js lib
 add_ccf_static_library(
   ccf_js
@@ -244,7 +247,7 @@ add_ccf_static_library(
        ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
        ${CCF_DIR}/src/js/extensions/ccf/request.cpp
        ${CCF_DIR}/src/js/registry.cpp
-  LINK_LIBS ccfcrypto quickjs
+  LINK_LIBS ccfcrypto quickjs ccf_pal
 )
 
 # CCF kv lib
@@ -391,6 +394,7 @@ add_ccf_static_library(
             nghttp2
             ${CMAKE_THREAD_LIBS_INIT}
             curl
+            ccf_pal
 )
 
 target_include_directories(
@@ -474,6 +478,7 @@ if(BUILD_TESTS)
       snp_attestation_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_attestation_validation.cpp
     )
+    target_link_libraries(snp_attestation_test PRIVATE ccf_pal ccfcrypto)
 
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 

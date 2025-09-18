@@ -110,7 +110,7 @@ namespace ccf::js::core
     JSWrappedValue get_global_obj() const;
     JSWrappedValue get_global_property(const char* s) const;
     JSWrappedValue get_or_create_global_property(
-      const char* s, JSWrappedValue default_value) const;
+      const char* s, JSWrappedValue&& default_value) const;
     JSWrappedValue get_typed_array_buffer(
       const JSWrappedValue& obj,
       size_t* pbyte_offset,
@@ -168,7 +168,7 @@ namespace ccf::js::core
     // Only to be used, as the name indicates, for calls inside an already
     // invoked JS function, where the caller has already set up the necessary
     // limits.
-    JSWrappedValue inner_call(
+    virtual JSWrappedValue inner_call(
       const JSWrappedValue& f, const std::vector<JSWrappedValue>& argv);
 
     // JSON I/O

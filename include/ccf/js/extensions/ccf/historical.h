@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/historical_queries_interface.h"
+#include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/extension_interface.h"
 
 #include <quickjs/quickjs.h>
@@ -31,7 +32,7 @@ namespace ccf::js::extensions
 
     void install(js::core::Context& ctx) override;
 
-    JSValue create_historical_state_object(
+    js::core::JSWrappedValue create_historical_state_object(
       js::core::Context& ctx, ccf::historical::StatePtr state) const;
   };
 }

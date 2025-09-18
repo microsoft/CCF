@@ -157,12 +157,6 @@ def cli_args(
         default=100,
     )
     parser.add_argument(
-        "--consensus",
-        help="Consensus",
-        default="CFT",
-        choices=("CFT",),
-    )
-    parser.add_argument(
         "--worker-threads",
         help="number of worker threads inside the enclave",
         type=int,
