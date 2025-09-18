@@ -390,7 +390,7 @@ namespace asynchost
 #endif
             }
 
-            auto sha = ccf::crypto::Sha256Hash(it->second.snapshot);
+            auto sha = ccf::crypto::Sha256Hash(*it->second.snapshot);
             LOG_INFO_FMT(
               "Writing snapshot to {} (sha256: {})", full_snapshot_path, sha);
 
