@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/hash_provider.h"
+#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/snp_ioctl.h"
 #include "ds/files.h"
 
@@ -84,6 +85,15 @@ namespace ccf::pal
     QuoteInfo node_quote_info = {};
     node_quote_info.format = QuoteFormat::amd_sev_snp_v1;
     auto attestation = snp::get_attestation(report_data);
+
+    if (attestation->get().version < pal::snp::minimum_attestation_version)
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: attestation version {} is less than the minimum supported "
+        "version {}",
+        attestation->get().version,
+        pal::snp::minimum_attestation_version));
+    }
 
     node_quote_info.quote = attestation->get_raw();
 

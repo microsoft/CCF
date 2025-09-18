@@ -590,7 +590,6 @@ class Network:
             self.common_dir,
             self.key_generator,
             self.share_script,
-            args.consensus,
             gov_api_version=args.gov_api_version,
         )
 
@@ -719,7 +718,6 @@ class Network:
                     common_dir,
                     self.key_generator,
                     self.share_script,
-                    args.consensus,
                     gov_api_version=args.gov_api_version,
                 )
                 for f in os.listdir(self.common_dir):
