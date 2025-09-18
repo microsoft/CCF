@@ -13,7 +13,7 @@ struct MergeSortTask : public ccf::tasks::BaseTask,
   // sub-sort
   static constexpr size_t sort_threshold = 50;
 
-  using Iterator = std::span<int>::iterator;
+  using Iterator = std::vector<int>::iterator;
 
   Iterator begin;
   Iterator end;

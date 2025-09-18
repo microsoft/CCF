@@ -14,22 +14,18 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 
-static inline std::span<int> get_merge_sort_data(size_t n)
+static inline std::vector<int> get_merge_sort_data(size_t n)
 {
-  static std::vector<int> data;
   static std::random_device rd;
   static std::mt19937 g(rd());
 
-  while (data.size() < n)
+  std::vector<int> data(n);
+  for (auto& x: data)
   {
-    data.emplace_back(rand());
+    x = rand();
   }
 
-  auto begin = data.begin();
-  auto end = begin + n;
-  std::shuffle(begin, end, g);
-
-  return {begin, end};
+  return data;
 }
 
 void do_merge_sort(picobench::state& s, size_t worker_count, size_t data_size)
