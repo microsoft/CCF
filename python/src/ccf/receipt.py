@@ -5,6 +5,7 @@ import base64
 from hashlib import sha256
 from typing import List
 from cryptography.x509 import Certificate
+from cryptography.x509.verification import PolicyBuilder, Store
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, utils
 
@@ -54,7 +55,9 @@ def check_endorsement(endorsee: Certificate, endorser: Certificate):
 
 
 def check_endorsements(
-    node_cert: Certificate, service_cert: Certificate, endorsements: List[Certificate]
+    node_cert: Certificate,
+    service_cert: Certificate,
+    endorsements: List[Certificate],
 ):
     """
     Check a node certificate is endorsed by a service certificate, transitively through a list of endorsements.
@@ -64,3 +67,21 @@ def check_endorsements(
         check_endorsement(cert_i, endorsement)
         cert_i = endorsement
     check_endorsement(cert_i, service_cert)
+
+
+def check_cert_chain(
+    node_cert: Certificate,
+    service_cert: Certificate,
+    endorsements: List[Certificate],
+):
+    """
+    Use default cryptography policy to verify CCF cert chain
+    """
+    builder = PolicyBuilder()
+    builder = builder.store(Store([service_cert]))
+
+    # This would ideally be `build_server_verifier`, but that requires a
+    # Subject which is either a valid DNSName or IPAddress. Our node cert's
+    # Subject is "CCF Node", and we may not have a better value in SAN
+    verifier = builder.build_client_verifier()
+    verifier.verify(leaf=node_cert, intermediates=endorsements)

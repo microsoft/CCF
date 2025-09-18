@@ -12,7 +12,6 @@ pyasn1
 Jinja2
 httpx[http2] == 0.23.*
 locust
-pyOpenSSL
 JWCrypto>=1.5.1 # x25519 support
 pycose
 rich
