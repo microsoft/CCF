@@ -8,6 +8,7 @@
 #include "ccf/version.h"
 #include "config_schema.h"
 #include "configuration.h"
+#include "crypto/openssl/hash.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/non_blocking.h"
@@ -341,6 +342,8 @@ int main(int argc, char** argv)
 
   asynchost::ProcessLauncher process_launcher;
   process_launcher.register_message_handlers(bp.get_dispatcher());
+
+  ccf::crypto::openssl_sha256_init();
 
   {
     // provide regular ticks to the enclave
@@ -845,6 +848,8 @@ int main(int argc, char** argv)
   auto rc = uv_loop_close(uv_default_loop());
   if (rc)
     LOG_FAIL_FMT("Failed to close uv loop cleanly: {}", uv_err_name(rc));
+
+  ccf::crypto::openssl_sha256_shutdown();
 
   return rc;
 }
