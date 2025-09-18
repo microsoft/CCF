@@ -50,7 +50,7 @@ endgroup
 
 # No inline TODOs in the codebase, use tickets, with a pointer to the code if necessary.
 group "TODOs"
-"$SCRIPT_DIR"/check-todo.sh .
+"$SCRIPT_DIR"/check-todo.sh . || fail
 endgroup
 
 group "Public includes"
@@ -164,7 +164,7 @@ endgroup
 
 group "Summary"
 if [[ -n "$FAIL" ]]; then
-  echo "One or more checks failed in groups: ${FAIL//;/, }"
+  echo "The following checks failed: ${FAIL//;/, }"
   exit 1
 else
   echo "All checks passed"
