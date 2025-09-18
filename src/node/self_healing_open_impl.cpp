@@ -353,8 +353,8 @@ namespace ccf
       node_state->config.recover.self_healing_open->timeout);
   }
 
-  inline void dispatch_authenticated_message(
-    nlohmann::json&& request,
+  void dispatch_authenticated_message(
+    nlohmann::json& request,
     const std::string& target_address,
     const std::string& endpoint,
     const crypto::Pem& self_signed_node_cert,
@@ -451,12 +451,13 @@ namespace ccf
       .info = make_node_info(),
       .txid = node_state->get_last_recovered_signed_idx(),
     };
+    nlohmann::json request_json = request;
 
     for (auto& target_address :
          node_state->config.recover.self_healing_open->addresses)
     {
       dispatch_authenticated_message(
-        std::move(request),
+        request_json,
         target_address,
         "gossip",
         node_state->self_signed_node_cert,
@@ -476,8 +477,10 @@ namespace ccf
 
     self_healing_open::VoteRequest request{.info = make_node_info()};
 
+    nlohmann::json request_json = request;
+
     dispatch_authenticated_message(
-      std::move(request),
+      request_json,
       node_info.published_network_address,
       "vote",
       node_state->self_signed_node_cert,
@@ -497,6 +500,7 @@ namespace ccf
     LOG_TRACE_FMT("Sending self-healing-open iamopen");
 
     self_healing_open::IAmOpenRequest request{.info = make_node_info()};
+    nlohmann::json request_json = request;
 
     for (auto& target_address :
          node_state->config.recover.self_healing_open->addresses)
@@ -510,7 +514,7 @@ namespace ccf
         continue;
       }
       dispatch_authenticated_message(
-        std::move(request),
+        request_json,
         target_address,
         "iamopen",
         node_state->self_signed_node_cert,
