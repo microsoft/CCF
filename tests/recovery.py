@@ -313,7 +313,14 @@ def test_recover_service_from_files(
 
     if test_receipt:
         r = primary.get_receipt(2, 3)
-        verify_receipt(r.json(), network.cert)
+
+        verify_receipt(
+            r.json(),
+            network.cert,
+            # Even when we want to check that receipts are valid,
+            # these old services are likely to use expired certs
+            skip_cert_chain_checks=True,
+        )
 
 
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
