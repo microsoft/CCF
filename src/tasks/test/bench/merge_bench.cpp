@@ -20,7 +20,7 @@ static inline std::vector<int> get_merge_sort_data(size_t n)
   static std::mt19937 g(rd());
 
   std::vector<int> data(n);
-  for (auto& x: data)
+  for (auto& x : data)
   {
     x = rand();
   }
