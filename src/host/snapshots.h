@@ -284,7 +284,7 @@ namespace asynchost
       files::rename(full_tmp_path, full_committed_path);
 
       // read and log the hash of the written snapshot
-      auto raw = files::slurp(data->committed_file_name);
+      auto raw = files::slurp(full_committed_path);
       LOG_INFO_FMT(
         "Written snapshot to {} (size: {} bytes, sha256: {} )",
         data->committed_file_name,
