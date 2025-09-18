@@ -16,7 +16,7 @@
 namespace
 {
   ccf::pal::Mutex create_lock;
-  std::unique_ptr<ccf::Enclave> enclave;
+  std::atomic<ccf::Enclave*> e;
 }
 
 std::atomic<uint16_t> num_pending_threads = 0;
@@ -37,7 +37,7 @@ extern "C"
   {
     std::lock_guard<ccf::pal::Mutex> guard(create_lock);
 
-    if (enclave != nullptr)
+    if (e != nullptr)
     {
       return CreateNodeStatus::NodeAlreadyCreated;
     }
@@ -103,11 +103,11 @@ extern "C"
 
     ccf::logger::config::level() = permitted;
 
-    std::unique_ptr<ccf::Enclave> tmp_enclave = nullptr;
+    ccf::Enclave* enclave = nullptr;
 
     try
     {
-      tmp_enclave = std::make_unique<ccf::Enclave>(
+      enclave = new ccf::Enclave(
         std::move(circuit),
         std::move(basic_writer_factory),
         std::move(writer_factory),
@@ -141,26 +141,38 @@ extern "C"
 
     CreateNodeStatus status = EnclaveInitFailed;
 
-    status = tmp_enclave->create_new_node(
-      start_type,
-      ccf_config,
-      std::move(startup_snapshot),
-      node_cert,
-      service_cert);
+    try
+    {
+      status = enclave->create_new_node(
+        start_type,
+        ccf_config,
+        std::move(startup_snapshot),
+        node_cert,
+        service_cert);
+    }
+    catch (...)
+    {
+      // NOLINTBEGIN(cppcoreguidelines-owning-memory)
+      delete enclave;
+      // NOLINTEND(cppcoreguidelines-owning-memory)
+      throw;
+    }
 
     if (status != CreateNodeStatus::OK)
-    {
+    { // NOLINTBEGIN(cppcoreguidelines-owning-memory)
+      delete enclave;
+      // NOLINTEND(cppcoreguidelines-owning-memory)
       return status;
     }
 
-    enclave.swap(tmp_enclave);
+    e.store(enclave);
 
     return CreateNodeStatus::OK;
   }
 
   bool enclave_run()
   {
-    if (enclave != nullptr)
+    if (e.load() != nullptr)
     {
       uint16_t tid = 0;
       {
@@ -180,7 +192,7 @@ extern "C"
 
       if (tid == ccf::threading::MAIN_THREAD_ID)
       {
-        auto s = enclave->run_main();
+        auto s = e.load()->run_main();
         while (num_complete_threads !=
                threading::ThreadMessaging::instance().thread_count() - 1)
         {
@@ -188,7 +200,7 @@ extern "C"
         threading::ThreadMessaging::shutdown();
         return s;
       }
-      auto s = enclave->run_worker();
+      auto s = e.load()->run_worker();
       num_complete_threads.fetch_add(1);
       return s;
     }
