@@ -1119,158 +1119,95 @@ namespace ccf::js::extensions
 
   void CryptoExtension::install(js::core::Context& ctx)
   {
-    auto crypto = JS_NewObject(ctx);
+    auto crypto = ctx.new_obj();
 
-    JS_SetPropertyStr(
-      ctx, crypto, "sign", JS_NewCFunction(ctx, js_sign, "sign", 3));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+    crypto.set("sign", ctx.new_c_function(js_sign, "sign", 3));
+    crypto.set(
       "verifySignature",
-      JS_NewCFunction(ctx, js_verify_signature, "verifySignature", 4));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+      ctx.new_c_function(js_verify_signature, "verifySignature", 4));
+    crypto.set(
       "pubPemToJwk",
-      JS_NewCFunction(
-        ctx, js_pem_to_jwk<ccf::crypto::JsonWebKeyECPublic>, "pubPemToJwk", 1));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+      ctx.new_c_function(
+        js_pem_to_jwk<ccf::crypto::JsonWebKeyECPublic>, "pubPemToJwk", 1));
+    crypto.set(
       "pemToJwk",
-      JS_NewCFunction(
-        ctx, js_pem_to_jwk<ccf::crypto::JsonWebKeyECPrivate>, "pemToJwk", 1));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+      ctx.new_c_function(
+        js_pem_to_jwk<ccf::crypto::JsonWebKeyECPrivate>, "pemToJwk", 1));
+    crypto.set(
       "pubRsaPemToJwk",
-      JS_NewCFunction(
-        ctx,
-        js_pem_to_jwk<ccf::crypto::JsonWebKeyRSAPublic>,
-        "pubRsaPemToJwk",
-        1));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+      ctx.new_c_function(
+        js_pem_to_jwk<ccf::crypto::JsonWebKeyRSAPublic>, "pubRsaPemToJwk", 1));
+    crypto.set(
       "rsaPemToJwk",
-      JS_NewCFunction(
-        ctx,
-        js_pem_to_jwk<ccf::crypto::JsonWebKeyRSAPrivate>,
-        "rsaPemToJwk",
-        1));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+      ctx.new_c_function(
+        js_pem_to_jwk<ccf::crypto::JsonWebKeyRSAPrivate>, "rsaPemToJwk", 1));
+    crypto.set(
       "pubEddsaPemToJwk",
-      JS_NewCFunction(
-        ctx,
+      ctx.new_c_function(
         js_pem_to_jwk<ccf::crypto::JsonWebKeyEdDSAPublic>,
         "pubEddsaPemToJwk",
         1));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+    crypto.set(
       "eddsaPemToJwk",
-      JS_NewCFunction(
-        ctx,
+      ctx.new_c_function(
         js_pem_to_jwk<ccf::crypto::JsonWebKeyEdDSAPrivate>,
         "eddsaPemToJwk",
         1));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+    crypto.set(
       "pubJwkToPem",
-      JS_NewCFunction(
-        ctx, js_jwk_to_pem<ccf::crypto::JsonWebKeyECPublic>, "pubJwkToPem", 1));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+      ctx.new_c_function(
+        js_jwk_to_pem<ccf::crypto::JsonWebKeyECPublic>, "pubJwkToPem", 1));
+    crypto.set(
       "jwkToPem",
-      JS_NewCFunction(
-        ctx, js_jwk_to_pem<ccf::crypto::JsonWebKeyECPrivate>, "jwkToPem", 1));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+      ctx.new_c_function(
+        js_jwk_to_pem<ccf::crypto::JsonWebKeyECPrivate>, "jwkToPem", 1));
+    crypto.set(
       "pubRsaJwkToPem",
-      JS_NewCFunction(
-        ctx,
-        js_jwk_to_pem<ccf::crypto::JsonWebKeyRSAPublic>,
-        "pubRsaJwkToPem",
-        1));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+      ctx.new_c_function(
+        js_jwk_to_pem<ccf::crypto::JsonWebKeyRSAPublic>, "pubRsaJwkToPem", 1));
+    crypto.set(
       "rsaJwkToPem",
-      JS_NewCFunction(
-        ctx,
-        js_jwk_to_pem<ccf::crypto::JsonWebKeyRSAPrivate>,
-        "rsaJwkToPem",
-        1));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+      ctx.new_c_function(
+        js_jwk_to_pem<ccf::crypto::JsonWebKeyRSAPrivate>, "rsaJwkToPem", 1));
+    crypto.set(
       "pubEddsaJwkToPem",
-      JS_NewCFunction(
-        ctx,
+      ctx.new_c_function(
         js_jwk_to_pem<ccf::crypto::JsonWebKeyEdDSAPublic>,
         "pubEddsaJwkToPem",
         1));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+    crypto.set(
       "eddsaJwkToPem",
-      JS_NewCFunction(
-        ctx,
+      ctx.new_c_function(
         js_jwk_to_pem<ccf::crypto::JsonWebKeyEdDSAPrivate>,
         "eddsaJwkToPem",
         1));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+    crypto.set(
       "generateAesKey",
-      JS_NewCFunction(ctx, js_generate_aes_key, "generateAesKey", 1));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+      ctx.new_c_function(js_generate_aes_key, "generateAesKey", 1));
+    crypto.set(
       "generateRsaKeyPair",
-      JS_NewCFunction(ctx, js_generate_rsa_key_pair, "generateRsaKeyPair", 1));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+      ctx.new_c_function(js_generate_rsa_key_pair, "generateRsaKeyPair", 1));
+    crypto.set(
       "generateEcdsaKeyPair",
-      JS_NewCFunction(
-        ctx, js_generate_ecdsa_key_pair, "generateEcdsaKeyPair", 1));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+      ctx.new_c_function(
+        js_generate_ecdsa_key_pair, "generateEcdsaKeyPair", 1));
+    crypto.set(
       "generateEddsaKeyPair",
-      JS_NewCFunction(
-        ctx, js_generate_eddsa_key_pair, "generateEddsaKeyPair", 1));
-    JS_SetPropertyStr(
-      ctx, crypto, "wrapKey", JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
-      "unwrapKey",
-      JS_NewCFunction(ctx, js_unwrap_key, "unwrapKey", 3));
-    JS_SetPropertyStr(
-      ctx, crypto, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+      ctx.new_c_function(
+        js_generate_eddsa_key_pair, "generateEddsaKeyPair", 1));
+    crypto.set("wrapKey", ctx.new_c_function(js_wrap_key, "wrapKey", 3));
+    crypto.set("unwrapKey", ctx.new_c_function(js_unwrap_key, "unwrapKey", 3));
+    crypto.set("digest", ctx.new_c_function(js_digest, "digest", 2));
+    crypto.set(
       "isValidX509CertBundle",
-      JS_NewCFunction(
-        ctx, js_is_valid_x509_cert_bundle, "isValidX509CertBundle", 1));
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
+      ctx.new_c_function(
+        js_is_valid_x509_cert_bundle, "isValidX509CertBundle", 1));
+    crypto.set(
       "isValidX509CertChain",
-      JS_NewCFunction(
-        ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
+      ctx.new_c_function(
+        js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    // NOLINTBEGIN(performance-move-const-arg)
     ccf.set("crypto", std::move(crypto));
-    // NOLINTEND(performance-move-const-arg)
   }
 }

@@ -456,9 +456,7 @@ namespace ccf::js
             if (extension != nullptr)
             {
               auto val = extension->create_historical_state_object(ctx, state);
-              // NOLINTBEGIN(performance-move-const-arg)
               ccf.set("historicalState", std::move(val));
-              // NOLINTEND(performance-move-const-arg)
             }
             else
             {
