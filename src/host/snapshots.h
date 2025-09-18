@@ -286,7 +286,7 @@ namespace asynchost
       // read and log the hash of the written snapshot
       auto raw = files::slurp(data->committed_file_name);
       LOG_INFO_FMT(
-        "Written snapshot to {} (size: {} bytes, hash: {} )",
+        "Written snapshot to {} (size: {} bytes, sha256: {} )",
         data->committed_file_name,
         raw.size(),
         ccf::crypto::Sha256Hash(raw).hex_str());
@@ -392,7 +392,7 @@ namespace asynchost
 
             auto sha = ccf::crypto::Sha256Hash(it->second.snapshot);
             LOG_INFO_FMT(
-              "Writing snapshot to {} (hash: {})", full_snapshot_path, sha);
+              "Writing snapshot to {} (sha256: {})", full_snapshot_path, sha);
 
             pending_snapshots.erase(it);
 

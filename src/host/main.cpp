@@ -718,7 +718,7 @@ int main(int argc, char** argv)
         auto sha = ccf::crypto::Sha256Hash(startup_snapshot);
 
         LOG_INFO_FMT(
-          "Found latest snapshot file: {} (size: {}, hash: {})",
+          "Found latest snapshot file: {} (size: {}, sha256: {})",
           snapshot_dir / snapshot_file,
           startup_snapshot.size(),
           sha.hex_str());
