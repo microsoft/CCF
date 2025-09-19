@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Improved logging of snapshot digests (#7300)
 - Node will now retry when fetching snapshots. This is controlled with `command.join.fetch_snapshot_max_attempts` and `command.join.fetch_snapshot_retry_interval`. (#7317)
 
+### Changed
+
+- The `submit_recovery_share.sh` script will no longer try to create a virtual environment and install the CCF Python package on every call. Instead it will return an error if the package is not installed (specifically if the `ccf_cose_sign1` tool it relies on cannot be found) (#7306)
+
 [6.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.14
 
 ### Added
