@@ -796,6 +796,8 @@ class Network:
             i: None for i in range(len(self.nodes))
         }
         snapshot_dirs = snapshot_dirs or {i: None for i in range(len(self.nodes))}
+
+        # separate out all starting nodes' directories such that they recover independently
         self.per_node_args_override = {
             i: (
                 d
@@ -808,9 +810,11 @@ class Network:
             for i, d in self.per_node_args_override.items()
         }
 
+        # Fix the port numbers to make all nodes _well known_ 
         for i, node in enumerate(self.nodes):
-            node.host.get_primary_interface().port = 5000 + (i + 1)
-            node.host.get_primary_interface().public_port = 5000 + (i + 1)
+            port = 1000 + random.randint(0, 64534)
+            node.host.get_primary_interface().port = port
+            node.host.get_primary_interface().public_port = port
 
         LOG.info("Set up nodes")
         for node in self.nodes:
@@ -858,30 +862,31 @@ class Network:
         self.election_duration = args.election_timeout_ms / 1000
         self.observed_election_duration = self.election_duration + 1
 
-        for i, node in enumerate(self.nodes):
-            end_time = time.time() + timeout
-            success = False
-            while time.time() < end_time:
-                try:
-                    self.wait_for_states(
-                        node,
-                        [
-                            infra.node.State.PART_OF_PUBLIC_NETWORK.value,
-                            infra.node.State.PART_OF_NETWORK,
-                        ],
-                        timeout=args.ledger_recovery_timeout,
-                        verify_ca=False,  # Certs are volatile until the recovery is complete
-                    )
-                    success = True
-                    break
-                except CCFConnectionException:
-                    time.sleep(0.1)
-            if not success:
-                raise TimeoutError(
-                    f"Failed to get state of node {node.local_node_id} after {timeout} seconds"
-                )
+        def cycle(items):
+          while True:
+            for item in items:
+              yield item
 
-        LOG.info("All nodes started")
+        # Waiting for any node to transition-to-open
+        end_time = time.time() + timeout
+        for i, node in cycle(enumerate(self.nodes)):
+            if time.time() > end_time:
+                raise TimeoutError("Timed out waiting for any node to open")
+            try:
+                self.wait_for_statuses(
+                    node,
+                    ["WaitingForRecoveryShares", "Open"],
+                    timeout=0.5,
+                    verify_ca=False,
+                )
+                break
+            except TimeoutError:
+                LOG.info(
+                    f"Failed to get the status of {node.local_node_id}, retrying..."
+                )
+                continue
+
+        LOG.info("One node opened")
 
     def recover(
         self,

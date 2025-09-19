@@ -1499,27 +1499,6 @@ def run_self_healing_open(args):
             committed_ledger_dirs=committed_ledger_dirs,
         )
 
-        def cycle(items):
-            while True:
-                for item in items:
-                    yield item
-
-        # Wait for any node to be waiting for RecoveryShares, ie it opened
-        for node in cycle(recovered_network.nodes):
-            try:
-                recovered_network.wait_for_statuses(
-                    node,
-                    ["WaitingForRecoveryShares", "Open"],
-                    timeout=1,
-                    verify_ca=False,
-                )
-                break
-            except TimeoutError:
-                LOG.info(
-                    f"Failed to get the status of {node.local_node_id}, retrying..."
-                )
-                continue
-
         # Refresh the the declared state of nodes which have shut themselves down to join.
         for node in recovered_network.nodes:
             node.refresh_network_state(verify_ca=False)

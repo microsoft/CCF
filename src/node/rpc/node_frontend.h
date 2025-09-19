@@ -437,7 +437,7 @@ namespace ccf
       {
         const auto [code, message] = quote_verification_error(verify_result);
         LOG_FAIL_FMT(
-          "Self-healing-open gossip from intrinsic id {} is invalid: {} ({})",
+          "Self-healing-open message from intrinsic id {} is invalid: {} ({})",
           in.intrinsic_id,
           code,
           message);
@@ -445,7 +445,7 @@ namespace ccf
       }
 
       LOG_TRACE_FMT(
-        "Self-healing-open gossip from intrinsic id {}'s quote is valid",
+        "Self-healing-open message from intrinsic id {}'s quote is valid",
         in.intrinsic_id);
 
       // Validating that we haven't heard from this node before, of if we have
@@ -459,12 +459,12 @@ namespace ccf
         if (existing_node_info->cert_der != cert_der)
         {
           LOG_FAIL_FMT(
-            "Self-healing-open gossip from intrinsic id {} is invalid: "
+            "Self-healing-open message from intrinsic id {} is invalid: "
             "certificate has changed",
             in.intrinsic_id);
           return std::make_tuple(
             HTTP_STATUS_BAD_REQUEST,
-            "Self-healing-open gossip from intrinsic id is invalid: "
+            "Self-healing-open message from intrinsic id is invalid: "
             "certificate has changed");
         }
       }
@@ -478,8 +478,6 @@ namespace ccf
           .intrinsic_id = in.intrinsic_id};
         node_info_handle->put(in.intrinsic_id, src_info);
       }
-
-      // TODO validate that this gossip is for the same network
 
       return std::nullopt;
     };

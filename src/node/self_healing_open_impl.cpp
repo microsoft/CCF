@@ -16,6 +16,8 @@ namespace ccf
       return;
     }
 
+    LOG_INFO_FMT("Starting self-healing-open");
+
     // Reset the self-healing-open state
     auto* state_handle =
       tx.rw<ccf::SelfHealingOpenSMState>(Tables::SELF_HEALING_OPEN_SM_STATE);
@@ -449,7 +451,7 @@ namespace ccf
 
     self_healing_open::GossipRequest request{
       .info = make_node_info(),
-      .txid = node_state->get_last_recovered_signed_idx(),
+      .txid = node_state->last_recovered_signed_idx,
     };
     nlohmann::json request_json = request;
 
