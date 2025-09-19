@@ -288,6 +288,40 @@ def test_empty_snapshot(network, args):
                 )
 
 
+def test_nulled_snapshot(network, args):
+
+    with tempfile.TemporaryDirectory() as snapshots_dir:
+        LOG.debug(f"Using {snapshots_dir} as snapshots directory")
+
+        snapshot_name = "snapshot_1000_1500.committed"
+
+        with open(
+            os.path.join(snapshots_dir, snapshot_name), "wb+"
+        ) as temp_empty_snapshot:
+
+            LOG.debug(f"Created empty snapshot {temp_empty_snapshot.name}")
+            temp_empty_snapshot.write(b"\x00" * 64)
+
+        LOG.info(
+            "Attempt to join a node using the corrupted snapshot copy (should fail)"
+        )
+        new_node = network.create_node("local://localhost")
+        failed = False
+        try:
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                snapshots_dir=snapshots_dir,
+            )
+        except Exception as e:
+            failed = True
+            LOG.info(f"Node failed to join as expected: {e}")
+
+        # (Existing assertion logic retained)
+        assert failed, "Node should not have joined successfully"
+
+
 def split_all_ledger_files_in_dir(input_dir, output_dir):
     # A ledger file can only be split at a seqno that contains a signature
     # (so that all files end on a signature that verifies their integrity).
@@ -376,6 +410,7 @@ def run_file_operations(args):
                 test_forced_snapshot(network, args)
                 test_large_snapshot(network, args)
                 test_empty_snapshot(network, args)
+                test_nulled_snapshot(network, args)
 
                 primary, _ = network.find_primary()
                 # Scoped transactions are not handled by historical range queries
