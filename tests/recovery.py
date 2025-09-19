@@ -658,7 +658,10 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
 
     # Check that all nodes have the same (recovery) ledger files
     aborted_network.stop_all_nodes(
-        skip_verification=True, read_recovery_ledger_files=True
+        skip_verification=True,
+        read_recovery_ledger_files=True,
+        # We've deliberately terminated mid-recovery, when it is likely that some nodes still have local-only .recovery
+        accept_ledger_diff=True,
     )
 
     current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
