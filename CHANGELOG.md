@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Correctly validate the full AMD ASK endorsement chain (#7233)
 - Validate endorsement metadata (tcb version and chip id) against attestation (#7240)
 
+### Changed
+
+- The `submit_recovery_share.sh` script will no longer try to create a virtual environment and install the CCF Python package on every call. Instead it will return an error if the package is not installed (specifically if the `ccf_cose_sign1` tool it relies on cannot be found) (#7306)
+
 ### Removed
 
 - Removed `ccf::crypt::openssl_sha256_init()` and `ccf::crypt::openssl_sha256_shutdown()` interface, as it's now implicitly called by the crypto implementation (#7251).
