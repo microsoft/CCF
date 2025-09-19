@@ -107,6 +107,7 @@ extern "C"
 
     try
     {
+      // NOLINTBEGIN(cppcoreguidelines-owning-memory)
       enclave = new ccf::Enclave(
         std::move(circuit),
         std::move(basic_writer_factory),
@@ -117,6 +118,7 @@ extern "C"
         ccf_config.consensus,
         ccf_config.node_certificate.curve_id,
         work_beacon);
+      // NOLINTEND(cppcoreguidelines-owning-memory)
     }
     catch (const ccf::ccf_openssl_rdrand_init_error& exc)
     {
