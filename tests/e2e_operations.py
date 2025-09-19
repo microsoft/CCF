@@ -1499,6 +1499,10 @@ def run_self_healing_open(args):
             committed_ledger_dirs=committed_ledger_dirs,
         )
 
+        # Wait until all relevant nodes have restarted
+
+        time.sleep(3)
+
         # Refresh the the declared state of nodes which have shut themselves down to join.
         for node in recovered_network.nodes:
             node.refresh_network_state(verify_ca=False)
