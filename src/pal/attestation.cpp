@@ -238,35 +238,10 @@ namespace ccf::pal
         snp::minimum_attestation_version));
     }
 
-    if (quote.flags.signing_key != snp::attestation_flags_signing_key_vcek)
-    {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: Attestation report must be signed by VCEK: {}",
-        static_cast<uint8_t>(quote.flags.signing_key)));
-    }
+    auto product_family =
+      snp::get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
 
-    if (quote.flags.mask_chip_key != 0)
-    {
-      throw std::logic_error(
-        fmt::format("SEV-SNP: Mask chip key must not be set"));
-    }
-
-    // Introduced in
-    // https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/programmer-references/56860.pdf
-    // The guest sets the VMPL field to a value from 0 thru 3 which indicates a
-    // request from the guest. For a Guest requested attestation report this
-    // field will contain the value (0-3). A Host requested attestation report
-    // will have a value of 0xffffffff. CCF current always sets VMPL to 0, and
-    // rejects non-guest values.
-    if (quote.vmpl > 3)
-    {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: VMPL for guest attestations must be in 0-3 range, not {}",
-        quote.vmpl));
-    }
-
-    report_data = SnpAttestationReportData(quote.report_data);
-    measurement = SnpAttestationMeasurement(quote.measurement);
+    // ---- Verify certificate chain ----
 
     auto certificates = ccf::crypto::split_x509_cert_bundle(std::string_view(
       reinterpret_cast<const char*>(quote_info.endorsements.data()),
@@ -277,24 +252,25 @@ namespace ccf::pal
         "Expected 3 endorsement certificates but got {}", certificates.size()));
     }
 
-    // chip_cert (VCEK) <-signs- sev_version (ASK)
-    // ASK <-signs- root_certificate (ARK)
-    auto chip_certificate = certificates[0];
-    auto sev_version_certificate = certificates[1];
-    auto root_certificate = certificates[2];
+    // ark_cert --signs--> ask_cert
+    // ask_cert --signs--> vcek_cert
+    auto vcek_cert = certificates[0];
+    auto ask_cert = certificates[1];
+    auto ark_cert = certificates[2];
 
-    auto root_cert_verifier = ccf::crypto::make_verifier(root_certificate);
+    auto ark_verifier = ccf::crypto::make_verifier(ark_cert);
 
-    auto product_family =
-      snp::get_sev_snp_product(quote.cpuid_fam_id, quote.cpuid_mod_id);
-    auto key = snp::amd_root_signing_keys.find(product_family);
-    if (key == snp::amd_root_signing_keys.end())
+    std::string expected_ark;
     {
-      throw std::logic_error(fmt::format(
-        "SEV-SNP: No known root certificate for {}", product_family));
+      auto key = snp::amd_root_signing_keys.find(product_family);
+      if (key == snp::amd_root_signing_keys.end())
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: No known root certificate for {}", product_family));
+      }
+      expected_ark = key->second;
     }
-    std::string expected_root_public_key = key->second;
-    if (root_cert_verifier->public_key_pem().str() != expected_root_public_key)
+    if (ark_verifier->public_key_pem().str() != expected_ark)
     {
       throw std::logic_error(fmt::format(
         "SEV-SNP: The root of trust public key for this attestation was not "
@@ -302,25 +278,27 @@ namespace ccf::pal
         quote.version,
         quote.cpuid_fam_id,
         quote.cpuid_mod_id,
-        root_cert_verifier->public_key_pem().str(),
-        expected_root_public_key));
+        ark_verifier->public_key_pem().str(),
+        expected_ark));
     }
 
-    if (!root_cert_verifier->verify_certificate({&root_certificate}))
+    if (!ark_verifier->verify_certificate({&ark_cert}))
     {
       throw std::logic_error(
         "SEV-SNP: The root of trust public key for this attestation was not "
         "self signed as expected");
     }
 
-    auto chip_cert_verifier = ccf::crypto::make_verifier(chip_certificate);
-    if (!chip_cert_verifier->verify_certificate(
-          {&root_certificate}, {&sev_version_certificate}))
+    auto vcek_verifier = ccf::crypto::make_verifier(/* leaf */ vcek_cert);
+    if (!vcek_verifier->verify_certificate(
+          /* root */ {&ark_cert}, /* chain */ {&ask_cert}))
     {
       throw std::logic_error(
         "SEV-SNP: The chain of signatures from the root of trust to this "
         "attestation is broken");
     }
+
+    // ---- Verify attestation report signature ----
 
     // According to Table 134 (2025-06-12) only ecdsa_p384_sha384 is supported
     if (quote.signature_algo != snp::SignatureAlgorithm::ecdsa_p384_sha384)
@@ -343,22 +321,39 @@ namespace ccf::pal
     std::span quote_without_signature{
       quote_info.quote.data(),
       quote_info.quote.size() - sizeof(quote.signature)};
-    if (!chip_cert_verifier->verify(quote_without_signature, quote_signature))
+    if (!vcek_verifier->verify(quote_without_signature, quote_signature))
     {
       throw std::logic_error(
         "SEV-SNP: Chip certificate (VCEK) did not sign this attestation");
     }
 
-    // We should check this (although not security critical) but the guest
-    // policy ABI is currently set to 0.31, although we are targeting 1.54
-    // if (quote.policy.abi_major < snp::attestation_policy_abi_major)
-    // {
-    //   throw std::logic_error(fmt::format(
-    //     "SEV-SNP: Attestation guest policy ABI major {} must be greater than
-    //     " "or equal to {}", quote.policy.abi_major,
-    //     snp::attestation_policy_abi_major));
-    // }
+    // ---- Verify attestation report contents ----
 
+    if (quote.flags.signing_key != snp::attestation_flags_signing_key_vcek)
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: Attestation report must be signed by VCEK: {}",
+        static_cast<uint8_t>(quote.flags.signing_key)));
+    }
+
+    // mask_chip_key if set means the operator set the vcek to 0s
+    if (quote.flags.mask_chip_key != 0)
+    {
+      throw std::logic_error(
+        fmt::format("SEV-SNP: Mask chip key must not be set"));
+    }
+
+    // All attestation reports generated by guests must have VMPL <= 3
+    // while host generated reports have VMPL > 3.
+    // We should reject host generated reports.
+    if (quote.vmpl > 3)
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: This report seems to be host generated (VMPL {} > 3)",
+        quote.vmpl));
+    }
+
+    // Debug mode would allow decryption of guest pages
     if (quote.policy.debug != 0)
     {
       throw std::logic_error(
@@ -366,13 +361,16 @@ namespace ccf::pal
         "enabled");
     }
 
+    // Migration of CCF nodes and other services could allow duplicates, and
+    // hence must be disallowed
     if (quote.policy.migrate_ma != 0)
     {
-      throw std::logic_error("SEV-SNP: Migration agents must not be enabled");
+      throw std::logic_error(
+        "SEV-SNP: SNP attestation report guest policy migration must not be "
+        "enabled");
     }
 
-    auto endorsed_tcb =
-      get_endorsed_tcb_from_cert(product_family, chip_certificate);
+    auto endorsed_tcb = get_endorsed_tcb_from_cert(product_family, vcek_cert);
     if (endorsed_tcb.has_value())
     {
       auto endorsed_tcb_policy = endorsed_tcb->to_policy(product_family);
@@ -388,7 +386,7 @@ namespace ccf::pal
       }
     }
 
-    auto endorsed_chip_id = get_endorsed_chip_id_from_cert(chip_certificate);
+    auto endorsed_chip_id = get_endorsed_chip_id_from_cert(vcek_cert);
     if (
       endorsed_chip_id.has_value() &&
       (endorsed_chip_id->size() != sizeof(quote.chip_id) ||
@@ -419,6 +417,11 @@ namespace ccf::pal
           report_tcb_hex));
       }
     }
+
+    // ---- Set return values ----
+
+    report_data = SnpAttestationReportData(quote.report_data);
+    measurement = SnpAttestationMeasurement(quote.measurement);
   }
 
   void verify_quote(
