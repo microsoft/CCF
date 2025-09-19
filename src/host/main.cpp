@@ -438,6 +438,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   asynchost::ProcessLauncher process_launcher;
   process_launcher.register_message_handlers(buffer_processor.get_dispatcher());
 
+  ccf::crypto::openssl_sha256_init();
+
   {
     // provide regular ticks to the enclave
     const asynchost::Ticker ticker(config.tick_interval, writer_factory);
@@ -857,6 +859,13 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
       config.command.type == StartType::Recover)
     {
       auto latest_local_snapshot = snapshots.find_latest_committed_snapshot();
+      auto sha = ccf::crypto::Sha256Hash(startup_snapshot);
+      LOG_INFO_FMT(
+        "Found latest snapshot file: {} (size: {}, sha256: {})",
+        latest_local_snapshot->first / latest_local_snapshot->second,
+        startup_snapshot.size(),
+        sha.hex_str());
+
 
       if (
         config.command.type == StartType::Join &&
