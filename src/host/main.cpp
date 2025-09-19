@@ -8,6 +8,7 @@
 #include "ccf/version.h"
 #include "config_schema.h"
 #include "configuration.h"
+#include "crypto/openssl/hash.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/non_blocking.h"
@@ -341,6 +342,8 @@ int main(int argc, char** argv)
 
   asynchost::ProcessLauncher process_launcher;
   process_launcher.register_message_handlers(bp.get_dispatcher());
+
+  ccf::crypto::openssl_sha256_init();
 
   {
     // provide regular ticks to the enclave
@@ -715,10 +718,13 @@ int main(int argc, char** argv)
         auto& [snapshot_dir, snapshot_file] = latest_committed_snapshot.value();
         startup_snapshot = files::slurp(snapshot_dir / snapshot_file);
 
+        auto sha = ccf::crypto::Sha256Hash(startup_snapshot);
+
         LOG_INFO_FMT(
-          "Found latest snapshot file: {} (size: {})",
+          "Found latest snapshot file: {} (size: {}, sha256: {})",
           snapshot_dir / snapshot_file,
-          startup_snapshot.size());
+          startup_snapshot.size(),
+          sha.hex_str());
       }
       else
       {
@@ -842,6 +848,8 @@ int main(int argc, char** argv)
   auto rc = uv_loop_close(uv_default_loop());
   if (rc)
     LOG_FAIL_FMT("Failed to close uv loop cleanly: {}", uv_err_name(rc));
+
+  ccf::crypto::openssl_sha256_shutdown();
 
   return rc;
 }
