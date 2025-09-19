@@ -23,6 +23,7 @@ namespace ccf
 
     void trigger_restart()
     {
+      LOG_INFO_FMT("Received request to restart enclave, sending stops");
       RINGBUFFER_WRITE_MESSAGE(AdminMessage::stop, to_enclave);
     }
   };
