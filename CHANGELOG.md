@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Better logging of invalid snapshots
+- Better logging of invalid snapshots (#7302)
 - Logging of snapshot digests
 
 ## [5.0.22]
