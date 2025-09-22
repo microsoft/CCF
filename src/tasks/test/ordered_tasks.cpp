@@ -74,9 +74,9 @@ TEST_CASE("OrderedTasks" * doctest::test_suite("ordered_tasks"))
 {
   ccf::tasks::JobBoard jb;
 
-  auto p_a = ccf::tasks::make_ordered_tasks(jb);
-  auto p_b = ccf::tasks::make_ordered_tasks(jb);
-  auto p_c = ccf::tasks::make_ordered_tasks(jb);
+  auto p_a = ccf::tasks::OrderedTasks::create(jb);
+  auto p_b = ccf::tasks::OrderedTasks::create(jb);
+  auto p_c = ccf::tasks::OrderedTasks::create(jb);
 
   std::atomic<bool> executed[14] = {0};
 

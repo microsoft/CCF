@@ -19,7 +19,7 @@ TEST_CASE("ContiguousQueuing" * doctest::test_suite("fan_in_tasks"))
   ccf::tasks::JobBoard jb;
   ccf::tasks::Task task;
 
-  auto collection = ccf::tasks::make_fan_in_tasks(jb);
+  auto collection = ccf::tasks::FanInTasks::create(jb);
 
   REQUIRE(jb.empty());
 
@@ -75,7 +75,7 @@ TEST_CASE("InterleavedCompletions" * doctest::test_suite("fan_in_tasks"))
   ccf::tasks::JobBoard jb;
   ccf::tasks::Task task;
 
-  auto collection = ccf::tasks::make_fan_in_tasks(jb);
+  auto collection = ccf::tasks::FanInTasks::create(jb);
 
   std::atomic<bool> all_done{false};
   collection->add_task(
@@ -167,7 +167,7 @@ TEST_CASE("DelayedCompletions" * doctest::test_suite("fan_in_tasks"))
     }
   };
 
-  auto completions = ccf::tasks::make_fan_in_tasks(jb);
+  auto completions = ccf::tasks::FanInTasks::create(jb);
   std::atomic<size_t> counter;
 
   for (auto i = 0; i < num_tasks; ++i)

@@ -67,7 +67,10 @@ namespace ccf::tasks
     }
   }
 
-  FanInTasks::FanInTasks(IJobBoard& job_board_, const std::string& name_) :
+  FanInTasks::FanInTasks(
+    [[maybe_unused]] FanInTasks::Private force_private_constructor,
+    IJobBoard& job_board_,
+    const std::string& name_) :
     pimpl(std::make_unique<FanInTasks::PImpl>(name_, job_board_))
   {}
 
@@ -119,20 +122,9 @@ namespace ccf::tasks
     }
   }
 
-  namespace
-  {
-    struct ConcreteFanInTasks : public FanInTasks
-    {
-    public:
-      ConcreteFanInTasks(IJobBoard& job_board_, const std::string& name_) :
-        FanInTasks(job_board_, name_)
-      {}
-    };
-  }
-
-  std::shared_ptr<FanInTasks> make_fan_in_tasks(
+  std::shared_ptr<FanInTasks> FanInTasks::create(
     IJobBoard& job_board_, const std::string& name_)
   {
-    return std::make_shared<ConcreteFanInTasks>(job_board_, name_);
+    return std::make_shared<FanInTasks>(Private{}, job_board_, name_);
   }
 }

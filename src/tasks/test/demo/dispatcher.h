@@ -107,7 +107,7 @@ struct Dispatcher : public LoopingThread<DispatcherState>
         it = state.ordered_tasks_per_client.emplace_hint(
           it,
           session.get(),
-          ccf::tasks::make_ordered_tasks(
+          ccf::tasks::OrderedTasks::create(
             state.job_board, fmt::format("Tasks for {}", session->name)));
       }
 

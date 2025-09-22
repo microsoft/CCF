@@ -19,19 +19,22 @@ namespace ccf::tasks
     void enqueue_on_board();
     void do_task_implementation() override;
 
-    // Constructor is protected, to ensure this is only created via the
-    // make_fan_in_tasks factory function (ensuring this is always owned by
-    // a shared_ptr)
-    FanInTasks(IJobBoard& job_board_, const std::string& name_);
+    // Non-public constructor argument type, so this can only be constructed by
+    // this class (ensuring shared ptr ownership)
+    struct Private
+    {
+      explicit Private() = default;
+    };
 
   public:
+    FanInTasks(Private, IJobBoard& job_board_, const std::string& name_);
     ~FanInTasks();
+
+    static std::shared_ptr<FanInTasks> create(
+      IJobBoard& job_board_, const std::string& name_ = "[FanIn]");
 
     std::string_view get_name() const override;
 
     void add_task(size_t task_index, Task task);
   };
-
-  std::shared_ptr<FanInTasks> make_fan_in_tasks(
-    IJobBoard& job_board_, const std::string& name_ = "[FanIn]");
 }

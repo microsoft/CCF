@@ -43,7 +43,7 @@ TEST_CASE("SessionOrdering")
     for (auto i = 0; i < num_sessions; ++i)
     {
       all_tasks.emplace_back(
-        ccf::tasks::make_ordered_tasks(job_board, std::to_string(i)), 0);
+        ccf::tasks::OrderedTasks::create(job_board, std::to_string(i)), 0);
     }
 
     auto add_action = [&](size_t idx, size_t sleep_time_ms) {
@@ -110,9 +110,9 @@ TEST_CASE("PauseAndResume")
     };
 
     std::shared_ptr<ccf::tasks::OrderedTasks> x_tasks =
-      ccf::tasks::make_ordered_tasks(job_board, "x");
+      ccf::tasks::OrderedTasks::create(job_board, "x");
     std::shared_ptr<ccf::tasks::OrderedTasks> y_tasks =
-      ccf::tasks::make_ordered_tasks(job_board, "y");
+      ccf::tasks::OrderedTasks::create(job_board, "y");
 
     x_tasks->add_action(increment(x));
     y_tasks->add_action(increment(y));
