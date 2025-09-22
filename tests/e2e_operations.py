@@ -1465,7 +1465,8 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
             prev_network = recovery_network
 
 
-def run_self_healing_open(args):
+def run_self_healing_open(const_args):
+    args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     with infra.network.network(
         args.nodes,
@@ -1535,7 +1536,8 @@ def run_self_healing_open(args):
         recovered_network.stop_all_nodes()
 
 
-def run_self_healing_open_timeout_path(args):
+def run_self_healing_open_timeout_path(const_args):
+    args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     with infra.network.network(
         args.nodes,
@@ -1606,8 +1608,11 @@ def run_self_healing_open_timeout_path(args):
         recovered_network.stop_all_nodes()
 
 
-def run_self_healing_open_local_unsealing(args):
+def run_self_healing_open_local_unsealing(const_args):
+    args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.enable_local_sealing = True
+
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -1980,8 +1985,8 @@ def run(args):
         run_recovery_unsealing_corrupt(args)
         run_recovery_unsealing_validate_audit(args)
         test_error_message_on_failure_to_read_aci_sec_context(args)
+        run_self_healing_open_local_unsealing(args)
     run_read_ledger_on_testdata(args)
     run_ledger_chunk_bytes_check(args)
     run_self_healing_open(args)
     run_self_healing_open_timeout_path(args)
-    run_self_healing_open_local_unsealing(args)
