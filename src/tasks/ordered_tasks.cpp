@@ -56,7 +56,7 @@ namespace ccf::tasks
     return std::make_unique<ResumeOrderedTasks>(shared_from_this());
   }
 
-  std::string OrderedTasks::get_name() const
+  std::string_view OrderedTasks::get_name() const
   {
     return pimpl->name;
   }

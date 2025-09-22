@@ -21,7 +21,7 @@ namespace ccf::tasks
       fn();
     }
 
-    std::string get_name() const override
+    std::string_view get_name() const override
     {
       return name;
     }

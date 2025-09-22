@@ -147,10 +147,12 @@ TEST_CASE("DelayedCompletions" * doctest::test_suite("fan_in_tasks"))
   {
     std::atomic<size_t>& counter;
     const size_t expected_value;
+    const std::string name;
 
     CalledInOrder(std::atomic<size_t>& c, size_t ev) :
       counter(c),
-      expected_value(ev)
+      expected_value(ev),
+      name(fmt::format("CalledInOrder {}", expected_value))
     {}
 
     void do_task_implementation() override
@@ -159,9 +161,9 @@ TEST_CASE("DelayedCompletions" * doctest::test_suite("fan_in_tasks"))
       ++counter;
     }
 
-    std::string get_name() const override
+    std::string_view get_name() const override
     {
-      return fmt::format("CalledInOrder {}", expected_value);
+      return name;
     }
   };
 

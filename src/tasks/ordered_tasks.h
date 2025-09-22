@@ -15,7 +15,7 @@ namespace ccf::tasks
 
     virtual void do_action() = 0;
 
-    virtual std::string get_name() const
+    virtual std::string_view get_name() const
     {
       return "[Anon]";
     }
@@ -40,7 +40,7 @@ namespace ccf::tasks
       fn();
     }
 
-    std::string get_name() const override
+    std::string_view get_name() const override
     {
       return name;
     }
@@ -77,7 +77,7 @@ namespace ccf::tasks
     ~OrderedTasks();
 
     ccf::tasks::Resumable pause() override;
-    std::string get_name() const override;
+    std::string_view get_name() const override;
 
     void add_action(TaskAction&& action);
 

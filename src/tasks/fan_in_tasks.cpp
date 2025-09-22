@@ -73,7 +73,7 @@ namespace ccf::tasks
 
   FanInTasks::~FanInTasks() = default;
 
-  std::string FanInTasks::get_name() const
+  std::string_view FanInTasks::get_name() const
   {
     return pimpl->name;
   }

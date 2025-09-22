@@ -15,12 +15,17 @@ struct Action_ProcessClientAction : public ccf::tasks::ITaskAction
   const SerialisedAction input_action;
   Session& client_session;
   std::atomic<size_t>& responses_sent;
+  const std::string name;
 
   Action_ProcessClientAction(
     const SerialisedAction& action, Session& cs, std::atomic<size_t>& rs) :
     input_action(action),
     client_session(cs),
-    responses_sent(rs)
+    responses_sent(rs),
+    name(fmt::format(
+      "Processing action '{}' from session {}",
+      input_action,
+      (void*)&client_session))
   {}
 
   void do_action() override
@@ -52,12 +57,9 @@ struct Action_ProcessClientAction : public ccf::tasks::ITaskAction
     }
   }
 
-  std::string get_name() const override
+  std::string_view get_name() const override
   {
-    return fmt::format(
-      "Processing action '{}' from session {}",
-      input_action,
-      (void*)&client_session);
+    return name;
   }
 };
 

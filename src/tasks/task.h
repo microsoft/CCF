@@ -27,7 +27,7 @@ namespace ccf::tasks
 
     void do_task();
 
-    virtual std::string get_name() const
+    virtual std::string_view get_name() const
     {
       return "[Anon]";
     }

@@ -27,7 +27,7 @@ namespace ccf::tasks
   public:
     ~FanInTasks();
 
-    std::string get_name() const override;
+    std::string_view get_name() const override;
 
     void add_task(size_t task_index, Task task);
   };
