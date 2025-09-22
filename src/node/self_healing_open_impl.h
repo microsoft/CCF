@@ -16,7 +16,7 @@ namespace ccf
     std::weak_ptr<NodeState> weak_node_state;
 
   public:
-    SelfHealingOpenService(std::shared_ptr<NodeState>& node_state) : weak_node_state(node_state) {}
+    SelfHealingOpenService(std::shared_ptr<NodeState> node_state) : weak_node_state(node_state) {}
     void try_start(ccf::kv::Tx& tx, bool recovering);
     void advance(ccf::kv::Tx& tx, bool timeout);
 

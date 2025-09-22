@@ -254,7 +254,7 @@ namespace ccf
       network(network),
       rpcsessions(rpcsessions),
       share_manager(network.ledger_secrets),
-      self_healing_open_impl(std::make_unique<SelfHealingOpenService>(this))
+      self_healing_open_impl(std::make_unique<SelfHealingOpenService>(shared_from_this()))
     {}
 
     QuoteVerificationResult verify_quote(
