@@ -34,7 +34,9 @@ namespace ccf
     auto& config = node_state->config.recover.self_healing_open;
     if (!recovering || !config.has_value())
     {
-      LOG_INFO_FMT("Not recovering or self-healing-open not configured, skipping self-healing-open");
+      LOG_INFO_FMT(
+        "Not recovering or self-healing-open not configured, skipping "
+        "self-healing-open");
     }
 
     LOG_INFO_FMT("Starting self-healing-open");
@@ -370,7 +372,7 @@ namespace ccf
         curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
           std::move(curl_request));
 
-        auto delay = config->retry_timeout;
+        auto delay = config->timeout;
         ::threading::ThreadMessaging::instance().add_task_after(
           std::move(msg), delay);
       },
@@ -437,10 +439,9 @@ namespace ccf
       std::move(response_callback));
 
     LOG_TRACE_FMT(
-      "Dispatching attested message for {} to {}: {}",
+      "Dispatching attested {} message to {}",
       curl_request->get_method().c_str(),
-      curl_request->get_url(),
-      request.dump());
+      curl_request->get_url());
 
     curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
       std::move(curl_request));
