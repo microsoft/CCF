@@ -455,7 +455,7 @@ namespace ccf::curl
 
     void handle_response(CURLcode curl_response_code)
     {
-      LOG_TRACE_FMT("Handling response for {}", url);
+      LOG_DEBUG_FMT("Handling response for {}", url);
       if (response_callback.has_value())
       {
         long status_code = 0;
@@ -526,7 +526,7 @@ namespace ccf::curl
       {
         throw std::logic_error("Cannot attach a null CurlRequest");
       }
-      LOG_TRACE_FMT("Attaching CurlRequest to {} to Curlm", request->get_url());
+      LOG_DEBUG_FMT("Attaching CurlRequest to {} to Curlm", request->get_url());
       CURL* curl_handle = request->get_easy_handle();
       CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_PRIVATE, request.release());
       CHECK_CURL_MULTI(curl_multi_add_handle, p.get(), curl_handle);
@@ -635,7 +635,7 @@ namespace ccf::curl
         return;
       }
 
-      LOG_TRACE_FMT("Libuv: processing pending curl requests");
+      LOG_DEBUG_FMT("Libuv: processing pending curl requests");
 
       std::deque<std::unique_ptr<CurlRequest>> requests_to_add;
       {
@@ -665,7 +665,7 @@ namespace ccf::curl
         return;
       }
 
-      LOG_TRACE_FMT("Libuv timeout");
+      LOG_DEBUG_FMT("Libuv timeout");
 
       int running_handles = 0;
       CHECK_CURL_MULTI(
@@ -693,7 +693,7 @@ namespace ccf::curl
         return 0;
       }
 
-      LOG_TRACE_FMT("Curl timeout {}ms", timeout_ms);
+      LOG_DEBUG_FMT("Curl timeout {}ms", timeout_ms);
 
       if (timeout_ms < 0)
       {
@@ -768,7 +768,7 @@ namespace ccf::curl
         return;
       }
 
-      LOG_TRACE_FMT(
+      LOG_DEBUG_FMT(
         "Libuv socket poll callback on {}: {}",
         static_cast<int>(socket_context->socket),
         static_cast<int>(events));
@@ -807,7 +807,7 @@ namespace ccf::curl
         case CURL_POLL_OUT:
         case CURL_POLL_INOUT:
         {
-          LOG_TRACE_FMT(
+          LOG_DEBUG_FMT(
             "Curl socket callback: listen on socket {}, {}",
             static_cast<int>(s),
             static_cast<int>(action));
@@ -843,7 +843,7 @@ namespace ccf::curl
         case CURL_POLL_REMOVE:
           if (socket_context != nullptr)
           {
-            LOG_TRACE_FMT(
+            LOG_DEBUG_FMT(
               "CurlmLibuv: curl socket callback: remove socket {}",
               static_cast<int>(s));
             SocketContext socket_context_ptr(socket_context);
@@ -895,7 +895,7 @@ namespace ccf::curl
         LOG_FAIL_FMT("CurlmLibuvContext already closed, cannot attach request");
         return;
       }
-      LOG_TRACE_FMT("Adding request to {} to queue", request->get_url());
+      LOG_DEBUG_FMT("Adding request to {} to queue", request->get_url());
       std::lock_guard<std::mutex> requests_lock(requests_mutex);
       pending_requests.push_back(std::move(request));
       uv_async_send(&async_requests_handle);
