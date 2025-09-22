@@ -105,6 +105,10 @@ namespace ccf
             return true;
           });
 
+          if (!maximum.has_value())
+          {
+            throw std::logic_error("No valid gossip addresses provided");
+          }
           auto* chosen_replica =
             tx.rw(node_state->network.self_healing_open_chosen_replica);
           chosen_replica->put(maximum->second);
