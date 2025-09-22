@@ -807,9 +807,11 @@ class Network:
                     "read_only_ledger_dirs": committed_ledger_dirs[i] or [],
                     "snapshots_dir": snapshot_dirs[i] or None,
                 }
-                | {"previous_sealed_ledger_secret_location": sealed_ledger_secrets[i]}
-                if sealed_ledger_secrets and i < len(sealed_ledger_secrets)
-                else {}
+                | (
+                    {"previous_sealed_ledger_secret_location": sealed_ledger_secrets[i]}
+                    if sealed_ledger_secrets and i < len(sealed_ledger_secrets)
+                    else {}
+                )
             )
             for i, d in self.per_node_args_override.items()
         }
@@ -1366,6 +1368,8 @@ class Network:
                         final_state = r["state"]
                         break
             except ConnectionRefusedError:
+                pass
+            except CCFConnectionException:
                 pass
             time.sleep(0.1)
         else:
