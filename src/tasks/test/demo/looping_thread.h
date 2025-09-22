@@ -34,9 +34,9 @@ struct LoopingThread
   std::atomic<Stage> lifetime_stage;
 
   template <typename... Ts>
-  LoopingThread(const std::string& _name, Ts&&... args) :
+  LoopingThread(const std::string& name_, Ts&&... args) :
     state(std::forward<Ts>(args)...),
-    name(_name),
+    name(name_),
     lifetime_stage(Stage::PreInit)
   {}
 

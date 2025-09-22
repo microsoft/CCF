@@ -13,7 +13,7 @@ namespace ccf::tasks
     Fn fn;
     const std::string name;
 
-    BasicTask(const Fn& _fn, const std::string& s = "[Anon]") : fn(_fn), name(s)
+    BasicTask(const Fn& fn_, const std::string& s = "[Anon]") : fn(fn_), name(s)
     {}
 
     void do_task_implementation() override
