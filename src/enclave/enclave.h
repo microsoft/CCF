@@ -48,7 +48,7 @@ namespace ccf
     ccf::NetworkState network;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpcsessions;
-    std::unique_ptr<ccf::NodeState> node;
+    std::shared_ptr<ccf::NodeState> node;
     ringbuffer::WriterPtr to_host = nullptr;
     std::chrono::high_resolution_clock::time_point last_tick_time;
 
@@ -102,7 +102,7 @@ namespace ccf
         std::make_shared<ccf::kv::LedgerChunker>(chunk_threshold));
 
       LOG_TRACE_FMT("Creating node");
-      node = std::make_unique<ccf::NodeState>(
+      node = std::make_shared<ccf::NodeState>(
         *writer_factory, network, rpcsessions, curve_id);
 
       LOG_TRACE_FMT("Creating context");

@@ -7,6 +7,7 @@ namespace ccf
 {
   void SelfHealingOpenService::try_start(ccf::kv::Tx& tx, bool recovering)
   {
+    auto node_state = this->weak_node_state.lock();
     if (
       !recovering || !node_state->config.recover.self_healing_open.has_value())
     {
@@ -19,23 +20,19 @@ namespace ccf
     LOG_INFO_FMT("Starting self-healing-open");
 
     // Reset the self-healing-open state
-    auto* state_handle =
-      tx.rw<ccf::SelfHealingOpenSMState>(Tables::SELF_HEALING_OPEN_SM_STATE);
-    state_handle->clear();
-    auto* timeout_state_handle = tx.rw<ccf::SelfHealingOpenTimeoutSMState>(
-      Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE);
-    auto* node_info_handle =
-      tx.rw<ccf::SelfHealingOpenNodeInfo>(Tables::SELF_HEALING_OPEN_NODES);
-    node_info_handle->clear();
-    auto* gossip_state_handle =
-      tx.rw<ccf::SelfHealingOpenGossips>(Tables::SELF_HEALING_OPEN_GOSSIPS);
-    gossip_state_handle->clear();
-    auto* chosen_replica = tx.rw<ccf::SelfHealingOpenChosenReplica>(
-      Tables::SELF_HEALING_OPEN_CHOSEN_REPLICA);
-    chosen_replica->clear();
-    auto* votes =
-      tx.rw<ccf::SelfHealingOpenVotes>(Tables::SELF_HEALING_OPEN_VOTES);
-    votes->clear();
+    tx.rw<ccf::SelfHealingOpenSMState>(Tables::SELF_HEALING_OPEN_SM_STATE)
+      ->clear();
+    tx.rw<ccf::SelfHealingOpenTimeoutSMState>(
+        Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE)
+      ->clear();
+    tx.rw<ccf::SelfHealingOpenNodeInfo>(Tables::SELF_HEALING_OPEN_NODES)
+      ->clear();
+    tx.rw<ccf::SelfHealingOpenGossips>(Tables::SELF_HEALING_OPEN_GOSSIPS)
+      ->clear();
+    tx.rw<ccf::SelfHealingOpenChosenReplica>(
+        Tables::SELF_HEALING_OPEN_CHOSEN_REPLICA)
+      ->clear();
+    tx.rw<ccf::SelfHealingOpenVotes>(Tables::SELF_HEALING_OPEN_VOTES)->clear();
 
     start_message_retry_timers();
     start_failover_timers(tx);
@@ -43,13 +40,14 @@ namespace ccf
 
   void SelfHealingOpenService::advance(ccf::kv::Tx& tx, bool timeout)
   {
+    auto node_state = this->weak_node_state.lock();
     auto* sm_state_handle =
       tx.rw(node_state->network.self_healing_open_sm_state);
     auto* timeout_state_handle =
       tx.rw(node_state->network.self_healing_open_timeout_sm_state);
     if (
-      !sm_state_handle->get().has_value() ||
-      !timeout_state_handle->get().has_value())
+      (!sm_state_handle->get().has_value()) ||
+      (!timeout_state_handle->get().has_value()))
     {
       throw std::logic_error(
         "Self-healing-open state not set, cannot advance self-healing-open");
@@ -199,12 +197,12 @@ namespace ccf
   {
     auto retry_timer_msg = std::make_unique<::threading::Tmsg<SHOMsg>>(
       [](std::unique_ptr<::threading::Tmsg<SHOMsg>> msg) {
-        std::lock_guard<pal::Mutex> guard(msg->data.self.node_state->lock);
+        auto node_state = msg->data.self.weak_node_state.lock();
+        std::lock_guard<pal::Mutex> guard(node_state->lock);
 
-        auto tx =
-          msg->data.self.node_state->network.tables->create_read_only_tx();
+        auto tx = node_state->network.tables->create_read_only_tx();
         auto* sm_state_handle =
-          tx.ro(msg->data.self.node_state->network.self_healing_open_sm_state);
+          tx.ro(node_state->network.self_healing_open_sm_state);
         if (!sm_state_handle->get().has_value())
         {
           throw std::logic_error(
@@ -227,11 +225,10 @@ namespace ccf
             break;
           case SelfHealingOpenSM::VOTING:
           {
-            auto* node_info_handle = tx.ro(
-              msg->data.self.node_state->network.self_healing_open_node_info);
+            auto* node_info_handle =
+              tx.ro(node_state->network.self_healing_open_node_info);
             auto* chosen_replica_handle =
-              tx.ro(msg->data.self.node_state->network
-                      .self_healing_open_chosen_replica);
+              tx.ro(node_state->network.self_healing_open_chosen_replica);
             if (!chosen_replica_handle->get().has_value())
             {
               throw std::logic_error(
@@ -261,8 +258,8 @@ namespace ccf
               static_cast<int>(sm_state)));
         }
 
-        auto delay = msg->data.self.node_state->config.recover
-                       .self_healing_open->retry_timeout;
+        auto delay =
+          node_state->config.recover.self_healing_open->retry_timeout;
         ::threading::ThreadMessaging::instance().add_task_after(
           std::move(msg), delay);
       },
@@ -274,6 +271,7 @@ namespace ccf
 
   void SelfHealingOpenService::start_failover_timers(ccf::kv::Tx& tx)
   {
+    auto node_state = this->weak_node_state.lock();
     auto* state_handle = tx.rw(node_state->network.self_healing_open_sm_state);
     state_handle->put(SelfHealingOpenSM::GOSSIPPING);
     auto* timeout_state_handle =
@@ -283,15 +281,15 @@ namespace ccf
     // Dispatch timeouts
     auto timeout_msg = std::make_unique<::threading::Tmsg<SHOMsg>>(
       [](std::unique_ptr<::threading::Tmsg<SHOMsg>> msg) {
-        std::lock_guard<pal::Mutex> guard(msg->data.self.node_state->lock);
+        auto node_state = msg->data.self.weak_node_state.lock();
+        std::lock_guard<pal::Mutex> guard(node_state->lock);
         LOG_TRACE_FMT(
           "Self-healing-open timeout, sending timeout to internal handlers");
 
         // Stop the timer if the node has completed its self-healing-open
-        auto tx =
-          msg->data.self.node_state->network.tables->create_read_only_tx();
+        auto tx = node_state->network.tables->create_read_only_tx();
         auto* sm_state_handle =
-          tx.ro(msg->data.self.node_state->network.self_healing_open_sm_state);
+          tx.ro(node_state->network.self_healing_open_sm_state);
         if (!sm_state_handle->get().has_value())
         {
           throw std::logic_error(
@@ -308,7 +306,7 @@ namespace ccf
         // Send a timeout to the internal handlers
         curl::UniqueCURL curl_handle;
 
-        auto cert = msg->data.self.node_state->self_signed_node_cert;
+        auto cert = node_state->self_signed_node_cert;
         curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 0L);
         curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 0L);
         curl_handle.set_opt(CURLOPT_SSL_VERIFYSTATUS, 0L);
@@ -317,16 +315,14 @@ namespace ccf
           CURLOPT_SSLCERT_BLOB, cert.data(), cert.size());
         curl_handle.set_opt(CURLOPT_SSLCERTTYPE, "PEM");
 
-        auto privkey_pem =
-          msg->data.self.node_state->node_sign_kp->private_key_pem();
+        auto privkey_pem = node_state->node_sign_kp->private_key_pem();
         curl_handle.set_blob_opt(
           CURLOPT_SSLKEY_BLOB, privkey_pem.data(), privkey_pem.size());
         curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
 
         auto url = fmt::format(
           "https://{}/{}/self_healing_open/timeout",
-          msg->data.self.node_state->config.network.rpc_interfaces
-            .at("primary_rpc_interface")
+          node_state->config.network.rpc_interfaces.at("primary_rpc_interface")
             .published_address,
           get_actor_prefix(ActorsType::nodes));
 
@@ -344,8 +340,7 @@ namespace ccf
         curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
           std::move(curl_request));
 
-        auto delay =
-          msg->data.self.node_state->config.recover.self_healing_open->timeout;
+        auto delay = node_state->config.recover.self_healing_open->timeout;
         ::threading::ThreadMessaging::instance().add_task_after(
           std::move(msg), delay);
       },
@@ -424,6 +419,7 @@ namespace ccf
 
   self_healing_open::RequestNodeInfo SelfHealingOpenService::make_node_info()
   {
+    auto node_state = this->weak_node_state.lock();
     return {
       .quote_info = node_state->quote_info,
       .published_network_address =
@@ -438,6 +434,7 @@ namespace ccf
 
   void SelfHealingOpenService::send_gossip_unsafe()
   {
+    auto node_state = this->weak_node_state.lock();
     // Caller must ensure that the current node's quote_info is populated:
     // ie not yet reached partOfNetwork
     if (!node_state->config.recover.self_healing_open.has_value())
@@ -470,6 +467,7 @@ namespace ccf
   void SelfHealingOpenService::send_vote_unsafe(
     const SelfHealingOpenNodeInfo_t& node_info)
   {
+    auto node_state = this->weak_node_state.lock();
     // Caller must ensure that the current node's quote_info is populated:
     // ie not yet reached partOfNetwork
     LOG_TRACE_FMT(
@@ -491,6 +489,7 @@ namespace ccf
 
   void SelfHealingOpenService::send_iamopen_unsafe()
   {
+    auto node_state = this->weak_node_state.lock();
     // Caller must ensure that the current node's quote_info is populated:
     // ie not yet reached partOfNetwork
     if (!node_state->config.recover.self_healing_open.has_value())

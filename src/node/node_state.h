@@ -85,7 +85,7 @@ namespace ccf
     data.shrink_to_fit();
   }
 
-  class NodeState : public AbstractNodeState
+  class NodeState : public AbstractNodeState, public std::enable_shared_from_this<NodeState>
   {
     friend class SelfHealingOpenService;
 
