@@ -4,11 +4,11 @@
 
 namespace ccf::tasks
 {
-  void JobBoard::add_task(Task&& t)
+  void JobBoard::add_task(Task&& task)
   {
     {
       std::lock_guard<std::mutex> lock(mutex);
-      queue.emplace(std::move(t));
+      queue.emplace(std::move(task));
     }
     work_beacon.notify_work_available();
   }
@@ -21,9 +21,9 @@ namespace ccf::tasks
       return nullptr;
     }
 
-    Task t = queue.front();
+    Task task = queue.front();
     queue.pop();
-    return t;
+    return task;
   }
 
   bool JobBoard::empty()

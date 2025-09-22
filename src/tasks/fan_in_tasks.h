@@ -22,7 +22,7 @@ namespace ccf::tasks
     // Constructor is protected, to ensure this is only created via the
     // make_fan_in_tasks factory function (ensuring this is always owned by
     // a shared_ptr)
-    FanInTasks(IJobBoard& jb, const std::string& s);
+    FanInTasks(IJobBoard& job_board_, const std::string& name_);
 
   public:
     ~FanInTasks();
@@ -33,5 +33,5 @@ namespace ccf::tasks
   };
 
   std::shared_ptr<FanInTasks> make_fan_in_tasks(
-    IJobBoard& jb, const std::string& s = "[FanIn]");
+    IJobBoard& job_board_, const std::string& name_ = "[FanIn]");
 }

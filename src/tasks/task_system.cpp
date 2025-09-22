@@ -118,28 +118,32 @@ namespace ccf::tasks
       {
         DelayedTasks& ready = it->second;
 
-        for (DelayedTask& dt : ready)
+        for (DelayedTask& delayed_task : ready)
         {
           // Don't schedule (or repeat) cancelled tasks
-          if (dt.task->is_cancelled())
+          if (delayed_task.task->is_cancelled())
           {
             continue;
           }
 
-          add_task(dt.task);
-          if (dt.repeat.has_value())
+          add_task(delayed_task.task);
+          if (delayed_task.repeat.has_value())
           {
-            repeats[elapsed + dt.repeat.value()].emplace_back(dt);
+            repeats[elapsed + delayed_task.repeat.value()].emplace_back(
+              delayed_task);
           }
         }
       }
 
       delayed_tasks.erase(delayed_tasks.begin(), end_it);
 
-      for (auto&& [k, v] : repeats)
+      for (auto&& [repeat_time, repeated_tasks] : repeats)
       {
-        DelayedTasks& dts = delayed_tasks[k];
-        dts.insert(dts.end(), v.begin(), v.end());
+        DelayedTasks& delayed_tasks_at_time = delayed_tasks[repeat_time];
+        delayed_tasks_at_time.insert(
+          delayed_tasks_at_time.end(),
+          repeated_tasks.begin(),
+          repeated_tasks.end());
       }
     }
 

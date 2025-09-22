@@ -30,9 +30,9 @@ namespace ccf::tasks
     Fn fn;
     const std::string name;
 
-    BasicTaskAction(const Fn& _fn, const std::string& s = "[Anon]") :
-      fn(_fn),
-      name(s)
+    BasicTaskAction(const Fn& fn_, const std::string& name_ = "[Anon]") :
+      fn(fn_),
+      name(name_)
     {}
 
     void do_action() override
@@ -71,7 +71,7 @@ namespace ccf::tasks
     // Constructor is protected, to ensure this is only created via the
     // make_ordered_tasks factory function (ensuring this is always owned by a
     // shared_ptr)
-    OrderedTasks(IJobBoard& jb, const std::string& s);
+    OrderedTasks(IJobBoard& job_board, const std::string& name);
 
   public:
     ~OrderedTasks();
@@ -85,5 +85,5 @@ namespace ccf::tasks
   };
 
   std::shared_ptr<OrderedTasks> make_ordered_tasks(
-    IJobBoard& jb, const std::string& s = "[Ordered]");
+    IJobBoard& job_board, const std::string& name = "[Ordered]");
 }
