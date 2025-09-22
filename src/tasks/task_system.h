@@ -2,13 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "tasks/job_board_interface.h"
+#include "tasks/job_board.h"
 #include "tasks/resumable.h"
 #include "tasks/task.h"
 
 namespace ccf::tasks
 {
-  IJobBoard& get_main_job_board();
+  JobBoard& get_main_job_board();
 
   void add_task(Task task);
 

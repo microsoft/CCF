@@ -49,7 +49,7 @@ namespace ccf::tasks
   }
 
   // Implementation of ccf::tasks namespace static functions
-  IJobBoard& get_main_job_board()
+  JobBoard& get_main_job_board()
   {
     static JobBoard main_job_board;
     return main_job_board;

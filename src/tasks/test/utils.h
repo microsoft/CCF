@@ -9,7 +9,7 @@
 namespace test::utils
 {
   static inline void worker_loop_func(
-    ccf::tasks::IJobBoard& job_board, std::atomic<bool>& stop)
+    ccf::tasks::JobBoard& job_board, std::atomic<bool>& stop)
   {
     while (!stop.load())
     {
@@ -23,7 +23,7 @@ namespace test::utils
   }
 
   static inline void flush_board(
-    ccf::tasks::IJobBoard& job_board,
+    ccf::tasks::JobBoard& job_board,
     size_t max_workers = 8,
     std::function<bool(void)> safe_to_end = nullptr,
     std::chrono::seconds kill_after = std::chrono::seconds(5))

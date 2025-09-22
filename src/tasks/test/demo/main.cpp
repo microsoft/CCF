@@ -35,7 +35,7 @@ TEST_CASE("SessionOrdering")
   using Result = std::atomic<size_t>;
   std::vector<Result> results(num_sessions);
 
-  ccf::tasks::JobBoard job_board;
+  auto& job_board = ccf::tasks::get_main_job_board();
   {
     // Record next x to send for each session
     std::vector<std::pair<std::shared_ptr<ccf::tasks::OrderedTasks>, size_t>>

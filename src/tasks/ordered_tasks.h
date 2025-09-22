@@ -73,11 +73,11 @@ namespace ccf::tasks
     };
 
   public:
-    OrderedTasks(Private, IJobBoard& job_board, std::string&& name);
+    OrderedTasks(Private, JobBoard& job_board, std::string&& name);
     ~OrderedTasks();
 
     static std::shared_ptr<OrderedTasks> create(
-      IJobBoard& job_board_, std::string&& name_ = "[Ordered]");
+      JobBoard& job_board_, std::string&& name_ = "[Ordered]");
 
     ccf::tasks::Resumable pause() override;
     const std::string& get_name() const override;
