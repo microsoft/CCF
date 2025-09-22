@@ -161,7 +161,7 @@ TEST_CASE("DelayedCompletions" * doctest::test_suite("fan_in_tasks"))
       ++counter;
     }
 
-    std::string_view get_name() const override
+    const std::string& get_name() const override
     {
       return name;
     }

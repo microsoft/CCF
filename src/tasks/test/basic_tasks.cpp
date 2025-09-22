@@ -43,9 +43,10 @@ TEST_CASE("TaskSystem" * doctest::test_suite("basic_tasks"))
       my_var.store(true);
     }
 
-    std::string_view get_name() const override
+    const std::string& get_name() const override
     {
-      return "SetAtomic Task";
+      static const std::string name = "SetAtomic";
+      return name;
     }
   };
 

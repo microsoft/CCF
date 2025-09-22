@@ -15,10 +15,7 @@ namespace ccf::tasks
 
     virtual void do_action() = 0;
 
-    virtual std::string_view get_name() const
-    {
-      return "[Anon]";
-    }
+    virtual const std::string& get_name() const = 0;
   };
 
   using TaskAction = std::shared_ptr<ITaskAction>;
@@ -40,7 +37,7 @@ namespace ccf::tasks
       fn();
     }
 
-    std::string_view get_name() const override
+    const std::string& get_name() const override
     {
       return name;
     }
@@ -76,14 +73,14 @@ namespace ccf::tasks
     };
 
   public:
-    OrderedTasks(Private, IJobBoard& job_board, const std::string& name);
+    OrderedTasks(Private, IJobBoard& job_board, std::string&& name);
     ~OrderedTasks();
 
     static std::shared_ptr<OrderedTasks> create(
-      IJobBoard& job_board_, const std::string& name_ = "[Ordered]");
+      IJobBoard& job_board_, std::string&& name_ = "[Ordered]");
 
     ccf::tasks::Resumable pause() override;
-    std::string_view get_name() const override;
+    const std::string& get_name() const override;
 
     void add_action(TaskAction&& action);
 

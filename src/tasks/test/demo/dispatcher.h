@@ -57,7 +57,7 @@ struct Action_ProcessClientAction : public ccf::tasks::ITaskAction
     }
   }
 
-  std::string_view get_name() const override
+  const std::string& get_name() const override
   {
     return name;
   }

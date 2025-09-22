@@ -27,13 +27,12 @@ namespace ccf::tasks
     };
 
   public:
-    FanInTasks(Private, IJobBoard& job_board_, const std::string& name_);
+    FanInTasks(Private, IJobBoard& job_board_);
     ~FanInTasks();
 
-    static std::shared_ptr<FanInTasks> create(
-      IJobBoard& job_board_, const std::string& name_ = "[FanIn]");
+    static std::shared_ptr<FanInTasks> create(IJobBoard& job_board_);
 
-    std::string_view get_name() const override;
+    const std::string& get_name() const override;
 
     void add_task(size_t task_index, Task task);
   };

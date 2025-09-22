@@ -14,9 +14,10 @@ struct NopTask : public ccf::tasks::BaseTask
 {
   void do_task_implementation() override {}
 
-  std::string_view get_name() const override
+  const std::string& get_name() const override
   {
-    return "NopTask";
+    static const std::string name = "NopTask";
+    return name;
   }
 };
 
@@ -59,9 +60,10 @@ struct IncTask : public ccf::tasks::BaseTask
     ++value;
   }
 
-  std::string_view get_name() const override
+  const std::string& get_name() const override
   {
-    return "IncTask";
+    static const std::string name = "IncTask";
+    return name;
   }
 };
 
