@@ -337,7 +337,7 @@ namespace ccf::curl
           }
           else
           {
-            LOG_INFO_FMT("Ignoring invalid-looking HTTP Header '{}'", header);
+            LOG_DEBUG_FMT("Ignoring invalid-looking HTTP Header '{}'", header);
           }
         }
       }
@@ -807,7 +807,7 @@ namespace ccf::curl
         case CURL_POLL_OUT:
         case CURL_POLL_INOUT:
         {
-          LOG_INFO_FMT(
+          LOG_TRACE_FMT(
             "Curl socket callback: listen on socket {}, {}",
             static_cast<int>(s),
             static_cast<int>(action));
@@ -843,7 +843,7 @@ namespace ccf::curl
         case CURL_POLL_REMOVE:
           if (socket_context != nullptr)
           {
-            LOG_INFO_FMT(
+            LOG_TRACE_FMT(
               "CurlmLibuv: curl socket callback: remove socket {}",
               static_cast<int>(s));
             SocketContext socket_context_ptr(socket_context);
@@ -895,7 +895,7 @@ namespace ccf::curl
         LOG_FAIL_FMT("CurlmLibuvContext already closed, cannot attach request");
         return;
       }
-      LOG_INFO_FMT("Adding request to {} to queue", request->get_url());
+      LOG_TRACE_FMT("Adding request to {} to queue", request->get_url());
       std::lock_guard<std::mutex> requests_lock(requests_mutex);
       pending_requests.push_back(std::move(request));
       uv_async_send(&async_requests_handle);
