@@ -15,7 +15,7 @@ namespace ccf::tasks
   class SubTaskQueue
   {
   protected:
-    std::mutex mutex;
+    std::mutex pending_mutex;
     std::deque<T> pending;
     std::atomic<bool> active;
     std::atomic<bool> paused;
@@ -23,7 +23,7 @@ namespace ccf::tasks
   public:
     bool push(T&& t)
     {
-      std::lock_guard<std::mutex> lock(mutex);
+      std::lock_guard<std::mutex> lock(pending_mutex);
       const bool ret = pending.empty() && !active.load();
       pending.emplace_back(std::forward<T>(t));
       return ret;
@@ -34,7 +34,7 @@ namespace ccf::tasks
     {
       decltype(pending) local;
       {
-        std::lock_guard<std::mutex> lock(mutex);
+        std::lock_guard<std::mutex> lock(pending_mutex);
         active.store(true);
 
         std::swap(local, pending);
@@ -48,7 +48,7 @@ namespace ccf::tasks
       }
 
       {
-        std::lock_guard<std::mutex> lock(mutex);
+        std::lock_guard<std::mutex> lock(pending_mutex);
         if (it != local.end())
         {
           // Paused mid-execution - some actions remain that need to be
@@ -63,20 +63,20 @@ namespace ccf::tasks
 
     void pause()
     {
-      std::lock_guard<std::mutex> lock(mutex);
+      std::lock_guard<std::mutex> lock(pending_mutex);
       paused.store(true);
     }
 
     bool unpause()
     {
-      std::lock_guard<std::mutex> lock(mutex);
+      std::lock_guard<std::mutex> lock(pending_mutex);
       paused.store(false);
       return !pending.empty() && !active.load();
     }
 
     void get_queue_summary(size_t& num_pending, bool& is_active)
     {
-      std::lock_guard<std::mutex> lock(mutex);
+      std::lock_guard<std::mutex> lock(pending_mutex);
       num_pending = pending.size();
       is_active = active.load();
     }

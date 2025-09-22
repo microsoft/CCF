@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "./locking_concurrent_queue.h"
+#include "./locking_mpmc_queue.h"
 #include "ds/internal_logger.h"
 
 #include <atomic>
@@ -13,8 +13,8 @@ struct Session
 {
   const std::string name;
 
-  ccf::tasks::LockingConcurrentQueue<std::string> to_node;
-  ccf::tasks::LockingConcurrentQueue<std::string> from_node;
+  ccf::tasks::LockingMPMCQueue<std::string> to_node;
+  ccf::tasks::LockingMPMCQueue<std::string> from_node;
 
   std::atomic<bool> abandoned = false;
 

@@ -17,9 +17,11 @@ namespace ccf::tasks
     std::string name;
     IJobBoard& job_board;
 
-    std::mutex mutex;
+    // Synchronise access to pending_tasks and next_expected_task_index
+    std::mutex pending_tasks_mutex;
     std::map<size_t, Task> pending_tasks;
     size_t next_expected_task_index = 0;
+
     std::atomic<bool> active = false;
   };
 
@@ -33,7 +35,7 @@ namespace ccf::tasks
     std::vector<Task> current_batch;
 
     {
-      std::lock_guard<std::mutex> lock(pimpl->mutex);
+      std::lock_guard<std::mutex> lock(pimpl->pending_tasks_mutex);
       pimpl->active.store(true);
 
       auto it = pimpl->pending_tasks.find(pimpl->next_expected_task_index);
@@ -53,7 +55,7 @@ namespace ccf::tasks
     }
 
     {
-      std::lock_guard<std::mutex> lock(pimpl->mutex);
+      std::lock_guard<std::mutex> lock(pimpl->pending_tasks_mutex);
       pimpl->active.store(false);
 
       auto it = pimpl->pending_tasks.find(pimpl->next_expected_task_index);
@@ -84,7 +86,7 @@ namespace ccf::tasks
   void FanInTasks::add_task(size_t task_index, Task task)
   {
     {
-      std::lock_guard<std::mutex> lock(pimpl->mutex);
+      std::lock_guard<std::mutex> lock(pimpl->pending_tasks_mutex);
 
       if (task_index < pimpl->next_expected_task_index)
       {

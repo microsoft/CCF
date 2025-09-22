@@ -2,22 +2,22 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "./concurrent_queue_interface.h"
-
 #include <deque>
 #include <mutex>
 
 namespace ccf::tasks
 {
+  // A very simple (slow) MPMPC queue, implemented by a std container guarded by
+  // a mutex
   template <typename T>
-  class LockingConcurrentQueue : public IConcurrentQueue<T>
+  class LockingMPMCQueue
   {
   protected:
     std::mutex mutex;
     std::deque<T> deque;
 
   public:
-    bool empty() override
+    bool empty()
     {
       std::lock_guard<std::mutex> lock(mutex);
       return deque.empty();
@@ -29,19 +29,19 @@ namespace ccf::tasks
       return deque.size();
     }
 
-    void push_back(const T& t) override
+    void push_back(const T& t)
     {
       std::lock_guard<std::mutex> lock(mutex);
       deque.push_back(t);
     }
 
-    void emplace_back(T&& t) override
+    void emplace_back(T&& t)
     {
       std::lock_guard<std::mutex> lock(mutex);
       deque.emplace_back(std::move(t));
     }
 
-    std::optional<T> try_pop() override
+    std::optional<T> try_pop()
     {
       std::lock_guard<std::mutex> lock(mutex);
 
