@@ -781,7 +781,7 @@ class Network:
         snapshot_dirs=None,
         common_dir=None,
         set_authenticate_session=None,
-        start_all_nodes=True,
+        starting_nodes=None,
         timeout=10,
         **kwargs,
     ):
@@ -834,7 +834,7 @@ class Network:
         for i, node in enumerate(self.nodes):
             forwarded_args_with_overrides = forwarded_args.copy()
             forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
-            if not start_all_nodes and i > 0:
+            if not starting_nodes and i > starting_nodes:
                 break
 
             try:
