@@ -2287,7 +2287,6 @@ namespace ccf
         }
 
         LOG_TRACE_FMT("Processing self-healing-open gossip RPC");
-        LOG_TRACE_FMT("Self-healing-open gossip params: {}", params.dump());
 
         auto chosen_replica =
           args.tx.rw(this->network.self_healing_open_chosen_replica);
@@ -2364,7 +2363,6 @@ namespace ccf
             return make_error(code, ccf::errors::InvalidQuote, message);
           }
           LOG_TRACE_FMT("Processing self-healing-open vote RPC");
-          LOG_TRACE_FMT("Self-healing-open vote params: {}", params.dump());
 
           auto votes = args.tx.rw(this->network.self_healing_open_votes);
           votes->insert(in.info.intrinsic_id);
@@ -2428,9 +2426,7 @@ namespace ccf
           auto* sm_state = args.tx.rw(this->network.self_healing_open_sm_state);
           sm_state->put(SelfHealingOpenSM::JOINING);
 
-          LOG_INFO_FMT("******************************");
           LOG_INFO_FMT("Self-healing-open is JOINING {}", in.info.intrinsic_id);
-          LOG_INFO_FMT("******************************");
 
           auto* chosen_replica =
             args.tx.rw(this->network.self_healing_open_chosen_replica);

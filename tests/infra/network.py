@@ -874,8 +874,10 @@ class Network:
 
         # Waiting for any node to transition-to-open
         end_time = time.time() + timeout
-        for i, node in cycle(enumerate(self.nodes)):
+        for node in cycle(self.nodes):
+            LOG.info(f"Seeing if node {node.local_node_id} has opened")
             if time.time() > end_time:
+                Log.error("Timed out waiting for any node to open")
                 raise TimeoutError("Timed out waiting for any node to open")
             try:
                 self.wait_for_statuses(
@@ -890,6 +892,13 @@ class Network:
                     f"Failed to get the status of {node.local_node_id}, retrying..."
                 )
                 continue
+            except RuntimeError as e:
+                if "node is stopped" in str(e).lower():
+                  LOG.info(
+                      f"Failed to get the status of {node.local_node_id} with error {e}, retrying..."
+                  )
+                  continue
+                raise e
 
         LOG.info("One node opened")
 
