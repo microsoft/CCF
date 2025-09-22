@@ -19,7 +19,7 @@ namespace ccf
 
   public:
     SelfHealingOpenService(NodeState* node_state);
-    void try_start(ccf::kv::Tx& tx);
+    void try_start(ccf::kv::Tx& tx, bool recovering);
     void advance(ccf::kv::Tx& tx, bool timeout);
 
   private:

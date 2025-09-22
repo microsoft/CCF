@@ -14,17 +14,9 @@ namespace ccf
     node_state(node_state_)
   {}
 
-  void SelfHealingOpenService::try_start(ccf::kv::Tx& tx)
+  void SelfHealingOpenService::try_start(ccf::kv::Tx& tx, bool recovering)
   {
-    auto& config = node_state->config.recover.self_healing_open;
-    if (!config.has_value())
-    {
-      LOG_INFO_FMT("Self-healing-open not configured, skipping");
-    }
-
-    LOG_INFO_FMT("Starting self-healing-open");
-
-    // Reset the self-healing-open state
+    // Clear any previous state
     tx.rw<ccf::SelfHealingOpenSMState>(Tables::SELF_HEALING_OPEN_SM_STATE)
       ->clear();
     tx.rw<ccf::SelfHealingOpenTimeoutSMState>(
@@ -38,6 +30,20 @@ namespace ccf
         Tables::SELF_HEALING_OPEN_CHOSEN_REPLICA)
       ->clear();
     tx.rw<ccf::SelfHealingOpenVotes>(Tables::SELF_HEALING_OPEN_VOTES)->clear();
+
+    auto& config = node_state->config.recover.self_healing_open;
+    if (!recovering || !config.has_value())
+    {
+      LOG_INFO_FMT("Not recovering or self-healing-open not configured, skipping self-healing-open");
+    }
+
+    LOG_INFO_FMT("Starting self-healing-open");
+
+    tx.rw<ccf::SelfHealingOpenSMState>(Tables::SELF_HEALING_OPEN_SM_STATE)
+      ->put(SelfHealingOpenSM::GOSSIPPING);
+    tx.rw<ccf::SelfHealingOpenTimeoutSMState>(
+        Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE)
+      ->put(SelfHealingOpenSM::GOSSIPPING);
 
     start_message_retry_timers();
     start_failover_timers();
@@ -205,6 +211,7 @@ namespace ccf
 
   void SelfHealingOpenService::start_message_retry_timers()
   {
+    LOG_TRACE_FMT("Self-healing-open: Setting up retry timers");
     auto retry_timer_msg = std::make_unique<::threading::Tmsg<SHOMsg>>(
       [](std::unique_ptr<::threading::Tmsg<SHOMsg>> msg) {
         auto& config =
@@ -221,7 +228,7 @@ namespace ccf
           tx.ro(node_state->network.self_healing_open_sm_state);
 
         auto sm_state_opt = sm_state_handle->get();
-        if (sm_state_opt.has_value())
+        if (!sm_state_opt.has_value())
         {
           throw std::logic_error(
             "Self-healing-open state not set, cannot retry "
@@ -294,6 +301,7 @@ namespace ccf
       throw std::logic_error("Self-healing-open not configured");
     }
 
+    LOG_TRACE_FMT("Self-healing-open: Setting up failover timers");
     // Dispatch timeouts
     auto timeout_msg = std::make_unique<::threading::Tmsg<SHOMsg>>(
       [](std::unique_ptr<::threading::Tmsg<SHOMsg>> msg) {

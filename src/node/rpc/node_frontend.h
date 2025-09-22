@@ -1720,10 +1720,7 @@ namespace ccf
           ctx.rpc_ctx->set_claims_digest(std::move(digest_value));
         }
 
-        if (recovering)
-        {
-          this->node_operation.self_healing_open().try_start(ctx.tx);
-        }
+        this->node_operation.self_healing_open().try_start(ctx.tx, recovering);
 
         LOG_INFO_FMT("Created service");
         return make_success(true);
