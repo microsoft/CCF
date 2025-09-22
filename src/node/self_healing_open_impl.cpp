@@ -466,8 +466,7 @@ namespace ccf
     };
     nlohmann::json request_json = request;
 
-    for (auto& target_address :
-         node_state->config.recover.self_healing_open->addresses)
+    for (auto& target_address :config->addresses)
     {
       dispatch_authenticated_message(
         request_json,
