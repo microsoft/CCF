@@ -738,10 +738,24 @@ namespace ccf::curl
 
       if (status < 0)
       {
-        LOG_INFO_FMT(
-          "Socket poll error on {}: {}",
-          socket_context->socket,
-          uv_strerror(status));
+        if (status == UV_EBADF)
+        {
+          // Thrown when POLLERR is thrown by the epoll socket, such as when a
+          // TCP socket received a reset at a bad time
+          // https://docs.libuv.org/en/v1.x/poll.html#c.uv_poll_start
+          // https://github.com/libuv/libuv/issues/3796
+          LOG_INFO_FMT(
+            "Socket poll error on {}: {}",
+            socket_context->socket,
+            uv_strerror(status));
+        }
+        else
+        {
+          LOG_FAIL_FMT(
+            "Socket poll error on {}: {}",
+            socket_context->socket,
+            uv_strerror(status));
+        }
 
         // Notify curl of the error
         CHECK_CURL_MULTI(
