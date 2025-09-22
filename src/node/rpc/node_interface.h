@@ -4,7 +4,6 @@
 
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/quote_info.h"
-#include "ccf/node/startup_config.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/service/acme_client_config.h"
 #include "ccf/service/node_info_network.h"
