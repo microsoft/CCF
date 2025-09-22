@@ -838,7 +838,7 @@ class Network:
 
             forwarded_args_with_overrides = forwarded_args.copy()
             forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
-            if sealed_ledger_secrets is not None and i in sealed_ledger_secrets:
+            if sealed_ledger_secrets is not None and i < len(sealed_ledger_secrets):
                 forwarded_args_with_overrides[
                     "previous_sealed_ledger_secret_location"
                 ] = sealed_ledger_secrets[i]
