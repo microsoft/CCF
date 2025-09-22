@@ -1752,7 +1752,7 @@ def test_random_receipts(
                             network.cert,
                             claims=additional_seqnos.get(s),
                             generic=True,
-                            skip_endorsement_check=lts,
+                            skip_cert_chain_checks=lts,
                         )
                     break
                 elif rc.status_code == http.HTTPStatus.ACCEPTED:
