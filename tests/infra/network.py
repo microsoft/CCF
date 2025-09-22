@@ -5,7 +5,7 @@ import time
 
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
-from infra.clients import flush_info, CCFConnectionException
+from infra.clients import flush_info, CCFConnectionException, CCFIOException
 import infra.member
 import infra.path
 import infra.proc
@@ -26,7 +26,6 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 from infra.consortium import slurp_file
 from collections import deque
-from clients import CCFIOException
 
 
 from loguru import logger as LOG
