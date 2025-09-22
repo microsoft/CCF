@@ -783,6 +783,7 @@ class Network:
         set_authenticate_session=None,
         starting_nodes=None,
         timeout=10,
+        sealed_ledger_secrets=None,
         **kwargs,
     ):
         self.common_dir = common_dir or get_common_folder_name(
@@ -832,11 +833,15 @@ class Network:
         ]
 
         for i, node in enumerate(self.nodes):
-            forwarded_args_with_overrides = forwarded_args.copy()
-            forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
-            if not starting_nodes and i > starting_nodes:
+            if starting_nodes is not None and i > starting_nodes:
                 break
 
+            forwarded_args_with_overrides = forwarded_args.copy()
+            forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
+            if sealed_ledger_secrets is not None and i in sealed_ledger_secrets:
+                forwarded_args_with_overrides["previous_sealed_ledger_secret_location"] = (
+                    sealed_ledger_secrets[i]
+                )
             try:
                 node_kwargs = {
                     "lib_name": args.package,
