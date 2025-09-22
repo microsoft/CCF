@@ -57,7 +57,7 @@ def run(args):
         if seed is None:
             seed = time.time()
         seed = int(seed)
-        LOG.success(f"Shuffling full suite with seed {seed}")
+        LOG.success(f"Shuffling suite with seed {seed}")
         random.seed(seed)
         random.shuffle(chosen_suite)
         # Only time reqs can be safely ignored is if they are produced from a randomly shuffled suite
@@ -168,12 +168,12 @@ def run(args):
         jwt_server.stop()
 
     if success:
-        LOG.success(f"Full suite passed. Ran {len(run_tests)}/{len(chosen_suite)}")
+        LOG.success(f"Suite passed. Ran {len(run_tests)}/{len(chosen_suite)}")
     else:
         LOG.error(f"Suite failed. Ran {len(run_tests)}/{len(chosen_suite)}")
 
     if seed:
-        LOG.info(f"Full suite was shuffled with seed: {seed}")
+        LOG.info(f"Suite was shuffled with seed: {seed}")
 
     for idx, test in run_tests.items():
         if "status" not in test:
@@ -197,7 +197,7 @@ if __name__ == "__main__":
     def add(parser):
         parser.add_argument(
             "--test-duration",
-            help="Duration of full suite (s)",
+            help="Duration of suite (s)",
             type=int,
             required=True,
         )
