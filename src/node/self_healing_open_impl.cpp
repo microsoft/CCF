@@ -37,6 +37,7 @@ namespace ccf
       LOG_INFO_FMT(
         "Not recovering or self-healing-open not configured, skipping "
         "self-healing-open");
+        return;
     }
 
     LOG_INFO_FMT("Starting self-healing-open");
