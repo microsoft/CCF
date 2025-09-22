@@ -13,12 +13,12 @@ namespace ccf
   class SelfHealingOpenService
   {
   private:
-    // SelfHealingOpenService is solely owned by NodeState
-    std::weak_ptr<NodeState> weak_node_state;
-    std::optional<SelfHealingOpenConfig> config;
+    // SelfHealingOpenService is solely owned by NodeState, and all tasks should
+    // finish before NodeState is destroyed
+    NodeState* node_state;
 
   public:
-    SelfHealingOpenService(std::shared_ptr<NodeState> node_state);
+    SelfHealingOpenService(NodeState* node_state);
     void try_start(ccf::kv::Tx& tx);
     void advance(ccf::kv::Tx& tx, bool timeout);
 

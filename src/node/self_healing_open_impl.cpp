@@ -10,14 +10,13 @@
 namespace ccf
 {
 
-  SelfHealingOpenService::SelfHealingOpenService(
-    std::shared_ptr<NodeState> node_state) :
-    weak_node_state(node_state),
-    config(node_state->config.recover.self_healing_open)
+  SelfHealingOpenService::SelfHealingOpenService(NodeState* node_state_) :
+    node_state(node_state_)
   {}
 
   void SelfHealingOpenService::try_start(ccf::kv::Tx& tx)
   {
+    auto& config = node_state->config.recover.self_healing_open;
     if (!config.has_value())
     {
       LOG_INFO_FMT("Self-healing-open not configured, skipping");
@@ -46,12 +45,12 @@ namespace ccf
 
   void SelfHealingOpenService::advance(ccf::kv::Tx& tx, bool timeout)
   {
+    auto& config = node_state->config.recover.self_healing_open;
     if (!config.has_value())
     {
       throw std::logic_error("Self-healing-open not configured");
     }
 
-    auto node_state = this->weak_node_state.lock();
     auto* sm_state_handle =
       tx.rw(node_state->network.self_healing_open_sm_state);
     auto* timeout_state_handle =
@@ -208,11 +207,13 @@ namespace ccf
   {
     auto retry_timer_msg = std::make_unique<::threading::Tmsg<SHOMsg>>(
       [](std::unique_ptr<::threading::Tmsg<SHOMsg>> msg) {
-        if (!msg->data.self.config.has_value())
+        auto& config =
+          msg->data.self.node_state->config.recover.self_healing_open;
+        if (config)
         {
           throw std::logic_error("Self-healing-open not configured");
         }
-        auto node_state = msg->data.self.weak_node_state.lock();
+        auto& node_state = msg->data.self.node_state;
         std::lock_guard<pal::Mutex> guard(node_state->lock);
 
         auto tx = node_state->network.tables->create_read_only_tx();
@@ -275,7 +276,7 @@ namespace ccf
               static_cast<int>(sm_state)));
         }
 
-        auto delay = msg->data.self.config->retry_timeout;
+        auto delay = config->retry_timeout;
         ::threading::ThreadMessaging::instance().add_task_after(
           std::move(msg), delay);
       },
@@ -287,20 +288,22 @@ namespace ccf
 
   void SelfHealingOpenService::start_failover_timers()
   {
+    auto& config = node_state->config.recover.self_healing_open;
     if (!config.has_value())
     {
       throw std::logic_error("Self-healing-open not configured");
     }
-    auto node_state = this->weak_node_state.lock();
 
     // Dispatch timeouts
     auto timeout_msg = std::make_unique<::threading::Tmsg<SHOMsg>>(
       [](std::unique_ptr<::threading::Tmsg<SHOMsg>> msg) {
-        if (!msg->data.self.config.has_value())
+        auto& config =
+          msg->data.self.node_state->config.recover.self_healing_open;
+        if (!config.has_value())
         {
           throw std::logic_error("Self-healing-open not configured");
         }
-        auto node_state = msg->data.self.weak_node_state.lock();
+        auto* node_state = msg->data.self.node_state;
         std::lock_guard<pal::Mutex> guard(node_state->lock);
         LOG_TRACE_FMT(
           "Self-healing-open timeout, sending timeout to internal handlers");
@@ -359,7 +362,7 @@ namespace ccf
         curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
           std::move(curl_request));
 
-        auto delay = msg->data.self.config->timeout;
+        auto delay = config->retry_timeout;
         ::threading::ThreadMessaging::instance().add_task_after(
           std::move(msg), delay);
       },
@@ -437,7 +440,6 @@ namespace ccf
 
   self_healing_open::RequestNodeInfo SelfHealingOpenService::make_node_info()
   {
-    auto node_state = this->weak_node_state.lock();
     return {
       .quote_info = node_state->quote_info,
       .published_network_address =
@@ -452,11 +454,11 @@ namespace ccf
 
   void SelfHealingOpenService::send_gossip_unsafe()
   {
+    auto& config = node_state->config.recover.self_healing_open;
     if (!config.has_value())
     {
       throw std::logic_error("Self-healing-open not configured");
     }
-    auto node_state = this->weak_node_state.lock();
 
     LOG_TRACE_FMT("Broadcasting self-healing-open gossip");
 
@@ -466,7 +468,7 @@ namespace ccf
     };
     nlohmann::json request_json = request;
 
-    for (auto& target_address :config->addresses)
+    for (auto& target_address : config->addresses)
     {
       dispatch_authenticated_message(
         request_json,
@@ -480,11 +482,11 @@ namespace ccf
   void SelfHealingOpenService::send_vote_unsafe(
     const SelfHealingOpenNodeInfo_t& node_info)
   {
+    auto& config = node_state->config.recover.self_healing_open;
     if (!config.has_value())
     {
       throw std::logic_error("Self-healing-open not configured");
     }
-    auto node_state = this->weak_node_state.lock();
 
     LOG_TRACE_FMT(
       "Sending self-healing-open vote to {} at {}",
@@ -505,11 +507,11 @@ namespace ccf
 
   void SelfHealingOpenService::send_iamopen_unsafe()
   {
+    auto& config = node_state->config.recover.self_healing_open;
     if (!config.has_value())
     {
       throw std::logic_error("Self-healing-open not configured");
     }
-    auto node_state = this->weak_node_state.lock();
 
     LOG_TRACE_FMT("Sending self-healing-open iamopen");
 
