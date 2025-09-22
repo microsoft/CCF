@@ -209,7 +209,7 @@ namespace ccf
       [](std::unique_ptr<::threading::Tmsg<SHOMsg>> msg) {
         auto& config =
           msg->data.self.node_state->config.recover.self_healing_open;
-        if (config)
+        if (!config.has_value())
         {
           throw std::logic_error("Self-healing-open not configured");
         }
