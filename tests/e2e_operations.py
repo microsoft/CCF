@@ -1564,12 +1564,12 @@ def run_self_healing_open_timeout_path(const_args):
             recovery_args.binary_dir,
             recovery_args.debug_nodes,
             existing_network=network,
-            starting_nodes=1,  # Force timeout path by starting only one node
         )
         recovered_network.start_in_self_healing_open(
             recovery_args,
             ledger_dirs=ledger_dirs,
             committed_ledger_dirs=committed_ledger_dirs,
+            starting_nodes=1,  # Force timeout path by starting only one node
         )
 
         # Wait until all relevant nodes have restarted
