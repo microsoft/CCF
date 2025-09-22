@@ -421,19 +421,19 @@
                   "self_healing_open": {
                     "type": "object",
                     "properties": {
-                      "self_healing_open_addresses": {
+                      "addresses": {
                         "type": "array",
                         "items": {
                           "type": "string"
                         },
                         "description": "List of addresses (host:port) of the cluster that should open via self-healing-open"
                       },
-                      "self_healing_open_retry_timeout": {
+                      "retry_timeout": {
                         "type": "string",
                         "default": "100ms",
-                        "description": "Interval (time string) at which the node re-sends self-healing-open messages. This should be leass than 'self_healing_open_timeout'"
+                        "description": "Interval (time string) at which the node re-sends self-healing-open messages. This should be leass than 'timeout'"
                       },
-                      "self_healing_open_timeout": {
+                      "timeout": {
                         "type": "string",
                         "default": "2000ms",
                         "description": "Interval (time string) after which the node forcibly advances to the next phase of the self-healing-open protocol"
