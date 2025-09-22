@@ -811,7 +811,7 @@ class Network:
             for i, d in self.per_node_args_override.items()
         }
 
-        # Fix the port numbers to make all nodes _well known_ 
+        # Fix the port numbers to make all nodes _well known_
         for i, node in enumerate(self.nodes):
             port = 1000 + random.randint(0, 64534)
             node.host.get_primary_interface().port = port
@@ -839,9 +839,9 @@ class Network:
             forwarded_args_with_overrides = forwarded_args.copy()
             forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
             if sealed_ledger_secrets is not None and i in sealed_ledger_secrets:
-                forwarded_args_with_overrides["previous_sealed_ledger_secret_location"] = (
-                    sealed_ledger_secrets[i]
-                )
+                forwarded_args_with_overrides[
+                    "previous_sealed_ledger_secret_location"
+                ] = sealed_ledger_secrets[i]
             try:
                 node_kwargs = {
                     "lib_name": args.package,
@@ -868,9 +868,9 @@ class Network:
         self.observed_election_duration = self.election_duration + 1
 
         def cycle(items):
-          while True:
-            for item in items:
-              yield item
+            while True:
+                for item in items:
+                    yield item
 
         # Waiting for any node to transition-to-open
         end_time = time.time() + timeout
