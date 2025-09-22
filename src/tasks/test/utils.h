@@ -44,7 +44,8 @@ namespace test::utils
 
     if (safe_to_end == nullptr)
     {
-      safe_to_end = [&]() { return now > end_time && job_board.empty(); };
+      safe_to_end = [&]() { return now > end_time; };
+      // safe_to_end = [&]() { return now > end_time && job_board.empty(); };
     }
 
     while (true)

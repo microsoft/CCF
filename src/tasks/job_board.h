@@ -20,7 +20,15 @@ namespace ccf::tasks
 
     void add_task(Task&& t);
     Task get_task();
-    bool empty();
+
+    struct Summary
+    {
+      size_t pending_tasks;
+      size_t idle_workers;
+
+      bool operator==(const Summary&) const = default;
+    };
+    Summary get_summary();
 
     Task wait_for_task(const std::chrono::milliseconds& timeout);
   };

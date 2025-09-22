@@ -91,11 +91,15 @@ namespace ccf::tasks
     return pimpl->get_task();
   }
 
-  // TODO: Remove?
-  bool JobBoard::empty()
+  JobBoard::Summary JobBoard::get_summary()
   {
-    std::lock_guard<std::mutex> lock(pimpl->mutex);
-    return pimpl->pending_tasks.empty();
+    Summary summary;
+    {
+      std::lock_guard<std::mutex> lock(pimpl->mutex);
+      summary.pending_tasks = pimpl->pending_tasks.size();
+      summary.idle_workers = pimpl->waiting_consumers.size();
+    }
+    return summary;
   }
 
   Task JobBoard::wait_for_task(const std::chrono::milliseconds& timeout)

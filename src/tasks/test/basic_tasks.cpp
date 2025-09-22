@@ -21,7 +21,9 @@ TEST_CASE("TaskSystem" * doctest::test_suite("basic_tasks"))
   // There's a global singleton job board, initially empty
   auto& job_board = ccf::tasks::get_main_job_board();
 
-  REQUIRE(job_board.empty());
+  ccf::tasks::JobBoard::Summary empty_board{};
+
+  REQUIRE(job_board.get_summary() == empty_board);
   REQUIRE(job_board.get_task() == nullptr);
   REQUIRE(job_board.wait_for_task(short_wait) == nullptr);
 
@@ -54,7 +56,7 @@ TEST_CASE("TaskSystem" * doctest::test_suite("basic_tasks"))
   ccf::tasks::Task toggle_b = std::make_shared<SetAtomic>(b);
 
   // These tasks aren't scheduled yet, and can't have been executed!
-  REQUIRE(job_board.empty());
+  REQUIRE(job_board.get_summary() == empty_board);
   REQUIRE_FALSE(a.load());
   REQUIRE_FALSE(b.load());
 
@@ -63,7 +65,7 @@ TEST_CASE("TaskSystem" * doctest::test_suite("basic_tasks"))
   ccf::tasks::add_task(toggle_b);
 
   // Now there's something scheduled
-  REQUIRE_FALSE(job_board.empty());
+  REQUIRE(job_board.get_summary().pending_tasks == 2);
 
   // But it's not _executed_ yet
   REQUIRE_FALSE(a.load());
@@ -74,7 +76,7 @@ TEST_CASE("TaskSystem" * doctest::test_suite("basic_tasks"))
   auto first_task = job_board.get_task();
 
   // They likely take things one-at-a-time, so there's still something scheduled
-  REQUIRE_FALSE(job_board.empty());
+  REQUIRE(job_board.get_summary().pending_tasks == 1);
 
   // Not a critical guarantee, but for now the job board is FIFO, so in this
   // constrained example we know exactly what the task is
@@ -89,7 +91,7 @@ TEST_CASE("TaskSystem" * doctest::test_suite("basic_tasks"))
   // Then someone, maybe the same worker, arrives and takes the second task
   auto second_task = job_board.get_task();
   REQUIRE(second_task == toggle_b);
-  REQUIRE(job_board.empty());
+  REQUIRE(job_board.get_summary() == empty_board);
 
   REQUIRE_FALSE(b.load());
   second_task->do_task();
