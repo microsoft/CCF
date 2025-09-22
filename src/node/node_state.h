@@ -42,6 +42,7 @@
 #include "node/ledger_secrets.h"
 #include "node/local_sealing.h"
 #include "node/node_to_node_channel_manager.h"
+#include "node/self_healing_open_impl.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
 #include "pal/quote_generation.h"
@@ -85,7 +86,8 @@ namespace ccf
     data.shrink_to_fit();
   }
 
-  class NodeState : public AbstractNodeState, public std::enable_shared_from_this<NodeState>
+  class NodeState : public AbstractNodeState,
+                    public std::enable_shared_from_this<NodeState>
   {
     friend class SelfHealingOpenService;
 
@@ -236,7 +238,7 @@ namespace ccf
       last_recovered_signed_idx = last_recovered_idx;
     }
 
-    std::unique_ptr<SelfHealingOpenService> self_healing_open_impl;
+    SelfHealingOpenService self_healing_open_impl;
 
   public:
     NodeState(
@@ -254,7 +256,7 @@ namespace ccf
       network(network),
       rpcsessions(rpcsessions),
       share_manager(network.ledger_secrets),
-      self_healing_open_impl(std::make_unique<SelfHealingOpenService>(shared_from_this()))
+      self_healing_open_impl(shared_from_this())
     {}
 
     QuoteVerificationResult verify_quote(
@@ -3008,7 +3010,7 @@ namespace ccf
 
     SelfHealingOpenService& self_healing_open() override
     {
-      return *self_healing_open_impl;
+      return self_healing_open_impl;
     }
   };
 }

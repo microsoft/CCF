@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/node/startup_config.h"
 #include "ccf/service/tables/self_heal_open.h"
 #include "ccf/tx.h"
 #include "self_healing_open_types.h"
@@ -14,10 +15,11 @@ namespace ccf
   private:
     // SelfHealingOpenService is solely owned by NodeState
     std::weak_ptr<NodeState> weak_node_state;
+    std::optional<SelfHealingOpenConfig> config;
 
   public:
-    SelfHealingOpenService(std::shared_ptr<NodeState> node_state) : weak_node_state(node_state) {}
-    void try_start(ccf::kv::Tx& tx, bool recovering);
+    SelfHealingOpenService(std::shared_ptr<NodeState> node_state);
+    void try_start(ccf::kv::Tx& tx);
     void advance(ccf::kv::Tx& tx, bool timeout);
 
   private:
@@ -29,7 +31,7 @@ namespace ccf
 
     // Start path
     void start_message_retry_timers();
-    void start_failover_timers(ccf::kv::Tx& tx);
+    void start_failover_timers();
 
     // Steady state operations
     self_healing_open::RequestNodeInfo make_node_info();
