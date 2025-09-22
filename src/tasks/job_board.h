@@ -12,9 +12,11 @@ namespace ccf::tasks
 {
   struct JobBoard
   {
-    std::mutex mutex;
-    std::queue<Task> queue;
-    ccf::ds::WorkBeacon work_beacon;
+    struct PImpl;
+    std::unique_ptr<PImpl> pimpl = nullptr;
+
+    JobBoard();
+    ~JobBoard();
 
     void add_task(Task&& t);
     Task get_task();
