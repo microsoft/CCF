@@ -807,6 +807,9 @@ class Network:
                     "read_only_ledger_dirs": committed_ledger_dirs[i] or [],
                     "snapshots_dir": snapshot_dirs[i] or None,
                 }
+                | {"previous_sealed_ledger_secret_location": sealed_ledger_secrets[i]}
+                if sealed_ledger_secrets and i < len(sealed_ledger_secrets)
+                else {}
             )
             for i, d in self.per_node_args_override.items()
         }
@@ -838,10 +841,6 @@ class Network:
 
             forwarded_args_with_overrides = forwarded_args.copy()
             forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
-            if sealed_ledger_secrets is not None and i < len(sealed_ledger_secrets):
-                forwarded_args_with_overrides[
-                    "previous_sealed_ledger_secret_location"
-                ] = sealed_ledger_secrets[i]
             try:
                 node_kwargs = {
                     "lib_name": args.package,
