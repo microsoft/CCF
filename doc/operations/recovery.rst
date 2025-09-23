@@ -161,6 +161,7 @@ If a node receives votes from a majority of nodes, it invokes `transition-to-ope
 This path is illustrated below, and is guaranteed to succeed if all nodes can communicate and no timeouts trigger.
 
 .. mermaid::
+
     sequenceDiagram
       participant N1
       participant N2
@@ -204,6 +205,7 @@ To audit if timeouts were used to open the service, the `public:ccf.gov.selfheal
 This failover path is illustrated below.
 
 .. mermaid::
+
     sequenceDiagram
       participant N1
       participant N2
