@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/node/startup_config.h"
-#include "ccf/service/tables/self_heal_open.h"
+#include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
 #include "self_healing_open_types.h"
 

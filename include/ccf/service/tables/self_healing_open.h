@@ -54,6 +54,7 @@ namespace ccf
   using SelfHealingOpenVotes = ServiceSet<IntrinsicIdentifier>;
   using SelfHealingOpenSMState = ServiceValue<SelfHealingOpenSM>;
   using SelfHealingOpenTimeoutSMState = ServiceValue<SelfHealingOpenSM>;
+  using SelfHealingOpenTimeoutFlag = ServiceValue<bool>;
 
   namespace Tables
   {
@@ -69,5 +70,7 @@ namespace ccf
       "public:ccf.gov.selfhealingopen.sm_state";
     static constexpr auto SELF_HEALING_OPEN_TIMEOUT_SM_STATE =
       "public:ccf.gov.selfhealingopen.timeout_sm_state";
+    static constexpr auto SELF_HEALING_OPEN_TIMEOUT_FLAG =
+      "public:ccf.gov.selfhealingopen.timeout_used_to_open";
   }
 }

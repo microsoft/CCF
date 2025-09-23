@@ -3,6 +3,7 @@
 
 #include "node/self_healing_open_impl.h"
 
+#include "ccf/service/tables/self_healing_open.h"
 #include "node_state.h"
 
 #include <stdexcept>
@@ -17,19 +18,13 @@ namespace ccf
   void SelfHealingOpenService::try_start(ccf::kv::Tx& tx, bool recovering)
   {
     // Clear any previous state
-    tx.rw<ccf::SelfHealingOpenSMState>(Tables::SELF_HEALING_OPEN_SM_STATE)
-      ->clear();
-    tx.rw<ccf::SelfHealingOpenTimeoutSMState>(
-        Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE)
-      ->clear();
-    tx.rw<ccf::SelfHealingOpenNodeInfo>(Tables::SELF_HEALING_OPEN_NODES)
-      ->clear();
-    tx.rw<ccf::SelfHealingOpenGossips>(Tables::SELF_HEALING_OPEN_GOSSIPS)
-      ->clear();
-    tx.rw<ccf::SelfHealingOpenChosenReplica>(
-        Tables::SELF_HEALING_OPEN_CHOSEN_REPLICA)
-      ->clear();
-    tx.rw<ccf::SelfHealingOpenVotes>(Tables::SELF_HEALING_OPEN_VOTES)->clear();
+    tx.rw(node_state->network.self_healing_open_sm_state)->clear();
+    tx.rw(node_state->network.self_healing_open_timeout_sm_state)->clear();
+    tx.rw(node_state->network.self_healing_open_node_info)->clear();
+    tx.rw(node_state->network.self_healing_open_gossip)->clear();
+    tx.rw(node_state->network.self_healing_open_chosen_replica)->clear();
+    tx.rw(node_state->network.self_healing_open_votes)->clear();
+    tx.rw(node_state->network.self_healing_open_timeout_flag)->clear();
 
     auto& config = node_state->config.recover.self_healing_open;
     if (!recovering || !config.has_value())
@@ -42,10 +37,9 @@ namespace ccf
 
     LOG_INFO_FMT("Starting self-healing-open");
 
-    tx.rw<ccf::SelfHealingOpenSMState>(Tables::SELF_HEALING_OPEN_SM_STATE)
+    tx.rw(node_state->network.self_healing_open_sm_state)
       ->put(SelfHealingOpenSM::GOSSIPPING);
-    tx.rw<ccf::SelfHealingOpenTimeoutSMState>(
-        Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE)
+    tx.rw(node_state->network.self_healing_open_timeout_sm_state)
       ->put(SelfHealingOpenSM::GOSSIPPING);
 
     start_message_retry_timers();
@@ -76,27 +70,6 @@ namespace ccf
     auto& timeout_state = timeout_state_opt.value();
 
     bool valid_timeout = timeout && sm_state == timeout_state;
-
-    // Advance timeout SM
-    if (timeout)
-    {
-      switch (timeout_state)
-      {
-        case SelfHealingOpenSM::GOSSIPPING:
-          LOG_TRACE_FMT("Advancing timeout SM to VOTING");
-          timeout_state_handle->put(SelfHealingOpenSM::VOTING);
-          break;
-        case SelfHealingOpenSM::VOTING:
-          LOG_TRACE_FMT("Advancing timeout SM to OPENING");
-          timeout_state_handle->put(SelfHealingOpenSM::OPENING);
-          break;
-        case SelfHealingOpenSM::OPENING:
-        case SelfHealingOpenSM::JOINING:
-        case SelfHealingOpenSM::OPEN:
-        default:
-          LOG_TRACE_FMT("Timeout SM complete");
-      }
-    }
 
     // Advance self-healing-open SM
     switch (sm_state)
@@ -134,13 +107,20 @@ namespace ccf
           chosen_replica->put(maximum->second);
           sm_state_handle->put(SelfHealingOpenSM::VOTING);
         }
-        return;
+        break;
       }
       case SelfHealingOpenSM::VOTING:
       {
         auto* votes = tx.rw(node_state->network.self_healing_open_votes);
-        if (votes->size() >= config->addresses.size() / 2 + 1 || valid_timeout)
+        auto sufficient_quorum =
+          votes->size() >= config->addresses.size() / 2 + 1;
+        if (sufficient_quorum || valid_timeout)
         {
+          if (valid_timeout && !sufficient_quorum)
+          {
+            tx.rw(node_state->network.self_healing_open_timeout_flag)
+              ->put(true);
+          }
           if (votes->size() == 0)
           {
             throw std::logic_error(
@@ -166,7 +146,7 @@ namespace ccf
 
           node_state->transition_service_to_open(tx, identities);
         }
-        return;
+        break;
       }
       case SelfHealingOpenSM::JOINING:
       {
@@ -200,15 +180,37 @@ namespace ccf
         {
           sm_state_handle->put(SelfHealingOpenSM::OPEN);
         }
+        break;
       }
       case SelfHealingOpenSM::OPEN:
       {
         // Nothing to do here, we are already opening or open or joining
-        return;
+        break;
       }
       default:
         throw std::logic_error(fmt::format(
           "Unknown self-healing-open state: {}", static_cast<int>(sm_state)));
+    }
+
+    // Advance timeout SM
+    if (timeout)
+    {
+      switch (timeout_state)
+      {
+        case SelfHealingOpenSM::GOSSIPPING:
+          LOG_TRACE_FMT("Advancing timeout SM to VOTING");
+          timeout_state_handle->put(SelfHealingOpenSM::VOTING);
+          break;
+        case SelfHealingOpenSM::VOTING:
+          LOG_TRACE_FMT("Advancing timeout SM to OPENING");
+          timeout_state_handle->put(SelfHealingOpenSM::OPENING);
+          break;
+        case SelfHealingOpenSM::OPENING:
+        case SelfHealingOpenSM::JOINING:
+        case SelfHealingOpenSM::OPEN:
+        default:
+          LOG_TRACE_FMT("Timeout SM complete");
+      }
     }
   }
 

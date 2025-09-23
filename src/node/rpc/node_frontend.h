@@ -12,7 +12,7 @@
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/mem.h"
 #include "ccf/service/reconfiguration_type.h"
-#include "ccf/service/tables/self_heal_open.h"
+#include "ccf/service/tables/self_healing_open.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"

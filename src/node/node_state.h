@@ -17,7 +17,7 @@
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/service/tables/acme_certificates.h"
-#include "ccf/service/tables/self_heal_open.h"
+#include "ccf/service/tables/self_healing_open.h"
 #include "ccf/service/tables/service.h"
 #include "ccf/tx.h"
 #include "ccf_acme_client.h"

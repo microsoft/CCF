@@ -16,7 +16,7 @@
 #include "ccf/service/tables/modules.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/proposals.h"
-#include "ccf/service/tables/self_heal_open.h"
+#include "ccf/service/tables/self_healing_open.h"
 #include "ccf/service/tables/service.h"
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/tcb_verification.h"
@@ -259,6 +259,8 @@ namespace ccf
       Tables::SELF_HEALING_OPEN_SM_STATE};
     const SelfHealingOpenSMState self_healing_open_timeout_sm_state = {
       Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE};
+    const SelfHealingOpenTimeoutFlag self_healing_open_timeout_flag = {
+      Tables::SELF_HEALING_OPEN_TIMEOUT_FLAG};
 
     inline auto get_all_internal_tables() const
     {
