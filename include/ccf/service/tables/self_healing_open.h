@@ -31,7 +31,7 @@ enum class SelfHealingOpenSM
 {
   GOSSIPING = 0,
   VOTING,
-  OPENING, // by chosen replica
+  OPENING, // by chosen node
   JOINING, // by all other replicas
   OPEN,
 };

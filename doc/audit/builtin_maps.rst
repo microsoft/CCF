@@ -598,7 +598,7 @@ While the contents themselves are encrypted, the table is public so as to be acc
 ``self_healing_open.chosen_node``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Value** The intrinsic node ID of the chosen replica node. This will either be the node this node voted for, or the node that is has received an `IAmOpen` message from.
+**Value** The intrinsic node ID of the chosen node. This will either be the node this node voted for, or the node that is has received an `IAmOpen` message from.
 
 ``self_healing_open.votes``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
