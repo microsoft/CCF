@@ -24,8 +24,7 @@ namespace ccf
       ->clear();
     tx.rw<SelfHealingOpenNodeInfoMap>(Tables::SELF_HEALING_OPEN_NODES)->clear();
     tx.rw<SelfHealingOpenGossips>(Tables::SELF_HEALING_OPEN_GOSSIPS)->clear();
-    tx.rw<SelfHealingOpenChosenNode>(
-        Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
+    tx.rw<SelfHealingOpenChosenNode>(Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
       ->clear();
     tx.rw<SelfHealingOpenVotes>(Tables::SELF_HEALING_OPEN_VOTES)->clear();
     tx.rw<SelfHealingOpenFailoverFlag>(Tables::SELF_HEALING_OPEN_FAILOVER_FLAG)
