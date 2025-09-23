@@ -148,7 +148,7 @@ Which of these two paths is taken is noted in the `public:ccf.internal.last_reco
 Self-Healing-Open recovery
 --------------------------
 
-In environments with limited orchestration or limited operator access, it is desirable to allow a limited disaster recovery without operator intervention.
+In environments with limited orchestration or limited operator access, it is desirable to allow an automated disaster recovery without operator intervention.
 At a high level, Self-Healing-Open recovery allows recovering replicas to discover which replica has the most up-to-date ledger and automatically recover the network using that ledger.
 
 There are two paths, a election path, and a very-high-availablity failover path.
