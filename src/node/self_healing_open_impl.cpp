@@ -38,9 +38,9 @@ namespace ccf
     LOG_INFO_FMT("Starting self-healing-open");
 
     tx.rw(node_state->network.self_healing_open_sm_state)
-      ->put(SelfHealingOpenSM::GOSSIPPING);
+      ->put(SelfHealingOpenSM::GOSSIPING);
     tx.rw(node_state->network.self_healing_open_timeout_sm_state)
-      ->put(SelfHealingOpenSM::GOSSIPPING);
+      ->put(SelfHealingOpenSM::GOSSIPING);
 
     start_message_retry_timers();
     start_failover_timers();
@@ -74,7 +74,7 @@ namespace ccf
     // Advance self-healing-open SM
     switch (sm_state)
     {
-      case SelfHealingOpenSM::GOSSIPPING:
+      case SelfHealingOpenSM::GOSSIPING:
       {
         auto* gossip_handle =
           tx.ro(node_state->network.self_healing_open_gossip);
@@ -197,7 +197,7 @@ namespace ccf
     {
       switch (timeout_state)
       {
-        case SelfHealingOpenSM::GOSSIPPING:
+        case SelfHealingOpenSM::GOSSIPING:
           LOG_TRACE_FMT("Advancing timeout SM to VOTING");
           timeout_state_handle->put(SelfHealingOpenSM::VOTING);
           break;
@@ -250,7 +250,7 @@ namespace ccf
 
         switch (sm_state)
         {
-          case SelfHealingOpenSM::GOSSIPPING:
+          case SelfHealingOpenSM::GOSSIPING:
             msg->data.self.send_gossip_unsafe();
             break;
           case SelfHealingOpenSM::VOTING:

@@ -29,7 +29,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
 
 enum class SelfHealingOpenSM
 {
-  GOSSIPPING = 0,
+  GOSSIPING = 0,
   VOTING,
   OPENING, // by chosen replica
   JOINING, // by all other replicas
@@ -38,7 +38,7 @@ enum class SelfHealingOpenSM
 
 DECLARE_JSON_ENUM(
   SelfHealingOpenSM,
-  {{SelfHealingOpenSM::GOSSIPPING, "Gossipping"},
+  {{SelfHealingOpenSM::GOSSIPING, "Gossiping"},
    {SelfHealingOpenSM::VOTING, "Voting"},
    {SelfHealingOpenSM::OPENING, "Opening"},
    {SelfHealingOpenSM::JOINING, "Joining"},
