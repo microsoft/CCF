@@ -11,7 +11,7 @@
 namespace ccf
 {
 
-  SelfHealingOpenService::SelfHealingOpenService(NodeState* node_state_) :
+  SelfHealingOpenSubSystem::SelfHealingOpenSubSystem(NodeState* node_state_) :
     node_state(node_state_)
   {}
 
@@ -29,9 +29,7 @@ namespace ccf
     auto& config = node_state->config.recover.self_healing_open;
     if (!recovering || !config.has_value())
     {
-      LOG_INFO_FMT(
-        "Not recovering or self-healing-open not configured, skipping "
-        "self-healing-open");
+      LOG_INFO_FMT("Skipping self-healing-open");
       return;
     }
 
@@ -46,7 +44,7 @@ namespace ccf
     start_failover_timers();
   }
 
-  void SelfHealingOpenService::advance(ccf::kv::Tx& tx, bool timeout)
+  void SelfHealingOpenSubSystem::advance(ccf::kv::Tx& tx, bool timeout)
   {
     auto& config = node_state->config.recover.self_healing_open;
     if (!config.has_value())
@@ -214,7 +212,7 @@ namespace ccf
     }
   }
 
-  void SelfHealingOpenService::start_message_retry_timers()
+  void SelfHealingOpenSubSystem::start_message_retry_timers()
   {
     LOG_TRACE_FMT("Self-healing-open: Setting up retry timers");
     auto retry_timer_msg = std::make_unique<::threading::Tmsg<SHOMsg>>(
@@ -298,7 +296,7 @@ namespace ccf
       threading::get_current_thread_id(), std::move(retry_timer_msg));
   }
 
-  void SelfHealingOpenService::start_failover_timers()
+  void SelfHealingOpenSubSystem::start_failover_timers()
   {
     auto& config = node_state->config.recover.self_healing_open;
     if (!config.has_value())
@@ -450,7 +448,7 @@ namespace ccf
       std::move(curl_request));
   }
 
-  self_healing_open::RequestNodeInfo SelfHealingOpenService::make_node_info()
+  self_healing_open::RequestNodeInfo SelfHealingOpenSubSystem::make_node_info()
   {
     return {
       .quote_info = node_state->quote_info,
@@ -464,7 +462,7 @@ namespace ccf
     };
   }
 
-  void SelfHealingOpenService::send_gossip_unsafe()
+  void SelfHealingOpenSubSystem::send_gossip_unsafe()
   {
     auto& config = node_state->config.recover.self_healing_open;
     if (!config.has_value())
@@ -491,7 +489,7 @@ namespace ccf
     }
   }
 
-  void SelfHealingOpenService::send_vote_unsafe(
+  void SelfHealingOpenSubSystem::send_vote_unsafe(
     const SelfHealingOpenNodeInfo_t& node_info)
   {
     auto& config = node_state->config.recover.self_healing_open;
@@ -517,7 +515,7 @@ namespace ccf
       node_state->node_sign_kp->private_key_pem());
   }
 
-  void SelfHealingOpenService::send_iamopen_unsafe()
+  void SelfHealingOpenSubSystem::send_iamopen_unsafe()
   {
     auto& config = node_state->config.recover.self_healing_open;
     if (!config.has_value())

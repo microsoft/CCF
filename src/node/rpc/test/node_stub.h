@@ -112,7 +112,7 @@ namespace ccf
       return cose_signatures_config;
     }
 
-    SelfHealingOpenService& self_healing_open() override
+    SelfHealingOpenSubSystem& self_healing_open() override
     {
       throw std::logic_error("Unimplemented");
     }

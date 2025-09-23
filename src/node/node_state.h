@@ -88,7 +88,7 @@ namespace ccf
 
   class NodeState : public AbstractNodeState
   {
-    friend class SelfHealingOpenService;
+    friend class SelfHealingOpenSubSystem;
 
   private:
     //
@@ -237,7 +237,7 @@ namespace ccf
       last_recovered_signed_idx = last_recovered_idx;
     }
 
-    SelfHealingOpenService self_healing_open_impl;
+    SelfHealingOpenSubSystem self_healing_open_impl;
 
   public:
     NodeState(
@@ -3007,7 +3007,7 @@ namespace ccf
       return writer_factory;
     }
 
-    SelfHealingOpenService& self_healing_open() override
+    SelfHealingOpenSubSystem& self_healing_open() override
     {
       return self_healing_open_impl;
     }

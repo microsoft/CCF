@@ -62,6 +62,6 @@ namespace ccf
 
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
 
-    virtual SelfHealingOpenService& self_healing_open() = 0;
+    virtual SelfHealingOpenSubsystem& self_healing_open() = 0;
   };
 }

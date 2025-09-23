@@ -25,7 +25,6 @@
 #include "node/rpc/no_create_tx_claims_digest.cpp"
 #include "node/rpc/serialization.h"
 #include "node/self_healing_open_impl.h"
-#include "node/self_healing_open_types.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
 #include "service/internal_tables_access.h"
