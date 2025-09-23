@@ -225,12 +225,12 @@ namespace ccf
         {
           throw std::logic_error("Self-healing-open not configured");
         }
-        auto& node_state = msg->data.self.node_state;
-        std::lock_guard<pal::Mutex> guard(node_state->lock);
+        auto& node_state_ = msg->data.self.node_state;
+        std::lock_guard<pal::Mutex> guard(node_state_->lock);
 
-        auto tx = node_state->network.tables->create_read_only_tx();
+        auto tx = node_state_->network.tables->create_read_only_tx();
         auto* sm_state_handle =
-          tx.ro(node_state->network.self_healing_open_sm_state);
+          tx.ro(node_state_->network.self_healing_open_sm_state);
 
         auto sm_state_opt = sm_state_handle->get();
         if (!sm_state_opt.has_value())
@@ -256,9 +256,9 @@ namespace ccf
           case SelfHealingOpenSM::VOTING:
           {
             auto* node_info_handle =
-              tx.ro(node_state->network.self_healing_open_node_info);
+              tx.ro(node_state_->network.self_healing_open_node_info);
             auto* chosen_replica_handle =
-              tx.ro(node_state->network.self_healing_open_chosen_replica);
+              tx.ro(node_state_->network.self_healing_open_chosen_replica);
             if (!chosen_replica_handle->get().has_value())
             {
               throw std::logic_error(
@@ -316,15 +316,15 @@ namespace ccf
         {
           throw std::logic_error("Self-healing-open not configured");
         }
-        auto* node_state = msg->data.self.node_state;
-        std::lock_guard<pal::Mutex> guard(node_state->lock);
+        auto* node_state_ = msg->data.self.node_state;
+        std::lock_guard<pal::Mutex> guard(node_state_->lock);
         LOG_TRACE_FMT(
           "Self-healing-open timeout, sending timeout to internal handlers");
 
         // Stop the timer if the node has completed its self-healing-open
-        auto tx = node_state->network.tables->create_read_only_tx();
+        auto tx = node_state_->network.tables->create_read_only_tx();
         auto* sm_state_handle =
-          tx.ro(node_state->network.self_healing_open_sm_state);
+          tx.ro(node_state_->network.self_healing_open_sm_state);
         if (!sm_state_handle->get().has_value())
         {
           throw std::logic_error(
@@ -341,7 +341,7 @@ namespace ccf
         // Send a timeout to the internal handlers
         curl::UniqueCURL curl_handle;
 
-        auto cert = node_state->self_signed_node_cert;
+        auto cert = node_state_->self_signed_node_cert;
         curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 0L);
         curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 0L);
         curl_handle.set_opt(CURLOPT_SSL_VERIFYSTATUS, 0L);
@@ -350,14 +350,14 @@ namespace ccf
           CURLOPT_SSLCERT_BLOB, cert.data(), cert.size());
         curl_handle.set_opt(CURLOPT_SSLCERTTYPE, "PEM");
 
-        auto privkey_pem = node_state->node_sign_kp->private_key_pem();
+        auto privkey_pem = node_state_->node_sign_kp->private_key_pem();
         curl_handle.set_blob_opt(
           CURLOPT_SSLKEY_BLOB, privkey_pem.data(), privkey_pem.size());
         curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
 
         auto url = fmt::format(
           "https://{}/{}/self_healing_open/timeout",
-          node_state->config.network.rpc_interfaces.at("primary_rpc_interface")
+          node_state_->config.network.rpc_interfaces.at("primary_rpc_interface")
             .published_address,
           get_actor_prefix(ActorsType::nodes));
 
