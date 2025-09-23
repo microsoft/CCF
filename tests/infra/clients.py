@@ -605,11 +605,15 @@ class CurlClient:
 
             if rc.returncode != 0:
                 if rc.returncode in [
+                    # COULDNT_CONNECT,
                     7,
+                    # PEER_FAILED_VERIFICATION,
                     35,
+                    # SEND_ERROR,
                     55,
+                    # SSL_CONNECT_ERROR
                     60,
-                ]:  # COULDNT_CONNECT, PEER_FAILED_VERIFICATION, SEND_ERROR, SSL_CONNECT_ERROR
+                ]:
                     raise CCFConnectionException
                 if rc.returncode == 28:  # OPERATION_TIMEDOUT
                     raise TimeoutError
