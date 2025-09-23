@@ -145,19 +145,14 @@ Which of these two paths is taken is noted in the `public:ccf.internal.last_reco
       ...
     $ /opt/ccf/bin/js_generic --config /path/to/config/file
 
-Notes
------
-
-- Operators can track the number of times a given service has undergone the disaster recovery procedure via the :http:GET:`/node/network` endpoint (``recovery_count`` field).
-
 Self-Healing-Open recovery
 --------------------------
 
-In environments with limited orchestration or external access, it is desirable to allow the network to recover from a disaster without operator intervention.
+In environments with limited orchestration or it is difficult for operators to access, it is desirable to allow a limited disaster recover without operator intervention.
 At a high level, Self-Healing-Open recovery allows recovering replicas to discover which replica has the most up-to-date ledger and automatically recover the network using that ledger.
 
 There are two paths, a standard path, and a very-high-availablity timeout path.
-The standard path ensures that if all nodes restart, at most a minority of the ledgers get rolled back, and no timeouts trigger, then there will be only one recovered network, and all committed entries from the previous network will be preserved.
+The standard path ensures that if: all nodes restart, at most a minority of the ledgers get rolled back, and no timeouts trigger; then there will be only one recovered network, and all committed entries from the previous network will be preserved.
 However, the standard path can become stuck, in which case the timeout path is designed to ensure progress.
 
 In the standard path, nodes first gossip with each other.
@@ -204,7 +199,9 @@ In this case, after a timeout, nodes will advance to the vote phase regardless o
 
 Unfortunately, this can lead to multiple forks of the service if different nodes cannot communicate with each other before the timeout.
 Hence, we recommend setting the timeout substantially higher than the highest expected recovery time, to minimise the chance of this happening.
-This case is illustrated below.
+To check if timeouts were used to open the service, the `public:ccf.gov.selfhealingopen.timeout_used_to_open` map tracks this.
+
+This timeout path is illustrated below.
 
 .. mermaid::
     sequenceDiagram
@@ -230,6 +227,14 @@ This case is illustrated below.
       
       Note over N1: Transition-to-open
       Note over N3: Transition-to-open
+
+
+If the network fails during reconfiguration, each node will use its latest known configuration to recover. Since reconfiguration requires votes from a majority of nodes, the latest configuration should recover using the standard path, however nodes in the previous configuration may recover using the timeout path.
+
+Notes
+-----
+
+- Operators can track the number of times a given service has undergone the disaster recovery procedure via the :http:GET:`/node/network` endpoint (``recovery_count`` field).
 
 .. rubric:: Footnotes
 
