@@ -111,7 +111,7 @@ namespace ccf
       return impl.get_cose_signatures_config();
     }
 
-    SelfHealingOpenSubSystem& self_healing_open() override
+    SelfHealingOpenSubsystem& self_healing_open() override
     {
       return impl.self_healing_open();
     }

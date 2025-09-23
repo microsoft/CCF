@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/json.h"
 #include "ccf/node/startup_config.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
@@ -23,34 +24,26 @@ namespace ccf::self_healing_open
     intrinsic_id,
     service_identity);
 
-  struct GossipRequest
+  struct TaggedWithNodeInfo
   {
+  public:
     RequestNodeInfo info;
-    ccf::kv::Version txid;
+  };
+  DECLARE_JSON_TYPE(TaggedWithNodeInfo);
+  DECLARE_JSON_REQUIRED_FIELDS(TaggedWithNodeInfo, info);
+
+  struct GossipRequest : public TaggedWithNodeInfo
+  {
+    ccf::kv::Version txid{};
   };
   DECLARE_JSON_TYPE(GossipRequest);
-  DECLARE_JSON_REQUIRED_FIELDS(GossipRequest, txid, info);
-
-  struct VoteRequest
-  {
-    RequestNodeInfo info;
-  };
-  DECLARE_JSON_TYPE(VoteRequest);
-  DECLARE_JSON_REQUIRED_FIELDS(VoteRequest, info);
-
-  struct IAmOpenRequest
-  {
-    RequestNodeInfo info;
-  };
-  DECLARE_JSON_TYPE(IAmOpenRequest);
-  DECLARE_JSON_REQUIRED_FIELDS(IAmOpenRequest, info);
-
+  DECLARE_JSON_REQUIRED_FIELDS(GossipRequest, txid);
 }
 
 namespace ccf
 {
   class NodeState;
-  class SelfHealingOpenSubSystem
+  class SelfHealingOpenSubsystem
   {
   private:
     // SelfHealingOpenService is solely owned by NodeState, and all tasks should
@@ -58,15 +51,15 @@ namespace ccf
     NodeState* node_state;
 
   public:
-    SelfHealingOpenSubSystem(NodeState* node_state);
+    SelfHealingOpenSubsystem(NodeState* node_state);
     void try_start(ccf::kv::Tx& tx, bool recovering);
     void advance(ccf::kv::Tx& tx, bool timeout);
 
   private:
     struct SHOMsg
     {
-      SHOMsg(SelfHealingOpenSubSystem& self_) : self(self_) {}
-      SelfHealingOpenSubSystem& self;
+      SHOMsg(SelfHealingOpenSubsystem& self_) : self(self_) {}
+      SelfHealingOpenSubsystem& self;
     };
 
     // Start path
