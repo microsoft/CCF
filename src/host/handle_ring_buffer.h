@@ -6,7 +6,6 @@
 #include "../enclave/interface.h"
 #include "ds/internal_logger.h"
 #include "ds/non_blocking.h"
-#include "self_healing_open.h"
 #include "timer.h"
 
 #include <chrono>
@@ -58,7 +57,9 @@ namespace asynchost
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         bp, AdminMessage::restart, [&](const uint8_t*, size_t) {
-          ccf::SelfHealingOpenRBHandlerSingleton::instance()->trigger_restart();
+          LOG_INFO_FMT("Received request to restart enclave, sending stops");
+          auto to_enclave = nbwf.create_writer_to_inside();
+          RINGBUFFER_WRITE_MESSAGE(AdminMessage::stop, to_enclave);
         });
     }
 
