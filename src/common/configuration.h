@@ -129,7 +129,7 @@ namespace ccf
     service_cert,
     follow_redirect);
 
-  DECLARE_JSON_TYPE(StartupConfig::Recover);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(StartupConfig::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(
     StartupConfig::Recover, previous_service_identity);
   DECLARE_JSON_OPTIONAL_FIELDS(
