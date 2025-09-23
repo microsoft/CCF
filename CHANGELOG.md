@@ -13,7 +13,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Improved handling of socket errors in curlm callbacks (#7308)
 
-
 ## [6.0.13]
 
 [6.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.13
