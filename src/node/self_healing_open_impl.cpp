@@ -24,7 +24,7 @@ namespace ccf
     tx.rw(node_state->network.self_healing_open_gossip)->clear();
     tx.rw(node_state->network.self_healing_open_chosen_replica)->clear();
     tx.rw(node_state->network.self_healing_open_votes)->clear();
-    tx.rw(node_state->network.self_healing_open_timeout_flag)->clear();
+    tx.rw(node_state->network.self_healing_open_failover_flag)->clear();
 
     auto& config = node_state->config.recover.self_healing_open;
     if (!recovering || !config.has_value())
@@ -118,7 +118,7 @@ namespace ccf
         {
           if (valid_timeout && !sufficient_quorum)
           {
-            tx.rw(node_state->network.self_healing_open_timeout_flag)
+            tx.rw(node_state->network.self_healing_open_failover_flag)
               ->put(true);
           }
           if (votes->size() == 0)

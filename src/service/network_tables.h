@@ -259,8 +259,8 @@ namespace ccf
       Tables::SELF_HEALING_OPEN_SM_STATE};
     const SelfHealingOpenSMState self_healing_open_timeout_sm_state = {
       Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE};
-    const SelfHealingOpenTimeoutFlag self_healing_open_timeout_flag = {
-      Tables::SELF_HEALING_OPEN_TIMEOUT_FLAG};
+    const SelfHealingOpenFailoverFlag self_healing_open_failover_flag = {
+      Tables::SELF_HEALING_OPEN_FAILOVER_FLAG};
 
     inline auto get_all_internal_tables() const
     {

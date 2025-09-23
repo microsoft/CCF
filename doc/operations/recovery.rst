@@ -148,17 +148,17 @@ Which of these two paths is taken is noted in the `public:ccf.internal.last_reco
 Self-Healing-Open recovery
 --------------------------
 
-In environments with limited orchestration or it is difficult for operators to access, it is desirable to allow a limited disaster recover without operator intervention.
+In environments with limited orchestration or limited operator access, it is desirable to allow a limited disaster recovery without operator intervention.
 At a high level, Self-Healing-Open recovery allows recovering replicas to discover which replica has the most up-to-date ledger and automatically recover the network using that ledger.
 
-There are two paths, a standard path, and a very-high-availablity timeout path.
-The standard path ensures that if: all nodes restart, at most a minority of the ledgers get rolled back, and no timeouts trigger; then there will be only one recovered network, and all committed entries from the previous network will be preserved.
-However, the standard path can become stuck, in which case the timeout path is designed to ensure progress.
+There are two paths, a election path, and a very-high-availablity failover path.
+The election path ensures that if: all nodes restart and have full network connectivity, a majority of nodes' on-disk ledger contains every committed transaction, and no timeouts trigger; then there will be only one recovered network, then all committed transaction will be persisted.
+However, the election path can become stuck, in which case the failover path is designed to ensure progress.
 
-In the standard path, nodes first gossip with each other.
-Once they have heard from every node they choose a node to vote for.
-If a node receives votes from a majority of nodes, it invokes `transition-to-open` and the other nodes restart to subsequently join it.
-This path is illustrated below, and is guaranteed to succeed if at most a minority of nodes have failed, all nodes can communicate and no timeouts trigger.
+In the election path, nodes first gossip with each other, learning of the ledgers of other nodes.
+Once they have heard from every node they vote for the node with the best ledger.
+If a node receives votes from a majority of nodes, it invokes `transition-to-open` and notifies the other nodes to restart and join it.
+This path is illustrated below, and is guaranteed to succeed if all nodes can communicate and no timeouts trigger.
 
 .. mermaid::
     sequenceDiagram
@@ -192,16 +192,16 @@ This path is illustrated below, and is guaranteed to succeed if at most a minori
       N1 ->> N3: Join
       N2 ->> N3: Join
 
-In the timeout path, each phase has a timeout to skip to the next phase if a failure has occurred.
-For example, the standard path requires all nodes to communicate to advance from the gossip phase to the vote phase.
-However, if any node fails to recover, the standard path is stuck.
+In the failover path, each phase has a timeout to skip to the next phase if a failure has occurred.
+For example, the election path requires all nodes to communicate to advance from the gossip phase to the vote phase.
+However, if any node fails to recover, the election path is stuck.
 In this case, after a timeout, nodes will advance to the vote phase regardless of whether they have heard from all nodes, and vote for the best ledger they have heard of at that point.
 
-Unfortunately, this can lead to multiple forks of the service if different nodes cannot communicate with each other before the timeout.
+Unfortunately, this can lead to multiple forks of the service if different nodes cannot communicate with each other and timeout.
 Hence, we recommend setting the timeout substantially higher than the highest expected recovery time, to minimise the chance of this happening.
-To audit if timeouts were used to open the service, the `public:ccf.gov.selfhealingopen.timeout_used_to_open` map tracks this.
+To audit if timeouts were used to open the service, the `public:ccf.gov.selfhealingopen.failover_open` table tracks this.
 
-This timeout path is illustrated below.
+This failover path is illustrated below.
 
 .. mermaid::
     sequenceDiagram
@@ -229,7 +229,7 @@ This timeout path is illustrated below.
       Note over N3: Transition-to-open
 
 
-If the network fails during reconfiguration, each node will use its latest known configuration to recover. Since reconfiguration requires votes from a majority of nodes, the latest configuration should recover using the standard path, however nodes in the previous configuration may recover using the timeout path.
+If the network fails during reconfiguration, each node will use its latest known configuration to recover. Since reconfiguration requires votes from a majority of nodes, the latest configuration should recover using the election path, however nodes in the previous configuration may recover using the election path.
 
 Notes
 -----
