@@ -199,7 +199,7 @@ In this case, after a timeout, nodes will advance to the vote phase regardless o
 
 Unfortunately, this can lead to multiple forks of the service if different nodes cannot communicate with each other before the timeout.
 Hence, we recommend setting the timeout substantially higher than the highest expected recovery time, to minimise the chance of this happening.
-To check if timeouts were used to open the service, the `public:ccf.gov.selfhealingopen.timeout_used_to_open` map tracks this.
+To audit if timeouts were used to open the service, the `public:ccf.gov.selfhealingopen.timeout_used_to_open` map tracks this.
 
 This timeout path is illustrated below.
 
