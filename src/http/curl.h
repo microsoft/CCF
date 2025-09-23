@@ -714,6 +714,12 @@ namespace ccf::curl
     static void libuv_socket_poll_callback(
       uv_poll_t* req, int status, int events)
     {
+      if (status < 0)
+      {
+        LOG_FAIL_FMT("Socket poll error: {}", uv_strerror(status));
+        return;
+      }
+
       auto* socket_context = static_cast<SocketContextImpl*>(req->data);
       if (socket_context == nullptr)
       {
@@ -730,27 +736,7 @@ namespace ccf::curl
 
       if (self->is_stopping)
       {
-        LOG_FAIL_FMT(
-          "libuv_socket_poll_callback called on {} while stopped",
-          socket_context->socket);
-        return;
-      }
-
-      if (status < 0)
-      {
-        LOG_INFO_FMT(
-          "Socket poll error on {}: {}",
-          socket_context->socket,
-          uv_strerror(status));
-
-        // Notify curl of the error
-        CHECK_CURL_MULTI(
-          curl_multi_socket_action,
-          self->curl_request_curlm,
-          socket_context->socket,
-          CURL_CSELECT_ERR,
-          nullptr);
-        self->curl_request_curlm.perform();
+        LOG_FAIL_FMT("libuv_socket_poll_callback called while stopping");
         return;
       }
 
@@ -793,17 +779,15 @@ namespace ccf::curl
         case CURL_POLL_OUT:
         case CURL_POLL_INOUT:
         {
-          LOG_INFO_FMT(
-            "Curl socket callback: listen on socket {}, {}",
-            static_cast<int>(s),
-            static_cast<int>(action));
-
-          // During shutdown ignore requests to add new sockets
+          // Possibly called during shutdown
           if (self->is_stopping)
           {
+            LOG_FAIL_FMT("curl_socket_callback called while stopping");
             return 0;
           }
 
+          LOG_INFO_FMT(
+            "Curl socket callback: listen on socket {}", static_cast<int>(s));
           if (socket_context == nullptr)
           {
             auto socket_context_ptr = std::make_unique<SocketContextImpl>();
