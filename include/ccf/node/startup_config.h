@@ -106,7 +106,7 @@ namespace ccf
   {
     std::vector<std::string> addresses;
     ccf::ds::TimeString retry_timeout = {"100ms"};
-    ccf::ds::TimeString timeout = {"2000ms"};
+    ccf::ds::TimeString failover_timeout = {"2000ms"};
     bool operator==(const SelfHealingOpenConfig&) const = default;
   };
 

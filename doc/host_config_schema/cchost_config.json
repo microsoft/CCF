@@ -431,9 +431,9 @@
                       "retry_timeout": {
                         "type": "string",
                         "default": "100ms",
-                        "description": "Interval (time string) at which the node re-sends self-healing-open messages. This should be less than 'timeout'"
+                        "description": "Interval (time string) at which the node re-sends self-healing-open messages. This should be significantly less than 'failover_timeout'"
                       },
-                      "timeout": {
+                      "failover_timeout": {
                         "type": "string",
                         "default": "2000ms",
                         "description": "Interval (time string) after which the node forcibly advances to the next phase of the self-healing-open protocol"

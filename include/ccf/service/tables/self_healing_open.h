@@ -9,7 +9,7 @@
 
 using IntrinsicIdentifier = std::string;
 
-struct SelfHealingOpenNodeInfo_t
+struct SelfHealingOpenNodeInfo
 {
   ccf::QuoteInfo quote_info;
   std::string published_network_address;
@@ -18,9 +18,9 @@ struct SelfHealingOpenNodeInfo_t
   IntrinsicIdentifier intrinsic_id;
 };
 
-DECLARE_JSON_TYPE(SelfHealingOpenNodeInfo_t);
+DECLARE_JSON_TYPE(SelfHealingOpenNodeInfo);
 DECLARE_JSON_REQUIRED_FIELDS(
-  SelfHealingOpenNodeInfo_t,
+  SelfHealingOpenNodeInfo,
   quote_info,
   published_network_address,
   cert_der,
@@ -46,8 +46,8 @@ DECLARE_JSON_ENUM(
 
 namespace ccf
 {
-  using SelfHealingOpenNodeInfo =
-    ServiceMap<IntrinsicIdentifier, SelfHealingOpenNodeInfo_t>;
+  using SelfHealingOpenNodeInfoMap =
+    ServiceMap<IntrinsicIdentifier, ::SelfHealingOpenNodeInfo>;
   using SelfHealingOpenGossips =
     ServiceMap<IntrinsicIdentifier, ccf::kv::Version>;
   using SelfHealingOpenChosenReplica = ServiceValue<IntrinsicIdentifier>;
