@@ -458,7 +458,7 @@ namespace ccf::curl
     static void handle_response(
       std::unique_ptr<CurlRequest>&& request, CURLcode curl_response_code)
     {
-      LOG_DEBUG_FMT("Handling response for {}", url);
+      LOG_DEBUG_FMT("Handling response for {}", request->url);
       if (request->response_callback.has_value())
       {
         long status_code = 0;
