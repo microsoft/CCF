@@ -50,7 +50,7 @@ namespace ccf
     ServiceMap<IntrinsicIdentifier, ::SelfHealingOpenNodeInfo>;
   using SelfHealingOpenGossips =
     ServiceMap<IntrinsicIdentifier, ccf::kv::Version>;
-  using SelfHealingOpenChosenReplica = ServiceValue<IntrinsicIdentifier>;
+  using SelfHealingOpenChosenNode = ServiceValue<IntrinsicIdentifier>;
   using SelfHealingOpenVotes = ServiceSet<IntrinsicIdentifier>;
   using SelfHealingOpenSMState = ServiceValue<SelfHealingOpenSM>;
   using SelfHealingOpenTimeoutSMState = ServiceValue<SelfHealingOpenSM>;
@@ -62,8 +62,8 @@ namespace ccf
       "public:ccf.gov.selfhealingopen.nodes";
     static constexpr auto SELF_HEALING_OPEN_GOSSIPS =
       "public:ccf.gov.selfhealingopen.gossip";
-    static constexpr auto SELF_HEALING_OPEN_CHOSEN_REPLICA =
-      "public:ccf.gov.selfhealingopen.chosen_replica";
+    static constexpr auto SELF_HEALING_OPEN_CHOSEN_NODE =
+      "public:ccf.gov.selfhealingopen.chosen_node";
     static constexpr auto SELF_HEALING_OPEN_VOTES =
       "public:ccf.gov.selfhealingopen.votes";
     static constexpr auto SELF_HEALING_OPEN_SM_STATE =

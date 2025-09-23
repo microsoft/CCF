@@ -2285,8 +2285,8 @@ namespace ccf
           "Self-healing-open: recieve gossip from {}", in.info.intrinsic_id);
 
         // Stop accepting gossips once a node has voted
-        auto chosen_replica = args.tx.template ro<SelfHealingOpenChosenReplica>(
-          Tables::SELF_HEALING_OPEN_CHOSEN_REPLICA);
+        auto chosen_replica = args.tx.template ro<SelfHealingOpenChosenNode>(
+          Tables::SELF_HEALING_OPEN_CHOSEN_NODE);
         if (chosen_replica->get().has_value())
         {
           return make_error(
@@ -2417,8 +2417,8 @@ namespace ccf
           .template rw<SelfHealingOpenSMState>(Tables::SELF_HEALING_OPEN_SM_STATE)
           ->put(SelfHealingOpenSM::JOINING);
         args.tx
-          .template rw<SelfHealingOpenChosenReplica>(
-            Tables::SELF_HEALING_OPEN_CHOSEN_REPLICA)
+          .template rw<SelfHealingOpenChosenNode>(
+            Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
           ->put(in.info.intrinsic_id);
 
         try

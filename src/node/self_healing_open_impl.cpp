@@ -24,8 +24,8 @@ namespace ccf
       ->clear();
     tx.rw<SelfHealingOpenNodeInfoMap>(Tables::SELF_HEALING_OPEN_NODES)->clear();
     tx.rw<SelfHealingOpenGossips>(Tables::SELF_HEALING_OPEN_GOSSIPS)->clear();
-    tx.rw<SelfHealingOpenChosenReplica>(
-        Tables::SELF_HEALING_OPEN_CHOSEN_REPLICA)
+    tx.rw<SelfHealingOpenChosenNode>(
+        Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
       ->clear();
     tx.rw<SelfHealingOpenVotes>(Tables::SELF_HEALING_OPEN_VOTES)->clear();
     tx.rw<SelfHealingOpenFailoverFlag>(Tables::SELF_HEALING_OPEN_FAILOVER_FLAG)
@@ -106,8 +106,8 @@ namespace ccf
           {
             throw std::logic_error("No valid gossip addresses provided");
           }
-          tx.rw<SelfHealingOpenChosenReplica>(
-              Tables::SELF_HEALING_OPEN_CHOSEN_REPLICA)
+          tx.rw<SelfHealingOpenChosenNode>(
+              Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
             ->put(maximum->second);
 
           sm_state_handle->put(SelfHealingOpenSM::VOTING);
@@ -158,8 +158,8 @@ namespace ccf
       }
       case SelfHealingOpenSM::JOINING:
       {
-        auto chosen_replica = tx.ro<SelfHealingOpenChosenReplica>(
-                                  Tables::SELF_HEALING_OPEN_CHOSEN_REPLICA)
+        auto chosen_replica = tx.ro<SelfHealingOpenChosenNode>(
+                                  Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
                                 ->get();
         if (!chosen_replica.has_value())
         {
@@ -266,8 +266,8 @@ namespace ccf
           {
             auto* node_info_handle = tx.ro<SelfHealingOpenNodeInfoMap>(
               Tables::SELF_HEALING_OPEN_NODES);
-            auto* chosen_replica_handle = tx.ro<SelfHealingOpenChosenReplica>(
-              Tables::SELF_HEALING_OPEN_CHOSEN_REPLICA);
+            auto* chosen_replica_handle = tx.ro<SelfHealingOpenChosenNode>(
+              Tables::SELF_HEALING_OPEN_CHOSEN_NODE);
             if (!chosen_replica_handle->get().has_value())
             {
               throw std::logic_error(
