@@ -246,22 +246,6 @@ namespace ccf
       return std::make_tuple(signatures, serialise_tree);
     }
 
-    // Self-healing open tables
-    const SelfHealingOpenNodeInfo self_healing_open_node_info = {
-      Tables::SELF_HEALING_OPEN_NODES};
-    const SelfHealingOpenGossips self_healing_open_gossip = {
-      Tables::SELF_HEALING_OPEN_GOSSIPS};
-    const SelfHealingOpenChosenReplica self_healing_open_chosen_replica = {
-      Tables::SELF_HEALING_OPEN_CHOSEN_REPLICA};
-    const SelfHealingOpenVotes self_healing_open_votes = {
-      Tables::SELF_HEALING_OPEN_VOTES};
-    const SelfHealingOpenSMState self_healing_open_sm_state = {
-      Tables::SELF_HEALING_OPEN_SM_STATE};
-    const SelfHealingOpenSMState self_healing_open_timeout_sm_state = {
-      Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE};
-    const SelfHealingOpenFailoverFlag self_healing_open_failover_flag = {
-      Tables::SELF_HEALING_OPEN_FAILOVER_FLAG};
-
     inline auto get_all_internal_tables() const
     {
       return std::tuple_cat(
