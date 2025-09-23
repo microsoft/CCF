@@ -431,7 +431,7 @@
                       "retry_timeout": {
                         "type": "string",
                         "default": "100ms",
-                        "description": "Interval (time string) at which the node re-sends self-healing-open messages. This should be leass than 'timeout'"
+                        "description": "Interval (time string) at which the node re-sends self-healing-open messages. This should be less than 'timeout'"
                       },
                       "timeout": {
                         "type": "string",
