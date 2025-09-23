@@ -150,6 +150,87 @@ Notes
 
 - Operators can track the number of times a given service has undergone the disaster recovery procedure via the :http:GET:`/node/network` endpoint (``recovery_count`` field).
 
+Self-Healing-Open recovery
+--------------------------
+
+In environments with limited orchestration or external access, it is desirable to allow the network to recover from a disaster without operator intervention.
+At a high level, Self-Healing-Open recovery allows recovering replicas to discover which replica has the most up-to-date ledger and automatically recover the network using that ledger.
+
+There are two paths, a standard path, and a very-high-availablity timeout path.
+The standard path ensures that if all nodes restart, at most a minority of the ledgers get rolled back, and no timeouts trigger, then there will be only one recovered network, and all committed entries from the previous network will be preserved.
+However, the standard path can become stuck, in which case the timeout path is designed to ensure progress.
+
+In the standard path, nodes first gossip with each other.
+Once they have heard from every node they choose a node to vote for.
+If a node receives votes from a majority of nodes, it invokes `transition-to-open` and the other nodes restart to subsequently join it.
+This path is illustrated below, and is guaranteed to succeed if at most a minority of nodes have failed, all nodes can communicate and no timeouts trigger.
+
+.. mermaid::
+    sequenceDiagram
+      participant N1
+      participant N2
+      participant N3
+      
+      Note over N1, N3: Gossip
+
+      N1 ->> N2: Gossip(Tx=1)
+      N1 ->> N3: Gossip(Tx=1)
+      N2 ->> N3: Gossip(Tx=2)
+      N3 ->> N2: Gossip(Tx=3)
+
+      Note over N1, N3: Vote
+      N2 ->> N3: Vote
+      N3 ->> N3: Vote
+
+      Note over N1, N3: Open/Join
+      N3 ->> N1: IAmOpen
+      N3 ->> N2: IAmOpen
+
+      Note over N1, N2: Restart
+
+      Note over N3: Transition-to-open
+
+      Note over N3: Local unsealing
+
+      Note over N3: Open
+
+      N1 ->> N3: Join
+      N2 ->> N3: Join
+
+In the timeout path, each phase has a timeout to skip to the next phase if a failure has occurred.
+For example, the standard path requires all nodes to communicate to advance from the gossip phase to the vote phase.
+However, if any node fails to recover, the standard path is stuck.
+In this case, after a timeout, nodes will advance to the vote phase regardless of whether they have heard from all nodes, and vote for the best ledger they have heard of at that point.
+
+Unfortunately, this can lead to multiple forks of the service if different nodes cannot communicate with each other before the timeout.
+Hence, we recommend setting the timeout substantially higher than the highest expected recovery time, to minimise the chance of this happening.
+This case is illustrated below.
+
+.. mermaid::
+    sequenceDiagram
+      participant N1
+      participant N2
+      participant N3
+
+      Note over N1, N3: Gossip
+
+      N2 ->> N3: Gossip(Tx=2)
+      N3 ->> N2: Gossip(Tx=3)
+
+      Note over N1: Timeout
+      Note over N3: Timeout
+
+      Note over N1, N3: Vote
+
+      N1 ->> N1: Vote
+      N3 ->> N3: Vote
+      N2 ->> N3: Vote
+
+      Note over N1, N3: Open/Join
+      
+      Note over N1: Transition-to-open
+      Note over N3: Transition-to-open
+
 .. rubric:: Footnotes
 
 .. [#crash] When using CFT as consensus algorithm, CCF tolerates up to `(N-1)/2` crashed nodes (where `N` is the number of trusted nodes constituting the network) before having to perform a recovery procedure. For example, in a 5-node network, no more than 2 nodes are allowed to fail for the service to be able to commit new transactions.
