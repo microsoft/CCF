@@ -10,6 +10,8 @@ namespace ccf::tasks
 {
   JobBoard& get_main_job_board();
 
+  void set_worker_count(size_t new_worker_count);
+
   void add_task(Task task);
 
   void add_delayed_task(Task task, std::chrono::milliseconds delay);

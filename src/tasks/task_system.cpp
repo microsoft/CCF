@@ -13,6 +13,99 @@
 
 namespace ccf::tasks
 {
+  namespace
+  {
+    // Align by cacheline to avoid false sharing
+    static constexpr size_t CACHELINE_SIZE = 64;
+
+    template <typename T>
+    struct alignas(CACHELINE_SIZE) CacheLineAligned
+    {
+      T value;
+    };
+
+    using StopSignal = CacheLineAligned<std::atomic<bool>>;
+
+    void task_worker_loop(JobBoard& job_board, StopSignal& stop_signal)
+    {
+      static constexpr auto wait_time = std::chrono::milliseconds(100);
+
+      while (!stop_signal.value.load())
+      {
+        auto task = job_board.wait_for_task(wait_time);
+        if (task != nullptr)
+        {
+          if (!task->is_cancelled())
+          {
+            task->do_task();
+          }
+        }
+      }
+    }
+
+    class ShiftSupervisor
+    {
+      static constexpr size_t MAX_WORKERS = 64;
+
+      std::thread workers[MAX_WORKERS] = {};
+      StopSignal stop_signals[MAX_WORKERS] = {};
+
+      std::mutex worker_count_mutex;
+      size_t current_workers = 0;
+
+      JobBoard& job_board;
+
+    public:
+      ShiftSupervisor(JobBoard& job_board_) : job_board(job_board_) {}
+      ~ShiftSupervisor()
+      {
+        set_worker_count(0);
+      }
+
+      void set_worker_count(size_t new_worker_count)
+      {
+        std::unique_lock<std::mutex> lock(worker_count_mutex);
+
+        if (new_worker_count >= MAX_WORKERS)
+        {
+          throw std::logic_error(fmt::format(
+            "Cannot create {} workers. Max permitted is {}",
+            new_worker_count,
+            MAX_WORKERS));
+        }
+
+        if (new_worker_count < current_workers)
+        {
+          // Stop workers
+          // Do this in 2 loops, so that the stop_signals can be processed
+          // concurrently
+          for (auto i = new_worker_count; i < current_workers; ++i)
+          {
+            stop_signals[i].value.store(true);
+          }
+
+          for (auto i = new_worker_count; i < current_workers; ++i)
+          {
+            workers[i].join();
+          }
+        }
+        else if (new_worker_count > current_workers)
+        {
+          // Start workers
+          for (auto i = new_worker_count; i < current_workers; ++i)
+          {
+            auto& stop_signal = stop_signals[i];
+            stop_signal.value.store(false);
+            workers[i] = std::thread(
+              task_worker_loop, std::ref(job_board), std::ref(stop_signal));
+          }
+        }
+
+        current_workers = new_worker_count;
+      }
+    };
+  }
+
   // Implementation of BaseTask
   namespace
   {
@@ -55,45 +148,20 @@ namespace ccf::tasks
     return main_job_board;
   }
 
+  void set_worker_count(size_t new_worker_count)
+  {
+    static ShiftSupervisor shift_supervisor(get_main_job_board());
+    shift_supervisor.set_worker_count(new_worker_count);
+  }
+
   void add_task(Task task)
   {
     get_main_job_board().add_task(std::move(task));
   }
 
-  struct DelayedTask
-  {
-    Task task;
-    std::optional<std::chrono::milliseconds> repeat = std::nullopt;
-  };
-
-  using DelayedTasks = std::vector<DelayedTask>;
-
-  using DelayedTasksByTime = std::map<std::chrono::milliseconds, DelayedTasks>;
-
-  using namespace std::chrono_literals;
-
-  namespace
-  {
-    std::atomic<std::chrono::milliseconds> total_elapsed = 0ms;
-
-    DelayedTasksByTime delayed_tasks;
-    std::mutex delayed_tasks_mutex;
-  }
-
-  void add_delayed_task(
-    Task task,
-    std::chrono::milliseconds initial_delay,
-    std::optional<std::chrono::milliseconds> periodic_delay)
-  {
-    std::lock_guard<std::mutex> lock(delayed_tasks_mutex);
-
-    const auto trigger_time = total_elapsed.load() + initial_delay;
-    delayed_tasks[trigger_time].emplace_back(task, periodic_delay);
-  }
-
   void add_delayed_task(Task task, std::chrono::milliseconds delay)
   {
-    add_delayed_task(task, delay, std::nullopt);
+    get_main_job_board().add_delayed_task(std::move(task), delay);
   }
 
   void add_periodic_task(
@@ -101,53 +169,13 @@ namespace ccf::tasks
     std::chrono::milliseconds initial_delay,
     std::chrono::milliseconds repeat_period)
   {
-    add_delayed_task(task, initial_delay, repeat_period);
+    get_main_job_board().add_periodic_task(
+      std::move(task), initial_delay, repeat_period);
   }
 
   void tick(std::chrono::milliseconds elapsed)
   {
-    elapsed += total_elapsed.load();
-
-    {
-      std::lock_guard<std::mutex> lock(delayed_tasks_mutex);
-      auto end_it = delayed_tasks.upper_bound(elapsed);
-
-      DelayedTasksByTime repeats;
-
-      for (auto it = delayed_tasks.begin(); it != end_it; ++it)
-      {
-        DelayedTasks& ready = it->second;
-
-        for (DelayedTask& delayed_task : ready)
-        {
-          // Don't schedule (or repeat) cancelled tasks
-          if (delayed_task.task->is_cancelled())
-          {
-            continue;
-          }
-
-          add_task(delayed_task.task);
-          if (delayed_task.repeat.has_value())
-          {
-            repeats[elapsed + delayed_task.repeat.value()].emplace_back(
-              delayed_task);
-          }
-        }
-      }
-
-      delayed_tasks.erase(delayed_tasks.begin(), end_it);
-
-      for (auto&& [repeat_time, repeated_tasks] : repeats)
-      {
-        DelayedTasks& delayed_tasks_at_time = delayed_tasks[repeat_time];
-        delayed_tasks_at_time.insert(
-          delayed_tasks_at_time.end(),
-          repeated_tasks.begin(),
-          repeated_tasks.end());
-      }
-    }
-
-    total_elapsed.store(elapsed);
+    get_main_job_board().tick(elapsed);
   }
 
   // From resumable.h

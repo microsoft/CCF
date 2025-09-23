@@ -14,13 +14,11 @@
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 
-TEST_CASE("TaskSystem" * doctest::test_suite("basic_tasks"))
+TEST_CASE("JobBoard" * doctest::test_suite("basic_tasks"))
 {
   constexpr auto short_wait = std::chrono::milliseconds(10);
 
-  // There's a global singleton job board, initially empty
-  auto& job_board = ccf::tasks::get_main_job_board();
-
+  ccf::tasks::JobBoard job_board;
   ccf::tasks::JobBoard::Summary empty_board{};
 
   REQUIRE(job_board.get_summary() == empty_board);
@@ -61,8 +59,8 @@ TEST_CASE("TaskSystem" * doctest::test_suite("basic_tasks"))
   REQUIRE_FALSE(b.load());
 
   // Queue them on a job board, where a worker can find them
-  ccf::tasks::add_task(toggle_a);
-  ccf::tasks::add_task(toggle_b);
+  job_board.add_task(toggle_a);
+  job_board.add_task(toggle_b);
 
   // Now there's something scheduled
   REQUIRE(job_board.get_summary().pending_tasks == 2);
@@ -100,16 +98,18 @@ TEST_CASE("TaskSystem" * doctest::test_suite("basic_tasks"))
 
 TEST_CASE("Cancellation" * doctest::test_suite("basic_tasks"))
 {
+  ccf::tasks::JobBoard job_board;
+
   // If you keep a handle to a task, you can cancel it...
   std::atomic<bool> a = false;
   ccf::tasks::Task toggle_a =
     ccf::tasks::make_basic_task([&a]() { a.store(true); });
 
   // ... even after it has been scheduled
-  ccf::tasks::add_task(toggle_a);
+  job_board.add_task(toggle_a);
 
   // ... at any point until some worker calls do_task
-  auto first_task = ccf::tasks::get_main_job_board().get_task();
+  auto first_task = job_board.get_task();
   REQUIRE(first_task != nullptr);
 
   REQUIRE_FALSE(a.load());
@@ -120,6 +120,8 @@ TEST_CASE("Cancellation" * doctest::test_suite("basic_tasks"))
 
 TEST_CASE("Scheduling" * doctest::test_suite("basic_tasks"))
 {
+  ccf::tasks::JobBoard job_board;
+
   // Tasks can be scheduled from anywhere, including during execution of
   // other tasks
   struct WaitPoint
@@ -156,17 +158,17 @@ TEST_CASE("Scheduling" * doctest::test_suite("basic_tasks"))
     count_with_me.push_back(0);
     a_started.notify();
 
-    ccf::tasks::add_task(ccf::tasks::make_basic_task([&]() {
+    job_board.add_task(ccf::tasks::make_basic_task([&]() {
       task_1_started.wait();
       count_with_me.push_back(2);
       task_2_started.notify();
 
-      ccf::tasks::add_task(ccf::tasks::make_basic_task([&]() {
+      job_board.add_task(ccf::tasks::make_basic_task([&]() {
         task_3_started.wait();
         count_with_me.push_back(4);
         task_4_started.notify();
 
-        ccf::tasks::add_task(ccf::tasks::make_basic_task([&]() {
+        job_board.add_task(ccf::tasks::make_basic_task([&]() {
           task_5_started.wait();
           count_with_me.push_back(6);
           stop_signal.store(true);
@@ -178,17 +180,17 @@ TEST_CASE("Scheduling" * doctest::test_suite("basic_tasks"))
   std::thread thread_b([&]() {
     a_started.wait();
 
-    ccf::tasks::add_task(ccf::tasks::make_basic_task([&]() {
+    job_board.add_task(ccf::tasks::make_basic_task([&]() {
       count_with_me.push_back(1);
       task_1_started.notify();
 
-      ccf::tasks::add_task(ccf::tasks::make_basic_task([&]() {
+      job_board.add_task(ccf::tasks::make_basic_task([&]() {
         task_4_started.wait();
         count_with_me.push_back(5);
         task_5_started.notify();
       }));
 
-      ccf::tasks::add_task(ccf::tasks::make_basic_task([&]() {
+      job_board.add_task(ccf::tasks::make_basic_task([&]() {
         task_2_started.wait();
         count_with_me.push_back(3);
         task_3_started.notify();
@@ -199,8 +201,7 @@ TEST_CASE("Scheduling" * doctest::test_suite("basic_tasks"))
   auto worker_fn = [&]() {
     while (!stop_signal.load())
     {
-      auto task = ccf::tasks::get_main_job_board().wait_for_task(
-        std::chrono::milliseconds(100));
+      auto task = job_board.wait_for_task(std::chrono::milliseconds(100));
       if (task != nullptr)
       {
         task->do_task();
@@ -241,4 +242,9 @@ TEST_CASE("Scheduling" * doctest::test_suite("basic_tasks"))
   decltype(count_with_me) target(7);
   std::iota(target.begin(), target.end(), 0);
   REQUIRE(count_with_me == target);
+}
+
+TEST_CASE("RealAPI" * doctest::test_suite("basic_tasks"))
+{
+  // TODO: Test that the instances available under ccf::tasks do something nice
 }
