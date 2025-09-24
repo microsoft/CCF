@@ -866,7 +866,6 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
         startup_snapshot.size(),
         sha.hex_str());
 
-
       if (
         config.command.type == StartType::Join &&
         config.command.join.fetch_recent_snapshot)
