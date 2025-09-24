@@ -4,6 +4,7 @@
 
 #include "node/rpc/node_interface.h"
 #include "node/rpc/node_operation_interface.h"
+#include "node/self_healing_open_impl.h"
 
 namespace ccf
 {
@@ -108,6 +109,11 @@ namespace ccf
     const ccf::COSESignaturesConfig& get_cose_signatures_config() override
     {
       return impl.get_cose_signatures_config();
+    }
+
+    SelfHealingOpenSubsystem& self_healing_open() override
+    {
+      return impl.self_healing_open();
     }
   };
 }
