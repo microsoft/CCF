@@ -93,8 +93,7 @@ where {
     }
 
     fn advance_several(&self, state: &mut State, o: &mut Out<Self>, id: Id, timeout: bool) {
-        while self.advance_step(state, o, id, timeout) {
-        }
+        while self.advance_step(state, o, id, timeout) {}
     }
 }
 
