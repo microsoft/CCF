@@ -162,14 +162,6 @@ group "Python types"
 git ls-files python/ | grep -e '\.py$' | xargs mypy || fail
 endgroup
 
-group "Rust format"
-if [ $FIX -ne 0 ]; then
-  rustfmt (find . --name '*.rs') || fail
-else
-  rustfmt --check (find . --name '*.rs') || fail
-fi
-ungroup
-
 group "Summary"
 if [[ -n "$FAIL" ]]; then
   echo "The following checks failed: ${FAIL//;/, }"
