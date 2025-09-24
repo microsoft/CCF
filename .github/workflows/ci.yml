@@ -40,7 +40,8 @@ jobs:
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
-          tdnf -y install tar npm build-essential
+          tdnf -y install tar npm build-essential cargo
+          cargo install rustfmt
           ./scripts/setup-dev.sh
           ./scripts/ci-checks.sh
         shell: bash
