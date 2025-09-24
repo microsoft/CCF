@@ -233,7 +233,7 @@ jobs:
           name: tlc-trace-validation-consensus
           path: |
             tla/traces/*
-    
+
   model-checking-self-healing-open:
     name: Model Checking - Self-Healing Open
     runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
