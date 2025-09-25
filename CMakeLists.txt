@@ -283,7 +283,8 @@ add_ccf_static_library(
 # CCF task system library
 add_ccf_static_library(
   ccf_tasks
-  SRCS ${CCF_DIR}/src/tasks/task_system.cpp ${CCF_DIR}/src/tasks/job_board.cpp
+  SRCS ${CCF_DIR}/src/tasks/task_system.cpp
+       ${CCF_DIR}/src/tasks/job_board.cpp
        ${CCF_DIR}/src/tasks/ordered_tasks.cpp
        ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
        ${CCF_DIR}/src/tasks/thread_manager.cpp

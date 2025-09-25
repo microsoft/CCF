@@ -3,9 +3,9 @@
 
 #include "tasks/fan_in_tasks.h"
 
-#include "./utils.h"
 #include "tasks/basic_task.h"
 #include "tasks/job_board.h"
+#include "tasks/thread_manager.h"
 
 #include <doctest/doctest.h>
 #include <thread>
@@ -182,7 +182,36 @@ TEST_CASE("DelayedCompletions" * doctest::test_suite("fan_in_tasks"))
     }));
   }
 
-  test::utils::flush_board(job_board, num_tasks);
+  {
+    INFO("Execution loop");
+
+    ccf::tasks::ThreadManager thread_manager(job_board);
+    thread_manager.set_worker_count(8);
+
+    using TClock = std::chrono::steady_clock;
+    auto now = TClock::now();
+    std::chrono::seconds max_run_time(5);
+    const auto end_time = now + max_run_time;
+
+    while (true)
+    {
+      const auto complete = counter.load() == num_tasks;
+
+      if (complete)
+      {
+        break;
+      }
+
+      now = TClock::now();
+      if (now > end_time)
+      {
+        throw std::runtime_error(
+          fmt::format("Test did not complete after {}", max_run_time));
+      }
+
+      std::this_thread::yield();
+    }
+  }
 
   // Each task asserted that it executed in-order, and this confirms that all
   // tasks executed
