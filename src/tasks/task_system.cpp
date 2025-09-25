@@ -6,8 +6,8 @@
 #include "ds/internal_logger.h"
 #include "tasks/job_board.h"
 #include "tasks/resumable.h"
-#include "tasks/shift_supervisor.h"
 #include "tasks/task.h"
+#include "tasks/thread_manager.h"
 
 #include <stdexcept>
 #include <uv.h>
@@ -58,8 +58,8 @@ namespace ccf::tasks
 
   void set_worker_count(size_t new_worker_count)
   {
-    static ShiftSupervisor shift_supervisor(get_main_job_board());
-    shift_supervisor.set_worker_count(new_worker_count);
+    static ThreadManager thread_manager(get_main_job_board());
+    thread_manager.set_worker_count(new_worker_count);
   }
 
   void add_task(Task task)

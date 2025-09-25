@@ -1,13 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "tasks/shift_supervisor.h"
+#include "tasks/thread_manager.h"
 
 #include "tasks/worker.h"
 
 namespace ccf::tasks
 {
-  struct ShiftSupervisor::PImpl
+  struct ThreadManager::PImpl
   {
     // Align by cacheline to avoid false sharing
     static constexpr size_t CACHELINE_SIZE = 64;
@@ -75,16 +75,16 @@ namespace ccf::tasks
     }
   };
 
-  ShiftSupervisor::ShiftSupervisor(JobBoard& job_board_) :
+  ThreadManager::ThreadManager(JobBoard& job_board_) :
     pimpl(std::make_unique<PImpl>(job_board_))
   {}
 
-  ShiftSupervisor::~ShiftSupervisor()
+  ThreadManager::~ThreadManager()
   {
     set_worker_count(0);
   }
 
-  void ShiftSupervisor::set_worker_count(size_t new_worker_count)
+  void ThreadManager::set_worker_count(size_t new_worker_count)
   {
     pimpl->set_worker_count(new_worker_count);
   }

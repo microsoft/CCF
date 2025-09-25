@@ -8,14 +8,14 @@
 
 namespace ccf::tasks
 {
-  class ShiftSupervisor
+  class ThreadManager
   {
     struct PImpl;
     std::unique_ptr<PImpl> pimpl;
 
   public:
-    ShiftSupervisor(JobBoard& job_board_);
-    ~ShiftSupervisor();
+    ThreadManager(JobBoard& job_board_);
+    ~ThreadManager();
 
     void set_worker_count(size_t new_worker_count);
   };
