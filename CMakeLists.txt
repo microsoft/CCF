@@ -286,6 +286,7 @@ add_ccf_static_library(
   SRCS ${CCF_DIR}/src/tasks/task_system.cpp ${CCF_DIR}/src/tasks/job_board.cpp
        ${CCF_DIR}/src/tasks/ordered_tasks.cpp
        ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
+       ${CCF_DIR}/src/tasks/shift_supervisor.cpp
 )
 
 # Common test args for Python scripts starting up CCF networks

@@ -6,6 +6,7 @@
 #include "ds/internal_logger.h"
 #include "tasks/job_board.h"
 #include "tasks/resumable.h"
+#include "tasks/shift_supervisor.h"
 #include "tasks/task.h"
 
 #include <stdexcept>
@@ -13,99 +14,6 @@
 
 namespace ccf::tasks
 {
-  namespace
-  {
-    // Align by cacheline to avoid false sharing
-    static constexpr size_t CACHELINE_SIZE = 64;
-
-    template <typename T>
-    struct alignas(CACHELINE_SIZE) CacheLineAligned
-    {
-      T value;
-    };
-
-    using StopSignal = CacheLineAligned<std::atomic<bool>>;
-
-    void task_worker_loop(JobBoard& job_board, StopSignal& stop_signal)
-    {
-      static constexpr auto wait_time = std::chrono::milliseconds(100);
-
-      while (!stop_signal.value.load())
-      {
-        auto task = job_board.wait_for_task(wait_time);
-        if (task != nullptr)
-        {
-          if (!task->is_cancelled())
-          {
-            task->do_task();
-          }
-        }
-      }
-    }
-
-    class ShiftSupervisor
-    {
-      static constexpr size_t MAX_WORKERS = 64;
-
-      std::thread workers[MAX_WORKERS] = {};
-      StopSignal stop_signals[MAX_WORKERS] = {};
-
-      std::mutex worker_count_mutex;
-      size_t current_workers = 0;
-
-      JobBoard& job_board;
-
-    public:
-      ShiftSupervisor(JobBoard& job_board_) : job_board(job_board_) {}
-      ~ShiftSupervisor()
-      {
-        set_worker_count(0);
-      }
-
-      void set_worker_count(size_t new_worker_count)
-      {
-        std::unique_lock<std::mutex> lock(worker_count_mutex);
-
-        if (new_worker_count >= MAX_WORKERS)
-        {
-          throw std::logic_error(fmt::format(
-            "Cannot create {} workers. Max permitted is {}",
-            new_worker_count,
-            MAX_WORKERS));
-        }
-
-        if (new_worker_count < current_workers)
-        {
-          // Stop workers
-          // Do this in 2 loops, so that the stop_signals can be processed
-          // concurrently
-          for (auto i = new_worker_count; i < current_workers; ++i)
-          {
-            stop_signals[i].value.store(true);
-          }
-
-          for (auto i = new_worker_count; i < current_workers; ++i)
-          {
-            workers[i].join();
-          }
-        }
-        else if (new_worker_count > current_workers)
-        {
-          // Start workers
-          for (auto i = current_workers; i < new_worker_count; ++i)
-          {
-            auto& stop_signal = stop_signals[i];
-            stop_signal.value.store(false);
-            workers[i] = std::thread(
-              task_worker_loop, std::ref(job_board), std::ref(stop_signal));
-          }
-        }
-
-        current_workers = new_worker_count;
-      }
-    };
-  }
-
   // Implementation of BaseTask
   namespace
   {
