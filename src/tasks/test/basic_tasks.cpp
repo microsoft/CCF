@@ -4,7 +4,6 @@
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 
-#include <condition_variable>
 #include <doctest/doctest.h>
 #include <iostream>
 #include <numeric>
@@ -242,9 +241,4 @@ TEST_CASE("Scheduling" * doctest::test_suite("basic_tasks"))
   decltype(count_with_me) target(7);
   std::iota(target.begin(), target.end(), 0);
   REQUIRE(count_with_me == target);
-}
-
-TEST_CASE("RealAPI" * doctest::test_suite("basic_tasks"))
-{
-  // TODO: Test that the instances available under ccf::tasks do something nice
 }

@@ -543,6 +543,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/ordered_tasks.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/delayed_tasks.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/fan_in_tasks.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/tasks_api.cpp
     )
     target_link_libraries(task_system_test PRIVATE ccf_tasks)
 
