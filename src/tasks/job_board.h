@@ -32,9 +32,8 @@ namespace ccf::tasks
 
     struct Summary
     {
-      size_t pending_tasks;
-
-      size_t idle_workers;
+      size_t pending_tasks = {};
+      size_t idle_workers = {};
 
       bool operator==(const Summary&) const = default;
     };

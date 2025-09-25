@@ -9,8 +9,11 @@ namespace ccf::tasks
 {
   struct Consumer
   {
+    // Temporary structure
+    // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     Task& task;
     std::condition_variable& cv;
+    // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
   };
 
   struct Delayed
@@ -79,18 +82,16 @@ namespace ccf::tasks
         if (pending_tasks.empty())
         {
           std::condition_variable cv;
-          Consumer* consumer = new Consumer{to_return, cv};
-          waiting_consumers.push_back(consumer);
+          auto consumer = std::make_unique<Consumer>(to_return, cv);
+          waiting_consumers.push_back(consumer.get());
 
           cv.wait_for(lock, timeout);
 
           // TODO: What if this resume happens after destructor? Do we need to
           // extend lifetime of PImpl?
           auto it = std::find(
-            waiting_consumers.begin(), waiting_consumers.end(), consumer);
+            waiting_consumers.begin(), waiting_consumers.end(), consumer.get());
           waiting_consumers.erase(it);
-
-          delete consumer;
         }
         else
         {
@@ -190,7 +191,7 @@ namespace ccf::tasks
 
   JobBoard::Summary JobBoard::get_summary()
   {
-    Summary summary;
+    Summary summary{};
     {
       std::lock_guard<std::mutex> lock(pimpl->mutex);
       summary.pending_tasks = pimpl->pending_tasks.size();

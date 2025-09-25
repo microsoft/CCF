@@ -5,6 +5,8 @@
 
 #include "tasks/worker.h"
 
+#include <thread>
+
 namespace ccf::tasks
 {
   struct ThreadManager::PImpl
@@ -22,7 +24,7 @@ namespace ccf::tasks
 
     static constexpr size_t MAX_WORKERS = 64;
 
-    std::thread workers[MAX_WORKERS] = {};
+    std::jthread workers[MAX_WORKERS] = {};
     StopSignal stop_signals[MAX_WORKERS] = {};
 
     std::mutex worker_count_mutex;
@@ -31,6 +33,20 @@ namespace ccf::tasks
     JobBoard& job_board;
 
     PImpl(JobBoard& job_board_) : job_board(job_board_) {}
+
+    ~PImpl()
+    {
+      for (size_t i = 0; i < current_workers; ++i)
+      {
+        stop_signals[i].value.store(true);
+      }
+    }
+
+    PImpl(const PImpl&) = delete;
+    PImpl& operator=(const PImpl&) = delete;
+
+    PImpl(PImpl&&) = delete;
+    PImpl& operator=(PImpl&&) = delete;
 
     void set_worker_count(size_t new_worker_count)
     {
@@ -66,7 +82,7 @@ namespace ccf::tasks
         {
           auto& stop_signal = stop_signals[i].value;
           stop_signal.store(false);
-          workers[i] = std::thread(
+          workers[i] = std::jthread(
             task_worker_loop, std::ref(job_board), std::ref(stop_signal));
         }
       }
@@ -79,10 +95,7 @@ namespace ccf::tasks
     pimpl(std::make_unique<PImpl>(job_board_))
   {}
 
-  ThreadManager::~ThreadManager()
-  {
-    set_worker_count(0);
-  }
+  ThreadManager::~ThreadManager() = default;
 
   void ThreadManager::set_worker_count(size_t new_worker_count)
   {
