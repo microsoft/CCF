@@ -10,7 +10,7 @@ namespace ccf::tasks
   struct OrderedTasks::PImpl
   {
     JobBoard& job_board;
-    const std::string& name;
+    const std::string name;
     SubTaskQueue<TaskAction> actions;
   };
 
