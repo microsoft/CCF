@@ -208,6 +208,10 @@ TEST_CASE("ExplicitTicks" * doctest::test_suite("delayed_tasks"))
 
   job_board.tick(3ms);
   do_all_check_and_reset("34ms", false, true, false);
+
+  set_a->cancel_task();
+  set_b->cancel_task();
+  set_c->cancel_task();
 }
 
 TEST_CASE("TickEnqueue" * doctest::test_suite("delayed_tasks"))
@@ -231,4 +235,6 @@ TEST_CASE("TickEnqueue" * doctest::test_suite("delayed_tasks"))
   REQUIRE(n.load() == 1);
   do_all_tasks(job_board);
   REQUIRE(n.load() == 1);
+
+  incrementer->cancel_task();
 }
