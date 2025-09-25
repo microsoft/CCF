@@ -381,7 +381,7 @@
                   "fetch_recent_snapshot": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Whether to ask the target for a newer snapshot before joining. The node will ask the target what their latest snapshot is, and if that is later than what the node has locally, will fetch it via RPC before launching. Should generally only be turned off for specific test cases"
+                    "description": "Whether to ask the target for a snapshot before joining. The node will ask the target what their latest snapshot is and will fetch it via RPC before launching. Should generally only be turned off for specific test cases"
                   }
                 },
                 "required": ["target_rpc_address"],

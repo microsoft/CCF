@@ -847,21 +847,15 @@ namespace ccf
         config.command.type == StartType::Join ||
         config.command.type == StartType::Recover)
       {
-        auto latest_local_snapshot = snapshots.find_latest_committed_snapshot();
-
         if (
           config.command.type == StartType::Join &&
           config.command.join.fetch_recent_snapshot)
         {
           // Try to fetch a recent snapshot from peer
-          const size_t latest_local_idx = latest_local_snapshot.has_value() ?
-            snapshots::get_snapshot_idx_from_file_name(
-              latest_local_snapshot->second) :
-            0;
           auto latest_peer_snapshot = snapshots::fetch_from_peer(
             config.command.join.target_rpc_address,
             config.command.service_certificate_file,
-            latest_local_idx);
+            std::nullopt);
 
           if (latest_peer_snapshot.has_value())
           {
@@ -889,6 +883,9 @@ namespace ccf
 
         if (startup_snapshot.empty())
         {
+          auto latest_local_snapshot =
+            snapshots.find_latest_committed_snapshot();
+
           if (latest_local_snapshot.has_value())
           {
             auto& [snapshot_dir, snapshot_file] = latest_local_snapshot.value();
