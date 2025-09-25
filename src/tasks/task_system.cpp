@@ -92,7 +92,7 @@ namespace ccf::tasks
         else if (new_worker_count > current_workers)
         {
           // Start workers
-          for (auto i = new_worker_count; i < current_workers; ++i)
+          for (auto i = current_workers; i < new_worker_count; ++i)
           {
             auto& stop_signal = stop_signals[i];
             stop_signal.value.store(false);
