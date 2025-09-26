@@ -228,11 +228,11 @@ TEST_CASE("PauseAndResume")
 void describe_session_manager(SessionManager& sm)
 {
   std::lock_guard<std::mutex> lock(sm.sessions_mutex);
-  fmt::print("SessionManager contains {} sessions\n", sm.all_sessions.size());
+  LOG_INFO_FMT("SessionManager contains {} sessions", sm.all_sessions.size());
   for (auto& session : sm.all_sessions)
   {
-    fmt::print(
-      "  {}: {} to_node, {} from_node\n",
+    LOG_INFO_FMT(
+      "  {}: {} to_node, {} from_node",
       session->name,
       session->to_node.size(),
       session->from_node.size());
@@ -241,22 +241,20 @@ void describe_session_manager(SessionManager& sm)
 
 void describe_job_board(ccf::tasks::JobBoard& jb)
 {
-  // TODO: Revive
-  // std::lock_guard<std::mutex> lock(jb.mutex);
-  // fmt::print("JobBoard contains {} tasks\n", jb.queue.size());
-  // for (auto& task : jb.queue)
-  // {
-  //   fmt::print("  {}\n", task->get_name());
-  // }
+  const auto summary = jb.get_summary();
+  LOG_INFO_FMT(
+    "JobBoard contains {} tasks, has {} idle workers",
+    summary.pending_tasks,
+    summary.idle_workers);
 }
 
 void describe_dispatcher(Dispatcher& d)
 {
   describe_session_manager(d.state.session_manager);
-  describe_job_board((ccf::tasks::JobBoard&)d.state.job_board);
+  describe_job_board(d.state.job_board);
 
-  fmt::print(
-    "Dispatcher is tracking {} sessions\n",
+  LOG_INFO_FMT(
+    "Dispatcher is tracking {} sessions",
     d.state.ordered_tasks_per_client.size());
 
   for (auto& [session, tasks] : d.state.ordered_tasks_per_client)
@@ -264,8 +262,8 @@ void describe_dispatcher(Dispatcher& d)
     size_t pending;
     bool active;
     tasks->get_queue_summary(pending, active);
-    fmt::print(
-      "  {}: {} (active: {}, queue.size: {})\n",
+    LOG_INFO_FMT(
+      "  {}: {} (active: {}, queue.size: {})",
       session->name,
       tasks->get_name(),
       active,
@@ -322,6 +320,8 @@ TEST_CASE("Run")
           running,
           shutting_down,
           n_clients);
+        describe_job_board(node.dispatcher.state.job_board);
+
         if (running + shutting_down == 0)
         {
           break;
