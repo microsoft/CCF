@@ -42,7 +42,7 @@ namespace snapshots
   static std::optional<SnapshotResponse> fetch_from_peer(
     const std::string& peer_address,
     const std::string& path_to_peer_cert,
-    size_t latest_local_snapshot)
+    std::optional<size_t> since_seqno)
   {
     try
     {
@@ -53,10 +53,13 @@ namespace snapshots
         ccf::curl::UniqueCURL curl_easy;
         curl_easy.set_opt(CURLOPT_CAINFO, path_to_peer_cert.c_str());
 
-        auto initial_url = fmt::format(
-          "https://{}/node/snapshot?since={}",
-          peer_address,
-          latest_local_snapshot);
+        auto initial_url =
+          fmt::format("https://{}/node/snapshot", peer_address);
+
+        if (since_seqno.has_value())
+        {
+          initial_url += fmt::format("?since={}", since_seqno.value());
+        }
 
         ccf::curl::UniqueSlist headers;
 
@@ -83,8 +86,15 @@ namespace snapshots
         }
         if (status_code == HTTP_STATUS_NOT_FOUND)
         {
-          LOG_INFO_FMT(
-            "Peer has no snapshot newer than {}", latest_local_snapshot);
+          if (since_seqno.has_value())
+          {
+            LOG_INFO_FMT(
+              "Peer has no snapshot newer than {}", since_seqno.value());
+          }
+          else
+          {
+            LOG_INFO_FMT("Peer has no snapshot");
+          }
           return std::nullopt;
         }
         EXPECT_HTTP_RESPONSE_STATUS(

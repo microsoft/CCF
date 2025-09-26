@@ -391,7 +391,14 @@ def test_empty_snapshot(network, args):
 
             # Create new node and join network
             new_node = network.create_node("local://localhost")
-            network.join_node(new_node, args.package, args, snapshots_dir=snapshots_dir)
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                snapshots_dir=snapshots_dir,
+                # Don't try to fetch a snapshot, look at the local files
+                fetch_recent_snapshot=False,
+            )
             new_node.stop()
 
             # Check that the empty snapshot is correctly skipped
@@ -428,6 +435,8 @@ def test_nulled_snapshot(network, args):
                 args.package,
                 args,
                 snapshots_dir=snapshots_dir,
+                # Don't try to fetch a snapshot, look at the local files
+                fetch_recent_snapshot=False,
             )
         except Exception as e:
             failed = True
