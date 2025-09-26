@@ -87,8 +87,6 @@ namespace ccf::tasks
 
           cv.wait_for(lock, timeout);
 
-          // TODO: What if this resume happens after destructor? Do we need to
-          // extend lifetime of PImpl?
           auto it = std::find(
             waiting_consumers.begin(), waiting_consumers.end(), consumer.get());
           waiting_consumers.erase(it);
