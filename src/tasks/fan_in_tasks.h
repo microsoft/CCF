@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "tasks/job_board_interface.h"
+#include "tasks/job_board.h"
 #include "tasks/task.h"
 
 #include <memory>
@@ -27,13 +27,12 @@ namespace ccf::tasks
     };
 
   public:
-    FanInTasks(Private, IJobBoard& job_board_, const std::string& name_);
+    FanInTasks(Private, JobBoard& job_board_);
     ~FanInTasks();
 
-    static std::shared_ptr<FanInTasks> create(
-      IJobBoard& job_board_, const std::string& name_ = "[FanIn]");
+    static std::shared_ptr<FanInTasks> create(JobBoard& job_board_);
 
-    std::string_view get_name() const override;
+    const std::string& get_name() const override;
 
     void add_task(size_t task_index, Task task);
   };
