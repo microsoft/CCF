@@ -1763,8 +1763,6 @@ def test_error_message_on_failure_to_fetch_snapshot(const_args):
 
         primary, _ = network.find_primary()
 
-        args_copy = copy.deepcopy(args)
-
         new_node = network.create_node("local://localhost")
 
         # Shut down primary to cause snapshot fetch to fail
@@ -1776,7 +1774,7 @@ def test_error_message_on_failure_to_fetch_snapshot(const_args):
             network.join_node(
                 new_node,
                 args.package,
-                args_copy,
+                args,
                 target_node=primary,
                 timeout=10,
                 from_snapshot=False,
