@@ -1793,7 +1793,9 @@ def test_error_message_on_failure_to_fetch_snapshot(const_args):
             re.compile(r"Fetching snapshot from .* \(attempt 1/3\)"),
             re.compile(r"Fetching snapshot from .* \(attempt 2/3\)"),
             re.compile(r"Fetching snapshot from .* \(attempt 3/3\)"),
-            re.compile(r"Exceeded maximum snapshot fetch retries \([0-9]+\), giving up")
+            re.compile(
+                r"Exceeded maximum snapshot fetch retries \([0-9]+\), giving up"
+            ),
         ]
 
         out_path, _ = new_node.get_logs()
