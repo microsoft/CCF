@@ -287,5 +287,6 @@ namespace snapshots
         return response;
       }
     }
+    return std::nullopt;
   }
 }
