@@ -19,19 +19,6 @@
 
 namespace ccf
 {
-  struct UVMEndorsementsPayload
-  {
-    std::string sevsnpvm_guest_svn;
-    std::string sevsnpvm_launch_measurement;
-  };
-  DECLARE_JSON_TYPE(UVMEndorsementsPayload);
-  DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
-    UVMEndorsementsPayload,
-    sevsnpvm_guest_svn,
-    "x-ms-sevsnpvm-guestsvn",
-    sevsnpvm_launch_measurement,
-    "x-ms-sevsnpvm-launchmeasurement");
-
   struct UvmEndorsementsProtectedHeader
   {
     int64_t alg;
