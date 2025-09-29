@@ -39,7 +39,7 @@ namespace snapshots
     std::vector<uint8_t> snapshot_data;
   };
 
-  static std::optional<SnapshotResponse> fetch_from_peer(
+  static std::optional<SnapshotResponse> try_fetch_from_peer(
     const std::string& peer_address,
     const std::string& path_to_peer_cert,
     size_t latest_local_snapshot)
@@ -257,6 +257,35 @@ namespace snapshots
     {
       LOG_FAIL_FMT("Error during snapshot fetch: {}", e.what());
       return std::nullopt;
+    }
+  }
+
+  static std::optional<SnapshotResponse> fetch_from_peer(
+    const std::string& peer_address,
+    const std::string& path_to_peer_cert,
+    size_t latest_local_snapshot,
+    size_t max_retries,
+    size_t retry_delay_ms)
+  {
+    for (size_t attempt = 0; attempt < max_retries; ++attempt)
+    {
+      if (attempt > 0)
+      {
+        LOG_INFO_FMT(
+          "Retrying snapshot fetch from {} in {}ms (attempt {}/{})",
+          peer_address,
+          retry_delay_ms,
+          attempt + 1,
+          max_retries);
+        std::this_thread::sleep_for(std::chrono::milliseconds(retry_delay_ms));
+      }
+
+      auto response = try_fetch_from_peer(
+        peer_address, path_to_peer_cert, latest_local_snapshot);
+      if (response.has_value())
+      {
+        return response;
+      }
     }
   }
 }
