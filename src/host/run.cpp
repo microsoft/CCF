@@ -862,7 +862,7 @@ namespace ccf
             config.command.join.target_rpc_address,
             config.command.service_certificate_file,
             latest_local_idx,
-            config.command.join.fetch_snapshot_max_retries,
+            config.command.join.fetch_snapshot_max_attempts,
             config.command.join.fetch_snapshot_retry_interval.count_ms());
 
           if (latest_peer_snapshot.has_value())

@@ -264,16 +264,16 @@ namespace snapshots
     const std::string& peer_address,
     const std::string& path_to_peer_cert,
     size_t latest_local_snapshot,
-    size_t max_retries,
+    size_t max_attempts,
     size_t retry_delay_ms)
   {
-    for (size_t attempt = 0; attempt < max_retries; ++attempt)
+    for (size_t attempt = 0; attempt < max_attempts; ++attempt)
     {
       LOG_INFO_FMT(
         "Fetching snapshot from {} (attempt {}/{})",
         peer_address,
         attempt + 1,
-        max_retries);
+        max_attempts);
 
       if (attempt > 0)
       {
@@ -288,7 +288,7 @@ namespace snapshots
       }
     }
     LOG_INFO_FMT(
-      "Exceeded maximum snapshot fetch retries ({}), giving up", max_retries);
+      "Exceeded maximum snapshot fetch retries ({}), giving up", max_attempts);
     return std::nullopt;
   }
 }
