@@ -269,14 +269,14 @@ namespace snapshots
   {
     for (size_t attempt = 0; attempt < max_retries; ++attempt)
     {
+      LOG_INFO_FMT(
+        "Fetching snapshot from {} (attempt {}/{})",
+        peer_address,
+        attempt + 1,
+        max_retries);
+
       if (attempt > 0)
       {
-        LOG_INFO_FMT(
-          "Retrying snapshot fetch from {} in {}ms (attempt {}/{})",
-          peer_address,
-          retry_delay_ms,
-          attempt + 1,
-          max_retries);
         std::this_thread::sleep_for(std::chrono::milliseconds(retry_delay_ms));
       }
 
@@ -287,6 +287,8 @@ namespace snapshots
         return response;
       }
     }
+    LOG_INFO_FMT(
+      "Exceeded maximum snapshot fetch retries ({}), giving up", max_retries);
     return std::nullopt;
   }
 }
