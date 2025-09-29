@@ -36,7 +36,7 @@ namespace ccf::self_healing_open
   {
     ccf::kv::Version txid{};
   };
-  DECLARE_JSON_TYPE(GossipRequest);
+  DECLARE_JSON_TYPE_WITH_BASE(GossipRequest, TaggedWithNodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(GossipRequest, txid);
 }
 
