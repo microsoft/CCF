@@ -360,7 +360,10 @@ class Network:
         if from_snapshot:
             # Only retrieve snapshot from primary if the snapshot directory is not specified
             if snapshots_dir is None:
-                read_only_snapshots_dir = self.get_committed_snapshots(target_node)
+                primary, _ = self.find_primary(
+                    timeout=args.ledger_recovery_timeout if recovery else 10
+                )
+                read_only_snapshots_dir = self.get_committed_snapshots(primary)
             if os.listdir(snapshots_dir) or os.listdir(read_only_snapshots_dir):
                 LOG.info(
                     f"Joining from snapshot directories: {snapshots_dir},{read_only_snapshots_dir}"
