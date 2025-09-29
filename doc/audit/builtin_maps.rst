@@ -591,7 +591,7 @@ While the contents themselves are encrypted, the table is public so as to be acc
 
 **Value**
 
-.. doxygenstruct:: ccf::SelfHealingOpenGossip
+.. doxygenstruct:: ccf::self_healing_open::GossipRequest
    :project: CCF
    :members:
 
