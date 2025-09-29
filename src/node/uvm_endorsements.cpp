@@ -293,7 +293,8 @@ namespace ccf
     }
 
     auto payload = nlohmann::json::parse(raw_payload);
-    std::string sevsnpvm_launch_measurement = payload["x-ms-sevsnpvm-launchmeasurement"].get<std::string>();
+    std::string sevsnpvm_launch_measurement =
+      payload["x-ms-sevsnpvm-launchmeasurement"].get<std::string>();
     auto sevsnpvm_guest_svn_obj = payload["x-ms-sevsnpvm-guestsvn"];
     std::string sevsnpvm_guest_svn;
     if (sevsnpvm_guest_svn_obj.is_string())
@@ -307,15 +308,15 @@ namespace ccf
       if (result.ec != std::errc())
       {
         throw std::logic_error(fmt::format(
-          "Unable to parse sevsnpvm_guest_svn value {} to unsigned in UVM endorsements "
+          "Unable to parse sevsnpvm_guest_svn value {} to unsigned in UVM "
+          "endorsements "
           "payload",
           sevsnpvm_guest_svn));
       }
     }
     else if (sevsnpvm_guest_svn_obj.is_number_unsigned())
     {
-      sevsnpvm_guest_svn =
-        std::to_string(sevsnpvm_guest_svn_obj.get<size_t>());
+      sevsnpvm_guest_svn = std::to_string(sevsnpvm_guest_svn_obj.get<size_t>());
     }
     else
     {
