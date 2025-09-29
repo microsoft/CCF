@@ -13,9 +13,32 @@ namespace ccf
   {
     return std::ranges::any_of(
       uvm_roots_of_trust, [&](const auto& uvm_root_of_trust) {
+        size_t root_of_trust_svn = 0;
+        auto result = std::from_chars(
+          uvm_root_of_trust.svn.data(),
+          uvm_root_of_trust.svn.data() + uvm_root_of_trust.svn.size(),
+          root_of_trust_svn);
+        if (result.ec != std::errc())
+        {
+          throw std::runtime_error(fmt::format(
+            "Unable to parse svn value {} to unsigned in UVM root of trust",
+            uvm_root_of_trust.svn));
+        }
+        size_t endorsement_svn = 0;
+        result = std::from_chars(
+          endorsements.svn.data(),
+          endorsements.svn.data() + endorsements.svn.size(),
+          endorsement_svn);
+        if (result.ec != std::errc())
+        {
+          throw std::runtime_error(fmt::format(
+            "Unable to parse svn value {} to unsigned in UVM endorsements",
+            endorsements.svn));
+        }
+
         return uvm_root_of_trust.did == endorsements.did &&
           uvm_root_of_trust.feed == endorsements.feed &&
-          uvm_root_of_trust.svn <= endorsements.svn;
+          root_of_trust_svn <= endorsement_svn;
       });
   }
 
@@ -269,25 +292,58 @@ namespace ccf
         cose::headers::CONTENT_TYPE_APPLICATION_JSON_VALUE));
     }
 
-    UVMEndorsementsPayload payload = nlohmann::json::parse(raw_payload);
-    if (payload.sevsnpvm_launch_measurement != uvm_measurement.hex_str())
+    auto payload = nlohmann::json::parse(raw_payload);
+    std::string sevsnpvm_launch_measurement =
+      payload["x-ms-sevsnpvm-launchmeasurement"].get<std::string>();
+    auto sevsnpvm_guest_svn_obj = payload["x-ms-sevsnpvm-guestsvn"];
+    std::string sevsnpvm_guest_svn;
+    if (sevsnpvm_guest_svn_obj.is_string())
+    {
+      sevsnpvm_guest_svn = sevsnpvm_guest_svn_obj.get<std::string>();
+      size_t uintval = 0;
+      auto result = std::from_chars(
+        sevsnpvm_guest_svn.data(),
+        sevsnpvm_guest_svn.data() + sevsnpvm_guest_svn.size(),
+        uintval);
+      if (result.ec != std::errc())
+      {
+        throw std::logic_error(fmt::format(
+          "Unable to parse sevsnpvm_guest_svn value {} to unsigned in UVM "
+          "endorsements "
+          "payload",
+          sevsnpvm_guest_svn));
+      }
+    }
+    else if (sevsnpvm_guest_svn_obj.is_number_unsigned())
+    {
+      sevsnpvm_guest_svn = std::to_string(sevsnpvm_guest_svn_obj.get<size_t>());
+    }
+    else
+    {
+      throw std::logic_error(fmt::format(
+        "Unexpected type {} for sevsnpvm_guest_svn in UVM endorsements "
+        "payload, expected string or unsigned integer",
+        sevsnpvm_guest_svn_obj.type_name()));
+    }
+
+    if (sevsnpvm_launch_measurement != uvm_measurement.hex_str())
     {
       throw std::logic_error(fmt::format(
         "Launch measurement in UVM endorsements payload {} is not equal "
         "to UVM attestation measurement {}",
-        payload.sevsnpvm_launch_measurement,
+        sevsnpvm_launch_measurement,
         uvm_measurement.hex_str()));
     }
 
     LOG_INFO_FMT(
       "Successfully verified endorsements for attested measurement {} against "
       "{}, feed {}, svn {}",
-      payload.sevsnpvm_launch_measurement,
+      sevsnpvm_launch_measurement,
       did,
       phdr.feed,
-      payload.sevsnpvm_guest_svn);
+      sevsnpvm_guest_svn);
 
-    pal::UVMEndorsements end{did, phdr.feed, payload.sevsnpvm_guest_svn};
+    pal::UVMEndorsements end{did, phdr.feed, sevsnpvm_guest_svn};
 
     if (
       enforce_uvm_roots_of_trust &&
