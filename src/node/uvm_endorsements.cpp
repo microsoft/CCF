@@ -13,7 +13,7 @@ namespace ccf
   {
     return std::ranges::any_of(
       uvm_roots_of_trust, [&](const auto& uvm_root_of_trust) {
-        size_t root_of_trust_svn;
+        size_t root_of_trust_svn = 0;
         auto result = std::from_chars(
           uvm_root_of_trust.svn.data(),
           uvm_root_of_trust.svn.data() + uvm_root_of_trust.svn.size(),
@@ -24,7 +24,7 @@ namespace ccf
             "Unable to parse svn value {} to unsigned in UVM root of trust",
             uvm_root_of_trust.svn));
         }
-        size_t endorsement_svn;
+        size_t endorsement_svn = 0;
         result = std::from_chars(
           endorsements.svn.data(),
           endorsements.svn.data() + endorsements.svn.size(),
@@ -300,7 +300,7 @@ namespace ccf
     if (sevsnpvm_guest_svn_obj.is_string())
     {
       sevsnpvm_guest_svn = sevsnpvm_guest_svn_obj.get<std::string>();
-      size_t uintval;
+      size_t uintval = 0;
       auto result = std::from_chars(
         sevsnpvm_guest_svn.data(),
         sevsnpvm_guest_svn.data() + sevsnpvm_guest_svn.size(),
