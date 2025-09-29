@@ -882,11 +882,14 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
 
         if (latest_peer_snapshot.has_value())
         {
+          auto sha =
+            ccf::crypto::Sha256Hash(latest_peer_snapshot->snapshot_data);
           LOG_INFO_FMT(
-            "Received snapshot {} from peer (size: {}) - writing this to disk "
-            "and using for join startup",
+            "Received snapshot {} from peer (size: {}, sha256: {}) - writing "
+            "this to disk and using for join startup",
             latest_peer_snapshot->snapshot_name,
-            latest_peer_snapshot->snapshot_data.size());
+            latest_peer_snapshot->snapshot_data.size(),
+            sha.hex_str());
 
           const auto dst_path = fs::path(config.snapshots.directory) /
             fs::path(latest_peer_snapshot->snapshot_name);
