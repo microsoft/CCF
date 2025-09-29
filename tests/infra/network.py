@@ -344,10 +344,11 @@ class Network:
         **kwargs,
     ):
         # Contact primary if no target node is set
-        primary, _ = self.find_primary(
-            timeout=args.ledger_recovery_timeout if recovery else 10
-        )
-        target_node = target_node or primary
+        if target_node is None:
+            primary, _ = self.find_primary(
+                timeout=args.ledger_recovery_timeout if recovery else 10
+            )
+            target_node = primary
         LOG.info(f"Joining from target node {target_node.local_node_id}")
 
         committed_ledger_dirs = read_only_ledger_dirs or []
@@ -359,6 +360,9 @@ class Network:
         if from_snapshot:
             # Only retrieve snapshot from primary if the snapshot directory is not specified
             if snapshots_dir is None:
+                primary, _ = self.find_primary(
+                    timeout=args.ledger_recovery_timeout if recovery else 10
+                )
                 read_only_snapshots_dir = self.get_committed_snapshots(primary)
             if os.listdir(snapshots_dir) or os.listdir(read_only_snapshots_dir):
                 LOG.info(
@@ -1028,10 +1032,11 @@ class Network:
         target_node=None,
         timeout=JOIN_TIMEOUT,
         stop_on_error=False,
+        wait_for_node_in_store=True,
         **kwargs,
     ):
         self.setup_join_node(node, lib_name, args, target_node, **kwargs)
-        self.run_join_node(node, timeout, stop_on_error)
+        self.run_join_node(node, timeout, stop_on_error, wait_for_node_in_store)
 
     def trust_node(
         self,
