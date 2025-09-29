@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Improved logging of snapshot digests (#7300)
+- Node will now retry when fetching snapshots. This is controlled with `command.join.fetch_snapshot_max_attempts` and `command.join.fetch_snapshot_retry_interval`. (#7317)
 
 [6.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.14
 
