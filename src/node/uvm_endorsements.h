@@ -69,17 +69,11 @@ namespace ccf
           unsigned long long r = std::stoull(uvm_root_of_trust.svn);
           if (r > static_cast<unsigned long long>(SIZE_MAX))
           {
-            throw std::out_of_range("svn value out of range");
+            throw std::invalid_argument("SVN value too large");
           }
           root_of_trust_svn = static_cast<size_t>(r);
         }
-        catch (const std::invalid_argument&)
-        {
-          throw std::runtime_error(fmt::format(
-            "Unable to parse svn value {} to unsigned in UVM root of trust",
-            uvm_root_of_trust.svn));
-        }
-        catch (const std::out_of_range&)
+        catch (const std::logic_error&)
         {
           throw std::runtime_error(fmt::format(
             "Unable to parse svn value {} to unsigned in UVM root of trust",
@@ -92,19 +86,11 @@ namespace ccf
           unsigned long long e = std::stoull(endorsements.svn);
           if (e > static_cast<unsigned long long>(SIZE_MAX))
           {
-            throw std::runtime_error(fmt::format(
-              "Unable to parse svn value {} to unsigned in UVM endorsements",
-              endorsements.svn));
+            throw std::invalid_argument("SVN value too large");
           }
           endorsement_svn = static_cast<size_t>(e);
         }
-        catch (const std::invalid_argument&)
-        {
-          throw std::runtime_error(fmt::format(
-            "Unable to parse svn value {} to unsigned in UVM endorsements",
-            endorsements.svn));
-        }
-        catch (const std::out_of_range&)
+        catch (const std::logic_error&)
         {
           throw std::runtime_error(fmt::format(
             "Unable to parse svn value {} to unsigned in UVM endorsements",
@@ -397,18 +383,10 @@ namespace ccf
         unsigned long long v = std::stoull(sevsnpvm_guest_svn);
         if (v > static_cast<unsigned long long>(SIZE_MAX))
         {
-          throw std::out_of_range();
+          throw std::invalid_argument("SVN value too large");
         }
       }
-      catch (const std::invalid_argument&)
-      {
-        throw std::logic_error(fmt::format(
-          "Unable to parse sevsnpvm_guest_svn value {} to unsigned in UVM "
-          "endorsements "
-          "payload",
-          sevsnpvm_guest_svn));
-      }
-      catch (const std::out_of_range&)
+      catch (const std::logic_error&)
       {
         throw std::logic_error(fmt::format(
           "Unable to parse sevsnpvm_guest_svn value {} to unsigned in UVM "
