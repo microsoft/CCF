@@ -57,8 +57,10 @@ namespace ccf
     const UVMEndorsements& endorsements,
     const std::vector<UVMEndorsements>& uvm_roots_of_trust)
   {
-    return std::ranges::any_of(
-      uvm_roots_of_trust, [&](const auto& uvm_root_of_trust) {
+    return std::any_of(
+      uvm_roots_of_trust.begin(),
+      uvm_roots_of_trust.end(),
+      [&](const auto& uvm_root_of_trust) {
         size_t root_of_trust_svn = 0;
         auto result = std::from_chars(
           uvm_root_of_trust.svn.data(),
