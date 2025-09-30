@@ -66,12 +66,8 @@ namespace ccf
         size_t root_of_trust_svn = 0;
         try
         {
-          unsigned long long r = std::stoull(uvm_root_of_trust.svn);
-          if (r > static_cast<unsigned long long>(SIZE_MAX))
-          {
-            throw std::invalid_argument("SVN value too large");
-          }
-          root_of_trust_svn = static_cast<size_t>(r);
+          static_assert(sizeof(size_t) == sizeof(unsigned long));
+          root_of_trust_svn = std::stoul(uvm_root_of_trust.svn);
         }
         catch (const std::logic_error&)
         {
@@ -83,12 +79,8 @@ namespace ccf
         size_t endorsement_svn = 0;
         try
         {
-          unsigned long long e = std::stoull(endorsements.svn);
-          if (e > static_cast<unsigned long long>(SIZE_MAX))
-          {
-            throw std::invalid_argument("SVN value too large");
-          }
-          endorsement_svn = static_cast<size_t>(e);
+          static_assert(sizeof(size_t) == sizeof(unsigned long));
+          endorsement_svn = std::stoul(endorsements.svn);
         }
         catch (const std::logic_error&)
         {
@@ -380,11 +372,8 @@ namespace ccf
       size_t uintval = 0;
       try
       {
-        unsigned long long v = std::stoull(sevsnpvm_guest_svn);
-        if (v > static_cast<unsigned long long>(SIZE_MAX))
-        {
-          throw std::invalid_argument("SVN value too large");
-        }
+        static_assert(sizeof(size_t) == sizeof(unsigned long));
+        uintval = std::stoul(sevsnpvm_guest_svn);
       }
       catch (const std::logic_error&)
       {
