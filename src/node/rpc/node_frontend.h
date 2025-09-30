@@ -531,67 +531,6 @@ namespace ccf
       };
     }
 
-    std::optional<jsonhandler::JsonAdapterResponse>
-    self_healing_open_validate_and_store_node_info(
-      endpoints::EndpointContext& args,
-      ccf::kv::Tx& tx,
-      const self_healing_open::RequestNodeInfo& in)
-    {
-      auto cert_der = ccf::crypto::public_key_der_from_cert(
-        args.rpc_ctx->get_session_context()->caller_cert);
-
-      pal::PlatformAttestationMeasurement measurement;
-      QuoteVerificationResult verify_result = this->node_operation.verify_quote(
-        args.tx, in.quote_info, cert_der, measurement);
-      if (verify_result != QuoteVerificationResult::Verified)
-      {
-        const auto [code, message] = quote_verification_error(verify_result);
-        LOG_FAIL_FMT(
-          "Self-healing-open message from intrinsic id {} is invalid: {} ({})",
-          in.intrinsic_id,
-          code,
-          message);
-        return make_error(code, ccf::errors::InvalidQuote, message);
-      }
-
-      LOG_TRACE_FMT(
-        "Self-healing-open message from intrinsic id {}'s quote is valid",
-        in.intrinsic_id);
-
-      // Validating that we haven't heard from this node before, of if we have
-      // that the cert hasn't changed
-      auto* node_info_handle =
-        tx.rw<SelfHealingOpenNodeInfoMap>(Tables::SELF_HEALING_OPEN_NODES);
-      auto existing_node_info = node_info_handle->get(in.intrinsic_id);
-
-      if (existing_node_info.has_value())
-      {
-        // If we have seen this node before, check that the cert is the same
-        if (existing_node_info->cert_der != cert_der)
-        {
-          auto message = fmt::format(
-            "Self-healing-open message from intrinsic id {} is invalid: "
-            "certificate has changed",
-            in.intrinsic_id);
-          LOG_FAIL_FMT("{}", message);
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, ccf::errors::NodeAlreadyExists, message);
-        }
-      }
-      else
-      {
-        SelfHealingOpenNodeInfo src_info{
-          .quote_info = in.quote_info,
-          .published_network_address = in.published_network_address,
-          .cert_der = cert_der,
-          .service_identity = in.service_identity,
-          .intrinsic_id = in.intrinsic_id};
-        node_info_handle->put(in.intrinsic_id, src_info);
-      }
-
-      return std::nullopt;
-    };
-
   public:
     NodeEndpoints(NetworkState& network_, ccf::AbstractNodeContext& context_) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::nodes), context_),
