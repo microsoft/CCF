@@ -10,11 +10,11 @@
 #include "node/cose_common.h"
 #include "node/did.h"
 
+#include <algorithm>
 #include <didx509cpp/didx509cpp.h>
 #include <nlohmann/json.hpp>
 #include <qcbor/qcbor.h>
 #include <qcbor/qcbor_spiffy_decode.h>
-#include <ranges>
 #include <span>
 #include <t_cose/t_cose_sign1_verify.h>
 
