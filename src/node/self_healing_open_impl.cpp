@@ -3,7 +3,9 @@
 
 #include "node/self_healing_open_impl.h"
 
+#include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/self_healing_open.h"
+#include "ccf/tx.h"
 #include "node_state.h"
 
 #include <stdexcept>
@@ -259,7 +261,7 @@ namespace ccf
         switch (sm_state)
         {
           case SelfHealingOpenSM::GOSSIPING:
-            msg->data.self.send_gossip_unsafe();
+            msg->data.self.send_gossip_unsafe(tx);
             break;
           case SelfHealingOpenSM::VOTING:
           {
@@ -280,13 +282,13 @@ namespace ccf
                 "Self-healing-open chosen node {} not found",
                 chosen_replica_handle->get().value()));
             }
-            msg->data.self.send_vote_unsafe(chosen_node_info.value());
+            msg->data.self.send_vote_unsafe(tx, chosen_node_info.value());
             // keep gossiping to allow lagging nodes to eventually vote
-            msg->data.self.send_gossip_unsafe();
+            msg->data.self.send_gossip_unsafe(tx);
             break;
           }
           case SelfHealingOpenSM::OPENING:
-            msg->data.self.send_iamopen_unsafe();
+            msg->data.self.send_iamopen_unsafe(tx);
             break;
           case SelfHealingOpenSM::JOINING:
             return;
@@ -458,10 +460,18 @@ namespace ccf
       std::move(curl_request));
   }
 
-  self_healing_open::RequestNodeInfo SelfHealingOpenSubsystem::make_node_info()
+  self_healing_open::RequestNodeInfo SelfHealingOpenSubsystem::make_node_info(
+    kv::ReadOnlyTx& tx)
   {
+    auto* nodes_handle = tx.ro<Nodes>(Tables::NODES);
+    auto node_info_opt = nodes_handle->get(node_state->get_node_id());
+    if (!node_info_opt.has_value())
+    {
+      throw std::logic_error(fmt::format(
+        "Node {} not found in nodes table", node_state->get_node_id()));
+    }
     return {
-      .quote_info = node_state->quote_info,
+      .quote_info = node_info_opt->quote_info,
       .published_network_address =
         node_state->config.network.rpc_interfaces.at("primary_rpc_interface")
           .published_address,
@@ -472,7 +482,7 @@ namespace ccf
     };
   }
 
-  void SelfHealingOpenSubsystem::send_gossip_unsafe()
+  void SelfHealingOpenSubsystem::send_gossip_unsafe(kv::ReadOnlyTx& tx)
   {
     auto& config = node_state->config.recover.self_healing_open;
     if (!config.has_value())
@@ -483,7 +493,7 @@ namespace ccf
     LOG_TRACE_FMT("Broadcasting self-healing-open gossip");
 
     self_healing_open::GossipRequest request;
-    request.info = make_node_info();
+    request.info = make_node_info(tx);
     request.txid = node_state->last_recovered_signed_idx;
     nlohmann::json request_json = request;
 
@@ -499,7 +509,7 @@ namespace ccf
   }
 
   void SelfHealingOpenSubsystem::send_vote_unsafe(
-    const SelfHealingOpenNodeInfo& node_info)
+    kv::ReadOnlyTx& tx, const SelfHealingOpenNodeInfo& node_info)
   {
     auto& config = node_state->config.recover.self_healing_open;
     if (!config.has_value())
@@ -512,7 +522,7 @@ namespace ccf
       node_info.intrinsic_id,
       node_info.published_network_address);
 
-    self_healing_open::TaggedWithNodeInfo request{.info = make_node_info()};
+    self_healing_open::TaggedWithNodeInfo request{.info = make_node_info(tx)};
 
     nlohmann::json request_json = request;
 
@@ -524,7 +534,7 @@ namespace ccf
       node_state->node_sign_kp->private_key_pem());
   }
 
-  void SelfHealingOpenSubsystem::send_iamopen_unsafe()
+  void SelfHealingOpenSubsystem::send_iamopen_unsafe(ccf::kv::ReadOnlyTx& tx)
   {
     auto& config = node_state->config.recover.self_healing_open;
     if (!config.has_value())
@@ -534,7 +544,7 @@ namespace ccf
 
     LOG_TRACE_FMT("Sending self-healing-open iamopen");
 
-    self_healing_open::TaggedWithNodeInfo request{.info = make_node_info()};
+    self_healing_open::TaggedWithNodeInfo request{.info = make_node_info(tx)};
     nlohmann::json request_json = request;
 
     for (auto& target_address : config->addresses)
