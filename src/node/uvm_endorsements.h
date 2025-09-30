@@ -16,6 +16,8 @@
 #include <qcbor/qcbor.h>
 #include <qcbor/qcbor_spiffy_decode.h>
 #include <span>
+#include <stdexcept>
+#include <string>
 #include <t_cose/t_cose_sign1_verify.h>
 
 namespace ccf
@@ -62,22 +64,47 @@ namespace ccf
       uvm_roots_of_trust.end(),
       [&](const auto& uvm_root_of_trust) {
         size_t root_of_trust_svn = 0;
-        auto result = std::from_chars(
-          uvm_root_of_trust.svn.data(),
-          uvm_root_of_trust.svn.data() + uvm_root_of_trust.svn.size(),
-          root_of_trust_svn);
-        if (result.ec != std::errc())
+        try
+        {
+          unsigned long long r = std::stoull(uvm_root_of_trust.svn);
+          if (r > static_cast<unsigned long long>(SIZE_MAX))
+          {
+            throw std::out_of_range("svn value out of range");
+          }
+          root_of_trust_svn = static_cast<size_t>(r);
+        }
+        catch (const std::invalid_argument&)
         {
           throw std::runtime_error(fmt::format(
             "Unable to parse svn value {} to unsigned in UVM root of trust",
             uvm_root_of_trust.svn));
         }
+        catch (const std::out_of_range&)
+        {
+          throw std::runtime_error(fmt::format(
+            "Unable to parse svn value {} to unsigned in UVM root of trust",
+            uvm_root_of_trust.svn));
+        }
+
         size_t endorsement_svn = 0;
-        result = std::from_chars(
-          endorsements.svn.data(),
-          endorsements.svn.data() + endorsements.svn.size(),
-          endorsement_svn);
-        if (result.ec != std::errc())
+        try
+        {
+          unsigned long long e = std::stoull(endorsements.svn);
+          if (e > static_cast<unsigned long long>(SIZE_MAX))
+          {
+            throw std::runtime_error(fmt::format(
+              "Unable to parse svn value {} to unsigned in UVM endorsements",
+              endorsements.svn));
+          }
+          endorsement_svn = static_cast<size_t>(e);
+        }
+        catch (const std::invalid_argument&)
+        {
+          throw std::runtime_error(fmt::format(
+            "Unable to parse svn value {} to unsigned in UVM endorsements",
+            endorsements.svn));
+        }
+        catch (const std::out_of_range&)
         {
           throw std::runtime_error(fmt::format(
             "Unable to parse svn value {} to unsigned in UVM endorsements",
@@ -365,11 +392,23 @@ namespace ccf
     {
       sevsnpvm_guest_svn = sevsnpvm_guest_svn_obj.get<std::string>();
       size_t uintval = 0;
-      auto result = std::from_chars(
-        sevsnpvm_guest_svn.data(),
-        sevsnpvm_guest_svn.data() + sevsnpvm_guest_svn.size(),
-        uintval);
-      if (result.ec != std::errc())
+      try
+      {
+        unsigned long long v = std::stoull(sevsnpvm_guest_svn);
+        if (v > static_cast<unsigned long long>(SIZE_MAX))
+        {
+          throw std::out_of_range();
+        }
+      }
+      catch (const std::invalid_argument&)
+      {
+        throw std::logic_error(fmt::format(
+          "Unable to parse sevsnpvm_guest_svn value {} to unsigned in UVM "
+          "endorsements "
+          "payload",
+          sevsnpvm_guest_svn));
+      }
+      catch (const std::out_of_range&)
       {
         throw std::logic_error(fmt::format(
           "Unable to parse sevsnpvm_guest_svn value {} to unsigned in UVM "
