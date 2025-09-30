@@ -14,9 +14,9 @@
 #include <nlohmann/json.hpp>
 #include <qcbor/qcbor.h>
 #include <qcbor/qcbor_spiffy_decode.h>
+#include <ranges>
 #include <span>
 #include <t_cose/t_cose_sign1_verify.h>
-#include <ranges>
 
 namespace ccf
 {
