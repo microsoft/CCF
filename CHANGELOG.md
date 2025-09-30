@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added `ccf.gov.validateConstitution` function to JS API, which can be used to confirm some basic properties of a proposed constitution (it is a string, parseable by our JS interpreter, exporting functions named `validate`, `resolve` and `apply` with the correct number of arguments). This is called in the default sample constitution's `set_constitution.validate`.
 - Added logging of the initial node attestation value ("Initial node attestation...") (#7256).
 - Improved handling of socket errors in curlm callbacks (#7308)
+- Accept UVM endorsements with SVNs encoded as integers (#7316)
+- Node will now retry when fetching snapshots. This is controlled with `command.join.fetch_snapshot_max_attempts` and `command.join.fetch_snapshot_retry_interval`. (#7317)
 
 ### Fixed
 
