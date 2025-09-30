@@ -381,7 +381,18 @@
                   "fetch_recent_snapshot": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Whether to ask the target for a snapshot before joining. The node will ask the target what their latest snapshot is and will fetch it via RPC before launching. Should generally only be turned off for specific test cases"
+                    "description": "Whether to ask the target for a snapshot before joining. The node will ask the target what their latest snapshot is, and will fetch it via RPC before launching. Should generally only be turned off for specific test cases"
+                  },
+                  "fetch_snapshot_max_attempts": {
+                    "type": "integer",
+                    "default": 3,
+                    "description": "Maximum number of attempts to fetch a recent snapshot from the target node",
+                    "minimum": 1
+                  },
+                  "fetch_snapshot_retry_interval": {
+                    "type": "string",
+                    "default": "1000ms",
+                    "description": "Interval (time string) between retries to fetch a recent snapshot from the target node"
                   }
                 },
                 "required": ["target_rpc_address"],
