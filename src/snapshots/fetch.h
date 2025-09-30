@@ -273,7 +273,7 @@ namespace snapshots
   static std::optional<SnapshotResponse> fetch_from_peer(
     const std::string& peer_address,
     const std::string& path_to_peer_cert,
-    size_t latest_local_snapshot,
+    std::optional<size_t> latest_local_snapshot,
     size_t max_attempts,
     size_t retry_delay_ms)
   {
