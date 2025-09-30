@@ -1534,7 +1534,7 @@ def run_self_healing_open(const_args):
 
         LOG.info("Completed self-healing open successfully")
 
-        recovered_network.stop_all_nodes()
+        recovered_network.stop_all_nodes(accept_ledger_diff=True)
 
 
 def run_self_healing_open_timeout_path(const_args):
