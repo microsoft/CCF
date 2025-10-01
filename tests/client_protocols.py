@@ -86,15 +86,7 @@ def test_tls(network, args):
     cond_removal("tls_report.json")
     cond_removal("tls_report.log")
     r = subprocess.run(
-        [
-            "testssl/testssl.sh",
-            "--add-ca",
-            network.cert_path,
-            "--outfile",
-            report_basename,
-            endpoint,
-        ],
-        check=False,
+        ["testssl/testssl.sh", "--outfile", report_basename, endpoint], check=False
     )
     assert r.returncode == 0
     # Sort csv output lines to simplify comparison

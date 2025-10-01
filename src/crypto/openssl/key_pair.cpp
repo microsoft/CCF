@@ -395,19 +395,6 @@ namespace ccf::crypto
     OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
     X509_EXTENSION_free(ext);
 
-    if (ca)
-    {
-      // Add key usage
-      OpenSSL::CHECKNULL(
-        ext = X509V3_EXT_conf_nid(
-          nullptr,
-          &v3ctx,
-          NID_key_usage,
-          "critical, keyCertSign, digitalSignature"));
-      OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
-      X509_EXTENSION_free(ext);
-    }
-
     // Add subject key identifier
     OpenSSL::CHECKNULL(
       ext =
