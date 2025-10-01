@@ -66,12 +66,10 @@ if [ -z "${member_id_cert}" ]; then
     exit 1
 fi
 
-if [ ! -f "env/bin/activate" ]
-    then
-        python3 -m venv env
+if ! command -v ccf_cose_sign1 > /dev/null; then
+    echo "Error: This script requires the ccf_cose_sign1 CLI tool, distributed as part of the CCF Python package. Please install it via 'pip install ccf' in the current Python environment"
+    exit 1
 fi
-source env/bin/activate
-pip install -q ccf
 
 # Compute member ID, as the SHA-256 fingerprint of the signing certificate
 member_id=$(openssl x509 -in "$member_id_cert" -noout -fingerprint -sha256 | cut -d "=" -f 2 | sed 's/://g' | awk '{print tolower($0)}')
