@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [5.0.24]
 
-[5.0.24]: https://github.com/microsoft/CCF/releases/tag/5.0.24
+[5.0.24]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.24
+
+### Added
+
+- Accept UVM endorsements with SVNs encoded as integers, and use integer comparison for UVM (#7316)
 
 ### Changed
 
