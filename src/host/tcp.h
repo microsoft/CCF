@@ -699,7 +699,7 @@ namespace asynchost
 
     void on_connect(int rc)
     {
-      if(uv_is_closing((uv_handle_t*)&uv_handle) != 0)
+      if (uv_is_closing((uv_handle_t*)&uv_handle) != 0)
       {
         LOG_DEBUG_FMT("on_connect: closing");
         return;
