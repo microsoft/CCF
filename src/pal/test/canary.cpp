@@ -3,6 +3,8 @@
 
 #include "canary.h"
 
+#include "ccf/ds/quote_info.h"
+
 std::string read_in(const std::string& path)
 {
   auto expanded_path = ccf::env::expand_envvars_in_path(path);
@@ -17,7 +19,8 @@ std::string read_in(const std::string& path)
 
 void validate_endorsements(
   const std::string& snp_endorsements,
-  const ccf::pal::snp::TcbVersionRaw& attested_tcb)
+  const ccf::pal::snp::TcbVersionRaw& attested_tcb,
+  std::vector<uint8_t>& endorsements_pem)
 {
   const auto raw_data = ccf::crypto::raw_from_b64(snp_endorsements);
 
@@ -46,6 +49,16 @@ void validate_endorsements(
       aci_endorsements.tcbm,
       tcb_as_hex));
   }
+
+  endorsements_pem.clear();
+  endorsements_pem.insert(
+    endorsements_pem.end(),
+    aci_endorsements.vcek_cert.begin(),
+    aci_endorsements.vcek_cert.end());
+  endorsements_pem.insert(
+    endorsements_pem.end(),
+    aci_endorsements.certificate_chain.begin(),
+    aci_endorsements.certificate_chain.end());
 }
 
 // Verify that the security policy matches the quoted digest of the policy
@@ -77,23 +90,18 @@ void validate_security_policy(
 }
 
 void validate_uvm_endorsements(
-  const ccf::QuoteInfo& quote_info, const std::string& uvm_endorsements)
+  ccf::QuoteInfo& quote_info, const std::string& uvm_endorsements)
 {
   try
   {
     auto uvm_endorsements_raw = ccf::crypto::raw_from_b64(uvm_endorsements);
-    // A node at this stage does not have a notion of what UVM
-    // descriptor is acceptable. That is decided either by the Joinee,
-    // or by Consortium endorsing the Start or Recovery node. For that
-    // reason, we extract an endorsement descriptor from the UVM
-    // endorsements and make it available in the ledger's initial or
-    // recovery transaction.
-    auto snp_uvm_endorsements = ccf::pal::verify_uvm_endorsements_descriptor(
+     auto snp_uvm_endorsements = ccf::pal::verify_uvm_endorsements_descriptor(
       uvm_endorsements_raw,
       ccf::AttestationProvider::get_measurement(quote_info).value());
     LOG_INFO_FMT(
       "Successfully verified attested UVM endorsements: {}",
       snp_uvm_endorsements.to_str());
+    quote_info.uvm_endorsements = uvm_endorsements_raw;
   }
   catch (const std::exception& e)
   {
@@ -201,21 +209,34 @@ int main(int argc, char** argv)
     ccf::pal::generate_quote(
       report_data,
       [&](
-        const ccf::QuoteInfo& quote_info,
+        const ccf::QuoteInfo& qi,
         const ccf::pal::snp::EndorsementEndpointsConfiguration&
         /*endpoint_config*/) {
+        ccf::QuoteInfo quote_info = qi;
+
+        auto b64encoded_quote = ccf::crypto::b64url_from_raw(quote_info.quote);
+        nlohmann::json jq;
+        to_json(jq, quote_info.format);
+        LOG_INFO_FMT(
+          "Initial node attestation ({}): {}", jq.dump(), b64encoded_quote);
         CCF_ASSERT_FMT(
           quote_info.format == ccf::QuoteFormat::amd_sev_snp_v1,
           "Expected SNP quote format");
+
         const auto* attestation_unverified =
           reinterpret_cast<const ccf::pal::snp::Attestation*>(
             quote_info.quote.data());
         validate_endorsements(
-          endorsements, attestation_unverified->reported_tcb);
+          endorsements,
+          attestation_unverified->reported_tcb,
+          quote_info.endorsements);
 
-        auto attestation =
-          ccf::AttestationProvider::get_snp_attestation(quote_info);
+        ccf::pal::PlatformAttestationMeasurement d = {};
+        ccf::pal::PlatformAttestationReportData r = {};
+        ccf::pal::verify_quote(quote_info, d, r);
 
+        // Check that the security policy matches the quoted digest of the
+        // policy
         if (security_policy.has_value())
         {
           validate_security_policy(quote_info, security_policy.value());
@@ -225,6 +246,8 @@ int main(int argc, char** argv)
         {
           validate_uvm_endorsements(quote_info, uvm_endorsements.value());
         }
+
+        // End of node startup verification
 
         auto rc =
           validate_join_policy(quote_info, node_sign_kp.public_key_der());
