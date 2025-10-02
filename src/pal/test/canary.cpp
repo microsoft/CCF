@@ -1,10 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-// Aim is to:
-// 1. read in snp endorsements and uvm endorsements from security_context_XXX
-// 2. do all the verification steps CCF does, except evaluating the join policy
-
 #include "canary.h"
 
 std::string read_in(const std::string& path)
@@ -124,27 +120,17 @@ ccf::QuoteVerificationResult validate_join_policy(
   }
 
   // auto rc = verify_host_data_against_store(tx, quote_info);
-  // if (rc != QuoteVerificationResult::Verified)
-  //{
-  //   return rc;
-  // }
+  // No non-join-policy steps
 
   // rc = verify_enclave_measurement_against_store(
-  //   tx, measurement, quote_info.format, quote_info.uvm_endorsements);
-  // if (rc != QuoteVerificationResult::Verified)
-  //{
-  //   return rc;
-  // }
+  // Only non-join-policy step
   ccf::verify_uvm_endorsements_against_roots_of_trust(
     quote_info.uvm_endorsements.value(),
     measurement,
     uvm_endorsements_roots_of_trust);
 
   // rc = verify_tcb_version_against_store(tx, quote_info);
-  // if (rc != QuoteVerificationResult::Verified)
-  //{
-  //   return rc;
-  // }
+  // No non-join-policy steps
 
   return ccf::verify_quoted_node_public_key(expected_pubk_der, quoted_hash);
 }
@@ -247,7 +233,7 @@ int main(int argc, char** argv)
   }
   catch (const std::invalid_argument& e)
   {
-    std::cerr << "Error: " << e.what() << std::endl;
+    LOG_FAIL_FMT("Error: {}", e.what());
     return 2;
   }
   return 0;
