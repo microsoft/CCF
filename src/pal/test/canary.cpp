@@ -174,7 +174,6 @@ int main(int argc, char** argv)
   {
     LOG_INFO_FMT("Reading SNP endorsements from: {}", endorsements_path);
     std::string endorsements = read_in(endorsements_path);
-    LOG_INFO_FMT("Read SNP endorsements: {}", endorsements);
 
     LOG_INFO_FMT(
       "Reading SNP UVM endorsements from: {}", uvm_endorsements_path);
@@ -182,7 +181,6 @@ int main(int argc, char** argv)
     if (uvm_endorsements_path.has_value())
     {
       uvm_endorsements = read_in(uvm_endorsements_path.value());
-      LOG_INFO_FMT("Read SNP UVM endorsements: {}", uvm_endorsements.value());
     }
     else
     {
@@ -195,12 +193,13 @@ int main(int argc, char** argv)
       LOG_INFO_FMT(
         "Reading SNP security policy from: {}", security_policy_path);
       security_policy = read_in(security_policy_path.value());
-      LOG_INFO_FMT("Read SNP security policy: {}", security_policy.value());
     }
     else
     {
       LOG_INFO_FMT("No SNP security policy provided, skipping");
     }
+
+    LOG_INFO_FMT("Generating attestation");
 
     // generate private key
     ccf::crypto::KeyPair_OpenSSL node_sign_kp(ccf::crypto::CurveID::SECP384R1);
@@ -214,15 +213,11 @@ int main(int argc, char** argv)
         /*endpoint_config*/) {
         ccf::QuoteInfo quote_info = qi;
 
-        auto b64encoded_quote = ccf::crypto::b64url_from_raw(quote_info.quote);
-        nlohmann::json jq;
-        to_json(jq, quote_info.format);
-        LOG_INFO_FMT(
-          "Initial node attestation ({}): {}", jq.dump(), b64encoded_quote);
         CCF_ASSERT_FMT(
           quote_info.format == ccf::QuoteFormat::amd_sev_snp_v1,
           "Expected SNP quote format");
 
+        LOG_INFO_FMT("Verifying endorsements");
         const auto* attestation_unverified =
           reinterpret_cast<const ccf::pal::snp::Attestation*>(
             quote_info.quote.data());
@@ -231,24 +226,24 @@ int main(int argc, char** argv)
           attestation_unverified->reported_tcb,
           quote_info.endorsements);
 
+        LOG_INFO_FMT("Verifying quote");
         ccf::pal::PlatformAttestationMeasurement d = {};
         ccf::pal::PlatformAttestationReportData r = {};
         ccf::pal::verify_quote(quote_info, d, r);
 
-        // Check that the security policy matches the quoted digest of the
-        // policy
+        LOG_INFO_FMT("Verifying security policy");
         if (security_policy.has_value())
         {
           validate_security_policy(quote_info, security_policy.value());
         }
 
+        LOG_INFO_FMT("Verifying UVM endorsements");
         if (uvm_endorsements.has_value())
         {
           validate_uvm_endorsements(quote_info, uvm_endorsements.value());
         }
 
-        // End of node startup verification
-
+        LOG_INFO_FMT("Running join policy validation");
         auto rc =
           validate_join_policy(quote_info, node_sign_kp.public_key_der());
         if (rc != ccf::QuoteVerificationResult::Verified)
