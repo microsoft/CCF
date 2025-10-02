@@ -147,6 +147,12 @@ ccf::QuoteVerificationResult validate_join_policy(
 
 int main(int argc, char** argv)
 {
+  if (!ccf::pal::snp::supports_sev_snp())
+  {
+    std::cout << "Skipping canary test as this is not running in SEV-SNP"
+              << std::endl;
+    return 0;
+  }
   ccf::logger::config::level() = ccf::LoggerLevel::TRACE;
   ccf::logger::config::add_text_console_logger();
 

@@ -465,14 +465,22 @@ install(FILES tests/requirements.txt DESTINATION bin)
 add_subdirectory(${CCF_DIR}/samples)
 
 # Canary executable
-add_ccf_app(snp_canary SRCS ${CMAKE_CURRENT_SOURCE_DIR}/srcd/pal/test/canary.cpp LINK_LIBS ccf_pal INSTALL_LIBS on)
+add_test_bin(
+  snp_canary ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/canary.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/host/env.cpp
+)
+target_link_libraries(snp_canary PRIVATE ccf_pal ccf)
+install(TARGETS snp_canary DESTINATION bin)
 
 if(BUILD_TESTS)
   enable_testing()
 
   # Unit tests
   if(BUILD_UNIT_TESTS)
-    add_test(NAME snp_canary COMMAND bash -c 'snp_canary  /$(ls / | grep "security-context")/host-amd-cert-base64 /$(ls / | grep "security-context")/reference-info-base64 /$(ls / | grep "security-context")/security-policy-base64')
+    add_test(
+      NAME snp_canary
+      COMMAND bash ${CMAKE_SOURCE_DIR}/tests/run_snp_canary.sh $<TARGET_FILE:snp_canary>
+    )
     set_property(TEST snp_canary APPEND PROPERTY LABELS unit)
     add_san_test_properties(snp_canary)
 
