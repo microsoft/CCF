@@ -142,7 +142,9 @@ int main(int argc, char** argv)
 
   if (argc < 2 || argc > 4)
   {
-    LOG_FAIL_FMT("Expected 2-3 arguments, got {}", argc - 1);
+    std::cout << "Usage <program> <snp_endorsements_path> "
+                 "[uvm_endorsements_path] [security_policy_path]"
+              << std::endl;
     return 1;
   }
 
@@ -168,7 +170,7 @@ int main(int argc, char** argv)
     LOG_INFO_FMT(
       "Reading SNP UVM endorsements from: {}", uvm_endorsements_path);
     std::optional<std::string> uvm_endorsements = std::nullopt;
-    if (uvm_endorsements.has_value())
+    if (uvm_endorsements_path.has_value())
     {
       uvm_endorsements = read_in(uvm_endorsements_path.value());
     }
