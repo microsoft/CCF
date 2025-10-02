@@ -166,6 +166,7 @@ int main(int argc, char** argv)
   {
     LOG_INFO_FMT("Reading SNP endorsements from: {}", endorsements_path);
     std::string endorsements = read_in(endorsements_path);
+    LOG_INFO_FMT("Read SNP endorsements: {}", endorsements);
 
     LOG_INFO_FMT(
       "Reading SNP UVM endorsements from: {}", uvm_endorsements_path);
@@ -173,6 +174,7 @@ int main(int argc, char** argv)
     if (uvm_endorsements_path.has_value())
     {
       uvm_endorsements = read_in(uvm_endorsements_path.value());
+      LOG_INFO_FMT("Read SNP UVM endorsements: {}", uvm_endorsements.value());
     }
     else
     {
@@ -185,6 +187,7 @@ int main(int argc, char** argv)
       LOG_INFO_FMT(
         "Reading SNP security policy from: {}", security_policy_path);
       security_policy = read_in(security_policy_path.value());
+      LOG_INFO_FMT("Read SNP security policy: {}", security_policy.value());
     }
     else
     {
