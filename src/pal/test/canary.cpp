@@ -261,5 +261,6 @@ int main(int argc, char** argv)
     LOG_FAIL_FMT("Error: {}", e.what());
     return 2;
   }
+  LOG_INFO_FMT("Successfully ran canary.");
   return 0;
 }
