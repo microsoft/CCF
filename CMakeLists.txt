@@ -222,7 +222,7 @@ install(
 )
 
 # CCF platform agnostic library
-add_ccf_static_library(ccf_pal SRCS ${CCF_DIR}/src/pal/attestation.cpp)
+add_ccf_static_library(ccf_pal SRCS ${CCF_DIR}/src/pal/attestation.cpp LINK_LIBS ccfcrypto)
 
 # CCF js lib
 add_ccf_static_library(
@@ -669,6 +669,12 @@ if(BUILD_TESTS)
       kp_cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/kp_cert.cpp
     )
     target_link_libraries(kp_cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+
+    add_test_bin(
+      canary ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/canary.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/env.cpp
+    )
+    target_link_libraries(canary PRIVATE ccf_pal ccf)
 
     add_unit_test(
       channels_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
