@@ -464,11 +464,18 @@ install(FILES tests/requirements.txt DESTINATION bin)
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
 
+# Canary executable
+add_ccf_app(snp_canary SRCS ${CMAKE_CURRENT_SOURCE_DIR}/srcd/pal/test/canary.cpp LINK_LIBS ccf_pal INSTALL_LIBS on)
+
 if(BUILD_TESTS)
   enable_testing()
 
   # Unit tests
   if(BUILD_UNIT_TESTS)
+    add_test(NAME snp_canary COMMAND bash -c 'snp_canary  /$(ls / | grep "security-context")/host-amd-cert-base64 /$(ls / | grep "security-context")/reference-info-base64 /$(ls / | grep "security-context")/security-policy-base64')
+    set_property(TEST snp_canary APPEND PROPERTY LABELS unit)
+    add_san_test_properties(snp_canary)
+
     add_unit_test(
       snp_ioctl_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
@@ -479,7 +486,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_attestation_validation.cpp
     )
     target_link_libraries(snp_attestation_test PRIVATE ccf_pal ccfcrypto)
-
+    
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
     add_unit_test(
@@ -669,12 +676,6 @@ if(BUILD_TESTS)
       kp_cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/kp_cert.cpp
     )
     target_link_libraries(kp_cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
-
-    add_test_bin(
-      canary ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/canary.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/env.cpp
-    )
-    target_link_libraries(canary PRIVATE ccf_pal ccf)
 
     add_unit_test(
       channels_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
