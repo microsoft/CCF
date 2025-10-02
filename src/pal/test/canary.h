@@ -3,7 +3,6 @@
 
 #pragma once
 
-
 #include "ccf/ds/logger_level.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/node/quote.h"
@@ -29,5 +28,5 @@ static std::vector<ccf::pal::UVMEndorsements> uvm_endorsements_roots_of_trust;
 namespace ccf
 {
   QuoteVerificationResult verify_quoted_node_public_key(
-    const std::vector<uint8_t>&,const ccf::crypto::Sha256Hash&);
+    const std::vector<uint8_t>&, const ccf::crypto::Sha256Hash&);
 }

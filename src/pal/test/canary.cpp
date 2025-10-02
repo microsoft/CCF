@@ -95,7 +95,7 @@ void validate_uvm_endorsements(
   try
   {
     auto uvm_endorsements_raw = ccf::crypto::raw_from_b64(uvm_endorsements);
-     auto snp_uvm_endorsements = ccf::pal::verify_uvm_endorsements_descriptor(
+    auto snp_uvm_endorsements = ccf::pal::verify_uvm_endorsements_descriptor(
       uvm_endorsements_raw,
       ccf::AttestationProvider::get_measurement(quote_info).value());
     LOG_INFO_FMT(
@@ -132,10 +132,10 @@ ccf::QuoteVerificationResult validate_join_policy(
 
   // rc = verify_enclave_measurement_against_store(
   // Only non-join-policy step
-  //ccf::verify_uvm_endorsements_against_roots_of_trust(
-  //  quote_info.uvm_endorsements.value(),
-  //  measurement,
-  //  uvm_endorsements_roots_of_trust);
+  // ccf::verify_uvm_endorsements_against_roots_of_trust(
+  //   quote_info.uvm_endorsements.value(),
+  //   measurement,
+  //   uvm_endorsements_roots_of_trust);
   ccf::pal::verify_uvm_endorsements_descriptor(
     quote_info.uvm_endorsements.value(), measurement);
 

@@ -222,7 +222,11 @@ install(
 )
 
 # CCF platform agnostic library
-add_ccf_static_library(ccf_pal SRCS ${CCF_DIR}/src/pal/attestation.cpp LINK_LIBS ccfcrypto)
+add_ccf_static_library(
+  ccf_pal
+  SRCS ${CCF_DIR}/src/pal/attestation.cpp
+  LINK_LIBS ccfcrypto
+)
 
 # CCF js lib
 add_ccf_static_library(
@@ -477,11 +481,15 @@ if(BUILD_TESTS)
 
   # Unit tests
   if(BUILD_UNIT_TESTS)
-    add_test(
-      NAME snp_canary
-      COMMAND bash ${CMAKE_SOURCE_DIR}/tests/run_snp_canary.sh $<TARGET_FILE:snp_canary>
+    add_test(NAME snp_canary
+             COMMAND bash ${CMAKE_SOURCE_DIR}/tests/run_snp_canary.sh
+                     $<TARGET_FILE:snp_canary>
     )
-    set_property(TEST snp_canary APPEND PROPERTY LABELS unit)
+    set_property(
+      TEST snp_canary
+      APPEND
+      PROPERTY LABELS unit
+    )
     add_san_test_properties(snp_canary)
 
     add_unit_test(
@@ -494,7 +502,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_attestation_validation.cpp
     )
     target_link_libraries(snp_attestation_test PRIVATE ccf_pal ccfcrypto)
-    
+
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
     add_unit_test(
