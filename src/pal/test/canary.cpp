@@ -132,10 +132,12 @@ ccf::QuoteVerificationResult validate_join_policy(
 
   // rc = verify_enclave_measurement_against_store(
   // Only non-join-policy step
-  ccf::verify_uvm_endorsements_against_roots_of_trust(
-    quote_info.uvm_endorsements.value(),
-    measurement,
-    uvm_endorsements_roots_of_trust);
+  //ccf::verify_uvm_endorsements_against_roots_of_trust(
+  //  quote_info.uvm_endorsements.value(),
+  //  measurement,
+  //  uvm_endorsements_roots_of_trust);
+  ccf::pal::verify_uvm_endorsements_descriptor(
+    quote_info.uvm_endorsements.value(), measurement);
 
   // rc = verify_tcb_version_against_store(tx, quote_info);
   // No non-join-policy steps
