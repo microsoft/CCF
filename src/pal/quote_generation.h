@@ -3,7 +3,10 @@
 #pragma once
 
 #include "ccf/crypto/hash_provider.h"
+#include "ccf/ds/quote_info.h"
+#include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp.h"
+#include "ccf/pal/platform.h"
 #include "ccf/pal/snp_ioctl.h"
 #include "ds/files.h"
 
