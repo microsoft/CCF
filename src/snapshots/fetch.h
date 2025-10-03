@@ -50,8 +50,8 @@ namespace snapshots
       // Make initial request, which returns a redirect response to specific
       // snapshot
       std::string snapshot_url;
+      ccf::curl::UniqueCURL curl_easy;
       {
-        ccf::curl::UniqueCURL curl_easy;
         curl_easy.set_opt(CURLOPT_CAINFO, path_to_peer_cert.c_str());
 
         auto initial_url = fmt::format(
@@ -117,12 +117,12 @@ namespace snapshots
 
         snapshot_url =
           fmt::format("https://{}{}", peer_address, location_it->second);
+        curl_easy = std::move(request.get_easy_handle_ptr());
       }
 
       // Make follow-up request to redirected URL, to fetch total content size
       size_t content_size = 0;
       {
-        ccf::curl::UniqueCURL curl_easy;
         curl_easy.set_opt(CURLOPT_CAINFO, path_to_peer_cert.c_str());
 
         ccf::curl::UniqueSlist headers;
@@ -194,6 +194,7 @@ namespace snapshots
             snapshot_size_request->get_url(),
             ec));
         }
+        curl_easy = std::move(snapshot_size_request.get_easy_handle_ptr());
       }
 
       // Fetch 4MB chunks at a time
@@ -212,7 +213,6 @@ namespace snapshots
 
         while (true)
         {
-          ccf::curl::UniqueCURL curl_easy;
           curl_easy.set_opt(CURLOPT_CAINFO, path_to_peer_cert.c_str());
 
           ccf::curl::UniqueSlist headers;
@@ -265,7 +265,8 @@ namespace snapshots
             snapshot_range_status_code);
 
           snapshot_response =
-            std::move(snapshot_range_request->get_response_ptr());
+            std::move(snapshot_range_request.get_response_ptr());
+          curl_easy = std::move(snapshot_range_request.get_easy_handle_ptr());
 
           if (range_end == content_size)
           {
