@@ -3,9 +3,9 @@
 
 #include "tasks/ordered_tasks.h"
 
-#include "./utils.h"
 #include "tasks/basic_task.h"
 #include "tasks/sub_task_queue.h"
+#include "tasks/thread_manager.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -72,11 +72,11 @@ TEST_CASE("SubTaskQueue" * doctest::test_suite("ordered_tasks"))
 
 TEST_CASE("OrderedTasks" * doctest::test_suite("ordered_tasks"))
 {
-  ccf::tasks::JobBoard jb;
+  ccf::tasks::JobBoard job_board;
 
-  auto p_a = ccf::tasks::OrderedTasks::create(jb);
-  auto p_b = ccf::tasks::OrderedTasks::create(jb);
-  auto p_c = ccf::tasks::OrderedTasks::create(jb);
+  auto p_a = ccf::tasks::OrderedTasks::create(job_board);
+  auto p_b = ccf::tasks::OrderedTasks::create(job_board);
+  auto p_c = ccf::tasks::OrderedTasks::create(job_board);
 
   std::atomic<bool> executed[14] = {0};
 
@@ -165,9 +165,37 @@ TEST_CASE("OrderedTasks" * doctest::test_suite("ordered_tasks"))
     }));
   }));
 
-  test::utils::flush_board(jb, 8, [&]() {
-    return std::all_of(std::begin(executed), std::end(executed), [](auto&& e) {
-      return e.load();
-    });
-  });
+  {
+    INFO("Execution loop");
+
+    ccf::tasks::ThreadManager thread_manager(job_board);
+    thread_manager.set_worker_count(8);
+
+    using TClock = std::chrono::steady_clock;
+    auto now = TClock::now();
+    std::chrono::seconds max_run_time(5);
+    const auto end_time = now + max_run_time;
+
+    while (true)
+    {
+      const auto complete =
+        std::all_of(std::begin(executed), std::end(executed), [](auto&& e) {
+          return e.load();
+        });
+
+      if (complete)
+      {
+        break;
+      }
+
+      now = TClock::now();
+      if (now > end_time)
+      {
+        throw std::runtime_error(
+          fmt::format("Test did not complete after {}", max_run_time));
+      }
+
+      std::this_thread::yield();
+    }
+  }
 }
