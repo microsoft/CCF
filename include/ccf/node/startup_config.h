@@ -102,6 +102,14 @@ namespace ccf
     Snapshots snapshots = {};
   };
 
+  struct SelfHealingOpenConfig
+  {
+    std::vector<std::string> addresses;
+    ccf::ds::TimeString retry_timeout = {"100ms"};
+    ccf::ds::TimeString failover_timeout = {"2000ms"};
+    bool operator==(const SelfHealingOpenConfig&) const = default;
+  };
+
   struct StartupConfig : CCFConfig
   {
     StartupConfig() = default;
@@ -146,6 +154,7 @@ namespace ccf
         std::nullopt;
       std::optional<std::string> previous_sealed_ledger_secret_location =
         std::nullopt;
+      std::optional<SelfHealingOpenConfig> self_healing_open = std::nullopt;
     };
     Recover recover = {};
   };
