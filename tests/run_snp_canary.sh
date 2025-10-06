@@ -15,10 +15,10 @@ if [ ! -x "$BIN_PATH" ]; then
 	exit 1
 fi
 
-SECURITY_CONTEXT_DIR=$(ls -1 / | grep -E '^security-context' | head -1 || true)
+SECURITY_CONTEXT_DIR=$(echo /security-context-*)
 
-HOST_AMD="/${SECURITY_CONTEXT_DIR}/host-amd-cert-base64"
-REF_INFO="/${SECURITY_CONTEXT_DIR}/reference-info-base64"
-SEC_POLICY="/${SECURITY_CONTEXT_DIR}/security-policy-base64"
+HOST_AMD="${SECURITY_CONTEXT_DIR}/host-amd-cert-base64"
+REF_INFO="${SECURITY_CONTEXT_DIR}/reference-info-base64"
+SEC_POLICY="${SECURITY_CONTEXT_DIR}/security-policy-base64"
 
 exec "$BIN_PATH" "$HOST_AMD" "$REF_INFO" "$SEC_POLICY"
