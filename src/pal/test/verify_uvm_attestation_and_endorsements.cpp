@@ -151,8 +151,7 @@ int main(int argc, char** argv)
 {
   if (!ccf::pal::snp::supports_sev_snp())
   {
-    std::cout << "Skipping test as this is not running in SEV-SNP"
-              << std::endl;
+    std::cout << "Skipping test as this is not running in SEV-SNP" << std::endl;
     return 0;
   }
   ccf::logger::config::level() = ccf::LoggerLevel::TRACE;
