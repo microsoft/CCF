@@ -4,6 +4,7 @@
 #include "canary.h"
 
 #include "ccf/ds/quote_info.h"
+#include "node/uvm_endorsements.h"
 
 std::string read_in(const std::string& path)
 {
@@ -110,6 +111,10 @@ void validate_uvm_endorsements(
   }
 }
 
+// CCF's join policy both authenticates the quote and checks it against
+// reference values in the CCF store. Here we only authenticate the quote.
+// Each step that would check against the store is commented out and replaced
+// with the steps which do not require the store.
 ccf::QuoteVerificationResult validate_join_policy(
   ccf::QuoteInfo quote_info, std::vector<uint8_t> expected_pubk_der)
 {
@@ -128,21 +133,18 @@ ccf::QuoteVerificationResult validate_join_policy(
   }
 
   // auto rc = verify_host_data_against_store(tx, quote_info);
-  // No non-join-policy steps
 
   // rc = verify_enclave_measurement_against_store(
-  // Only non-join-policy step
-  // ccf::verify_uvm_endorsements_against_roots_of_trust(
-  //   quote_info.uvm_endorsements.value(),
-  //   measurement,
-  //   uvm_endorsements_roots_of_trust);
-  ccf::pal::verify_uvm_endorsements_descriptor(
-    quote_info.uvm_endorsements.value(), measurement);
+  ccf::verify_uvm_endorsements_against_roots_of_trust(
+    quote_info.uvm_endorsements.value(),
+    measurement,
+    ccf::default_uvm_roots_of_trust);
 
   // rc = verify_tcb_version_against_store(tx, quote_info);
-  // No non-join-policy steps
 
-  return ccf::verify_quoted_node_public_key(expected_pubk_der, quoted_hash);
+  auto rc = ccf::verify_quoted_node_public_key(expected_pubk_der, quoted_hash);
+
+  return rc;
 }
 
 int main(int argc, char** argv)
