@@ -470,10 +470,13 @@ add_subdirectory(${CCF_DIR}/samples)
 
 # UVM canary executable
 add_test_bin(
-  verify_uvm_attestation_and_endorsements ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/verify_uvm_attestation_and_endorsements.cpp
+  verify_uvm_attestation_and_endorsements
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/verify_uvm_attestation_and_endorsements.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/host/env.cpp
 )
-target_link_libraries(verify_uvm_attestation_and_endorsements PRIVATE ccf_pal ccf)
+target_link_libraries(
+  verify_uvm_attestation_and_endorsements PRIVATE ccf_pal ccf
+)
 install(TARGETS verify_uvm_attestation_and_endorsements DESTINATION bin)
 
 if(BUILD_TESTS)
@@ -481,9 +484,12 @@ if(BUILD_TESTS)
 
   # Unit tests
   if(BUILD_UNIT_TESTS)
-    add_test(NAME verify_uvm_attestation_and_endorsements
-             COMMAND bash ${CMAKE_SOURCE_DIR}/tests/run_verify_uvm_attestation_and_endorsements.sh
-                     $<TARGET_FILE:verify_uvm_attestation_and_endorsements>
+    add_test(
+      NAME verify_uvm_attestation_and_endorsements
+      COMMAND
+        bash
+        ${CMAKE_SOURCE_DIR}/tests/run_verify_uvm_attestation_and_endorsements.sh
+        $<TARGET_FILE:verify_uvm_attestation_and_endorsements>
     )
     set_property(
       TEST verify_uvm_attestation_and_endorsements
