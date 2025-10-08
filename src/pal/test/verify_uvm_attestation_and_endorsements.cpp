@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "canary.h"
+#include "verify_uvm_attestation_and_endorsements.h"
 
 #include "ccf/ds/quote_info.h"
 #include "node/uvm_endorsements.h"
