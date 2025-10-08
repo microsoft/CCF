@@ -151,7 +151,7 @@ int main(int argc, char** argv)
 {
   if (!ccf::pal::snp::supports_sev_snp())
   {
-    std::cout << "Skipping canary test as this is not running in SEV-SNP"
+    std::cout << "Skipping test as this is not running in SEV-SNP"
               << std::endl;
     return 0;
   }
@@ -269,6 +269,6 @@ int main(int argc, char** argv)
     LOG_FAIL_FMT("Error: {}", e.what());
     return 2;
   }
-  LOG_INFO_FMT("Successfully ran canary.");
+  LOG_INFO_FMT("Successfully verified attestation and endorsements.");
   return 0;
 }

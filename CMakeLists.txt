@@ -468,29 +468,29 @@ install(FILES tests/requirements.txt DESTINATION bin)
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
 
-# Canary executable
+# UVM canary executable
 add_test_bin(
-  snp_canary ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/canary.cpp
+  verify_uvm_attestation_and_endorsements ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/verify_uvm_attestation_and_endorsements.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/host/env.cpp
 )
-target_link_libraries(snp_canary PRIVATE ccf_pal ccf)
-install(TARGETS snp_canary DESTINATION bin)
+target_link_libraries(verify_uvm_attestation_and_endorsements PRIVATE ccf_pal ccf)
+install(TARGETS verify_uvm_attestation_and_endorsements DESTINATION bin)
 
 if(BUILD_TESTS)
   enable_testing()
 
   # Unit tests
   if(BUILD_UNIT_TESTS)
-    add_test(NAME snp_canary
-             COMMAND bash ${CMAKE_SOURCE_DIR}/tests/run_snp_canary.sh
-                     $<TARGET_FILE:snp_canary>
+    add_test(NAME verify_uvm_attestation_and_endorsements
+             COMMAND bash ${CMAKE_SOURCE_DIR}/tests/run_verify_uvm_attestation_and_endorsements.sh
+                     $<TARGET_FILE:verify_uvm_attestation_and_endorsements>
     )
     set_property(
-      TEST snp_canary
+      TEST verify_uvm_attestation_and_endorsements
       APPEND
       PROPERTY LABELS unit
     )
-    add_san_test_properties(snp_canary)
+    add_san_test_properties(verify_uvm_attestation_and_endorsements)
 
     add_unit_test(
       snp_ioctl_test
