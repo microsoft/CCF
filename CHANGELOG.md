@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev4]
+
+[7.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev4
+
+### Added
+
+- Added `verify_uvm_attestation_and_endorsements` binary. This tests that the authentication of the startup files during start and join would succeed. Usage on C-ACI: `verify_uvm_attestation_and_endorsements /security-context-xxxx/host-amd-cert-base64 /security-context-xxxx/reference-info-base64 /security-context-xxxx/security-policy-base64`
+
 ## [7.0.0-dev3]
 
 [7.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev3
@@ -14,6 +22,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added `ccf.gov.validateConstitution` function to JS API, which can be used to confirm some basic properties of a proposed constitution (it is a string, parseable by our JS interpreter, exporting functions named `validate`, `resolve` and `apply` with the correct number of arguments). This is called in the default sample constitution's `set_constitution.validate`.
 - Added logging of the initial node attestation value ("Initial node attestation...") (#7256).
 - Improved handling of socket errors in curlm callbacks (#7308)
+- Accept UVM endorsements with SVNs encoded as integers (#7316)
+- Node will now retry when fetching snapshots. This is controlled with `command.join.fetch_snapshot_max_attempts` and `command.join.fetch_snapshot_retry_interval`. (#7317)
 
 ### Fixed
 
