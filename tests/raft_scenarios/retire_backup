@@ -30,9 +30,9 @@ dispatch_one,0
 disconnect_node,3
 
 dispatch_all
-periodic_all,30
+periodic_all,10
 dispatch_all
-periodic_all,30
+periodic_all,10
 dispatch_all
 
 assert_commit_idx,0,8
@@ -40,10 +40,11 @@ assert_commit_idx,1,8
 assert_commit_idx,2,8
 assert_commit_idx,3,6 # 3 hasn't heard anything for a long time
 
-reconnect_node,3
-
-periodic_all,30
 dispatch_all
+periodic_all,100
+dispatch_all
+
+reconnect_node,3
 
 ## When 3 reconnected it became a candidate for term 3 and caused 0 to step down
 assert_detail,0,leadership_state,Follower
@@ -53,9 +54,7 @@ assert_detail,3,leadership_state,Candidate
 disconnect_node,3
 
 dispatch_all
-periodic_all,30
-dispatch_all
-periodic_all,30
+periodic_all,100
 dispatch_all
 
 summarise_logs_all
