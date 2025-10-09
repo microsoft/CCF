@@ -63,6 +63,20 @@ namespace ccf::curl
       }
     }
 
+    // No implicit copying: unique ownership of the CURL handle
+    UniqueCURL(const UniqueCURL&) = delete;
+    UniqueCURL& operator=(const UniqueCURL&) = delete;
+
+    // Move semantics
+    UniqueCURL(UniqueCURL&& other) noexcept : p(std::move(other.p)) {}
+    UniqueCURL& operator=(UniqueCURL&& other) noexcept
+    {
+      p = std::move(other.p);
+      return *this;
+    }
+
+    ~UniqueCURL() = default;
+
     operator CURL*() const
     {
       return p.get();
@@ -360,7 +374,9 @@ namespace ccf::curl
   {
   public:
     using ResponseCallback = std::function<void(
-      CurlRequest& request, CURLcode curl_response_code, long status_code)>;
+      std::unique_ptr<CurlRequest>&& request,
+      CURLcode curl_response_code,
+      long status_code)>;
 
   private:
     UniqueCURL curl_handle;
@@ -453,35 +469,45 @@ namespace ccf::curl
       }
     }
 
-    void handle_response(CURLcode curl_response_code)
+    static void handle_response(
+      std::unique_ptr<CurlRequest>&& request, CURLcode curl_response_code)
     {
-      LOG_DEBUG_FMT("Handling response for {}", url);
-      if (response_callback.has_value())
+      LOG_TRACE_FMT("Handling response for {}", request->url);
+      if (request->response_callback.has_value())
       {
         long status_code = 0;
         CHECK_CURL_EASY_GETINFO(
-          curl_handle, CURLINFO_RESPONSE_CODE, &status_code);
-        response_callback.value()(*this, curl_response_code, status_code);
+          request->curl_handle, CURLINFO_RESPONSE_CODE, &status_code);
+        request->response_callback.value()(
+          std::move(request), curl_response_code, status_code);
       }
     }
 
-    void synchronous_perform(CURLcode& curl_code, long& status_code)
+    static void synchronous_perform(std::unique_ptr<CurlRequest>&& request)
     {
-      if (curl_handle == nullptr)
+      if (request == nullptr)
+      {
+        throw std::logic_error("Cannot perform a null CurlRequest");
+      }
+      if (request->curl_handle == nullptr)
       {
         throw std::logic_error(
           "Cannot curl_easy_perform on a null CURL handle");
       }
 
-      curl_code = curl_easy_perform(curl_handle);
+      auto curl_code = curl_easy_perform(request->curl_handle);
 
-      handle_response(curl_code); // handle the response callback if set
-
-      CHECK_CURL_EASY_GETINFO(
-        curl_handle, CURLINFO_RESPONSE_CODE, &status_code);
+      handle_response(
+        std::move(request),
+        curl_code); // handle the response callback if set
     }
 
     [[nodiscard]] CURL* get_easy_handle() const
+    {
+      return curl_handle;
+    }
+
+    [[nodiscard]] UniqueCURL& get_easy_handle_ptr()
     {
       return curl_handle;
     }
@@ -568,7 +594,7 @@ namespace ccf::curl
           // detach the easy handle such that it can be cleaned up with the
           // destructor of CurlRequest
           curl_multi_remove_handle(p.get(), easy);
-          request->handle_response(result);
+          CurlRequest::handle_response(std::move(request_data_ptr), result);
         }
       } while (msgq > 0);
       return running_handles;
