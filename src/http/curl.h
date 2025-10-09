@@ -63,6 +63,20 @@ namespace ccf::curl
       }
     }
 
+    // No implicit copying: unique ownership of the CURL handle
+    UniqueCURL(const UniqueCURL&) = delete;
+    UniqueCURL& operator=(const UniqueCURL&) = delete;
+
+    // Move semantics
+    UniqueCURL(UniqueCURL&& other) noexcept : p(std::move(other.p)) {}
+    UniqueCURL& operator=(UniqueCURL&& other) noexcept
+    {
+      p = std::move(other.p);
+      return *this;
+    }
+
+    ~UniqueCURL() = default;
+
     operator CURL*() const
     {
       return p.get();
@@ -489,6 +503,11 @@ namespace ccf::curl
     }
 
     [[nodiscard]] CURL* get_easy_handle() const
+    {
+      return curl_handle;
+    }
+
+    [[nodiscard]] UniqueCURL& get_easy_handle_ptr()
     {
       return curl_handle;
     }
