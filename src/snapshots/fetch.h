@@ -117,7 +117,7 @@ namespace snapshots
 
         snapshot_url =
           fmt::format("https://{}{}", peer_address, location_it->second);
-        curl_easy = std::move(request.get_easy_handle_ptr());
+        curl_easy = std::move(request->get_easy_handle_ptr());
       }
 
       // Make follow-up request to redirected URL, to fetch total content size
@@ -194,7 +194,7 @@ namespace snapshots
             snapshot_size_request->get_url(),
             ec));
         }
-        curl_easy = std::move(snapshot_size_request.get_easy_handle_ptr());
+        curl_easy = std::move(snapshot_size_request->get_easy_handle_ptr());
       }
 
       // Fetch 4MB chunks at a time
@@ -265,8 +265,8 @@ namespace snapshots
             snapshot_range_status_code);
 
           snapshot_response =
-            std::move(snapshot_range_request.get_response_ptr());
-          curl_easy = std::move(snapshot_range_request.get_easy_handle_ptr());
+            std::move(snapshot_range_request->get_response_ptr());
+          curl_easy = std::move(snapshot_range_request->get_easy_handle_ptr());
 
           if (range_end == content_size)
           {
