@@ -222,7 +222,11 @@ install(
 )
 
 # CCF platform agnostic library
-add_ccf_static_library(ccf_pal SRCS ${CCF_DIR}/src/pal/attestation.cpp)
+add_ccf_static_library(
+  ccf_pal
+  SRCS ${CCF_DIR}/src/pal/attestation.cpp
+  LINK_LIBS ccfcrypto
+)
 
 # CCF js lib
 add_ccf_static_library(
@@ -464,11 +468,36 @@ install(FILES tests/requirements.txt DESTINATION bin)
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
 
+# UVM canary executable
+add_test_bin(
+  verify_uvm_attestation_and_endorsements
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/verify_uvm_attestation_and_endorsements.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/host/env.cpp
+)
+target_link_libraries(
+  verify_uvm_attestation_and_endorsements PRIVATE ccf_pal ccf
+)
+install(TARGETS verify_uvm_attestation_and_endorsements DESTINATION bin)
+
 if(BUILD_TESTS)
   enable_testing()
 
   # Unit tests
   if(BUILD_UNIT_TESTS)
+    add_test(
+      NAME verify_uvm_attestation_and_endorsements
+      COMMAND
+        bash
+        ${CMAKE_SOURCE_DIR}/tests/run_verify_uvm_attestation_and_endorsements.sh
+        $<TARGET_FILE:verify_uvm_attestation_and_endorsements>
+    )
+    set_property(
+      TEST verify_uvm_attestation_and_endorsements
+      APPEND
+      PROPERTY LABELS unit
+    )
+    add_san_test_properties(verify_uvm_attestation_and_endorsements)
+
     add_unit_test(
       snp_ioctl_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
