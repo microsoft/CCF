@@ -1,0 +1,61 @@
+start_node,0
+assert_detail,0,leadership_state,Leader
+emit_signature,2
+
+assert_detail,0,leadership_state,Leader
+assert_commit_idx,0,2
+
+trust_node,2,1
+trust_node,2,2
+trust_node,2,3
+emit_signature,2
+
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+
+assert_commit_idx,0,6
+assert_commit_idx,1,6
+assert_commit_idx,2,6
+
+## the leader 0 reconfigures to remove 3
+swap_nodes,2,out,3
+emit_signature,2
+
+## node 3 learns it is out of the network
+dispatch_one,0
+
+disconnect_node,3
+
+dispatch_all
+periodic_all,30
+dispatch_all
+periodic_all,30
+dispatch_all
+
+assert_commit_idx,0,8
+assert_commit_idx,1,8
+assert_commit_idx,2,8
+assert_commit_idx,3,6 # 3 hasn't heard anything for a long time
+
+reconnect_node,3
+
+periodic_all,30
+dispatch_all
+
+## When 3 reconnected it became a candidate for term 3 and caused 0 to step down
+assert_detail,0,leadership_state,Follower
+assert_detail,3,leadership_state,Candidate
+
+## Node 3 is eventually removed, allowing leadership to be re-established
+disconnect_node,3
+
+dispatch_all
+periodic_all,30
+dispatch_all
+periodic_all,30
+dispatch_all
+
+summarise_logs_all
