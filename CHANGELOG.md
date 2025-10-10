@@ -5,13 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [7.0.0-dev4]
+## [7.0.0-dev5]
 
-[7.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev
+[7.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev5
 
 ### Changed
 
 - When the `fetch_recent_snapshots` behaviour is enabled by the node config, the Joiner will now prefer the peer's snapshot over _any_ local snapshot, regardless of version.
+
+## [7.0.0-dev4]
+
+[7.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev4
+
+### Added
+
+- Added `verify_uvm_attestation_and_endorsements` binary. This tests that the authentication of the startup files during start and join would succeed. Usage on C-ACI: `verify_uvm_attestation_and_endorsements /security-context-xxxx/host-amd-cert-base64 /security-context-xxxx/reference-info-base64 /security-context-xxxx/security-policy-base64`
 
 ## [7.0.0-dev3]
 
