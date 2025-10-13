@@ -229,7 +229,7 @@ jobs:
           mkdir -p /github/home/.cache
           # Use a ramdisk for workspace
           df -kh
-          mount -t tmpfs -o size=16G tmpfs /tmpfs
+          mount -t tmpfs -o size=16G /tmpfs
           df -kh
           mkdir -p /tmpfs/ccf-workspace
           ln -s /tmpfs/ccf-workspace workspace
