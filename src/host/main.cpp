@@ -859,12 +859,6 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
       config.command.type == StartType::Recover)
     {
       auto latest_local_snapshot = snapshots.find_latest_committed_snapshot();
-      auto sha = ccf::crypto::Sha256Hash(startup_snapshot);
-      LOG_INFO_FMT(
-        "Found latest snapshot file: {} (size: {}, sha256: {})",
-        latest_local_snapshot->first / latest_local_snapshot->second,
-        startup_snapshot.size(),
-        sha.hex_str());
 
       if (
         config.command.type == StartType::Join &&
@@ -915,10 +909,12 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
           auto& [snapshot_dir, snapshot_file] = latest_local_snapshot.value();
           startup_snapshot = files::slurp(snapshot_dir / snapshot_file);
 
+          auto sha = ccf::crypto::Sha256Hash(startup_snapshot);
           LOG_INFO_FMT(
-            "Found latest local snapshot file: {} (size: {})",
+            "Found latest snapshot file: {} (size: {}, sha256: {})",
             snapshot_dir / snapshot_file,
-            startup_snapshot.size());
+            startup_snapshot.size(),
+            sha.hex_str());
         }
         else
         {
