@@ -400,7 +400,8 @@ namespace ccf::curl
       std::unique_ptr<RequestBody>&& request_body_,
       std::unique_ptr<ccf::curl::ResponseBody>&& response_,
       std::optional<ResponseCallback>&& response_callback_,
-      std::optional<uint16_t> response_thread_ = threading::get_current_thread_id()) :
+      std::optional<uint16_t> response_thread_ =
+        threading::get_current_thread_id()) :
       curl_handle(std::move(curl_handle_)),
       method(method_),
       url(std::move(url_)),
@@ -606,10 +607,7 @@ namespace ccf::curl
           curl_multi_remove_handle(p.get(), easy);
 
           // dispatch the response handling to a thread for processing
-          if (
-            request->get_response_thread().has_value() &&
-            request->get_response_thread().value() !=
-            threading::get_current_thread_id())
+          if (request->get_response_thread().has_value())
           {
             using Data =
               std::tuple<std::unique_ptr<curl::CurlRequest>, CURLcode>;
