@@ -53,6 +53,7 @@ jobs:
           set +x
           cd build
           # Use a ramdisk for workspace
+          mount -o remount,size=16G /dev/shm
           mkdir -p /dev/shm/ccf-workspace
           ln -s /dev/shm/ccf-workspace workspace
           # Run test
@@ -111,6 +112,7 @@ jobs:
           set +x
           cd build
           # Use a ramdisk for workspace
+          mount -o remount,size=16G /dev/shm
           mkdir -p /dev/shm/ccf-workspace
           ln -s /dev/shm/ccf-workspace workspace
           # Run test
@@ -168,6 +170,7 @@ jobs:
           set +x
           cd build
           # Use a ramdisk for workspace
+          mount -o remount,size=16G /dev/shm
           mkdir -p /dev/shm/ccf-workspace
           ln -s /dev/shm/ccf-workspace workspace
           # Run test
@@ -231,6 +234,7 @@ jobs:
           set +x
           cd build
           # Use a ramdisk for workspace
+          mount -o remount,size=16G /dev/shm
           mkdir -p /dev/shm/ccf-workspace
           ln -s /dev/shm/ccf-workspace workspace
           # Run test
@@ -289,6 +293,7 @@ jobs:
           set +x
           cd build
           # Use a ramdisk for workspace
+          mount -o remount,size=16G /dev/shm
           mkdir -p /dev/shm/ccf-workspace
           ln -s /dev/shm/ccf-workspace workspace
           # Run test
@@ -347,6 +352,7 @@ jobs:
           set +x
           cd build
           # Use a ramdisk for workspace
+          mount -o remount,size=16G /dev/shm
           mkdir -p /dev/shm/ccf-workspace
           ln -s /dev/shm/ccf-workspace workspace
           # Run test
