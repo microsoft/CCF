@@ -53,7 +53,7 @@ jobs:
           set +x
           cd build
           # Use a ramdisk for workspace
-          mkdir -pf /dev/shm/ccf-workspace
+          mkdir -p /dev/shm/ccf-workspace
           ln -s /dev/shm/ccf-workspace workspace
           # Run test
           ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
@@ -111,7 +111,7 @@ jobs:
           set +x
           cd build
           # Use a ramdisk for workspace
-          mkdir -pf /dev/shm/ccf-workspace
+          mkdir -p /dev/shm/ccf-workspace
           ln -s /dev/shm/ccf-workspace workspace
           # Run test
           setarch -R ./tests.sh --output-on-failure --timeout 3600 -LE "benchmark" -E "launch_host_process|recovery|regression|governance|membership"
@@ -168,7 +168,7 @@ jobs:
           set +x
           cd build
           # Use a ramdisk for workspace
-          mkdir -pf /dev/shm/ccf-workspace
+          mkdir -p /dev/shm/ccf-workspace
           ln -s /dev/shm/ccf-workspace workspace
           # Run test
           ./tests.sh --output-on-failure --timeout 1600 -R lts
@@ -231,7 +231,7 @@ jobs:
           set +x
           cd build
           # Use a ramdisk for workspace
-          mkdir -pf /dev/shm/ccf-workspace
+          mkdir -p /dev/shm/ccf-workspace
           ln -s /dev/shm/ccf-workspace workspace
           # Run test
           ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
@@ -289,7 +289,7 @@ jobs:
           set +x
           cd build
           # Use a ramdisk for workspace
-          mkdir -pf /dev/shm/ccf-workspace
+          mkdir -p /dev/shm/ccf-workspace
           ln -s /dev/shm/ccf-workspace workspace
           # Run test
           ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
@@ -347,7 +347,7 @@ jobs:
           set +x
           cd build
           # Use a ramdisk for workspace
-          mkdir -pf /dev/shm/ccf-workspace
+          mkdir -p /dev/shm/ccf-workspace
           ln -s /dev/shm/ccf-workspace workspace
           # Run test
           ./tests.sh --output-on-failure --timeout 1600 -R "suite"

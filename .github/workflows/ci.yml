@@ -228,7 +228,7 @@ jobs:
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
           # Use a ramdisk for workspace
-          mkdir -pf /dev/shm/ccf-workspace
+          mkdir -p /dev/shm/ccf-workspace
           ln -s /dev/shm/ccf-workspace workspace
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
