@@ -199,7 +199,7 @@ class LoggingTxs:
                         log_capture=log_capture,
                     )
                     if rep_pub.status_code != http.HTTPStatus.OK:
-                        raise LoggingTxsIssueException(rep_priv)
+                        raise LoggingTxsIssueException(rep_pub)
                     self.pub[target_idx].append(
                         {
                             "msg": pub_msg,
