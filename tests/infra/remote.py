@@ -131,7 +131,7 @@ class LocalRemote(CmdMixin):
                 break
             time.sleep(0.1)
         else:
-            raise ValueError(path)
+            raise ValueError(f"{path} not found after {timeout} seconds, rc {self.proc.poll()}")
         if not pre_condition_func(path, os.listdir):
             raise RuntimeError("Pre-condition for getting remote files failed")
         target_name = target_name or os.path.basename(src_path)
