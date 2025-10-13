@@ -229,7 +229,7 @@ jobs:
           mkdir -p /github/home/.cache
           # Use a ramdisk for workspace
           df -kh
-          mount -o remount,size=16G /dev/shm
+          sudo mount -o remount,size=16G /dev/shm
           mkdir -p /dev/shm/ccf-workspace
           ln -s /dev/shm/ccf-workspace workspace
           # Unit tests
