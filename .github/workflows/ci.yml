@@ -229,9 +229,10 @@ jobs:
           mkdir -p /github/home/.cache
           # Use a ramdisk for workspace
           df -kh
-          sudo mount -o remount,size=16G /dev/shm
-          mkdir -p /dev/shm/ccf-workspace
-          ln -s /dev/shm/ccf-workspace workspace
+          mount -t tmpfs -o size=16G tmpfs /tmpfs
+          df -kh
+          mkdir -p /tmpfs/ccf-workspace
+          ln -s /tmpfs/ccf-workspace workspace
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # End to end tests
