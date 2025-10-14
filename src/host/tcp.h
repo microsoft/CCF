@@ -652,6 +652,12 @@ namespace asynchost
 
     void on_accept(int rc)
     {
+      if (uv_is_closing((uv_handle_t*)&uv_handle) != 0)
+      {
+        LOG_DEBUG_FMT("on_accept: closing");
+        return;
+      }
+
       if (rc < 0)
       {
         LOG_DEBUG_FMT("on_accept failed: {}", uv_strerror(rc));
@@ -693,6 +699,12 @@ namespace asynchost
 
     void on_connect(int rc)
     {
+      if (uv_is_closing((uv_handle_t*)&uv_handle) != 0)
+      {
+        LOG_DEBUG_FMT("on_connect: closing");
+        return;
+      }
+
       if (rc < 0)
       {
         // Try again on the next address.
