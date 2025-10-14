@@ -1219,6 +1219,14 @@ if(BUILD_TESTS)
       10000
       --use-jwt
   )
+
+  add_e2e_test(
+    NAME historical_query_perf_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
+    LABEL perf
+    CONFIGURATIONS perf
+  )
+
   add_test_bin(
     curl_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/curl_test.cpp
   )
