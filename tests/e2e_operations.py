@@ -171,55 +171,69 @@ def test_forced_ledger_chunk(network, args):
 
 @reqs.description("Forced snapshot")
 @app.scoped_txs()
-def test_forced_snapshot(network, args):
-    if args.worker_threads > 0:
-        LOG.warning(
-            f"Skipping as broken when the number of threads ({args.worker_threads}) is > 0"
+def test_forced_snapshot(main_network, const_args):
+    args = copy.deepcopy(const_args)
+    args.label = args.label + "-forced-snapshot"
+    args.snapshot_tx_interval = (
+        10000  # Large interval to avoid interference from regular snapshots
+    )
+
+    # Use a separate network instance to avoid interference from other tests
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args)
+
+        primary, _ = network.find_primary()
+
+        # Submit some dummy transactions
+        network.txs.issue(network, number_txs=3)
+
+        # Submit a proposal to force a snapshot at the following signature
+        proposal_body, careful_vote = network.consortium.make_proposal(
+            "trigger_snapshot", node_id=primary.node_id
         )
-        return network
+        proposal = network.consortium.get_any_active_member().propose(
+            primary, proposal_body
+        )
 
-    primary, _ = network.find_primary()
+        proposal = network.consortium.vote_using_majority(
+            primary,
+            proposal,
+            careful_vote,
+        )
 
-    # Submit some dummy transactions
-    network.txs.issue(network, number_txs=3)
+        # Issue some more transactions
+        network.txs.issue(network, number_txs=5)
 
-    # Submit a proposal to force a snapshot at the following signature
-    proposal_body, careful_vote = network.consortium.make_proposal(
-        "trigger_snapshot", node_id=primary.node_id
-    )
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
+        ledger_dirs = primary.remote.ledger_paths()
 
-    proposal = network.consortium.vote_using_majority(
-        primary,
-        proposal,
-        careful_vote,
-    )
+        # Find first signature after proposal.completed_seqno
+        ledger = ccf.ledger.Ledger(ledger_dirs)
+        chunk, _, _, next_signature = find_ledger_chunk_for_seqno(
+            ledger, proposal.completed_seqno
+        )
 
-    # Issue some more transactions
-    network.txs.issue(network, number_txs=5)
+        assert chunk.is_complete and chunk.is_committed()
+        LOG.info(f"Expecting snapshot at {next_signature}")
 
-    ledger_dirs = primary.remote.ledger_paths()
+        snapshots_dir = network.get_committed_snapshots(
+            primary, target_seqno=next_signature
+        )
+        for s in os.listdir(snapshots_dir):
+            with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
+                snapshot_seqno = snapshot.get_public_domain().get_seqno()
+                if snapshot_seqno == next_signature:
+                    LOG.info(f"Found expected forced snapshot at {next_signature}")
+                    return network
 
-    # Find first signature after proposal.completed_seqno
-    ledger = ccf.ledger.Ledger(ledger_dirs)
-    chunk, _, _, next_signature = find_ledger_chunk_for_seqno(
-        ledger, proposal.completed_seqno
-    )
+        raise RuntimeError("Could not find matching snapshot file")
 
-    assert chunk.is_complete and chunk.is_committed()
-    LOG.info(f"Expecting snapshot at {next_signature}")
-
-    snapshots_dir = network.get_committed_snapshots(primary)
-    for s in os.listdir(snapshots_dir):
-        with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
-            snapshot_seqno = snapshot.get_public_domain().get_seqno()
-            if snapshot_seqno == next_signature:
-                LOG.info(f"Found expected forced snapshot at {next_signature}")
-                return network
-
-    raise RuntimeError("Could not find matching snapshot file")
+    return main_network
 
 
 # https://github.com/microsoft/CCF/issues/1858
