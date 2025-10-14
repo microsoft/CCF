@@ -194,14 +194,27 @@ namespace ccf
     // TODO: Yuck, must be a better way to pass this stuff around, or construct
     // it at the correct time?
     host::CCHostConfig& config,
-    ringbuffer::AbstractWriterFactory& writer_factory,
     messaging::BufferProcessor& buffer_processor,
     ringbuffer::Circuit& circuit,
-    ringbuffer::NonBlockingWriterFactory& non_blocking_factory,
     EnclaveConfig& enclave_config,
-    ccf::LoggerLevel log_level,
-    ringbuffer::NotifyingWriterFactory& notifying_factory)
+    ccf::LoggerLevel log_level)
   {
+    // Construct hierarchy of ringbuffer writer factories
+    ringbuffer::WriterFactory base_factory(circuit);
+
+    // To avoid polling an idle ringbuffer, all writes are paired with a
+    // condition_variable notification, which readers may wait on
+    ringbuffer::NotifyingWriterFactory notifying_factory(base_factory);
+
+    // To prevent deadlock, all blocking writes from the host to the ringbuffer
+    // will be queued if the ringbuffer is full
+    ringbuffer::NonBlockingWriterFactory non_blocking_factory(
+      notifying_factory);
+
+    // Factory for creating writers which will handle writing of large messages
+    oversized::WriterFactory writer_factory(
+      non_blocking_factory, enclave_config.writer_config);
+
     // provide regular ticks to the enclave
     const asynchost::Ticker ticker(config.tick_interval, writer_factory);
 
@@ -996,23 +1009,6 @@ namespace ccf
     ringbuffer::Circuit circuit(to_enclave_def, from_enclave_def);
     messaging::BufferProcessor buffer_processor("Host");
 
-    ringbuffer::WriterFactory base_factory(circuit);
-
-    // To avoid polling an idle ringbuffer, all writes are paired with a
-    // condition_variable notification, which readers may wait on
-    ringbuffer::NotifyingWriterFactory notifying_factory(base_factory);
-
-    // To prevent deadlock, all blocking writes from the host to the ringbuffer
-    // will be queued if the ringbuffer is full
-    ringbuffer::NonBlockingWriterFactory non_blocking_factory(
-      notifying_factory);
-
-    // Factory for creating writers which will handle writing of large messages
-    const oversized::WriterConfig writer_config{
-      config.memory.max_fragment_size, config.memory.max_msg_size};
-    oversized::WriterFactory writer_factory(
-      non_blocking_factory, writer_config);
-
     // reconstruct oversized messages sent to the host
     const oversized::FragmentReconstructor fragment_reconstructor(
       buffer_processor.get_dispatcher());
@@ -1030,17 +1026,12 @@ namespace ccf
       enclave_config.from_enclave_buffer_size = from_enclave_def.size;
       enclave_config.from_enclave_buffer_offsets = &from_enclave_offsets;
 
+      const oversized::WriterConfig writer_config{
+        config.memory.max_fragment_size, config.memory.max_msg_size};
       enclave_config.writer_config = writer_config;
 
       const auto inner_ret = run_main_loop(
-        config,
-        writer_factory,
-        buffer_processor,
-        circuit,
-        non_blocking_factory,
-        enclave_config,
-        log_level,
-        notifying_factory);
+        config, buffer_processor, circuit, enclave_config, log_level);
 
       if (inner_ret.has_value())
       {
