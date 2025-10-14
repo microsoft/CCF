@@ -230,11 +230,11 @@ jobs:
           # Use a ramdisk for workspace
           df -kh
           tdnf install -y sudo
-          mkdir -p /tmpfs
-          sudo mount -t tmpfs -o size=16G tmpfs /tmpfs
+          mkdir -p /__t
+          sudo mount -t tmpfs -o size=16G tmpfs /__t
           df -kh
-          mkdir -p /tmpfs/ccf-workspace
-          ln -s /tmpfs/ccf-workspace workspace
+          mkdir -p /__t/ccf-workspace
+          ln -s /__t/ccf-workspace workspace
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # End to end tests
