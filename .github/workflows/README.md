@@ -1,4 +1,4 @@
-Documents the various GitHub Actions workflows, the role they fulfil and 3rd party dependencies if any.
+Documents the various GitHub Actions workflows, the role they fulfill and 3rd party (i.e. outside of https://github.com/actions/) dependencies if any.
 
 # Bencher
 

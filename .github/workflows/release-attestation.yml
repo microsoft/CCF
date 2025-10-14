@@ -10,6 +10,8 @@ on:
         required: true
         type: string
 
+permissions: read-all
+
 jobs:
   attest-release-assets:
     runs-on: ubuntu-latest

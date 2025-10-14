@@ -6,7 +6,10 @@ on:
   push:
     branches:
       - main
+      - tighten_gha_permissions
   workflow_dispatch:
+
+permissions: read-all
 
 jobs:
   benchmark_virtual:
