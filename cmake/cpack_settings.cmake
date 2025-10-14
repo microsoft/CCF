@@ -23,13 +23,15 @@ message(STATUS "RPM package version: ${CPACK_RPM_PACKAGE_VERSION}")
 
 set(OPENSSL_MINIMAL_VERSION "3.3.0")
 set(NGHTTP2_MINIMAL_VERSION "1.40.0")
+set(LIBUV_MINIMAL_VERSION "1.34.2")
+set(LIBCURL_MINIMAL_VERSION "7.68.0")
 
 set(CPACK_RPM_PACKAGE_LICENSE "Apache-2.0")
 set(CPACK_RPM_PACKAGE_DESCRIPTION "${PROJECT_DESCRIPTION}")
 
 if(CCF_DEVEL)
   set(CCF_RPM_BASE_DEPENDENCIES
-      "openssl-devel >= ${OPENSSL_MINIMAL_VERSION}, nghttp2-devel >= ${NGHTTP2_MINIMAL_VERSION}"
+      "openssl-devel >= ${OPENSSL_MINIMAL_VERSION}, nghttp2-devel >= ${NGHTTP2_MINIMAL_VERSION}, libuv-devel >= ${LIBUV_MINIMAL_VERSION}, curl-devel >= {LIBCURL_MINIMAL_VERSION}"
   )
   # + build toolchain
   set(CCF_RPM_BASE_DEPENDENCIES
@@ -43,13 +45,11 @@ if(CCF_DEVEL)
   )
 else()
   set(CCF_RPM_BASE_DEPENDENCIES
-      "openssl >= ${OPENSSL_MINIMAL_VERSION}, nghttp2 >= ${NGHTTP2_MINIMAL_VERSION}"
+      "openssl >= ${OPENSSL_MINIMAL_VERSION}, nghttp2 >= ${NGHTTP2_MINIMAL_VERSION} libuv >= ${LIBUV_MINIMAL_VERSION}, curl >= {LIBCURL_MINIMAL_VERSION}"
   )
 endif()
 
-set(CCF_RPM_DEPENDENCIES
-    "${CCF_RPM_BASE_DEPENDENCIES}, libuv >= 1.34.2, curl >= 7.68.0, libcxxabi >= 18.1.2"
-)
+set(CCF_RPM_DEPENDENCIES "${CCF_RPM_BASE_DEPENDENCIES}, libcxxabi >= 18.1.2")
 
 message(STATUS "RPM package dependencies: ${CCF_RPM_DEPENDENCIES}")
 
