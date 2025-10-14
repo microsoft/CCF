@@ -249,8 +249,8 @@ const uint32_t sample_size = 100;
 using SD = ccf::kv::SecurityDomain;
 
 PICOBENCH_SUITE("commit_latency");
-PICOBENCH(commit_latency<10>).iterations(tx_count).samples(10).baseline();
-PICOBENCH(commit_latency<100>).iterations(tx_count).samples(10);
+PICOBENCH(commit_latency<10>).iterations(tx_count).baseline();
+PICOBENCH(commit_latency<100>).iterations(tx_count);
 
 PICOBENCH_SUITE("serialise");
 PICOBENCH(serialise<SD::PUBLIC>)
@@ -266,22 +266,15 @@ PICOBENCH(deserialise<SD::PUBLIC>)
   .baseline();
 PICOBENCH(deserialise<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
 
-const uint32_t snapshot_sample_size = 10;
 const std::vector<int> map_count = {20, 100};
 
 PICOBENCH_SUITE("serialise_snapshot");
-PICOBENCH(ser_snap<100>)
-  .iterations(map_count)
-  .samples(snapshot_sample_size)
-  .baseline();
-PICOBENCH(ser_snap<1000>).iterations(map_count).samples(snapshot_sample_size);
+PICOBENCH(ser_snap<100>).iterations(map_count).baseline();
+PICOBENCH(ser_snap<1000>).iterations(map_count);
 
 PICOBENCH_SUITE("deserialise_snapshot");
-PICOBENCH(des_snap<100>)
-  .iterations(map_count)
-  .samples(snapshot_sample_size)
-  .baseline();
-PICOBENCH(des_snap<1000>).iterations(map_count).samples(snapshot_sample_size);
+PICOBENCH(des_snap<100>).iterations(map_count).baseline();
+PICOBENCH(des_snap<1000>).iterations(map_count);
 
 int main(int argc, char** argv)
 {
