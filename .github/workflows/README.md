@@ -76,6 +76,13 @@ Produces CCF reference release artefacts from 5.0.0-rc0 onwards, for all languag
 File: `release.yml`
 3rd party dependencies: None
 
+# Release Attestation
+
+Generate signed build provenance attestations for release artifacts. Triggered by release creation.
+
+File: `release-attestation.yml`
+3rd party dependencies: None
+
 # Containers GHCR
 
 Produces reference release images for 5.x release versions. Not used from 6.0.0 onwards. Complete images are attested and published to GHCR. Triggered on release publishing.
