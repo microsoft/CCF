@@ -32,7 +32,7 @@ Developing for Azure Linux OS
 -----------------------------
 
 Developing in GitHub Codespaces
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 CCF devcontainer setup works just fine with codespaces. It's recommended to pre-configure for 16-cores one.
 
