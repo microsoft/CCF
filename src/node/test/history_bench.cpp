@@ -141,19 +141,19 @@ static void append_compact(picobench::state& s)
 const std::vector<int> sizes = {1000, 10000};
 
 PICOBENCH_SUITE("hash_only");
-PICOBENCH(hash_only<10>).iterations(sizes).samples(10).baseline();
-PICOBENCH(hash_only<100>).iterations(sizes).samples(10);
-PICOBENCH(hash_only<1000>).iterations(sizes).samples(10);
+PICOBENCH(hash_only<10>).iterations(sizes).baseline();
+PICOBENCH(hash_only<100>).iterations(sizes);
+PICOBENCH(hash_only<1000>).iterations(sizes);
 
 PICOBENCH_SUITE("append");
-PICOBENCH(append<10>).iterations(sizes).samples(10).baseline();
-PICOBENCH(append<100>).iterations(sizes).samples(10);
-PICOBENCH(append<1000>).iterations(sizes).samples(10);
+PICOBENCH(append<10>).iterations(sizes).baseline();
+PICOBENCH(append<100>).iterations(sizes);
+PICOBENCH(append<1000>).iterations(sizes);
 
 PICOBENCH_SUITE("append_compact");
-PICOBENCH(append_compact<10>).iterations(sizes).samples(10).baseline();
-PICOBENCH(append_compact<100>).iterations(sizes).samples(10);
-PICOBENCH(append_compact<1000>).iterations(sizes).samples(10);
+PICOBENCH(append_compact<10>).iterations(sizes).baseline();
+PICOBENCH(append_compact<100>).iterations(sizes);
+PICOBENCH(append_compact<1000>).iterations(sizes);
 
 int main(int argc, char* argv[])
 {
