@@ -1,6 +1,8 @@
-Documents the various GitHub Actions workflows, the role they fulfil and 3rd party dependencies if any.
+Documents the various GitHub Actions workflows, the role they fulfill and 3rd party (i.e. outside of https://github.com/actions/) dependencies if any.
 
-# Bencher
+# Maintained
+
+## Bencher
 
 Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are posted to bencher.dev, and [plotted to make regressions obvious](https://bencher.dev/console/projects/ccf/plots).
 Triggered on every commit on `main`, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
@@ -12,18 +14,14 @@ File: `bencher.yml`
 
 - `bencherdev/bencher@main`
 
-# Continuous Integration Containers GHCR
+## Bencher A/B
 
-Produces the build images used by CI and release workflows between 5.0.0-rc0 and 6.0.0 (excluded). Complete images are attested and published to GHCR. Triggered on label creation (`build/*`).
+Builds and runs CCF performance tests, and perform a comparison to main. Triggered on PRs that have the label `bench-ab`.
 
-File: `ci-containers-ghcr.yml`
+File: `bencher-ab.yml`
 3rd party dependencies:
 
-- `docker/login-action@v3`
-- `docker/metadata-action@v5`
-- `docker/build-push-action@v6`
-
-Note: This job is being kept until 5.0.x goes out of support.
+- `bencherdev/bencher@main`
 
 # Continuous Integration
 
@@ -76,18 +74,12 @@ Produces CCF reference release artefacts from 5.0.0-rc0 onwards, for all languag
 File: `release.yml`
 3rd party dependencies: None
 
-# Containers GHCR
+# Release Attestation
 
-Produces reference release images for 5.x release versions. Not used from 6.0.0 onwards. Complete images are attested and published to GHCR. Triggered on release publishing.
+Generate signed build provenance attestations for release artifacts. Triggered by release creation.
 
-File: `containers-ghcr.yml`
-3rd party dependencies:
-
-- `docker/login-action@v3`
-- `docker/metadata-action@v5`
-- `docker/build-push-action@v6`
-
-Note: This job is being kept until 5.0.x goes out of support.
+File: `release-attestation.yml`
+3rd party dependencies: None
 
 # NPM
 
@@ -111,3 +103,27 @@ File: `doc.yml`
 3rd party dependencies:
 
 - peaceiris/actions-gh-pages@v3
+
+# Mothballed Actions
+
+## Continuous Integration Containers GHCR
+
+Produces the build images used by CI and release workflows for 5.x releases. Complete images are attested and published to GHCR. Triggered on label creation (`build/*`).
+
+File: `ci-containers-ghcr.yml`
+3rd party dependencies:
+
+- `docker/login-action@v3`
+- `docker/metadata-action@v5`
+- `docker/build-push-action@v6`
+
+## Containers GHCR
+
+Produces reference release images for 5.x release versions. Not used from 6.0.0 onwards. Complete images are attested and published to GHCR. Triggered on release publishing.
+
+File: `containers-ghcr.yml`
+3rd party dependencies:
+
+- `docker/login-action@v3`
+- `docker/metadata-action@v5`
+- `docker/build-push-action@v6`

@@ -827,18 +827,13 @@ if(BUILD_TESTS)
     add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
 
-    # In Virtual CI, this test times out about about 6 hours In SNP CI, the test
-    # aborts after about 5 minutes with terminate called after throwing an
-    # instance of 'std::system_error' what():  Resource temporarily unavailable
-    # It seems to run well on similar size local VMs, so there must be some
-    # resource specific to the CI containers. To be investigated before
-    # re-enabling.
-    #
-    # add_picobench( task_bench SRCS
-    # ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/merge_bench.cpp
-    # ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/sleep_bench.cpp
-    # ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/contention_bench.cpp
-    # LINK_LIBS ccf_tasks )
+    add_picobench(
+      task_bench
+      SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/merge_bench.cpp
+           ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/sleep_bench.cpp
+           ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/contention_bench.cpp
+      LINK_LIBS ccf_tasks
+    )
   endif()
 
   if(LONG_TESTS)
