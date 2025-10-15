@@ -5,6 +5,11 @@
     "context": "."
   },
   "runArgs": [],
+  "hostRequirements": {
+    "cpus": 16,
+    "memory": "64gb",
+    "storage": "128gb"
+  },
   "customizations": {
     "vscode": {
       "extensions": [

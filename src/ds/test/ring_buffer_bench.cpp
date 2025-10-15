@@ -117,7 +117,7 @@ static void specialize(picobench::state& s)
 //
 // Benchmark suites
 //
-#define FIXED_PICO(NAME) PICOBENCH(NAME).iterations(msg_counts).samples(10)
+#define FIXED_PICO(NAME) PICOBENCH(NAME).iterations(msg_counts)
 
 PICOBENCH_SUITE("default");
 auto base = specialize<>;
