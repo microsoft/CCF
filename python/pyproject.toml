@@ -16,7 +16,6 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = [
-    "loguru >= 0.7.3, < 0.8",
     "cryptography >= 44, < 47",
     "cwt >= 3.2.0, < 4",
     "setuptools >= 74, < 81",
