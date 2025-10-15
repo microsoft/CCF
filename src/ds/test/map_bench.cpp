@@ -186,54 +186,54 @@ const std::vector<int> sizes = {32, 32 << 2, 32 << 4, 32 << 6, 32 << 8};
 
 PICOBENCH_SUITE("put");
 auto bench_rb_map_put = benchmark_put<rb::Map<K, V>>;
-PICOBENCH(bench_rb_map_put).iterations(sizes).samples(10).baseline();
+PICOBENCH(bench_rb_map_put).iterations(sizes).baseline();
 auto bench_champ_map_put = benchmark_put<champ::Map<K, V>>;
-PICOBENCH(bench_champ_map_put).iterations(sizes).samples(10);
+PICOBENCH(bench_champ_map_put).iterations(sizes);
 
 // std
 auto bench_std_map_put = benchmark_put<std::map<K, V>>;
-PICOBENCH(bench_std_map_put).iterations(sizes).samples(10);
+PICOBENCH(bench_std_map_put).iterations(sizes);
 auto bench_std_unord_map_put = benchmark_put<std::unordered_map<K, V>>;
-PICOBENCH(bench_std_unord_map_put).iterations(sizes).samples(10);
+PICOBENCH(bench_std_unord_map_put).iterations(sizes);
 
 PICOBENCH_SUITE("get");
 auto bench_rb_map_get = benchmark_get<rb::Map<K, V>>;
-PICOBENCH(bench_rb_map_get).iterations(sizes).samples(10).baseline();
+PICOBENCH(bench_rb_map_get).iterations(sizes).baseline();
 auto bench_champ_map_get = benchmark_get<champ::Map<K, V>>;
-PICOBENCH(bench_champ_map_get).iterations(sizes).samples(10);
+PICOBENCH(bench_champ_map_get).iterations(sizes);
 
 // std
 auto bench_std_map_get = benchmark_get<std::map<K, V>>;
-PICOBENCH(bench_std_map_get).iterations(sizes).samples(10);
+PICOBENCH(bench_std_map_get).iterations(sizes);
 auto bench_std_unord_map_get = benchmark_get<std::unordered_map<K, V>>;
-PICOBENCH(bench_std_unord_map_get).iterations(sizes).samples(10);
+PICOBENCH(bench_std_unord_map_get).iterations(sizes);
 
 PICOBENCH_SUITE("getp");
 auto bench_rb_map_getp = benchmark_getp<rb::Map<K, V>>;
-PICOBENCH(bench_rb_map_getp).iterations(sizes).samples(10).baseline();
+PICOBENCH(bench_rb_map_getp).iterations(sizes).baseline();
 auto bench_champ_map_getp = benchmark_getp<champ::Map<K, V>>;
-PICOBENCH(bench_champ_map_getp).iterations(sizes).samples(10);
+PICOBENCH(bench_champ_map_getp).iterations(sizes);
 
 PICOBENCH_SUITE("foreach");
 auto bench_rb_map_foreach = benchmark_foreach<rb::Map<K, V>>;
-PICOBENCH(bench_rb_map_foreach).iterations(sizes).samples(10).baseline();
+PICOBENCH(bench_rb_map_foreach).iterations(sizes).baseline();
 auto bench_champ_map_foreach = benchmark_foreach<champ::Map<K, V>>;
-PICOBENCH(bench_champ_map_foreach).iterations(sizes).samples(10);
+PICOBENCH(bench_champ_map_foreach).iterations(sizes);
 
 // std
 auto bench_std_map_foreach = benchmark_foreach<std::map<K, V>>;
-PICOBENCH(bench_std_map_foreach).iterations(sizes).samples(10);
+PICOBENCH(bench_std_map_foreach).iterations(sizes);
 auto bench_unord_map_foreach = benchmark_foreach<std::unordered_map<K, V>>;
-PICOBENCH(bench_unord_map_foreach).iterations(sizes).samples(10);
+PICOBENCH(bench_unord_map_foreach).iterations(sizes);
 
 PICOBENCH_SUITE("remove");
 auto bench_rb_map_remove = benchmark_remove<rb::Map<K, V>>;
-PICOBENCH(bench_rb_map_remove).iterations(sizes).samples(10).baseline();
+PICOBENCH(bench_rb_map_remove).iterations(sizes).baseline();
 auto bench_champ_map_remove = benchmark_remove<champ::Map<K, V>>;
-PICOBENCH(bench_champ_map_remove).iterations(sizes).samples(10);
+PICOBENCH(bench_champ_map_remove).iterations(sizes);
 
 // std
 auto bench_std_map_remove = benchmark_remove<std::map<K, V>>;
-PICOBENCH(bench_std_map_remove).iterations(sizes).samples(10);
+PICOBENCH(bench_std_map_remove).iterations(sizes);
 auto bench_unord_map_remove = benchmark_remove<std::unordered_map<K, V>>;
-PICOBENCH(bench_unord_map_remove).iterations(sizes).samples(10);
+PICOBENCH(bench_unord_map_remove).iterations(sizes);
