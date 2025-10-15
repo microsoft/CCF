@@ -173,7 +173,9 @@ def test_forced_ledger_chunk(network, args):
 @app.scoped_txs()
 def test_forced_snapshot(main_network, const_args):
     args = copy.deepcopy(const_args)
-    args.common_read_only_ledger_dir = None # Side-effect setting which would break the starting node
+    args.common_read_only_ledger_dir = (
+        None  # Side-effect setting which would break the starting node
+    )
     args.label = f"{args.label}_forced_snapshot"
     args.snapshot_tx_interval = (
         10000  # Large interval to avoid interference from regular snapshots
