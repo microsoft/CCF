@@ -6,10 +6,7 @@ on:
       - "ccf-[567].*"
   workflow_dispatch:
 
-permissions:
-  contents: write
-  actions: read
-  checks: write
+permissions: read-all
 
 env:
   IMAGE: mcr.microsoft.com/azurelinux/base/core:3.0
@@ -385,6 +382,8 @@ jobs:
           path: ${{ env.REPRO_DIR }}
 
   create_release:
+    permissions:
+      contents: write
     needs:
       - reproduce_rpm
       - build_release
