@@ -54,7 +54,7 @@ jobs:
         run: |
           set +x
           cd build
-          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
+          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark" -E task_system_demo
 
       - name: "Upload logs"
         if: success() || failure()
@@ -108,7 +108,7 @@ jobs:
         run: |
           set +x
           cd build
-          setarch -R ./tests.sh --output-on-failure --timeout 3600 -LE "benchmark" -E "launch_host_process|recovery|regression|governance|membership"
+          setarch -R ./tests.sh --output-on-failure --timeout 3600 -LE "benchmark" -E "launch_host_process|recovery|regression|governance|membership|task_system_demo"
 
       - name: "Upload logs"
         if: success() || failure()
@@ -220,7 +220,7 @@ jobs:
         run: |
           set +x
           cd build
-          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
+          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark" -E task_system_demo
 
       - name: "Upload logs"
         if: success() || failure()
@@ -274,7 +274,7 @@ jobs:
         run: |
           set +x
           cd build
-          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
+          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark" -E task_system_demo
 
       - name: "Upload logs"
         if: success() || failure()
