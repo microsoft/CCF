@@ -11,6 +11,8 @@ on:
       - opened
       - reopened
 
+permissions: read-all
+
 jobs:
   benchmark_pr:
     name: Benchmark PR
