@@ -1787,6 +1787,8 @@ def test_error_message_on_failure_to_fetch_snapshot(const_args):
 
         assert failed, "Joining node could not join failed node as expected"
 
+        assert False, "Trigger stack trace"
+
         expected_log_messages = [
             re.compile(r"Fetching snapshot from .* \(attempt 1/3\)"),
             re.compile(r"Fetching snapshot from .* \(attempt 2/3\)"),
