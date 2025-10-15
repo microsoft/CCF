@@ -10,12 +10,17 @@ on:
         required: true
         type: string
 
+permissions: read-all
+
 jobs:
   attest-release-assets:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # Necessary to persist attestations
       attestations: write
+      # OIDC authentication is needed to produce the attestation
+      # See https://github.com/actions/attest-build-provenance?tab=readme-ov-file#usage
       id-token: write
     steps:
       - name: Download release assets

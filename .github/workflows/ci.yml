@@ -11,10 +11,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ !contains(github.ref, 'main')}}
 
-permissions:
-  contents: read
-  actions: read
-  checks: write
+permissions: read-all
 
 jobs:
   checks:
