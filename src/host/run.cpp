@@ -347,7 +347,7 @@ namespace ccf
     }
   }
 
-  void configure_startup_for_start(
+  void populate_config_for_start(
     const host::CCHostConfig& config, ccf::StartupConfig& startup_config)
   {
     for (auto const& member : config.command.start.members)
@@ -410,7 +410,7 @@ namespace ccf
       config.command.start.service_configuration.recovery_threshold);
   }
 
-  void configure_startup_for_join(
+  void populate_config_for_join(
     const host::CCHostConfig& config, ccf::StartupConfig& startup_config)
   {
     LOG_INFO_FMT(
@@ -424,7 +424,7 @@ namespace ccf
     startup_config.join.follow_redirect = config.command.join.follow_redirect;
   }
 
-  void configure_startup_for_recover(
+  void populate_config_for_recover(
     const host::CCHostConfig& config, ccf::StartupConfig& startup_config)
   {
     LOG_INFO_FMT("Creating new node - recover");
@@ -585,7 +585,7 @@ namespace ccf
     return std::nullopt;
   }
 
-  void output_certificates(
+  void write_certificates_to_disk(
     const host::CCHostConfig& config,
     const std::vector<uint8_t>& node_cert,
     const std::vector<uint8_t>& service_cert)
@@ -826,15 +826,15 @@ namespace ccf
         return static_cast<int>(CLI::ExitCodes::ValidationError);
       }
 
-      configure_startup_for_start(config, startup_config);
+      populate_config_for_start(config, startup_config);
     }
     else if (config.command.type == StartType::Join)
     {
-      configure_startup_for_join(config, startup_config);
+      populate_config_for_join(config, startup_config);
     }
     else if (config.command.type == StartType::Recover)
     {
-      configure_startup_for_recover(config, startup_config);
+      populate_config_for_recover(config, startup_config);
     }
     else
     {
@@ -872,7 +872,7 @@ namespace ccf
     }
 
     // Output certificates to disk
-    output_certificates(config, node_cert, service_cert);
+    write_certificates_to_disk(config, node_cert, service_cert);
 
     // Run enclave threads and event loop
     run_enclave_threads(config);
