@@ -220,15 +220,15 @@ void valmacro(picobench::state& s)
 const std::vector<int> sizes = {200, 2'000};
 
 PICOBENCH_SUITE("simple");
-PICOBENCH(conv<Simple_manual>).iterations(sizes).samples(10);
-PICOBENCH(conv<Simple_macros>).iterations(sizes).samples(10);
+PICOBENCH(conv<Simple_manual>).iterations(sizes);
+PICOBENCH(conv<Simple_macros>).iterations(sizes);
 
 PICOBENCH_SUITE("complex");
-PICOBENCH(conv<Complex_manual>).iterations(sizes).samples(10);
-PICOBENCH(conv<Complex_macros>).iterations(sizes).samples(10);
+PICOBENCH(conv<Complex_manual>).iterations(sizes);
+PICOBENCH(conv<Complex_macros>).iterations(sizes);
 
 PICOBENCH_SUITE("validation simple");
-PICOBENCH(valmacro<Simple_macros>).iterations(sizes).samples(10);
+PICOBENCH(valmacro<Simple_macros>).iterations(sizes);
 
 PICOBENCH_SUITE("validation complex");
-PICOBENCH(valmacro<Complex_macros>).iterations(sizes).samples(10);
+PICOBENCH(valmacro<Complex_macros>).iterations(sizes);
