@@ -70,13 +70,15 @@ namespace
   auto threads_7 = benchmark_mergesort<7>;
   auto threads_8 = benchmark_mergesort<8>;
 
+  static constexpr int samples = 2;
+
   PICOBENCH_SUITE("merge sort");
-  PICOBENCH(threads_1).iterations(data_sizes).baseline();
-  PICOBENCH(threads_2).iterations(data_sizes);
-  PICOBENCH(threads_3).iterations(data_sizes);
-  PICOBENCH(threads_4).iterations(data_sizes);
-  PICOBENCH(threads_5).iterations(data_sizes);
-  PICOBENCH(threads_6).iterations(data_sizes);
-  PICOBENCH(threads_7).iterations(data_sizes);
-  PICOBENCH(threads_8).iterations(data_sizes);
+  PICOBENCH(threads_1).samples(samples).iterations(data_sizes).baseline();
+  PICOBENCH(threads_2).samples(samples).iterations(data_sizes);
+  PICOBENCH(threads_3).samples(samples).iterations(data_sizes);
+  PICOBENCH(threads_4).samples(samples).iterations(data_sizes);
+  PICOBENCH(threads_5).samples(samples).iterations(data_sizes);
+  PICOBENCH(threads_6).samples(samples).iterations(data_sizes);
+  PICOBENCH(threads_7).samples(samples).iterations(data_sizes);
+  PICOBENCH(threads_8).samples(samples).iterations(data_sizes);
 }

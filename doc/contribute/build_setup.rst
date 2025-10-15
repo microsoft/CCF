@@ -31,29 +31,14 @@ If you use `Visual Studio Code`_ you can install the `Remote Container`_ extensi
 Developing for Azure Linux OS
 -----------------------------
 
-Setting up Azure Linux VM
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Developing in GitHub Codespaces
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-There's no current way to choose an Azure Linux image in Azure UI, so an Azure Linux based VM must be created through the az CLI:
+CCF devcontainer setup works just fine with codespaces. It's recommended to pre-configure for 16-cores one.
 
-.. code-block:: bash
+Tweaks for codespaces:
 
-    az group create --name [GROUP_NAME] --location eastus2
-    az vm create  \
-        --image /sharedGalleries/CblMariner.1P/images/azure-linux-3-gen2/versions/latest  \
-        --tags AzSecPackAutoConfigReady=true                                              \
-        --nsg-rule none --public-ip-sku standard                                          \
-        --resource-group <rg>                                                             \
-        --name <name>                                                                     \
-        --size <sku>                                                                      \
-        --admin-username <ssh-user>                                                       \
-        --location <location>                                                             \
-        --os-disk-size-gb <size>                                                          \
-        --data-disk-sizes-gb <size>
-
-This will use the image with SecPack stuff properly set, the other available azure-linux images will cause your VM to be flagged.
-
-Afterwards, go to your VM and select a proper RAM and CPU profile. If you don't know which one you want, select `Standard D16s v3` (64 RAM and 16 CPU cores).
+* In order to run lldb in a container, run this command first "settings set target.disable-aslr false"
 
 How to install docker
 ~~~~~~~~~~~~~~~~~~~~~
