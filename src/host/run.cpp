@@ -110,15 +110,6 @@ namespace ccf
       return;
     }
 
-    if (
-      files::exists(config.ledger.directory) &&
-      !fs::is_empty(config.ledger.directory))
-    {
-      throw std::logic_error(fmt::format(
-        "On start, ledger directory should not exist or be empty ({})",
-        config.ledger.directory));
-    }
-
     // Count members with public encryption key as only these members will
     // be handed a recovery share. Note that it is acceptable to start a
     // network without any member having a recovery share. The service will
@@ -825,6 +816,16 @@ namespace ccf
     // Configure startup based on command type
     if (config.command.type == StartType::Start)
     {
+      if (
+        files::exists(config.ledger.directory) &&
+        !fs::is_empty(config.ledger.directory))
+      {
+        LOG_FATAL_FMT(
+          "On start, ledger directory should not exist or be empty ({})",
+          config.ledger.directory);
+        return static_cast<int>(CLI::ExitCodes::ValidationError);
+      }
+
       configure_startup_for_start(config, startup_config);
     }
     else if (config.command.type == StartType::Join)
