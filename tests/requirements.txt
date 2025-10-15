@@ -10,7 +10,9 @@ GitPython >= 3.1.45, < 4
 better_exceptions >= 0.3.3, < 0.4
 pyasn1 >= 0.6.1, < 0.7
 Jinja2 >= 3.1.6, < 4
-httpx[http2] >= 0.28.1, < 0.29
+# Later versions of httpx cause failures in long forwarding,
+# extended character range and JWT tests.
+httpx[http2] == 0.23.*
 locust >= 2.41.6, < 3
 JWCrypto >= 1.5.6, < 2
 rich >= 14.2.0, < 15
