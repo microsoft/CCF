@@ -12,8 +12,8 @@ fi
 
 source env/bin/activate
 pip install -U -q pip
-pip install -q -U -e ../python/
-pip install -q -U -r ../tests/requirements.txt
+pip install -U -e ../python/
+pip install -U -r ../tests/requirements.txt
 echo "Python environment successfully setup"
 
 # Export where the VENV has been set, so tests running
