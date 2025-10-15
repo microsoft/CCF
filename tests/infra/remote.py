@@ -182,7 +182,7 @@ class LocalRemote(CmdMixin):
             try:
                 command = [
                     "lldb",
-                    "--batch", # Ensure non-interactive
+                    "--batch",  # Ensure non-interactive
                     "-p",
                     f"{self.proc.pid}",
                     "--one-line",
