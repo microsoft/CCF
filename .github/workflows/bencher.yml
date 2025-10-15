@@ -91,7 +91,7 @@ jobs:
           cmake -GNinja -DWORKER_THREADS=2 ..
           ninja
           # Microbenchmarks
-          ./tests.sh -VV -L benchmark
+          ./tests.sh -VV -L benchmark -E task_bench
           # End to end performance tests
           ./tests.sh -VV -L perf -C perf
           # Convert microbenchmark output to bencher json
