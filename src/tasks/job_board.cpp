@@ -8,7 +8,7 @@
 namespace ccf::tasks
 {
   // Temporary struct used by idle worker threads when no tasks are available.
-  // See wait_for_task and add_task for useage.
+  // See wait_for_task and add_task for usage.
   struct WaitingWorkerThread
   {
     // Ownership of a condition variable that a single thread will wait on
