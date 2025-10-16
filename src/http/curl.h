@@ -623,8 +623,7 @@ namespace ccf::curl
           }
           else
           {
-            // If the response thread is the current thread, handle it
-            // immediately
+            // If the response thread is not set run on the uv thread
             CurlRequest::handle_response(std::move(request_data_ptr), result);
           }
         }
