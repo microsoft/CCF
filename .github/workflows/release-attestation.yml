@@ -51,7 +51,7 @@ jobs:
 
       - run: |
           set -ex
-          gh release upload ${{ steps.download.outputs.release_tag }} ${{ steps.attest.outputs.bundle-path }} --clobber
+          gh release upload --repo microsoft/ccf ${{ steps.download.outputs.release_tag }} ${{ steps.attest.outputs.bundle-path }} --clobber
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
