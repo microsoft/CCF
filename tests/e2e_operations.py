@@ -765,7 +765,6 @@ def run_max_uncommitted_tx_count(args):
             "max_uncommitted_tx_count": uncommitted_cap
         }
         network.start_and_open(args)
-        assert False, "Trigger stack trace"
         LOG.info(
             f"Start network with max_uncommitted_tx_count set to {uncommitted_cap}"
         )
