@@ -39,6 +39,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Attest release assets
+        id: attest
         uses: actions/attest-build-provenance@v3
         with:
           subject-path: "release-assets/*"
+
+      - run: |
+          set -ex
+          gh release upload ${{ steps.download.outputs.release_tag }} ${{ steps.attest.outputs.bundle-path }} --clobber
+        shell: bash
