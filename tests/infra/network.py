@@ -551,6 +551,10 @@ class Network:
             infra.proc.ccall(*cmd).returncode == 0
         ), f"Could not symlink {self.KEY_GEN} to {self.common_dir}"
 
+    def print_stack_traces(self, timeout=20):
+        for node in self.nodes:
+            node.print_stack_trace(timeout=timeout)
+
     def start(self, args, **kwargs):
         """
         Starts a CCF network.
@@ -1816,6 +1820,8 @@ def network(
     except Exception:
         # Don't try to verify txs on Exception path
         net.txs = None
+
+        net.print_stack_traces(timeout=2)
 
         if pdb:
             import pdb
