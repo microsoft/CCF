@@ -765,6 +765,7 @@ def run_max_uncommitted_tx_count(args):
             "max_uncommitted_tx_count": uncommitted_cap
         }
         network.start_and_open(args)
+        assert False, "Trigger stack trace"
         LOG.info(
             f"Start network with max_uncommitted_tx_count set to {uncommitted_cap}"
         )
@@ -1786,8 +1787,6 @@ def test_error_message_on_failure_to_fetch_snapshot(const_args):
             failed = True
 
         assert failed, "Joining node could not join failed node as expected"
-
-        assert False, "Trigger stack trace"
 
         expected_log_messages = [
             re.compile(r"Fetching snapshot from .* \(attempt 1/3\)"),
