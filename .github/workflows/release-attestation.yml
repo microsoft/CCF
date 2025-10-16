@@ -53,7 +53,7 @@ jobs:
       - run: |
           set -ex
           # Rename to match https://github.com/ossf/scorecard/blob/main/docs/checks.md#signed-releases
-          cp ${{ steps.download.outputs.release_tag }} release-assets/attestation.sigstore.json
+          cp ${{ steps.attest.outputs.bundle-path }} release-assets/attestation.sigstore.json
           gh release upload --repo microsoft/ccf ${{ steps.download.outputs.release_tag }} release-assets/attestation.sigstore.json --clobber
         shell: bash
         env:
