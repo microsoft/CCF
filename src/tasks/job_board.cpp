@@ -18,19 +18,6 @@ namespace ccf::tasks
     Task& assigned_task;
 
     WaitingWorkerThread(Task& at_) : assigned_task(at_) {}
-
-    WaitingWorkerThread(const WaitingWorkerThread&) = delete;
-    WaitingWorkerThread& operator=(const WaitingWorkerThread&) = delete;
-
-    WaitingWorkerThread(WaitingWorkerThread&&) = delete;
-    WaitingWorkerThread& operator=(WaitingWorkerThread&&) = delete;
-
-    ~WaitingWorkerThread()
-    {
-      // It is only safe to destruct a condition_variable if all threads have
-      // been notified
-      cv.notify_all();
-    }
   };
 
   struct Delayed
@@ -61,9 +48,10 @@ namespace ccf::tasks
     // Collection of tasks that are ready for execution
     std::queue<Task> pending_tasks;
 
-    // Collection describing idle worker threads. Owns structs used to assign
-    // them incoming tasks
-    std::vector<std::unique_ptr<WaitingWorkerThread>> waiting_worker_threads;
+    // Collection describing idle worker threads. This is a non-owning pointer,
+    // with the lifetime managed by the caller, who should ensure the object
+    // outlives the pointer's presence in this collection
+    std::vector<WaitingWorkerThread*> waiting_worker_threads;
 
     // Collection of delayed tasks, that may be ready for execution on a future
     // tick
@@ -78,7 +66,7 @@ namespace ccf::tasks
       auto it = waiting_worker_threads.begin();
       if (it != waiting_worker_threads.end())
       {
-        std::unique_ptr<WaitingWorkerThread>& worker = *it;
+        WaitingWorkerThread* worker = *it;
 
         // Assign this worker the incoming task, notify them, and then remove
         // their waiting state
@@ -113,31 +101,29 @@ namespace ccf::tasks
         if (pending_tasks.empty())
         {
           // When the task queue is empty, append this thread to
-          // waiting_worker_threads and wait on a condition_variable. It will be
-          // notified when a new Task is available
-          auto waiting_worker =
+          // waiting_worker_threads and wait on a condition_variable
+          std::unique_ptr<WaitingWorkerThread> waiting_worker =
             std::make_unique<WaitingWorkerThread>(to_return);
 
-          // Maintain reference to a field in a unique ptr we're about to move.
-          // This is only safe because we're under a mutex, and the only thing
-          // that could destroy this object must first acquire the same mutex
-          std::condition_variable& cv = waiting_worker->cv;
-
-          // Transfer ownership to the central collection
-          waiting_worker_threads.push_back(std::move(waiting_worker));
+          // Append local object to central collection
+          waiting_worker_threads.push_back(waiting_worker.get());
 
           // NOLINTBEGIN(bugprone-spuriously-wake-up-functions)
           // Spurious wakeup is acceptable, treated equivalently to timeout
           // elapsing
-          cv.wait_for(lock, timeout);
+          waiting_worker->cv.wait_for(lock, timeout);
           // NOLINTEND(bugprone-spuriously-wake-up-functions)
 
           // We reach here either because the condition_variable was notified,
-          // or the timeout expired. In either case, return the (potentially
-          // still null) assigned task
+          // or the timeout expired. If it was a timeout, we're responsible for
+          // removing ourselves from the central collection
+          auto it = std::find(
+            waiting_worker_threads.begin(),
+            waiting_worker_threads.end(),
+            waiting_worker.get());
+          waiting_worker_threads.erase(it);
 
-          // TODO: This doesn't work because we still need to cleanup if we
-          // timed out/were spuriously woken!
+          // In either case, return the (potentially still null) assigned task
         }
         else
         {
