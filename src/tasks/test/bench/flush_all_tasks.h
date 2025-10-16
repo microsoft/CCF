@@ -5,9 +5,7 @@
 #include "tasks/task_system.h"
 
 static inline void flush_all_tasks(
-  std::atomic<bool>& stop_signal,
-  size_t worker_count,
-  std::chrono::seconds kill_after = std::chrono::seconds(5))
+  std::atomic<bool>& stop_signal, size_t worker_count)
 {
   std::vector<std::thread> workers;
   for (size_t i = 0; i < worker_count; ++i)
@@ -28,17 +26,10 @@ static inline void flush_all_tasks(
   using TClock = std::chrono::steady_clock;
   auto now = TClock::now();
 
-  const auto hard_end = now + kill_after;
-
   while (true)
   {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
     now = TClock::now();
-    if (now > hard_end)
-    {
-      break;
-    }
-
     if (stop_signal.load())
     {
       break;
