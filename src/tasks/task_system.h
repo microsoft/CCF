@@ -10,7 +10,7 @@ namespace ccf::tasks
 {
   JobBoard& get_main_job_board();
 
-  void set_worker_count(size_t new_worker_count);
+  void set_task_threads(size_t new_worker_count);
 
   void add_task(Task task);
 

@@ -13,7 +13,7 @@
 
 TEST_CASE("API" * doctest::test_suite("tasks_api"))
 {
-  ccf::tasks::set_worker_count(0);
+  ccf::tasks::set_task_threads(0);
 
   {
     INFO("Single task");
@@ -25,12 +25,12 @@ TEST_CASE("API" * doctest::test_suite("tasks_api"))
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     REQUIRE_FALSE(a.load());
 
-    ccf::tasks::set_worker_count(1);
+    ccf::tasks::set_task_threads(1);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     REQUIRE(a.load());
 
-    ccf::tasks::set_worker_count(0);
+    ccf::tasks::set_task_threads(0);
   }
 
   {
@@ -48,7 +48,7 @@ TEST_CASE("API" * doctest::test_suite("tasks_api"))
       std::chrono::milliseconds(20),
       std::chrono::milliseconds(33));
 
-    ccf::tasks::set_worker_count(4);
+    ccf::tasks::set_task_threads(4);
 
     const std::chrono::milliseconds delay(1);
 
@@ -67,6 +67,6 @@ TEST_CASE("API" * doctest::test_suite("tasks_api"))
 
     incrementer->cancel_task();
 
-    ccf::tasks::set_worker_count(0);
+    ccf::tasks::set_task_threads(0);
   }
 }

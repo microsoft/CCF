@@ -48,7 +48,7 @@ namespace ccf::tasks
     PImpl(PImpl&&) = delete;
     PImpl& operator=(PImpl&&) = delete;
 
-    void set_worker_count(size_t new_worker_count)
+    void set_task_threads(size_t new_worker_count)
     {
       std::unique_lock<std::mutex> lock(worker_count_mutex);
 
@@ -97,8 +97,8 @@ namespace ccf::tasks
 
   ThreadManager::~ThreadManager() = default;
 
-  void ThreadManager::set_worker_count(size_t new_worker_count)
+  void ThreadManager::set_task_threads(size_t new_worker_count)
   {
-    pimpl->set_worker_count(new_worker_count);
+    pimpl->set_task_threads(new_worker_count);
   }
 }

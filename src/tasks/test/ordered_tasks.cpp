@@ -169,7 +169,7 @@ TEST_CASE("OrderedTasks" * doctest::test_suite("ordered_tasks"))
     INFO("Execution loop");
 
     ccf::tasks::ThreadManager thread_manager(job_board);
-    thread_manager.set_worker_count(8);
+    thread_manager.set_task_threads(8);
 
     using TClock = std::chrono::steady_clock;
     auto now = TClock::now();

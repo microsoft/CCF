@@ -17,6 +17,6 @@ namespace ccf::tasks
     ThreadManager(JobBoard& job_board_);
     ~ThreadManager();
 
-    void set_worker_count(size_t new_worker_count);
+    void set_task_threads(size_t new_worker_count);
   };
 }
