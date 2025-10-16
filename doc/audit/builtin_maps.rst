@@ -580,7 +580,7 @@ While the contents themselves are encrypted, the table is public so as to be acc
 
 **Value** 
 
-.. doxygenstruct:: SelfHealingOpenNodeInfo
+.. doxygenstruct:: ccf::self_healing_open::NodeInfo
    :project: CCF
    :members:
 

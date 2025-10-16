@@ -9,52 +9,54 @@
 
 using IntrinsicIdentifier = std::string;
 
-struct SelfHealingOpenNodeInfo
-{
-  ccf::QuoteInfo quote_info;
-  std::string published_network_address;
-  std::vector<uint8_t> cert_der;
-  std::string service_identity;
-  IntrinsicIdentifier intrinsic_id;
-};
-
-DECLARE_JSON_TYPE(SelfHealingOpenNodeInfo);
-DECLARE_JSON_REQUIRED_FIELDS(
-  SelfHealingOpenNodeInfo,
-  quote_info,
-  published_network_address,
-  cert_der,
-  service_identity,
-  intrinsic_id);
-
-enum class SelfHealingOpenSM
-{
-  GOSSIPING = 0,
-  VOTING,
-  OPENING, // by chosen node
-  JOINING, // by all other replicas
-  OPEN,
-};
-
-DECLARE_JSON_ENUM(
-  SelfHealingOpenSM,
-  {{SelfHealingOpenSM::GOSSIPING, "Gossiping"},
-   {SelfHealingOpenSM::VOTING, "Voting"},
-   {SelfHealingOpenSM::OPENING, "Opening"},
-   {SelfHealingOpenSM::JOINING, "Joining"},
-   {SelfHealingOpenSM::OPEN, "Open"}});
-
 namespace ccf
 {
-  using SelfHealingOpenNodeInfoMap =
-    ServiceMap<IntrinsicIdentifier, ::SelfHealingOpenNodeInfo>;
-  using SelfHealingOpenGossips =
-    ServiceMap<IntrinsicIdentifier, ccf::kv::Version>;
-  using SelfHealingOpenChosenNode = ServiceValue<IntrinsicIdentifier>;
-  using SelfHealingOpenVotes = ServiceSet<IntrinsicIdentifier>;
-  using SelfHealingOpenSMState = ServiceValue<SelfHealingOpenSM>;
-  using SelfHealingOpenTimeoutSMState = ServiceValue<SelfHealingOpenSM>;
-  using SelfHealingOpenFailoverFlag = ServiceValue<bool>;
+  namespace self_healing_open
+  {
+    struct NodeInfo
+    {
+      ccf::QuoteInfo quote_info;
+      std::string published_network_address;
+      std::vector<uint8_t> cert_der;
+      std::string service_identity;
+      IntrinsicIdentifier intrinsic_id;
+    };
+
+    DECLARE_JSON_TYPE(NodeInfo);
+    DECLARE_JSON_REQUIRED_FIELDS(
+      NodeInfo,
+      quote_info,
+      published_network_address,
+      cert_der,
+      service_identity,
+      intrinsic_id);
+
+    enum class StateMachine
+    {
+      GOSSIPING = 0,
+      VOTING,
+      OPENING, // by chosen node
+      JOINING, // by all other replicas
+      OPEN,
+    };
+
+    DECLARE_JSON_ENUM(
+      StateMachine,
+      {{StateMachine::GOSSIPING, "Gossiping"},
+       {StateMachine::VOTING, "Voting"},
+       {StateMachine::OPENING, "Opening"},
+       {StateMachine::JOINING, "Joining"},
+       {StateMachine::OPEN, "Open"}});
+
+    using NodeInfoMap =
+      ServiceMap<IntrinsicIdentifier, ccf::self_healing_open::NodeInfo>;
+    using Gossips = ServiceMap<IntrinsicIdentifier, ccf::kv::Version>;
+    using ChosenNode = ServiceValue<IntrinsicIdentifier>;
+    using Votes = ServiceSet<IntrinsicIdentifier>;
+    using SMState = ServiceValue<ccf::self_healing_open::StateMachine>;
+    using TimeoutSMState = ServiceValue<ccf::self_healing_open::StateMachine>;
+    using FailoverFlag = ServiceValue<bool>;
+  }
 
   namespace Tables
   {

@@ -69,7 +69,7 @@ namespace ccf
     // Steady state operations
     self_healing_open::RequestNodeInfo make_node_info(kv::ReadOnlyTx&);
     void send_gossip_unsafe(kv::ReadOnlyTx&);
-    void send_vote_unsafe(kv::ReadOnlyTx&, const SelfHealingOpenNodeInfo&);
+    void send_vote_unsafe(kv::ReadOnlyTx&, const self_healing_open::NodeInfo&);
     void send_iamopen_unsafe(kv::ReadOnlyTx&);
   };
 }

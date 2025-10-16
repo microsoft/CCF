@@ -472,7 +472,7 @@ namespace ccf
 
         // Validating that we haven't heard from this node before, of if we have
         // that the cert hasn't changed
-        auto* node_info_handle = args.tx.rw<SelfHealingOpenNodeInfoMap>(
+        auto* node_info_handle = args.tx.rw<self_healing_open::NodeInfoMap>(
           Tables::SELF_HEALING_OPEN_NODES);
         auto existing_node_info = node_info_handle->get(info.intrinsic_id);
 
@@ -492,7 +492,7 @@ namespace ccf
         }
         else
         {
-          SelfHealingOpenNodeInfo src_info{
+          self_healing_open::NodeInfo src_info{
             .quote_info = info.quote_info,
             .published_network_address = info.published_network_address,
             .cert_der = cert_der,
@@ -2315,7 +2315,7 @@ namespace ccf
           "Self-healing-open: recieve gossip from {}", in.info.intrinsic_id);
 
         // Stop accepting gossips once a node has voted
-        auto chosen_replica = args.tx.template ro<SelfHealingOpenChosenNode>(
+        auto chosen_replica = args.tx.template ro<self_healing_open::ChosenNode>(
           Tables::SELF_HEALING_OPEN_CHOSEN_NODE);
         if (chosen_replica->get().has_value())
         {
@@ -2327,7 +2327,7 @@ namespace ccf
               chosen_replica->get().value())};
         }
 
-        auto gossip_handle = args.tx.template rw<SelfHealingOpenGossips>(
+        auto gossip_handle = args.tx.template rw<self_healing_open::Gossips>(
           Tables::SELF_HEALING_OPEN_GOSSIPS);
         if (gossip_handle->get(in.info.intrinsic_id).has_value())
         {
@@ -2355,7 +2355,7 @@ namespace ccf
           "Self-healing-open: recieve vote from {}", in.info.intrinsic_id);
 
         args.tx
-          .template rw<SelfHealingOpenVotes>(Tables::SELF_HEALING_OPEN_VOTES)
+          .template rw<self_healing_open::Votes>(Tables::SELF_HEALING_OPEN_VOTES)
           ->insert(in.info.intrinsic_id);
 
         return std::nullopt;
@@ -2377,11 +2377,11 @@ namespace ccf
         LOG_TRACE_FMT(
           "Self-healing-open: recieve IAmOpen from {}", in.info.intrinsic_id);
         args.tx
-          .template rw<SelfHealingOpenSMState>(
+          .template rw<self_healing_open::SMState>(
             Tables::SELF_HEALING_OPEN_SM_STATE)
-          ->put(SelfHealingOpenSM::JOINING);
+          ->put(self_healing_open::StateMachine::JOINING);
         args.tx
-          .template rw<SelfHealingOpenChosenNode>(
+          .template rw<self_healing_open::ChosenNode>(
             Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
           ->put(in.info.intrinsic_id);
         return std::nullopt;

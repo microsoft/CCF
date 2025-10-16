@@ -20,16 +20,16 @@ namespace ccf
   void SelfHealingOpenSubsystem::try_start(ccf::kv::Tx& tx, bool recovering)
   {
     // Clear any previous state
-    tx.rw<SelfHealingOpenSMState>(Tables::SELF_HEALING_OPEN_SM_STATE)->clear();
-    tx.rw<SelfHealingOpenTimeoutSMState>(
+    tx.rw<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE)->clear();
+    tx.rw<self_healing_open::TimeoutSMState>(
         Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE)
       ->clear();
-    tx.rw<SelfHealingOpenNodeInfoMap>(Tables::SELF_HEALING_OPEN_NODES)->clear();
-    tx.rw<SelfHealingOpenGossips>(Tables::SELF_HEALING_OPEN_GOSSIPS)->clear();
-    tx.rw<SelfHealingOpenChosenNode>(Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
+    tx.rw<self_healing_open::NodeInfoMap>(Tables::SELF_HEALING_OPEN_NODES)->clear();
+    tx.rw<self_healing_open::Gossips>(Tables::SELF_HEALING_OPEN_GOSSIPS)->clear();
+    tx.rw<self_healing_open::ChosenNode>(Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
       ->clear();
-    tx.rw<SelfHealingOpenVotes>(Tables::SELF_HEALING_OPEN_VOTES)->clear();
-    tx.rw<SelfHealingOpenFailoverFlag>(Tables::SELF_HEALING_OPEN_FAILOVER_FLAG)
+    tx.rw<self_healing_open::Votes>(Tables::SELF_HEALING_OPEN_VOTES)->clear();
+    tx.rw<self_healing_open::FailoverFlag>(Tables::SELF_HEALING_OPEN_FAILOVER_FLAG)
       ->clear();
 
     auto& config = node_state->config.recover.self_healing_open;
@@ -41,11 +41,11 @@ namespace ccf
 
     LOG_INFO_FMT("Starting self-healing-open");
 
-    tx.rw<SelfHealingOpenSMState>(Tables::SELF_HEALING_OPEN_SM_STATE)
-      ->put(SelfHealingOpenSM::GOSSIPING);
-    tx.rw<SelfHealingOpenTimeoutSMState>(
+    tx.rw<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE)
+      ->put(self_healing_open::StateMachine::GOSSIPING);
+    tx.rw<self_healing_open::TimeoutSMState>(
         Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE)
-      ->put(SelfHealingOpenSM::GOSSIPING);
+      ->put(self_healing_open::StateMachine::GOSSIPING);
 
     start_message_retry_timers();
     start_failover_timers();
@@ -60,8 +60,8 @@ namespace ccf
     }
 
     auto* sm_state_handle =
-      tx.rw<SelfHealingOpenSMState>(Tables::SELF_HEALING_OPEN_SM_STATE);
-    auto* timeout_state_handle = tx.rw<SelfHealingOpenTimeoutSMState>(
+      tx.rw<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE);
+    auto* timeout_state_handle = tx.rw<self_healing_open::TimeoutSMState>(
       Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE);
 
     auto sm_state_opt = sm_state_handle->get();
@@ -79,10 +79,10 @@ namespace ccf
     // Advance self-healing-open SM
     switch (sm_state)
     {
-      case SelfHealingOpenSM::GOSSIPING:
+      case self_healing_open::StateMachine::GOSSIPING:
       {
         auto* gossip_handle =
-          tx.ro<SelfHealingOpenGossips>(Tables::SELF_HEALING_OPEN_GOSSIPS);
+          tx.ro<self_healing_open::Gossips>(Tables::SELF_HEALING_OPEN_GOSSIPS);
         auto quorum_size = config->addresses.size();
         if (gossip_handle->size() >= quorum_size || valid_timeout)
         {
@@ -107,18 +107,18 @@ namespace ccf
           {
             throw std::logic_error("No valid gossip addresses provided");
           }
-          tx.rw<SelfHealingOpenChosenNode>(
+          tx.rw<self_healing_open::ChosenNode>(
               Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
             ->put(maximum->second);
 
-          sm_state_handle->put(SelfHealingOpenSM::VOTING);
+          sm_state_handle->put(self_healing_open::StateMachine::VOTING);
         }
         break;
       }
-      case SelfHealingOpenSM::VOTING:
+      case self_healing_open::StateMachine::VOTING:
       {
         auto* votes =
-          tx.rw<SelfHealingOpenVotes>(Tables::SELF_HEALING_OPEN_VOTES);
+          tx.rw<self_healing_open::Votes>(Tables::SELF_HEALING_OPEN_VOTES);
 
         auto sufficient_quorum =
           votes->size() >= config->addresses.size() / 2 + 1;
@@ -126,7 +126,7 @@ namespace ccf
         {
           if (valid_timeout && !sufficient_quorum)
           {
-            tx.rw<SelfHealingOpenFailoverFlag>(
+            tx.rw<self_healing_open::FailoverFlag>(
                 Tables::SELF_HEALING_OPEN_FAILOVER_FLAG)
               ->put(true);
           }
@@ -151,15 +151,15 @@ namespace ccf
           AbstractGovernanceEffects::ServiceIdentities identities{
             .previous = prev_ident, .next = service_info->cert};
 
-          sm_state_handle->put(SelfHealingOpenSM::OPENING);
+          sm_state_handle->put(self_healing_open::StateMachine::OPENING);
 
           node_state->transition_service_to_open(tx, identities);
         }
         break;
       }
-      case SelfHealingOpenSM::JOINING:
+      case self_healing_open::StateMachine::JOINING:
       {
-        auto chosen_replica = tx.ro<SelfHealingOpenChosenNode>(
+        auto chosen_replica = tx.ro<self_healing_open::ChosenNode>(
                                   Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
                                 ->get();
         if (!chosen_replica.has_value())
@@ -168,7 +168,7 @@ namespace ccf
             "Self-healing-open chosen node not set, cannot join");
         }
         auto node_config =
-          tx.ro<SelfHealingOpenNodeInfoMap>(Tables::SELF_HEALING_OPEN_NODES)
+          tx.ro<self_healing_open::NodeInfoMap>(Tables::SELF_HEALING_OPEN_NODES)
             ->get(chosen_replica.value());
         if (!node_config.has_value())
         {
@@ -184,15 +184,15 @@ namespace ccf
 
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::restart, node_state->to_host);
       }
-      case SelfHealingOpenSM::OPENING:
+      case self_healing_open::StateMachine::OPENING:
       {
         if (valid_timeout)
         {
-          sm_state_handle->put(SelfHealingOpenSM::OPEN);
+          sm_state_handle->put(self_healing_open::StateMachine::OPEN);
         }
         break;
       }
-      case SelfHealingOpenSM::OPEN:
+      case self_healing_open::StateMachine::OPEN:
       {
         // Nothing to do here, we are already opening or open or joining
         break;
@@ -207,17 +207,17 @@ namespace ccf
     {
       switch (timeout_state)
       {
-        case SelfHealingOpenSM::GOSSIPING:
+        case self_healing_open::StateMachine::GOSSIPING:
           LOG_TRACE_FMT("Advancing timeout SM to VOTING");
-          timeout_state_handle->put(SelfHealingOpenSM::VOTING);
+          timeout_state_handle->put(self_healing_open::StateMachine::VOTING);
           break;
-        case SelfHealingOpenSM::VOTING:
+        case self_healing_open::StateMachine::VOTING:
           LOG_TRACE_FMT("Advancing timeout SM to OPENING");
-          timeout_state_handle->put(SelfHealingOpenSM::OPENING);
+          timeout_state_handle->put(self_healing_open::StateMachine::OPENING);
           break;
-        case SelfHealingOpenSM::OPENING:
-        case SelfHealingOpenSM::JOINING:
-        case SelfHealingOpenSM::OPEN:
+        case self_healing_open::StateMachine::OPENING:
+        case self_healing_open::StateMachine::JOINING:
+        case self_healing_open::StateMachine::OPEN:
         default:
           LOG_TRACE_FMT("Timeout SM complete");
       }
@@ -240,7 +240,7 @@ namespace ccf
 
         auto tx = node_state_->network.tables->create_read_only_tx();
         auto* sm_state_handle =
-          tx.ro<SelfHealingOpenSMState>(Tables::SELF_HEALING_OPEN_SM_STATE);
+          tx.ro<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE);
 
         auto sm_state_opt = sm_state_handle->get();
         if (!sm_state_opt.has_value())
@@ -252,7 +252,7 @@ namespace ccf
         auto& sm_state = sm_state_opt.value();
 
         // Keep doing this until the node is no longer in recovery
-        if (sm_state == SelfHealingOpenSM::OPEN)
+        if (sm_state == self_healing_open::StateMachine::OPEN)
         {
           LOG_INFO_FMT("Self-healing-open complete, stopping timers.");
           return;
@@ -260,14 +260,14 @@ namespace ccf
 
         switch (sm_state)
         {
-          case SelfHealingOpenSM::GOSSIPING:
+          case self_healing_open::StateMachine::GOSSIPING:
             msg->data.self.send_gossip_unsafe(tx);
             break;
-          case SelfHealingOpenSM::VOTING:
+          case self_healing_open::StateMachine::VOTING:
           {
-            auto* node_info_handle = tx.ro<SelfHealingOpenNodeInfoMap>(
+            auto* node_info_handle = tx.ro<self_healing_open::NodeInfoMap>(
               Tables::SELF_HEALING_OPEN_NODES);
-            auto* chosen_replica_handle = tx.ro<SelfHealingOpenChosenNode>(
+            auto* chosen_replica_handle = tx.ro<self_healing_open::ChosenNode>(
               Tables::SELF_HEALING_OPEN_CHOSEN_NODE);
             if (!chosen_replica_handle->get().has_value())
             {
@@ -287,10 +287,10 @@ namespace ccf
             msg->data.self.send_gossip_unsafe(tx);
             break;
           }
-          case SelfHealingOpenSM::OPENING:
+          case self_healing_open::StateMachine::OPENING:
             msg->data.self.send_iamopen_unsafe(tx);
             break;
-          case SelfHealingOpenSM::JOINING:
+          case self_healing_open::StateMachine::JOINING:
             return;
           default:
             throw std::logic_error(fmt::format(
@@ -334,7 +334,7 @@ namespace ccf
         // Stop the timer if the node has completed its self-healing-open
         auto tx = node_state_->network.tables->create_read_only_tx();
         auto* sm_state_handle =
-          tx.ro<SelfHealingOpenSMState>(Tables::SELF_HEALING_OPEN_SM_STATE);
+          tx.ro<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE);
         if (!sm_state_handle->get().has_value())
         {
           throw std::logic_error(
@@ -342,7 +342,7 @@ namespace ccf
             "self-healing-open");
         }
         auto sm_state = sm_state_handle->get().value();
-        if (sm_state == SelfHealingOpenSM::OPEN)
+        if (sm_state == self_healing_open::StateMachine::OPEN)
         {
           LOG_INFO_FMT("Self-healing-open complete, stopping timers.");
           return;
@@ -509,7 +509,7 @@ namespace ccf
   }
 
   void SelfHealingOpenSubsystem::send_vote_unsafe(
-    kv::ReadOnlyTx& tx, const SelfHealingOpenNodeInfo& node_info)
+    kv::ReadOnlyTx& tx, const self_healing_open::NodeInfo& node_info)
   {
     auto& config = node_state->config.recover.self_healing_open;
     if (!config.has_value())
