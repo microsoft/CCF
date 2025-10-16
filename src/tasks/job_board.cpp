@@ -63,24 +63,23 @@ namespace ccf::tasks
       std::unique_lock<std::mutex> lock(mutex);
 
       // First check if there is an idle worker waiting for a task
-      auto it = waiting_worker_threads.begin();
-      if (it != waiting_worker_threads.end())
+      for (WaitingWorkerThread* worker : waiting_worker_threads)
       {
-        WaitingWorkerThread* worker = *it;
-
-        // Assign this worker the incoming task, notify them, and then remove
-        // their waiting state
-        worker->assigned_task = std::move(task);
-        worker->cv.notify_one();
-
-        it = waiting_worker_threads.erase(it);
+        // NB: Although waiting_worker_threads is modified under lock, it's
+        // possible that a second call to add_task arrives before the notified
+        // thread wakes up and removes itself from this collection. In this case
+        // we must avoid overwriting a previously-assigned task.
+        if (worker->assigned_task == nullptr)
+        {
+          worker->assigned_task = std::move(task);
+          worker->cv.notify_one();
+          return;
+        }
       }
-      else
-      {
-        // There are no waiting_worker_threads currently, or none waiting for a
-        // task, so enqueue this task for later execution
-        pending_tasks.emplace(std::move(task));
-      }
+
+      // There are no waiting_worker_threads currently, or none waiting for a
+      // task, so enqueue this task for later execution
+      pending_tasks.emplace(std::move(task));
     }
 
     Task get_task()
@@ -115,15 +114,14 @@ namespace ccf::tasks
           // NOLINTEND(bugprone-spuriously-wake-up-functions)
 
           // We reach here either because the condition_variable was notified,
-          // or the timeout expired. If it was a timeout, we're responsible for
-          // removing ourselves from the central collection
+          // or the timeout expired. In either case, we're responsible for
+          // removing ourselves from the central collection, and then returning
+          // the (potentially still null) assigned task
           auto it = std::find(
             waiting_worker_threads.begin(),
             waiting_worker_threads.end(),
             waiting_worker.get());
           waiting_worker_threads.erase(it);
-
-          // In either case, return the (potentially still null) assigned task
         }
         else
         {
