@@ -553,7 +553,7 @@ class Network:
 
     def print_stack_traces(self, timeout=20):
         for node in self.nodes:
-            node.print_stack_trace(timeout=20)
+            node.print_stack_trace(timeout=timeout)
 
     def start(self, args, **kwargs):
         """
