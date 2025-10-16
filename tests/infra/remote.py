@@ -219,8 +219,10 @@ class LocalRemote(CmdMixin):
         if st:
             with open(self.stack_trace, "w", encoding="utf-8") as f:
                 f.write(st)
-            LOG.error(f"Stack trace of process {self.proc.pid} written to {self.stack_trace}")
-    
+            LOG.error(
+                f"Stack trace of process {self.proc.pid} written to {self.stack_trace}"
+            )
+
     def sigterm(self):
         self.proc.terminate()
 
