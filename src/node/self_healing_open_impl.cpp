@@ -430,13 +430,13 @@ namespace ccf
     auto body = std::make_unique<curl::RequestBody>(request);
 
     auto response_callback = [](
-                               const ccf::curl::CurlRequest& request,
+                               std::unique_ptr<ccf::curl::CurlRequest>&& request,
                                CURLcode curl_code,
                                long status_code) {
       LOG_TRACE_FMT(
         "Response received for {} to {}: curl_result {} ({}), status code {}",
-        request.get_method().c_str(),
-        request.get_url(),
+        request->get_method().c_str(),
+        request->get_url(),
         curl_easy_strerror(curl_code),
         curl_code,
         status_code);
