@@ -9,6 +9,9 @@ on:
         description: "Release tag to attest"
         required: true
         type: string
+  push:
+    branches:
+      - attach_attestation_to_release
 
 permissions: read-all
 
@@ -33,6 +36,8 @@ jobs:
           else
             RELEASE_TAG="${{ github.event.release.tag_name }}"
           fi
+          # To be removed
+          RELEASE_TAG=ccf-6.0.14
           echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
           gh release download -R microsoft/ccf $RELEASE_TAG -D release-assets
         env:
