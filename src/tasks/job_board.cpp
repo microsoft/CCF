@@ -3,6 +3,7 @@
 #include "tasks/job_board.h"
 
 #include <chrono>
+#include <condition_variable>
 #include <map>
 
 namespace ccf::tasks

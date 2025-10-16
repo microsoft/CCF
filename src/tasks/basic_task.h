@@ -11,9 +11,11 @@ namespace ccf::tasks
     using Fn = std::function<void()>;
 
     Fn fn;
-    const std::string name = "BasicTask";
+    const std::string name;
 
-    BasicTask(const Fn& fn_, const std::string& s = "[Anon]") : fn(fn_), name(s)
+    BasicTask(const Fn& fn_, const std::string& s = "BasicTask") :
+      fn(fn_),
+      name(s)
     {}
 
     void do_task_implementation() override
