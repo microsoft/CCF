@@ -20,16 +20,20 @@ namespace ccf
   void SelfHealingOpenSubsystem::try_start(ccf::kv::Tx& tx, bool recovering)
   {
     // Clear any previous state
-    tx.rw<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE)->clear();
+    tx.rw<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE)
+      ->clear();
     tx.rw<self_healing_open::TimeoutSMState>(
         Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE)
       ->clear();
-    tx.rw<self_healing_open::NodeInfoMap>(Tables::SELF_HEALING_OPEN_NODES)->clear();
-    tx.rw<self_healing_open::Gossips>(Tables::SELF_HEALING_OPEN_GOSSIPS)->clear();
+    tx.rw<self_healing_open::NodeInfoMap>(Tables::SELF_HEALING_OPEN_NODES)
+      ->clear();
+    tx.rw<self_healing_open::Gossips>(Tables::SELF_HEALING_OPEN_GOSSIPS)
+      ->clear();
     tx.rw<self_healing_open::ChosenNode>(Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
       ->clear();
     tx.rw<self_healing_open::Votes>(Tables::SELF_HEALING_OPEN_VOTES)->clear();
-    tx.rw<self_healing_open::FailoverFlag>(Tables::SELF_HEALING_OPEN_FAILOVER_FLAG)
+    tx.rw<self_healing_open::FailoverFlag>(
+        Tables::SELF_HEALING_OPEN_FAILOVER_FLAG)
       ->clear();
 
     auto& config = node_state->config.recover.self_healing_open;
@@ -429,18 +433,19 @@ namespace ccf
 
     auto body = std::make_unique<curl::RequestBody>(request);
 
-    auto response_callback = [](
-                               std::unique_ptr<ccf::curl::CurlRequest>&& request,
-                               CURLcode curl_code,
-                               long status_code) {
-      LOG_TRACE_FMT(
-        "Response received for {} to {}: curl_result {} ({}), status code {}",
-        request->get_method().c_str(),
-        request->get_url(),
-        curl_easy_strerror(curl_code),
-        curl_code,
-        status_code);
-    };
+    auto response_callback =
+      [](
+        std::unique_ptr<ccf::curl::CurlRequest>&& request,
+        CURLcode curl_code,
+        long status_code) {
+        LOG_TRACE_FMT(
+          "Response received for {} to {}: curl_result {} ({}), status code {}",
+          request->get_method().c_str(),
+          request->get_url(),
+          curl_easy_strerror(curl_code),
+          curl_code,
+          status_code);
+      };
 
     auto curl_request = std::make_unique<curl::CurlRequest>(
       std::move(curl_handle),
