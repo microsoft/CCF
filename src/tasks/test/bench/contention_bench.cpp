@@ -81,7 +81,7 @@ void dequeue_many(picobench::state& s, size_t thread_count, size_t task_count)
   for (auto i = 0; i < thread_count; ++i)
   {
     threads.emplace_back([task_count, &tasks_done]() {
-      if (tasks_done.load() < task_count)
+      while (tasks_done.load() < task_count)
       {
         auto task = ccf::tasks::get_main_job_board().get_task();
         if (task != nullptr)
