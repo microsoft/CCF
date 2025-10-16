@@ -9,11 +9,8 @@ namespace ccf::tasks
 {
   struct Consumer
   {
-    // Temporary structure
-    // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
-    Task& task;
-    std::condition_variable& cv;
-    // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
+    Task task;
+    std::condition_variable cv;
   };
 
   struct Delayed
@@ -81,15 +78,16 @@ namespace ccf::tasks
 
         if (pending_tasks.empty())
         {
-          std::condition_variable cv;
-          auto consumer = std::make_unique<Consumer>(to_return, cv);
+          auto consumer = std::make_unique<Consumer>();
           waiting_consumers.push_back(consumer.get());
 
-          cv.wait_for(lock, timeout);
+          consumer->cv.wait_for(lock, timeout);
 
           auto it = std::find(
             waiting_consumers.begin(), waiting_consumers.end(), consumer.get());
           waiting_consumers.erase(it);
+
+          to_return = std::move(consumer->task);
         }
         else
         {
