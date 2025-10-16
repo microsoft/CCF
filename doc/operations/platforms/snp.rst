@@ -259,6 +259,15 @@ The parsed TCB version mapped to that cpuid in the :ref:`audit/builtin_maps:``no
     | FMC               | 85  |       0x55 |
     +-------------------+-----+------------+
 
+Testing CCF's attestation validation
+-----------------------------------------------------
+
+After installing CCF, the lightweight `verify_uvm_attestation_and_endorsements` binary is available in the CCF installation directory.
+
+When `verify_uvm_attestation_and_endorsements host-amd-cert-base64 reference-info-base64 security-policy-base64` is run, this mirrors the authentication of the attestation and endorsements during a CCF node's startup and join, and will return an error if any of the files are invalid.
+
+On C-ACI these files are available in the security context directory.
+
 .. rubric:: Footnotes
 
 .. [#security_policy] A `REGO <https://www.openpolicyagent.org/docs/latest/policy-language/>`_ policy checked by the utility VM (UVM) against the container. 

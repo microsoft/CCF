@@ -200,15 +200,15 @@ static void serialised_size(picobench::state& s)
 const std::vector<int> sizes = {1000, 10000};
 
 PICOBENCH_SUITE("append_retract");
-PICOBENCH(append_retract).iterations(sizes).samples(10).baseline();
+PICOBENCH(append_retract).iterations(sizes).baseline();
 PICOBENCH_SUITE("append_flush");
-PICOBENCH(append_flush).iterations(sizes).samples(10).baseline();
+PICOBENCH(append_flush).iterations(sizes).baseline();
 PICOBENCH_SUITE("append_get_proof_verify");
-PICOBENCH(append_get_proof_verify).iterations(sizes).samples(10).baseline();
+PICOBENCH(append_get_proof_verify).iterations(sizes).baseline();
 PICOBENCH_SUITE("append_get_proof_verify_v");
-PICOBENCH(append_get_proof_verify_v).iterations(sizes).samples(10).baseline();
+PICOBENCH(append_get_proof_verify_v).iterations(sizes).baseline();
 PICOBENCH_SUITE("serialise_deserialise");
-PICOBENCH(serialise_deserialise).iterations(sizes).samples(10).baseline();
+PICOBENCH(serialise_deserialise).iterations(sizes).baseline();
 // Checks the size of serialised tree, timing results are irrelevant here
 // and since we run a single sample probably not that accurate anyway
 PICOBENCH_SUITE("serialised_size");

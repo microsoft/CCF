@@ -222,7 +222,11 @@ install(
 )
 
 # CCF platform agnostic library
-add_ccf_static_library(ccf_pal SRCS ${CCF_DIR}/src/pal/attestation.cpp)
+add_ccf_static_library(
+  ccf_pal
+  SRCS ${CCF_DIR}/src/pal/attestation.cpp
+  LINK_LIBS ccfcrypto
+)
 
 # CCF js lib
 add_ccf_static_library(
@@ -465,11 +469,36 @@ install(FILES tests/requirements.txt DESTINATION bin)
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
 
+# UVM canary executable
+add_test_bin(
+  verify_uvm_attestation_and_endorsements
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/verify_uvm_attestation_and_endorsements.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/host/env.cpp
+)
+target_link_libraries(
+  verify_uvm_attestation_and_endorsements PRIVATE ccf_pal ccf
+)
+install(TARGETS verify_uvm_attestation_and_endorsements DESTINATION bin)
+
 if(BUILD_TESTS)
   enable_testing()
 
   # Unit tests
   if(BUILD_UNIT_TESTS)
+    add_test(
+      NAME verify_uvm_attestation_and_endorsements
+      COMMAND
+        bash
+        ${CMAKE_SOURCE_DIR}/tests/run_verify_uvm_attestation_and_endorsements.sh
+        $<TARGET_FILE:verify_uvm_attestation_and_endorsements>
+    )
+    set_property(
+      TEST verify_uvm_attestation_and_endorsements
+      APPEND
+      PROPERTY LABELS unit
+    )
+    add_san_test_properties(verify_uvm_attestation_and_endorsements)
+
     add_unit_test(
       snp_ioctl_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
@@ -817,18 +846,13 @@ if(BUILD_TESTS)
     add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
 
-    # In Virtual CI, this test times out about about 6 hours In SNP CI, the test
-    # aborts after about 5 minutes with terminate called after throwing an
-    # instance of 'std::system_error' what():  Resource temporarily unavailable
-    # It seems to run well on similar size local VMs, so there must be some
-    # resource specific to the CI containers. To be investigated before
-    # re-enabling.
-    #
-    # add_picobench( task_bench SRCS
-    # ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/merge_bench.cpp
-    # ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/sleep_bench.cpp
-    # ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/contention_bench.cpp
-    # LINK_LIBS ccf_tasks )
+    add_picobench(
+      task_bench
+      SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/merge_bench.cpp
+           ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/sleep_bench.cpp
+           ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/contention_bench.cpp
+      LINK_LIBS ccf_tasks
+    )
   endif()
 
   if(LONG_TESTS)
@@ -1208,6 +1232,13 @@ if(BUILD_TESTS)
       --repetitions
       10000
       --use-jwt
+  )
+
+  add_e2e_test(
+    NAME historical_query_perf_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
+    LABEL perf
+    CONFIGURATIONS perf
   )
 
   if(LONG_TESTS)
