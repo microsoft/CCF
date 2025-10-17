@@ -166,7 +166,7 @@ namespace snapshots
         }
 
         LOG_DEBUG_FMT(
-          "Snapshot fetch received redirect resonse with location {}",
+          "Snapshot fetch received redirect response with location {}",
           redirect_url);
         snapshot_url = redirect_url;
 
