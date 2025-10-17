@@ -395,7 +395,7 @@ namespace ccf::curl
     CurlRequest(
       UniqueCURL&& curl_handle_,
       RESTVerb method_,
-      std::string&& url_,
+      const std::string& url_,
       UniqueSlist&& headers_,
       std::unique_ptr<RequestBody>&& request_body_,
       std::unique_ptr<ccf::curl::ResponseBody>&& response_,
