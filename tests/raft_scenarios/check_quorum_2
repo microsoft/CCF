@@ -1,6 +1,5 @@
 start_node,0
-trust_node,2,1
-trust_node,2,2
+swap_nodes,2,in,1,2
 emit_signature,2
 
 dispatch_all
@@ -18,6 +17,12 @@ periodic_one,1,100
 dispatch_all
 periodic_all,10
 dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
 
-assert_detail,0,leadership_state,Leader
+assert_detail,0,leadership_state,Follower
 assert_detail,1,leadership_state,Leader
