@@ -9,8 +9,6 @@ import argparse
 from datetime import datetime
 from enum import Enum, auto
 
-from loguru import logger as LOG
-
 
 class PrintMode(Enum):
     Quiet = auto()
@@ -93,9 +91,9 @@ def print_key(key, table_name, tables_format_rules, indent_s, is_removed=False):
     k = find_rule(tables_format_rules, table_name)["key"](key)
 
     if is_removed:
-        LOG.error(f"{indent_s}Removed {k}")
+        print(f"{indent_s}Removed {k}")
     else:
-        LOG.info(f"{indent_s}{k}:")
+        print(f"{indent_s}{k}:")
 
 
 def counted_string(string, name):
@@ -113,22 +111,20 @@ def dump_entry(entry, table_filter, tables_format_rules):
     private_table_size = entry.get_private_domain_size()
     if private_table_size and table_filter is None:
         if not printed_tx_header:
-            LOG.success(tx_header)
+            print(tx_header)
             printed_tx_header = True
 
-        LOG.error(f"{indent(2)}-- private: {private_table_size} bytes")
+        print(f"{indent(2)}-- private: {private_table_size} bytes")
 
     for table_name, records in public_tables.items():
         if table_filter is not None and not table_filter.match(table_name):
             continue
 
         if not printed_tx_header:
-            LOG.success(tx_header)
+            print(tx_header)
             printed_tx_header = True
 
-        LOG.warning(
-            f'{indent(4)}table "{table_name}" ({counted_string(records, "write")}):'
-        )
+        print(f'{indent(4)}table "{table_name}" ({counted_string(records, "write")}):')
         key_indent = indent(6)
         value_indent = indent(8)
         for key, value in records.items():
@@ -142,7 +138,7 @@ def dump_entry(entry, table_filter, tables_format_rules):
                     pass
                 finally:
                     print_key(key, table_name, tables_format_rules, key_indent)
-                    LOG.info(f"{value_indent}{value}")
+                    print(f"{value_indent}{value}")
             else:
                 print_key(
                     key, table_name, tables_format_rules, key_indent, is_removed=True
@@ -171,7 +167,7 @@ def run(
     if is_snapshot:
         snapshot_file = paths[0]
         with ccf.ledger.Snapshot(snapshot_file) as snapshot:
-            LOG.info(
+            print(
                 f"Reading snapshot from {snapshot_file} ({'' if snapshot.is_committed() else 'un'}committed)"
             )
             dump_entry(snapshot, table_filter, tables_format_rules)
@@ -187,12 +183,12 @@ def run(
             read_recovery_files=read_recovery_files,
         )
 
-        LOG.info(f"Reading ledger from {ledger_paths}")
-        LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
+        print(f"Reading ledger from {ledger_paths}")
+        print(f"Contains {counted_string(ledger, 'chunk')}")
 
         try:
             for chunk in ledger:
-                LOG.info(
+                print(
                     f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)"
                 )
                 for transaction in chunk:
@@ -208,28 +204,22 @@ def run(
                     if validator:
                         validator.add_transaction(transaction)
         except Exception as e:
-            LOG.exception(f"Error parsing ledger: {e}")
+            print(f"Error parsing ledger: {e}")
             has_error = True
         else:
-            LOG.success("Ledger verification complete")
+            print("Ledger verification complete")
             has_error = False
         finally:
             if not validator:
-                LOG.warning("Skipped ledger integrity verification")
+                print("Skipped ledger integrity verification")
             else:
-                LOG.info(
+                print(
                     f"Found {validator.signature_count} signatures, and verified until {validator.last_verified_txid()}"
                 )
         return not has_error
 
 
 def main():
-    LOG.remove()
-    LOG.add(
-        sys.stdout,
-        format="<level>{message}</level>",
-    )
-
     parser = argparse.ArgumentParser(
         description="Read CCF ledger or snapshot",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,

@@ -44,7 +44,7 @@ The corresponding transaction, ``2.662``, can be extracted from ledger files, an
 .. code-block:: bash
    :emphasize-lines: 2
 
-    $ read_ledger.py -d workspace/cpp_e2e_logging_cft_0/0.ledger/ | grep "2\.662"
+    $ read_ledger.py -d workspace/cpp_e2e_logging_0/0.ledger/ | grep "2\.662"
         2.662 89145f455cb3e0854052232078989faf083237dae354180ca9942b1821f60c5d
 
 Denounce an invalid recovery

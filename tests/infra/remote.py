@@ -174,17 +174,17 @@ class LocalRemote(CmdMixin):
     def get_logs(self):
         return self.out, self.err
 
-    def _print_stack_trace(self):
+    def print_stack_trace(self, timeout=20):
         if shutil.which("lldb") != "":
             # To avoid errors on decoding lldb output as utf-8.
             # We shoud find a way to force lldb to use utf-8.
             errors = "ignore"
-            lldb_timeout = 20
             try:
                 command = [
                     "lldb",
-                    "--one-line",
-                    f"process attach --pid {self.proc.pid}",
+                    "--batch",  # Ensure non-interactive
+                    "-p",
+                    f"{self.proc.pid}",
                     "--one-line",
                     "thread backtrace all",
                     "--one-line",
@@ -200,7 +200,7 @@ class LocalRemote(CmdMixin):
                     universal_newlines=True,
                     errors=errors,
                     text=True,
-                    timeout=lldb_timeout,
+                    timeout=timeout,
                     check=True,
                 )
                 LOG.info(f"stack trace: {completed_lldb_process.stdout}")
@@ -232,7 +232,7 @@ class LocalRemote(CmdMixin):
                 LOG.exception(
                     f"Process didn't finish within {self._shutdown_timeout} seconds. Trying to get stack trace..."
                 )
-                self._print_stack_trace()
+                self.print_stack_trace()
                 raise
 
             exit_code = self.proc.returncode
@@ -669,6 +669,9 @@ class CCFRemote(object):
 
     def sigkill(self):
         self.remote.sigkill()
+
+    def print_stack_trace(self, timeout=20):
+        self.remote.print_stack_trace(timeout=timeout)
 
     def stop(self):
         try:

@@ -869,6 +869,10 @@ class Node:
             LOG.debug(f"Failed to connect {e}")
             self.network_state = NodeNetworkState.stopped
 
+    def print_stack_trace(self, timeout=20):
+        if self.remote and self.network_state is not NodeNetworkState.stopped:
+            self.remote.print_stack_trace(timeout=timeout)
+
 
 @contextmanager
 def node(
