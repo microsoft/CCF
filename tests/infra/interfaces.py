@@ -234,6 +234,13 @@ class RPCInterface(Interface):
         self.host, self.port = split_netloc(address)
 
     @staticmethod
+    def from_str(s):
+        interface = RPCInterface()
+        interface.parse_from_str(s)
+        return interface
+
+
+    @staticmethod
     def to_json(interface):
         http_config = {
             "max_body_size": str(interface.max_http_body_size),
