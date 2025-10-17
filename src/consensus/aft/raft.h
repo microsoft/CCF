@@ -846,38 +846,32 @@ namespace aft
           node.second.last_ack_timeout += elapsed;
         }
 
-        bool has_quorum_of_backups = false;
-        for (auto const& conf : configurations)
-        {
-          size_t backup_ack_timeout_count = 0;
-          for (auto const& node : conf.nodes)
-          {
-            auto search = all_other_nodes.find(node.first);
-            if (search == all_other_nodes.end())
+        bool every_active_config_has_a_quorum = std::all_of(
+          configurations.begin(),
+          configurations.end(),
+          [this](const Configuration& conf) {
+            size_t live_nodes_in_config = 0;
+            for (auto const& node : conf.nodes)
             {
-              // Ignore ourselves as primary
-              continue;
+              auto search = all_other_nodes.find(node.first);
+              if (
+                search == all_other_nodes.end() ||
+                search->second.last_ack_timeout < election_timeout)
+              {
+                ++live_nodes_in_config;
+              }
+              else
+              {
+                RAFT_DEBUG_FMT(
+                  "No ack received from {} in last {}",
+                  node.first,
+                  election_timeout);
+              }
             }
-            if (search->second.last_ack_timeout >= election_timeout)
-            {
-              RAFT_DEBUG_FMT(
-                "No ack received from {} in last {}",
-                node.first,
-                election_timeout);
-              backup_ack_timeout_count++;
-            }
-          }
+            return live_nodes_in_config >= get_quorum(conf.nodes.size());
+          });
 
-          if (backup_ack_timeout_count < get_quorum(conf.nodes.size() - 1))
-          {
-            // If primary has quorum of active backups in _any_ configuration,
-            // it should remain primary
-            has_quorum_of_backups = true;
-            break;
-          }
-        }
-
-        if (!has_quorum_of_backups)
+        if (!every_active_config_has_a_quorum)
         {
           // CheckQuorum: The primary automatically steps down if there are no
           // active configuration in which it has heard back from a majority of
