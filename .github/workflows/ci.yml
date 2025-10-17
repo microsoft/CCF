@@ -244,6 +244,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
           if-no-files-found: ignore
         if: success() || failure()
 
@@ -322,6 +323,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
           if-no-files-found: ignore
         if: success() || failure()
 
@@ -407,5 +409,6 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
           if-no-files-found: ignore
         if: success() || failure()
