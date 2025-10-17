@@ -31,12 +31,16 @@ CONSTANT
     Reordered,
     Guarantee
 
+CONSTANT
+    PreVoteEnabled
+
 \* Leadership states
 CONSTANTS
     \* See original Raft paper (https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf)
     \* and comments for leadership_state in ../src/consensus/aft/raft.h for details on the Follower,
-    \* Candidate, and Leader states.
+    \* PreVoteCandidate, Candidate, and Leader states.
     Follower,
+    PreVoteCandidate,
     Candidate,
     Leader,
     \* Initial state for a joiner node, until it has received a first message
@@ -45,6 +49,7 @@ CONSTANTS
 
 LeadershipStates == {
     Follower,
+    PreVoteCandidate,
     Candidate,
     Leader,
     None
@@ -624,11 +629,36 @@ Init ==
 ------------------------------------------------------------------------------
 \* Define state transitions
 
-BecomeCandidate(i) ==
+BecomePreVoteCandidate(i) ==
+    /\ PreVoteEnabled[i]
     \* Only servers that haven't completed retirement can become candidates
     /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned, RetirementCompleted}
     \* Only servers that are followers/candidates can become candidates
     /\ leadershipState[i] \in {Follower, Candidate}
+    /\
+        \* Check that the reconfiguration which added this node is at least committable
+        \/ \E c \in DOMAIN configurations[i] :
+            /\ i \in configurations[i][c]
+            /\ MaxCommittableIndex(log[i]) >= c
+        \* Or if the node isn't in a configuration, that it is retiring
+        \/ i \in retirementCompleted[i]
+    /\ leadershipState' = [leadershipState EXCEPT ![i] = PreVoteCandidate]
+    /\ votesGranted' = [votesGranted EXCEPT ![i] = {i}]
+    /\ UNCHANGED <<currentTerm, votedFor>>
+    /\ UNCHANGED <<reconfigurationVars, leaderVars, logVars, membershipState, isNewFollower>>
+
+BecomeCandidate(i) ==
+    \* Only servers that haven't completed retirement can become candidates
+    /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned, RetirementCompleted}
+    \* Only servers that are followers/candidates can become candidates
+    /\ \/ /\ ~PreVoteEnabled[i]
+          /\ leadershipState[i] \in {Follower, Candidate}
+       \/ /\ PreVoteEnabled[i]
+          /\ leadershipState[i] \in {PreVoteCandidate}
+          \* To become a Candidate, the PreVoteCandidate must have received votes from a majority in each active configuration
+          \* Only votes by nodes part of a given configuration should be tallied against it
+          /\ \A c \in DOMAIN configurations[i] : 
+             (votesGranted[i] \intersect configurations[i][c]) \in Quorums[configurations[i][c]]
     /\
         \* Check that the reconfiguration which added this node is at least committable
         \/ \E c \in DOMAIN configurations[i] :
@@ -646,12 +676,16 @@ BecomeCandidate(i) ==
 \* Server i times out (becomes candidate) and votes for itself in the election of the next term
 \* At some point later (non-deterministically), the candidate will request votes from the other nodes.
 Timeout(i) ==
-    /\ BecomeCandidate(i)
+    /\ \/ /\ ~PreVoteEnabled[i]
+          /\ BecomeCandidate(i)
+       \/ /\ PreVoteEnabled[i]
+          /\ BecomePreVoteCandidate(i)
     /\ UNCHANGED messageVars
 
 \* Candidate i sends j a RequestVote request.
 RequestVote(i,j) ==
     LET
+        isPreVote == leadershipState[i] = PreVoteCandidate
         msg == [type         |-> RequestVoteRequest,
                 term         |-> currentTerm[i],
                 \*  CCF: Use last signature entry and not last log entry in elections.
@@ -659,12 +693,13 @@ RequestVote(i,j) ==
                 lastCommittableTerm  |-> LastCommittableTerm(i),
                 lastCommittableIndex |-> LastCommittableIndex(i),
                 source       |-> i,
-                dest         |-> j]
+                dest         |-> j,
+                isPreVote    |-> isPreVote]
     IN
     \* Timeout votes for itself atomically. Thus we do not need to request our own vote.
     /\ i /= j
     \* Only requests vote if we are already a candidate (and therefore have not completed retirement)
-    /\ leadershipState[i] = Candidate
+    /\ leadershipState[i] \in {PreVoteCandidate, Candidate}
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
     /\ Send(msg)
@@ -922,7 +957,10 @@ HandleRequestVoteRequest(i, j, m) ==
                  /\ logOk
                  /\ votedFor[i] \in {Nil, j}
     IN /\ m.term <= currentTerm[i]
-       /\ \/ grant  /\ votedFor' = [votedFor EXCEPT ![i] = j]
+       /\ \/ grant  \/ /\ ~m.isPreVote 
+                       /\ votedFor' = [votedFor EXCEPT ![i] = j]
+                    \/ /\ m.isPreVote
+                       /\ UNCHANGED votedFor
           \/ ~grant /\ UNCHANGED votedFor
        /\ Reply([type        |-> RequestVoteResponse,
                  term        |-> currentTerm[i],
@@ -937,8 +975,8 @@ HandleRequestVoteRequest(i, j, m) ==
 \* m.term = currentTerm[i].
 HandleRequestVoteResponse(i, j, m) ==
     /\ m.term = currentTerm[i]
-    \* Only Candidates need to tally votes
-    /\ leadershipState[i] = Candidate
+    \* Only PreVoteCandidates and Candidates need to tally votes
+    /\ leadershipState[i] \in {PreVoteCandidate, Candidate}
     /\ \/ /\ m.voteGranted
           /\ votesGranted' = [votesGranted EXCEPT ![i] =
                                   votesGranted[i] \cup {j}]
@@ -993,7 +1031,7 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
 \* Must check that m is an AppendEntries message before returning to follower state
 ReturnToFollowerState(i, m) ==
     /\ m.term = currentTerm[i]
-    /\ leadershipState[i] = Candidate
+    /\ leadershipState[i] \in {PreVoteCandidate, Candidate}
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
     \* Note that the set of messages is unchanged as m is discarded
@@ -1139,7 +1177,8 @@ UpdateTerm(i, j, m) ==
     /\ m.term > currentTerm[i]
     /\ currentTerm'    = [currentTerm EXCEPT ![i] = m.term]
     \* See become_aware_of_new_term() in raft.h:1915
-    /\ leadershipState' = [leadershipState EXCEPT ![i] = IF @ \in {Leader, Candidate, None} THEN Follower ELSE @]
+    /\ leadershipState' = [leadershipState EXCEPT 
+         ![i] = IF @ \in {Leader, Candidate, PreVoteCandidate, None} THEN Follower ELSE @]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
     /\ votedFor'       = [votedFor    EXCEPT ![i] = Nil]
     \* See rollback(last_committable_index()) in raft::become_follower
@@ -1164,7 +1203,7 @@ DropResponseWhenNotInState(i, j, m) ==
     \/ /\ m.type = AppendEntriesResponse
        /\ leadershipState[i] \in LeadershipStates \ { Leader }
     \/ /\ m.type = RequestVoteResponse
-       /\ leadershipState[i] \in LeadershipStates \ { Candidate }
+       /\ leadershipState[i] \in LeadershipStates \ { Candidate, PreVoteCandidate }
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
