@@ -225,7 +225,7 @@ jobs:
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
           # Unit tests
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all) -E task_system_demo
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # End to end tests
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
           # Partitions tests
@@ -298,7 +298,7 @@ jobs:
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
           # Unit tests
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all) -E task_system_demo
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # End to end tests
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
         shell: bash

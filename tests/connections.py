@@ -8,7 +8,6 @@ import infra.checker
 import infra.interfaces
 import contextlib
 import resource
-import psutil
 from infra.log_capture import flush_info
 from infra.clients import CCFConnectionException, CCFIOException
 import random
@@ -27,6 +26,10 @@ class AllConnectionsCreatedException(Exception):
     """
     Raised if we expected a node to refuse connections, but it didn't
     """
+
+
+def fd_count(pid: int) -> int:
+    return len(os.listdir(f"/proc/{pid}/fd"))
 
 
 def get_session_metrics(node, timeout=3):
@@ -82,7 +85,7 @@ def run_connection_caps_tests(args):
 
         primary_pid = primary.remote.remote.proc.pid
 
-        initial_fds = psutil.Process(primary_pid).num_fds()
+        initial_fds = fd_count(primary_pid)
         assert (
             initial_fds < args.max_open_sessions
         ), f"Initial number of file descriptors has already reached session limit: {initial_fds} >= {args.max_open_sessions}"
@@ -165,7 +168,7 @@ def run_connection_caps_tests(args):
                         f"Successfully created {target} clients without exception - expected this to exhaust available connections"
                     )
 
-                num_fds = psutil.Process(primary_pid).num_fds()
+                num_fds = fd_count(primary_pid)
                 LOG.success(
                     f"{primary_pid} has {num_fds}/{max_fds} open file descriptors"
                 )
@@ -199,7 +202,7 @@ def run_connection_caps_tests(args):
                         raise e
 
                 time.sleep(1)
-                num_fds = psutil.Process(primary_pid).num_fds()
+                num_fds = fd_count(primary_pid)
                 LOG.success(
                     f"{primary_pid} has {num_fds}/{max_fds} open file descriptors"
                 )
@@ -208,7 +211,7 @@ def run_connection_caps_tests(args):
                 clients = []
 
             time.sleep(1)
-            num_fds = psutil.Process(primary_pid).num_fds()
+            num_fds = fd_count(primary_pid)
             LOG.success(f"{primary_pid} has {num_fds}/{max_fds} open file descriptors")
             return num_fds
 

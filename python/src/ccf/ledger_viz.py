@@ -4,9 +4,27 @@
 import ccf.ledger
 import argparse
 import os
-from stringcolor import cs  # type: ignore
 import json
 from typing import Optional
+
+
+COLORS = {
+    "Black": 40,
+    "Red": 41,
+    "Green": 42,
+    "Yellow": 43,
+    "Blue": 44,
+    "Magenta": 45,
+    "Cyan": 46,
+    "White": 47,
+    "Grey": 100,
+}
+
+
+def cs(s: str, background_colour: Optional[str] = None) -> str:
+    if background_colour is not None and background_colour in COLORS:
+        return f"\033[{COLORS[background_colour]}m{s}\033[0m"
+    return s
 
 
 class Liner:
@@ -19,8 +37,8 @@ class Liner:
         self._line = ""
         self._len = 0
 
-    def append(self, s: str, colour: str, background_colour: Optional[str] = None):
-        self._line += cs(s, colour, background_colour)
+    def append(self, s: str, background_colour: Optional[str] = None):
+        self._line += cs(s, background_colour)
         self._len += len(s)
         if self._len >= self.MAX_LENGTH:
             self.flush()
@@ -28,17 +46,16 @@ class Liner:
 
 class DefaultLiner(Liner):
     _bg_colour_mapping = {
-        "New Service": "White",
-        "Recovering Service": "Grey",
-        "Service Open": "Magenta",
-        "Governance": "Red",
+        "New Service": "Black",
+        "Recovering Service": "Red",
+        "Service Open": "White",
+        "Governance": "Yellow",
         "Signature": "Green",
-        "Internal": "Orange",
+        "Internal": "Magenta",
         "User Public": "Blue",
-        "User Private": "DarkBlue",
+        "User Private": "Cyan",
     }
     _last_view = None
-    _fg_colour = "Black"
 
     @staticmethod
     def view_to_char(view):
@@ -69,27 +86,20 @@ class DefaultLiner(Liner):
         if self.write_views:
             char = "‾" if not view_change else self.view_to_char(view)
 
-        fg_colour = self._fg_colour
         bg_colour = self._bg_colour_mapping[category]
-        self.append(char, fg_colour, bg_colour)
+        self.append(char, bg_colour)
 
     def help(self):
         print(
             " | ".join(
                 [
-                    f"{category} {cs(' ', 'White', bg_colour)}"
+                    f"{category} {cs(' ', bg_colour)}"
                     for category, bg_colour in self._bg_colour_mapping.items()
                 ]
             )
         )
         if self.write_views:
-            print(
-                " ".join(
-                    [
-                        f"Start of view 3: {cs(self.view_to_char(3), self._fg_colour, 'DarkGrey')}"
-                    ]
-                )
-            )
+            print(" ".join([f"Start of view 3: {cs(self.view_to_char(3), 'Grey')}"]))
         print()
 
 
