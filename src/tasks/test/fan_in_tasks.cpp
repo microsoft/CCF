@@ -3,9 +3,9 @@
 
 #include "tasks/fan_in_tasks.h"
 
-#include "./utils.h"
 #include "tasks/basic_task.h"
 #include "tasks/job_board.h"
+#include "tasks/thread_manager.h"
 
 #include <doctest/doctest.h>
 #include <thread>
@@ -14,14 +14,16 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 
+ccf::tasks::JobBoard::Summary empty_board{};
+
 TEST_CASE("ContiguousQueuing" * doctest::test_suite("fan_in_tasks"))
 {
-  ccf::tasks::JobBoard jb;
+  ccf::tasks::JobBoard job_board;
   ccf::tasks::Task task;
 
-  auto collection = ccf::tasks::FanInTasks::create(jb);
+  auto collection = ccf::tasks::FanInTasks::create(job_board);
 
-  REQUIRE(jb.empty());
+  REQUIRE(job_board.get_summary() == empty_board);
 
   std::atomic<bool> done_0{false};
   std::atomic<bool> done_1{false};
@@ -33,12 +35,12 @@ TEST_CASE("ContiguousQueuing" * doctest::test_suite("fan_in_tasks"))
 
   // Adding the next-contiguous task instantly enqueues this collection
   collection->add_task(0, set_0);
-  REQUIRE_FALSE(jb.empty());
+  REQUIRE(job_board.get_summary().pending_tasks == 1);
 
   // Non-contiguous tasks can be stored
   collection->add_task(2, set_2);
 
-  task = jb.get_task();
+  task = job_board.get_task();
   REQUIRE(task != nullptr);
 
   // Only a contiguous block is executed
@@ -54,11 +56,11 @@ TEST_CASE("ContiguousQueuing" * doctest::test_suite("fan_in_tasks"))
   REQUIRE_THROWS(collection->add_task(2, never_execd));
 
   // Contiguous next task may arrive out-of-order, queuing a batch of tasks
-  REQUIRE(jb.empty());
+  REQUIRE(job_board.get_summary() == empty_board);
   collection->add_task(1, set_1);
-  REQUIRE_FALSE(jb.empty());
+  REQUIRE(job_board.get_summary().pending_tasks == 1);
 
-  task = jb.get_task();
+  task = job_board.get_task();
   REQUIRE(task != nullptr);
 
   REQUIRE_FALSE(done_1.load());
@@ -72,10 +74,10 @@ TEST_CASE("InterleavedCompletions" * doctest::test_suite("fan_in_tasks"))
 {
   // Testing mutexes + re-enqueuing logic of FanInTasks, where tasks are added
   // to the collection _while the collection is being executed_
-  ccf::tasks::JobBoard jb;
+  ccf::tasks::JobBoard job_board;
   ccf::tasks::Task task;
 
-  auto collection = ccf::tasks::FanInTasks::create(jb);
+  auto collection = ccf::tasks::FanInTasks::create(job_board);
 
   std::atomic<bool> all_done{false};
   collection->add_task(
@@ -84,8 +86,8 @@ TEST_CASE("InterleavedCompletions" * doctest::test_suite("fan_in_tasks"))
         1, ccf::tasks::make_basic_task([&]() { all_done.store(true); }));
     }));
 
-  REQUIRE_FALSE(jb.empty());
-  task = jb.get_task();
+  REQUIRE(job_board.get_summary().pending_tasks == 1);
+  task = job_board.get_task();
   REQUIRE(task != nullptr);
 
   REQUIRE_FALSE(all_done.load());
@@ -93,12 +95,12 @@ TEST_CASE("InterleavedCompletions" * doctest::test_suite("fan_in_tasks"))
   // setter task was _enqueued_, but not _executed_ yet
   REQUIRE_FALSE(all_done.load());
 
-  REQUIRE_FALSE(jb.empty());
-  task = jb.get_task();
+  REQUIRE(job_board.get_summary().pending_tasks == 1);
+  task = job_board.get_task();
   REQUIRE(task != nullptr);
   task->do_task();
   REQUIRE(all_done.load());
-  REQUIRE(jb.empty());
+  REQUIRE(job_board.get_summary() == empty_board);
 
   {
     // Reset, and try a more complex example
@@ -110,8 +112,8 @@ TEST_CASE("InterleavedCompletions" * doctest::test_suite("fan_in_tasks"))
           5, ccf::tasks::make_basic_task([&]() { all_done.store(true); }));
       }));
 
-    REQUIRE_FALSE(jb.empty());
-    task = jb.get_task();
+    REQUIRE(job_board.get_summary().pending_tasks == 1);
+    task = job_board.get_task();
     REQUIRE(task != nullptr);
     task->do_task();
     REQUIRE_FALSE(all_done.load());
@@ -122,24 +124,24 @@ TEST_CASE("InterleavedCompletions" * doctest::test_suite("fan_in_tasks"))
           4, ccf::tasks::make_basic_task([&]() { all_done.store(true); }));
       }));
 
-    REQUIRE_FALSE(jb.empty());
-    task = jb.get_task();
+    REQUIRE(job_board.get_summary().pending_tasks == 1);
+    task = job_board.get_task();
     REQUIRE(task != nullptr);
     task->do_task();
     REQUIRE_FALSE(all_done.load());
 
-    REQUIRE_FALSE(jb.empty());
-    task = jb.get_task();
+    REQUIRE(job_board.get_summary().pending_tasks == 1);
+    task = job_board.get_task();
     REQUIRE(task != nullptr);
     task->do_task();
     REQUIRE(all_done.load());
-    REQUIRE(jb.empty());
+    REQUIRE(job_board.get_summary() == empty_board);
   }
 }
 
 TEST_CASE("DelayedCompletions" * doctest::test_suite("fan_in_tasks"))
 {
-  ccf::tasks::JobBoard jb;
+  ccf::tasks::JobBoard job_board;
 
   static constexpr size_t num_tasks = 100;
 
@@ -161,18 +163,18 @@ TEST_CASE("DelayedCompletions" * doctest::test_suite("fan_in_tasks"))
       ++counter;
     }
 
-    std::string_view get_name() const override
+    const std::string& get_name() const override
     {
       return name;
     }
   };
 
-  auto completions = ccf::tasks::FanInTasks::create(jb);
+  auto completions = ccf::tasks::FanInTasks::create(job_board);
   std::atomic<size_t> counter;
 
   for (auto i = 0; i < num_tasks; ++i)
   {
-    jb.add_task(ccf::tasks::make_basic_task([&, i]() {
+    job_board.add_task(ccf::tasks::make_basic_task([&, i]() {
       const std::chrono::milliseconds sleep_time(rand() % 100);
       std::this_thread::sleep_for(sleep_time);
 
@@ -180,7 +182,36 @@ TEST_CASE("DelayedCompletions" * doctest::test_suite("fan_in_tasks"))
     }));
   }
 
-  test::utils::flush_board(jb, num_tasks);
+  {
+    INFO("Execution loop");
+
+    ccf::tasks::ThreadManager thread_manager(job_board);
+    thread_manager.set_task_threads(8);
+
+    using TClock = std::chrono::steady_clock;
+    auto now = TClock::now();
+    std::chrono::seconds max_run_time(5);
+    const auto end_time = now + max_run_time;
+
+    while (true)
+    {
+      const auto complete = counter.load() == num_tasks;
+
+      if (complete)
+      {
+        break;
+      }
+
+      now = TClock::now();
+      if (now > end_time)
+      {
+        throw std::runtime_error(
+          fmt::format("Test did not complete after {}", max_run_time));
+      }
+
+      std::this_thread::yield();
+    }
+  }
 
   // Each task asserted that it executed in-order, and this confirms that all
   // tasks executed

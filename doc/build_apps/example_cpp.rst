@@ -221,7 +221,7 @@ A :cpp:type:`ccf::indexing::Strategy` may offload partial results to disk to avo
 Since the indexing system and all the strategies it manages exist entirely within the enclave, this has the same trust guarantees as any other in-enclave code - users can trust that the results are accurate and complete, and the query may process private data.
 
 An example :cpp:type:`ccf::indexing::Strategy` is included in the logging app, to accelerate historical range queries.
-This :cpp:type:`strategy <ccf::indexing::strategies::SeqnosByKey_Bucketed_Untyped>` stores the list of seqnos where every key is written to, offloading completed ranges to disk to cap the total memory useage.
+This :cpp:type:`strategy <ccf::indexing::strategies::SeqnosByKey_Bucketed_Untyped>` stores the list of seqnos where every key is written to, offloading completed ranges to disk to cap the total memory usage.
 In the endpoint handler, rather than requesting every transaction in the requested range, the node relies on its index to fetch only the `interesting` transactions; those which write to the target key:
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp

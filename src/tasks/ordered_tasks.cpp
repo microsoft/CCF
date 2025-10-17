@@ -9,8 +9,8 @@ namespace ccf::tasks
 {
   struct OrderedTasks::PImpl
   {
-    std::string name;
-    IJobBoard& job_board;
+    JobBoard& job_board;
+    const std::string name;
     SubTaskQueue<TaskAction> actions;
   };
 
@@ -40,9 +40,9 @@ namespace ccf::tasks
 
   OrderedTasks::OrderedTasks(
     [[maybe_unused]] OrderedTasks::Private force_private_constructor,
-    IJobBoard& job_board_,
-    const std::string& name_) :
-    pimpl(std::make_unique<OrderedTasks::PImpl>(name_, job_board_))
+    JobBoard& job_board_,
+    const std::string& name) :
+    pimpl(std::make_unique<OrderedTasks::PImpl>(job_board_, name))
   {}
 
   void OrderedTasks::do_task_implementation()
@@ -61,7 +61,7 @@ namespace ccf::tasks
     return std::make_unique<ResumeOrderedTasks>(shared_from_this());
   }
 
-  std::string_view OrderedTasks::get_name() const
+  const std::string& OrderedTasks::get_name() const
   {
     return pimpl->name;
   }
@@ -80,8 +80,8 @@ namespace ccf::tasks
   }
 
   std::shared_ptr<OrderedTasks> OrderedTasks::create(
-    IJobBoard& job_board_, const std::string& name_)
+    JobBoard& job_board_, const std::string& name)
   {
-    return std::make_shared<OrderedTasks>(Private{}, job_board_, name_);
+    return std::make_shared<OrderedTasks>(Private{}, job_board_, name);
   }
 }
