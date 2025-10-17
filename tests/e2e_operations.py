@@ -298,9 +298,7 @@ def test_snapshot_access(network, args):
     with open(os.path.join(snapshots_dir, snapshot_name), "rb") as f:
         snapshot_data = f.read()
 
-    interface = primary.host.rpc_interfaces[
-        infra.interfaces.PRIMARY_RPC_INTERFACE
-    ]
+    interface = primary.host.rpc_interfaces[infra.interfaces.PRIMARY_RPC_INTERFACE]
     loc = f"https://{interface.public_host}:{interface.public_port}"
 
     with primary.client() as c:
