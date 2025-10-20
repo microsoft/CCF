@@ -556,9 +556,10 @@ class Network:
             infra.proc.ccall(*cmd).returncode == 0
         ), f"Could not symlink {self.KEY_GEN} to {self.common_dir}"
 
-    def print_stack_traces(self, timeout=20):
+    def log_stack_traces(self, timeout=20):
+        LOG.info("Logging stack traces for all nodes")
         for node in self.nodes:
-            node.print_stack_trace(timeout=timeout)
+            node.log_stack_trace(timeout=timeout)
 
     def start(self, args, **kwargs):
         """
@@ -1981,7 +1982,7 @@ def network(
         # Don't try to verify txs on Exception path
         net.txs = None
 
-        net.print_stack_traces(timeout=2)
+        net.log_stack_traces(timeout=10)
 
         if pdb:
             import pdb

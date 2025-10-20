@@ -72,6 +72,7 @@ class LocalRemote(CmdMixin):
         self.name = name
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
+        self.stack_trace = os.path.join(self.root, "stack_trace")
         self._shutdown_timeout = 10
 
     @property
@@ -174,7 +175,7 @@ class LocalRemote(CmdMixin):
     def get_logs(self):
         return self.out, self.err
 
-    def print_stack_trace(self, timeout=20):
+    def get_stack_trace(self, timeout=20):
         if shutil.which("lldb") != "":
             # To avoid errors on decoding lldb output as utf-8.
             # We shoud find a way to force lldb to use utf-8.
@@ -203,7 +204,7 @@ class LocalRemote(CmdMixin):
                     timeout=timeout,
                     check=True,
                 )
-                LOG.info(f"stack trace: {completed_lldb_process.stdout}")
+                return completed_lldb_process.stdout
             except subprocess.TimeoutExpired:
                 LOG.info(
                     "Failed to get stack trace. lldb did not finish within {lldb_timeout} seconds."
@@ -212,6 +213,15 @@ class LocalRemote(CmdMixin):
                 LOG.info(f"Failed to get stack trace: {e}")
         else:
             LOG.info("Couldn't find lldb installed")
+
+    def log_stack_trace(self, timeout=20):
+        st = self.get_stack_trace(timeout=timeout)
+        if st:
+            with open(self.stack_trace, "w", encoding="utf-8") as f:
+                f.write(st)
+            LOG.error(
+                f"Stack trace of process {self.proc.pid} written to {self.stack_trace}"
+            )
 
     def sigterm(self):
         self.proc.terminate()
@@ -232,7 +242,9 @@ class LocalRemote(CmdMixin):
                 LOG.exception(
                     f"Process didn't finish within {self._shutdown_timeout} seconds. Trying to get stack trace..."
                 )
-                self.print_stack_trace()
+                st = self.get_stack_trace()
+                if st:
+                    LOG.error(f"Stack trace of process {self.proc.pid}:\n{st}")
                 raise
 
             exit_code = self.proc.returncode
@@ -670,8 +682,8 @@ class CCFRemote(object):
     def sigkill(self):
         self.remote.sigkill()
 
-    def print_stack_trace(self, timeout=20):
-        self.remote.print_stack_trace(timeout=timeout)
+    def log_stack_trace(self, timeout=20):
+        self.remote.log_stack_trace(timeout=timeout)
 
     def stop(self):
         try:

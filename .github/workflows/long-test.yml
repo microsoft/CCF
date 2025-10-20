@@ -66,6 +66,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
           if-no-files-found: ignore
 
   long-tsan:
@@ -120,6 +121,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
           if-no-files-found: ignore
 
   long-lts:
@@ -173,6 +175,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
           if-no-files-found: ignore
 
   # All e2e tests without sanitizers in debug mode; needed because:
@@ -232,6 +235,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
           if-no-files-found: ignore
 
   # All e2e tests in release mode (same as release build).
@@ -286,6 +290,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
           if-no-files-found: ignore
 
   # End-to-end test suites with shuffling enabled.
@@ -340,4 +345,5 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
           if-no-files-found: ignore
