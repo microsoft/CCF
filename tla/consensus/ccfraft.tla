@@ -1181,7 +1181,7 @@ DropIgnoredMessage(i,j,m) ==
         \* .. and it comes from a server outside of the configuration
           /\ \lnot IsInServerSet(j, i)
           \* We specifically don't ignore RequestVoteRequest messages from unknown nodes
-          /\ m.type \notin {RequestVoteRequest}
+          /\ m.type /= RequestVoteRequest
        \*  OR if recipient has completed retirement and this is not a request to vote or append entries request
        \* This spec requires that a retired node still helps with voting and appending entries to ensure 
        \* the next configurations learns that its retirement has been committed.
