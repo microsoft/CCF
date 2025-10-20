@@ -19,9 +19,12 @@ dispatch_all
 periodic_all,10
 dispatch_all
 
+# Node 0 should step down via CheckQuorum
 assert_detail,0,leadership_state,Follower
+# Node 1 cannot be elected without a vote from Node 0
 assert_detail,1,leadership_state,Candidate
 
+# Fixup the network to allow a leader to be elected and the test to pass
 reconnect_node,0
 
 periodic_all,100

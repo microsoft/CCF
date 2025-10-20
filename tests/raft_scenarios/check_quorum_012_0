@@ -25,5 +25,7 @@ dispatch_all
 periodic_all,10
 dispatch_all
 
+# Node 0 should step down via CheckQuorum
 assert_detail,0,leadership_state,Follower
+# Node 1 should be become a leader
 assert_detail,1,leadership_state,Leader
