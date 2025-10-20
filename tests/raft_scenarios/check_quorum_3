@@ -1,4 +1,5 @@
 start_node,0
+emit_signature,2
 swap_nodes,2,in,1,2
 emit_signature,2
 
@@ -6,7 +7,7 @@ dispatch_all
 periodic_all,10
 dispatch_all
 
-assert_commit_idx,0,3
+assert_commit_idx,0,4
 
 disconnect_node,0
 
