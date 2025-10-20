@@ -1356,7 +1356,7 @@ public:
       }
     }
     throw std::runtime_error(fmt::format(
-      "Node {} does not a configuration at idx {}", node_id, config_idx));
+      "Node {} does not have a configuration at idx {}", node_id, config_idx));
   }
 
   void assert_missing_config(
