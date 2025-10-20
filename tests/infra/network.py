@@ -442,7 +442,6 @@ class Network:
         self,
         args,
         recovery=False,
-        self_healing_open=False,
         ledger_dir=None,
         read_only_ledger_dirs=None,
         snapshots_dir=None,
@@ -464,16 +463,12 @@ class Network:
             for arg in infra.network.Network.node_args_to_forward
         }
 
-        self_healing_open_addresses = [
-            node.get_public_rpc_address() for node in self.nodes
-        ]
-
         for i, node in enumerate(self.nodes):
             forwarded_args_with_overrides = forwarded_args.copy()
             forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
             try:
-                if i == 0 or self_healing_open:
-                    if not (recovery or self_healing_open):
+                if i == 0:
+                    if not recovery:
                         node.start(
                             lib_name=args.package,
                             workspace=args.workspace,
@@ -494,13 +489,9 @@ class Network:
                             "read_only_ledger_dirs": read_only_ledger_dirs,
                             "snapshots_dir": snapshots_dir,
                         }
-                        self_healing_open_kwargs = {
-                            "self_healing_open_addresses": self_healing_open_addresses
-                        }
                         # If a kwarg is passed in override automatically set variants
                         node_kwargs = (
                             node_kwargs
-                            | self_healing_open_kwargs
                             | forwarded_args_with_overrides
                             | kwargs
                         )
