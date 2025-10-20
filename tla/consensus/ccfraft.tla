@@ -1180,6 +1180,7 @@ DropIgnoredMessage(i,j,m) ==
        \/ /\ leadershipState[i] /= None
         \* .. and it comes from a server outside of the configuration
           /\ \lnot IsInServerSet(j, i)
+          \* raft.h::recv_request_vote
           \* We specifically don't ignore RequestVoteRequest messages from unknown nodes
           /\ m.type /= RequestVoteRequest
        \*  OR if recipient has completed retirement and this is not a request to vote or append entries request
