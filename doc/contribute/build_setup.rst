@@ -39,7 +39,6 @@ CCF devcontainer setup works just fine with codespaces. It's recommended to pre-
 Tweaks for codespaces:
 
 * In order to run lldb in a container, run this command first "settings set target.disable-aslr false"
-* To keep your bash sessions over restarts (for autocomplete, etc) use the Terminal Keeper extension (comes pre-installed).
 
 How to install docker
 ~~~~~~~~~~~~~~~~~~~~~
