@@ -10,23 +10,14 @@ periodic_all,10
 dispatch_all
 
 # All nodes believe that the only configuration is {0,1,2}
-assert_commit_idx,0,4
+assert_state_sync
 assert_missing_config,0,1
 assert_config,0,3,0,1,2
 
-assert_commit_idx,1,4
-assert_missing_config,1,1
-assert_config,1,3,0,1,2
-
-assert_commit_idx,2,4
-assert_missing_config,2,1
-assert_config,2,3,0,1,2
-
 disconnect_node,0
-
 swap_nodes,2,out,1,2
 
-# Only node 0 knows about config {0}
+# Only node 0 knows about config {0}, as it is partitioned from nodes 1 and 2
 assert_config,0,3,0,1,2
 assert_config,0,5,0
 
@@ -52,7 +43,5 @@ dispatch_all
 periodic_all,10
 dispatch_all
 
-# Node 0 should step down via CheckQuorum
 assert_detail,0,leadership_state,Follower
-# Node 1 should be become a leader
 assert_detail,1,leadership_state,Leader
