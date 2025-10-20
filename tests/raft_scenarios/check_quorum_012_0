@@ -9,12 +9,39 @@ dispatch_all
 periodic_all,10
 dispatch_all
 
-swap_nodes,2,out,1,2
+# All nodes believe that the only configuration is {0,1,2}
+assert_commit_idx,0,4
+assert_missing_config,0,1
+assert_config,0,3,0,1,2
+
+assert_commit_idx,1,4
+assert_missing_config,1,1
+assert_config,1,3,0,1,2
+
+assert_commit_idx,2,4
+assert_missing_config,2,1
+assert_config,2,3,0,1,2
 
 disconnect_node,0
 
+swap_nodes,2,out,1,2
+
+# Only node 0 knows about config {0}
+assert_config,0,3,0,1,2
+assert_config,0,5,0
+
+assert_config,1,3,0,1,2
+assert_missing_config,1,5
+assert_config,2,3,0,1,2
+assert_missing_config,2,5
+
+# Node 0 should step down via CheckQuorum
 periodic_one,0,100
+assert_detail,0,leadership_state,Follower
+
 periodic_one,1,100
+assert_detail,1,leadership_state,Candidate
+
 dispatch_all
 periodic_all,10
 dispatch_all
