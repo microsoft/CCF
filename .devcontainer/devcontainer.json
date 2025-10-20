@@ -20,7 +20,8 @@
         "ms-python.black-formatter",
         "ms-python.python",
         "ms-vscode.cpptools",
-        "github.copilot"
+        "github.copilot",
+        "nguyenngoclong.terminal-keeper"
       ]
     },
     "settings": {
