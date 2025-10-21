@@ -100,9 +100,7 @@ File: `pypi.yml`
 Builds and publishes documentation to GitHub Pages. Triggered on pushes to main, and manually. Note that special permissions (Settings > Environment) are configured.
 
 File: `doc.yml`
-3rd party dependencies:
-
-- peaceiris/actions-gh-pages@v3
+3rd party dependencies: None
 
 # Mothballed Actions
 
