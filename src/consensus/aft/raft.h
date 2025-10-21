@@ -855,7 +855,11 @@ namespace aft
             {
               auto search = all_other_nodes.find(node.first);
               if (
+                // if a (non-self) node is in a configuration, then it is in all_other_nodes
+                // so if a node in a configuration is not found in all_other_nodes, 
+                // it must be self, and hence is live
                 search == all_other_nodes.end() ||
+                // Otherwise we use the most recent ack as a failure probe
                 search->second.last_ack_timeout < election_timeout)
               {
                 ++live_nodes_in_config;
