@@ -482,7 +482,7 @@ namespace ccf
         {
           throw std::logic_error(
             "Starting TX for the previous service doesn't have "
-            "current_service_txid recorded");
+            "current_service_create_txid recorded");
         }
         prev_service_created_at =
           prev_service_info->current_service_create_txid.value().seqno;
