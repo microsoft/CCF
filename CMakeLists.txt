@@ -174,13 +174,6 @@ if(SAN)
   install(FILES ${CCF_DIR}/src/san_common.suppressions DESTINATION bin)
 endif()
 
-# Install getting_started scripts for VM creation and setup
-install(
-  DIRECTORY ${CCF_DIR}/getting_started/
-  DESTINATION getting_started
-  USE_SOURCE_PERMISSIONS
-)
-
 set(HTTP_PARSER_SOURCES
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/api.c
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/http.c

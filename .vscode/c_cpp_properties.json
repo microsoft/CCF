@@ -2,9 +2,14 @@
     "configurations": [
         {
             "name": "Linux",
+            "compilerPath": "/usr/bin/clang++",
             "compileCommands": "${workspaceFolder}/build/compile_commands.json",
-            "includePath": ["${workspaceFolder}/include", "${workspaceFolder}/src"]
+            "includePath": ["${workspaceFolder}/include/**", "${workspaceFolder}/src/**"],
+            "intelliSenseMode": "linux-clang-x64",
+            "cppStandard": "c++20",
+            "cStandard": "c11"
         }
     ],
-    "version": 4
+    "version": 4,
+    "enableConfigurationSquiggles": true
 }
