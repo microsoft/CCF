@@ -1351,10 +1351,17 @@ namespace ccf
         }
         else
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
-          if (consensus != nullptr)
+          if (consensus == nullptr)
           {
+            args.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Unable to determine primary - consensus object not created");
+            return;
+          }
+
             auto primary_id = consensus->primary();
+
             if (!primary_id.has_value())
             {
               args.rpc_ctx->set_error(
@@ -1364,27 +1371,19 @@ namespace ccf
               return;
             }
 
-            auto nodes = args.tx.ro(this->network.nodes);
-            auto info = nodes->get(primary_id.value());
-            if (info)
-            {
-              auto& interface_id =
-                args.rpc_ctx->get_session_context()->interface_id;
-              if (!interface_id.has_value())
+          const auto address =
+            get_redirect_address_for_node(args, primary_id.value());
+          if (!address.has_value())
               {
-                args.rpc_ctx->set_error(
-                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                  ccf::errors::InternalError,
-                  "Cannot redirect non-RPC request.");
+            // Helper function should have populated error response, so return
+            // now
                 return;
               }
-              const auto& address =
-                info->rpc_interfaces[interface_id.value()].published_address;
+
+          args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
               args.rpc_ctx->set_response_header(
                 http::headers::LOCATION,
-                fmt::format("https://{}/node/primary", address));
-            }
-          }
+            fmt::format("https://{}/node/primary", address.value()));
         }
       };
       make_read_only_endpoint(
