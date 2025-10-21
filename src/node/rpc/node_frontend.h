@@ -180,9 +180,9 @@ namespace ccf
 
     using AddressOrError =
       std::variant<std::string, ccf::jsonhandler::JsonAdapterResponse>;
+    template <typename Context>
     AddressOrError get_redirect_address_for_node(
-      const ccf::endpoints::ReadOnlyEndpointContext& ctx,
-      const ccf::NodeId& target_node)
+      const Context& ctx, const ccf::NodeId& target_node)
     {
       auto nodes = ctx.tx.ro(network.nodes);
 
@@ -529,7 +529,7 @@ namespace ccf
             if (primary_id.has_value())
             {
               const AddressOrError address_or_error =
-                get_redirect_address_for_node(ctx, primary_id.value());
+                get_redirect_address_for_node(args, primary_id.value());
               if (std::holds_alternative<ccf::jsonhandler::JsonAdapterResponse>(
                     address_or_error))
               {
