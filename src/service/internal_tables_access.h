@@ -472,10 +472,21 @@ namespace ccf
       auto service = tx.rw<ccf::Service>(Tables::SERVICE);
 
       size_t recovery_count = 0;
+      std::optional<ccf::kv::Version> prev_service_created_at = std::nullopt;
 
       if (service->has())
       {
         const auto prev_service_info = service->get();
+
+        if (!prev_service_info->current_service_create_txid.has_value())
+        {
+          throw std::logic_error(
+            "Starting TX for the previous service doesn't have "
+            "current_service_txid recorded");
+        }
+        prev_service_created_at =
+          prev_service_info->current_service_create_txid.value().seqno;
+
         auto previous_service_identity = tx.wo<ccf::PreviousServiceIdentity>(
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
         previous_service_identity->put(prev_service_info->cert);
@@ -499,7 +510,7 @@ namespace ccf
       service->put(
         {service_cert,
          recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
-         recovering ? service->get_version_of_previous_write() : std::nullopt,
+         prev_service_created_at,
          recovery_count,
          service_data,
          create_txid});
@@ -683,8 +694,6 @@ namespace ccf
       }
 
       active_service->status = ServiceStatus::OPEN;
-      active_service->previous_service_identity_version =
-        service->get_version_of_previous_write();
       service->put(active_service.value());
 
       return true;
