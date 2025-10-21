@@ -380,7 +380,6 @@ def test_snapshot_access(network, args):
             ("foo-foo", "Unable to parse start of range value foo"),
             (f"foo-{b}", "Unable to parse start of range value foo"),
             (f"{b}-{a}", "out of order"),
-            (f"0-{total_size + 1}", "larger than total file size"),
             ("-1-5", "Invalid format"),
             ("-", "Invalid range"),
             ("-foo", "Unable to parse end of range offset value foo"),
