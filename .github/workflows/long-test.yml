@@ -54,7 +54,7 @@ jobs:
         run: |
           set +x
           cd build
-          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark" -E task_system_demo
+          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
 
       - name: "Upload logs"
         if: success() || failure()
@@ -66,6 +66,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
           if-no-files-found: ignore
 
   long-tsan:
@@ -108,7 +109,7 @@ jobs:
         run: |
           set +x
           cd build
-          setarch -R ./tests.sh --output-on-failure --timeout 3600 -LE "benchmark" -E "launch_host_process|recovery|regression|governance|membership|task_system_demo"
+          setarch -R ./tests.sh --output-on-failure --timeout 3600 -LE "benchmark" -E "launch_host_process|recovery|regression|governance|membership"
 
       - name: "Upload logs"
         if: success() || failure()
@@ -120,6 +121,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
           if-no-files-found: ignore
 
   long-lts:
@@ -173,6 +175,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
           if-no-files-found: ignore
 
   # All e2e tests without sanitizers in debug mode; needed because:
@@ -220,7 +223,7 @@ jobs:
         run: |
           set +x
           cd build
-          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark" -E task_system_demo
+          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
 
       - name: "Upload logs"
         if: success() || failure()
@@ -232,6 +235,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
           if-no-files-found: ignore
 
   # All e2e tests in release mode (same as release build).
@@ -274,7 +278,7 @@ jobs:
         run: |
           set +x
           cd build
-          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark" -E task_system_demo
+          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
 
       - name: "Upload logs"
         if: success() || failure()
@@ -286,6 +290,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
           if-no-files-found: ignore
 
   # End-to-end test suites with shuffling enabled.
@@ -340,4 +345,5 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
           if-no-files-found: ignore

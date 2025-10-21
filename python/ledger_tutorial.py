@@ -2,17 +2,9 @@
 # Licensed under the Apache 2.0 License.
 
 import sys
-from loguru import logger as LOG
 import json
 import random
 import ccf.ledger
-
-# Change default log format
-LOG.remove()
-LOG.add(
-    sys.stdout,
-    format="<green>[{time:HH:mm:ss.SSS}]</green> {message}",
-)
 
 if len(sys.argv) < 2:
     print("Error: Ledger directory should be specified as first argument")
@@ -43,7 +35,7 @@ for chunk in ledger:
                 # Note: `key` and `value` are raw bytes here.
                 # This code needs to have knowledge of the serialisation format for each table.
                 # In this case, the target table 'public:ccf.gov.nodes.info' is raw bytes to JSON.
-                LOG.info(f"{key.decode()} : {json.loads(value)}")
+                print(f"{key.decode()} : {json.loads(value)}")
 # SNIPPET_END: iterate_over_ledger
 
 # Read state of ledger

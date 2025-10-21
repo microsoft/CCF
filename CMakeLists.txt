@@ -174,13 +174,6 @@ if(SAN)
   install(FILES ${CCF_DIR}/src/san_common.suppressions DESTINATION bin)
 endif()
 
-# Install getting_started scripts for VM creation and setup
-install(
-  DIRECTORY ${CCF_DIR}/getting_started/
-  DESTINATION getting_started
-  USE_SOURCE_PERMISSIONS
-)
-
 set(HTTP_PARSER_SOURCES
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/api.c
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/http.c
@@ -847,7 +840,7 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME recovery_test_cft_api_1
+    NAME recovery_test_api_1
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "2024-07-01"
   )
@@ -999,7 +992,7 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME e2e_logging_cft
+    NAME e2e_logging
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
@@ -1050,7 +1043,7 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME partitions_cft
+    NAME partitions
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     LABEL partitions
     CONFIGURATIONS partitions
@@ -1071,14 +1064,14 @@ if(BUILD_TESTS)
   message(STATUS "OS_RELEASE = ${OS_RELEASE}")
   if(OS_RELEASE STREQUAL "Microsoft Azure Linux")
     set_property(
-      TEST partitions_cft
+      TEST partitions
       APPEND
       PROPERTY ENVIRONMENT "XTABLES_LIBDIR=/usr/lib/iptables"
     )
   endif()
 
   add_e2e_test(
-    NAME connections_cft PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+    NAME connections PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
   )
 
   add_e2e_test(
@@ -1099,7 +1092,7 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME schema_test_cft
+    NAME schema_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
     ADDITIONAL_ARGS
       --schema-dir
@@ -1144,7 +1137,7 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME rotation_test_cft
+    NAME rotation_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
     LABEL rotation
     ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
@@ -1152,11 +1145,11 @@ if(BUILD_TESTS)
 
   set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
   add_e2e_test(
-    NAME reconfiguration_test_cft
+    NAME reconfiguration_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
     ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}
   )
-  set_property(TEST reconfiguration_test_cft PROPERTY LABELS reconfiguration)
+  set_property(TEST reconfiguration_test PROPERTY LABELS reconfiguration)
 
   add_e2e_test(
     NAME election_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py

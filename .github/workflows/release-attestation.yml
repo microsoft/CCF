@@ -16,7 +16,8 @@ jobs:
   attest-release-assets:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      # Necessary to push the attestation to the release
+      contents: write
       # Necessary to persist attestations
       attestations: write
       # OIDC authentication is needed to produce the attestation
@@ -39,6 +40,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Attest release assets
+        id: attest
         uses: actions/attest-build-provenance@v3
         with:
           subject-path: "release-assets/*"
+
+      - run: |
+          set -ex
+          # Rename to match https://github.com/ossf/scorecard/blob/main/docs/checks.md#signed-releases
+          cp ${{ steps.attest.outputs.bundle-path }} release-assets/attestation.sigstore.json
+          gh release upload --repo microsoft/ccf ${{ steps.download.outputs.release_tag }} release-assets/attestation.sigstore.json --clobber
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
