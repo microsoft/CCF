@@ -16,6 +16,7 @@ assert_config,0,3,0,1,2
 
 disconnect_node,0
 swap_nodes,2,out,1,2
+emit_signature,2
 
 # Only node 0 knows about config {0}, as it is partitioned from nodes 1 and 2
 assert_config,0,3,0,1,2
