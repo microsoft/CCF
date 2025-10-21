@@ -178,6 +178,59 @@ namespace ccf
     NetworkState& network;
     ccf::AbstractNodeOperation& node_operation;
 
+    std::optional<std::string> get_redirect_address_for_node(
+      const ccf::endpoints::ReadOnlyEndpointContext& ctx,
+      const ccf::NodeId& target_node)
+    {
+      auto nodes = ctx.tx.ro(network.nodes);
+
+      auto node_info = nodes->get(target_node);
+      if (!node_info.has_value())
+      {
+        LOG_FAIL_FMT("Node redirection error: Unknown node {}", target_node);
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          fmt::format(
+            "Cannot find node info to produce redirect response for node {}",
+            target_node));
+        return std::nullopt;
+      }
+
+      const auto interface_id =
+        ctx.rpc_ctx->get_session_context()->interface_id;
+      if (!interface_id.has_value())
+      {
+        LOG_FAIL_FMT("Node redirection error: Non-RPC request");
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Cannot redirect non-RPC request");
+        return std::nullopt;
+      }
+
+      const auto& interfaces = node_info->rpc_interfaces;
+      const auto interface_it = interfaces.find(interface_id.value());
+      if (interface_it == interfaces.end())
+      {
+        LOG_FAIL_FMT(
+          "Node redirection error: Target missing interface {}",
+          interface_id.value());
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          fmt::format(
+            "Cannot redirect request. Received on RPC interface {}, which is "
+            "not present on target node {}",
+            interface_id.value(),
+            target_node));
+        return std::nullopt;
+      }
+
+      const auto& interface = interface_it->second;
+      return interface.published_address;
+    }
+
     static std::pair<http_status, std::string> quote_verification_error(
       QuoteVerificationResult result)
     {
@@ -1913,34 +1966,18 @@ namespace ccf
 
           const auto& snapshot_path = latest_committed_snapshot.value();
 
-          LOG_DEBUG_FMT("Redirecting to snapshot: {}", snapshot_path);
-
-          auto nodes = ctx.tx.ro(this->network.nodes);
-          const auto node_id = this->context.get_node_id();
-          auto info = nodes->get(node_id);
-          if (!info.has_value())
+          const auto address =
+            get_redirect_address_for_node(ctx, this->context.get_node_id());
+          if (!address.has_value())
           {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Cannot find node info to produce redirect response");
+            // Helper function should have populated error response, so return
+            // now
+            return;
           }
 
-          const auto& interface_id =
-            ctx.rpc_ctx->get_session_context()->interface_id;
-          if (!interface_id.has_value())
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Cannot redirect non-RPC request.");
-          }
-
-          const auto& address =
-            info->rpc_interfaces[interface_id.value()].published_address;
-
-          auto redirect_url =
-            fmt::format("https://{}/node/snapshot/{}", address, snapshot_path);
+          auto redirect_url = fmt::format(
+            "https://{}/node/snapshot/{}", address.value(), snapshot_path);
+          LOG_DEBUG_FMT("Redirecting to snapshot: {}", redirect_url);
           ctx.rpc_ctx->set_response_header(
             ccf::http::headers::LOCATION, redirect_url);
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
