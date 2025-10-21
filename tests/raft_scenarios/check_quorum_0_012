@@ -12,7 +12,7 @@ dispatch_all
 
 # All nodes have both configs: {0} and {0,1,2}
 assert_commit_idx,0,4
-assert_missing_config,0,1
+assert_absent_config,0,1
 assert_config,0,3,0,1,2
 
 assert_commit_idx,1,2

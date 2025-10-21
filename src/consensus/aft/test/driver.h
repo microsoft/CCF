@@ -1359,7 +1359,7 @@ public:
       "Node {} does not have a configuration at idx {}", node_id, config_idx));
   }
 
-  void assert_missing_config(
+  void assert_absent_config(
     const std::string& node_id, const std::string& config_idx_s)
   {
     auto config_idx = std::stol(config_idx_s);

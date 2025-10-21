@@ -272,9 +272,9 @@ int main(int argc, char** argv)
         driver->assert_config(
           items[1], items[2], {std::next(items.begin(), 3), items.end()});
         break;
-      case shash("assert_missing_config"):
+      case shash("assert_absent_config"):
         assert(items.size() == 3);
-        driver->assert_missing_config(items[1], items[2]);
+        driver->assert_absent_config(items[1], items[2]);
         break;
       case shash("replicate_new_configuration"):
         assert(items.size() >= 3);
