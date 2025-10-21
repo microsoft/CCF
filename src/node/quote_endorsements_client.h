@@ -203,7 +203,7 @@ namespace ccf
         const auto& server = servers.front();
         const auto& endpoint = server.front();
         auto* response_body = request->get_response_body();
-        auto& response_headers = request->get_response_headers();
+        const auto& response_headers = request->get_response_headers();
 
         if (curl_response == CURLE_OK && status_code == HTTP_STATUS_OK)
         {
@@ -259,8 +259,8 @@ namespace ccf
             curl_response == CURLE_OK &&
             status_code == HTTP_STATUS_TOO_MANY_REQUESTS)
           {
-            auto h = response_headers.data.find(http::headers::RETRY_AFTER);
-            if (h != response_headers.data.end())
+            auto h = response_headers.find(http::headers::RETRY_AFTER);
+            if (h != response_headers.end())
             {
               const auto& retry_after_value = h->second;
               // If value is invalid, retry_after_s is unchanged

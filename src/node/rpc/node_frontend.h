@@ -2200,7 +2200,7 @@ namespace ccf
         // Partial Content responses describe the current response in
         // Content-Range
         ctx.rpc_ctx->set_response_header(
-          "content-range",
+          ccf::http::headers::CONTENT_RANGE,
           fmt::format("bytes {}-{}/{}", range_start, range_end, total_size));
       };
       make_command_endpoint(

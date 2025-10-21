@@ -538,9 +538,9 @@ namespace ccf::curl
       return response;
     }
 
-    [[nodiscard]] ResponseHeaders& get_response_headers()
+    [[nodiscard]] const ResponseHeaders::HeaderMap& get_response_headers() const
     {
-      return response_headers;
+      return response_headers.data;
     }
 
     [[nodiscard]] std::optional<uint16_t> get_response_thread() const
