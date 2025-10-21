@@ -521,6 +521,42 @@ namespace ccf
         auto nodes = args.tx.rw(this->network.nodes);
         auto service = args.tx.rw(this->network.service);
 
+        auto check_for_join_redirect =
+          [&]() -> std::optional<ccf::jsonhandler::JsonAdapterResponse> {
+          if (consensus != nullptr && !this->node_operation.can_replicate())
+          {
+            auto primary_id = consensus->primary();
+            if (primary_id.has_value())
+            {
+              const AddressOrError address_or_error =
+                get_redirect_address_for_node(ctx, primary_id.value());
+              if (std::holds_alternative<ccf::jsonhandler::JsonAdapterResponse>(
+                    address_or_error))
+              {
+                return std::get<ccf::jsonhandler::JsonAdapterResponse>(
+                  address_or_error);
+              }
+
+              const auto address = std::get<std::string>(address_or_error);
+              args.rpc_ctx->set_response_header(
+                http::headers::LOCATION,
+                fmt::format("https://{}/node/join", address));
+
+              return make_error(
+                HTTP_STATUS_PERMANENT_REDIRECT,
+                ccf::errors::NodeCannotHandleRequest,
+                "Node is not primary; cannot handle write");
+            }
+
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Primary unknown");
+          }
+
+          return std::nullopt;
+        };
+
         auto active_service = service->get();
         if (!active_service.has_value())
         {
@@ -562,40 +598,10 @@ namespace ccf
             return make_success(rep);
           }
 
-          if (consensus != nullptr && !this->node_operation.can_replicate())
+          const auto redirect_response = check_for_join_redirect();
+          if (redirect_response.has_value())
           {
-            auto primary_id = consensus->primary();
-            if (primary_id.has_value())
-            {
-              auto info = nodes->get(primary_id.value());
-              if (info)
-              {
-                auto& interface_id =
-                  args.rpc_ctx->get_session_context()->interface_id;
-                if (!interface_id.has_value())
-                {
-                  return make_error(
-                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                    ccf::errors::InternalError,
-                    "Cannot redirect non-RPC request.");
-                }
-                const auto& address =
-                  info->rpc_interfaces[interface_id.value()].published_address;
-                args.rpc_ctx->set_response_header(
-                  http::headers::LOCATION,
-                  fmt::format("https://{}/node/join", address));
-
-                return make_error(
-                  HTTP_STATUS_PERMANENT_REDIRECT,
-                  ccf::errors::NodeCannotHandleRequest,
-                  "Node is not primary; cannot handle write");
-              }
-            }
-
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Primary unknown");
+            return redirect_response.value();
           }
 
           return add_node(
@@ -654,40 +660,10 @@ namespace ccf
         }
         else
         {
-          if (consensus != nullptr && !this->node_operation.can_replicate())
+          const auto redirect_response = check_for_join_redirect();
+          if (redirect_response.has_value())
           {
-            auto primary_id = consensus->primary();
-            if (primary_id.has_value())
-            {
-              auto info = nodes->get(primary_id.value());
-              if (info)
-              {
-                auto& interface_id =
-                  args.rpc_ctx->get_session_context()->interface_id;
-                if (!interface_id.has_value())
-                {
-                  return make_error(
-                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                    ccf::errors::InternalError,
-                    "Cannot redirect non-RPC request.");
-                }
-                const auto& address =
-                  info->rpc_interfaces[interface_id.value()].published_address;
-                args.rpc_ctx->set_response_header(
-                  http::headers::LOCATION,
-                  fmt::format("https://{}/node/join", address));
-
-                return make_error(
-                  HTTP_STATUS_PERMANENT_REDIRECT,
-                  ccf::errors::NodeCannotHandleRequest,
-                  "Node is not primary; cannot handle write");
-              }
-            }
-
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Primary unknown");
+            return redirect_response.value();
           }
 
           // If the node does not exist, add it to the KV in state pending
@@ -1360,28 +1336,28 @@ namespace ccf
               "Unable to determine primary - consensus object not created");
           }
 
-            auto primary_id = consensus->primary();
+          auto primary_id = consensus->primary();
 
-            if (!primary_id.has_value())
-            {
+          if (!primary_id.has_value())
+          {
             return ccf::make_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "Primary unknown");
-            }
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Primary unknown");
+          }
 
           const AddressOrError address_or_error =
             get_redirect_address_for_node(args, primary_id.value());
           if (std::holds_alternative<ccf::jsonhandler::JsonAdapterResponse>(
                 address_or_error))
-              {
+          {
             return std::get<ccf::jsonhandler::JsonAdapterResponse>(
               address_or_error);
-              }
+          }
 
           const auto address = std::get<std::string>(address_or_error);
 
-              args.rpc_ctx->set_response_header(
+          args.rpc_ctx->set_response_header(
             ccf::http::headers::LOCATION,
             fmt::format("https://{}/node/primary", address));
           return ccf::make_error(
