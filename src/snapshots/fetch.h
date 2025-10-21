@@ -121,21 +121,21 @@ namespace snapshots
   static std::optional<SnapshotResponse> try_fetch_from_peer(
     const std::string& peer_address,
     const std::string& path_to_peer_ca,
-    size_t latest_local_snapshot)
+    size_t latest_local_snapshot,
+    size_t max_size)
   {
     try
     {
       ccf::curl::UniqueCURL curl_easy;
       curl_easy.set_opt(CURLOPT_CAINFO, path_to_peer_ca.c_str());
 
-      // TODO: 10GB? Configurable?
-      static constexpr size_t max_snapshot_size = 10ULL * 1024 * 1024 * 1024;
-      auto response_body =
-        std::make_unique<ccf::curl::ResponseBody>(max_snapshot_size);
+      auto response_body = std::make_unique<ccf::curl::ResponseBody>(max_size);
 
-      // TODO: Update these comments
-      // Make initial requests, following redirects to a specific snapshot,
-      // resulting in final path and snapshot size
+      // Get snapshot. This may be redirected multiple times, and we follow
+      // these redirects ourself so we can extract the final URL. Once the
+      // redirects terminate, the final response is likely to be extremely large
+      // so is fetched over multiple requests for a sub-range, returning
+      // PARTIAL_CONTENT each time.
       std::string snapshot_url = fmt::format(
         "https://{}/node/snapshot?since={}",
         peer_address,
@@ -343,7 +343,8 @@ namespace snapshots
     const std::string& path_to_peer_ca,
     size_t latest_local_snapshot,
     size_t max_attempts,
-    size_t retry_delay_ms)
+    size_t retry_delay_ms,
+    size_t max_size)
   {
     for (size_t attempt = 0; attempt < max_attempts; ++attempt)
     {
@@ -359,7 +360,7 @@ namespace snapshots
       }
 
       auto response = try_fetch_from_peer(
-        peer_address, path_to_peer_ca, latest_local_snapshot);
+        peer_address, path_to_peer_ca, latest_local_snapshot, max_size);
       if (response.has_value())
       {
         return response;
