@@ -178,7 +178,9 @@ namespace ccf
     NetworkState& network;
     ccf::AbstractNodeOperation& node_operation;
 
-    std::optional<std::string> get_redirect_address_for_node(
+    using AddressOrError =
+      std::variant<std::string, ccf::jsonhandler::JsonAdapterResponse>;
+    AddressOrError get_redirect_address_for_node(
       const ccf::endpoints::ReadOnlyEndpointContext& ctx,
       const ccf::NodeId& target_node)
     {
@@ -188,13 +190,12 @@ namespace ccf
       if (!node_info.has_value())
       {
         LOG_FAIL_FMT("Node redirection error: Unknown node {}", target_node);
-        ctx.rpc_ctx->set_error(
+        return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           fmt::format(
             "Cannot find node info to produce redirect response for node {}",
             target_node));
-        return std::nullopt;
       }
 
       const auto interface_id =
@@ -202,11 +203,10 @@ namespace ccf
       if (!interface_id.has_value())
       {
         LOG_FAIL_FMT("Node redirection error: Non-RPC request");
-        ctx.rpc_ctx->set_error(
+        return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           "Cannot redirect non-RPC request");
-        return std::nullopt;
       }
 
       const auto& interfaces = node_info->rpc_interfaces;
@@ -216,7 +216,7 @@ namespace ccf
         LOG_FAIL_FMT(
           "Node redirection error: Target missing interface {}",
           interface_id.value());
-        ctx.rpc_ctx->set_error(
+        return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           fmt::format(
@@ -224,7 +224,6 @@ namespace ccf
             "not present on target node {}",
             interface_id.value(),
             target_node));
-        return std::nullopt;
       }
 
       const auto& interface = interface_it->second;
@@ -1344,50 +1343,58 @@ namespace ccf
         .set_auto_schema<void, GetNode::Out>()
         .install();
 
-      auto head_primary = [this](auto& args) {
+      auto head_primary = [this](auto& args, nlohmann::json&&) {
         if (this->node_operation.can_replicate())
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          // Body is ignored for head requests, but for backwards compatibility
+          // we want to ensure a 200 is returned rather than a 204
+          return ccf::make_success("Ignored body");
         }
         else
         {
           if (consensus == nullptr)
           {
-            args.rpc_ctx->set_error(
+            return ccf::make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
               "Unable to determine primary - consensus object not created");
-            return;
           }
 
             auto primary_id = consensus->primary();
 
             if (!primary_id.has_value())
             {
-              args.rpc_ctx->set_error(
+            return ccf::make_error(
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
                 "Primary unknown");
-              return;
             }
 
-          const auto address =
+          const AddressOrError address_or_error =
             get_redirect_address_for_node(args, primary_id.value());
-          if (!address.has_value())
+          if (std::holds_alternative<ccf::jsonhandler::JsonAdapterResponse>(
+                address_or_error))
               {
-            // Helper function should have populated error response, so return
-            // now
-                return;
+            return std::get<ccf::jsonhandler::JsonAdapterResponse>(
+              address_or_error);
               }
 
-          args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+          const auto address = std::get<std::string>(address_or_error);
+
               args.rpc_ctx->set_response_header(
-                http::headers::LOCATION,
-            fmt::format("https://{}/node/primary", address.value()));
+            ccf::http::headers::LOCATION,
+            fmt::format("https://{}/node/primary", address));
+          return ccf::make_error(
+            HTTP_STATUS_PERMANENT_REDIRECT,
+            ccf::errors::NodeCannotHandleRequest,
+            "Redirecting to primary");
         }
       };
       make_read_only_endpoint(
-        "/primary", HTTP_HEAD, head_primary, no_auth_required)
+        "/primary",
+        HTTP_HEAD,
+        json_read_only_adapter(head_primary),
+        no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
@@ -1909,16 +1916,15 @@ namespace ccf
       static constexpr auto snapshot_since_param_key = "since";
       // Redirects to endpoint for a single specific snapshot
       auto find_snapshot =
-        [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+        [this](ccf::endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
           auto node_configuration_subsystem =
             this->context.get_subsystem<NodeConfigurationSubsystem>();
           if (!node_configuration_subsystem)
           {
-            ctx.rpc_ctx->set_error(
+            return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
               "NodeConfigurationSubsystem is not available");
-            return;
           }
 
           const auto& snapshots_config =
@@ -1938,11 +1944,10 @@ namespace ccf
             {
               if (error_reason != "")
               {
-                ctx.rpc_ctx->set_error(
+                return make_error(
                   HTTP_STATUS_BAD_REQUEST,
                   ccf::errors::InvalidQueryParameterValue,
                   std::move(error_reason));
-                return;
               }
               latest_idx = snapshot_since.value();
             }
@@ -1955,41 +1960,51 @@ namespace ccf
 
           if (!latest_committed_snapshot.has_value())
           {
-            ctx.rpc_ctx->set_error(
+            return make_error(
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ResourceNotFound,
               fmt::format(
                 "This node has no committed snapshots since {}", orig_latest));
-            return;
           }
 
           const auto& snapshot_path = latest_committed_snapshot.value();
 
-          const auto address =
+          const AddressOrError address_or_error =
             get_redirect_address_for_node(ctx, this->context.get_node_id());
-          if (!address.has_value())
+          if (std::holds_alternative<ccf::jsonhandler::JsonAdapterResponse>(
+                address_or_error))
           {
-            // Helper function should have populated error response, so return
-            // now
-            return;
+            return std::get<ccf::jsonhandler::JsonAdapterResponse>(
+              address_or_error);
           }
 
-          auto redirect_url = fmt::format(
-            "https://{}/node/snapshot/{}", address.value(), snapshot_path);
+          const auto address = std::get<std::string>(address_or_error);
+          auto redirect_url =
+            fmt::format("https://{}/node/snapshot/{}", address, snapshot_path);
           LOG_DEBUG_FMT("Redirecting to snapshot: {}", redirect_url);
+
           ctx.rpc_ctx->set_response_header(
             ccf::http::headers::LOCATION, redirect_url);
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+          return ccf::make_error(
+            HTTP_STATUS_PERMANENT_REDIRECT,
+            ccf::errors::NodeCannotHandleRequest,
+            "Redirecting to primary");
         };
       make_read_only_endpoint(
-        "/snapshot", HTTP_HEAD, find_snapshot, no_auth_required)
+        "/snapshot",
+        HTTP_HEAD,
+        json_read_only_adapter(find_snapshot),
+        no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .add_query_parameter<ccf::SeqNo>(
           snapshot_since_param_key, ccf::endpoints::OptionalParameter)
         .set_openapi_hidden(true)
         .install();
       make_read_only_endpoint(
-        "/snapshot", HTTP_GET, find_snapshot, no_auth_required)
+        "/snapshot",
+        HTTP_GET,
+        json_read_only_adapter(find_snapshot),
+        no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .add_query_parameter<ccf::SeqNo>(
           snapshot_since_param_key, ccf::endpoints::OptionalParameter)
