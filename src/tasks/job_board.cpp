@@ -19,6 +19,18 @@ namespace ccf::tasks
     Task& assigned_task;
 
     WaitingWorkerThread(Task& at_) : assigned_task(at_) {}
+
+    WaitingWorkerThread(const WaitingWorkerThread&) = delete;
+    WaitingWorkerThread& operator=(const WaitingWorkerThread&) = delete;
+
+    WaitingWorkerThread(WaitingWorkerThread&&) = delete;
+    WaitingWorkerThread& operator=(WaitingWorkerThread&&) = delete;
+
+    ~WaitingWorkerThread()
+    {
+      // Ensure all waiters are notified before destruction
+      cv.notify_all();
+    }
   };
 
   struct Delayed
@@ -49,10 +61,14 @@ namespace ccf::tasks
     // Collection of tasks that are ready for execution
     std::queue<Task> pending_tasks;
 
-    // Collection describing idle worker threads. This is a non-owning pointer,
-    // with the lifetime managed by the caller, who should ensure the object
-    // outlives the pointer's presence in this collection
-    std::vector<WaitingWorkerThread*> waiting_worker_threads;
+    // Collection describing idle worker threads. This takes shared pointers, to
+    // ensure the objects remain valid even if the caller exits exceptionally
+    // (without cleanup). Additionally the collection itself is owned by a
+    // shared pointer, so that the caller can ensure the lifetime persists past
+    // a condition_variable wait.
+    using WorkerThreadPtr = std::shared_ptr<WaitingWorkerThread>;
+    std::shared_ptr<std::vector<WorkerThreadPtr>> waiting_worker_threads =
+      std::make_shared<std::vector<WorkerThreadPtr>>();
 
     // Collection of delayed tasks, that may be ready for execution on a future
     // tick
@@ -64,9 +80,9 @@ namespace ccf::tasks
       std::unique_lock<std::mutex> lock(mutex);
 
       // First check if there is an idle worker waiting for a task
-      for (WaitingWorkerThread* worker : waiting_worker_threads)
+      for (WorkerThreadPtr& worker : *waiting_worker_threads)
       {
-        // NB: Although waiting_worker_threads is modified under lock, it's
+        // NB: Although waiting_worker_threads is modified under lock, it is
         // possible that a second call to add_task arrives before the notified
         // thread wakes up and removes itself from this collection. In this case
         // we must avoid overwriting a previously-assigned task.
@@ -97,16 +113,21 @@ namespace ccf::tasks
         // Under lock
         std::unique_lock<std::mutex> lock(mutex);
 
+        // Get local copy to extend life, even if this object dies while we're
+        // waiting.
+        decltype(waiting_worker_threads) worker_threads =
+          waiting_worker_threads;
+
         // Check if there are pending tasks to be executed
         if (pending_tasks.empty())
         {
           // When the task queue is empty, append this thread to
           // waiting_worker_threads and wait on a condition_variable
-          std::unique_ptr<WaitingWorkerThread> waiting_worker =
-            std::make_unique<WaitingWorkerThread>(to_return);
+          WorkerThreadPtr waiting_worker =
+            std::make_shared<WaitingWorkerThread>(to_return);
 
           // Append local object to central collection
-          waiting_worker_threads.push_back(waiting_worker.get());
+          worker_threads->push_back(waiting_worker);
 
           // NOLINTBEGIN(bugprone-spuriously-wake-up-functions)
           // Spurious wakeup is acceptable, treated equivalently to timeout
@@ -119,10 +140,8 @@ namespace ccf::tasks
           // removing ourselves from the central collection, and then returning
           // the (potentially still null) assigned task
           auto it = std::find(
-            waiting_worker_threads.begin(),
-            waiting_worker_threads.end(),
-            waiting_worker.get());
-          waiting_worker_threads.erase(it);
+            worker_threads->begin(), worker_threads->end(), waiting_worker);
+          worker_threads->erase(it);
         }
         else
         {
@@ -228,7 +247,7 @@ namespace ccf::tasks
     {
       std::lock_guard<std::mutex> lock(pimpl->mutex);
       summary.pending_tasks = pimpl->pending_tasks.size();
-      summary.idle_workers = pimpl->waiting_worker_threads.size();
+      summary.idle_workers = pimpl->waiting_worker_threads->size();
     }
     return summary;
   }
