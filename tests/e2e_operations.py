@@ -171,47 +171,47 @@ def test_forced_ledger_chunk(network, args):
 
 @reqs.description("Forced snapshot")
 @app.scoped_txs()
-def test_forced_snapshot(main_network, const_args):
-    args = copy.deepcopy(const_args)
-    args.common_read_only_ledger_dir = (
+def test_forced_snapshot(network, args):
+    inner_args = copy.deepcopy(args)
+    inner_args.common_read_only_ledger_dir = (
         None  # Side-effect setting which would break the starting node
     )
-    args.label = f"{args.label}_forced_snapshot"
-    args.snapshot_tx_interval = (
+    inner_args.label = f"{inner_args.label}_forced_snapshot"
+    inner_args.snapshot_tx_interval = (
         10000  # Large interval to avoid interference from regular snapshots
     )
 
     # Use a separate network instance to avoid interference from other tests
     with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        pdb=args.pdb,
+        inner_args.nodes,
+        inner_args.binary_dir,
+        inner_args.debug_nodes,
+        pdb=inner_args.pdb,
         txs=app.LoggingTxs("user0"),
-    ) as network:
-        network.start_and_open(args)
+    ) as inner_network:
+        inner_network.start_and_open(inner_args)
 
-        primary, _ = network.find_primary()
+        primary, _ = inner_network.find_primary()
 
         # Submit some dummy transactions
-        network.txs.issue(network, number_txs=3)
+        inner_network.txs.issue(inner_network, number_txs=3)
 
         # Submit a proposal to force a snapshot at the following signature
-        proposal_body, careful_vote = network.consortium.make_proposal(
+        proposal_body, careful_vote = inner_network.consortium.make_proposal(
             "trigger_snapshot", node_id=primary.node_id
         )
-        proposal = network.consortium.get_any_active_member().propose(
+        proposal = inner_network.consortium.get_any_active_member().propose(
             primary, proposal_body
         )
 
-        proposal = network.consortium.vote_using_majority(
+        proposal = inner_network.consortium.vote_using_majority(
             primary,
             proposal,
             careful_vote,
         )
 
         # Issue some more transactions
-        network.txs.issue(network, number_txs=5)
+        inner_network.txs.issue(inner_network, number_txs=5)
 
         ledger_dirs = primary.remote.ledger_paths()
 
@@ -224,7 +224,7 @@ def test_forced_snapshot(main_network, const_args):
         assert chunk.is_complete and chunk.is_committed()
         LOG.info(f"Expecting snapshot at {next_signature}")
 
-        snapshots_dir = network.get_committed_snapshots(
+        snapshots_dir = inner_network.get_committed_snapshots(
             primary, target_seqno=next_signature
         )
         for s in os.listdir(snapshots_dir):
@@ -232,11 +232,11 @@ def test_forced_snapshot(main_network, const_args):
                 snapshot_seqno = snapshot.get_public_domain().get_seqno()
                 if snapshot_seqno == next_signature:
                     LOG.info(f"Found expected forced snapshot at {next_signature}")
-                    return network
+                    return network  # outer network on purpose
 
         raise RuntimeError("Could not find matching snapshot file")
 
-    return main_network
+    return network
 
 
 # https://github.com/microsoft/CCF/issues/1858
