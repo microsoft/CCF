@@ -276,6 +276,9 @@ namespace snapshots
 
         response_body = std::move(request->get_response_ptr());
         curl_easy = std::move(request->get_easy_handle_ptr());
+
+        // Ignore any body from redirect responses
+        response_body->buffer.clear();
       }
 
       while (!fetched_all)
