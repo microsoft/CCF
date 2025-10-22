@@ -10,7 +10,7 @@ import os
 import difflib
 import re
 
-# As installed by ccf-dev Ansible playbook
+# As installed by setup scripts
 H2SPEC_BIN = "/opt/h2spec/h2spec"
 
 
