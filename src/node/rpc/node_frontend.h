@@ -458,7 +458,8 @@ namespace ccf
         {
           const auto [code, message] = quote_verification_error(verify_result);
           LOG_FAIL_FMT(
-            "Self-healing-open message from intrinsic id {} is invalid: {} "
+            "Self-healing-open message from intrinsic id {} has an invalid "
+            "quote: {} "
             "({})",
             info.intrinsic_id,
             code,
@@ -467,7 +468,7 @@ namespace ccf
         }
 
         LOG_TRACE_FMT(
-          "Self-healing-open message from intrinsic id {}'s quote is valid",
+          "Self-healing-open message from intrinsic id {} has a valid quote",
           info.intrinsic_id);
 
         // Validating that we haven't heard from this node before, of if we have
