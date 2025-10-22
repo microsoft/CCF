@@ -239,7 +239,6 @@ class RPCInterface(Interface):
         interface.parse_from_str(s)
         return interface
 
-
     @staticmethod
     def to_json(interface):
         http_config = {
