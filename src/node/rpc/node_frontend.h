@@ -573,7 +573,7 @@ namespace ccf
             if (primary_id.has_value())
             {
               const auto address = get_redirect_address_for_node(
-                args, args.tx, this->context.get_node_id());
+                args, args.tx, primary_id.value());
               if (!address.has_value())
               {
                 return already_populated_response();
@@ -657,7 +657,7 @@ namespace ccf
             if (primary_id.has_value())
             {
               const auto address = get_redirect_address_for_node(
-                args, args.tx, this->context.get_node_id());
+                args, args.tx, primary_id.value());
               if (!address.has_value())
               {
                 return already_populated_response();
@@ -1358,8 +1358,8 @@ namespace ccf
             return;
           }
 
-          const auto address = get_redirect_address_for_node(
-            args, args.tx, this->context.get_node_id());
+          const auto address =
+            get_redirect_address_for_node(args, args.tx, primary_id.value());
           if (!address.has_value())
           {
             return;
