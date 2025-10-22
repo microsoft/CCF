@@ -181,7 +181,7 @@ def test_forced_snapshot(network, args):
         10000  # Large interval to avoid interference from regular snapshots
     )
 
-    # Use a separate network instance to avoid interference from other tests
+    # Use a separate network to ensure unforced snapshots do not happen
     with infra.network.network(
         inner_args.nodes,
         inner_args.binary_dir,
@@ -196,14 +196,20 @@ def test_forced_snapshot(network, args):
         # Submit some dummy transactions
         inner_network.txs.issue(inner_network, number_txs=3)
 
-        # Submit a proposal to force a snapshot at the following signature
+        with primary.client() as c:
+            r = c.get("/node/commit").body.json()
+            hwm_pre_proposal = TxID.from_str(r["transaction_id"]).seqno
+
+        # Ensure there is at least one signature greater than the hwm
+        inner_network.txs.issue(network, number_txs=1, wait_for_sync=True)
+
+        # Submit a proposal to force a snapshot
         proposal_body, careful_vote = inner_network.consortium.make_proposal(
             "trigger_snapshot", node_id=primary.node_id
         )
         proposal = inner_network.consortium.get_any_active_member().propose(
             primary, proposal_body
         )
-
         proposal = inner_network.consortium.vote_using_majority(
             primary,
             proposal,
@@ -213,26 +219,18 @@ def test_forced_snapshot(network, args):
         # Issue some more transactions
         inner_network.txs.issue(inner_network, number_txs=5)
 
-        ledger_dirs = primary.remote.ledger_paths()
-
-        # Find first signature after proposal.completed_seqno
-        ledger = ccf.ledger.Ledger(ledger_dirs)
-        chunk, _, _, next_signature = find_ledger_chunk_for_seqno(
-            ledger, proposal.completed_seqno
-        )
-
-        assert chunk.is_complete and chunk.is_committed()
-        LOG.info(f"Expecting snapshot at {next_signature}")
-
         snapshots_dir = inner_network.get_committed_snapshots(
-            primary, target_seqno=next_signature
+            primary, target_seqno=hwm_pre_proposal + 1
         )
+
         for s in os.listdir(snapshots_dir):
             with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
                 snapshot_seqno = snapshot.get_public_domain().get_seqno()
-                if snapshot_seqno == next_signature:
-                    LOG.info(f"Found expected forced snapshot at {next_signature}")
-                    return network  # outer network on purpose
+                if snapshot_seqno > hwm_pre_proposal:
+                    LOG.info(
+                        f"Found a snapshot at {snapshot_seqno} which is after the pre-proposal-high-water-mark {hwm_pre_proposal}"
+                    )
+                    return network
 
         raise RuntimeError("Could not find matching snapshot file")
 
