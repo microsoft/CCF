@@ -491,9 +491,7 @@ class Network:
                         }
                         # If a kwarg is passed in override automatically set variants
                         node_kwargs = (
-                            node_kwargs
-                            | forwarded_args_with_overrides
-                            | kwargs
+                            node_kwargs | forwarded_args_with_overrides | kwargs
                         )
                         node.recover(**node_kwargs)
                         self.wait_for_state(
