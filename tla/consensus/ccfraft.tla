@@ -898,6 +898,9 @@ AdvanceCommitIndex(i) ==
 CheckQuorum(i) ==
     \* Check node is a leader (and therefore has not completed retirement)
     /\ leadershipState[i] = Leader
+    \* There must be an active config which has a replica which is not this node
+    /\ \E c \in DOMAIN configurations[i]:
+       \E n \in configurations[i][c]: n /= i
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
     /\ UNCHANGED <<reconfigurationVars, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars, membershipState>>
@@ -1177,6 +1180,9 @@ DropIgnoredMessage(i,j,m) ==
        \/ /\ leadershipState[i] /= None
         \* .. and it comes from a server outside of the configuration
           /\ \lnot IsInServerSet(j, i)
+          \* raft.h::recv_request_vote
+          \* We specifically don't ignore RequestVoteRequest messages from unknown nodes
+          /\ m.type /= RequestVoteRequest
        \*  OR if recipient has completed retirement and this is not a request to vote or append entries request
        \* This spec requires that a retired node still helps with voting and appending entries to ensure 
        \* the next configurations learns that its retirement has been committed.
