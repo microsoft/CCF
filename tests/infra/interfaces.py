@@ -233,11 +233,7 @@ class RPCInterface(Interface):
 
         self.host, self.port = split_netloc(address)
 
-    @staticmethod
-    def from_str(s):
-        interface = RPCInterface()
-        interface.parse_from_str(s)
-        return interface
+        return self
 
     @staticmethod
     def to_json(interface):

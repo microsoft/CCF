@@ -27,10 +27,14 @@ def test_primary(network, args):
     interface_name = "only_exists_on_this_node"
     host_spec = infra.interfaces.HostSpec(
         rpc_interfaces={
-            infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface.from_str(
+            infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface.from_args(
+                args
+            ).parse_from_str(
                 "local://localhost"
             ),
-            interface_name: infra.interfaces.RPCInterface.from_str("local://localhost"),
+            interface_name: infra.interfaces.RPCInterface.from_args(
+                args
+            ).parse_from_str("local://localhost"),
         }
     )
     new_backup = network.create_node(host_spec)
