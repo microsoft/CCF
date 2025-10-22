@@ -42,7 +42,7 @@ namespace ccf
           using T = std::decay_t<decltype(response)>;
           if constexpr (std::is_same_v<T, ErrorDetails>)
           {
-            ctx->set_error(std::move(response));
+            ctx->set_error(std::forward<decltype(response)>(response));
           }
           else if constexpr (std::is_same_v<T, RedirectDetails>)
           {
@@ -90,7 +90,8 @@ namespace ccf
                 }
               }
 
-              ctx->set_response_json(std::move(response), HTTP_STATUS_OK);
+              ctx->set_response_json(
+                std::forward<decltype(response)>(response), HTTP_STATUS_OK);
             }
           }
           else
