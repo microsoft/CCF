@@ -180,7 +180,9 @@ namespace ccf
 
     // Helper function to lookup redirect address based on the interface on this
     // node which received the request. Will either return an address, or
-    // populate an appropriate error on the response context
+    // populate an appropriate error on the response context.
+    // Takes both CommandEndpointContext and ReadOnlyTx, so that it can be
+    // called be either read-only or read-write endpoints
     std::optional<std::string> get_redirect_address_for_node(
       const ccf::endpoints::CommandEndpointContext& ctx,
       ccf::kv::ReadOnlyTx& ro_tx,
