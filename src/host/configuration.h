@@ -109,6 +109,7 @@ namespace host
         bool fetch_recent_snapshot = true;
         size_t fetch_snapshot_max_attempts = 3;
         ccf::ds::TimeString fetch_snapshot_retry_interval = {"1000ms"};
+        ccf::ds::SizeString fetch_snapshot_max_size = {"10GB"};
 
         bool operator==(const Join&) const = default;
       };
@@ -164,7 +165,8 @@ namespace host
     follow_redirect,
     fetch_recent_snapshot,
     fetch_snapshot_max_attempts,
-    fetch_snapshot_retry_interval);
+    fetch_snapshot_retry_interval,
+    fetch_snapshot_max_size);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Recover);
