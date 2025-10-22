@@ -180,12 +180,12 @@ namespace ccf
 
     using AddressOrError =
       std::variant<std::string, ccf::jsonhandler::JsonAdapterResponse>;
-    // TODO: Take separate arguments to remove template
-    template <typename Context>
     AddressOrError get_redirect_address_for_node(
-      const Context& ctx, const ccf::NodeId& target_node)
+      const ccf::endpoints::CommandEndpointContext& ctx,
+      ccf::kv::ReadOnlyTx& ro_tx,
+      const ccf::NodeId& target_node)
     {
-      auto nodes = ctx.tx.ro(network.nodes);
+      auto nodes = ro_tx.ro(network.nodes);
 
       auto node_info = nodes->get(target_node);
       if (!node_info.has_value())
@@ -530,7 +530,8 @@ namespace ccf
             if (primary_id.has_value())
             {
               const AddressOrError address_or_error =
-                get_redirect_address_for_node(args, primary_id.value());
+                get_redirect_address_for_node(
+                  args, args.tx, primary_id.value());
               if (std::holds_alternative<ccf::jsonhandler::JsonAdapterResponse>(
                     address_or_error))
               {
@@ -1348,7 +1349,7 @@ namespace ccf
           }
 
           const AddressOrError address_or_error =
-            get_redirect_address_for_node(args, primary_id.value());
+            get_redirect_address_for_node(args, args.tx, primary_id.value());
           if (std::holds_alternative<ccf::jsonhandler::JsonAdapterResponse>(
                 address_or_error))
           {
@@ -1946,8 +1947,8 @@ namespace ccf
 
           const auto& snapshot_path = latest_committed_snapshot.value();
 
-          const AddressOrError address_or_error =
-            get_redirect_address_for_node(ctx, this->context.get_node_id());
+          const AddressOrError address_or_error = get_redirect_address_for_node(
+            ctx, ctx.tx, this->context.get_node_id());
           if (std::holds_alternative<ccf::jsonhandler::JsonAdapterResponse>(
                 address_or_error))
           {
