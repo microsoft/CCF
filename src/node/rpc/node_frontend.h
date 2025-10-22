@@ -180,6 +180,7 @@ namespace ccf
 
     using AddressOrError =
       std::variant<std::string, ccf::jsonhandler::JsonAdapterResponse>;
+    // TODO: Take separate arguments to remove template
     template <typename Context>
     AddressOrError get_redirect_address_for_node(
       const Context& ctx, const ccf::NodeId& target_node)
