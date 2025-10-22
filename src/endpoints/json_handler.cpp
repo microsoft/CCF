@@ -48,6 +48,11 @@ namespace ccf
           {
             ctx->set_response_status(response.status);
           }
+          else if constexpr (std::is_same_v<T, AlreadyPopulatedResponse>)
+          {
+            // Nothing to do here - the caller claims to have built an
+            // appropriate response already
+          }
           else if constexpr (std::is_same_v<T, nlohmann::json>)
           {
             if (response.is_null())
@@ -126,6 +131,11 @@ namespace ccf
   jsonhandler::JsonAdapterResponse make_redirect(ccf::http_status status)
   {
     return RedirectDetails{status};
+  }
+
+  jsonhandler::JsonAdapterResponse already_populated_response()
+  {
+    return {};
   }
 
   endpoints::EndpointFunction json_adapter(const HandlerJsonParamsAndForward& f)

@@ -178,11 +178,15 @@ namespace ccf
     NetworkState& network;
     ccf::AbstractNodeOperation& node_operation;
 
+    // Helper function to lookup redirect address based on the interface on this
+    // node which received the request. Will either return an address, or
+    // populate an appropriate error on the response context
     std::optional<std::string> get_redirect_address_for_node(
-      const ccf::endpoints::ReadOnlyEndpointContext& ctx,
+      const ccf::endpoints::CommandEndpointContext& ctx,
+      ccf::kv::ReadOnlyTx& ro_tx,
       const ccf::NodeId& target_node)
     {
-      auto nodes = ctx.tx.ro(network.nodes);
+      auto nodes = ro_tx.ro(network.nodes);
 
       auto node_info = nodes->get(target_node);
       if (!node_info.has_value())
@@ -568,29 +572,21 @@ namespace ccf
             auto primary_id = consensus->primary();
             if (primary_id.has_value())
             {
-              auto info = nodes->get(primary_id.value());
-              if (info)
+              const auto address = get_redirect_address_for_node(
+                args, args.tx, this->context.get_node_id());
+              if (!address.has_value())
               {
-                auto& interface_id =
-                  args.rpc_ctx->get_session_context()->interface_id;
-                if (!interface_id.has_value())
-                {
-                  return make_error(
-                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                    ccf::errors::InternalError,
-                    "Cannot redirect non-RPC request.");
-                }
-                const auto& address =
-                  info->rpc_interfaces[interface_id.value()].published_address;
-                args.rpc_ctx->set_response_header(
-                  http::headers::LOCATION,
-                  fmt::format("https://{}/node/join", address));
-
-                return make_error(
-                  HTTP_STATUS_PERMANENT_REDIRECT,
-                  ccf::errors::NodeCannotHandleRequest,
-                  "Node is not primary; cannot handle write");
+                return already_populated_response();
               }
+
+              args.rpc_ctx->set_response_header(
+                http::headers::LOCATION,
+                fmt::format("https://{}/node/join", address.value()));
+
+              return make_error(
+                HTTP_STATUS_PERMANENT_REDIRECT,
+                ccf::errors::NodeCannotHandleRequest,
+                "Node is not primary; cannot handle write");
             }
 
             return make_error(
@@ -660,29 +656,21 @@ namespace ccf
             auto primary_id = consensus->primary();
             if (primary_id.has_value())
             {
-              auto info = nodes->get(primary_id.value());
-              if (info)
+              const auto address = get_redirect_address_for_node(
+                args, args.tx, this->context.get_node_id());
+              if (!address.has_value())
               {
-                auto& interface_id =
-                  args.rpc_ctx->get_session_context()->interface_id;
-                if (!interface_id.has_value())
-                {
-                  return make_error(
-                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                    ccf::errors::InternalError,
-                    "Cannot redirect non-RPC request.");
-                }
-                const auto& address =
-                  info->rpc_interfaces[interface_id.value()].published_address;
-                args.rpc_ctx->set_response_header(
-                  http::headers::LOCATION,
-                  fmt::format("https://{}/node/join", address));
-
-                return make_error(
-                  HTTP_STATUS_PERMANENT_REDIRECT,
-                  ccf::errors::NodeCannotHandleRequest,
-                  "Node is not primary; cannot handle write");
+                return already_populated_response();
               }
+
+              args.rpc_ctx->set_response_header(
+                http::headers::LOCATION,
+                fmt::format("https://{}/node/join", address.value()));
+
+              return make_error(
+                HTTP_STATUS_PERMANENT_REDIRECT,
+                ccf::errors::NodeCannotHandleRequest,
+                "Node is not primary; cannot handle write");
             }
 
             return make_error(
@@ -1360,27 +1348,25 @@ namespace ccf
             return;
           }
 
-            auto primary_id = consensus->primary();
-            if (!primary_id.has_value())
-            {
-              args.rpc_ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "Primary unknown");
-              return;
-            }
+          auto primary_id = consensus->primary();
+          if (!primary_id.has_value())
+          {
+            args.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Primary unknown");
+            return;
+          }
 
-          const auto address =
-            get_redirect_address_for_node(args, this->context.get_node_id());
+          const auto address = get_redirect_address_for_node(
+            args, args.tx, this->context.get_node_id());
           if (!address.has_value())
-              {
-            // Helper function should have populated error response, so return
-            // now
-                return;
-              }
+          {
+            return;
+          }
 
-              args.rpc_ctx->set_response_header(
-                http::headers::LOCATION,
+          args.rpc_ctx->set_response_header(
+            http::headers::LOCATION,
             fmt::format("https://{}/node/primary", address.value()));
           args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
         }
@@ -1964,12 +1950,10 @@ namespace ccf
 
           const auto& snapshot_path = latest_committed_snapshot.value();
 
-          const auto address =
-            get_redirect_address_for_node(ctx, this->context.get_node_id());
+          const auto address = get_redirect_address_for_node(
+            ctx, ctx.tx, this->context.get_node_id());
           if (!address.has_value())
           {
-            // Helper function should have populated error response, so return
-            // now
             return;
           }
 
