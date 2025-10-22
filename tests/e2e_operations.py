@@ -201,7 +201,7 @@ def test_forced_snapshot(network, args):
             hwm_pre_proposal = TxID.from_str(r["transaction_id"]).seqno
 
         # Ensure there is at least one signature greater than the hwm
-        inner_network.txs.issue(network, number_txs=1, wait_for_sync=True)
+        inner_network.txs.issue(inner_network, number_txs=1, wait_for_sync=True)
 
         # Submit a proposal to force a snapshot
         proposal_body, careful_vote = inner_network.consortium.make_proposal(
