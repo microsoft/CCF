@@ -784,12 +784,13 @@ namespace ccf::curl
         }
 
         // Notify curl of the error
+        int running_handles = 0;
         CHECK_CURL_MULTI(
           curl_multi_socket_action,
           self->curl_request_curlm,
           socket_context->socket,
           CURL_CSELECT_ERR,
-          nullptr);
+          &running_handles);
         self->curl_request_curlm.perform();
         return;
       }

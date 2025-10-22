@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.16]
+
+[6.0.16]: https://github.com/microsoft/CCF/releases/tag/6.0.16
+
+### Fixed
+
+- Stop passing nullptr to curl_multi_socket_action (#7371)
+
 ## [6.0.15]
 
 [6.0.15]: https://github.com/microsoft/CCF/releases/tag/6.0.15
