@@ -1471,7 +1471,9 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
             corruption.run(ledger_secret, corrupt_ledger_secret)
 
             recovery_network_args = copy.deepcopy(args)
-            recovery_network_args.nodes = infra.e2e_args.min_nodes(recovery_network_args, f=recovery_f)
+            recovery_network_args.nodes = infra.e2e_args.min_nodes(
+                recovery_network_args, f=recovery_f
+            )
             recovery_network_args.previous_sealed_ledger_secret_location = (
                 corrupt_ledger_secret
             )
