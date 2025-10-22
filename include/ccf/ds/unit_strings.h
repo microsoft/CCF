@@ -137,6 +137,11 @@ namespace ccf::ds
     {
       return value;
     }
+
+    size_t count_bytes() const
+    {
+      return value;
+    }
   };
 
   inline void from_json(const nlohmann::json& j, SizeString& s)
