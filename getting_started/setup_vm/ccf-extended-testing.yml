@@ -1,5 +1,0 @@
-- hosts: localhost
-  tasks:
-    - import_role:
-        name: pebble
-        tasks_from: install.yml
