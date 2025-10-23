@@ -257,15 +257,14 @@ class ConcurrentRunner:
                 print(thread.name)
             return
 
-        if not max_concurrent:
-            max_concurrent = len(self.threads)
+        cores_count = len(os.sched_getaffinity(0))
+        avg_nodes_per_network = 3
+        safety_factor = 0.5 if os.getenv("TSAN_OPTIONS") else 1.0
 
-        if os.getenv("TSAN_OPTIONS"):
-            cores_count = len(os.sched_getaffinity(0))
-            avg_nodes_per_network = 3
-            safety_factor = 0.5
-            max_concurrent = int(safety_factor * cores_count / avg_nodes_per_network)
-            assert max_concurrent > 0
+        concurrent = int(safety_factor * cores_count / avg_nodes_per_network)
+        max_concurrent = min(max_concurrent or concurrent, concurrent)
+
+        assert max_concurrent > 0
 
         thread_groups = [
             self.threads[i : i + max_concurrent]
