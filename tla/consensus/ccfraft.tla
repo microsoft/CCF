@@ -630,7 +630,7 @@ Init ==
 \* Define state transitions
 
 BecomePreVoteCandidate(i) ==
-    /\ PreVoteEnabled[i]
+    /\ PreVoteEnabled
     \* Only servers that haven't completed retirement can become candidates
     /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned, RetirementCompleted}
     \* Only servers that are followers/candidates can become candidates
@@ -651,9 +651,9 @@ BecomeCandidate(i) ==
     \* Only servers that haven't completed retirement can become candidates
     /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned, RetirementCompleted}
     \* Only servers that are followers/candidates can become candidates
-    /\ \/ /\ ~PreVoteEnabled[i]
+    /\ \/ /\ ~PreVoteEnabled
           /\ leadershipState[i] \in {Follower, Candidate}
-       \/ /\ PreVoteEnabled[i]
+       \/ /\ PreVoteEnabled
           /\ leadershipState[i] \in {PreVoteCandidate}
           \* To become a Candidate, the PreVoteCandidate must have received votes from a majority in each active configuration
           \* Only votes by nodes part of a given configuration should be tallied against it
@@ -676,10 +676,8 @@ BecomeCandidate(i) ==
 \* Server i times out (becomes candidate) and votes for itself in the election of the next term
 \* At some point later (non-deterministically), the candidate will request votes from the other nodes.
 Timeout(i) ==
-    /\ \/ /\ ~PreVoteEnabled[i]
-          /\ BecomeCandidate(i)
-       \/ /\ PreVoteEnabled[i]
-          /\ BecomePreVoteCandidate(i)
+    /\ \/ BecomePreVoteCandidate(i)
+       \/ BecomeCandidate(i)
     /\ UNCHANGED messageVars
 
 \* Candidate i sends j a RequestVote request.
@@ -957,10 +955,10 @@ HandleRequestVoteRequest(i, j, m) ==
                  /\ logOk
                  /\ votedFor[i] \in {Nil, j}
     IN /\ m.term <= currentTerm[i]
-       /\ \/ grant  \/ /\ ~m.isPreVote 
-                       /\ votedFor' = [votedFor EXCEPT ![i] = j]
-                    \/ /\ m.isPreVote
-                       /\ UNCHANGED votedFor
+       /\ \/ grant /\ \/ /\ ~m.isPreVote 
+                         /\ votedFor' = [votedFor EXCEPT ![i] = j]
+                      \/ /\ m.isPreVote
+                         /\ UNCHANGED votedFor
           \/ ~grant /\ UNCHANGED votedFor
        /\ Reply([type        |-> RequestVoteResponse,
                  term        |-> currentTerm[i],
@@ -1209,6 +1207,9 @@ DropResponseWhenNotInState(i, j, m) ==
 
 \* Drop messages if they are irrelevant to the node
 DropIgnoredMessage(i,j,m) ==
+    \* raft.h::recv_request_vote
+    \* We specifically always respond to request votes
+    /\ m.type /= RequestVoteRequest
     \* Drop messages if...
     /\
        \* .. recipient is still None..
@@ -1219,14 +1220,11 @@ DropIgnoredMessage(i,j,m) ==
        \/ /\ leadershipState[i] /= None
         \* .. and it comes from a server outside of the configuration
           /\ \lnot IsInServerSet(j, i)
-          \* raft.h::recv_request_vote
-          \* We specifically don't ignore RequestVoteRequest messages from unknown nodes
-          /\ m.type /= RequestVoteRequest
        \*  OR if recipient has completed retirement and this is not a request to vote or append entries request
        \* This spec requires that a retired node still helps with voting and appending entries to ensure 
        \* the next configurations learns that its retirement has been committed.
        \/ /\ membershipState[i] = RetiredCommitted
-          /\ m.type \notin {RequestVoteRequest, AppendEntriesRequest}
+          /\ m.type /= AppendEntriesRequest
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
@@ -1634,8 +1632,14 @@ PermittedLogChangesProp ==
 StateTransitionsProp ==
     [][\A i \in Servers :
         /\ leadershipState[i] = None => leadershipState'[i] \in {None, Follower}
-        /\ leadershipState[i] = Follower => leadershipState'[i] \in {Follower, Candidate}
-        /\ leadershipState[i] = Candidate => leadershipState'[i] \in {Follower, Candidate, Leader}
+        /\ \/ /\ ~PreVoteEnabled
+              /\ leadershipState[i] = Follower => leadershipState'[i] \in {Follower, Candidate}
+              /\ leadershipState[i] /= PreVoteCandidate
+              /\ leadershipState[i] = Candidate => leadershipState'[i] \in {Follower, Candidate, Leader}
+           \/ /\ PreVoteEnabled
+              /\ leadershipState[i] = Follower => leadershipState'[i] \in {Follower, PreVoteCandidate, Candidate}
+              /\ leadershipState[i] = PreVoteCandidate => leadershipState'[i] \in {Follower, PreVoteCandidate, Candidate}
+              /\ leadershipState[i] = Candidate => leadershipState'[i] \in {Follower, PreVoteCandidate, Candidate, Leader}
         /\ leadershipState[i] = Leader => leadershipState'[i] \in {Follower, Leader}
         ]_vars
 
