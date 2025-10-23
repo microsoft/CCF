@@ -31,9 +31,6 @@ CONSTANT
     Reordered,
     Guarantee
 
-CONSTANT
-    PreVoteEnabled
-
 \* Leadership states
 CONSTANTS
     \* See original Raft paper (https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf)
@@ -118,6 +115,12 @@ Nil ==
 
 ------------------------------------------------------------------------------
 \* Global variables
+
+\* Whether PreVote is enabled in this cluster
+VARIABLE
+    preVoteEnabled
+
+PreVoteEnabledTypeInv == preVoteEnabled \in BOOLEAN
 
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
@@ -355,6 +358,7 @@ vars == <<
 
 \* Invariant to check the type safety of all variables
 TypeInv ==
+    /\ PreVoteEnabledTypeInv 
     /\ ReconfigurationVarsTypeInv
     /\ MessageVarsTypeInv
     /\ ServerVarsTypeInv
@@ -620,17 +624,21 @@ InitCandidateVars ==
 InitLeaderVars ==
     /\ matchIndex = [i \in Servers |-> [j \in Servers |-> 0]]
 
+InitOptionConsts ==
+    /\ preVoteEnabled = FALSE
+
 Init ==
     /\ InitReconfigurationVars
     /\ InitMessagesVars
     /\ InitCandidateVars
     /\ InitLeaderVars
+    /\ InitOptionConsts
 
 ------------------------------------------------------------------------------
 \* Define state transitions
 
 BecomePreVoteCandidate(i) ==
-    /\ PreVoteEnabled
+    /\ preVoteEnabled
     \* Only servers that haven't completed retirement can become candidates
     /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned, RetirementCompleted}
     \* Only servers that are followers/candidates can become candidates
@@ -651,9 +659,9 @@ BecomeCandidate(i) ==
     \* Only servers that haven't completed retirement can become candidates
     /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned, RetirementCompleted}
     \* Only servers that are followers/candidates can become candidates
-    /\ \/ /\ ~PreVoteEnabled
+    /\ \/ /\ ~preVoteEnabled
           /\ leadershipState[i] \in {Follower, Candidate}
-       \/ /\ PreVoteEnabled
+       \/ /\ preVoteEnabled
           /\ leadershipState[i] \in {PreVoteCandidate}
           \* To become a Candidate, the PreVoteCandidate must have received votes from a majority in each active configuration
           \* Only votes by nodes part of a given configuration should be tallied against it
@@ -1314,7 +1322,8 @@ NextInt(i) ==
     \/ \E j \in Servers : Receive(i, j)
 
 Next ==
-    \E i \in Servers: NextInt(i)
+    /\ \E i \in Servers: NextInt(i)
+    /\ UNCHANGED preVoteEnabled
 
 Fairness ==
     \* Network actions
@@ -1632,11 +1641,11 @@ PermittedLogChangesProp ==
 StateTransitionsProp ==
     [][\A i \in Servers :
         /\ leadershipState[i] = None => leadershipState'[i] \in {None, Follower}
-        /\ \/ /\ ~PreVoteEnabled
+        /\ \/ /\ ~preVoteEnabled
               /\ leadershipState[i] = Follower => leadershipState'[i] \in {Follower, Candidate}
               /\ leadershipState[i] /= PreVoteCandidate
               /\ leadershipState[i] = Candidate => leadershipState'[i] \in {Follower, Candidate, Leader}
-           \/ /\ PreVoteEnabled
+           \/ /\ preVoteEnabled
               /\ leadershipState[i] = Follower => leadershipState'[i] \in {Follower, PreVoteCandidate, Candidate}
               /\ leadershipState[i] = PreVoteCandidate => leadershipState'[i] \in {Follower, PreVoteCandidate, Candidate}
               /\ leadershipState[i] = Candidate => leadershipState'[i] \in {Follower, PreVoteCandidate, Candidate, Leader}

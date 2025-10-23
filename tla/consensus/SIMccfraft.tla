@@ -16,6 +16,9 @@ SIMInitReconfigurationVars ==
     \* Start with any subset of servers in the active configuration.
     \/ CCF!InitReconfigurationVars
 
+SIMInitOptionConsts ==
+    /\ preVoteEnabled \in {TRUE, FALSE}
+
 LOCAL R ==
     1..IF "R" \in DOMAIN IOEnv THEN atoi(IOEnv.R) ELSE 10
 
