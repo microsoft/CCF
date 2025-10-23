@@ -348,6 +348,7 @@ LeaderVarsTypeInv ==
 
 \* All variables; used for stuttering (asserting state hasn't changed).
 vars == <<
+    preVoteEnabled,
     reconfigurationVars, 
     messageVars, 
     serverVars, 
