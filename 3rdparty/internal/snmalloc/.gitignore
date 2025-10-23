@@ -1,11 +1,15 @@
 # conventional build dirs
-release*/
-debug*/
-build*/
-cmake-build-*/
+/release*/
+/debug*/
+/build*/
+/cmake-build-*/
+/out*/
+/dist/
+
+/tidy.fail
 
 # cmake intermediate files
-CMakeFiles/
+/CMakeFiles/
 
 # vscode dirs
 .vscode/
@@ -18,3 +22,5 @@ CMakeFiles/
 *~
 *.sw?
 
+# cache dirs
+.cache
