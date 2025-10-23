@@ -166,7 +166,7 @@ jobs:
 
           # Reset cmake config to affect cpack settings
           rm CMakeCache.txt
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DPACKAGING=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
 
           cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
           cpack -V -G RPM
