@@ -8,6 +8,7 @@
 #include "ccf/service/tables/service.h"
 #include "consensus/aft/raft_types.h"
 #include "kv/kv_types.h"
+#include "node/historical_queries.h"
 #include "node/identity.h"
 #include "node/tx_receipt_impl.h"
 #include "service/tables/previous_service_identity.h"
@@ -111,6 +112,12 @@ namespace
     }
   }
 
+  ccf::historical::CompoundHandle make_system_handle(ccf::SeqNo seq)
+  {
+    return ccf::historical::CompoundHandle{
+      ccf::historical::RequestNamespace::System, seq};
+  }
+
   bool keep_fetching(ccf::SeqNo target_seq)
   {
     return !is_self_endorsement(cose_endorsements_cache.back()) &&
@@ -136,8 +143,19 @@ namespace
       }
       const auto prev_endorsement_seqno =
         last_cose_endorsement.previous_version.value();
-      const auto hstate = state_cache.get_state_at(
-        prev_endorsement_seqno, prev_endorsement_seqno);
+
+      const auto system_handle = make_system_handle(prev_endorsement_seqno);
+      auto* cache_impl =
+        dynamic_cast<ccf::historical::StateCacheImpl*>(&state_cache);
+      if (cache_impl == nullptr)
+      {
+        throw std::logic_error(
+          "StateCacheImpl required to access cache as "
+          "RequestNamespace::System");
+      }
+
+      const auto hstate =
+        cache_impl->get_state_at(system_handle, prev_endorsement_seqno);
 
       if (!hstate)
       {
@@ -258,7 +276,18 @@ namespace ccf
         }
         i = hservice_info->previous_service_identity_version.value_or(i - 1);
         LOG_TRACE_FMT("historical service identity search at: {}", i);
-        auto hstate = state_cache.get_state_at(i, i);
+
+        const auto system_handle = make_system_handle(i);
+        auto* cache_impl =
+          dynamic_cast<ccf::historical::StateCacheImpl*>(&state_cache);
+        if (cache_impl == nullptr)
+        {
+          throw std::logic_error(
+            "StateCacheImpl required to access cache as "
+            "RequestNamespace::System");
+        }
+
+        auto hstate = cache_impl->get_state_at(system_handle, i);
         if (!hstate)
         {
           return std::nullopt; // Not available yet - retry later.
