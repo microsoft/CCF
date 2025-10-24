@@ -1115,7 +1115,7 @@ def run_initial_uvm_descriptor_checks(args):
         with recovered_primary.client() as c:
             r = c.get("/node/network").body.json()
             recovery_seqno = int(r["current_service_create_txid"].split(".")[1])
-        network.stop_all_nodes()
+        recovered_network.stop_all_nodes()
         ledger = ccf.ledger.Ledger(
             recovered_primary.remote.ledger_paths(),
             committed_only=False,
@@ -1190,7 +1190,7 @@ def run_initial_tcb_version_checks(args):
         with recovered_primary.client() as c:
             r = c.get("/node/network").body.json()
             recovery_seqno = int(r["current_service_create_txid"].split(".")[1])
-        network.stop_all_nodes()
+        recovered_network.stop_all_nodes()
         ledger = ccf.ledger.Ledger(
             recovered_primary.remote.ledger_paths(),
             committed_only=False,
@@ -1482,6 +1482,218 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
 
             recovery_network.stop_all_nodes()
             prev_network = recovery_network
+
+
+def run_self_healing_open(const_args):
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+    ) as network:
+        LOG.info("Start a network and stop it")
+        network.start_and_open(args)
+        network.save_service_identity(args)
+        network.stop_all_nodes()
+
+        recovery_args = copy.deepcopy(args)
+
+        ledger_dirs = {}
+        committed_ledger_dirs = {}
+        for i, node in enumerate(network.nodes):
+            l_dir, c = node.get_ledger()
+            ledger_dirs[i] = l_dir
+            committed_ledger_dirs[i] = c
+
+        LOG.info("Start a recovery network and stop it")
+        recovered_network = infra.network.Network(
+            recovery_args.nodes,
+            recovery_args.binary_dir,
+            recovery_args.debug_nodes,
+            existing_network=network,
+        )
+        recovered_network.start_in_self_healing_open(
+            recovery_args,
+            ledger_dirs=ledger_dirs,
+            committed_ledger_dirs=committed_ledger_dirs,
+        )
+
+        # Wait until all relevant nodes have restarted
+        time.sleep(3)
+
+        # Refresh the the declared state of nodes which have shut themselves down to join.
+        for node in recovered_network.nodes:
+            node.refresh_network_state(verify_ca=False)
+
+        recovered_network.refresh_service_identity_file(recovery_args)
+
+        recovered_network.consortium.recover_with_shares(
+            recovered_network.find_random_node()
+        )
+
+        LOG.info("Submitted recovery shares")
+
+        # Wait for all live replicas to report being part of the opened network
+        successfully_opened = 0
+        for node in recovered_network.get_joined_nodes():
+            try:
+                recovered_network.wait_for_status(
+                    node,
+                    "Open",
+                    timeout=10,
+                )
+                recovered_network._wait_for_app_open(node)
+                successfully_opened += 1
+            except TimeoutError:
+                pass
+
+        assert successfully_opened == 1
+
+        LOG.info("Completed self-healing open successfully")
+
+        recovered_network.stop_all_nodes(accept_ledger_diff=True)
+
+
+def run_self_healing_open_timeout_path(const_args):
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+    ) as network:
+        LOG.info("Start a network and stop it")
+        network.start_and_open(args)
+        network.save_service_identity(args)
+        network.stop_all_nodes()
+
+        recovery_args = copy.deepcopy(args)
+
+        ledger_dirs = {}
+        committed_ledger_dirs = {}
+        for i, node in enumerate(network.nodes):
+            l_dir, c = node.get_ledger()
+            ledger_dirs[i] = l_dir
+            committed_ledger_dirs[i] = c
+
+        LOG.info("Start a recovery network and stop it")
+        recovered_network = infra.network.Network(
+            recovery_args.nodes,
+            recovery_args.binary_dir,
+            recovery_args.debug_nodes,
+            existing_network=network,
+        )
+        recovered_network.start_in_self_healing_open(
+            recovery_args,
+            ledger_dirs=ledger_dirs,
+            committed_ledger_dirs=committed_ledger_dirs,
+            starting_nodes=1,  # Force timeout path by starting only one node
+        )
+
+        # Wait until all relevant nodes have restarted
+        time.sleep(3)
+
+        # Refresh the the declared state of nodes which have shut themselves down to join.
+        for node in recovered_network.nodes:
+            node.refresh_network_state(verify_ca=False)
+
+        recovered_network.refresh_service_identity_file(recovery_args)
+
+        recovered_network.consortium.recover_with_shares(
+            recovered_network.find_random_node()
+        )
+
+        LOG.info("Submitted recovery shares")
+
+        # Wait for all live replicas to report being part of the opened network
+        successfully_opened = 0
+        for node in recovered_network.get_joined_nodes():
+            try:
+                recovered_network.wait_for_status(
+                    node,
+                    "Open",
+                    timeout=10,
+                )
+                recovered_network._wait_for_app_open(node)
+                successfully_opened += 1
+            except TimeoutError:
+                pass
+
+        assert successfully_opened == 1
+
+        LOG.info("Completed self-healing open successfully")
+
+        recovered_network.stop_all_nodes()
+
+
+def run_self_healing_open_local_unsealing(const_args):
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.enable_local_sealing = True
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+    ) as network:
+        LOG.info("Start a network and stop it")
+        network.start_and_open(args)
+        network.save_service_identity(args)
+        node_secrets = [node.save_sealed_ledger_secret() for node in network.nodes]
+        network.stop_all_nodes()
+
+        recovery_args = copy.deepcopy(args)
+
+        ledger_dirs = {}
+        committed_ledger_dirs = {}
+        for i, node in enumerate(network.nodes):
+            l_dir, c = node.get_ledger()
+            ledger_dirs[i] = l_dir
+            committed_ledger_dirs[i] = c
+
+        LOG.info("Start a recovery network")
+        recovered_network = infra.network.Network(
+            recovery_args.nodes,
+            recovery_args.binary_dir,
+            recovery_args.debug_nodes,
+            existing_network=network,
+        )
+        recovered_network.start_in_self_healing_open(
+            recovery_args,
+            ledger_dirs=ledger_dirs,
+            committed_ledger_dirs=committed_ledger_dirs,
+            sealed_ledger_secrets=node_secrets,
+        )
+
+        # Wait until all relevant nodes have restarted
+        time.sleep(3)
+
+        # Refresh the the declared state of nodes which have shut themselves down to join.
+        for node in recovered_network.nodes:
+            node.refresh_network_state(verify_ca=False)
+
+        recovered_network.refresh_service_identity_file(recovery_args)
+
+        # Wait for all live replicas to report being part of the opened network
+        successfully_opened = 0
+        for node in recovered_network.get_joined_nodes():
+            try:
+                recovered_network.wait_for_status(
+                    node,
+                    "Open",
+                    timeout=10,
+                )
+                recovered_network._wait_for_app_open(node)
+                successfully_opened += 1
+            except TimeoutError:
+                pass
+
+        assert successfully_opened == 1
+
+        LOG.info("Completed self-healing open successfully")
+
+        recovered_network.stop_all_nodes()
 
 
 def run_read_ledger_on_testdata(args):
@@ -1853,5 +2065,8 @@ def run(args):
         run_recovery_unsealing_corrupt(args)
         run_recovery_unsealing_validate_audit(args)
         test_error_message_on_failure_to_read_aci_sec_context(args)
+        run_self_healing_open_local_unsealing(args)
     run_read_ledger_on_testdata(args)
     run_ledger_chunk_bytes_check(args)
+    run_self_healing_open(args)
+    run_self_healing_open_timeout_path(args)
