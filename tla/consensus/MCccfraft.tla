@@ -106,10 +106,14 @@ MCSend(msg) ==
         /\ n.type = AppendEntriesResponse
     /\ CCF!Send(msg)
 
+MCInitOptionConsts ==
+    /\ preVoteEnabled \in {FALSE, TRUE}
+
 MCInit ==
     /\ InitMessagesVars
     /\ InitCandidateVars
     /\ InitLeaderVars
+    /\ MCInitOptionConsts
     /\ IF Cardinality(Configurations[1]) = 1
        \* If the first config is just one node, we can start with a two-tx log and a single config.
        THEN InitLogConfigServerVars(Configurations[1], StartLog)
@@ -139,6 +143,11 @@ DebugAllReconfigurationsReachableInv ==
 DebugNotTooManySigsInv ==
     \A i \in Servers:
         FoldSeq(LAMBDA e, count: IF e.contentType = TypeSignature THEN count + 1 ELSE count, 0, log[i]) < 8
+
+DebugInvLeaderAfterInit ==
+    \lnot \E i \in Servers : /\ preVoteEnabled 
+                             /\ leadershipState[i] = Leader 
+                             /\ currentTerm[i] > 2
 
 ----
 
