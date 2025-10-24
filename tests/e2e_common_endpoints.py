@@ -24,25 +24,54 @@ def test_primary(network, args):
         assert r.body.json()["error"]["code"] == "ResourceNotFound"
         assert r.body.json()["error"]["message"] == "Node is not backup"
 
-    backup = network.find_any_backup()
-    for interface_name in backup.host.rpc_interfaces.keys():
-        with backup.client(interface_name=interface_name) as c:
+    interface_name = "only_exists_on_this_node"
+    host_spec = infra.interfaces.HostSpec(
+        rpc_interfaces={
+            infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface.from_args(
+                args
+            ).parse_from_str(
+                "local://localhost"
+            ),
+            interface_name: infra.interfaces.RPCInterface.from_args(
+                args
+            ).parse_from_str("local://localhost"),
+        }
+    )
+    new_backup = network.create_node(host_spec)
+    network.join_node(new_backup, args.package, args)
+    network.trust_node(new_backup, args)
+
+    primary_interfaces = primary.host.rpc_interfaces
+    for interface_name in new_backup.host.rpc_interfaces.keys():
+        LOG.info(f"Testing interface {interface_name}")
+        with new_backup.client(interface_name=interface_name) as c:
             r = c.head("/node/primary", allow_redirects=False)
-            assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
-            primary_interface = primary.host.rpc_interfaces[interface_name]
-            assert (
-                r.headers["location"]
-                == f"https://{primary_interface.public_host}:{primary_interface.public_port}/node/primary"
-            )
-            LOG.info(
-                f'Successfully redirected to {r.headers["location"]} on primary {primary.local_node_id}'
-            )
+
+            if interface_name in primary_interfaces:
+                assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
+                primary_interface = primary_interfaces[interface_name]
+                assert (
+                    r.headers["location"]
+                    == f"https://{primary_interface.public_host}:{primary_interface.public_port}/node/primary"
+                )
+                LOG.info(
+                    f'Successfully redirected to {r.headers["location"]} on primary {primary.local_node_id}'
+                )
+            else:
+                # If there is no matching interface name on the primary, then we cannot redirect and return an error
+                assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
+
             r = c.get("/node/primary", allow_redirects=False)
             assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r
             assert r.body.json()["error"]["code"] == "ResourceNotFound"
             assert r.body.json()["error"]["message"] == "Node is not primary"
+
             r = c.get("/node/backup", allow_redirects=False)
             assert r.status_code == http.HTTPStatus.OK.value, r
+
+    network.retire_node(primary, new_backup)
+    new_backup.stop()
+
     return network
 
 
