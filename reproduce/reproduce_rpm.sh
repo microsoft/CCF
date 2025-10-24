@@ -29,7 +29,7 @@ build_pkg() {
   cmake -G Ninja -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
   ninja -v
   rm CMakeCache.txt
-  cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DPACKAGING=ON ..
+  cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..
   cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
   cpack -V -G RPM
   D_INITIAL_PKG=`ls *.rpm`
