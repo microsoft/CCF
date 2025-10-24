@@ -267,6 +267,15 @@ int main(int argc, char** argv)
         assert(items.size() == 4);
         driver->assert_detail(items[1], items[2], items[3], false, lineno);
         break;
+      case shash("assert_config"):
+        assert(items.size() >= 3);
+        driver->assert_config(
+          items[1], items[2], {std::next(items.begin(), 3), items.end()});
+        break;
+      case shash("assert_absent_config"):
+        assert(items.size() == 3);
+        driver->assert_absent_config(items[1], items[2]);
+        break;
       case shash("replicate_new_configuration"):
         assert(items.size() >= 3);
         items.erase(items.begin());
