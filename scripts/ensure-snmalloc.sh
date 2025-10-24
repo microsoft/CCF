@@ -25,8 +25,8 @@ failed_functions=()
 
 for func in "${functions[@]}"; do
     output=$(objdump -d -C "$BINARY"  \
-        | grep -A 100 " <${func}>:"  \
-        | grep "jmp"  \
+        | grep -A 101 " <${func}>:"  \
+        | grep -E "(jmp|call)"  \
         | grep "snmalloc" || true)
     
     lines=$(echo "$output" | wc -l)
