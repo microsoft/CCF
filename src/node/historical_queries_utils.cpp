@@ -143,15 +143,19 @@ namespace
       }
       const auto prev_endorsement_seqno =
         last_cose_endorsement.previous_version.value();
+
       const auto system_handle = make_system_handle(prev_endorsement_seqno);
-      auto as_impl =
+      auto* cache_impl =
         dynamic_cast<ccf::historical::StateCacheImpl*>(&state_cache);
-      if (as_impl == nullptr)
+      if (cache_impl == nullptr)
       {
-        throw std::logic_error("StateCache is not of type StateCacheImpl");
+        throw std::logic_error(
+          "StateCacheImpl required to access cache as "
+          "RequestNamespace::System");
       }
+
       const auto hstate =
-        as_impl->get_state_at(system_handle, prev_endorsement_seqno);
+        cache_impl->get_state_at(system_handle, prev_endorsement_seqno);
 
       if (!hstate)
       {
@@ -272,14 +276,18 @@ namespace ccf
         }
         i = hservice_info->previous_service_identity_version.value_or(i - 1);
         LOG_TRACE_FMT("historical service identity search at: {}", i);
+
         const auto system_handle = make_system_handle(i);
-        auto as_impl =
+        auto* cache_impl =
           dynamic_cast<ccf::historical::StateCacheImpl*>(&state_cache);
-        if (as_impl == nullptr)
+        if (cache_impl == nullptr)
         {
-          throw std::logic_error("StateCache is not of type StateCacheImpl");
+          throw std::logic_error(
+            "StateCacheImpl required to access cache as "
+            "RequestNamespace::System");
         }
-        auto hstate = as_impl->get_state_at(system_handle, i);
+
+        auto hstate = cache_impl->get_state_at(system_handle, i);
         if (!hstate)
         {
           return std::nullopt; // Not available yet - retry later.
