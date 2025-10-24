@@ -47,8 +47,9 @@ jobs:
           ./scripts/ci-checks.sh
         shell: bash
 
-  build_with_tidy:
-    name: "Build with clang-tidy"
+  ci-docs-tidy-unit-partitions:
+    name: "Docs/clang-tidy/Unit/Partitions"
+    needs: checks
     runs-on:
       [
         self-hosted,
@@ -78,7 +79,7 @@ jobs:
           set -ex
           ./scripts/setup-ci.sh
 
-      - name: "Build Debug"
+      - name: "Build Debug with clang-tidy"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
@@ -98,88 +99,6 @@ jobs:
           cd python
           pytest
 
-  ensure-snmalloc:
-    name: "Ensure using snmalloc"
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=ci_ensure_snmalloc-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
-
-    steps:
-      - name: "Checkout dependencies"
-        shell: bash
-        run: |
-          set -ex
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
-
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
-          git config --global --add safe.directory /__w/CCF/CCF
-
-      - name: "Check disabled"
-        run: |
-          set -ex
-          mkdir -p build
-          cd build
-          cmake -GNinja -DUSE_SNMALLOC=OFF ..
-          ninja
-          ! ../scripts/ensure-snmalloc.sh samples/apps/basic/basic
-
-      - name: "Check enabled"
-        run: |
-          set -ex
-          mkdir -p build
-          cd build
-          cmake -GNinja -DUSE_SNMALLOC=ON ..
-          ninja
-          ../scripts/ensure-snmalloc.sh samples/apps/basic/basic
-
-  check-doc:
-    name: "Build docs successfully"
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=ci_check_doc-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root
-
-    steps:
-      - name: "Install and checkout andependencies"
-        shell: bash
-        run: |
-          set -ex
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
-          tdnf -y install doxygen npm
-
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          git config --global --add safe.directory /__w/CCF/CCF
-
       - name: "Check doc builds with no warnings"
         run: |
           set -ex
@@ -190,6 +109,21 @@ jobs:
           pip install -U -r doc/requirements.txt
           pip install -U -r doc/historical_ccf_requirements.txt
           sphinx-build --fail-on-warning -b html doc doc/html
+
+      - name: "Run Unit tests"
+        run: |
+          set -ex
+          cd build
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+
+        # Note that those are only run on the virtual CI, as they require enough
+        # privileges to configure iptables. ACI-based pools run unprivileged
+        # containers, and so cannot run these tests unfortunately.
+      - name: "Run partitions tests"
+        run: |
+          set -ex
+          cd build
+          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
 
   build_and_test_virtual:
     name: "Virtual CI"
@@ -249,15 +183,9 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          # Unit tests
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+
           # End to end tests
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
-          # Partitions tests
-          # Note that those are only run on the virtual CI, as they require enough
-          # privileges to configure iptables. ACI-based pools run unprivileged
-          # containers, and so cannot run these tests unfortunately.
-          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash
 
       - name: "Upload logs for virtual"
