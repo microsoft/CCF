@@ -48,7 +48,7 @@ struct OrderedAction : public IAction
   const size_t id;
 
   OrderedAction() : id(++action_id_generator) {}
-  OrderedAction(size_t _id) : id(_id) {}
+  OrderedAction(size_t id_) : id(id_) {}
 
   SerialisedAction serialise() const override
   {
@@ -89,9 +89,9 @@ struct SignAction : public OrderedAction
   {
     LOG_DEBUG_FMT("Created a new SignAction id={}", id);
   }
-  SignAction(size_t _id, const std::vector<uint8_t>& _tbs) :
-    OrderedAction(_id),
-    tbs(_tbs)
+  SignAction(size_t id_, const std::vector<uint8_t>& tbs_) :
+    OrderedAction(id_),
+    tbs(tbs_)
   {}
 
   SerialisedAction serialise() const override

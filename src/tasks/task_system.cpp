@@ -7,6 +7,7 @@
 #include "tasks/job_board.h"
 #include "tasks/resumable.h"
 #include "tasks/task.h"
+#include "tasks/thread_manager.h"
 
 #include <stdexcept>
 #include <uv.h>
@@ -49,10 +50,16 @@ namespace ccf::tasks
   }
 
   // Implementation of ccf::tasks namespace static functions
-  IJobBoard& get_main_job_board()
+  JobBoard& get_main_job_board()
   {
     static JobBoard main_job_board;
     return main_job_board;
+  }
+
+  void set_task_threads(size_t new_worker_count)
+  {
+    static ThreadManager thread_manager(get_main_job_board());
+    thread_manager.set_task_threads(new_worker_count);
   }
 
   void add_task(Task task)
@@ -60,40 +67,9 @@ namespace ccf::tasks
     get_main_job_board().add_task(std::move(task));
   }
 
-  struct DelayedTask
-  {
-    Task task;
-    std::optional<std::chrono::milliseconds> repeat = std::nullopt;
-  };
-
-  using DelayedTasks = std::vector<DelayedTask>;
-
-  using DelayedTasksByTime = std::map<std::chrono::milliseconds, DelayedTasks>;
-
-  using namespace std::chrono_literals;
-
-  namespace
-  {
-    std::atomic<std::chrono::milliseconds> total_elapsed = 0ms;
-
-    DelayedTasksByTime delayed_tasks;
-    std::mutex delayed_tasks_mutex;
-  }
-
-  void add_delayed_task(
-    Task task,
-    std::chrono::milliseconds initial_delay,
-    std::optional<std::chrono::milliseconds> periodic_delay)
-  {
-    std::lock_guard<std::mutex> lock(delayed_tasks_mutex);
-
-    const auto trigger_time = total_elapsed.load() + initial_delay;
-    delayed_tasks[trigger_time].emplace_back(task, periodic_delay);
-  }
-
   void add_delayed_task(Task task, std::chrono::milliseconds delay)
   {
-    add_delayed_task(task, delay, std::nullopt);
+    get_main_job_board().add_delayed_task(std::move(task), delay);
   }
 
   void add_periodic_task(
@@ -101,53 +77,13 @@ namespace ccf::tasks
     std::chrono::milliseconds initial_delay,
     std::chrono::milliseconds repeat_period)
   {
-    add_delayed_task(task, initial_delay, repeat_period);
+    get_main_job_board().add_periodic_task(
+      std::move(task), initial_delay, repeat_period);
   }
 
   void tick(std::chrono::milliseconds elapsed)
   {
-    elapsed += total_elapsed.load();
-
-    {
-      std::lock_guard<std::mutex> lock(delayed_tasks_mutex);
-      auto end_it = delayed_tasks.upper_bound(elapsed);
-
-      DelayedTasksByTime repeats;
-
-      for (auto it = delayed_tasks.begin(); it != end_it; ++it)
-      {
-        DelayedTasks& ready = it->second;
-
-        for (DelayedTask& delayed_task : ready)
-        {
-          // Don't schedule (or repeat) cancelled tasks
-          if (delayed_task.task->is_cancelled())
-          {
-            continue;
-          }
-
-          add_task(delayed_task.task);
-          if (delayed_task.repeat.has_value())
-          {
-            repeats[elapsed + delayed_task.repeat.value()].emplace_back(
-              delayed_task);
-          }
-        }
-      }
-
-      delayed_tasks.erase(delayed_tasks.begin(), end_it);
-
-      for (auto&& [repeat_time, repeated_tasks] : repeats)
-      {
-        DelayedTasks& delayed_tasks_at_time = delayed_tasks[repeat_time];
-        delayed_tasks_at_time.insert(
-          delayed_tasks_at_time.end(),
-          repeated_tasks.begin(),
-          repeated_tasks.end());
-      }
-    }
-
-    total_elapsed.store(elapsed);
+    get_main_job_board().tick(elapsed);
   }
 
   // From resumable.h

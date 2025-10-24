@@ -19,14 +19,14 @@ struct Node
 {
   SessionManager session_manager;
 
-  ccf::tasks::IJobBoard& job_board;
+  ccf::tasks::JobBoard& job_board;
 
   Dispatcher dispatcher;
   std::vector<std::unique_ptr<Worker>> workers;
 
   Node(
     size_t num_workers,
-    ccf::tasks::IJobBoard& jb,
+    ccf::tasks::JobBoard& jb,
     std::atomic<size_t>& response_count) :
     job_board(jb),
     dispatcher(jb, session_manager, response_count)

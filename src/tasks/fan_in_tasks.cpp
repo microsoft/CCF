@@ -14,8 +14,7 @@ namespace ccf::tasks
 {
   struct FanInTasks::PImpl
   {
-    std::string name;
-    IJobBoard& job_board;
+    JobBoard& job_board;
 
     // Synchronise access to pending_tasks and next_expected_task_index
     std::mutex pending_tasks_mutex;
@@ -71,16 +70,16 @@ namespace ccf::tasks
 
   FanInTasks::FanInTasks(
     [[maybe_unused]] FanInTasks::Private force_private_constructor,
-    IJobBoard& job_board_,
-    const std::string& name_) :
-    pimpl(std::make_unique<FanInTasks::PImpl>(name_, job_board_))
+    JobBoard& job_board_) :
+    pimpl(std::make_unique<FanInTasks::PImpl>(job_board_))
   {}
 
   FanInTasks::~FanInTasks() = default;
 
-  std::string_view FanInTasks::get_name() const
+  const std::string& FanInTasks::get_name() const
   {
-    return pimpl->name;
+    static const std::string name = "FanInTasks";
+    return name;
   }
 
   void FanInTasks::add_task(size_t task_index, Task task)
@@ -124,9 +123,8 @@ namespace ccf::tasks
     }
   }
 
-  std::shared_ptr<FanInTasks> FanInTasks::create(
-    IJobBoard& job_board_, const std::string& name_)
+  std::shared_ptr<FanInTasks> FanInTasks::create(JobBoard& job_board_)
   {
-    return std::make_shared<FanInTasks>(Private{}, job_board_, name_);
+    return std::make_shared<FanInTasks>(Private{}, job_board_);
   }
 }
