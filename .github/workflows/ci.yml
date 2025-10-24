@@ -79,7 +79,7 @@ jobs:
           set -ex
           ./scripts/setup-ci.sh
 
-      - name: "Build with clang-tidy"
+      - name: "Build Debug with clang-tidy"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF

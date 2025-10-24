@@ -319,19 +319,17 @@ jobs:
       - name: "Check snmalloc disabled"
         run: |
           set -ex
-          mkdir -p build
           cd build
           cmake -GNinja -DUSE_SNMALLOC=OFF ..
-          ninja
+          ninja samples/apps/basic/basic
           ! ../scripts/ensure-snmalloc.sh samples/apps/basic/basic
 
       - name: "Check snmalloc enabled"
         run: |
           set -ex
-          mkdir -p build
           cd build
           cmake -GNinja -DUSE_SNMALLOC=ON ..
-          ninja
+          ninja samples/apps/basic/basic
           ../scripts/ensure-snmalloc.sh samples/apps/basic/basic
 
       - name: "Upload logs"
