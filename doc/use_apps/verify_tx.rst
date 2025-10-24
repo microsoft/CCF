@@ -97,7 +97,7 @@ The proof is empty, and the ``leaf`` field is set to the value being signed, whi
 This allows writing verification code that handles both regular and signature receipts similarly, but it is worth noting that the 'leaf' value for signatures is `not`
 the digest of the signature transaction itself.
 
-From version 2.0, CCF also includes endorsement certificates for previous service identities, by the current :term:`Service Identity`, in `service_endorsements`. Thus, after at least one recovery, the endorsement check now takes the form of a certificate chain verification instead of a single endorsement check.
+From version 2.0, CCF also includes endorsement certificate for the valid service identity at the moment of the requested historical TX, signed by the current :term:`Service Identity`, in `service_endorsements`. This only applies to the services that have gone through at least one completed recovery.
 
 Receipt Verification
 --------------------
