@@ -166,7 +166,7 @@ jobs:
 
           # Reset cmake config to affect cpack settings
           rm CMakeCache.txt
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DPACKAGING=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
 
           cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
           cpack -V -G RPM
@@ -315,7 +315,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download RPM
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: DOWNLOAD_DIR
           pattern: pkg
@@ -364,13 +364,13 @@ jobs:
         with:
           fetch-depth: 0
       - name: Download Prebuilt Packages
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: DOWNLOAD_DIR
           pattern: pkg
           merge-multiple: true
       - name: Download Reproducibility Metadata
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: repro
           pattern: reproduce-metadata
@@ -416,40 +416,40 @@ jobs:
         with:
           fetch-depth: 1
       - name: Download Packages
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: pkg
           pattern: pkg*
           merge-multiple: true
       - name: Download Release Notes
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: relnotes
       - name: Download Compatibility Report
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: compatibility
       - name: Download TLS Report
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: tls
       - name: Download Python Wheel
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: wheel
           name: wheel
       - name: Download TS Package
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: tstgz
           name: tstgz
       - name: Download SBOM
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: sbom
           name: sbom
       - name: Download Reproducibility Metadata
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: repro
           pattern: reproduce*
