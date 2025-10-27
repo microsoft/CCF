@@ -13,11 +13,13 @@
 #include "ccf/ds/hash.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
 #include "ccf/historical_queries_adapter.h"
+#include "ccf/historical_queries_utils.h"
 #include "ccf/http_etag.h"
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "ccf/indexing/strategy.h"
 #include "ccf/json_handler.h"
+#include "ccf/network_identity_interface.h"
 #include "ccf/version.h"
 
 #include <charconv>
@@ -1311,6 +1313,97 @@ namespace loggingapp
         auth_policies)
         .set_auto_schema<void, LoggingGetHistorical::Out>()
         .add_query_parameter<size_t>("id")
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+      // SNIPPET_END: get_historical
+
+      // SNIPPET_START: get_historical_with_handle
+      auto get_historical_with_handle =
+        [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+          using namespace ccf::historical;
+
+          const auto parsed_query =
+            ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
+
+          std::string error_reason{};
+          size_t handle = 0;
+          if (!ccf::http::get_query_value(
+                parsed_query, "handle", handle, error_reason))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidQueryParameterValue,
+              std::move(error_reason));
+            return;
+          }
+
+          size_t seqno = 0;
+          error_reason.clear();
+          if (!ccf::http::get_query_value(
+                parsed_query, "seqno", seqno, error_reason))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidQueryParameterValue,
+              std::move(error_reason));
+            return;
+          }
+
+          error_reason.clear();
+          const auto tx_status = get_tx_status(seqno);
+          if (
+            !tx_status.has_value() ||
+            tx_status.value() != ccf::TxStatus::Committed)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidHeaderValue,
+              "Requested historical TxID is not committed");
+            return;
+          }
+
+          auto& state_cache = context.get_historical_state();
+          auto state = state_cache.get_state_at(handle, seqno);
+
+          if (!state)
+          {
+            default_error_handler(
+              HistoricalQueryErrorCode::TransactionPartiallyReady,
+              "Pending",
+              ctx);
+            return;
+          }
+          auto network_identity_subsystem =
+            context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
+
+          if (!populate_service_endorsements(
+                ctx.tx, state, state_cache, network_identity_subsystem))
+          {
+            default_error_handler(
+              HistoricalQueryErrorCode::TransactionPartiallyReady,
+              "Pending",
+              ctx);
+            return;
+          }
+
+          if (state->receipt)
+          {
+            auto j = describe_receipt_v1(*state->receipt);
+            ccf::jsonhandler::set_response(std::move(j), ctx.rpc_ctx);
+          }
+          else
+          {
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+          }
+        };
+      make_read_only_endpoint(
+        "/log/private/historical/handle",
+        HTTP_GET,
+        get_historical_with_handle,
+        auth_policies)
+        .set_auto_schema<void, nlohmann::json>()
+        .add_query_parameter<size_t>("handle")
+        .add_query_parameter<size_t>("seqno")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
       // SNIPPET_END: get_historical
