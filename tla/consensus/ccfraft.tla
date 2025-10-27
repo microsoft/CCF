@@ -645,7 +645,7 @@ BecomePreVoteCandidate(i) ==
     \* Only servers that haven't completed retirement can become candidates
     /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned, RetirementCompleted}
     \* Only servers that are followers/candidates can become candidates
-    /\ leadershipState[i] \in {Follower, Candidate}
+    /\ leadershipState[i] = Follower
     /\
         \* Check that the reconfiguration which added this node is at least committable
         \/ \E c \in DOMAIN configurations[i] :
@@ -656,7 +656,7 @@ BecomePreVoteCandidate(i) ==
     /\ leadershipState' = [leadershipState EXCEPT ![i] = PreVoteCandidate]
     /\ votesGranted' = [votesGranted EXCEPT ![i] = {i}]
     /\ UNCHANGED <<currentTerm, votedFor>>
-    /\ UNCHANGED <<reconfigurationVars, leaderVars, logVars, membershipState, isNewFollower>>
+    /\ UNCHANGED <<configVars, messageVars, reconfigurationVars, leaderVars, logVars, membershipState, isNewFollower>>
 
 BecomeCandidate(i) ==
     \* Only servers that haven't completed retirement can become candidates
@@ -665,7 +665,7 @@ BecomeCandidate(i) ==
     /\ \/ /\ ~preVoteEnabled
           /\ leadershipState[i] \in {Follower, Candidate}
        \/ /\ preVoteEnabled
-          /\ leadershipState[i] \in {PreVoteCandidate}
+          /\ leadershipState[i] = PreVoteCandidate
           \* To become a Candidate, the PreVoteCandidate must have received votes from a majority in each active configuration
           \* Only votes by nodes part of a given configuration should be tallied against it
           /\ \A c \in DOMAIN configurations[i] : 
@@ -682,14 +682,13 @@ BecomeCandidate(i) ==
     \* Candidate votes for itself
     /\ votedFor' = [votedFor EXCEPT ![i] = i]
     /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
-    /\ UNCHANGED <<reconfigurationVars, leaderVars, logVars, membershipState, isNewFollower>>
+    /\ UNCHANGED <<configVars, messageVars, reconfigurationVars, leaderVars, logVars, membershipState, isNewFollower>>
 
 \* Server i times out (becomes candidate) and votes for itself in the election of the next term
 \* At some point later (non-deterministically), the candidate will request votes from the other nodes.
 Timeout(i) ==
-    /\ \/ BecomePreVoteCandidate(i)
-       \/ BecomeCandidate(i)
-    /\ UNCHANGED <<configVars, messageVars>>
+    \/  preVoteEnabled /\ BecomePreVoteCandidate(i)
+    \/ ~preVoteEnabled /\ BecomeCandidate(i)
 
 \* Candidate i sends j a RequestVote request.
 RequestVote(i,j) ==
@@ -1314,6 +1313,7 @@ Receive(i, j) ==
 \* Defines how the variables may transition, given a node i.
 NextInt(i) ==
     \/ Timeout(i)
+    \/ (preVoteEnabled /\ BecomeCandidate(i))
     \/ BecomeLeader(i)
     \/ ClientRequest(i)
     \/ SignCommittableMessages(i)
@@ -1343,6 +1343,7 @@ Fairness ==
     /\ \A s \in Servers : WF_vars(SignCommittableMessages(s))
     /\ \A s \in Servers : WF_vars(AdvanceCommitIndex(s))
     /\ \A s \in Servers : WF_vars(AppendRetiredCommitted(s))
+    /\ \A s \in Servers : WF_vars(preVoteEnabled /\ BecomeCandidate(s))
     /\ \A s \in Servers : WF_vars(BecomeLeader(s))
     /\ \A s \in Servers : WF_vars(Timeout(s))
     /\ \A s \in Servers : WF_vars(ChangeConfiguration(s))
