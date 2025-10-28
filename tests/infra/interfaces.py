@@ -233,6 +233,8 @@ class RPCInterface(Interface):
 
         self.host, self.port = split_netloc(address)
 
+        return self
+
     @staticmethod
     def to_json(interface):
         http_config = {

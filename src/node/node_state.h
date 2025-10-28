@@ -1658,9 +1658,6 @@ namespace ccf
           service_info->cert.str()));
       }
 
-      service_info->previous_service_identity_version =
-        service->get_version_of_previous_write();
-
       if (is_part_of_public_network())
       {
         // If the node is in public mode, start accepting member recovery
