@@ -1897,20 +1897,6 @@ namespace ccf
       // Redirects to endpoint for a single specific snapshot
       auto find_snapshot =
         [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
-          auto node_configuration_subsystem =
-            this->context.get_subsystem<NodeConfigurationSubsystem>();
-          if (!node_configuration_subsystem)
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "NodeConfigurationSubsystem is not available");
-            return;
-          }
-
-          const auto& snapshots_config =
-            node_configuration_subsystem->get().node_config.snapshots;
-
           size_t latest_idx = 0;
           {
             // Get latest_idx from query param, if present
@@ -1934,6 +1920,57 @@ namespace ccf
               latest_idx = snapshot_since.value();
             }
           }
+
+          if (consensus != nullptr && !this->node_operation.can_replicate())
+          {
+            // Try to redirect to primary for preferable snapshot, expected to
+            // match later /join request
+            auto primary_id = consensus->primary();
+            if (primary_id.has_value())
+            {
+              const auto address =
+                get_redirect_address_for_node(args, args.tx, *primary_id);
+              if (!address.has_value())
+              {
+                return;
+              }
+
+              auto location =
+                fmt::format("https://{}/node/snapshot", address.value());
+              if (latest_idx != 0)
+              {
+                location +=
+                  fmt::format("?{}={}", snapshot_since_param_key, latest_idx);
+              }
+
+              args.rpc_ctx->set_response_header(
+                http::headers::LOCATION, location);
+              args.rpc_ctx->set_response_error(
+                HTTP_STATUS_PERMANENT_REDIRECT,
+                ccf::errors::NodeCannotHandleRequest,
+                "Node is not primary; redirecting for preferable snapshot");
+              return;
+              // TODO: Test redirects e2e
+            }
+
+            // If there is no current primary, fall-back to returning this
+            // node's best snapshot rather than terminating the fetch with an
+            // error
+          }
+
+          auto node_configuration_subsystem =
+            this->context.get_subsystem<NodeConfigurationSubsystem>();
+          if (!node_configuration_subsystem)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "NodeConfigurationSubsystem is not available");
+            return;
+          }
+
+          const auto& snapshots_config =
+            node_configuration_subsystem->get().node_config.snapshots;
 
           const auto orig_latest = latest_idx;
           auto latest_committed_snapshot =
