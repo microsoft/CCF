@@ -119,7 +119,7 @@ Nil ==
 CONSTANTS
   \* The node is ignorant of prevote
   PreVoteDisabled,
-  \* The node is able to respond to prevote, but that is not enabled
+  \* The node is able to respond to prevote messages
   PreVoteCapable,
   \* The node will become a PreVoteCandidate before becoming a Candidate
   PreVoteEnabled
@@ -634,7 +634,7 @@ InitCandidateVars ==
 InitLeaderVars ==
     /\ matchIndex = [i \in Servers |-> [j \in Servers |-> 0]]
 
-InitOptionConsts ==
+InitPreVoteStatus ==
     /\ preVoteStatus = {PreVoteDisabled}
 
 Init ==
@@ -642,7 +642,7 @@ Init ==
     /\ InitMessagesVars
     /\ InitCandidateVars
     /\ InitLeaderVars
-    /\ InitOptionConsts
+    /\ InitPreVoteStatus
 
 ------------------------------------------------------------------------------
 \* Define state transitions

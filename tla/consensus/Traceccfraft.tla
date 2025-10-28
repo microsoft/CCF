@@ -111,6 +111,8 @@ TraceAppendEntriesBatchsize(i, j) ==
 TraceInitReconfigurationVars ==
     /\ InitLogConfigServerVars({TraceLog[1].msg.state.node_id}, StartLog)
 
+TraceInitPreVoteStatus == PreVoteStatusTypeInv
+
 -------------------------------------------------------------------------------------
 
 VARIABLE l, ts
