@@ -172,6 +172,7 @@ RequestVoteRequestTypeOK(m) ==
 RequestVoteResponseTypeOK(m) ==
     /\ m.type = RequestVoteResponse
     /\ m.voteGranted \in BOOLEAN
+    /\ m.isPreVote \in BOOLEAN
 
 ProposeVoteRequestTypeOK(m) ==
     /\ m.type = ProposeVoteRequest
@@ -988,6 +989,7 @@ HandleRequestVoteRequest(i, j, m) ==
        /\ Reply([type        |-> RequestVoteResponse,
                  term        |-> currentTerm[i],
                  voteGranted |-> grant,
+                 isPreVote   |-> m.isPreVote,
                  source      |-> i,
                  dest        |-> j],
                  m)
@@ -999,7 +1001,8 @@ HandleRequestVoteRequest(i, j, m) ==
 HandleRequestVoteResponse(i, j, m) ==
     /\ m.term = currentTerm[i]
     \* Only PreVoteCandidates and Candidates need to tally votes
-    /\ leadershipState[i] \in {PreVoteCandidate, Candidate}
+    /\ \/  m.isPreVote /\ leadershipState[i] = PreVoteCandidate
+       \/ ~m.isPreVote /\ leadershipState[i] = Candidate
     /\ \/ /\ m.voteGranted
           /\ votesGranted' = [votesGranted EXCEPT ![i] =
                                   votesGranted[i] \cup {j}]
@@ -1226,7 +1229,8 @@ DropResponseWhenNotInState(i, j, m) ==
     \/ /\ m.type = AppendEntriesResponse
        /\ leadershipState[i] \in LeadershipStates \ { Leader }
     \/ /\ m.type = RequestVoteResponse
-       /\ leadershipState[i] \in LeadershipStates \ { Candidate, PreVoteCandidate }
+       /\ \/  m.isPreVote /\ leadershipState[i] /= PreVoteCandidate
+          \/ ~m.isPreVote /\ leadershipState[i] /= Candidate
     /\ Discard(m)
     /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
