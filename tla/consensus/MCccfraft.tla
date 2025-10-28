@@ -143,11 +143,6 @@ DebugNotTooManySigsInv ==
     \A i \in Servers:
         FoldSeq(LAMBDA e, count: IF e.contentType = TypeSignature THEN count + 1 ELSE count, 0, log[i]) < 8
 
-DebugInvLeaderAfterInit ==
-    \lnot \E i \in Servers : /\ PreVoteEnabled \in preVoteStatus 
-                             /\ leadershipState[i] = Leader 
-                             /\ currentTerm[i] > 2
-
 ----
 
 \* Initialize the counters for the Debug invariants to 0.
