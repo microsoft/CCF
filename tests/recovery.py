@@ -478,7 +478,7 @@ def test_recover_service_with_wrong_identity(network, args):
     with primary.client("user0") as client:
 
         def pull_with_handle():
-            # Receipts for previous service instances require back-endorsment.
+            # Receipts for previous service instances require back-endorsement.
             # In this case it should trigger reading pulling up state
             # for previous_service_created_tx_id, which will have an overlapping
             # seqno with the target tx, but this has to work just fine due to
