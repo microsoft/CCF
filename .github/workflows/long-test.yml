@@ -63,7 +63,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: logs-asan
           path: |
@@ -119,11 +119,11 @@ jobs:
         run: |
           set +x
           cd build
-          setarch -R ./tests.sh --output-on-failure --timeout 3600 -LE "benchmark" -E "launch_host_process|recovery|regression|governance|membership"
+          setarch -R ./tests.sh --output-on-failure --timeout 3600 -LE "benchmark" -E "recovery|regression|governance|membership"
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: logs-tsan
           path: |
@@ -188,7 +188,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: logs-e2e-debug
           path: |
@@ -248,7 +248,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: logs-e2e-release
           path: |
@@ -334,7 +334,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: e2e-long-combined
           path: |

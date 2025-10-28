@@ -189,7 +189,7 @@ jobs:
         shell: bash
 
       - name: "Upload logs for virtual"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: logs-azurelinux-virtual
           path: |
@@ -272,7 +272,7 @@ jobs:
         if: success() || failure()
 
       - name: "Upload logs"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: logs-caci-snp
           path: |
@@ -363,7 +363,7 @@ jobs:
         if: success() || failure()
 
       - name: "Upload logs"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: logs-caci-snp-genoa
           path: |
