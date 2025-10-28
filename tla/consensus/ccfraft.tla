@@ -1774,4 +1774,9 @@ DebugCommittedEntriesTermsInv ==
             k <= commitIndex[i]
             => log[i][k].term >= log[j][k].term
 
+DebugNonTrivialLeaderInv ==
+    ~\E i \in Servers:
+     /\ leadershipState[i] = Leader
+     /\ currentTerm[i] > StartTerm
+
 ===============================================================================
