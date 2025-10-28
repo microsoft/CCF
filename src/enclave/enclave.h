@@ -122,7 +122,6 @@ namespace ccf
         writer_factory->create_writer_to_outside());
       context->install_subsystem(lfs_access);
 
-      context->install_subsystem(std::make_shared<ccf::HostProcesses>(*node));
       context->install_subsystem(std::make_shared<ccf::NodeOperation>(*node));
       context->install_subsystem(
         std::make_shared<ccf::GovernanceEffects>(*node));

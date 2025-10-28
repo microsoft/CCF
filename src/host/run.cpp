@@ -1117,8 +1117,6 @@ namespace ccf
       }
     }
 
-    process_launcher.stop();
-
     constexpr size_t max_close_iterations = 1000;
     size_t close_iterations = max_close_iterations;
     int loop_close_rc = 0;
