@@ -30,7 +30,6 @@
 #include "ccf/js/core/wrapped_property_enum.h"
 #include "ccf/js/extensions/ccf/consensus.h"
 #include "ccf/js/extensions/ccf/historical.h"
-#include "ccf/js/extensions/ccf/host.h"
 #include "ccf/js/extensions/ccf/kv.h"
 #include "ccf/js/extensions/ccf/request.h"
 #include "ccf/js/extensions/ccf/rpc.h"
@@ -512,10 +511,6 @@ namespace ccf::js
     // add ccf.consensus.*
     extensions.emplace_back(
       std::make_shared<ccf::js::extensions::ConsensusExtension>(this));
-    // add ccf.host.*
-    extensions.emplace_back(
-      std::make_shared<ccf::js::extensions::HostExtension>(
-        context.get_subsystem<ccf::AbstractHostProcesses>().get()));
     // add ccf.historical.*
     extensions.emplace_back(
       std::make_shared<ccf::js::extensions::HistoricalExtension>(

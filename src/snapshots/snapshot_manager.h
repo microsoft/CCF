@@ -186,11 +186,15 @@ namespace snapshots
             {
               const auto& snapshot = it->second.snapshot;
 
-              THROW_ON_ERROR(
-                write(snapshot_fd, snapshot->data(), snapshot->size()),
-                file_name);
-              THROW_ON_ERROR(
-                write(snapshot_fd, receipt_data, receipt_size), file_name);
+              {
+                asynchost::TimeBoundLogger log_write_if_slow(
+                  fmt::format("Writing snapshot to {}", file_name));
+                THROW_ON_ERROR(
+                  write(snapshot_fd, snapshot->data(), snapshot->size()),
+                  file_name);
+                THROW_ON_ERROR(
+                  write(snapshot_fd, receipt_data, receipt_size), file_name);
+              }
 
               LOG_INFO_FMT(
                 "New snapshot file written to {} [{} bytes] (unsynced)",
