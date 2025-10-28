@@ -2092,14 +2092,12 @@ namespace ccf
 
                 if (range_end > total_size)
                 {
-                  ctx.rpc_ctx->set_error(
-                    HTTP_STATUS_BAD_REQUEST,
-                    ccf::errors::InvalidHeaderValue,
-                    fmt::format(
-                      "End of range {} is larger than total file size {}",
-                      range_end,
-                      total_size));
-                  return;
+                  LOG_DEBUG_FMT(
+                    "Requested snapshot range ending at {}, but file size is "
+                    "only {} - shrinking range end",
+                    range_end,
+                    total_size);
+                  range_end = total_size;
                 }
 
                 if (range_end < range_start)
