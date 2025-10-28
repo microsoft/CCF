@@ -36,7 +36,6 @@
 #include "load_monitor.h"
 #include "node_connections.h"
 #include "pal/quote_generation.h"
-#include "process_launcher.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
 #include "snapshots/fetch.h"
@@ -1094,10 +1093,6 @@ namespace ccf
 
     // reconstruct oversized messages sent to the host
     const oversized::FragmentReconstructor fragment_reconstructor(
-      buffer_processor.get_dispatcher());
-
-    asynchost::ProcessLauncher process_launcher;
-    process_launcher.register_message_handlers(
       buffer_processor.get_dispatcher());
 
     {

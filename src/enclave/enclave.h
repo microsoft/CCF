@@ -25,7 +25,6 @@
 #include "node/rpc/custom_protocol_subsystem.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/gov_effects.h"
-#include "node/rpc/host_processes.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/rpc/node_frontend.h"
@@ -72,7 +71,6 @@ namespace ccf
       nullptr;
     std::shared_ptr<ccf::indexing::Indexer> indexer = nullptr;
     std::shared_ptr<ccf::indexing::EnclaveLFSAccess> lfs_access = nullptr;
-    std::shared_ptr<ccf::HostProcesses> host_processes = nullptr;
 
   public:
     Enclave(

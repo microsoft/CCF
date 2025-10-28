@@ -119,7 +119,7 @@ jobs:
         run: |
           set +x
           cd build
-          setarch -R ./tests.sh --output-on-failure --timeout 3600 -LE "benchmark" -E "launch_host_process|recovery|regression|governance|membership"
+          setarch -R ./tests.sh --output-on-failure --timeout 3600 -LE "benchmark" -E "recovery|regression|governance|membership"
 
       - name: "Upload logs"
         if: success() || failure()
