@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [7.0.0-dev5]
 
+[7.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev5
+
 ### Removed
 
 - Removed the unused experimental `ccf.host.triggerSubprocess()` JS API
