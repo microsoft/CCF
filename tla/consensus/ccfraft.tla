@@ -663,8 +663,7 @@ BecomePreVoteCandidate(i) ==
         \/ i \in retirementCompleted[i]
     /\ leadershipState' = [leadershipState EXCEPT ![i] = PreVoteCandidate]
     /\ votesGranted' = [votesGranted EXCEPT ![i] = {i}]
-    /\ UNCHANGED <<currentTerm, votedFor>>
-    /\ UNCHANGED <<preVoteStatus, messageVars, reconfigurationVars, leaderVars, logVars, membershipState, isNewFollower>>
+    /\ UNCHANGED <<currentTerm, membershipState, votedFor, isNewFollower, preVoteStatus, messageVars, reconfigurationVars, leaderVars, logVars>>
 
 BecomeCandidate(i) ==
     \* Only servers that haven't completed retirement can become candidates
