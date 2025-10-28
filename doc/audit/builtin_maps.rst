@@ -264,13 +264,6 @@ PEM identity of previous service, which this service recovered from.
 
 **Value** Previous :term:`Service Identity`, represented as a PEM-encoded JSON string.
 
-``service.acme_certificates``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Key** Name of a network interface (string).
-
-**Value** Endorsed TLS certificate for the interface, represented as a PEM-encoded string.
-
 ``proposals``
 ~~~~~~~~~~~~~
 

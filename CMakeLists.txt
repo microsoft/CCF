@@ -1152,14 +1152,6 @@ if(BUILD_TESTS)
     NAME election_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
   )
 
-  if(LONG_TESTS)
-    add_e2e_test(
-      NAME acme_endorsement_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
-      LABEL ACME
-    )
-  endif()
-
   add_piccolo_test(
     NAME pi_ls
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py

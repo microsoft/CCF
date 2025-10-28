@@ -202,7 +202,6 @@ class Network:
         "config_file",
         "ubsan_options",
         "previous_service_identity_file",
-        "acme",
         "snp_endorsements_servers",
         "node_to_node_message_limit",
         "historical_cache_soft_limit",

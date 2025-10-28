@@ -5,7 +5,6 @@
 set -ex
 
 H2SPEC_VERSION="v2.6.0"
-PEBBLE_VERSION="v2.3.1"
 
 export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(date +%s)}
 echo "Using SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
@@ -52,14 +51,6 @@ tar -xvf h2spec_linux_amd64.tar.gz
 mkdir /opt/h2spec
 mv h2spec /opt/h2spec/h2spec
 rm h2spec_linux_amd64.tar.gz
-
-# acme endorsement tests
-mkdir -p /opt/pebble
-curl -L --output pebble_linux-amd64 https://github.com/letsencrypt/pebble/releases/download/$PEBBLE_VERSION/pebble_linux-amd64
-mv pebble_linux-amd64 /opt/pebble/pebble_linux-amd64
-curl -L --output pebble-challtestsrv_linux-amd64 https://github.com/letsencrypt/pebble/releases/download/$PEBBLE_VERSION/pebble-challtestsrv_linux-amd64
-mv pebble-challtestsrv_linux-amd64 /opt/pebble/pebble-challtestsrv_linux-amd64
-chmod +x /opt/pebble/pebble_linux-amd64 /opt/pebble/pebble-challtestsrv_linux-amd64
 
 # partitions test
 tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install iptables

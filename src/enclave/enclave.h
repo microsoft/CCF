@@ -15,12 +15,10 @@
 #include "interface.h"
 #include "js/interpreter_cache.h"
 #include "kv/ledger_chunker.h"
-#include "node/acme_challenge_frontend.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"
 #include "node/node_state.h"
 #include "node/node_types.h"
-#include "node/rpc/acme_subsystem.h"
 #include "node/rpc/cosesigconfig_subsystem.h"
 #include "node/rpc/custom_protocol_subsystem.h"
 #include "node/rpc/forwarder.h"
@@ -136,8 +134,6 @@ namespace ccf
       context->install_subsystem(
         std::make_shared<ccf::NodeConfigurationSubsystem>(*node));
 
-      context->install_subsystem(std::make_shared<ccf::ACMESubsystem>(*node));
-
       auto cpss = std::make_shared<ccf::CustomProtocolSubsystem>(*node);
       context->install_subsystem(cpss);
       rpcsessions->set_custom_protocol_subsystem(cpss);
@@ -160,12 +156,6 @@ namespace ccf
 
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *context));
-
-      // Note: for ACME challenges, the well-known frontend should really only
-      // listen on the interface specified in the ACMEClientConfig, but we don't
-      // have support for frontends restricted to particular interfaces yet.
-      rpc_map->register_frontend<ccf::ActorsType::acme_challenge>(
-        std::make_unique<ccf::ACMERpcFrontend>(network, *context));
 
       LOG_TRACE_FMT("Initialize node");
       node->initialize(

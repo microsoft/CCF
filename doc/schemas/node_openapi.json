@@ -52,7 +52,6 @@
         "enum": [
           "Node",
           "Service",
-          "ACME",
           "Unsecured"
         ],
         "type": "string"
@@ -200,9 +199,6 @@
       },
       "Endorsement": {
         "properties": {
-          "acme_configuration": {
-            "$ref": "#/components/schemas/string"
-          },
           "authority": {
             "$ref": "#/components/schemas/Authority"
           }
