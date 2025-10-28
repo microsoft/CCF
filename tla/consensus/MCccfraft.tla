@@ -106,8 +106,7 @@ MCSend(msg) ==
         /\ n.type = AppendEntriesResponse
     /\ CCF!Send(msg)
 
-MCInitOptionConsts ==
-    /\ preVoteEnabled \in {FALSE, TRUE}
+MCInitOptionConsts == PreVoteStatusTypeInv
 
 MCInit ==
     /\ InitMessagesVars
@@ -145,7 +144,7 @@ DebugNotTooManySigsInv ==
         FoldSeq(LAMBDA e, count: IF e.contentType = TypeSignature THEN count + 1 ELSE count, 0, log[i]) < 8
 
 DebugInvLeaderAfterInit ==
-    \lnot \E i \in Servers : /\ preVoteEnabled 
+    \lnot \E i \in Servers : /\ PreVoteEnabled \in preVoteStatus 
                              /\ leadershipState[i] = Leader 
                              /\ currentTerm[i] > 2
 

@@ -116,13 +116,20 @@ Nil ==
 ------------------------------------------------------------------------------
 \* Global variables
 
-\* Whether PreVote is enabled in this cluster
+CONSTANTS
+  \* The node is ignorant of prevote
+  PreVoteDisabled,
+  \* The node is able to respond to prevote, but that is not enabled
+  PreVoteCapable,
+  \* The node will become a PreVoteCandidate before becoming a Candidate
+  PreVoteEnabled
 VARIABLE
-    preVoteEnabled
+    preVoteStatus
 
-PreVoteEnabledTypeInv == preVoteEnabled \in BOOLEAN
-
-configVars == << preVoteEnabled >>
+PreVoteStatusTypeInv == preVoteStatus \in {
+  {PreVoteDisabled},
+  {PreVoteCapable},
+  {PreVoteCapable, PreVoteEnabled}}
 
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
@@ -350,7 +357,7 @@ LeaderVarsTypeInv ==
 
 \* All variables; used for stuttering (asserting state hasn't changed).
 vars == <<
-    preVoteEnabled,
+    preVoteStatus,
     reconfigurationVars, 
     messageVars, 
     serverVars, 
@@ -361,7 +368,7 @@ vars == <<
 
 \* Invariant to check the type safety of all variables
 TypeInv ==
-    /\ PreVoteEnabledTypeInv 
+    /\ PreVoteStatusTypeInv 
     /\ ReconfigurationVarsTypeInv
     /\ MessageVarsTypeInv
     /\ ServerVarsTypeInv
@@ -628,7 +635,7 @@ InitLeaderVars ==
     /\ matchIndex = [i \in Servers |-> [j \in Servers |-> 0]]
 
 InitOptionConsts ==
-    /\ preVoteEnabled = FALSE
+    /\ preVoteStatus = {PreVoteDisabled}
 
 Init ==
     /\ InitReconfigurationVars
@@ -641,11 +648,12 @@ Init ==
 \* Define state transitions
 
 BecomePreVoteCandidate(i) ==
-    /\ preVoteEnabled
+    /\ PreVoteEnabled \in preVoteStatus
     \* Only servers that haven't completed retirement can become candidates
     /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned, RetirementCompleted}
-    \* Only servers that are followers/candidates can become candidates
-    /\ leadershipState[i] = Follower
+    \* Only servers that are followers/candidates can become pre-vote-candidates
+    \* Candidates can time out and become pre-vote-candidates for the next term
+    /\ leadershipState[i] \in {Follower, Candidate}
     /\
         \* Check that the reconfiguration which added this node is at least committable
         \/ \E c \in DOMAIN configurations[i] :
@@ -656,20 +664,19 @@ BecomePreVoteCandidate(i) ==
     /\ leadershipState' = [leadershipState EXCEPT ![i] = PreVoteCandidate]
     /\ votesGranted' = [votesGranted EXCEPT ![i] = {i}]
     /\ UNCHANGED <<currentTerm, votedFor>>
-    /\ UNCHANGED <<configVars, messageVars, reconfigurationVars, leaderVars, logVars, membershipState, isNewFollower>>
+    /\ UNCHANGED <<preVoteStatus, messageVars, reconfigurationVars, leaderVars, logVars, membershipState, isNewFollower>>
 
 BecomeCandidate(i) ==
     \* Only servers that haven't completed retirement can become candidates
     /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned, RetirementCompleted}
     \* Only servers that are followers/candidates can become candidates
-    /\ \/ /\ ~preVoteEnabled
-          /\ leadershipState[i] \in {Follower, Candidate}
-       \/ /\ preVoteEnabled
-          /\ leadershipState[i] = PreVoteCandidate
-          \* To become a Candidate, the PreVoteCandidate must have received votes from a majority in each active configuration
-          \* Only votes by nodes part of a given configuration should be tallied against it
-          /\ \A c \in DOMAIN configurations[i] : 
-             (votesGranted[i] \intersect configurations[i][c]) \in Quorums[configurations[i][c]]
+    /\ IF PreVoteEnabled \notin preVoteStatus
+       THEN leadershipState[i] \in {Follower, Candidate} 
+       ELSE /\ leadershipState[i] = PreVoteCandidate
+            \* To become a Candidate, the PreVoteCandidate must have received votes from a majority in each active configuration
+            \* Only votes by nodes part of a given configuration should be tallied against it
+            /\ \A c \in DOMAIN configurations[i] : 
+              (votesGranted[i] \intersect configurations[i][c]) \in Quorums[configurations[i][c]]
     /\
         \* Check that the reconfiguration which added this node is at least committable
         \/ \E c \in DOMAIN configurations[i] :
@@ -682,13 +689,14 @@ BecomeCandidate(i) ==
     \* Candidate votes for itself
     /\ votedFor' = [votedFor EXCEPT ![i] = i]
     /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
-    /\ UNCHANGED <<configVars, messageVars, reconfigurationVars, leaderVars, logVars, membershipState, isNewFollower>>
+    /\ UNCHANGED <<preVoteStatus, messageVars, reconfigurationVars, leaderVars, logVars, membershipState, isNewFollower>>
 
 \* Server i times out (becomes candidate) and votes for itself in the election of the next term
 \* At some point later (non-deterministically), the candidate will request votes from the other nodes.
 Timeout(i) ==
-    \/  preVoteEnabled /\ BecomePreVoteCandidate(i)
-    \/ ~preVoteEnabled /\ BecomeCandidate(i)
+    IF PreVoteEnabled \notin preVoteStatus
+    THEN BecomeCandidate(i)
+    ELSE BecomePreVoteCandidate(i)
 
 \* Candidate i sends j a RequestVote request.
 RequestVote(i,j) ==
@@ -711,7 +719,7 @@ RequestVote(i,j) ==
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
     /\ Send(msg)
-    /\ UNCHANGED <<configVars, reconfigurationVars, serverVars, votesGranted, leaderVars, logVars>>
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, votesGranted, leaderVars, logVars>>
 
 \* Leader i sends j an AppendEntries request
 AppendEntries(i, j) ==
@@ -751,7 +759,7 @@ AppendEntries(i, j) ==
             \* Record the most recent index we have sent to this node.
             \* raft.h::send_append_entries
             /\ sentIndex' = [sentIndex EXCEPT ![i][j] = @ + Len(m.entries)]
-    /\ UNCHANGED <<configVars, reconfigurationVars, serverVars, candidateVars, matchIndex, logVars, membershipState>>
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, matchIndex, logVars, membershipState>>
 
 \* Candidate i transitions to leader.
 BecomeLeader(i) ==
@@ -774,7 +782,7 @@ BecomeLeader(i) ==
     \* been rolled back as it was unsigned
     /\ membershipState' = [membershipState EXCEPT ![i] = 
         IF @ = RetirementOrdered THEN Active ELSE @]
-    /\ UNCHANGED <<configVars, messageVars, currentTerm, votedFor, isNewFollower, candidateVars, commitIndex, hasJoined, retirementCompleted>>
+    /\ UNCHANGED <<preVoteStatus, messageVars, currentTerm, votedFor, isNewFollower, candidateVars, commitIndex, hasJoined, retirementCompleted>>
 
 \* Leader i receives a client request to add to the log. The consensus spec is agnostic to request payloads,
 \* and does not model or differentiate them. See the consistency spec (tla/consistency/*) for a specification
@@ -786,7 +794,7 @@ ClientRequest(i) ==
     /\ membershipState[i] # RetiredCommitted
     \* Add new request to leader's log
     /\ log' = [log EXCEPT ![i] = Append(@, [term  |-> currentTerm[i], contentType |-> TypeEntry]) ]
-    /\ UNCHANGED <<configVars, reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex>>
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex>>
 
 \* CCF: Signed commits
 \* In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF.
@@ -809,7 +817,7 @@ SignCommittableMessages(i) ==
     /\ IF membershipState[i] = RetirementOrdered
        THEN membershipState' = [membershipState EXCEPT ![i] = RetirementSigned]
        ELSE UNCHANGED membershipState
-    /\ UNCHANGED <<configVars, reconfigurationVars, messageVars, currentTerm, leadershipState, votedFor, isNewFollower, candidateVars, leaderVars, commitIndex>>
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, messageVars, currentTerm, leadershipState, votedFor, isNewFollower, candidateVars, leaderVars, commitIndex>>
 
 \* CCF: Reconfiguration of servers
 \* In the TLA+ model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log.
@@ -847,7 +855,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
         /\ IF membershipState[i] = Active /\ i \notin newConfiguration
             THEN membershipState' = [membershipState EXCEPT ![i] = RetirementOrdered]
             ELSE UNCHANGED membershipState
-        /\ UNCHANGED <<configVars, messageVars, currentTerm, leadershipState, votedFor, isNewFollower, candidateVars, matchIndex, commitIndex, retirementCompleted>>
+        /\ UNCHANGED <<preVoteStatus, messageVars, currentTerm, leadershipState, votedFor, isNewFollower, candidateVars, matchIndex, commitIndex, retirementCompleted>>
 
 ChangeConfiguration(i) ==
     \* Reconfigure to any *non-empty* subset of servers.  ChangeConfigurationInt checks that the new
@@ -867,7 +875,7 @@ AppendRetiredCommitted(i) ==
                     term  |-> currentTerm[i], 
                     contentType |-> TypeRetired, 
                     retired |-> retire_committed_nodes])]
-    /\ UNCHANGED <<configVars, reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex>>
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex>>
 
 
 \* Leader i advances its commitIndex to the next possible Index.
@@ -935,7 +943,7 @@ AdvanceCommitIndex(i) ==
                         IN Send(msg)
             ELSE UNCHANGED <<messages>>
         /\ retirementCompleted' = [retirementCompleted EXCEPT ![i] = NextRetirementCompleted(retirementCompleted[i], configurations[i], log[i], commitIndex'[i], i)]
-    /\ UNCHANGED <<configVars, candidateVars, leaderVars, log, currentTerm, votedFor, isNewFollower, hasJoined>>
+    /\ UNCHANGED <<preVoteStatus, candidateVars, leaderVars, log, currentTerm, votedFor, isNewFollower, hasJoined>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
 CheckQuorum(i) ==
@@ -946,7 +954,7 @@ CheckQuorum(i) ==
        \E n \in configurations[i][c]: n /= i
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
-    /\ UNCHANGED <<configVars, reconfigurationVars, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars, membershipState>>
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars, membershipState>>
 
 ------------------------------------------------------------------------------
 \* Message handlers
@@ -961,9 +969,17 @@ HandleRequestVoteRequest(i, j, m) ==
                     \* CCF change: Log is only okay up to signatures,
                     \*  not any message in the log
                     /\ m.lastCommittableIndex >= MaxCommittableIndex(log[i])
-        grant == /\ m.term = currentTerm[i]
-                 /\ logOk
-                 /\ votedFor[i] \in {Nil, j}
+        grant_pre_vote_disabled == /\ m.term = currentTerm[i]
+                                   /\ logOk
+                                   /\ votedFor[i] \in {Nil, j}
+        grant_pre_vote_capable  == /\ logOk 
+                                   /\ IF ~m.isPreVote
+                                      THEN /\ m.term = currentTerm[i]
+                                           /\ votedFor[i] \in {Nil, j}
+                                      ELSE m.term >= currentTerm[i]
+        grant == IF PreVoteDisabled \in preVoteStatus
+                 THEN grant_pre_vote_disabled
+                 ELSE grant_pre_vote_capable
     IN /\ m.term <= currentTerm[i]
        /\ \/ grant /\ \/ /\ ~m.isPreVote 
                          /\ votedFor' = [votedFor EXCEPT ![i] = j]
@@ -976,7 +992,7 @@ HandleRequestVoteRequest(i, j, m) ==
                  source      |-> i,
                  dest        |-> j],
                  m)
-       /\ UNCHANGED <<configVars, reconfigurationVars, leadershipState, currentTerm, 
+       /\ UNCHANGED <<preVoteStatus, reconfigurationVars, leadershipState, currentTerm, 
         candidateVars, leaderVars, logVars, membershipState, isNewFollower>>
 
 \* Server i receives a RequestVote response from server j with
@@ -991,7 +1007,7 @@ HandleRequestVoteResponse(i, j, m) ==
        \/ /\ ~m.voteGranted
           /\ UNCHANGED votesGranted
     /\ Discard(m)
-    /\ UNCHANGED <<configVars, reconfigurationVars, serverVars, votedFor, leaderVars, 
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, votedFor, leaderVars, 
         logVars, membershipState, isNewFollower>>
 
 \* Server i replies to a AppendEntries request from server j with a NACK
@@ -1033,7 +1049,7 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
                                 source         |-> i,
                                 dest           |-> j],
                                 m)
-    /\ UNCHANGED <<configVars, reconfigurationVars, serverVars, logVars, membershipState, isNewFollower, candidateVars, leaderVars>>
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, logVars, membershipState, isNewFollower, candidateVars, leaderVars>>
 
 \* Candidate i steps down to follower in the same term after receiving a message m from a leader in the current term
 \* Must check that m is an AppendEntries message before returning to follower state
@@ -1043,7 +1059,7 @@ ReturnToFollowerState(i, m) ==
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
     \* Note that the set of messages is unchanged as m is discarded
-    /\ UNCHANGED <<configVars, reconfigurationVars, currentTerm, votedFor, logVars, 
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, currentTerm, votedFor, logVars, 
         messages, membershipState, candidateVars, leaderVars>>
 
 \* Follower i receives a AppendEntries from leader j for log entries it already has
@@ -1071,7 +1087,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<configVars, currentTerm, leadershipState, votedFor, isNewFollower, log, candidateVars, leaderVars, hasJoined>>
+    /\ UNCHANGED <<preVoteStatus, currentTerm, leadershipState, votedFor, isNewFollower, log, candidateVars, leaderVars, hasJoined>>
 
 \* Follower i receives an AppendEntries request m where it needs to roll back first
 \* This action rolls back the log and leaves m in messages for further processing
@@ -1087,7 +1103,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex[i], i)]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
-    /\ UNCHANGED <<configVars, currentTerm, leadershipState, votedFor, commitIndex, messages, candidateVars, leaderVars, hasJoined, retirementCompleted>>
+    /\ UNCHANGED <<preVoteStatus, currentTerm, leadershipState, votedFor, commitIndex, messages, candidateVars, leaderVars, hasJoined, retirementCompleted>>
 
 \* Follower i receives an AppendEntries request m from leader j for log entries which directly follow its log
 NoConflictAppendEntriesRequest(i, j, m) ==
@@ -1131,7 +1147,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<configVars, currentTerm, votedFor, isNewFollower, candidateVars, leaderVars, hasJoined>>
+    /\ UNCHANGED <<preVoteStatus, currentTerm, votedFor, isNewFollower, candidateVars, leaderVars, hasJoined>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     /\ m.term = currentTerm[i]
@@ -1174,7 +1190,7 @@ HandleAppendEntriesResponse(i, j, m) ==
            \* "If AppendEntries fails because of log inconsistency: decrement nextIndex (aka sentIndex +1) and retry"
           /\ UNCHANGED matchIndex
     /\ Discard(m)
-    /\ UNCHANGED <<configVars, reconfigurationVars, serverVars, candidateVars, logVars>>
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, logVars>>
 
 \* Any message with a newer term causes the recipient to advance its term first.
 \* Note that UpdateTerm does not discard message m from the set of messages so this 
@@ -1198,13 +1214,13 @@ UpdateTerm(i, j, m) ==
     /\ membershipState' = [membershipState EXCEPT ![i] = 
         IF @ = RetirementOrdered THEN Active ELSE @]
     \* messages is unchanged so m can be processed further.
-    /\ UNCHANGED <<configVars, messageVars, candidateVars, leaderVars, commitIndex, hasJoined, retirementCompleted>>
+    /\ UNCHANGED <<preVoteStatus, messageVars, candidateVars, leaderVars, commitIndex, hasJoined, retirementCompleted>>
 
 \* Responses with stale terms are ignored.
 DropStaleResponse(i, j, m) ==
     /\ m.term < currentTerm[i]
     /\ Discard(m)
-    /\ UNCHANGED <<configVars, reconfigurationVars, serverVars, candidateVars, leaderVars,
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, leaderVars,
         logVars, membershipState>>
 
 DropResponseWhenNotInState(i, j, m) ==
@@ -1213,7 +1229,7 @@ DropResponseWhenNotInState(i, j, m) ==
     \/ /\ m.type = RequestVoteResponse
        /\ leadershipState[i] \in LeadershipStates \ { Candidate, PreVoteCandidate }
     /\ Discard(m)
-    /\ UNCHANGED <<configVars, reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 \* Drop messages if they are irrelevant to the node
 DropIgnoredMessage(i,j,m) ==
@@ -1236,7 +1252,7 @@ DropIgnoredMessage(i,j,m) ==
        \/ /\ membershipState[i] = RetiredCommitted
           /\ m.type /= AppendEntriesRequest
     /\ Discard(m)
-    /\ UNCHANGED <<configVars, reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 \* Receive a message.
 
@@ -1291,7 +1307,6 @@ RcvProposeVoteRequest(i, j) ==
         /\ m.term = currentTerm[i]
         /\ BecomeCandidate(m.dest)
         /\ Discard(m)
-        /\ UNCHANGED configVars
 
 \* Node i receives a message from node j.
 Receive(i, j) ==
@@ -1313,7 +1328,7 @@ Receive(i, j) ==
 \* Defines how the variables may transition, given a node i.
 NextInt(i) ==
     \/ Timeout(i)
-    \/ (preVoteEnabled /\ BecomeCandidate(i))
+    \/ (PreVoteEnabled \in preVoteStatus /\ BecomeCandidate(i))
     \/ BecomeLeader(i)
     \/ ClientRequest(i)
     \/ SignCommittableMessages(i)
@@ -1343,7 +1358,7 @@ Fairness ==
     /\ \A s \in Servers : WF_vars(SignCommittableMessages(s))
     /\ \A s \in Servers : WF_vars(AdvanceCommitIndex(s))
     /\ \A s \in Servers : WF_vars(AppendRetiredCommitted(s))
-    /\ \A s \in Servers : WF_vars(preVoteEnabled /\ BecomeCandidate(s))
+    /\ \A s \in Servers : WF_vars(PreVoteEnabled \in preVoteStatus /\ BecomeCandidate(s))
     /\ \A s \in Servers : WF_vars(BecomeLeader(s))
     /\ \A s \in Servers : WF_vars(Timeout(s))
     /\ \A s \in Servers : WF_vars(ChangeConfiguration(s))
@@ -1645,14 +1660,17 @@ PermittedLogChangesProp ==
 StateTransitionsProp ==
     [][\A i \in Servers :
         /\ leadershipState[i] = None => leadershipState'[i] \in {None, Follower}
-        /\ \/ /\ ~preVoteEnabled
-              /\ leadershipState[i] = Follower => leadershipState'[i] \in {Follower, Candidate}
-              /\ leadershipState[i] /= PreVoteCandidate
-              /\ leadershipState[i] = Candidate => leadershipState'[i] \in {Follower, Candidate, Leader}
-           \/ /\ preVoteEnabled
-              /\ leadershipState[i] = Follower => leadershipState'[i] \in {Follower, PreVoteCandidate, Candidate}
-              /\ leadershipState[i] = PreVoteCandidate => leadershipState'[i] \in {Follower, PreVoteCandidate, Candidate}
-              /\ leadershipState[i] = Candidate => leadershipState'[i] \in {Follower, PreVoteCandidate, Candidate, Leader}
+        /\ IF PreVoteEnabled \notin preVoteStatus
+           THEN 
+                \* A follower can become a Candidate via a timeout or a ProposeVoteRequest
+                /\ leadershipState[i] = Follower => leadershipState'[i] \in {Follower, Candidate}
+                /\ leadershipState[i] /= PreVoteCandidate
+                /\ leadershipState[i] = Candidate => leadershipState'[i] \in {Follower, Candidate, Leader}
+           ELSE 
+                \* A follower can become a PreVoteCandidate via a timeout, or a Candidate via ProposeVoteRequest
+                /\ leadershipState[i] = Follower => leadershipState'[i] \in {Follower, PreVoteCandidate, Candidate}
+                /\ leadershipState[i] = PreVoteCandidate => leadershipState'[i] \in {Follower, PreVoteCandidate, Candidate}
+                /\ leadershipState[i] = Candidate => leadershipState'[i] \in {Follower, PreVoteCandidate, Candidate, Leader}
         /\ leadershipState[i] = Leader => leadershipState'[i] \in {Follower, Leader}
         ]_vars
 
@@ -1682,6 +1700,13 @@ LogMatchingProp ==
 LeaderProp ==
     \* There is repeatedly a non-retired leader.
     []<><<\E i \in Servers : leadershipState[i] = Leader /\ membershipState[i] # RetiredCommitted>>_vars
+
+VotesGrantedMonotonicProp ==
+  \A i \in Servers: [][
+    /\ leadershipState[i] = leadershipState'[i]
+    /\ currentTerm[i] = currentTerm'[i]
+    => votesGranted[i] \subseteq votesGranted'[i]
+  ]_vars
 
 ------------------------------------------------------------------------------
 \* Refinement of the more high-level specification abs.tla that abstracts the
