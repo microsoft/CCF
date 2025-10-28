@@ -474,7 +474,6 @@ namespace ccf
       auto latest_peer_snapshot = snapshots::fetch_from_peer(
         config.command.join.target_rpc_address,
         config.command.service_certificate_file,
-        std::nullopt,
         config.command.join.fetch_snapshot_max_attempts,
         config.command.join.fetch_snapshot_retry_interval.count_ms(),
         config.command.join.fetch_snapshot_max_size.count_bytes());
@@ -492,10 +491,10 @@ namespace ccf
           fs::path(latest_peer_snapshot->snapshot_name);
         if (files::exists(dst_path))
         {
-                    LOG_FAIL_FMT(
-                "Overwriting existing snapshot at {} with data retrieved from "
-                "peer",
-                dst_path);
+          LOG_FAIL_FMT(
+            "Overwriting existing snapshot at {} with data retrieved from "
+            "peer",
+            dst_path);
         }
         files::dump(latest_peer_snapshot->snapshot_data, dst_path);
         startup_snapshot = latest_peer_snapshot->snapshot_data;
