@@ -377,6 +377,7 @@ endif()
 set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/thread_local.cpp
     ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
+    ${CCF_DIR}/src/node/self_healing_open_impl.cpp
 )
 
 add_ccf_static_library(
@@ -710,11 +711,20 @@ if(BUILD_TESTS)
     add_unit_test(
       frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
-      ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/node/quote.cpp
+      ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/self_healing_open_impl.cpp
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
-                            ccf_endpoints ccfcrypto ccf_kv
+      frontend_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser
+              ccf_js
+              ccf_endpoints
+              ccfcrypto
+              ccf_kv
+              uv
+              curl
     )
 
     add_unit_test(
@@ -740,11 +750,20 @@ if(BUILD_TESTS)
     add_unit_test(
       node_frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
-      ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/node/quote.cpp
+      ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/self_healing_open_impl.cpp
     )
     target_link_libraries(
-      node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
-                                 ccf_endpoints ccfcrypto ccf_kv
+      node_frontend_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser
+              ccf_js
+              ccf_endpoints
+              ccfcrypto
+              ccf_kv
+              uv
+              curl
     )
 
     add_unit_test(
@@ -1215,15 +1234,15 @@ if(BUILD_TESTS)
     CONFIGURATIONS perf
   )
 
-  add_test_bin(
-    curl_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/curl_test.cpp
-  )
-  target_link_libraries(curl_test PRIVATE curl uv http_parser)
-
   if(LONG_TESTS)
     add_e2e_test(
       NAME e2e_curl PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_curl.py
     )
+
+    add_test_bin(
+      curl_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/curl_test.cpp
+    )
+    target_link_libraries(curl_test PRIVATE curl uv http_parser)
   endif()
 endif()
 
