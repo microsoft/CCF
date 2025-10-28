@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Stop passing nullptr to curl_multi_socket_action (#7371)
 
+### Changed
+
+- When `GET /node/snapshot/{snapshot_name}` requests a `Range` that extends beyond the snapshot's end, the node will now respond with the available sub-range rather than a Bad Request error.
+
 ## [6.0.15]
 
 [6.0.15]: https://github.com/microsoft/CCF/releases/tag/6.0.15
