@@ -1406,7 +1406,7 @@ namespace loggingapp
         .add_query_parameter<size_t>("seqno")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
-      // SNIPPET_END: get_historical
+      // SNIPPET_END: get_historical_with_handle
 
       // SNIPPET_START: get_historical_with_receipt
       auto get_historical_with_receipt =
