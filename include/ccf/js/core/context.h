@@ -18,7 +18,6 @@
 namespace ccf
 {
   class AbstractGovernanceEffects;
-  class AbstractHostProcesses;
   struct NetworkState;
   class RpcContext;
   class BaseEndpointRegistry;
