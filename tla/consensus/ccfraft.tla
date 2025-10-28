@@ -650,7 +650,7 @@ Init ==
 BecomePreVoteCandidate(i) ==
     /\ PreVoteEnabled \in preVoteStatus
     \* Only servers that haven't completed retirement can become candidates
-    /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned, RetirementCompleted}
+    /\ membershipState[i] \in (MembershipStates \ {RetiredCommitted})
     \* Only servers that are followers/candidates can become pre-vote-candidates
     \* Candidates can time out and become pre-vote-candidates for the next term
     /\ leadershipState[i] \in {Follower, Candidate}
@@ -668,7 +668,7 @@ BecomePreVoteCandidate(i) ==
 
 BecomeCandidate(i) ==
     \* Only servers that haven't completed retirement can become candidates
-    /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned, RetirementCompleted}
+    /\ membershipState[i] \in (MembershipStates \ {RetiredCommitted})
     \* Only servers that are followers/candidates can become candidates
     /\ IF PreVoteEnabled \notin preVoteStatus
        THEN leadershipState[i] \in {Follower, Candidate} 
