@@ -30,9 +30,6 @@ namespace ccf
     virtual void trigger_recovery_shares_refresh(ccf::kv::Tx& tx) = 0;
     virtual void trigger_ledger_chunk(ccf::kv::Tx& tx) = 0;
     virtual void trigger_snapshot(ccf::kv::Tx& tx) = 0;
-    virtual void trigger_host_process_launch(
-      const std::vector<std::string>& args,
-      const std::vector<uint8_t>& input) = 0;
     virtual bool is_in_initialised_state() const = 0;
     virtual bool is_part_of_public_network() const = 0;
     virtual bool is_primary() const = 0;

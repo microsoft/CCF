@@ -237,7 +237,6 @@ add_ccf_static_library(
        ${CCF_DIR}/src/js/extensions/ccf/gov.cpp
        ${CCF_DIR}/src/js/extensions/ccf/gov_effects.cpp
        ${CCF_DIR}/src/js/extensions/ccf/historical.cpp
-       ${CCF_DIR}/src/js/extensions/ccf/host.cpp
        ${CCF_DIR}/src/js/extensions/ccf/kv.cpp
        ${CCF_DIR}/src/js/extensions/ccf/network.cpp
        ${CCF_DIR}/src/js/extensions/ccf/node.cpp
@@ -929,14 +928,6 @@ if(BUILD_TESTS)
       ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
     ADDITIONAL_ARGS --package js_generic --js-app-bundle
                     ${CMAKE_SOURCE_DIR}/tests
-  )
-
-  add_e2e_test(
-    NAME launch_host_process_test
-    PYTHON_SCRIPT
-      ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process/host_process.py
-    ADDITIONAL_ARGS --js-app-bundle
-                    ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
   )
 
   set(CONSTITUTION_ARGS
