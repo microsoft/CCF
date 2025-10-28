@@ -204,7 +204,6 @@ TEST_CASE("PauseAndResume")
         resumable = ccf::tasks::pause_current_task();
         beacon.notify_work_available();
       }));
-      x_tasks->add_action(increment(x));
 
       beacon.wait_for_work_with_timeout(std::chrono::milliseconds(100));
       REQUIRE(x.load() == 204);
@@ -213,10 +212,13 @@ TEST_CASE("PauseAndResume")
       // A paused task can be cancelled
       x_tasks->cancel_task();
 
+      // So that actions added _after_ cancellation will never execute
+      x_tasks->add_action(increment(x));
+
       // Cancellation supercedes resumption - nothing more happens on this task
       ccf::tasks::resume_task(std::move(resumable));
 
-      beacon.wait_for_work_with_timeout(std::chrono::milliseconds(100));
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
       REQUIRE(x.load() == 204);
     }
   }

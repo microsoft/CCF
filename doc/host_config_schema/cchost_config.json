@@ -393,6 +393,11 @@
                     "type": "string",
                     "default": "1000ms",
                     "description": "Interval (time string) between retries to fetch a recent snapshot from the target node"
+                  },
+                  "fetch_snapshot_max_size": {
+                    "type": "string",
+                    "default": "10GB",
+                    "description": "Maximum size of snapshot this node is willing to fetch"
                   }
                 },
                 "required": ["target_rpc_address"],

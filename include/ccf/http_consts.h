@@ -14,6 +14,7 @@ namespace ccf
       static constexpr auto AUTHORIZATION = "authorization";
       static constexpr auto CACHE_CONTROL = "cache-control";
       static constexpr auto CONTENT_LENGTH = "content-length";
+      static constexpr auto CONTENT_RANGE = "content-range";
       static constexpr auto CONTENT_TYPE = "content-type";
       static constexpr auto DATE = "date";
       static constexpr auto DIGEST = "digest";

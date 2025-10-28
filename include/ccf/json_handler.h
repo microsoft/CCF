@@ -52,8 +52,14 @@ namespace ccf
    */
   namespace jsonhandler
   {
-    using JsonAdapterResponse =
-      std::variant<ErrorDetails, RedirectDetails, nlohmann::json>;
+    struct AlreadyPopulatedResponse
+    {};
+
+    using JsonAdapterResponse = std::variant<
+      ErrorDetails,
+      RedirectDetails,
+      AlreadyPopulatedResponse,
+      nlohmann::json>;
 
     nlohmann::json get_json_params(const std::shared_ptr<ccf::RpcContext>& ctx);
 
@@ -71,6 +77,8 @@ namespace ccf
     ccf::http_status status, const std::string& code, const std::string& msg);
 
   jsonhandler::JsonAdapterResponse make_redirect(ccf::http_status status);
+
+  jsonhandler::JsonAdapterResponse already_populated_response();
 
   using HandlerJsonParamsAndForward =
     std::function<jsonhandler::JsonAdapterResponse(

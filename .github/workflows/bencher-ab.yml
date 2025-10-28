@@ -11,10 +11,17 @@ on:
       - opened
       - reopened
 
+permissions: read-all
+
 jobs:
   benchmark_pr:
     name: Benchmark PR
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=bab_benchmark_pr-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     if: ${{ contains(github.event.pull_request.labels.*.name, 'bench-ab') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
@@ -51,7 +58,7 @@ jobs:
           PYTHONPATH=../tests python convert_pico_to_bencher.py
 
       - name: Upload PR results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: benchmark-pr-${{ github.run_id }}
           path: build/bencher.json
@@ -59,7 +66,12 @@ jobs:
 
   benchmark_main:
     name: Benchmark Main
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=bab_benchmark_main-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     if: ${{ contains(github.event.pull_request.labels.*.name, 'bench-ab') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
@@ -97,7 +109,7 @@ jobs:
           PYTHONPATH=../tests python convert_pico_to_bencher.py
 
       - name: Upload main results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: benchmark-main-${{ github.run_id }}
           path: build/bencher.json
@@ -105,7 +117,12 @@ jobs:
 
   compare:
     name: Compare Results
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=bab_compare-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root
@@ -120,7 +137,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Download artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           pattern: benchmark-*-${{ github.run_id }}
           merge-multiple: false

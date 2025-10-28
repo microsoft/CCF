@@ -854,6 +854,10 @@ class Node:
             f"Node {self.local_node_id} was not in leadership states {leadership_states} in view > {min_view} after {timeout}s: {r}"
         )
 
+    def log_stack_trace(self, timeout=20):
+        if self.remote and self.network_state is not NodeNetworkState.stopped:
+            self.remote.log_stack_trace(timeout=timeout)
+
 
 @contextmanager
 def node(

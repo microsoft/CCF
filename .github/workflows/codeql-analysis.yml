@@ -23,7 +23,12 @@ jobs:
   analyze:
     name: Analyze
     # Insufficient space to run on public runner, so use custom pool
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=codeql_analyze-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root
@@ -53,7 +58,7 @@ jobs:
         run: git config --global --add safe.directory /__w/CCF/CCF
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           queries: security-extended
@@ -79,4 +84,4 @@ jobs:
         name: Run Make
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4

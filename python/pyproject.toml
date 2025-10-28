@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=71.0"]
+requires = ["setuptools >= 71.0, < 81"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,18 +10,16 @@ authors = [
 ]
 description = "Set of tools and utilities for the Confidential Consortium Framework (CCF)"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.12"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = [
-    "loguru >= 0.5, == 0.*",
-    "cryptography >= 44,< 47",
-    "string-color >= 1.2.1, == 1.*",
-    "cwt >= 3.1.0, == 3.*",
-    "setuptools >= 74,< 81",
-    "packaging >= 24,< 26"
+    "cryptography >= 46, < 47",
+    "cwt >= 3.2.0, < 4",
+    "setuptools >= 74, < 81",
+    "packaging >= 25, < 26"
 ]
 
 [tool.setuptools]

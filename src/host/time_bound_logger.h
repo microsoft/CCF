@@ -49,7 +49,13 @@ namespace asynchost
     {
       const auto end_time = TClock::now();
       const auto elapsed = end_time - start_time;
-      if (elapsed > max_time)
+      constexpr auto out_of_distribution_multiplier = 100;
+      if (elapsed > max_time * out_of_distribution_multiplier)
+      {
+        LOG_FAIL_FMT(
+          "Operation took too long ({}): {}", human_time(elapsed), message);
+      }
+      else if (elapsed > max_time)
       {
         LOG_INFO_FMT(
           "Operation took too long ({}): {}", human_time(elapsed), message);

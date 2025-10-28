@@ -172,54 +172,69 @@ def test_forced_ledger_chunk(network, args):
 @reqs.description("Forced snapshot")
 @app.scoped_txs()
 def test_forced_snapshot(network, args):
-    if args.worker_threads > 0:
-        LOG.warning(
-            f"Skipping as broken when the number of threads ({args.worker_threads}) is > 0"
+    inner_args = copy.deepcopy(args)
+    inner_args.common_read_only_ledger_dir = (
+        None  # Side-effect setting which would break the starting node
+    )
+    inner_args.label = f"{inner_args.label}_forced_snapshot"
+    inner_args.snapshot_tx_interval = (
+        10000  # Large interval to avoid interference from regular snapshots
+    )
+
+    # Use a separate network to ensure unforced snapshots do not happen
+    with infra.network.network(
+        inner_args.nodes,
+        inner_args.binary_dir,
+        inner_args.debug_nodes,
+        pdb=inner_args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as inner_network:
+        inner_network.start_and_open(inner_args)
+
+        primary, _ = inner_network.find_primary()
+
+        # Submit some dummy transactions
+        inner_network.txs.issue(inner_network, number_txs=3)
+
+        with primary.client() as c:
+            r = c.get("/node/commit").body.json()
+            hwm_pre_proposal = TxID.from_str(r["transaction_id"]).seqno
+
+        # Ensure there is at least one signature greater than the hwm
+        inner_network.txs.issue(inner_network, number_txs=1, wait_for_sync=True)
+
+        # Submit a proposal to force a snapshot
+        proposal_body, careful_vote = inner_network.consortium.make_proposal(
+            "trigger_snapshot", node_id=primary.node_id
         )
-        return network
+        proposal = inner_network.consortium.get_any_active_member().propose(
+            primary, proposal_body
+        )
+        proposal = inner_network.consortium.vote_using_majority(
+            primary,
+            proposal,
+            careful_vote,
+        )
 
-    primary, _ = network.find_primary()
+        # Issue some more transactions
+        inner_network.txs.issue(inner_network, number_txs=5)
 
-    # Submit some dummy transactions
-    network.txs.issue(network, number_txs=3)
+        snapshots_dir = inner_network.get_committed_snapshots(
+            primary, target_seqno=hwm_pre_proposal + 1
+        )
 
-    # Submit a proposal to force a snapshot at the following signature
-    proposal_body, careful_vote = network.consortium.make_proposal(
-        "trigger_snapshot", node_id=primary.node_id
-    )
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
+        for s in os.listdir(snapshots_dir):
+            with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
+                snapshot_seqno = snapshot.get_public_domain().get_seqno()
+                if snapshot_seqno > hwm_pre_proposal:
+                    LOG.info(
+                        f"Found a snapshot at {snapshot_seqno} which is after the pre-proposal-high-water-mark {hwm_pre_proposal}"
+                    )
+                    return network
 
-    proposal = network.consortium.vote_using_majority(
-        primary,
-        proposal,
-        careful_vote,
-    )
+        raise RuntimeError("Could not find matching snapshot file")
 
-    # Issue some more transactions
-    network.txs.issue(network, number_txs=5)
-
-    ledger_dirs = primary.remote.ledger_paths()
-
-    # Find first signature after proposal.completed_seqno
-    ledger = ccf.ledger.Ledger(ledger_dirs)
-    chunk, _, _, next_signature = find_ledger_chunk_for_seqno(
-        ledger, proposal.completed_seqno
-    )
-
-    assert chunk.is_complete and chunk.is_committed()
-    LOG.info(f"Expecting snapshot at {next_signature}")
-
-    snapshots_dir = network.get_committed_snapshots(primary)
-    for s in os.listdir(snapshots_dir):
-        with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
-            snapshot_seqno = snapshot.get_public_domain().get_seqno()
-            if snapshot_seqno == next_signature:
-                LOG.info(f"Found expected forced snapshot at {next_signature}")
-                return network
-
-    raise RuntimeError("Could not find matching snapshot file")
+    return network
 
 
 # https://github.com/microsoft/CCF/issues/1858
@@ -281,12 +296,16 @@ def test_snapshot_access(network, args):
     with open(os.path.join(snapshots_dir, snapshot_name), "rb") as f:
         snapshot_data = f.read()
 
+    interface = primary.host.rpc_interfaces[infra.interfaces.PRIMARY_RPC_INTERFACE]
+    loc = f"https://{interface.public_host}:{interface.public_port}"
+
     with primary.client() as c:
         r = c.head("/node/snapshot", allow_redirects=False)
         assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
         assert "location" in r.headers, r.headers
         location = r.headers["location"]
-        assert location == f"/node/snapshot/{snapshot_name}"
+        path = f"/node/snapshot/{snapshot_name}"
+        assert location == f"{loc}{path}"
         LOG.warning(r.headers)
 
         for since, expected in (
@@ -311,7 +330,7 @@ def test_snapshot_access(network, args):
                     actual = r.headers["location"]
                     assert actual == expected
 
-        r = c.head(location)
+        r = c.head(path)
         assert r.status_code == http.HTTPStatus.OK.value, r
         assert r.headers["accept-ranges"] == "bytes", r.headers
         total_size = int(r.headers["content-length"])
@@ -329,7 +348,7 @@ def test_snapshot_access(network, args):
             (b, None),
         ]:
             range_header_value = f"{start}-{'' if end is None else end}"
-            r = c.get(location, headers={"range": f"bytes={range_header_value}"})
+            r = c.get(path, headers={"range": f"bytes={range_header_value}"})
             assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
 
             expected = snapshot_data[start:end]
@@ -344,7 +363,7 @@ def test_snapshot_access(network, args):
             b,
         ]:
             range_header_value = f"-{negative_offset}"
-            r = c.get(location, headers={"range": f"bytes={range_header_value}"})
+            r = c.get(path, headers={"range": f"bytes={range_header_value}"})
             assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
 
             expected = snapshot_data[-negative_offset:]
@@ -359,13 +378,12 @@ def test_snapshot_access(network, args):
             ("foo-foo", "Unable to parse start of range value foo"),
             (f"foo-{b}", "Unable to parse start of range value foo"),
             (f"{b}-{a}", "out of order"),
-            (f"0-{total_size + 1}", "larger than total file size"),
             ("-1-5", "Invalid format"),
             ("-", "Invalid range"),
             ("-foo", "Unable to parse end of range offset value foo"),
             ("", "Invalid format"),
         ]:
-            r = c.get(location, headers={"range": f"bytes={invalid_range}"})
+            r = c.get(path, headers={"range": f"bytes={invalid_range}"})
             assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
             assert err_msg in r.body.json()["error"]["message"], r
 

@@ -6,8 +6,6 @@ import sys
 import json
 import argparse
 
-from loguru import logger as LOG
-
 
 def counted_string(string, name):
     return f"{len(string)} {name}{'s' * bool(len(string) != 1)}"
@@ -39,12 +37,12 @@ def run(paths, uncommitted=False):
         read_recovery_files=True,
     )
 
-    LOG.info(f"Reading ledger from {ledger_paths}")
-    LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
+    print(f"Reading ledger from {ledger_paths}")
+    print(f"Contains {counted_string(ledger, 'chunk')}")
     try:
         previous_historical_ledger_entry = None
         for chunk in ledger:
-            LOG.info(
+            print(
                 f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)"
             )
             for transaction in chunk:
@@ -64,22 +62,19 @@ def run(paths, uncommitted=False):
                                 "txid": txid,
                                 "entry": json.loads(value.decode("utf-8")),
                             }
-                            LOG.info(json.dumps(entry))
+                            print(json.dumps(entry))
                             historical_secrets_invariant(
                                 entry, previous_historical_ledger_entry
                             )
                             previous_historical_ledger_entry = entry
 
     except Exception as e:
-        LOG.exception(f"Error parsing ledger: {e}")
+        print(f"Error parsing ledger: {e}")
         return False
     return True
 
 
 def main():
-    LOG.remove()
-    LOG.add(sys.stdout, format="<level>{message}</level>")
-
     parser = argparse.ArgumentParser(
         description="Verify that the ledger's secrets are valid",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
