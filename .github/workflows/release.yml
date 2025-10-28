@@ -33,7 +33,7 @@ jobs:
           ./sbom-tool generate -b . -bc . -pn CCF -ps Microsoft -nsb https://sbom.microsoft -pv $CCF_VERSION -V Error
         shell: bash
       - name: "Upload SBOM"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: sbom
           path: _manifest/spdx_2.2/*
@@ -56,7 +56,7 @@ jobs:
           set -o pipefail
           ./scripts/extract-release-notes.py --target-git-version --describe-path-changes "./samples/constitution" | tee rel-notes.md
       - name: "Upload Release Notes"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: relnotes
           path: rel-notes.md
@@ -146,7 +146,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: logs
           path: |
@@ -166,7 +166,7 @@ jobs:
 
           # Reset cmake config to affect cpack settings
           rm CMakeCache.txt
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DPACKAGING=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
 
           cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
           cpack -V -G RPM
@@ -208,19 +208,19 @@ jobs:
         shell: bash
 
       - name: "Upload .rpm Package"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: pkg
           path: build/${{ steps.make_rpm_devel.outputs.name }}
 
       - name: "Upload Compatibility Report"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: compatibility
           path: build/compatibility_report.json
 
       - name: "Upload TLS Report"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: tls
           path: build/tls_report.html
@@ -239,7 +239,7 @@ jobs:
         shell: bash
 
       - name: "Upload Python Wheel"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: wheel
           path: python/${{ steps.build_wheel.outputs.name }}
@@ -259,7 +259,7 @@ jobs:
         shell: bash
 
       - name: "Upload TS Package"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: tstgz
           path: js/ccf-app/${{ steps.build_tstgz.outputs.name }}
@@ -283,7 +283,7 @@ jobs:
           cat $filename
 
       - name: "Upload Reproducibility Metadata"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: reproduce-metadata
           path: reproduce.json
@@ -315,7 +315,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download RPM
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: DOWNLOAD_DIR
           pattern: pkg
@@ -364,13 +364,13 @@ jobs:
         with:
           fetch-depth: 0
       - name: Download Prebuilt Packages
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: DOWNLOAD_DIR
           pattern: pkg
           merge-multiple: true
       - name: Download Reproducibility Metadata
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: repro
           pattern: reproduce-metadata
@@ -397,7 +397,7 @@ jobs:
           cmp "$PKG" "DOWNLOAD_DIR/$(basename "$PKG")"
       - name: Upload Non-Reproduced Package
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: not-reproduced
           path: ${{ env.REPRO_DIR }}
@@ -416,40 +416,40 @@ jobs:
         with:
           fetch-depth: 1
       - name: Download Packages
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: pkg
           pattern: pkg*
           merge-multiple: true
       - name: Download Release Notes
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: relnotes
       - name: Download Compatibility Report
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: compatibility
       - name: Download TLS Report
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: tls
       - name: Download Python Wheel
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: wheel
           name: wheel
       - name: Download TS Package
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: tstgz
           name: tstgz
       - name: Download SBOM
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: sbom
           name: sbom
       - name: Download Reproducibility Metadata
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: repro
           pattern: reproduce*
