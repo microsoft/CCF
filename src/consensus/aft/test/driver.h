@@ -116,6 +116,7 @@ private:
     std::shared_ptr<TRaft> raft;
   };
 
+  bool pre_vote_enabled = false;
   std::map<ccf::NodeId, NodeDriver> _nodes;
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
 
@@ -198,7 +199,9 @@ private:
       std::make_unique<LedgerStubProxy_Mermaid>(node_id),
       std::make_shared<aft::ChannelStubProxy>(),
       std::make_shared<aft::State>(node_id),
-      nullptr);
+      nullptr,
+      pre_vote_enabled
+    );
     kv->set_set_retired_committed_hook(
       [raft](aft::Index idx, const std::vector<ccf::kv::NodeId>& node_ids) {
         raft->set_retired_committed(idx, node_ids);
@@ -995,6 +998,11 @@ public:
     {
       drop_pending_to(from, to);
     }
+  }
+
+  void set_pre_vote_enabled(bool enabled)
+  {
+    pre_vote_enabled = enabled;
   }
 
   using Discrepancies = std::map<ccf::NodeId, std::vector<std::string>>;
