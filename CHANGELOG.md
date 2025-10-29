@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - When the `fetch_recent_snapshots` behaviour is enabled by the node config, the Joiner will now prefer the peer's snapshot over _any_ local snapshot, regardless of version.
 
+### Removed
+
+- Removed the unused experimental `ccf.host.triggerSubprocess()` JS API
+
 ## [7.0.0-dev4]
 
 [7.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev4
@@ -1811,6 +1815,7 @@ Key-Value Store
 #### Certificate(s) Validity Period
 
 - Nodes certificates validity period is no longer hardcoded and must instead be set by operators and renewed by members (#2924):
+
   - The new `node_certificate.initial_validity_days` (defaults to 1 day) configuration entry lets operators set the initial validity period for the node certificate (valid from the current system time).
   - The new `command.start.service_configuration.maximum_node_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for node certificates.
   - The new `set_node_certificate_validity` proposal action allows members to renew a node certificate (or `set_all_nodes_certificate_validity` equivalent action to renew _all_ trusted nodes certificates).
@@ -2096,6 +2101,7 @@ Key-Value Store
 #### Certificate(s) Validity Period
 
 - Nodes certificates validity period is no longer hardcoded and must instead be set by operators and renewed by members (#2924):
+
   - The new `node_certificate.initial_validity_days` (defaults to 1 day) configuration entry lets operators set the initial validity period for the node certificate (valid from the current system time).
   - The new `command.start.service_configuration.maximum_node_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for node certificates.
   - The new `set_node_certificate_validity` proposal action allows members to renew a node certificate (or `set_all_nodes_certificate_validity` equivalent action to renew _all_ trusted nodes certificates).
@@ -2843,14 +2849,17 @@ The 1.0 release will require minimal changes from this release.
 ### Added
 
 - Experimental
+
   - New CCF nodes can now join from a [snapshot](https://microsoft.github.io/CCF/ccf-0.13.0/operators/start_network.html#resuming-from-existing-snapshot) (#1500, #1532)
   - New KV maps can now be created dynamically in a transaction (#1507, #1528)
 
 - CLI
+
   - Subject Name and Subject Alternative Names for the node certificates can now be passed to cchost using the --sn and --san CLI switches (#1537)
   - Signature and ledger splitting [flags](https://microsoft.github.io/CCF/ccf-0.13.0/operators/start_network.html#signature-interval) have been renamed more accurately (#1534)
 
 - Governance
+
   - `user_data` can be set at user creation, as well as later (#1488)
 
 - Javascript

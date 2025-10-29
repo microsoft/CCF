@@ -1789,6 +1789,7 @@ def network(
     version=None,
     service_load=None,
     node_data_json_file=None,
+    **kwargs,
 ):
     """
     Context manager for Network class.
@@ -1798,6 +1799,7 @@ def network(
     :param dbg_nodes: default: []. List of node id's that will not start (user is prompted to start them manually)
     :param pdb: default: False. Debugger.
     :param txs: default: None. Transactions committed on that network.
+    :param kwargs. Parameters to forward to the Network constructor
     :return: a Network instance that can be used to create/access nodes, handle the genesis state (add members, create
     node.json), and stop all the nodes that belong to the network
     """
@@ -1815,6 +1817,7 @@ def network(
         version=version,
         service_load=service_load,
         node_data_json_file=node_data_json_file,
+        **kwargs,
     )
     try:
         yield net
