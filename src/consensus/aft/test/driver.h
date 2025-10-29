@@ -1287,6 +1287,15 @@ public:
     }
   }
 
+  std::string detail_to_string(const nlohmann::json& detail)
+  {
+    if (detail.is_string())
+    {
+      return detail.get<std::string>();
+    }
+    return detail.dump();
+  }
+
   void assert_detail(
     ccf::NodeId node_id,
     const std::string& detail,
@@ -1307,7 +1316,7 @@ public:
         std::to_string((int)lineno)));
     }
 
-    std::string value = d[detail];
+    std::string value = detail_to_string(d[detail]);
     if (equal ? (value != expected) : (value == expected))
     {
       std::string cmp = equal ? "!" : "=";
