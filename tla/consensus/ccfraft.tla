@@ -1344,7 +1344,7 @@ NextInt(i) ==
     \/ \E j \in Servers : Receive(i, j)
 
 Next ==
-    /\ \E i \in Servers: NextInt(i)
+    \E i \in Servers: NextInt(i)
 
 Fairness ==
     \* Network actions
