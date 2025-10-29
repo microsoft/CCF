@@ -34,7 +34,6 @@ namespace ccf::historical
   };
 
   using CompoundHandle = std::pair<RequestNamespace, RequestHandle>;
-
 };
 
 FMT_BEGIN_NAMESPACE
