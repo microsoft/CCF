@@ -62,7 +62,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
-          ninja
+          ninja -j8
         shell: bash
 
       - name: "Run tests for Python package"
@@ -152,7 +152,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
-          ninja
+          ninja -j8
         shell: bash
 
       - name: "Test virtual"
