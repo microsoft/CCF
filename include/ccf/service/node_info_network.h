@@ -15,12 +15,14 @@ namespace ccf
   {
     NODE,
     SERVICE,
+    ACME, // DEPRECATED
     UNSECURED
   };
   DECLARE_JSON_ENUM(
     Authority,
     {{Authority::NODE, "Node"},
      {Authority::SERVICE, "Service"},
+     {Authority::ACME, "ACME"}, // DEPRECATED
      {Authority::UNSECURED, "Unsecured"}});
 
   using ApplicationProtocol = std::string;
@@ -28,7 +30,6 @@ namespace ccf
   struct Endorsement
   {
     Authority authority;
-
     bool operator==(const Endorsement& other) const
     {
       return authority == other.authority;
@@ -280,6 +281,10 @@ struct formatter<ccf::Authority>
       case (ccf::Authority::SERVICE):
       {
         return format_to(ctx.out(), "Service");
+      }
+      case (ccf::Authority::ACME):
+      {
+        return format_to(ctx.out(), "ACME");
       }
       case (ccf::Authority::UNSECURED):
       {
