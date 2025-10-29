@@ -213,7 +213,7 @@ namespace ccf
   std::optional<std::vector<uint8_t>> describe_merkle_proof_v1(
     const TxReceiptImpl& receipt)
   {
-    constexpr size_t buf_size = 2048; // TBD: calculate why this is enough
+    constexpr size_t buf_size = 2048;
     std::vector<uint8_t> underlying_buffer(buf_size);
     UsefulBuf buffer{underlying_buffer.data(), underlying_buffer.size()};
     assert(buffer.len == buf_size);
