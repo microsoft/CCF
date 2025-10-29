@@ -100,9 +100,9 @@
                 "properties": {
                   "authority": {
                     "type": "string",
-                    "enum": ["Node", "Service", "Unsecured"],
+                    "enum": ["Node", "Service", "ACME", "Unsecured"],
                     "default": "Service",
-                    "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed, 'Unsecured' means unencrypted traffic and no endorsement authority"
+                    "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed, 'ACME' is deprecated, 'Unsecured' means unencrypted traffic and no endorsement authority"
                   }
                 },
                 "required": ["authority"],
