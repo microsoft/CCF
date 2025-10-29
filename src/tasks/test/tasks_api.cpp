@@ -57,7 +57,7 @@ TEST_CASE("API" * doctest::test_suite("tasks_api"))
       ccf::tasks::tick(delay);
       std::this_thread::sleep_for(delay);
 
-      if (i % 100 == 0)
+      if (i % 100 == 99)
       {
         auto now = n.load();
         REQUIRE(now > prev);
