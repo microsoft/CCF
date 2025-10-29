@@ -34,11 +34,12 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
           rm -rf /mnt/CCF
+          mkdir /mnt/CCF
+          ln -s /__w/CCF/CCF /mnt/CCF
 
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          path: /mnt/CCF
 
       - name: Run CI checks
         run: |
@@ -48,7 +49,6 @@ jobs:
           ./scripts/setup-dev.sh
           ./scripts/ci-checks.sh
         shell: bash
-        working-directory: /mnt/CCF
 
   ci-docs-tidy-unit-partitions:
     name: "Docs/clang-tidy/Unit/Partitions"
