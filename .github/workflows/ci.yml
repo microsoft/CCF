@@ -31,9 +31,13 @@ jobs:
         shell: bash
         run: |
           set -ex
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git util-linux
           ls -la /mnt
           fallocate -l 10G /mnt/10gb_file.bin
           ls -la /mnt
+          mount
 
 
       - name: "Checkout dependencies"
