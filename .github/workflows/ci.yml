@@ -50,6 +50,14 @@ jobs:
           ./scripts/ci-checks.sh
         shell: bash
 
+      - name: Run CI checks
+        run: |
+          set -ex
+          ls -al /mnt
+          ls -al /mnt/CCF
+          ls -al /__w/CCF/
+        shell: bash
+
   ci-docs-tidy-unit-partitions:
     name: "Docs/clang-tidy/Unit/Partitions"
     needs: checks
