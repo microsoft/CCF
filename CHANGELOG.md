@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Removed the unused experimental `ccf.host.triggerSubprocess()` JS API
 - Removed ACME client and support for ACME-endorsed interfaces (#7414).
 
+### Fixed
+
+- CheckQuorum now requires a quorum in every configuration (#7375)
+
 ## [7.0.0-dev4]
 
 [7.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev4
