@@ -106,12 +106,12 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
+        1ES.Pool=gha-d8ads-v5,
         "JobId=ci_build_test_virtual-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --volume /mnt:/mnt:rw
 
     steps:
       - name: "Checkout dependencies"
@@ -120,6 +120,9 @@ jobs:
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
           tdnf -y install ca-certificates git
+          rm -rf /mnt/CCF
+          mkdir /mnt/CCF
+          ln -s /__w/CCF/CCF /mnt/CCF
 
       - uses: actions/checkout@v5
         with:
