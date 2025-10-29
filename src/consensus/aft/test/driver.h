@@ -1321,4 +1321,58 @@ public:
         std::to_string((int)lineno)));
     }
   }
+
+  void assert_config(
+    const std::string& node_id,
+    const std::string& config_idx_s,
+    const std::vector<std::string>& node_ids)
+  {
+    auto config_idx = std::stol(config_idx_s);
+    auto details = _nodes.at(node_id).raft->get_details();
+    for (const auto& config : details.configs)
+    {
+      if (config.idx == config_idx)
+      {
+        std::set<std::string> expected_nodes(node_ids.begin(), node_ids.end());
+        std::set<std::string> actual_nodes;
+        for (const auto& [id, _] : config.nodes)
+        {
+          actual_nodes.insert(id);
+        }
+        if (expected_nodes != actual_nodes)
+        {
+          auto actual_str =
+            fmt::format("{{{}}}", fmt::join(actual_nodes, ", "));
+          auto expected_str =
+            fmt::format("{{{}}}", fmt::join(expected_nodes, ", "));
+          throw std::runtime_error(fmt::format(
+            "Node {} configuration at idx {} ({}) does not match expected ({})",
+            node_id,
+            config_idx,
+            actual_str,
+            expected_str));
+        }
+        return;
+      }
+    }
+    throw std::runtime_error(fmt::format(
+      "Node {} does not have a configuration at idx {}", node_id, config_idx));
+  }
+
+  void assert_absent_config(
+    const std::string& node_id, const std::string& config_idx_s)
+  {
+    auto config_idx = std::stol(config_idx_s);
+    auto details = _nodes.at(node_id).raft->get_details();
+    for (const auto& config : details.configs)
+    {
+      if (config.idx == config_idx)
+      {
+        throw std::runtime_error(fmt::format(
+          "Node {} has unexpected configuration at idx {}",
+          node_id,
+          config_idx));
+      }
+    }
+  }
 };
