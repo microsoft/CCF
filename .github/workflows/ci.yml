@@ -19,7 +19,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
+        1ES.Pool=gha-d8ads-v5,
         "JobId=ci_checks-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -27,6 +27,12 @@ jobs:
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
     steps:
+      - name: "Do we need to mount /mnt?"
+        shell: bash
+        run: |
+          df -kh
+          ls /mnt
+
       - name: "Checkout dependencies"
         shell: bash
         run: |
