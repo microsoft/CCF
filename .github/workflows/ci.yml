@@ -24,14 +24,17 @@ jobs:
       ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --volume /mnt:/mnt:rw
 
     steps:
       - name: "Do we need to mount /mnt?"
         shell: bash
         run: |
+          set -ex
+          mount
           df -kh
           ls /mnt
+
 
       - name: "Checkout dependencies"
         shell: bash
