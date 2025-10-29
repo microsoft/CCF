@@ -31,8 +31,9 @@ jobs:
         shell: bash
         run: |
           set -ex
-          df -kh
-          ls /mnt
+          ls -la /mnt
+          fallocate -l 10G /mnt/10gb_file.bin
+          ls -la /mnt
 
 
       - name: "Checkout dependencies"
