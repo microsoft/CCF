@@ -31,7 +31,6 @@ jobs:
         shell: bash
         run: |
           set -ex
-          mount
           df -kh
           ls /mnt
 
