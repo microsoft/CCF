@@ -27,29 +27,18 @@ jobs:
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --volume /mnt:/mnt:rw
 
     steps:
-      - name: "Do we need to mount /mnt?"
-        shell: bash
-        run: |
-          set -ex
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git util-linux
-          ls -la /mnt
-          fallocate -l 10G /mnt/10gb_file.bin
-          ls -la /mnt
-          mount
-
-
       - name: "Checkout dependencies"
         shell: bash
         run: |
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
           tdnf -y install ca-certificates git
+          rm -rf /mnt/CCF
 
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          path: /mnt/CCF
 
       - name: Run CI checks
         run: |
@@ -59,6 +48,7 @@ jobs:
           ./scripts/setup-dev.sh
           ./scripts/ci-checks.sh
         shell: bash
+        working-directory: /mnt/CCF
 
   ci-docs-tidy-unit-partitions:
     name: "Docs/clang-tidy/Unit/Partitions"
