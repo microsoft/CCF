@@ -202,9 +202,6 @@ namespace aft
     // pre-deserialisation, without an additional header.
     static constexpr size_t max_terms_per_append_entries = 1;
 
-    // Whether to enable the pre-vote optimisation
-    bool pre_vote_enabled = false;
-
   public:
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
@@ -218,7 +215,6 @@ namespace aft
       std::shared_ptr<ccf::NodeToNode> channels_,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
-      bool pre_vote_enabled_ = false,
       bool public_only_ = false,
       ccf::kv::MembershipState initial_membership_state_ =
         ccf::kv::MembershipState::Active,
@@ -245,8 +241,7 @@ namespace aft
       rand((int)(uintptr_t)this),
 
       ledger(std::move(ledger_)),
-      channels(channels_),
-      pre_vote_enabled(pre_vote_enabled_)
+      channels(channels_)
     {}
 
     virtual ~Aft() = default;
@@ -901,7 +896,7 @@ namespace aft
           timeout_elapsed >= election_timeout)
         {
           // Start an election.
-          if (pre_vote_enabled)
+          if (state->pre_vote_enabled)
           {
             become_pre_vote_candidate();
           }
@@ -1847,7 +1842,7 @@ namespace aft
 #endif
 
       if (
-        state->leadership_state != ccf::kv::LeadershipState::PreVoteCandidate ||
+        state->leadership_state != ccf::kv::LeadershipState::PreVoteCandidate &&
         state->leadership_state != ccf::kv::LeadershipState::Candidate)
       {
         RAFT_INFO_FMT(
@@ -1966,6 +1961,7 @@ namespace aft
       leader_id.reset();
 
       reset_votes_for_me();
+      restart_election_timeout();
 
       RAFT_INFO_FMT(
         "Becoming pre-vote candidate {}: {}",
