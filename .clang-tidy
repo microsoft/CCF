@@ -8,6 +8,8 @@ Checks: >
   -bugprone-assignment-in-if-condition,
   -bugprone-casting-through-void,
   cert-*,
+  -cert-con36-c,
+  -cert-con54-cpp,
   -cert-err58-cpp,
   -cert-dcl50-cpp,
   concurrency-*,
