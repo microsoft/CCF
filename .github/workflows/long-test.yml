@@ -17,7 +17,12 @@ jobs:
   long-asan:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: "ASAN"
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=long_asan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -58,7 +63,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: logs-asan
           path: |
@@ -72,7 +77,12 @@ jobs:
   long-tsan:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: "TSAN"
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=long_tsan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --privileged
@@ -109,67 +119,13 @@ jobs:
         run: |
           set +x
           cd build
-          setarch -R ./tests.sh --output-on-failure --timeout 3600 -LE "benchmark" -E "launch_host_process|recovery|regression|governance|membership"
+          setarch -R ./tests.sh --output-on-failure --timeout 3600 -LE "benchmark" -E "recovery|regression|governance|membership"
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: logs-tsan
-          path: |
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
-          if-no-files-found: ignore
-
-  long-lts:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
-    name: Long LTS
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
-
-    steps:
-      - name: "Checkout dependencies"
-        shell: bash
-        run: |
-          set -ex
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
-
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
-
-      - name: "Build"
-        run: |
-          git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
-          cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DWORKER_THREADS=2 ..
-          ninja
-
-      - name: "Test"
-        run: |
-          set +x
-          cd build
-          ./tests.sh --output-on-failure --timeout 1600 -R lts
-
-      - name: "Upload logs"
-        if: success() || failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: logs-lts
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
@@ -184,7 +140,12 @@ jobs:
   long-e2e-debug:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: Long e2e - Debug
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=long_e2e_debug-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -227,7 +188,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: logs-e2e-debug
           path: |
@@ -242,7 +203,12 @@ jobs:
   long-e2e-release:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: Long e2e - Release
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=long_e2e_release-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -282,7 +248,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: logs-e2e-release
           path: |
@@ -293,11 +259,20 @@ jobs:
             build/workspace/*/stack_trace
           if-no-files-found: ignore
 
-  # End-to-end test suites with shuffling enabled.
-  e2e-suite-shuffled:
+  # Relatively short-running tests suites combined together to reduce executors
+  # required, and to benefit from shared setup.
+  # - End-to-end shuffled suite
+  # - Long LTS tests
+  # - Ensure snmalloc linkage
+  e2e-long-combined:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
-    name: Long e2e - Shuffled
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    name: Long Shuffled/LTS/Snmalloc
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=long_e2e_shuffled-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -326,20 +301,42 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSHUFFLE_SUITE=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSHUFFLE_SUITE=ON -DWORKER_THREADS=2 ..
           ninja
 
-      - name: "Test"
+      - name: "Test Long LTS"
+        run: |
+          set +x
+          cd build
+          ./tests.sh --output-on-failure --timeout 1600 -R "lts"
+
+      - name: "Test shuffled"
         run: |
           set +x
           cd build
           ./tests.sh --output-on-failure --timeout 1600 -R "suite"
 
+      - name: "Check snmalloc disabled"
+        run: |
+          set -ex
+          cd build
+          cmake -GNinja -DUSE_SNMALLOC=OFF ..
+          ninja samples/apps/basic/basic
+          ! ../scripts/ensure-snmalloc.sh samples/apps/basic/basic
+
+      - name: "Check snmalloc enabled"
+        run: |
+          set -ex
+          cd build
+          cmake -GNinja -DUSE_SNMALLOC=ON ..
+          ninja samples/apps/basic/basic
+          ../scripts/ensure-snmalloc.sh samples/apps/basic/basic
+
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
-          name: logs-e2e-shuffled
+          name: e2e-long-combined
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out

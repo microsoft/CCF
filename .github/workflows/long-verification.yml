@@ -17,7 +17,12 @@ jobs:
   model-checking-with-atomic-reconfig-consensus:
     name: Model Checking With Atomic Reconfig - Consensus
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=long_mc_atomic_reconfig-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -39,7 +44,7 @@ jobs:
       - run: cd tla && ./tlc.py --trace-name 2C2N mc --term-count 2 --request-count 0 --raft-configs 2C2N --disable-check-quorum consensus/MCccfraft.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: ${{ failure() }}
         with:
           name: tlc-model-checking-with-atomic-reconfig-consensus
@@ -50,7 +55,12 @@ jobs:
   model-checking-with-reconfig-consensus:
     name: Model Checking With Reconfig - Consensus
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=long_mc_reconfig-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -72,7 +82,7 @@ jobs:
       - run: cd tla && ./tlc.py --trace-name 3C2N mc --term-count 2 --request-count 0 --raft-configs 3C2N --disable-check-quorum consensus/MCccfraft.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: ${{ failure() }}
         with:
           name: tlc-model-checking-with-reconfig-consensus
@@ -98,7 +108,7 @@ jobs:
       - run: ./tlc.py sim --max-seconds 3000 --depth 500 consensus/SIMccfraft.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: ${{ failure() }}
         with:
           name: tlc-simulation-consensus

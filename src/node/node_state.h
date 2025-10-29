@@ -1596,19 +1596,6 @@ namespace ccf
       }
     }
 
-    void trigger_host_process_launch(
-      const std::vector<std::string>& args,
-      const std::vector<uint8_t>& input) override
-    {
-      HostProcessArguments msg{args};
-      nlohmann::json j = msg;
-      auto json = j.dump();
-      LOG_DEBUG_FMT(
-        "Triggering host process launch: {} size={}", json, input.size());
-      RINGBUFFER_WRITE_MESSAGE(
-        AppMessage::launch_host_process, to_host, json, input);
-    }
-
     void transition_service_to_open(
       ccf::kv::Tx& tx,
       AbstractGovernanceEffects::ServiceIdentities identities) override
@@ -1670,9 +1657,6 @@ namespace ccf
           identities.next.str(),
           service_info->cert.str()));
       }
-
-      service_info->previous_service_identity_version =
-        service->get_version_of_previous_write();
 
       if (is_part_of_public_network())
       {

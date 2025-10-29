@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/historical_queries_interface.h"
-#include "ccf/node/host_processes_interface.h"
 #include "kv/test/stub_consensus.h"
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/node_interface.h"
@@ -149,17 +148,6 @@ namespace ccf
     }
   };
 
-  class StubHostProcesses : public ccf::AbstractHostProcesses
-  {
-  public:
-    void trigger_host_process_launch(
-      const std::vector<std::string>& args,
-      const std::vector<uint8_t>& input) override
-    {
-      return;
-    }
-  };
-
   class StubNodeStateCache : public historical::AbstractStateCache
   {
   public:
@@ -272,7 +260,6 @@ namespace ccf
   public:
     std::shared_ptr<StubNodeOperation> node_operation = nullptr;
     std::shared_ptr<StubGovernanceEffects> gov_effects = nullptr;
-    std::shared_ptr<StubHostProcesses> host_processes = nullptr;
     std::shared_ptr<StubNodeStateCache> cache = nullptr;
 
     StubNodeContext()
@@ -282,9 +269,6 @@ namespace ccf
 
       gov_effects = std::make_shared<StubGovernanceEffects>();
       install_subsystem(gov_effects);
-
-      host_processes = std::make_shared<StubHostProcesses>();
-      install_subsystem(host_processes);
 
       cache = std::make_shared<StubNodeStateCache>();
       install_subsystem(cache);
