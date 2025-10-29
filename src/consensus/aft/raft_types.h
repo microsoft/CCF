@@ -190,10 +190,11 @@ namespace aft
     Term term;
     Index last_committable_idx;
     Term term_of_last_committable_idx;
+    bool is_pre_vote;
   };
   DECLARE_JSON_TYPE_WITH_BASE(RequestVote, RaftHeader<raft_request_vote>);
   DECLARE_JSON_REQUIRED_FIELDS(
-    RequestVote, term, last_committable_idx, term_of_last_committable_idx);
+    RequestVote, term, last_committable_idx, term_of_last_committable_idx, is_pre_vote);
 
   DECLARE_JSON_TYPE(RaftHeader<raft_request_vote_response>)
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote_response>, msg)
@@ -201,10 +202,11 @@ namespace aft
   {
     Term term;
     bool vote_granted;
+    bool is_pre_vote;
   };
   DECLARE_JSON_TYPE_WITH_BASE(
     RequestVoteResponse, RaftHeader<raft_request_vote_response>);
-  DECLARE_JSON_REQUIRED_FIELDS(RequestVoteResponse, term, vote_granted);
+  DECLARE_JSON_REQUIRED_FIELDS(RequestVoteResponse, term, vote_granted, is_pre_vote);
 
   DECLARE_JSON_TYPE(RaftHeader<raft_propose_request_vote>)
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_propose_request_vote>, msg)
