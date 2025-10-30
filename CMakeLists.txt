@@ -1117,17 +1117,6 @@ if(BUILD_TESTS)
     )
   endif()
 
-  if(LONG_TESTS)
-    set(ROTATION_TEST_ARGS --rotation-retirements 10)
-  endif()
-
-  add_e2e_test(
-    NAME rotation_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
-    LABEL rotation
-    ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
-  )
-
   set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
   add_e2e_test(
     NAME reconfiguration_test

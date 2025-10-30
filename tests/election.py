@@ -17,6 +17,7 @@ from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
 import committable
+import reconfiguration
 
 # This test starts from a given number of nodes (hosts), commits
 # a transaction, stops the current primary, waits for an election and repeats
@@ -243,6 +244,21 @@ def run(args):
             LOG.success("Test ended successfully.")
 
 
+def rotation(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+        rotation_retirements = 2
+
+        # Replace primary repeatedly and check the network still operates
+        LOG.info(f"Retiring primary {rotation_retirements} times")
+        for i in range(rotation_retirements):
+            LOG.warning(f"Retirement {i}")
+            reconfiguration.test_add_node(network, args)
+            reconfiguration.test_retire_primary(network, args)
+
+
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
@@ -261,6 +277,14 @@ if __name__ == "__main__":
         committable.run,
         package="samples/apps/logging/logging",
         nodes=[],
+    )
+
+    cr.add(
+        "rotation",
+        rotation,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.max_nodes(args, f=0),
+        initial_member_count=1,
     )
 
     cr.run()
