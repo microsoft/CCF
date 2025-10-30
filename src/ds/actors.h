@@ -12,16 +12,13 @@ namespace ccf
     members = 0,
     users,
     nodes,
-    acme_challenge,
     // not to be used
     unknown
   };
 
   inline bool is_valid_actor(const std::string& actor)
   {
-    if (
-      actor != "gov" && actor != "app" && actor != "node" &&
-      actor != ".well-known/acme-challenge")
+    if (actor != "gov" && actor != "app" && actor != "node")
     {
       return false;
     }
@@ -43,10 +40,6 @@ namespace ccf
       case ActorsType::nodes:
       {
         return "node";
-      }
-      case ActorsType::acme_challenge:
-      {
-        return ".well-known/acme-challenge";
       }
       default:
       {
