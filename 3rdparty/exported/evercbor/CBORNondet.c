@@ -6434,6 +6434,40 @@ bool cbor_nondet_read_uint64(cbor_raw x, uint64_t *dest)
   }
 }
 
+bool cbor_nondet_read_int64(cbor_raw x, int64_t *dest)
+{
+  if (dest == NULL)
+    return false;
+  else
+  {
+    uint8_t ty = cbor_nondet_major_type(x);
+    if (ty == CBOR_MAJOR_TYPE_UINT64)
+    {
+      uint64_t raw = CBOR_Pulse_API_Nondet_Rust_cbor_nondet_read_uint64(x);
+      if (raw > 9223372036854775807ULL)
+        return false;
+      else
+      {
+        *dest = (int64_t)raw;
+        return true;
+      }
+    }
+    else if (ty == CBOR_MAJOR_TYPE_NEG_INT64)
+    {
+      uint64_t raw = CBOR_Pulse_API_Nondet_Rust_cbor_nondet_read_uint64(x);
+      if (raw > 9223372036854775807ULL)
+        return false;
+      else
+      {
+        *dest = (int64_t)-1 - (int64_t)raw;
+        return true;
+      }
+    }
+    else
+      return false;
+  }
+}
+
 static uint8_t
 *Pulse_Lib_Slice_slice_to_arrayptr_intro__uint8_t(Pulse_Lib_Slice_slice__uint8_t s)
 {
@@ -6460,6 +6494,22 @@ bool cbor_nondet_get_string(cbor_raw x, uint8_t **dest, uint64_t *dlen)
       return true;
     }
   }
+}
+
+bool cbor_nondet_get_byte_string(cbor_raw x, uint8_t **dest, uint64_t *dlen)
+{
+  if (cbor_nondet_major_type(x) != CBOR_MAJOR_TYPE_BYTE_STRING)
+    return false;
+  else
+    return cbor_nondet_get_string(x, dest, dlen);
+}
+
+bool cbor_nondet_get_text_string(cbor_raw x, uint8_t **dest, uint64_t *dlen)
+{
+  if (cbor_nondet_major_type(x) != CBOR_MAJOR_TYPE_TEXT_STRING)
+    return false;
+  else
+    return cbor_nondet_get_string(x, dest, dlen);
 }
 
 bool cbor_nondet_get_tagged(cbor_raw x, cbor_raw *dest, uint64_t *dtag)
@@ -6672,6 +6722,16 @@ cbor_raw cbor_nondet_mk_uint64(uint64_t v)
 cbor_raw cbor_nondet_mk_neg_int64(uint64_t v)
 {
   return CBOR_Pulse_API_Nondet_Rust_cbor_nondet_mk_int64(CBOR_MAJOR_TYPE_NEG_INT64, v);
+}
+
+cbor_raw cbor_nondet_mk_int64(int64_t v)
+{
+  if (v < (int64_t)0)
+    return
+      CBOR_Pulse_API_Nondet_Rust_cbor_nondet_mk_int64(CBOR_MAJOR_TYPE_NEG_INT64,
+        (uint64_t)((int64_t)-1 - v));
+  else
+    return CBOR_Pulse_API_Nondet_Rust_cbor_nondet_mk_int64(CBOR_MAJOR_TYPE_UINT64, (uint64_t)v);
 }
 
 bool cbor_nondet_mk_byte_string(uint8_t *a, uint64_t len, cbor_raw *dest)

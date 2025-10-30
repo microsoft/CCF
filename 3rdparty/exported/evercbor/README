@@ -1,4 +1,4 @@
-This directory is the EverCBOR snapshot from https://github.com/tahina-pro/quackyducky/tree/35633acd51e7a46990eb39d02cf2ffb88f651320/src/cbor/pulse/nondet/c
+This directory is the EverCBOR snapshot from https://github.com/tahina-pro/quackyducky/tree/188c33da6e4e798787770c35352504f3927f2b89/src/cbor/pulse/nondet/c
 
 EverCBOR supports definite-length CBOR without
 floating-points. EverCBOR checks for well-formedness and map keys

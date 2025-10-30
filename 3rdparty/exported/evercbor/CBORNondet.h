@@ -243,7 +243,13 @@ bool cbor_nondet_read_simple_value(cbor_raw x, uint8_t *dest);
 
 bool cbor_nondet_read_uint64(cbor_raw x, uint64_t *dest);
 
+bool cbor_nondet_read_int64(cbor_raw x, int64_t *dest);
+
 bool cbor_nondet_get_string(cbor_raw x, uint8_t **dest, uint64_t *dlen);
+
+bool cbor_nondet_get_byte_string(cbor_raw x, uint8_t **dest, uint64_t *dlen);
+
+bool cbor_nondet_get_text_string(cbor_raw x, uint8_t **dest, uint64_t *dlen);
 
 bool cbor_nondet_get_tagged(cbor_raw x, cbor_raw *dest, uint64_t *dtag);
 
@@ -312,6 +318,8 @@ bool cbor_nondet_mk_simple_value(uint8_t v, cbor_raw *dest);
 cbor_raw cbor_nondet_mk_uint64(uint64_t v);
 
 cbor_raw cbor_nondet_mk_neg_int64(uint64_t v);
+
+cbor_raw cbor_nondet_mk_int64(int64_t v);
 
 bool cbor_nondet_mk_byte_string(uint8_t *a, uint64_t len, cbor_raw *dest);
 
