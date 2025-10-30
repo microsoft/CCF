@@ -199,8 +199,7 @@ private:
       std::make_unique<LedgerStubProxy_Mermaid>(node_id),
       std::make_shared<aft::ChannelStubProxy>(),
       std::make_shared<aft::State>(node_id, pre_vote_enabled),
-      nullptr
-    );
+      nullptr);
     kv->set_set_retired_committed_hook(
       [raft](aft::Index idx, const std::vector<ccf::kv::NodeId>& node_ids) {
         raft->set_retired_committed(idx, node_ids);
