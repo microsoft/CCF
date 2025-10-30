@@ -3,6 +3,7 @@
 
 #include "tasks/thread_manager.h"
 
+#include "ds/internal_logger.h"
 #include "tasks/worker.h"
 
 #include <thread>
@@ -36,7 +37,16 @@ namespace ccf::tasks
 
     ~PImpl()
     {
-      set_task_threads(0);
+      try
+      {
+        set_task_threads(0);
+      }
+      catch (...)
+      {
+        LOG_FAIL_FMT(
+          "Exception thrown while destroying down ThreadManager - threads may "
+          "still be running");
+      }
     }
 
     PImpl(const PImpl&) = delete;
