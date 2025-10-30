@@ -469,9 +469,6 @@ def _test_snapshot_selection(network, args):
         network.trust_node(new_node, args)
 
     def trigger_snapshot(node):
-        LOG.info(f"Forcing {node.local_node_id} to become primary")
-        txid_in_new_term = force_become_primary(network, args, node)
-
         LOG.info(f"Triggering snapshot on {node.local_node_id}")
         proposal_body, careful_vote = network.consortium.make_proposal(
             "trigger_snapshot"
@@ -485,39 +482,49 @@ def _test_snapshot_selection(network, args):
             careful_vote,
         )
 
-        # Once proposal passes, we require a signature to snapshot at, plus
-        # snapshot creation time, plus snapshot evidence, plus a signature after
-        # the evidence.
-        # Should be quick, hard to define => poll in a loop
-        LOG.info(f"Checking for new snapshot on {node.local_node_id}")
-        timeout = 3
-        end_time = time.time() + timeout
-        target_seqno = txid_in_new_term.seqno + 1
-        while time.time() < end_time:
-            snapshots_dir = network.get_committed_snapshots(
-                node,
-                target_seqno=target_seqno,
-                force_txs=False,
-            )
-            for s in os.listdir(snapshots_dir):
-                path = os.path.join(snapshots_dir, s)
-                if ccf.ledger.is_snapshot_file_committed(path):
-                    snapshot_index, _ = ccf.ledger.snapshot_index_from_filename(path)
-                    if snapshot_index >= target_seqno:
-                        LOG.info(f"Found snapshot {s} on {node.local_node_id}")
-                        return s, snapshot_index
+    LOG.info("Creating snapshots")
+    primary, backups = network.find_nodes()
+    for i in range(3):
+        trigger_snapshot(primary)
+        # Snapshot creation and commit takes time. All of the helpers we have to track/poll this
+        # are expensive, so try a short sleep
+        time.sleep(1)
 
-        raise TimeoutError(
-            f"Node failed to create snapshot for {target_seqno} after waiting {timeout}s"
-        )
-
-    all_nodes = network.get_joined_nodes()
-    new_snapshots = {node: trigger_snapshot(node) for node in all_nodes}
-
-    ordered_snapshots = list(
-        sorted((index, name, node) for node, (name, index) in new_snapshots.items())
+    snapshots_dir = network.get_committed_snapshots(
+        primary,
+        force_txs=False,
     )
-    LOG.success(ordered_snapshots)
+
+    src_snapshots = []
+    for snapshot_name in os.listdir(snapshots_dir):
+        if ccf.ledger.is_snapshot_file_committed(snapshot_name):
+            seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
+            src_snapshots.append(
+                (seqno, snapshot_name, os.path.join(snapshots_dir, snapshot_name))
+            )
+
+    src_snapshots.sort()
+    best_snapshot = src_snapshots[-1][1]
+
+    node_to_snapshot = {}
+    node_to_snapshot[primary] = best_snapshot
+
+    LOG.info("Copying new snapshots to backup directories")
+    for i, backup in enumerate(backups):
+        # Re-create empty directory
+        snapshot_dir = os.path.join(
+            backup.remote.remote.root, backup.remote.snapshots_dir_name
+        )
+        shutil.rmtree(snapshot_dir)
+        pathlib.Path(snapshot_dir).mkdir(parents=True, exist_ok=True)
+
+        # Copy single snapshot into dir
+        candidate = src_snapshots[-1 - i]
+        _, snapshot_name, src_path = candidate
+        shutil.copy(src_path, snapshot_dir)
+        node_to_snapshot[backup] = snapshot_name
+
+    LOG.success(node_to_snapshot)
 
     def find_snapshot(node):
         with node.client() as c:
@@ -528,14 +535,12 @@ def _test_snapshot_selection(network, args):
             return snapshot_name
 
     # Each node redirects to the best snapshot, while the primary holding it is still live and primary
-    best_index, best_snapshot, best_node = ordered_snapshots[-1]
-    for node in all_nodes:
-        snapshot_name = find_snapshot(node)
-        assert snapshot_name == best_snapshot
+    for node in node_to_snapshot.keys():
+        actual_snapshot_name = find_snapshot(node)
+        assert actual_snapshot_name == best_snapshot
 
     # Once an election happens, the new primary's snapshot is returned, which may no longer be the best
     suspended = set()
-    primary = best_node
     while True:
         primary.suspend()
         suspended.add(primary)
@@ -551,14 +556,13 @@ def _test_snapshot_selection(network, args):
             new_primary = None
             new_primarys_snapshot = None
 
-        for node in all_nodes:
+        for node, nodes_best_snapshot in node_to_snapshot.items():
             if node in suspended:
                 continue
 
             snapshot_name = find_snapshot(node)
             if new_primarys_snapshot is None:
-                expected_name, expected_index = new_snapshots[node]
-                assert snapshot_name == expected_name
+                assert snapshot_name == nodes_best_snapshot
             else:
                 assert snapshot_name == new_primarys_snapshot
 
@@ -566,6 +570,9 @@ def _test_snapshot_selection(network, args):
             break
         else:
             primary = new_primary
+
+    for node in suspended:
+        node.resume()
 
 
 def test_empty_snapshot(network, args):
