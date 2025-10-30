@@ -144,7 +144,7 @@ namespace ccf
         size_t cbor_parse_size = uvm_endorsements_raw.size();
 
         if (! cbor_nondet_parse(true, 0, &cbor_parse_input, &cbor_parse_size, &cbor)) {
-          throw COSEDecodeError("Failed to validate COSE_Sign1 as a CBOR object with no maps in map keys");
+          throw COSEDecodeError("Failed to validate COSE_Sign1 as a definite-length CBOR object without floating-points and with no maps in map keys");
         }
 
         uint64_t tag;
