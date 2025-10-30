@@ -1949,7 +1949,6 @@ namespace ccf
               ccf::errors::NodeCannotHandleRequest,
               "Node is not primary; redirecting for preferable snapshot");
             return;
-            // TODO: Test redirects e2e
           }
 
           // If there is no current primary, fall-back to returning this
