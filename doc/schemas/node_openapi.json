@@ -200,9 +200,6 @@
       },
       "Endorsement": {
         "properties": {
-          "acme_configuration": {
-            "$ref": "#/components/schemas/string"
-          },
           "authority": {
             "$ref": "#/components/schemas/Authority"
           }

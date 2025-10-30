@@ -1560,21 +1560,6 @@ const actions = new Map([
     ),
   ],
   [
-    "trigger_acme_refresh",
-    new Action(
-      function (args) {
-        checkType(
-          args.interfaces,
-          "array?",
-          "interfaces to refresh the certificates for",
-        );
-      },
-      function (args, proposalId) {
-        ccf.node.triggerACMERefresh(args.interfaces);
-      },
-    ),
-  ],
-  [
     "assert_service_identity",
     new Action(
       function (args) {
