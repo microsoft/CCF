@@ -119,12 +119,12 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-d8ads-v5,
+        1ES.Pool=gha-vmss-d16av5-ci,
         "JobId=ci_build_test_virtual-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --volume /mnt:/mnt:rw
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
     steps:
       - name: "Checkout dependencies"
@@ -133,9 +133,13 @@ jobs:
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
           tdnf -y install ca-certificates git
-          rm -rf /mnt/CCF
-          mkdir /mnt/CCF
-          ln -s /__w/CCF/CCF /mnt/CCF
+
+      - name: "fio run on /__w/CCF (workspace)"
+        run: |
+          set -ex
+          tdnf -y install fio
+          fio --name=cpp-build --ioengine=libaio --direct=0 --rw=randrw --rwmixread=60 --bs=4k-256k --numjobs=18 --size=100M --nrfiles=50 --runtime=60 --time_based --group_reporting --directory=/__w/CCF
+        shell: bash
 
       - uses: actions/checkout@v5
         with:
