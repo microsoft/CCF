@@ -87,7 +87,7 @@ jobs:
         run: |
           set -ex
           cd build
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          ctest --output-on-failure -L unit -j$(($(nproc --all) * 2))
 
         # Note that those are only run on the virtual CI, as they require enough
         # privileges to configure iptables. ACI-based pools run unprivileged
