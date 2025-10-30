@@ -808,4 +808,4 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
-    cr.run(2)
+    cr.run()
