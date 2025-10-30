@@ -1618,9 +1618,6 @@ class Network:
                 target_seqno = TxID.from_str(r["transaction_id"]).seqno
 
         def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=20):
-            if not force_txs:
-                return True
-
             LOG.info(
                 f"Waiting for a snapshot to be committed including seqno {target_seqno} in {src_dir}"
             )
@@ -1642,12 +1639,14 @@ class Network:
                     )
                     return False
 
-                # Update state digest as a neutral write operation, to advance commit
-                member = self.consortium.get_any_active_member()
-                for _ in range(self.args.snapshot_tx_interval // 2):
-                    r = member.update_ack_state_digest(node)
-                with node.client() as c:
-                    c.wait_for_commit(r)
+                if force_txs:
+                    # Update state digest as a neutral write operation, to advance commit
+                    member = self.consortium.get_any_active_member()
+                    for _ in range(self.args.snapshot_tx_interval // 2):
+                        r = member.update_ack_state_digest(node)
+                    with node.client() as c:
+                        c.wait_for_commit(r)
+
                 time.sleep(0.1)
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
