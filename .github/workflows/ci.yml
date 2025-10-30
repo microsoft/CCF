@@ -41,6 +41,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: "fio run on /mnt (temp local)"
+        run: |
+          set -ex
+          tdnf -y install fio
+          fio --name=cpp-build --ioengine=libaio --direct=0 --rw=randrw --rwmixread=60 --bs=4k-256k --numjobs=18 --size=500M --runtime=60 --time_based --group_reporting --directory=/mnt
+        shell: bash
+
+      - name: "fio run on /__w/CCF (workspace)"
+        run: |
+          set -ex
+          fio --name=cpp-build --ioengine=libaio --direct=0 --rw=randrw --rwmixread=60 --bs=4k-256k --numjobs=18 --size=500M --runtime=60 --time_based --group_reporting --directory=/__w/CCF
+        shell: bash
+
       - name: "Run CI checks"
         run: |
           set -ex
