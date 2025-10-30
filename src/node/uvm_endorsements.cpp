@@ -107,7 +107,7 @@ namespace ccf
             uint64_t len = 0;
             if (cbor_nondet_get_byte_string(item, &payload, &len))
             {
-              parsed.push_back(std::vector<uint8_t>(payload, payload + len)); // TODO: do we need a copy here?
+              parsed.push_back(std::vector<uint8_t>(payload, payload + len)); // This is a copy
             }
             else
             {
@@ -124,7 +124,7 @@ namespace ccf
           uint8_t *payload = NULL;
           uint64_t len = 0;
           if (cbor_nondet_get_byte_string(x5chain, &payload, &len)) {
-            parsed.push_back(std::vector<uint8_t>(payload, payload + len)); // TODO: do we need a copy here?
+            parsed.push_back(std::vector<uint8_t>(payload, payload + len)); // This is a copy
           } else {
             throw COSEDecodeError(fmt::format(
               "Value type {} of x5chain in COSE header is not array or byte "
@@ -193,8 +193,8 @@ namespace ccf
         header_items[ALG_INDEX].key = cbor_nondet_mk_int64(headers::PARAM_ALG);
         header_items[CONTENT_TYPE_INDEX].key = cbor_nondet_mk_int64(headers::PARAM_CONTENT_TYPE);
         header_items[X5_CHAIN_INDEX].key = cbor_nondet_mk_int64(headers::PARAM_X5CHAIN);
-        assert (cbor_nondet_mk_text_string(HEADER_PARAM_ISSUER, sizeof(HEADER_PARAM_ISSUER) - 1, &header_items[ISS_INDEX].key));
-        assert (cbor_nondet_mk_text_string(HEADER_PARAM_FEED, sizeof(HEADER_PARAM_FEED) - 1, &header_items[FEED_INDEX].key));
+        assert (cbor_nondet_mk_text_string(HEADER_PARAM_ISSUER, sizeof(HEADER_PARAM_ISSUER) - 1, &header_items[ISS_INDEX].key)); // sizeof() - 1 to strip the null terminator from the C-style string
+        assert (cbor_nondet_mk_text_string(HEADER_PARAM_FEED, sizeof(HEADER_PARAM_FEED) - 1, &header_items[FEED_INDEX].key)); // sizeof() - 1 to strip the null terminator from the C-style string
 
         if (! cbor_nondet_map_get_multiple(protected_parameters, header_items, END_INDEX)) {
           throw COSEDecodeError("Failed to decode protected header");
@@ -216,7 +216,7 @@ namespace ccf
           if (! cbor_nondet_get_text_string(header_items[CONTENT_TYPE_INDEX].value, &payload, &len)) {
             throw "Failed to decode protected header";
           }
-          phdr.content_type = std::string((char*)payload, len); // TODO: do we need a copy here?
+          phdr.content_type = std::string((char*)payload, len); // This is a copy. We don't need to reinstate a null terminator because C++ strings are not null-terminated. The extra len argument to the constructor is crucial to this end.
         }
 
         if (header_items[X5_CHAIN_INDEX].found)
@@ -231,7 +231,7 @@ namespace ccf
           if (! cbor_nondet_get_text_string(header_items[ISS_INDEX].value, &payload, &len)) {
             throw "Failed to decode protected header";
           }
-          phdr.iss = std::string((char*)payload, len); // TODO: do we need a copy here?
+          phdr.iss = std::string((char*)payload, len); // This is a copy. We don't need to reinstate a null terminator because C++ strings are not null-terminated. The extra len argument to the constructor is crucial to this end.
         }
 
         if (header_items[FEED_INDEX].found)
@@ -241,7 +241,7 @@ namespace ccf
           if (! cbor_nondet_get_text_string(header_items[FEED_INDEX].value, &payload, &len)) {
             throw "Failed to decode protected header";
           }
-          phdr.feed = std::string((char*)payload, len); // TODO: do we need a copy here?
+          phdr.feed = std::string((char*)payload, len); // This is a copy. We don't need to reinstate a null terminator because C++ strings are not null-terminated. The extra len argument to the constructor is crucial to this end.
         }
 
         return phdr;
