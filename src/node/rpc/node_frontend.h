@@ -2068,6 +2068,9 @@ namespace ccf
 
         ctx.rpc_ctx->set_response_header("accept-ranges", "bytes");
 
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CCF_SNAPSHOT_NAME, snapshot_name);
+
         if (ctx.rpc_ctx->get_request_verb() == HTTP_HEAD)
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
