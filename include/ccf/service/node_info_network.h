@@ -6,7 +6,6 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/http_configuration.h"
-#include "ccf/service/acme_client_config.h"
 
 #include <string>
 
@@ -16,14 +15,14 @@ namespace ccf
   {
     NODE,
     SERVICE,
-    ACME,
+    ACME, // DEPRECATED
     UNSECURED
   };
   DECLARE_JSON_ENUM(
     Authority,
     {{Authority::NODE, "Node"},
      {Authority::SERVICE, "Service"},
-     {Authority::ACME, "ACME"},
+     {Authority::ACME, "ACME"}, // DEPRECATED
      {Authority::UNSECURED, "Unsecured"}});
 
   using ApplicationProtocol = std::string;
@@ -31,18 +30,13 @@ namespace ccf
   struct Endorsement
   {
     Authority authority;
-
-    std::optional<std::string> acme_configuration;
-
     bool operator==(const Endorsement& other) const
     {
-      return authority == other.authority &&
-        acme_configuration == other.acme_configuration;
+      return authority == other.authority;
     }
   };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Endorsement);
+  DECLARE_JSON_TYPE(Endorsement);
   DECLARE_JSON_REQUIRED_FIELDS(Endorsement, authority);
-  DECLARE_JSON_OPTIONAL_FIELDS(Endorsement, acme_configuration);
 
   struct NodeInfoNetwork_v1
   {
@@ -149,18 +143,6 @@ namespace ccf
     /// RPC interfaces
     RpcInterfaces rpc_interfaces;
 
-    /// ACME configuration description
-    struct ACME
-    {
-      /// Mapping of ACME client configuration names to configurations
-      std::map<std::string, ccf::ACMEClientConfig> configurations;
-
-      bool operator==(const ACME&) const = default;
-    };
-
-    /// ACME configuration
-    std::optional<ACME> acme = std::nullopt;
-
     // Denote whether this node will locally seal the ledger secret
     bool will_locally_seal_ledger_secrets = false;
   };
@@ -184,13 +166,11 @@ namespace ccf
     accepted_endpoints,
     forwarding_timeout_ms,
     redirections);
-  DECLARE_JSON_TYPE(NodeInfoNetwork_v2::ACME);
-  DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::ACME, configurations);
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    NodeInfoNetwork_v2, acme, will_locally_seal_ledger_secrets);
+    NodeInfoNetwork_v2, will_locally_seal_ledger_secrets);
 
   struct NodeInfoNetwork : public NodeInfoNetwork_v2
   {

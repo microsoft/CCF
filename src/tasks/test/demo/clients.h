@@ -45,8 +45,8 @@ struct ClientState
 
 struct Client : public LoopingThread<ClientState>
 {
-  Client(Session& _session, const ClientParams& _params, size_t idx) :
-    LoopingThread<ClientState>(fmt::format("c{}", idx), _session, _params)
+  Client(Session& session_, const ClientParams& params_, size_t idx) :
+    LoopingThread<ClientState>(fmt::format("c{}", idx), session_, params_)
   {}
 
   ~Client() override

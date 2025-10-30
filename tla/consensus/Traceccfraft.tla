@@ -111,6 +111,8 @@ TraceAppendEntriesBatchsize(i, j) ==
 TraceInitReconfigurationVars ==
     /\ InitLogConfigServerVars({TraceLog[1].msg.state.node_id}, StartLog)
 
+TraceInitPreVoteStatus == PreVoteStatusTypeInv
+
 -------------------------------------------------------------------------------------
 
 VARIABLE l, ts
@@ -149,7 +151,7 @@ IsDropPendingTo ==
     /\ IsEvent("drop_pending_to")
     /\ Network!DropMessage(logline.msg.to_node_id,
                 LAMBDA msg: IsMessage(msg, logline.msg.to_node_id, logline.msg.from_node_id, logline))
-    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 IsTimeout ==
     /\ IsEvent("become_candidate")
@@ -377,12 +379,12 @@ IsRcvRequestVoteResponse ==
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
     /\ UNCHANGED vars \* UNCHANGED implies that it doesn't matter if we prime the previous variables.
+    \* We don't assert committable and last idx here, as the spec and implementation are out of sync until
+    \* IsSendAppendEntriesResponse or IsSendRequestVote (in the candidate path)
     /\ leadershipState[logline.msg.state.node_id] # Leader
-    /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsCheckQuorum ==
     /\ IsEvent("become_follower")
@@ -402,7 +404,7 @@ IsRcvProposeVoteRequest ==
             /\ m.type = ProposeVoteRequest
             /\ m.term = logline.msg.packet.term
             /\ Discard(m)
-            /\ UNCHANGED <<commitIndex, reconfigurationVars, currentTerm, isNewFollower, leadershipState, log, matchIndex, membershipState, sentIndex, votedFor, votesGranted>>
+            /\ UNCHANGED <<preVoteStatus, commitIndex, reconfigurationVars, currentTerm, isNewFollower, leadershipState, log, matchIndex, membershipState, sentIndex, votedFor, votesGranted>>
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]

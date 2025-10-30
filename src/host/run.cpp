@@ -841,10 +841,6 @@ namespace ccf
     // Load startup snapshot if needed
     auto startup_snapshot = load_startup_snapshot(config, snapshots);
 
-    if (config.network.acme)
-    {
-      startup_config.network.acme = config.network.acme;
-    }
     // Used by GET /node/network/nodes/self to return rpc interfaces
     // prior to the KV being updated
     startup_config.network.rpc_interfaces = config.network.rpc_interfaces;
