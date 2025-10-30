@@ -19,7 +19,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-d8ads-v5,
+        1ES.Pool=gha-d16adsv5-a,
         "JobId=ci_checks-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -103,7 +103,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-d8ads-v5,
+        1ES.Pool=gha-d16adsv5-a,
         "JobId=ci_build_test_virtual-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
