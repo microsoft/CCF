@@ -1122,7 +1122,8 @@ namespace aft
       // follower if necessary
       if (
         state->current_view == r.term &&
-        state->leadership_state == ccf::kv::LeadershipState::Candidate)
+        (state->leadership_state == ccf::kv::LeadershipState::Candidate ||
+         state->leadership_state == ccf::kv::LeadershipState::PreVoteCandidate))
       {
         become_aware_of_new_term(r.term);
       }

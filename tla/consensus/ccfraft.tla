@@ -983,7 +983,7 @@ HandleRequestVoteRequest(i, j, m) ==
                  THEN grant_pre_vote_disabled
                  ELSE grant_pre_vote_capable
     IN /\ m.term <= currentTerm[i]
-       /\ \/ grant /\ IF PreVoteCapable \in preVoteStatus[i] /\ m.is_prevote
+       /\ \/ grant /\ IF PreVoteCapable \in preVoteStatus[i] /\ m.isPreVote
                       THEN UNCHANGED votedFor
                       ELSE votedFor' = [votedFor EXCEPT ![i] = j]
           \/ ~grant /\ UNCHANGED votedFor
