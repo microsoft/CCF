@@ -52,6 +52,7 @@
         "enum": [
           "Node",
           "Service",
+          "ACME",
           "Unsecured"
         ],
         "type": "string"
