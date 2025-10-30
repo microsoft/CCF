@@ -16,7 +16,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
+        1ES.Pool=gha-d16adsv5-a,
         "JobId=bench_virtual-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -65,6 +65,9 @@ jobs:
       - uses: bencherdev/bencher@main
       - name: Track base branch benchmarks with Bencher
         run: |
+          # Note that the testbed name is no longer accurate, the pool is now
+          # gha-d16adsv5-a, but we keep the old name for continuity in bencher,
+          # and the CPU/memory is identical.
           bencher run \
           --project ccf \
           --token '${{ secrets.BENCHER_API_TOKEN }}' \
