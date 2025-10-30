@@ -45,13 +45,13 @@ jobs:
         run: |
           set -ex
           tdnf -y install fio
-          fio --name=cpp-build --ioengine=libaio --direct=0 --rw=randrw --rwmixread=60 --bs=4k-256k --numjobs=18 --size=10G --runtime=60 --time_based --group_reporting --directory=/mnt
+          fio --name=cpp-build --ioengine=libaio --direct=0 --rw=randrw --rwmixread=60 --bs=4k-256k --numjobs=18 --size=100M --nrfiles=50 --runtime=60 --time_based --group_reporting --directory=/mnt
         shell: bash
 
       - name: "fio run on /__w/CCF (workspace)"
         run: |
           set -ex
-          fio --name=cpp-build --ioengine=libaio --direct=0 --rw=randrw --rwmixread=60 --bs=4k-256k --numjobs=18 --size=10G --runtime=60 --time_based --group_reporting --directory=/__w/CCF
+          fio --name=cpp-build --ioengine=libaio --direct=0 --rw=randrw --rwmixread=60 --bs=4k-256k --numjobs=18 --size=100M --nrfiles=50 --runtime=60 --time_based --group_reporting --directory=/__w/CCF
         shell: bash
 
       - name: "Run CI checks"
