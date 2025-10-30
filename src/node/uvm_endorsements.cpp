@@ -5,6 +5,78 @@
 
 #include "ds/internal_logger.h"
 
+extern "C" {
+#include "evercbor/CBORNondet.h"
+}
+
+// TODO: prove this function
+
+typedef struct {
+  cbor_nondet_t key;
+  cbor_nondet_t value;
+  bool found;
+} cbor_nondet_map_get_multiple_entry_t;
+
+static bool cbor_nondet_map_get_multiple(
+  cbor_nondet_t map,
+  cbor_nondet_map_get_multiple_entry_t *entries,
+  size_t count)
+{
+  if (entries == NULL)
+    return false;
+  cbor_nondet_map_iterator_t iter;
+  if (! cbor_nondet_map_iterator_start(map, &iter))
+    return false;
+  cbor_nondet_t key;
+  cbor_nondet_t value;
+  size_t found = 0;
+  for (size_t i = 0; i < count; ++i) {
+    entries[i].found = false;
+  }
+  while (cbor_nondet_map_iterator_next(&iter, &key, &value)) {
+    for (size_t i = 0; i < count; ++i) {
+      if (cbor_nondet_equal(key, entries[i].key)) {
+        entries[i].found = true;
+        entries[i].value = value;
+        found++;
+        if (found == count)
+          return true;
+        break;
+      }
+    }
+  };
+  return true;
+}
+
+// TODO: prove this function
+static cbor_nondet_t cbor_nondet_mk_int64(int64_t value) {
+  if (value < 0) {
+    return cbor_nondet_mk_neg_int64((uint64_t) (-1 - value));
+  } else {
+    return cbor_nondet_mk_uint64((uint64_t) value);
+  }
+}
+
+// TODO: prove this function
+static bool cbor_nondet_read_int64(cbor_nondet_t cbor, int64_t *value) {
+  if (value == NULL)
+    return false;
+  uint64_t raw;
+  if (! cbor_nondet_read_uint64(cbor, &raw))
+    return false;
+  if (cbor_nondet_major_type(cbor) == CBOR_MAJOR_TYPE_UINT64) {
+    if (raw > (uint64_t) INT64_MAX)
+      return false;
+    *value = (int64_t) raw;
+    return true;
+  } else {
+    if (raw > (uint64_t) (-1 - INT64_MIN))
+      return false;
+    *value = -1 - (int64_t) raw;
+    return true;
+  }
+}
+
 namespace ccf
 {
   bool matches_uvm_roots_of_trust(
@@ -50,28 +122,24 @@ namespace ccf
       constexpr auto HEADER_PARAM_FEED = "feed";
 
       std::vector<std::vector<uint8_t>> decode_x5chain(
-        QCBORDecodeContext& ctx, const QCBORItem& x5chain)
+        cbor_nondet_t x5chain)
       {
         std::vector<std::vector<uint8_t>> parsed;
 
-        if (x5chain.uDataType == QCBOR_TYPE_ARRAY)
+        uint8_t x5chain_uDataType = cbor_nondet_major_type(x5chain);
+
+        cbor_nondet_array_iterator_t array;
+        if (cbor_nondet_array_iterator_start(x5chain, &array))
         {
-          QCBORDecode_EnterArrayFromMapN(&ctx, headers::PARAM_X5CHAIN);
-          while (true)
+          cbor_nondet_t item;
+          while (cbor_nondet_array_iterator_next(&array, &item))
           {
-            QCBORItem item;
-            auto result = QCBORDecode_GetNext(&ctx, &item);
-            if (result == QCBOR_ERR_NO_MORE_ITEMS)
+            if (cbor_nondet_major_type(item) == CBOR_MAJOR_TYPE_BYTE_STRING)
             {
-              break;
-            }
-            if (result != QCBOR_SUCCESS)
-            {
-              throw COSEDecodeError("Item in x5chain is not well-formed");
-            }
-            if (item.uDataType == QCBOR_TYPE_BYTE_STRING)
-            {
-              parsed.push_back(qcbor_buf_to_byte_vector(item.val.string));
+              uint8_t *payload = NULL;
+              uint64_t len = 0;
+              assert (cbor_nondet_get_string(item, &payload, &len));
+              parsed.push_back(std::vector<uint8_t>(payload, payload + len)); // TODO: do we need a copy here?
             }
             else
             {
@@ -79,22 +147,24 @@ namespace ccf
                 "Next item in x5chain was not of type byte string");
             }
           }
-          QCBORDecode_ExitArray(&ctx);
           if (parsed.empty())
           {
             throw COSEDecodeError("x5chain array length was 0 in COSE header");
           }
         }
-        else if (x5chain.uDataType == QCBOR_TYPE_BYTE_STRING)
+        else if (x5chain_uDataType == CBOR_MAJOR_TYPE_BYTE_STRING)
         {
-          parsed.push_back(qcbor_buf_to_byte_vector(x5chain.val.string));
+          uint8_t *payload = NULL;
+          uint64_t len = 0;
+          assert (cbor_nondet_get_string(item, &payload, &len));
+          parsed.push_back(std::vector<uint8_t>(payload, payload + len)); // TODO: do we need a copy here?
         }
         else
         {
           throw COSEDecodeError(fmt::format(
             "Value type {} of x5chain in COSE header is not array or byte "
             "string",
-            x5chain.uDataType));
+            x5chain_uDataType));
         }
 
         return parsed;
@@ -103,31 +173,49 @@ namespace ccf
       UvmEndorsementsProtectedHeader decode_protected_header(
         const std::vector<uint8_t>& uvm_endorsements_raw)
       {
-        UsefulBufC msg{
-          uvm_endorsements_raw.data(), uvm_endorsements_raw.size()};
+        cbor_nondet_t cbor;
+        uint8_t * cbor_parse_input = (uint8_t *) uvm_endorsements_raw.data();
+        size_t cbor_parse_size = uvm_endorsements_raw.size();
 
-        QCBORError qcbor_result = QCBOR_SUCCESS;
+        if (! cbor_nondet_parse(true, 0, &cbor_parse_input, &cbor_parse_size, &cbor)) {
+          throw COSEDecodeError("Failed to validate COSE_Sign1 as a CBOR object with no maps in map keys");
+        }
 
-        QCBORDecodeContext ctx;
-        QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
-
-        QCBORDecode_EnterArray(&ctx, nullptr);
-        qcbor_result = QCBORDecode_GetError(&ctx);
-        if (qcbor_result != QCBOR_SUCCESS)
-        {
+        uint64_t tag;
+        cbor_nondet_t tagged_payload;
+        if (! cbor_nondet_get_tagged(cbor, &tagged_payload, &tag)) {
+          throw COSEDecodeError("Failed to parse COSE_Sign1 tag");
+        }
+        
+        if (tag != CBOR_TAG_COSE_SIGN1) {
+          throw COSEDecodeError("Failed to parse COSE_Sign1 tag");
+        }
+        
+        cbor_nondet_array_iterator_t outer_array;
+        if (! cbor_nondet_array_iterator_start(tagged_payload, &outer_array)) {
           throw COSEDecodeError("Failed to parse COSE_Sign1 outer array");
         }
 
-        uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
-        if (tag != CBOR_TAG_COSE_SIGN1)
-        {
-          throw COSEDecodeError("Failed to parse COSE_Sign1 tag");
+        cbor_nondet_t protected_parameters_as_bstr;
+        if (! cbor_nondet_array_iterator_next(&outer_array, &protected_parameters_as_bstr)) {
+          throw COSEDecodeError("Failed to decode COSE_Sign1 protected parameters");
         }
 
-        struct q_useful_buf_c protected_parameters = {};
-        QCBORDecode_EnterBstrWrapped(
-          &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
-        QCBORDecode_EnterMap(&ctx, nullptr);
+        if (cbor_nondet_major_type(protected_parameters_as_bstr) != CBOR_MAJOR_TYPE_BYTE_STRING) {
+          throw COSEDecodeError("Failed to decode COSE_Sign1 protected parameters");
+        }
+
+        uint8_t *protected_parameters_input;
+        uint64_t protected_parameters_len64;
+        if (! cbor_nondet_get_string(protected_parameters_as_bstr, &protected_parameters_input, &protected_parameters_len64)) {
+          throw COSEDecodeError("Failed to decode COSE_Sign1 protected parameters");
+        }
+
+        size_t protected_parameters_len = protected_parameters_len64;
+        cbor_nondet_t protected_parameters;
+        if (! cbor_nondet_parse(true, 0, &protected_parameters_input, &protected_parameters_len, &protected_parameters)) {
+          throw COSEDecodeError("Failed to decode COSE_Sign1 protected parameters");
+        }
 
         enum HeaderIndex : uint8_t
         {
@@ -138,76 +226,63 @@ namespace ccf
           FEED_INDEX,
           END_INDEX
         };
-        QCBORItem header_items[END_INDEX + 1];
+        cbor_nondet_map_get_multiple_entry_t header_items[END_INDEX];
 
-        header_items[ALG_INDEX].label.int64 = headers::PARAM_ALG;
-        header_items[ALG_INDEX].uLabelType = QCBOR_TYPE_INT64;
-        header_items[ALG_INDEX].uDataType = QCBOR_TYPE_INT64;
+        header_items[ALG_INDEX].key = cbor_nondet_mk_int64(headers::PARAM_ALG);
+        header_items[CONTENT_TYPE_INDEX].key = cbor_nondet_mk_int64(headers::PARAM_CONTENT_TYPE);
+        header_items[X5_CHAIN_INDEX].key = cbor_nondet_mk_int64(headers::PARAM_X5CHAIN);
+        assert (cbor_nondet_mk_text_string(HEADER_PARAM_ISSUER, sizeof(HEADER_PARAM_ISSUER) - 1, &header_items[ISS_INDEX].key));
+        assert (cbor_nondet_mk_text_string(HEADER_PARAM_FEED, sizeof(HEADER_PARAM_FEED) - 1, &header_items[FEED_INDEX].key));
 
-        header_items[CONTENT_TYPE_INDEX].label.int64 =
-          headers::PARAM_CONTENT_TYPE;
-        header_items[CONTENT_TYPE_INDEX].uLabelType = QCBOR_TYPE_INT64;
-        header_items[CONTENT_TYPE_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-        header_items[X5_CHAIN_INDEX].label.int64 = headers::PARAM_X5CHAIN;
-        header_items[X5_CHAIN_INDEX].uLabelType = QCBOR_TYPE_INT64;
-        header_items[X5_CHAIN_INDEX].uDataType = QCBOR_TYPE_ANY;
-
-        header_items[ISS_INDEX].label.string =
-          UsefulBuf_FromSZ(HEADER_PARAM_ISSUER);
-        header_items[ISS_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
-        header_items[ISS_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-        header_items[FEED_INDEX].label.string =
-          UsefulBuf_FromSZ(HEADER_PARAM_FEED);
-        header_items[FEED_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
-        header_items[FEED_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-        header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
-
-        QCBORDecode_GetItemsInMap(&ctx, header_items);
-        qcbor_result = QCBORDecode_GetError(&ctx);
-        if (qcbor_result != QCBOR_SUCCESS)
-        {
+        if (! cbor_nondet_map_get_multiple(protected_parameters, header_items, END_INDEX)) {
           throw COSEDecodeError("Failed to decode protected header");
         }
 
         UvmEndorsementsProtectedHeader phdr = {};
 
-        if (header_items[ALG_INDEX].uDataType != QCBOR_TYPE_NONE)
+        if (header_items[ALG_INDEX].found)
         {
-          phdr.alg = header_items[ALG_INDEX].val.int64;
+          if (! cbor_nondet_read_int64(header_items[ALG_INDEX].value, &phdr.alg)) {
+            throw "Failed to decode protected header";
+          }
         }
 
-        if (header_items[CONTENT_TYPE_INDEX].uDataType != QCBOR_TYPE_NONE)
+        if (header_items[CONTENT_TYPE_INDEX].found)
         {
-          phdr.content_type =
-            qcbor_buf_to_string(header_items[CONTENT_TYPE_INDEX].val.string);
+          if (cbor_nondet_major_type(header_items[CONTENT_TYPE_INDEX].value) != CBOR_MAJOR_TYPE_TEXT_STRING) {
+            throw "Failed to decode protected header";
+          }
+          uint8_t * payload = NULL;
+          uint64_t len = 0;
+          assert (cbor_nondet_get_string(header_items[CONTENT_TYPE_INDEX].value, &payload, &len));
+          phdr.content_type = std::string((char*)payload, len); // TODO: do we need a copy here?
         }
 
-        if (header_items[X5_CHAIN_INDEX].uDataType != QCBOR_TYPE_NONE)
+        if (header_items[X5_CHAIN_INDEX].found)
         {
-          phdr.x5_chain = decode_x5chain(ctx, header_items[X5_CHAIN_INDEX]);
+          phdr.x5_chain = decode_x5chain(header_items[X5_CHAIN_INDEX].value);
         }
 
-        if (header_items[ISS_INDEX].uDataType != QCBOR_TYPE_NONE)
+        if (header_items[ISS_INDEX].found)
         {
-          phdr.iss = qcbor_buf_to_string(header_items[ISS_INDEX].val.string);
+          if (cbor_nondet_major_type(header_items[ISS_INDEX].value) != CBOR_MAJOR_TYPE_TEXT_STRING) {
+            throw "Failed to decode protected header";
+          }
+          uint8_t * payload = NULL;
+          uint64_t len = 0;
+          assert (cbor_nondet_get_string(header_items[ISS_INDEX].value, &payload, &len));
+          phdr.iss = std::string((char*)payload, len); // TODO: do we need a copy here?
         }
 
-        if (header_items[FEED_INDEX].uDataType != QCBOR_TYPE_NONE)
+        if (header_items[FEED_INDEX].found)
         {
-          phdr.feed = qcbor_buf_to_string(header_items[FEED_INDEX].val.string);
-        }
-
-        QCBORDecode_ExitMap(&ctx);
-        QCBORDecode_ExitBstrWrapped(&ctx);
-
-        qcbor_result = QCBORDecode_GetError(&ctx);
-        if (qcbor_result != QCBOR_SUCCESS)
-        {
-          throw COSEDecodeError(
-            fmt::format("Failed to decode protected header: {}", qcbor_result));
+          if (cbor_nondet_major_type(header_items[FEED_INDEX].value) != CBOR_MAJOR_TYPE_TEXT_STRING) {
+            throw "Failed to decode protected header";
+          }
+          uint8_t * payload = NULL;
+          uint64_t len = 0;
+          assert (cbor_nondet_get_string(header_items[FEED_INDEX].value, &payload, &len));
+          phdr.feed = std::string((char*)payload, len); // TODO: do we need a copy here?
         }
 
         return phdr;
