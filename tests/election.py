@@ -16,6 +16,8 @@ from infra.network import PrimaryNotFound
 from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
+import committable
+
 # This test starts from a given number of nodes (hosts), commits
 # a transaction, stops the current primary, waits for an election and repeats
 # this process until no progress can be made (i.e. no primary can be elected
@@ -247,11 +249,18 @@ if __name__ == "__main__":
     args = copy.deepcopy(cr.args)
 
     cr.add(
-        "cft",
+        "election",
         run,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(args, f=1),
         election_timeout_ms=1000,
     )
 
-    cr.run(1)
+    cr.add(
+        "committable",
+        committable.run,
+        package="samples/apps/logging/logging",
+        nodes=[],
+    )
+
+    cr.run()

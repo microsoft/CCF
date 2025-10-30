@@ -894,12 +894,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME committable_suffix_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
-    ADDITIONAL_ARGS --sig-ms-interval 100
-  )
-
-  add_e2e_test(
     NAME commit_latency
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/commit_latency.py
     LABEL perf
