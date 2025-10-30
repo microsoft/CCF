@@ -48,35 +48,6 @@ static bool cbor_nondet_map_get_multiple(
   return true;
 }
 
-// TODO: prove this function
-static cbor_nondet_t cbor_nondet_mk_int64(int64_t value) {
-  if (value < 0) {
-    return cbor_nondet_mk_neg_int64((uint64_t) (-1 - value));
-  } else {
-    return cbor_nondet_mk_uint64((uint64_t) value);
-  }
-}
-
-// TODO: prove this function
-static bool cbor_nondet_read_int64(cbor_nondet_t cbor, int64_t *value) {
-  if (value == NULL)
-    return false;
-  uint64_t raw;
-  if (! cbor_nondet_read_uint64(cbor, &raw))
-    return false;
-  if (cbor_nondet_major_type(cbor) == CBOR_MAJOR_TYPE_UINT64) {
-    if (raw > (uint64_t) INT64_MAX)
-      return false;
-    *value = (int64_t) raw;
-    return true;
-  } else {
-    if (raw > (uint64_t) (-1 - INT64_MIN))
-      return false;
-    *value = -1 - (int64_t) raw;
-    return true;
-  }
-}
-
 namespace ccf
 {
   bool matches_uvm_roots_of_trust(
@@ -126,19 +97,16 @@ namespace ccf
       {
         std::vector<std::vector<uint8_t>> parsed;
 
-        uint8_t x5chain_uDataType = cbor_nondet_major_type(x5chain);
-
         cbor_nondet_array_iterator_t array;
         if (cbor_nondet_array_iterator_start(x5chain, &array))
         {
           cbor_nondet_t item;
           while (cbor_nondet_array_iterator_next(&array, &item))
           {
-            if (cbor_nondet_major_type(item) == CBOR_MAJOR_TYPE_BYTE_STRING)
+            uint8_t *payload = NULL;
+            uint64_t len = 0;
+            if (cbor_nondet_get_byte_string(item, &payload, &len))
             {
-              uint8_t *payload = NULL;
-              uint64_t len = 0;
-              assert (cbor_nondet_get_string(item, &payload, &len));
               parsed.push_back(std::vector<uint8_t>(payload, payload + len)); // TODO: do we need a copy here?
             }
             else
@@ -152,19 +120,17 @@ namespace ccf
             throw COSEDecodeError("x5chain array length was 0 in COSE header");
           }
         }
-        else if (x5chain_uDataType == CBOR_MAJOR_TYPE_BYTE_STRING)
-        {
+        else {
           uint8_t *payload = NULL;
           uint64_t len = 0;
-          assert (cbor_nondet_get_string(item, &payload, &len));
-          parsed.push_back(std::vector<uint8_t>(payload, payload + len)); // TODO: do we need a copy here?
-        }
-        else
-        {
-          throw COSEDecodeError(fmt::format(
-            "Value type {} of x5chain in COSE header is not array or byte "
-            "string",
-            x5chain_uDataType));
+          if (cbor_nondet_get_byte_string(x5chain, &payload, &len)) {
+            parsed.push_back(std::vector<uint8_t>(payload, payload + len)); // TODO: do we need a copy here?
+          } else {
+            throw COSEDecodeError(fmt::format(
+              "Value type {} of x5chain in COSE header is not array or byte "
+              "string",
+              cbor_nondet_major_type(x5chain)));
+          }
         }
 
         return parsed;
@@ -201,13 +167,9 @@ namespace ccf
           throw COSEDecodeError("Failed to decode COSE_Sign1 protected parameters");
         }
 
-        if (cbor_nondet_major_type(protected_parameters_as_bstr) != CBOR_MAJOR_TYPE_BYTE_STRING) {
-          throw COSEDecodeError("Failed to decode COSE_Sign1 protected parameters");
-        }
-
         uint8_t *protected_parameters_input;
         uint64_t protected_parameters_len64;
-        if (! cbor_nondet_get_string(protected_parameters_as_bstr, &protected_parameters_input, &protected_parameters_len64)) {
+        if (! cbor_nondet_get_byte_string(protected_parameters_as_bstr, &protected_parameters_input, &protected_parameters_len64)) {
           throw COSEDecodeError("Failed to decode COSE_Sign1 protected parameters");
         }
 
@@ -249,12 +211,11 @@ namespace ccf
 
         if (header_items[CONTENT_TYPE_INDEX].found)
         {
-          if (cbor_nondet_major_type(header_items[CONTENT_TYPE_INDEX].value) != CBOR_MAJOR_TYPE_TEXT_STRING) {
-            throw "Failed to decode protected header";
-          }
           uint8_t * payload = NULL;
           uint64_t len = 0;
-          assert (cbor_nondet_get_string(header_items[CONTENT_TYPE_INDEX].value, &payload, &len));
+          if (! cbor_nondet_get_text_string(header_items[CONTENT_TYPE_INDEX].value, &payload, &len)) {
+            throw "Failed to decode protected header";
+          }
           phdr.content_type = std::string((char*)payload, len); // TODO: do we need a copy here?
         }
 
@@ -265,23 +226,21 @@ namespace ccf
 
         if (header_items[ISS_INDEX].found)
         {
-          if (cbor_nondet_major_type(header_items[ISS_INDEX].value) != CBOR_MAJOR_TYPE_TEXT_STRING) {
-            throw "Failed to decode protected header";
-          }
           uint8_t * payload = NULL;
           uint64_t len = 0;
-          assert (cbor_nondet_get_string(header_items[ISS_INDEX].value, &payload, &len));
+          if (! cbor_nondet_get_text_string(header_items[ISS_INDEX].value, &payload, &len)) {
+            throw "Failed to decode protected header";
+          }
           phdr.iss = std::string((char*)payload, len); // TODO: do we need a copy here?
         }
 
         if (header_items[FEED_INDEX].found)
         {
-          if (cbor_nondet_major_type(header_items[FEED_INDEX].value) != CBOR_MAJOR_TYPE_TEXT_STRING) {
-            throw "Failed to decode protected header";
-          }
           uint8_t * payload = NULL;
           uint64_t len = 0;
-          assert (cbor_nondet_get_string(header_items[FEED_INDEX].value, &payload, &len));
+          if (! cbor_nondet_get_text_string(header_items[FEED_INDEX].value, &payload, &len)) {
+            throw "Failed to decode protected header";
+          }
           phdr.feed = std::string((char*)payload, len); // TODO: do we need a copy here?
         }
 
