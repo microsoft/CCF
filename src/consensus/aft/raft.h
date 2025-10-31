@@ -1730,6 +1730,11 @@ namespace aft
           from,
           state->current_view,
           r.term);
+
+        // Even if is_pre_vote, we should still update the term.
+        // A pre-vote-candidate does not update its term until it becomes a
+        // candidate. So a pre-vote request from a higher term indicates that we
+        // should catch up to the term that had a candidate in it.
         become_aware_of_new_term(r.term);
       }
       // state->current_view == r.term
@@ -1848,6 +1853,29 @@ namespace aft
       {
         RAFT_INFO_FMT(
           "Recv request vote response to {} from: {}: we aren't a candidate",
+          state->node_id,
+          from);
+        return;
+      }
+
+      if (
+        r.is_pre_vote &&
+        state->leadership_state == ccf::kv::LeadershipState::Candidate)
+      {
+        RAFT_INFO_FMT(
+          "Recv pre-vote response to {} from {}: no longer in pre-vote",
+          state->node_id,
+          from);
+        return;
+      }
+
+      // Shouldn't be possible but for completeness
+      if (
+        !r.is_pre_vote &&
+        state->leadership_state == ccf::kv::LeadershipState::PreVoteCandidate)
+      {
+        RAFT_INFO_FMT(
+          "Recv vote response to {} from {}: no longer candidate",
           state->node_id,
           from);
         return;
