@@ -20,7 +20,7 @@ SIMInitPreVoteStatus ==
   /\ PreVoteStatusTypeInv
   /\ ~\E i, j \in Servers:
       /\ PreVoteDisabled \in preVoteStatus[i]
-      /\ PreVoteEnabled \in preVoteStatus[i]
+      /\ PreVoteEnabled \in preVoteStatus[j]
 
 LOCAL R ==
     1..IF "R" \in DOMAIN IOEnv THEN atoi(IOEnv.R) ELSE 10
