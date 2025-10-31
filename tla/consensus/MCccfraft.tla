@@ -110,7 +110,7 @@ MCInitPreVoteStatus ==
   /\ PreVoteStatusTypeInv
   /\ ~\E i, j \in Servers:
       /\ PreVoteDisabled \in preVoteStatus[i]
-      /\ PreVoteEnabled \in preVoteStatus[i]
+      /\ PreVoteEnabled \in preVoteStatus[j]
 
 MCInit ==
     /\ InitMessagesVars
