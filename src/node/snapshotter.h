@@ -6,12 +6,12 @@
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
 #include "ds/internal_logger.h"
-#include "ds/thread_messaging.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "node/network_state.h"
 #include "node/snapshot_serdes.h"
 #include "service/tables/snapshot_evidence.h"
+#include "tasks/task_system.h"
 
 #include <deque>
 #include <optional>
@@ -96,18 +96,35 @@ namespace ccf
         serialised_receipt);
     }
 
-    struct SnapshotMsg
+    struct SnapshotTask : public ccf::tasks::BaseTask
     {
       std::shared_ptr<Snapshotter> self;
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot;
       uint32_t generation_count;
-    };
 
-    static void snapshot_cb(std::unique_ptr<::threading::Tmsg<SnapshotMsg>> msg)
-    {
-      msg->data.self->snapshot_(
-        std::move(msg->data.snapshot), msg->data.generation_count);
-    }
+      const std::string name;
+
+      SnapshotTask(
+        std::shared_ptr<Snapshotter> _self,
+        std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot>&& _snapshot,
+        uint32_t _generation_count) :
+        self(_self),
+        snapshot(std::move(_snapshot)),
+        generation_count(_generation_count),
+        name(fmt::format(
+          "snapshot@{}[{}]", snapshot->get_version(), generation_count))
+      {}
+
+      void do_task_implementation() override
+      {
+        self->snapshot_(std::move(snapshot), generation_count);
+      }
+
+      const std::string& get_name() const override
+      {
+        return name;
+      }
+    };
 
     void snapshot_(
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot,
@@ -438,13 +455,13 @@ namespace ccf
     void schedule_snapshot(::consensus::Index idx)
     {
       static uint32_t generation_count = 0;
-      auto msg = std::make_unique<::threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
-      msg->data.self = shared_from_this();
-      msg->data.snapshot = store->snapshot_unsafe_maps(idx);
-      msg->data.generation_count = generation_count++;
 
-      auto& tm = ::threading::ThreadMessaging::instance();
-      tm.add_task(tm.get_execution_thread(generation_count), std::move(msg));
+      auto task = std::make_shared<SnapshotTask>(
+        shared_from_this(),
+        store->snapshot_unsafe_maps(idx),
+        generation_count++);
+
+      ccf::tasks::add_task(task);
     }
 
     void commit(::consensus::Index idx, bool generate_snapshot) override

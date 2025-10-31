@@ -60,16 +60,6 @@ extern "C"
 
     {
       num_pending_threads = (uint16_t)num_worker_threads + 1;
-
-      if (num_pending_threads > threading::ThreadMessaging::max_num_threads)
-      {
-        LOG_FAIL_FMT("Too many threads: {}", num_pending_threads);
-        return CreateNodeStatus::TooManyThreads;
-      }
-
-      // Initialise singleton instance of ThreadMessaging, now that number of
-      // threads are known
-      threading::ThreadMessaging::init(num_pending_threads);
     }
 
     // 2-tx reconfiguration is currently experimental, disable it in release
@@ -195,11 +185,7 @@ extern "C"
       if (tid == ccf::threading::MAIN_THREAD_ID)
       {
         auto s = e.load()->run_main();
-        while (num_complete_threads !=
-               threading::ThreadMessaging::instance().thread_count() - 1)
-        {
-        }
-        threading::ThreadMessaging::shutdown();
+
         return s;
       }
       auto s = e.load()->run_worker();

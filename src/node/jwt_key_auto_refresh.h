@@ -24,6 +24,8 @@ namespace ccf
     ccf::crypto::Pem node_cert;
     std::atomic_size_t attempts;
 
+    ccf::tasks::Task periodic_refresh_task;
+
   public:
     JwtKeyAutoRefresh(
       size_t refresh_interval_s,
@@ -43,62 +45,54 @@ namespace ccf
       attempts(0)
     {}
 
-    struct RefreshTimeMsg
+    ~JwtKeyAutoRefresh()
     {
-      RefreshTimeMsg(JwtKeyAutoRefresh& self_) : self(self_) {}
-
-      JwtKeyAutoRefresh& self;
-    };
+      stop();
+    }
 
     void start()
     {
-      auto refresh_msg = std::make_unique<::threading::Tmsg<RefreshTimeMsg>>(
-        [](std::unique_ptr<::threading::Tmsg<RefreshTimeMsg>> msg) {
-          if (!msg->data.self.consensus->can_replicate())
-          {
-            LOG_DEBUG_FMT(
-              "JWT key auto-refresh: Node is not primary, skipping");
-          }
-          else
-          {
-            msg->data.self.refresh_jwt_keys();
-          }
-          LOG_DEBUG_FMT(
-            "JWT key auto-refresh: Scheduling in {}s",
-            msg->data.self.refresh_interval_s);
-          auto delay = std::chrono::seconds(msg->data.self.refresh_interval_s);
-          ::threading::ThreadMessaging::instance().add_task_after(
-            std::move(msg), delay);
-        },
-        *this);
+      LOG_DEBUG_FMT("JWT key initial auto-refresh");
+      periodic_refresh_task = ccf::tasks::make_basic_task([this]() {
+        if (!this->consensus->can_replicate())
+        {
+          LOG_DEBUG_FMT("JWT key auto-refresh: Node is not primary, skipping");
+        }
+        else
+        {
+          this->refresh_jwt_keys();
+        }
 
-      LOG_DEBUG_FMT(
-        "JWT key auto-refresh: Scheduling in {}s", refresh_interval_s);
-      auto delay = std::chrono::seconds(refresh_interval_s);
-      ::threading::ThreadMessaging::instance().add_task_after(
-        std::move(refresh_msg), delay);
+        LOG_DEBUG_FMT(
+          "JWT key auto-refresh: Scheduling in {}s", this->refresh_interval_s);
+      });
+
+      const std::chrono::seconds period(refresh_interval_s);
+      ccf::tasks::add_periodic_task(periodic_refresh_task, period, period);
+    }
+
+    void stop()
+    {
+      if (periodic_refresh_task != nullptr)
+      {
+        periodic_refresh_task->cancel_task();
+      }
     }
 
     void schedule_once()
     {
-      auto refresh_msg = std::make_unique<::threading::Tmsg<RefreshTimeMsg>>(
-        [](std::unique_ptr<::threading::Tmsg<RefreshTimeMsg>> msg) {
-          if (!msg->data.self.consensus->can_replicate())
-          {
-            LOG_DEBUG_FMT(
-              "JWT key one-off refresh: Node is not primary, skipping");
-          }
-          else
-          {
-            msg->data.self.refresh_jwt_keys();
-          }
-        },
-        *this);
-
       LOG_DEBUG_FMT("JWT key one-off refresh: Scheduling without delay");
-      auto delay = std::chrono::seconds(0);
-      ::threading::ThreadMessaging::instance().add_task_after(
-        std::move(refresh_msg), delay);
+      ccf::tasks::add_task(ccf::tasks::make_basic_task([this]() {
+        if (!this->consensus->can_replicate())
+        {
+          LOG_DEBUG_FMT(
+            "JWT key one-off refresh: Node is not primary, skipping");
+        }
+        else
+        {
+          this->refresh_jwt_keys();
+        }
+      }));
     }
 
     template <typename T>
