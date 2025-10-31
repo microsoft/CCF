@@ -280,4 +280,4 @@ Supposing we have a cluster of nodes which currently do not support PreVote, we 
 To enable PreVote safely, we must first migrate the cluster to support PreVote messages, and then enable PreVote.
 During the migration to enable PreVote, the pre-vote candidates will be less likely to be elected leader, as the other followers may preempt the pre-vote candidate and become candidates themselves.
 
-We plan to enable PreVote in 6.X, and then enable PreVote in 7.X.
+We plan to make all nodes PreVoteCapable (able to understand and respond to PreVote messages) in 6.X, and then enable PreVote usage for elections (PreVoteEnabled) in 7.X.
