@@ -1007,6 +1007,7 @@ if(BUILD_TESTS)
     NAME programmability
     CONSTITUTION ${RBAC_CONSTITUTION_ARGS}
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
+    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
   # This test uses large requests (so too slow for SAN)
@@ -1015,12 +1016,6 @@ if(BUILD_TESTS)
       NAME e2e_limits PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/limits.py
     )
   endif()
-
-  add_e2e_test(
-    NAME e2e_redirects
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/redirects.py
-    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-  )
 
   add_e2e_test(
     NAME e2e_logging_http2

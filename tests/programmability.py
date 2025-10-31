@@ -14,6 +14,7 @@ import ccf.cose
 import infra.clients
 
 import npm_tests
+import redirects
 
 from loguru import logger as LOG
 
@@ -632,6 +633,36 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         initial_user_count=2,
         initial_member_count=1,
+    )
+
+    cr.add(
+        "cpp_redirects_role",
+        redirects.run_redirect_tests_role,
+        package="samples/apps/logging/logging",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    )
+
+    cr.add(
+        "cpp_redirects_static",
+        redirects.run_redirect_tests_static,
+        package="samples/apps/logging/logging",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+    )
+
+    cr.add(
+        "js_redirects_role",
+        redirects.run_redirect_tests_role,
+        package="js_generic",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    )
+
+    cr.add(
+        "js_redirects_static",
+        redirects.run_redirect_tests_static,
+        package="js_generic",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
     )
 
     cr.run()

@@ -458,7 +458,7 @@ if __name__ == "__main__":
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
     )
-    
+
     cr.add(
         "fuzzing",
         fuzzing.run,
@@ -479,6 +479,5 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         initial_user_count=1,
     )
-
 
     cr.run()
