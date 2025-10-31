@@ -226,10 +226,8 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          # Unit tests
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+          ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
+          ./tests.sh --timeout 360 --output-on-failure -R code_update
         shell: bash
 
       - name: "Capture dmesg"
@@ -314,11 +312,7 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          # Limited set of tests because Genoa pools have limited resources
-          # focusing on architecture-specific functionality.
-          # Unit test for sealing
-          ./tests.sh --output-on-failure -R snp_ioctl_test
-          # End to end tests for code update (attestation verification)
+          ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
           ./tests.sh --timeout 360 --output-on-failure -R code_update
         shell: bash
 

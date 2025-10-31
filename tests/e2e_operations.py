@@ -1873,6 +1873,19 @@ def test_error_message_on_failure_to_fetch_snapshot(const_args):
         ), f"Did not find expected log messages: {expected_log_messages}"
 
 
+def run_snp_tests(args):
+    run_initial_uvm_descriptor_checks(args)
+    run_initial_tcb_version_checks(args)
+    run_recovery_local_unsealing(args)
+    run_recovery_local_unsealing(args, rekey=True)
+    run_recovery_local_unsealing(args, recovery_shares_refresh=True)
+    run_recovery_local_unsealing(args, recovery_f=1)
+    run_recovery_unsealing_corrupt(args)
+    run_recovery_unsealing_validate_audit(args)
+    test_error_message_on_failure_to_read_aci_sec_context(args)
+    run_read_ledger_on_testdata(args)
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
@@ -1886,16 +1899,5 @@ def run(args):
     run_cose_signatures_config_check(args)
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
-
-    if infra.platform_detection.is_snp():
-        run_initial_uvm_descriptor_checks(args)
-        run_initial_tcb_version_checks(args)
-        run_recovery_local_unsealing(args)
-        run_recovery_local_unsealing(args, rekey=True)
-        run_recovery_local_unsealing(args, recovery_shares_refresh=True)
-        run_recovery_local_unsealing(args, recovery_f=1)
-        run_recovery_unsealing_corrupt(args)
-        run_recovery_unsealing_validate_audit(args)
-        test_error_message_on_failure_to_read_aci_sec_context(args)
     run_read_ledger_on_testdata(args)
     run_ledger_chunk_bytes_check(args)
