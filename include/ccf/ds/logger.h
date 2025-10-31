@@ -44,7 +44,7 @@ namespace ccf::logger
     std::string tag;
     std::string file_name;
     size_t line_number;
-    uint16_t thread_id;
+    std::string thread_id;
 
     std::ostringstream ss;
     std::string msg;
@@ -59,7 +59,7 @@ namespace ccf::logger
       file_name(file_name_),
       line_number(line_number_)
     {
-      thread_id = ccf::threading::get_current_thread_id();
+      thread_id = ccf::threading::get_current_thread_name();
     }
 
     template <typename T>

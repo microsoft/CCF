@@ -15,8 +15,7 @@
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "ds/state_machine.h"
-#include "ds/thread_messaging.h"
-#include "node_types.h"
+#include "node/node_types.h"
 
 #include <iostream>
 #include <map>
