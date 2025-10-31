@@ -570,9 +570,9 @@ TraceAlias ==
         _logline |-> TraceLog[l-1]
 
         \* Uncomment _ENABLED when debugging the enablement state of ccfraft's actions.
-        ,_ENABLED |-> 
-             [
-                 Timeout                    |-> [ i \in Servers   |-> ENABLED Timeout(i) ]
+        \*,_ENABLED |-> 
+        \*     [
+        \*         Timeout                    |-> [ i \in Servers   |-> ENABLED Timeout(i) ]
         \*         RequestVote                |-> [ i,j \in Servers |-> ENABLED RequestVote(i, j) ],
         \*         BecomeLeader               |-> [ i \in Servers   |-> ENABLED BecomeLeader(i) ],
         \*         ClientRequest              |-> [ i \in Servers   |-> ENABLED ClientRequest(i) ],
