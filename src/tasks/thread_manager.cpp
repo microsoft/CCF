@@ -3,6 +3,7 @@
 
 #include "tasks/thread_manager.h"
 
+#include "ds/internal_logger.h"
 #include "tasks/worker.h"
 
 #include <thread>
@@ -24,7 +25,7 @@ namespace ccf::tasks
 
     static constexpr size_t MAX_WORKERS = 64;
 
-    std::jthread workers[MAX_WORKERS] = {};
+    std::thread workers[MAX_WORKERS] = {};
     StopSignal stop_signals[MAX_WORKERS] = {};
 
     std::mutex worker_count_mutex;
@@ -36,9 +37,15 @@ namespace ccf::tasks
 
     ~PImpl()
     {
-      for (size_t i = 0; i < current_workers; ++i)
+      try
       {
-        stop_signals[i].value.store(true);
+        set_task_threads(0);
+      }
+      catch (...)
+      {
+        LOG_FAIL_FMT(
+          "Exception thrown while destroying down ThreadManager - threads may "
+          "still be running");
       }
     }
 
@@ -82,7 +89,7 @@ namespace ccf::tasks
         {
           auto& stop_signal = stop_signals[i].value;
           stop_signal.store(false);
-          workers[i] = std::jthread(
+          workers[i] = std::thread(
             task_worker_loop, std::ref(job_board), std::ref(stop_signal));
         }
       }

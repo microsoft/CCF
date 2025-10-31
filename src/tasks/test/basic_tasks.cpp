@@ -7,6 +7,7 @@
 #include <doctest/doctest.h>
 #include <iostream>
 #include <numeric>
+#include <thread>
 
 #define FMT_HEADER_ONLY
 #include <fmt/chrono.h>
