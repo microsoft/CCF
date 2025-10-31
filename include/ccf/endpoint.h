@@ -109,6 +109,13 @@ namespace ccf::endpoints
     ToBackup,
   };
 
+  enum class RiskyFeatures
+  {
+    // TODO: Should this be a flags enum?
+    None,
+    FileAccess,
+  };
+
   enum class Mode
   {
     ReadWrite,
@@ -188,6 +195,7 @@ namespace ccf::endpoints
     EndpointProperties,
     openapi,
     openapi_hidden,
+    disabled_by_default,
     mode,
     js_module,
     js_function,
@@ -268,6 +276,9 @@ namespace ccf::endpoints
 
     bool openapi_hidden = false;
 
+    /// TODO Docs
+    RiskyFeatures risky_features = RiskyFeatures::None;
+
     http_status success_status = HTTP_STATUS_OK;
     nlohmann::json params_schema = nullptr;
     nlohmann::json result_schema = nullptr;
@@ -307,6 +318,9 @@ namespace ccf::endpoints
      * @return This Endpoint for further modification
      */
     Endpoint& set_openapi_hidden(bool hidden);
+
+    // TODO
+    Endpoint& set_risky_features(RiskyFeatures rf);
 
     /** Sets the JSON schema that the request parameters must comply with.
      *

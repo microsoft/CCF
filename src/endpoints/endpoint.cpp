@@ -13,6 +13,12 @@ namespace ccf::endpoints
     return *this;
   }
 
+  Endpoint& Endpoint::set_risky_features(RiskyFeatures rf)
+  {
+    risky_features = rf;
+    return *this;
+  }
+
   Endpoint& Endpoint::set_params_schema(const nlohmann::json& j)
   {
     params_schema = j;
