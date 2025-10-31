@@ -7,7 +7,6 @@ namespace ccf::threading
   namespace
   {
     std::atomic<ThreadID> next_thread_id = MAIN_THREAD_ID;
-    thread_local std::optional<std::string> this_thread_name = std::nullopt;
   }
 
   uint16_t& current_thread_id()
@@ -29,20 +28,5 @@ namespace ccf::threading
   void reset_thread_id_generator(ThreadID to)
   {
     next_thread_id.store(to);
-  }
-
-  std::string get_current_thread_name()
-  {
-    if (!this_thread_name.has_value())
-    {
-      this_thread_name = fmt::format("{}", get_current_thread_id());
-    }
-
-    return this_thread_name.value();
-  }
-
-  void set_current_thread_name(std::string_view sv)
-  {
-    this_thread_name = sv;
   }
 }
