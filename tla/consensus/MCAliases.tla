@@ -73,8 +73,8 @@ DebugAliasVars ==
         votedFor |-> votedFor,
         hasJoined |-> hasJoined,
         \* More compact visualization of the log.  
-        lg |-> [ s \in Servers |-> StringifyLog(s) ],
-        \*log |-> log,
+        \* lg |-> [ s \in Servers |-> StringifyLog(s) ],
+        log |-> log,
         commitIndex |-> commitIndex,
         votesGranted |-> votesGranted,
         sentIndex |-> sentIndex,
