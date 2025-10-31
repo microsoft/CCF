@@ -60,6 +60,7 @@ def force_become_primary(network, args, node):
                 primary, _ = network.wait_for_new_primary_in(
                     {node.node_id}, timeout_multiplier=3
                 )
+                break
             except (infra.network.PrimaryNotFound, TimeoutError) as e:
                 LOG.error(f"No primary found: {e}")
                 continue
