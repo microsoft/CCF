@@ -26,7 +26,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-d16adsv5-a,
+        1ES.Pool=gha-d16adsv5-b,
         "JobId=codeql_analyze-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:

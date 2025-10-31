@@ -19,7 +19,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-d16adsv5-a,
+        1ES.Pool=gha-d16adsv5-b,
         "JobId=bab_benchmark_pr-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     if: ${{ contains(github.event.pull_request.labels.*.name, 'bench-ab') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
@@ -69,7 +69,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-d16adsv5-a,
+        1ES.Pool=gha-d16adsv5-b,
         "JobId=bab_benchmark_main-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     if: ${{ contains(github.event.pull_request.labels.*.name, 'bench-ab') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
@@ -120,7 +120,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-d16adsv5-a,
+        1ES.Pool=gha-d16adsv5-b,
         "JobId=bab_compare-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:

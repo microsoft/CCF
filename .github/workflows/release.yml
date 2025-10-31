@@ -65,7 +65,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-d16adsv5-a,
+        1ES.Pool=gha-d16adsv5-b,
         "JobId=release_image_digest-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     outputs:
@@ -85,7 +85,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-d16adsv5-a,
+        1ES.Pool=gha-d16adsv5-b,
         "JobId=release_build_release-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -294,7 +294,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-d16adsv5-a,
+        1ES.Pool=gha-d16adsv5-b,
         "JobId=release_test_rpm_against_app-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -344,7 +344,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-d16adsv5-a,
+        1ES.Pool=gha-d16adsv5-b,
         "JobId=release_reproduce_rpm-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     env:

@@ -22,7 +22,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-d16adsv5-a,
+        1ES.Pool=gha-d16adsv5-b,
         "JobId=civ_mc_consistency-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -109,7 +109,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-d16adsv5-a,
+        1ES.Pool=gha-d16adsv5-b,
         "JobId=civ_mc_consensus-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -174,7 +174,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-d16adsv5-a,
+        1ES.Pool=gha-d16adsv5-b,
         "JobId=civ_tv_consensus-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
