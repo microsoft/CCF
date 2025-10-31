@@ -4,6 +4,7 @@
 from enum import StrEnum
 from os import getenv, path
 import sys
+import re
 
 
 class Platform(StrEnum):
@@ -26,11 +27,32 @@ def _detect_platform():
     )
 
 
+def _detect_amd_platform_name():
+    pattern = re.compile(r"model name\s*:\s*AMD EPYC (\d+) ")
+    milan = re.compile(r"7..3")
+    genoa = re.compile(r"9..4")
+    with open("/proc/cpuinfo", "r") as cpuinfo_file:
+        for line in cpuinfo_file:
+            match = pattern.match(line)
+            if match:
+                num = match.group(1)
+                if milan.match(num):
+                    return "Milan"
+                elif genoa.match(num):
+                    return "Genoa"
+    return "Unknown AMD"
+
+
 _CURRENT_PLATFORM = _detect_platform()
+_CURRENT_PLATFORM_NAME = _detect_amd_platform_name()
 
 
 def get_platform():
     return _CURRENT_PLATFORM
+
+
+def get_platform_name():
+    return _CURRENT_PLATFORM_NAME
 
 
 def is_snp():
@@ -43,8 +65,9 @@ def is_virtual():
 
 if __name__ == "__main__":
     current = get_platform()
+    current_name = get_platform_name()
     if len(sys.argv) == 1:
-        print(f"Detected platform is: {current}")
+        print(f"Detected platform is: {current} ({current_name})")
     elif len(sys.argv) == 2:
         expectation = sys.argv[1]
         if expectation == current:

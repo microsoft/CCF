@@ -173,13 +173,13 @@ jobs:
           if-no-files-found: ignore
         if: success() || failure()
 
-  build_and_test_caci:
-    name: "Confidential Container CI"
+  aci_snp_milan:
+    name: "ACI SNP Milan"
     runs-on:
       [
         self-hosted,
         1ES.Pool=gha-c-aci-ci,
-        "JobId=ci_caci_milan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+        "JobId=aci_snp_milan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
 
     steps:
@@ -204,10 +204,10 @@ jobs:
           echo "::endgroup::"
         shell: bash
 
-      - name: "Confirm running on SEV-SNP"
+      - name: "Confirm running on SEV-SNP Milan"
         run: |
           set -ex
-          python3 tests/infra/platform_detection.py snp
+          python3 tests/infra/platform_detection.py | grep "SNP (Milan)"
         shell: bash
 
       - name: "Build Debug"
@@ -243,7 +243,7 @@ jobs:
       - name: "Upload logs"
         uses: actions/upload-artifact@v5
         with:
-          name: logs-caci-snp
+          name: logs-aci-snp-milan
           path: |
             dmesg.log
             build/workspace/*/*.config.json
@@ -254,24 +254,19 @@ jobs:
           if-no-files-found: ignore
         if: success() || failure()
 
-  build_and_test_caci_genoa:
-    name: "Confidential Container CI on Genoa"
+  aci_snp_genoa:
+    name: "ACI SNP Genoa"
     runs-on:
       [
         self-hosted,
         1ES.Pool=gha-c-caci-ci-south-central-us,
-        "JobId=ci_caci_genoa-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+        "JobId=aci_snp_genoa-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
 
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-
-      - name: "Ensure running on Genoa hardware"
-        run: |
-          cat /proc/cpuinfo | grep "model.*: 17"
-        shell: bash
 
       - name: "Dump environment"
         run: |
@@ -290,10 +285,10 @@ jobs:
           echo "::endgroup::"
         shell: bash
 
-      - name: "Confirm running on SEV-SNP"
+      - name: "Confirm running on SEV-SNP Genoa"
         run: |
           set -ex
-          python3 tests/infra/platform_detection.py snp
+          python3 tests/infra/platform_detection.py snp | grep "SNP (Genoa)"
         shell: bash
 
       - name: "Build Debug"
@@ -329,7 +324,7 @@ jobs:
       - name: "Upload logs"
         uses: actions/upload-artifact@v5
         with:
-          name: logs-caci-snp-genoa
+          name: logs-aci-snp-genoa
           path: |
             dmesg.log
             build/workspace/*/*.config.json
