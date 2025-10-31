@@ -20,6 +20,7 @@ import struct
 from infra.runner import ConcurrentRunner
 
 from loguru import logger as LOG
+import fuzzing
 
 
 class AllConnectionsCreatedException(Exception):
@@ -448,14 +449,14 @@ if __name__ == "__main__":
         "robustness",
         run_node_socket_robustness_tests,
         package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.nodes(cr.args, 1),
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
     )
 
     cr.add(
         "idletimeout",
         run_idle_timeout_tests,
         package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.nodes(cr.args, 1),
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
     )
 
     # Need to modify args.max_open_sessions _before_ calling e2e_args.nodes for
@@ -468,8 +469,15 @@ if __name__ == "__main__":
         "caps",
         run_connection_caps_tests,
         package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.nodes(cr.args, 1),
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         initial_user_count=1,
+    )
+
+    cr.add(
+        "fuzzing",
+        fuzzing.run,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
     )
 
     cr.run()

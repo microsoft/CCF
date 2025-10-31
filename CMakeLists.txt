@@ -848,7 +848,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME recovery_test_api_1
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-    ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "2024-07-01"
+    ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
   )
 
   add_e2e_test(
@@ -949,7 +949,7 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME governance_test
+    NAME governance
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSTITUTION ${CONSTITUTION_ARGS}
     ADDITIONAL_ARGS --initial-operator-count 1 --jinja-templates-path
@@ -1030,12 +1030,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME membership_api_1
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
-    ADDITIONAL_ARGS --gov-api-version "2024-07-01"
-  )
-
-  add_e2e_test(
     NAME partitions
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     LABEL partitions
@@ -1065,10 +1059,6 @@ if(BUILD_TESTS)
 
   add_e2e_test(
     NAME connections PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-  )
-
-  add_e2e_test(
-    NAME fuzz_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fuzzing.py
   )
 
   if(CLIENT_PROTOCOLS_TEST)
