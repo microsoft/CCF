@@ -207,7 +207,7 @@ jobs:
       - name: "Confirm running on SEV-SNP Milan"
         run: |
           set -ex
-          python3 tests/infra/platform_detection.py
+          python3 tests/infra/platform_detection.py | grep "snp (Milan)"
         shell: bash
 
       - name: "Build Debug"
@@ -288,7 +288,7 @@ jobs:
       - name: "Confirm running on SEV-SNP Genoa"
         run: |
           set -ex
-          python3 tests/infra/platform_detection.py
+          python3 tests/infra/platform_detection.py | grep "snp (Genoa)"
         shell: bash
 
       - name: "Build Debug"

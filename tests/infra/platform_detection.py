@@ -28,7 +28,7 @@ def _detect_platform():
 
 
 def _detect_amd_platform_name():
-    pattern = re.compile(r"model name\s*:\s*AMD EPYC (\d+) ")
+    pattern = re.compile(r"model name\s*:\s*AMD EPYC (....) ")
     milan = re.compile(r"7..3")
     genoa = re.compile(r"9..4")
     with open("/proc/cpuinfo", "r") as cpuinfo_file:
