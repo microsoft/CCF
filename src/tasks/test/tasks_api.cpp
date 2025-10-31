@@ -7,6 +7,7 @@
 #include <doctest/doctest.h>
 #include <iostream>
 #include <numeric>
+#include <thread>
 
 // Other tests flush local JobBoards. This tests the static API of
 // task_system.h, that real code will use

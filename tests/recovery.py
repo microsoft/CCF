@@ -1388,6 +1388,8 @@ checked. Note that the key for each logging message is unique (per table).
         ("double_sealed_service", 2, False),
         # cose_flipflop_service is a regression test for the issue described in #7002
         ("cose_flipflop_service", 0, False),
+        # acme_containing_service is a compatibility test for acme-containing ledgers
+        ("acme_containing_service", 0, True),
     ):
         cr.add(
             f"recovery_from_{directory}",
