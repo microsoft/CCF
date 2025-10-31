@@ -1060,11 +1060,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME consistency_trace_validation
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
-  )
-
-  add_e2e_test(
     NAME fuzz_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fuzzing.py
   )
 
@@ -1119,14 +1114,9 @@ if(BUILD_TESTS)
 
   set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
   add_e2e_test(
-    NAME reconfiguration_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+    NAME election_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
     ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}
-  )
-  set_property(TEST reconfiguration_test PROPERTY LABELS reconfiguration)
-
-  add_e2e_test(
-    NAME election_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
   )
 
   add_piccolo_test(
@@ -1193,7 +1183,13 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME e2e_curl PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_curl.py
     )
+
+    add_e2e_test(
+      NAME consistency_trace_validation
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
+    )
   endif()
+
 endif()
 
 # Generate and install CMake export file for consumers using CMake
