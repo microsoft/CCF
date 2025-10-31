@@ -39,6 +39,7 @@ if [[ ! -f "${SCENARIO_PATH}" ]]; then
     exit 1
   fi
 fi
+SCENARIO_PATH="$(realpath "${SCENARIO_PATH}")"
 
 TRACE_OUT_DIR="${2:-${BUILD_DIR}/traces}"
 mkdir -p "${TRACE_OUT_DIR}"
