@@ -214,11 +214,3 @@ def run(args):
         network.ignore_error_pattern_on_shutdown("Unknown frontend msg type")
 
         fuzz_node_to_node(network, args)
-
-
-if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
-    args.package = "samples/apps/logging/logging"
-
-    args.nodes = infra.e2e_args.min_nodes(args, f=0)
-    run(args)

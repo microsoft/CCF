@@ -14,12 +14,12 @@ concurrency:
 permissions: read-all
 
 jobs:
-  checks:
-    name: "Format and License Checks"
+  build_and_checks:
+    name: "Format, License, Static Analysis, Documentation, Unit and Partition Tests"
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
+        1ES.Pool=gha-d16adsv5-b,
         "JobId=ci_checks-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -38,7 +38,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run CI checks
+      - name: "Run CI checks"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
@@ -47,33 +47,7 @@ jobs:
           ./scripts/ci-checks.sh
         shell: bash
 
-  ci-docs-tidy-unit-partitions:
-    name: "Docs/clang-tidy/Unit/Partitions"
-    needs: checks
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=ci_build_tidy-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
-
-    steps:
-      - name: "Checkout dependencies"
-        shell: bash
-        run: |
-          set -ex
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
-
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: "Install dependencies"
+      - name: "Install build dependencies"
         shell: bash
         run: |
           set -ex
@@ -82,7 +56,6 @@ jobs:
       - name: "Build Debug with clang-tidy"
         run: |
           set -ex
-          git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
@@ -114,7 +87,7 @@ jobs:
         run: |
           set -ex
           cd build
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          ctest --output-on-failure -L unit -j$(($(nproc --all) * 2))
 
         # Note that those are only run on the virtual CI, as they require enough
         # privileges to configure iptables. ACI-based pools run unprivileged
@@ -127,11 +100,10 @@ jobs:
 
   build_and_test_virtual:
     name: "Virtual CI"
-    needs: checks
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
+        1ES.Pool=gha-d16adsv5-b,
         "JobId=ci_build_test_virtual-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -201,15 +173,14 @@ jobs:
           if-no-files-found: ignore
         if: success() || failure()
 
-  build_and_test_caci:
-    name: "Confidential Container CI"
+  aci_snp_milan:
+    name: "ACI SNP Milan"
     runs-on:
       [
         self-hosted,
         1ES.Pool=gha-c-aci-ci,
-        "JobId=ci_caci_milan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+        "JobId=aci_snp_milan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
-    needs: checks
 
     steps:
       - uses: actions/checkout@v5
@@ -233,10 +204,10 @@ jobs:
           echo "::endgroup::"
         shell: bash
 
-      - name: "Confirm running on SEV-SNP"
+      - name: "Confirm running on SEV-SNP Milan"
         run: |
           set -ex
-          python3 tests/infra/platform_detection.py snp
+          python3 tests/infra/platform_detection.py | grep "snp (Milan)"
         shell: bash
 
       - name: "Build Debug"
@@ -255,100 +226,7 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          # Unit tests
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
-        shell: bash
-
-      - name: "Capture dmesg"
-        run: |
-          set -ex
-          echo "::group::Disk usage"
-          df -kh
-          echo "::endgroup::"
-          dmesg > dmesg.log
-        shell: bash
-        if: success() || failure()
-
-      - name: "Upload logs"
-        uses: actions/upload-artifact@v5
-        with:
-          name: logs-caci-snp
-          path: |
-            dmesg.log
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
-          if-no-files-found: ignore
-        if: success() || failure()
-
-  build_and_test_caci_genoa:
-    name: "Confidential Container CI on Genoa"
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-c-caci-ci-south-central-us,
-        "JobId=ci_caci_genoa-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
-    needs: checks
-
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: "Ensure running on Genoa hardware"
-        run: |
-          cat /proc/cpuinfo | grep "model.*: 17"
-        shell: bash
-
-      - name: "Dump environment"
-        run: |
-          set -ex
-          # Dump environment variables, extract Fabric_NodeIPOrFQDN
-          # and save it to a file for reconfiguration test using THIM.
-          cat /proc/*/environ | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
-          echo "::group::Disk usage"
-          df -kh
-          echo "::endgroup::"
-          echo "::group::Mounts"
-          mount
-          echo "::endgroup::"
-          echo "::group::CPU Info"
-          cat /proc/cpuinfo
-          echo "::endgroup::"
-        shell: bash
-
-      - name: "Confirm running on SEV-SNP"
-        run: |
-          set -ex
-          python3 tests/infra/platform_detection.py snp
-        shell: bash
-
-      - name: "Build Debug"
-        run: |
-          set -ex
-          git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
-          cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
-          ninja
-        shell: bash
-
-      - name: "Tests"
-        run: |
-          set -ex
-          cd build
-          rm -rf /github/home/.cache
-          mkdir -p /github/home/.cache
-          # Limited set of tests because Genoa pools have limited resources
-          # focusing on architecture-specific functionality.
-          # Unit test for sealing
-          ./tests.sh --output-on-failure -R snp_ioctl_test
-          # End to end tests for code update (attestation verification)
+          ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
           ./tests.sh --timeout 360 --output-on-failure -R code_update
         shell: bash
 
@@ -365,7 +243,88 @@ jobs:
       - name: "Upload logs"
         uses: actions/upload-artifact@v5
         with:
-          name: logs-caci-snp-genoa
+          name: logs-aci-snp-milan
+          path: |
+            dmesg.log
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
+          if-no-files-found: ignore
+        if: success() || failure()
+
+  aci_snp_genoa:
+    name: "ACI SNP Genoa"
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-aci-genoa,
+        "JobId=aci_snp_genoa-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: "Dump environment"
+        run: |
+          set -ex
+          # Dump environment variables, extract Fabric_NodeIPOrFQDN
+          # and save it to a file for reconfiguration test using THIM.
+          cat /proc/*/environ | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
+          echo "::group::Disk usage"
+          df -kh
+          echo "::endgroup::"
+          echo "::group::Mounts"
+          mount
+          echo "::endgroup::"
+          echo "::group::CPU Info"
+          cat /proc/cpuinfo
+          echo "::endgroup::"
+        shell: bash
+
+      - name: "Confirm running on SEV-SNP Genoa"
+        run: |
+          set -ex
+          python3 tests/infra/platform_detection.py | grep "snp (Genoa)"
+        shell: bash
+
+      - name: "Build Debug"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          ninja
+        shell: bash
+
+      - name: "Tests"
+        run: |
+          set -ex
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+          ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
+          ./tests.sh --timeout 360 --output-on-failure -R code_update
+        shell: bash
+
+      - name: "Capture dmesg"
+        run: |
+          set -ex
+          echo "::group::Disk usage"
+          df -kh
+          echo "::endgroup::"
+          dmesg > dmesg.log
+        shell: bash
+        if: success() || failure()
+
+      - name: "Upload logs"
+        uses: actions/upload-artifact@v5
+        with:
+          name: logs-aci-snp-genoa
           path: |
             dmesg.log
             build/workspace/*/*.config.json

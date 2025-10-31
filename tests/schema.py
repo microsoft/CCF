@@ -4,6 +4,7 @@ import os
 import json
 import http
 import infra.network
+import infra.platform_detection
 import infra.proc
 import infra.e2e_args
 import infra.checker
