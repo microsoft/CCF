@@ -82,10 +82,10 @@ def force_become_primary(network, args, node):
                 return tx_id
 
             time.sleep(sig_interval / 2)
-        else:
-            raise TimeoutError(
-                f"New primary did not produce signature (and receipt) in new term after {timeout}s"
-            )
+
+        raise TimeoutError(
+            f"New primary did not produce signature (and receipt) in new term after {timeout}s"
+        )
 
 
 @reqs.description("Move committed ledger files to read-only directory")
@@ -477,7 +477,7 @@ def _test_snapshot_selection(network, args):
         proposal = network.consortium.get_any_active_member().propose(
             node, proposal_body
         )
-        proposal = network.consortium.vote_using_majority(
+        network.consortium.vote_using_majority(
             node,
             proposal,
             careful_vote,
