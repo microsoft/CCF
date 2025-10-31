@@ -570,7 +570,7 @@ TraceAlias ==
         _logline |-> TraceLog[l-1]
 
         \* Uncomment _ENABLED when debugging the enablement state of ccfraft's actions.
-        \*,_ENABLED |-> 
+        \* ,_ENABLED |-> 
         \*     [
         \*         Timeout                    |-> [ i \in Servers   |-> ENABLED Timeout(i) ]
         \*         RequestVote                |-> [ i,j \in Servers |-> ENABLED RequestVote(i, j) ],
@@ -587,7 +587,7 @@ TraceAlias ==
         \*         RcvUpdateTerm              |-> [ m,n \in Servers |-> ENABLED RcvUpdateTerm(m, n) ],
         \*         RcvRequestVoteRequest      |-> [ m,n \in Servers |-> ENABLED RcvRequestVoteRequest(m, n) ],
         \*         RcvRequestVoteResponse     |-> [ m,n \in Servers |-> ENABLED RcvRequestVoteResponse(m, n) ]
-             ]
+        \*     ]
 
         \* See TraceDifferentialInv above.
         \* ,_TraceDiffState |-> LET t == INSTANCE trace IN t!Trace[l]
