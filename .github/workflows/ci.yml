@@ -259,7 +259,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-c-caci-ci-south-central-us,
+        1ES.Pool=gha-aci-genoa,
         "JobId=aci_snp_genoa-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
 
@@ -288,7 +288,7 @@ jobs:
       - name: "Confirm running on SEV-SNP Genoa"
         run: |
           set -ex
-          python3 tests/infra/platform_detection.py snp | grep "SNP (Genoa)"
+          python3 tests/infra/platform_detection.py | grep "SNP (Genoa)"
         shell: bash
 
       - name: "Build Debug"
