@@ -458,6 +458,13 @@ if __name__ == "__main__":
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
     )
+    
+    cr.add(
+        "fuzzing",
+        fuzzing.run,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+    )
 
     # Need to modify args.max_open_sessions _before_ calling e2e_args.nodes for
     # the connection_caps runner, but _after_ constructing nodes args for other
@@ -473,11 +480,5 @@ if __name__ == "__main__":
         initial_user_count=1,
     )
 
-    cr.add(
-        "fuzzing",
-        fuzzing.run,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
-    )
 
     cr.run()
