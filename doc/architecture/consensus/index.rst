@@ -213,7 +213,7 @@ PreVote Extensions
 
 If a node's `RequestVote` requests are able to reach the cluster, but it is unable to hear the `AppendEntries` messages from the current leader (for example, due to network partitioning), it may start new elections, incrementing its term, which deposes the leader and disrupts the cluster.
 
-To mitigate this, the PreVote extension requires that followers first become `PreVoteCandidates` and receive a quorum of speculative pre-votes to prove that they could be elected, using the standard Raft election conditions, before becomming `Candidates` and potentially disrupting the cluster.
+To mitigate this, the PreVote extension requires that followers first become `PreVoteCandidates` and receive a quorum of speculative pre-votes to prove that they could be elected, using the standard Raft election conditions, before becoming `Candidates` and potentially disrupting the cluster.
 
 More specifically, when a follower's election timeout elapses, it becomes a `PreVoteCandidate` for the current term  and sends out `RequestVote` messages with an additional `is_pre_vote` flag set to true.
 If the `PreVoteCandidate` hears from a current leader, or a new leader, it reverts back to being a `Follower`.
