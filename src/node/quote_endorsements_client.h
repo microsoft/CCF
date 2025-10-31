@@ -57,35 +57,6 @@ namespace ccf
     size_t server_retries_count = 0;
     size_t total_retries_count = 0;
 
-    struct QuoteEndorsementsClientMsg
-    {
-      QuoteEndorsementsClientMsg(
-        const std::shared_ptr<QuoteEndorsementsClient>& self_,
-        const Server& server_) :
-        self(self_),
-        server(server_)
-      {}
-
-      std::shared_ptr<QuoteEndorsementsClient> self;
-      Server server;
-    };
-
-    struct QuoteEndorsementsClientTimeoutMsg
-    {
-      QuoteEndorsementsClientTimeoutMsg(
-        const std::shared_ptr<QuoteEndorsementsClient>& self_,
-        const EndpointInfo& endpoint_,
-        size_t request_id_) :
-        self(self_),
-        endpoint(endpoint_),
-        request_id(request_id_)
-      {}
-
-      std::shared_ptr<QuoteEndorsementsClient> self;
-      EndpointInfo endpoint;
-      size_t request_id;
-    };
-
     void handle_success_response_unsafe(std::vector<uint8_t>&& data)
     {
       auto& server = servers.front();
