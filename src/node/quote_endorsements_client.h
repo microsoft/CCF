@@ -70,22 +70,6 @@ namespace ccf
       Server server;
     };
 
-    struct QuoteEndorsementsClientTimeoutMsg
-    {
-      QuoteEndorsementsClientTimeoutMsg(
-        const std::shared_ptr<QuoteEndorsementsClient>& self_,
-        const EndpointInfo& endpoint_,
-        size_t request_id_) :
-        self(self_),
-        endpoint(endpoint_),
-        request_id(request_id_)
-      {}
-
-      std::shared_ptr<QuoteEndorsementsClient> self;
-      EndpointInfo endpoint;
-      size_t request_id;
-    };
-
     void handle_success_response_unsafe(std::vector<uint8_t>&& data)
     {
       auto& server = servers.front();
