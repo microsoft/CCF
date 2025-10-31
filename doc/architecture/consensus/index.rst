@@ -211,7 +211,7 @@ and because RCI is always the first signature after RI, RI and RCI are always bo
 PreVote Extensions
 ~~~~~~~~~~~~~~~~~~
 
-If a node's `RequestVote` requests are able to reach the cluster, but it is unable to hear the `AppendEntries` messages from the current leader (for example, due to network partitioning), it may repeatedly increment its term, start new elections, deposing the leader and disrupting the cluster.
+If a node's `RequestVote` requests are able to reach the cluster, but it is unable to hear the `AppendEntries` messages from the current leader (for example, due to network partitioning), it may start new elections, incrementing its term, which deposes the leader and disrupts the cluster.
 
 To mitigate this, the PreVote extension requires that followers first become `PreVoteCandidates` and receive a quorum of speculative pre-votes to prove that they could be elected, using the standard Raft election conditions, before becomming `Candidates` and potentially disrupting the cluster.
 
@@ -243,9 +243,9 @@ If the `PreVoteCandidate` receives a quorum of positive pre-vote responses, it t
 
         Note over Node 1: Leader for term 3
 
-The only state change for the pre-vote message is that if the node's term is older than the pre-vote messages's it will update.
-This allows the pre-vote to also inform lagging nodes, that a more recent term had a node succeed in its pre-vote, becomming a Candidate or a Leader.
-This can be viewed as a piggybacking the term information from that previous Candidate or Leader, with the pre-vote request.
+The only state update in response to a pre-vote message is that if the node's term is older than the pre-vote messages's it will update it.
+This allows the pre-vote request to inform lagging nodes that a more recent term had a node succeed in its pre-vote, becomming a Candidate or a Leader.
+This can be viewed as a piggybacking the term information from that previous Candidate or Leader, with the pre-vote request to the lagging node.
 
 .. mermaid::
 
