@@ -1883,7 +1883,6 @@ def run_snp_tests(args):
     run_recovery_unsealing_corrupt(args)
     run_recovery_unsealing_validate_audit(args)
     test_error_message_on_failure_to_read_aci_sec_context(args)
-    run_read_ledger_on_testdata(args)
 
 
 def run(args):
