@@ -56,7 +56,9 @@ IsRequestVoteRequest(msg, dst, src, logline) ==
     /\ IsHeader(msg, dst, src, logline, RequestVoteRequest)
     /\ msg.lastCommittableIndex = logline.msg.packet.last_committable_idx
     /\ msg.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
-    /\ msg.isPreVote = logline.msg.packet.is_pre_vote
+    /\ IF "is_pre_vote" \in DOMAIN logline.msg.packet
+       THEN msg.isPreVote = logline.msg.packet.is_pre_vote
+       ELSE msg.isPreVote = FALSE
 
 IsRequestVoteResponse(msg, dst, src, logline) ==
     /\ IsHeader(msg, dst, src, logline, RequestVoteResponse)
