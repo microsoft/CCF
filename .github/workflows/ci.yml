@@ -201,13 +201,13 @@ jobs:
           if-no-files-found: ignore
         if: success() || failure()
 
-  build_and_test_caci:
-    name: "Confidential Container CI"
+  aci_snp_milan:
+    name: "ACI SNP Milan"
     runs-on:
       [
         self-hosted,
         1ES.Pool=gha-c-aci-ci,
-        "JobId=ci_caci_milan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+        "JobId=aci_snp_milan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     needs: checks
 
@@ -233,10 +233,10 @@ jobs:
           echo "::endgroup::"
         shell: bash
 
-      - name: "Confirm running on SEV-SNP"
+      - name: "Confirm running on SEV-SNP Milan"
         run: |
           set -ex
-          python3 tests/infra/platform_detection.py snp
+          python3 tests/infra/platform_detection.py snp milan
         shell: bash
 
       - name: "Build Debug"
@@ -255,10 +255,8 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          # Unit tests
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+          ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
+          ./tests.sh --timeout 360 --output-on-failure -R code_update
         shell: bash
 
       - name: "Capture dmesg"
@@ -274,7 +272,7 @@ jobs:
       - name: "Upload logs"
         uses: actions/upload-artifact@v5
         with:
-          name: logs-caci-snp
+          name: logs-aci-snp-milan
           path: |
             dmesg.log
             build/workspace/*/*.config.json
@@ -285,13 +283,13 @@ jobs:
           if-no-files-found: ignore
         if: success() || failure()
 
-  build_and_test_caci_genoa:
-    name: "Confidential Container CI on Genoa"
+  aci_snp_genoa:
+    name: "ACI SNP Genoa"
     runs-on:
       [
         self-hosted,
         1ES.Pool=gha-aci-genoa,
-        "JobId=ci_caci_genoa-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+        "JobId=aci_snp_genoa-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     needs: checks
 
@@ -299,11 +297,6 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-
-      - name: "Ensure running on Genoa hardware"
-        run: |
-          cat /proc/cpuinfo | grep "model.*: 17"
-        shell: bash
 
       - name: "Dump environment"
         run: |
@@ -322,10 +315,10 @@ jobs:
           echo "::endgroup::"
         shell: bash
 
-      - name: "Confirm running on SEV-SNP"
+      - name: "Confirm running on SEV-SNP Genoa"
         run: |
           set -ex
-          python3 tests/infra/platform_detection.py snp
+          python3 tests/infra/platform_detection.py snp genoa
         shell: bash
 
       - name: "Build Debug"
@@ -344,11 +337,7 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          # Limited set of tests because Genoa pools have limited resources
-          # focusing on architecture-specific functionality.
-          # Unit test for sealing
-          ./tests.sh --output-on-failure -R snp_ioctl_test
-          # End to end tests for code update (attestation verification)
+          ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
           ./tests.sh --timeout 360 --output-on-failure -R code_update
         shell: bash
 
