@@ -892,11 +892,10 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
             fs::path(latest_peer_snapshot->snapshot_name);
           if (files::exists(dst_path))
           {
-            LOG_FATAL_FMT(
-              "Unable to write peer snapshot - already have a file at {}. "
-              "Exiting.",
+            LOG_FAIL_FMT(
+              "Overwriting existing snapshot at {} with data retrieved from "
+              "peer",
               dst_path);
-            return static_cast<int>(CLI::ExitCodes::FileError);
           }
           files::dump(latest_peer_snapshot->snapshot_data, dst_path);
           startup_snapshot = latest_peer_snapshot->snapshot_data;
