@@ -290,7 +290,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-c-caci-ci-south-central-us,
+        1ES.Pool=gha-aci-genoa,
         "JobId=ci_caci_genoa-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     needs: checks
