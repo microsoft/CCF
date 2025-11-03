@@ -7,7 +7,7 @@ Documents the various GitHub Actions workflows, the role they fulfill and 3rd pa
 Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are posted to bencher.dev, and [plotted to make regressions obvious](https://bencher.dev/console/projects/ccf/plots).
 Triggered on every commit on `main`, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
 
-Tests are run and published on two different testbeds for comparison: gha-d16adsv5-b (d16ads_v5 VMs) and gha-c-aci-ci (C-ACI with 16 cores and 32Gb RAM), and are labeled accordingly in the bencher UI.
+Tests are run and published on two different testbeds for comparison: gha-vmss-d16av5-ci (d16ads_v5 VMs) and gha-c-aci-ci (C-ACI with 16 cores and 32Gb RAM), and are labeled accordingly in the bencher UI.
 
 File: `bencher.yml`
 3rd party dependencies:
