@@ -218,7 +218,7 @@ To mitigate this, the PreVote extension requires that followers first become `Pr
 More specifically, when a follower's election timeout elapses, it becomes a `PreVoteCandidate` for the current term  and sends out `RequestVote` messages with an additional `is_pre_vote` flag set to true.
 If the `PreVoteCandidate` hears from a current leader, or a new leader, it reverts back to being a `Follower`.
 Nodes receive this pre-vote request, and respond positively if node would have voted for the `PreVoteCandidate`'s ledger during an election, (ie. if the `PreVoteCandidate`'s ledger is at least as up to date as the receiver's ledger).
-If the `PreVoteCandidate` receives a quorum of positive pre-vote responses, it then becomes a `Candidate`, increments its term, and the election proceeds as normal from here.
+If the `PreVoteCandidate` receives a quorum of positive pre-vote responses, it then becomes a `Candidate`, increments its term, sends a `RequestVote` message with `is_pre_vote` set to false and the election proceeds as normal from here.
 
 .. mermaid::
 
