@@ -245,7 +245,7 @@ If the `PreVoteCandidate` receives a quorum of positive pre-vote responses, it t
 
 The only state update in response to a pre-vote message is that if the node's term is older than the pre-vote messages's it will update it.
 This allows the pre-vote request to inform lagging nodes that a more recent term had a node succeed in its pre-vote, becomming a Candidate or a Leader.
-This can be viewed as a piggybacking the term information from that previous Candidate or Leader, with the pre-vote request to the lagging node.
+This can be viewed as piggybacking the term information from that previous Candidate or Leader, with the pre-vote request to the lagging node.
 
 .. mermaid::
 
