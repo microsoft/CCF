@@ -1895,77 +1895,112 @@ namespace ccf
 
       static constexpr auto snapshot_since_param_key = "since";
       // Redirects to endpoint for a single specific snapshot
-      auto find_snapshot =
-        [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
-          auto node_configuration_subsystem =
-            this->context.get_subsystem<NodeConfigurationSubsystem>();
-          if (!node_configuration_subsystem)
+      auto find_snapshot = [this](
+                             ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+        size_t latest_idx = 0;
+        {
+          // Get latest_idx from query param, if present
+          const auto parsed_query =
+            http::parse_query(ctx.rpc_ctx->get_request_query());
+
+          std::string error_reason;
+          auto snapshot_since = http::get_query_value_opt<ccf::SeqNo>(
+            parsed_query, snapshot_since_param_key, error_reason);
+
+          if (snapshot_since.has_value())
           {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "NodeConfigurationSubsystem is not available");
-            return;
-          }
-
-          const auto& snapshots_config =
-            node_configuration_subsystem->get().node_config.snapshots;
-
-          size_t latest_idx = 0;
-          {
-            // Get latest_idx from query param, if present
-            const auto parsed_query =
-              http::parse_query(ctx.rpc_ctx->get_request_query());
-
-            std::string error_reason;
-            auto snapshot_since = http::get_query_value_opt<ccf::SeqNo>(
-              parsed_query, snapshot_since_param_key, error_reason);
-
-            if (snapshot_since.has_value())
+            if (error_reason != "")
             {
-              if (error_reason != "")
-              {
-                ctx.rpc_ctx->set_error(
-                  HTTP_STATUS_BAD_REQUEST,
-                  ccf::errors::InvalidQueryParameterValue,
-                  std::move(error_reason));
-                return;
-              }
-              latest_idx = snapshot_since.value();
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidQueryParameterValue,
+                std::move(error_reason));
+              return;
             }
+            latest_idx = snapshot_since.value();
           }
+        }
 
-          const auto orig_latest = latest_idx;
-          auto latest_committed_snapshot =
-            snapshots::find_latest_committed_snapshot_in_directory(
-              snapshots_config.directory, latest_idx);
-
-          if (!latest_committed_snapshot.has_value())
+        if (consensus != nullptr && !this->node_operation.can_replicate())
+        {
+          // Try to redirect to primary for preferable snapshot, expected to
+          // match later /join request
+          auto primary_id = consensus->primary();
+          if (primary_id.has_value())
           {
+            const auto address =
+              get_redirect_address_for_node(ctx, ctx.tx, *primary_id);
+            if (!address.has_value())
+            {
+              return;
+            }
+
+            auto location =
+              fmt::format("https://{}/node/snapshot", address.value());
+            if (latest_idx != 0)
+            {
+              location +=
+                fmt::format("?{}={}", snapshot_since_param_key, latest_idx);
+            }
+
+            ctx.rpc_ctx->set_response_header(http::headers::LOCATION, location);
             ctx.rpc_ctx->set_error(
-              HTTP_STATUS_NOT_FOUND,
-              ccf::errors::ResourceNotFound,
-              fmt::format(
-                "This node has no committed snapshots since {}", orig_latest));
+              HTTP_STATUS_PERMANENT_REDIRECT,
+              ccf::errors::NodeCannotHandleRequest,
+              "Node is not primary; redirecting for preferable snapshot");
             return;
           }
 
-          const auto& snapshot_path = latest_committed_snapshot.value();
+          // If there is no current primary, fall-back to returning this
+          // node's best snapshot rather than terminating the fetch with an
+          // error
+        }
 
-          const auto address = get_redirect_address_for_node(
-            ctx, ctx.tx, this->context.get_node_id());
-          if (!address.has_value())
-          {
-            return;
-          }
+        auto node_configuration_subsystem =
+          this->context.get_subsystem<NodeConfigurationSubsystem>();
+        if (!node_configuration_subsystem)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfigurationSubsystem is not available");
+          return;
+        }
 
-          auto redirect_url = fmt::format(
-            "https://{}/node/snapshot/{}", address.value(), snapshot_path);
-          LOG_DEBUG_FMT("Redirecting to snapshot: {}", redirect_url);
-          ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::LOCATION, redirect_url);
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
-        };
+        const auto& snapshots_config =
+          node_configuration_subsystem->get().node_config.snapshots;
+
+        const auto orig_latest = latest_idx;
+        auto latest_committed_snapshot =
+          snapshots::find_latest_committed_snapshot_in_directory(
+            snapshots_config.directory, latest_idx);
+
+        if (!latest_committed_snapshot.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            fmt::format(
+              "This node has no committed snapshots since {}", orig_latest));
+          return;
+        }
+
+        const auto& snapshot_path = latest_committed_snapshot.value();
+
+        const auto address = get_redirect_address_for_node(
+          ctx, ctx.tx, this->context.get_node_id());
+        if (!address.has_value())
+        {
+          return;
+        }
+
+        auto redirect_url = fmt::format(
+          "https://{}/node/snapshot/{}", address.value(), snapshot_path);
+        LOG_DEBUG_FMT("Redirecting to snapshot: {}", redirect_url);
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::LOCATION, redirect_url);
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+      };
       make_read_only_endpoint(
         "/snapshot", HTTP_HEAD, find_snapshot, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
@@ -2031,6 +2066,9 @@ namespace ccf
         const auto total_size = (size_t)f.tellg();
 
         ctx.rpc_ctx->set_response_header("accept-ranges", "bytes");
+
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CCF_SNAPSHOT_NAME, snapshot_name);
 
         if (ctx.rpc_ctx->get_request_verb() == HTTP_HEAD)
         {
