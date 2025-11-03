@@ -109,6 +109,9 @@ namespace ccf
       /// Timeout for forwarded RPC calls (in milliseconds)
       std::optional<size_t> forwarding_timeout_ms = std::nullopt;
 
+      /// TODO
+      std::set<std::string> enabled_optin_features = {};
+
       struct Redirections
       {
         RedirectionResolverConfig to_primary;
@@ -130,6 +133,7 @@ namespace ccf
           http_configuration == other.http_configuration &&
           accepted_endpoints == other.accepted_endpoints &&
           forwarding_timeout_ms == other.forwarding_timeout_ms &&
+          enabled_optin_features == other.enabled_optin_features &&
           redirections == other.redirections;
       }
     };
@@ -165,6 +169,7 @@ namespace ccf
     http_configuration,
     accepted_endpoints,
     forwarding_timeout_ms,
+    enabled_optin_features,
     redirections);
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(

@@ -109,11 +109,12 @@ namespace ccf::endpoints
     ToBackup,
   };
 
-  enum class RiskyFeatures
+  // This is a collection of strings rather than an enum, so that future values
+  // in a config do no cause parsing errors
+  struct OptInFeatures
   {
-    // TODO: Should this be a flags enum?
-    None,
-    FileAccess,
+    using Flag = std::string;
+    static constexpr Flag FileAccess = "FileAccess";
   };
 
   enum class Mode
@@ -195,7 +196,6 @@ namespace ccf::endpoints
     EndpointProperties,
     openapi,
     openapi_hidden,
-    disabled_by_default,
     mode,
     js_module,
     js_function,
@@ -237,6 +237,8 @@ namespace ccf::endpoints
      * @see ccf::any_cert_auth_policy
      */
     AuthnPolicies authn_policies;
+
+    std::set<OptInFeatures::Flag> required_optin_features = {};
   };
 
   using EndpointDefinitionPtr = std::shared_ptr<const EndpointDefinition>;
@@ -275,9 +277,6 @@ namespace ccf::endpoints
     std::vector<SchemaBuilderFn> schema_builders = {};
 
     bool openapi_hidden = false;
-
-    /// TODO Docs
-    RiskyFeatures risky_features = RiskyFeatures::None;
 
     http_status success_status = HTTP_STATUS_OK;
     nlohmann::json params_schema = nullptr;
@@ -320,7 +319,7 @@ namespace ccf::endpoints
     Endpoint& set_openapi_hidden(bool hidden);
 
     // TODO
-    Endpoint& set_risky_features(RiskyFeatures rf);
+    Endpoint& require_optin_feature(OptInFeatures::Flag feature);
 
     /** Sets the JSON schema that the request parameters must comply with.
      *

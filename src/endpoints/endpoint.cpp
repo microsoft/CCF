@@ -13,9 +13,9 @@ namespace ccf::endpoints
     return *this;
   }
 
-  Endpoint& Endpoint::set_risky_features(RiskyFeatures rf)
+  Endpoint& Endpoint::require_optin_feature(OptInFeatures::Flag feature)
   {
-    risky_features = rf;
+    required_optin_features.insert(feature);
     return *this;
   }
 
