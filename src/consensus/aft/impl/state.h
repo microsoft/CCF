@@ -192,7 +192,7 @@ namespace aft
     // that index itself is committed
     std::optional<ccf::SeqNo> retired_committed_idx = std::nullopt;
 
-    bool pre_vote_enabled;
+    bool pre_vote_enabled = false;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(State);
   DECLARE_JSON_REQUIRED_FIELDS(
