@@ -25,6 +25,7 @@ namespace ccf
       static constexpr auto WWW_AUTHENTICATE = "www-authenticate";
 
       static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
+      static constexpr auto CCF_SNAPSHOT_NAME = "x-ms-ccf-snapshot-name";
     }
 
     namespace headervalues

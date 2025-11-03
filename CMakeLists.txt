@@ -64,19 +64,6 @@ else()
   set(PYTHON python3)
 endif()
 
-set(DISTRIBUTE_PERF_TESTS
-    ""
-    CACHE
-      STRING
-      "Hosts to which performance tests should be distributed, for example -n ssh://x.x.x.x -n ssh://x.x.x.x -n ssh://x.x.x.x"
-)
-
-if(DISTRIBUTE_PERF_TESTS)
-  separate_arguments(NODES UNIX_COMMAND ${DISTRIBUTE_PERF_TESTS})
-else()
-  unset(NODES)
-endif()
-
 option(
   VERBOSE_LOGGING
   "Enable verbose, potentially unsafe logging of enclave code. Affects logging level passed at run-time to end-to-end-tests."
@@ -496,12 +483,32 @@ if(BUILD_TESTS)
       snp_ioctl_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
     )
+    set_property(
+      TEST snp_ioctl_test
+      APPEND
+      PROPERTY LABELS snp
+    )
+    set_property(
+      TEST snp_ioctl_test
+      APPEND
+      PROPERTY CONFIGURATIONS snp
+    )
 
     add_unit_test(
       snp_attestation_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_attestation_validation.cpp
     )
     target_link_libraries(snp_attestation_test PRIVATE ccf_pal ccfcrypto)
+    set_property(
+      TEST snp_attestation_test
+      APPEND
+      PROPERTY LABELS snp
+    )
+    set_property(
+      TEST snp_attestation_test
+      APPEND
+      PROPERTY CONFIGURATIONS snp
+    )
 
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
@@ -903,6 +910,7 @@ if(BUILD_TESTS)
     NAME commit_latency
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/commit_latency.py
     LABEL perf
+    CONFIGURATIONS perf
   )
 
   add_e2e_test(
@@ -1094,6 +1102,13 @@ if(BUILD_TESTS)
       ${CMAKE_SOURCE_DIR}/samples/config
       --historical-testdata
       ${CMAKE_SOURCE_DIR}/tests/testdata
+  )
+
+  add_e2e_test(
+    NAME snp_platform_tests
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/amd_snp.py
+    LABEL snp
+    CONFIGURATIONS snp
   )
 
   list(APPEND LTS_TEST_ARGS --ccf-version ${CCF_VERSION})
