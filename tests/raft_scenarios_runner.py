@@ -126,7 +126,11 @@ if __name__ == "__main__":
     parser.add_argument("--gen-scenarios", action="store_true")
     parser.add_argument("files", nargs="*", type=str, help="Path to scenario files")
     parser.add_argument(
-        "-o", "--output", type=str, help="Output directory", default=os.path.join("consensus")
+        "-o",
+        "--output",
+        type=str,
+        help="Output directory",
+        default=os.path.join("consensus"),
     )
 
     args = parser.parse_args()
@@ -142,7 +146,7 @@ if __name__ == "__main__":
     ostream = sys.stdout
 
     # Create consensus-specific output directory
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(args.output, exist_ok=True)
 
     for scenario in files:
         ostream.write("## {}\n\n".format(os.path.basename(scenario)))
@@ -174,7 +178,7 @@ if __name__ == "__main__":
         ## Do not create an empty ndjson file if log is emtpy.
         if log:
             with open(
-                os.path.join(output_dir, f"{os.path.basename(scenario)}.ndjson"),
+                os.path.join(args.output, f"{os.path.basename(scenario)}.ndjson"),
                 "w",
                 encoding="utf-8",
             ) as f:
