@@ -30,7 +30,7 @@ namespace
     return ne;
   }
 
-  static const std::unordered_map<RSAPadding, size_t> rsa_padding_openssl{
+  const std::unordered_map<RSAPadding, size_t> rsa_padding_openssl{
     {RSAPadding::PKCS1v15, RSA_PKCS1_PADDING},
     {RSAPadding::PKCS_PSS, RSA_PKCS1_PSS_PADDING}};
 }
@@ -39,7 +39,7 @@ namespace ccf::crypto
 {
   using namespace OpenSSL;
 
-  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(EVP_PKEY* key_) : key(key_)
+  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(EVP_PKEY* key) : key(key)
   {
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
@@ -60,7 +60,7 @@ namespace ccf::crypto
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(std::span<const uint8_t> der)
   {
     const unsigned char* pp = der.data();
-    key = EVP_PKEY_new();
+    key = EVP_PKEY_new(); // NOLINT(cppcoreguidelines-prefer-member-initializer)
     if (
       ((key = d2i_PUBKEY(&key, &pp, der.size())) ==
        nullptr) && // "SubjectPublicKeyInfo structure" format
@@ -83,7 +83,7 @@ namespace ccf::crypto
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const JsonWebKeyRSAPublic& jwk)
   {
-    key = EVP_PKEY_new();
+    key = EVP_PKEY_new(); // NOLINT(cppcoreguidelines-prefer-member-initializer)
     auto [n_raw, e_raw] = rsa_public_raw_from_jwk(jwk);
 
     OSSL_PARAM params[3];

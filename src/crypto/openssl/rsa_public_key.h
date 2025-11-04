@@ -26,7 +26,7 @@ namespace ccf::crypto
     RSAPublicKey_OpenSSL(std::span<const uint8_t> der);
     RSAPublicKey_OpenSSL(const JsonWebKeyRSAPublic& jwk);
 
-    RSAPublicKey_OpenSSL(EVP_PKEY* c);
+    RSAPublicKey_OpenSSL(EVP_PKEY* key);
 
     virtual ~RSAPublicKey_OpenSSL() = default;
 

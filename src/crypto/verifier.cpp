@@ -67,15 +67,12 @@ namespace ccf::crypto
       return std::get<RSAPublicKeyPtr>(public_key)
         ->verify_hash(hash, hash_size, sig, sig_size, md_type);
     }
-    else if (std::holds_alternative<ECPublicKeyPtr>(public_key))
+    if (std::holds_alternative<ECPublicKeyPtr>(public_key))
     {
       return std::get<ECPublicKeyPtr>(public_key)
         ->verify_hash(hash, hash_size, sig, sig_size, md_type);
     }
-    else
-    {
-      throw std::runtime_error("Invalid public key type");
-    }
+    throw std::runtime_error("Invalid public key type");
   }
 
   bool Verifier::verify(
@@ -90,15 +87,12 @@ namespace ccf::crypto
       return std::get<RSAPublicKeyPtr>(public_key)
         ->verify(contents, contents_size, sig, sig_size, md_type);
     }
-    else if (std::holds_alternative<ECPublicKeyPtr>(public_key))
+    if (std::holds_alternative<ECPublicKeyPtr>(public_key))
     {
       return std::get<ECPublicKeyPtr>(public_key)
         ->verify(contents, contents_size, sig, sig_size, md_type);
     }
-    else
-    {
-      throw std::runtime_error("Invalid public key type");
-    }
+    throw std::runtime_error("Invalid public key type");
   }
 
   Pem Verifier::public_key_pem() const
@@ -107,14 +101,11 @@ namespace ccf::crypto
     {
       return std::get<RSAPublicKeyPtr>(public_key)->public_key_pem();
     }
-    else if (std::holds_alternative<ECPublicKeyPtr>(public_key))
+    if (std::holds_alternative<ECPublicKeyPtr>(public_key))
     {
       return std::get<ECPublicKeyPtr>(public_key)->public_key_pem();
     }
-    else
-    {
-      throw std::runtime_error("Invalid public key type");
-    }
+    throw std::runtime_error("Invalid public key type");
   }
 
   std::vector<uint8_t> Verifier::public_key_der() const
@@ -123,13 +114,10 @@ namespace ccf::crypto
     {
       return std::get<RSAPublicKeyPtr>(public_key)->public_key_der();
     }
-    else if (std::holds_alternative<ECPublicKeyPtr>(public_key))
+    if (std::holds_alternative<ECPublicKeyPtr>(public_key))
     {
       return std::get<ECPublicKeyPtr>(public_key)->public_key_der();
     }
-    else
-    {
-      throw std::runtime_error("Invalid public key type");
-    }
+    throw std::runtime_error("Invalid public key type");
   }
 }
