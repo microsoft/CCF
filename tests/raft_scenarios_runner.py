@@ -126,7 +126,7 @@ if __name__ == "__main__":
     parser.add_argument("--gen-scenarios", action="store_true")
     parser.add_argument("files", nargs="*", type=str, help="Path to scenario files")
     parser.add_argument(
-        "-o", "--output", type=str, help="Output directory", default=None
+        "-o", "--output", type=str, help="Output directory", default=os.path.join("consensus")
     )
 
     args = parser.parse_args()
