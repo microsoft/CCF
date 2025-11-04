@@ -244,7 +244,9 @@ if __name__ == "__main__":
         if args.ccf_raft_trace is not None:
             env["CCF_RAFT_TRACE"] = args.ccf_raft_trace
         if args.scenario is not None:
-            assert args.ccf_raft_trace is None, "Cannot provide both --ccf-raft-trace and --scenario"
+            assert (
+                args.ccf_raft_trace is None
+            ), "Cannot provide both --ccf-raft-trace and --scenario"
             # Generate the trace from the scenario using the scenarios runner
             trace_dir = "traces"
             cmd = [
@@ -261,7 +263,9 @@ if __name__ == "__main__":
                 print(f"Error generating trace from scenario, exited with code {ret}")
                 sys.exit(ret)
             print(f"Generated trace in directory: {trace_dir}")
-            trace_path = os.path.join(trace_dir, os.path.basename(args.scenario) + ".ndjson")
+            trace_path = os.path.join(
+                trace_dir, os.path.basename(args.scenario) + ".ndjson"
+            )
             env["CCF_RAFT_TRACE"] = trace_path
     elif args.cmd == "sim":
         tlc_args.extend(["-simulate"])
