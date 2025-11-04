@@ -186,13 +186,15 @@ namespace aft
   DECLARE_JSON_TYPE(RaftHeader<raft_request_vote>)
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote>, msg)
 
-  enum ElectionType 
+  enum ElectionType
   {
     PreVote = 0,
     RegularVote = 1
   };
-  DECLARE_JSON_ENUM(ElectionType, {{ElectionType::PreVote, "PreVote"},
-                                 {ElectionType::RegularVote, "RegularVote"}});
+  DECLARE_JSON_ENUM(
+    ElectionType,
+    {{ElectionType::PreVote, "PreVote"},
+     {ElectionType::RegularVote, "RegularVote"}});
   struct RequestVote : RaftHeader<raft_request_vote>
   {
     Term term;
