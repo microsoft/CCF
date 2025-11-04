@@ -37,22 +37,22 @@ def _detect_amd_platform_name():
             if match:
                 num = match.group(1)
                 if milan.match(num):
-                    return "Milan"
+                    return "milan"
                 elif genoa.match(num):
-                    return "Genoa"
-    return "Unknown AMD"
+                    return "genoa"
+    return "unknown"
 
 
 _CURRENT_PLATFORM = _detect_platform()
-_CURRENT_PLATFORM_NAME = _detect_amd_platform_name()
+_CURRENT_PLATFORM_AMD_NAME = _detect_amd_platform_name()
 
 
 def get_platform():
     return _CURRENT_PLATFORM
 
 
-def get_platform_name():
-    return _CURRENT_PLATFORM_NAME
+def get_amd_platform_name():
+    return _CURRENT_PLATFORM_AMD_NAME
 
 
 def is_snp():
@@ -65,16 +65,16 @@ def is_virtual():
 
 if __name__ == "__main__":
     current = get_platform()
-    current_name = get_platform_name()
+    amd_name = get_amd_platform_name()
     if len(sys.argv) == 1:
-        print(f"Detected platform is: {current} ({current_name})")
-    elif len(sys.argv) == 2:
-        expectation = sys.argv[1]
-        if expectation == current:
+        print(f"Detected platform is: {current} {amd_name}")
+    elif len(sys.argv) in (2, 3):
+        expectation = sys.argv[1:]
+        if expectation == [current, amd_name] or expectation == [current]:
             print(f"Confirmed running on expected platform: {current}")
         else:
             print(
-                f"Not running on expected platform! Expected: {expectation}. Actual: {current}",
+                f"Not running on expected platform. Expected: {" ".join(expectation)}. Actual: {current} {amd_name}",
                 file=sys.stderr,
             )
             sys.exit(1)

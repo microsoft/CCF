@@ -500,12 +500,12 @@ if(BUILD_TESTS)
     )
     target_link_libraries(snp_attestation_test PRIVATE ccf_pal ccfcrypto)
     set_property(
-      TEST snp_ioctl_test
+      TEST snp_attestation_test
       APPEND
       PROPERTY LABELS snp
     )
     set_property(
-      TEST snp_ioctl_test
+      TEST snp_attestation_test
       APPEND
       PROPERTY CONFIGURATIONS snp
     )
@@ -1080,7 +1080,7 @@ if(BUILD_TESTS)
 
   add_e2e_test(
     NAME snp_platform_tests
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/amd.py
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/amd_snp.py
     LABEL snp
     CONFIGURATIONS snp
   )
