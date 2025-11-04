@@ -14,42 +14,8 @@ concurrency:
 permissions: read-all
 
 jobs:
-  checks:
-    name: "Format and License Checks"
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=ci_checks-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
-
-    steps:
-      - name: "Checkout dependencies"
-        shell: bash
-        run: |
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
-
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Run CI checks
-        run: |
-          set -ex
-          git config --global --add safe.directory /__w/CCF/CCF
-          tdnf -y install tar npm build-essential
-          ./scripts/setup-dev.sh
-          ./scripts/ci-checks.sh
-        shell: bash
-
-  ci-docs-tidy-unit-partitions:
-    name: "Docs/clang-tidy/Unit/Partitions"
-    needs: checks
+  vmss-virtual-a:
+    name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, Partitions tests
     runs-on:
       [
         self-hosted,
@@ -78,11 +44,13 @@ jobs:
         run: |
           set -ex
           ./scripts/setup-ci.sh
+          ./scripts/setup-dev.sh
 
-      - name: "Build Debug with clang-tidy"
+      - name: "Run Checks and Build Debug with clang-tidy"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
+          ./scripts/ci-checks.sh
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
@@ -125,9 +93,8 @@ jobs:
           cd build
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
 
-  build_and_test_virtual:
-    name: "Virtual CI"
-    needs: checks
+  vmss-virtual-b:
+    name: "VMSS Virtual B" # End-to-end tests, except for partitions
     runs-on:
       [
         self-hosted,
@@ -209,7 +176,6 @@ jobs:
         1ES.Pool=gha-c-aci-ci,
         "JobId=aci_snp_milan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
-    needs: checks
 
     steps:
       - uses: actions/checkout@v5
@@ -291,7 +257,6 @@ jobs:
         1ES.Pool=gha-aci-genoa,
         "JobId=aci_snp_genoa-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
-    needs: checks
 
     steps:
       - uses: actions/checkout@v5
