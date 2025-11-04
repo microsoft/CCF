@@ -9,7 +9,6 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/symmetric_key.cpp
     ${CCF_DIR}/src/crypto/key_pair.cpp
     ${CCF_DIR}/src/crypto/eddsa_key_pair.cpp
-    ${CCF_DIR}/src/crypto/rsa_key_pair.cpp
     ${CCF_DIR}/src/crypto/verifier.cpp
     ${CCF_DIR}/src/crypto/key_wrap.cpp
     ${CCF_DIR}/src/crypto/hmac.cpp

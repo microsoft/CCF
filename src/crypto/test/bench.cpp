@@ -241,14 +241,14 @@ namespace SIGN_RSA2048
   template <typename P, size_t KSZ, size_t NContents>
   static void benchmark_sign(picobench::state& s)
   {
-    P kp(KSZ);
+    auto kp = make_rsa_key_pair(KSZ);
     auto contents = make_contents<NContents>();
 
     s.start_timer();
     for (auto _ : s)
     {
       (void)_;
-      auto signature = kp.sign(contents, MDType::SHA256);
+      auto signature = kp->sign(contents, MDType::SHA256);
       do_not_optimize(signature);
       clobber_memory();
     }
@@ -271,15 +271,15 @@ namespace VERIFY_RSA2048
   template <typename P, size_t KSZ, size_t NContents>
   static void benchmark_verify(picobench::state& s)
   {
-    P kp(KSZ);
+    auto kp = make_rsa_key_pair(KSZ);
     auto contents = make_contents<NContents>();
-    auto signature = kp.sign(contents, MDType::SHA256);
+    auto signature = kp->sign(contents, MDType::SHA256);
 
     s.start_timer();
     for (auto _ : s)
     {
       (void)_;
-      if (!kp.verify(
+      if (!kp->verify(
             contents.data(),
             contents.size(),
             signature.data(),

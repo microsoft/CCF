@@ -436,12 +436,12 @@ namespace ccf::js::extensions
         else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyRSAPublic>)
         {
           auto pubk = ccf::crypto::make_rsa_public_key(*pem_str);
-          jwk = pubk->public_key_jwk_rsa(kid);
+          jwk = pubk->public_key_jwk(kid);
         }
         else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyRSAPrivate>)
         {
           auto kp = ccf::crypto::make_rsa_key_pair(*pem_str);
-          jwk = kp->private_key_jwk_rsa(kid);
+          jwk = kp->private_key_jwk(kid);
         }
         else if constexpr (std::
                              is_same_v<T, ccf::crypto::JsonWebKeyEdDSAPublic>)
@@ -1099,12 +1099,14 @@ namespace ccf::js::extensions
             jsctx.get_property(algorithm, "saltLength").val);
 
           auto public_key = ccf::crypto::make_rsa_public_key(key);
+          // Only supporting PSS (with salt), PKCS1v15 has been deprecated.
           valid = public_key->verify(
             data,
             data_size,
             sig.data(),
             sig.size(),
             mdtype,
+            ccf::crypto::RSAPadding::PKCS_PSS,
             static_cast<size_t>(salt_length));
         }
         return JS_NewBool(ctx, static_cast<int>(valid));

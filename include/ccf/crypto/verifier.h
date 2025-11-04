@@ -4,8 +4,8 @@
 
 #include "ccf/crypto/jwk.h"
 #include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/key_variant.h"
 #include "ccf/crypto/pem.h"
-#include "ccf/crypto/public_key.h"
 
 #include <chrono>
 
@@ -14,7 +14,7 @@ namespace ccf::crypto
   class Verifier
   {
   protected:
-    std::shared_ptr<PublicKey> public_key;
+    KeyVariant<RSAPublicKeyPtr, PublicKeyPtr> public_key{nullptr};
 
   public:
     Verifier() : public_key(nullptr) {}
@@ -36,11 +36,7 @@ namespace ccf::crypto
       size_t contents_size,
       const uint8_t* sig,
       size_t sig_size,
-      MDType md_type = MDType::NONE) const
-    {
-      return public_key->verify(
-        contents, contents_size, sig, sig_size, md_type);
-    }
+      MDType md_type = MDType::NONE) const;
 
     /** Verify a signature
      * @param contents Contents over which the signature was generated
@@ -55,27 +51,6 @@ namespace ccf::crypto
     {
       return verify(
         contents.data(), contents.size(), sig.data(), sig.size(), md_type);
-    }
-
-    /** Verify a signature
-     * @param contents Contents over which the signature was generated
-     * @param contents_size Size of @p contents
-     * @param sig Signature
-     * @param sig_size Size of @p sig
-     * @param md_type Hash algorithm
-     * @param hash_bytes Output buffer for the hash
-     * @return Boolean indicating success
-     */
-    virtual bool verify(
-      const uint8_t* contents,
-      size_t contents_size,
-      const uint8_t* sig,
-      size_t sig_size,
-      MDType md_type,
-      HashBytes& hash_bytes) const
-    {
-      return public_key->verify(
-        contents, contents_size, sig, sig_size, md_type, hash_bytes);
     }
 
     /** Verify a signature
@@ -97,28 +72,6 @@ namespace ccf::crypto
         md_type);
     }
 
-    /** Verify a signature
-     * @param contents Contents over which the signature was generated
-     * @param signature Signature
-     * @param md_type Hash algorithm
-     * @param hash_bytes Output buffer for the hash
-     * @return Boolean indicating success
-     */
-    virtual bool verify(
-      const std::vector<uint8_t>& contents,
-      const std::vector<uint8_t>& signature,
-      MDType md_type,
-      HashBytes& hash_bytes) const
-    {
-      return verify(
-        contents.data(),
-        contents.size(),
-        signature.data(),
-        signature.size(),
-        md_type,
-        hash_bytes);
-    }
-
     /** Verify a signature over a hash
      * @param hash Hash over which the signature was generated
      * @param hash_size Size of @p hash
@@ -132,10 +85,7 @@ namespace ccf::crypto
       size_t hash_size,
       const uint8_t* sig,
       size_t sig_size,
-      MDType md_type = MDType::NONE)
-    {
-      return public_key->verify_hash(hash, hash_size, sig, sig_size, md_type);
-    }
+      MDType md_type = MDType::NONE);
 
     /** Verify a signature over a hash
      * @param hash Hash over which the signature was generated
@@ -171,18 +121,12 @@ namespace ccf::crypto
     /** Extract the public key of the certificate in PEM format
      * @return PEM encoded public key
      */
-    virtual Pem public_key_pem() const
-    {
-      return public_key->public_key_pem();
-    }
+    virtual Pem public_key_pem() const;
 
     /** Extract the public key of the certificate in DER format
      * @return DER encoded public key
      */
-    virtual std::vector<uint8_t> public_key_der() const
-    {
-      return public_key->public_key_der();
-    }
+    virtual std::vector<uint8_t> public_key_der() const;
 
     /** Verify the certificate (held internally)
      * @param trusted_certs Vector of trusted certificates
@@ -216,13 +160,6 @@ namespace ccf::crypto
 
     /** The subject name of the certificate */
     virtual std::string subject() const = 0;
-
-    /** */
-    virtual JsonWebKeyECPublic public_key_jwk(
-      const std::optional<std::string>& kid = std::nullopt) const
-    {
-      return public_key->public_key_jwk(kid);
-    }
   };
 
   using VerifierPtr = std::shared_ptr<Verifier>;

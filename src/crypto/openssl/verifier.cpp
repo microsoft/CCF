@@ -53,7 +53,7 @@ namespace ccf::crypto
       }
     }
 
-    int mdnid = 0;
+    int mdnid = 0; // todo remove
     int pknid = 0;
     int secbits = 0;
     X509_get_signature_info(cert, &mdnid, &pknid, &secbits, nullptr);
@@ -63,11 +63,11 @@ namespace ccf::crypto
     auto base_id = EVP_PKEY_get_base_id(pk);
     if (base_id == EVP_PKEY_EC)
     {
-      public_key = std::make_unique<PublicKey_OpenSSL>(pk);
+      public_key = std::make_shared<PublicKey_OpenSSL>(pk);
     }
     else if (base_id == EVP_PKEY_RSA)
     {
-      public_key = std::make_unique<RSAPublicKey_OpenSSL>(pk);
+      public_key = std::make_shared<RSAPublicKey_OpenSSL>(pk);
     }
     else
     {

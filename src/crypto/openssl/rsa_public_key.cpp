@@ -8,11 +8,38 @@
 #include <openssl/core_names.h>
 #include <openssl/encoder.h>
 
+namespace
+{
+  using namespace ccf::crypto;
+  using namespace OpenSSL;
+
+  std::pair<Unique_BIGNUM, Unique_BIGNUM> get_modulus_and_exponent(
+    const JsonWebKeyRSAPublic& jwk)
+  {
+    if (jwk.kty != JsonWebKeyType::RSA)
+    {
+      throw std::logic_error("Cannot construct public key from non-RSA JWK");
+    }
+
+    std::pair<Unique_BIGNUM, Unique_BIGNUM> ne;
+    auto n_raw = raw_from_b64url(jwk.n);
+    auto e_raw = raw_from_b64url(jwk.e);
+    OpenSSL::CHECKNULL(BN_bin2bn(n_raw.data(), n_raw.size(), ne.first));
+    OpenSSL::CHECKNULL(BN_bin2bn(e_raw.data(), e_raw.size(), ne.second));
+
+    return ne;
+  }
+
+  static const std::unordered_map<RSAPadding, size_t> rsa_padding_openssl{
+    {RSAPadding::PKCS1v15, RSA_PKCS1_PADDING},
+    {RSAPadding::PKCS_PSS, RSA_PKCS1_PSS_PADDING}};
+}
+
 namespace ccf::crypto
 {
   using namespace OpenSSL;
 
-  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(EVP_PKEY* c) : PublicKey_OpenSSL(c)
+  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(EVP_PKEY* key_) : key(key_)
   {
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
@@ -52,36 +79,6 @@ namespace ccf::crypto
     {
       throw std::logic_error("invalid RSA key");
     }
-  }
-
-  std::pair<Unique_BIGNUM, Unique_BIGNUM> get_modulus_and_exponent(
-    const JsonWebKeyRSAPublic& jwk)
-  {
-    if (jwk.kty != JsonWebKeyType::RSA)
-    {
-      throw std::logic_error("Cannot construct public key from non-RSA JWK");
-    }
-
-    std::pair<Unique_BIGNUM, Unique_BIGNUM> ne;
-    auto n_raw = raw_from_b64url(jwk.n);
-    auto e_raw = raw_from_b64url(jwk.e);
-    OpenSSL::CHECKNULL(BN_bin2bn(n_raw.data(), n_raw.size(), ne.first));
-    OpenSSL::CHECKNULL(BN_bin2bn(e_raw.data(), e_raw.size(), ne.second));
-
-    return ne;
-  }
-
-  std::pair<std::vector<uint8_t>, std::vector<uint8_t>> RSAPublicKey_OpenSSL::
-    rsa_public_raw_from_jwk(const JsonWebKeyRSAPublic& jwk)
-  {
-    auto [n, e] = get_modulus_and_exponent(jwk);
-    std::pair<std::vector<uint8_t>, std::vector<uint8_t>> r(
-      BN_num_bytes(n), BN_num_bytes(e));
-
-    CHECKPOSITIVE(BN_bn2nativepad(n, r.first.data(), r.first.size()));
-    CHECKPOSITIVE(BN_bn2nativepad(e, r.second.data(), r.second.size()));
-
-    return r;
   }
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const JsonWebKeyRSAPublic& jwk)
@@ -163,12 +160,24 @@ namespace ccf::crypto
 
   Pem RSAPublicKey_OpenSSL::public_key_pem() const
   {
-    return PublicKey_OpenSSL::public_key_pem();
+    Unique_BIO buf;
+
+    OpenSSL::CHECK1(PEM_write_bio_PUBKEY(buf, key));
+
+    BUF_MEM* bptr = nullptr;
+    BIO_get_mem_ptr(buf, &bptr);
+    return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
   }
 
   std::vector<uint8_t> RSAPublicKey_OpenSSL::public_key_der() const
   {
-    return PublicKey_OpenSSL::public_key_der();
+    Unique_BIO buf;
+
+    OpenSSL::CHECK1(i2d_PUBKEY_bio(buf, key));
+
+    BUF_MEM* bptr = nullptr;
+    BIO_get_mem_ptr(buf, &bptr);
+    return {bptr->data, bptr->data + bptr->length};
   }
 
   bool RSAPublicKey_OpenSSL::verify(
@@ -177,39 +186,45 @@ namespace ccf::crypto
     const uint8_t* signature,
     size_t signature_size,
     MDType md_type,
+    RSAPadding padding,
     size_t salt_length)
   {
     auto hash = OpenSSLHashProvider().Hash(contents, contents_size, md_type);
-    Unique_EVP_PKEY_CTX pctx(key);
-    CHECK1(EVP_PKEY_verify_init(pctx));
-    CHECK1(EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PSS_PADDING));
-    CHECK1(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));
-    CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
-    return EVP_PKEY_verify(
-             pctx, signature, signature_size, hash.data(), hash.size()) == 1;
+    return verify_hash(
+      hash.data(),
+      hash.size(),
+      signature,
+      signature_size,
+      md_type,
+      padding,
+      salt_length);
   }
 
-  bool RSAPublicKey_OpenSSL::verify_pkcs1(
-    const uint8_t* contents,
-    size_t contents_size,
+  bool RSAPublicKey_OpenSSL::verify_hash(
+    const uint8_t* hash,
+    size_t hash_size,
     const uint8_t* signature,
     size_t signature_size,
-    MDType md_type)
+    MDType md_type,
+    RSAPadding padding,
+    size_t salt_length)
   {
-    auto hash = OpenSSLHashProvider().Hash(contents, contents_size, md_type);
+    auto ossl_padding = rsa_padding_openssl.find(padding);
+    if (ossl_padding == rsa_padding_openssl.end())
+    {
+      throw std::logic_error("unsupported RSA padding");
+    }
+
     Unique_EVP_PKEY_CTX pctx(key);
     CHECK1(EVP_PKEY_verify_init(pctx));
-    CHECK1(EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PADDING));
+    CHECK1(EVP_PKEY_CTX_set_rsa_padding(pctx, ossl_padding->second));
+    if (ossl_padding->first == RSAPadding::PKCS_PSS)
+    {
+      CHECK1(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));
+    }
     CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
-    return EVP_PKEY_verify(
-             pctx, signature, signature_size, hash.data(), hash.size()) == 1;
-  }
-
-  std::vector<uint8_t> RSAPublicKey_OpenSSL::bn_bytes(const BIGNUM* bn)
-  {
-    std::vector<uint8_t> r(BN_num_bytes(bn));
-    BN_bn2bin(bn, r.data());
-    return r;
+    return EVP_PKEY_verify(pctx, signature, signature_size, hash, hash_size) ==
+      1;
   }
 
   Unique_BIGNUM RSAPublicKey_OpenSSL::get_bn_param(const char* key_name) const
@@ -221,23 +236,70 @@ namespace ccf::crypto
     return r;
   }
 
-  RSAPublicKey::Components RSAPublicKey_OpenSSL::components() const
-  {
-    Components r;
-    r.n = bn_bytes(get_bn_param(OSSL_PKEY_PARAM_RSA_N));
-    r.e = bn_bytes(get_bn_param(OSSL_PKEY_PARAM_RSA_E));
-    return r;
-  }
-
-  JsonWebKeyRSAPublic RSAPublicKey_OpenSSL::public_key_jwk_rsa(
+  JsonWebKeyRSAPublic RSAPublicKey_OpenSSL::public_key_jwk(
     const std::optional<std::string>& kid) const
   {
     JsonWebKeyRSAPublic jwk;
-    auto comps = components();
-    jwk.n = b64url_from_raw(comps.n, false /* with_padding */);
-    jwk.e = b64url_from_raw(comps.e, false /* with_padding */);
+    auto n = bn_to_bytes(get_bn_param(OSSL_PKEY_PARAM_RSA_N));
+    auto e = bn_to_bytes(get_bn_param(OSSL_PKEY_PARAM_RSA_E));
+    jwk.n = b64url_from_raw(n, false /* with_padding */);
+    jwk.e = b64url_from_raw(e, false /* with_padding */);
     jwk.kid = kid;
     jwk.kty = JsonWebKeyType::RSA;
     return jwk;
+  }
+
+  std::pair<std::vector<uint8_t>, std::vector<uint8_t>> rsa_public_raw_from_jwk(
+    const JsonWebKeyRSAPublic& jwk)
+  {
+    auto [n, e] = get_modulus_and_exponent(jwk);
+    std::pair<std::vector<uint8_t>, std::vector<uint8_t>> r(
+      BN_num_bytes(n), BN_num_bytes(e));
+
+    CHECKPOSITIVE(BN_bn2nativepad(n, r.first.data(), r.first.size()));
+    CHECKPOSITIVE(BN_bn2nativepad(e, r.second.data(), r.second.size()));
+
+    return r;
+  }
+
+  std::vector<uint8_t> bn_to_bytes(const BIGNUM* bn)
+  {
+    std::vector<uint8_t> r(BN_num_bytes(bn));
+    BN_bn2bin(bn, r.data());
+    return r;
+  }
+
+  RSAPublicKeyPtr make_rsa_public_key(const uint8_t* data, size_t size)
+  {
+    static constexpr auto PEM_BEGIN = "-----BEGIN";
+    static constexpr auto PEM_BEGIN_LEN =
+      std::char_traits<char>::length(PEM_BEGIN);
+
+    if (
+      size < PEM_BEGIN_LEN ||
+      strncmp(PEM_BEGIN, reinterpret_cast<const char*>(data), PEM_BEGIN_LEN) !=
+        0)
+    {
+      std::span<const uint8_t> der{data, size};
+      return std::make_shared<RSAPublicKey_OpenSSL>(der);
+    }
+
+    Pem pem(data, size);
+    return std::make_shared<RSAPublicKey_OpenSSL>(pem);
+  }
+
+  RSAPublicKeyPtr make_rsa_public_key(const Pem& public_pem)
+  {
+    return make_rsa_public_key(public_pem.data(), public_pem.size());
+  }
+
+  RSAPublicKeyPtr make_rsa_public_key(const std::vector<uint8_t>& der)
+  {
+    return std::make_shared<RSAPublicKey_OpenSSL>(der);
+  }
+
+  RSAPublicKeyPtr make_rsa_public_key(const JsonWebKeyRSAPublic& jwk)
+  {
+    return std::make_shared<RSAPublicKey_OpenSSL>(jwk);
   }
 }

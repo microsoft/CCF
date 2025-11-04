@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/rsa_public_key.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/public_key.h"
@@ -13,18 +14,21 @@
 
 namespace ccf::crypto
 {
-  class RSAPublicKey_OpenSSL : public PublicKey_OpenSSL, public RSAPublicKey
+  class RSAPublicKey_OpenSSL : public RSAPublicKey
   {
   protected:
-    static std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
-    rsa_public_raw_from_jwk(const JsonWebKeyRSAPublic& jwk);
+    EVP_PKEY* key{nullptr};
+
+    // KeyPair fully overwrites construction
+    RSAPublicKey_OpenSSL() = default;
 
   public:
-    RSAPublicKey_OpenSSL() = default;
-    RSAPublicKey_OpenSSL(EVP_PKEY* c);
     RSAPublicKey_OpenSSL(const Pem& pem);
     RSAPublicKey_OpenSSL(std::span<const uint8_t> der);
     RSAPublicKey_OpenSSL(const JsonWebKeyRSAPublic& jwk);
+
+    RSAPublicKey_OpenSSL(EVP_PKEY* c);
+
     virtual ~RSAPublicKey_OpenSSL() = default;
 
     virtual size_t key_size() const override;
@@ -43,28 +47,32 @@ namespace ccf::crypto
     virtual Pem public_key_pem() const override;
     virtual std::vector<uint8_t> public_key_der() const override;
 
+    virtual JsonWebKeyRSAPublic public_key_jwk(
+      const std::optional<std::string>& kid = std::nullopt) const override;
+
     virtual bool verify(
       const uint8_t* contents,
       size_t contents_size,
       const uint8_t* signature,
       size_t signature_size,
-      MDType md_type = MDType::NONE,
-      size_t salt_length = 0) override;
+      MDType md_type,
+      RSAPadding padding,
+      size_t salt_length) override;
 
-    virtual bool verify_pkcs1(
-      const uint8_t* contents,
-      size_t contents_size,
+    virtual bool verify_hash(
+      const uint8_t* hash,
+      size_t hash_size,
       const uint8_t* signature,
       size_t signature_size,
-      MDType md_type = MDType::NONE) override;
-
-    virtual Components components() const override;
-
-    static std::vector<uint8_t> bn_bytes(const BIGNUM* bn);
+      MDType md_type,
+      RSAPadding padding,
+      size_t salt_length) override;
 
     OpenSSL::Unique_BIGNUM get_bn_param(const char* key_name) const;
-
-    virtual JsonWebKeyRSAPublic public_key_jwk_rsa(
-      const std::optional<std::string>& kid = std::nullopt) const override;
   };
+
+  std::vector<uint8_t> bn_to_bytes(const BIGNUM* bn);
+
+  std::pair<std::vector<uint8_t>, std::vector<uint8_t>> rsa_public_raw_from_jwk(
+    const JsonWebKeyRSAPublic& jwk);
 }

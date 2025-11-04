@@ -1092,25 +1092,25 @@ TEST_CASE("PEM to JWK and back")
 
     INFO("Public");
     {
-      auto jwk = pubk->public_key_jwk_rsa();
+      auto jwk = pubk->public_key_jwk();
       REQUIRE_FALSE(jwk.kid.has_value());
-      jwk = pubk->public_key_jwk_rsa(kid);
+      jwk = pubk->public_key_jwk(kid);
       REQUIRE(jwk.kid.value() == kid);
 
       auto pubk2 = make_rsa_public_key(jwk);
-      auto jwk2 = pubk2->public_key_jwk_rsa(kid);
+      auto jwk2 = pubk2->public_key_jwk(kid);
       REQUIRE(jwk == jwk2);
     }
 
     INFO("Private");
     {
-      auto jwk = kp->private_key_jwk_rsa();
+      auto jwk = kp->private_key_jwk();
       REQUIRE_FALSE(jwk.kid.has_value());
-      jwk = kp->private_key_jwk_rsa(kid);
+      jwk = kp->private_key_jwk(kid);
       REQUIRE(jwk.kid.value() == kid);
 
       auto kp2 = make_rsa_key_pair(jwk);
-      auto jwk2 = kp2->private_key_jwk_rsa(kid);
+      auto jwk2 = kp2->private_key_jwk(kid);
 
       REQUIRE(jwk == jwk2);
     }
@@ -1207,6 +1207,7 @@ TEST_CASE("Sign and verify with RSA key")
       sig.data(),
       sig.size(),
       mdtype,
+      RSAPadding::PKCS_PSS,
       salt_length));
   }
 
@@ -1219,6 +1220,7 @@ TEST_CASE("Sign and verify with RSA key")
       sig.data(),
       sig.size(),
       mdtype,
+      RSAPadding::PKCS_PSS,
       verify_salt_legth));
   }
 
@@ -1231,6 +1233,7 @@ TEST_CASE("Sign and verify with RSA key")
       sig.data(),
       sig.size(),
       mdtype,
+      RSAPadding::PKCS_PSS,
       verify_salt_legth));
   }
 }

@@ -4,8 +4,7 @@
 #include "ccf/endpoints/authentication/jwt_auth.h"
 
 #include "ccf/crypto/ecdsa.h"
-#include "ccf/crypto/public_key.h"
-#include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/crypto/key_variant.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/pal/locking.h"
 #include "ccf/rpc_context.h"
@@ -89,10 +88,11 @@ namespace ccf
     static constexpr size_t DEFAULT_MAX_KEYS = 10;
 
     using DER = std::vector<uint8_t>;
-    using KeyVariant =
-      std::variant<ccf::crypto::RSAPublicKeyPtr, ccf::crypto::PublicKeyPtr>;
     ccf::pal::Mutex keys_lock;
-    LRU<DER, KeyVariant> keys;
+
+    using PublicKey = ccf::crypto::
+      KeyVariant<ccf::crypto::RSAPublicKeyPtr, ccf::crypto::PublicKeyPtr>;
+    LRU<DER, PublicKey> keys;
 
     PublicKeysCache(size_t max_keys = DEFAULT_MAX_KEYS) : keys(max_keys) {}
 
@@ -122,15 +122,15 @@ namespace ccf
       if (std::holds_alternative<ccf::crypto::RSAPublicKeyPtr>(key))
       {
         LOG_DEBUG_FMT("Verify der: {} as RSA key", der);
-
         // Obsolete PKCS1 padding is chosen for JWT, as explained in details in
         // https://github.com/microsoft/CCF/issues/6601#issuecomment-2512059875.
-        return std::get<ccf::crypto::RSAPublicKeyPtr>(key)->verify_pkcs1(
+        return std::get<ccf::crypto::RSAPublicKeyPtr>(key)->verify(
           contents,
           contents_size,
           signature,
           signature_size,
-          ccf::crypto::MDType::SHA256);
+          ccf::crypto::MDType::SHA256,
+          ccf::crypto::RSAPadding::PKCS1v15);
       }
 
       if (std::holds_alternative<ccf::crypto::PublicKeyPtr>(key))
