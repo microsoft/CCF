@@ -89,3 +89,7 @@ dispatch_single,2,0
 
 # Node 0 is still a PreVoteCandidate as Node 2 denied its pre-vote request
 assert_detail,0,leadership_state,PreVoteCandidate
+
+# Node 0 will fall back to a follower when it receives an append entries
+dispatch_single,1,0
+assert_detail,0,leadership_state,Follower

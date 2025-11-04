@@ -215,7 +215,7 @@ If a node's `RequestVote` requests are able to reach the cluster, but it is unab
 
 To mitigate this, the PreVote extension requires that followers first become `PreVoteCandidates` and receive a quorum of speculative pre-votes to prove that they could be elected, using the standard Raft election conditions, before becoming `Candidates` and potentially disrupting the cluster.
 
-More specifically, when a follower's election timeout elapses, it becomes a `PreVoteCandidate` for the current term  and sends out `RequestVote` messages with an additional `is_pre_vote` flag set to true.
+More specifically, when a follower's election timeout elapses, it becomes a `PreVoteCandidate` for the current term  and sends out `RequestVote` messages with the `electionType` set to `ElectionType::PreVote`.
 If the `PreVoteCandidate` hears from a current leader, or a new leader, it reverts back to being a `Follower`.
 Nodes receive this pre-vote request, and respond positively if node would have voted for the `PreVoteCandidate`'s ledger during an election, (ie. if the `PreVoteCandidate`'s ledger is at least as up to date as the receiver's ledger).
 If the `PreVoteCandidate` receives a quorum of positive pre-vote responses, it then becomes a `Candidate`, increments its term, sends a `RequestVote` message with `is_pre_vote` set to false and the election proceeds as normal from here.
@@ -230,16 +230,16 @@ If the `PreVoteCandidate` receives a quorum of positive pre-vote responses, it t
         Note over Node 0: Leader for term 2
 
         Note over Node 1: PreVoteCandidate in term 2
-        Node 1 ->> Node 2: RequestVote(is_pre_vote=true, term=2)
+        Node 1 ->> Node 2: RequestVote(ElectionType::PreVote, term=2)
 
         Note right of Node 2: No changes to Node 2's state
-        Node 2 ->> Node 1: RequestVoteResponse(granted=true, is_pre_vote=true, term=2)
+        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::PreVote, term=2, granted=true)
 
         Note over Node 1: Candidate in term 3
-        Node 1 ->> Node 2: RequestVote(is_pre_vote=false, term=3) 
+        Node 1 ->> Node 2: RequestVote(ElectionType::RegularVote, term=3) 
 
         Note right of Node 2: Updates term to 3 and votes for Node 1
-        Node 2 ->> Node 1: RequestVoteResponse(granted=true, is_pre_vote=false, term=3)
+        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::RegularVote, term=3, granted=true)
 
         Note over Node 1: Leader for term 3
 
@@ -259,16 +259,16 @@ This can be viewed as piggybacking the term information from that previous Candi
         Note over Node 2: Lagging Follower in term 1
 
         Note over Node 1: PreVoteCandidate in term 2
-        Node 1 ->> Node 2: RequestVote(is_pre_vote=true, term=2)
+        Node 1 ->> Node 2: RequestVote(ElectionType::PreVote, term=2)
 
         Note right of Node 2: Updates term to 2
-        Node 2 ->> Node 1: RequestVoteResponse(granted=true, is_pre_vote=true, term=2)
+        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::PreVote, term=2, granted=true)
 
         Note over Node 1: Candidate in term 3
-        Node 1 ->> Node 2: RequestVote(is_pre_vote=false, term=3) 
+        Node 1 ->> Node 2: RequestVote(ElectionType::RegularVote, term=3) 
 
         Note right of Node 2: Updates to term 3 and votes for Node 1
-        Node 2 ->> Node 1: RequestVoteResponse(granted=true, is_pre_vote=false, term=3)
+        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::RegularVote, term=3, granted=true)
 
         Note over Node 1: Leader for term 3
 

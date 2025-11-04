@@ -7,6 +7,7 @@
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
+#include "consensus/aft/raft_types.h"
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "impl/state.h"
@@ -1658,12 +1659,12 @@ namespace aft
       update_commit();
     }
 
-    void send_request_vote(const ccf::NodeId& to, bool is_pre_vote)
+    void send_request_vote(const ccf::NodeId& to, ElectionType election_type)
     {
       auto last_committable_idx = last_committable_index();
       RAFT_INFO_FMT(
         "Send {}request vote from {} to {} at {}",
-        is_pre_vote ? "pre-vote " : "",
+        election_type == ElectionType::PreVote ? "pre-vote " : "",
         state->node_id,
         to,
         last_committable_idx);
@@ -1673,8 +1674,7 @@ namespace aft
         .term = state->current_view,
         .last_committable_idx = last_committable_idx,
         .term_of_last_committable_idx = get_term_internal(last_committable_idx),
-        .is_pre_vote = is_pre_vote,
-      };
+        .election_type = election_type};
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1719,7 +1719,7 @@ namespace aft
           from,
           state->current_view,
           r.term);
-        send_request_vote_response(from, false, r.is_pre_vote);
+        send_request_vote_response(from, false, r.election_type);
         return;
       }
       if (state->current_view < r.term)
@@ -1737,11 +1737,11 @@ namespace aft
         // should catch up to the term that had a candidate in it.
         become_aware_of_new_term(r.term);
       }
-      // state->current_view == r.term
 
       bool grant_vote = true;
 
-      if ((!r.is_pre_vote) && leader_id.has_value())
+      if (
+        (r.election_type == ElectionType::RegularVote) && leader_id.has_value())
       {
         // Reply false, since we already know the leader in the current term.
         RAFT_DEBUG_FMT(
@@ -1755,7 +1755,7 @@ namespace aft
 
       auto voted_for_other =
         (voted_for.has_value()) && (voted_for.value() != from);
-      if ((!r.is_pre_vote) && voted_for_other)
+      if ((r.election_type == ElectionType::RegularVote) && voted_for_other)
       {
         // Reply false, since we already voted for someone else.
         RAFT_DEBUG_FMT(
@@ -1790,7 +1790,7 @@ namespace aft
         grant_vote = false;
       }
 
-      if (grant_vote && !r.is_pre_vote)
+      if (grant_vote && r.election_type == ElectionType::RegularVote)
       {
         // If we grant our vote to a candidate, then an election is in progress
         restart_election_timeout();
@@ -1801,7 +1801,7 @@ namespace aft
       RAFT_INFO_FMT(
         "Request {}vote to {} from {}: {} vote to candidate at {}.{} with "
         "local state at {}.{}",
-        r.is_pre_vote ? "pre-" : "",
+        r.election_type == ElectionType::PreVote ? "pre-" : "",
         state->node_id,
         from,
         grant_vote ? "granted" : "denied",
@@ -1810,15 +1810,15 @@ namespace aft
         term_of_last_committable_idx,
         last_committable_idx);
 
-      send_request_vote_response(from, grant_vote, r.is_pre_vote);
+      send_request_vote_response(from, grant_vote, r.election_type);
     }
 
     void send_request_vote_response(
-      const ccf::NodeId& to, bool answer, bool is_pre_vote)
+      const ccf::NodeId& to, bool answer, ElectionType election_type)
     {
       RAFT_INFO_FMT(
         "Send request {}vote response from {} to {}: {}",
-        is_pre_vote ? "pre-" : "",
+        election_type == ElectionType::PreVote ? "pre-" : "",
         state->node_id,
         to,
         answer);
@@ -1826,7 +1826,7 @@ namespace aft
       RequestVoteResponse response{
         .term = state->current_view,
         .vote_granted = answer,
-        .is_pre_vote = is_pre_vote};
+        .election_type = election_type};
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
@@ -1858,8 +1858,9 @@ namespace aft
         return;
       }
 
+      // Stale message
       if (
-        r.is_pre_vote &&
+        r.election_type == ElectionType::PreVote &&
         state->leadership_state == ccf::kv::LeadershipState::Candidate)
       {
         RAFT_INFO_FMT(
@@ -1869,13 +1870,18 @@ namespace aft
         return;
       }
 
-      // Shouldn't be possible but for completeness
+      // To receive a RequestVoteResponse(is_pre_vote=false), we must have sent
+      // a RequestVote(is_pre_vote=false), which only candidates do.
+      // Hence if we receive a RequestVoteResponse(is_pre_vote=false) while
+      // still in PreVoteCandidate state something illegal must have
+      // happened.
       if (
-        !r.is_pre_vote &&
+        r.election_type == ElectionType::RegularVote &&
         state->leadership_state == ccf::kv::LeadershipState::PreVoteCandidate)
       {
-        RAFT_INFO_FMT(
-          "Recv vote response to {} from {}: no longer candidate",
+        RAFT_FAIL_FMT(
+          "Recv vote response to {} from {}: We should not yet sent a request "
+          "vote",
           state->node_id,
           from);
         return;
@@ -2013,7 +2019,7 @@ namespace aft
       for (auto const& node_id : other_nodes_in_active_configs())
       {
         // ccfraft!RequestVote
-        send_request_vote(node_id, true);
+        send_request_vote(node_id, ElectionType::PreVote);
       }
     }
 
@@ -2060,7 +2066,7 @@ namespace aft
       for (auto const& node_id : other_nodes_in_active_configs())
       {
         // ccfraft!RequestVote
-        send_request_vote(node_id, false);
+        send_request_vote(node_id, ElectionType::RegularVote);
       }
     }
 
