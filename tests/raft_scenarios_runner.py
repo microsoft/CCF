@@ -142,10 +142,6 @@ if __name__ == "__main__":
     ostream = sys.stdout
 
     # Create consensus-specific output directory
-    if args.output is None:
-        output_dir = os.path.join("consensus")
-    else:
-        output_dir = args.output
     os.makedirs(output_dir, exist_ok=True)
 
     for scenario in files:
