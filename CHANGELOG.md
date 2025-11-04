@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev5
 
+### Changed
+
+- Crypto interface for RSA and EC keys (#7425)
+  - `ccf::crypto::PublicKey` becomes `ccf::crypto::ECPublicKey`
+  - `ccf::crypto::KeyPair` becomes `ccf::crypto::ECKeyPair`
+  - An error-prone inheritance between the aforementioned has been removed, `ccf::crypto::KeyVariant` to be used for handling different keys explicitly.
+
 ### Removed
 
 - Removed the unused experimental `ccf.host.triggerSubprocess()` JS API
