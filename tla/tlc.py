@@ -131,14 +131,20 @@ def cli():
         action="store_true",
         help="Set TLC to use depth-first search",
     )
-    tv.add_argument(
+    tv_group = tv.add_mutually_exclusive_group()
+    tv_group.add_argument(
         "--ccf-raft-trace",
         type=pathlib.Path,
         default=None,
         help="Path to a CCF Raft trace .ndjson file, for example produced by make_traces.sh",
     )
+    tv_group.add_argument(
+        "--scenario",
+        default=None,
+        help="Path to a specific scenario file to run. If provided will generate the trace from this scenario and validate it.",
+    )
 
-    # driver integration
+    # scenario trace generation
     tv.add_argument(
         "--raft-driver",
         default="../build/raft_driver",
@@ -148,11 +154,6 @@ def cli():
         "--scenarios-runner",
         default="../tests/raft_scenarios_runner.py",
         help="Path to the raft_scenarios_runner.py script",
-    )
-    tv.add_argument(
-        "--scenario",
-        default=None,
-        help="Path to a specific scenario file to run. If provided will generate the trace from this scenario and validate it.",
     )
 
     # Simulation
@@ -244,9 +245,6 @@ if __name__ == "__main__":
         if args.ccf_raft_trace is not None:
             env["CCF_RAFT_TRACE"] = args.ccf_raft_trace
         if args.scenario is not None:
-            assert (
-                args.ccf_raft_trace is None
-            ), "Cannot provide both --ccf-raft-trace and --scenario"
             # Generate the trace from the scenario using the scenarios runner
             trace_dir = "traces"
             cmd = [
