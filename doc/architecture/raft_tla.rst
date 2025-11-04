@@ -44,4 +44,6 @@ It is possible to produce fresh traces quickly from the driver by running the ``
 
 Calling the trace validation on, for example, the ``append`` scenario can then be done with ``./tlc.py --driver-trace ../build/append.ndjson consensus/Traceccfraft.tla``.
 
+Generating a trace of a scenario and validate it in one go can be done with ``./tlc.py --workers 1 tv --scenario ../tests/raft_scenarios/append consensus/Traceccfraft.tla``.
+
 CCF also provides a command line trace visualizer to aid debugging, for example, the ``append`` scenario can be visualized with ``python ../tests/trace_viz.py ../build/append.ndjson``. 
