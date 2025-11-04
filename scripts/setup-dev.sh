@@ -5,10 +5,12 @@
 set -ex
 
 tdnf -y install  \
-    vim  \
     clang-tools-extra  \
     python-pip \
-    jq
+    jq \
+    tar \
+    npm \
+    build-essential
 
 # For LTS test to extract binaries from rpms
 tdnf -y install cpio
