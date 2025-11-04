@@ -81,7 +81,7 @@ static std::pair<std::string, size_t> make_validity_pair(bool expired)
 }
 
 static ccf::crypto::Pem generate_self_signed_cert(
-  const ccf::crypto::KeyPairPtr& kp,
+  const ccf::crypto::ECKeyPairPtr& kp,
   const std::string& name,
   bool expired = false)
 {
@@ -92,9 +92,9 @@ static ccf::crypto::Pem generate_self_signed_cert(
 }
 
 static ccf::crypto::Pem generate_endorsed_cert(
-  const ccf::crypto::KeyPairPtr& kp,
+  const ccf::crypto::ECKeyPairPtr& kp,
   const std::string& name,
-  const ccf::crypto::KeyPairPtr& issuer_kp,
+  const ccf::crypto::ECKeyPairPtr& issuer_kp,
   const ccf::crypto::Pem& issuer_cert,
   bool expired = false)
 {

@@ -4,7 +4,7 @@
 #include "ccf/endpoints/authentication/cose_auth.h"
 
 #include "ccf/crypto/cose_verifier.h"
-#include "ccf/crypto/public_key.h"
+#include "ccf/crypto/ec_public_key.h"
 #include "ccf/http_consts.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/members.h"

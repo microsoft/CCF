@@ -14,7 +14,7 @@
 #include "ccf/service/consensus_type.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/tx_id.h"
-#include "crypto/openssl/key_pair.h"
+#include "crypto/openssl/ec_key_pair.h"
 #include "kv/ledger_chunker_interface.h"
 #include "serialiser_declare.h"
 

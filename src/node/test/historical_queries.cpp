@@ -37,7 +37,7 @@ struct TestState
 {
   std::shared_ptr<ccf::kv::Store> kv_store = nullptr;
   std::shared_ptr<ccf::LedgerSecrets> ledger_secrets = nullptr;
-  ccf::crypto::KeyPairPtr node_kp = nullptr;
+  ccf::crypto::ECKeyPairPtr node_kp = nullptr;
   std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp = nullptr;
 };
 

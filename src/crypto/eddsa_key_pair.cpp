@@ -3,8 +3,8 @@
 
 #include "ccf/crypto/eddsa_key_pair.h"
 
+#include "openssl/ec_public_key.h"
 #include "openssl/eddsa_key_pair.h"
-#include "openssl/public_key.h"
 
 #include <cstring>
 #include <iomanip>

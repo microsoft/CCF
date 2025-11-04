@@ -90,9 +90,9 @@ namespace ccf
     using DER = std::vector<uint8_t>;
     ccf::pal::Mutex keys_lock;
 
-    using PublicKey = ccf::crypto::
-      KeyVariant<ccf::crypto::RSAPublicKeyPtr, ccf::crypto::PublicKeyPtr>;
-    LRU<DER, PublicKey> keys;
+    using ECPublicKey = ccf::crypto::
+      KeyVariant<ccf::crypto::RSAPublicKeyPtr, ccf::crypto::ECPublicKeyPtr>;
+    LRU<DER, ECPublicKey> keys;
 
     PublicKeysCache(size_t max_keys = DEFAULT_MAX_KEYS) : keys(max_keys) {}
 
@@ -133,13 +133,13 @@ namespace ccf
           ccf::crypto::RSAPadding::PKCS1v15);
       }
 
-      if (std::holds_alternative<ccf::crypto::PublicKeyPtr>(key))
+      if (std::holds_alternative<ccf::crypto::ECPublicKeyPtr>(key))
       {
         LOG_DEBUG_FMT("Verify der: {} as EC key", der);
 
         const auto sig_der =
           ccf::crypto::ecdsa_sig_p1363_to_der({signature, signature_size});
-        return std::get<ccf::crypto::PublicKeyPtr>(key)->verify(
+        return std::get<ccf::crypto::ECPublicKeyPtr>(key)->verify(
           contents,
           contents_size,
           sig_der.data(),

@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "crypto/openssl/public_key.h"
+#include "crypto/openssl/ec_public_key.h"
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/hash.h"
@@ -290,7 +290,7 @@ namespace ccf::crypto
     return pk;
   }
 
-  PublicKey::Coordinates PublicKey_OpenSSL::coordinates() const
+  ECPublicKey::Coordinates PublicKey_OpenSSL::coordinates() const
   {
     Coordinates r;
     Unique_BIGNUM x;

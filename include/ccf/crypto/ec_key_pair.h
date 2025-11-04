@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/crypto/curve.h"
+#include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/jwk.h"
 #include "ccf/crypto/pem.h"
-#include "ccf/crypto/public_key.h"
 #include "ccf/crypto/san.h"
 
 #include <cstdint>
@@ -15,10 +15,10 @@
 
 namespace ccf::crypto
 {
-  class KeyPair
+  class ECKeyPair
   {
   public:
-    virtual ~KeyPair() = default;
+    virtual ~ECKeyPair() = default;
 
     virtual Pem private_key_pem() const = 0;
     virtual Pem public_key_pem() const = 0;
@@ -129,44 +129,44 @@ namespace ccf::crypto
     }
 
     virtual std::vector<uint8_t> derive_shared_secret(
-      const PublicKey& peer_key) = 0;
+      const ECPublicKey& peer_key) = 0;
 
     virtual std::vector<uint8_t> public_key_raw() const = 0;
 
     virtual CurveID get_curve_id() const = 0;
 
-    virtual PublicKey::Coordinates coordinates() const = 0;
+    virtual ECPublicKey::Coordinates coordinates() const = 0;
 
     virtual JsonWebKeyECPrivate private_key_jwk(
       const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
 
-  using PublicKeyPtr = std::shared_ptr<PublicKey>;
-  using KeyPairPtr = std::shared_ptr<KeyPair>;
+  using ECPublicKeyPtr = std::shared_ptr<ECPublicKey>;
+  using ECKeyPairPtr = std::shared_ptr<ECKeyPair>;
 
   /**
-   * Construct PublicKey from a raw public key in PEM format
+   * Construct ECPublicKey from a raw public key in PEM format
    *
    * @param pem Sequence of bytes containing the key in PEM format
    * @return Public key
    */
-  PublicKeyPtr make_public_key(const Pem& pem);
+  ECPublicKeyPtr make_public_key(const Pem& pem);
 
   /**
-   * Construct PublicKey from a raw public key in DER format
+   * Construct ECPublicKey from a raw public key in DER format
    *
    * @param der Sequence of bytes containing the key in DER format
    * @return Public key
    */
-  PublicKeyPtr make_public_key(const std::vector<uint8_t>& der);
+  ECPublicKeyPtr make_public_key(const std::vector<uint8_t>& der);
 
   /**
-   * Construct PublicKey from a JsonWebKeyECPublic object
+   * Construct ECPublicKey from a JsonWebKeyECPublic object
    *
    * @param jwk JsonWebKeyECPublic object
    * @return Public key
    */
-  PublicKeyPtr make_public_key(const JsonWebKeyECPublic& jwk);
+  ECPublicKeyPtr make_public_key(const JsonWebKeyECPublic& jwk);
 
   /**
    * Create a new public / private ECDSA key pair on specified curve and
@@ -175,7 +175,7 @@ namespace ccf::crypto
    * @param curve_id Elliptic curve to use
    * @return Key pair
    */
-  KeyPairPtr make_key_pair(CurveID curve_id = service_identity_curve_choice);
+  ECKeyPairPtr make_key_pair(CurveID curve_id = service_identity_curve_choice);
 
   /**
    * Create a public / private ECDSA key pair from existing private key data
@@ -183,7 +183,7 @@ namespace ccf::crypto
    * @param pem PEM key to load
    * @return Key pair
    */
-  KeyPairPtr make_key_pair(const Pem& pem);
+  ECKeyPairPtr make_key_pair(const Pem& pem);
 
   /**
    * Construct a new public / private ECDSA key pair from a JsonWebKeyECPrivate
@@ -192,5 +192,5 @@ namespace ccf::crypto
    * @param jwk JsonWebKeyECPrivate object
    * @return Key pair
    */
-  KeyPairPtr make_key_pair(const JsonWebKeyECPrivate& jwk);
+  ECKeyPairPtr make_key_pair(const JsonWebKeyECPrivate& jwk);
 }

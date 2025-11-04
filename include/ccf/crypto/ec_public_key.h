@@ -15,7 +15,7 @@
 
 namespace ccf::crypto
 {
-  class PublicKey
+  class ECPublicKey
   {
   public:
     /**

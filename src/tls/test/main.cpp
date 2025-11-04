@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "crypto/certs.h"
 #include "ds/internal_logger.h"
@@ -213,12 +213,12 @@ int handshake(ccf::tls::Context* ctx, std::atomic<bool>& keep_going)
 
 struct NetworkCA
 {
-  shared_ptr<ccf::crypto::KeyPair> kp;
+  shared_ptr<ccf::crypto::ECKeyPair> kp;
   ccf::crypto::Pem cert;
 };
 
 static ccf::crypto::Pem generate_self_signed_cert(
-  const ccf::crypto::KeyPairPtr& kp, const std::string& name)
+  const ccf::crypto::ECKeyPairPtr& kp, const std::string& name)
 {
   using namespace std::literals;
   constexpr size_t certificate_validity_period_days = 365;
@@ -230,9 +230,9 @@ static ccf::crypto::Pem generate_self_signed_cert(
 }
 
 static ccf::crypto::Pem generate_endorsed_cert(
-  const ccf::crypto::KeyPairPtr& kp,
+  const ccf::crypto::ECKeyPairPtr& kp,
   const std::string& name,
-  const ccf::crypto::KeyPairPtr& issuer_kp,
+  const ccf::crypto::ECKeyPairPtr& issuer_kp,
   const ccf::crypto::Pem& issuer_cert)
 {
   constexpr size_t certificate_validity_period_days = 365;

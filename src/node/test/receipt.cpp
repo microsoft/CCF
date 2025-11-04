@@ -3,11 +3,11 @@
 
 #include "ccf/receipt.h"
 
-#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/service/tables/nodes.h"
+#include "crypto/openssl/ec_key_pair.h"
 #include "crypto/openssl/hash.h"
-#include "crypto/openssl/key_pair.h"
 
 #include <doctest/doctest.h>
 #include <iostream>

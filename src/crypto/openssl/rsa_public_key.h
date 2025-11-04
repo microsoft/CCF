@@ -2,11 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/rsa_public_key.h"
+#include "crypto/openssl/ec_public_key.h"
 #include "crypto/openssl/hash.h"
-#include "crypto/openssl/public_key.h"
 
 #include <optional>
 #include <string>
@@ -19,7 +18,7 @@ namespace ccf::crypto
   protected:
     EVP_PKEY* key{nullptr};
 
-    // KeyPair fully overwrites construction
+    // ECKeyPair fully overwrites construction
     RSAPublicKey_OpenSSL() = default;
 
   public:

@@ -3,11 +3,11 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/base64.h"
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/hmac.h"
 #include "ccf/crypto/jwk.h"
-#include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/symmetric_key.h"
@@ -17,7 +17,7 @@
 #include "crypto/csr.h"
 #include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/cose_verifier.h"
-#include "crypto/openssl/key_pair.h"
+#include "crypto/openssl/ec_key_pair.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "crypto/openssl/symmetric_key.h"
 #include "crypto/openssl/verifier.h"
@@ -184,7 +184,7 @@ static constexpr CurveID supported_curves[] = {
 static constexpr char const* labels[] = {"secp384r1", "secp256r1"};
 
 ccf::crypto::Pem generate_self_signed_cert(
-  const KeyPairPtr& kp, const std::string& name)
+  const ECKeyPairPtr& kp, const std::string& name)
 {
   constexpr size_t certificate_validity_period_days = 365;
   using namespace std::literals;
@@ -329,7 +329,7 @@ TEST_CASE("Check verifier handles nested certs for both PEM and DER inputs")
   CHECK(pem_key_from_der.str() == pem_key_for_nested_cert);
 }
 
-TEST_CASE("Sign, verify, with KeyPair")
+TEST_CASE("Sign, verify, with ECKeyPair")
 {
   for (const auto curve : supported_curves)
   {
@@ -353,7 +353,7 @@ TEST_CASE("Sign, verify, with KeyPair")
   }
 }
 
-TEST_CASE("Sign, verify, with PublicKey")
+TEST_CASE("Sign, verify, with ECPublicKey")
 {
   for (const auto curve : supported_curves)
   {
@@ -494,7 +494,7 @@ ccf::crypto::HashBytes bad_manual_hash(const std::vector<uint8_t>& data)
   return hash;
 }
 
-TEST_CASE("Manually hash, sign, verify, with PublicKey")
+TEST_CASE("Manually hash, sign, verify, with ECPublicKey")
 {
   for (const auto curve : supported_curves)
   {
@@ -530,7 +530,7 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
   }
 }
 
-TEST_CASE("Sign, verify, with KeyPair of EdDSA")
+TEST_CASE("Sign, verify, with ECKeyPair of EdDSA")
 {
   constexpr auto curve = "curve25519";
   constexpr auto curve_id = CurveID::CURVE25519;
@@ -541,7 +541,7 @@ TEST_CASE("Sign, verify, with KeyPair of EdDSA")
   CHECK(kp->verify(contents, signature));
 }
 
-TEST_CASE("Sign, verify, with PublicKey of EdDSA")
+TEST_CASE("Sign, verify, with ECPublicKey of EdDSA")
 {
   constexpr auto curve = "curve25519";
   constexpr auto curve_id = CurveID::CURVE25519;

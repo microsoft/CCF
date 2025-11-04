@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/crypto/jwk.h"
-#include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/rsa_public_key.h"
 

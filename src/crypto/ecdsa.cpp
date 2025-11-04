@@ -3,7 +3,7 @@
 #include "ccf/crypto/ecdsa.h"
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "crypto/openssl/public_key.h"
+#include "crypto/openssl/ec_public_key.h"
 
 #include <openssl/bn.h>
 #include <openssl/ecdsa.h>

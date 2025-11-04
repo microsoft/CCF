@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "crypto/openssl/public_key.h"
+#include "crypto/openssl/ec_public_key.h"
 #include "ds/internal_logger.h"
 
 #include <iostream>
@@ -19,8 +19,8 @@ namespace tls
   class KeyExchangeContext
   {
   private:
-    ccf::crypto::KeyPairPtr own_key;
-    ccf::crypto::PublicKeyPtr peer_key;
+    ccf::crypto::ECKeyPairPtr own_key;
+    ccf::crypto::ECPublicKeyPtr peer_key;
     ccf::crypto::CurveID curve;
     std::vector<uint8_t> shared_secret;
 

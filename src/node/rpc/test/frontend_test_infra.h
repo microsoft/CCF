@@ -108,7 +108,7 @@ auto frontend_process(
   return processor.received.front();
 }
 
-auto get_cert(uint64_t member_id, ccf::crypto::KeyPairPtr& kp_mem)
+auto get_cert(uint64_t member_id, ccf::crypto::ECKeyPairPtr& kp_mem)
 {
   return kp_mem->self_sign(
     "CN=new member" + to_string(member_id), valid_from, valid_to);

@@ -3,8 +3,8 @@
 
 #include "crypto/openssl/cose_verifier.h"
 
+#include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "ccf/crypto/public_key.h"
 #include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "ds/internal_logger.h"

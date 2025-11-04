@@ -1,12 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "crypto/openssl/key_pair.h"
+#include "crypto/openssl/ec_key_pair.h"
 
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "crypto/openssl/ec_public_key.h"
 #include "crypto/openssl/hash.h"
-#include "crypto/openssl/public_key.h"
 #include "x509_time.h"
 
 #define FMT_HEADER_ONLY
@@ -479,7 +479,7 @@ namespace ccf::crypto
   }
 
   std::vector<uint8_t> KeyPair_OpenSSL::derive_shared_secret(
-    const PublicKey& peer_key)
+    const ECPublicKey& peer_key)
   {
     ccf::crypto::CurveID cid = peer_key.get_curve_id();
     int nid = ccf::crypto::PublicKey_OpenSSL::get_openssl_group_id(cid);
@@ -499,7 +499,7 @@ namespace ccf::crypto
     return shared_secret;
   }
 
-  PublicKey::Coordinates KeyPair_OpenSSL::coordinates() const
+  ECPublicKey::Coordinates KeyPair_OpenSSL::coordinates() const
   {
     return PublicKey_OpenSSL::coordinates();
   }
@@ -525,5 +525,38 @@ namespace ccf::crypto
     jwk.d = b64url_from_raw(bytes, false /* with_padding */);
 
     return jwk;
+  }
+
+  using PublicKeyImpl = PublicKey_OpenSSL;
+  using KeyPairImpl = KeyPair_OpenSSL;
+
+  ECPublicKeyPtr make_public_key(const Pem& pem)
+  {
+    return std::make_shared<PublicKeyImpl>(pem);
+  }
+
+  ECPublicKeyPtr make_public_key(const std::vector<uint8_t>& der)
+  {
+    return std::make_shared<PublicKeyImpl>(der);
+  }
+
+  ECPublicKeyPtr make_public_key(const JsonWebKeyECPublic& jwk)
+  {
+    return std::make_shared<PublicKeyImpl>(jwk);
+  }
+
+  ECKeyPairPtr make_key_pair(CurveID curve_id)
+  {
+    return std::make_shared<KeyPairImpl>(curve_id);
+  }
+
+  ECKeyPairPtr make_key_pair(const Pem& pem)
+  {
+    return std::make_shared<KeyPairImpl>(pem);
+  }
+
+  ECKeyPairPtr make_key_pair(const JsonWebKeyECPrivate& jwk)
+  {
+    return std::make_shared<KeyPairImpl>(jwk);
   }
 }

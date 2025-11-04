@@ -245,7 +245,7 @@ namespace ccf
       LOG_FAIL_FMT("{}: JWKS has no keys", log_prefix);
       return false;
     }
-    std::map<std::string, PublicKey> new_keys;
+    std::map<std::string, ECPublicKey> new_keys;
     std::map<std::string, JwtIssuer> issuer_constraints;
 
     try

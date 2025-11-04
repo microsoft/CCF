@@ -6,7 +6,7 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/node/cose_signatures_config.h"
 #include "crypto/certs.h"
-#include "crypto/openssl/key_pair.h"
+#include "crypto/openssl/ec_key_pair.h"
 
 #include <openssl/crypto.h>
 #include <string>

@@ -25,16 +25,16 @@ Hashing
 Asymmetric Keys
 -----------------------
 
-CCF supports EC and RSA keys; public keys are held in (RSA)PublicKey objects and
-private keys in (RSA)KeyPair objects. (RSA)KeyPairs automatically generate random
-keys when constructed via :cpp:func:`KeyPairPtr ccf::crypto::make_key_pair(CurveID)` or
+CCF supports EC and RSA keys; public keys are held in (RSA)ECPublicKey objects and
+private keys in (RSA)ECKeyPair objects. (RSA)KeyPairs automatically generate random
+keys when constructed via :cpp:func:`ECKeyPairPtr ccf::crypto::make_key_pair(CurveID)` or
 :cpp:func:`RSAKeyPairPtr ccf::crypto::make_rsa_key_pair(size_t, size_t)`.
 
-.. doxygenclass:: ccf::crypto::PublicKey
+.. doxygenclass:: ccf::crypto::ECPublicKey
   :project: CCF
   :members:
 
-.. doxygenclass:: ccf::crypto::KeyPair
+.. doxygenclass:: ccf::crypto::ECKeyPair
   :project: CCF
   :members:
 

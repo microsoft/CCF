@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/pal/locking.h"
 #include "ccf/tx_status.h"

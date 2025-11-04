@@ -67,9 +67,9 @@ namespace ccf::crypto
       return std::get<RSAPublicKeyPtr>(public_key)
         ->verify_hash(hash, hash_size, sig, sig_size, md_type);
     }
-    else if (std::holds_alternative<PublicKeyPtr>(public_key))
+    else if (std::holds_alternative<ECPublicKeyPtr>(public_key))
     {
-      return std::get<PublicKeyPtr>(public_key)
+      return std::get<ECPublicKeyPtr>(public_key)
         ->verify_hash(hash, hash_size, sig, sig_size, md_type);
     }
     else
@@ -90,9 +90,9 @@ namespace ccf::crypto
       return std::get<RSAPublicKeyPtr>(public_key)
         ->verify(contents, contents_size, sig, sig_size, md_type);
     }
-    else if (std::holds_alternative<PublicKeyPtr>(public_key))
+    else if (std::holds_alternative<ECPublicKeyPtr>(public_key))
     {
-      return std::get<PublicKeyPtr>(public_key)
+      return std::get<ECPublicKeyPtr>(public_key)
         ->verify(contents, contents_size, sig, sig_size, md_type);
     }
     else
@@ -107,9 +107,9 @@ namespace ccf::crypto
     {
       return std::get<RSAPublicKeyPtr>(public_key)->public_key_pem();
     }
-    else if (std::holds_alternative<PublicKeyPtr>(public_key))
+    else if (std::holds_alternative<ECPublicKeyPtr>(public_key))
     {
-      return std::get<PublicKeyPtr>(public_key)->public_key_pem();
+      return std::get<ECPublicKeyPtr>(public_key)->public_key_pem();
     }
     else
     {
@@ -123,9 +123,9 @@ namespace ccf::crypto
     {
       return std::get<RSAPublicKeyPtr>(public_key)->public_key_der();
     }
-    else if (std::holds_alternative<PublicKeyPtr>(public_key))
+    else if (std::holds_alternative<ECPublicKeyPtr>(public_key))
     {
-      return std::get<PublicKeyPtr>(public_key)->public_key_der();
+      return std::get<ECPublicKeyPtr>(public_key)->public_key_der();
     }
     else
     {

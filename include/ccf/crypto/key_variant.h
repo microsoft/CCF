@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/public_key.h"
+#include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/rsa_public_key.h"
 
 #include <variant>

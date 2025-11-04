@@ -81,7 +81,7 @@ TEST_CASE("Add a node to an opening service")
     up_to_ledger_secret_seqno, make_ledger_secret());
 
   // Node certificate
-  ccf::crypto::KeyPairPtr kp = ccf::crypto::make_key_pair();
+  ccf::crypto::ECKeyPairPtr kp = ccf::crypto::make_key_pair();
   const auto caller = kp->self_sign("CN=Joiner", valid_from, valid_to);
   const auto node_public_encryption_key =
     ccf::crypto::make_key_pair()->public_key_pem();
@@ -159,7 +159,7 @@ TEST_CASE("Add a node to an opening service")
   INFO(
     "Adding a different node with the same node network details should fail");
   {
-    ccf::crypto::KeyPairPtr kp = ccf::crypto::make_key_pair();
+    ccf::crypto::ECKeyPairPtr kp = ccf::crypto::make_key_pair();
     auto v = ccf::crypto::make_verifier(
       kp->self_sign("CN=Other Joiner", valid_from, valid_to));
     const auto new_caller = v->cert_pem();
@@ -212,7 +212,7 @@ TEST_CASE("Add a node to an open service")
   REQUIRE(gen_tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
   // Node certificate
-  ccf::crypto::KeyPairPtr kp = ccf::crypto::make_key_pair();
+  ccf::crypto::ECKeyPairPtr kp = ccf::crypto::make_key_pair();
   const auto caller = kp->self_sign("CN=Joiner", valid_from, valid_to);
 
   std::optional<NodeInfo> node_info;
@@ -247,7 +247,7 @@ TEST_CASE("Add a node to an open service")
   INFO(
     "Adding a different node with the same node network details should fail");
   {
-    ccf::crypto::KeyPairPtr kp = ccf::crypto::make_key_pair();
+    ccf::crypto::ECKeyPairPtr kp = ccf::crypto::make_key_pair();
     auto v = ccf::crypto::make_verifier(
       kp->self_sign("CN=Joiner", valid_from, valid_to));
     const auto new_caller = v->cert_pem();

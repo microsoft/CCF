@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/entity_id.h"
@@ -41,7 +40,7 @@ namespace ccf
   }
 
   inline NodeId compute_node_id_from_kp(
-    const ccf::crypto::KeyPairPtr& node_sign_kp)
+    const ccf::crypto::ECKeyPairPtr& node_sign_kp)
   {
     return compute_node_id_from_pubk_der(node_sign_kp->public_key_der());
   }

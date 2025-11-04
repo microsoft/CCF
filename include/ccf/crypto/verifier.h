@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/jwk.h"
-#include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/key_variant.h"
 #include "ccf/crypto/pem.h"
 
@@ -14,7 +14,7 @@ namespace ccf::crypto
   class Verifier
   {
   protected:
-    KeyVariant<RSAPublicKeyPtr, PublicKeyPtr> public_key{nullptr};
+    KeyVariant<RSAPublicKeyPtr, ECPublicKeyPtr> public_key{nullptr};
 
   public:
     Verifier() : public_key(nullptr) {}
