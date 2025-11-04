@@ -18,7 +18,7 @@ namespace ccf::crypto
   protected:
     EVP_PKEY* key{nullptr};
 
-    // ECKeyPair fully overwrites construction
+    // RSAKeyPair fully overwrites construction, so requires this to exist.
     RSAPublicKey_OpenSSL() = default;
 
   public:
