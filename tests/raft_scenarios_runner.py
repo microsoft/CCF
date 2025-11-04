@@ -125,6 +125,7 @@ if __name__ == "__main__":
     parser.add_argument("driver", type=str, help="Path to raft_driver binary")
     parser.add_argument("--gen-scenarios", action="store_true")
     parser.add_argument("files", nargs="*", type=str, help="Path to scenario files")
+    parser.add_argument("-o", "--output", type=str, help="Output directory", default=None)
 
     args = parser.parse_args()
 
@@ -139,7 +140,10 @@ if __name__ == "__main__":
     ostream = sys.stdout
 
     # Create consensus-specific output directory
-    output_dir = os.path.join("consensus")
+    if (args.output is None):
+        output_dir = os.path.join("consensus")
+    else:
+        output_dir = args.output
     os.makedirs(output_dir, exist_ok=True)
 
     for scenario in files:
