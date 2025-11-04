@@ -55,7 +55,7 @@ jobs:
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
           ninja
-          shell: bash
+        shell: bash
 
       - name: "Run tests for Python package"
         run: |
