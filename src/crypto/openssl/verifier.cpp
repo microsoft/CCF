@@ -63,7 +63,7 @@ namespace ccf::crypto
     auto base_id = EVP_PKEY_get_base_id(pk);
     if (base_id == EVP_PKEY_EC)
     {
-      public_key = std::make_shared<PublicKey_OpenSSL>(pk);
+      public_key = std::make_shared<ECPublicKey_OpenSSL>(pk);
     }
     else if (base_id == EVP_PKEY_RSA)
     {

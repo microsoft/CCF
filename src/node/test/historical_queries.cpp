@@ -38,7 +38,7 @@ struct TestState
   std::shared_ptr<ccf::kv::Store> kv_store = nullptr;
   std::shared_ptr<ccf::LedgerSecrets> ledger_secrets = nullptr;
   ccf::crypto::ECKeyPairPtr node_kp = nullptr;
-  std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp = nullptr;
+  std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp = nullptr;
 };
 
 TestState create_and_init_state(bool initialise_ledger_rekey = true)
@@ -51,7 +51,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
   ts.kv_store->set_encryptor(encryptor);
 
   ts.node_kp = ccf::crypto::make_key_pair();
-  ts.service_kp = std::dynamic_pointer_cast<ccf::crypto::KeyPair_OpenSSL>(
+  ts.service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
     ccf::crypto::make_key_pair());
 
   // Make history to produce signatures

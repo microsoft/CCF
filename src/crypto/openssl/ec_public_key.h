@@ -12,22 +12,22 @@
 
 namespace ccf::crypto
 {
-  class PublicKey_OpenSSL : public ECPublicKey
+  class ECPublicKey_OpenSSL : public ECPublicKey
   {
   protected:
     EVP_PKEY* key = nullptr;
-    PublicKey_OpenSSL();
+    ECPublicKey_OpenSSL();
 
     static std::vector<uint8_t> ec_point_public_from_jwk(
       const JsonWebKeyECPublic& jwk);
 
   public:
-    PublicKey_OpenSSL(PublicKey_OpenSSL&& key) = default;
-    PublicKey_OpenSSL(EVP_PKEY* key);
-    PublicKey_OpenSSL(const Pem& pem);
-    PublicKey_OpenSSL(std::span<const uint8_t> der);
-    PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk);
-    virtual ~PublicKey_OpenSSL();
+    ECPublicKey_OpenSSL(ECPublicKey_OpenSSL&& key) = default;
+    ECPublicKey_OpenSSL(EVP_PKEY* key);
+    ECPublicKey_OpenSSL(const Pem& pem);
+    ECPublicKey_OpenSSL(std::span<const uint8_t> der);
+    ECPublicKey_OpenSSL(const JsonWebKeyECPublic& jwk);
+    virtual ~ECPublicKey_OpenSSL();
 
     using ECPublicKey::verify;
     using ECPublicKey::verify_hash;

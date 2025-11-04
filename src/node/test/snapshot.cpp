@@ -22,7 +22,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
   source_store.set_encryptor(encryptor);
   source_store.set_consensus(source_consensus);
 
-  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::KeyPair_OpenSSL>(
+  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
     ccf::crypto::make_key_pair());
 
   ccf::NodeId source_node_id = ccf::kv::test::PrimaryNodeId;

@@ -14,31 +14,28 @@
 
 namespace ccf::crypto
 {
-  using PublicKeyImpl = EdDSAPublicKey_OpenSSL;
-  using KeyPairImpl = EdDSAKeyPair_OpenSSL;
-
   EdDSAPublicKeyPtr make_eddsa_public_key(const Pem& pem)
   {
-    return std::make_shared<PublicKeyImpl>(pem);
+    return std::make_shared<EdDSAPublicKey_OpenSSL>(pem);
   }
 
   EdDSAPublicKeyPtr make_eddsa_public_key(const JsonWebKeyEdDSAPublic& jwk)
   {
-    return std::make_shared<PublicKeyImpl>(jwk);
+    return std::make_shared<EdDSAPublicKey_OpenSSL>(jwk);
   }
 
   EdDSAKeyPairPtr make_eddsa_key_pair(CurveID curve_id)
   {
-    return std::make_shared<KeyPairImpl>(curve_id);
+    return std::make_shared<EdDSAKeyPair_OpenSSL>(curve_id);
   }
 
   EdDSAKeyPairPtr make_eddsa_key_pair(const Pem& pem)
   {
-    return std::make_shared<KeyPairImpl>(pem);
+    return std::make_shared<EdDSAKeyPair_OpenSSL>(pem);
   }
 
   EdDSAKeyPairPtr make_eddsa_key_pair(const JsonWebKeyEdDSAPrivate& jwk)
   {
-    return std::make_shared<KeyPairImpl>(jwk);
+    return std::make_shared<EdDSAKeyPair_OpenSSL>(jwk);
   }
 }

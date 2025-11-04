@@ -114,7 +114,7 @@ namespace ccf
         }
         catch (const std::exception&)
         {
-          it = keys.insert(der, ccf::crypto::make_public_key(der));
+          it = keys.insert(der, ccf::crypto::make_ec_public_key(der));
         }
       }
 

@@ -45,7 +45,7 @@ namespace ccf::crypto
     }
   }
 
-  KeyPair_OpenSSL::KeyPair_OpenSSL(CurveID curve_id)
+  ECKeyPair_OpenSSL::ECKeyPair_OpenSSL(CurveID curve_id)
   {
     int curve_nid = get_openssl_group_id(curve_id);
     key = EVP_PKEY_new();
@@ -65,7 +65,7 @@ namespace ccf::crypto
     }
   }
 
-  KeyPair_OpenSSL::KeyPair_OpenSSL(const Pem& pem)
+  ECKeyPair_OpenSSL::ECKeyPair_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
     key = PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr);
@@ -75,7 +75,7 @@ namespace ccf::crypto
     }
   }
 
-  KeyPair_OpenSSL::KeyPair_OpenSSL(const JsonWebKeyECPrivate& jwk)
+  ECKeyPair_OpenSSL::ECKeyPair_OpenSSL(const JsonWebKeyECPrivate& jwk)
   {
     key = EVP_PKEY_new();
     Unique_BIGNUM d;
@@ -87,7 +87,7 @@ namespace ccf::crypto
     std::vector<uint8_t> d_raw_native(d_raw.size());
     CHECKPOSITIVE(BN_bn2nativepad(d, d_raw_native.data(), d_raw_native.size()));
 
-    auto pub_buf = PublicKey_OpenSSL::ec_point_public_from_jwk(jwk);
+    auto pub_buf = ECPublicKey_OpenSSL::ec_point_public_from_jwk(jwk);
 
     OSSL_PARAM params[4];
     params[0] = OSSL_PARAM_construct_utf8_string(
@@ -106,7 +106,7 @@ namespace ccf::crypto
       pctx, &key, EVP_PKEY_KEYPAIR, static_cast<OSSL_PARAM*>(params)));
   }
 
-  Pem KeyPair_OpenSSL::private_key_pem() const
+  Pem ECKeyPair_OpenSSL::private_key_pem() const
   {
     Unique_BIO buf;
 
@@ -119,17 +119,17 @@ namespace ccf::crypto
     return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
   }
 
-  Pem KeyPair_OpenSSL::public_key_pem() const
+  Pem ECKeyPair_OpenSSL::public_key_pem() const
   {
-    return PublicKey_OpenSSL::public_key_pem();
+    return ECPublicKey_OpenSSL::public_key_pem();
   }
 
-  std::vector<uint8_t> KeyPair_OpenSSL::public_key_der() const
+  std::vector<uint8_t> ECKeyPair_OpenSSL::public_key_der() const
   {
-    return PublicKey_OpenSSL::public_key_der();
+    return ECPublicKey_OpenSSL::public_key_der();
   }
 
-  std::vector<uint8_t> KeyPair_OpenSSL::private_key_der() const
+  std::vector<uint8_t> ECKeyPair_OpenSSL::private_key_der() const
   {
     Unique_BIO buf;
 
@@ -140,23 +140,23 @@ namespace ccf::crypto
     return {bptr->data, bptr->data + bptr->length};
   }
 
-  bool KeyPair_OpenSSL::verify(
+  bool ECKeyPair_OpenSSL::verify(
     const std::vector<uint8_t>& contents, const std::vector<uint8_t>& signature)
   {
-    return PublicKey_OpenSSL::verify(contents, signature);
+    return ECPublicKey_OpenSSL::verify(contents, signature);
   }
 
-  bool KeyPair_OpenSSL::verify(
+  bool ECKeyPair_OpenSSL::verify(
     const uint8_t* contents,
     size_t contents_size,
     const uint8_t* signature,
     size_t signature_size)
   {
-    return PublicKey_OpenSSL::verify(
+    return ECPublicKey_OpenSSL::verify(
       contents, contents_size, signature, signature_size);
   }
 
-  std::vector<uint8_t> KeyPair_OpenSSL::sign(
+  std::vector<uint8_t> ECKeyPair_OpenSSL::sign(
     std::span<const uint8_t> d, MDType md_type) const
   {
     if (md_type == MDType::NONE)
@@ -168,7 +168,7 @@ namespace ccf::crypto
     return sign_hash(hash.data(), hash.size());
   }
 
-  int KeyPair_OpenSSL::sign(
+  int ECKeyPair_OpenSSL::sign(
     std::span<const uint8_t> d,
     size_t* sig_size,
     uint8_t* sig,
@@ -183,7 +183,7 @@ namespace ccf::crypto
     return sign_hash(hash.data(), hash.size(), sig_size, sig);
   }
 
-  std::vector<uint8_t> KeyPair_OpenSSL::sign_hash(
+  std::vector<uint8_t> ECKeyPair_OpenSSL::sign_hash(
     const uint8_t* hash, size_t hash_size) const
   {
     std::vector<uint8_t> sig(EVP_PKEY_size(key));
@@ -198,7 +198,7 @@ namespace ccf::crypto
     return sig;
   }
 
-  int KeyPair_OpenSSL::sign_hash(
+  int ECKeyPair_OpenSSL::sign_hash(
     const uint8_t* hash, size_t hash_size, size_t* sig_size, uint8_t* sig) const
   {
     Unique_EVP_PKEY_CTX pctx(key);
@@ -207,7 +207,7 @@ namespace ccf::crypto
     return 0;
   }
 
-  Unique_X509_REQ KeyPair_OpenSSL::create_req(
+  Unique_X509_REQ ECKeyPair_OpenSSL::create_req(
     const std::string& subject_name,
     const std::vector<SubjectAltName>& subject_alt_names,
     const std::optional<Pem>& public_key) const
@@ -266,7 +266,7 @@ namespace ccf::crypto
     return req;
   }
 
-  Pem KeyPair_OpenSSL::create_csr(
+  Pem ECKeyPair_OpenSSL::create_csr(
     const std::string& subject_name,
     const std::vector<SubjectAltName>& subject_alt_names,
     const std::optional<Pem>& public_key) const
@@ -282,7 +282,7 @@ namespace ccf::crypto
     return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
   }
 
-  std::vector<uint8_t> KeyPair_OpenSSL::create_csr_der(
+  std::vector<uint8_t> ECKeyPair_OpenSSL::create_csr_der(
     const std::string& subject_name,
     const std::vector<SubjectAltName>& subject_alt_names,
     const std::optional<Pem>& public_key) const
@@ -301,7 +301,7 @@ namespace ccf::crypto
       reinterpret_cast<uint8_t*>(bptr->data) + bptr->length};
   }
 
-  Pem KeyPair_OpenSSL::sign_csr_impl(
+  Pem ECKeyPair_OpenSSL::sign_csr_impl(
     const std::optional<Pem>& issuer_cert,
     const Pem& signing_request,
     const std::string& valid_from,
@@ -468,21 +468,21 @@ namespace ccf::crypto
     return result;
   }
 
-  CurveID KeyPair_OpenSSL::get_curve_id() const
+  CurveID ECKeyPair_OpenSSL::get_curve_id() const
   {
-    return PublicKey_OpenSSL::get_curve_id();
+    return ECPublicKey_OpenSSL::get_curve_id();
   }
 
-  std::vector<uint8_t> KeyPair_OpenSSL::public_key_raw() const
+  std::vector<uint8_t> ECKeyPair_OpenSSL::public_key_raw() const
   {
-    return PublicKey_OpenSSL::public_key_raw();
+    return ECPublicKey_OpenSSL::public_key_raw();
   }
 
-  std::vector<uint8_t> KeyPair_OpenSSL::derive_shared_secret(
+  std::vector<uint8_t> ECKeyPair_OpenSSL::derive_shared_secret(
     const ECPublicKey& peer_key)
   {
     ccf::crypto::CurveID cid = peer_key.get_curve_id();
-    int nid = ccf::crypto::PublicKey_OpenSSL::get_openssl_group_id(cid);
+    int nid = ccf::crypto::ECPublicKey_OpenSSL::get_openssl_group_id(cid);
     auto pk = key_from_raw_ec_point(peer_key.public_key_raw(), nid);
 
     std::vector<uint8_t> shared_secret;
@@ -499,15 +499,15 @@ namespace ccf::crypto
     return shared_secret;
   }
 
-  ECPublicKey::Coordinates KeyPair_OpenSSL::coordinates() const
+  ECPublicKey::Coordinates ECKeyPair_OpenSSL::coordinates() const
   {
-    return PublicKey_OpenSSL::coordinates();
+    return ECPublicKey_OpenSSL::coordinates();
   }
 
-  JsonWebKeyECPrivate KeyPair_OpenSSL::private_key_jwk(
+  JsonWebKeyECPrivate ECKeyPair_OpenSSL::private_key_jwk(
     const std::optional<std::string>& kid) const
   {
-    JsonWebKeyECPrivate jwk = {PublicKey_OpenSSL::public_key_jwk(kid)};
+    JsonWebKeyECPrivate jwk = {ECPublicKey_OpenSSL::public_key_jwk(kid)};
 
     // As per https://www.openssl.org/docs/man1.0.2/man3/BN_num_bytes.html, size
     // should not be calculated with BN_num_bytes(d)!
@@ -527,36 +527,33 @@ namespace ccf::crypto
     return jwk;
   }
 
-  using PublicKeyImpl = PublicKey_OpenSSL;
-  using KeyPairImpl = KeyPair_OpenSSL;
-
-  ECPublicKeyPtr make_public_key(const Pem& pem)
+  ECPublicKeyPtr make_ec_public_key(const Pem& pem)
   {
-    return std::make_shared<PublicKeyImpl>(pem);
+    return std::make_shared<ECPublicKey_OpenSSL>(pem);
   }
 
-  ECPublicKeyPtr make_public_key(const std::vector<uint8_t>& der)
+  ECPublicKeyPtr make_ec_public_key(const std::vector<uint8_t>& der)
   {
-    return std::make_shared<PublicKeyImpl>(der);
+    return std::make_shared<ECPublicKey_OpenSSL>(der);
   }
 
-  ECPublicKeyPtr make_public_key(const JsonWebKeyECPublic& jwk)
+  ECPublicKeyPtr make_ec_public_key(const JsonWebKeyECPublic& jwk)
   {
-    return std::make_shared<PublicKeyImpl>(jwk);
+    return std::make_shared<ECPublicKey_OpenSSL>(jwk);
   }
 
   ECKeyPairPtr make_key_pair(CurveID curve_id)
   {
-    return std::make_shared<KeyPairImpl>(curve_id);
+    return std::make_shared<ECKeyPair_OpenSSL>(curve_id);
   }
 
   ECKeyPairPtr make_key_pair(const Pem& pem)
   {
-    return std::make_shared<KeyPairImpl>(pem);
+    return std::make_shared<ECKeyPair_OpenSSL>(pem);
   }
 
   ECKeyPairPtr make_key_pair(const JsonWebKeyECPrivate& jwk)
   {
-    return std::make_shared<KeyPairImpl>(jwk);
+    return std::make_shared<ECKeyPair_OpenSSL>(jwk);
   }
 }

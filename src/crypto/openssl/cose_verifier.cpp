@@ -126,7 +126,7 @@ namespace ccf::crypto
 
     if (EVP_PKEY_get_base_id(pk) == EVP_PKEY_EC)
     {
-      public_key = std::make_shared<PublicKey_OpenSSL>(pk);
+      public_key = std::make_shared<ECPublicKey_OpenSSL>(pk);
     }
     else
     {
@@ -136,7 +136,7 @@ namespace ccf::crypto
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const Pem& public_key_)
   {
-    public_key = std::make_shared<PublicKey_OpenSSL>(public_key_);
+    public_key = std::make_shared<ECPublicKey_OpenSSL>(public_key_);
   }
 
   COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;

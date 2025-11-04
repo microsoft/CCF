@@ -425,7 +425,7 @@ namespace ccf::js::extensions
       {
         if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPublic>)
         {
-          auto pubk = ccf::crypto::make_public_key(*pem_str);
+          auto pubk = ccf::crypto::make_ec_public_key(*pem_str);
           jwk = pubk->public_key_jwk(kid);
         }
         else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPrivate>)
@@ -505,7 +505,7 @@ namespace ccf::js::extensions
 
         if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPublic>)
         {
-          auto pubk = ccf::crypto::make_public_key(jwk);
+          auto pubk = ccf::crypto::make_ec_public_key(jwk);
           pem = pubk->public_key_pem();
         }
         else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPrivate>)
@@ -1086,7 +1086,7 @@ namespace ccf::js::extensions
         }
         else if (algo_name == "ECDSA")
         {
-          auto public_key = ccf::crypto::make_public_key(key);
+          auto public_key = ccf::crypto::make_ec_public_key(key);
           valid =
             public_key->verify(data, data_size, sig.data(), sig.size(), mdtype);
         }

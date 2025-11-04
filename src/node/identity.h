@@ -28,7 +28,7 @@ namespace ccf
       size_t validity_period_days)
     {
       auto identity_key_pair =
-        std::make_shared<ccf::crypto::KeyPair_OpenSSL>(curve_id);
+        std::make_shared<ccf::crypto::ECKeyPair_OpenSSL>(curve_id);
       priv_key = identity_key_pair->private_key_pem();
 
       cert = ccf::crypto::create_self_signed_cert(
@@ -64,9 +64,9 @@ namespace ccf
       cert = new_cert;
     }
 
-    std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> get_key_pair()
+    std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> get_key_pair()
     {
-      return std::make_shared<ccf::crypto::KeyPair_OpenSSL>(priv_key);
+      return std::make_shared<ccf::crypto::ECKeyPair_OpenSSL>(priv_key);
     }
   };
 }

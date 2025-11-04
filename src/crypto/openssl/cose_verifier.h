@@ -16,7 +16,7 @@ namespace ccf::crypto
   class COSEVerifier_OpenSSL : public COSEVerifier
   {
   protected:
-    std::shared_ptr<PublicKey_OpenSSL> public_key;
+    std::shared_ptr<ECPublicKey_OpenSSL> public_key;
 
   public:
     virtual ~COSEVerifier_OpenSSL() override;

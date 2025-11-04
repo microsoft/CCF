@@ -363,7 +363,7 @@ TEST_CASE("Sign, verify, with ECPublicKey")
     const vector<uint8_t> signature = kp->sign(contents);
 
     const auto public_key = kp->public_key_pem();
-    auto pubk = make_public_key(public_key);
+    auto pubk = make_ec_public_key(public_key);
     CHECK(pubk->verify(contents, signature));
   }
 }
@@ -378,7 +378,7 @@ TEST_CASE("Sign, fail to verify with bad signature")
     vector<uint8_t> signature = kp->sign(contents);
 
     const auto public_key = kp->public_key_pem();
-    auto pubk = make_public_key(public_key);
+    auto pubk = make_ec_public_key(public_key);
     corrupt(signature);
     CHECK_FALSE(pubk->verify(contents, signature));
   }
@@ -394,7 +394,7 @@ TEST_CASE("Sign, fail to verify with bad contents")
     vector<uint8_t> signature = kp->sign(contents);
 
     const auto public_key = kp->public_key_pem();
-    auto pubk = make_public_key(public_key);
+    auto pubk = make_ec_public_key(public_key);
     corrupt(contents);
     CHECK_FALSE(pubk->verify(contents, signature));
   }
@@ -411,7 +411,7 @@ TEST_CASE("Sign, fail to verify with wrong key on correct curve")
 
     auto kp2 = make_key_pair(curve);
     const auto public_key = kp2->public_key_pem();
-    auto pubk = make_public_key(public_key);
+    auto pubk = make_ec_public_key(public_key);
     CHECK_FALSE(pubk->verify(contents, signature));
   }
 }
@@ -431,7 +431,7 @@ TEST_CASE("Sign, fail to verify with wrong key on wrong curve")
     const auto wrong_curve = supported_curves[(i + 1) % num_supported_curves];
     auto kp2 = make_key_pair(wrong_curve);
     const auto public_key = kp2->public_key_pem();
-    auto pubk = make_public_key(public_key);
+    auto pubk = make_ec_public_key(public_key);
     CHECK_FALSE(pubk->verify(contents, signature));
   }
 }
@@ -505,7 +505,7 @@ TEST_CASE("Manually hash, sign, verify, with ECPublicKey")
     const vector<uint8_t> signature = kp->sign_hash(hash.data(), hash.size());
 
     const auto public_key = kp->public_key_pem();
-    auto pubk = make_public_key(public_key);
+    auto pubk = make_ec_public_key(public_key);
     CHECK(pubk->verify_hash(hash, signature, MDType::SHA256));
     corrupt(hash);
     CHECK_FALSE(pubk->verify_hash(hash, signature, MDType::SHA256));
@@ -703,7 +703,7 @@ void create_csr_and_extract_pubk()
 
 TEST_CASE("Extract public key from csr")
 {
-  create_csr_and_extract_pubk<KeyPair_OpenSSL>();
+  create_csr_and_extract_pubk<ECKeyPair_OpenSSL>();
 }
 
 template <typename T, typename S>
@@ -828,7 +828,7 @@ TEST_CASE("Create sign and verify certificates")
   bool corrupt_csr = false;
   do
   {
-    run_csr<KeyPair_OpenSSL, Verifier_OpenSSL>(corrupt_csr);
+    run_csr<ECKeyPair_OpenSSL, Verifier_OpenSSL>(corrupt_csr);
     corrupt_csr = !corrupt_csr;
   } while (corrupt_csr);
 }
@@ -1050,7 +1050,7 @@ TEST_CASE("PEM to JWK and back")
     for (auto const& curve : curves)
     {
       auto kp = make_key_pair(curve);
-      auto pubk = make_public_key(kp->public_key_pem());
+      auto pubk = make_ec_public_key(kp->public_key_pem());
 
       INFO("Public");
       {
@@ -1059,7 +1059,7 @@ TEST_CASE("PEM to JWK and back")
         jwk = pubk->public_key_jwk(kid);
         REQUIRE(jwk.kid.value() == kid);
 
-        auto pubk2 = make_public_key(jwk);
+        auto pubk2 = make_ec_public_key(jwk);
         auto jwk2 = pubk2->public_key_jwk(kid);
         REQUIRE(jwk == jwk2);
       }
@@ -1240,8 +1240,8 @@ TEST_CASE("Sign and verify with RSA key")
 
 TEST_CASE("COSE sign & verify")
 {
-  std::shared_ptr<KeyPair_OpenSSL> kp =
-    std::dynamic_pointer_cast<KeyPair_OpenSSL>(
+  std::shared_ptr<ECKeyPair_OpenSSL> kp =
+    std::dynamic_pointer_cast<ECKeyPair_OpenSSL>(
       ccf::crypto::make_key_pair(CurveID::SECP384R1));
 
   std::vector<uint8_t> payload{1, 10, 42, 43, 44, 45, 100};

@@ -117,7 +117,7 @@ struct SignAction : public OrderedAction
       auto signature_s = b;
 
       ccf::crypto::Pem pem{std::string(key_s)};
-      auto pubk = ccf::crypto::make_public_key(pem);
+      auto pubk = ccf::crypto::make_ec_public_key(pem);
 
       auto signature = ccf::ds::from_hex(std::string(signature_s));
       REQUIRE(pubk->verify(tbs, signature));

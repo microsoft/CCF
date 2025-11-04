@@ -196,7 +196,7 @@ namespace ccf
     void start_signature_emit_timer() override {}
 
     void set_service_signing_identity(
-      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp_,
+      std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp_,
       const ccf::COSESignaturesConfig& cose_signatures) override
     {
       std::ignore = std::move(service_kp_);
@@ -325,7 +325,7 @@ namespace ccf
     ccf::kv::TxHistory& history;
     NodeId id;
     ccf::crypto::ECKeyPair& node_kp;
-    ccf::crypto::KeyPair_OpenSSL& service_kp;
+    ccf::crypto::ECKeyPair_OpenSSL& service_kp;
     ccf::crypto::Pem& endorsed_cert;
     const ccf::COSESignaturesConfig& cose_signatures_config;
 
@@ -336,7 +336,7 @@ namespace ccf
       ccf::kv::TxHistory& history_,
       const NodeId& id_,
       ccf::crypto::ECKeyPair& node_kp_,
-      ccf::crypto::KeyPair_OpenSSL& service_kp_,
+      ccf::crypto::ECKeyPair_OpenSSL& service_kp_,
       ccf::crypto::Pem& endorsed_cert_,
       const ccf::COSESignaturesConfig& cose_signatures_config_) :
       txid(txid_),
@@ -586,7 +586,7 @@ namespace ccf
 
     struct ServiceSigningIdentity
     {
-      const std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp;
+      const std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp;
       const ccf::COSESignaturesConfig cose_signatures_config;
     };
 
@@ -613,7 +613,7 @@ namespace ccf
     }
 
     void set_service_signing_identity(
-      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp_,
+      std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp_,
       const ccf::COSESignaturesConfig& cose_signatures_config_) override
     {
       if (signing_identity.has_value())

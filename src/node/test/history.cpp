@@ -72,7 +72,7 @@ TEST_CASE("Check signature verification")
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
   auto node_kp = ccf::crypto::make_key_pair();
-  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::KeyPair_OpenSSL>(
+  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
     ccf::crypto::make_key_pair());
 
   const auto self_signed = node_kp->self_sign("CN=Node", valid_from, valid_to);
@@ -150,7 +150,7 @@ TEST_CASE("Check signing works across rollback")
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
   auto node_kp = ccf::crypto::make_key_pair();
-  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::KeyPair_OpenSSL>(
+  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
     ccf::crypto::make_key_pair());
 
   const auto self_signed = node_kp->self_sign("CN=Node", valid_from, valid_to);

@@ -150,7 +150,7 @@ namespace ccf::crypto
    * @param pem Sequence of bytes containing the key in PEM format
    * @return Public key
    */
-  ECPublicKeyPtr make_public_key(const Pem& pem);
+  ECPublicKeyPtr make_ec_public_key(const Pem& pem);
 
   /**
    * Construct ECPublicKey from a raw public key in DER format
@@ -158,7 +158,7 @@ namespace ccf::crypto
    * @param der Sequence of bytes containing the key in DER format
    * @return Public key
    */
-  ECPublicKeyPtr make_public_key(const std::vector<uint8_t>& der);
+  ECPublicKeyPtr make_ec_public_key(const std::vector<uint8_t>& der);
 
   /**
    * Construct ECPublicKey from a JsonWebKeyECPublic object
@@ -166,7 +166,7 @@ namespace ccf::crypto
    * @param jwk JsonWebKeyECPublic object
    * @return Public key
    */
-  ECPublicKeyPtr make_public_key(const JsonWebKeyECPublic& jwk);
+  ECPublicKeyPtr make_ec_public_key(const JsonWebKeyECPublic& jwk);
 
   /**
    * Create a new public / private ECDSA key pair on specified curve and
