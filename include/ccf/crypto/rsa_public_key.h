@@ -77,7 +77,7 @@ namespace ccf::crypto
       size_t signature_size,
       MDType md_type,
       RSAPadding padding = RSAPadding::PKCS_PSS,
-      size_t salt_legth = 0) = 0;
+      size_t salt_length = 0) = 0;
 
     virtual bool verify_hash(
       const uint8_t* hash,
@@ -86,7 +86,7 @@ namespace ccf::crypto
       size_t signature_size,
       MDType md_type,
       RSAPadding padding = RSAPadding::PKCS_PSS,
-      size_t salt_legth = 0) = 0;
+      size_t salt_length = 0) = 0;
   };
 
   using RSAPublicKeyPtr = std::shared_ptr<RSAPublicKey>;
