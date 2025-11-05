@@ -607,9 +607,13 @@ def run_tls_san_checks(args):
             encoding="utf-8",
         ) as self_signed_cert:
             sans = infra.crypto.get_san_from_pem_cert(self_signed_cert.read())
-        assert len(sans) == len(dummy_public_rpc_hosts), f"Expected {len(dummy_public_rpc_hosts)} SANs ({dummy_public_rpc_hosts}), found {len(sans)} ({sans})"
+        assert len(sans) == len(
+            dummy_public_rpc_hosts
+        ), f"Expected {len(dummy_public_rpc_hosts)} SANs ({dummy_public_rpc_hosts}), found {len(sans)} ({sans})"
         ip_sans = set(sans.get_values_for_type(x509.IPAddress))
-        assert ip_sans == dummy_public_rpc_hosts, f"Expected SANs do not match: {ip_sans} vs {dummy_public_rpc_hosts}"
+        assert (
+            ip_sans == dummy_public_rpc_hosts
+        ), f"Expected SANs do not match: {ip_sans} vs {dummy_public_rpc_hosts}"
 
 
 def run_config_timeout_check(args):
