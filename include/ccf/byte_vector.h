@@ -5,15 +5,17 @@
 #include "ccf/ds/siphash.h"
 
 #define FMT_HEADER_ONLY
+#include <climits>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 #include <small_vector/SmallVector.h>
 
 namespace ccf
 {
-  using ByteVector = llvm_vecsmall::SmallVector<uint8_t, 8>;
+  using ByteVector = llvm_vecsmall::SmallVector<uint8_t, CHAR_BIT>;
 }
 
+// NOLINTBEGIN(cert-dcl58-cpp)
 namespace std
 {
   template <typename T, unsigned N>
@@ -27,6 +29,7 @@ namespace std
     }
   };
 }
+// NOLINTEND(cert-dcl58-cpp)
 
 FMT_BEGIN_NAMESPACE
 template <>

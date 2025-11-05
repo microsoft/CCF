@@ -10,7 +10,7 @@
 
 namespace ccf::crypto
 {
-  enum class JsonWebKeyType
+  enum class JsonWebKeyType : uint8_t
   {
     EC = 0,
     RSA = 1,
@@ -34,7 +34,7 @@ namespace ccf::crypto
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKey, kty);
   DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKey, kid, x5c);
 
-  enum class JsonWebKeyECCurve
+  enum class JsonWebKeyECCurve : uint8_t
   {
     P256 = 0,
     P384 = 1,

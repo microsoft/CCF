@@ -251,28 +251,28 @@ namespace ccf::logger
   class config
   {
   public:
-    static inline std::vector<std::unique_ptr<AbstractLogger>>& loggers()
+    static std::vector<std::unique_ptr<AbstractLogger>>& loggers()
     {
       return get_loggers();
     }
 
-    static inline void add_text_console_logger()
+    static void add_text_console_logger()
     {
       get_loggers().emplace_back(std::make_unique<TextConsoleLogger>());
     }
 
-    static inline void add_json_console_logger()
+    static void add_json_console_logger()
     {
       get_loggers().emplace_back(std::make_unique<JsonConsoleLogger>());
     }
 
-    static inline void default_init()
+    static void default_init()
     {
       get_loggers().clear();
       add_text_console_logger();
     }
 
-    static inline LoggerLevel& level()
+    static LoggerLevel& level()
     {
       static LoggerLevel the_level = MOST_VERBOSE;
 
@@ -285,7 +285,7 @@ namespace ccf::logger
     }
 
   private:
-    static inline std::vector<std::unique_ptr<AbstractLogger>>& get_loggers()
+    static std::vector<std::unique_ptr<AbstractLogger>>& get_loggers()
     {
       static std::vector<std::unique_ptr<AbstractLogger>> the_loggers;
       return the_loggers;

@@ -31,6 +31,8 @@ Checks: >
   -cppcoreguidelines-pro-type-vararg,
   -cppcoreguidelines-rvalue-reference-param-not-moved,
   -cppcoreguidelines-avoid-const-or-ref-data-members,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -bugprone-macro-parentheses,
   misc-*,
   -misc-const-correctness,
   -misc-include-cleaner,

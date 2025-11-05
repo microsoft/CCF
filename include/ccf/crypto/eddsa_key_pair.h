@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/crypto/curve.h"
-#include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/eddsa_public_key.h"
 #include "ccf/crypto/jwk.h"
 #include "ccf/crypto/key_pair.h"

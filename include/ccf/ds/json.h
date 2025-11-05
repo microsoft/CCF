@@ -840,7 +840,7 @@ namespace std
   template <typename BasicJsonType> \
   inline void to_json(BasicJsonType& j, const TYPE& e) \
   { \
-    static_assert(std::is_enum<TYPE>::value, #TYPE " must be an enum!"); \
+    static_assert(std::is_enum_v<TYPE>, #TYPE " must be an enum!"); \
     static const std::pair<TYPE, BasicJsonType> m[] = __VA_ARGS__; \
     auto it = std::find_if( \
       std::begin(m), \
@@ -859,7 +859,7 @@ namespace std
   template <typename BasicJsonType> \
   inline void from_json(const BasicJsonType& j, TYPE& e) \
   { \
-    static_assert(std::is_enum<TYPE>::value, #TYPE " must be an enum!"); \
+    static_assert(std::is_enum_v<TYPE>, #TYPE " must be an enum!"); \
     static const std::pair<TYPE, BasicJsonType> m[] = __VA_ARGS__; \
     auto it = std::find_if( \
       std::begin(m), \
