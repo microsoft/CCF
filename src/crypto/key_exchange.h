@@ -28,7 +28,7 @@ namespace tls
     {
       if (!own_key)
       {
-        own_key = make_key_pair(curve);
+        own_key = make_ec_key_pair(curve);
       }
 
       if (!peer_key)
@@ -49,7 +49,7 @@ namespace tls
     {
       if (!own_key)
       {
-        own_key = make_key_pair(curve);
+        own_key = make_ec_key_pair(curve);
         shared_secret.clear();
       }
 

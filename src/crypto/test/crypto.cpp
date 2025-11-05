@@ -334,12 +334,12 @@ TEST_CASE("Sign, verify, with ECKeyPair")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = make_key_pair(curve);
+    auto kp = make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
     CHECK(kp->verify(contents, signature));
 
-    auto kp2 = make_key_pair(kp->private_key_pem());
+    auto kp2 = make_ec_key_pair(kp->private_key_pem());
     CHECK(kp2->verify(contents, signature));
 
     // Signatures won't necessarily be identical due to entropy, but should be
@@ -358,7 +358,7 @@ TEST_CASE("Sign, verify, with ECPublicKey")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = make_key_pair(curve);
+    auto kp = make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
 
@@ -373,7 +373,7 @@ TEST_CASE("Sign, fail to verify with bad signature")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = make_key_pair(curve);
+    auto kp = make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
@@ -389,7 +389,7 @@ TEST_CASE("Sign, fail to verify with bad contents")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = make_key_pair(curve);
+    auto kp = make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
@@ -405,11 +405,11 @@ TEST_CASE("Sign, fail to verify with wrong key on correct curve")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = make_key_pair(curve);
+    auto kp = make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
-    auto kp2 = make_key_pair(curve);
+    auto kp2 = make_ec_key_pair(curve);
     const auto public_key = kp2->public_key_pem();
     auto pubk = make_ec_public_key(public_key);
     CHECK_FALSE(pubk->verify(contents, signature));
@@ -424,12 +424,12 @@ TEST_CASE("Sign, fail to verify with wrong key on wrong curve")
   {
     const auto curve = supported_curves[i];
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = make_key_pair(curve);
+    auto kp = make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
     const auto wrong_curve = supported_curves[(i + 1) % num_supported_curves];
-    auto kp2 = make_key_pair(wrong_curve);
+    auto kp2 = make_ec_key_pair(wrong_curve);
     const auto public_key = kp2->public_key_pem();
     auto pubk = make_ec_public_key(public_key);
     CHECK_FALSE(pubk->verify(contents, signature));
@@ -452,7 +452,7 @@ TEST_CASE("Sign, verify with certificate")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = make_key_pair(curve);
+    auto kp = make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
 
@@ -467,7 +467,7 @@ TEST_CASE("Sign, verify. Fail to verify with bad contents")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = make_key_pair(curve);
+    auto kp = make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
 
@@ -499,7 +499,7 @@ TEST_CASE("Manually hash, sign, verify, with ECPublicKey")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = make_key_pair(curve);
+    auto kp = make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     ccf::crypto::HashBytes hash = bad_manual_hash(contents);
     const vector<uint8_t> signature = kp->sign_hash(hash.data(), hash.size());
@@ -517,7 +517,7 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = make_key_pair(curve);
+    auto kp = make_ec_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     ccf::crypto::HashBytes hash = bad_manual_hash(contents);
     const vector<uint8_t> signature = kp->sign_hash(hash.data(), hash.size());
@@ -639,7 +639,7 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
   {
     for (const auto curve : supported_curves)
     {
-      auto rsa_kp = make_key_pair(curve); // EC Key
+      auto rsa_kp = make_ec_key_pair(curve); // EC Key
 
       REQUIRE_THROWS_AS(
         make_rsa_public_key(rsa_kp->public_key_pem()), std::logic_error);
@@ -682,7 +682,7 @@ TEST_CASE("Extract public key from cert")
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
-    auto kp = make_key_pair(curve);
+    auto kp = make_ec_key_pair(curve);
     auto pk = kp->public_key_der();
     auto cert = generate_self_signed_cert(kp, "CN=name");
     auto cert_der = make_verifier(cert.raw())->cert_der();
@@ -1049,7 +1049,7 @@ TEST_CASE("PEM to JWK and back")
 
     for (auto const& curve : curves)
     {
-      auto kp = make_key_pair(curve);
+      auto kp = make_ec_key_pair(curve);
       auto pubk = make_ec_public_key(kp->public_key_pem());
 
       INFO("Public");
@@ -1071,7 +1071,7 @@ TEST_CASE("PEM to JWK and back")
         jwk = kp->private_key_jwk(kid);
         REQUIRE(jwk.kid.value() == kid);
 
-        auto kp2 = make_key_pair(jwk);
+        auto kp2 = make_ec_key_pair(jwk);
         auto jwk2 = kp2->private_key_jwk(kid);
         REQUIRE(jwk == jwk2);
       }
@@ -1242,7 +1242,7 @@ TEST_CASE("COSE sign & verify")
 {
   std::shared_ptr<ECKeyPair_OpenSSL> kp =
     std::dynamic_pointer_cast<ECKeyPair_OpenSSL>(
-      ccf::crypto::make_key_pair(CurveID::SECP384R1));
+      ccf::crypto::make_ec_key_pair(CurveID::SECP384R1));
 
   std::vector<uint8_t> payload{1, 10, 42, 43, 44, 45, 100};
   const auto protected_headers = {
@@ -1296,10 +1296,10 @@ TEST_CASE("COSE sign & verify")
 
 TEST_CASE("Sign and verify a chain with an intermediate and different subjects")
 {
-  auto root_kp = ccf::crypto::make_key_pair(CurveID::SECP384R1);
+  auto root_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP384R1);
   auto root_cert = generate_self_signed_cert(root_kp, "CN=root");
 
-  auto intermediate_kp = ccf::crypto::make_key_pair(CurveID::SECP384R1);
+  auto intermediate_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP384R1);
   auto intermediate_csr = intermediate_kp->create_csr("CN=intermediate", {});
 
   std::string valid_from = "20210311000000Z";
@@ -1307,7 +1307,7 @@ TEST_CASE("Sign and verify a chain with an intermediate and different subjects")
   auto intermediate_cert =
     root_kp->sign_csr(root_cert, intermediate_csr, valid_from, valid_to, true);
 
-  auto leaf_kp = ccf::crypto::make_key_pair(CurveID::SECP384R1);
+  auto leaf_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP384R1);
   auto leaf_csr = leaf_kp->create_csr("CN=leaf", {});
   auto leaf_cert = intermediate_kp->sign_csr(
     intermediate_cert, leaf_csr, valid_from, valid_to, true);
@@ -1354,7 +1354,7 @@ TEST_CASE("Decrypt should validate integrity")
 
 TEST_CASE("Do not trust non-ca certs")
 {
-  auto kp = ccf::crypto::make_key_pair(CurveID::SECP384R1);
+  auto kp = ccf::crypto::make_ec_key_pair(CurveID::SECP384R1);
   auto ca_cert = generate_self_signed_cert(kp, "CN=name");
 
   auto ca_cert_verifier = ccf::crypto::make_verifier(ca_cert.raw());

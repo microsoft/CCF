@@ -28,7 +28,7 @@ namespace ccf::crypto
 
     RSAPublicKey_OpenSSL(EVP_PKEY* key);
 
-    virtual ~RSAPublicKey_OpenSSL() = default;
+    virtual ~RSAPublicKey_OpenSSL();
 
     virtual size_t key_size() const override;
 

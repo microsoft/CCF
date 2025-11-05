@@ -27,7 +27,7 @@ Asymmetric Keys
 
 CCF supports EC and RSA keys; public keys are held in (RSA)ECPublicKey objects and
 private keys in (RSA)ECKeyPair objects. (RSA)KeyPairs automatically generate random
-keys when constructed via :cpp:func:`ECKeyPairPtr ccf::crypto::make_key_pair(CurveID)` or
+keys when constructed via :cpp:func:`ECKeyPairPtr ccf::crypto::make_ec_key_pair(CurveID)` or
 :cpp:func:`RSAKeyPairPtr ccf::crypto::make_rsa_key_pair(size_t, size_t)`.
 
 .. doxygenclass:: ccf::crypto::ECPublicKey
@@ -49,10 +49,10 @@ keys when constructed via :cpp:func:`ECKeyPairPtr ccf::crypto::make_key_pair(Cur
 .. doxygenenum:: ccf::crypto::CurveID
   :project: CCF
 
-.. doxygenfunction:: ccf::crypto::make_key_pair(CurveID)
+.. doxygenfunction:: ccf::crypto::make_ec_key_pair(CurveID)
   :project: CCF
 
-.. doxygenfunction:: ccf::crypto::make_key_pair(const Pem&)
+.. doxygenfunction:: ccf::crypto::make_ec_key_pair(const Pem&)
   :project: CCF
 
 .. doxygenfunction:: ccf::crypto::make_rsa_key_pair(size_t, size_t)

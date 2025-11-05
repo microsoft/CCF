@@ -255,7 +255,7 @@ static ccf::crypto::Pem generate_endorsed_cert(
 NetworkCA get_ca()
 {
   // Create a CA with a self-signed certificate
-  auto kp = ccf::crypto::make_key_pair();
+  auto kp = ccf::crypto::make_ec_key_pair();
   auto crt = generate_self_signed_cert(kp, "CN=issuer");
   LOG_DEBUG_FMT("New self-signed CA certificate:\n{}", crt.str());
   return {kp, crt};
@@ -269,7 +269,7 @@ unique_ptr<::tls::Cert> get_dummy_cert(
   auto ca = make_unique<::tls::CA>(net_ca.cert.str());
 
   // Create a signing request and sign with the CA
-  auto kp = ccf::crypto::make_key_pair();
+  auto kp = ccf::crypto::make_ec_key_pair();
   auto crt = generate_endorsed_cert(kp, "CN=" + name, net_ca.kp, net_ca.cert);
   LOG_DEBUG_FMT("New CA-signed certificate:\n{}", crt.str());
 
@@ -497,7 +497,7 @@ TEST_CASE("verified handshake")
 
 TEST_CASE("self-signed server certificate")
 {
-  auto kp = ccf::crypto::make_key_pair();
+  auto kp = ccf::crypto::make_ec_key_pair();
   auto pk = kp->private_key_pem();
   auto crt = generate_self_signed_cert(kp, "CN=server");
   auto server_cert = make_unique<Cert>(nullptr, crt, pk);
@@ -545,7 +545,7 @@ TEST_CASE("self-signed client certificate")
   auto server_ca = get_ca();
   auto server_cert = get_dummy_cert(server_ca, "server", false);
 
-  auto kp = ccf::crypto::make_key_pair();
+  auto kp = ccf::crypto::make_ec_key_pair();
   auto pk = kp->private_key_pem();
   auto crt = generate_self_signed_cert(kp, "CN=server");
 

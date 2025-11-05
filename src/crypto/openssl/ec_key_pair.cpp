@@ -542,17 +542,17 @@ namespace ccf::crypto
     return std::make_shared<ECPublicKey_OpenSSL>(jwk);
   }
 
-  ECKeyPairPtr make_key_pair(CurveID curve_id)
+  ECKeyPairPtr make_ec_key_pair(CurveID curve_id)
   {
     return std::make_shared<ECKeyPair_OpenSSL>(curve_id);
   }
 
-  ECKeyPairPtr make_key_pair(const Pem& pem)
+  ECKeyPairPtr make_ec_key_pair(const Pem& pem)
   {
     return std::make_shared<ECKeyPair_OpenSSL>(pem);
   }
 
-  ECKeyPairPtr make_key_pair(const JsonWebKeyECPrivate& jwk)
+  ECKeyPairPtr make_ec_key_pair(const JsonWebKeyECPrivate& jwk)
   {
     return std::make_shared<ECKeyPair_OpenSSL>(jwk);
   }

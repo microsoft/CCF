@@ -160,7 +160,7 @@ namespace ccf::js::extensions
 
       try
       {
-        auto k = ccf::crypto::make_key_pair(cid);
+        auto k = ccf::crypto::make_ec_key_pair(cid);
 
         ccf::crypto::Pem prv = k->private_key_pem();
         ccf::crypto::Pem pub = k->public_key_pem();
@@ -430,7 +430,7 @@ namespace ccf::js::extensions
         }
         else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPrivate>)
         {
-          auto kp = ccf::crypto::make_key_pair(*pem_str);
+          auto kp = ccf::crypto::make_ec_key_pair(*pem_str);
           jwk = kp->private_key_jwk(kid);
         }
         else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyRSAPublic>)
@@ -510,7 +510,7 @@ namespace ccf::js::extensions
         }
         else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPrivate>)
         {
-          auto kp = ccf::crypto::make_key_pair(jwk);
+          auto kp = ccf::crypto::make_ec_key_pair(jwk);
           pem = kp->private_key_pem();
         }
         else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyRSAPublic>)
@@ -917,7 +917,7 @@ namespace ccf::js::extensions
 
         if (algo_name == "ECDSA")
         {
-          auto key_pair = ccf::crypto::make_key_pair(key);
+          auto key_pair = ccf::crypto::make_ec_key_pair(key);
           auto sig_der = key_pair->sign(contents, mdtype);
           auto sig = ccf::crypto::ecdsa_sig_der_to_p1363(
             sig_der, key_pair->get_curve_id());

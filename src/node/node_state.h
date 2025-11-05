@@ -2429,7 +2429,7 @@ namespace ccf
             auto hook_pubk_pem = ccf::crypto::public_key_pem_from_cert(
               ccf::crypto::cert_pem_to_der(w->cert));
             auto current_pubk_pem =
-              ccf::crypto::make_key_pair(network.identity->priv_key)
+              ccf::crypto::make_ec_key_pair(network.identity->priv_key)
                 ->public_key_pem();
             if (hook_pubk_pem != current_pubk_pem)
             {

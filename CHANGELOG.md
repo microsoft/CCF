@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - `ccf::crypto::PublicKey` becomes `ccf::crypto::ECPublicKey`
   - `ccf::crypto::KeyPair` becomes `ccf::crypto::ECKeyPair`
   - Error-prone inheritance between RSA and EC key classes has been removed; use `ccf::crypto::KeyVariant` to handle different key types explicitly.
+  - RSA keys now don't re-use CSR functionality from EC key interface.
 
 ### Removed
 

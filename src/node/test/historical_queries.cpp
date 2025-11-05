@@ -50,9 +50,9 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   ts.kv_store->set_encryptor(encryptor);
 
-  ts.node_kp = ccf::crypto::make_key_pair();
+  ts.node_kp = ccf::crypto::make_ec_key_pair();
   ts.service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
-    ccf::crypto::make_key_pair());
+    ccf::crypto::make_ec_key_pair());
 
   // Make history to produce signatures
   const ccf::NodeId node_id = std::string("node_id");
@@ -96,7 +96,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-    auto kp = ccf::crypto::make_key_pair();
+    auto kp = ccf::crypto::make_ec_key_pair();
     auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
       ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(cert)).hex_str();

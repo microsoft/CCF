@@ -33,6 +33,15 @@ namespace
   const std::unordered_map<RSAPadding, size_t> rsa_padding_openssl{
     {RSAPadding::PKCS1v15, RSA_PKCS1_PADDING},
     {RSAPadding::PKCS_PSS, RSA_PKCS1_PSS_PADDING}};
+
+  void cleanup_pkey(EVP_PKEY** pkey)
+  {
+    if (*pkey != nullptr)
+    {
+      EVP_PKEY_free(*pkey);
+      *pkey = nullptr;
+    }
+  }
 }
 
 namespace ccf::crypto
@@ -43,6 +52,7 @@ namespace ccf::crypto
   {
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
+      cleanup_pkey(&key);
       throw std::logic_error("invalid RSA key");
     }
   }
@@ -53,6 +63,7 @@ namespace ccf::crypto
     key = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
     if (key == nullptr || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
+      cleanup_pkey(&key);
       throw std::logic_error("invalid RSA key");
     }
   }
@@ -67,6 +78,7 @@ namespace ccf::crypto
       ((key = d2i_PublicKey(EVP_PKEY_RSA, &key, &pp, der.size())) ==
        nullptr)) // PKCS#1 structure format
     {
+      cleanup_pkey(&key);
       unsigned long ec = ERR_get_error();
       auto msg = OpenSSL::error_string(ec);
       throw std::runtime_error(fmt::format("OpenSSL error: {}", msg));
@@ -77,6 +89,7 @@ namespace ccf::crypto
     // keys.
     if (key == nullptr || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
+      cleanup_pkey(&key);
       throw std::logic_error("invalid RSA key");
     }
   }
@@ -97,6 +110,11 @@ namespace ccf::crypto
     CHECK1(EVP_PKEY_fromdata_init(pctx));
     CHECK1(EVP_PKEY_fromdata(
       pctx, &key, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
+  }
+
+  RSAPublicKey_OpenSSL::~RSAPublicKey_OpenSSL()
+  {
+    cleanup_pkey(&key);
   }
 
   size_t RSAPublicKey_OpenSSL::key_size() const

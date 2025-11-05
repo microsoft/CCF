@@ -136,7 +136,7 @@ struct SignAction : public OrderedAction
     }
     else
     {
-      auto key_pair = ccf::crypto::make_key_pair();
+      auto key_pair = ccf::crypto::make_ec_key_pair();
       auto signature = key_pair->sign(tbs);
       return fmt::format(
         "{}{}|{}",

@@ -30,7 +30,7 @@ int main(int argc, char** argv)
     "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld");
   CLI11_PARSE(app, argc, argv);
 
-  auto kp = ccf::crypto::make_key_pair();
+  auto kp = ccf::crypto::make_ec_key_pair();
   auto icrt = kp->self_sign("CN=issuer", valid_from, valid_to);
   auto csr = kp->create_csr(name, sans);
   auto cert = kp->sign_csr(icrt, csr, valid_from, valid_to);

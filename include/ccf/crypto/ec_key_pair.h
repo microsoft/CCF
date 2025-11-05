@@ -175,7 +175,8 @@ namespace ccf::crypto
    * @param curve_id Elliptic curve to use
    * @return Key pair
    */
-  ECKeyPairPtr make_key_pair(CurveID curve_id = service_identity_curve_choice);
+  ECKeyPairPtr make_ec_key_pair(
+    CurveID curve_id = service_identity_curve_choice);
 
   /**
    * Create a public / private ECDSA key pair from existing private key data
@@ -183,7 +184,7 @@ namespace ccf::crypto
    * @param pem PEM key to load
    * @return Key pair
    */
-  ECKeyPairPtr make_key_pair(const Pem& pem);
+  ECKeyPairPtr make_ec_key_pair(const Pem& pem);
 
   /**
    * Construct a new public / private ECDSA key pair from a JsonWebKeyECPrivate
@@ -192,5 +193,5 @@ namespace ccf::crypto
    * @param jwk JsonWebKeyECPrivate object
    * @return Key pair
    */
-  ECKeyPairPtr make_key_pair(const JsonWebKeyECPrivate& jwk);
+  ECKeyPairPtr make_ec_key_pair(const JsonWebKeyECPrivate& jwk);
 }
