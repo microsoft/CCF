@@ -100,7 +100,7 @@ namespace ccf
     {
       // Override send_data rather than send_data_thread, as the TLSSession
       // handles dispatching for thread affinity
-      tls_io->send_raw(data.data(), data.size());
+      tls_io->send_raw(std::move(data));
     }
 
     void send_data_thread(std::vector<uint8_t>&& data) override
