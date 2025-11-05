@@ -17,7 +17,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - CheckQuorum now requires a quorum in every configuration (#7375)
 
-
 ## [6.0.16]
 
 [6.0.16]: https://github.com/microsoft/CCF/releases/tag/6.0.16
