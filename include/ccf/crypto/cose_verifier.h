@@ -30,8 +30,8 @@ namespace ccf::crypto
 
   struct COSEEndorsementValidity
   {
-    std::string from_txid{};
-    std::string to_txid{};
+    std::string from_txid;
+    std::string to_txid;
   };
   COSEEndorsementValidity extract_cose_endorsement_validity(
     std::span<const uint8_t> cose_msg);

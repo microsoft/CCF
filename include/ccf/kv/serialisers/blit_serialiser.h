@@ -14,6 +14,7 @@ namespace ccf::kv::serialisers
   {
     static SerialisedEntry to_serialised(const T& t)
     {
+      // NOLINTBEGIN(bugprone-branch-clone)
       if constexpr (std::is_same_v<T, std::vector<uint8_t>>)
       {
         return SerialisedEntry(t.begin(), t.end());
@@ -37,10 +38,12 @@ namespace ccf::kv::serialisers
         static_assert(
           ccf::nonstd::dependent_false<T>::value, "Can't serialise this type");
       }
+      // NOLINTEND(bugprone-branch-clone)
     }
 
     static T from_serialised(const SerialisedEntry& rep)
     {
+      // NOLINTBEGIN(bugprone-branch-clone)
       if constexpr (std::is_same_v<T, std::vector<uint8_t>>)
       {
         return T(rep.begin(), rep.end());
@@ -80,6 +83,7 @@ namespace ccf::kv::serialisers
           ccf::nonstd::dependent_false<T>::value,
           "Can't deserialise this type");
       }
+      // NOLINTEND(bugprone-branch-clone)
     }
   };
 }

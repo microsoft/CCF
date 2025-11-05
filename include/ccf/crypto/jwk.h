@@ -24,7 +24,7 @@ namespace ccf::crypto
 
   struct JsonWebKey
   {
-    JsonWebKeyType kty;
+    JsonWebKeyType kty = JsonWebKeyType::EC;
     std::optional<std::string> kid = std::nullopt;
     std::optional<std::vector<std::string>> x5c = std::nullopt;
 
@@ -116,7 +116,7 @@ namespace ccf::crypto
 
   struct JsonWebKeyECPublic : JsonWebKey
   {
-    JsonWebKeyECCurve crv;
+    JsonWebKeyECCurve crv = JsonWebKeyECCurve::P256;
     std::string x; // base64url
     std::string y; // base64url
 
@@ -160,7 +160,7 @@ namespace ccf::crypto
 
   struct JsonWebKeyEdDSAPublic : JsonWebKey
   {
-    JsonWebKeyEdDSACurve crv;
+    JsonWebKeyEdDSACurve crv = JsonWebKeyEdDSACurve::ED25519;
     std::string x; // base64url
 
     bool operator==(const JsonWebKeyEdDSAPublic&) const = default;

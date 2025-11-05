@@ -18,7 +18,7 @@ namespace ccf::crypto
 
   public:
     Verifier() : public_key(nullptr) {}
-    virtual ~Verifier() {}
+    virtual ~Verifier() = default;
 
     virtual std::vector<uint8_t> cert_der() = 0;
     virtual Pem cert_pem() = 0;

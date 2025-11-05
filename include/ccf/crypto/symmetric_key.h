@@ -51,7 +51,8 @@ namespace ccf::crypto
   };
 
   // GcmHeader with 12-byte (96-bit) IV
-  using StandardGcmHeader = FixedSizeGcmHeader<12>;
+  constexpr size_t iv_size = 12;
+  using StandardGcmHeader = FixedSizeGcmHeader<iv_size>;
 
   struct GcmCipher
   {
@@ -99,6 +100,7 @@ namespace ccf::crypto
    */
   inline void check_supported_aes_key_size(size_t num_bits)
   {
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
     if (num_bits != 128 && num_bits != 192 && num_bits != 256)
     {
       throw std::runtime_error("Unsupported key size");
@@ -106,7 +108,7 @@ namespace ccf::crypto
   }
 
   /** Default initialization vector for AES-GCM (12 zeroes) */
-  static std::vector<uint8_t> default_iv(12, 0);
+  static std::vector<uint8_t> default_iv(iv_size, 0);
 
   /// AES-GCM Encryption with @p key of @p data
   /// @param key The key

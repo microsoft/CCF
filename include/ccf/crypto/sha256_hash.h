@@ -49,9 +49,9 @@ namespace ccf::crypto
 
   void from_json(const nlohmann::json& j, Sha256Hash& hash);
 
-  std::string schema_name(const Sha256Hash*);
+  std::string schema_name(const Sha256Hash* hash);
 
-  void fill_json_schema(nlohmann::json& schema, const Sha256Hash*);
+  void fill_json_schema(nlohmann::json& schema, const Sha256Hash* hash);
 
   bool operator==(const Sha256Hash& lhs, const Sha256Hash& rhs);
 

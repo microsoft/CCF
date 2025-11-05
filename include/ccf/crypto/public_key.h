@@ -151,5 +151,7 @@ namespace ccf::crypto
 
     [[nodiscard]] virtual JsonWebKeyECPublic public_key_jwk(
       const std::optional<std::string>& kid = std::nullopt) const = 0;
+
+    virtual ~PublicKey() = default;
   };
 }

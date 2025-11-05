@@ -17,14 +17,17 @@ namespace ccf::ds
     {
       return c - '0';
     }
-    else if (c <= 'F')
+
+    if (c <= 'F')
     {
       return c - 'A' + 10;
     }
-    else if (c <= 'f')
+
+    if (c <= 'f')
     {
       return c - 'a' + 10;
     }
+
     return c;
   }
 
