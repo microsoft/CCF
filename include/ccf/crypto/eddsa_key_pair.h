@@ -25,14 +25,15 @@ namespace ccf::crypto
     /**
      * Get the private key in PEM format
      */
-    virtual Pem private_key_pem() const = 0;
+    [[nodiscard]] virtual Pem private_key_pem() const = 0;
 
     /**
      * Get the public key in PEM format
      */
-    virtual Pem public_key_pem() const = 0;
+    [[nodiscard]] virtual Pem public_key_pem() const = 0;
 
-    virtual std::vector<uint8_t> sign(std::span<const uint8_t> d) const = 0;
+    [[nodiscard]] virtual std::vector<uint8_t> sign(
+      std::span<const uint8_t> d) const = 0;
 
     virtual bool verify(
       const uint8_t* contents,
@@ -48,9 +49,9 @@ namespace ccf::crypto
         contents.data(), contents.size(), signature.data(), signature.size());
     }
 
-    virtual CurveID get_curve_id() const = 0;
+    [[nodiscard]] virtual CurveID get_curve_id() const = 0;
 
-    virtual JsonWebKeyEdDSAPrivate private_key_jwk_eddsa(
+    [[nodiscard]] virtual JsonWebKeyEdDSAPrivate private_key_jwk_eddsa(
       const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
 

@@ -23,9 +23,9 @@ namespace ccf::crypto
     GcmHeader(size_t iv_size);
 
     void set_iv(const uint8_t* data, size_t size);
-    std::span<const uint8_t> get_iv() const;
+    [[nodiscard]] std::span<const uint8_t> get_iv() const;
 
-    size_t serialised_size() const;
+    [[nodiscard]] size_t serialised_size() const;
     std::vector<uint8_t> serialise();
 
     void deserialise(const std::vector<uint8_t>& ser);
@@ -89,7 +89,7 @@ namespace ccf::crypto
       std::vector<uint8_t>& plain) const = 0;
 
     // Key size in bits
-    virtual size_t key_size() const = 0;
+    [[nodiscard]] virtual size_t key_size() const = 0;
   };
 
   std::unique_ptr<KeyAesGcm> make_key_aes_gcm(std::span<const uint8_t> rawKey);

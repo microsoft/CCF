@@ -20,10 +20,10 @@ namespace ccf::crypto
   public:
     virtual ~KeyPair() = default;
 
-    virtual Pem private_key_pem() const = 0;
-    virtual Pem public_key_pem() const = 0;
-    virtual std::vector<uint8_t> public_key_der() const = 0;
-    virtual std::vector<uint8_t> private_key_der() const = 0;
+    [[nodiscard]] virtual Pem private_key_pem() const = 0;
+    [[nodiscard]] virtual Pem public_key_pem() const = 0;
+    [[nodiscard]] virtual std::vector<uint8_t> public_key_der() const = 0;
+    [[nodiscard]] virtual std::vector<uint8_t> private_key_der() const = 0;
 
     virtual bool verify(
       const std::vector<uint8_t>& contents,
@@ -44,20 +44,20 @@ namespace ccf::crypto
       size_t* sig_size,
       uint8_t* sig) const = 0;
 
-    virtual std::vector<uint8_t> sign(
+    [[nodiscard]] virtual std::vector<uint8_t> sign(
       std::span<const uint8_t> d, MDType md_type = {}) const = 0;
 
-    virtual Pem create_csr(
+    [[nodiscard]] virtual Pem create_csr(
       const std::string& subject_name,
       const std::vector<SubjectAltName>& subject_alt_names,
       const std::optional<Pem>& public_key = std::nullopt) const = 0;
 
-    Pem create_csr(const std::string& subject_name) const
+    [[nodiscard]] Pem create_csr(const std::string& subject_name) const
     {
       return create_csr(subject_name, {});
     }
 
-    virtual std::vector<uint8_t> create_csr_der(
+    [[nodiscard]] virtual std::vector<uint8_t> create_csr_der(
       const std::string& subject_name,
       const std::vector<SubjectAltName>& subject_alt_names,
       const std::optional<Pem>& public_key = std::nullopt) const = 0;
@@ -80,7 +80,7 @@ namespace ccf::crypto
     };
 
   private:
-    virtual Pem sign_csr_impl(
+    [[nodiscard]] virtual Pem sign_csr_impl(
       const std::optional<Pem>& issuer_cert,
       const Pem& signing_request,
       const std::string& valid_from,
@@ -89,7 +89,7 @@ namespace ccf::crypto
       Signer signer = Signer::SUBJECT) const = 0;
 
   public:
-    virtual Pem sign_csr(
+    [[nodiscard]] virtual Pem sign_csr(
       const Pem& issuer_cert,
       const Pem& signing_request,
       const std::string& valid_from,
@@ -101,7 +101,7 @@ namespace ccf::crypto
         issuer_cert, signing_request, valid_from, valid_to, ca, signer);
     }
 
-    Pem self_sign(
+    [[nodiscard]] Pem self_sign(
       const std::string& name,
       const std::string& valid_from,
       const std::string& valid_to,
@@ -117,7 +117,7 @@ namespace ccf::crypto
       return sign_csr_impl(std::nullopt, csr, valid_from, valid_to, ca);
     }
 
-    Pem self_sign(
+    [[nodiscard]] Pem self_sign(
       const std::string& subject_name,
       const std::string& valid_from,
       const std::string& valid_to,
@@ -131,13 +131,13 @@ namespace ccf::crypto
     virtual std::vector<uint8_t> derive_shared_secret(
       const PublicKey& peer_key) = 0;
 
-    virtual std::vector<uint8_t> public_key_raw() const = 0;
+    [[nodiscard]] virtual std::vector<uint8_t> public_key_raw() const = 0;
 
-    virtual CurveID get_curve_id() const = 0;
+    [[nodiscard]] virtual CurveID get_curve_id() const = 0;
 
-    virtual PublicKey::Coordinates coordinates() const = 0;
+    [[nodiscard]] virtual PublicKey::Coordinates coordinates() const = 0;
 
-    virtual JsonWebKeyECPrivate private_key_jwk(
+    [[nodiscard]] virtual JsonWebKeyECPrivate private_key_jwk(
       const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
 

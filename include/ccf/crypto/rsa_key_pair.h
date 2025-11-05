@@ -25,7 +25,7 @@ namespace ccf::crypto
     RSAKeyPair(const Pem& pem);
     virtual ~RSAKeyPair() = default;
 
-    virtual size_t key_size() const = 0;
+    [[nodiscard]] virtual size_t key_size() const = 0;
 
     /**
      * Unwrap data using RSA-OAEP-256 (CKM_RSA_PKCS_OAEP)
@@ -42,19 +42,19 @@ namespace ccf::crypto
     /**
      * Get the private key in PEM format
      */
-    virtual Pem private_key_pem() const = 0;
+    [[nodiscard]] virtual Pem private_key_pem() const = 0;
 
     /**
      * Get the public key in PEM format
      */
-    virtual Pem public_key_pem() const = 0;
+    [[nodiscard]] virtual Pem public_key_pem() const = 0;
 
     /**
      * Get the public key in DER format
      */
-    virtual std::vector<uint8_t> public_key_der() const = 0;
+    [[nodiscard]] virtual std::vector<uint8_t> public_key_der() const = 0;
 
-    virtual std::vector<uint8_t> sign(
+    [[nodiscard]] virtual std::vector<uint8_t> sign(
       std::span<const uint8_t> d,
       MDType md_type = MDType::NONE,
       size_t salt_length = 0) const = 0;
@@ -82,7 +82,7 @@ namespace ccf::crypto
         salt_length);
     }
 
-    virtual JsonWebKeyRSAPrivate private_key_jwk_rsa(
+    [[nodiscard]] virtual JsonWebKeyRSAPrivate private_key_jwk_rsa(
       const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
 
