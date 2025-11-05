@@ -1435,7 +1435,7 @@ def run_recovery_local_unsealing(
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.enable_local_sealing = True
-    args.label += "_unsealing"
+    args.label += f"_unsealing_{rekey}_{recovery_shares_refresh}"
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
         network.start_and_open(args)
@@ -1448,12 +1448,12 @@ def run_recovery_local_unsealing(
         if recovery_shares_refresh:
             network.consortium.trigger_recovery_shares_refresh(primary)
 
+        network.stop_all_nodes()
+
         node_secret_map = {
             node.local_node_id: node.save_sealed_ledger_secret()
             for node in network.nodes
         }
-
-        network.stop_all_nodes()
 
         prev_network = network
         for node in network.nodes:
