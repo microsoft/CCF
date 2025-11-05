@@ -24,7 +24,7 @@ namespace ccf::kv
      *
      * @return String containing name used to construct this map handle
      */
-    std::string get_name_of_map() const
+    [[nodiscard]] std::string get_name_of_map() const
     {
       return read_handle.get_name_of_map();
     }

@@ -37,7 +37,8 @@ namespace ccf::crypto::OpenSSL
     // if it has changed. So we use ERR_error_string_n directly.
     if (ec != 0u)
     {
-      std::string err(256, '\0');
+      constexpr size_t max_error_size = 256;
+      std::string err(max_error_size, '\0');
       ERR_load_crypto_strings();
       SSL_load_error_strings();
       ERR_error_string_n(ec, err.data(), err.size());
@@ -46,10 +47,7 @@ namespace ccf::crypto::OpenSSL
       err.resize(std::strlen(err.c_str()));
       return err;
     }
-    else
-    {
-      return "unknown error";
-    }
+    return "unknown error";
   }
 
   /// Throws if rc is not 1 and has error
@@ -77,7 +75,7 @@ namespace ccf::crypto::OpenSSL
   /// Throws if ptr is null
   inline void CHECKNULL(void* ptr)
   {
-    if (ptr == NULL)
+    if (ptr == nullptr)
     {
       throw std::runtime_error("OpenSSL error: missing object");
     }
@@ -131,7 +129,9 @@ namespace ccf::crypto::OpenSSL
       p(ptr, dtor)
     {
       if (check_null)
+      {
         CHECKNULL(p.get());
+      }
     }
     /// Type cast to underlying pointer
     operator T*()
@@ -195,7 +195,7 @@ namespace ccf::crypto::OpenSSL
     using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
     Unique_PKEY(BIO* mem) :
       Unique_SSL_OBJECT(
-        PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL), EVP_PKEY_free)
+        PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr), EVP_PKEY_free)
     {}
 
     Unique_PKEY(EVP_PKEY* pkey) :
@@ -207,15 +207,15 @@ namespace ccf::crypto::OpenSSL
     : public Unique_SSL_OBJECT<EVP_PKEY_CTX, nullptr, nullptr>
   {
     Unique_EVP_PKEY_CTX(EVP_PKEY* key) :
-      Unique_SSL_OBJECT(EVP_PKEY_CTX_new(key, NULL), EVP_PKEY_CTX_free)
+      Unique_SSL_OBJECT(EVP_PKEY_CTX_new(key, nullptr), EVP_PKEY_CTX_free)
     {}
     Unique_EVP_PKEY_CTX(int key_type = EVP_PKEY_EC) :
-      Unique_SSL_OBJECT(EVP_PKEY_CTX_new_id(key_type, NULL), EVP_PKEY_CTX_free)
+      Unique_SSL_OBJECT(EVP_PKEY_CTX_new_id(key_type, nullptr), EVP_PKEY_CTX_free)
     {}
 
     Unique_EVP_PKEY_CTX(const std::string& name) :
       Unique_SSL_OBJECT(
-        EVP_PKEY_CTX_new_from_name(NULL, name.c_str(), NULL), EVP_PKEY_CTX_free)
+        EVP_PKEY_CTX_new_from_name(nullptr, name.c_str(), nullptr), EVP_PKEY_CTX_free)
     {}
   };
 
@@ -232,7 +232,7 @@ namespace ccf::crypto::OpenSSL
     using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
     Unique_X509_REQ(BIO* mem) :
       Unique_SSL_OBJECT(
-        PEM_read_bio_X509_REQ(mem, NULL, NULL, NULL), X509_REQ_free)
+        PEM_read_bio_X509_REQ(mem, nullptr, nullptr, nullptr), X509_REQ_free)
     {}
   };
 
@@ -242,7 +242,7 @@ namespace ccf::crypto::OpenSSL
     using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
     Unique_X509_CRL(BIO* mem) :
       Unique_SSL_OBJECT(
-        PEM_read_bio_X509_CRL(mem, NULL, NULL, NULL), X509_CRL_free)
+        PEM_read_bio_X509_CRL(mem, nullptr, nullptr, nullptr), X509_CRL_free)
     {}
   };
 
@@ -264,7 +264,7 @@ namespace ccf::crypto::OpenSSL
     {
       return nullptr;
     }
-    return PEM_read_bio_X509(mem, NULL, NULL, NULL);
+    return PEM_read_bio_X509(mem, nullptr, nullptr, nullptr);
   };
 
   struct Unique_X509 : public Unique_SSL_OBJECT<X509, X509_new, X509_free>
@@ -273,7 +273,7 @@ namespace ccf::crypto::OpenSSL
     // p == nullptr is OK (e.g. wrong format)
     Unique_X509(BIO* mem, bool pem, bool check_null = false) :
       Unique_SSL_OBJECT(
-        pem ? read_pem(mem) : d2i_X509_bio(mem, NULL), X509_free, check_null)
+        pem ? read_pem(mem) : d2i_X509_bio(mem, nullptr), X509_free, check_null)
     {}
     Unique_X509(X509* cert, bool check_null) :
       Unique_SSL_OBJECT(cert, X509_free, check_null)

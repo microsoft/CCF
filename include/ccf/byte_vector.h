@@ -45,7 +45,9 @@ struct formatter<ccf::ByteVector>
   auto format(const ccf::ByteVector& e, FormatContext& ctx) const
   {
     // This is the same as std::isprint, but independent of the current locale.
-    auto printable = [](uint8_t b) { return b >= 0x20 && b <= 0x7e; };
+    constexpr auto first_printable = 0x20;
+    constexpr auto last_printable = 0x7e;
+    auto printable = [](uint8_t b) { return b >= first_printable && b <= last_printable; };
     if (std::all_of(e.begin(), e.end(), printable))
     {
       return format_to(
@@ -54,11 +56,8 @@ struct formatter<ccf::ByteVector>
         e.size(),
         std::string(e.begin(), e.end()));
     }
-    else
-    {
-      return format_to(
-        ctx.out(), "<uint8[{}]: hex={:02x}>", e.size(), fmt::join(e, " "));
-    }
+    return format_to(
+      ctx.out(), "<uint8[{}]: hex={:02x}>", e.size(), fmt::join(e, " "));
   }
 };
 FMT_END_NAMESPACE

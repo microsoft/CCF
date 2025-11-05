@@ -29,6 +29,7 @@ namespace ccf::ds
   static inline std::chrono::system_clock::time_point time_point_from_string(
     const std::string& time)
   {
+    // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
     const char* ts = time.c_str();
 
     auto accepted_formats = {
@@ -36,12 +37,12 @@ namespace ccf::ds
       "%Y%m%d%H%M%SZ", // Generalized ASN.1
       "%Y-%m-%d %H:%M:%S"};
 
-    for (auto afmt : accepted_formats)
+    for (const auto * afmt : accepted_formats)
     {
       // Sadly %y in std::get_time seems to be broken, so strptime it is.
       struct tm t = {};
-      auto sres = strptime(ts, afmt, &t);
-      if (sres != NULL && *sres == '\0')
+      auto * sres = strptime(ts, afmt, &t);
+      if (sres != nullptr && *sres == '\0')
       {
         auto r = std::chrono::system_clock::from_time_t(timegm(&t));
         r -= std::chrono::seconds(t.tm_gmtoff);
@@ -62,7 +63,12 @@ namespace ccf::ds
 
     for (auto [fmt, n] : more_formats)
     {
-      unsigned y = 0, m = 0, d = 0, h = 0, mn = 0, om = 0;
+      unsigned y = 0;
+      unsigned m = 0;
+      unsigned d = 0;
+      unsigned h = 0;
+      unsigned mn = 0;
+      unsigned om = 0;
       int oh = 0;
       float s = 0.0;
 
@@ -97,6 +103,7 @@ namespace ccf::ds
         }
       }
     }
+    // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
 
     throw std::runtime_error(
       fmt::format("'{}' does not match any accepted time format", time));

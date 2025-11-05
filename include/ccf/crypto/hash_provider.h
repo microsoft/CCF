@@ -34,8 +34,8 @@ namespace ccf::crypto
   class ISha256Hash
   {
   public:
-    ISha256Hash() {}
-    virtual ~ISha256Hash() {}
+    ISha256Hash() = default;
+    virtual ~ISha256Hash() = default;
 
     virtual void update_hash(std::span<const uint8_t> data) = 0;
     virtual Sha256Hash finalise() = 0;
@@ -47,9 +47,9 @@ namespace ccf::crypto
     }
 
     template <>
-    void update(const std::vector<uint8_t>& d)
+    void update(const std::vector<uint8_t>& t)
     {
-      update_hash(d);
+      update_hash(t);
     }
   };
 

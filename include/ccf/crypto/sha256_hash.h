@@ -23,7 +23,7 @@ namespace ccf::crypto
 
     inline void set(Representation&& r)
     {
-      h = std::move(r);
+      h = r;
     }
 
     Sha256Hash(const uint8_t* data, size_t size);
