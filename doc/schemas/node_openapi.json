@@ -525,6 +525,9 @@
           "bind_address": {
             "$ref": "#/components/schemas/string"
           },
+          "enabled_optin_features": {
+            "$ref": "#/components/schemas/string_set"
+          },
           "endorsement": {
             "$ref": "#/components/schemas/Endorsement"
           },
@@ -854,6 +857,12 @@
         },
         "type": "array"
       },
+      "string_set": {
+        "items": {
+          "$ref": "#/components/schemas/string"
+        },
+        "type": "array"
+      },
       "string_to_ConsensusNodeConfig": {
         "additionalProperties": {
           "$ref": "#/components/schemas/ConsensusNodeConfig"
@@ -901,7 +910,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "4.13.0"
+    "version": "4.14.0"
   },
   "openapi": "3.0.0",
   "paths": {
