@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [6.0.17]
 
+[6.0.17]: https://github.com/microsoft/CCF/releases/tag/6.0.17
+
 ### Added
 
 - Support for PreVote optimisation. Nodes understand and are able to respond to PreVote messages, but will not become pre-vote candidates themselves. (#7419)
