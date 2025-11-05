@@ -100,7 +100,9 @@ namespace ccf::crypto
   inline void check_supported_aes_key_size(size_t num_bits)
   {
     if (num_bits != 128 && num_bits != 192 && num_bits != 256)
+    {
       throw std::runtime_error("Unsupported key size");
+    }
   }
 
   /** Default initialization vector for AES-GCM (12 zeroes) */

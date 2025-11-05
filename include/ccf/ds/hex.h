@@ -45,7 +45,9 @@ namespace ccf::ds
   {
     std::string r;
     for (auto c : buf)
+    {
       r += fmt::format("{:02x}", c);
+    }
     return r;
   }
 
