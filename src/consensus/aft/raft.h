@@ -1731,7 +1731,7 @@ namespace aft
           state->current_view,
           r.term);
 
-        // Even if is_pre_vote, we should still update the term.
+        // Even if ElectionType::PreVote, we should still update the term.
         // A pre-vote-candidate does not update its term until it becomes a
         // candidate. So a pre-vote request from a higher term indicates that we
         // should catch up to the term that had a candidate in it.
@@ -1870,9 +1870,9 @@ namespace aft
         return;
       }
 
-      // To receive a RequestVoteResponse(is_pre_vote=false), we must have sent
-      // a RequestVote(is_pre_vote=false), which only candidates do.
-      // Hence if we receive a RequestVoteResponse(is_pre_vote=false) while
+      // To receive a RequestVoteResponse(ElectionType::RegularVote), we must have sent
+      // a RequestVote(ElectionType::RegularVote), which only candidates do.
+      // Hence if we receive a RequestVoteResponse(ElectionType::RegularVote) while
       // still in PreVoteCandidate state something illegal must have
       // happened.
       if (

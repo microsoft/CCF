@@ -211,14 +211,14 @@ and because RCI is always the first signature after RI, RI and RCI are always bo
 PreVote Extensions
 ~~~~~~~~~~~~~~~~~~
 
-If a node's `RequestVote` requests are able to reach the cluster, but it is unable to hear the `AppendEntries` messages from the current leader (for example, due to network partitioning), it may start new elections, incrementing its term, which deposes the leader and disrupts the cluster.
+If a node's ``RequestVote`` requests are able to reach the cluster, but it is unable to hear the ``AppendEntries`` messages from the current leader (for example, due to network partitioning), it may start new elections, incrementing its term, which deposes the leader and disrupts the cluster.
 
-To mitigate this, the PreVote extension requires that followers first become `PreVoteCandidates` and receive a quorum of speculative pre-votes to prove that they could be elected, using the standard Raft election conditions, before becoming `Candidates` and potentially disrupting the cluster.
+To mitigate this, the PreVote extension requires that followers first become ``PreVoteCandidates`` and receive a quorum of speculative pre-votes to prove that they could be elected, using the standard Raft election conditions, before becoming ``Candidates`` and potentially disrupting the cluster.
 
-More specifically, when a follower's election timeout elapses, it becomes a `PreVoteCandidate` for the current term  and sends out `RequestVote` messages with the `electionType` set to `ElectionType::PreVote`.
-If the `PreVoteCandidate` hears from a current leader, or a new leader, it reverts back to being a `Follower`.
-Nodes receive this pre-vote request, and respond positively if node would have voted for the `PreVoteCandidate`'s ledger during an election, (ie. if the `PreVoteCandidate`'s ledger is at least as up to date as the receiver's ledger).
-If the `PreVoteCandidate` receives a quorum of positive pre-vote responses, it then becomes a `Candidate`, increments its term, sends a `RequestVote` message with `is_pre_vote` set to false and the election proceeds as normal from here.
+More specifically, when a follower's election timeout elapses, it becomes a ``PreVoteCandidate`` for the current term  and sends out ``RequestVote`` messages with the ``electionType`` set to ``ElectionType::PreVote``.
+If the ``PreVoteCandidate`` hears from a current leader, or a new leader, it reverts back to being a ``Follower``.
+Nodes receive this pre-vote request, and respond positively if node would have voted for the ``PreVoteCandidate``'s ledger during an election, (ie. if the ``PreVoteCandidate``'s ledger is at least as up to date as the receiver's ledger).
+If the ``PreVoteCandidate`` receives a quorum of positive pre-vote responses, it then becomes a ``Candidate``, increments its term, sends a ``RequestVote`` message with ``ElectionType::RegularVote`` set and the election proceeds as normal from here.
 
 .. mermaid::
 
