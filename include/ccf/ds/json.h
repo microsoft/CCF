@@ -25,24 +25,25 @@ namespace ccf
   class JsonParseError : public std::invalid_argument
   {
   public:
-    std::vector<std::string> pointer_elements = {};
+    std::vector<std::string> pointer_elements;
 
     using std::invalid_argument::invalid_argument;
 
-    std::string pointer() const
+    [[nodiscard]] std::string pointer() const
     {
       return fmt::format(
         "#/{}",
         fmt::join(pointer_elements.crbegin(), pointer_elements.crend(), "/"));
     }
 
-    std::string describe() const
+    [[nodiscard]] std::string describe() const
     {
       return fmt::format("At {}: {}", pointer(), what());
     }
   };
 }
 
+// NOLINTBEGIN(cert-dcl58-cpp)
 namespace std
 {
   template <typename T>
@@ -124,6 +125,7 @@ namespace std
     }
   }
 }
+// NOLINTEND(cert-dcl58-cpp)
 
 // FOREACH macro machinery for counting args
 

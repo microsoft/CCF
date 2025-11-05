@@ -37,7 +37,7 @@ namespace ccf::crypto
       // ERR_error_string doesn't really expect the code could actually be zero
       // and uses the `static char buf[256]` which is NOT cleaned nor checked
       // if it has changed. So we use ERR_error_string_n directly.
-      if (ec)
+      if (ec != 0u)
       {
         std::string err(256, '\0');
         ERR_load_crypto_strings();
