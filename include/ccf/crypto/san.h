@@ -46,6 +46,7 @@ namespace ccf::crypto
     const std::vector<std::string>& list)
   {
     std::vector<SubjectAltName> sans = {};
+    sans.reserve(list.size());
     for (const auto& l : list)
     {
       sans.push_back(san_from_string(l));

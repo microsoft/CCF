@@ -21,7 +21,7 @@ namespace ccf::crypto
 
     Sha256Hash() = default;
 
-    inline void set(Representation&& r)
+    void set(Representation&& r)
     {
       h = r;
     }
@@ -38,7 +38,7 @@ namespace ccf::crypto
     friend std::ostream& operator<<(
       std::ostream& os, const ccf::crypto::Sha256Hash& h);
 
-    std::string hex_str() const;
+    [[nodiscard]] std::string hex_str() const;
 
     static Sha256Hash from_hex_string(const std::string& str);
     static Sha256Hash from_span(const std::span<const uint8_t, SIZE>& sp);
@@ -84,14 +84,14 @@ namespace ccf::kv::serialisers
     static SerialisedEntry to_serialised(const ccf::crypto::Sha256Hash& h)
     {
       auto hex_str = h.hex_str();
-      return SerialisedEntry(hex_str.begin(), hex_str.end());
+      return {hex_str.begin(), hex_str.end()};
     }
 
     static ccf::crypto::Sha256Hash from_serialised(const SerialisedEntry& data)
     {
       auto data_str = std::string{data.begin(), data.end()};
       ccf::crypto::Sha256Hash ret;
-      return ret.from_hex_string(data_str);
+      return ccf::crypto::Sha256Hash::from_hex_string(data_str);
     }
   };
 }

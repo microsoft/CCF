@@ -4,7 +4,7 @@
 
 namespace ccf
 {
-  enum LoggerLevel
+  enum class LoggerLevel : uint8_t
   {
     TRACE,
     DEBUG, // events useful for debugging

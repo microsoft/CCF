@@ -29,7 +29,7 @@ namespace ccf::ds
   static inline std::chrono::system_clock::time_point time_point_from_string(
     const std::string& time)
   {
-    // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
+    // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
     const char* ts = time.c_str();
 
     auto accepted_formats = {
@@ -96,14 +96,18 @@ namespace ccf::ds
 
           system_clock::time_point r = (sys_days)date;
           if (rs >= 6)
+          {
             r += hours(h) + minutes(mn) + microseconds((long)(s * 1e6));
+          }
           if (rs >= 8)
+          {
             r -= hours(oh) + minutes(om);
+          }
           return r;
         }
       }
     }
-    // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
+    // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 
     throw std::runtime_error(
       fmt::format("'{}' does not match any accepted time format", time));

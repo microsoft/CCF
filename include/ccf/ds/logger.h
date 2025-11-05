@@ -57,10 +57,9 @@ namespace ccf::logger
       log_level(level_),
       tag(tag_),
       file_name(file_name_),
-      line_number(line_number_)
-    {
-      thread_id = ccf::threading::get_current_thread_id();
-    }
+      line_number(line_number_),
+      thread_id(ccf::threading::get_current_thread_id())
+    {}
 
     template <typename T>
     LogLine& operator<<(const T& item)
@@ -87,7 +86,8 @@ namespace ccf::logger
     return std::to_string(logical_clock++);
 #else
     // Sample: "2019-07-19 18:53:25.690267"
-    return fmt::format("{:%Y-%m-%dT%H:%M:%S}.{:0>6}Z", tm, ts.tv_nsec / 1000);
+    constexpr size_t nano_per_micro = 1000;
+    return fmt::format("{:%Y-%m-%dT%H:%M:%S}.{:0>6}Z", tm, ts.tv_nsec / nano_per_micro);
 #endif
   }
 
@@ -116,9 +116,12 @@ namespace ccf::logger
       const std::optional<double>& enclave_offset = std::nullopt) override
     {
       // Fetch time
-      ::timespec host_ts;
-      ::timespec_get(&host_ts, TIME_UTC);
-      std::tm host_tm;
+      ::timespec host_ts{};
+      if (::timespec_get(&host_ts, TIME_UTC) == 0)
+      {
+        throw std::runtime_error("timespec_get failed");
+      }
+      std::tm host_tm{};
       ::gmtime_r(&host_ts.tv_sec, &host_tm);
 
 #ifdef CCF_RAFT_TRACING
@@ -148,7 +151,7 @@ namespace ccf::logger
           enc_ts.tv_nsec -= ns_per_s;
         }
 
-        std::tm enclave_tm;
+        std::tm enclave_tm{};
         gmtime_r(&enc_ts.tv_sec, &enclave_tm);
 
         s = fmt::format(
@@ -186,13 +189,16 @@ namespace ccf::logger
     const std::optional<double>& enclave_offset = std::nullopt)
   {
     // Fetch time
-    ::timespec host_ts;
-    ::timespec_get(&host_ts, TIME_UTC);
-    std::tm host_tm;
+    ::timespec host_ts{};
+    if (::timespec_get(&host_ts, TIME_UTC) == 0)
+    {
+      throw std::runtime_error("timespec_get failed");
+    }
+    std::tm host_tm{};
     ::gmtime_r(&host_ts.tv_sec, &host_tm);
 
     auto file_line = fmt::format("{}:{} ", ll.file_name, ll.line_number);
-    auto file_line_data = file_line.data();
+    auto * file_line_data = file_line.data();
 
     // The preamble is the level, then tag, then file line. If the file line is
     // too long, the final characters are retained.
@@ -224,17 +230,14 @@ namespace ccf::logger
         preamble,
         ll.msg);
     }
-    else
-    {
-      // Padding on the right to align the rest of the message
-      // with lines that contain enclave time offsets
-      return fmt::format(
-        "{}        {:<3} {:<45}| {}\n",
-        get_timestamp(host_tm, host_ts),
-        ll.thread_id,
-        preamble,
-        ll.msg);
-    }
+    // Padding on the right to align the rest of the message
+    // with lines that contain enclave time offsets
+    return fmt::format(
+      "{}        {:<3} {:<45}| {}\n",
+      get_timestamp(host_tm, host_ts),
+      ll.thread_id,
+      preamble,
+      ll.msg);
   }
 
   class TextConsoleLogger : public AbstractLogger
@@ -279,7 +282,7 @@ namespace ccf::logger
       return the_level;
     }
 
-    static inline bool ok(LoggerLevel l)
+    static bool ok(LoggerLevel l)
     {
       return l >= level();
     }
