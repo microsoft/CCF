@@ -91,7 +91,7 @@ namespace ccf::crypto
     }
   }
 
-  enum class JsonWebKeyEdDSACurve
+  enum class JsonWebKeyEdDSACurve : std::uint8_t
   {
     ED25519 = 0,
     X25519 = 1

@@ -73,7 +73,7 @@ namespace ccf::crypto
     // by the current service identity (which doesn't have the private key of
     // previous ones).
 
-    enum class Signer
+    enum class Signer : std::uint8_t
     {
       SUBJECT = 0,
       ISSUER = 1
