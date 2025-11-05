@@ -287,7 +287,7 @@ def test_large_snapshot(network, args):
 
 
 def test_snapshot_access(network, args):
-    primary, _ = network.find_primary()
+    primary, backups = network.find_nodes()
 
     snapshots_dir = network.get_committed_snapshots(primary)
     snapshot_name = ccf.ledger.latest_snapshot(snapshots_dir)
@@ -296,10 +296,19 @@ def test_snapshot_access(network, args):
     with open(os.path.join(snapshots_dir, snapshot_name), "rb") as f:
         snapshot_data = f.read()
 
-    interface = primary.host.rpc_interfaces[infra.interfaces.PRIMARY_RPC_INTERFACE]
+    for node in (primary, *backups):
+        with node.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
+            r = c.head("/node/snapshot")
+            assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE, r
+            r = c.get("/node/snapshot")
+            assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE, r
+
+    interface = primary.host.rpc_interfaces[infra.interfaces.FILE_SERVING_RPC_INTERFACE]
     loc = f"https://{interface.public_host}:{interface.public_port}"
 
-    with primary.client() as c:
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
         r = c.head("/node/snapshot", allow_redirects=False)
         assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
         assert "location" in r.headers, r.headers
@@ -570,39 +579,27 @@ def run_tls_san_checks(args):
 
         LOG.info("Check SAN value in TLS certificate")
         dummy_san = "*.dummy.com"
-        new_node = network.create_node(
-            infra.interfaces.HostSpec(
-                rpc_interfaces={
-                    infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                        endorsement=infra.interfaces.Endorsement(
-                            authority=infra.interfaces.EndorsementAuthority.Node
-                        )
-                    )
-                }
-            )
+        host_spec = infra.interfaces.HostSpec()
+        host_spec.get_primary_interface().endorsement.authority = (
+            infra.interfaces.EndorsementAuthority.Node
         )
+        new_node = network.create_node(host_spec)
         args.subject_alt_names = [f"dNSName:{dummy_san}"]
         network.join_node(new_node, args.package, args)
         sans = infra.crypto.get_san_from_pem_cert(new_node.get_tls_certificate_pem())
         assert len(sans) == 1, "Expected exactly one SAN"
         assert sans[0].value == dummy_san
 
-        LOG.info("A node started with no specified SAN defaults to public RPC host")
-        dummy_public_rpc_host = "123.123.123.123"
+        LOG.info("A node started with no specified SAN defaults to public RPC host(s)")
+        dummy_public_rpc_hosts = set()
         args.subject_alt_names = []
 
-        new_node = network.create_node(
-            infra.interfaces.HostSpec(
-                rpc_interfaces={
-                    infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                        public_host=dummy_public_rpc_host,
-                        endorsement=infra.interfaces.Endorsement(
-                            authority=infra.interfaces.EndorsementAuthority.Node
-                        ),
-                    )
-                }
-            )
-        )
+        for i, interface in enumerate(host_spec.rpc_interfaces.values()):
+            dummy_public_rpc_host = f"123.123.123.{i}"
+            interface.public_host = dummy_public_rpc_host
+            dummy_public_rpc_hosts.add(ipaddress.ip_address(dummy_public_rpc_host))
+
+        new_node = network.create_node(host_spec)
         network.join_node(new_node, args.package, args)
         # Cannot trust the node here as client cannot authenticate dummy public IP in cert
         with open(
@@ -610,8 +607,9 @@ def run_tls_san_checks(args):
             encoding="utf-8",
         ) as self_signed_cert:
             sans = infra.crypto.get_san_from_pem_cert(self_signed_cert.read())
-        assert len(sans) == 1, "Expected exactly one SAN"
-        assert sans[0].value == ipaddress.ip_address(dummy_public_rpc_host)
+        assert len(sans) == len(dummy_public_rpc_hosts), f"Expected {len(dummy_public_rpc_hosts)} SANs ({dummy_public_rpc_hosts}), found {len(sans)} ({sans})"
+        ip_sans = set(sans.get_values_for_type(x509.IPAddress))
+        assert ip_sans == dummy_public_rpc_hosts, f"Expected SANs do not match: {ip_sans} vs {dummy_public_rpc_hosts}"
 
 
 def run_config_timeout_check(args):

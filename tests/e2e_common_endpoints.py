@@ -25,18 +25,13 @@ def test_primary(network, args):
         assert r.body.json()["error"]["message"] == "Node is not backup"
 
     interface_name = "only_exists_on_this_node"
-    host_spec = infra.interfaces.HostSpec(
-        rpc_interfaces={
-            infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface.from_args(
-                args
-            ).parse_from_str(
-                "local://localhost"
-            ),
-            interface_name: infra.interfaces.RPCInterface.from_args(
-                args
-            ).parse_from_str("local://localhost"),
-        }
-    )
+    extra_interface = infra.interfaces.RPCInterface()
+    extra_interface.apply_args(args)
+    extra_interface.parse_from_str("local://localhost")
+
+    host_spec = infra.interfaces.HostSpec()
+    host_spec.rpc_interfaces[interface_name] = extra_interface
+
     new_backup = network.create_node(host_spec)
     network.join_node(new_backup, args.package, args)
     network.trust_node(new_backup, args)

@@ -38,6 +38,7 @@ DEFAULT_FORWARDING_TIMEOUT_MS = 3000
 
 PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
 SECONDARY_RPC_INTERFACE = "secondary_rpc_interface"
+FILE_SERVING_RPC_INTERFACE = "file_serving_rpc_interface"
 NODE_TO_NODE_INTERFACE_NAME = "node_to_node_interface"
 
 
@@ -194,27 +195,21 @@ class RPCInterface(Interface):
     )
     endorsement: Optional[Endorsement] = field(default_factory=lambda: Endorsement())
     accepted_endpoints: Optional[str] = None
-    # TODO: Default should be None
-    enabled_optin_features: Optional[list[str]] = field(
-        default_factory=lambda: ["FileAccess"]
-    )
+    enabled_optin_features: Optional[list[str]] = None
     forwarding_timeout_ms: Optional[int] = field(
         default_factory=lambda: DEFAULT_FORWARDING_TIMEOUT_MS
     )
     redirections: Optional[RedirectionConfig] = None
     app_protocol: str = field(default_factory=lambda: "HTTP1")
 
-    @staticmethod
-    def from_args(args):
-        return RPCInterface(
-            max_open_sessions_soft=args.max_open_sessions,
-            max_open_sessions_hard=args.max_open_sessions_hard,
-            max_http_body_size=args.max_http_body_size,
-            max_http_header_size=args.max_http_header_size,
-            max_http_headers_count=args.max_http_headers_count,
-            forwarding_timeout_ms=args.forwarding_timeout_ms,
-            app_protocol="HTTP2" if args.http2 else "HTTP1",
-        )
+    def apply_args(self, args):
+        self.max_open_sessions_soft = args.max_open_sessions
+        self.max_open_sessions_hard = args.max_open_sessions_hard
+        self.max_http_body_size = args.max_http_body_size
+        self.max_http_header_size = args.max_http_header_size
+        self.max_http_headers_count = args.max_http_headers_count
+        self.forwarding_timeout_ms = args.forwarding_timeout_ms
+        self.app_protocol = "HTTP2" if args.http2 else "HTTP1"
 
     def parse_from_str(self, s):
         # Format: local|ssh(,tcp|udp)://hostname:port
@@ -229,8 +224,6 @@ class RPCInterface(Interface):
             self.public_host, self.public_port = split_netloc(published_address)
 
         self.host, self.port = split_netloc(address)
-
-        return self
 
     @staticmethod
     def to_json(interface):
@@ -312,11 +305,20 @@ def make_secondary_interface(transport="tcp", interface_name=SECONDARY_RPC_INTER
 @dataclass
 class HostSpec:
     rpc_interfaces: Dict[str, RPCInterface] = field(
-        default_factory=lambda: {PRIMARY_RPC_INTERFACE: RPCInterface()}
+        default_factory=lambda: {
+            PRIMARY_RPC_INTERFACE: RPCInterface(),
+            FILE_SERVING_RPC_INTERFACE: RPCInterface(
+                enabled_optin_features=["FileAccess"],
+            ),
+        }
     )
 
     def get_primary_interface(self):
         return self.rpc_interfaces[PRIMARY_RPC_INTERFACE]
+
+    def with_args(self, args):
+        self.get_primary_interface().apply_args(args)
+        return self
 
     @staticmethod
     def to_json(host_spec):
