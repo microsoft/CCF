@@ -735,7 +735,7 @@ void run_csr(bool corrupt_csr = false)
 
   if (corrupt_csr)
   {
-    REQUIRE_THROWS(kpm.sign_csr(icrt, csr, valid_from, valid_to));
+    REQUIRE_THROWS([&]() { auto discard = kpm.sign_csr(icrt, csr, valid_from, valid_to); }());
     return;
   }
 

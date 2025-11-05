@@ -18,26 +18,25 @@ namespace ccf::kv::serialisers
       {
         return SerialisedEntry(t.begin(), t.end());
       }
-
-      if constexpr (ccf::nonstd::is_std_array<T>::value)
+      else if constexpr (ccf::nonstd::is_std_array<T>::value)
       {
         return SerialisedEntry(t.begin(), t.end());
       }
-
-      if constexpr (std::is_integral_v<T>)
+      else if constexpr (std::is_integral_v<T>)
       {
         SerialisedEntry s(sizeof(t));
         std::memcpy(s.data(), (uint8_t*)&t, sizeof(t));
         return s;
       }
-
-      if constexpr (std::is_same_v<T, std::string>)
+      else if constexpr (std::is_same_v<T, std::string>)
       {
         return SerialisedEntry(t.begin(), t.end());
       }
-
-      static_assert(
-        ccf::nonstd::dependent_false<T>::value, "Can't serialise this type");
+      else
+      {
+        static_assert(
+          ccf::nonstd::dependent_false<T>::value, "Can't serialise this type");
+      }
     }
 
     static T from_serialised(const SerialisedEntry& rep)
@@ -46,8 +45,7 @@ namespace ccf::kv::serialisers
       {
         return T(rep.begin(), rep.end());
       }
-
-      if constexpr (ccf::nonstd::is_std_array<T>::value)
+      else if constexpr (ccf::nonstd::is_std_array<T>::value)
       {
         T t;
         if (rep.size() != t.size())
@@ -60,8 +58,7 @@ namespace ccf::kv::serialisers
         std::copy_n(rep.begin(), t.size(), t.begin());
         return t;
       }
-
-      if constexpr (std::is_integral_v<T>)
+      else if constexpr (std::is_integral_v<T>)
       {
         if (rep.size() != sizeof(T))
         {
@@ -73,13 +70,16 @@ namespace ccf::kv::serialisers
         }
         return *(T*)rep.data();
       }
-
-      if constexpr (std::is_same_v<T, std::string>)
+      else if constexpr (std::is_same_v<T, std::string>)
       {
         return T(rep.begin(), rep.end());
       }
-      static_assert(
-        ccf::nonstd::dependent_false<T>::value, "Can't deserialise this type");
+      else
+      {
+        static_assert(
+          ccf::nonstd::dependent_false<T>::value,
+          "Can't deserialise this type");
+      }
     }
   };
 }

@@ -908,11 +908,11 @@ namespace ccf
 
     ccf::LoggerLevel log_level = ccf::LoggerLevel::INFO;
     std::map<std::string, ccf::LoggerLevel> log_level_options;
-    for (size_t i = ccf::logger::MOST_VERBOSE;
-         i < ccf::LoggerLevel::MAX_LOG_LEVEL;
+    for (uint8_t i = static_cast<uint8_t>(ccf::logger::MOST_VERBOSE);
+         i < static_cast<uint8_t>(ccf::LoggerLevel::MAX_LOG_LEVEL);
          ++i)
     {
-      const auto level = (ccf::LoggerLevel)i;
+      const auto level = static_cast<ccf::LoggerLevel>(i);
       log_level_options[ccf::logger::to_string(level)] = level;
     }
 

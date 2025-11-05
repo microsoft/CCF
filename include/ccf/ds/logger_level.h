@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include <cstdint>
 namespace ccf
 {
   enum class LoggerLevel : uint8_t
