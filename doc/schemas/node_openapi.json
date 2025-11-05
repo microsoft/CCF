@@ -461,6 +461,7 @@
           "None",
           "Leader",
           "Follower",
+          "PreVoteCandidate",
           "Candidate"
         ],
         "type": "string"
@@ -901,7 +902,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "4.13.0"
+    "version": "4.14.0"
   },
   "openapi": "3.0.0",
   "paths": {

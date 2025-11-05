@@ -149,7 +149,10 @@ namespace aft
 
   struct State
   {
-    State(const ccf::NodeId& node_id_) : node_id(node_id_) {}
+    State(const ccf::NodeId& node_id_, bool pre_vote_enabled_ = false) :
+      node_id(node_id_),
+      pre_vote_enabled(pre_vote_enabled_)
+    {}
     State() = default;
 
     ccf::pal::Mutex lock;
@@ -187,6 +190,8 @@ namespace aft
     // Index at which this node observes its retired_committed, only set when
     // that index itself is committed
     std::optional<ccf::SeqNo> retired_committed_idx = std::nullopt;
+
+    bool pre_vote_enabled = false;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(State);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -196,7 +201,8 @@ namespace aft
     last_idx,
     commit_idx,
     leadership_state,
-    membership_state);
+    membership_state,
+    pre_vote_enabled);
   DECLARE_JSON_OPTIONAL_FIELDS(
     State,
     retirement_phase,

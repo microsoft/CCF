@@ -116,6 +116,7 @@ private:
     std::shared_ptr<TRaft> raft;
   };
 
+  bool pre_vote_enabled = false;
   std::map<ccf::NodeId, NodeDriver> _nodes;
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
 
@@ -197,7 +198,7 @@ private:
       std::make_unique<Adaptor>(kv),
       std::make_unique<LedgerStubProxy_Mermaid>(node_id),
       std::make_shared<aft::ChannelStubProxy>(),
-      std::make_shared<aft::State>(node_id),
+      std::make_shared<aft::State>(node_id, pre_vote_enabled),
       nullptr);
     kv->set_set_retired_committed_hook(
       [raft](aft::Index idx, const std::vector<ccf::kv::NodeId>& node_ids) {
@@ -997,6 +998,11 @@ public:
     }
   }
 
+  void set_pre_vote_enabled(bool enabled)
+  {
+    pre_vote_enabled = enabled;
+  }
+
   using Discrepancies = std::map<ccf::NodeId, std::vector<std::string>>;
 
   Discrepancies check_state_sync(const std::map<ccf::NodeId, NodeDriver> nodes)
@@ -1280,6 +1286,15 @@ public:
     }
   }
 
+  std::string detail_to_string(const nlohmann::json& detail)
+  {
+    if (detail.is_string())
+    {
+      return detail.get<std::string>();
+    }
+    return detail.dump();
+  }
+
   void assert_detail(
     ccf::NodeId node_id,
     const std::string& detail,
@@ -1300,7 +1315,7 @@ public:
         std::to_string((int)lineno)));
     }
 
-    std::string value = d[detail];
+    std::string value = detail_to_string(d[detail]);
     if (equal ? (value != expected) : (value == expected))
     {
       std::string cmp = equal ? "!" : "=";
