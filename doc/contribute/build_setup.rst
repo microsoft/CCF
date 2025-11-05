@@ -40,6 +40,19 @@ Tweaks for codespaces:
 
 * In order to run lldb in a container, run this command first "settings set target.disable-aslr false"
 
+Running Docker containers in Codespaces
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If you want to run Docker containers within your Codespace, you'll need to modify the devcontainer configuration to mount the Docker socket. Add the following to :ccf_repo:`.devcontainer/devcontainer.json <.devcontainer/devcontainer.json>`:
+
+.. code-block:: json
+
+    "mounts": [
+      "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+    ]
+
+This mount configuration gives the devcontainer access to the host's Docker daemon, enabling you to run Docker commands within your Codespace.
+
 How to install docker
 ~~~~~~~~~~~~~~~~~~~~~
 
