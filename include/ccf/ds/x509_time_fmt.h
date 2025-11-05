@@ -37,11 +37,11 @@ namespace ccf::ds
       "%Y%m%d%H%M%SZ", // Generalized ASN.1
       "%Y-%m-%d %H:%M:%S"};
 
-    for (const auto * afmt : accepted_formats)
+    for (const auto* afmt : accepted_formats)
     {
       // Sadly %y in std::get_time seems to be broken, so strptime it is.
       struct tm t = {};
-      auto * sres = strptime(ts, afmt, &t);
+      auto* sres = strptime(ts, afmt, &t);
       if (sres != nullptr && *sres == '\0')
       {
         auto r = std::chrono::system_clock::from_time_t(timegm(&t));

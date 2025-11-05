@@ -136,7 +136,7 @@ namespace ccf::crypto
     /**
      * The curve ID
      */
-    virtual CurveID get_curve_id() const = 0;
+    [[nodiscard]] virtual CurveID get_curve_id() const = 0;
 
     struct Coordinates
     {
@@ -147,9 +147,9 @@ namespace ccf::crypto
     /**
      * The x/y coordinates of the public key
      */
-    virtual Coordinates coordinates() const = 0;
+    [[nodiscard]] virtual Coordinates coordinates() const = 0;
 
-    virtual JsonWebKeyECPublic public_key_jwk(
+    [[nodiscard]] virtual JsonWebKeyECPublic public_key_jwk(
       const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
 }

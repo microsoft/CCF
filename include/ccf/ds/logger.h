@@ -87,7 +87,8 @@ namespace ccf::logger
 #else
     // Sample: "2019-07-19 18:53:25.690267"
     constexpr size_t nano_per_micro = 1000;
-    return fmt::format("{:%Y-%m-%dT%H:%M:%S}.{:0>6}Z", tm, ts.tv_nsec / nano_per_micro);
+    return fmt::format(
+      "{:%Y-%m-%dT%H:%M:%S}.{:0>6}Z", tm, ts.tv_nsec / nano_per_micro);
 #endif
   }
 
@@ -198,7 +199,7 @@ namespace ccf::logger
     ::gmtime_r(&host_ts.tv_sec, &host_tm);
 
     auto file_line = fmt::format("{}:{} ", ll.file_name, ll.line_number);
-    auto * file_line_data = file_line.data();
+    auto* file_line_data = file_line.data();
 
     // The preamble is the level, then tag, then file line. If the file line is
     // too long, the final characters are retained.

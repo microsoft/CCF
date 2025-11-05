@@ -210,12 +210,14 @@ namespace ccf::crypto::OpenSSL
       Unique_SSL_OBJECT(EVP_PKEY_CTX_new(key, nullptr), EVP_PKEY_CTX_free)
     {}
     Unique_EVP_PKEY_CTX(int key_type = EVP_PKEY_EC) :
-      Unique_SSL_OBJECT(EVP_PKEY_CTX_new_id(key_type, nullptr), EVP_PKEY_CTX_free)
+      Unique_SSL_OBJECT(
+        EVP_PKEY_CTX_new_id(key_type, nullptr), EVP_PKEY_CTX_free)
     {}
 
     Unique_EVP_PKEY_CTX(const std::string& name) :
       Unique_SSL_OBJECT(
-        EVP_PKEY_CTX_new_from_name(nullptr, name.c_str(), nullptr), EVP_PKEY_CTX_free)
+        EVP_PKEY_CTX_new_from_name(nullptr, name.c_str(), nullptr),
+        EVP_PKEY_CTX_free)
     {}
   };
 

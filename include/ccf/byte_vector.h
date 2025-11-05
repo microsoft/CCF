@@ -47,7 +47,9 @@ struct formatter<ccf::ByteVector>
     // This is the same as std::isprint, but independent of the current locale.
     constexpr auto first_printable = 0x20;
     constexpr auto last_printable = 0x7e;
-    auto printable = [](uint8_t b) { return b >= first_printable && b <= last_printable; };
+    auto printable = [](uint8_t b) {
+      return b >= first_printable && b <= last_printable;
+    };
     if (std::all_of(e.begin(), e.end(), printable))
     {
       return format_to(

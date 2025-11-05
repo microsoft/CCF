@@ -16,7 +16,9 @@ namespace ccf::kv
     using KeyType = K;
     using ValueType = V;
 
-    MapDiff(ccf::kv::untyped::MapDiff map_diff_) : map_diff(std::move(map_diff_)) {}
+    MapDiff(ccf::kv::untyped::MapDiff map_diff_) :
+      map_diff(std::move(map_diff_))
+    {}
 
     MapDiff(ccf::kv::untyped::ChangeSet& changes, const std::string& map_name) :
       map_diff(changes, map_name)
