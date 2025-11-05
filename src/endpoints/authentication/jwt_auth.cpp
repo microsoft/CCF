@@ -90,9 +90,9 @@ namespace ccf
     using DER = std::vector<uint8_t>;
     ccf::pal::Mutex keys_lock;
 
-    using ECPublicKey = ccf::crypto::
+    using PublicKey = ccf::crypto::
       KeyVariant<ccf::crypto::RSAPublicKeyPtr, ccf::crypto::ECPublicKeyPtr>;
-    LRU<DER, ECPublicKey> keys;
+    LRU<DER, PublicKey> keys;
 
     PublicKeysCache(size_t max_keys = DEFAULT_MAX_KEYS) : keys(max_keys) {}
 
