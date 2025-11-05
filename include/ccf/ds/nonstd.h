@@ -213,6 +213,6 @@ namespace ccf::nonstd
   using CloseFdGuard = std::unique_ptr<int, decltype(&close_fd)>;
   static inline CloseFdGuard make_close_fd_guard(int* fd)
   {
-    return CloseFdGuard(fd, close_fd);
+    return {fd, close_fd};
   }
 }

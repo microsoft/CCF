@@ -51,6 +51,7 @@ Checks: >
   -readability-identifier-length,
   -readability-avoid-nested-conditional-operator,
   -readability-convert-member-functions-to-static,
+  -readability-uppercase-literal-suffix,
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: 'include\/ccf\/.*'
