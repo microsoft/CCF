@@ -41,7 +41,7 @@ namespace ccf::pal
   public:
     AttestationCollateralFetchingTimeout(const std::string& msg_) : msg(msg_) {}
 
-    [[nodiscard]] virtual const char* what() const throw()
+    [[nodiscard]] virtual const char* what() const noexcept override
     {
       return msg.c_str();
     }

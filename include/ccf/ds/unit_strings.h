@@ -20,14 +20,14 @@ namespace ccf::ds
     static size_t convert(
       const std::string_view& input,
       std::map<std::string_view, T>& mapping,
-      F&& f)
+      F&& f) // NOLINT(cppcoreguidelines-missing-std-forward)
     {
       if (input.empty())
       {
         throw std::logic_error("Cannot convert empty unit string");
       }
 
-      auto unit_begin = input.end();
+      const auto* unit_begin = input.end();
       while (unit_begin > input.begin() && std::isalpha(*(unit_begin - 1)))
       {
         unit_begin--;
@@ -133,7 +133,7 @@ namespace ccf::ds
       value(convert_size_string(str_))
     {}
 
-    inline operator size_t() const
+    operator size_t() const
     {
       return value;
     }
@@ -172,18 +172,18 @@ namespace ccf::ds
       value(convert_time_string(str_))
     {}
 
-    inline operator std::chrono::microseconds() const
+    operator std::chrono::microseconds() const
     {
       return value;
     }
 
-    inline operator std::chrono::milliseconds() const
+    operator std::chrono::milliseconds() const
     {
       return std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::microseconds(*this));
     }
 
-    inline operator std::chrono::seconds() const
+    operator std::chrono::seconds() const
     {
       return std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::microseconds(*this));

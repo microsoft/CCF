@@ -18,19 +18,19 @@ namespace ccf
   public:
     ClaimsDigest() = default;
 
-    inline void set(Digest&& digest_)
+    void set(Digest&& digest_)
     {
       is_set = true;
       digest = std::move(digest_);
     }
 
-    inline void set(Digest::Representation&& r)
+    void set(Digest::Representation&& r)
     {
       is_set = true;
       digest.set(std::move(r));
     }
 
-    [[nodiscard]] inline bool empty() const
+    [[nodiscard]] bool empty() const
     {
       return !is_set;
     }
