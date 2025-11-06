@@ -169,7 +169,7 @@ namespace ccf::endpoints
       method_prefix(method_prefix_)
     {}
 
-    virtual ~EndpointRegistry() {}
+    virtual ~EndpointRegistry() = default;
 
     /** Create a new endpoint.
      *
