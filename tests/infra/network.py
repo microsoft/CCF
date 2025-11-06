@@ -316,7 +316,7 @@ class Network:
             host = infra.interfaces.HostSpec(
                 rpc_interfaces={infra.interfaces.PRIMARY_RPC_INTERFACE: interface}
             )
-        elif host == None:
+        elif host is None:
             host = infra.interfaces.HostSpec()
 
         node = infra.node.Node(

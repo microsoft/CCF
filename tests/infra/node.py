@@ -621,7 +621,7 @@ class Node:
     ):
         interface = self.host.rpc_interfaces.get(interface_name, None)
         assert (
-            interface != None
+            interface is not None
         ), f"Missing interface {interface_name} on {self} ({self.local_node_id}, {self.node_id})"
         return infra.interfaces.make_address(
             interface.public_host, interface.public_port

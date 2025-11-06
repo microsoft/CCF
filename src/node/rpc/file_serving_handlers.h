@@ -104,6 +104,7 @@ namespace ccf::node
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           "Unable to access NodeOperation subsystem");
+        return;
       }
 
       if (!node_operation->can_replicate())
