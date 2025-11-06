@@ -816,11 +816,13 @@ def run_all(args):
 
 def run_join_old_snapshot(args):
     txs = app.LoggingTxs("user0")
-    nodes = ["local://localhost"]
+    args = copy.deepcopy(args)
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    args.label += "_old_snapshot"
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         with infra.network.network(
-            nodes,
+            args.nodes,
             args.binary_dir,
             args.debug_nodes,
             pdb=args.pdb,
