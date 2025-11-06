@@ -101,6 +101,7 @@ def test_new_service(
     library_dir,
     version,
     expected_subject_name=None,
+    test_jwt_cleanup=False,
 ):
     if infra.platform_detection.is_snp():
         LOG.info(
@@ -167,6 +168,47 @@ def test_new_service(
     # Setting from_seqno=1 as open ranges do not work with older ledgers
     # that did not record the now-deprecated "public:first_write_version" table
     network.txs.verify_range(log_capture=[], from_seqno=1)
+
+    if test_jwt_cleanup:
+
+        def table_has_entries(table_name):
+            ledger = ccf.ledger.Ledger(
+                primary.remote.ledger_paths(), committed_only=False
+            )
+            public_state, _ = ledger.get_latest_public_state()
+            rows = public_state.get(table_name, None)
+            return rows is not None and len(rows) > 0
+
+        legacy_tables = [
+            "public:ccf.gov.jwt.public_signing_keys",
+            "public:ccf.gov.jwt.public_signing_keys_metadata",
+            "public:ccf.gov.jwt.public_signing_key_issuer",
+        ]
+        new_table = "public:ccf.gov.jwt.public_signing_keys_metadata_v2"
+
+        assert all(table_has_entries(table) for table in legacy_tables)
+        assert table_has_entries(new_table)
+
+        network.consortium.cleanup_legacy_jwt_records(
+            primary, ensure_new_records_exist=True
+        )
+
+        assert all(not table_has_entries(table) for table in legacy_tables)
+
+        # Cannot remove legacy if the current table is not populated but required to be
+        network.consortium.remove_jwt_issuer(primary, network.jwt_issuer.issuer_url)
+        assert not table_has_entries(new_table)
+        try:
+            network.consortium.cleanup_legacy_jwt_records(
+                primary, ensure_new_records_exist=True
+            )
+        except infra.proposal.ProposalNotAccepted:
+            pass
+
+        # Although can remove it if not ensuring explicitly new records exist
+        network.consortium.cleanup_legacy_jwt_records(
+            primary, ensure_new_records_exist=False
+        )
 
 
 # Local build and install bin/ and lib/ directories differ
@@ -443,7 +485,7 @@ def run_code_upgrade_from(
                 to_binary_dir,
                 to_library_dir,
                 to_version,
-                service_subject_name,
+                expected_subject_name=service_subject_name,
             )
             network.get_latest_ledger_public_state()
 
@@ -490,7 +532,9 @@ def run_live_compatibility_with_latest(
 
 
 @reqs.description("Run ledger compatibility since first LTS")
-def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
+def run_ledger_compatibility_since_first(
+    args, local_branch, use_snapshot, test_jwt_cleanup
+):
     """
     Tests that a service from the very first LTS can be recovered
     to the next LTS, and so forth, until the version of the local checkout.
@@ -654,6 +698,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         binary_dir,
                         library_dir,
                         version,
+                        test_jwt_cleanup=test_jwt_cleanup,
                     )
 
                 snapshots_dir = (
@@ -752,13 +797,19 @@ if __name__ == "__main__":
         if args.check_ledger_compatibility:
             compatibility_report["data compatibility"] = {}
             lts_versions = run_ledger_compatibility_since_first(
-                args, local_branch, use_snapshot=False
+                args,
+                local_branch,
+                use_snapshot=False,
+                test_jwt_cleanup=False,
             )
             compatibility_report["data compatibility"].update(
                 {"with previous ledger": lts_versions}
             )
             lts_versions = run_ledger_compatibility_since_first(
-                args, local_branch, use_snapshot=True
+                args,
+                local_branch,
+                use_snapshot=True,
+                test_jwt_cleanup=True,
             )
             compatibility_report["data compatibility"].update(
                 {"with previous snapshots": lts_versions}

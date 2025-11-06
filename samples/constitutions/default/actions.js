@@ -1577,4 +1577,40 @@ const actions = new Map([
       function (args) {},
     ),
   ],
+  [
+    "cleanup_legacy_jwt_records",
+    new Action(
+      function (args) {},
+      function (args) {
+        checkType(
+          args.ensure_new_records_exist,
+          "boolean?",
+          "ensure_new_records_exist",
+        );
+
+        if (
+          args.ensure_new_records_exist &&
+          ccf.kv["public:ccf.gov.jwt.public_signing_keys_metadata_v2"].size ===
+            0
+        ) {
+          throw new Error("No new JWT public signing keys records found");
+        }
+
+        const keys = ccf.kv["public:ccf.gov.jwt.public_signing_keys"].clear();
+        if (keys !== undefined) {
+          keys.clear();
+        }
+        const metadata =
+          ccf.kv["public:ccf.gov.jwt.public_signing_keys_metadata"].clear();
+        if (metadata !== undefined) {
+          metadata.clear();
+        }
+        const issuer =
+          ccf.kv["public:ccf.gov.jwt.public_signing_key_issuer"].clear();
+        if (issuer !== undefined) {
+          issuer.clear();
+        }
+      },
+    ),
+  ],
 ]);
