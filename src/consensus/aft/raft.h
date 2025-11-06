@@ -1870,10 +1870,11 @@ namespace aft
         return;
       }
 
-      // To receive a RequestVoteResponse(ElectionType::RegularVote), we must have sent
-      // a RequestVote(ElectionType::RegularVote), which only candidates do.
-      // Hence if we receive a RequestVoteResponse(ElectionType::RegularVote) while
-      // still in PreVoteCandidate state something illegal must have
+      // To receive a RequestVoteResponse(ElectionType::RegularVote), we must
+      // have sent a RequestVote(ElectionType::RegularVote), which only
+      // candidates do.
+      // Hence if we receive a RequestVoteResponse(ElectionType::RegularVote)
+      // while still in PreVoteCandidate state something illegal must have
       // happened.
       if (
         r.election_type == ElectionType::RegularVote &&
