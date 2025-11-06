@@ -108,7 +108,8 @@ namespace ccf
     return "HttpMethod";
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, [[maybe_unused]] const RESTVerb* verb_type)
+  inline void fill_json_schema(
+    nlohmann::json& schema, [[maybe_unused]] const RESTVerb* verb_type)
   {
     schema["type"] = "string";
   }

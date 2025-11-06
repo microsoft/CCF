@@ -33,7 +33,8 @@ namespace ccf::js::core
 
     int set_getter(const char* prop, JSWrappedValue&& getter) const;
 
-    [[nodiscard]] int set(const std::string& prop, JSWrappedValue&& value) const;
+    [[nodiscard]] int set(
+      const std::string& prop, JSWrappedValue&& value) const;
 
     [[nodiscard]] int set(const std::string& prop, JSValue value) const;
 

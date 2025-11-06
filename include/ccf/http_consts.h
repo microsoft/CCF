@@ -28,17 +28,14 @@ namespace ccf
       static constexpr auto CCF_SNAPSHOT_NAME = "x-ms-ccf-snapshot-name";
     }
 
-    namespace headervalues
+    namespace headervalues::contenttype
     {
-      namespace contenttype
-      {
-        static constexpr auto JSON = "application/json";
-        static constexpr auto TEXT = "text/plain";
-        static constexpr auto OCTET_STREAM = "application/octet-stream";
-        static constexpr auto COSE = "application/cose";
-        static constexpr auto JAVASCRIPT = "text/javascript";
-        static constexpr auto CBOR = "application/cbor";
-      }
+      static constexpr auto JSON = "application/json";
+      static constexpr auto TEXT = "text/plain";
+      static constexpr auto OCTET_STREAM = "application/octet-stream";
+      static constexpr auto COSE = "application/cose";
+      static constexpr auto JAVASCRIPT = "text/javascript";
+      static constexpr auto CBOR = "application/cbor";
     }
 
     namespace auth
@@ -65,13 +62,10 @@ namespace ccf
       auth::SIGN_HEADER_REQUEST_TARGET, ccf::http::headers::DIGEST};
   }
 
-  namespace http2
+  namespace http2::headers
   {
-    namespace headers
-    {
-      static constexpr auto PATH = ":path";
-      static constexpr auto STATUS = ":status";
-      static constexpr auto METHOD = ":method";
-    }
+    static constexpr auto PATH = ":path";
+    static constexpr auto STATUS = ":status";
+    static constexpr auto METHOD = ":method";
   }
 }

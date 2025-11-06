@@ -56,12 +56,15 @@ namespace ccf
     hash.set(j.get<ClaimsDigest::Digest>());
   }
 
-  inline std::string schema_name([[maybe_unused]] const ClaimsDigest* claims_digest_type)
+  inline std::string schema_name(
+    [[maybe_unused]] const ClaimsDigest* claims_digest_type)
   {
     return ds::json::schema_name<ClaimsDigest::Digest>();
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, [[maybe_unused]] const ClaimsDigest* claims_digest_type)
+  inline void fill_json_schema(
+    nlohmann::json& schema,
+    [[maybe_unused]] const ClaimsDigest* claims_digest_type)
   {
     ds::json::fill_schema<ClaimsDigest::Digest>(schema);
   }

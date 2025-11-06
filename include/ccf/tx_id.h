@@ -116,12 +116,14 @@ namespace ccf
     tx_id = opt.value();
   }
 
-  inline std::string schema_name([[maybe_unused]] const TxID* transaction_id_type)
+  inline std::string schema_name(
+    [[maybe_unused]] const TxID* transaction_id_type)
   {
     return "TransactionId";
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, [[maybe_unused]] const TxID* transaction_id_type)
+  inline void fill_json_schema(
+    nlohmann::json& schema, [[maybe_unused]] const TxID* transaction_id_type)
   {
     schema["type"] = "string";
     schema["pattern"] = "^[0-9]+\\.[0-9]+$";

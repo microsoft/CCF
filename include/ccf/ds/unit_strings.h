@@ -149,12 +149,14 @@ namespace ccf::ds
     s = j.get<std::string_view>();
   }
 
-  inline std::string schema_name([[maybe_unused]] const SizeString* size_string_type)
+  inline std::string schema_name(
+    [[maybe_unused]] const SizeString* size_string_type)
   {
     return "TimeString";
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, [[maybe_unused]] const SizeString* size_string_type)
+  inline void fill_json_schema(
+    nlohmann::json& schema, [[maybe_unused]] const SizeString* size_string_type)
   {
     schema["type"] = "string";
     schema["pattern"] = "^[0-9]+(B|KB|MB|GB|TB|PB)?$";
@@ -203,12 +205,14 @@ namespace ccf::ds
     s = j.get<std::string_view>();
   }
 
-  inline std::string schema_name([[maybe_unused]] const TimeString* time_string_type)
+  inline std::string schema_name(
+    [[maybe_unused]] const TimeString* time_string_type)
   {
     return "TimeString";
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, [[maybe_unused]] const TimeString* time_string_type)
+  inline void fill_json_schema(
+    nlohmann::json& schema, [[maybe_unused]] const TimeString* time_string_type)
   {
     schema["type"] = "string";
     schema["pattern"] = "^[0-9]+(us|ms|s|min|h)?$";

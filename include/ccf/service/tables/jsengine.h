@@ -78,12 +78,15 @@ namespace ccf
 #undef XX
   }
 
-  inline std::string schema_name([[maybe_unused]] const JSRuntimeOptions* runtime_options_type)
+  inline std::string schema_name(
+    [[maybe_unused]] const JSRuntimeOptions* runtime_options_type)
   {
     return "JSRuntimeOptions";
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, [[maybe_unused]] const JSRuntimeOptions* runtime_options_type)
+  inline void fill_json_schema(
+    nlohmann::json& schema,
+    [[maybe_unused]] const JSRuntimeOptions* runtime_options_type)
   {
     schema = nlohmann::json::object();
     schema["type"] = "object";

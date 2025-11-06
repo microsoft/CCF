@@ -134,11 +134,15 @@ namespace ccf::js::core
     [[nodiscard]] JSWrappedValue new_array() const;
     JSWrappedValue new_array_buffer_copy(
       const uint8_t* buf, size_t buf_len) const;
-    [[nodiscard]] JSWrappedValue new_array_buffer_copy(const char* buf, size_t buf_len) const;
-    [[nodiscard]] JSWrappedValue new_array_buffer_copy(std::span<const uint8_t> data) const;
+    [[nodiscard]] JSWrappedValue new_array_buffer_copy(
+      const char* buf, size_t buf_len) const;
+    [[nodiscard]] JSWrappedValue new_array_buffer_copy(
+      std::span<const uint8_t> data) const;
     [[nodiscard]] JSWrappedValue new_string(const std::string_view& str) const;
-    [[nodiscard]] JSWrappedValue new_string_len(const char* buf, size_t buf_len) const;
-    [[nodiscard]] JSWrappedValue new_string_len(const std::span<const uint8_t> buf) const;
+    [[nodiscard]] JSWrappedValue new_string_len(
+      const char* buf, size_t buf_len) const;
+    [[nodiscard]] JSWrappedValue new_string_len(
+      const std::span<const uint8_t> buf) const;
     JSWrappedValue new_type_error(const char* fmt, ...) const;
     JSWrappedValue new_internal_error(const char* fmt, ...) const;
     [[nodiscard]] JSWrappedValue new_tag_value(int tag, int32_t val = 0) const;
@@ -171,15 +175,18 @@ namespace ccf::js::core
       const JSWrappedValue& f, const std::vector<JSWrappedValue>& argv);
 
     // JSON I/O
-    [[nodiscard]] JSWrappedValue json_stringify(const JSWrappedValue& obj) const;
+    [[nodiscard]] JSWrappedValue json_stringify(
+      const JSWrappedValue& obj) const;
     [[nodiscard]] JSWrappedValue parse_json(const nlohmann::json& j) const;
     JSWrappedValue parse_json(
       const char* buf, size_t buf_len, const char* filename) const;
 
     // Convert objects to string
-    [[nodiscard]] std::optional<std::string> to_str(const JSWrappedValue& x) const;
+    [[nodiscard]] std::optional<std::string> to_str(
+      const JSWrappedValue& x) const;
     [[nodiscard]] std::optional<std::string> to_str(const JSValue& x) const;
-    [[nodiscard]] std::optional<std::string> to_str(const JSValue& x, size_t& len) const;
+    [[nodiscard]] std::optional<std::string> to_str(
+      const JSValue& x, size_t& len) const;
     [[nodiscard]] std::optional<std::string> to_str(const JSAtom& atom) const;
 
     void add_extension(const js::extensions::ExtensionPtr& extension);

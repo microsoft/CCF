@@ -67,7 +67,8 @@ namespace ccf
     /// Return information about the persistent session which this request was
     /// received on. Allows correlation between multiple requests coming from
     /// the same long-lived session.
-    [[nodiscard]] virtual std::shared_ptr<SessionContext> get_session_context() const = 0;
+    [[nodiscard]] virtual std::shared_ptr<SessionContext> get_session_context()
+      const = 0;
 
     // Set user data that will be available in the post-local-commit handler.
     // This is useful to avoid the serialisation/deserialisation cost.
@@ -75,12 +76,14 @@ namespace ccf
     // Get the user data that was previously set.
     [[nodiscard]] virtual void* get_user_data() const = 0;
 
-    [[nodiscard]] virtual const std::vector<uint8_t>& get_request_body() const = 0;
+    [[nodiscard]] virtual const std::vector<uint8_t>& get_request_body()
+      const = 0;
     [[nodiscard]] virtual const std::string& get_request_query() const = 0;
     [[nodiscard]] virtual const ccf::RESTVerb& get_request_verb() const = 0;
     [[nodiscard]] virtual std::string get_request_path() const = 0;
     [[nodiscard]] virtual std::string get_method() const = 0;
-    [[nodiscard]] virtual std::shared_ptr<ccf::http::HTTPResponder> get_responder() const = 0;
+    [[nodiscard]] virtual std::shared_ptr<ccf::http::HTTPResponder>
+    get_responder() const = 0;
 
     /// Returns a map of all PathParams parsed out of the original query path.
     /// For instance if this endpoint was installed at `/foo/{name}/{age}`, and
@@ -95,7 +98,8 @@ namespace ccf
     virtual const PathParams& get_decoded_request_path_params() = 0;
 
     /// Returns map of all headers found in the request.
-    [[nodiscard]] virtual const http::HeaderMap& get_request_headers() const = 0;
+    [[nodiscard]] virtual const http::HeaderMap& get_request_headers()
+      const = 0;
 
     /// Returns value associated with named header, or nullopt of this header
     /// was not present.
@@ -122,7 +126,8 @@ namespace ccf
     virtual void set_response_body(std::vector<uint8_t>&& body) = 0;
     /// Sets the main body or payload of the response.
     virtual void set_response_body(std::string&& body) = 0;
-    [[nodiscard]] virtual const std::vector<uint8_t>& get_response_body() const = 0;
+    [[nodiscard]] virtual const std::vector<uint8_t>& get_response_body()
+      const = 0;
 
     /// Sets initial status code summarising result of RPC.
     virtual void set_response_status(int status) = 0;

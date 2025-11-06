@@ -80,7 +80,8 @@ namespace ccf::pal
 
   template <size_t N, typename Tag = void>
   inline void fill_json_schema(
-    nlohmann::json& schema, [[maybe_unused]] const AttestationMeasurement<N, Tag>* measurement_type)
+    nlohmann::json& schema,
+    [[maybe_unused]] const AttestationMeasurement<N, Tag>* measurement_type)
   {
     schema["type"] = "string";
 
@@ -100,7 +101,8 @@ namespace ccf::pal
   using SgxAttestationMeasurement =
     AttestationMeasurement<sgx_attestation_measurement_size>;
 
-  inline std::string schema_name([[maybe_unused]] const SgxAttestationMeasurement* sgx_measurement_type)
+  inline std::string schema_name(
+    [[maybe_unused]] const SgxAttestationMeasurement* sgx_measurement_type)
   {
     return "SgxAttestationMeasurement";
   }
@@ -110,7 +112,8 @@ namespace ccf::pal
   using SnpAttestationMeasurement =
     AttestationMeasurement<snp_attestation_measurement_size>;
 
-  inline std::string schema_name([[maybe_unused]] const SnpAttestationMeasurement* snp_measurement_type)
+  inline std::string schema_name(
+    [[maybe_unused]] const SnpAttestationMeasurement* snp_measurement_type)
   {
     return "SnpAttestationMeasurement";
   }
