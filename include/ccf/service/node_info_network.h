@@ -109,7 +109,8 @@ namespace ccf
       /// Timeout for forwarded RPC calls (in milliseconds)
       std::optional<size_t> forwarding_timeout_ms = std::nullopt;
 
-      /// TODO
+      /// Features enabled for this interface. Endpoints with required features
+      /// will be inaccessible if this does not enable those features.
       std::set<std::string> enabled_optin_features = {};
 
       struct Redirections

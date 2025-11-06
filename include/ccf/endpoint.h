@@ -318,7 +318,12 @@ namespace ccf::endpoints
      */
     Endpoint& set_openapi_hidden(bool hidden);
 
-    // TODO
+    /** Add an opt-in feature which this endpoint uses. The endpoint will only
+     * be available on interfaces which have opted in to enabling all required
+     * features.
+     *
+     * @return This Endpoint for further modification
+     */
     Endpoint& require_optin_feature(OptInFeatures::Flag feature);
 
     /** Sets the JSON schema that the request parameters must comply with.

@@ -167,8 +167,6 @@ namespace ccf
                 endpoint->full_uri_path,
                 required_feature,
                 *interface_id);
-              // TODO: This is SERVICE_UNAVAILABLE for consistency, but surely
-              // should be 404?
               ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
               return false;
             }
