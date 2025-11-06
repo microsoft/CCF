@@ -22,7 +22,7 @@ namespace ccf::pal
       return N;
     }
 
-    std::string hex_str() const
+    [[nodiscard]] std::string hex_str() const
     {
       return ds::to_hex(measurement);
     }
@@ -133,7 +133,7 @@ namespace ccf::pal
     PlatformAttestationMeasurement& operator=(
       const PlatformAttestationMeasurement&) = default;
 
-    std::string hex_str() const
+    [[nodiscard]] std::string hex_str() const
     {
       return ds::to_hex(data);
     }

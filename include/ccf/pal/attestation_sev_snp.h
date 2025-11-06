@@ -576,7 +576,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   class AttestationInterface
   {
   public:
-    virtual const snp::Attestation& get() const = 0;
+    [[nodiscard]] virtual const snp::Attestation& get() const = 0;
     virtual std::vector<uint8_t> get_raw() = 0;
 
     virtual ~AttestationInterface() = default;

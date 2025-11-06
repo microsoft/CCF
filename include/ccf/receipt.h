@@ -29,7 +29,7 @@ namespace ccf
 
     std::vector<ccf::crypto::Pem> service_endorsements = {};
 
-    virtual bool is_signature_transaction() const = 0;
+    [[nodiscard]] virtual bool is_signature_transaction() const = 0;
   };
 
   // Most transactions produce a receipt constructed from a combination of 3
@@ -104,7 +104,7 @@ namespace ccf
       }
     }
 
-    bool is_signature_transaction() const override
+    [[nodiscard]] bool is_signature_transaction() const override
     {
       return false;
     }
@@ -122,7 +122,7 @@ namespace ccf
       return signed_root;
     };
 
-    bool is_signature_transaction() const override
+    [[nodiscard]] bool is_signature_transaction() const override
     {
       return true;
     }

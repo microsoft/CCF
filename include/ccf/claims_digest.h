@@ -30,12 +30,12 @@ namespace ccf
       digest.set(std::move(r));
     }
 
-    inline bool empty() const
+    [[nodiscard]] inline bool empty() const
     {
       return !is_set;
     }
 
-    const Digest& value() const
+    [[nodiscard]] const Digest& value() const
     {
       return digest;
     }

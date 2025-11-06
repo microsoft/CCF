@@ -23,7 +23,7 @@ namespace ccf::endpoints
     /// HTTP Verb
     RESTVerb verb = HTTP_POST;
 
-    std::string to_str() const
+    [[nodiscard]] std::string to_str() const
     {
       return fmt::format("{} {}", verb.c_str(), uri_path);
     }

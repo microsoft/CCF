@@ -28,7 +28,7 @@ namespace ccf::pal::snp
     uint8_t reserved2 : 4;
 
     bool operator==(const CPUID&) const = default;
-    std::string hex_str() const
+    [[nodiscard]] std::string hex_str() const
     {
       CPUID buf = *this;
       auto buf_ptr = reinterpret_cast<uint8_t*>(&buf);
@@ -37,11 +37,11 @@ namespace ccf::pal::snp
       return fmt::format(
         "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
     }
-    inline uint8_t get_family_id() const
+    [[nodiscard]] inline uint8_t get_family_id() const
     {
       return this->base_family + this->extended_family;
     }
-    inline uint8_t get_model_id() const
+    [[nodiscard]] inline uint8_t get_model_id() const
     {
       return (this->extended_model << 4) | this->base_model;
     }

@@ -138,7 +138,7 @@ namespace ccf::ds
       return value;
     }
 
-    size_t count_bytes() const
+    [[nodiscard]] size_t count_bytes() const
     {
       return value;
     }
@@ -187,12 +187,12 @@ namespace ccf::ds
         std::chrono::microseconds(*this));
     }
 
-    size_t count_ms() const
+    [[nodiscard]] size_t count_ms() const
     {
       return std::chrono::milliseconds(*this).count();
     }
 
-    size_t count_s() const
+    [[nodiscard]] size_t count_s() const
     {
       return std::chrono::seconds(*this).count();
     }

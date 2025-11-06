@@ -54,12 +54,12 @@ namespace ccf
       verb = http_method_from_str(s.c_str());
     }
 
-    std::optional<llhttp_method> get_http_method() const
+    [[nodiscard]] std::optional<llhttp_method> get_http_method() const
     {
       return static_cast<llhttp_method>(verb);
     }
 
-    const char* c_str() const
+    [[nodiscard]] const char* c_str() const
     {
       return llhttp_method_name(static_cast<llhttp_method>(verb));
     }

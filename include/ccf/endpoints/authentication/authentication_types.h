@@ -38,7 +38,7 @@ namespace ccf
       std::shared_ptr<ccf::RpcContext> ctx, std::string&& error_reason)
     {}
 
-    virtual std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
+    [[nodiscard]] virtual std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
       const = 0;
 
     virtual std::string get_security_scheme_name() = 0;

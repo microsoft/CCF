@@ -62,17 +62,17 @@ namespace ccf
       return id;
     }
 
-    const Value& value() const
+    [[nodiscard]] const Value& value() const
     {
       return id;
     }
 
-    char const* data() const
+    [[nodiscard]] char const* data() const
     {
       return id.data();
     }
 
-    size_t size() const
+    [[nodiscard]] size_t size() const
     {
       return id.size();
     }

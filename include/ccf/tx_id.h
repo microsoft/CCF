@@ -45,7 +45,7 @@ namespace ccf
     View view = VIEW_UNKNOWN;
     SeqNo seqno = SEQNO_UNKNOWN;
 
-    std::string to_str() const
+    [[nodiscard]] std::string to_str() const
     {
       return std::to_string(view) + "." + std::to_string(seqno);
     }

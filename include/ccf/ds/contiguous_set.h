@@ -309,7 +309,7 @@ namespace ccf::ds
       return ranges;
     }
 
-    size_t size() const
+    [[nodiscard]] size_t size() const
     {
       return std::accumulate(
         ranges.begin(), ranges.end(), 0u, [](size_t n, const Range& r) {
@@ -317,7 +317,7 @@ namespace ccf::ds
         });
     }
 
-    bool empty() const
+    [[nodiscard]] bool empty() const
     {
       return ranges.empty();
     }
