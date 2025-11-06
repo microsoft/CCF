@@ -148,8 +148,7 @@ def test_network_node_info(network, args):
     host_spec.rpc_interfaces[operator_rpc_interface] = extra_interface
     host_spec.apply_args(args)
 
-    new_node = network.create_node(host_spec
-    )
+    new_node = network.create_node(host_spec)
     network.join_node(new_node, args.package, args)
 
     with new_node.client(interface_name=operator_rpc_interface) as c:
