@@ -167,7 +167,7 @@ namespace ccf
                 endpoint->full_uri_path,
                 required_feature,
                 *interface_id);
-              ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
+              ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
               return false;
             }
           }

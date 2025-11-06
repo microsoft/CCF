@@ -347,102 +347,119 @@ def test_snapshot_access(network, args):
     for node in (primary, *backups):
         with node.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
             r = c.head("/node/snapshot")
-            assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE, r
+            assert r.status_code == http.HTTPStatus.NOT_FOUND, r
             r = c.get("/node/snapshot")
-            assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE, r
+            assert r.status_code == http.HTTPStatus.NOT_FOUND, r
 
     interface = primary.host.rpc_interfaces[infra.interfaces.FILE_SERVING_RPC_INTERFACE]
     loc = f"https://{interface.public_host}:{interface.public_port}"
 
     with primary.client(
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
-    ) as c:
-        r = c.head("/node/snapshot", allow_redirects=False)
-        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
-        assert "location" in r.headers, r.headers
-        location = r.headers["location"]
-        path = f"/node/snapshot/{snapshot_name}"
-        assert location == f"{loc}{path}"
-        LOG.warning(r.headers)
+    ) as file_client:
+        with primary.client(
+            interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
+        ) as disabled_client:
 
-        for since, expected in (
-            (0, location),
-            (1, location),
-            (snapshot_index // 2, location),
-            (snapshot_index - 1, location),
-            (snapshot_index, None),
-            (snapshot_index + 1, None),
-        ):
-            for method in ("GET", "HEAD"):
-                r = c.call(
-                    f"/node/snapshot?since={since}",
-                    allow_redirects=False,
-                    http_verb=method,
+            def do_request(http_verb, *args, **kwargs):
+                r = disabled_client.call(*args, http_verb=http_verb, **kwargs)
+                assert (
+                    r.status_code == http.HTTPStatus.NOT_FOUND
+                ), f"Expected inaccessible due to disabled opt-in feature. Found:\n{r}"
+                return file_client.call(*args, http_verb=http_verb, **kwargs)
+
+            r = do_request("HEAD", "/node/snapshot", allow_redirects=False)
+            assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+            assert "location" in r.headers, r.headers
+            location = r.headers["location"]
+            path = f"/node/snapshot/{snapshot_name}"
+            assert location == f"{loc}{path}"
+            LOG.warning(r.headers)
+
+            for since, expected in (
+                (0, location),
+                (1, location),
+                (snapshot_index // 2, location),
+                (snapshot_index - 1, location),
+                (snapshot_index, None),
+                (snapshot_index + 1, None),
+            ):
+                for method in ("GET", "HEAD"):
+                    r = do_request(
+                        method,
+                        f"/node/snapshot?since={since}",
+                        allow_redirects=False,
+                    )
+                    if expected is None:
+                        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+                    else:
+                        assert (
+                            r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
+                        ), r
+                        assert "location" in r.headers, r.headers
+                        actual = r.headers["location"]
+                        assert actual == expected
+
+            r = do_request("HEAD", path)
+            assert r.status_code == http.HTTPStatus.OK.value, r
+            assert r.headers["accept-ranges"] == "bytes", r.headers
+            total_size = int(r.headers["content-length"])
+
+            a = total_size // 3
+            b = a * 2
+            for start, end in [
+                (0, None),
+                (0, total_size),
+                (0, a),
+                (a, a),
+                (a, b),
+                (b, b),
+                (b, total_size),
+                (b, None),
+            ]:
+                range_header_value = f"{start}-{'' if end is None else end}"
+                r = do_request(
+                    "GET", path, headers={"range": f"bytes={range_header_value}"}
                 )
-                if expected is None:
-                    assert r.status_code == http.HTTPStatus.NOT_FOUND, r
-                else:
-                    assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
-                    assert "location" in r.headers, r.headers
-                    actual = r.headers["location"]
-                    assert actual == expected
+                assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
 
-        r = c.head(path)
-        assert r.status_code == http.HTTPStatus.OK.value, r
-        assert r.headers["accept-ranges"] == "bytes", r.headers
-        total_size = int(r.headers["content-length"])
+                expected = snapshot_data[start:end]
+                actual = r.body.data()
+                assert (
+                    expected == actual
+                ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
 
-        a = total_size // 3
-        b = a * 2
-        for start, end in [
-            (0, None),
-            (0, total_size),
-            (0, a),
-            (a, a),
-            (a, b),
-            (b, b),
-            (b, total_size),
-            (b, None),
-        ]:
-            range_header_value = f"{start}-{'' if end is None else end}"
-            r = c.get(path, headers={"range": f"bytes={range_header_value}"})
-            assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
+            for negative_offset in [
+                1,
+                a,
+                b,
+            ]:
+                range_header_value = f"-{negative_offset}"
+                r = do_request(
+                    "GET", path, headers={"range": f"bytes={range_header_value}"}
+                )
+                assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
 
-            expected = snapshot_data[start:end]
-            actual = r.body.data()
-            assert (
-                expected == actual
-            ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
+                expected = snapshot_data[-negative_offset:]
+                actual = r.body.data()
+                assert (
+                    expected == actual
+                ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
 
-        for negative_offset in [
-            1,
-            a,
-            b,
-        ]:
-            range_header_value = f"-{negative_offset}"
-            r = c.get(path, headers={"range": f"bytes={range_header_value}"})
-            assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
-
-            expected = snapshot_data[-negative_offset:]
-            actual = r.body.data()
-            assert (
-                expected == actual
-            ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
-
-        # Check error handling for invalid ranges
-        for invalid_range, err_msg in [
-            (f"{a}-foo", "Unable to parse end of range value foo"),
-            ("foo-foo", "Unable to parse start of range value foo"),
-            (f"foo-{b}", "Unable to parse start of range value foo"),
-            (f"{b}-{a}", "out of order"),
-            ("-1-5", "Invalid format"),
-            ("-", "Invalid range"),
-            ("-foo", "Unable to parse end of range offset value foo"),
-            ("", "Invalid format"),
-        ]:
-            r = c.get(path, headers={"range": f"bytes={invalid_range}"})
-            assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
-            assert err_msg in r.body.json()["error"]["message"], r
+            # Check error handling for invalid ranges
+            for invalid_range, err_msg in [
+                (f"{a}-foo", "Unable to parse end of range value foo"),
+                ("foo-foo", "Unable to parse start of range value foo"),
+                (f"foo-{b}", "Unable to parse start of range value foo"),
+                (f"{b}-{a}", "out of order"),
+                ("-1-5", "Invalid format"),
+                ("-", "Invalid range"),
+                ("-foo", "Unable to parse end of range offset value foo"),
+                ("", "Invalid format"),
+            ]:
+                r = do_request("GET", path, headers={"range": f"bytes={invalid_range}"})
+                assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
+                assert err_msg in r.body.json()["error"]["message"], r
 
 
 def test_snapshot_selection(network, args):
@@ -469,7 +486,7 @@ def test_snapshot_selection(network, args):
 def _test_snapshot_selection(network, args):
     # Add nodes so we have at least 3
     while len(network.get_joined_nodes()) < 3:
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         network.join_node(
             new_node,
             args.package,
@@ -537,7 +554,9 @@ def _test_snapshot_selection(network, args):
     LOG.success(node_to_snapshot)
 
     def find_snapshot(node):
-        with node.client() as c:
+        with node.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
             r = c.head("/node/snapshot", allow_redirects=True)
             assert r.status_code == 200, r
             snapshot_name = r.headers["x-ms-ccf-snapshot-name"]
