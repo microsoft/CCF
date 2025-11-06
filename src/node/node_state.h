@@ -1769,6 +1769,11 @@ namespace ccf
         consensus->can_replicate());
     }
 
+    std::optional<ccf::NodeId> get_primary() override
+    {
+      return consensus->primary();
+    }
+
     bool is_in_initialised_state() const override
     {
       return sm.check(NodeStartupState::initialized);
