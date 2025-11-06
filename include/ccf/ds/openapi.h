@@ -78,7 +78,7 @@ namespace ccf::ds::openapi
     nlohmann::json& document, const std::string_view& path)
   {
     auto p = path;
-    if (p.find("/") != 0)
+    if (!p.starts_with('/'))
     {
       p = fmt::format("/{}", p);
     }

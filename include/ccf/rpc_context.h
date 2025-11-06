@@ -25,7 +25,7 @@ namespace ccf
     size_t client_session_id = InvalidSessionId;
 
     // Contains DER encoding of original caller
-    std::vector<uint8_t> caller_cert = {};
+    std::vector<uint8_t> caller_cert;
     bool is_forwarding = false;
 
     // Only set for RPC sessions (i.e. non-forwarded and non-internal)
