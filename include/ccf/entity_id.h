@@ -102,14 +102,14 @@ namespace ccf
   }
 
   template <typename FmtExtender>
-  inline std::string schema_name(const EntityId<FmtExtender>*)
+  inline std::string schema_name([[maybe_unused]] const EntityId<FmtExtender>* entity_id_type)
   {
     return FmtExtender::ID_LABEL;
   }
 
   template <typename FmtExtender>
   inline void fill_json_schema(
-    nlohmann::json& schema, const EntityId<FmtExtender>*)
+    nlohmann::json& schema, [[maybe_unused]] const EntityId<FmtExtender>* entity_id_type)
   {
     schema["type"] = "string";
 

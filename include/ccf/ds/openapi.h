@@ -263,7 +263,7 @@ namespace ccf::ds
     // recursive implementation for struct-to-object types is created by the
     // json.h macros, and this could be implemented manually for other types.
     template <typename Doc, typename T>
-    void add_schema_components(Doc&, nlohmann::json& j, const T* t)
+    void add_schema_components([[maybe_unused]] Doc& document, nlohmann::json& j, const T* t)
     {
       fill_json_schema(j, t);
     }
