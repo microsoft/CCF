@@ -461,6 +461,7 @@
           "None",
           "Leader",
           "Follower",
+          "PreVoteCandidate",
           "Candidate"
         ],
         "type": "string"

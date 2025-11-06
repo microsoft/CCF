@@ -38,6 +38,56 @@ import re
 from loguru import logger as LOG
 
 
+def force_become_primary(network, args, node):
+    # Ensure all nodes are equally up-to-date
+    network.wait_for_node_commit_sync()
+    p, _ = network.find_primary()
+    if p != node:
+        sleep_time = args.election_timeout_ms / 1000
+        LOG.info(
+            f"Suspending {node.node_id} and sleeping {sleep_time}s to trigger election"
+        )
+        # Suspend the target so they trigger an election on resume
+        # This is not guaranteed - if they process any queued message on wakeup, they may avoid calling an election. So try several times
+        attempts = 5
+        for attempt in range(attempts):
+            LOG.info(f"Attempt {attempt} / {attempts}")
+            node.suspend()
+            time.sleep(sleep_time)
+            node.resume()
+
+            try:
+                primary, _ = network.wait_for_new_primary_in(
+                    {node.node_id}, timeout_multiplier=3
+                )
+                break
+            except (infra.network.PrimaryNotFound, TimeoutError) as e:
+                LOG.error(f"No primary found: {e}")
+                continue
+
+        assert primary == node
+
+    # Wait for this node to emit and commit a signature
+    with node.client("user0") as c:
+        sig_interval = args.sig_ms_interval / 1000
+        t0 = time.time()
+        timeout = 3 * sig_interval
+        while time.time() - t0 < timeout:
+            r = c.get("/node/commit")
+            assert r.status_code == http.HTTPStatus.OK, r
+            tx_id = TxID.from_str(r.body.json()["transaction_id"])
+            receipt = node.get_receipt(view=tx_id.view, seqno=tx_id.seqno)
+            receipt_issuer = receipt.json()["node_id"]
+            if receipt_issuer == node.node_id:
+                return tx_id
+
+            time.sleep(sig_interval / 2)
+
+        raise TimeoutError(
+            f"New primary did not produce signature (and receipt) in new term after {timeout}s"
+        )
+
+
 @reqs.description("Move committed ledger files to read-only directory")
 def test_save_committed_ledger_files(network, args):
     # Issue txs in a loop to force a signature and a new ledger chunk
@@ -205,7 +255,7 @@ def test_forced_snapshot(network, args):
 
         # Submit a proposal to force a snapshot
         proposal_body, careful_vote = inner_network.consortium.make_proposal(
-            "trigger_snapshot", node_id=primary.node_id
+            "trigger_snapshot"
         )
         proposal = inner_network.consortium.get_any_active_member().propose(
             primary, proposal_body
@@ -255,9 +305,7 @@ def test_large_snapshot(network, args):
             )
 
     # Submit a proposal to force a snapshot at the following signature
-    proposal_body, careful_vote = network.consortium.make_proposal(
-        "trigger_snapshot", node_id=primary.node_id
-    )
+    proposal_body, careful_vote = network.consortium.make_proposal("trigger_snapshot")
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
@@ -397,6 +445,146 @@ def test_snapshot_access(network, args):
             assert err_msg in r.body.json()["error"]["message"], r
 
 
+def test_snapshot_selection(network, args):
+    inner_args = copy.deepcopy(args)
+    inner_args.common_read_only_ledger_dir = (
+        None  # Side-effect setting which would break the starting node
+    )
+    inner_args.label = f"{inner_args.label}_snapshot_selection"
+    inner_args.snapshot_tx_interval = (
+        10000  # Large interval to avoid interference from regular snapshots
+    )
+
+    # Use a separate network to ensure unforced snapshots do not happen
+    with infra.network.network(
+        inner_args.nodes,
+        inner_args.binary_dir,
+        inner_args.debug_nodes,
+        pdb=inner_args.pdb,
+    ) as inner_network:
+        inner_network.start_and_open(inner_args)
+        _test_snapshot_selection(inner_network, inner_args)
+
+
+def _test_snapshot_selection(network, args):
+    # Add nodes so we have at least 3
+    while len(network.get_joined_nodes()) < 3:
+        new_node = network.create_node("local://localhost")
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            from_snapshot=False,
+        )
+        network.trust_node(new_node, args)
+
+    def trigger_snapshot(node):
+        LOG.info(f"Triggering snapshot on {node.local_node_id}")
+        proposal_body, careful_vote = network.consortium.make_proposal(
+            "trigger_snapshot"
+        )
+        proposal = network.consortium.get_any_active_member().propose(
+            node, proposal_body
+        )
+        network.consortium.vote_using_majority(
+            node,
+            proposal,
+            careful_vote,
+        )
+
+    LOG.info("Creating snapshots")
+    primary, backups = network.find_nodes()
+    for i in range(3):
+        trigger_snapshot(primary)
+        # Snapshot creation and commit takes time. All of the helpers we have to track/poll this
+        # are expensive, so try a short sleep
+        time.sleep(1)
+
+    snapshots_dir = network.get_committed_snapshots(
+        primary,
+        force_txs=False,
+    )
+
+    src_snapshots = []
+    for snapshot_name in os.listdir(snapshots_dir):
+        if ccf.ledger.is_snapshot_file_committed(snapshot_name):
+            seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
+            src_snapshots.append(
+                (seqno, snapshot_name, os.path.join(snapshots_dir, snapshot_name))
+            )
+
+    src_snapshots.sort()
+    best_snapshot = src_snapshots[-1][1]
+
+    node_to_snapshot = {}
+    node_to_snapshot[primary] = best_snapshot
+
+    LOG.info("Copying new snapshots to backup directories")
+    for i, backup in enumerate(backups):
+        # Re-create empty directory
+        snapshot_dir = os.path.join(
+            backup.remote.remote.root, backup.remote.snapshots_dir_name
+        )
+        shutil.rmtree(snapshot_dir)
+        pathlib.Path(snapshot_dir).mkdir(parents=True, exist_ok=True)
+
+        # Copy single snapshot into dir
+        candidate = src_snapshots[-1 - i]
+        _, snapshot_name, src_path = candidate
+        shutil.copy(src_path, snapshot_dir)
+        node_to_snapshot[backup] = snapshot_name
+
+    LOG.success(node_to_snapshot)
+
+    def find_snapshot(node):
+        with node.client() as c:
+            r = c.head("/node/snapshot", allow_redirects=True)
+            assert r.status_code == 200, r
+            snapshot_name = r.headers["x-ms-ccf-snapshot-name"]
+            assert ccf.ledger.is_snapshot_file_committed(snapshot_name)
+            return snapshot_name
+
+    # Each node redirects to the best snapshot, while the primary holding it is still live and primary
+    for node in node_to_snapshot.keys():
+        actual_snapshot_name = find_snapshot(node)
+        assert actual_snapshot_name == best_snapshot
+
+    # Once an election happens, the new primary's snapshot is returned, which may no longer be the best
+    suspended = set()
+    while True:
+        primary.suspend()
+        suspended.add(primary)
+
+        try:
+            new_primary, _ = network.wait_for_new_primary(
+                old_primary=primary, timeout_multiplier=3
+            )
+            new_primarys_snapshot = find_snapshot(new_primary)
+        except infra.network.PrimaryNotFound:
+            # We've suspended so many nodes that elections fail. Now each node
+            # falls back to returning only its _own_ best snapshot
+            new_primary = None
+            new_primarys_snapshot = None
+
+        for node, nodes_best_snapshot in node_to_snapshot.items():
+            if node in suspended:
+                continue
+
+            snapshot_name = find_snapshot(node)
+            if new_primarys_snapshot is None:
+                assert snapshot_name == nodes_best_snapshot
+            else:
+                assert snapshot_name == new_primarys_snapshot
+
+        if new_primary is None:
+            break
+        else:
+            primary = new_primary
+
+    for node in suspended:
+        node.resume()
+
+
 def test_empty_snapshot(network, args):
 
     LOG.info("Check that empty snapshot is ignored")
@@ -419,7 +607,14 @@ def test_empty_snapshot(network, args):
 
             # Create new node and join network
             new_node = network.create_node()
-            network.join_node(new_node, args.package, args, snapshots_dir=snapshots_dir)
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                snapshots_dir=snapshots_dir,
+                # Don't try to fetch a snapshot, look at the local files
+                fetch_recent_snapshot=False,
+            )
             new_node.stop()
 
             # Check that the empty snapshot is correctly skipped
@@ -456,6 +651,8 @@ def test_nulled_snapshot(network, args):
                 args.package,
                 args,
                 snapshots_dir=snapshots_dir,
+                # Don't try to fetch a snapshot, look at the local files
+                fetch_recent_snapshot=False,
             )
         except Exception as e:
             failed = True
@@ -554,6 +751,7 @@ def run_file_operations(args):
                 test_forced_snapshot(network, args)
                 test_large_snapshot(network, args)
                 test_snapshot_access(network, args)
+                test_snapshot_selection(network, args)
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
 
@@ -1618,43 +1816,6 @@ def run_ledger_chunk_bytes_check(const_args):
 
         network.start_and_open(args)
 
-        def force_become_primary(node):
-            # Ensure all nodes are equally up-to-date
-            network.wait_for_node_commit_sync()
-            p, _ = network.find_primary()
-            if p != node:
-                sleep_time = args.election_timeout_ms / 1000
-                LOG.info(
-                    f"Suspending {node.node_id} and sleeping {sleep_time}s to trigger election"
-                )
-                # Suspend the target so they trigger an election on resume
-                node.suspend()
-                time.sleep(sleep_time)
-                node.resume()
-
-                primary, _ = network.wait_for_new_primary_in({node.node_id})
-                assert primary == node
-
-            # Wait for this node to emit and commit a signature
-            with node.client("user0") as c:
-                sig_interval = args.sig_ms_interval / 1000
-                t0 = time.time()
-                timeout = 3 * sig_interval
-                while time.time() - t0 < timeout:
-                    r = c.get("/node/commit")
-                    assert r.status_code == http.HTTPStatus.OK, r
-                    tx_id = TxID.from_str(r.body.json()["transaction_id"])
-                    receipt = node.get_receipt(view=tx_id.view, seqno=tx_id.seqno)
-                    receipt_issuer = receipt.json()["node_id"]
-                    if receipt_issuer == node.node_id:
-                        break
-
-                    time.sleep(sig_interval / 2)
-                else:
-                    raise TimeoutError(
-                        f"New primary did not produce signature (and receipt) in new term after {timeout}s"
-                    )
-
         primary, backups = network.find_nodes()
 
         nodes_and_sizes = [
@@ -1668,7 +1829,7 @@ def run_ledger_chunk_bytes_check(const_args):
         chunk_ends_by_size = defaultdict(list)
 
         for node, chunk_size in nodes_and_sizes:
-            force_become_primary(node)
+            force_become_primary(network, args, node)
             with node.client("user0") as c:
                 for _ in range(chunks_per_node):
                     written = 0
@@ -1691,7 +1852,7 @@ def run_ledger_chunk_bytes_check(const_args):
         # Confirm it has been correctly tracking chunk sizes while it was backup in this case.
         smallest_node, smallest_size = nodes_and_sizes[0]
         for node, chunk_size in nodes_and_sizes[1:]:
-            force_become_primary(node)
+            force_become_primary(network, args, node)
             with node.client("user0") as c:
                 written = 0
                 # Stop just before this node completes the chunk
@@ -1705,7 +1866,7 @@ def run_ledger_chunk_bytes_check(const_args):
                     written += unit_size
                 c.wait_for_commit(r)
 
-            force_become_primary(smallest_node)
+            force_become_primary(network, args, smallest_node)
             # Sleep long enough that this new primary node can produce a new time-based signature,
             # if they want to, to ensure they're tracking chunk sizes accurately
             time.sleep(args.sig_ms_interval / 1000)
@@ -1886,6 +2047,18 @@ def test_error_message_on_failure_to_fetch_snapshot(const_args):
         ), f"Did not find expected log messages: {expected_log_messages}"
 
 
+def run_snp_tests(args):
+    run_initial_uvm_descriptor_checks(args)
+    run_initial_tcb_version_checks(args)
+    run_recovery_local_unsealing(args)
+    run_recovery_local_unsealing(args, rekey=True)
+    run_recovery_local_unsealing(args, recovery_shares_refresh=True)
+    run_recovery_local_unsealing(args, recovery_f=1)
+    run_recovery_unsealing_corrupt(args)
+    run_recovery_unsealing_validate_audit(args)
+    test_error_message_on_failure_to_read_aci_sec_context(args)
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
@@ -1899,16 +2072,5 @@ def run(args):
     run_cose_signatures_config_check(args)
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
-
-    if infra.platform_detection.is_snp():
-        run_initial_uvm_descriptor_checks(args)
-        run_initial_tcb_version_checks(args)
-        run_recovery_local_unsealing(args)
-        run_recovery_local_unsealing(args, rekey=True)
-        run_recovery_local_unsealing(args, recovery_shares_refresh=True)
-        run_recovery_local_unsealing(args, recovery_f=1)
-        run_recovery_unsealing_corrupt(args)
-        run_recovery_unsealing_validate_audit(args)
-        test_error_message_on_failure_to_read_aci_sec_context(args)
     run_read_ledger_on_testdata(args)
     run_ledger_chunk_bytes_check(args)

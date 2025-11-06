@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev5
 
+### Added
+
+- Support for PreVote optimisation. Nodes understand and are able to respond to PreVote messages, but will not become pre-vote candidates themselves. (#7419)
+
+### Changed
+
+- When the `fetch_recent_snapshot` behaviour is enabled by the node config, the Joiner will now prefer the peer's snapshot over _any_ local snapshot, regardless of version (#7314).
+
 ### Removed
 
 - Removed the unused experimental `ccf.host.triggerSubprocess()` JS API
