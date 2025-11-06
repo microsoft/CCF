@@ -41,9 +41,9 @@ def test_invalid_partitions(network, args):
     except ValueError:
         pass
 
+    invalid_local_node_id = -1
+    new_node = infra.node.Node(invalid_local_node_id, "local://localhost")
     try:
-        invalid_local_node_id = -1
-        new_node = infra.node.Node(invalid_local_node_id, "local://localhost")
         network.partitioner.partition([new_node])
         assert False, "All nodes should belong to network"
     except ValueError:

@@ -72,7 +72,7 @@ def run(get_command, args):
 
     hosts = args.nodes
     if not hosts:
-        hosts = ["local://localhost"] * minimum_number_of_local_nodes(args)
+        hosts = infra.e2e_args.nodes(args, minimum_number_of_local_nodes(args))
 
     args.initial_user_count = 3
     args.sig_ms_interval = 1000  # Set to cchost default value

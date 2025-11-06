@@ -565,7 +565,9 @@ def run_file_operations(args):
                 args.common_read_only_ledger_dir = None  # Reset for future tests
 
 
-def run_tls_san_checks(args):
+def run_tls_san_checks(const_args):
+    args = copy.deepcopy(const_args)
+    args.label += "_tls_san"
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -616,9 +618,12 @@ def run_tls_san_checks(args):
         ), f"Expected SANs do not match: {ip_sans} vs {dummy_public_rpc_hosts}"
 
 
-def run_config_timeout_check(args):
+def run_config_timeout_check(const_args):
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    args.label += "_config_timeout"
     with infra.network.network(
-        ["local://localhost"],
+        args.nodes,
         args.binary_dir,
         args.debug_nodes,
         pdb=args.pdb,
@@ -681,9 +686,12 @@ def run_config_timeout_check(args):
     proc.wait()
 
 
-def run_sighup_check(args):
+def run_sighup_check(const_args):
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    args.label += "_sighup_check"
     with infra.network.network(
-        ["local://localhost"],
+        args.nodes,
         args.binary_dir,
         args.debug_nodes,
         pdb=args.pdb,
@@ -773,9 +781,12 @@ def run_pid_file_check(args):
         network.ignoring_shutdown_errors = True
 
 
-def run_max_uncommitted_tx_count(args):
+def run_max_uncommitted_tx_count(const_args):
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.nodes(args, 2)
+    args.label += "_max_uncommitted_tx"
     with infra.network.network(
-        ["local://localhost", "local://localhost"],
+        args.nodes,
         args.binary_dir,
         args.debug_nodes,
         pdb=args.pdb,
