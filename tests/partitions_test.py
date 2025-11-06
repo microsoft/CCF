@@ -42,7 +42,9 @@ def test_invalid_partitions(network, args):
         pass
 
     invalid_local_node_id = -1
-    new_node = infra.node.Node(invalid_local_node_id, "local://localhost")
+    new_node = infra.node.Node(
+        invalid_local_node_id, infra.interfaces.HostSpec().with_args(args)
+    )
     try:
         network.partitioner.partition([new_node])
         assert False, "All nodes should belong to network"
