@@ -53,6 +53,23 @@ If you want to run Docker containers within your Codespace, you'll need to modif
 
 This mount configuration gives the devcontainer access to the host's Docker daemon, enabling you to run Docker commands within your Codespace.
 
+Enabling iptables access for network partition tests
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If you want to run the ``partitions_test`` suite, which uses iptables to create network partitions for testing, you'll need to grant the devcontainer additional network capabilities. Add the following to the ``runArgs`` array in :ccf_repo:`.devcontainer/devcontainer.json <.devcontainer/devcontainer.json>`:
+
+.. code-block:: json
+
+    "runArgs": [
+      "--cap-add=SYS_PTRACE",
+      "--security-opt",
+      "seccomp=unconfined",
+      "--cap-add=NET_ADMIN",
+      "--cap-add=NET_RAW"
+    ]
+
+The ``NET_ADMIN`` and ``NET_RAW`` capabilities are required for the partition tests to manipulate iptables rules, which are used to simulate network partitions between CCF nodes during testing.
+
 How to install docker
 ~~~~~~~~~~~~~~~~~~~~~
 
