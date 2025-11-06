@@ -98,8 +98,11 @@ namespace asynchost
       if (!uv_is_closing((uv_handle_t*)&uv_handle))
       {
         uv_close((uv_handle_t*)&uv_handle, on_close);
-      } else {
-        // If already closing, assume we don't get called back and delete ourselves
+      }
+      else
+      {
+        // If already closing, assume we don't get called back and delete
+        // ourselves
         delete this;
       }
     }

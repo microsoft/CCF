@@ -682,8 +682,7 @@ namespace ccf
       LOG_FAIL_FMT(
         "uv_loop_close failed after {} iterations with code {}",
         max_close_iterations - close_iterations,
-        loop_close_rc
-      );
+        loop_close_rc);
       return false;
     }
 
