@@ -633,7 +633,7 @@ namespace ccf::curl
   };
 
   // Must be created on the same thread as the uv loop is running
-  class CurlmLibuvContextImpl
+  class CurlmLibuvContext
   {
     /* Very high level:
      * CURLM triggers timeout callback with some delay for libuv
@@ -664,11 +664,11 @@ namespace ccf::curl
 
     class SocketContextImpl : public asynchost::with_uv_handle<uv_poll_t>
     {
-      friend class CurlmLibuvContextImpl;
+      friend class CurlmLibuvContext;
 
     public:
       curl_socket_t socket{};
-      CurlmLibuvContextImpl* context = nullptr;
+      CurlmLibuvContext* context = nullptr;
     };
 
     using SocketContext = asynchost::proxy_ptr<SocketContextImpl>;
@@ -679,7 +679,7 @@ namespace ccf::curl
 
     static void async_requests_callback(uv_async_t* handle)
     {
-      auto* self = static_cast<CurlmLibuvContextImpl*>(handle->data);
+      auto* self = static_cast<CurlmLibuvContext*>(handle->data);
       if (self == nullptr)
       {
         throw std::logic_error(
@@ -709,7 +709,7 @@ namespace ccf::curl
   public:
     static void libuv_timeout_callback(uv_timer_t* handle)
     {
-      auto* self = static_cast<CurlmLibuvContextImpl*>(handle->data);
+      auto* self = static_cast<CurlmLibuvContext*>(handle->data);
       if (self == nullptr)
       {
         throw std::logic_error(
@@ -735,7 +735,7 @@ namespace ccf::curl
     }
 
     static int curl_timeout_callback(
-      CURLM* multi, long timeout_ms, CurlmLibuvContextImpl* self)
+      CURLM* multi, long timeout_ms, CurlmLibuvContext* self)
     {
       (void)multi;
       if (self == nullptr)
@@ -849,7 +849,7 @@ namespace ccf::curl
       CURL* easy,
       curl_socket_t s,
       int action,
-      CurlmLibuvContextImpl* self,
+      CurlmLibuvContext* self,
       SocketContextImpl* socket_context)
     {
       if (self == nullptr)
@@ -916,7 +916,7 @@ namespace ccf::curl
       return 0;
     }
 
-    CurlmLibuvContextImpl(uv_loop_t* loop) : loop(loop)
+    CurlmLibuvContext(uv_loop_t* loop) : loop(loop)
     {
       uv_timer_init(loop, &uv_handle);
       uv_handle.data = this; // Attach this instance to the timer
@@ -966,8 +966,7 @@ namespace ccf::curl
     friend class ::asynchost::close_ptr;
     size_t closed_uv_handle_count = 0;
 
-    // called by the close_ptr within the destructor of the proxy_ptr
-    void close()
+    ~CurlmLibuvContext()
     {
       LOG_TRACE_FMT("Closing CurlmLibuvContext");
 
@@ -1003,42 +1002,8 @@ namespace ccf::curl
           curl_easy_cleanup(easy);
         }
       }
-      // Drain the deque rather than letting it destruct
-      std::deque<std::unique_ptr<CurlRequest>> requests_to_cleanup;
-      {
-        std::lock_guard<std::mutex> requests_lock(requests_mutex);
-        requests_to_cleanup.swap(pending_requests);
-      }
-      // Dispatch uv_close to asynchronously close the timer handle
-      uv_close(
-        reinterpret_cast<uv_handle_t*>(&async_requests_handle), on_close);
-      uv_close(reinterpret_cast<uv_handle_t*>(&uv_handle), on_close);
-    }
-    static void on_close(uv_handle_t* handle)
-    {
-      auto& close_count = static_cast<CurlmLibuvContextImpl*>(handle->data)
-                            ->closed_uv_handle_count;
-      close_count++;
-      if (close_count >= 2)
-      {
-        static_cast<CurlmLibuvContextImpl*>(handle->data)->on_close();
-      }
-    }
-    void on_close()
-    {
-      // We are being notified asynchronously that libuv has finished closing
-      delete this;
     }
   };
-
-  // Required destructor sequence triggered by proxy_ptr calling close
-  // 1. Detach CURLM handle from this object and clean up all easy handles.
-  //    Detaching prevents new easy handles being added.
-  //    curl_multi_cleanup detaches all sockets from libuv
-  // 2. Close the libuv timer handle.
-  //    Prevents any further callbacks from the libuv timer
-  // 3. Delete CurlmLibuvContextImpl via the on_close callback
-  using CurlmLibuvContext = asynchost::proxy_ptr<CurlmLibuvContextImpl>;
 
   class CurlmLibuvContextSingleton
   {

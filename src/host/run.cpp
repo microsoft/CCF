@@ -646,6 +646,61 @@ namespace ccf
     }
   }
 
+  [[nodiscard]]
+  bool close_uv_loop()
+  {
+    uv_loop_t* loop = uv_default_loop();
+
+    uv_walk(
+      loop,
+      [](uv_handle_t* handle, void*) {
+        if (!uv_is_closing(handle))
+        {
+          uv_close(handle, nullptr);
+        }
+      },
+      nullptr);
+
+    // Run close actions in loop
+    constexpr size_t max_close_iterations = 1000;
+    size_t close_iterations = max_close_iterations;
+    int loop_close_rc = 0;
+    while (close_iterations > 0)
+    {
+      loop_close_rc = uv_loop_close(uv_default_loop());
+      if (loop_close_rc != UV_EBUSY)
+      {
+        break;
+      }
+      uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+      --close_iterations;
+      std::this_thread::sleep_for(10ms);
+    }
+
+    if (loop_close_rc != 0)
+    {
+      LOG_FAIL_FMT(
+        "uv_loop_close failed after {} iterations with code {}",
+        max_close_iterations - close_iterations,
+        loop_close_rc
+      );
+      return false;
+    }
+
+    // No handle should be active now
+    uv_walk(
+      loop,
+      [](uv_handle_t* handle, void*) {
+        CCF_ASSERT_FMT(
+          uv_is_closing(handle),
+          "Handle still active after uv_loop_close: {}",
+          uv_handle_type_name(handle->type));
+      },
+      nullptr);
+
+    return true;
+  }
+
   std::optional<size_t> run_main_loop(
     host::CCHostConfig& config,
     messaging::BufferProcessor& buffer_processor,
@@ -868,6 +923,12 @@ namespace ccf
 
     // Run enclave threads and event loop
     run_enclave_threads(config);
+
+    if (!close_uv_loop())
+    {
+      LOG_FAIL_FMT("Failed to close uv loop cleanly");
+      return 1;
+    }
 
     return std::nullopt;
   }
@@ -1109,39 +1170,8 @@ namespace ccf
       }
     }
 
-    constexpr size_t max_close_iterations = 1000;
-    size_t close_iterations = max_close_iterations;
-    int loop_close_rc = 0;
-    while (close_iterations > 0)
-    {
-      loop_close_rc = uv_loop_close(uv_default_loop());
-      if (loop_close_rc != UV_EBUSY)
-      {
-        break;
-      }
-      uv_run(uv_default_loop(), UV_RUN_NOWAIT);
-      --close_iterations;
-      std::this_thread::sleep_for(10ms);
-    }
-    LOG_INFO_FMT(
-      "Ran an extra {} cleanup iteration(s)",
-      max_close_iterations - close_iterations);
-    if (loop_close_rc != 0)
-    {
-      LOG_FAIL_FMT(
-        "Failed to close uv loop cleanly: {}", uv_err_name(loop_close_rc));
-      // walk loop to diagnose unclosed handles
-      auto cb = [](uv_handle_t* handle, void* arg) {
-        (void)arg;
-        LOG_FAIL_FMT(
-          "Leaked handle: type={}, ptr={}",
-          uv_handle_type_name(handle->type),
-          fmt::ptr(handle));
-      };
-      uv_walk(uv_default_loop(), cb, nullptr);
-    }
     curl_global_cleanup();
 
-    return loop_close_rc;
+    return 0;
   }
 }
