@@ -1039,7 +1039,7 @@ def test_metrics_logging(network, args):
     primary, _ = network.find_nodes()
 
     # Add and test on a new node, so we can kill it to safely read its logs
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     network.join_node(
         new_node,
         args.package,

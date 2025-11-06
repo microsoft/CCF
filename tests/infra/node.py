@@ -619,7 +619,8 @@ class Node:
     def get_public_rpc_address(
         self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
     ):
-        interface = self.host.rpc_interfaces[interface_name]
+        interface = self.host.rpc_interfaces.get(interface_name, None)
+        assert interface != None, f"Missing interface {interface_name} on {self} ({self.local_node_id}, {self.node_id})"
         return infra.interfaces.make_address(
             interface.public_host, interface.public_port
         )

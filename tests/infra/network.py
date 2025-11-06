@@ -304,7 +304,7 @@ class Network:
         self.next_node_id += 1
         return next_node_id
 
-    def create_node(self, host, binary_dir=None, library_dir=None, **kwargs):
+    def create_node(self, host=None, binary_dir=None, library_dir=None, **kwargs):
         node_id = self._get_next_local_node_id()
         debug = (
             (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
@@ -316,6 +316,8 @@ class Network:
             host = infra.interfaces.HostSpec(
                 rpc_interfaces={infra.interfaces.PRIMARY_RPC_INTERFACE: interface}
             )
+        elif host == None:
+            host = infra.interfaces.HostSpec()
 
         node = infra.node.Node(
             node_id,
@@ -389,7 +391,9 @@ class Network:
             workspace=args.workspace,
             label=args.label,
             common_dir=self.common_dir,
-            target_rpc_address=target_node.get_public_rpc_address(),
+            target_rpc_address=target_node.get_public_rpc_address(
+                interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+            ),
             snapshots_dir=snapshots_dir,
             read_only_snapshots_dir=read_only_snapshots_dir,
             ledger_dir=current_ledger_dir,
@@ -1344,7 +1348,7 @@ class Network:
         initial_node_count = node_count
         LOG.info(f"Resizing network from {initial_node_count} to {target_count} nodes")
         while node_count < target_count:
-            new_node = self.create_node("local://localhost")
+            new_node = self.create_node()
             self.join_node(new_node, args.package, args)
             self.trust_node(new_node, args)
             node_count += 1

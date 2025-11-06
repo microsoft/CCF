@@ -317,7 +317,8 @@ class HostSpec:
         return self.rpc_interfaces[PRIMARY_RPC_INTERFACE]
 
     def with_args(self, args):
-        self.get_primary_interface().apply_args(args)
+        for interface in self.rpc_interfaces.values():
+            interface.apply_args(args)
         return self
 
     @staticmethod

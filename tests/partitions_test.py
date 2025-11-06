@@ -234,7 +234,7 @@ def test_new_joiner_helps_liveness(network, args):
 
     with contextlib.ExitStack() as stack:
         # Add a new node, but partition them before trusting them
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         network.join_node(new_node, args.package, args, from_snapshot=False)
         new_joiner_partition = [new_node]
         new_joiner_rules = stack.enter_context(
@@ -440,7 +440,7 @@ def test_election_reconfiguration(network, args):
 
     LOG.info("Retire former primary and add new node")
     network.retire_node(backups[0], primary)
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     network.join_node(new_node, args.package, args, from_snapshot=False)
     network.trust_node(new_node, args)
 

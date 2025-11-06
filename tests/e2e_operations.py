@@ -418,7 +418,7 @@ def test_empty_snapshot(network, args):
             ), temp_empty_snapshot.name
 
             # Create new node and join network
-            new_node = network.create_node("local://localhost")
+            new_node = network.create_node()
             network.join_node(new_node, args.package, args, snapshots_dir=snapshots_dir)
             new_node.stop()
 
@@ -448,7 +448,7 @@ def test_nulled_snapshot(network, args):
         LOG.info(
             "Attempt to join a node using the corrupted snapshot copy (should fail)"
         )
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         failed = False
         try:
             network.join_node(
@@ -949,7 +949,7 @@ def run_late_mounted_ledger_check(args):
 
         # Create a temporary directory to manually construct a ledger in
         with tempfile.TemporaryDirectory() as temp_dir:
-            new_node = network.create_node("local://localhost")
+            new_node = network.create_node()
             network.join_node(
                 new_node,
                 nargs.package,
@@ -1777,7 +1777,7 @@ def test_error_message_on_failure_to_read_aci_sec_context(args):
 
         args_copy = copy.deepcopy(args)
 
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         args_copy.snp_endorsements_servers = ["Azure:invalid.azure.com"]
         args_copy.snp_security_policy_file = "/a/fake/path"
         args_copy.snp_uvm_endorsements_file = "/a/fake/path"
@@ -1827,7 +1827,7 @@ def test_error_message_on_failure_to_fetch_snapshot(const_args):
 
         primary, _ = network.find_primary()
 
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
 
         # Shut down primary to cause snapshot fetch to fail
         primary.remote.stop()
