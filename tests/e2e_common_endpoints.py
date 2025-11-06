@@ -30,7 +30,7 @@ def test_primary(network, args):
 
     host_spec = infra.interfaces.HostSpec()
     host_spec.rpc_interfaces[interface_name] = extra_interface
-    host_spec.apply_args(args)
+    host_spec.with_args(args)
 
     new_backup = network.create_node(host_spec)
     network.join_node(new_backup, args.package, args)
@@ -146,7 +146,7 @@ def test_network_node_info(network, args):
 
     host_spec = infra.interfaces.HostSpec()
     host_spec.rpc_interfaces[operator_rpc_interface] = extra_interface
-    host_spec.apply_args(args)
+    host_spec.with_args(args)
 
     new_node = network.create_node(host_spec)
     network.join_node(new_node, args.package, args)

@@ -313,9 +313,8 @@ class Network:
         if isinstance(host, str):
             interface = infra.interfaces.RPCInterface()
             interface.parse_from_str(host)
-            host = infra.interfaces.HostSpec(
-                rpc_interfaces={infra.interfaces.PRIMARY_RPC_INTERFACE: interface}
-            )
+            host = infra.interfaces.HostSpec()
+            host.rpc_interfaces[infra.interfaces.PRIMARY_RPC_INTERFACE] = interface
         elif host is None:
             host = infra.interfaces.HostSpec()
 
