@@ -946,26 +946,6 @@ namespace ccf::curl
         curl_socket_callback);
     }
 
-    void attach_request(std::unique_ptr<CurlRequest>&& request)
-    {
-      if (is_stopping)
-      {
-        LOG_FAIL_FMT("CurlmLibuvContext already closed, cannot attach request");
-        return;
-      }
-      LOG_DEBUG_FMT("Adding request to {} to queue", request->get_url());
-      std::lock_guard<std::mutex> requests_lock(requests_mutex);
-      pending_requests.push_back(std::move(request));
-      uv_async_send(&async_requests_handle);
-    }
-
-  private:
-    // Interface to allow the proxy pointer to close and delete this safely
-    // Make the templated asynchost::close_ptr a friend so it can call close()
-    template <typename T>
-    friend class ::asynchost::close_ptr;
-    size_t closed_uv_handle_count = 0;
-
     ~CurlmLibuvContext()
     {
       LOG_TRACE_FMT("Closing CurlmLibuvContext");
@@ -1003,6 +983,26 @@ namespace ccf::curl
         }
       }
     }
+
+    void attach_request(std::unique_ptr<CurlRequest>&& request)
+    {
+      if (is_stopping)
+      {
+        LOG_FAIL_FMT("CurlmLibuvContext already closed, cannot attach request");
+        return;
+      }
+      LOG_DEBUG_FMT("Adding request to {} to queue", request->get_url());
+      std::lock_guard<std::mutex> requests_lock(requests_mutex);
+      pending_requests.push_back(std::move(request));
+      uv_async_send(&async_requests_handle);
+    }
+
+  private:
+    // Interface to allow the proxy pointer to close and delete this safely
+    // Make the templated asynchost::close_ptr a friend so it can call close()
+    template <typename T>
+    friend class ::asynchost::close_ptr;
+    size_t closed_uv_handle_count = 0;
   };
 
   class CurlmLibuvContextSingleton

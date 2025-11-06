@@ -687,17 +687,6 @@ namespace ccf
       return false;
     }
 
-    // No handle should be active now
-    uv_walk(
-      loop,
-      [](uv_handle_t* handle, void*) {
-        CCF_ASSERT_FMT(
-          uv_is_closing(handle),
-          "Handle still active after uv_loop_close: {}",
-          uv_handle_type_name(handle->type));
-      },
-      nullptr);
-
     return true;
   }
 

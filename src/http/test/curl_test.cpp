@@ -129,7 +129,7 @@ TEST_CASE("CurlmLibuvContext")
         std::move(response_callback),
         std::nullopt);
 
-      ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+      ccf::curl::CurlmLibuvContextSingleton::get_instance().attach_request(
         std::move(request));
     }
   };
@@ -195,7 +195,7 @@ TEST_CASE("CurlmLibuvContext slow")
         std::move(response_callback),
         std::nullopt);
 
-      ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+      ccf::curl::CurlmLibuvContextSingleton::get_instance().attach_request(
         std::move(request));
     }
   };
@@ -269,7 +269,7 @@ TEST_CASE("CurlmLibuvContext timeouts")
         std::move(response_callback),
         std::nullopt);
 
-      ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+      ccf::curl::CurlmLibuvContextSingleton::get_instance().attach_request(
         std::move(request));
     }
   };
@@ -349,7 +349,7 @@ TEST_CASE("CurlmLibuvContext multiple init")
         std::move(response_callback),
         std::nullopt);
 
-      ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+      ccf::curl::CurlmLibuvContextSingleton::get_instance().attach_request(
         std::move(request));
     }
   };
