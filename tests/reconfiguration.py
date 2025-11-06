@@ -816,7 +816,7 @@ def run_all(args):
 
 def run_join_old_snapshot(const_args):
     txs = app.LoggingTxs("user0")
-    args = copy.deepcopy(const_args)
+    args = deepcopy(const_args)
     args.nodes = infra.e2e_args.nodes(args, 1)
     args.label += "_old_snapshot"
 
