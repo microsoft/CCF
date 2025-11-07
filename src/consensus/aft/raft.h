@@ -1056,16 +1056,6 @@ namespace aft
       const auto prev_term = get_term_internal(prev_idx);
       const auto term_of_idx = get_term_internal(end_idx);
 
-      RAFT_DEBUG_FMT(
-        "Send append entries from {} to {}: ({}.{}, {}.{}] ({})",
-        state->node_id,
-        to,
-        prev_term,
-        prev_idx,
-        term_of_idx,
-        end_idx,
-        state->commit_idx);
-
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-designator"
       AppendEntries ae{
@@ -1077,6 +1067,17 @@ namespace aft
         .term_of_idx = term_of_idx,
       };
 #pragma clang diagnostic pop
+
+      RAFT_DEBUG_FMT(
+        "Send {} from {} to {}: ({}.{}, {}.{}] ({})",
+        nlohmann::json(ae.msg).dump(),
+        state->node_id,
+        to,
+        prev_term,
+        prev_idx,
+        term_of_idx,
+        end_idx,
+        state->commit_idx);
 
       auto& node = all_other_nodes.at(to);
 
@@ -1113,7 +1114,8 @@ namespace aft
       std::unique_lock<ccf::pal::Mutex> guard(state->lock);
 
       RAFT_DEBUG_FMT(
-        "Received append entries: {}.{} to {}.{} (from {} in term {})",
+        "Received {}: {}.{} to {}.{} (from {} in term {})",
+        r.msg,
         r.prev_term,
         r.prev_idx,
         r.term_of_idx,
@@ -1152,7 +1154,8 @@ namespace aft
       {
         // Reply false, since our term is later than the received term.
         RAFT_INFO_FMT(
-          "Recv append entries to {} from {} but our term is later ({} > {})",
+          "Recv {} to {} from {} but our term is later ({} > {})",
+          r.msg,
           state->node_id,
           from,
           state->current_view,
@@ -1173,8 +1176,9 @@ namespace aft
         if (prev_term == 0)
         {
           RAFT_DEBUG_FMT(
-            "Recv append entries to {} from {} but our log does not yet "
+            "Recv {} to {} from {} but our log does not yet "
             "contain index {}",
+            r.msg,
             state->node_id,
             from,
             r.prev_idx);
@@ -1183,8 +1187,9 @@ namespace aft
         else
         {
           RAFT_DEBUG_FMT(
-            "Recv append entries to {} from {} but our log at {} has the wrong "
+            "Recv {} to {} from {} but our log at {} has the wrong "
             "previous term (ours: {}, theirs: {})",
+            r.msg,
             state->node_id,
             from,
             r.prev_idx,
@@ -1210,8 +1215,9 @@ namespace aft
       if (r.prev_idx < state->commit_idx)
       {
         RAFT_DEBUG_FMT(
-          "Recv append entries to {} from {} but prev_idx ({}) < commit_idx "
+          "Recv {} to {} from {} but prev_idx ({}) < commit_idx "
           "({})",
+          r.msg,
           state->node_id,
           from,
           r.prev_idx,
@@ -1225,7 +1231,8 @@ namespace aft
       else if (r.prev_idx > state->last_idx)
       {
         RAFT_FAIL_FMT(
-          "Recv append entries to {} from {} but prev_idx ({}) > last_idx ({})",
+          "Recv {} to {} from {} but prev_idx ({}) > last_idx ({})",
+          r.msg,
           state->node_id,
           from,
           r.prev_idx,
@@ -1234,7 +1241,8 @@ namespace aft
       }
 
       RAFT_DEBUG_FMT(
-        "Recv append entries to {} from {} for index {} and previous index {}",
+        "Recv {} to {} from {} for index {} and previous index {}",
+        r.msg,
         state->node_id,
         from,
         r.idx,
@@ -1316,7 +1324,8 @@ namespace aft
         {
           // This should only fail if there is malformed data.
           RAFT_FAIL_FMT(
-            "Recv append entries to {} from {} but the data is malformed: {}",
+            "Recv {} to {} from {} but the data is malformed: {}",
+            r.msg,
             state->node_id,
             from,
             e.what());
@@ -1329,8 +1338,9 @@ namespace aft
         if (ds == nullptr)
         {
           RAFT_FAIL_FMT(
-            "Recv append entries to {} from {} but the entry could not be "
+            "Recv {} to {} from {} but the entry could not be "
             "deserialised",
+            r.msg,
             state->node_id,
             from);
           send_append_entries_response_nack(from);
@@ -1529,18 +1539,19 @@ namespace aft
       aft::Term response_term,
       aft::Index response_idx)
     {
-      RAFT_DEBUG_FMT(
-        "Send append entries response from {} to {} for index {}: {}",
-        state->node_id,
-        to,
-        response_idx,
-        (answer == AppendEntriesResponseType::OK ? "ACK" : "NACK"));
-
       AppendEntriesResponse response{
         .term = response_term,
         .last_log_idx = response_idx,
         .success = answer,
       };
+
+      RAFT_DEBUG_FMT(
+        "Send {} response from {} to {} for index {}: {}",
+        response.msg,
+        state->node_id,
+        to,
+        response_idx,
+        (answer == AppendEntriesResponseType::OK ? "ACK" : "NACK"));
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1588,7 +1599,8 @@ namespace aft
       if (state->leadership_state != ccf::kv::LeadershipState::Leader)
       {
         RAFT_INFO_FMT(
-          "Recv append entries response to {} from {}: no longer leader",
+          "Recv {} to {} from {}: no longer leader",
+          r.msg,
           state->node_id,
           from);
         return;
@@ -1601,8 +1613,9 @@ namespace aft
       {
         // We are behind, update our state.
         RAFT_DEBUG_FMT(
-          "Recv append entries response to {} from {}: more recent term ({} "
+          "Recv {} to {} from {}: more recent term ({} "
           "> {})",
+          r.msg,
           state->node_id,
           from,
           r.term,
@@ -1620,7 +1633,8 @@ namespace aft
         if (r.success == AppendEntriesResponseType::OK)
         {
           RAFT_DEBUG_FMT(
-            "Recv append entries response to {} from {}: stale term ({} != {})",
+            "Recv {} to {} from {}: stale term ({} != {})",
+            r.msg,
             state->node_id,
             from,
             r.term,
@@ -1638,7 +1652,8 @@ namespace aft
         if (r.success == AppendEntriesResponseType::OK)
         {
           RAFT_DEBUG_FMT(
-            "Recv append entries response to {} from {}: stale idx",
+            "Recv {} to {} from {}: stale idx",
+            r.msg,
             state->node_id,
             from);
           return;
@@ -1650,7 +1665,8 @@ namespace aft
       {
         // Failed due to log inconsistency. Reset sent_idx, and try again soon.
         RAFT_DEBUG_FMT(
-          "Recv append entries response to {} from {}: failed",
+          "Recv {} to {} from {}: failed",
+          r.msg,
           state->node_id,
           from);
         const auto this_match =
@@ -1668,7 +1684,8 @@ namespace aft
       }
 
       RAFT_DEBUG_FMT(
-        "Recv append entries response to {} from {} for index {}: success",
+        "Recv {} to {} from {} for index {}: success",
+        r.msg,
         state->node_id,
         from,
         r.last_log_idx);
@@ -1678,12 +1695,6 @@ namespace aft
     void send_request_vote(const ccf::NodeId& to, ElectionType election_type)
     {
       auto last_committable_idx = last_committable_index();
-      RAFT_INFO_FMT(
-        "Send {}request vote from {} to {} at {}",
-        election_type == ElectionType::PreVote ? "pre-vote " : "",
-        state->node_id,
-        to,
-        last_committable_idx);
       CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
 
       RequestVote rv{
@@ -1696,6 +1707,13 @@ namespace aft
       {
         rv.msg = RaftMsgType::raft_request_pre_vote;
       }
+
+      RAFT_INFO_FMT(
+        "Send {} from {} to {} at {}",
+        rv.msg,
+        state->node_id,
+        to,
+        last_committable_idx);
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1736,7 +1754,8 @@ namespace aft
       {
         // Reply false, since our term is later than the received term.
         RAFT_DEBUG_FMT(
-          "Recv request vote to {} from {}: our term is later ({} > {})",
+          "Recv {} to {} from {}: our term is later ({} > {})",
+          r.msg,
           state->node_id,
           from,
           state->current_view,
@@ -1747,7 +1766,8 @@ namespace aft
       if (state->current_view < r.term)
       {
         RAFT_DEBUG_FMT(
-          "Recv request vote to {} from {}: their term is later ({} < {})",
+          "Recv {} to {} from {}: their term is later ({} < {})",
+          r.msg,
           state->node_id,
           from,
           state->current_view,
@@ -1766,7 +1786,8 @@ namespace aft
       {
         // Reply false, since we already know the leader in the current term.
         RAFT_DEBUG_FMT(
-          "Recv request vote to {} from {}: leader {} already known in term {}",
+          "Recv {} to {} from {}: leader {} already known in term {}",
+          r.msg,
           state->node_id,
           from,
           leader_id.value(),
@@ -1780,7 +1801,8 @@ namespace aft
       {
         // Reply false, since we already voted for someone else.
         RAFT_DEBUG_FMT(
-          "Recv request vote to {} from {}: already voted for {}",
+          "Recv {} to {} from {}: already voted for {}",
+          r.msg,
           state->node_id,
           from,
           voted_for.value());
@@ -1800,8 +1822,9 @@ namespace aft
       if (!log_up_to_date)
       {
         RAFT_DEBUG_FMT(
-          "Request vote to {} from {}: candidate log {}.{} is not up-to-date "
+          "Recv {} to {} from {}: candidate log {}.{} is not up-to-date "
           "with ours {}.{}",
+          r.msg,
           state->node_id,
           from,
           r.term_of_last_committable_idx,
@@ -1820,9 +1843,9 @@ namespace aft
       }
 
       RAFT_INFO_FMT(
-        "Request {}vote to {} from {}: {} vote to candidate at {}.{} with "
+        "Recv {} to {} from {}: {} vote to candidate at {}.{} with "
         "local state at {}.{}",
-        election_type == ElectionType::PreVote ? "pre-" : "",
+        r.msg,
         state->node_id,
         from,
         grant_vote ? "granted" : "denied",
@@ -1837,13 +1860,6 @@ namespace aft
     void send_request_vote_response(
       const ccf::NodeId& to, bool answer, ElectionType election_type)
     {
-      RAFT_INFO_FMT(
-        "Send request {}vote response from {} to {}: {}",
-        election_type == ElectionType::PreVote ? "pre-" : "",
-        state->node_id,
-        to,
-        answer);
-
       RequestVoteResponse response{
         .term = state->current_view, .vote_granted = answer};
 
@@ -1851,6 +1867,13 @@ namespace aft
       {
         response.msg = RaftMsgType::raft_request_pre_vote_response;
       }
+
+      RAFT_INFO_FMT(
+        "Send {} from {} to {}: {}",
+        response.msg,
+        state->node_id,
+        to,
+        answer);
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
@@ -1878,7 +1901,8 @@ namespace aft
         state->leadership_state != ccf::kv::LeadershipState::Candidate)
       {
         RAFT_INFO_FMT(
-          "Recv request vote response to {} from: {}: we aren't a candidate",
+          "Recv {} to {} from: {}: we aren't a candidate",
+          r.msg,
           state->node_id,
           from);
         return;
@@ -1890,7 +1914,8 @@ namespace aft
         state->leadership_state == ccf::kv::LeadershipState::Candidate)
       {
         RAFT_INFO_FMT(
-          "Recv pre-vote response to {} from {}: no longer in pre-vote",
+          "Recv {} to {} from {}: no longer in pre-vote",
+          r.msg,
           state->node_id,
           from);
         return;
@@ -1907,8 +1932,9 @@ namespace aft
         state->leadership_state == ccf::kv::LeadershipState::PreVoteCandidate)
       {
         RAFT_FAIL_FMT(
-          "Recv vote response to {} from {}: We should not yet sent a request "
+          "Recv {} to {} from {}: We should not yet sent a request "
           "vote",
+          r.msg,
           state->node_id,
           from);
         return;
@@ -1919,7 +1945,8 @@ namespace aft
       if (node == all_other_nodes.end())
       {
         RAFT_INFO_FMT(
-          "Recv request vote response to {} from {}: unknown node",
+          "Recv {} to {} from {}: unknown node",
+          r.msg,
           state->node_id,
           from);
         return;
@@ -1928,8 +1955,9 @@ namespace aft
       if (state->current_view < r.term)
       {
         RAFT_INFO_FMT(
-          "Recv request vote response to {} from {}: their term is more recent "
+          "Recv {} to {} from {}: their term is more recent "
           "({} < {})",
+          r.msg,
           state->node_id,
           from,
           state->current_view,

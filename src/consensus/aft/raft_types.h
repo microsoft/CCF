@@ -236,3 +236,59 @@ namespace aft
 
 #pragma pack(pop)
 }
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<aft::RaftMsgType>
+{
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const aft::RaftMsgType& state, FormatContext& ctx) const
+    -> decltype(ctx.out())
+  {
+    switch (state)
+    {
+      case (aft::RaftMsgType::raft_append_entries):
+      {
+        return fmt::format_to(ctx.out(), "append_entries");
+      }
+      case (aft::RaftMsgType::raft_append_entries_response):
+      {
+        return fmt::format_to(ctx.out(), "append_entries_response");
+      }
+      case (aft::RaftMsgType::raft_append_entries_signed_response):
+      {
+        return fmt::format_to(ctx.out(), "append_entries_signed_response");
+      }
+      case (aft::RaftMsgType::raft_request_vote):
+      {
+        return fmt::format_to(ctx.out(), "request_vote");
+      }
+      case (aft::RaftMsgType::raft_request_vote_response):
+      {
+        return fmt::format_to(ctx.out(), "request_vote_response");
+      }
+      case (aft::RaftMsgType::raft_propose_request_vote):
+      {
+        return fmt::format_to(ctx.out(), "propose_request_vote");
+      }
+      case (aft::RaftMsgType::raft_request_pre_vote):
+      {
+        return fmt::format_to(ctx.out(), "request_pre_vote");
+      }
+      case (aft::RaftMsgType::raft_request_pre_vote_response):
+      {
+        return fmt::format_to(ctx.out(), "request_pre_vote_response");
+      }
+      default:
+        throw std::runtime_error(
+          fmt::format("Unhandled RaftMsgType: {}", state));
+    }
+  }
+};
+FMT_END_NAMESPACE
