@@ -14,7 +14,7 @@ namespace http
   inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
   {
     nlohmann::json body = ccf::ODataErrorResponse{
-      ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+      ccf::ODataError{std::move(error.code), std::move(error.msg), {}}};
     const auto s = body.dump();
 
     std::vector<uint8_t> data(s.begin(), s.end());

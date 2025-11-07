@@ -15,7 +15,7 @@ namespace ccf::js::extensions
   class SnpAttestationExtension : public ExtensionInterface
   {
   public:
-    SnpAttestationExtension() {}
+    SnpAttestationExtension() = default;
 
     void install(js::core::Context& ctx) override;
   };

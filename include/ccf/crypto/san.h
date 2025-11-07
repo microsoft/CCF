@@ -31,21 +31,21 @@ namespace ccf::crypto
     {
       return {str.substr(IP_ADDRESS_PREFIX.size()), true};
     }
-    else if (str.starts_with(DNS_NAME_PREFIX))
+
+    if (str.starts_with(DNS_NAME_PREFIX))
     {
       return {str.substr(DNS_NAME_PREFIX.size()), false};
     }
-    else
-    {
-      throw std::logic_error(fmt::format(
-        "SAN could not be parsed: {}, must be (iPAddress|dNSName):VALUE", str));
-    }
+
+    throw std::logic_error(fmt::format(
+      "SAN could not be parsed: {}, must be (iPAddress|dNSName):VALUE", str));
   }
 
   static std::vector<SubjectAltName> sans_from_string_list(
     const std::vector<std::string>& list)
   {
     std::vector<SubjectAltName> sans = {};
+    sans.reserve(list.size());
     for (const auto& l : list)
     {
       sans.push_back(san_from_string(l));

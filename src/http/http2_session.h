@@ -225,7 +225,7 @@ namespace http
       http2::StreamId stream_id, const ccf::ErrorDetails& error)
     {
       nlohmann::json body = ccf::ODataErrorResponse{
-        ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+        ccf::ODataError{std::move(error.code), std::move(error.msg), {}}};
       const std::string s = body.dump();
       std::vector<uint8_t> v(s.begin(), s.end());
 
