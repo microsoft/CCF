@@ -329,7 +329,7 @@ namespace http2
       ccf::http_status status,
       const ccf::http::HeaderMap& headers,
       ccf::http::HeaderMap&& trailers,
-      std::span<const uint8_t> body)
+      std::vector<uint8_t>&& body)
     {
       LOG_TRACE_FMT(
         "http2::respond: stream {} - {} headers - {} trailers - {} bytes "
@@ -360,7 +360,7 @@ namespace http2
         extra_headers[ccf::http::headers::TRAILER] = thv.value();
       }
 
-      stream_data->outgoing.body = DataSource(body);
+      stream_data->outgoing.body = DataSource(std::move(body));
       stream_data->outgoing.has_trailers = !trailers.empty();
 
       if (should_submit_response)
@@ -402,7 +402,7 @@ namespace http2
       send_all_submitted();
     }
 
-    void send_data(StreamId stream_id, std::span<const uint8_t> data)
+    void send_data(StreamId stream_id, std::vector<uint8_t>&& data)
     {
       LOG_TRACE_FMT(
         "http2::send_data: stream {} - {} bytes", stream_id, data.size());
@@ -420,7 +420,7 @@ namespace http2
           fmt::format("Stream {} should be streaming to send data", stream_id));
       }
 
-      stream_data->outgoing.body = DataSource(data);
+      stream_data->outgoing.body = DataSource(std::move(data));
 
       int rv = nghttp2_session_resume_data(session, stream_id);
       if (rv < 0)
@@ -512,7 +512,7 @@ namespace http2
       llhttp_method method,
       const std::string& route,
       const ccf::http::HeaderMap& headers,
-      std::span<const uint8_t> body)
+      std::vector<uint8_t>&& body)
     {
       std::vector<nghttp2_nv> hdrs;
       hdrs.emplace_back(
@@ -526,7 +526,7 @@ namespace http2
       }
 
       auto stream_data = std::make_shared<StreamData>();
-      stream_data->outgoing.body = DataSource(body);
+      stream_data->outgoing.body = DataSource(std::move(body));
 
       nghttp2_data_provider prov;
       prov.read_callback = read_outgoing_callback;

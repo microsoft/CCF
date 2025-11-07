@@ -28,8 +28,9 @@ namespace http2
       return NGHTTP2_ERR_CALLBACK_FAILURE;
     }
 
-    auto& body = stream_data->outgoing.body.ro_data();
-    size_t to_read = std::min(body.size(), length);
+    DataSource& body = stream_data->outgoing.body;
+    const auto body_remaining = body.data.size() - body.consumed;
+    size_t to_read = std::min(body_remaining, length);
 
     if (
       to_read == 0 &&
@@ -42,13 +43,13 @@ namespace http2
 
     if (to_read > 0)
     {
-      memcpy(buf, body.data(), to_read);
-      body = body.subspan(to_read);
+      memcpy(buf, body.data.data() + body.consumed, to_read);
+      body.consumed += to_read;
     }
 
     if (stream_data->outgoing.state == StreamResponseState::Closing)
     {
-      if (body.empty())
+      if (body.consumed == body.data.size())
       {
         *data_flags |= NGHTTP2_DATA_FLAG_EOF;
       }
