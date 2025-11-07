@@ -487,6 +487,7 @@ public:
     switch (msg_type)
     {
       case (aft::RaftMsgType::raft_request_vote):
+      case (aft::RaftMsgType::raft_request_pre_vote):
       {
         auto rv = *(aft::RequestVote*)data;
         packet = rv;
@@ -494,6 +495,7 @@ public:
         break;
       }
       case (aft::RaftMsgType::raft_request_vote_response):
+      case (aft::RaftMsgType::raft_request_pre_vote_response):
       {
         auto rvr = *(aft::RequestVoteResponse*)data;
         packet = rvr;

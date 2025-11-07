@@ -1814,7 +1814,7 @@ namespace aft
       RAFT_INFO_FMT(
         "Request {}vote to {} from {}: {} vote to candidate at {}.{} with "
         "local state at {}.{}",
-        r.election_type == ElectionType::PreVote ? "pre-" : "",
+        election_type == ElectionType::PreVote ? "pre-" : "",
         state->node_id,
         from,
         grant_vote ? "granted" : "denied",
@@ -1823,7 +1823,7 @@ namespace aft
         term_of_last_committable_idx,
         last_committable_idx);
 
-      send_request_vote_response(from, grant_vote, r.election_type);
+      send_request_vote_response(from, grant_vote, election_type);
     }
 
     void send_request_vote_response(
