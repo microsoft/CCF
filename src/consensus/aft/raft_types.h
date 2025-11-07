@@ -188,9 +188,6 @@ namespace aft
   DECLARE_JSON_REQUIRED_FIELDS(
     AppendEntriesResponse, term, last_log_idx, success);
 
-  DECLARE_JSON_TYPE(RaftHeader<raft_request_vote>)
-  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote>, msg)
-
   enum ElectionType
   {
     PreVote = 0,
@@ -201,6 +198,8 @@ namespace aft
     {{ElectionType::PreVote, "PreVote"},
      {ElectionType::RegularVote, "RegularVote"}});
 
+  DECLARE_JSON_TYPE(RaftHeader<raft_request_vote>)
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote>, msg)
   struct RequestVote : RaftHeader<raft_request_vote>
   {
     Term term;
@@ -210,6 +209,19 @@ namespace aft
   DECLARE_JSON_TYPE_WITH_BASE(RequestVote, RaftHeader<raft_request_vote>);
   DECLARE_JSON_REQUIRED_FIELDS(
     RequestVote, term, last_committable_idx, term_of_last_committable_idx);
+
+  DECLARE_JSON_TYPE(RaftHeader<raft_request_pre_vote>);
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_pre_vote>, msg);
+  struct RequestPreVote : RaftHeader<raft_request_pre_vote>
+  {
+    Term term;
+    Index last_committable_idx;
+    Term term_of_last_committable_idx;
+  };
+  DECLARE_JSON_TYPE_WITH_BASE(
+    RequestPreVote, RaftHeader<raft_request_pre_vote>);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    RequestPreVote, term, last_committable_idx, term_of_last_committable_idx);
 
   DECLARE_JSON_TYPE(RaftHeader<raft_request_vote_response>)
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote_response>, msg)
@@ -221,6 +233,17 @@ namespace aft
   DECLARE_JSON_TYPE_WITH_BASE(
     RequestVoteResponse, RaftHeader<raft_request_vote_response>);
   DECLARE_JSON_REQUIRED_FIELDS(RequestVoteResponse, term, vote_granted);
+
+  DECLARE_JSON_TYPE(RaftHeader<raft_request_pre_vote_response>)
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_pre_vote_response>, msg)
+  struct RequestPreVoteResponse : RaftHeader<raft_request_pre_vote_response>
+  {
+    Term term;
+    bool vote_granted;
+  };
+  DECLARE_JSON_TYPE_WITH_BASE(
+    RequestPreVoteResponse, RaftHeader<raft_request_pre_vote_response>);
+  DECLARE_JSON_REQUIRED_FIELDS(RequestPreVoteResponse, term, vote_granted);
 
   DECLARE_JSON_TYPE(RaftHeader<raft_propose_request_vote>)
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_propose_request_vote>, msg)

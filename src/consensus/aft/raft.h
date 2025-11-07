@@ -774,9 +774,10 @@ namespace aft
 
           case raft_request_pre_vote:
           {
-            RequestVote r = channels->template recv_authenticated<RequestVote>(
-              from, data, size);
-            recv_request_vote(from, r, ElectionType::PreVote);
+            RequestPreVote r =
+              channels->template recv_authenticated<RequestPreVote>(
+                from, data, size);
+            recv_request_vote(from, r);
             break;
           }
 
@@ -784,14 +785,14 @@ namespace aft
           {
             RequestVote r = channels->template recv_authenticated<RequestVote>(
               from, data, size);
-            recv_request_vote(from, r, ElectionType::RegularVote);
+            recv_request_vote(from, r);
             break;
           }
 
           case raft_request_pre_vote_response:
           {
-            RequestVoteResponse r =
-              channels->template recv_authenticated<RequestVoteResponse>(
+            RequestPreVoteResponse r =
+              channels->template recv_authenticated<RequestPreVoteResponse>(
                 from, data, size);
             recv_request_vote_response(from, r, ElectionType::PreVote);
             break;
@@ -1686,7 +1687,31 @@ namespace aft
       update_commit();
     }
 
-    void send_request_vote(const ccf::NodeId& to, ElectionType election_type)
+    void send_request_pre_vote(const ccf::NodeId& to)
+    {
+      auto last_committable_idx = last_committable_index();
+      CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
+
+      RequestPreVote rpv {
+        .term = state->current_view,
+        .last_committable_idx = last_committable_idx,
+        .term_of_last_committable_idx =
+          get_term_internal(last_committable_idx)};
+
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "send_request_vote";
+      j["packet"] = rpv;
+      j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
+      j["to_node_id"] = to;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
+
+      channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rpv);
+    }
+
+    void send_request_vote(const ccf::NodeId& to)
     {
       auto last_committable_idx = last_committable_index();
       CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
@@ -1696,18 +1721,6 @@ namespace aft
         .last_committable_idx = last_committable_idx,
         .term_of_last_committable_idx =
           get_term_internal(last_committable_idx)};
-
-      if (election_type == ElectionType::PreVote)
-      {
-        rv.msg = RaftMsgType::raft_request_pre_vote;
-      }
-
-      RAFT_INFO_FMT(
-        "Send {} from {} to {} at {}",
-        rv.msg,
-        state->node_id,
-        to,
-        last_committable_idx);
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1849,6 +1862,23 @@ namespace aft
         last_committable_idx);
 
       send_request_vote_response(from, grant_vote, election_type);
+    }
+
+    void recv_request_vote(const ccf::NodeId& from, RequestVote r)
+    {
+      recv_request_vote(from, r, ElectionType::RegularVote);
+    }
+
+    void recv_request_pre_vote(const ccf::NodeId& from, RequestPreVote r)
+    {
+      // A pre-vote is a speculative request vote, so we translate it back to a
+      // RequestVote to reuse the logic there.
+      RequestVote rv{
+        .term = r.term,
+        .last_committable_idx = r.last_committable_idx,
+        .term_of_last_committable_idx = r.term_of_last_committable_idx,
+      };
+      recv_request_vote(from, r, ElectionType::PreVote);
     }
 
     void send_request_vote_response(
