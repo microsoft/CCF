@@ -1652,10 +1652,7 @@ namespace aft
         if (r.success == AppendEntriesResponseType::OK)
         {
           RAFT_DEBUG_FMT(
-            "Recv {} to {} from {}: stale idx",
-            r.msg,
-            state->node_id,
-            from);
+            "Recv {} to {} from {}: stale idx", r.msg, state->node_id, from);
           return;
         }
       }
@@ -1665,10 +1662,7 @@ namespace aft
       {
         // Failed due to log inconsistency. Reset sent_idx, and try again soon.
         RAFT_DEBUG_FMT(
-          "Recv {} to {} from {}: failed",
-          r.msg,
-          state->node_id,
-          from);
+          "Recv {} to {} from {}: failed", r.msg, state->node_id, from);
         const auto this_match =
           find_highest_possible_match({r.term, r.last_log_idx});
         node->second.sent_idx = std::max(
@@ -1869,11 +1863,7 @@ namespace aft
       }
 
       RAFT_INFO_FMT(
-        "Send {} from {} to {}: {}",
-        response.msg,
-        state->node_id,
-        to,
-        answer);
+        "Send {} from {} to {}: {}", response.msg, state->node_id, to, answer);
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
@@ -1945,10 +1935,7 @@ namespace aft
       if (node == all_other_nodes.end())
       {
         RAFT_INFO_FMT(
-          "Recv {} to {} from {}: unknown node",
-          r.msg,
-          state->node_id,
-          from);
+          "Recv {} to {} from {}: unknown node", r.msg, state->node_id, from);
         return;
       }
 
