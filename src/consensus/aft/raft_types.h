@@ -100,7 +100,9 @@ namespace aft
     raft_append_entries_response,
     raft_append_entries_signed_response,
     raft_request_vote,
+    raft_request_pre_vote,
     raft_request_vote_response,
+    raft_request_pre_vote_response,
     raft_propose_request_vote,
   };
   DECLARE_JSON_ENUM(
@@ -112,6 +114,7 @@ namespace aft
       {RaftMsgType::raft_append_entries_signed_response,
        "raft_append_entries_signed_response"},
       {RaftMsgType::raft_request_vote, "raft_request_vote"},
+      {RaftMsgType::raft_request_vote, "raft_request_pre_vote"},
       {RaftMsgType::raft_request_vote_response, "raft_request_vote_response"},
       {RaftMsgType::raft_propose_request_vote, "raft_propose_request_vote"},
     });
@@ -195,18 +198,17 @@ namespace aft
     ElectionType,
     {{ElectionType::PreVote, "PreVote"},
      {ElectionType::RegularVote, "RegularVote"}});
+
   struct RequestVote : RaftHeader<raft_request_vote>
   {
     Term term;
     Index last_committable_idx;
     Term term_of_last_committable_idx;
-    ElectionType election_type = RegularVote;
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(
     RequestVote, RaftHeader<raft_request_vote>);
   DECLARE_JSON_REQUIRED_FIELDS(
     RequestVote, term, last_committable_idx, term_of_last_committable_idx);
-  DECLARE_JSON_OPTIONAL_FIELDS(RequestVote, election_type)
 
   DECLARE_JSON_TYPE(RaftHeader<raft_request_vote_response>)
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote_response>, msg)
@@ -214,12 +216,10 @@ namespace aft
   {
     Term term;
     bool vote_granted;
-    ElectionType election_type = RegularVote;
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(
     RequestVoteResponse, RaftHeader<raft_request_vote_response>);
   DECLARE_JSON_REQUIRED_FIELDS(RequestVoteResponse, term, vote_granted);
-  DECLARE_JSON_OPTIONAL_FIELDS(RequestVoteResponse, election_type)
 
   DECLARE_JSON_TYPE(RaftHeader<raft_propose_request_vote>)
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_propose_request_vote>, msg)

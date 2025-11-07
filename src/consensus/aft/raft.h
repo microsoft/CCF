@@ -773,19 +773,27 @@ namespace aft
           }
 
           case raft_request_vote:
+          case raft_request_pre_vote:
           {
             RequestVote r = channels->template recv_authenticated<RequestVote>(
               from, data, size);
-            recv_request_vote(from, r);
+            auto election_type = (type == raft_request_vote) ?
+              ElectionType::RegularVote :
+              ElectionType::PreVote;
+            recv_request_vote(from, r, election_type);
             break;
           }
 
           case raft_request_vote_response:
+          case raft_request_pre_vote_response:
           {
             RequestVoteResponse r =
               channels->template recv_authenticated<RequestVoteResponse>(
                 from, data, size);
-            recv_request_vote_response(from, r);
+            auto election_type = (type == raft_request_vote_response) ?
+              ElectionType::RegularVote :
+              ElectionType::PreVote;
+            recv_request_vote_response(from, r, election_type);
             break;
           }
 
@@ -1673,8 +1681,13 @@ namespace aft
       RequestVote rv{
         .term = state->current_view,
         .last_committable_idx = last_committable_idx,
-        .term_of_last_committable_idx = get_term_internal(last_committable_idx),
-        .election_type = election_type};
+        .term_of_last_committable_idx =
+          get_term_internal(last_committable_idx)};
+
+      if (election_type == ElectionType::PreVote)
+      {
+        rv.msg = RaftMsgType::raft_request_pre_vote;
+      }
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1689,7 +1702,8 @@ namespace aft
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
     }
 
-    void recv_request_vote(const ccf::NodeId& from, RequestVote r)
+    void recv_request_vote(
+      const ccf::NodeId& from, RequestVote r, ElectionType election_type)
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 
@@ -1719,7 +1733,7 @@ namespace aft
           from,
           state->current_view,
           r.term);
-        send_request_vote_response(from, false, r.election_type);
+        send_request_vote_response(from, false, election_type);
         return;
       }
       if (state->current_view < r.term)
@@ -1740,8 +1754,7 @@ namespace aft
 
       bool grant_vote = true;
 
-      if (
-        (r.election_type == ElectionType::RegularVote) && leader_id.has_value())
+      if ((election_type == ElectionType::RegularVote) && leader_id.has_value())
       {
         // Reply false, since we already know the leader in the current term.
         RAFT_DEBUG_FMT(
@@ -1755,7 +1768,7 @@ namespace aft
 
       auto voted_for_other =
         (voted_for.has_value()) && (voted_for.value() != from);
-      if ((r.election_type == ElectionType::RegularVote) && voted_for_other)
+      if ((election_type == ElectionType::RegularVote) && voted_for_other)
       {
         // Reply false, since we already voted for someone else.
         RAFT_DEBUG_FMT(
@@ -1790,7 +1803,7 @@ namespace aft
         grant_vote = false;
       }
 
-      if (grant_vote && r.election_type == ElectionType::RegularVote)
+      if (grant_vote && election_type == ElectionType::RegularVote)
       {
         // If we grant our vote to a candidate, then an election is in progress
         restart_election_timeout();
@@ -1824,16 +1837,21 @@ namespace aft
         answer);
 
       RequestVoteResponse response{
-        .term = state->current_view,
-        .vote_granted = answer,
-        .election_type = election_type};
+        .term = state->current_view, .vote_granted = answer};
+
+      if (election_type == ElectionType::PreVote)
+      {
+        response.msg = RaftMsgType::raft_request_pre_vote_response;
+      }
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
     }
 
     void recv_request_vote_response(
-      const ccf::NodeId& from, RequestVoteResponse r)
+      const ccf::NodeId& from,
+      RequestVoteResponse r,
+      ElectionType election_type)
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 
@@ -1860,7 +1878,7 @@ namespace aft
 
       // Stale message
       if (
-        r.election_type == ElectionType::PreVote &&
+        election_type == ElectionType::PreVote &&
         state->leadership_state == ccf::kv::LeadershipState::Candidate)
       {
         RAFT_INFO_FMT(
@@ -1877,7 +1895,7 @@ namespace aft
       // while still in PreVoteCandidate state something illegal must have
       // happened.
       if (
-        r.election_type == ElectionType::RegularVote &&
+        election_type == ElectionType::RegularVote &&
         state->leadership_state == ccf::kv::LeadershipState::PreVoteCandidate)
       {
         RAFT_FAIL_FMT(
