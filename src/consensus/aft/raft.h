@@ -1116,13 +1116,14 @@ namespace aft
       std::unique_lock<ccf::pal::Mutex> guard(state->lock);
 
       RAFT_DEBUG_FMT(
-        "Received {}: {}.{} to {}.{} (from {} in term {})",
+        "Recv {} to {} from {}: {}.{} to {}.{} in term {}",
         r.msg,
+        state->node_id,
+        from,
         r.prev_term,
         r.prev_idx,
         r.term_of_idx,
         r.idx,
-        from,
         r.term);
 
 #ifdef CCF_RAFT_TRACING
