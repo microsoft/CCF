@@ -880,7 +880,7 @@ namespace ccf
     // initialisation by eagerly initialising every value now.
 #if defined(__GLIBCXX__)
     {
-      const std::ctype<char>& ct(
+      const auto& ct(
         std::use_facet<std::ctype<char>>(std::locale()));
 
       for (size_t i(0); i != 256; ++i)
