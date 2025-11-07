@@ -6,7 +6,6 @@ emit_signature,2
 
 periodic_one,0,10
 dispatch_all
-dispatch_all
 periodic_one,0,10
 dispatch_all
 periodic_one,0,10

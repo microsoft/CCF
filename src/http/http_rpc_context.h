@@ -131,11 +131,6 @@ namespace http
       return response_trailers;
     }
 
-    std::vector<uint8_t>& get_response_body()
-    {
-      return response_body;
-    }
-
     ccf::http_status get_response_http_status() const
     {
       return response_status;
@@ -250,6 +245,11 @@ namespace http
     virtual const std::vector<uint8_t>& get_response_body() const override
     {
       return response_body;
+    }
+
+    virtual std::vector<uint8_t>&& take_response_body() override
+    {
+      return std::move(response_body);
     }
 
     virtual void set_response_status(int status) override

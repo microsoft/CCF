@@ -51,7 +51,7 @@ namespace http
       ccf::http_status status_code,
       ccf::http::HeaderMap&& headers,
       ccf::http::HeaderMap&& trailers,
-      std::span<const uint8_t> body) override
+      std::vector<uint8_t>&& body) override
     {
       auto sp = server_parser.lock();
       try
@@ -61,7 +61,7 @@ namespace http
           status_code,
           std::move(headers),
           std::move(trailers),
-          body);
+          std::move(body));
       }
       catch (const std::exception& e)
       {
@@ -120,14 +120,14 @@ namespace http
       return true;
     }
 
-    bool stream_data(std::span<const uint8_t> data) override
+    bool stream_data(std::vector<uint8_t>&& data) override
     {
       auto sp = server_parser.lock();
       if (sp)
       {
         try
         {
-          sp->send_data(stream_id, data);
+          sp->send_data(stream_id, std::move(data));
         }
         catch (const std::exception& e)
         {
@@ -226,17 +226,15 @@ namespace http
     {
       nlohmann::json body = ccf::ODataErrorResponse{
         ccf::ODataError{std::move(error.code), std::move(error.msg), {}}};
-      const auto s = body.dump();
+      const std::string s = body.dump();
+      std::vector<uint8_t> v(s.begin(), s.end());
 
       ccf::http::HeaderMap headers;
       headers[ccf::http::headers::CONTENT_TYPE] =
         ccf::http::headervalues::contenttype::JSON;
 
       get_stream_responder(stream_id)->send_response(
-        error.status,
-        std::move(headers),
-        {},
-        {(const uint8_t*)s.data(), s.size()});
+        error.status, std::move(headers), {}, std::move(v));
     }
 
   public:
@@ -388,7 +386,7 @@ namespace http
             rpc_ctx->get_response_http_status(),
             rpc_ctx->get_response_headers(),
             rpc_ctx->get_response_trailers(),
-            std::move(rpc_ctx->get_response_body()));
+            std::move(rpc_ctx->take_response_body()));
         }
       }
       catch (const std::exception& e)
@@ -410,11 +408,14 @@ namespace http
       ccf::http_status status_code,
       ccf::http::HeaderMap&& headers,
       ccf::http::HeaderMap&& trailers,
-      std::span<const uint8_t> body) override
+      std::vector<uint8_t>&& body) override
     {
       return get_stream_responder(http2::DEFAULT_STREAM_ID)
         ->send_response(
-          status_code, std::move(headers), std::move(trailers), body);
+          status_code,
+          std::move(headers),
+          std::move(trailers),
+          std::move(body));
     }
 
     bool start_stream(
@@ -424,9 +425,10 @@ namespace http
         ->start_stream(status, headers);
     }
 
-    bool stream_data(std::span<const uint8_t> data) override
+    bool stream_data(std::vector<uint8_t>&& data) override
     {
-      return get_stream_responder(http2::DEFAULT_STREAM_ID)->stream_data(data);
+      return get_stream_responder(http2::DEFAULT_STREAM_ID)
+        ->stream_data(std::move(data));
     }
 
     bool close_stream(ccf::http::HeaderMap&& trailers) override
@@ -494,7 +496,8 @@ namespace http
         request.get_method(),
         request.get_path(),
         request.get_headers(),
-        {request.get_content_data(), request.get_content_length()});
+        {request.get_content_data(),
+         request.get_content_data() + request.get_content_length()});
     }
 
     void handle_response(
