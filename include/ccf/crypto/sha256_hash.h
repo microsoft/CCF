@@ -23,7 +23,7 @@ namespace ccf::crypto
 
     void set(Representation&& r)
     {
-      h = r;
+      h = std::move(r);
     }
 
     Sha256Hash(const uint8_t* data, size_t size);
@@ -90,7 +90,6 @@ namespace ccf::kv::serialisers
     static ccf::crypto::Sha256Hash from_serialised(const SerialisedEntry& data)
     {
       auto data_str = std::string{data.begin(), data.end()};
-      ccf::crypto::Sha256Hash ret;
       return ccf::crypto::Sha256Hash::from_hex_string(data_str);
     }
   };
