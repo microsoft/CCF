@@ -654,7 +654,7 @@ namespace ccf
     uv_walk(
       loop,
       [](uv_handle_t* handle, void*) {
-        if (uv_is_closing(handle) != 0)
+        if (uv_is_closing(handle) == 0)
         {
           uv_close(handle, nullptr);
         }
