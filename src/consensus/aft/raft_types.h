@@ -116,7 +116,8 @@ namespace aft
       {RaftMsgType::raft_request_vote, "raft_request_vote"},
       {RaftMsgType::raft_request_pre_vote, "raft_request_pre_vote"},
       {RaftMsgType::raft_request_vote_response, "raft_request_vote_response"},
-      {RaftMsgType::raft_request_pre_vote_response, "raft_request_pre_vote_response"},
+      {RaftMsgType::raft_request_pre_vote_response,
+       "raft_request_pre_vote_response"},
       {RaftMsgType::raft_propose_request_vote, "raft_propose_request_vote"},
     });
 
@@ -206,8 +207,7 @@ namespace aft
     Index last_committable_idx;
     Term term_of_last_committable_idx;
   };
-  DECLARE_JSON_TYPE_WITH_BASE(
-    RequestVote, RaftHeader<raft_request_vote>);
+  DECLARE_JSON_TYPE_WITH_BASE(RequestVote, RaftHeader<raft_request_vote>);
   DECLARE_JSON_REQUIRED_FIELDS(
     RequestVote, term, last_committable_idx, term_of_last_committable_idx);
 
