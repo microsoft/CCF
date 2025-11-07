@@ -329,15 +329,6 @@ configure_file(
   @ONLY
 )
 
-file(READ ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
-     GOV_API_SCHEMA_2023_06_01_PREVIEW
-)
-set_property(
-  DIRECTORY
-  APPEND
-  PROPERTY CMAKE_CONFIGURE_DEPENDS
-           ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
-)
 file(READ ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
      GOV_API_SCHEMA_2024_07_01
 )
@@ -846,9 +837,9 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME recovery_test_api_1
+    NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-    ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "2024-07-01"
+    ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
   )
 
   add_e2e_test(
@@ -1036,9 +1027,7 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME membership_api_1
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
-    ADDITIONAL_ARGS --gov-api-version "2024-07-01"
+    NAME membership PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
   )
 
   add_e2e_test(
