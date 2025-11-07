@@ -772,28 +772,36 @@ namespace aft
             break;
           }
 
-          case raft_request_vote:
           case raft_request_pre_vote:
           {
             RequestVote r = channels->template recv_authenticated<RequestVote>(
               from, data, size);
-            auto election_type = (type == raft_request_vote) ?
-              ElectionType::RegularVote :
-              ElectionType::PreVote;
-            recv_request_vote(from, r, election_type);
+            recv_request_vote(from, r, ElectionType::PreVote);
             break;
           }
 
-          case raft_request_vote_response:
+          case raft_request_vote:
+          {
+            RequestVote r = channels->template recv_authenticated<RequestVote>(
+              from, data, size);
+            recv_request_vote(from, r, ElectionType::RegularVote);
+            break;
+          }
+
           case raft_request_pre_vote_response:
           {
             RequestVoteResponse r =
               channels->template recv_authenticated<RequestVoteResponse>(
                 from, data, size);
-            auto election_type = (type == raft_request_vote_response) ?
-              ElectionType::RegularVote :
-              ElectionType::PreVote;
-            recv_request_vote_response(from, r, election_type);
+            recv_request_vote_response(from, r, ElectionType::PreVote);
+            break;
+          }
+          case raft_request_vote_response:
+          {
+            RequestVoteResponse r =
+              channels->template recv_authenticated<RequestVoteResponse>(
+                from, data, size);
+            recv_request_vote_response(from, r, ElectionType::RegularVote);
             break;
           }
 
