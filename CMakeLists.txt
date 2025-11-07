@@ -1074,11 +1074,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME consistency_trace_validation
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
-  )
-
-  add_e2e_test(
     NAME fuzz_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fuzzing.py
   )
 
@@ -1224,6 +1219,11 @@ if(BUILD_TESTS)
   if(LONG_TESTS)
     add_e2e_test(
       NAME e2e_curl PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_curl.py
+    )
+
+    add_e2e_test(
+      NAME consistency_trace_validation
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
     )
   endif()
 endif()
