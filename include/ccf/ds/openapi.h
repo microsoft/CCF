@@ -78,9 +78,11 @@ namespace ccf::ds::openapi
     nlohmann::json& document, const std::string_view& path)
   {
     auto p = path;
+    std::string s;
     if (!p.starts_with('/'))
     {
-      p = fmt::format("/{}", p);
+      s = fmt::format("/{}", p);
+      p = s;
     }
 
     auto& paths = access::get_object(document, "paths");

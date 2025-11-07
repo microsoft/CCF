@@ -35,7 +35,7 @@ namespace ccf::http
     bool send_odata_error_response(ccf::ErrorDetails&& error)
     {
       nlohmann::json body = ccf::ODataErrorResponse{
-        ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+        ccf::ODataError{std::move(error.code), std::move(error.msg), {}}};
       const auto s = body.dump();
 
       http::HeaderMap headers;
