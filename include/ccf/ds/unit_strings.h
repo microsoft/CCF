@@ -120,7 +120,7 @@ namespace ccf::ds
 
   struct SizeString : UnitString
   {
-    size_t value;
+    size_t value = 0;
 
     SizeString() = default;
     SizeString(const std::string_view& str_) :
@@ -164,7 +164,7 @@ namespace ccf::ds
 
   struct TimeString : UnitString
   {
-    std::chrono::microseconds value;
+    std::chrono::microseconds value = {};
 
     TimeString() = default;
     TimeString(const std::string_view& str_) :
