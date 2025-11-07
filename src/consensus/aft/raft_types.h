@@ -114,11 +114,11 @@ namespace aft
       {RaftMsgType::raft_append_entries_signed_response,
        "raft_append_entries_signed_response"},
       {RaftMsgType::raft_request_vote, "raft_request_vote"},
-      {RaftMsgType::raft_request_pre_vote, "raft_request_pre_vote"},
       {RaftMsgType::raft_request_vote_response, "raft_request_vote_response"},
+      {RaftMsgType::raft_propose_request_vote, "raft_propose_request_vote"},
+      {RaftMsgType::raft_request_pre_vote, "raft_request_pre_vote"},
       {RaftMsgType::raft_request_pre_vote_response,
        "raft_request_pre_vote_response"},
-      {RaftMsgType::raft_propose_request_vote, "raft_propose_request_vote"},
     });
 
 #pragma pack(push, 1)
