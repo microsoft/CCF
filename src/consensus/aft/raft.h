@@ -777,7 +777,7 @@ namespace aft
             RequestPreVote r =
               channels->template recv_authenticated<RequestPreVote>(
                 from, data, size);
-            recv_request_vote(from, r);
+            recv_request_pre_vote(from, r);
             break;
           }
 
@@ -794,15 +794,16 @@ namespace aft
             RequestPreVoteResponse r =
               channels->template recv_authenticated<RequestPreVoteResponse>(
                 from, data, size);
-            recv_request_vote_response(from, r, ElectionType::PreVote);
+            recv_request_pre_vote_response(from, r);
             break;
           }
+
           case raft_request_vote_response:
           {
             RequestVoteResponse r =
               channels->template recv_authenticated<RequestVoteResponse>(
                 from, data, size);
-            recv_request_vote_response(from, r, ElectionType::RegularVote);
+            recv_request_vote_response(from, r);
             break;
           }
 
@@ -1692,7 +1693,7 @@ namespace aft
       auto last_committable_idx = last_committable_index();
       CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
 
-      RequestPreVote rpv {
+      RequestPreVote rpv{
         .term = state->current_view,
         .last_committable_idx = last_committable_idx,
         .term_of_last_committable_idx =
@@ -1872,31 +1873,49 @@ namespace aft
     void recv_request_pre_vote(const ccf::NodeId& from, RequestPreVote r)
     {
       // A pre-vote is a speculative request vote, so we translate it back to a
-      // RequestVote to reuse the logic there.
+      // RequestVote to avoid duplicating the logic.
       RequestVote rv{
         .term = r.term,
         .last_committable_idx = r.last_committable_idx,
         .term_of_last_committable_idx = r.term_of_last_committable_idx,
       };
-      recv_request_vote(from, r, ElectionType::PreVote);
+      recv_request_vote(from, rv, ElectionType::PreVote);
     }
 
     void send_request_vote_response(
       const ccf::NodeId& to, bool answer, ElectionType election_type)
     {
-      RequestVoteResponse response{
-        .term = state->current_view, .vote_granted = answer};
-
-      if (election_type == ElectionType::PreVote)
+      if (election_type == ElectionType::RegularVote)
       {
-        response.msg = RaftMsgType::raft_request_pre_vote_response;
+        RequestVoteResponse response{
+          .term = state->current_view, .vote_granted = answer};
+
+        RAFT_INFO_FMT(
+          "Send {} from {} to {}: {}",
+          response.msg,
+          state->node_id,
+          to,
+          answer);
+
+        channels->send_authenticated(
+          to, ccf::NodeMsgType::consensus_msg, response);
       }
+      else
+      {
+        RequestPreVoteResponse response{
+          .term = state->current_view, .vote_granted = answer};
 
-      RAFT_INFO_FMT(
-        "Send {} from {} to {}: {}", response.msg, state->node_id, to, answer);
+        RAFT_INFO_FMT(
+          "Send {} from {} to {}: {}",
+          response.msg,
+          state->node_id,
+          to,
+          answer);
 
-      channels->send_authenticated(
-        to, ccf::NodeMsgType::consensus_msg, response);
+        channels->send_authenticated(
+          to, ccf::NodeMsgType::consensus_msg, response);
+        return;
+      }
     }
 
     void recv_request_vote_response(
@@ -2011,6 +2030,19 @@ namespace aft
       add_vote_for_me(from);
     }
 
+    void recv_request_vote_response(
+      const ccf::NodeId& from, RequestVoteResponse r)
+    {
+      recv_request_vote_response(from, r, ElectionType::RegularVote);
+    }
+
+    void recv_request_pre_vote_response(
+      const ccf::NodeId& from, RequestPreVoteResponse r)
+    {
+      RequestVoteResponse rvr{.term = r.term, .vote_granted = r.vote_granted};
+      recv_request_vote_response(from, rvr, ElectionType::PreVote);
+    }
+
     void recv_propose_request_vote(
       const ccf::NodeId& from, ProposeRequestVote r)
     {
@@ -2091,7 +2123,7 @@ namespace aft
       for (auto const& node_id : other_nodes_in_active_configs())
       {
         // ccfraft!RequestVote
-        send_request_vote(node_id, ElectionType::PreVote);
+        send_request_pre_vote(node_id);
       }
     }
 
@@ -2138,7 +2170,7 @@ namespace aft
       for (auto const& node_id : other_nodes_in_active_configs())
       {
         // ccfraft!RequestVote
-        send_request_vote(node_id, ElectionType::RegularVote);
+        send_request_vote(node_id);
       }
     }
 
