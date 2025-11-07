@@ -872,6 +872,25 @@ namespace ccf
     return std::nullopt;
   }
 
+  void apply_stdlib_workarounds()
+  {
+    // A data race happens in the libstdc++ implementation of ctype::narrow.
+    // See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=77704
+    // This workaround is from the mailing list - avoid unprotected lazy
+    // initialisation by eagerly initialising every value now.
+#if defined(__GLIBCXX__)
+    {
+      const std::ctype<char>& ct(
+        std::use_facet<std::ctype<char>>(std::locale()));
+
+      for (size_t i(0); i != 256; ++i)
+      {
+        ct.narrow(static_cast<char>(i), '\0');
+      }
+    }
+#endif
+  }
+
   int run(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   {
     if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
@@ -879,6 +898,8 @@ namespace ccf
       LOG_FAIL_FMT("Failed to ignore SIGPIPE");
       return 1;
     }
+
+    apply_stdlib_workarounds();
 
     CLI::App app{
       "Run a single CCF node, based on the given configuration file.\n"
