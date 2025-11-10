@@ -1654,6 +1654,7 @@ class Network:
     def wait_for_sealed_secrets(self, node, target_seqno, timeout=10):
       src_dir = node.remote.sealed_secrets_path
       found_secret = None
+      end_time = time.time() + timeout
       while True:
         for f in node.remote.list_dir(src_dir):
 
@@ -1668,7 +1669,7 @@ class Network:
                     f"Found sealed secrets {f} for seqno {target_seqno}"
                 )
                 found_secret = f
-            if time.time() > timeout:
+            if time.time() > end_time:
                 raise TimeoutError(
                     f"Could not find sealed secrets for seqno {target_seqno} after {timeout}s in {src_dir}"
                 )
@@ -1677,10 +1678,20 @@ class Network:
 
         node.remote.remote._rc
         
-        with open(os.path.join(src_dir, found_secret), "r", encoding="utf-8") as f:
-          f.flush()
-          os.fsync(f.fileno())
-          return found_secret
+        loop_end_time = time.time() + timeout
+        while True:
+          if time.time() > loop_end_time:
+            raise TimeoutError(
+                f"Could not sync sealed secrets file {found_secret} in {src_dir} after {timeout}s"
+            )
+          try:
+            with open(os.path.join(src_dir, found_secret), "r", encoding="utf-8") as f:
+              f.flush()
+              os.fsync(f.fileno())
+              return found_secret
+          # catch file access errors when file is being written by the node
+          except (IOError, OSError):
+              time.sleep(0.1)
 
     def _get_ledger_public_view_at(self, node, call, seqno, timeout):
         end_time = time.time() + timeout
