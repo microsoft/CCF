@@ -165,7 +165,7 @@ namespace ccf::kv::serialisers
     static ccf::pal::AttestationMeasurement<N, Tag> from_serialised(
       const SerialisedEntry& data)
     {
-      ccf::pal::AttestationMeasurement<N, Tag> ret;
+      ccf::pal::AttestationMeasurement<N, Tag> ret{};
       ccf::ds::from_hex(std::string(data.data(), data.end()), ret.measurement);
       return ret;
     }
