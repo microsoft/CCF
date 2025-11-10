@@ -82,7 +82,7 @@ namespace ccf::pal::snp
     return cpuid;
   }
 
-  enum class ProductName
+  enum class ProductName : uint8_t
   {
     Milan,
     Genoa,

@@ -13,7 +13,7 @@
 
 namespace ccf
 {
-  enum class MemberStatus
+  enum class MemberStatus : uint8_t
   {
     ACCEPTED = 0,
     ACTIVE = 1,
@@ -22,7 +22,7 @@ namespace ccf
     MemberStatus,
     {{MemberStatus::ACCEPTED, "Accepted"}, {MemberStatus::ACTIVE, "Active"}});
 
-  enum class MemberRecoveryRole
+  enum class MemberRecoveryRole : uint8_t
   {
     NonParticipant = 0,
     Participant,
@@ -44,20 +44,20 @@ namespace ccf
 
     // If encryption public key is set, the member is a recovery member
     std::optional<ccf::crypto::Pem> encryption_pub_key = std::nullopt;
-    nlohmann::json member_data = nullptr;
+    nlohmann::json member_data;
 
     std::optional<MemberRecoveryRole> recovery_role = std::nullopt;
 
     NewMember() = default;
 
     NewMember(
-      const ccf::crypto::Pem& cert_,
+      ccf::crypto::Pem cert_,
       const std::optional<ccf::crypto::Pem>& encryption_pub_key_ = std::nullopt,
-      const nlohmann::json& member_data_ = nullptr,
+      nlohmann::json member_data_ = {},
       const std::optional<MemberRecoveryRole>& recovery_role_ = std::nullopt) :
-      cert(cert_),
+      cert(std::move(cert_)),
       encryption_pub_key(encryption_pub_key_),
-      member_data(member_data_),
+      member_data(std::move(member_data_)),
       recovery_role(recovery_role_)
     {}
 

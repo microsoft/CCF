@@ -35,12 +35,12 @@ namespace ccf::jsgov
     /// ID of the member who originally created/submitted this proposal
     ccf::MemberId proposer_id;
     /// Current state of this proposal (eg - open, accepted, withdrawn)
-    ccf::ProposalState state;
+    ccf::ProposalState state = ccf::ProposalState::OPEN;
     /// Collection of ballots (scripts) submitted for this proposal. Each
     /// ballot is a javascript module exporting a single 'vote' function,
     /// re-executed to determine the member's vote each proposal resolution.
     /// Keyed by each submitting member's ID
-    Ballots ballots = {};
+    Ballots ballots;
     /// Collection of boolean results of the submitted ballots, keyed by
     /// submitting member's ID, that caused a transition to a terminal state.
     /// Note that this is not present for open, withdrawn, or dropped
@@ -129,10 +129,7 @@ struct formatter<std::optional<ccf::jsgov::Failure>>
       return format_to(
         ctx.out(), "{}\nTrace: {}", f->reason, f->trace.value_or("N/A"));
     }
-    else
-    {
-      return format_to(ctx.out(), "N/A");
-    }
+    return format_to(ctx.out(), "N/A");
   }
 };
 FMT_END_NAMESPACE
