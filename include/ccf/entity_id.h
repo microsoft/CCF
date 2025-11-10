@@ -26,6 +26,7 @@ namespace ccf
     EntityId(const EntityId& id_) = default;
     EntityId(const Value& id_) : id(id_) {}
     EntityId(Value&& id_) : id(std::move(id_)) {}
+    EntityId(EntityId&& id_) : id(std::move(id_)) {}
 
     operator std::string() const
     {

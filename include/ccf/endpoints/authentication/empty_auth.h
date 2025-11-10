@@ -22,10 +22,11 @@ namespace ccf
       [[maybe_unused]] std::string& error_reason) override;
 
     void set_unauthenticated_error(
-      [[maybe_unused]] std::shared_ptr<ccf::RpcContext> ctx, [[maybe_unused]] std::string&&) override;
+      [[maybe_unused]] std::shared_ptr<ccf::RpcContext> ctx,
+      [[maybe_unused]] std::string&& error_reason) override;
 
-    [[nodiscard]] std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
-      const override
+    [[nodiscard]] std::optional<OpenAPISecuritySchema>
+    get_openapi_security_schema() const override
     {
       return unauthenticated_schema;
     }

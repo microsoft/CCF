@@ -11,7 +11,7 @@ namespace ccf
 {
   struct ProtectedHeader
   {
-    int64_t alg;
+    int64_t alg = 0;
     std::string kid;
   };
 
@@ -19,7 +19,7 @@ namespace ccf
   {
     std::optional<std::string> gov_msg_type;
     std::optional<std::string> gov_msg_proposal_id;
-    uint64_t gov_msg_created_at;
+    uint64_t gov_msg_created_at = 0;
   };
 
   struct TimestampedProtectedHeader : ProtectedHeader
@@ -70,13 +70,13 @@ namespace ccf
       const std::span<const uint8_t>& content_,
       const std::span<const uint8_t>& envelope_,
       const std::span<const uint8_t>& signature_,
-      const MemberId& member_id_,
-      const ccf::crypto::Pem& member_cert_,
-      const GovernanceProtectedHeader& protected_header_) :
+      MemberId member_id_,
+      ccf::crypto::Pem member_cert_,
+      GovernanceProtectedHeader protected_header_) :
       COSESign1AuthnIdentity(content_, envelope_, signature_),
-      member_id(member_id_),
-      member_cert(member_cert_),
-      protected_header(protected_header_)
+      member_id(std::move(member_id_)),
+      member_cert(std::move(member_cert_)),
+      protected_header(std::move(protected_header_))
     {}
   };
 
@@ -95,13 +95,13 @@ namespace ccf
       const std::span<const uint8_t>& content_,
       const std::span<const uint8_t>& envelope_,
       const std::span<const uint8_t>& signature_,
-      const UserId& user_id_,
-      const ccf::crypto::Pem& user_cert_,
-      const TimestampedProtectedHeader& protected_header_) :
+      UserId user_id_,
+      ccf::crypto::Pem user_cert_,
+      TimestampedProtectedHeader protected_header_) :
       COSESign1AuthnIdentity(content_, envelope_, signature_),
-      user_id(user_id_),
-      user_cert(user_cert_),
-      protected_header(protected_header_)
+      user_id(std::move(user_id_)),
+      user_cert(std::move(user_cert_)),
+      protected_header(std::move(protected_header_))
     {}
   };
 
@@ -122,7 +122,7 @@ namespace ccf
 
     MemberCOSESign1AuthnPolicy(
       std::optional<std::string> gov_msg_type_ = std::nullopt);
-    ~MemberCOSESign1AuthnPolicy();
+    ~MemberCOSESign1AuthnPolicy() override;
 
     std::unique_ptr<AuthnIdentity> authenticate(
       ccf::kv::ReadOnlyTx& tx,
@@ -133,8 +133,8 @@ namespace ccf
       std::shared_ptr<ccf::RpcContext> ctx,
       std::string&& error_reason) override;
 
-    std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
-      const override
+    [[nodiscard]] std::optional<OpenAPISecuritySchema>
+    get_openapi_security_schema() const override
     {
       return security_schema;
     }
@@ -190,12 +190,12 @@ namespace ccf
     static constexpr auto SECURITY_SCHEME_NAME = "user_cose_sign1";
 
     UserCOSESign1AuthnPolicy(
-      const std::string& msg_type_name_ = "ccf.msg.type",
-      const std::string& msg_created_at_name_ = "ccf.msg.created_at") :
-      msg_type_name(msg_type_name_),
-      msg_created_at_name(msg_created_at_name_)
+      std::string msg_type_name_ = "ccf.msg.type",
+      std::string msg_created_at_name_ = "ccf.msg.created_at") :
+      msg_type_name(std::move(msg_type_name_)),
+      msg_created_at_name(std::move(msg_created_at_name_))
     {}
-    ~UserCOSESign1AuthnPolicy();
+    ~UserCOSESign1AuthnPolicy() override;
 
     std::unique_ptr<AuthnIdentity> authenticate(
       ccf::kv::ReadOnlyTx& tx,
@@ -206,8 +206,8 @@ namespace ccf
       std::shared_ptr<ccf::RpcContext> ctx,
       std::string&& error_reason) override;
 
-    std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
-      const override
+    [[nodiscard]] std::optional<OpenAPISecuritySchema>
+    get_openapi_security_schema() const override
     {
       return security_schema;
     }
@@ -232,11 +232,12 @@ namespace ccf
     static constexpr auto SECURITY_SCHEME_NAME = "typed_user_cose_sign1";
 
     TypedUserCOSESign1AuthnPolicy(
-      const std::string& expected_msg_type_,
-      const std::string& msg_type_name_ = "ccf.msg.type",
-      const std::string& msg_created_at_name_ = "ccf.msg.created_at") :
-      UserCOSESign1AuthnPolicy(msg_type_name_, msg_created_at_name_),
-      expected_msg_type(expected_msg_type_)
+      std::string expected_msg_type_,
+      std::string msg_type_name_ = "ccf.msg.type",
+      std::string msg_created_at_name_ = "ccf.msg.created_at") :
+      UserCOSESign1AuthnPolicy(
+        std::move(msg_type_name_), std::move(msg_created_at_name_)),
+      expected_msg_type(std::move(expected_msg_type_))
     {}
 
     std::unique_ptr<AuthnIdentity> authenticate(

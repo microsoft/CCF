@@ -45,8 +45,8 @@ namespace ccf
       std::shared_ptr<ccf::RpcContext> ctx,
       std::string&& error_reason) override;
 
-    [[nodiscard]] std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
-      const override
+    [[nodiscard]] std::optional<OpenAPISecuritySchema>
+    get_openapi_security_schema() const override
     {
       return security_schema;
     }
