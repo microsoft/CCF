@@ -13,12 +13,12 @@ namespace ccf::kv::serialisers
     static SerialisedEntry to_serialised(const ccf::crypto::Pem& pem)
     {
       const auto& data = pem.raw();
-      return SerialisedEntry(data.begin(), data.end());
+      return {data.begin(), data.end()};
     }
 
     static ccf::crypto::Pem from_serialised(const SerialisedEntry& data)
     {
-      return ccf::crypto::Pem(data.data(), data.size());
+      return {data.data(), data.size()};
     }
   };
 }
