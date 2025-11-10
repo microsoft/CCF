@@ -121,22 +121,22 @@ namespace ccf::crypto
     /**
      * Get the public key in PEM format
      */
-    virtual Pem public_key_pem() const = 0;
+    [[nodiscard]] virtual Pem public_key_pem() const = 0;
 
     /**
      * Get the public key in DER format
      */
-    virtual std::vector<uint8_t> public_key_der() const = 0;
+    [[nodiscard]] virtual std::vector<uint8_t> public_key_der() const = 0;
 
     /**
      * Get the raw bytes of the public key
      */
-    virtual std::vector<uint8_t> public_key_raw() const = 0;
+    [[nodiscard]] virtual std::vector<uint8_t> public_key_raw() const = 0;
 
     /**
      * The curve ID
      */
-    virtual CurveID get_curve_id() const = 0;
+    [[nodiscard]] virtual CurveID get_curve_id() const = 0;
 
     struct Coordinates
     {
@@ -147,9 +147,11 @@ namespace ccf::crypto
     /**
      * The x/y coordinates of the public key
      */
-    virtual Coordinates coordinates() const = 0;
+    [[nodiscard]] virtual Coordinates coordinates() const = 0;
 
-    virtual JsonWebKeyECPublic public_key_jwk(
+    [[nodiscard]] virtual JsonWebKeyECPublic public_key_jwk(
       const std::optional<std::string>& kid = std::nullopt) const = 0;
+
+    virtual ~PublicKey() = default;
   };
 }

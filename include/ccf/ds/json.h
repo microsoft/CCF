@@ -25,24 +25,25 @@ namespace ccf
   class JsonParseError : public std::invalid_argument
   {
   public:
-    std::vector<std::string> pointer_elements = {};
+    std::vector<std::string> pointer_elements;
 
     using std::invalid_argument::invalid_argument;
 
-    std::string pointer() const
+    [[nodiscard]] std::string pointer() const
     {
       return fmt::format(
         "#/{}",
         fmt::join(pointer_elements.crbegin(), pointer_elements.crend(), "/"));
     }
 
-    std::string describe() const
+    [[nodiscard]] std::string describe() const
     {
       return fmt::format("At {}: {}", pointer(), what());
     }
   };
 }
 
+// NOLINTBEGIN(cert-dcl58-cpp)
 namespace std
 {
   template <typename T>
@@ -124,6 +125,7 @@ namespace std
     }
   }
 }
+// NOLINTEND(cert-dcl58-cpp)
 
 // FOREACH macro machinery for counting args
 
@@ -838,7 +840,7 @@ namespace std
   template <typename BasicJsonType> \
   inline void to_json(BasicJsonType& j, const TYPE& e) \
   { \
-    static_assert(std::is_enum<TYPE>::value, #TYPE " must be an enum!"); \
+    static_assert(std::is_enum_v<TYPE>, #TYPE " must be an enum!"); \
     static const std::pair<TYPE, BasicJsonType> m[] = __VA_ARGS__; \
     auto it = std::find_if( \
       std::begin(m), \
@@ -857,7 +859,7 @@ namespace std
   template <typename BasicJsonType> \
   inline void from_json(const BasicJsonType& j, TYPE& e) \
   { \
-    static_assert(std::is_enum<TYPE>::value, #TYPE " must be an enum!"); \
+    static_assert(std::is_enum_v<TYPE>, #TYPE " must be an enum!"); \
     static const std::pair<TYPE, BasicJsonType> m[] = __VA_ARGS__; \
     auto it = std::find_if( \
       std::begin(m), \

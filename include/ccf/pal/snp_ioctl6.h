@@ -66,7 +66,7 @@ namespace ccf::pal::snp::ioctl6
       post_sentinels[num_sentinel_bytes - 1] = post_sentinel_last;
     }
 
-    bool sentinels_intact() const
+    [[nodiscard]] bool sentinels_intact() const
     {
       if (pre_sentinels[0] != pre_sentinel_first)
       {
@@ -260,7 +260,7 @@ namespace ccf::pal::snp::ioctl6
       }
     }
 
-    const snp::Attestation& get() const override
+    [[nodiscard]] const snp::Attestation& get() const override
     {
       return padded_resp.report;
     }

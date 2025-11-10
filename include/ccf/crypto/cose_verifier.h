@@ -17,7 +17,7 @@ namespace ccf::crypto
     virtual bool verify(
       const std::span<const uint8_t>& buf,
       std::span<uint8_t>& authned_content) const = 0;
-    virtual bool verify_detached(
+    [[nodiscard]] virtual bool verify_detached(
       std::span<const uint8_t> buf, std::span<const uint8_t> payload) const = 0;
     virtual ~COSEVerifier() = default;
   };
@@ -30,8 +30,8 @@ namespace ccf::crypto
 
   struct COSEEndorsementValidity
   {
-    std::string from_txid{};
-    std::string to_txid{};
+    std::string from_txid;
+    std::string to_txid;
   };
   COSEEndorsementValidity extract_cose_endorsement_validity(
     std::span<const uint8_t> cose_msg);

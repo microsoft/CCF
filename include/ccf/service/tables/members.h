@@ -48,7 +48,7 @@ namespace ccf
 
     std::optional<MemberRecoveryRole> recovery_role = std::nullopt;
 
-    NewMember() {}
+    NewMember() = default;
 
     NewMember(
       const ccf::crypto::Pem& cert_,
@@ -115,7 +115,7 @@ namespace ccf
     /// Next state digest the member is expected to sign.
     std::string state_digest;
 
-    StateDigest() {}
+    StateDigest() = default;
 
     StateDigest(const ccf::crypto::Sha256Hash& root) :
       state_digest(root.hex_str())
@@ -132,7 +132,7 @@ namespace ccf
     /// COSE Sign1 containing the last state digest
     std::optional<std::vector<uint8_t>> cose_sign1_req = std::nullopt;
 
-    MemberAck() {}
+    MemberAck() = default;
 
     MemberAck(const ccf::crypto::Sha256Hash& root) : StateDigest(root) {}
 

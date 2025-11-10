@@ -516,7 +516,7 @@ namespace ccf
 
       LOG_DEBUG_FMT("Replying to session {}", id);
 
-      session->send_data(data);
+      session->send_data(std::move(data));
 
       if (terminate_after_send)
       {
