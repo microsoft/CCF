@@ -1072,7 +1072,7 @@ namespace aft
 
       RAFT_DEBUG_FMT(
         "Send {} from {} to {}: ({}.{}, {}.{}] ({})",
-        nlohmann::json(ae.msg).dump(),
+        ae.msg,
         state->node_id,
         to,
         prev_term,

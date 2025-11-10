@@ -271,10 +271,10 @@ struct formatter<aft::RaftMsgType>
   }
 
   template <typename FormatContext>
-  auto format(const aft::RaftMsgType& state, FormatContext& ctx) const
+  auto format(const aft::RaftMsgType& msg_type, FormatContext& ctx) const
     -> decltype(ctx.out())
   {
-    switch (state)
+    switch (msg_type)
     {
       case (aft::RaftMsgType::raft_append_entries):
       {
@@ -310,7 +310,7 @@ struct formatter<aft::RaftMsgType>
       }
       default:
         throw std::runtime_error(
-          fmt::format("Unhandled RaftMsgType: {}", state));
+          fmt::format("Unhandled RaftMsgType: {}", uint64_t(msg_type)));
     }
   }
 };
