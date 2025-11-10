@@ -18,10 +18,7 @@ namespace ccf::pal::snp
     {
       return std::make_unique<ioctl6::Attestation>(report_data);
     }
-    else
-    {
-      throw std::logic_error("SEV-SNP not supported");
-    }
+    throw std::logic_error("SEV-SNP not supported");
   }
 
   static std::unique_ptr<ioctl6::DerivedKey> make_derived_key(

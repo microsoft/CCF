@@ -44,7 +44,7 @@ namespace ccf
 
     // If encryption public key is set, the member is a recovery member
     std::optional<ccf::crypto::Pem> encryption_pub_key = std::nullopt;
-    nlohmann::json member_data = nullptr;
+    nlohmann::json member_data;
 
     std::optional<MemberRecoveryRole> recovery_role = std::nullopt;
 

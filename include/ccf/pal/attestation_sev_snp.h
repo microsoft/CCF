@@ -135,12 +135,14 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         throw std::logic_error(
           fmt::format("Invalid TCB version policy for Milan or Genoa"));
       }
+      // NOLINTBEGIN(bugprone-unchecked-optional-access)
       return TcbVersionMilanGenoa{
         static_cast<uint8_t>(boot_loader.value()),
         static_cast<uint8_t>(tee.value()),
         {0, 0, 0, 0}, // reserved
         static_cast<uint8_t>(snp.value()),
         static_cast<uint8_t>(microcode.value())};
+      // NOLINTEND(bugprone-unchecked-optional-access)
     }
 
     [[nodiscard]] TcbVersionTurin to_turin() const
@@ -156,6 +158,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         throw std::logic_error(
           fmt::format("Invalid TCB version policy for Turin"));
       }
+      // NOLINTBEGIN(bugprone-unchecked-optional-access)
       return TcbVersionTurin{
         static_cast<uint8_t>(fmc.value()),
         static_cast<uint8_t>(boot_loader.value()),
@@ -163,6 +166,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         static_cast<uint8_t>(snp.value()),
         {0, 0, 0}, // reserved
         static_cast<uint8_t>(microcode.value())};
+      // NOLINTEND(bugprone-unchecked-optional-access)
     }
 
     static bool is_valid(TcbVersionPolicy& minimum, TcbVersionPolicy& test)
@@ -322,6 +326,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 #pragma pack(pop)
 
   // Table 105
+  // NOLINTNEXTLINE(performance-enum-size)
   enum class SignatureAlgorithm : uint32_t
   {
     invalid = 0,
@@ -431,10 +436,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
       {
         return {url, default_values.port};
       }
-      else
-      {
-        return {url.substr(0, pos), url.substr(pos + 1)};
-      }
+      return {url.substr(0, pos), url.substr(pos + 1)};
     }
 
     return default_values;
@@ -457,7 +459,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     EndorsementEndpointsConfiguration config;
 
     auto chip_id_hex = fmt::format("{:02x}", fmt::join(quote.chip_id, ""));
-    auto reported_tcb = fmt::format("{:0x}", *(uint64_t*)(&quote.reported_tcb));
+    auto reported_tcb = fmt::format("{:0x}", *reinterpret_cast<const uint64_t*>(&quote.reported_tcb));
 
     constexpr size_t default_max_retries_count = 10;
     static const ds::SizeString default_max_client_response_size =
@@ -594,7 +596,7 @@ namespace ccf::kv::serialisers
     static SerialisedEntry to_serialised(const ccf::pal::snp::CPUID& chip)
     {
       auto hex_str = chip.hex_str();
-      return SerialisedEntry(hex_str.begin(), hex_str.end());
+      return {hex_str.begin(), hex_str.end()};
     }
 
     static ccf::pal::snp::CPUID from_serialised(const SerialisedEntry& data)

@@ -45,7 +45,7 @@ namespace ccf::pal::snp
       std::map<std::string, std::string> params;
       bool response_is_der = false;
       bool response_is_thim_json = false;
-      std::map<std::string, std::string> headers = {};
+      std::map<std::string, std::string> headers;
       bool tls = true;
       size_t max_retries_count = 3;
       size_t max_client_response_size = SIZE_MAX;
@@ -59,7 +59,7 @@ namespace ccf::pal::snp
     std::list<Server> servers;
   };
 
-  enum EndorsementsEndpointType
+  enum EndorsementsEndpointType : uint8_t
   {
     Azure = 0,
     AMD = 1,
@@ -106,10 +106,11 @@ namespace ccf::pal::snp
     std::map<std::string, std::string> params;
     params["api-version"] = "2020-10-15-preview";
     EndorsementEndpointsConfiguration::EndpointInfo info{
-      endpoint.host,
-      endpoint.port,
-      fmt::format("/SevSnpVM/certificates/{}/{}", chip_id_hex, reported_tcb),
-      params,
+      .host = endpoint.host,
+      .port = endpoint.port,
+      .uri = fmt::format("/SevSnpVM/certificates/{}/{}", chip_id_hex, reported_tcb),
+      .params = params,
+      .headers = {}
     };
 
     info.max_retries_count = max_retries_count;
@@ -147,19 +148,22 @@ namespace ccf::pal::snp
 
     EndorsementEndpointsConfiguration::Server server;
     EndorsementEndpointsConfiguration::EndpointInfo leaf{
-      endpoint.host,
-      endpoint.port,
-      fmt::format("/vcek/v1/{}/{}", to_string(product_name), chip_id_hex),
-      params,
-      true // DER
+      .host = endpoint.host,
+      .port = endpoint.port,
+      .uri = fmt::format("/vcek/v1/{}/{}", to_string(product_name), chip_id_hex),
+      .params = params,
+      .response_is_der = true,
+      .headers = {}
     };
     leaf.max_retries_count = max_retries_count;
     leaf.max_client_response_size = max_client_response_size;
     EndorsementEndpointsConfiguration::EndpointInfo chain{
-      endpoint.host,
-      endpoint.port,
-      fmt::format("/vcek/v1/{}/cert_chain", to_string(product_name)),
-      {}};
+      .host = endpoint.host,
+      .port = endpoint.port,
+      .uri = fmt::format("/vcek/v1/{}/cert_chain", to_string(product_name)),
+      .params = {},
+      .headers = {}
+    };
     chain.max_retries_count = max_retries_count;
     chain.max_client_response_size = max_client_response_size;
 

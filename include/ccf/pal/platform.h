@@ -7,7 +7,7 @@
 
 namespace ccf::pal
 {
-  enum class Platform
+  enum class Platform : uint8_t
   {
     SGX = 0,
     SNP = 1,

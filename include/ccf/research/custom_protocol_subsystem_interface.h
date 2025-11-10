@@ -26,7 +26,7 @@ namespace ccf
     using CreateSessionFn = std::function<std::shared_ptr<Session>(
       ccf::tls::ConnID, const std::unique_ptr<tls::Context>&&)>;
 
-    virtual ~CustomProtocolSubsystemInterface() = default;
+    ~CustomProtocolSubsystemInterface() override = default;
 
     static char const* get_subsystem_name()
     {

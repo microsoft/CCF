@@ -138,7 +138,7 @@ namespace ccf::pal::snp::ioctl6
     uint64_t guest_field_select = 0;
     uint32_t vmpl = 0;
     uint32_t guest_svn = 0;
-    TcbVersionRaw tcb_version = {};
+    TcbVersionRaw tcb_version;
   }; // snp_derived_key_req in (linux) include/uapi/linux/sev-guest.h
 #pragma pack(pop)
   static_assert(
@@ -207,7 +207,7 @@ namespace ccf::pal::snp::ioctl6
 
   class Attestation : public AttestationInterface
   {
-    IoctlSentinel<PaddedAttestationResp> resp_with_sentinel = {};
+    IoctlSentinel<PaddedAttestationResp> resp_with_sentinel;
     PaddedAttestationResp& padded_resp = resp_with_sentinel.data;
 
   public:
@@ -267,7 +267,7 @@ namespace ccf::pal::snp::ioctl6
 
     std::vector<uint8_t> get_raw() override
     {
-      auto quote_bytes = reinterpret_cast<uint8_t*>(&padded_resp.report);
+      auto * quote_bytes = reinterpret_cast<uint8_t*>(&padded_resp.report);
       return {quote_bytes, quote_bytes + padded_resp.report_size};
     }
   };
