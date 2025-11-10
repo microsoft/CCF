@@ -145,11 +145,12 @@ namespace ccf::js
     void build_api(nlohmann::json& document, ccf::kv::ReadOnlyTx& tx) override;
 
     std::set<RESTVerb> get_allowed_verbs(
-      ccf::kv::Tx&, const ccf::RpcContext& rpc_ctx) override;
+      [[maybe_unused]] ccf::kv::Tx& tx,
+      const ccf::RpcContext& rpc_ctx) override;
     ///@}
 
     virtual ccf::js::extensions::Extensions get_extensions(
-      const ccf::endpoints::EndpointContext& endpoint_ctx)
+      [[maybe_unused]] const ccf::endpoints::EndpointContext& endpoint_ctx)
     {
       return {};
     };
@@ -195,7 +196,7 @@ namespace ccf::js
     ccf::ApiResult check_action_not_replayed_v1(
       ccf::kv::Tx& tx,
       uint64_t created_at,
-      const std::span<const uint8_t> action,
+      std::span<const uint8_t> action,
       ccf::InvalidArgsReason& reason);
   };
 }

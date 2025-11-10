@@ -36,8 +36,8 @@ namespace ccf::js::core
   struct InterruptData
   {
     std::chrono::high_resolution_clock::time_point start_time;
-    std::chrono::milliseconds max_execution_time;
-    ccf::js::TxAccess access;
+    std::chrono::milliseconds max_execution_time = {};
+    ccf::js::TxAccess access = ccf::js::TxAccess::APP_RO;
     bool request_timed_out = false;
   };
 
@@ -197,8 +197,7 @@ namespace ccf::js::core
     {
       for (auto& extension : extensions)
       {
-        if (TExtension* t = dynamic_cast<TExtension*>(extension.get());
-            t != nullptr)
+        if (auto* t = dynamic_cast<TExtension*>(extension.get()); t != nullptr)
         {
           return t;
         }
