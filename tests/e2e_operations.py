@@ -1443,10 +1443,19 @@ def run_recovery_local_unsealing(
         network.save_service_identity(args)
 
         primary, _ = network.find_primary()
+        if rekey or recovery_shares_refresh:
+            with primary.client() as c:
+                r = c.get("/node/commit").body.json()
+                target_seqno = TxID.from_str(r["transaction_id"]).seqno
+        else:
+            target_seqno = 0
+
         if rekey:
             network.consortium.trigger_ledger_rekey(primary)
         if recovery_shares_refresh:
             network.consortium.trigger_recovery_shares_refresh(primary)
+
+        network.wait_for_sealed_secrets(primary, target_seqno)
 
         node_secret_map = {
             node.local_node_id: node.save_sealed_ledger_secret()
@@ -1503,6 +1512,7 @@ def run_recovery_unsealing_validate_audit(const_args):
         network.start_and_open(args)
 
         network.save_service_identity(args)
+        network.wait_for_sealed_secrets(network.nodes[0], 0)
         node0_secrets = network.nodes[0].save_sealed_ledger_secret()
 
         latest_public_tables, _ = network.get_latest_ledger_public_state()
@@ -1586,6 +1596,8 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
         network.start_and_open(args)
 
         network.save_service_identity(args)
+
+        network.wait_for_sealed_secrets(network.nodes[0], 0)
 
         node_secret_map = {
             node.local_node_id: node.save_sealed_ledger_secret()
