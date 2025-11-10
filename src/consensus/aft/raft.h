@@ -1749,16 +1749,6 @@ namespace aft
       // produce a primary in the new term, who will then help this node catch
       // up.
 
-#ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "recv_request_vote";
-      j["packet"] = r;
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["from_node_id"] = from;
-      RAFT_TRACE_JSON_OUT(j);
-#endif
-
       if (state->current_view > r.term)
       {
         // Reply false, since our term is later than the received term.
@@ -1868,11 +1858,31 @@ namespace aft
 
     void recv_request_vote(const ccf::NodeId& from, RequestVote r)
     {
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "recv_request_vote";
+      j["packet"] = r;
+      j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
+      j["from_node_id"] = from;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
+
       recv_request_vote(from, r, ElectionType::RegularVote);
     }
 
     void recv_request_pre_vote(const ccf::NodeId& from, RequestPreVote r)
     {
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "recv_request_vote";
+      j["packet"] = r;
+      j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
+      j["from_node_id"] = from;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
+
       // A pre-vote is a speculative request vote, so we translate it back to a
       // RequestVote to avoid duplicating the logic.
       RequestVote rv{

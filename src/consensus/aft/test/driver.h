@@ -3,6 +3,7 @@
 #pragma once
 
 #include "consensus/aft/raft.h"
+#include "consensus/aft/raft_types.h"
 #include "ds/internal_logger.h"
 #include "logging_stub.h"
 
@@ -393,11 +394,12 @@ public:
   void log_msg_details(
     ccf::NodeId node_id,
     ccf::NodeId tgt_node_id,
-    aft::RequestVote rv,
+    aft::RequestPreVote rv,
     bool dropped)
   {
     const auto s = fmt::format(
-      "request_vote for term {}, at tx {}.{}",
+      "{} for term {}, at tx {}.{}",
+      rv.msg,
       rv.term,
       rv.term_of_last_committable_idx,
       rv.last_committable_idx);
@@ -407,13 +409,37 @@ public:
   void log_msg_details(
     ccf::NodeId node_id,
     ccf::NodeId tgt_node_id,
+    aft::RequestVote rv,
+    bool dropped)
+  {
+    const auto s = fmt::format(
+      "{} for term {}, at tx {}.{}",
+      rv.msg,
+      rv.term,
+      rv.term_of_last_committable_idx,
+      rv.last_committable_idx);
+    log(node_id, tgt_node_id, s, dropped);
+  }
+
+  void log_msg_details(
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
+    aft::RequestPreVoteResponse rv,
+    bool dropped)
+  {
+    const auto s = fmt::format(
+      "{} for term {} = {}", rv.msg, rv.term, (rv.vote_granted ? "Y" : "N"));
+    rlog(node_id, tgt_node_id, s, dropped);
+  }
+
+  void log_msg_details(
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
     aft::RequestVoteResponse rv,
     bool dropped)
   {
     const auto s = fmt::format(
-      "request_vote_response for term {} = {}",
-      rv.term,
-      (rv.vote_granted ? "Y" : "N"));
+      "{} for term {} = {}", rv.msg, rv.term, (rv.vote_granted ? "Y" : "N"));
     rlog(node_id, tgt_node_id, s, dropped);
   }
 
@@ -424,7 +450,8 @@ public:
     bool dropped)
   {
     const auto s = fmt::format(
-      "append_entries ({}.{}, {}.{}] (term {}, commit {})",
+      "{} ({}.{}, {}.{}] (term {}, commit {})",
+      ae.msg,
       ae.prev_term,
       ae.prev_idx,
       ae.term_of_idx,
@@ -455,10 +482,7 @@ public:
       }
     }
     const auto s = fmt::format(
-      "append_entries_response {} for {}.{}",
-      success,
-      aer.term,
-      aer.last_log_idx);
+      "{} {} for {}.{}", aer.msg, success, aer.term, aer.last_log_idx);
     rlog(node_id, tgt_node_id, s, dropped);
   }
 
@@ -468,7 +492,7 @@ public:
     aft::ProposeRequestVote prv,
     bool dropped)
   {
-    const auto s = fmt::format("propose_request_vote for term {}", prv.term);
+    const auto s = fmt::format("{} for term {}", prv.msg, prv.term);
     log(node_id, tgt_node_id, s, dropped);
   }
 
@@ -487,11 +511,17 @@ public:
     switch (msg_type)
     {
       case (aft::RaftMsgType::raft_request_vote):
-      case (aft::RaftMsgType::raft_request_pre_vote):
       {
         auto rv = *(aft::RequestVote*)data;
         packet = rv;
         log_msg_details(node_id, tgt_node_id, rv, dropped);
+        break;
+      }
+      case (aft::RaftMsgType::raft_request_pre_vote):
+      {
+        auto rpv = *(aft::RequestPreVote*)data;
+        packet = rpv;
+        log_msg_details(node_id, tgt_node_id, rpv, dropped);
         break;
       }
       case (aft::RaftMsgType::raft_request_vote_response):
