@@ -12,9 +12,9 @@ namespace ccf
   {
     struct Defaults
     {
-      static constexpr size_t max_heap_bytes = 100 * 1024 * 1024;
-      static constexpr size_t max_stack_bytes = 1024 * 1024;
-      static constexpr uint64_t max_execution_time_ms = 5000;
+      static constexpr size_t max_heap_bytes = 100ULL * 1024 * 1024;
+      static constexpr size_t max_stack_bytes = 1024ULL * 1024;
+      static constexpr uint64_t max_execution_time_ms = 5000U;
       static constexpr bool log_exception_details = false;
       static constexpr bool return_exception_details = false;
       static constexpr size_t max_cached_interpreters = 10;
