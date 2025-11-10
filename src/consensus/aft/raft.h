@@ -1737,11 +1737,9 @@ namespace aft
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
     }
 
-    void recv_request_vote(
+    void recv_request_vote_unsafe(
       const ccf::NodeId& from, RequestVote r, ElectionType election_type)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-
       // Do not check that from is a known node. It is possible to receive
       // RequestVotes from nodes that this node doesn't yet know, just as it
       // receives AppendEntries from those nodes. These should be obeyed just
@@ -1858,6 +1856,8 @@ namespace aft
 
     void recv_request_vote(const ccf::NodeId& from, RequestVote r)
     {
+      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
       j["function"] = "recv_request_vote";
@@ -1868,11 +1868,13 @@ namespace aft
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
-      recv_request_vote(from, r, ElectionType::RegularVote);
+      recv_request_vote_unsafe(from, r, ElectionType::RegularVote);
     }
 
     void recv_request_pre_vote(const ccf::NodeId& from, RequestPreVote r)
     {
+      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
       j["function"] = "recv_request_vote";
@@ -1890,7 +1892,7 @@ namespace aft
         .last_committable_idx = r.last_committable_idx,
         .term_of_last_committable_idx = r.term_of_last_committable_idx,
       };
-      recv_request_vote(from, rv, ElectionType::PreVote);
+      recv_request_vote_unsafe(from, rv, ElectionType::PreVote);
     }
 
     void send_request_vote_response(
