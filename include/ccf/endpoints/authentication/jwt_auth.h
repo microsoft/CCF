@@ -34,7 +34,7 @@ namespace ccf
     static constexpr auto SECURITY_SCHEME_NAME = "jwt";
 
     JwtAuthnPolicy();
-    virtual ~JwtAuthnPolicy();
+    ~JwtAuthnPolicy() override;
 
     std::unique_ptr<AuthnIdentity> authenticate(
       ccf::kv::ReadOnlyTx& tx,
@@ -45,7 +45,7 @@ namespace ccf
       std::shared_ptr<ccf::RpcContext> ctx,
       std::string&& error_reason) override;
 
-    std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
+    [[nodiscard]] std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
       const override
     {
       return security_schema;
