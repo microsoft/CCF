@@ -61,12 +61,12 @@ namespace ccf
       return get_subsystem<T>(T::get_subsystem_name());
     }
 
-    virtual ccf::NodeId get_node_id() const
+    [[nodiscard]] virtual ccf::NodeId get_node_id() const
     {
       return {};
     }
 
-    virtual ccf::crypto::Pem get_self_signed_certificate() const
+    [[nodiscard]] virtual ccf::crypto::Pem get_self_signed_certificate() const
     {
       return {};
     }

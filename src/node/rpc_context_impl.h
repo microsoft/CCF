@@ -85,7 +85,7 @@ namespace ccf
     void set_error(ccf::ErrorDetails&& error) override
     {
       nlohmann::json body = ccf::ODataErrorResponse{
-        ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+        ccf::ODataError{std::move(error.code), std::move(error.msg), {}}};
       set_response_json(body, error.status);
     }
 
