@@ -21,9 +21,9 @@ namespace ccf::crypto
 
     Sha256Hash() = default;
 
-    void set(Representation&& r)
+    void set(const Representation& r)
     {
-      h = std::move(r);
+      h = r;
     }
 
     Sha256Hash(const uint8_t* data, size_t size);

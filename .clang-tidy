@@ -58,5 +58,5 @@ Checks: >
   -readability-magic-numbers,
 
 WarningsAsErrors: '*'
-HeaderFilterRegex: 'include\/ccf\/(ds|threading|service|research|pal|node|kv|js|indexing|endpoints)\/.*'
+HeaderFilterRegex: 'include\/ccf\/(ds|threading|service|research|pal|node|kv|js|indexing|endpoints|crypto)\/.*'
 FormatStyle:     'file'
