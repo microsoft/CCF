@@ -142,7 +142,7 @@ namespace ccf::js::core
     [[nodiscard]] JSWrappedValue new_string_len(
       const char* buf, size_t buf_len) const;
     [[nodiscard]] JSWrappedValue new_string_len(
-      const std::span<const uint8_t> buf) const;
+      std::span<const uint8_t> buf) const;
     JSWrappedValue new_type_error(const char* fmt, ...) const;
     JSWrappedValue new_internal_error(const char* fmt, ...) const;
     [[nodiscard]] JSWrappedValue new_tag_value(int tag, int32_t val = 0) const;
