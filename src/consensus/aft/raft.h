@@ -1927,7 +1927,6 @@ namespace aft
 
         channels->send_authenticated(
           to, ccf::NodeMsgType::consensus_msg, response);
-        return;
       }
     }
 
