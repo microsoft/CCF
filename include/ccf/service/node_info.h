@@ -14,7 +14,7 @@
 
 namespace ccf
 {
-  enum class NodeStatus
+  enum class NodeStatus : uint8_t
   {
     PENDING = 0,
     TRUSTED = 1,

@@ -29,6 +29,8 @@ namespace ccf
 
     using std::invalid_argument::invalid_argument;
 
+    JsonParseError(const JsonParseError& other) noexcept = default;
+
     [[nodiscard]] std::string pointer() const
     {
       return fmt::format(

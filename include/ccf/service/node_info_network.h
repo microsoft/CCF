@@ -11,7 +11,7 @@
 
 namespace ccf
 {
-  enum class Authority
+  enum class Authority : uint8_t
   {
     NODE,
     SERVICE,
@@ -53,7 +53,7 @@ namespace ccf
 
   static constexpr auto PRIMARY_RPC_INTERFACE = "primary_rpc_interface";
 
-  enum class RedirectionResolutionKind
+  enum class RedirectionResolutionKind : uint8_t
   {
     NodeByRole,
     StaticAddress
@@ -208,7 +208,7 @@ namespace ccf
       std::tie(v1.nodehost, v1.nodeport) =
         split_net_address(nin.node_to_node_interface.bind_address);
 
-      if (nin.rpc_interfaces.size() > 0)
+      if (!nin.rpc_interfaces.empty())
       {
         const auto& primary_interface = nin.rpc_interfaces.begin()->second;
         std::tie(v1.rpchost, v1.rpcport) =

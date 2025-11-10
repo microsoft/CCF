@@ -6,7 +6,7 @@
 
 namespace ccf
 {
-  enum ConsensusType
+  enum ConsensusType : uint8_t
   {
     CFT = 0,
     BFT = 1
