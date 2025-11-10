@@ -329,6 +329,15 @@ configure_file(
   @ONLY
 )
 
+file(READ ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
+     GOV_API_SCHEMA_2023_06_01_PREVIEW
+)
+set_property(
+  DIRECTORY
+  APPEND
+  PROPERTY CMAKE_CONFIGURE_DEPENDS
+           ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
+)
 file(READ ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
      GOV_API_SCHEMA_2024_07_01
 )
