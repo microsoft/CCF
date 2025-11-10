@@ -93,6 +93,24 @@ void print_version(int64_t ignored)
   exit(0); // NOLINT(concurrency-mt-unsafe)
 }
 
+void apply_stdlib_workarounds()
+{
+  // A data race happens in the libstdc++ implementation of ctype::narrow.
+  // See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=77704
+  // This workaround is from the mailing list - avoid unprotected lazy
+  // initialisation by eagerly initialising every value now.
+#if defined(__GLIBCXX__)
+  {
+    const auto& ct(std::use_facet<std::ctype<char>>(std::locale()));
+
+    for (size_t i(0); i != 256; ++i)
+    {
+      ct.narrow(static_cast<char>(i), '\0');
+    }
+  }
+#endif
+}
+
 static constexpr size_t max_time_us = 10'000;
 std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(
   max_time_us);
@@ -106,6 +124,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     LOG_FAIL_FMT("Failed to ignore SIGPIPE");
     return 1;
   }
+
+  apply_stdlib_workarounds();
 
   ccf::crypto::openssl_sha256_init();
 
