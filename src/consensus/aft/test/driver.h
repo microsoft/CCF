@@ -525,6 +525,12 @@ public:
         break;
       }
       case (aft::RaftMsgType::raft_request_vote_response):
+      {
+        auto rvr = *(aft::RequestPreVoteResponse*)data;
+        packet = rvr;
+        log_msg_details(node_id, tgt_node_id, rvr, dropped);
+        break;
+      }
       case (aft::RaftMsgType::raft_request_pre_vote_response):
       {
         auto rvr = *(aft::RequestVoteResponse*)data;
