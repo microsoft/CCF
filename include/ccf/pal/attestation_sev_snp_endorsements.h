@@ -108,10 +108,10 @@ namespace ccf::pal::snp
     EndorsementEndpointsConfiguration::EndpointInfo info{
       .host = endpoint.host,
       .port = endpoint.port,
-      .uri = fmt::format("/SevSnpVM/certificates/{}/{}", chip_id_hex, reported_tcb),
+      .uri =
+        fmt::format("/SevSnpVM/certificates/{}/{}", chip_id_hex, reported_tcb),
       .params = params,
-      .headers = {}
-    };
+      .headers = {}};
 
     info.max_retries_count = max_retries_count;
     info.max_client_response_size = max_client_response_size;
@@ -150,11 +150,11 @@ namespace ccf::pal::snp
     EndorsementEndpointsConfiguration::EndpointInfo leaf{
       .host = endpoint.host,
       .port = endpoint.port,
-      .uri = fmt::format("/vcek/v1/{}/{}", to_string(product_name), chip_id_hex),
+      .uri =
+        fmt::format("/vcek/v1/{}/{}", to_string(product_name), chip_id_hex),
       .params = params,
       .response_is_der = true,
-      .headers = {}
-    };
+      .headers = {}};
     leaf.max_retries_count = max_retries_count;
     leaf.max_client_response_size = max_client_response_size;
     EndorsementEndpointsConfiguration::EndpointInfo chain{
@@ -162,8 +162,7 @@ namespace ccf::pal::snp
       .port = endpoint.port,
       .uri = fmt::format("/vcek/v1/{}/cert_chain", to_string(product_name)),
       .params = {},
-      .headers = {}
-    };
+      .headers = {}};
     chain.max_retries_count = max_retries_count;
     chain.max_client_response_size = max_client_response_size;
 

@@ -39,7 +39,9 @@ namespace ccf::pal
     std::string msg;
 
   public:
-    AttestationCollateralFetchingTimeout(std::string msg_) : msg(std::move(msg_)) {}
+    AttestationCollateralFetchingTimeout(std::string msg_) :
+      msg(std::move(msg_))
+    {}
 
     [[nodiscard]] const char* what() const noexcept override
     {

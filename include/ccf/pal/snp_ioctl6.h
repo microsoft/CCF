@@ -103,7 +103,7 @@ namespace ccf::pal::snp::ioctl6
 #pragma pack(push, 1)
   struct AttestationReq
   {
-    uint8_t report_data[snp_attestation_report_data_size];
+    uint8_t report_data[snp_attestation_report_data_size] = {0};
     uint32_t vmpl = 0;
     uint8_t reserved[28] = {0};
   }; // snp_report_req in (linux) include/uapi/linux/sev-guest.h
@@ -113,11 +113,11 @@ namespace ccf::pal::snp::ioctl6
 #pragma pack(push, 1)
   struct AttestationResp
   {
-    uint32_t status;
-    uint32_t report_size;
-    uint8_t reserved[0x20 - 0x8];
-    struct Attestation report;
-    uint8_t padding[64];
+    uint32_t status = 0;
+    uint32_t report_size = 0;
+    uint8_t reserved[0x20 - 0x8] = {0};
+    Attestation report;
+    uint8_t padding[64] = {0};
     // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
   };
 #pragma pack(pop)
@@ -157,13 +157,13 @@ namespace ccf::pal::snp::ioctl6
 
   struct ExitInfoErrors
   {
-    uint32_t fw;
-    uint32_t vmm;
+    uint32_t fw = 0;
+    uint32_t vmm = 0;
   };
 
   union ExitInfo
   {
-    uint64_t whole;
+    uint64_t whole = 0;
     ExitInfoErrors errors;
   };
 
@@ -180,7 +180,7 @@ namespace ccf::pal::snp::ioctl6
 
     /* bits[63:32]: VMM error code, bits[31:0] firmware error code (see
      * psp-sev.h) */
-    ExitInfo exit_info;
+    ExitInfo exit_info = {};
   };
 
   // This 4000 comes from the definition of snp_report_resp in
@@ -244,7 +244,7 @@ namespace ccf::pal::snp::ioctl6
         const auto msg = fmt::format(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_REPORT: {} fw_error: {} "
           "vmm_error: {}",
-          strerror(errno),
+          strerror(errno), // NOLINT(concurrency-mt-unsafe)
           payload.exit_info.errors.fw,
           payload.exit_info.errors.vmm);
         throw std::logic_error(msg);
@@ -267,7 +267,7 @@ namespace ccf::pal::snp::ioctl6
 
     std::vector<uint8_t> get_raw() override
     {
-      auto * quote_bytes = reinterpret_cast<uint8_t*>(&padded_resp.report);
+      auto* quote_bytes = reinterpret_cast<uint8_t*>(&padded_resp.report);
       return {quote_bytes, quote_bytes + padded_resp.report_size};
     }
   };
@@ -303,7 +303,7 @@ namespace ccf::pal::snp::ioctl6
         const auto msg = fmt::format(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY: {} fw_error: "
           "{} vmm_error: {}",
-          strerror(errno),
+          strerror(errno), // NOLINT(concurrency-mt-unsafe)
           payload.exit_info.errors.fw,
           payload.exit_info.errors.vmm);
         throw std::logic_error(msg);

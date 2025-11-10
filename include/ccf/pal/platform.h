@@ -23,6 +23,7 @@ namespace ccf::pal
 
   static Platform _detect_platform()
   {
+    // NOLINTNEXTLINE(concurrency-mt-unsafe)
     auto* env_var = std::getenv("CCF_PLATFORM_OVERRIDE");
     if (env_var != nullptr)
     {
