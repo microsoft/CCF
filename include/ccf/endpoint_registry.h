@@ -169,7 +169,7 @@ namespace ccf::endpoints
       method_prefix(method_prefix_)
     {}
 
-    virtual ~EndpointRegistry() {}
+    virtual ~EndpointRegistry() = default;
 
     /** Create a new endpoint.
      *
@@ -291,7 +291,7 @@ namespace ccf::endpoints
       const ccf::endpoints::DispatchFailedEvent& event)
     {}
 
-    virtual bool apply_uncommitted_tx_backpressure() const
+    [[nodiscard]] virtual bool apply_uncommitted_tx_backpressure() const
     {
       return true;
     }

@@ -27,7 +27,7 @@ namespace ccf::pal
   static inline bool get_mallinfo(MallocInfo& info)
   {
     {
-      rusage ru;
+      rusage ru = {};
       auto rc = getrusage(RUSAGE_SELF, &ru);
       if (rc != 0)
       {
@@ -40,7 +40,7 @@ namespace ccf::pal
     }
 
     {
-      rlimit rl;
+      rlimit rl = {};
       auto rc = getrlimit(RLIMIT_AS, &rl);
       if (rc != 0)
       {

@@ -23,7 +23,7 @@ namespace ccf::endpoints
     /// HTTP Verb
     RESTVerb verb = HTTP_POST;
 
-    std::string to_str() const
+    [[nodiscard]] std::string to_str() const
     {
       return fmt::format("{} {}", verb.c_str(), uri_path);
     }
@@ -174,7 +174,7 @@ namespace ccf::endpoints
     /// Endpoint redirection policy
     RedirectionStrategy redirection_strategy = RedirectionStrategy::ToPrimary;
     /// Authentication policies
-    std::vector<nlohmann::json> authn_policies = {};
+    std::vector<nlohmann::json> authn_policies;
     /// OpenAPI schema for endpoint
     nlohmann::json openapi;
     //// Whether to include endpoint schema in frontend schema
@@ -262,9 +262,9 @@ namespace ccf::endpoints
   struct Endpoint : public EndpointDefinition
   {
     // Functor which is invoked to process requests for this Endpoint
-    EndpointFunction func = {};
+    EndpointFunction func;
     // Functor which is invoked to modify the response post commit.
-    LocallyCommittedEndpointFunction locally_committed_func = {};
+    LocallyCommittedEndpointFunction locally_committed_func;
 
     struct Installer
     {
@@ -274,7 +274,7 @@ namespace ccf::endpoints
 
     using SchemaBuilderFn =
       std::function<void(nlohmann::json&, const Endpoint&)>;
-    std::vector<SchemaBuilderFn> schema_builders = {};
+    std::vector<SchemaBuilderFn> schema_builders;
 
     bool openapi_hidden = false;
 

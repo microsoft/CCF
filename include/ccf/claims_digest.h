@@ -18,24 +18,24 @@ namespace ccf
   public:
     ClaimsDigest() = default;
 
-    inline void set(Digest&& digest_)
+    void set(Digest&& digest_)
     {
       is_set = true;
       digest = std::move(digest_);
     }
 
-    inline void set(Digest::Representation&& r)
+    void set(Digest::Representation&& r)
     {
       is_set = true;
       digest.set(std::move(r));
     }
 
-    inline bool empty() const
+    [[nodiscard]] bool empty() const
     {
       return !is_set;
     }
 
-    const Digest& value() const
+    [[nodiscard]] const Digest& value() const
     {
       return digest;
     }
@@ -56,12 +56,15 @@ namespace ccf
     hash.set(j.get<ClaimsDigest::Digest>());
   }
 
-  inline std::string schema_name(const ClaimsDigest*)
+  inline std::string schema_name(
+    [[maybe_unused]] const ClaimsDigest* claims_digest_type)
   {
     return ds::json::schema_name<ClaimsDigest::Digest>();
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, const ClaimsDigest*)
+  inline void fill_json_schema(
+    nlohmann::json& schema,
+    [[maybe_unused]] const ClaimsDigest* claims_digest_type)
   {
     ds::json::fill_schema<ClaimsDigest::Digest>(schema);
   }

@@ -21,15 +21,15 @@ namespace ccf
     virtual ~Receipt() = default;
 
     // Signature over the root digest, signed by the identity described in cert
-    std::vector<uint8_t> signature = {};
+    std::vector<uint8_t> signature;
     virtual ccf::crypto::Sha256Hash calculate_root() = 0;
 
-    ccf::NodeId node_id = {};
-    ccf::crypto::Pem cert = {};
+    ccf::NodeId node_id;
+    ccf::crypto::Pem cert;
 
-    std::vector<ccf::crypto::Pem> service_endorsements = {};
+    std::vector<ccf::crypto::Pem> service_endorsements;
 
-    virtual bool is_signature_transaction() const = 0;
+    [[nodiscard]] virtual bool is_signature_transaction() const = 0;
   };
 
   // Most transactions produce a receipt constructed from a combination of 3
@@ -56,7 +56,7 @@ namespace ccf
         Right
       } direction;
 
-      ccf::crypto::Sha256Hash hash = {};
+      ccf::crypto::Sha256Hash hash;
 
       bool operator==(const ProofStep& other) const
       {
@@ -66,7 +66,7 @@ namespace ccf
     using Proof = std::vector<ProofStep>;
 
     // A merkle-tree path from the leaf digest to the signed root
-    Proof proof = {};
+    Proof proof;
 
     ccf::crypto::Sha256Hash calculate_root() override
     {
@@ -104,7 +104,7 @@ namespace ccf
       }
     }
 
-    bool is_signature_transaction() const override
+    [[nodiscard]] bool is_signature_transaction() const override
     {
       return false;
     }
@@ -115,14 +115,14 @@ namespace ccf
   class SignatureReceipt : public Receipt
   {
   public:
-    ccf::crypto::Sha256Hash signed_root = {};
+    ccf::crypto::Sha256Hash signed_root;
 
     ccf::crypto::Sha256Hash calculate_root() override
     {
       return signed_root;
     };
 
-    bool is_signature_transaction() const override
+    [[nodiscard]] bool is_signature_transaction() const override
     {
       return true;
     }

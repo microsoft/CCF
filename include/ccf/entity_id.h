@@ -27,7 +27,7 @@ namespace ccf
     EntityId(const Value& id_) : id(id_) {}
     EntityId(Value&& id_) : id(std::move(id_)) {}
 
-    inline operator std::string() const
+    operator std::string() const
     {
       return id;
     }
@@ -62,17 +62,17 @@ namespace ccf
       return id;
     }
 
-    const Value& value() const
+    [[nodiscard]] const Value& value() const
     {
       return id;
     }
 
-    char const* data() const
+    [[nodiscard]] char const* data() const
     {
       return id.data();
     }
 
-    size_t size() const
+    [[nodiscard]] size_t size() const
     {
       return id.size();
     }
@@ -102,14 +102,16 @@ namespace ccf
   }
 
   template <typename FmtExtender>
-  inline std::string schema_name(const EntityId<FmtExtender>*)
+  inline std::string schema_name(
+    [[maybe_unused]] const EntityId<FmtExtender>* entity_id_type)
   {
     return FmtExtender::ID_LABEL;
   }
 
   template <typename FmtExtender>
   inline void fill_json_schema(
-    nlohmann::json& schema, const EntityId<FmtExtender>*)
+    nlohmann::json& schema,
+    [[maybe_unused]] const EntityId<FmtExtender>* entity_id_type)
   {
     schema["type"] = "string";
 
