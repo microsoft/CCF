@@ -1433,18 +1433,19 @@ def wait_for_sealed_secrets(node, min_seqno=0, timeout=10):
     start = time.time()
     while True:
         with open(out, "r") as outf:
-            for f in out.readlines():
-                #LOG_INFO_FMT("Sealing complete of ledger secret to {}", sealing_path);
-                if f"Sealing complete of ledger secret to" in f:
-                    seqno = int(f.split()[-1])
-                    if seqno >= lwm_seqno:
+            for l in outf.readlines():
+                # LOG_INFO_FMT("Sealing complete of ledger secret to {}", sealing_path);
+                if "Sealing complete of ledger secret to" in l:
+                    seqno = int(l.split()[-1])
+                    if seqno >= min_seqno:
                         return
-        
+
         if time.time() > start + timeout:
             raise TimeoutError(
-                f"Could not find sealed secrets for seqno {lwm_seqno} after {timeout}s in logs"
-            ):
+                f"Could not find sealed secrets for seqno {min_seqno} after {timeout}s in logs"
+            )
         time.sleep(0.1)
+
 
 def run_recovery_local_unsealing(
     const_args, recovery_f=0, rekey=False, recovery_shares_refresh=False
@@ -1462,7 +1463,7 @@ def run_recovery_local_unsealing(
 
         primary, _ = network.find_primary()
         if rekey or recovery_shares_refresh:
-            time.sleep(1) # Ensure that the network is stable before proceeding
+            time.sleep(1)  # Ensure that the network is stable before proceeding
             with primary.client() as c:
                 r = c.get("/node/commit").body.json()
                 min_seqno = TxID.from_str(r["transaction_id"]).seqno
