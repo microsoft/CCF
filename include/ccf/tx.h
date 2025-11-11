@@ -72,7 +72,7 @@ namespace ccf::kv
       const std::string& map_name, bool track_deletes_on_missing_keys)
     {
       auto possible_handles = get_possible_handles(map_name);
-      for (auto handle : possible_handles)
+      for (auto* handle : possible_handles)
       {
         auto typed_handle = dynamic_cast<THandle*>(handle);
         if (typed_handle != nullptr)

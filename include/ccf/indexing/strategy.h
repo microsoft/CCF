@@ -28,7 +28,7 @@ namespace ccf::indexing
     Strategy(const std::string& name) : name(name) {}
     virtual ~Strategy() = default;
 
-    std::string get_name() const
+    [[nodiscard]] std::string get_name() const
     {
       return name;
     }

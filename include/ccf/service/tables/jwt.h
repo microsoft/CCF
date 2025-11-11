@@ -12,7 +12,7 @@
 
 namespace ccf
 {
-  enum class JwtIssuerKeyFilter
+  enum class JwtIssuerKeyFilter : uint8_t
   {
     All
   };

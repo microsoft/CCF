@@ -16,12 +16,12 @@ namespace ccf::crypto
   class RSAKeyPair : public RSAPublicKey
   {
   public:
-    virtual Pem private_key_pem() const = 0;
-    virtual std::vector<uint8_t> private_key_der() const = 0;
-    virtual JsonWebKeyRSAPrivate private_key_jwk(
+    [[nodiscard]] virtual Pem private_key_pem() const = 0;
+    [[nodiscard]] virtual std::vector<uint8_t> private_key_der() const = 0;
+    [[nodiscard]] virtual JsonWebKeyRSAPrivate private_key_jwk(
       const std::optional<std::string>& kid = std::nullopt) const = 0;
 
-    virtual std::vector<uint8_t> sign(
+    [[nodiscard]] virtual std::vector<uint8_t> sign(
       std::span<const uint8_t> d,
       MDType md_type = MDType::NONE,
       size_t salt_length = 0) const = 0;
@@ -34,7 +34,7 @@ namespace ccf::crypto
      *
      * @return Unwrapped data
      */
-    virtual std::vector<uint8_t> rsa_oaep_unwrap(
+    [[nodiscard]] virtual std::vector<uint8_t> rsa_oaep_unwrap(
       const std::vector<uint8_t>& input,
       const std::optional<std::vector<std::uint8_t>>& label = std::nullopt) = 0;
   };

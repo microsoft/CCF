@@ -18,7 +18,7 @@ namespace ccf::crypto
 
   public:
     Verifier() : public_key(nullptr) {}
-    virtual ~Verifier() {}
+    virtual ~Verifier() = default;
 
     virtual std::vector<uint8_t> cert_der() = 0;
     virtual Pem cert_pem() = 0;
@@ -31,7 +31,7 @@ namespace ccf::crypto
      * @param md_type Hash algorithm
      * @return Boolean indicating success
      */
-    virtual bool verify(
+    [[nodiscard]] virtual bool verify(
       const uint8_t* contents,
       size_t contents_size,
       const uint8_t* sig,
@@ -44,7 +44,7 @@ namespace ccf::crypto
      * @param md_type Hash algorithm
      * @return Boolean indicating success
      */
-    virtual bool verify(
+    [[nodiscard]] virtual bool verify(
       std::span<const uint8_t> contents,
       std::span<const uint8_t> sig,
       MDType md_type = MDType::NONE) const
@@ -59,7 +59,7 @@ namespace ccf::crypto
      * @param md_type Hash algorithm
      * @return Boolean indicating success
      */
-    virtual bool verify(
+    [[nodiscard]] virtual bool verify(
       const std::vector<uint8_t>& contents,
       const std::vector<uint8_t>& signature,
       MDType md_type = MDType::NONE) const
@@ -141,25 +141,26 @@ namespace ccf::crypto
       bool ignore_time = false) = 0;
 
     /** Indicates whether the certificate (held intenally) is self-signed */
-    virtual bool is_self_signed() const = 0;
+    [[nodiscard]] virtual bool is_self_signed() const = 0;
 
     /** The serial number of the certificate */
-    virtual std::string serial_number() const = 0;
+    [[nodiscard]] virtual std::string serial_number() const = 0;
 
     /** The validity period of the certificate */
-    virtual std::pair<std::string, std::string> validity_period() const = 0;
+    [[nodiscard]] virtual std::pair<std::string, std::string> validity_period()
+      const = 0;
 
     /** The number of seconds of the validity period of the
      * certificate remaining */
-    virtual size_t remaining_seconds(
+    [[nodiscard]] virtual size_t remaining_seconds(
       const std::chrono::system_clock::time_point& now) const = 0;
 
     /** The percentage of the validity period of the certificate remaining */
-    virtual double remaining_percentage(
+    [[nodiscard]] virtual double remaining_percentage(
       const std::chrono::system_clock::time_point& now) const = 0;
 
     /** The subject name of the certificate */
-    virtual std::string subject() const = 0;
+    [[nodiscard]] virtual std::string subject() const = 0;
   };
 
   using VerifierPtr = std::shared_ptr<Verifier>;

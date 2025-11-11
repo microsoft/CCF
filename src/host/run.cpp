@@ -872,6 +872,24 @@ namespace ccf
     return std::nullopt;
   }
 
+  void apply_stdlib_workarounds()
+  {
+    // A data race happens in the libstdc++ implementation of ctype::narrow.
+    // See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=77704
+    // This workaround is from the mailing list - avoid unprotected lazy
+    // initialisation by eagerly initialising every value now.
+#if defined(__GLIBCXX__)
+    {
+      const auto& ct(std::use_facet<std::ctype<char>>(std::locale()));
+
+      for (size_t i(0); i != 256; ++i)
+      {
+        ct.narrow(static_cast<char>(i), '\0');
+      }
+    }
+#endif
+  }
+
   int run(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   {
     if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
@@ -879,6 +897,8 @@ namespace ccf
       LOG_FAIL_FMT("Failed to ignore SIGPIPE");
       return 1;
     }
+
+    apply_stdlib_workarounds();
 
     CLI::App app{
       "Run a single CCF node, based on the given configuration file.\n"
@@ -908,11 +928,11 @@ namespace ccf
 
     ccf::LoggerLevel log_level = ccf::LoggerLevel::INFO;
     std::map<std::string, ccf::LoggerLevel> log_level_options;
-    for (size_t i = ccf::logger::MOST_VERBOSE;
-         i < ccf::LoggerLevel::MAX_LOG_LEVEL;
+    for (auto i = static_cast<uint8_t>(ccf::logger::MOST_VERBOSE);
+         i < static_cast<uint8_t>(ccf::LoggerLevel::MAX_LOG_LEVEL);
          ++i)
     {
-      const auto level = (ccf::LoggerLevel)i;
+      const auto level = static_cast<ccf::LoggerLevel>(i);
       log_level_options[ccf::logger::to_string(level)] = level;
     }
 

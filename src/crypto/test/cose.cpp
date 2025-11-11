@@ -86,7 +86,7 @@ struct Signer
       ccf::crypto::make_cose_verifier_from_key(kp.public_key_pem());
     if (detached_payload)
     {
-      verifier->verify_detached(cose_sign1, payload);
+      REQUIRE(verifier->verify_detached(cose_sign1, payload));
     }
     else
     {

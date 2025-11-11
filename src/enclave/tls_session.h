@@ -346,6 +346,25 @@ namespace ccf
       }
     }
 
+    void send_raw(std::vector<uint8_t>&& data)
+    {
+      if (ccf::threading::get_current_thread_id() != execution_thread)
+      {
+        auto msg =
+          std::make_unique<::threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
+        msg->data.self = this->shared_from_this();
+        msg->data.data = std::move(data);
+
+        ::threading::ThreadMessaging::instance().add_task(
+          execution_thread, std::move(msg));
+      }
+      else
+      {
+        // Send inline immediately
+        send_raw_thread(data.data(), data.size());
+      }
+    }
+
   private:
     static void send_raw_cb(std::unique_ptr<::threading::Tmsg<SendRecvMsg>> msg)
     {
