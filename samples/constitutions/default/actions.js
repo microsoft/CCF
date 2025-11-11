@@ -1596,17 +1596,16 @@ const actions = new Map([
           throw new Error("No new JWT public signing keys records found");
         }
 
-        const keys = ccf.kv["public:ccf.gov.jwt.public_signing_keys"].clear();
+        const keys = ccf.kv["public:ccf.gov.jwt.public_signing_keys"];
         if (keys !== undefined) {
           keys.clear();
         }
         const metadata =
-          ccf.kv["public:ccf.gov.jwt.public_signing_keys_metadata"].clear();
+          ccf.kv["public:ccf.gov.jwt.public_signing_keys_metadata"];
         if (metadata !== undefined) {
           metadata.clear();
         }
-        const issuer =
-          ccf.kv["public:ccf.gov.jwt.public_signing_key_issuer"].clear();
+        const issuer = ccf.kv["public:ccf.gov.jwt.public_signing_key_issuer"];
         if (issuer !== undefined) {
           issuer.clear();
         }
