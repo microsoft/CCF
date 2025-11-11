@@ -71,7 +71,8 @@ def _parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--skip-apt-packages", action="store_false", default=True, dest="apt_packages"
+        "--tdnf-extended",
+        action="store_true",
     )
 
     return parser.parse_args()
@@ -89,6 +90,22 @@ def install_tlc():
 
 
 def install_deps(args: argparse.Namespace):
+    if args.tdnf_extended:
+        with open("/etc/yum.repos.d/tdnf.repo", "w", encoding="utf-8") as tdnf_repo:
+            tdnf_repo.write(
+                """[azurelinux-official-extended]
+                   name=Azure Linux Official Extended \$releasever \$basearch
+                   baseurl=https://packages.microsoft.com/azurelinux/\$releasever/prod/extended/\$basearch
+                   gpgkey=file:///etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+                   gpgcheck=1
+                   repo_gpgcheck=1
+                   enabled=1
+                   skip_if_unavailable=True
+                   sslverify=1""")
+        subprocess.check_call(
+            ["sudo", "tdnf", "install", "-y", "parallel"]
+        )
+
     # Setup tools directory
     tools_dir = os.path.join(TLA_DIR, "tools")
 
@@ -111,17 +128,6 @@ def install_deps(args: argparse.Namespace):
             url="https://github.com/informalsystems/apalache/releases/latest/download/apalache.tgz",
             dest=tools_dir,
         )
-
-    if args.apt_packages:
-        subprocess.Popen(
-            "sudo apt-get install -y --no-install-recommends".split()
-            + [
-                "wget",
-                "graphviz",
-                "htop",
-                "texlive-latex-recommended",
-            ]
-        ).wait()
 
     fetch_latest(
         url="https://nightly.tlapl.us/dist/tla2tools.jar",
