@@ -1464,16 +1464,15 @@ def run_recovery_local_unsealing(
         network.save_service_identity(args)
 
         primary, _ = network.find_primary()
-        if rekey or recovery_shares_refresh:
+        if rekey:
             time.sleep(1)  # Ensure that the network is stable before proceeding
             with primary.client() as c:
                 r = c.get("/node/commit").body.json()
                 min_seqno = TxID.from_str(r["transaction_id"]).seqno
+            network.consortium.trigger_ledger_rekey(primary)
         else:
             min_seqno = 0
 
-        if rekey:
-            network.consortium.trigger_ledger_rekey(primary)
         if recovery_shares_refresh:
             network.consortium.trigger_recovery_shares_refresh(primary)
 
