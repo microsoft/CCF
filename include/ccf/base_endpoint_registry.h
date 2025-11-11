@@ -25,7 +25,7 @@ namespace ccf
     /** One of the arguments passed to the function is invalid. It may be
        outside the range of known values, or not be in the expected format. */
     InvalidArgs,
-    /** The requsted value was not found. */
+    /** The requested value was not found. */
     NotFound,
     /** General error not covered by the cases above. Generally means that an
        unexpected exception was thrown during execution. */

@@ -46,14 +46,14 @@ void populate_receipt(std::shared_ptr<ccf::ProofReceipt> receipt)
   const auto num_proof_steps = rand() % 8;
   for (auto i = 0; i < num_proof_steps; ++i)
   {
-    const auto dir = rand() % 2 == 0 ? ccf::ProofReceipt::ProofStep::Left :
-                                       ccf::ProofReceipt::ProofStep::Right;
+    const auto dir = rand() % 2 == 0 ? ccf::ProofReceipt::ProofStep::Direction::Left :
+                                       ccf::ProofReceipt::ProofStep::Direction::Right;
     const auto digest = rand_digest();
 
     ccf::ProofReceipt::ProofStep step{dir, digest};
     receipt->proof.push_back(step);
 
-    if (dir == ccf::ProofReceipt::ProofStep::Left)
+    if (dir == ccf::ProofReceipt::ProofStep::Direction::Left)
     {
       current_digest = ccf::crypto::Sha256Hash(digest, current_digest);
     }

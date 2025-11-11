@@ -50,11 +50,12 @@ namespace ccf
 
     struct ProofStep
     {
-      enum
+      enum class Direction : uint8_t
       {
         Left,
         Right
-      } direction;
+      };
+      Direction direction = Direction::Left;
 
       ccf::crypto::Sha256Hash hash;
 
@@ -74,7 +75,7 @@ namespace ccf
 
       for (const auto& element : proof)
       {
-        if (element.direction == ProofStep::Left)
+        if (element.direction == ProofStep::Direction::Left)
         {
           current = ccf::crypto::Sha256Hash(element.hash, current);
         }
@@ -87,21 +88,18 @@ namespace ccf
       return current;
     }
 
-    ccf::crypto::Sha256Hash get_leaf_digest()
+    [[nodiscard]] ccf::crypto::Sha256Hash get_leaf_digest() const
     {
       ccf::crypto::Sha256Hash ce_dgst(leaf_components.commit_evidence);
       if (!leaf_components.claims_digest.empty())
       {
-        return ccf::crypto::Sha256Hash(
+        return {
           leaf_components.write_set_digest,
           ce_dgst,
-          leaf_components.claims_digest.value());
+          leaf_components.claims_digest.value()};
       }
-      else
-      {
-        return ccf::crypto::Sha256Hash(
-          leaf_components.write_set_digest, ce_dgst);
-      }
+      return {
+        leaf_components.write_set_digest, ce_dgst};
     }
 
     [[nodiscard]] bool is_signature_transaction() const override
@@ -137,6 +135,7 @@ namespace ccf
   nlohmann::json describe_receipt_v1(const TxReceiptImpl& receipt);
   ReceiptPtr describe_receipt_v2(const TxReceiptImpl& in);
 
+  // NOLINTNEXTLINE(performance-enum-size)
   enum MerkleProofLabel : int64_t
   {
     // Values set in

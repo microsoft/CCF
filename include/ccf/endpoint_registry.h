@@ -40,12 +40,12 @@ namespace ccf::endpoints
 
   struct RequestCompletedEvent
   {
-    std::string method = "";
+    std::string method;
     // This contains the path template against which the request matched. For
     // instance `/user/{user_id}` rather than `/user/Bob`. This should be safe
     // to log, though doing so still reveals (to anyone with stdout access)
     // exactly which endpoints were executed and when.
-    std::string dispatch_path = "";
+    std::string dispatch_path;
     int status = 0;
     std::chrono::milliseconds exec_time{0};
     size_t attempts = 0;
@@ -53,7 +53,7 @@ namespace ccf::endpoints
 
   struct DispatchFailedEvent
   {
-    std::string method = "";
+    std::string method;
     int status = 0;
   };
 
@@ -165,11 +165,11 @@ namespace ccf::endpoints
     ccf::kv::TxHistory* history = nullptr;
 
   public:
-    EndpointRegistry(const std::string& method_prefix_) :
-      method_prefix(method_prefix_)
+    EndpointRegistry(std::string method_prefix_) :
+      method_prefix(std::move(method_prefix_))
     {}
 
-    virtual ~EndpointRegistry() = default;
+    ~EndpointRegistry() override = default;
 
     /** Create a new endpoint.
      *

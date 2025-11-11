@@ -40,7 +40,7 @@ namespace ccf::kv::serialisers
     {
       auto str =
         fmt::format("{} {}", endpoint_key.verb.c_str(), endpoint_key.uri_path);
-      return SerialisedEntry(str.begin(), str.end());
+      return {str.begin(), str.end()};
     }
 
     static ccf::endpoints::EndpointKey from_serialised(
@@ -64,7 +64,7 @@ namespace ccf::endpoints
   DECLARE_JSON_TYPE(EndpointKey);
   DECLARE_JSON_REQUIRED_FIELDS(EndpointKey, uri_path, verb);
 
-  enum class ForwardingRequired
+  enum class ForwardingRequired : uint8_t
   {
     /** ForwardingRequired::Sometimes is the default value, and should be used
      * for most read-only operations. If this request is made to a backup node,
@@ -90,7 +90,7 @@ namespace ccf::endpoints
     Never
   };
 
-  enum class RedirectionStrategy
+  enum class RedirectionStrategy : uint8_t
   {
     /** This operation does not need to be redirected, and can be executed on
        the receiving node. Most read-only operations can be executed on any
@@ -109,7 +109,7 @@ namespace ccf::endpoints
     ToBackup,
   };
 
-  enum class Mode
+  enum class Mode : uint8_t
   {
     ReadWrite,
     ReadOnly,
@@ -142,7 +142,7 @@ namespace ccf::endpoints
 
   struct InterpreterReusePolicy
   {
-    enum
+    enum Kind
     {
       KeyBased
     } kind;
@@ -154,8 +154,8 @@ namespace ccf::endpoints
 
   void to_json(nlohmann::json& j, const InterpreterReusePolicy& grp);
   void from_json(const nlohmann::json& j, InterpreterReusePolicy& grp);
-  std::string schema_name(const InterpreterReusePolicy*);
-  void fill_json_schema(nlohmann::json& schema, const InterpreterReusePolicy*);
+  std::string schema_name([[maybe_unused]] const InterpreterReusePolicy* policy);
+  void fill_json_schema(nlohmann::json& schema, [[maybe_unused]] const InterpreterReusePolicy* policy);
 
   struct EndpointProperties
   {
@@ -259,6 +259,7 @@ namespace ccf::endpoints
     struct Installer
     {
       virtual void install(Endpoint&) = 0;
+      virtual ~Installer() = default;
     };
     Installer* installer;
 
@@ -430,7 +431,7 @@ namespace ccf::endpoints
     template <typename T>
     Endpoint& add_query_parameter(
       const std::string& param_name,
-      QueryParamPresence presence = RequiredParameter)
+      QueryParamPresence presence = QueryParamPresence::RequiredParameter)
     {
       schema_builders.push_back(
         [param_name,
@@ -448,7 +449,7 @@ namespace ccf::endpoints
           auto parameter = nlohmann::json::object();
           parameter["name"] = param_name;
           parameter["in"] = "query";
-          parameter["required"] = presence == RequiredParameter;
+          parameter["required"] = presence == QueryParamPresence::RequiredParameter;
           parameter["schema"] = ds::openapi::add_schema_to_components(
             document, schema_name, query_schema);
           ds::openapi::add_request_parameter_schema(
@@ -488,7 +489,7 @@ struct formatter<ccf::endpoints::ForwardingRequired>
   auto format(
     const ccf::endpoints::ForwardingRequired& v, FormatContext& ctx) const
   {
-    char const* s;
+    char const* s = nullptr;
     switch (v)
     {
       case ccf::endpoints::ForwardingRequired::Sometimes:

@@ -9,7 +9,7 @@ namespace ccf
 {
   /** Describes the status of a transaction, as seen by this node.
    */
-  enum class TxStatus
+  enum class TxStatus : uint8_t
   {
     /** This node has not received this transaction, and knows nothing about it
      */
@@ -92,10 +92,7 @@ namespace ccf
       {
         return TxStatus::Committed;
       }
-      else
-      {
-        return TxStatus::Invalid;
-      }
+      return TxStatus::Invalid;
     }
     else if (views_match)
     {
