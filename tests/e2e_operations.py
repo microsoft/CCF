@@ -1433,10 +1433,10 @@ def wait_for_sealed_secrets(node, min_seqno=0, timeout=10):
     start = time.time()
     while True:
         with open(out, "r") as outf:
-            for l in outf.readlines():
+            for line in outf.readlines():
                 # LOG_INFO_FMT("Sealing complete of ledger secret to {}", sealing_path);
-                if "Sealing complete of ledger secret to" in l:
-                    path = l.split()[-1]
+                if "Sealing complete of ledger secret to" in line:
+                    path = line.split()[-1]
                     filename = os.path.basename(path)
                     seqno = int(filename.split(".")[0])
                     if seqno >= min_seqno:
