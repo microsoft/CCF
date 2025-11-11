@@ -300,7 +300,12 @@ namespace asynchost
             // addr_current that succeeded previously.
             LOG_DEBUG_FMT("Reconnect from resolved address");
             status = RECONNECTING;
-            uv_close((uv_handle_t*)&uv_handle, on_reconnect);
+
+            // create a new uv_handle and swap it with our current one to avoid
+            // closing the current handle outside of a proxy_ptr
+            proxy_ptr<with_uv_handle<uv_tcp_t>> new_uv_handle{};
+            new_uv_handle->swap(*this);
+            on_reconnect();
           }
           return true;
         }

@@ -119,5 +119,13 @@ namespace asynchost
       // our handle.
       delete this;
     }
+
+  public:
+    void swap(with_uv_handle<handle_type>& that)
+    {
+      std::swap(this->uv_handle, that.uv_handle);
+      this->uv_handle.data = this;
+      that.uv_handle.data = &that;
+    }
   };
 }
