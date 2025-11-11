@@ -1651,48 +1651,6 @@ class Network:
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
-    def wait_for_sealed_secrets(self, node, target_seqno, timeout=10):
-        src_dir = node.remote.sealed_secrets_path
-        found_secret = None
-        end_time = time.time() + timeout
-        while True:
-            for f in node.remote.list_dir(src_dir):
-
-                # file name schema is {}.sealed.json
-                try:
-                    sealed_secrets_seqno = int(f.split(".")[0])
-                except ValueError:
-                    continue
-
-                if sealed_secrets_seqno >= target_seqno:
-                    LOG.info(f"Found sealed secrets {f} for seqno {target_seqno}")
-                    found_secret = f
-                if time.time() > end_time:
-                    raise TimeoutError(
-                        f"Could not find sealed secrets for seqno {target_seqno} after {timeout}s in {src_dir}"
-                    )
-
-                time.sleep(0.1)
-
-            node.remote.remote._rc
-
-            loop_end_time = time.time() + timeout
-            while True:
-                if time.time() > loop_end_time:
-                    raise TimeoutError(
-                        f"Could not sync sealed secrets file {found_secret} in {src_dir} after {timeout}s"
-                    )
-                try:
-                    with open(
-                        os.path.join(src_dir, found_secret), "r", encoding="utf-8"
-                    ) as f:
-                        f.flush()
-                        os.fsync(f.fileno())
-                        return found_secret
-                # catch file access errors when file is being written by the node
-                except (IOError, OSError):
-                    time.sleep(0.1)
-
     def _get_ledger_public_view_at(self, node, call, seqno, timeout):
         end_time = time.time() + timeout
         self.consortium.force_ledger_chunk(node)
