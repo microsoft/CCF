@@ -204,11 +204,19 @@ jobs:
           set -ex
           ./scripts/setup-ci.sh
 
+          # Add Azure Linux Extended Repo for parallel
+          echo "[azurelinux-official-extended]
+          name=Azure Linux Official Extended $releasever $basearch
+          baseurl=https://packages.microsoft.com/azurelinux/$releasever/prod/extended/$basearch
+          gpgkey=file:///etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          gpgcheck=1
+          repo_gpgcheck=1
+          enabled=1
+          skip_if_unavailable=True
+          sslverify=1" > /etc/yum.repos.d/azurelinux-official-extended.repo
+
           # Parallel
-          wget https://ftp.gnu.org/gnu/parallel/parallel-latest.tar.bz2
-          tar -xjf parallel-latest.tar.bz2
-          cd $(ls | grep 'parallel' | grep -v 'tar' | grep -v 'rpm')
-          ./configure && make && make install
+          tdnf install -y parallel
 
       - name: "Build"
         run: |
