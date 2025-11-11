@@ -13,9 +13,9 @@ namespace ccf::endpoints
     return *this;
   }
 
-  Endpoint& Endpoint::require_optin_feature(OptInFeatures::Flag feature)
+  Endpoint& Endpoint::require_operator_feature(OperatorFeature feature)
   {
-    required_optin_features.insert(feature);
+    required_operator_features.insert(feature);
     return *this;
   }
 

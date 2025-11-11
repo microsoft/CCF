@@ -139,7 +139,7 @@ namespace ccf
 
         auto& ncs = node_configuration_subsystem->get();
 
-        const auto& required_features = endpoint->required_optin_features;
+        const auto& required_features = endpoint->required_operator_features;
         if (!required_features.empty())
         {
           // Check that all required opt-in features are present on this
@@ -154,7 +154,7 @@ namespace ccf
           }
 
           const auto& enabled_features =
-            interface_it->second.enabled_optin_features;
+            interface_it->second.enabled_operator_features;
           for (const auto& required_feature : required_features)
           {
             if (

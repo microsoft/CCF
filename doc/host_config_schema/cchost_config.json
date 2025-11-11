@@ -135,12 +135,13 @@
                 },
                 "additionalProperties": false
               },
-              "enabled_optin_features": {
+              "enabled_operator_features": {
                 "type": "array",
                 "items": {
+                  "enum": ["SnapshotRead"],
                   "type": "string"
                 },
-                "description": "An array of features which should be enabled on this interface, providing access to endpoints with specific security or performance constraints. The only feature currently supported is 'FileAccess', which gates access to the /snapshot/* endpoints used to fetch snapshots directly from nodes. Since these require disk IO and produce large responses, this feature should not be enabled on interfaces with public access, and instead restricted to interfaces with local connectivity for node-to-node and operator access."
+                "description": "An array of features which should be enabled on this interface, providing access to endpoints with specific security or performance constraints. The only feature currently supported is 'SnapshotRead', which gates access to the /snapshot/* endpoints used to fetch snapshots directly from nodes. Since these require disk IO and produce large responses, this feature should not be enabled on interfaces with public access, and instead restricted to interfaces with local connectivity for node-to-node and operator access."
               }
             },
             "required": ["bind_address"]

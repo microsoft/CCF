@@ -6,6 +6,7 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/http_configuration.h"
+#include "ccf/service/operator_feature.h"
 
 #include <string>
 
@@ -109,9 +110,10 @@ namespace ccf
       /// Timeout for forwarded RPC calls (in milliseconds)
       std::optional<size_t> forwarding_timeout_ms = std::nullopt;
 
-      /// Features enabled for this interface. Endpoints with required features
-      /// will be inaccessible if this does not enable those features.
-      std::set<std::string> enabled_optin_features = {};
+      /// Features enabled for this interface. Any endpoint with required
+      /// features will be inaccessible (on this interface) if this does not
+      /// contain those features.
+      std::set<ccf::endpoints::OperatorFeature> enabled_operator_features = {};
 
       struct Redirections
       {
@@ -134,7 +136,7 @@ namespace ccf
           http_configuration == other.http_configuration &&
           accepted_endpoints == other.accepted_endpoints &&
           forwarding_timeout_ms == other.forwarding_timeout_ms &&
-          enabled_optin_features == other.enabled_optin_features &&
+          enabled_operator_features == other.enabled_operator_features &&
           redirections == other.redirections;
       }
     };
@@ -170,7 +172,7 @@ namespace ccf
     http_configuration,
     accepted_endpoints,
     forwarding_timeout_ms,
-    enabled_optin_features,
+    enabled_operator_features,
     redirections);
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(

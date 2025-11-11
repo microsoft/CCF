@@ -195,7 +195,7 @@ class RPCInterface(Interface):
     )
     endorsement: Optional[Endorsement] = field(default_factory=lambda: Endorsement())
     accepted_endpoints: Optional[str] = None
-    enabled_optin_features: Optional[list[str]] = None
+    enabled_operator_features: Optional[list[str]] = None
     forwarding_timeout_ms: Optional[int] = field(
         default_factory=lambda: DEFAULT_FORWARDING_TIMEOUT_MS
     )
@@ -255,8 +255,8 @@ class RPCInterface(Interface):
             )
         if interface.accepted_endpoints:
             r["accepted_endpoints"] = interface.accepted_endpoints
-        if interface.enabled_optin_features:
-            r["enabled_optin_features"] = interface.enabled_optin_features
+        if interface.enabled_operator_features:
+            r["enabled_operator_features"] = interface.enabled_operator_features
         if interface.forwarding_timeout_ms:
             r["forwarding_timeout_ms"] = interface.forwarding_timeout_ms
         if interface.redirections:
@@ -290,7 +290,7 @@ class RPCInterface(Interface):
         if "endorsement" in json:
             interface.endorsement = Endorsement.from_json(json["endorsement"])
         interface.accepted_endpoints = json.get("accepted_endpoints")
-        interface.enabled_optin_features = json.get("enabled_optin_features")
+        interface.enabled_operator_features = json.get("enabled_operator_features")
         return interface
 
 
@@ -308,7 +308,7 @@ class HostSpec:
         default_factory=lambda: {
             PRIMARY_RPC_INTERFACE: RPCInterface(),
             FILE_SERVING_RPC_INTERFACE: RPCInterface(
-                enabled_optin_features=["FileAccess"],
+                enabled_operator_features=["SnapshotRead"],
             ),
         }
     )

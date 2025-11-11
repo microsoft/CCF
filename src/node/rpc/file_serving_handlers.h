@@ -194,7 +194,7 @@ namespace ccf::node
       .add_query_parameter<ccf::SeqNo>(
         snapshot_since_param_key, ccf::endpoints::OptionalParameter)
       .set_openapi_hidden(true)
-      .require_optin_feature(endpoints::OptInFeatures::FileAccess)
+      .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
     registry
       .make_read_only_endpoint(
@@ -203,7 +203,7 @@ namespace ccf::node
       .add_query_parameter<ccf::SeqNo>(
         snapshot_since_param_key, ccf::endpoints::OptionalParameter)
       .set_openapi_hidden(true)
-      .require_optin_feature(endpoints::OptInFeatures::FileAccess)
+      .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
 
     auto get_snapshot = [&](ccf::endpoints::CommandEndpointContext& ctx) {
@@ -454,14 +454,14 @@ namespace ccf::node
         "/snapshot/{snapshot_name}", HTTP_HEAD, get_snapshot, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
-      .require_optin_feature(endpoints::OptInFeatures::FileAccess)
+      .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
     registry
       .make_command_endpoint(
         "/snapshot/{snapshot_name}", HTTP_GET, get_snapshot, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
-      .require_optin_feature(endpoints::OptInFeatures::FileAccess)
+      .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
   }
 }
