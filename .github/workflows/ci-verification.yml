@@ -206,14 +206,16 @@ jobs:
 
           # Add Azure Linux Extended Repo for parallel
           echo "[azurelinux-official-extended]
-          name=Azure Linux Official Extended $releasever $basearch
-          baseurl=https://packages.microsoft.com/azurelinux/$releasever/prod/extended/$basearch
+          name=Azure Linux Official Extended \$releasever \$basearch
+          baseurl=https://packages.microsoft.com/azurelinux/\$releasever/prod/extended/\$basearch
           gpgkey=file:///etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           gpgcheck=1
           repo_gpgcheck=1
           enabled=1
           skip_if_unavailable=True
           sslverify=1" > /etc/yum.repos.d/azurelinux-official-extended.repo
+
+          cat /etc/yum.repos.d/azurelinux-official-extended.repo
 
           # Parallel
           tdnf install -y parallel
