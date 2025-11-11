@@ -1549,7 +1549,7 @@ namespace aft
       };
 
       RAFT_DEBUG_FMT(
-        "Send {} response from {} to {} for index {}: {}",
+        "Send {} from {} to {} for index {}: {}",
         response.msg,
         state->node_id,
         to,
