@@ -116,7 +116,7 @@ namespace ccf::endpoints
     Historical
   };
 
-  enum QueryParamPresence
+  enum QueryParamPresence : uint8_t
   {
     RequiredParameter,
     OptionalParameter,
@@ -142,10 +142,10 @@ namespace ccf::endpoints
 
   struct InterpreterReusePolicy
   {
-    enum Kind
+    enum class Kind : uint8_t
     {
       KeyBased
-    } kind;
+    } kind = Kind::KeyBased;
 
     std::string key;
 
@@ -154,8 +154,11 @@ namespace ccf::endpoints
 
   void to_json(nlohmann::json& j, const InterpreterReusePolicy& grp);
   void from_json(const nlohmann::json& j, InterpreterReusePolicy& grp);
-  std::string schema_name([[maybe_unused]] const InterpreterReusePolicy* policy);
-  void fill_json_schema(nlohmann::json& schema, [[maybe_unused]] const InterpreterReusePolicy* policy);
+  std::string schema_name(
+    [[maybe_unused]] const InterpreterReusePolicy* policy);
+  void fill_json_schema(
+    nlohmann::json& schema,
+    [[maybe_unused]] const InterpreterReusePolicy* policy);
 
   struct EndpointProperties
   {
@@ -261,7 +264,7 @@ namespace ccf::endpoints
       virtual void install(Endpoint&) = 0;
       virtual ~Installer() = default;
     };
-    Installer* installer;
+    Installer* installer = nullptr;
 
     using SchemaBuilderFn =
       std::function<void(nlohmann::json&, const Endpoint&)>;
@@ -342,6 +345,7 @@ namespace ccf::endpoints
      * @param status Response status code
      * @return This Endpoint for further modification
      */
+    // NOLINTNEXTLINE(misc-confusable-identifiers)
     template <typename In, typename Out>
     Endpoint& set_auto_schema(std::optional<http_status> status = std::nullopt)
     {
@@ -449,7 +453,8 @@ namespace ccf::endpoints
           auto parameter = nlohmann::json::object();
           parameter["name"] = param_name;
           parameter["in"] = "query";
-          parameter["required"] = presence == QueryParamPresence::RequiredParameter;
+          parameter["required"] =
+            presence == QueryParamPresence::RequiredParameter;
           parameter["schema"] = ds::openapi::add_schema_to_components(
             document, schema_name, query_schema);
           ds::openapi::add_request_parameter_schema(

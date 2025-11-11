@@ -144,6 +144,7 @@ namespace ccf
       evidence->put({snapshot_hash, snapshot_version});
 
       ccf::ClaimsDigest cd;
+      // NOLINTNEXTLINE(performance-move-const-arg)
       cd.set(std::move(snapshot_hash));
 
       ccf::crypto::Sha256Hash ws_digest;

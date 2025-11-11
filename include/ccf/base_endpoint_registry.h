@@ -14,7 +14,7 @@ namespace ccf
   /** Lists the possible return codes from the versioned APIs in @c
    * ccf::BaseEndpointRegistry
    */
-  enum class ApiResult
+  enum class ApiResult : uint8_t
   {
     /** Call was successful, results can be used */
     OK = 0,
@@ -66,7 +66,7 @@ namespace ccf
   /** Lists possible reasons for an ApiResult::InvalidArgs being return in @c
    * ccf::BaseEndpointRegistry
    */
-  enum class InvalidArgsReason
+  enum class InvalidArgsReason : uint8_t
   {
     NoReason = 0,
     /** Views start at 1 (one) in CCF */

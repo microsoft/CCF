@@ -111,7 +111,8 @@ namespace ccf
   {
     j = nlohmann::json::object();
     const auto* const key =
-      step.direction == ProofReceipt::ProofStep::Direction::Left ? "left" : "right";
+      step.direction == ProofReceipt::ProofStep::Direction::Left ? "left" :
+                                                                   "right";
     j[key] = step.hash;
   }
 

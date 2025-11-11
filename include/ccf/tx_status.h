@@ -94,28 +94,28 @@ namespace ccf
       }
       return TxStatus::Invalid;
     }
-    else if (views_match)
+
+    if (views_match)
     {
       // This node knows about the requested tx id, but it is not globally
       // committed
       return TxStatus::Pending;
     }
-    else if (committed_view > target_view)
+
+    if (committed_view > target_view)
     {
       // This node has seen the seqno in a different view, and committed
       // further, so the requested tx id is impossible
       return TxStatus::Invalid;
     }
-    else
-    {
-      // Otherwise, we cannot state anything about this tx id. The most common
-      // reason is that the local_view is unknown (this transaction has never
-      // existed, or has not reached this node yet). It is also possible that
-      // this node believes locally that this tx id is impossible, but does not
-      // have a global commit to back this up - it will eventually receive
-      // either a global commit confirming this belief, or an election and
-      // global commit making this tx id invalid
-      return TxStatus::Unknown;
-    }
+
+    // Otherwise, we cannot state anything about this tx id. The most common
+    // reason is that the local_view is unknown (this transaction has never
+    // existed, or has not reached this node yet). It is also possible that
+    // this node believes locally that this tx id is impossible, but does not
+    // have a global commit to back this up - it will eventually receive
+    // either a global commit confirming this belief, or an election and
+    // global commit making this tx id invalid
+    return TxStatus::Unknown;
   }
 }

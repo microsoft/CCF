@@ -46,8 +46,9 @@ void populate_receipt(std::shared_ptr<ccf::ProofReceipt> receipt)
   const auto num_proof_steps = rand() % 8;
   for (auto i = 0; i < num_proof_steps; ++i)
   {
-    const auto dir = rand() % 2 == 0 ? ccf::ProofReceipt::ProofStep::Direction::Left :
-                                       ccf::ProofReceipt::ProofStep::Direction::Right;
+    const auto dir = rand() % 2 == 0 ?
+      ccf::ProofReceipt::ProofStep::Direction::Left :
+      ccf::ProofReceipt::ProofStep::Direction::Right;
     const auto digest = rand_digest();
 
     ccf::ProofReceipt::ProofStep step{dir, digest};

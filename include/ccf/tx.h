@@ -92,8 +92,8 @@ namespace ccf::kv
         retain_handle(map_name, std::move(abstract_handle));
         return typed_handle;
       }
-      auto [abstract_map, change_set] = get_map_and_change_set_by_name(
-        map_name, track_deletes_on_missing_keys);
+      auto [abstract_map, change_set] =
+        get_map_and_change_set_by_name(map_name, track_deletes_on_missing_keys);
 
       if (change_set == nullptr)
       {

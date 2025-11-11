@@ -116,7 +116,7 @@ namespace ccf::endpoints
   class EndpointRegistry : public Endpoint::Installer
   {
   public:
-    enum ReadWrite
+    enum class ReadWrite : uint8_t
     {
       Read,
       Write
@@ -254,12 +254,13 @@ namespace ccf::endpoints
      * internally, so must be able to populate the document
      * with the supported endpoints however it defines them.
      */
-    virtual void build_api(nlohmann::json& document, ccf::kv::ReadOnlyTx&);
+    virtual void build_api(
+      nlohmann::json& document, [[maybe_unused]] ccf::kv::ReadOnlyTx& tx);
 
     virtual void init_handlers();
 
     virtual EndpointDefinitionPtr find_endpoint(
-      ccf::kv::Tx&, ccf::RpcContext& rpc_ctx);
+      [[maybe_unused]] ccf::kv::Tx& tx, ccf::RpcContext& rpc_ctx);
 
     virtual void execute_endpoint(
       EndpointDefinitionPtr e, EndpointContext& ctx);
@@ -268,7 +269,7 @@ namespace ccf::endpoints
       EndpointDefinitionPtr e, CommandEndpointContext& ctx, const TxID& tx_id);
 
     virtual std::set<RESTVerb> get_allowed_verbs(
-      ccf::kv::Tx&, const ccf::RpcContext& rpc_ctx);
+      [[maybe_unused]] ccf::kv::Tx& tx, const ccf::RpcContext& rpc_ctx);
 
     virtual bool request_needs_root(const ccf::RpcContext& rpc_ctx);
 
@@ -276,7 +277,7 @@ namespace ccf::endpoints
       const std::string& path,
       const std::vector<EndpointDefinitionPtr>& matches);
 
-    virtual void tick(std::chrono::milliseconds);
+    virtual void tick([[maybe_unused]] std::chrono::milliseconds duration);
 
     void set_consensus(ccf::kv::Consensus* c);
 
