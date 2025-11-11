@@ -215,8 +215,6 @@ jobs:
           skip_if_unavailable=True
           sslverify=1" > /etc/yum.repos.d/azurelinux-official-extended.repo
 
-          cat /etc/yum.repos.d/azurelinux-official-extended.repo
-
           # Parallel
           tdnf install -y parallel
 
