@@ -1580,14 +1580,14 @@ const actions = new Map([
   [
     "cleanup_legacy_jwt_records",
     new Action(
-      function (args) {},
       function (args) {
         checkType(
           args.ensure_new_records_exist,
           "boolean?",
           "ensure_new_records_exist",
         );
-
+      },
+      function (args) {
         if (
           args.ensure_new_records_exist &&
           ccf.kv["public:ccf.gov.jwt.public_signing_keys_metadata_v2"].size ===
