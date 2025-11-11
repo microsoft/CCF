@@ -1533,7 +1533,7 @@ def run_recovery_unsealing_validate_audit(const_args):
         network.start_and_open(args)
 
         network.save_service_identity(args)
-        wait_for_sealed_secrets(network.node[0])
+        wait_for_sealed_secrets(network.nodes[0])
         node0_secrets = network.nodes[0].save_sealed_ledger_secret()
 
         latest_public_tables, _ = network.get_latest_ledger_public_state()
@@ -1617,7 +1617,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
         network.start_and_open(args)
 
         network.save_service_identity(args)
-        wait_for_sealed_secrets(network.node[0])
+        wait_for_sealed_secrets(network.nodes[0])
 
         node_secret_map = {
             node.local_node_id: node.save_sealed_ledger_secret()
