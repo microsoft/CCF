@@ -145,8 +145,7 @@ namespace ccf::js
     void build_api(nlohmann::json& document, ccf::kv::ReadOnlyTx& tx) override;
 
     std::set<RESTVerb> get_allowed_verbs(
-      [[maybe_unused]] ccf::kv::Tx& tx,
-      const ccf::RpcContext& rpc_ctx) override;
+      ccf::kv::Tx& tx, const ccf::RpcContext& rpc_ctx) override;
     ///@}
 
     virtual ccf::js::extensions::Extensions get_extensions(
