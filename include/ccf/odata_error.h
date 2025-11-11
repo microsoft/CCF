@@ -37,7 +37,7 @@ namespace ccf
   {
     std::string code;
     std::string message;
-    std::vector<nlohmann::json> details = {};
+    std::vector<nlohmann::json> details;
 
     bool operator==(const ODataError&) const = default;
   };

@@ -54,12 +54,12 @@ namespace ccf
       verb = http_method_from_str(s.c_str());
     }
 
-    std::optional<llhttp_method> get_http_method() const
+    [[nodiscard]] std::optional<llhttp_method> get_http_method() const
     {
       return static_cast<llhttp_method>(verb);
     }
 
-    const char* c_str() const
+    [[nodiscard]] const char* c_str() const
     {
       return llhttp_method_name(static_cast<llhttp_method>(verb));
     }
@@ -103,12 +103,13 @@ namespace ccf
     verb = RESTVerb(s.c_str());
   }
 
-  inline std::string schema_name(const RESTVerb*)
+  inline std::string schema_name([[maybe_unused]] const RESTVerb* verb_type)
   {
     return "HttpMethod";
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, const RESTVerb*)
+  inline void fill_json_schema(
+    nlohmann::json& schema, [[maybe_unused]] const RESTVerb* verb_type)
   {
     schema["type"] = "string";
   }

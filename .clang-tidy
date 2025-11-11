@@ -7,11 +7,16 @@ Checks: >
   -bugprone-easily-swappable-parameters,
   -bugprone-assignment-in-if-condition,
   -bugprone-casting-through-void,
+  -bugprone-reserved-identifier,
+  -bugprone-macro-parentheses,
   cert-*,
   -cert-con36-c,
+  -cert-dcl37-c,
   -cert-con54-cpp,
   -cert-err58-cpp,
   -cert-dcl50-cpp,
+  -cert-dcl51-cpp,
+  -cert-dcl21-cpp,
   concurrency-*,
   cppcoreguidelines-*,
   -cppcoreguidelines-avoid-do-while,
@@ -27,6 +32,10 @@ Checks: >
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
   -cppcoreguidelines-pro-type-vararg,
   -cppcoreguidelines-rvalue-reference-param-not-moved,
+  -cppcoreguidelines-avoid-const-or-ref-data-members,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -cppcoreguidelines-special-member-functions,
+  -cppcoreguidelines-avoid-magic-numbers,
   misc-*,
   -misc-const-correctness,
   -misc-include-cleaner,
@@ -45,7 +54,9 @@ Checks: >
   -readability-identifier-length,
   -readability-avoid-nested-conditional-operator,
   -readability-convert-member-functions-to-static,
+  -readability-uppercase-literal-suffix,
+  -readability-magic-numbers,
 
 WarningsAsErrors: '*'
-HeaderFilterRegex: '?!(3rdparty)'
+HeaderFilterRegex: 'include\/ccf\/(ds|threading|service|research|pal)\/.*'
 FormatStyle:     'file'

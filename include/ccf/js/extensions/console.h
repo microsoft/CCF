@@ -23,7 +23,7 @@ namespace ccf::js::extensions
   class ConsoleExtension : public ExtensionInterface
   {
   public:
-    ConsoleExtension() {}
+    ConsoleExtension() = default;
 
     void install(js::core::Context& ctx) override;
 

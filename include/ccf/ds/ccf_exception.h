@@ -16,14 +16,14 @@ namespace ccf
     {
       if (!what_arg.empty())
       {
-        result.append(what_arg.c_str());
+        result.append(what_arg);
         result.append("\n");
       }
     }
 
     ccf_logic_error() : ccf_logic_error("") {}
 
-    const char* what() const throw() override
+    [[nodiscard]] const char* what() const noexcept override
     {
       return result.c_str();
     }

@@ -15,7 +15,7 @@ namespace ccf
    * stored in the KV, and passed to the JS constitution functions for
    * validation and execution.
    */
-  enum class ProposalState
+  enum class ProposalState : uint8_t
   {
     OPEN, //< Proposal is active and can be voted on
     ACCEPTED, //< Proposal passed a successful vote and was enacted

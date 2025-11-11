@@ -56,12 +56,12 @@ namespace ccf
 
     // Implement Session::sent_data by dispatching a thread message
     // that eventually invokes the virtual send_data_thread()
-    void send_data(std::span<const uint8_t> data) override
+    void send_data(std::vector<uint8_t>&& data) override
     {
       auto msg =
         std::make_unique<::threading::Tmsg<SendRecvMsg>>(&send_data_cb);
       msg->data.self = this->shared_from_this();
-      msg->data.data.assign(data.begin(), data.end());
+      msg->data.data = std::move(data);
 
       ::threading::ThreadMessaging::instance().add_task(
         execution_thread, std::move(msg));
@@ -96,11 +96,11 @@ namespace ccf
     {}
 
   public:
-    void send_data(std::span<const uint8_t> data) override
+    void send_data(std::vector<uint8_t>&& data) override
     {
       // Override send_data rather than send_data_thread, as the TLSSession
       // handles dispatching for thread affinity
-      tls_io->send_raw(data.data(), data.size());
+      tls_io->send_raw(std::move(data));
     }
 
     void send_data_thread(std::vector<uint8_t>&& data) override

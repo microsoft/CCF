@@ -143,10 +143,7 @@ namespace ccf::nonstd
       {
         break;
       }
-      else
-      {
-        next_separator_start = s.rfind(separator, prev_separator_start - 1);
-      }
+      next_separator_start = s.rfind(separator, prev_separator_start - 1);
     }
 
     result.push_back(s.substr(0, prev_separator_start));
@@ -216,6 +213,6 @@ namespace ccf::nonstd
   using CloseFdGuard = std::unique_ptr<int, decltype(&close_fd)>;
   static inline CloseFdGuard make_close_fd_guard(int* fd)
   {
-    return CloseFdGuard(fd, close_fd);
+    return {fd, close_fd};
   }
 }

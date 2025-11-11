@@ -12,8 +12,8 @@ namespace ccf
   {
     struct Defaults
     {
-      static constexpr size_t max_heap_bytes = 100 * 1024 * 1024;
-      static constexpr size_t max_stack_bytes = 1024 * 1024;
+      static constexpr size_t max_heap_bytes = 100ULL * 1024 * 1024;
+      static constexpr size_t max_stack_bytes = 1024ULL * 1024;
       static constexpr uint64_t max_execution_time_ms = 5000;
       static constexpr bool log_exception_details = false;
       static constexpr bool return_exception_details = false;
@@ -78,12 +78,15 @@ namespace ccf
 #undef XX
   }
 
-  inline std::string schema_name(const JSRuntimeOptions*)
+  inline std::string schema_name(
+    [[maybe_unused]] const JSRuntimeOptions* runtime_options_type)
   {
     return "JSRuntimeOptions";
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, const JSRuntimeOptions*)
+  inline void fill_json_schema(
+    nlohmann::json& schema,
+    [[maybe_unused]] const JSRuntimeOptions* runtime_options_type)
   {
     schema = nlohmann::json::object();
     schema["type"] = "object";

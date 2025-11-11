@@ -8,7 +8,7 @@
 
 namespace ccf
 {
-  enum class QuoteFormat
+  enum class QuoteFormat : uint8_t
   {
     oe_sgx_v1 = 0,
     insecure_virtual = 1,

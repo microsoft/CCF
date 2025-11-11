@@ -33,6 +33,7 @@ namespace ccf::ds::hashutils
   }
 }
 
+// NOLINTBEGIN(cert-dcl58-cpp)
 namespace std
 {
   template <>
@@ -84,11 +85,12 @@ namespace std
   };
 
 }
+// NOLINTEND(cert-dcl58-cpp)
 
 namespace ccf::ds
 {
   /// Simple, fast constexpr hash function (NOT cryptographically sound)
-  namespace
+  namespace fnv
   {
     template <typename T>
     struct fnv_parameters
@@ -112,7 +114,7 @@ namespace ccf::ds
   template <typename T>
   static constexpr T fnv_1a(const std::string_view& sv)
   {
-    using params = fnv_parameters<T>;
+    using params = fnv::fnv_parameters<T>;
 
     T hash = params::offset_basis;
 
