@@ -1983,8 +1983,8 @@ namespace aft
         state->leadership_state == ccf::kv::LeadershipState::PreVoteCandidate)
       {
         RAFT_FAIL_FMT(
-          "Recv {} to {} from {}: We should not yet sent a request "
-          "vote",
+          "Recv {} to {} from {}: We should not yet have sent a request "
+          "vote, as we are still a PreVoteCandidate yet received a response",
           r.msg,
           state->node_id,
           from);
