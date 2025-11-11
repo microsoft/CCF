@@ -633,6 +633,7 @@ namespace ccf::curl
   };
 
   // Must be created on the same thread as the uv loop is running
+  // And all handles in the UV loop must be closed and the loop stopped before destroying this
   class CurlmLibuvContext
   {
     /* Very high level:
@@ -996,13 +997,6 @@ namespace ccf::curl
       pending_requests.push_back(std::move(request));
       uv_async_send(&async_requests_handle);
     }
-
-  private:
-    // Interface to allow the proxy pointer to close and delete this safely
-    // Make the templated asynchost::close_ptr a friend so it can call close()
-    template <typename T>
-    friend class ::asynchost::close_ptr;
-    size_t closed_uv_handle_count = 0;
   };
 
   class CurlmLibuvContextSingleton
