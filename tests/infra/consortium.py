@@ -937,6 +937,15 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def cleanup_legacy_jwt_records(self, remote_node, ensure_new_records_exist=False):
+        # Submit a proposal to remove legacy JWT records
+        proposal_body, careful_vote = self.make_proposal(
+            "cleanup_legacy_jwt_records",
+            ensure_new_records_exist=ensure_new_records_exist,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
     def check_for_service(self, remote_node, status, recovery_count=None):
         """
         Check the certificate associated with current CCF service signing key has been recorded in
