@@ -1892,6 +1892,7 @@ namespace aft
         .last_committable_idx = r.last_committable_idx,
         .term_of_last_committable_idx = r.term_of_last_committable_idx,
       };
+      rv.msg = RaftMsgType::raft_request_pre_vote;
       recv_request_vote_unsafe(from, rv, ElectionType::PreVote);
     }
 
@@ -1959,32 +1960,32 @@ namespace aft
         return;
       }
 
-      // Stale message
-      if (
-        election_type == ElectionType::PreVote &&
-        state->leadership_state == ccf::kv::LeadershipState::Candidate)
-      {
-        RAFT_INFO_FMT(
-          "Recv {} to {} from {}: no longer in pre-vote",
-          r.msg,
-          state->node_id,
-          from);
-        return;
-      }
-
-      // To receive a RequestVoteResponse(ElectionType::RegularVote), we must
-      // have sent a RequestVote(ElectionType::RegularVote), which only
-      // candidates do.
-      // Hence if we receive a RequestVoteResponse(ElectionType::RegularVote)
-      // while still in PreVoteCandidate state something illegal must have
-      // happened.
+      // Stale message from previous candidacy
       if (
         election_type == ElectionType::RegularVote &&
         state->leadership_state == ccf::kv::LeadershipState::PreVoteCandidate)
       {
+        RAFT_INFO_FMT(
+          "Recv {} to {} from {}: no longer a candidate in {}",
+          r.msg,
+          state->node_id,
+          from,
+          r.term);
+        return;
+      }
+
+      // To send a PreVoteResponse, we must have sent a RequestPreVote.
+      // But we are a candidate, and hence the previous transitions can only be:
+      // F(T) -> PvC(T) -> C(T+1) -> F(T+1) -> PvC(T+1)
+      // So we should never receive a PreVoteResponse while a candidate in the
+      // same term.
+      if (
+        election_type == ElectionType::PreVote &&
+        state->leadership_state == ccf::kv::LeadershipState::Candidate)
+      {
         RAFT_FAIL_FMT(
           "Recv {} to {} from {}: We should not yet have sent a request "
-          "vote, as we are still a PreVoteCandidate yet received a response",
+          "pre-vote as we are still a Candidate, yet received a response",
           r.msg,
           state->node_id,
           from);
@@ -2052,6 +2053,7 @@ namespace aft
       const ccf::NodeId& from, RequestPreVoteResponse r)
     {
       RequestVoteResponse rvr{.term = r.term, .vote_granted = r.vote_granted};
+      rvr.msg = RaftMsgType::raft_request_pre_vote_response;
       recv_request_vote_response(from, rvr, ElectionType::PreVote);
     }
 
