@@ -39,7 +39,7 @@ namespace ccf::historical
   std::optional<ccf::TxID> txid_from_header(
     endpoints::CommandEndpointContext& args);
 
-  enum class HistoricalQueryErrorCode
+  enum class HistoricalQueryErrorCode : uint8_t
   {
     InternalError,
     TransactionPending,
@@ -63,7 +63,7 @@ namespace ccf::historical
     std::string reason,
     endpoints::CommandEndpointContext& args);
 
-  enum class HistoricalTxStatus
+  enum class HistoricalTxStatus : uint8_t
   {
     Error,
     PendingOrUnknown,

@@ -15,7 +15,7 @@ namespace ccf
   {
     std::map<std::string, std::unique_ptr<AuthnIdentity>> identities;
 
-    std::string get_conjoined_name() const;
+    [[nodiscard]] std::string get_conjoined_name() const;
   };
 
   class AllOfAuthnPolicy : public AuthnPolicy
@@ -37,15 +37,16 @@ namespace ccf
       const std::vector<std::shared_ptr<AuthnPolicy>>& _policies);
 
     std::unique_ptr<AuthnIdentity> authenticate(
-      ccf::kv::ReadOnlyTx&,
-      const std::shared_ptr<ccf::RpcContext>&,
-      std::string&) override;
+      ccf::kv::ReadOnlyTx& tx,
+      const std::shared_ptr<ccf::RpcContext>& ctx,
+      std::string& error_reason) override;
 
     void set_unauthenticated_error(
-      std::shared_ptr<ccf::RpcContext>, std::string&&) override;
+      std::shared_ptr<ccf::RpcContext> ctx,
+      std::string&& error_reason) override;
 
-    std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
-      const override;
+    [[nodiscard]] std::optional<OpenAPISecuritySchema>
+    get_openapi_security_schema() const override;
 
     std::string get_security_scheme_name() override;
   };
