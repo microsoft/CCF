@@ -166,6 +166,7 @@ namespace ccf
 
   static std::vector<uint8_t> build_and_serialise_receipt(
     const std::vector<uint8_t>& sig,
+    const std::vector<uint8_t>& cose_sig,
     const std::vector<uint8_t>& tree,
     const NodeId& node_id,
     const ccf::crypto::Pem& node_cert,
@@ -180,7 +181,7 @@ namespace ccf
     cd.set(std::move(claims_digest));
     ccf::TxReceiptImpl tx_receipt(
       sig,
-      std::nullopt, // cose
+      cose_sig,
       proof.get_root(),
       proof.get_path(),
       node_id,

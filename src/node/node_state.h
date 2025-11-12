@@ -2619,6 +2619,17 @@ namespace ccf
           }));
 
       network.tables->set_map_hook(
+        network.cose_signatures.get_name(),
+        network.cose_signatures.wrap_map_hook(
+          [s = this->snapshotter](
+            ccf::kv::Version version, const CoseSignatures::Write& w) {
+            assert(w.has_value());
+            auto sig = w.value();
+            s->record_cose_signature(version, sig);
+            return ccf::kv::ConsensusHookPtr(nullptr);
+          }));
+
+      network.tables->set_map_hook(
         network.serialise_tree.get_name(),
         network.serialise_tree.wrap_map_hook(
           [s = this->snapshotter](

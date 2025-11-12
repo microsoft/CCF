@@ -71,6 +71,11 @@ namespace ccf
     nlohmann::json out = nlohmann::json::object();
 
     out["signature"] = ccf::crypto::b64_from_raw(receipt.signature);
+    if (receipt.cose_signature.has_value())
+    {
+      out["cose_signature"] =
+        ccf::crypto::b64_from_raw(receipt.cose_signature.value());
+    }
 
     auto proof = nlohmann::json::array();
     if (receipt.path != nullptr)

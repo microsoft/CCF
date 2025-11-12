@@ -55,6 +55,7 @@ namespace ccf
       std::optional<NodeId> node_id = std::nullopt;
       std::optional<ccf::crypto::Pem> node_cert = std::nullopt;
       std::optional<std::vector<uint8_t>> sig = std::nullopt;
+      std::optional<std::vector<uint8_t>> cose_sig = std::nullopt;
       std::optional<std::vector<uint8_t>> tree = std::nullopt;
 
       SnapshotInfo() = default;
@@ -215,6 +216,7 @@ namespace ccf
         {
           auto serialised_receipt = build_and_serialise_receipt(
             snapshot_info.sig.value(),
+            snapshot_info.cose_sig.value(),
             snapshot_info.tree.value(),
             snapshot_info.node_id.value(),
             snapshot_info.node_cert.value(),
@@ -388,6 +390,30 @@ namespace ccf
           pending_snapshot.node_id = node_id;
           pending_snapshot.node_cert = node_cert;
           pending_snapshot.sig = sig;
+        }
+      }
+    }
+
+    void record_cose_signature(
+      ::consensus::Index idx, const std::vector<uint8_t>& sig)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+
+      for (auto& [_, pending_snapshot] : pending_snapshots)
+      {
+        if (
+          pending_snapshot.evidence_idx.has_value() &&
+          idx > pending_snapshot.evidence_idx.value() &&
+          !pending_snapshot.cose_sig.has_value())
+        {
+          LOG_TRACE_FMT(
+            "Recording COSE signature at {} for snapshot {} with evidence at "
+            "{}",
+            idx,
+            pending_snapshot.version,
+            pending_snapshot.evidence_idx.value());
+
+          pending_snapshot.cose_sig = sig;
         }
       }
     }
