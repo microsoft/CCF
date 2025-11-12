@@ -94,8 +94,8 @@ def install_deps(args: argparse.Namespace):
         with open("/etc/yum.repos.d/tdnf.repo", "w", encoding="utf-8") as tdnf_repo:
             tdnf_repo.write(
                 """[azurelinux-official-extended]
-                   name=Azure Linux Official Extended \$releasever \$basearch
-                   baseurl=https://packages.microsoft.com/azurelinux/\$releasever/prod/extended/\$basearch
+                   name=Azure Linux Official Extended $releasever $basearch
+                   baseurl=https://packages.microsoft.com/azurelinux/$releasever/prod/extended/$basearch
                    gpgkey=file:///etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
                    gpgcheck=1
                    repo_gpgcheck=1
