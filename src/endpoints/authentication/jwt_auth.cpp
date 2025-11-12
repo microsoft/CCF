@@ -178,62 +178,6 @@ namespace ccf
     const auto key_id = token.header_typed.kid;
     auto token_keys = keys->get(key_id);
 
-    // For metadata KID->(cert,issuer,constraint).
-    //
-    // Note, that Legacy keys are stored as certs, new approach is raw keys, so
-    // conversion from cert to raw key is needed.
-    if (!token_keys)
-    {
-      auto* fallback_certs = tx.ro<JwtPublicSigningKeysMetadataLegacy>(
-        ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS_METADATA);
-      auto fallback_data = fallback_certs->get(key_id);
-      if (fallback_data)
-      {
-        auto new_keys = std::vector<OpenIDJWKMetadata>();
-        for (const auto& metadata : *fallback_data)
-        {
-          auto verifier = ccf::crypto::make_unique_verifier(metadata.cert);
-          new_keys.push_back(OpenIDJWKMetadata{
-            .public_key = verifier->public_key_der(),
-            .issuer = metadata.issuer,
-            .constraint = metadata.constraint});
-        }
-        if (!new_keys.empty())
-        {
-          token_keys = new_keys;
-        }
-      }
-    }
-
-    // For metadata as two separate tables, KID->JwtIssuer and KID->Cert.
-    //
-    // Note, that Legacy keys are stored as certs, new approach is raw keys, so
-    // conversion from certs to keys is needed.
-    if (!token_keys)
-    {
-      auto* fallback_keys = tx.ro<Tables::Legacy::JwtPublicSigningKeys>(
-        ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS);
-      auto* fallback_issuers = tx.ro<Tables::Legacy::JwtPublicSigningKeyIssuer>(
-        ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEY_ISSUER);
-
-      auto fallback_cert = fallback_keys->get(key_id);
-      auto fallback_issuer = fallback_issuers->get(key_id);
-      if (fallback_cert)
-      {
-        if (!fallback_issuer)
-        {
-          error_reason = fmt::format(
-            "JWT signing key fallback issuers not found for kid {}", key_id);
-          return nullptr;
-        }
-        auto verifier = ccf::crypto::make_unique_verifier(*fallback_cert);
-        token_keys = std::vector<OpenIDJWKMetadata>{OpenIDJWKMetadata{
-          .public_key = verifier->public_key_der(),
-          .issuer = fallback_issuer.value(),
-          .constraint = std::nullopt}};
-      }
-    }
-
     if (!token_keys || token_keys->empty())
     {
       error_reason =
