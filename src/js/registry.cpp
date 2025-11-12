@@ -186,8 +186,6 @@ namespace ccf::js
       ctx.remove_extension(extension);
     }
 
-    const auto& rt = ctx.runtime();
-
     if (val.is_exception())
     {
       bool time_out = ctx.interrupt_data.request_timed_out;
@@ -916,7 +914,7 @@ namespace ccf::js
     auto* endpoints =
       tx.template ro<ccf::endpoints::EndpointsMap>(metadata_map);
 
-    endpoints->foreach_key([this, &verbs, &method](const auto& key) {
+    endpoints->foreach_key([&verbs, &method](const auto& key) {
       const auto opt_spec =
         ccf::endpoints::PathTemplateSpec::parse(key.uri_path);
       if (opt_spec.has_value())

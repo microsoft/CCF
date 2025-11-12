@@ -85,8 +85,6 @@ namespace ccf::js::extensions
           ctx, "Invalid handle or seqno or expiry: cannot be negative");
       }
 
-      ccf::View view = 0;
-      ccf::SeqNo seqno = 0;
       std::vector<ccf::historical::StatePtr> states;
       try
       {

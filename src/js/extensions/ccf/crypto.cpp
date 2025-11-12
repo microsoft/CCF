@@ -542,7 +542,7 @@ namespace ccf::js::extensions
       }
       catch (const std::exception& ex)
       {
-        auto e = JS_ThrowInternalError(
+        JS_ThrowInternalError(
           ctx, "Failed to convert jwk to pem %s", ex.what());
       }
 

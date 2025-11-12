@@ -112,9 +112,6 @@ namespace ccf::kv
     // Ledger entry header flags
     uint8_t flags = 0;
 
-    size_t size_since_chunk = 0;
-    size_t chunk_threshold = 0;
-
     bool commit_deserialised(
       OrderedChanges& changes,
       Version v,

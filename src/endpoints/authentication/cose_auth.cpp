@@ -225,7 +225,6 @@ namespace ccf
       header_items[MSG_TYPE].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[MSG_TYPE].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-      const auto* gov_msg_proposal_created_at = HEADER_PARAM_MSG_CREATED_AT;
       header_items[MSG_CREATED_AT].label.string =
         UsefulBuf_FromSZ(created_at_name.c_str());
       header_items[MSG_CREATED_AT].uLabelType = QCBOR_TYPE_TEXT_STRING;
