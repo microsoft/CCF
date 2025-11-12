@@ -1974,21 +1974,23 @@ namespace aft
         return;
       }
 
-      // To send a PreVoteResponse, we must have sent a RequestPreVote.
-      // But we are a candidate, and hence the previous transitions can only be:
-      // F(T) -> PvC(T) -> C(T+1) -> F(T+1) -> PvC(T+1)
-      // So we should never receive a PreVoteResponse while a candidate in the
-      // same term.
+      // To receive a PreVoteResponse, we must have been a PreVoteCandidate in
+      // that term.
+      // Since we are a Candidate for term T, we can only have transitioned from
+      // PreVoteCandidate for term (T-1).
+      // Since terms are monotonic this is impossible.
       if (
         election_type == ElectionType::PreVote &&
         state->leadership_state == ccf::kv::LeadershipState::Candidate)
       {
         RAFT_FAIL_FMT(
-          "Recv {} to {} from {}: We should not yet have sent a request "
-          "pre-vote as we are still a Candidate, yet received a response",
+          "Recv {} to {} from {}: message implies that we have been a "
+          "PreVoteCandidate in {}, but we are only now a Candidate for {}",
           r.msg,
           state->node_id,
-          from);
+          from,
+          r.term,
+          state->current_view);
         return;
       }
 
