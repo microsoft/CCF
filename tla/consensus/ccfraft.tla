@@ -1255,6 +1255,12 @@ DropIgnoredMessage(i,j,m) ==
        \* the next configurations learns that its retirement has been committed.
        \/ /\ membershipState[i] = RetiredCommitted
           /\ m.type /= AppendEntriesRequest
+       \* raft.h::recv_append_entries
+       \* We drop append entries which start before the commit index
+       \* This is safe as sentIndex will still be incremented allowing subsequent AppendEntries 
+       \* to start later and hence it won't livelock
+       \/ /\ m.type = AppendEntriesRequest
+          /\ m.prevLogIndex < commitIndex[i]
     /\ Discard(m)
     /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 

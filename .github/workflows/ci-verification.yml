@@ -41,7 +41,7 @@ jobs:
       - name: Install TLC dependencies
         run: |
           tdnf install -y jre wget
-          python3 tla/install_deps.py --skip-apt-packages
+          python3 tla/install_deps.py
 
       - run: cd tla && ./tlc.py mc consistency/MCSingleNode.tla
       - run: cd tla && ./tlc.py mc consistency/MCSingleNodeReads.tla
@@ -70,7 +70,7 @@ jobs:
       - name: Install TLC dependencies
         run: |
           sudo apt update
-          sudo apt install -y default-jre
+          sudo apt install -y default-jre wget
           python3 install_deps.py
 
       - run: ./tlc_debug.sh --config consistency/MCSingleNodeCommitReachability.cfg mc consistency/MCSingleNodeReads.tla
@@ -90,7 +90,7 @@ jobs:
       - name: Install TLC dependencies
         run: |
           sudo apt update
-          sudo apt install -y default-jre
+          sudo apt install -y default-jre wget
           python3 install_deps.py
 
       - run: ./tlc.py sim --num 500 --depth 50 consistency/MultiNodeReads.tla
@@ -128,7 +128,7 @@ jobs:
       - name: Install TLC dependencies
         run: |
           tdnf install -y jre wget
-          python3 tla/install_deps.py --skip-apt-packages
+          python3 tla/install_deps.py
 
       - run: cd tla && ./tlc.py mc consensus/MCabs.tla
       - run: cd tla && ./tlc.py --trace-name 1C2N mc --term-count 2 --request-count 2 --raft-configs 1C2N consensus/MCccfraft.tla
@@ -155,7 +155,7 @@ jobs:
       - name: Install TLC dependencies
         run: |
           sudo apt update
-          sudo apt install -y default-jre
+          sudo apt install -y default-jre wget
           python3 install_deps.py
 
       - run: ./tlc.py sim consensus/SIMccfraft.tla
@@ -193,22 +193,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install TLC dependencies
-        run: |
-          tdnf install -y jre wget
-          python3 tla/install_deps.py --skip-apt-packages
-
       - name: "Install dependencies"
         shell: bash
         run: |
           set -ex
           ./scripts/setup-ci.sh
 
-          # Parallel
-          wget https://ftp.gnu.org/gnu/parallel/parallel-latest.tar.bz2
-          tar -xjf parallel-latest.tar.bz2
-          cd $(ls | grep 'parallel' | grep -v 'tar' | grep -v 'rpm')
-          ./configure && make && make install
+      - name: Install TLC dependencies
+        run: |
+          tdnf install -y jre wget
+          python3 tla/install_deps.py --tdnf-extended
 
       - name: "Build"
         run: |

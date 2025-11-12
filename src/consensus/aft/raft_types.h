@@ -102,6 +102,8 @@ namespace aft
     raft_request_vote,
     raft_request_vote_response,
     raft_propose_request_vote,
+    raft_request_pre_vote,
+    raft_request_pre_vote_response,
   };
   DECLARE_JSON_ENUM(
     RaftMsgType,
@@ -114,6 +116,9 @@ namespace aft
       {RaftMsgType::raft_request_vote, "raft_request_vote"},
       {RaftMsgType::raft_request_vote_response, "raft_request_vote_response"},
       {RaftMsgType::raft_propose_request_vote, "raft_propose_request_vote"},
+      {RaftMsgType::raft_request_pre_vote, "raft_request_pre_vote"},
+      {RaftMsgType::raft_request_pre_vote_response,
+       "raft_request_pre_vote_response"},
     });
 
 #pragma pack(push, 1)
@@ -183,9 +188,6 @@ namespace aft
   DECLARE_JSON_REQUIRED_FIELDS(
     AppendEntriesResponse, term, last_log_idx, success);
 
-  DECLARE_JSON_TYPE(RaftHeader<raft_request_vote>)
-  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote>, msg)
-
   enum ElectionType
   {
     PreVote = 0,
@@ -195,18 +197,31 @@ namespace aft
     ElectionType,
     {{ElectionType::PreVote, "PreVote"},
      {ElectionType::RegularVote, "RegularVote"}});
+
+  DECLARE_JSON_TYPE(RaftHeader<raft_request_vote>)
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote>, msg)
   struct RequestVote : RaftHeader<raft_request_vote>
   {
     Term term;
     Index last_committable_idx;
     Term term_of_last_committable_idx;
-    ElectionType election_type = RegularVote;
   };
-  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(
-    RequestVote, RaftHeader<raft_request_vote>);
+  DECLARE_JSON_TYPE_WITH_BASE(RequestVote, RaftHeader<raft_request_vote>);
   DECLARE_JSON_REQUIRED_FIELDS(
     RequestVote, term, last_committable_idx, term_of_last_committable_idx);
-  DECLARE_JSON_OPTIONAL_FIELDS(RequestVote, election_type)
+
+  DECLARE_JSON_TYPE(RaftHeader<raft_request_pre_vote>);
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_pre_vote>, msg);
+  struct RequestPreVote : RaftHeader<raft_request_pre_vote>
+  {
+    Term term;
+    Index last_committable_idx;
+    Term term_of_last_committable_idx;
+  };
+  DECLARE_JSON_TYPE_WITH_BASE(
+    RequestPreVote, RaftHeader<raft_request_pre_vote>);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    RequestPreVote, term, last_committable_idx, term_of_last_committable_idx);
 
   DECLARE_JSON_TYPE(RaftHeader<raft_request_vote_response>)
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote_response>, msg)
@@ -214,12 +229,21 @@ namespace aft
   {
     Term term;
     bool vote_granted;
-    ElectionType election_type = RegularVote;
   };
-  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(
+  DECLARE_JSON_TYPE_WITH_BASE(
     RequestVoteResponse, RaftHeader<raft_request_vote_response>);
   DECLARE_JSON_REQUIRED_FIELDS(RequestVoteResponse, term, vote_granted);
-  DECLARE_JSON_OPTIONAL_FIELDS(RequestVoteResponse, election_type)
+
+  DECLARE_JSON_TYPE(RaftHeader<raft_request_pre_vote_response>)
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_pre_vote_response>, msg)
+  struct RequestPreVoteResponse : RaftHeader<raft_request_pre_vote_response>
+  {
+    Term term;
+    bool vote_granted;
+  };
+  DECLARE_JSON_TYPE_WITH_BASE(
+    RequestPreVoteResponse, RaftHeader<raft_request_pre_vote_response>);
+  DECLARE_JSON_REQUIRED_FIELDS(RequestPreVoteResponse, term, vote_granted);
 
   DECLARE_JSON_TYPE(RaftHeader<raft_propose_request_vote>)
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_propose_request_vote>, msg)
@@ -235,3 +259,59 @@ namespace aft
 
 #pragma pack(pop)
 }
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<aft::RaftMsgType>
+{
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const aft::RaftMsgType& msg_type, FormatContext& ctx) const
+    -> decltype(ctx.out())
+  {
+    switch (msg_type)
+    {
+      case (aft::RaftMsgType::raft_append_entries):
+      {
+        return fmt::format_to(ctx.out(), "append_entries");
+      }
+      case (aft::RaftMsgType::raft_append_entries_response):
+      {
+        return fmt::format_to(ctx.out(), "append_entries_response");
+      }
+      case (aft::RaftMsgType::raft_append_entries_signed_response):
+      {
+        return fmt::format_to(ctx.out(), "append_entries_signed_response");
+      }
+      case (aft::RaftMsgType::raft_request_vote):
+      {
+        return fmt::format_to(ctx.out(), "request_vote");
+      }
+      case (aft::RaftMsgType::raft_request_vote_response):
+      {
+        return fmt::format_to(ctx.out(), "request_vote_response");
+      }
+      case (aft::RaftMsgType::raft_propose_request_vote):
+      {
+        return fmt::format_to(ctx.out(), "propose_request_vote");
+      }
+      case (aft::RaftMsgType::raft_request_pre_vote):
+      {
+        return fmt::format_to(ctx.out(), "request_pre_vote");
+      }
+      case (aft::RaftMsgType::raft_request_pre_vote_response):
+      {
+        return fmt::format_to(ctx.out(), "request_pre_vote_response");
+      }
+      default:
+        throw std::runtime_error(
+          fmt::format("Unhandled RaftMsgType: {}", uint64_t(msg_type)));
+    }
+  }
+};
+FMT_END_NAMESPACE
