@@ -103,7 +103,7 @@ def install_deps(args: argparse.Namespace):
                    skip_if_unavailable=True
                    sslverify=1"""
             )
-        subprocess.check_call(["sudo", "tdnf", "install", "-y", "parallel"])
+        subprocess.check_call(["tdnf", "install", "-y", "parallel"])
 
     # Setup tools directory
     tools_dir = os.path.join(TLA_DIR, "tools")
