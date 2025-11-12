@@ -2,9 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/json.h"
+
 namespace ccf::endpoints
 {
-  enum class OperatorFeature
+  enum class OperatorFeature : uint8_t
   {
     SnapshotRead,
   };

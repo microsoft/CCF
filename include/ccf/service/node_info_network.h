@@ -113,7 +113,7 @@ namespace ccf
       /// Features enabled for this interface. Any endpoint with required
       /// features will be inaccessible (on this interface) if this does not
       /// contain those features.
-      std::set<ccf::endpoints::OperatorFeature> enabled_operator_features = {};
+      std::set<ccf::endpoints::OperatorFeature> enabled_operator_features;
 
       struct Redirections
       {
