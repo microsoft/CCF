@@ -246,7 +246,7 @@ namespace ccf::js::extensions
           JS_CHECK_EXC(js_element);
 
           auto is_left =
-            element.direction == ccf::ProofReceipt::ProofStep::Left;
+            element.direction == ccf::ProofReceipt::ProofStep::Direction::Left;
           const auto hash_hex = ds::to_hex(element.hash.h);
 
           auto js_hash = jsctx.new_string(hash_hex);

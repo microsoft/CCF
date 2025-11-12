@@ -26,20 +26,27 @@ namespace ccf
     EntityId(const EntityId& id_) = default;
     EntityId(const Value& id_) : id(id_) {}
     EntityId(Value&& id_) : id(std::move(id_)) {}
+    EntityId(EntityId&& id_) noexcept : id(std::move(id_)) {}
+    EntityId& operator=(EntityId&& other) = default;
 
     operator std::string() const
     {
       return id;
     }
 
-    void operator=(const EntityId& other)
+    EntityId& operator=(const EntityId& other)
     {
-      id = other.id;
+      if (this != &other)
+      {
+        id = other.id;
+      }
+      return *this;
     }
 
-    void operator=(const Value& id_)
+    EntityId& operator=(const Value& id_)
     {
       id = id_;
+      return *this;
     }
 
     bool operator==(const EntityId& other) const
@@ -157,6 +164,7 @@ namespace ccf
   using NodeId = EntityId<NodeIdFormatter>;
 }
 
+// NOLINTBEGIN(cert-dcl58-cpp)
 namespace std
 {
   template <typename FmtExtender>
@@ -183,6 +191,7 @@ namespace std
     }
   };
 }
+// NOLINTEND(cert-dcl58-cpp)
 
 FMT_BEGIN_NAMESPACE
 template <typename FmtExtender>
