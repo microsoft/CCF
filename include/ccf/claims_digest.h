@@ -22,7 +22,6 @@ namespace ccf
     {
       is_set = true;
       digest = std::move(digest_);
-      ;
     }
 
     void set(Digest::Representation&& r)
