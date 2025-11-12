@@ -48,7 +48,7 @@ namespace ccf::crypto
 
   struct JsonWebKeyData
   {
-    JsonWebKeyType kty;
+    JsonWebKeyType kty = JsonWebKeyType::EC;
     std::optional<std::string> kid = std::nullopt;
     std::optional<std::vector<std::string>> x5c = std::nullopt;
     std::optional<std::string> n = std::nullopt;

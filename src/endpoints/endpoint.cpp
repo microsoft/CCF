@@ -137,7 +137,7 @@ namespace ccf::endpoints
   {
     switch (grp.kind)
     {
-      case InterpreterReusePolicy::KeyBased:
+      case InterpreterReusePolicy::Kind::KeyBased:
       {
         j = nlohmann::json::object();
         j["key"] = grp.key;
@@ -152,7 +152,7 @@ namespace ccf::endpoints
       const auto key_it = j.find("key");
       if (key_it != j.end())
       {
-        grp.kind = InterpreterReusePolicy::KeyBased;
+        grp.kind = InterpreterReusePolicy::Kind::KeyBased;
         grp.key = key_it->get<std::string>();
       }
     }
