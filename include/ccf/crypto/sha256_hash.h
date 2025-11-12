@@ -34,6 +34,14 @@ namespace ccf::crypto
       const Sha256Hash& first,
       const Sha256Hash& second,
       const Sha256Hash& third);
+    Sha256Hash(const Sha256Hash& hash) = default;
+    Sha256Hash& operator=(const Sha256Hash& hash) = default;
+    Sha256Hash(Sha256Hash&& hash) noexcept : h(hash.h) {}
+    Sha256Hash& operator=(Sha256Hash&& hash) noexcept
+    {
+      h = hash.h;
+      return *this;
+    }
 
     friend std::ostream& operator<<(
       std::ostream& os, const ccf::crypto::Sha256Hash& h);
