@@ -108,8 +108,7 @@ namespace ccf::crypto
       std::vector<uint8_t> w_target = aes->ckm_aes_key_wrap_pad(unwrapped);
 
       // - Zeroizes the temporary AES key.
-      OPENSSL_cleanse(
-        reinterpret_cast<uint8_t*>(taeskey.data()), taeskey.size());
+      OPENSSL_cleanse(taeskey.data(), taeskey.size());
 
       // - Concatenates two wrapped keys and outputs the concatenated blob.
       std::vector<uint8_t> r;
@@ -120,8 +119,7 @@ namespace ccf::crypto
     catch (...)
     {
       // Ensure temporary key is zeroed even on exceptions
-      OPENSSL_cleanse(
-        reinterpret_cast<uint8_t*>(taeskey.data()), taeskey.size());
+      OPENSSL_cleanse(taeskey.data(), taeskey.size());
       throw;
     }
   }
@@ -179,8 +177,7 @@ namespace ccf::crypto
       std::vector<uint8_t> target = aes->ckm_aes_key_unwrap_pad(w_target);
 
       // - Zeroizes the temporary AES key.
-      OPENSSL_cleanse(
-        reinterpret_cast<uint8_t*>(t_aeskey.data()), t_aeskey.size());
+      OPENSSL_cleanse(t_aeskey.data(), t_aeskey.size());
 
       // - Returns the handle to the newly unwrapped target key.
       return target;
@@ -188,8 +185,7 @@ namespace ccf::crypto
     catch (...)
     {
       // Ensure temporary key is zeroed even on exceptions
-      OPENSSL_cleanse(
-        reinterpret_cast<uint8_t*>(t_aeskey.data()), t_aeskey.size());
+      OPENSSL_cleanse(t_aeskey.data(), t_aeskey.size());
       throw;
     }
   }
