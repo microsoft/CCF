@@ -164,9 +164,14 @@ namespace ccf::js::extensions
         for (const auto& [name, sub_ident] : all_of_ident->identities)
         {
           policy.set_at_index(i++, ctx.new_string(name));
-          caller.set(
-            name,
-            create_caller_ident_obj(ctx, endpoint_ctx, sub_ident, registry));
+          if (
+            caller.set(
+              name,
+              create_caller_ident_obj(
+                ctx, endpoint_ctx, sub_ident, registry)) != 1)
+          {
+            throw std::runtime_error("Error populating JS object");
+          }
         }
         caller.set("policy", std::move(policy));
         return caller;
@@ -299,7 +304,10 @@ namespace ccf::js::extensions
     auto headers = ctx.new_obj();
     for (const auto& [header_name, header_value] : r_headers)
     {
-      headers.set(header_name, ctx.new_string(header_value));
+      if (headers.set(header_name, ctx.new_string(header_value)) != 1)
+      {
+        throw std::runtime_error("Error populating JS object");
+      }
     }
     request.set("headers", std::move(headers));
 
@@ -324,7 +332,10 @@ namespace ccf::js::extensions
     }
     else
     {
-      request.set_null("hostname");
+      if (request.set_null("hostname") != 1)
+      {
+        throw std::runtime_error("Error populating JS object");
+      }
     }
 
     auto route_str = ctx.new_string(full_request_path);
@@ -342,7 +353,10 @@ namespace ccf::js::extensions
     for (const auto& [param_name, param_value] :
          endpoint_ctx.rpc_ctx->get_request_path_params())
     {
-      params.set(param_name, ctx.new_string(param_value));
+      if (params.set(param_name, ctx.new_string(param_value)) != 1)
+      {
+        throw std::runtime_error("Error populating JS object");
+      }
     }
     request.set("params", std::move(params));
 
