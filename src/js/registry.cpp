@@ -13,6 +13,7 @@
 #include "ccf/service/tables/modules.h"
 #include "ccf/version.h"
 #include "ds/internal_logger.h"
+#include "js/checks.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -453,7 +454,7 @@ namespace ccf::js
             if (extension != nullptr)
             {
               auto val = extension->create_historical_state_object(ctx, state);
-              ccf.set("historicalState", std::move(val));
+              JS_CHECK_OR_THROW(ccf.set("historicalState", std::move(val)));
             }
             else
             {

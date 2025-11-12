@@ -212,16 +212,12 @@ namespace ccf::gov::endpoints
           {
             auto v = js_context.new_obj();
 
-            v.set(
+            JS_CHECK_OR_THROW(v.set(
               "member_id",
-              js_context.new_string_len(member_id.data(), member_id.size()));
-            if (v.set_bool("vote", vote_result) != 1)
-            {
-              throw std::runtime_error(
-                "Failed to set vote property on vote result object");
-            }
+              js_context.new_string_len(member_id.data(), member_id.size())));
+            JS_CHECK_OR_THROW(v.set_bool("vote", vote_result));
 
-            vs.set_at_index(index++, std::move(v));
+            JS_CHECK_OR_THROW(vs.set_at_index(index++, std::move(v)));
           }
           argv.push_back(vs);
 

@@ -11,6 +11,7 @@
 #include "ccf/endpoints/authentication/js.h"
 #include "ccf/endpoints/authentication/jwt_auth.h"
 #include "ccf/js/core/context.h"
+#include "js/checks.h"
 
 #include <quickjs/quickjs.h>
 
@@ -132,17 +133,19 @@ namespace ccf::js::extensions
         const auto* jwt_ident =
           dynamic_cast<const ccf::JwtAuthnIdentity*>(ident.get()))
       {
-        caller.set(
-          "policy", ctx.new_string(ccf::get_policy_name_from_ident(jwt_ident)));
+        JS_CHECK_OR_THROW(caller.set(
+          "policy",
+          ctx.new_string(ccf::get_policy_name_from_ident(jwt_ident))));
 
         auto jwt = ctx.new_obj();
-        jwt.set(
+        JS_CHECK_OR_THROW(jwt.set(
           "keyIssuer",
           ctx.new_string_len(
-            jwt_ident->key_issuer.data(), jwt_ident->key_issuer.size()));
-        jwt.set("header", ctx.parse_json(jwt_ident->header));
-        jwt.set("payload", ctx.parse_json(jwt_ident->payload));
-        caller.set("jwt", std::move(jwt));
+            jwt_ident->key_issuer.data(), jwt_ident->key_issuer.size())));
+        JS_CHECK_OR_THROW(jwt.set("header", ctx.parse_json(jwt_ident->header)));
+        JS_CHECK_OR_THROW(
+          jwt.set("payload", ctx.parse_json(jwt_ident->payload)));
+        JS_CHECK_OR_THROW(caller.set("jwt", std::move(jwt)));
 
         return caller;
       }
@@ -150,9 +153,9 @@ namespace ccf::js::extensions
         const auto* empty_ident =
           dynamic_cast<const ccf::EmptyAuthnIdentity*>(ident.get()))
       {
-        caller.set(
+        JS_CHECK_OR_THROW(caller.set(
           "policy",
-          ctx.new_string(ccf::get_policy_name_from_ident(empty_ident)));
+          ctx.new_string(ccf::get_policy_name_from_ident(empty_ident))));
         return caller;
       }
       if (
@@ -163,17 +166,12 @@ namespace ccf::js::extensions
         uint32_t i = 0;
         for (const auto& [name, sub_ident] : all_of_ident->identities)
         {
-          policy.set_at_index(i++, ctx.new_string(name));
-          if (
-            caller.set(
-              name,
-              create_caller_ident_obj(
-                ctx, endpoint_ctx, sub_ident, registry)) != 1)
-          {
-            throw std::runtime_error("Error populating JS object");
-          }
+          JS_CHECK_OR_THROW(policy.set_at_index(i++, ctx.new_string(name)));
+          JS_CHECK_OR_THROW(caller.set(
+            name,
+            create_caller_ident_obj(ctx, endpoint_ctx, sub_ident, registry)));
         }
-        caller.set("policy", std::move(policy));
+        JS_CHECK_OR_THROW(caller.set("policy", std::move(policy)));
         return caller;
       }
 
@@ -187,9 +185,9 @@ namespace ccf::js::extensions
       {
         const auto* policy_name =
           ccf::get_policy_name_from_ident(any_cert_ident);
-        caller.set("policy", ctx.new_string(policy_name));
+        JS_CHECK_OR_THROW(caller.set("policy", ctx.new_string(policy_name)));
         auto pem_cert = ccf::crypto::cert_der_to_pem(any_cert_ident->cert);
-        caller.set("cert", ctx.new_string(pem_cert.str()));
+        JS_CHECK_OR_THROW(caller.set("cert", ctx.new_string(pem_cert.str())));
         return caller;
       }
 
@@ -222,11 +220,11 @@ namespace ccf::js::extensions
         is_member = false;
 
         auto cose = ctx.new_obj();
-        cose.set(
+        JS_CHECK_OR_THROW(cose.set(
           "content",
           ctx.new_array_buffer_copy(
-            user_cose_ident->content.data(), user_cose_ident->content.size()));
-        caller.set("cose", std::move(cose));
+            user_cose_ident->content.data(), user_cose_ident->content.size())));
+        JS_CHECK_OR_THROW(caller.set("cose", std::move(cose)));
       }
 
       if (policy_name == nullptr)
@@ -269,10 +267,10 @@ namespace ccf::js::extensions
           fmt::format("Failed to get certificate for caller {}", id));
       }
 
-      caller.set("policy", ctx.new_string(policy_name));
-      caller.set("id", ctx.new_string(id));
-      caller.set("data", ctx.parse_json(data));
-      caller.set("cert", ctx.new_string(cert.str()));
+      JS_CHECK_OR_THROW(caller.set("policy", ctx.new_string(policy_name)));
+      JS_CHECK_OR_THROW(caller.set("id", ctx.new_string(id)));
+      JS_CHECK_OR_THROW(caller.set("data", ctx.parse_json(data)));
+      JS_CHECK_OR_THROW(caller.set("cert", ctx.new_string(cert.str())));
 
       return caller;
     }
@@ -304,42 +302,36 @@ namespace ccf::js::extensions
     auto headers = ctx.new_obj();
     for (const auto& [header_name, header_value] : r_headers)
     {
-      if (headers.set(header_name, ctx.new_string(header_value)) != 1)
-      {
-        throw std::runtime_error("Error populating JS object");
-      }
+      JS_CHECK_OR_THROW(headers.set(header_name, ctx.new_string(header_value)));
     }
-    request.set("headers", std::move(headers));
+    JS_CHECK_OR_THROW(request.set("headers", std::move(headers)));
 
     const auto& request_query = endpoint_ctx.rpc_ctx->get_request_query();
     auto query_str = ctx.new_string(request_query);
-    request.set("query", std::move(query_str));
+    JS_CHECK_OR_THROW(request.set("query", std::move(query_str)));
 
     const auto& request_path = endpoint_ctx.rpc_ctx->get_request_path();
     auto path_str = ctx.new_string(request_path);
-    request.set("path", std::move(path_str));
+    JS_CHECK_OR_THROW(request.set("path", std::move(path_str)));
 
     const auto& request_method = endpoint_ctx.rpc_ctx->get_request_verb();
     auto method_str = ctx.new_string(request_method.c_str());
-    request.set("method", std::move(method_str));
+    JS_CHECK_OR_THROW(request.set("method", std::move(method_str)));
 
     const auto host_it = r_headers.find(http::headers::HOST);
     if (host_it != r_headers.end())
     {
       const auto& request_hostname = host_it->second;
       auto hostname_str = ctx.new_string(request_hostname);
-      request.set("hostname", std::move(hostname_str));
+      JS_CHECK_OR_THROW(request.set("hostname", std::move(hostname_str)));
     }
     else
     {
-      if (request.set_null("hostname") != 1)
-      {
-        throw std::runtime_error("Error populating JS object");
-      }
+      JS_CHECK_OR_THROW(request.set_null("hostname"));
     }
 
     auto route_str = ctx.new_string(full_request_path);
-    request.set("route", std::move(route_str));
+    JS_CHECK_OR_THROW(request.set("route", std::move(route_str)));
 
     auto request_url = request_path;
     if (!request_query.empty())
@@ -347,28 +339,28 @@ namespace ccf::js::extensions
       request_url = fmt::format("{}?{}", request_url, request_query);
     }
     auto url_str = ctx.new_string(request_url);
-    request.set("url", std::move(url_str));
+    JS_CHECK_OR_THROW(request.set("url", std::move(url_str)));
 
     auto params = ctx.new_obj();
     for (const auto& [param_name, param_value] :
          endpoint_ctx.rpc_ctx->get_request_path_params())
     {
-      if (params.set(param_name, ctx.new_string(param_value)) != 1)
-      {
-        throw std::runtime_error("Error populating JS object");
-      }
+      JS_CHECK_OR_THROW(params.set(param_name, ctx.new_string(param_value)));
     }
-    request.set("params", std::move(params));
+    JS_CHECK_OR_THROW(request.set("params", std::move(params)));
 
     auto body = ctx.new_obj();
-    body.set("text", ctx.new_c_function(js_body_text, "text", 0));
-    body.set("json", ctx.new_c_function(js_body_json, "json", 0));
-    body.set(
+    JS_CHECK_OR_THROW(
+      body.set("text", ctx.new_c_function(js_body_text, "text", 0)));
+    JS_CHECK_OR_THROW(
+      body.set("json", ctx.new_c_function(js_body_json, "json", 0)));
+    JS_CHECK_OR_THROW(body.set(
       "arrayBuffer",
-      ctx.new_c_function(js_body_array_buffer, "arrayBuffer", 0));
-    request.set("body", std::move(body));
+      ctx.new_c_function(js_body_array_buffer, "arrayBuffer", 0)));
+    JS_CHECK_OR_THROW(request.set("body", std::move(body)));
 
-    request.set("caller", create_caller_obj(ctx, endpoint_ctx, registry));
+    JS_CHECK_OR_THROW(
+      request.set("caller", create_caller_obj(ctx, endpoint_ctx, registry)));
 
     return request;
   }

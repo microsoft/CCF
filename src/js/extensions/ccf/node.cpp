@@ -4,6 +4,7 @@
 #include "js/extensions/ccf/node.h"
 
 #include "ccf/js/core/context.h"
+#include "js/checks.h"
 #include "node/rpc/gov_logging.h"
 
 #include <quickjs/quickjs.h>
@@ -283,28 +284,28 @@ namespace ccf::js::extensions
   {
     auto node = ctx.new_obj();
 
-    node.set(
+    JS_CHECK_OR_THROW(node.set(
       "triggerLedgerRekey",
       ctx.new_c_function(
-        js_node_trigger_ledger_rekey, "triggerLedgerRekey", 0));
-    node.set(
+        js_node_trigger_ledger_rekey, "triggerLedgerRekey", 0)));
+    JS_CHECK_OR_THROW(node.set(
       "transitionServiceToOpen",
       ctx.new_c_function(
-        js_node_transition_service_to_open, "transitionServiceToOpen", 2));
-    node.set(
+        js_node_transition_service_to_open, "transitionServiceToOpen", 2)));
+    JS_CHECK_OR_THROW(node.set(
       "triggerRecoverySharesRefresh",
       ctx.new_c_function(
         js_node_trigger_recovery_shares_refresh,
         "triggerRecoverySharesRefresh",
-        0));
-    node.set(
+        0)));
+    JS_CHECK_OR_THROW(node.set(
       "triggerLedgerChunk",
-      ctx.new_c_function(js_trigger_ledger_chunk, "triggerLedgerChunk", 0));
-    node.set(
+      ctx.new_c_function(js_trigger_ledger_chunk, "triggerLedgerChunk", 0)));
+    JS_CHECK_OR_THROW(node.set(
       "triggerSnapshot",
-      ctx.new_c_function(js_trigger_snapshot, "triggerSnapshot", 0));
+      ctx.new_c_function(js_trigger_snapshot, "triggerSnapshot", 0)));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    ccf.set("node", std::move(node));
+    JS_CHECK_OR_THROW(ccf.set("node", std::move(node)));
   }
 }
