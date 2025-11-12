@@ -4,7 +4,8 @@ EXTENDS ccfraft, Json, IOUtils, Sequences, MCAliases
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
     "raft_append_entries" :> AppendEntriesRequest @@ "raft_append_entries_response" :> AppendEntriesResponse @@
-    "raft_request_vote" :> RequestVoteRequest @@ "raft_request_vote_response" :> RequestVoteResponse @@
+    "raft_request_vote" :> RequestVoteRequest @@ "raft_request_pre_vote" :> RequestVoteRequest @@ 
+    "raft_request_vote_response" :> RequestVoteResponse @@ "raft_request_pre_vote_response" :> RequestVoteResponse @@
     "raft_propose_request_vote" :> ProposeVoteRequest
 
 ToLeadershipState ==
@@ -56,9 +57,9 @@ IsRequestVoteRequest(msg, dst, src, logline) ==
     /\ IsHeader(msg, dst, src, logline, RequestVoteRequest)
     /\ msg.lastCommittableIndex = logline.msg.packet.last_committable_idx
     /\ msg.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
-    /\ IF "election_type" \in DOMAIN logline.msg.packet
-       THEN msg.isPreVote = (logline.msg.packet.election_type = "PreVote")
-       ELSE msg.isPreVote = FALSE
+    /\ IF logline.msg.packet.msg = "raft_request_vote"
+       THEN msg.isPreVote = FALSE
+       ELSE msg.isPreVote = TRUE
 
 IsRequestVoteResponse(msg, dst, src, logline) ==
     /\ IsHeader(msg, dst, src, logline, RequestVoteResponse)
