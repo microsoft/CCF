@@ -27,7 +27,7 @@ namespace ccf
     void set(Digest::Representation&& r)
     {
       is_set = true;
-      digest.set(std::move(r));
+      digest.set(r);
     }
 
     [[nodiscard]] bool empty() const

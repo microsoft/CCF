@@ -14,7 +14,7 @@ namespace ccf
   /** Lists the possible return codes from the versioned APIs in @c
    * ccf::BaseEndpointRegistry
    */
-  enum class ApiResult
+  enum class ApiResult : uint8_t
   {
     /** Call was successful, results can be used */
     OK = 0,
@@ -25,7 +25,7 @@ namespace ccf
     /** One of the arguments passed to the function is invalid. It may be
        outside the range of known values, or not be in the expected format. */
     InvalidArgs,
-    /** The requsted value was not found. */
+    /** The requested value was not found. */
     NotFound,
     /** General error not covered by the cases above. Generally means that an
        unexpected exception was thrown during execution. */
@@ -66,7 +66,7 @@ namespace ccf
   /** Lists possible reasons for an ApiResult::InvalidArgs being return in @c
    * ccf::BaseEndpointRegistry
    */
-  enum class InvalidArgsReason
+  enum class InvalidArgsReason : uint8_t
   {
     NoReason = 0,
     /** Views start at 1 (one) in CCF */

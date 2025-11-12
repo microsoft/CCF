@@ -51,7 +51,7 @@ namespace ccf
     RESTVerb(const llhttp_method& hm) : verb(hm) {}
     RESTVerb(const std::string& s)
     {
-      verb = http_method_from_str(s.c_str());
+      verb = http_method_from_str(s);
     }
 
     [[nodiscard]] std::optional<llhttp_method> get_http_method() const
@@ -100,7 +100,7 @@ namespace ccf
     std::string s = j.get<std::string>();
     ccf::nonstd::to_upper(s);
 
-    verb = RESTVerb(s.c_str());
+    verb = RESTVerb(s);
   }
 
   inline std::string schema_name([[maybe_unused]] const RESTVerb* verb_type)

@@ -9,7 +9,7 @@
 
 namespace ccf::js::core
 {
-  enum class RuntimeLimitsPolicy
+  enum class RuntimeLimitsPolicy : uint8_t
   {
     NONE,
     NO_LOWER_THAN_DEFAULTS

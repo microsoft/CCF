@@ -60,7 +60,7 @@ namespace ccf::js
       {
         switch (interpreter_reuse->kind)
         {
-          case ccf::endpoints::InterpreterReusePolicy::KeyBased:
+          case ccf::endpoints::InterpreterReusePolicy::Kind::KeyBased:
           {
             auto key = interpreter_reuse->key;
             if (access == js::TxAccess::APP_RW)
