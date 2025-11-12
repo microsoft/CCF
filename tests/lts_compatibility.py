@@ -12,6 +12,8 @@ import infra.node
 import infra.platform_detection
 import suite.test_requirements as reqs
 import ccf.ledger
+from ccf.tx_id import TxID
+import time
 import os
 import json
 import datetime
@@ -171,11 +173,26 @@ def test_new_service(
 
     if test_jwt_cleanup:
 
-        def table_has_entries(table_name):
-            ledger = ccf.ledger.Ledger(
-                primary.remote.ledger_paths(), committed_only=False
-            )
-            public_state, _ = ledger.get_latest_public_state()
+        def get_fresh_public_state():
+            with primary.client() as c:
+                r = c.get("/node/commit")
+                target_seqno = TxID.from_str(r.body.json()["transaction_id"]).seqno
+            network.consortium.force_ledger_chunk(primary)
+            for _ in range(10):
+                ledger = ccf.ledger.Ledger(
+                    primary.remote.ledger_paths(), committed_only=True
+                )
+                public_state, last_seqno = ledger.get_latest_public_state()
+                if last_seqno >= target_seqno:
+                    return public_state
+
+                time.sleep(0.1)
+            else:
+                assert (
+                    False
+                ), f"Failed to up-to-date ledger state, seqno needed: {target_seqno}, last seqno: {last_seqno}"
+
+        def table_has_entries(table_name, public_state):
             rows = public_state.get(table_name, None)
             return rows is not None and len(rows) > 0
 
@@ -186,18 +203,23 @@ def test_new_service(
         ]
         new_table = "public:ccf.gov.jwt.public_signing_keys_metadata_v2"
 
-        assert all(table_has_entries(table) for table in legacy_tables)
-        assert table_has_entries(new_table)
+        public_state = get_fresh_public_state()
+        assert all(table_has_entries(table, public_state) for table in legacy_tables)
+        assert table_has_entries(new_table, public_state)
 
         network.consortium.cleanup_legacy_jwt_records(
             primary, ensure_new_records_exist=True
         )
 
-        assert all(not table_has_entries(table) for table in legacy_tables)
+        public_state = get_fresh_public_state()
+        assert all(
+            not table_has_entries(table, public_state) for table in legacy_tables
+        )
 
         # Cannot remove legacy if the current table is not populated but required to be
         network.consortium.remove_jwt_issuer(primary, network.jwt_issuer.issuer_url)
-        assert not table_has_entries(new_table)
+        public_state = get_fresh_public_state()
+        assert not table_has_entries(new_table, public_state)
         try:
             network.consortium.cleanup_legacy_jwt_records(
                 primary, ensure_new_records_exist=True
