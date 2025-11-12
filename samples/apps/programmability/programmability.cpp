@@ -165,19 +165,28 @@ namespace programmabilityapp
 
     // Insert a constant string into the JS environment, accessible at
     // my_object.my_constant
-    my_global_object.set("my_constant", ctx.new_string("Hello world"));
+    if (my_global_object.set("my_constant", ctx.new_string("Hello world")) != 1)
+    {
+      throw std::runtime_error(
+        "Unable to set JS field my_constant while constructing MyExtension");
+    }
 
     // Insert a function into the JS environment, called at my_object.has_role
-    my_global_object.set(
-      // Name of field on object
-      "hasRole",
-      ctx.new_c_function(
-        // C/C++ function implementing this JS function
-        js_has_role_permitting_action,
-        // Repeated name of function, used in callstacks
+    if (
+      my_global_object.set(
+        // Name of field on object
         "hasRole",
-        // Number of arguments to this function
-        2));
+        ctx.new_c_function(
+          // C/C++ function implementing this JS function
+          js_has_role_permitting_action,
+          // Repeated name of function, used in callstacks
+          "hasRole",
+          // Number of arguments to this function
+          2)) != 1)
+    {
+      throw std::runtime_error(
+        "Unable to set JS field hasRole while constructing MyExtension");
+    }
   }
 
   // This sample shows the features of DynamicJSEndpointRegistry. This sample
