@@ -12,7 +12,7 @@
 
 namespace ccf::crypto
 {
-  enum class RSAPadding
+  enum class RSAPadding : uint8_t
   {
     PKCS1v15,
     PKCS_PSS,
