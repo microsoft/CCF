@@ -122,49 +122,6 @@ namespace
 
 namespace ccf
 {
-  static void legacy_remove_jwt_public_signing_keys(
-    ccf::kv::Tx& tx, std::string issuer)
-  {
-    auto keys = tx.rw<Tables::Legacy::JwtPublicSigningKeys>(
-      Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS);
-    auto key_issuer = tx.rw<Tables::Legacy::JwtPublicSigningKeyIssuer>(
-      Tables::Legacy::JWT_PUBLIC_SIGNING_KEY_ISSUER);
-
-    key_issuer->foreach(
-      [&issuer, &keys, &key_issuer](const auto& k, const auto& v) {
-        if (v == issuer)
-        {
-          keys->remove(k);
-          key_issuer->remove(k);
-        }
-        return true;
-      });
-
-    auto metadata = tx.rw<JwtPublicSigningKeysMetadataLegacy>(
-      Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS_METADATA);
-    metadata->foreach([&issuer, &metadata](const auto& k, const auto& v) {
-      std::vector<OpenIDJWKMetadataLegacy> updated;
-      for (const auto& key : v)
-      {
-        if (key.issuer != issuer)
-        {
-          updated.push_back(key);
-        }
-      }
-
-      if (updated.empty())
-      {
-        metadata->remove(k);
-      }
-      else if (updated.size() < v.size())
-      {
-        metadata->put(k, updated);
-      }
-
-      return true;
-    });
-  }
-
   static bool check_issuer_constraint(
     const std::string& issuer, const std::string& constraint)
   {
@@ -199,11 +156,6 @@ namespace ccf
   static void remove_jwt_public_signing_keys(
     ccf::kv::Tx& tx, std::string issuer)
   {
-    // Unlike resetting JWT keys for a particular issuer, removing keys can be
-    // safely done on both table revisions, as soon as the application
-    // shouldn't use them anyway after being ask about that explicitly.
-    legacy_remove_jwt_public_signing_keys(tx, issuer);
-
     auto keys = tx.rw<JwtPublicSigningKeysMetadata>(
       Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
 
@@ -292,8 +244,7 @@ namespace ccf
     }
 
     std::set<std::string> existing_kids;
-    keys->foreach([&existing_kids, &issuer_constraints, &issuer](
-                    const auto& k, const auto& v) {
+    keys->foreach([&existing_kids, &issuer](const auto& k, const auto& v) {
       if (find_if(v.begin(), v.end(), [&](const auto& metadata) {
             return metadata.issuer == issuer;
           }) != v.end())

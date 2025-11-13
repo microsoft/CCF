@@ -29,9 +29,10 @@ namespace ccf::js::core
 
     JSWrappedValue operator[](uint32_t i) const;
 
-    int set(const char* prop, JSWrappedValue&& value) const;
+    [[nodiscard]] int set(const char* prop, JSWrappedValue&& value) const;
 
-    int set_getter(const char* prop, JSWrappedValue&& getter) const;
+    [[nodiscard]] int set_getter(
+      const char* prop, JSWrappedValue&& getter) const;
 
     [[nodiscard]] int set(
       const std::string& prop, JSWrappedValue&& value) const;
@@ -46,7 +47,8 @@ namespace ccf::js::core
 
     [[nodiscard]] int set_bool(const std::string& prop, bool b) const;
 
-    int set_at_index(uint32_t index, JSWrappedValue&& value) const;
+    [[nodiscard]] int set_at_index(
+      uint32_t index, JSWrappedValue&& value) const;
 
     [[nodiscard]] bool is_exception() const;
 
@@ -60,6 +62,6 @@ namespace ccf::js::core
 
     [[nodiscard]] bool is_undefined() const;
 
-    JSValue take();
+    [[nodiscard]] JSValue take();
   };
 }

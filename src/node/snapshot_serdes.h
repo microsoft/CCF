@@ -177,6 +177,7 @@ namespace ccf
     ccf::MerkleTreeHistory history(tree);
     auto proof = history.get_proof(seqno);
     ccf::ClaimsDigest cd;
+    // NOLINTNEXTLINE(performance-move-const-arg)
     cd.set(std::move(claims_digest));
     ccf::TxReceiptImpl tx_receipt(
       sig,

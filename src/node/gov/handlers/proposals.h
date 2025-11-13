@@ -5,6 +5,7 @@
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/js/common_context.h"
 #include "ccf/js/extensions/ccf/gov_effects.h"
+#include "js/checks.h"
 #include "js/extensions/ccf/network.h"
 #include "js/extensions/ccf/node.h"
 #include "node/gov/api_version.h"
@@ -212,12 +213,12 @@ namespace ccf::gov::endpoints
           {
             auto v = js_context.new_obj();
 
-            v.set(
+            JS_CHECK_OR_THROW(v.set(
               "member_id",
-              js_context.new_string_len(member_id.data(), member_id.size()));
-            v.set_bool("vote", vote_result);
+              js_context.new_string_len(member_id.data(), member_id.size())));
+            JS_CHECK_OR_THROW(v.set_bool("vote", vote_result));
 
-            vs.set_at_index(index++, std::move(v));
+            JS_CHECK_OR_THROW(vs.set_at_index(index++, std::move(v)));
           }
           argv.push_back(vs);
 

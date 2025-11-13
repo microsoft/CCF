@@ -52,7 +52,7 @@ namespace ccf
 
     static std::optional<TxID> from_str(const std::string_view& sv)
     {
-      const auto separator_idx = sv.find(".");
+      const auto separator_idx = sv.find('.');
       if (separator_idx == std::string_view::npos)
       {
         return std::nullopt;

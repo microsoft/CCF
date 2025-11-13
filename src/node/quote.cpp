@@ -190,7 +190,6 @@ namespace ccf
 
       case QuoteFormat::amd_sev_snp_v1:
       {
-        HostData digest{};
         HostData::Representation rep{};
         pal::PlatformAttestationMeasurement d = {};
         pal::PlatformAttestationReportData r = {};
