@@ -20,7 +20,7 @@ permissions: read-all
 
 jobs:
   vmss-virtual-a:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'no-ci') == false && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    if: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'no-ci') }}
     name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, Partitions tests
     runs-on:
       [
@@ -100,7 +100,7 @@ jobs:
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
 
   vmss-virtual-b:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'no-ci') == false && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    if: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'no-ci') }}
     name: "VMSS Virtual B" # End-to-end tests, except for partitions
     runs-on:
       [
@@ -176,7 +176,7 @@ jobs:
         if: success() || failure()
 
   aci_snp_milan:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'no-ci') == false && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    if: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'no-ci') }}
     name: "ACI SNP Milan"
     runs-on:
       [
@@ -258,7 +258,7 @@ jobs:
         if: success() || failure()
 
   aci_snp_genoa:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'no-ci') == false && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    if: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'no-ci') }}
     name: "ACI SNP Genoa"
     runs-on:
       [
