@@ -56,7 +56,7 @@ namespace ccf
 
   struct ErrorDetails
   {
-    http_status status;
+    http_status status = HTTP_STATUS_BAD_REQUEST;
     std::string code;
     std::string msg;
   };

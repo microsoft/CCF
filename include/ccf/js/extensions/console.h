@@ -27,7 +27,6 @@ namespace ccf::js::extensions
 
     void install(js::core::Context& ctx) override;
 
-    static void log_info_with_tag(
-      const ccf::js::TxAccess access, std::string_view s);
+    static void log_info_with_tag(ccf::js::TxAccess access, std::string_view s);
   };
 }

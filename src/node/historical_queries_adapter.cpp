@@ -153,8 +153,8 @@ namespace ccf
       {
         const auto direction =
           node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT ?
-          ccf::ProofReceipt::ProofStep::Left :
-          ccf::ProofReceipt::ProofStep::Right;
+          ccf::ProofReceipt::ProofStep::Direction::Left :
+          ccf::ProofReceipt::ProofStep::Direction::Right;
         const auto hash = ccf::crypto::Sha256Hash::from_span(
           std::span<const uint8_t, ccf::ClaimsDigest::Digest::SIZE>(
             node.hash.bytes, sizeof(node.hash.bytes)));

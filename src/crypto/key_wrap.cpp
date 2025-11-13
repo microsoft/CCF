@@ -93,25 +93,35 @@ namespace ccf::crypto
     // - Generates temporary random AES key of ulAESKeyBits length. This key is
     //   not accessible to the user - no handle is returned.
     std::vector<uint8_t> taeskey(aes_key_size / CHAR_BIT);
-    RAND_bytes(taeskey.data(), taeskey.size());
+    try
+    {
+      RAND_bytes(taeskey.data(), taeskey.size());
 
-    // - Wraps the AES key with the wrapping RSA key using CKM_RSA_PKCS_OAEP
-    //   with parameters of OAEPParams.
-    std::vector<uint8_t> w_aeskey = wrapping_key->rsa_oaep_wrap(taeskey, label);
+      // - Wraps the AES key with the wrapping RSA key using CKM_RSA_PKCS_OAEP
+      //   with parameters of OAEPParams.
+      std::vector<uint8_t> w_aeskey =
+        wrapping_key->rsa_oaep_wrap(taeskey, label);
 
-    // - Wraps the target key with the temporary AES key using
-    //   CKM_AES_KEY_WRAP_PAD (RFC5649).
-    auto aes = std::make_unique<KeyAesGcm_OpenSSL>(taeskey);
-    std::vector<uint8_t> w_target = aes->ckm_aes_key_wrap_pad(unwrapped);
+      // - Wraps the target key with the temporary AES key using
+      //   CKM_AES_KEY_WRAP_PAD (RFC5649).
+      auto aes = std::make_unique<KeyAesGcm_OpenSSL>(taeskey);
+      std::vector<uint8_t> w_target = aes->ckm_aes_key_wrap_pad(unwrapped);
 
-    // - Zeroizes the temporary AES key.
-    memset(taeskey.data(), 0, taeskey.size());
+      // - Zeroizes the temporary AES key.
+      OPENSSL_cleanse(taeskey.data(), taeskey.size());
 
-    // - Concatenates two wrapped keys and outputs the concatenated blob.
-    std::vector<uint8_t> r;
-    r.insert(r.end(), w_aeskey.begin(), w_aeskey.end());
-    r.insert(r.end(), w_target.begin(), w_target.end());
-    return r;
+      // - Concatenates two wrapped keys and outputs the concatenated blob.
+      std::vector<uint8_t> r;
+      r.insert(r.end(), w_aeskey.begin(), w_aeskey.end());
+      r.insert(r.end(), w_target.begin(), w_target.end());
+      return r;
+    }
+    catch (...)
+    {
+      // Ensure temporary key is zeroed even on exceptions
+      OPENSSL_cleanse(taeskey.data(), taeskey.size());
+      throw;
+    }
   }
 
   std::vector<uint8_t> ckm_rsa_aes_key_wrap(
@@ -149,25 +159,35 @@ namespace ccf::crypto
     std::vector<uint8_t> t_aeskey =
       wrapping_key->rsa_oaep_unwrap(w_aeskey, label);
 
-    if (
-      t_aeskey.size() != AES_KEY_SIZE_128_BYTES &&
-      t_aeskey.size() != AES_KEY_SIZE_192_BYTES &&
-      t_aeskey.size() != AES_KEY_SIZE_256_BYTES)
+    try
     {
-      throw std::runtime_error("invalid key size");
+      if (
+        t_aeskey.size() != AES_KEY_SIZE_128_BYTES &&
+        t_aeskey.size() != AES_KEY_SIZE_192_BYTES &&
+        t_aeskey.size() != AES_KEY_SIZE_256_BYTES)
+      {
+        throw std::runtime_error("invalid key size");
+      }
+
+      // - Un-wraps the target key from the second part with the temporary AES
+      // key
+      //   using CKM_AES_KEY_WRAP_PAD (RFC5649).
+
+      auto aes = std::make_unique<KeyAesGcm_OpenSSL>(t_aeskey);
+      std::vector<uint8_t> target = aes->ckm_aes_key_unwrap_pad(w_target);
+
+      // - Zeroizes the temporary AES key.
+      OPENSSL_cleanse(t_aeskey.data(), t_aeskey.size());
+
+      // - Returns the handle to the newly unwrapped target key.
+      return target;
     }
-
-    // - Un-wraps the target key from the second part with the temporary AES key
-    //   using CKM_AES_KEY_WRAP_PAD (RFC5649).
-
-    auto aes = std::make_unique<KeyAesGcm_OpenSSL>(t_aeskey);
-    std::vector<uint8_t> target = aes->ckm_aes_key_unwrap_pad(w_target);
-
-    // - Zeroizes the temporary AES key.
-    memset(t_aeskey.data(), 0, t_aeskey.size());
-
-    // - Returns the handle to the newly unwrapped target key.
-    return target;
+    catch (...)
+    {
+      // Ensure temporary key is zeroed even on exceptions
+      OPENSSL_cleanse(t_aeskey.data(), t_aeskey.size());
+      throw;
+    }
   }
 
   std::vector<uint8_t> ckm_rsa_aes_key_unwrap(
