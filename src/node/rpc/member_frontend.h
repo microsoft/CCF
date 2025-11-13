@@ -4,7 +4,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/crypto/base64.h"
-#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/sha256.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/http_query.h"

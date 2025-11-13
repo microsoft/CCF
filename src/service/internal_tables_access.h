@@ -524,7 +524,7 @@ namespace ccf
     }
 
     static bool endorse_previous_identity(
-      ccf::kv::Tx& tx, const ccf::crypto::KeyPair_OpenSSL& service_key)
+      ccf::kv::Tx& tx, const ccf::crypto::ECKeyPair_OpenSSL& service_key)
     {
       auto service = tx.ro<ccf::Service>(Tables::SERVICE);
       auto active_service = service->get();

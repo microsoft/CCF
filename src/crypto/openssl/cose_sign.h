@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/openssl/key_pair.h"
+#include "crypto/openssl/ec_key_pair.h"
 
 #include <openssl/ossl_typ.h>
 #include <span>
@@ -169,7 +169,7 @@ namespace ccf::crypto
   };
 
   std::optional<int> key_to_cose_alg_id(
-    const ccf::crypto::PublicKey_OpenSSL& key);
+    const ccf::crypto::ECPublicKey_OpenSSL& key);
 
   /* Sign a cose_sign1 payload with custom protected headers as strings, where
        - key: integer label to be assigned in a COSE value
@@ -179,7 +179,7 @@ namespace ccf::crypto
     https://www.iana.org/assignments/cose/cose.xhtml#header-parameters.
    */
   std::vector<uint8_t> cose_sign1(
-    const KeyPair_OpenSSL& key,
+    const ECKeyPair_OpenSSL& key,
     const std::vector<std::shared_ptr<COSEParametersFactory>>&
       protected_headers,
     std::span<const uint8_t> payload,
