@@ -15,14 +15,14 @@ namespace ccf::cose
   class AbstractCOSESignaturesConfig : public ccf::AbstractNodeSubSystem
   {
   public:
-    virtual ~AbstractCOSESignaturesConfig() = default;
+    ~AbstractCOSESignaturesConfig() override = default;
 
     static char const* get_subsystem_name()
     {
       return "COSESignaturesConfig";
     }
 
-    virtual const ccf::COSESignaturesConfig& get_cose_signatures_config()
-      const = 0;
+    [[nodiscard]] virtual const ccf::COSESignaturesConfig&
+    get_cose_signatures_config() const = 0;
   };
 }

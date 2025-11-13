@@ -36,8 +36,8 @@ namespace ccf::js::core
   struct InterruptData
   {
     std::chrono::high_resolution_clock::time_point start_time;
-    std::chrono::milliseconds max_execution_time;
-    ccf::js::TxAccess access;
+    std::chrono::milliseconds max_execution_time = {};
+    ccf::js::TxAccess access = ccf::js::TxAccess::APP_RO;
     bool request_timed_out = false;
   };
 
@@ -142,7 +142,7 @@ namespace ccf::js::core
     [[nodiscard]] JSWrappedValue new_string_len(
       const char* buf, size_t buf_len) const;
     [[nodiscard]] JSWrappedValue new_string_len(
-      const std::span<const uint8_t> buf) const;
+      std::span<const uint8_t> buf) const;
     JSWrappedValue new_type_error(const char* fmt, ...) const;
     JSWrappedValue new_internal_error(const char* fmt, ...) const;
     [[nodiscard]] JSWrappedValue new_tag_value(int tag, int32_t val = 0) const;
@@ -197,8 +197,7 @@ namespace ccf::js::core
     {
       for (auto& extension : extensions)
       {
-        if (TExtension* t = dynamic_cast<TExtension*>(extension.get());
-            t != nullptr)
+        if (auto* t = dynamic_cast<TExtension*>(extension.get()); t != nullptr)
         {
           return t;
         }

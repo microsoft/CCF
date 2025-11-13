@@ -14,7 +14,7 @@
 
 namespace ccf
 {
-  enum class QuoteVerificationResult
+  enum class QuoteVerificationResult : uint8_t
   {
     Verified = 0,
     Failed,

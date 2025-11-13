@@ -905,7 +905,7 @@ namespace ccf::js
   }
 
   std::set<RESTVerb> BaseDynamicJSEndpointRegistry::get_allowed_verbs(
-    ccf::kv::Tx& tx, const ccf::RpcContext& rpc_ctx)
+    [[maybe_unused]] ccf::kv::Tx& tx, const ccf::RpcContext& rpc_ctx)
   {
     const auto method = rpc_ctx.get_method();
 
