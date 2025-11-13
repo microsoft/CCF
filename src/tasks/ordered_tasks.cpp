@@ -48,7 +48,7 @@ namespace ccf::tasks
   void OrderedTasks::do_task_implementation()
   {
     if (pimpl->actions.pop_and_visit(
-          [this](TaskAction&& action) { action->do_action(); }))
+          [](TaskAction&& action) { action->do_action(); }))
     {
       enqueue_on_board();
     }

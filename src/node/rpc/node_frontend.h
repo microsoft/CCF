@@ -537,9 +537,6 @@ namespace ccf
             "No service is available to accept new node.");
         }
 
-        auto config = args.tx.ro(network.config);
-        auto service_config = config->get();
-
         if (
           active_service->status == ServiceStatus::OPENING ||
           active_service->status == ServiceStatus::RECOVERING)
@@ -698,7 +695,7 @@ namespace ccf
 
       auto set_retired_committed = [this](auto& ctx, nlohmann::json&&) {
         auto nodes = ctx.tx.rw(network.nodes);
-        nodes->foreach([this, &nodes](const auto& node_id, auto node_info) {
+        nodes->foreach([&nodes](const auto& node_id, auto node_info) {
           auto gc_node = nodes->get_globally_committed(node_id);
           if (
             gc_node.has_value() &&
@@ -880,7 +877,7 @@ namespace ccf
         .install();
 
       auto get_attestations =
-        [this, get_quotes](auto& args, nlohmann::json&& params) {
+        [get_quotes](auto& args, nlohmann::json&& params) {
           const auto res = get_quotes(args, std::move(params));
           const auto body = std::get_if<nlohmann::json>(&res);
           if (body != nullptr)
@@ -937,7 +934,7 @@ namespace ccf
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
-      auto service_previous_identity = [this](auto& args, nlohmann::json&&) {
+      auto service_previous_identity = [](auto& args, nlohmann::json&&) {
         auto psi_handle = args.tx.template ro<ccf::PreviousServiceIdentity>(
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
         const auto psi = psi_handle->get();
@@ -1063,7 +1060,7 @@ namespace ccf
 
         auto nodes = args.tx.ro(this->network.nodes);
         nodes->foreach(
-          [this, &out, nodes](const NodeId& node_id, const NodeInfo& ni) {
+          [&out, nodes](const NodeId& node_id, const NodeInfo& ni) {
             // Only nodes whose retire_committed status is committed can be
             // safely removed, because any primary elected from here on would
             // consider them retired, and would consequently not need their
@@ -1542,7 +1539,7 @@ namespace ccf
         .set_auto_schema<void, JavaScriptMetrics>()
         .install();
 
-      auto version = [this](auto&, nlohmann::json&&) {
+      auto version = [](auto&, nlohmann::json&&) {
         GetVersion::Out result;
         result.ccf_version = ccf::ccf_version;
         result.quickjs_version = ccf::quickjs_version;

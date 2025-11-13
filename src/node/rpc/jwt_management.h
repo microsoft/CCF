@@ -244,8 +244,7 @@ namespace ccf
     }
 
     std::set<std::string> existing_kids;
-    keys->foreach([&existing_kids, &issuer_constraints, &issuer](
-                    const auto& k, const auto& v) {
+    keys->foreach([&existing_kids, &issuer](const auto& k, const auto& v) {
       if (find_if(v.begin(), v.end(), [&](const auto& metadata) {
             return metadata.issuer == issuer;
           }) != v.end())

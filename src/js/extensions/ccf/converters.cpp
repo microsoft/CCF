@@ -264,29 +264,33 @@ namespace ccf::js::extensions
   {
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
 
-    ccf.set("strToBuf", ctx.new_c_function(js_str_to_buf, "strToBuf", 1));
-    ccf.set("bufToStr", ctx.new_c_function(js_buf_to_str, "bufToStr", 1));
+    JS_CHECK_OR_THROW(
+      ccf.set("strToBuf", ctx.new_c_function(js_str_to_buf, "strToBuf", 1)));
+    JS_CHECK_OR_THROW(
+      ccf.set("bufToStr", ctx.new_c_function(js_buf_to_str, "bufToStr", 1)));
 
-    ccf.set(
+    JS_CHECK_OR_THROW(ccf.set(
       "jsonCompatibleToBuf",
-      ctx.new_c_function(js_json_compatible_to_buf, "jsonCompatibleToBuf", 1));
-    ccf.set(
+      ctx.new_c_function(js_json_compatible_to_buf, "jsonCompatibleToBuf", 1)));
+    JS_CHECK_OR_THROW(ccf.set(
       "bufToJsonCompatible",
-      ctx.new_c_function(js_buf_to_json_compatible, "bufToJsonCompatible", 1));
+      ctx.new_c_function(js_buf_to_json_compatible, "bufToJsonCompatible", 1)));
 
-    ccf.set(
+    JS_CHECK_OR_THROW(ccf.set(
       "enableUntrustedDateTime",
       ctx.new_c_function(
-        js_enable_untrusted_date_time, "enableUntrustedDateTime", 1));
+        js_enable_untrusted_date_time, "enableUntrustedDateTime", 1)));
 
-    ccf.set(
+    JS_CHECK_OR_THROW(ccf.set(
       "enableMetricsLogging",
-      ctx.new_c_function(js_enable_metrics_logging, "enableMetricsLogging", 1));
+      ctx.new_c_function(
+        js_enable_metrics_logging, "enableMetricsLogging", 1)));
 
-    ccf.set("pemToId", ctx.new_c_function(js_pem_to_id, "pemToId", 1));
+    JS_CHECK_OR_THROW(
+      ccf.set("pemToId", ctx.new_c_function(js_pem_to_id, "pemToId", 1)));
 
-    ccf.set(
+    JS_CHECK_OR_THROW(ccf.set(
       "tcbHexToPolicy",
-      ctx.new_c_function(js_tcb_hex_to_policy, "tcbHexToPolicy", 2));
+      ctx.new_c_function(js_tcb_hex_to_policy, "tcbHexToPolicy", 2)));
   }
 }
