@@ -1960,7 +1960,43 @@ namespace aft
         return;
       }
 
+      // Ignore if we don't recognise the node.
+      auto node = all_other_nodes.find(from);
+      if (node == all_other_nodes.end())
+      {
+        RAFT_INFO_FMT(
+          "Recv {} to {} from {}: unknown node", r.msg, state->node_id, from);
+        return;
+      }
+
+      if (state->current_view < r.term)
+      {
+        RAFT_INFO_FMT(
+          "Recv {} to {} from {}: their term is more recent "
+          "({} < {})",
+          r.msg,
+          state->node_id,
+          from,
+          state->current_view,
+          r.term);
+        become_aware_of_new_term(r.term);
+        return;
+      }
+      
+      if (state->current_view != r.term)
+      {
+        // Ignore as it is stale.
+        RAFT_INFO_FMT(
+          "Recv request vote response to {} from {}: stale ({} != {})",
+          state->node_id,
+          from,
+          state->current_view,
+          r.term);
+        return;
+      }
+
       // Stale message from previous candidacy
+      // Candidate(T) -> Follower(T) -> PreVoteCandidate(T)
       if (
         election_type == ElectionType::RegularVote &&
         state->leadership_state == ccf::kv::LeadershipState::PreVoteCandidate)
@@ -1984,8 +2020,7 @@ namespace aft
         state->leadership_state == ccf::kv::LeadershipState::Candidate)
       {
         RAFT_FAIL_FMT(
-          "Recv {} to {} from {}: message implies that we have been a "
-          "PreVoteCandidate in {}, but we are only now a Candidate for {}",
+          "Recv {} to {} from {}: unexpected PreVoteResponse response in {} when Candidate for {}",
           r.msg,
           state->node_id,
           from,
@@ -1994,40 +2029,7 @@ namespace aft
         return;
       }
 
-      // Ignore if we don't recognise the node.
-      auto node = all_other_nodes.find(from);
-      if (node == all_other_nodes.end())
-      {
-        RAFT_INFO_FMT(
-          "Recv {} to {} from {}: unknown node", r.msg, state->node_id, from);
-        return;
-      }
-
-      if (state->current_view < r.term)
-      {
-        RAFT_INFO_FMT(
-          "Recv {} to {} from {}: their term is more recent "
-          "({} < {})",
-          r.msg,
-          state->node_id,
-          from,
-          state->current_view,
-          r.term);
-        become_aware_of_new_term(r.term);
-        return;
-      }
-      else if (state->current_view != r.term)
-      {
-        // Ignore as it is stale.
-        RAFT_INFO_FMT(
-          "Recv request vote response to {} from {}: stale ({} != {})",
-          state->node_id,
-          from,
-          state->current_view,
-          r.term);
-        return;
-      }
-      else if (!r.vote_granted)
+      if (!r.vote_granted)
       {
         // Do nothing.
         RAFT_INFO_FMT(
