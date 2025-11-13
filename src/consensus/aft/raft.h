@@ -1891,6 +1891,7 @@ namespace aft
         .last_committable_idx = r.last_committable_idx,
         .term_of_last_committable_idx = r.term_of_last_committable_idx,
       };
+      rv.msg = RaftMsgType::raft_request_pre_vote;
       recv_request_vote_unsafe(from, rv, ElectionType::PreVote);
     }
 
@@ -1946,50 +1947,6 @@ namespace aft
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
-      if (
-        state->leadership_state != ccf::kv::LeadershipState::PreVoteCandidate &&
-        state->leadership_state != ccf::kv::LeadershipState::Candidate)
-      {
-        RAFT_INFO_FMT(
-          "Recv {} to {} from: {}: we aren't a candidate",
-          r.msg,
-          state->node_id,
-          from);
-        return;
-      }
-
-      // Stale message
-      if (
-        election_type == ElectionType::PreVote &&
-        state->leadership_state == ccf::kv::LeadershipState::Candidate)
-      {
-        RAFT_INFO_FMT(
-          "Recv {} to {} from {}: no longer in pre-vote",
-          r.msg,
-          state->node_id,
-          from);
-        return;
-      }
-
-      // To receive a RequestVoteResponse(ElectionType::RegularVote), we must
-      // have sent a RequestVote(ElectionType::RegularVote), which only
-      // candidates do.
-      // Hence if we receive a RequestVoteResponse(ElectionType::RegularVote)
-      // while still in PreVoteCandidate state something illegal must have
-      // happened.
-      if (
-        election_type == ElectionType::RegularVote &&
-        state->leadership_state == ccf::kv::LeadershipState::PreVoteCandidate)
-      {
-        RAFT_FAIL_FMT(
-          "Recv {} to {} from {}: We should not yet have sent a request "
-          "vote, as we are still a PreVoteCandidate yet received a response",
-          r.msg,
-          state->node_id,
-          from);
-        return;
-      }
-
       // Ignore if we don't recognise the node.
       auto node = all_other_nodes.find(from);
       if (node == all_other_nodes.end())
@@ -2023,7 +1980,53 @@ namespace aft
           r.term);
         return;
       }
-      else if (!r.vote_granted)
+
+      if (
+        state->leadership_state != ccf::kv::LeadershipState::PreVoteCandidate &&
+        state->leadership_state != ccf::kv::LeadershipState::Candidate)
+      {
+        RAFT_INFO_FMT(
+          "Recv {} to {} from: {}: we aren't a candidate",
+          r.msg,
+          state->node_id,
+          from);
+        return;
+      }
+      else if (
+        election_type == ElectionType::RegularVote &&
+        state->leadership_state != ccf::kv::LeadershipState::Candidate)
+      {
+        // Stale message from previous candidacy
+        // Candidate(T) -> Follower(T) -> PreVoteCandidate(T)
+        RAFT_INFO_FMT(
+          "Recv {} to {} from {}: no longer a candidate in {}",
+          r.msg,
+          state->node_id,
+          from,
+          r.term);
+        return;
+      }
+      else if (
+        election_type == ElectionType::PreVote &&
+        state->leadership_state != ccf::kv::LeadershipState::PreVoteCandidate)
+      {
+        // To receive a PreVoteResponse, we must have been a PreVoteCandidate in
+        // that term.
+        // Since we are a Candidate for term T, we can only have transitioned
+        // from PreVoteCandidate for term (T-1). Since terms are monotonic this
+        // is impossible.
+        RAFT_FAIL_FMT(
+          "Recv {} to {} from {}: unexpected message in {} when "
+          "Candidate for {}",
+          r.msg,
+          state->node_id,
+          from,
+          r.term,
+          state->current_view);
+        return;
+      }
+
+      if (!r.vote_granted)
       {
         // Do nothing.
         RAFT_INFO_FMT(
@@ -2051,6 +2054,7 @@ namespace aft
       const ccf::NodeId& from, RequestPreVoteResponse r)
     {
       RequestVoteResponse rvr{.term = r.term, .vote_granted = r.vote_granted};
+      rvr.msg = RaftMsgType::raft_request_pre_vote_response;
       recv_request_vote_response(from, rvr, ElectionType::PreVote);
     }
 
