@@ -215,9 +215,7 @@ namespace aft
       std::shared_ptr<ccf::NodeToNode> channels_,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
-      bool public_only_ = false,
-      ccf::kv::MembershipState initial_membership_state_ =
-        ccf::kv::MembershipState::Active) :
+      bool public_only_ = false) :
       store(std::move(store_)),
 
       timeout_elapsed(0),
