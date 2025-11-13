@@ -3,8 +3,8 @@
 
 #include "crypto/openssl/verifier.h"
 
+#include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "ccf/crypto/public_key.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "ds/internal_logger.h"
 #include "x509_time.h"
@@ -63,11 +63,11 @@ namespace ccf::crypto
     auto base_id = EVP_PKEY_get_base_id(pk);
     if (base_id == EVP_PKEY_EC)
     {
-      public_key = std::make_unique<PublicKey_OpenSSL>(pk);
+      public_key = std::make_shared<ECPublicKey_OpenSSL>(pk);
     }
     else if (base_id == EVP_PKEY_RSA)
     {
-      public_key = std::make_unique<RSAPublicKey_OpenSSL>(pk);
+      public_key = std::make_shared<RSAPublicKey_OpenSSL>(pk);
     }
     else
     {
