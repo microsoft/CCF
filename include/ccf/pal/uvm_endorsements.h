@@ -14,7 +14,7 @@ namespace ccf::pal
 
     bool operator==(const UVMEndorsements&) const = default;
 
-    inline std::string to_str()
+    std::string to_str()
     {
       return fmt::format("did: {}, feed: {}, svn: {}", did, feed, svn);
     }

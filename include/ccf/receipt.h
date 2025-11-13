@@ -21,15 +21,15 @@ namespace ccf
     virtual ~Receipt() = default;
 
     // Signature over the root digest, signed by the identity described in cert
-    std::vector<uint8_t> signature = {};
+    std::vector<uint8_t> signature;
     virtual ccf::crypto::Sha256Hash calculate_root() = 0;
 
-    ccf::NodeId node_id = {};
-    ccf::crypto::Pem cert = {};
+    ccf::NodeId node_id;
+    ccf::crypto::Pem cert;
 
-    std::vector<ccf::crypto::Pem> service_endorsements = {};
+    std::vector<ccf::crypto::Pem> service_endorsements;
 
-    virtual bool is_signature_transaction() const = 0;
+    [[nodiscard]] virtual bool is_signature_transaction() const = 0;
   };
 
   // Most transactions produce a receipt constructed from a combination of 3
@@ -50,13 +50,14 @@ namespace ccf
 
     struct ProofStep
     {
-      enum
+      enum class Direction : uint8_t
       {
         Left,
         Right
-      } direction;
+      };
+      Direction direction = Direction::Left;
 
-      ccf::crypto::Sha256Hash hash = {};
+      ccf::crypto::Sha256Hash hash;
 
       bool operator==(const ProofStep& other) const
       {
@@ -66,7 +67,7 @@ namespace ccf
     using Proof = std::vector<ProofStep>;
 
     // A merkle-tree path from the leaf digest to the signed root
-    Proof proof = {};
+    Proof proof;
 
     ccf::crypto::Sha256Hash calculate_root() override
     {
@@ -74,7 +75,7 @@ namespace ccf
 
       for (const auto& element : proof)
       {
-        if (element.direction == ProofStep::Left)
+        if (element.direction == ProofStep::Direction::Left)
         {
           current = ccf::crypto::Sha256Hash(element.hash, current);
         }
@@ -87,24 +88,20 @@ namespace ccf
       return current;
     }
 
-    ccf::crypto::Sha256Hash get_leaf_digest()
+    [[nodiscard]] ccf::crypto::Sha256Hash get_leaf_digest() const
     {
       ccf::crypto::Sha256Hash ce_dgst(leaf_components.commit_evidence);
       if (!leaf_components.claims_digest.empty())
       {
-        return ccf::crypto::Sha256Hash(
+        return {
           leaf_components.write_set_digest,
           ce_dgst,
-          leaf_components.claims_digest.value());
+          leaf_components.claims_digest.value()};
       }
-      else
-      {
-        return ccf::crypto::Sha256Hash(
-          leaf_components.write_set_digest, ce_dgst);
-      }
+      return {leaf_components.write_set_digest, ce_dgst};
     }
 
-    bool is_signature_transaction() const override
+    [[nodiscard]] bool is_signature_transaction() const override
     {
       return false;
     }
@@ -115,14 +112,14 @@ namespace ccf
   class SignatureReceipt : public Receipt
   {
   public:
-    ccf::crypto::Sha256Hash signed_root = {};
+    ccf::crypto::Sha256Hash signed_root;
 
     ccf::crypto::Sha256Hash calculate_root() override
     {
       return signed_root;
     };
 
-    bool is_signature_transaction() const override
+    [[nodiscard]] bool is_signature_transaction() const override
     {
       return true;
     }
@@ -137,6 +134,7 @@ namespace ccf
   nlohmann::json describe_receipt_v1(const TxReceiptImpl& receipt);
   ReceiptPtr describe_receipt_v2(const TxReceiptImpl& in);
 
+  // NOLINTNEXTLINE(performance-enum-size)
   enum MerkleProofLabel : int64_t
   {
     // Values set in
@@ -160,19 +158,24 @@ namespace ccf
 
   void to_json(nlohmann::json& j, const ProofReceipt::Components& components);
   void from_json(const nlohmann::json& j, ProofReceipt::Components& components);
-  std::string schema_name(const ProofReceipt::Components*);
+  std::string schema_name(
+    [[maybe_unused]] const ProofReceipt::Components* components);
   void fill_json_schema(
-    nlohmann::json& schema, const ProofReceipt::Components*);
+    nlohmann::json& schema,
+    [[maybe_unused]] const ProofReceipt::Components* components);
 
   void to_json(nlohmann::json& j, const ProofReceipt::ProofStep& step);
   void from_json(const nlohmann::json& j, ProofReceipt::ProofStep& step);
-  std::string schema_name(const ProofReceipt::ProofStep*);
-  void fill_json_schema(nlohmann::json& schema, const ProofReceipt::ProofStep*);
+  std::string schema_name([[maybe_unused]] const ProofReceipt::ProofStep* step);
+  void fill_json_schema(
+    nlohmann::json& schema,
+    [[maybe_unused]] const ProofReceipt::ProofStep* step);
 
   void to_json(nlohmann::json& j, const ReceiptPtr& receipt);
   void from_json(const nlohmann::json& j, ReceiptPtr& receipt);
-  std::string schema_name(const ReceiptPtr*);
-  void fill_json_schema(nlohmann::json& schema, const ReceiptPtr*);
+  std::string schema_name([[maybe_unused]] const ReceiptPtr* receipt);
+  void fill_json_schema(
+    nlohmann::json& schema, [[maybe_unused]] const ReceiptPtr* receipt);
 
   template <typename T>
   void add_schema_components(

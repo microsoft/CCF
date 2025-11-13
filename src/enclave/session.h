@@ -98,10 +98,10 @@ namespace ccf
 
     // Implement Session::sent_data by dispatching a thread message
     // that eventually invokes the virtual send_data_thread()
-    void send_data(std::span<const uint8_t> data) override
+    void send_data(std::vector<uint8_t>&& data) override
     {
       task_scheduler->add_action(
-        std::make_shared<SendDataTask>(data, shared_from_this()));
+        std::make_shared<SendDataTask>(std::move(data), shared_from_this()));
     }
 
     virtual void send_data_thread(std::vector<uint8_t>&& data) = 0;

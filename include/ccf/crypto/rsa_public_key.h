@@ -36,7 +36,7 @@ namespace ccf::crypto
     /**
      * Get the key size in bits
      */
-    virtual size_t key_size() const = 0;
+    [[nodiscard]] virtual size_t key_size() const = 0;
 
     /**
      * Wrap data using RSA-OAEP-256 (CKM_RSA_PKCS_OAEP)
@@ -69,12 +69,12 @@ namespace ccf::crypto
     /**
      * Get the public key in PEM format
      */
-    virtual Pem public_key_pem() const = 0;
+    [[nodiscard]] virtual Pem public_key_pem() const = 0;
 
     /**
      * Get the public key in DER format
      */
-    virtual std::vector<uint8_t> public_key_der() const = 0;
+    [[nodiscard]] virtual std::vector<uint8_t> public_key_der() const = 0;
 
     virtual bool verify(
       const uint8_t* contents,
@@ -97,12 +97,12 @@ namespace ccf::crypto
       std::vector<uint8_t> e;
     };
 
-    virtual Components components() const = 0;
+    [[nodiscard]] virtual Components components() const = 0;
 
     /**
      * Get the public key in JWK format
      */
-    virtual JsonWebKeyRSAPublic public_key_jwk_rsa(
+    [[nodiscard]] virtual JsonWebKeyRSAPublic public_key_jwk_rsa(
       const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
 }

@@ -177,7 +177,7 @@ namespace http
             rpc_ctx->get_response_http_status(),
             rpc_ctx->get_response_headers(),
             rpc_ctx->get_response_trailers(),
-            std::move(rpc_ctx->get_response_body()));
+            std::move(rpc_ctx->take_response_body()));
 
           if (rpc_ctx->terminate_session)
           {
@@ -204,7 +204,7 @@ namespace http
       ccf::http_status status_code,
       ccf::http::HeaderMap&& headers,
       ccf::http::HeaderMap&& trailers,
-      std::span<const uint8_t> body) override
+      std::vector<uint8_t>&& body) override
     {
       if (!trailers.empty())
       {
@@ -223,8 +223,7 @@ namespace http
         false /* Don't overwrite any existing content-length header */
       );
 
-      auto data = response.build_response();
-      send_data(data);
+      send_data(response.build_response());
       return true;
     }
 
@@ -234,7 +233,7 @@ namespace http
       throw std::logic_error("Not implemented!");
     }
 
-    bool stream_data(std::span<const uint8_t> data) override
+    bool stream_data(std::vector<uint8_t>&& data) override
     {
       throw std::logic_error("Not implemented!");
     }
@@ -294,7 +293,7 @@ namespace http
     void send_request(http::Request&& request) override
     {
       auto data = request.build_request();
-      send_data(data);
+      send_data(std::move(data));
     }
 
     void connect(
@@ -371,7 +370,7 @@ namespace http
     void send_request(http::Request&& request) override
     {
       auto data = request.build_request();
-      send_data(data);
+      send_data(std::move(data));
     }
 
     void connect(

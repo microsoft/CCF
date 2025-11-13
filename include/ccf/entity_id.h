@@ -26,20 +26,27 @@ namespace ccf
     EntityId(const EntityId& id_) = default;
     EntityId(const Value& id_) : id(id_) {}
     EntityId(Value&& id_) : id(std::move(id_)) {}
+    EntityId(EntityId&& id_) noexcept : id(std::move(id_)) {}
+    EntityId& operator=(EntityId&& other) = default;
 
-    inline operator std::string() const
+    operator std::string() const
     {
       return id;
     }
 
-    void operator=(const EntityId& other)
+    EntityId& operator=(const EntityId& other)
     {
-      id = other.id;
+      if (this != &other)
+      {
+        id = other.id;
+      }
+      return *this;
     }
 
-    void operator=(const Value& id_)
+    EntityId& operator=(const Value& id_)
     {
       id = id_;
+      return *this;
     }
 
     bool operator==(const EntityId& other) const
@@ -62,17 +69,17 @@ namespace ccf
       return id;
     }
 
-    const Value& value() const
+    [[nodiscard]] const Value& value() const
     {
       return id;
     }
 
-    char const* data() const
+    [[nodiscard]] char const* data() const
     {
       return id.data();
     }
 
-    size_t size() const
+    [[nodiscard]] size_t size() const
     {
       return id.size();
     }
@@ -102,14 +109,16 @@ namespace ccf
   }
 
   template <typename FmtExtender>
-  inline std::string schema_name(const EntityId<FmtExtender>*)
+  inline std::string schema_name(
+    [[maybe_unused]] const EntityId<FmtExtender>* entity_id_type)
   {
     return FmtExtender::ID_LABEL;
   }
 
   template <typename FmtExtender>
   inline void fill_json_schema(
-    nlohmann::json& schema, const EntityId<FmtExtender>*)
+    nlohmann::json& schema,
+    [[maybe_unused]] const EntityId<FmtExtender>* entity_id_type)
   {
     schema["type"] = "string";
 
@@ -155,6 +164,7 @@ namespace ccf
   using NodeId = EntityId<NodeIdFormatter>;
 }
 
+// NOLINTBEGIN(cert-dcl58-cpp)
 namespace std
 {
   template <typename FmtExtender>
@@ -181,6 +191,7 @@ namespace std
     }
   };
 }
+// NOLINTEND(cert-dcl58-cpp)
 
 FMT_BEGIN_NAMESPACE
 template <typename FmtExtender>

@@ -418,7 +418,7 @@ namespace quic
       interface_id(interface_id)
     {}
 
-    void send_data(std::span<const uint8_t> data) override
+    void send_data(std::vector<uint8_t>&& data) override
     {
       send_raw(data.data(), data.size(), addr);
     }

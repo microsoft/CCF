@@ -45,14 +45,14 @@ namespace ccf
     View view = VIEW_UNKNOWN;
     SeqNo seqno = SEQNO_UNKNOWN;
 
-    std::string to_str() const
+    [[nodiscard]] std::string to_str() const
     {
       return std::to_string(view) + "." + std::to_string(seqno);
     }
 
     static std::optional<TxID> from_str(const std::string_view& sv)
     {
-      const auto separator_idx = sv.find(".");
+      const auto separator_idx = sv.find('.');
       if (separator_idx == std::string_view::npos)
       {
         return std::nullopt;
@@ -116,12 +116,14 @@ namespace ccf
     tx_id = opt.value();
   }
 
-  inline std::string schema_name(const TxID*)
+  inline std::string schema_name(
+    [[maybe_unused]] const TxID* transaction_id_type)
   {
     return "TransactionId";
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, const TxID*)
+  inline void fill_json_schema(
+    nlohmann::json& schema, [[maybe_unused]] const TxID* transaction_id_type)
   {
     schema["type"] = "string";
     schema["pattern"] = "^[0-9]+\\.[0-9]+$";
