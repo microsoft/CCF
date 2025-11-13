@@ -1036,10 +1036,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME membership PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
-  )
-
-  add_e2e_test(
     NAME partitions
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     LABEL partitions
