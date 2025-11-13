@@ -2017,7 +2017,7 @@ namespace aft
         // from PreVoteCandidate for term (T-1). Since terms are monotonic this
         // is impossible.
         RAFT_FAIL_FMT(
-          "Recv {} to {} from {}: unexpected PreVoteResponse in {} when "
+          "Recv {} to {} from {}: unexpected message in {} when "
           "Candidate for {}",
           r.msg,
           state->node_id,
