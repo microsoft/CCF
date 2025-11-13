@@ -37,7 +37,7 @@ def run(args):
     # This is deliberately 5, because the rest of the test depends on this
     # to grow a prefix and allow just enough nodes to resume to reach the
     # desired election result. Conversion to a general f isn't trivial.
-    hosts = ["local://localhost"] * 5
+    hosts = infra.e2e_args.nodes(args, 5)
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, pdb=args.pdb
