@@ -1948,18 +1948,6 @@ namespace aft
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
-      if (
-        state->leadership_state != ccf::kv::LeadershipState::PreVoteCandidate &&
-        state->leadership_state != ccf::kv::LeadershipState::Candidate)
-      {
-        RAFT_INFO_FMT(
-          "Recv {} to {} from: {}: we aren't a candidate",
-          r.msg,
-          state->node_id,
-          from);
-        return;
-      }
-
       // Ignore if we don't recognise the node.
       auto node = all_other_nodes.find(from);
       if (node == all_other_nodes.end())
@@ -1994,6 +1982,19 @@ namespace aft
           r.term);
         return;
       }
+
+      if (
+        state->leadership_state != ccf::kv::LeadershipState::PreVoteCandidate &&
+        state->leadership_state != ccf::kv::LeadershipState::Candidate)
+      {
+        RAFT_INFO_FMT(
+          "Recv {} to {} from: {}: we aren't a candidate",
+          r.msg,
+          state->node_id,
+          from);
+        return;
+      }
+
 
       // Stale message from previous candidacy
       // Candidate(T) -> Follower(T) -> PreVoteCandidate(T)
