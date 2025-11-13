@@ -528,14 +528,10 @@ namespace aft
   public:
     void add_configuration(
       Index idx,
-      const ccf::kv::Configuration::Nodes& conf,
-      const std::unordered_set<ccf::NodeId>& new_learner_nodes = {},
-      const std::unordered_set<ccf::NodeId>& new_retired_nodes = {}) override
+      const ccf::kv::Configuration::Nodes& conf) override
     {
       RAFT_DEBUG_FMT(
         "Configurations: add new configuration at {}: {{{}}}", idx, conf);
-
-      assert(new_learner_nodes.empty());
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
