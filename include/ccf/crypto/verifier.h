@@ -122,12 +122,12 @@ namespace ccf::crypto
     /** Extract the public key of the certificate in PEM format
      * @return PEM encoded public key
      */
-    virtual Pem public_key_pem() const;
+    [[nodiscard]] virtual Pem public_key_pem() const;
 
     /** Extract the public key of the certificate in DER format
      * @return DER encoded public key
      */
-    virtual std::vector<uint8_t> public_key_der() const;
+    [[nodiscard]] virtual std::vector<uint8_t> public_key_der() const;
 
     /** Verify the certificate (held internally)
      * @param trusted_certs Vector of trusted certificates
@@ -136,7 +136,7 @@ namespace ccf::crypto
      * @param ignore_time Flag to disable certificate expiry checks
      * @return true if the verification is successful
      */
-    virtual bool verify_certificate(
+    [[nodiscard]] virtual bool verify_certificate(
       const std::vector<const Pem*>& trusted_certs,
       const std::vector<const Pem*>& chain = {},
       bool ignore_time = false) = 0;

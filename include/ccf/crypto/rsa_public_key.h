@@ -21,6 +21,7 @@ namespace ccf::crypto
   class RSAPublicKey
   {
   public:
+    virtual ~RSAPublicKey() = default;
     /**
      * Get the key size in bits
      */
@@ -67,7 +68,7 @@ namespace ccf::crypto
     /**
      * Get the public key in JWK format
      */
-    virtual JsonWebKeyRSAPublic public_key_jwk(
+    [[nodiscard]] virtual JsonWebKeyRSAPublic public_key_jwk(
       const std::optional<std::string>& kid = std::nullopt) const = 0;
 
     virtual bool verify(

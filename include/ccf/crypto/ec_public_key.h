@@ -18,6 +18,8 @@ namespace ccf::crypto
   class ECPublicKey
   {
   public:
+    virtual ~ECPublicKey() = default;
+
     /**
      * Verify that a signature was produced on contents with the private key
      * associated with the public key held by the object.
