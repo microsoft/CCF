@@ -2,15 +2,15 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/crypto/base64.h"
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/hash_provider.h"
 #include "ccf/crypto/hmac.h"
-#include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "crypto/openssl/base64.h"
+#include "crypto/openssl/ec_key_pair.h"
 #include "crypto/openssl/hash.h"
-#include "crypto/openssl/key_pair.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "crypto/sharing.h"
 
@@ -152,10 +152,10 @@ const std::vector<int> sizes = {10};
 PICOBENCH_SUITE("create ec keypairs");
 namespace CREATE_KEYPAIRS
 {
-  auto create_256r1 = benchmark_create<KeyPair_OpenSSL, CurveID::SECP256R1>;
+  auto create_256r1 = benchmark_create<ECKeyPair_OpenSSL, CurveID::SECP256R1>;
   PICOBENCH(create_256r1).iterations({1000});
 
-  auto create_384r1 = benchmark_create<KeyPair_OpenSSL, CurveID::SECP384R1>;
+  auto create_384r1 = benchmark_create<ECKeyPair_OpenSSL, CurveID::SECP384R1>;
   PICOBENCH(create_384r1).iterations({1000});
 }
 
@@ -163,15 +163,15 @@ PICOBENCH_SUITE("sign secp384r1");
 namespace SIGN_SECP384R1
 {
   auto sign_384_ossl_1byte =
-    benchmark_sign<KeyPair_OpenSSL, CurveID::SECP384R1, 1>;
+    benchmark_sign<ECKeyPair_OpenSSL, CurveID::SECP384R1, 1>;
   PICOBENCH(sign_384_ossl_1byte).PICO_SUFFIX(CurveID::SECP384R1);
 
   auto sign_384_ossl_1k =
-    benchmark_sign<KeyPair_OpenSSL, CurveID::SECP384R1, 1024>;
+    benchmark_sign<ECKeyPair_OpenSSL, CurveID::SECP384R1, 1024>;
   PICOBENCH(sign_384_ossl_1k).PICO_SUFFIX(CurveID::SECP384R1);
 
   auto sign_384_ossl_100k =
-    benchmark_sign<KeyPair_OpenSSL, CurveID::SECP384R1, 102400>;
+    benchmark_sign<ECKeyPair_OpenSSL, CurveID::SECP384R1, 102400>;
   PICOBENCH(sign_384_ossl_100k).PICO_SUFFIX(CurveID::SECP384R1);
 }
 
@@ -179,35 +179,38 @@ PICOBENCH_SUITE("sign secp256r1");
 namespace SIGN_SECP256R1
 {
   auto sign_256r1_ossl_1byte =
-    benchmark_sign<KeyPair_OpenSSL, CurveID::SECP256R1, 1>;
+    benchmark_sign<ECKeyPair_OpenSSL, CurveID::SECP256R1, 1>;
   PICOBENCH(sign_256r1_ossl_1byte).PICO_SUFFIX(CurveID::SECP256R1);
 
   auto sign_256r1_ossl_1k =
-    benchmark_sign<KeyPair_OpenSSL, CurveID::SECP256R1, 1024>;
+    benchmark_sign<ECKeyPair_OpenSSL, CurveID::SECP256R1, 1024>;
   PICOBENCH(sign_256r1_ossl_1k).PICO_SUFFIX(CurveID::SECP256R1);
 
   auto sign_256r1_ossl_100k =
-    benchmark_sign<KeyPair_OpenSSL, CurveID::SECP256R1, 102400>;
+    benchmark_sign<ECKeyPair_OpenSSL, CurveID::SECP256R1, 102400>;
   PICOBENCH(sign_256r1_ossl_100k).PICO_SUFFIX(CurveID::SECP256R1);
 }
 
 PICOBENCH_SUITE("verify secp384r1");
 namespace SECP384R1
 {
-  auto verify_384_ossl_1byte =
-    benchmark_verify<KeyPair_OpenSSL, PublicKey_OpenSSL, CurveID::SECP384R1, 1>;
+  auto verify_384_ossl_1byte = benchmark_verify<
+    ECKeyPair_OpenSSL,
+    ECPublicKey_OpenSSL,
+    CurveID::SECP384R1,
+    1>;
   PICOBENCH(verify_384_ossl_1byte).PICO_SUFFIX(CurveID::SECP384R1);
 
   auto verify_384_ossl_1k = benchmark_verify<
-    KeyPair_OpenSSL,
-    PublicKey_OpenSSL,
+    ECKeyPair_OpenSSL,
+    ECPublicKey_OpenSSL,
     CurveID::SECP384R1,
     1024>;
   PICOBENCH(verify_384_ossl_1k).PICO_SUFFIX(CurveID::SECP384R1);
 
   auto verify_384_ossl_100k = benchmark_verify<
-    KeyPair_OpenSSL,
-    PublicKey_OpenSSL,
+    ECKeyPair_OpenSSL,
+    ECPublicKey_OpenSSL,
     CurveID::SECP384R1,
     102400>;
   PICOBENCH(verify_384_ossl_100k).PICO_SUFFIX(CurveID::SECP384R1);
@@ -216,20 +219,23 @@ namespace SECP384R1
 PICOBENCH_SUITE("verify secp256r1");
 namespace SECP256R1
 {
-  auto verify_256r1_ossl_1byte =
-    benchmark_verify<KeyPair_OpenSSL, PublicKey_OpenSSL, CurveID::SECP256R1, 1>;
+  auto verify_256r1_ossl_1byte = benchmark_verify<
+    ECKeyPair_OpenSSL,
+    ECPublicKey_OpenSSL,
+    CurveID::SECP256R1,
+    1>;
   PICOBENCH(verify_256r1_ossl_1byte).PICO_SUFFIX(CurveID::SECP256R1);
 
   auto verify_256r1_ossl_1k = benchmark_verify<
-    KeyPair_OpenSSL,
-    PublicKey_OpenSSL,
+    ECKeyPair_OpenSSL,
+    ECPublicKey_OpenSSL,
     CurveID::SECP256R1,
     1024>;
   PICOBENCH(verify_256r1_ossl_1k).PICO_SUFFIX(CurveID::SECP256R1);
 
   auto verify_256r1_ossl_100k = benchmark_verify<
-    KeyPair_OpenSSL,
-    PublicKey_OpenSSL,
+    ECKeyPair_OpenSSL,
+    ECPublicKey_OpenSSL,
     CurveID::SECP256R1,
     102400>;
   PICOBENCH(verify_256r1_ossl_100k).PICO_SUFFIX(CurveID::SECP256R1);
@@ -241,14 +247,14 @@ namespace SIGN_RSA2048
   template <typename P, size_t KSZ, size_t NContents>
   static void benchmark_sign(picobench::state& s)
   {
-    P kp(KSZ);
+    auto kp = make_rsa_key_pair(KSZ);
     auto contents = make_contents<NContents>();
 
     s.start_timer();
     for (auto _ : s)
     {
       (void)_;
-      auto signature = kp.sign(contents, MDType::SHA256);
+      auto signature = kp->sign(contents, MDType::SHA256);
       do_not_optimize(signature);
       clobber_memory();
     }
@@ -271,15 +277,15 @@ namespace VERIFY_RSA2048
   template <typename P, size_t KSZ, size_t NContents>
   static void benchmark_verify(picobench::state& s)
   {
-    P kp(KSZ);
+    auto kp = make_rsa_key_pair(KSZ);
     auto contents = make_contents<NContents>();
-    auto signature = kp.sign(contents, MDType::SHA256);
+    auto signature = kp->sign(contents, MDType::SHA256);
 
     s.start_timer();
     for (auto _ : s)
     {
       (void)_;
-      if (!kp.verify(
+      if (!kp->verify(
             contents.data(),
             contents.size(),
             signature.data(),

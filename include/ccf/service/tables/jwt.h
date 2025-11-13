@@ -35,11 +35,11 @@ namespace ccf
   using JwtIssuer = std::string;
   using JwtKeyId = std::string;
   using Cert = std::vector<uint8_t>;
-  using PublicKey = std::vector<uint8_t>;
+  using ECPublicKey = std::vector<uint8_t>;
 
   struct OpenIDJWKMetadata
   {
-    PublicKey public_key;
+    ECPublicKey public_key;
     JwtIssuer issuer;
     std::optional<JwtIssuer> constraint;
   };

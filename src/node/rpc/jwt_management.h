@@ -55,7 +55,7 @@ namespace
     data.y = jwk.y.value();
     try
     {
-      const auto pubkey = ccf::crypto::make_public_key(data);
+      const auto pubkey = ccf::crypto::make_ec_public_key(data);
       return pubkey->public_key_der();
     }
     catch (const std::invalid_argument& exc)
@@ -197,7 +197,7 @@ namespace ccf
       LOG_FAIL_FMT("{}: JWKS has no keys", log_prefix);
       return false;
     }
-    std::map<std::string, PublicKey> new_keys;
+    std::map<std::string, ECPublicKey> new_keys;
     std::map<std::string, JwtIssuer> issuer_constraints;
 
     try

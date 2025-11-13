@@ -12,27 +12,16 @@
 
 namespace ccf::crypto
 {
+  enum class RSAPadding : uint8_t
+  {
+    PKCS1v15,
+    PKCS_PSS,
+  };
+
   class RSAPublicKey
   {
   public:
-    RSAPublicKey() = default;
     virtual ~RSAPublicKey() = default;
-
-    /**
-     * Construct from PEM
-     */
-    RSAPublicKey(const Pem& pem);
-
-    /**
-     * Construct from DER
-     */
-    RSAPublicKey(const std::vector<uint8_t>& der);
-
-    /**
-     * Construct from JWK
-     */
-    RSAPublicKey(const JsonWebKeyRSAPublic& jwk);
-
     /**
      * Get the key size in bits
      */
@@ -76,33 +65,38 @@ namespace ccf::crypto
      */
     [[nodiscard]] virtual std::vector<uint8_t> public_key_der() const = 0;
 
+    /**
+     * Get the public key in JWK format
+     */
+    [[nodiscard]] virtual JsonWebKeyRSAPublic public_key_jwk(
+      const std::optional<std::string>& kid = std::nullopt) const = 0;
+
     virtual bool verify(
       const uint8_t* contents,
       size_t contents_size,
       const uint8_t* signature,
       size_t signature_size,
-      MDType md_type = MDType::NONE,
-      size_t salt_legth = 0) = 0;
+      MDType md_type,
+      RSAPadding padding = RSAPadding::PKCS_PSS,
+      size_t salt_length = 0) = 0;
 
-    virtual bool verify_pkcs1(
-      const uint8_t* contents,
-      size_t contents_size,
+    virtual bool verify_hash(
+      const uint8_t* hash,
+      size_t hash_size,
       const uint8_t* signature,
       size_t signature_size,
-      MDType md_type = MDType::NONE) = 0;
-
-    struct Components
-    {
-      std::vector<uint8_t> n;
-      std::vector<uint8_t> e;
-    };
-
-    [[nodiscard]] virtual Components components() const = 0;
-
-    /**
-     * Get the public key in JWK format
-     */
-    [[nodiscard]] virtual JsonWebKeyRSAPublic public_key_jwk_rsa(
-      const std::optional<std::string>& kid = std::nullopt) const = 0;
+      MDType md_type,
+      RSAPadding padding = RSAPadding::PKCS_PSS,
+      size_t salt_length = 0) = 0;
   };
+
+  using RSAPublicKeyPtr = std::shared_ptr<RSAPublicKey>;
+
+  RSAPublicKeyPtr make_rsa_public_key(const uint8_t* data, size_t size);
+
+  RSAPublicKeyPtr make_rsa_public_key(const Pem& public_pem);
+
+  RSAPublicKeyPtr make_rsa_public_key(const std::vector<uint8_t>& der);
+
+  RSAPublicKeyPtr make_rsa_public_key(const JsonWebKeyRSAPublic& jwk);
 }

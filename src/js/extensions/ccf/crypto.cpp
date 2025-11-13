@@ -3,6 +3,7 @@
 
 #include "ccf/js/extensions/ccf/crypto.h"
 
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/entropy.h"
@@ -160,7 +161,7 @@ namespace ccf::js::extensions
 
       try
       {
-        auto k = ccf::crypto::make_key_pair(cid);
+        auto k = ccf::crypto::make_ec_key_pair(cid);
 
         ccf::crypto::Pem prv = k->private_key_pem();
         ccf::crypto::Pem pub = k->public_key_pem();
@@ -425,23 +426,23 @@ namespace ccf::js::extensions
       {
         if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPublic>)
         {
-          auto pubk = ccf::crypto::make_public_key(*pem_str);
+          auto pubk = ccf::crypto::make_ec_public_key(*pem_str);
           jwk = pubk->public_key_jwk(kid);
         }
         else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPrivate>)
         {
-          auto kp = ccf::crypto::make_key_pair(*pem_str);
+          auto kp = ccf::crypto::make_ec_key_pair(*pem_str);
           jwk = kp->private_key_jwk(kid);
         }
         else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyRSAPublic>)
         {
           auto pubk = ccf::crypto::make_rsa_public_key(*pem_str);
-          jwk = pubk->public_key_jwk_rsa(kid);
+          jwk = pubk->public_key_jwk(kid);
         }
         else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyRSAPrivate>)
         {
           auto kp = ccf::crypto::make_rsa_key_pair(*pem_str);
-          jwk = kp->private_key_jwk_rsa(kid);
+          jwk = kp->private_key_jwk(kid);
         }
         else if constexpr (std::
                              is_same_v<T, ccf::crypto::JsonWebKeyEdDSAPublic>)
@@ -505,12 +506,12 @@ namespace ccf::js::extensions
 
         if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPublic>)
         {
-          auto pubk = ccf::crypto::make_public_key(jwk);
+          auto pubk = ccf::crypto::make_ec_public_key(jwk);
           pem = pubk->public_key_pem();
         }
         else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPrivate>)
         {
-          auto kp = ccf::crypto::make_key_pair(jwk);
+          auto kp = ccf::crypto::make_ec_key_pair(jwk);
           pem = kp->private_key_pem();
         }
         else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyRSAPublic>)
@@ -917,7 +918,7 @@ namespace ccf::js::extensions
 
         if (algo_name == "ECDSA")
         {
-          auto key_pair = ccf::crypto::make_key_pair(key);
+          auto key_pair = ccf::crypto::make_ec_key_pair(key);
           auto sig_der = key_pair->sign(contents, mdtype);
           auto sig = ccf::crypto::ecdsa_sig_der_to_p1363(
             sig_der, key_pair->get_curve_id());
@@ -1086,7 +1087,7 @@ namespace ccf::js::extensions
         }
         else if (algo_name == "ECDSA")
         {
-          auto public_key = ccf::crypto::make_public_key(key);
+          auto public_key = ccf::crypto::make_ec_public_key(key);
           valid =
             public_key->verify(data, data_size, sig.data(), sig.size(), mdtype);
         }
@@ -1099,12 +1100,14 @@ namespace ccf::js::extensions
             jsctx.get_property(algorithm, "saltLength").val);
 
           auto public_key = ccf::crypto::make_rsa_public_key(key);
+          // Only supporting PSS (with salt), PKCS1v15 has been deprecated.
           valid = public_key->verify(
             data,
             data_size,
             sig.data(),
             sig.size(),
             mdtype,
+            ccf::crypto::RSAPadding::PKCS_PSS,
             static_cast<size_t>(salt_length));
         }
         return JS_NewBool(ctx, static_cast<int>(valid));
