@@ -14,6 +14,7 @@ concurrency:
 permissions: read-all
 
 jobs:
+  when: pipeline.event.github.pull_request.draft == false
   vmss-virtual-a:
     name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, Partitions tests
     runs-on:
