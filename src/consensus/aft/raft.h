@@ -1994,14 +1994,12 @@ namespace aft
           from);
         return;
       }
-
-
-      // Stale message from previous candidacy
-      // Candidate(T) -> Follower(T) -> PreVoteCandidate(T)
-      if (
+      else if (
         election_type == ElectionType::RegularVote &&
-        state->leadership_state == ccf::kv::LeadershipState::PreVoteCandidate)
+        state->leadership_state != ccf::kv::LeadershipState::Candidate)
       {
+        // Stale message from previous candidacy
+        // Candidate(T) -> Follower(T) -> PreVoteCandidate(T)
         RAFT_INFO_FMT(
           "Recv {} to {} from {}: no longer a candidate in {}",
           r.msg,
@@ -2010,16 +2008,15 @@ namespace aft
           r.term);
         return;
       }
-
-      // To receive a PreVoteResponse, we must have been a PreVoteCandidate in
-      // that term.
-      // Since we are a Candidate for term T, we can only have transitioned from
-      // PreVoteCandidate for term (T-1).
-      // Since terms are monotonic this is impossible.
-      if (
+      else if (
         election_type == ElectionType::PreVote &&
-        state->leadership_state == ccf::kv::LeadershipState::Candidate)
+        state->leadership_state != ccf::kv::LeadershipState::PreVoteCandidate)
       {
+        // To receive a PreVoteResponse, we must have been a PreVoteCandidate in
+        // that term.
+        // Since we are a Candidate for term T, we can only have transitioned
+        // from PreVoteCandidate for term (T-1). Since terms are monotonic this
+        // is impossible.
         RAFT_FAIL_FMT(
           "Recv {} to {} from {}: unexpected PreVoteResponse in {} when "
           "Candidate for {}",
