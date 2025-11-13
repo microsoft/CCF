@@ -1970,8 +1970,7 @@ namespace aft
         become_aware_of_new_term(r.term);
         return;
       }
-
-      if (state->current_view != r.term)
+      else if (state->current_view != r.term)
       {
         // Ignore as it is stale.
         RAFT_INFO_FMT(
