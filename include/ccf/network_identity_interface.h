@@ -15,7 +15,7 @@ namespace ccf
   class NetworkIdentitySubsystemInterface : public ccf::AbstractNodeSubSystem
   {
   public:
-    virtual ~NetworkIdentitySubsystemInterface() = default;
+    ~NetworkIdentitySubsystemInterface() override = default;
 
     static char const* get_subsystem_name()
     {

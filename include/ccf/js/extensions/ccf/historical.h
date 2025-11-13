@@ -28,7 +28,7 @@ namespace ccf::js::extensions
     std::unique_ptr<Impl> impl;
 
     HistoricalExtension(ccf::historical::AbstractStateCache* hs);
-    ~HistoricalExtension();
+    ~HistoricalExtension() override;
 
     void install(js::core::Context& ctx) override;
 

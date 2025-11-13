@@ -15,7 +15,6 @@ namespace ccf::crypto
    */
   Pem public_key_pem_from_csr(const Pem& signing_request)
   {
-    X509* icrt = NULL;
     OpenSSL::Unique_BIO mem(signing_request);
     OpenSSL::Unique_X509_REQ csr(mem);
     OpenSSL::Unique_BIO buf;

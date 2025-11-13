@@ -1189,8 +1189,6 @@ namespace ccf
         h->set_node_id(self);
       }
 
-      auto service_config = tx.ro(network.config)->get();
-
       setup_consensus(
         ServiceStatus::OPENING,
         ccf::ReconfigurationType::ONE_TRANSACTION,

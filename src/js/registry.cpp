@@ -13,6 +13,7 @@
 #include "ccf/service/tables/modules.h"
 #include "ccf/version.h"
 #include "ds/internal_logger.h"
+#include "js/checks.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -185,8 +186,6 @@ namespace ccf::js
     {
       ctx.remove_extension(extension);
     }
-
-    const auto& rt = ctx.runtime();
 
     if (val.is_exception())
     {
@@ -455,7 +454,7 @@ namespace ccf::js
             if (extension != nullptr)
             {
               auto val = extension->create_historical_state_object(ctx, state);
-              ccf.set("historicalState", std::move(val));
+              JS_CHECK_OR_THROW(ccf.set("historicalState", std::move(val)));
             }
             else
             {
@@ -906,7 +905,7 @@ namespace ccf::js
   }
 
   std::set<RESTVerb> BaseDynamicJSEndpointRegistry::get_allowed_verbs(
-    ccf::kv::Tx& tx, const ccf::RpcContext& rpc_ctx)
+    [[maybe_unused]] ccf::kv::Tx& tx, const ccf::RpcContext& rpc_ctx)
   {
     const auto method = rpc_ctx.get_method();
 
@@ -916,7 +915,7 @@ namespace ccf::js
     auto* endpoints =
       tx.template ro<ccf::endpoints::EndpointsMap>(metadata_map);
 
-    endpoints->foreach_key([this, &verbs, &method](const auto& key) {
+    endpoints->foreach_key([&verbs, &method](const auto& key) {
       const auto opt_spec =
         ccf::endpoints::PathTemplateSpec::parse(key.uri_path);
       if (opt_spec.has_value())

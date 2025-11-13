@@ -160,7 +160,7 @@ namespace ccf::js::extensions
     auto kv = ctx.new_obj_class(kv_class_id);
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    ccf.set("kv", std::move(kv));
+    JS_CHECK_OR_THROW(ccf.set("kv", std::move(kv)));
   }
 
   void KvExtension::rethrow_trapped_exceptions() const

@@ -8,7 +8,7 @@
 
 namespace ccf
 {
-  enum class ActionFormat
+  enum class ActionFormat : uint8_t
   {
     COSE = 0,
     JSON = 1

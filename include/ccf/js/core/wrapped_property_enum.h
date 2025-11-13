@@ -48,7 +48,7 @@ namespace ccf::js::core
       return prop_enum[i].atom;
     }
 
-    size_t size() const
+    [[nodiscard]] size_t size() const
     {
       return prop_count;
     }
