@@ -338,7 +338,7 @@ TEST_CASE_TEMPLATE(
     auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-    auto kp = ccf::crypto::make_key_pair();
+    auto kp = ccf::crypto::make_ec_key_pair();
     auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
       ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(cert)).hex_str();
@@ -489,7 +489,7 @@ TEST_CASE(
     auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-    auto kp = ccf::crypto::make_key_pair();
+    auto kp = ccf::crypto::make_ec_key_pair();
     auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
       ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(cert)).hex_str();
@@ -775,7 +775,7 @@ TEST_CASE(
     auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-    auto kp = ccf::crypto::make_key_pair();
+    auto kp = ccf::crypto::make_ec_key_pair();
     auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
       ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(cert)).hex_str();

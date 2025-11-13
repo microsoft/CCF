@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/openssl/hash.h"
 #include "kv/test/null_encryptor.h"
@@ -22,11 +22,11 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
   source_store.set_encryptor(encryptor);
   source_store.set_consensus(source_consensus);
 
-  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::KeyPair_OpenSSL>(
-    ccf::crypto::make_key_pair());
+  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
+    ccf::crypto::make_ec_key_pair());
 
   ccf::NodeId source_node_id = ccf::kv::test::PrimaryNodeId;
-  auto source_node_kp = ccf::crypto::make_key_pair();
+  auto source_node_kp = ccf::crypto::make_ec_key_pair();
 
   auto source_history = std::make_shared<ccf::MerkleTxHistory>(
     source_store, source_node_id, *source_node_kp);
@@ -95,7 +95,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     target_store.set_encryptor(encryptor);
     INFO("Setup target store");
     {
-      auto target_node_kp = ccf::crypto::make_key_pair();
+      auto target_node_kp = ccf::crypto::make_ec_key_pair();
 
       auto target_history = std::make_shared<ccf::MerkleTxHistory>(
         target_store, ccf::kv::test::PrimaryNodeId, *target_node_kp);

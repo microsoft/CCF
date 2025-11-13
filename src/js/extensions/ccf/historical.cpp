@@ -85,8 +85,6 @@ namespace ccf::js::extensions
           ctx, "Invalid handle or seqno or expiry: cannot be negative");
       }
 
-      ccf::View view = 0;
-      ccf::SeqNo seqno = 0;
       std::vector<ccf::historical::StatePtr> states;
       try
       {
@@ -383,16 +381,16 @@ namespace ccf::js::extensions
   {
     auto historical = ctx.new_obj();
 
-    historical.set(
+    JS_CHECK_OR_THROW(historical.set(
       "getStateRange",
-      ctx.new_c_function(js_historical_get_state_range, "getStateRange", 4));
-    historical.set(
+      ctx.new_c_function(js_historical_get_state_range, "getStateRange", 4)));
+    JS_CHECK_OR_THROW(historical.set(
       "dropCachedStates",
       ctx.new_c_function(
-        js_historical_drop_cached_states, "dropCachedStates", 1));
+        js_historical_drop_cached_states, "dropCachedStates", 1)));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    ccf.set("historical", std::move(historical));
+    JS_CHECK_OR_THROW(ccf.set("historical", std::move(historical)));
   }
 
   js::core::JSWrappedValue HistoricalExtension::create_historical_state_object(

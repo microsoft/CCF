@@ -177,16 +177,5 @@ namespace http
       auto parsed = parse_token(token, error_reason);
       return parsed;
     }
-
-    static bool validate_token_signature(
-      const Token& token, const ccf::crypto::VerifierPtr& verifier)
-    {
-      return verifier->verify(
-        (uint8_t*)token.signed_content.data(),
-        token.signed_content.size(),
-        token.signature.data(),
-        token.signature.size(),
-        ccf::crypto::MDType::SHA256);
-    }
   };
 }

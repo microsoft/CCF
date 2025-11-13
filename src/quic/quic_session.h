@@ -255,7 +255,6 @@ namespace quic
       if (status != ready)
         return;
 
-      int written = 0;
       for (auto& write : pending_writes)
       {
         LOG_TRACE_FMT("QUIC write_some {} bytes", write.len);
@@ -268,7 +267,6 @@ namespace quic
           stop(error);
           return;
         }
-        written += rc;
 
         // Mark for deletion (avoiding invalidating iterator)
         write.clear = true;

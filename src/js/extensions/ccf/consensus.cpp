@@ -176,20 +176,20 @@ namespace ccf::js::extensions
   {
     auto consensus = ctx.new_obj();
 
-    consensus.set(
+    JS_CHECK_OR_THROW(consensus.set(
       "getLastCommittedTxId",
       ctx.new_c_function(
-        js_consensus_get_last_committed_txid, "getLastCommittedTxId", 0));
-    consensus.set(
+        js_consensus_get_last_committed_txid, "getLastCommittedTxId", 0)));
+    JS_CHECK_OR_THROW(consensus.set(
       "getStatusForTxId",
       ctx.new_c_function(
-        js_consensus_get_status_for_txid, "getStatusForTxId", 2));
-    consensus.set(
+        js_consensus_get_status_for_txid, "getStatusForTxId", 2)));
+    JS_CHECK_OR_THROW(consensus.set(
       "getViewForSeqno",
       ctx.new_c_function(
-        js_consensus_get_view_for_seqno, "getViewForSeqno", 1));
+        js_consensus_get_view_for_seqno, "getViewForSeqno", 1)));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    ccf.set("consensus", std::move(consensus));
+    JS_CHECK_OR_THROW(ccf.set("consensus", std::move(consensus)));
   }
 }

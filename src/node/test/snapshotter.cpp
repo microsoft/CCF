@@ -16,7 +16,7 @@
 #include <string>
 
 constexpr auto buffer_size = 1024 * 16;
-auto node_kp = ccf::crypto::make_key_pair();
+auto node_kp = ccf::crypto::make_ec_key_pair();
 
 using StringString = ccf::kv::Map<std::string, std::string>;
 using rb_msg = std::pair<ringbuffer::Message, size_t>;

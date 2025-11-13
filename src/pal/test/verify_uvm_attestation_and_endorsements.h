@@ -11,7 +11,7 @@
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/uvm_endorsements.h"
-#include "crypto/openssl/key_pair.h"
+#include "crypto/openssl/ec_key_pair.h"
 #include "ds/ccf_assert.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"

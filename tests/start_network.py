@@ -29,7 +29,8 @@ def run(args):
         host_descs = args.node or DEFAULT_NODES
         hosts = []
         for host_desc in host_descs:
-            interface = infra.interfaces.RPCInterface.from_args(args)
+            interface = infra.interfaces.RPCInterface()
+            interface.apply_args(args)
             interface.parse_from_str(host_desc)
 
             if args.redirection_kind == "node-by-role":

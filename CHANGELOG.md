@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - When the `fetch_recent_snapshot` behaviour is enabled by the node config, the Joiner will now prefer the peer's snapshot over _any_ local snapshot, regardless of version (#7314).
+- Crypto interface for RSA and EC keys (#7425)
+  - `ccf::crypto::PublicKey` becomes `ccf::crypto::ECPublicKey`
+  - `ccf::crypto::KeyPair` becomes `ccf::crypto::ECKeyPair`
+  - Error-prone inheritance between RSA and EC key classes has been removed.
+  - RSA keys now don't re-use CSR functionality from EC key interface.
 
 ### Removed
 
@@ -27,6 +32,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - CheckQuorum now requires a quorum in every configuration (#7375)
+
+### Changed
+
+- The snapshot-serving endpoints required for `fetch_recent_snapshot` behaviour are now disabled-by-default to avoid public DoS requests. They should be enabled on a per-interface basis by adding `"enabled_operator_features": ["SnapshotRead"]` to the interface's configuration, on an interface with local visibility used for node-to-node join requests.
 
 ## [7.0.0-dev4]
 

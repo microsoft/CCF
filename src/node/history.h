@@ -7,8 +7,8 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
 #include "crypto/openssl/cose_sign.h"
+#include "crypto/openssl/ec_key_pair.h"
 #include "crypto/openssl/hash.h"
-#include "crypto/openssl/key_pair.h"
 #include "ds/internal_logger.h"
 #include "endian.h"
 #include "kv/kv_types.h"
@@ -135,7 +135,7 @@ namespace ccf
 
   public:
     NullTxHistory(
-      ccf::kv::Store& store_, const NodeId& id_, ccf::crypto::KeyPair&) :
+      ccf::kv::Store& store_, const NodeId& id_, ccf::crypto::ECKeyPair&) :
       store(store_),
       id(id_)
     {}
@@ -197,7 +197,7 @@ namespace ccf
     void start_signature_emit_timer() override {}
 
     void set_service_signing_identity(
-      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp_,
+      std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp_,
       const ccf::COSESignaturesConfig& cose_signatures) override
     {
       std::ignore = std::move(service_kp_);
@@ -325,8 +325,8 @@ namespace ccf
     ccf::kv::Store& store;
     ccf::kv::TxHistory& history;
     NodeId id;
-    ccf::crypto::KeyPair& node_kp;
-    ccf::crypto::KeyPair_OpenSSL& service_kp;
+    ccf::crypto::ECKeyPair& node_kp;
+    ccf::crypto::ECKeyPair_OpenSSL& service_kp;
     ccf::crypto::Pem& endorsed_cert;
     const ccf::COSESignaturesConfig& cose_signatures_config;
 
@@ -336,8 +336,8 @@ namespace ccf
       ccf::kv::Store& store_,
       ccf::kv::TxHistory& history_,
       const NodeId& id_,
-      ccf::crypto::KeyPair& node_kp_,
-      ccf::crypto::KeyPair_OpenSSL& service_kp_,
+      ccf::crypto::ECKeyPair& node_kp_,
+      ccf::crypto::ECKeyPair_OpenSSL& service_kp_,
       ccf::crypto::Pem& endorsed_cert_,
       const ccf::COSESignaturesConfig& cose_signatures_config_) :
       txid(txid_),
@@ -570,7 +570,7 @@ namespace ccf
     NodeId id;
     T replicated_state_tree;
 
-    ccf::crypto::KeyPair& node_kp;
+    ccf::crypto::ECKeyPair& node_kp;
     ccf::crypto::COSEVerifierUniquePtr cose_verifier{};
     std::vector<uint8_t> cose_cert_cached{};
 
@@ -586,7 +586,7 @@ namespace ccf
 
     struct ServiceSigningIdentity
     {
-      const std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp;
+      const std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp;
       const ccf::COSESignaturesConfig cose_signatures_config;
     };
 
@@ -596,7 +596,7 @@ namespace ccf
     HashedTxHistory(
       ccf::kv::Store& store_,
       const NodeId& id_,
-      ccf::crypto::KeyPair& node_kp_,
+      ccf::crypto::ECKeyPair& node_kp_,
       size_t sig_tx_interval_ = 0,
       size_t sig_ms_interval_ = 0,
       bool signature_timer = false) :
@@ -613,7 +613,7 @@ namespace ccf
     }
 
     void set_service_signing_identity(
-      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp_,
+      std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp_,
       const ccf::COSESignaturesConfig& cose_signatures_config_) override
     {
       if (signing_identity.has_value())

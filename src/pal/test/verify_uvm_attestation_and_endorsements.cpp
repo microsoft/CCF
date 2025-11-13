@@ -211,7 +211,8 @@ int main(int argc, char** argv)
     LOG_INFO_FMT("Generating attestation");
 
     // generate private key
-    ccf::crypto::KeyPair_OpenSSL node_sign_kp(ccf::crypto::CurveID::SECP384R1);
+    ccf::crypto::ECKeyPair_OpenSSL node_sign_kp(
+      ccf::crypto::CurveID::SECP384R1);
     ccf::pal::PlatformAttestationReportData report_data =
       ccf::crypto::Sha256Hash(node_sign_kp.public_key_der());
     ccf::pal::generate_quote(
