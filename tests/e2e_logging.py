@@ -1408,7 +1408,7 @@ def test_long_lived_forwarding(network, args):
     primary, _ = network.find_primary()
 
     # Create a new node
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
 
     # Message limit must be high enough that the hard limit will not be reached
     # by the combined work of all threads. Note that each thread produces multiple
