@@ -45,6 +45,7 @@ namespace ccf
     virtual bool is_part_of_public_network() const = 0;
     virtual bool is_primary() const = 0;
     virtual bool can_replicate() = 0;
+    virtual std::optional<ccf::NodeId> get_primary() = 0;
     virtual bool is_reading_public_ledger() const = 0;
     virtual bool is_reading_private_ledger() const = 0;
     virtual bool is_part_of_network() const = 0;

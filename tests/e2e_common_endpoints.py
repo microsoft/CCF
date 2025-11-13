@@ -24,9 +24,22 @@ def test_primary(network, args):
         assert r.body.json()["error"]["code"] == "ResourceNotFound"
         assert r.body.json()["error"]["message"] == "Node is not backup"
 
-    backup = network.find_any_backup()
-    for interface_name in backup.host.rpc_interfaces.keys():
-        with backup.client(interface_name=interface_name) as c:
+    interface_name = "only_exists_on_this_node"
+    extra_interface = infra.interfaces.RPCInterface()
+    extra_interface.parse_from_str("local://localhost")
+
+    host_spec = infra.interfaces.HostSpec()
+    host_spec.rpc_interfaces[interface_name] = extra_interface
+    host_spec.with_args(args)
+
+    new_backup = network.create_node(host_spec)
+    network.join_node(new_backup, args.package, args)
+    network.trust_node(new_backup, args)
+
+    primary_interfaces = primary.host.rpc_interfaces
+    for interface_name in new_backup.host.rpc_interfaces.keys():
+        LOG.info(f"Testing interface {interface_name}")
+        with new_backup.client(interface_name=interface_name) as c:
             r = c.head("/node/primary", allow_redirects=False)
             assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
             primary_interface = primary.host.rpc_interfaces[interface_name]
@@ -116,23 +129,15 @@ def test_network_node_info(network, args):
     # Create a PENDING node and check that /node/network/nodes/self
     # returns the correct information from configuration
     operator_rpc_interface = "operator_rpc_interface"
-    host = infra.net.expand_localhost()
-    new_node = network.create_node(
-        infra.interfaces.HostSpec(
-            rpc_interfaces={
-                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                    host=host, app_protocol="HTTP2" if args.http2 else "HTTP1"
-                ),
-                operator_rpc_interface: infra.interfaces.RPCInterface(
-                    host=host,
-                    app_protocol="HTTP2" if args.http2 else "HTTP1",
-                    endorsement=infra.interfaces.Endorsement(
-                        authority=infra.interfaces.EndorsementAuthority.Node
-                    ),
-                ),
-            }
-        )
-    )
+
+    extra_interface = infra.interfaces.RPCInterface()
+    extra_interface.endorsement.authority = infra.interfaces.EndorsementAuthority.Node
+
+    host_spec = infra.interfaces.HostSpec()
+    host_spec.rpc_interfaces[operator_rpc_interface] = extra_interface
+    host_spec.with_args(args)
+
+    new_node = network.create_node(host_spec)
     network.join_node(new_node, args.package, args)
 
     with new_node.client(interface_name=operator_rpc_interface) as c:
