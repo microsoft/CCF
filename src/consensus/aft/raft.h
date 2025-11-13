@@ -1982,7 +1982,7 @@ namespace aft
         become_aware_of_new_term(r.term);
         return;
       }
-      
+
       if (state->current_view != r.term)
       {
         // Ignore as it is stale.
@@ -2020,7 +2020,8 @@ namespace aft
         state->leadership_state == ccf::kv::LeadershipState::Candidate)
       {
         RAFT_FAIL_FMT(
-          "Recv {} to {} from {}: unexpected PreVoteResponse in {} when Candidate for {}",
+          "Recv {} to {} from {}: unexpected PreVoteResponse in {} when "
+          "Candidate for {}",
           r.msg,
           state->node_id,
           from,
