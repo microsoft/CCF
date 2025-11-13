@@ -14,8 +14,8 @@ concurrency:
 permissions: read-all
 
 jobs:
-  when: pipeline.event.github.pull_request.draft == false
   vmss-virtual-a:
+    if: ${{ github.event.pull_request.draft == false }}
     name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, Partitions tests
     runs-on:
       [
@@ -95,6 +95,7 @@ jobs:
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
 
   vmss-virtual-b:
+    if: ${{ github.event.pull_request.draft == false }}
     name: "VMSS Virtual B" # End-to-end tests, except for partitions
     runs-on:
       [
@@ -170,6 +171,7 @@ jobs:
         if: success() || failure()
 
   aci_snp_milan:
+    if: ${{ github.event.pull_request.draft == false }}
     name: "ACI SNP Milan"
     runs-on:
       [
@@ -251,6 +253,7 @@ jobs:
         if: success() || failure()
 
   aci_snp_genoa:
+    if: ${{ github.event.pull_request.draft == false }}
     name: "ACI SNP Genoa"
     runs-on:
       [
