@@ -234,7 +234,7 @@ namespace ccf::endpoints
      */
     AuthnPolicies authn_policies;
 
-    std::set<OperatorFeature> required_operator_features = {};
+    std::set<OperatorFeature> required_operator_features;
   };
 
   using EndpointDefinitionPtr = std::shared_ptr<const EndpointDefinition>;

@@ -144,7 +144,7 @@ namespace ccf::node
 
       auto node_configuration_subsystem =
         node_context.get_subsystem<NodeConfigurationSubsystem>();
-      if (!node_configuration_subsystem)
+      if (node_configuration_subsystem == nullptr)
       {
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -209,7 +209,7 @@ namespace ccf::node
     auto get_snapshot = [&](ccf::endpoints::CommandEndpointContext& ctx) {
       auto node_configuration_subsystem =
         node_context.get_subsystem<NodeConfigurationSubsystem>();
-      if (!node_configuration_subsystem)
+      if (node_configuration_subsystem == nullptr)
       {
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
