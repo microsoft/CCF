@@ -16,6 +16,24 @@ from infra.network import PrimaryNotFound
 from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
+import reconfiguration
+import committable
+
+
+def run_rotations(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+
+        # Replace primary repeatedly and check the network still operates
+        LOG.info(f"Retiring primary {args.rotation_retirements} times")
+        for i in range(args.rotation_retirements):
+            LOG.warning(f"Retirement {i}")
+            reconfiguration.test_add_node(network, args)
+            reconfiguration.test_retire_primary(network, args)
+
+
 # This test starts from a given number of nodes (hosts), commits
 # a transaction, stops the current primary, waits for an election and repeats
 # this process until no progress can be made (i.e. no primary can be elected
@@ -242,9 +260,25 @@ def run(args):
 
 
 if __name__ == "__main__":
-    cr = ConcurrentRunner()
 
+    def add(parser):
+        parser.add_argument(
+            "--rotation-retirements",
+            help="Number of times to retire the primary",
+            type=int,
+            default=2,
+        )
+
+    cr = ConcurrentRunner(add)
     args = copy.deepcopy(cr.args)
+
+    cr.add(
+        "rotation",
+        run_rotations,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(args, f=1),
+        initial_member_count=1,
+    )
 
     cr.add(
         "cft",
@@ -254,4 +288,11 @@ if __name__ == "__main__":
         election_timeout_ms=1000,
     )
 
-    cr.run(1)
+    cr.add(
+        "committable",
+        committable.run,
+        package="samples/apps/logging/logging",
+        sig_ms_interval=100,
+    )
+
+    cr.run()

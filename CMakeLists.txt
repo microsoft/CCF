@@ -901,12 +901,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME committable_suffix_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
-    ADDITIONAL_ARGS --sig-ms-interval 100
-  )
-
-  add_e2e_test(
     NAME commit_latency
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/commit_latency.py
     LABEL perf
@@ -1127,17 +1121,6 @@ if(BUILD_TESTS)
     )
   endif()
 
-  if(LONG_TESTS)
-    set(ROTATION_TEST_ARGS --rotation-retirements 10)
-  endif()
-
-  add_e2e_test(
-    NAME rotation_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
-    LABEL rotation
-    ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
-  )
-
   set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
   add_e2e_test(
     NAME reconfiguration_test
@@ -1146,8 +1129,14 @@ if(BUILD_TESTS)
   )
   set_property(TEST reconfiguration_test PROPERTY LABELS reconfiguration)
 
+  if(LONG_TESTS)
+    set(ROTATION_TEST_ARGS --rotation-retirements 10)
+  endif()
+
   add_e2e_test(
-    NAME election_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+    NAME nodes_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/nodes.py
+    ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
   )
 
   add_piccolo_test(
