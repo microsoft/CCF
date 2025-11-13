@@ -500,7 +500,7 @@ namespace loggingapp
         ccf::user_cose_sign1_auth_policy};
 
       // SNIPPET_START: record
-      auto record = [this](auto& ctx, nlohmann::json&& params) {
+      auto record = [](auto& ctx, nlohmann::json&& params) {
         // SNIPPET_START: macro_validation_record
         const auto in = params.get<LoggingRecord::In>();
         // SNIPPET_END: macro_validation_record
@@ -546,7 +546,7 @@ namespace loggingapp
         ctx.rpc_ctx->set_response_body(nlohmann::json(*out).dump());
       };
 
-      auto record_v2 = [this](auto& ctx, nlohmann::json&& params) {
+      auto record_v2 = [](auto& ctx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRecord::In>();
 
         if (in.msg.empty())
@@ -591,7 +591,7 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: get
-      auto get = [this](auto& ctx, nlohmann::json&&) {
+      auto get = [](auto& ctx, nlohmann::json&&) {
         // Parse id from query
         const auto parsed_query =
           ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
@@ -758,7 +758,7 @@ namespace loggingapp
         .add_query_parameter<size_t>("id")
         .install();
 
-      auto remove = [this](auto& ctx, nlohmann::json&&) {
+      auto remove = [](auto& ctx, nlohmann::json&&) {
         // Parse id from query
         const auto parsed_query =
           ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
@@ -786,7 +786,7 @@ namespace loggingapp
         .add_query_parameter<size_t>("id")
         .install();
 
-      auto clear = [this](auto& ctx, nlohmann::json&&) {
+      auto clear = [](auto& ctx, nlohmann::json&&) {
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->clear();
@@ -800,7 +800,7 @@ namespace loggingapp
         .set_auto_schema<void, bool>()
         .install();
 
-      auto count = [this](auto& ctx, nlohmann::json&&) {
+      auto count = [](auto& ctx, nlohmann::json&&) {
         auto records_handle =
           ctx.tx.template ro<RecordsMap>(private_records(ctx));
         return ccf::make_success(records_handle->size());
@@ -811,7 +811,7 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: record_public
-      auto record_public = [this](auto& ctx, nlohmann::json&& params) {
+      auto record_public = [](auto& ctx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRecord::In>();
 
         if (in.msg.empty())
@@ -905,7 +905,7 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: get_public
-      auto get_public = [this](auto& ctx, nlohmann::json&&) {
+      auto get_public = [](auto& ctx, nlohmann::json&&) {
         // Parse id from query
         const auto parsed_query =
           ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
@@ -998,7 +998,7 @@ namespace loggingapp
         .add_query_parameter<size_t>("id")
         .install();
 
-      auto remove_public = [this](auto& ctx, nlohmann::json&&) {
+      auto remove_public = [](auto& ctx, nlohmann::json&&) {
         // Parse id from query
         const auto parsed_query =
           ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
@@ -1075,7 +1075,7 @@ namespace loggingapp
         .add_query_parameter<size_t>("id")
         .install();
 
-      auto clear_public = [this](auto& ctx, nlohmann::json&&) {
+      auto clear_public = [](auto& ctx, nlohmann::json&&) {
         auto public_records_handle =
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
         public_records_handle->clear();
@@ -1089,7 +1089,7 @@ namespace loggingapp
         .set_auto_schema<void, bool>()
         .install();
 
-      auto count_public = [this](auto& ctx, nlohmann::json&&) {
+      auto count_public = [](auto& ctx, nlohmann::json&&) {
         auto public_records_handle =
           ctx.tx.template ro<RecordsMap>(public_records(ctx));
         return ccf::make_success(public_records_handle->size());
@@ -1103,7 +1103,7 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: log_record_prefix_cert
-      auto log_record_prefix_cert = [this](auto& ctx) {
+      auto log_record_prefix_cert = [](auto& ctx) {
         const auto& caller_ident =
           ctx.template get_caller<ccf::UserCertAuthnIdentity>();
 
@@ -1137,7 +1137,7 @@ namespace loggingapp
         .install();
       // SNIPPET_END: log_record_prefix_cert
 
-      auto log_record_anonymous = [this](auto& ctx, nlohmann::json&& params) {
+      auto log_record_anonymous = [](auto& ctx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRecord::In>();
         if (in.msg.empty())
         {
@@ -1221,7 +1221,7 @@ namespace loggingapp
       // SNIPPET_END: custom_auth_endpoint
 
       // SNIPPET_START: log_record_text
-      auto log_record_text = [this](auto& ctx) {
+      auto log_record_text = [](auto& ctx) {
         const auto* const expected = ccf::http::headervalues::contenttype::TEXT;
         const auto actual =
           ctx.rpc_ctx->get_request_header(ccf::http::headers::CONTENT_TYPE)
@@ -1264,7 +1264,7 @@ namespace loggingapp
       // SNIPPET_END: log_record_text
 
       // SNIPPET_START: get_historical
-      auto get_historical = [this](
+      auto get_historical = [](
                               ccf::endpoints::ReadOnlyEndpointContext& ctx,
                               ccf::historical::StatePtr historical_state) {
         // Parse id from query
@@ -1410,7 +1410,7 @@ namespace loggingapp
 
       // SNIPPET_START: get_historical_with_receipt
       auto get_historical_with_receipt =
-        [this](
+        [](
           ccf::endpoints::ReadOnlyEndpointContext& ctx,
           ccf::historical::StatePtr historical_state) {
           // Parse id from query
@@ -1459,7 +1459,7 @@ namespace loggingapp
       // SNIPPET_END: get_historical_with_receipt
 
       auto get_historical_with_receipt_and_claims =
-        [this](
+        [](
           ccf::endpoints::ReadOnlyEndpointContext& ctx,
           ccf::historical::StatePtr historical_state) {
           // Parse id from query
@@ -1863,17 +1863,6 @@ namespace loggingapp
 
         // NB: Currently ignoring pagination, as this endpoint is temporary
 
-        // Use hash of request as RequestHandle. WARNING: This means identical
-        // requests from different users will collide, and overwrite each
-        // other's progress!
-        auto make_handle = [](size_t begin, size_t end, size_t id) {
-          size_t raw[] = {begin, end, id};
-          auto size = sizeof(raw);
-          std::vector<uint8_t> v(size);
-          memcpy(v.data(), reinterpret_cast<const uint8_t*>(raw), size);
-          return std::hash<decltype(v)>()(v);
-        };
-
         ccf::historical::RequestHandle handle = 0;
         {
           std::hash<size_t> h;
@@ -1997,7 +1986,7 @@ namespace loggingapp
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
 
-      auto get_request_query = [this](auto& ctx) {
+      auto get_request_query = [](auto& ctx) {
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         std::vector<uint8_t> rq(
           ctx.rpc_ctx->get_request_query().begin(),
@@ -2013,19 +2002,18 @@ namespace loggingapp
         .set_auto_schema<void, std::string>()
         .install();
 
-      auto post_cose_signed_content =
-        [this](ccf::endpoints::EndpointContext& ctx) {
-          const auto& caller_identity =
-            ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
+      auto post_cose_signed_content = [](ccf::endpoints::EndpointContext& ctx) {
+        const auto& caller_identity =
+          ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
 
-          ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::CONTENT_TYPE,
-            ccf::http::headervalues::contenttype::TEXT);
-          std::vector<uint8_t> response_body(
-            caller_identity.content.begin(), caller_identity.content.end());
-          ctx.rpc_ctx->set_response_body(response_body);
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        };
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CONTENT_TYPE,
+          ccf::http::headervalues::contenttype::TEXT);
+        std::vector<uint8_t> response_body(
+          caller_identity.content.begin(), caller_identity.content.end());
+        ctx.rpc_ctx->set_response_body(response_body);
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+      };
 
       make_endpoint(
         "/log/cose_signed_content",
@@ -2036,7 +2024,7 @@ namespace loggingapp
         .install();
 
       auto get_cbor_merkle_proof =
-        [this](
+        [](
           ccf::endpoints::ReadOnlyEndpointContext& ctx,
           ccf::historical::StatePtr historical_state) {
           auto historical_tx = historical_state->store->create_read_only_tx();
@@ -2069,7 +2057,7 @@ namespace loggingapp
         .install();
 
       auto get_cose_endorsements =
-        [this](
+        [](
           ccf::endpoints::ReadOnlyEndpointContext& ctx,
           ccf::historical::StatePtr historical_state) {
           auto historical_tx = historical_state->store->create_read_only_tx();
@@ -2104,7 +2092,7 @@ namespace loggingapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
-      auto get_cose_signature = [this](
+      auto get_cose_signature = [](
                                   ccf::endpoints::ReadOnlyEndpointContext& ctx,
                                   ccf::historical::StatePtr historical_state) {
         auto historical_tx = historical_state->store->create_read_only_tx();
@@ -2135,7 +2123,7 @@ namespace loggingapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
-      auto get_cose_receipt = [this](
+      auto get_cose_receipt = [](
                                 ccf::endpoints::ReadOnlyEndpointContext& ctx,
                                 ccf::historical::StatePtr historical_state) {
         auto historical_tx = historical_state->store->create_read_only_tx();
