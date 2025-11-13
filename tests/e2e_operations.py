@@ -1428,6 +1428,29 @@ def run_initial_tcb_version_checks(const_args):
             assert False, "No TCB_version found in recovery ledger"
 
 
+def wait_for_sealed_secrets(node, min_seqno=0, timeout=10):
+    out, _ = node.remote.get_logs()
+    start = time.time()
+    while time.time() < start + timeout:
+        with open(out, "r") as outf:
+            for line in outf.readlines():
+                if "Sealing complete of ledger secret to" in line:
+                    try:
+                        path = line.split()[-1]
+                        filename = os.path.basename(path)
+                        seqno = int(filename.split(".")[0])
+                        if seqno >= min_seqno:
+                            return
+                    except (IndexError, ValueError):
+                        continue
+
+        time.sleep(0.1)
+
+    raise TimeoutError(
+        f"Could not find sealed secrets for seqno {min_seqno} after {timeout}s in logs"
+    )
+
+
 def run_recovery_local_unsealing(
     const_args, recovery_f=0, rekey=False, recovery_shares_refresh=False
 ):
@@ -1444,9 +1467,18 @@ def run_recovery_local_unsealing(
 
         primary, _ = network.find_primary()
         if rekey:
+            network.wait_for_node_commit_sync()
+            with primary.client() as c:
+                r = c.get("/node/commit").body.json()
+                min_seqno = TxID.from_str(r["transaction_id"]).seqno
             network.consortium.trigger_ledger_rekey(primary)
+        else:
+            min_seqno = 0
         if recovery_shares_refresh:
             network.consortium.trigger_recovery_shares_refresh(primary)
+
+        for node in network.nodes:
+            wait_for_sealed_secrets(node, min_seqno=min_seqno)
 
         node_secret_map = {
             node.local_node_id: node.save_sealed_ledger_secret()
@@ -1503,6 +1535,8 @@ def run_recovery_unsealing_validate_audit(const_args):
         network.start_and_open(args)
 
         network.save_service_identity(args)
+        for node in network.nodes:
+            wait_for_sealed_secrets(node)
         node0_secrets = network.nodes[0].save_sealed_ledger_secret()
 
         latest_public_tables, _ = network.get_latest_ledger_public_state()
@@ -1586,6 +1620,8 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
         network.start_and_open(args)
 
         network.save_service_identity(args)
+        for node in network.nodes:
+            wait_for_sealed_secrets(node)
 
         node_secret_map = {
             node.local_node_id: node.save_sealed_ledger_secret()
