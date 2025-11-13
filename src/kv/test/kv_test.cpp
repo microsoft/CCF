@@ -2045,7 +2045,7 @@ TEST_CASE("Deserialise return status")
   MapTypes::NumNum data("public:data");
 
   constexpr auto default_curve = ccf::crypto::CurveID::SECP384R1;
-  auto kp = ccf::crypto::make_key_pair(default_curve);
+  auto kp = ccf::crypto::make_ec_key_pair(default_curve);
 
   auto history = std::make_shared<ccf::NullTxHistory>(
     store, ccf::kv::test::PrimaryNodeId, *kp);
@@ -3146,7 +3146,7 @@ TEST_CASE("Ledger entry chunk request")
   MapTypes::NumNum data("public:data");
 
   constexpr auto default_curve = ccf::crypto::CurveID::SECP384R1;
-  auto kp = ccf::crypto::make_key_pair(default_curve);
+  auto kp = ccf::crypto::make_ec_key_pair(default_curve);
 
   auto history = std::make_shared<ccf::NullTxHistory>(
     store, ccf::kv::test::PrimaryNodeId, *kp);

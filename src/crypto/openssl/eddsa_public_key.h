@@ -3,9 +3,8 @@
 #pragma once
 
 #include "ccf/crypto/eddsa_public_key.h"
-#include "ccf/crypto/key_pair.h"
+#include "crypto/openssl/ec_public_key.h"
 #include "crypto/openssl/hash.h"
-#include "crypto/openssl/public_key.h"
 
 #include <optional>
 #include <string>

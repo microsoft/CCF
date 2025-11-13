@@ -35,7 +35,7 @@ enum class PayloadType
 
 struct Signer
 {
-  ccf::crypto::KeyPair_OpenSSL kp;
+  ccf::crypto::ECKeyPair_OpenSSL kp;
   std::vector<uint8_t> payload;
   bool detached_payload = false;
 

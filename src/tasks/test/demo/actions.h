@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/ds/hex.h"
 #include "ccf/ds/nonstd.h"
 #include "ds/internal_logger.h"
@@ -117,7 +117,7 @@ struct SignAction : public OrderedAction
       auto signature_s = b;
 
       ccf::crypto::Pem pem{std::string(key_s)};
-      auto pubk = ccf::crypto::make_public_key(pem);
+      auto pubk = ccf::crypto::make_ec_public_key(pem);
 
       auto signature = ccf::ds::from_hex(std::string(signature_s));
       REQUIRE(pubk->verify(tbs, signature));
@@ -136,7 +136,7 @@ struct SignAction : public OrderedAction
     }
     else
     {
-      auto key_pair = ccf::crypto::make_key_pair();
+      auto key_pair = ccf::crypto::make_ec_key_pair();
       auto signature = key_pair->sign(tbs);
       return fmt::format(
         "{}{}|{}",

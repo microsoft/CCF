@@ -4,7 +4,7 @@
 
 #include "crypto/key_exchange.h"
 
-#include "crypto/openssl/key_pair.h"
+#include "crypto/openssl/ec_key_pair.h"
 
 #include <doctest/doctest.h>
 

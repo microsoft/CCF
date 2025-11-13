@@ -95,7 +95,7 @@ namespace ccf
     ccf::crypto::CurveID curve_id;
     std::vector<ccf::crypto::SubjectAltName> subject_alt_names = {};
 
-    std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> node_sign_kp;
+    std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> node_sign_kp;
     NodeId self;
     std::shared_ptr<ccf::crypto::RSAKeyPair> node_encrypt_kp;
     ccf::crypto::Pem self_signed_node_cert;
@@ -230,7 +230,7 @@ namespace ccf
       ccf::crypto::CurveID curve_id_) :
       sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
-      node_sign_kp(std::make_shared<ccf::crypto::KeyPair_OpenSSL>(curve_id_)),
+      node_sign_kp(std::make_shared<ccf::crypto::ECKeyPair_OpenSSL>(curve_id_)),
       self(compute_node_id_from_kp(node_sign_kp)),
       node_encrypt_kp(ccf::crypto::make_rsa_key_pair()),
       writer_factory(writer_factory),
@@ -1188,8 +1188,6 @@ namespace ccf
       {
         h->set_node_id(self);
       }
-
-      auto service_config = tx.ro(network.config)->get();
 
       setup_consensus(
         ServiceStatus::OPENING,
@@ -2429,7 +2427,7 @@ namespace ccf
             auto hook_pubk_pem = ccf::crypto::public_key_pem_from_cert(
               ccf::crypto::cert_pem_to_der(w->cert));
             auto current_pubk_pem =
-              ccf::crypto::make_key_pair(network.identity->priv_key)
+              ccf::crypto::make_ec_key_pair(network.identity->priv_key)
                 ->public_key_pem();
             if (hook_pubk_pem != current_pubk_pem)
             {
