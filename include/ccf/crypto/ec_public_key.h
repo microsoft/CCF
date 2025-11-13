@@ -152,4 +152,30 @@ namespace ccf::crypto
     [[nodiscard]] virtual JsonWebKeyECPublic public_key_jwk(
       const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
+
+  using ECPublicKeyPtr = std::shared_ptr<ECPublicKey>;
+
+  /**
+   * Construct ECPublicKey from a raw public key in PEM format
+   *
+   * @param pem Sequence of bytes containing the key in PEM format
+   * @return Public key
+   */
+  ECPublicKeyPtr make_ec_public_key(const Pem& pem);
+
+  /**
+   * Construct ECPublicKey from a raw public key in DER format
+   *
+   * @param der Sequence of bytes containing the key in DER format
+   * @return Public key
+   */
+  ECPublicKeyPtr make_ec_public_key(const std::vector<uint8_t>& der);
+
+  /**
+   * Construct ECPublicKey from a JsonWebKeyECPublic object
+   *
+   * @param jwk JsonWebKeyECPublic object
+   * @return Public key
+   */
+  ECPublicKeyPtr make_ec_public_key(const JsonWebKeyECPublic& jwk);
 }

@@ -3,8 +3,9 @@
 
 #include "ccf/endpoints/authentication/jwt_auth.h"
 
+#include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/ecdsa.h"
-#include "ccf/crypto/key_variant.h"
+#include "ccf/crypto/rsa_public_key.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/pal/locking.h"
 #include "ccf/rpc_context.h"
@@ -90,8 +91,8 @@ namespace ccf
     using DER = std::vector<uint8_t>;
     ccf::pal::Mutex keys_lock;
 
-    using PublicKey = ccf::crypto::
-      KeyVariant<ccf::crypto::RSAPublicKeyPtr, ccf::crypto::ECPublicKeyPtr>;
+    using PublicKey =
+      std::variant<ccf::crypto::RSAPublicKeyPtr, ccf::crypto::ECPublicKeyPtr>;
     LRU<DER, PublicKey> keys;
 
     PublicKeysCache(size_t max_keys = DEFAULT_MAX_KEYS) : keys(max_keys) {}

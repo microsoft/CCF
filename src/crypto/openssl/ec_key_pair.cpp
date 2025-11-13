@@ -527,21 +527,6 @@ namespace ccf::crypto
     return jwk;
   }
 
-  ECPublicKeyPtr make_ec_public_key(const Pem& pem)
-  {
-    return std::make_shared<ECPublicKey_OpenSSL>(pem);
-  }
-
-  ECPublicKeyPtr make_ec_public_key(const std::vector<uint8_t>& der)
-  {
-    return std::make_shared<ECPublicKey_OpenSSL>(der);
-  }
-
-  ECPublicKeyPtr make_ec_public_key(const JsonWebKeyECPublic& jwk)
-  {
-    return std::make_shared<ECPublicKey_OpenSSL>(jwk);
-  }
-
   ECKeyPairPtr make_ec_key_pair(CurveID curve_id)
   {
     return std::make_shared<ECKeyPair_OpenSSL>(curve_id);

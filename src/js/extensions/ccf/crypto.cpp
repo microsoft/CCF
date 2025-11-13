@@ -3,6 +3,7 @@
 
 #include "ccf/js/extensions/ccf/crypto.h"
 
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/entropy.h"

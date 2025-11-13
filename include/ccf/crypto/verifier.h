@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/ec_key_pair.h"
+#include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/jwk.h"
-#include "ccf/crypto/key_variant.h"
 #include "ccf/crypto/pem.h"
+#include "ccf/crypto/rsa_public_key.h"
 
 #include <chrono>
 
@@ -14,10 +14,11 @@ namespace ccf::crypto
   class Verifier
   {
   protected:
-    KeyVariant<RSAPublicKeyPtr, ECPublicKeyPtr> public_key{nullptr};
+    std::variant<ccf::crypto::RSAPublicKeyPtr, ccf::crypto::ECPublicKeyPtr>
+      public_key;
 
   public:
-    Verifier() : public_key(nullptr) {}
+    Verifier() = default;
     virtual ~Verifier() = default;
 
     virtual std::vector<uint8_t> cert_der() = 0;

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/entity_id.h"
