@@ -392,7 +392,8 @@ IsExecuteAppendEntries ==
        /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsRcvRequestVoteResponse ==
-    /\ IsEvent("recv_request_vote_response")
+    /\ \/ IsEvent("recv_request_vote_response")
+       \/ IsEvent("recv_request_pre_vote_response")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
        IN \E m \in Network!MessagesTo(i, j):
