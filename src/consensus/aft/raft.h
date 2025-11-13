@@ -2020,7 +2020,7 @@ namespace aft
         state->leadership_state == ccf::kv::LeadershipState::Candidate)
       {
         RAFT_FAIL_FMT(
-          "Recv {} to {} from {}: unexpected PreVoteResponse response in {} when Candidate for {}",
+          "Recv {} to {} from {}: unexpected PreVoteResponse in {} when Candidate for {}",
           r.msg,
           state->node_id,
           from,
