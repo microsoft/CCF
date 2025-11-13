@@ -295,4 +295,11 @@ if __name__ == "__main__":
         sig_ms_interval=100,
     )
 
+    cr.add(
+        "reconfiguration",
+        reconfiguration.run_all,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    )
+
     cr.run()
