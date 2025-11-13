@@ -176,7 +176,6 @@ namespace aft
     // active configuration.
     std::unordered_map<ccf::NodeId, NodeState> all_other_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
-    ccf::ReconfigurationType reconfiguration_type;
 
     // Node client to trigger submission of RPC requests
     std::shared_ptr<ccf::NodeClient> node_client;
@@ -218,9 +217,7 @@ namespace aft
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
       bool public_only_ = false,
       ccf::kv::MembershipState initial_membership_state_ =
-        ccf::kv::MembershipState::Active,
-      ccf::ReconfigurationType reconfiguration_type_ =
-        ccf::ReconfigurationType::ONE_TRANSACTION) :
+        ccf::kv::MembershipState::Active) :
       store(std::move(store_)),
 
       timeout_elapsed(0),
@@ -231,7 +228,6 @@ namespace aft
       election_timeout(settings_.election_timeout),
       max_uncommitted_tx_count(settings_.max_uncommitted_tx_count),
 
-      reconfiguration_type(reconfiguration_type_),
       node_client(rpc_request_context_),
       retired_node_cleanup(
         std::make_unique<ccf::RetiredNodeCleanup>(node_client)),
@@ -629,7 +625,7 @@ namespace aft
         details.acks[k] = {
           v.match_idx, static_cast<size_t>(v.last_ack_timeout.count())};
       }
-      details.reconfiguration_type = reconfiguration_type;
+      details.reconfiguration_type = ccf::ReconfigurationType::ONE_TRANSACTION;
       return details;
     }
 

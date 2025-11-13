@@ -344,8 +344,7 @@ namespace ccf
       const std::vector<uint8_t>& node_der,
       const JoinNetworkNodeToNode::In& in,
       NodeStatus node_status,
-      ServiceStatus service_status,
-      ccf::ReconfigurationType reconfiguration_type)
+      ServiceStatus service_status)
     {
       auto nodes = tx.rw(network.nodes);
       auto node_endorsed_certificates =
@@ -602,8 +601,7 @@ namespace ccf
             args.rpc_ctx->get_session_context()->caller_cert,
             in,
             joining_node_status,
-            active_service->status,
-            ccf::ReconfigurationType::ONE_TRANSACTION);
+            active_service->status);
         }
 
         // If the service is open, new nodes are first added as pending and
@@ -687,8 +685,7 @@ namespace ccf
             args.rpc_ctx->get_session_context()->caller_cert,
             in,
             NodeStatus::PENDING,
-            active_service->status,
-            ccf::ReconfigurationType::ONE_TRANSACTION);
+            active_service->status);
         }
       };
       make_endpoint("/join", HTTP_POST, json_adapter(accept), no_auth_required)

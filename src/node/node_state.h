@@ -615,7 +615,6 @@ namespace ccf
 
           setup_consensus(
             ServiceStatus::OPENING,
-            ccf::ReconfigurationType::ONE_TRANSACTION,
             false,
             endorsed_node_cert);
 
@@ -786,7 +785,6 @@ namespace ccf
             setup_consensus(
               resp.network_info->service_status.value_or(
                 ServiceStatus::OPENING),
-              ccf::ReconfigurationType::ONE_TRANSACTION,
               resp.network_info->public_only,
               n2n_channels_cert);
             auto_refresh_jwt_keys();
@@ -1193,7 +1191,6 @@ namespace ccf
 
       setup_consensus(
         ServiceStatus::OPENING,
-        ccf::ReconfigurationType::ONE_TRANSACTION,
         true);
       auto_refresh_jwt_keys();
 
@@ -2561,7 +2558,6 @@ namespace ccf
 
     void setup_consensus(
       ServiceStatus service_status,
-      ccf::ReconfigurationType reconfiguration_type,
       bool public_only = false,
       const std::optional<ccf::crypto::Pem>& endorsed_node_certificate_ =
         std::nullopt)
@@ -2585,8 +2581,7 @@ namespace ccf
         shared_state,
         node_client,
         public_only,
-        membership_state,
-        reconfiguration_type);
+        membership_state);
 
       network.tables->set_consensus(consensus);
       network.tables->set_snapshotter(snapshotter);

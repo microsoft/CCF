@@ -222,11 +222,6 @@ namespace ccf::kv
     leadership_state,
     retirement_phase);
 
-  struct ConsensusParameters
-  {
-    ccf::ReconfigurationType reconfiguration_type;
-  };
-
   class ConfigurableConsensus
   {
   public:
