@@ -15,7 +15,7 @@ namespace ccf::tasks
 
     virtual void do_action() = 0;
 
-    virtual const std::string& get_name() const = 0;
+    [[nodiscard]] virtual const std::string& get_name() const = 0;
   };
 
   using TaskAction = std::shared_ptr<ITaskAction>;
@@ -27,9 +27,9 @@ namespace ccf::tasks
     Fn fn;
     const std::string name;
 
-    BasicTaskAction(const Fn& fn_, const std::string& name_ = "[Anon]") :
-      fn(fn_),
-      name(name_)
+    BasicTaskAction(Fn fn_, std::string name_ = "[Anon]") :
+      fn(std::move(fn_)),
+      name(std::move(name_))
     {}
 
     void do_action() override
@@ -37,7 +37,7 @@ namespace ccf::tasks
       fn();
     }
 
-    const std::string& get_name() const override
+    [[nodiscard]] const std::string& get_name() const override
     {
       return name;
     }
@@ -73,8 +73,8 @@ namespace ccf::tasks
     };
 
   public:
-    OrderedTasks(Private, JobBoard& job_board, const std::string& name);
-    ~OrderedTasks();
+    OrderedTasks(Private force_private_constructor, JobBoard& job_board, const std::string& name);
+    ~OrderedTasks() override;
 
     static std::shared_ptr<OrderedTasks> create(
       JobBoard& job_board_, const std::string& name_ = "[Ordered]");

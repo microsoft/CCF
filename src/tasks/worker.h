@@ -9,7 +9,7 @@
 
 namespace ccf::tasks
 {
-  void task_worker_loop(JobBoard& job_board, std::atomic<bool>& stop_signal)
+  inline void task_worker_loop(JobBoard& job_board, std::atomic<bool>& stop_signal)
   {
     static constexpr auto wait_time = std::chrono::milliseconds(100);
 
