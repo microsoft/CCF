@@ -16,6 +16,12 @@ SIMInitReconfigurationVars ==
     \* Start with any subset of servers in the active configuration.
     \/ CCF!InitReconfigurationVars
 
+SIMInitPreVoteStatus == 
+  /\ PreVoteStatusTypeInv
+  /\ ~\E i, j \in Servers:
+      /\ PreVoteDisabled \in preVoteStatus[i]
+      /\ PreVoteEnabled \in preVoteStatus[j]
+
 LOCAL R ==
     1..IF "R" \in DOMAIN IOEnv THEN atoi(IOEnv.R) ELSE 10
 
@@ -66,6 +72,7 @@ SIMFairness ==
     /\ \A s \in Servers : WF_vars(SignCommittableMessages(s))
     /\ \A s \in Servers : WF_vars(AdvanceCommitIndex(s))
     /\ \A s \in Servers : WF_vars(AppendRetiredCommitted(s))
+    /\ \A s \in Servers : WF_vars(PreVoteEnabled \in preVoteStatus[s] /\ BecomeCandidate(s))
     /\ \A s \in Servers : WF_vars(BecomeLeader(s))
     \* The following fairness conditions reference the original CCF actions
     \* and, thus, do not include the RandomElement conjunct.

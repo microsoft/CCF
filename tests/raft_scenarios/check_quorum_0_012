@@ -1,0 +1,48 @@
+start_node,0
+emit_signature,2
+swap_nodes,2,in,1,2
+emit_signature,2
+
+periodic_one,0,10
+dispatch_all
+dispatch_all
+periodic_one,0,10
+dispatch_all
+
+
+# All nodes have both configs: {0} and {0,1,2}
+assert_commit_idx,0,4
+assert_absent_config,0,1
+assert_config,0,3,0,1,2
+
+assert_commit_idx,1,2
+assert_config,1,1,0
+assert_config,1,3,0,1,2
+
+assert_commit_idx,2,2
+assert_config,2,1,0
+assert_config,2,3,0,1,2
+
+# Node 0 should step down via CheckQuorum
+disconnect_node,0
+periodic_one,0,100
+assert_detail,0,leadership_state,Follower
+
+# Node 1 should try to start an election but fails without a quorum in {0}
+periodic_one,1,100
+assert_detail,1,leadership_state,Candidate
+
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+
+assert_detail,1,leadership_state,Candidate
+
+# Fixup the network to allow a leader to be elected and the test to pass
+reconnect_node,0
+periodic_all,100
+dispatch_all
+periodic_all,10
+dispatch_all
