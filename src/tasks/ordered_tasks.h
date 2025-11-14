@@ -73,7 +73,10 @@ namespace ccf::tasks
     };
 
   public:
-    OrderedTasks(Private force_private_constructor, JobBoard& job_board, const std::string& name);
+    OrderedTasks(
+      Private force_private_constructor,
+      JobBoard& job_board,
+      const std::string& name);
     ~OrderedTasks() override;
 
     static std::shared_ptr<OrderedTasks> create(
