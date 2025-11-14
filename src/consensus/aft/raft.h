@@ -525,8 +525,7 @@ namespace aft
 
   public:
     void add_configuration(
-      Index idx,
-      const ccf::kv::Configuration::Nodes& conf) override
+      Index idx, const ccf::kv::Configuration::Nodes& conf) override
     {
       RAFT_DEBUG_FMT(
         "Configurations: add new configuration at {}: {{{}}}", idx, conf);

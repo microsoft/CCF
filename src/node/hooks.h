@@ -77,8 +77,7 @@ namespace ccf
       }
       if (!cfg_delta.empty())
       {
-        consensus->add_configuration(
-          version, configuration);
+        consensus->add_configuration(version, configuration);
       }
     }
   };

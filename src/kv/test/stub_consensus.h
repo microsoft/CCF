@@ -201,8 +201,7 @@ namespace ccf::kv::test
     {}
 
     void add_configuration(
-      ccf::SeqNo seqno,
-      const Configuration::Nodes& conf) override
+      ccf::SeqNo seqno, const Configuration::Nodes& conf) override
     {}
 
     Configuration::Nodes get_latest_configuration_unsafe() const override
