@@ -27,6 +27,11 @@ namespace serializer
   {
     const uint8_t* data;
     const size_t size;
+
+    operator std::span<const uint8_t>() const
+    {
+      return std::span<const uint8_t>(data, size);
+    }
   };
 
   namespace details

@@ -1993,7 +1993,6 @@ TEST_CASE("Valid merkle proof from receipts")
 
 int main(int argc, char** argv)
 {
-  threading::ThreadMessaging::init(1);
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();

@@ -225,8 +225,11 @@ function(add_picobench name)
       bash -c
       "$<TARGET_FILE:${name}> --samples=10 --out-fmt=csv --output=${name}.csv && cat ${name}.csv"
   )
-
-  set_property(TEST ${name} PROPERTY LABELS benchmark)
+  set_property(
+    TEST ${name}
+    APPEND
+    PROPERTY LABELS benchmark
+  )
 
   add_san_test_properties(${name})
 endfunction()
