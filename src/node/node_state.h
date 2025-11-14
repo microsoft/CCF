@@ -613,11 +613,7 @@ namespace ccf
           history->set_service_signing_identity(
             network.identity->get_key_pair(), config.cose_signatures);
 
-          setup_consensus(
-            ServiceStatus::OPENING,
-            ccf::ReconfigurationType::ONE_TRANSACTION,
-            false,
-            endorsed_node_cert);
+          setup_consensus(false, endorsed_node_cert);
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -783,12 +779,7 @@ namespace ccf
             }
             n2n_channels_cert = resp.network_info->endorsed_certificate.value();
 
-            setup_consensus(
-              resp.network_info->service_status.value_or(
-                ServiceStatus::OPENING),
-              ccf::ReconfigurationType::ONE_TRANSACTION,
-              resp.network_info->public_only,
-              n2n_channels_cert);
+            setup_consensus(resp.network_info->public_only, n2n_channels_cert);
             auto_refresh_jwt_keys();
 
             if (resp.network_info->public_only)
@@ -1189,10 +1180,7 @@ namespace ccf
         h->set_node_id(self);
       }
 
-      setup_consensus(
-        ServiceStatus::OPENING,
-        ccf::ReconfigurationType::ONE_TRANSACTION,
-        true);
+      setup_consensus(true);
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT("Restarting consensus at view: {} seqno: {}", view, index);
@@ -2563,8 +2551,6 @@ namespace ccf
     }
 
     void setup_consensus(
-      ServiceStatus service_status,
-      ccf::ReconfigurationType reconfiguration_type,
       bool public_only = false,
       const std::optional<ccf::crypto::Pem>& endorsed_node_certificate_ =
         std::nullopt)
@@ -2577,9 +2563,6 @@ namespace ccf
       auto node_client = std::make_shared<HTTPNodeClient>(
         rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
 
-      ccf::kv::MembershipState membership_state =
-        ccf::kv::MembershipState::Active;
-
       consensus = std::make_shared<RaftType>(
         consensus_config,
         std::make_unique<aft::Adaptor<ccf::kv::Store>>(network.tables),
@@ -2587,9 +2570,7 @@ namespace ccf
         n2n_channels,
         shared_state,
         node_client,
-        public_only,
-        membership_state,
-        reconfiguration_type);
+        public_only);
 
       network.tables->set_consensus(consensus);
       network.tables->set_snapshotter(snapshotter);

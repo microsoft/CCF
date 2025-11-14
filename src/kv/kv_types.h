@@ -222,19 +222,11 @@ namespace ccf::kv
     leadership_state,
     retirement_phase);
 
-  struct ConsensusParameters
-  {
-    ccf::ReconfigurationType reconfiguration_type;
-  };
-
   class ConfigurableConsensus
   {
   public:
     virtual void add_configuration(
-      ccf::SeqNo seqno,
-      const Configuration::Nodes& conf,
-      const std::unordered_set<NodeId>& learners = {},
-      const std::unordered_set<NodeId>& retired_nodes = {}) = 0;
+      ccf::SeqNo seqno, const Configuration::Nodes& conf) = 0;
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;
