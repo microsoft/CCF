@@ -68,8 +68,8 @@ function(add_warning_checks name)
             -Werror
             -Wundef
             -Wpedantic
-            -Wno-unused
             -Wno-unused-parameter
+            -Wno-unused-function
             -Wshadow
   )
 endfunction()

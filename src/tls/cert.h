@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "crypto/openssl/key_pair.h"
+#include "crypto/openssl/ec_key_pair.h"
 #include "ds/internal_logger.h"
 #include "tls/ca.h"
 
@@ -30,7 +30,7 @@ namespace tls
 
     Unique_X509 own_cert;
     Unique_STACK_OF_X509 chain;
-    std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> own_pkey;
+    std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> own_pkey;
     bool has_own_cert = false;
 
   public:
@@ -53,7 +53,8 @@ namespace tls
         {
           Unique_BIO certbio(certs[0]);
           own_cert = Unique_X509(certbio, true);
-          own_pkey = std::make_shared<ccf::crypto::KeyPair_OpenSSL>(*own_pkey_);
+          own_pkey =
+            std::make_shared<ccf::crypto::ECKeyPair_OpenSSL>(*own_pkey_);
         }
 
         if (certs.size() > 1)

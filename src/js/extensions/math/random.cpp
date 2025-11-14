@@ -5,6 +5,7 @@
 
 #include "ccf/crypto/entropy.h"
 #include "ccf/js/core/context.h"
+#include "js/checks.h"
 
 #include <quickjs/quickjs.h>
 
@@ -54,6 +55,7 @@ namespace ccf::js::extensions
   {
     // Overriding built-in Math.random
     auto math_val = ctx.get_global_property("Math");
-    math_val.set("random", ctx.new_c_function(js_random_impl, "random", 0));
+    JS_CHECK_OR_THROW(
+      math_val.set("random", ctx.new_c_function(js_random_impl, "random", 0)));
   }
 }

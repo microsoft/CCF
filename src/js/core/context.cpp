@@ -9,6 +9,7 @@
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/tx_access.h"
 #include "ds/internal_logger.h"
+#include "js/checks.h"
 #include "js/global_class_ids.h"
 
 #include <chrono>
@@ -228,7 +229,7 @@ namespace ccf::js::core
     if (val.is_undefined())
     {
       val = default_value;
-      g.set(s, std::move(default_value));
+      JS_CHECK_OR_THROW(g.set(s, std::move(default_value)));
     }
 
     return val;

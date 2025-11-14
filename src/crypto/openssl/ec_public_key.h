@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "ccf/crypto/public_key.h"
 
 #include <openssl/err.h>
 #include <openssl/evp.h>
@@ -12,25 +12,25 @@
 
 namespace ccf::crypto
 {
-  class PublicKey_OpenSSL : public PublicKey
+  class ECPublicKey_OpenSSL : public ECPublicKey
   {
   protected:
     EVP_PKEY* key = nullptr;
-    PublicKey_OpenSSL();
+    ECPublicKey_OpenSSL();
 
     static std::vector<uint8_t> ec_point_public_from_jwk(
       const JsonWebKeyECPublic& jwk);
 
   public:
-    PublicKey_OpenSSL(PublicKey_OpenSSL&& key) = default;
-    PublicKey_OpenSSL(EVP_PKEY* key);
-    PublicKey_OpenSSL(const Pem& pem);
-    PublicKey_OpenSSL(std::span<const uint8_t> der);
-    PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk);
-    virtual ~PublicKey_OpenSSL();
+    ECPublicKey_OpenSSL(ECPublicKey_OpenSSL&& key) = default;
+    ECPublicKey_OpenSSL(EVP_PKEY* key);
+    ECPublicKey_OpenSSL(const Pem& pem);
+    ECPublicKey_OpenSSL(std::span<const uint8_t> der);
+    ECPublicKey_OpenSSL(const JsonWebKeyECPublic& jwk);
+    virtual ~ECPublicKey_OpenSSL();
 
-    using PublicKey::verify;
-    using PublicKey::verify_hash;
+    using ECPublicKey::verify;
+    using ECPublicKey::verify_hash;
 
     virtual bool verify(
       const uint8_t* contents,

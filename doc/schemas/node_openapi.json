@@ -526,6 +526,9 @@
           "bind_address": {
             "$ref": "#/components/schemas/string"
           },
+          "enabled_operator_features": {
+            "$ref": "#/components/schemas/OperatorFeature_set"
+          },
           "endorsement": {
             "$ref": "#/components/schemas/Endorsement"
           },
@@ -585,6 +588,18 @@
           "Retired"
         ],
         "type": "string"
+      },
+      "OperatorFeature": {
+        "enum": [
+          "SnapshotRead"
+        ],
+        "type": "string"
+      },
+      "OperatorFeature_set": {
+        "items": {
+          "$ref": "#/components/schemas/OperatorFeature"
+        },
+        "type": "array"
       },
       "ParserConfiguration": {
         "properties": {

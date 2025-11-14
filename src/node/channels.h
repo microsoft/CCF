@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/hkdf.h"
-#include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/ccf_exception.h"
@@ -187,7 +187,7 @@ namespace ccf
 
     NodeId self;
     const ccf::crypto::Pem& service_cert;
-    ccf::crypto::KeyPairPtr node_kp;
+    ccf::crypto::ECKeyPairPtr node_kp;
     const ccf::crypto::Pem& node_cert;
     ccf::crypto::VerifierPtr peer_cv;
     ccf::crypto::Pem peer_cert;
@@ -972,7 +972,7 @@ namespace ccf
     Channel(
       ringbuffer::AbstractWriterFactory& writer_factory,
       const ccf::crypto::Pem& service_cert_,
-      ccf::crypto::KeyPairPtr node_kp_,
+      ccf::crypto::ECKeyPairPtr node_kp_,
       const ccf::crypto::Pem& node_cert_,
       const NodeId& self_,
       const NodeId& peer_id_,

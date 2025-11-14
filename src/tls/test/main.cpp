@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "crypto/certs.h"
 #include "ds/internal_logger.h"
@@ -213,12 +213,12 @@ int handshake(ccf::tls::Context* ctx, std::atomic<bool>& keep_going)
 
 struct NetworkCA
 {
-  shared_ptr<ccf::crypto::KeyPair> kp;
+  shared_ptr<ccf::crypto::ECKeyPair> kp;
   ccf::crypto::Pem cert;
 };
 
 static ccf::crypto::Pem generate_self_signed_cert(
-  const ccf::crypto::KeyPairPtr& kp, const std::string& name)
+  const ccf::crypto::ECKeyPairPtr& kp, const std::string& name)
 {
   using namespace std::literals;
   constexpr size_t certificate_validity_period_days = 365;
@@ -230,9 +230,9 @@ static ccf::crypto::Pem generate_self_signed_cert(
 }
 
 static ccf::crypto::Pem generate_endorsed_cert(
-  const ccf::crypto::KeyPairPtr& kp,
+  const ccf::crypto::ECKeyPairPtr& kp,
   const std::string& name,
-  const ccf::crypto::KeyPairPtr& issuer_kp,
+  const ccf::crypto::ECKeyPairPtr& issuer_kp,
   const ccf::crypto::Pem& issuer_cert)
 {
   constexpr size_t certificate_validity_period_days = 365;
@@ -255,7 +255,7 @@ static ccf::crypto::Pem generate_endorsed_cert(
 NetworkCA get_ca()
 {
   // Create a CA with a self-signed certificate
-  auto kp = ccf::crypto::make_key_pair();
+  auto kp = ccf::crypto::make_ec_key_pair();
   auto crt = generate_self_signed_cert(kp, "CN=issuer");
   LOG_DEBUG_FMT("New self-signed CA certificate:\n{}", crt.str());
   return {kp, crt};
@@ -269,7 +269,7 @@ unique_ptr<::tls::Cert> get_dummy_cert(
   auto ca = make_unique<::tls::CA>(net_ca.cert.str());
 
   // Create a signing request and sign with the CA
-  auto kp = ccf::crypto::make_key_pair();
+  auto kp = ccf::crypto::make_ec_key_pair();
   auto crt = generate_endorsed_cert(kp, "CN=" + name, net_ca.kp, net_ca.cert);
   LOG_DEBUG_FMT("New CA-signed certificate:\n{}", crt.str());
 
@@ -497,7 +497,7 @@ TEST_CASE("verified handshake")
 
 TEST_CASE("self-signed server certificate")
 {
-  auto kp = ccf::crypto::make_key_pair();
+  auto kp = ccf::crypto::make_ec_key_pair();
   auto pk = kp->private_key_pem();
   auto crt = generate_self_signed_cert(kp, "CN=server");
   auto server_cert = make_unique<Cert>(nullptr, crt, pk);
@@ -545,7 +545,7 @@ TEST_CASE("self-signed client certificate")
   auto server_ca = get_ca();
   auto server_cert = get_dummy_cert(server_ca, "server", false);
 
-  auto kp = ccf::crypto::make_key_pair();
+  auto kp = ccf::crypto::make_ec_key_pair();
   auto pk = kp->private_key_pem();
   auto crt = generate_self_signed_cert(kp, "CN=server");
 
