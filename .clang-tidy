@@ -58,5 +58,5 @@ Checks: >
   -readability-magic-numbers,
 
 WarningsAsErrors: '*'
-HeaderFilterRegex: '(include\/ccf\/|src\/(udp|tcp|tls|tasks|snapshots)\/).*'
+HeaderFilterRegex: '(include\/ccf\/|src\/(udp|tcp|tls|tasks|snapshots|service)\/).*'
 FormatStyle:     'file'

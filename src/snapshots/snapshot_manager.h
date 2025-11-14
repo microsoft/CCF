@@ -193,9 +193,11 @@ namespace snapshots
               {
                 asynchost::TimeBoundLogger log_write_if_slow(
                   fmt::format("Writing snapshot to {}", file_name));
+                // NOLINTNEXTLINE(concurrency-mt-unsafe)
                 THROW_ON_ERROR(
                   write(snapshot_fd, snapshot->data(), snapshot->size()),
                   file_name);
+                // NOLINTNEXTLINE(concurrency-mt-unsafe)
                 THROW_ON_ERROR(
                   write(snapshot_fd, receipt_data, receipt_size), file_name);
               }
