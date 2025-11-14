@@ -273,7 +273,7 @@ namespace http
         if (!server_parser->execute(data.data(), data.size()))
         {
           // Close session gracefully
-          tls_io->close();
+          close_session();
           return false;
         }
         return true;
@@ -294,7 +294,7 @@ namespace http
 
         respond_with_error(e.get_stream_id(), error);
 
-        tls_io->close();
+        close_session();
       }
       catch (http::RequestHeaderTooLargeException& e)
       {
@@ -312,7 +312,7 @@ namespace http
 
         respond_with_error(e.get_stream_id(), error);
 
-        tls_io->close();
+        close_session();
       }
       catch (const std::exception& e)
       {
@@ -327,7 +327,7 @@ namespace http
         // HTTP/2 response to send back to the default stream (0), the session
         // is simply closed.
 
-        tls_io->close();
+        close_session();
       }
       return false;
     }
@@ -399,7 +399,7 @@ namespace http
         // On any exception, close the connection.
         LOG_FAIL_FMT("Closing connection");
         LOG_DEBUG_FMT("Closing connection due to exception: {}", e.what());
-        tls_io->close();
+        close_session();
         throw;
       }
     }
@@ -485,7 +485,7 @@ namespace http
           data.size(),
           std::string_view((char const*)data.data(), data.size()));
 
-        tls_io->close();
+        close_session();
       }
       return false;
     }
@@ -508,7 +508,7 @@ namespace http
       handle_data_cb(status, std::move(headers), std::move(body));
 
       LOG_TRACE_FMT("Closing connection, message handled");
-      tls_io->close();
+      close_session();
     }
   };
 }
