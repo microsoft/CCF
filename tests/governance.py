@@ -25,6 +25,9 @@ import governance_api
 from hashlib import md5
 import random
 
+import memberclient
+import membership
+
 from loguru import logger as LOG
 
 
@@ -808,4 +811,19 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
-    cr.run(2)
+    cr.add(
+        "membership",
+        membership.run,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=0,
+    )
+
+    cr.add(
+        "member_client",
+        memberclient.run,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=1),
+    )
+
+    cr.run()
