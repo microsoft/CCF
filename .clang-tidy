@@ -58,5 +58,5 @@ Checks: >
   -readability-magic-numbers,
 
 WarningsAsErrors: '*'
-HeaderFilterRegex: 'include\/ccf\/.*'
+HeaderFilterRegex: '(include\/ccf\/|src\/(udp|tcp|tls)\/).*'
 FormatStyle:     'file'
