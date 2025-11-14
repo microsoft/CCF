@@ -238,7 +238,7 @@ class ConcurrentRunner:
         config = {
             "handlers": [
                 {
-                    "sink": sys.stderr,
+                    "sink": sys.stdout,
                     "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <red>{{{thread.name}}}</red> <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
                 }
             ]

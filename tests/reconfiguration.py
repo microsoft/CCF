@@ -20,7 +20,6 @@ from datetime import datetime
 from infra.checker import check_can_progress
 from governance_history import check_signatures
 from infra.snp import SNP_SUPPORT
-from infra.runner import ConcurrentRunner
 import http
 import random
 
@@ -916,15 +915,3 @@ def run_join_old_snapshot(const_args):
                 fetch_recent_snapshot=True,
                 timeout=3,
             )
-
-
-if __name__ == "__main__":
-    cr = ConcurrentRunner()
-    cr.add(
-        "reconfiguration",
-        run_all,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-    )
-
-    cr.run()
