@@ -481,8 +481,7 @@ namespace ccf
         const auto prev_service_info = service->get();
         if (!prev_service_info.has_value())
         {
-          throw std::logic_error(
-            "Failed to get previous service info");
+          throw std::logic_error("Failed to get previous service info");
         }
 
         if (!prev_service_info->current_service_create_txid.has_value())
@@ -534,7 +533,8 @@ namespace ccf
     {
       auto* service = tx.ro<ccf::Service>(Tables::SERVICE);
       auto service_info = service->get();
-      return service_info.has_value() && service_info->cert == expected_service_cert;
+      return service_info.has_value() &&
+        service_info->cert == expected_service_cert;
     }
 
     static bool endorse_previous_identity(
@@ -558,11 +558,12 @@ namespace ccf
         const auto prev_endorsement = previous_identity_endorsement->get();
         if (!prev_endorsement.has_value())
         {
-          throw std::logic_error(
-            "Failed to get previous endorsement");
+          throw std::logic_error("Failed to get previous endorsement");
         }
 
-        if (!active_service.has_value() || !active_service->current_service_create_txid.has_value())
+        if (
+          !active_service.has_value() ||
+          !active_service->current_service_create_txid.has_value())
         {
           throw std::logic_error(
             "Active service or current_service_create_txid is not set");
@@ -595,7 +596,8 @@ namespace ccf
         if (!root_opt.has_value())
         {
           LOG_FAIL_FMT(
-            "Failed to sign previous service identity: no last signed root value");
+            "Failed to sign previous service identity: no last signed root "
+            "value");
           return false;
         }
         const auto root = root_opt.value();
@@ -606,7 +608,9 @@ namespace ccf
         // There's no `epoch_end` for the a self-endorsement, leave it
         // open-ranged and sign the current service key.
 
-        if (!active_service.has_value() || !active_service->current_service_create_txid.has_value())
+        if (
+          !active_service.has_value() ||
+          !active_service->current_service_create_txid.has_value())
         {
           throw std::logic_error(
             "Active service or current_service_create_txid is not set");

@@ -22,9 +22,7 @@ namespace ccf
 
     NodeSignature(const NodeSignature& ns) = default;
     NodeSignature(
-      std::vector<uint8_t> sig_,
-      NodeId node_,
-      Nonce hashed_nonce_) :
+      std::vector<uint8_t> sig_, NodeId node_, Nonce hashed_nonce_) :
       sig(std::move(sig_)),
       node(std::move(node_)),
       hashed_nonce(std::move(hashed_nonce_))
