@@ -77,7 +77,7 @@ namespace snapshots
         it->second));
     }
 
-    ContentRangeHeader parsed_values;
+    ContentRangeHeader parsed_values{};
 
     {
       const auto [p, ec] = std::from_chars(

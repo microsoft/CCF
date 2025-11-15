@@ -27,8 +27,8 @@ namespace ccf::tasks
     };
 
   public:
-    FanInTasks(Private, JobBoard& job_board_);
-    ~FanInTasks();
+    FanInTasks(Private force_private_constructor, JobBoard& job_board_);
+    ~FanInTasks() override;
 
     static std::shared_ptr<FanInTasks> create(JobBoard& job_board_);
 

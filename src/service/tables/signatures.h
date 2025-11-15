@@ -24,14 +24,14 @@ namespace ccf
     /// Service-endorsed certificate of the node which produced the signature
     ccf::crypto::Pem cert;
 
-    PrimarySignature() {}
+    PrimarySignature() = default;
 
-    PrimarySignature(const ccf::NodeId& node_, ccf::SeqNo seqno_) :
-      NodeSignature(node_),
+    PrimarySignature(ccf::NodeId node_, ccf::SeqNo seqno_) :
+      NodeSignature(std::move(node_)),
       seqno(seqno_)
     {}
 
-    PrimarySignature(const ccf::crypto::Sha256Hash& root_) : root(root_) {}
+    PrimarySignature(ccf::crypto::Sha256Hash root_) : root(std::move(root_)) {}
 
     PrimarySignature(
       const ccf::NodeId& node_,
@@ -40,12 +40,12 @@ namespace ccf
       const ccf::crypto::Sha256Hash root_,
       Nonce hashed_nonce_,
       const std::vector<uint8_t>& sig_,
-      const ccf::crypto::Pem& cert_) :
+      ccf::crypto::Pem cert_) :
       NodeSignature(sig_, node_, hashed_nonce_),
       seqno(seqno_),
       view(view_),
       root(root_),
-      cert(cert_)
+      cert(std::move(cert_))
     {}
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(

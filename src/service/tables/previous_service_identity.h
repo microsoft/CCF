@@ -17,22 +17,22 @@ namespace ccf
   struct CoseEndorsement
   {
     /// COSE-sign of the a previous service identity's public key.
-    std::vector<uint8_t> endorsement{};
+    std::vector<uint8_t> endorsement;
 
     /// Service key at the moment of endorsing.
-    std::vector<uint8_t> endorsing_key{};
+    std::vector<uint8_t> endorsing_key;
 
     /// The transaction ID when the *endorsed* service was created.
-    ccf::TxID endorsement_epoch_begin{};
+    ccf::TxID endorsement_epoch_begin;
 
     /// Last transaction ID that the endorsement is valid for. Only present for
     /// previouse services endorsements, self-endorsed services must not have
     /// this set.
-    std::optional<ccf::TxID> endorsement_epoch_end{};
+    std::optional<ccf::TxID> endorsement_epoch_end;
 
     /// Pointer to the previous CoseEndorsement entry. Only present for previous
     /// service endorsements, self-endorsed services must not have this set.
-    std::optional<ccf::kv::Version> previous_version{};
+    std::optional<ccf::kv::Version> previous_version;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CoseEndorsement);

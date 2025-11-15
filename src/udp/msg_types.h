@@ -21,16 +21,16 @@ namespace udp
   {
     short family = addr.sa_family;
     std::vector<uint8_t> data(14, '\0');
-    memcpy(&data[0], &addr.sa_data, 14);
+    memcpy(data.data(), &addr.sa_data, 14);
     return std::make_pair(family, data);
   }
 
   static sockaddr sockaddr_decode(
     short family, const std::vector<uint8_t>& data)
   {
-    sockaddr addr;
+    sockaddr addr{};
     addr.sa_family = family;
-    memcpy(&addr.sa_data, &data[0], 14);
+    memcpy(&addr.sa_data, data.data(), 14);
     return addr;
   }
 }

@@ -27,7 +27,7 @@ namespace ccf::tasks
 
     void do_task();
 
-    virtual const std::string& get_name() const = 0;
+    [[nodiscard]] virtual const std::string& get_name() const = 0;
 
     void cancel_task();
     bool is_cancelled();

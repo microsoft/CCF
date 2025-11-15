@@ -41,7 +41,7 @@ namespace ccf::tls
           SSL_OP_NO_RENEGOTIATION);
 
       // Set cipher for TLS 1.2
-      const auto cipher_list =
+      const auto* const cipher_list =
         "ECDHE-ECDSA-AES256-GCM-SHA384:"
         "ECDHE-ECDSA-AES128-GCM-SHA256:"
         "ECDHE-RSA-AES256-GCM-SHA384:"
@@ -50,7 +50,7 @@ namespace ccf::tls
       SSL_set_cipher_list(ssl, cipher_list);
 
       // Set cipher for TLS 1.3
-      const auto ciphersuites =
+      const auto* const ciphersuites =
         "TLS_AES_256_GCM_SHA384:"
         "TLS_AES_128_GCM_SHA256";
       SSL_CTX_set_ciphersuites(cfg, ciphersuites);
@@ -71,9 +71,13 @@ namespace ccf::tls
 
       // Initialise connection
       if (client)
+      {
         SSL_set_connect_state(ssl);
+      }
       else
+      {
         SSL_set_accept_state(ssl);
+      }
     }
 
     virtual ~Context() = default;
@@ -84,21 +88,23 @@ namespace ccf::tls
       // Read/Write BIOs will be used by TLS
       BIO* rbio = BIO_new(BIO_s_mem());
       BIO_set_mem_eof_return(rbio, -1);
-      BIO_set_callback_arg(rbio, (char*)cb_obj);
+      BIO_set_callback_arg(rbio, static_cast<char*>(cb_obj));
       BIO_set_callback_ex(rbio, recv);
       SSL_set0_rbio(ssl, rbio);
 
       BIO* wbio = BIO_new(BIO_s_mem());
       BIO_set_mem_eof_return(wbio, -1);
-      BIO_set_callback_arg(wbio, (char*)cb_obj);
+      BIO_set_callback_arg(wbio, static_cast<char*>(cb_obj));
       BIO_set_callback_ex(wbio, send);
       SSL_set0_wbio(ssl, wbio);
     }
 
     virtual int handshake()
     {
-      if (SSL_is_init_finished(ssl))
+      if (SSL_is_init_finished(ssl) != 0)
+      {
         return 0;
+      }
 
       int rc = SSL_do_handshake(ssl);
       // Success in OpenSSL is 1, MBed is 0
@@ -113,7 +119,8 @@ namespace ccf::tls
       {
         return TLS_ERR_WANT_READ;
       }
-      else if (SSL_want_write(ssl))
+
+      if (SSL_want_write(ssl))
       {
         return TLS_ERR_WANT_WRITE;
       }
@@ -134,7 +141,9 @@ namespace ccf::tls
     virtual int read(uint8_t* buf, size_t len)
     {
       if (len == 0)
+      {
         return 0;
+      }
       size_t readbytes = 0;
       int rc = SSL_read_ex(ssl, buf, len, &readbytes);
       if (rc > 0)
@@ -156,7 +165,9 @@ namespace ccf::tls
     virtual int write(const uint8_t* buf, size_t len)
     {
       if (len == 0)
+      {
         return 0;
+      }
       size_t written = 0;
       int rc = SSL_write_ex(ssl, buf, len, &written);
       if (rc > 0)
@@ -204,13 +215,13 @@ namespace ccf::tls
 
       ccf::crypto::OpenSSL::Unique_X509 cert(
         SSL_get_peer_certificate(ssl), /*check_null=*/false);
-      if (!cert)
+      if (cert == nullptr)
       {
         LOG_TRACE_FMT("Empty peer cert");
         return {};
       }
       ccf::crypto::OpenSSL::Unique_BIO bio;
-      if (!i2d_X509_bio(bio, cert))
+      if (i2d_X509_bio(bio, cert) == 0)
       {
         LOG_TRACE_FMT("Can't convert X509 to DER");
         return {};
@@ -218,7 +229,7 @@ namespace ccf::tls
 
       // Get the total length of the DER representation
       auto len = BIO_get_mem_data(bio, nullptr);
-      if (!len)
+      if (len == 0)
       {
         LOG_TRACE_FMT("Null X509 peer cert");
         return {};
@@ -226,7 +237,7 @@ namespace ccf::tls
 
       // Get the BIO memory pointer
       BUF_MEM* ptr = nullptr;
-      if (!BIO_get_mem_ptr(bio, &ptr))
+      if (BIO_get_mem_ptr(bio, &ptr) == 0)
       {
         LOG_TRACE_FMT("Invalid X509 peer cert");
         return {};
