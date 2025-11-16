@@ -43,7 +43,9 @@ namespace ccf::pal
       const auto this_read = std::min(size - handled, buf_size);
       f.read(buf, this_read);
 
-      hasher->update_hash({static_cast<const uint8_t*>(static_cast<const void*>(buf)), this_read});
+      hasher->update_hash(
+        {static_cast<const uint8_t*>(static_cast<const void*>(buf)),
+         this_read});
 
       handled += this_read;
     }
