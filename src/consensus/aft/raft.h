@@ -2579,8 +2579,8 @@ namespace aft
         state->retirement_committable_idx.has_value())
       {
         const auto retirement_committable =
-          state->retirement_committable_idx // NOLINT(bugprone-unchecked-optional-access)
-            .value();
+          state // NOLINT(bugprone-unchecked-optional-access)
+            ->retirement_committable_idx.value();
         if (idx >= retirement_committable)
         {
           become_retired(idx, ccf::kv::RetirementPhase::Completed);
@@ -2687,8 +2687,8 @@ namespace aft
         if (state->retirement_committable_idx.has_value())
         {
           const auto retirement_committable =
-            state->retirement_committable_idx // NOLINT(bugprone-unchecked-optional-access)
-              .value();
+            state // NOLINT(bugprone-unchecked-optional-access)
+              ->retirement_committable_idx.value();
           if (retirement_committable > idx)
           {
             state->retirement_committable_idx = std::nullopt;
@@ -2705,8 +2705,8 @@ namespace aft
         if (state->retirement_idx.has_value())
         {
           const auto retirement =
-            state->retirement_idx // NOLINT(bugprone-unchecked-optional-access)
-              .value();
+            state // NOLINT(bugprone-unchecked-optional-access)
+              ->retirement_idx.value();
           if (retirement > idx)
           {
             state->retirement_idx = std::nullopt;
