@@ -140,6 +140,7 @@ namespace ccf::kv
     None,
     Leader,
     Follower,
+    PreVoteCandidate,
     Candidate,
   };
 
@@ -148,6 +149,7 @@ namespace ccf::kv
     {{LeadershipState::None, "None"},
      {LeadershipState::Leader, "Leader"},
      {LeadershipState::Follower, "Follower"},
+     {LeadershipState::PreVoteCandidate, "PreVoteCandidate"},
      {LeadershipState::Candidate, "Candidate"}});
 
   enum class MembershipState

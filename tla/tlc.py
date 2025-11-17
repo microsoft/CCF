@@ -9,6 +9,9 @@
 # - Capture useful switches for CI, debugging
 # - Expose specification configuration through CLI
 # - Provide a useful --help, and basic sanity checks
+#
+# Requires that tla2tools.jar and CommunityModules-deps.jar are in the same directory as this script
+# See install_deps.py
 
 import os
 import sys
@@ -128,11 +131,29 @@ def cli():
         action="store_true",
         help="Set TLC to use depth-first search",
     )
-    tv.add_argument(
+    tv_group = tv.add_mutually_exclusive_group()
+    tv_group.add_argument(
         "--ccf-raft-trace",
         type=pathlib.Path,
         default=None,
         help="Path to a CCF Raft trace .ndjson file, for example produced by make_traces.sh",
+    )
+    tv_group.add_argument(
+        "--scenario",
+        default=None,
+        help="Path to a specific scenario file to run. If provided will generate the trace from this scenario and validate it.",
+    )
+
+    # scenario trace generation
+    tv.add_argument(
+        "--raft-driver",
+        default="../build/raft_driver",
+        help="Path to the raft_driver binary",
+    )
+    tv.add_argument(
+        "--scenarios-runner",
+        default="../tests/raft_scenarios_runner.py",
+        help="Path to the raft_scenarios_runner.py script",
     )
 
     # Simulation
@@ -223,6 +244,27 @@ if __name__ == "__main__":
             jvm_args.append("-Dtlc2.tool.queue.IStateQueue=StateDeque")
         if args.ccf_raft_trace is not None:
             env["CCF_RAFT_TRACE"] = args.ccf_raft_trace
+        if args.scenario is not None:
+            # Generate the trace from the scenario using the scenarios runner
+            trace_dir = "traces"
+            cmd = [
+                sys.executable,
+                args.scenarios_runner,
+                args.raft_driver,
+                "--output",
+                trace_dir,
+                args.scenario,
+            ]
+            print(f"Generating trace from scenario with command: {shlex.join(cmd)}")
+            ret = os.system(shlex.join(cmd))
+            if ret != 0:
+                print(f"Error generating trace from scenario, exited with code {ret}")
+                sys.exit(ret)
+            print(f"Generated trace in directory: {trace_dir}")
+            trace_path = os.path.join(
+                trace_dir, os.path.basename(args.scenario) + ".ndjson"
+            )
+            env["CCF_RAFT_TRACE"] = trace_path
     elif args.cmd == "sim":
         tlc_args.extend(["-simulate"])
         if args.num is not None:
