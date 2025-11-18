@@ -2296,6 +2296,7 @@ namespace aft
         CCF_ASSERT_FMT(
           !state->retirement_idx.has_value(),
           "retirement_idx already set to {}",
+          // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
           state->retirement_idx.value());
         state->retirement_idx = idx;
         RAFT_INFO_FMT("Node retiring at {}", idx);
@@ -2304,9 +2305,11 @@ namespace aft
       {
         assert(state->retirement_idx.has_value());
         CCF_ASSERT_FMT(
+          // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
           idx >= state->retirement_idx.value(),
           "Index {} unexpectedly lower than retirement_idx {}",
           idx,
+          // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
           state->retirement_idx.value());
         state->retirement_committable_idx = idx;
         RAFT_INFO_FMT("Node retirement committable at {}", idx);
