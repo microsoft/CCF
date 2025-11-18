@@ -53,8 +53,6 @@ namespace ccf::crypto
       }
     }
 
-    X509_get_signature_info(cert, nullptr, nullptr, nullptr, nullptr);
-
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
     auto base_id = EVP_PKEY_get_base_id(pk);
