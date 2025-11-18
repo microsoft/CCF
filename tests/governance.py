@@ -22,7 +22,7 @@ import tempfile
 import infra.interfaces
 import infra.log_capture
 import governance_api
-from hashlib import md5
+from hashlib import sha256
 import random
 
 import memberclient
@@ -599,7 +599,7 @@ def single_node(args):
             consortium = network.consortium
 
             def rand_hex():
-                return md5(random.getrandbits(32).to_bytes(4, "big")).hexdigest()
+                return sha256(random.getrandbits(32).to_bytes(4, "big")).hexdigest()
 
             validate_info = f"Logged at info during validate: {rand_hex()}"
             validate_warn = f"Logged at warn during validate: {rand_hex()}"
