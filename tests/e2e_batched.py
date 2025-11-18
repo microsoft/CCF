@@ -27,7 +27,7 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
 
         message_ids = [next(id_gen) for _ in range(batch_size)]
         messages = [
-            {"id": i, "msg": f"A unique message: {sha256(i.to_bytes()).hexdigest()}"}
+            {"id": i, "msg": f"A unique message: {sha256(i.to_bytes(8)).hexdigest()}"}
             for i in message_ids
         ]
 
