@@ -53,10 +53,7 @@ namespace ccf::crypto
       }
     }
 
-    int mdnid = 0;
-    int pknid = 0;
-    int secbits = 0;
-    X509_get_signature_info(cert, &mdnid, &pknid, &secbits, nullptr);
+    X509_get_signature_info(cert, nullptr, nullptr, nullptr, nullptr);
 
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
