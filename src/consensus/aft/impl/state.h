@@ -149,7 +149,7 @@ namespace aft
 
   struct State
   {
-    State(const ccf::NodeId& node_id_, bool pre_vote_enabled_ = false) :
+    State(const ccf::NodeId& node_id_, bool pre_vote_enabled_ = true) :
       node_id(node_id_),
       pre_vote_enabled(pre_vote_enabled_)
     {}
