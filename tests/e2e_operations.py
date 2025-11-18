@@ -38,37 +38,65 @@ import re
 from loguru import logger as LOG
 
 
-def force_become_primary(network, args, node):
-    # Ensure all nodes are equally up-to-date
+def force_become_primary(network, args, target_node):
     network.wait_for_node_commit_sync()
-    p, _ = network.find_primary()
-    if p != node:
-        sleep_time = args.election_timeout_ms / 1000
-        LOG.info(
-            f"Suspending {node.node_id} and sleeping {sleep_time}s to trigger election"
-        )
-        # Suspend the target so they trigger an election on resume
-        # This is not guaranteed - if they process any queued message on wakeup, they may avoid calling an election. So try several times
-        attempts = 5
-        for attempt in range(attempts):
-            LOG.info(f"Attempt {attempt} / {attempts}")
+
+    # On each iteration suspend all nodes, and restart just the target node and a quorum of backups
+    # This will have a 1/quorum size chance of winning the election each time
+    # (this can probably be fiddled with to be more consistent)
+    def try_make_target_primary():
+        nodes = network.get_joined_nodes()
+        p, _ = network.find_primary()
+        if p == target_node:
+            return p
+
+        for node in network.get_joined_nodes():
             node.suspend()
-            time.sleep(sleep_time)
+
+        # sleep for some of the election timeout to drain message queue of target
+        time.sleep(0.1 * args.election_timeout_ms / 1000)
+        target_node.resume()
+        time.sleep(0.1 * args.election_timeout_ms / 1000)
+        target_node.suspend()
+        time.sleep(0.8 * args.election_timeout_ms / 1000)
+
+        target_node.resume()
+
+        quorum_size = (len(nodes) // 2) + 1
+        backup_quorum = [
+            n for n in nodes if n != p and n != target_node
+        ][: quorum_size - 1]
+        for node in backup_quorum:
             node.resume()
 
-            try:
-                primary, _ = network.wait_for_new_primary_in(
-                    {node.node_id}, timeout_multiplier=3
-                )
-                break
-            except (infra.network.PrimaryNotFound, TimeoutError) as e:
-                LOG.error(f"No primary found: {e}")
-                continue
+        try:
+            possible_primaries = {n.node_id for n in backup_quorum + [target_node]}
+            primary, _ = network.wait_for_new_primary_in(possible_primaries)
+        except (infra.network.PrimaryNotFound, TimeoutError) as e:
+            LOG.error(f"No primary found: {e}")
+            primary = None
+        for node in nodes:
+            if node.suspended:
+                node.resume()
+        return primary
 
-        assert primary == node
+    iterations = 0
+    eventual_timeout = args.election_timeout_ms / 1000 * 30
+    timeout = time.time() + eventual_timeout
+    while time.time() < timeout:
+        iterations += 1
+        primary = try_make_target_primary()
+        if primary == target_node:
+            break
+        else:
+            LOG.info(f"Node {target_node.node_id} not primary yet after {iterations} iterations")
+    if primary != target_node:
+        raise TimeoutError(
+            f"Node {target_node.node_id} was not elected primary in {eventual_timeout}s"
+        )
 
     # Wait for this node to emit and commit a signature
-    with node.client("user0") as c:
+    with target_node.client("user0") as c:
         sig_interval = args.sig_ms_interval / 1000
         t0 = time.time()
         timeout = 3 * sig_interval
@@ -76,10 +104,10 @@ def force_become_primary(network, args, node):
             r = c.get("/node/commit")
             assert r.status_code == http.HTTPStatus.OK, r
             tx_id = TxID.from_str(r.body.json()["transaction_id"])
-            receipt = node.get_receipt(view=tx_id.view, seqno=tx_id.seqno)
+            receipt = target_node.get_receipt(view=tx_id.view, seqno=tx_id.seqno)
             receipt_issuer = receipt.json()["node_id"]
-            if receipt_issuer == node.node_id:
-                return tx_id
+            if receipt_issuer == target_node.node_id:
+                return iterations
 
             time.sleep(sig_interval / 2)
 
