@@ -106,7 +106,7 @@ def run(get_command, args):
         for i in range(args.repetitions):
             body = {
                 "id": i % 100,
-                "msg": f"Unique message: {hashlib.md5(str(i).encode()).hexdigest()}",
+                "msg": f"Unique message: {hashlib.sha256(str(i).encode()).hexdigest()}",
             }
             msgs.append(
                 "/app/log/private",

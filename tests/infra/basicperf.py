@@ -65,7 +65,7 @@ def write_to_key_space(
             f"/records/{key}",
             "PUT",
             additional_headers=additional_headers,
-            body=f"{hashlib.md5(key.encode()).hexdigest()}",
+            body=f"{hashlib.sha256(key.encode()).hexdigest()}",
             content_type="text/plain",
         )
 
@@ -164,7 +164,7 @@ class RWMix:
 def create_and_fill_key_space(size: int, primary: infra.node.Node) -> List[str]:
     LOG.info(f"Creating and filling key space of size {size}")
     space = [f"{i}" for i in range(size)]
-    mapping = {key: f"{hashlib.md5(key.encode()).hexdigest()}" for key in space}
+    mapping = {key: f"{hashlib.sha256(key.encode()).hexdigest()}" for key in space}
     with primary.client("user0") as c:
         r = c.post("/records", mapping)
         assert r.status_code == http.HTTPStatus.NO_CONTENT, r
