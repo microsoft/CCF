@@ -304,7 +304,7 @@ namespace ccf
           fmt::format("Failed to decode CWT claims: {}", decode_error));
       }
 
-      enum
+      enum CwtIndex : std::uint8_t
       {
         CWT_ISS_INDEX,
         CWT_SUB_INDEX,
@@ -391,15 +391,19 @@ namespace ccf
     const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust,
     bool enforce_uvm_roots_of_trust)
   {
-    auto phdr = cose::decode_protected_header(uvm_endorsements_raw);
-    std::string sevsnpvm_guest_svn{};
+    UvmEndorsementsProtectedHeader phdr{};
+    std::string sevsnpvm_guest_svn;
 
-    if (phdr.iss.empty())
+    try
     {
-      // Since ContainerPlat 0.2.10, UVM endorsements carry SVN in CWT claims,
-      // alongside ISS and SUB(feed).
       std::tie(phdr, sevsnpvm_guest_svn) =
         cose::decode_protected_header_with_cwt(uvm_endorsements_raw);
+    }
+    // Since ContainerPlat 0.2.10, UVM endorsements carry SVN in CWT claims,
+    // alongside ISS and SUB(feed), so on decoding failure fallback to legacy.
+    catch (const cose::COSEDecodeError&)
+    {
+      phdr = cose::decode_protected_header(uvm_endorsements_raw);
     }
 
     if (!(cose::is_rsa_alg(phdr.alg) || cose::is_ecdsa_alg(phdr.alg)))
