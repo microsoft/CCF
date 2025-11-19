@@ -81,11 +81,9 @@ def test_partition_majority(network, args):
                 body = res.body.json()
                 initial_view = body["current_view"]
 
-    # The partitioned nodes will have called elections, increasing their view.
-    # When the partition is lifted, the nodes must elect a new leader, in at least this
-    # increased term. The winning node could come from either partition, and could even
-    # be the original primary.
-    network.wait_for_primary_unanimity(min_view=initial_view)
+    # The partitioned nodes will have called elections, but due to not having a majority, will be unable to increase their view.
+    # When the partition is lifted, this may cause a new election.
+    network.wait_for_primary_unanimity()
 
     return network
 
@@ -108,11 +106,22 @@ def test_isolate_primary_from_one_backup(network, args):
     # Note: Managed manually
     rules = network.partitioner.isolate_node(p, b_0)
 
+    # Suspend to ensure reliability if committing this Tx takes longer than the election timeout
+    b_0.suspend()
+    # Issue a tx to ensure that the non-partitioned backup has a better ledger than the partitioned one.
+    with p.client("user0") as c:
+        r = c.post("/app/log/public", {"id": 42, "msg": "Hello world"})
+        assert r.status_code == http.HTTPStatus.OK, r
+        c.wait_for_commit(r)
+    b_0.resume()
+
     LOG.info(
         f"Check that primary {p.local_node_id} reports increasing last ack time for partitioned backup {b_0.local_node_id}"
     )
     last_ack = 0
-    while True:
+    start = time.time()
+    timeout = 2 * network.args.election_timeout_ms / 1000
+    while time.time() < start + timeout:
         with p.client() as c:
             r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
             ack = r["acks"][b_0.node_id]["last_received_ms"]
@@ -122,28 +131,22 @@ def test_isolate_primary_from_one_backup(network, args):
             ), f"Nodes {p.local_node_id} and {b_0.local_node_id} are no longer partitioned"
             last_ack = ack
         else:
-            LOG.debug(f"Node {p.local_node_id} is no longer primary")
-            break
+            raise RuntimeError(
+                f"Primary {p.local_node_id} lost primary status during partition"
+            )
         time.sleep(0.1)
 
-    # Now wait for several elections to occur. We expect:
-    # - b_0 to call and win an election with b_1's help
-    # - b_0 to produce a new signature, and commit it with b_1's help
-    # - p to call its own election, and lose because it doesn't have this signature
-    # - In the resulting election race:
-    #   - If p calls first, it loses and we're in the same situation
-    #   - If b_0 calls first, it wins, but then p calls its election and we've returned to the same situation
-    #   - If b_1 calls first, it can win and then bring _both_ nodes up-to-date, becoming a _stable_ primary
-    # So we repeat elections until b_1 is primary
-
-    new_primary = network.wait_for_primary_unanimity(min_view=initial_txid.view)
-    assert new_primary == b_1
-
-    new_view = network.txs.issue(network, send_private=False).view
-
-    # The partition is now between 2 backups, but both can talk to the new primary
     # Explicitly drop rules before continuing
     rules.drop()
+
+    # partitioned backup should now observe original primary
+    new_primary, new_view = network.wait_for_new_primary_in({p.node_id}, nodes=[b_0])
+    assert (
+        new_primary == p
+    ), f"New primary {new_primary.local_node_id} is different than original primary {p.local_node_id}"
+    assert (
+        new_view == initial_txid.view
+    ), f"Consensus view {new_view} should be equal to {initial_txid.view} after partition is dropped"
 
     LOG.info(f"Check that new primary {new_primary.local_node_id} reports stable acks")
     last_ack = 0
@@ -161,15 +164,6 @@ def test_isolate_primary_from_one_backup(network, args):
             if delayed_acks:
                 raise RuntimeError(f"New primary reported some delayed acks: {acks}")
         time.sleep(0.1)
-
-    # Original primary should now, or very soon, report the new primary
-    new_primary_, new_view_ = network.wait_for_new_primary(p, nodes=[p])
-    assert (
-        new_primary == new_primary_
-    ), f"New primary {new_primary_.local_node_id} after partition is dropped is different than before {new_primary.local_node_id}"
-    assert (
-        new_view == new_view_
-    ), f"Consensus view {new_view} should not have changed after partition is dropped: now {new_view_}"
 
     return network
 
@@ -194,7 +188,10 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
         # The isolated primary will stay in follower state once Pre-Vote
         # is implemented. https://github.com/microsoft/CCF/issues/2577
         primary.wait_for_leadership_state(
-            primary_view, ["Candidate"], timeout=2 * args.election_timeout_ms / 1000
+            # We want view >= primary_view, but comparison is > so subtract 1
+            primary_view - 1,
+            ["Follower", "PreVoteCandidate"],
+            timeout=2 * args.election_timeout_ms / 1000,
         )
 
     # Check reconnected former primary has caught up
@@ -338,13 +335,13 @@ def test_expired_certs(network, args):
             stack.enter_context(network.partitioner.partition([primary]))
 
         # Restore connectivity between backups and wait for election
-        network.wait_for_primary_unanimity(nodes=[backup_a, backup_b], min_view=r.view)
+        network.wait_for_primary_unanimity(nodes=[backup_a, backup_b], min_view=r.view + 1)
 
         # Should now be able to make progress
         check_can_progress(backup_a)
 
     # Restore connectivity with primary, an election may or may not happen
-    network.wait_for_primary_unanimity(min_view=r.view)
+    network.wait_for_primary_unanimity(min_view=r.view + 1)
 
     # Set valid node certs so that future clients can speak to these nodes
     set_certs(from_days_diff=-1, validity_period_days=7, nodes=(primary, backup_a))
@@ -507,13 +504,6 @@ def test_forwarding_timeout(network, args):
         assert r.status_code == http.HTTPStatus.OK, r
         assert r.body.json()["msg"] == val_b, r
 
-    # Wait for new view on isolated backup so that network is left
-    # in a stable state when partition is lifted
-    backup.wait_for_leadership_state(
-        min_view=view,
-        leadership_states=["Candidate"],
-        timeout=4 * args.election_timeout_ms / 1000,
-    )
     rules.drop()
 
     network.wait_for_primary_unanimity(min_view=view)
@@ -645,21 +635,6 @@ def test_session_consistency(network, args):
                 except ConnectionResetError:
                     LOG.info(f"Session {client.description} was terminated as expected")
 
-        def wait_for_new_view(node, original_view, timeout_multiplier):
-            election_s = args.election_timeout_ms / 1000
-            timeout = election_s * timeout_multiplier
-            end_time = time.time() + timeout
-            while time.time() < end_time:
-                with node.client() as c:
-                    r = c.get("/node/network")
-                    assert r.status_code == http.HTTPStatus.OK, r
-                    if r.body.json()["current_view"] > original_view:
-                        return
-                time.sleep(0.1)
-            raise TimeoutError(
-                f"Node failed to reach view higher than {original_view} after waiting {timeout}s"
-            )
-
         # Partition primary and forwarding backup from other backups
         with network.partitioner.partition([primary, backup]):
             # Write on partitioned primary
@@ -683,28 +658,26 @@ def test_session_consistency(network, args):
 
             # Once CheckQuorum takes effect and the primary stands down, all sessions
             # on the primary report a risk of inconsistency
-            wait_for_new_view(backup, r0.view, 4)
-            check_sessions_dead(
-                (
-                    # This session wrote state which is now at risk of being lost
-                    client_primary_A,
-                    # This session only read old state which is still valid
-                    client_primary_B,
-                    # This is also immediately true for forwarded sessions on the backup
-                    client_backup_C,
-                )
+            primary.wait_for_leadership_state(
+                r0.view - 1,
+                ["Follower", "PreVoteCandidate", "Candidate"],
+                timeout=2 * args.election_timeout_ms / 1000,
             )
 
-            # The backup may not have received any view increment yet, so a non-forwarded
-            # session on the backup may still be valid. This is a temporary, racey situation,
-            # and safe (the backup has not rolled back, and is still reporting state in the
-            # old session).
-            # Test that once the view has advanced, that backup session is also terminated.
-            wait_for_new_view(backup, r0.view, 1)
-            check_sessions_dead((client_backup_D,))
+        # Once we remove the network partition, a new primary will be elected in a higher term,
+        network.wait_for_primary_unanimity(min_view=r0.view + 1)
 
-    # Wait for network stability after healing partition
-    network.wait_for_primary_unanimity(min_view=r0.view)
+        # This will break all of the previous sessions
+        check_sessions_dead(
+            (
+                # This session wrote state to the partitioned primary which was at risk of being lost
+                client_primary_A,
+                # These sessions only read old state which is still valid
+                client_primary_B,
+                client_backup_C,
+                client_backup_D,
+            )
+        )
 
     # Restore original network size
     network.resize(original_size, args)

@@ -1582,7 +1582,7 @@ class Network:
                     primary, view = self.find_primary(
                         nodes=[node], log_capture=logs, timeout=1
                     )
-                    if min_view is None or view > min_view:
+                    if min_view is None or view >= min_view:
                         primaries[node.node_id] = primary
                 except PrimaryNotFound:
                     LOG.info(f"Primary not found for {node.node_id}")
