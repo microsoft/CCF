@@ -59,9 +59,7 @@ namespace quic
         threading::ThreadMessaging::instance().get_execution_thread(session_id);
     }
 
-    ~QUICSession()
-    {
-    }
+    ~QUICSession() {}
 
     std::string hostname()
     {
