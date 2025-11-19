@@ -1330,6 +1330,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 
       for (const auto& [label, i, msg] : old_messages)
       {
+        // Uncomment this line to aid debugging if any of these fail
+        // std::cout << label << ": " << i << std::endl;
         auto msg_1 = msg;
         channels1.recv_channel_message(nid2, std::move(msg_1));
         auto msg_2 = msg;
@@ -1388,6 +1390,9 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 
     REQUIRE(channels1.channel_open(nid2));
     REQUIRE(channels2.channel_open(nid1));
+
+    // We are not robust to new inits here!
+    // receive_junk();
 
     REQUIRE(channels1.send_encrypted(
       nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload));
