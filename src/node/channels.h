@@ -661,16 +661,6 @@ namespace ccf
       }
 
       // Parse fields from incoming message
-      // size_t peer_version = serialized::read<size_t>(data, size);
-      // if (peer_version != protocol_version)
-      // {
-      //   CHANNEL_RECV_FAIL(
-      //     "Protocol version mismatch (node={}, peer={})",
-      //     protocol_version,
-      //     peer_version);
-      //   return false;
-      // }
-
       auto sig = extract_span(data, size);
       if (sig.empty())
       {
@@ -851,7 +841,6 @@ namespace ccf
       // As a future simplification, we would like this to always be true
       // (initiations must travel through reset/inactive), but it is not
       // currently true
-      // status.expect(INACTIVE);
       status.advance(INITIATED);
 
       last_initiation_time = decltype(last_initiation_time)::clock::now();

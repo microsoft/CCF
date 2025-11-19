@@ -50,7 +50,6 @@ static void append_retract(picobench::state& s)
       t.retract(index - 1000);
     }
 
-    // do_not_optimize();
     clobber_memory();
   }
   s.stop_timer();
@@ -80,7 +79,6 @@ static void append_flush(picobench::state& s)
     if (index > 0 && index % 1000 == 0)
       t.flush(index - 1000);
 
-    // do_not_optimize();
     clobber_memory();
   }
   s.stop_timer();
@@ -112,7 +110,6 @@ static void append_get_proof_verify(picobench::state& s)
     if (!t.verify(p))
       throw std::runtime_error("Bad path");
 
-    // do_not_optimize();
     clobber_memory();
   }
   s.stop_timer();
@@ -145,7 +142,6 @@ static void append_get_proof_verify_v(picobench::state& s)
     if (!t.verify(proof))
       throw std::runtime_error("Bad path");
 
-    // do_not_optimize();
     clobber_memory();
   }
   s.stop_timer();

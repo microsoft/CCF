@@ -61,7 +61,6 @@ namespace quic
 
     ~QUICSession()
     {
-      // RINGBUFFER_WRITE_MESSAGE(quic::quic_closed, to_host, session_id);
     }
 
     std::string hostname()

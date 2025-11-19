@@ -208,8 +208,6 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     rA.replicate(ccf::kv::BatchVector{{1, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 1);
     DOCTEST_REQUIRE(rA.get_committed_seqno() == 0);
-    // Size limit was reached, so periodic is not needed
-    // rA.periodic(request_timeout);
 
     // Dispatch AppendEntries
     DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idA, channelsA->messages));
@@ -238,22 +236,16 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     rA.replicate(ccf::kv::BatchVector{{2, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 2);
     DOCTEST_REQUIRE(rA.get_committed_seqno() == 1);
-    // Size limit was reached, so periodic is not needed
-    // rA.periodic(request_timeout);
 
     entry = make_ledger_entry(1, 3);
     rA.replicate(ccf::kv::BatchVector{{3, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 3);
     DOCTEST_REQUIRE(rA.get_committed_seqno() == 1);
-    // Size limit was reached, so periodic is not needed
-    // rA.periodic(request_timeout);
 
     entry = make_ledger_entry(1, 4);
     rA.replicate(ccf::kv::BatchVector{{4, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 4);
     DOCTEST_REQUIRE(rA.get_committed_seqno() == 1);
-    // Size limit was reached, so periodic is not needed
-    // rA.periodic(request_timeout);
 
     {
       DOCTEST_INFO("Delete the AppendEntries for D and E");
@@ -285,8 +277,6 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     auto entry = make_ledger_entry(1, 5);
     rA.replicate(ccf::kv::BatchVector{{5, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 5);
-    // Size limit was reached, so periodic is not needed
-    // rB.periodic(request_timeout);
 
     {
       DOCTEST_INFO("Delete the AppendEntries for C, D and E");
@@ -356,9 +346,6 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     entry = make_ledger_entry(2, 7);
     rB.replicate(ccf::kv::BatchVector{{7, entry, true, hooks}}, 2);
     DOCTEST_REQUIRE(rB.get_last_idx() == 7);
-
-    // Size limit was reached, so periodic is not needed
-    // rB.periodic(request_timeout);
 
     // All those AppendEntries (including the initial ones from winning an
     // election) are lost - this is a dead suffix known only by B.
@@ -632,8 +619,6 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
     rA.replicate(ccf::kv::BatchVector{{2, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 2);
     DOCTEST_REQUIRE(rA.get_committed_seqno() == 0);
-    // Size limit was reached, so periodic is not needed
-    // rA.periodic(request_timeout);
 
     // Dispatch AppendEntries
     DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idA));
