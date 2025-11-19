@@ -79,7 +79,6 @@ def test_partition_majority(network, args):
             with primary.client() as c:
                 res = c.get("/node/network")  # Well-known read-only endpoint
                 body = res.body.json()
-                initial_view = body["current_view"]
 
     # The partitioned nodes will have called elections, but due to not having a majority, will be unable to increase their view.
     # When the partition is lifted, this may cause a new election.
@@ -335,7 +334,9 @@ def test_expired_certs(network, args):
             stack.enter_context(network.partitioner.partition([primary]))
 
         # Restore connectivity between backups and wait for election
-        network.wait_for_primary_unanimity(nodes=[backup_a, backup_b], min_view=r.view + 1)
+        network.wait_for_primary_unanimity(
+            nodes=[backup_a, backup_b], min_view=r.view + 1
+        )
 
         # Should now be able to make progress
         check_can_progress(backup_a)

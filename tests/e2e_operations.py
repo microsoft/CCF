@@ -63,9 +63,9 @@ def force_become_primary(network, args, target_node):
         target_node.resume()
 
         quorum_size = (len(nodes) // 2) + 1
-        backup_quorum = [
-            n for n in nodes if n != p and n != target_node
-        ][: quorum_size - 1]
+        backup_quorum = [n for n in nodes if n != p and n != target_node][
+            : quorum_size - 1
+        ]
         for node in backup_quorum:
             node.resume()
 
@@ -89,7 +89,9 @@ def force_become_primary(network, args, target_node):
         if primary == target_node:
             break
         else:
-            LOG.info(f"Node {target_node.node_id} not primary yet after {iterations} iterations")
+            LOG.info(
+                f"Node {target_node.node_id} not primary yet after {iterations} iterations"
+            )
     if primary != target_node:
         raise TimeoutError(
             f"Node {target_node.node_id} was not elected primary in {eventual_timeout}s"
