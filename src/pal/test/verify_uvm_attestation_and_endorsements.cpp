@@ -132,15 +132,10 @@ ccf::QuoteVerificationResult validate_join_policy(
     return ccf::QuoteVerificationResult::Failed;
   }
 
-  // auto rc = verify_host_data_against_store(tx, quote_info);
-
-  // rc = verify_enclave_measurement_against_store(
   ccf::verify_uvm_endorsements_against_roots_of_trust(
     quote_info.uvm_endorsements.value(),
     measurement,
     ccf::default_uvm_roots_of_trust);
-
-  // rc = verify_tcb_version_against_store(tx, quote_info);
 
   auto rc = ccf::verify_quoted_node_public_key(expected_pubk_der, quoted_hash);
 
