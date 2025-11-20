@@ -110,7 +110,7 @@ def test_isolate_primary_from_one_backup(network, args):
 
     # This is what we expect to happen:
     # - b_0 first times out and calls an election
-    # - As it is up to date with b_1, it will win that election, 
+    # - As it is up to date with b_1, it will win that election,
     #   and after being elected emit a signiture.
     # - p will then step down via CheckQuorum
     # - p will then try to call multiple elections but at most become a PreVoteCandidate,
