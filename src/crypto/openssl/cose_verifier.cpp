@@ -147,6 +147,17 @@ namespace ccf::crypto
   {
     EVP_PKEY* evp_key = *public_key;
 
+    const auto alg_header = extract_algorithm_from_header(buf);
+    const auto alg_key = ccf::crypto::key_to_cose_alg_id(*public_key);
+    if (!alg_header || !alg_key || alg_key != alg_header)
+    {
+      LOG_DEBUG_FMT(
+        "COSE Sign1 verification: incompatible key IDS ({} vs {})",
+        alg_header,
+        alg_key);
+      return false;
+    }
+
     t_cose_key cose_key = {};
     cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
     cose_key.k.key_ptr = evp_key;
