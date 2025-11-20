@@ -78,7 +78,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF ..
+          cmake -DCMAKE_BUILD_TYPE=Debug -GNinja -DBUILD_TESTS=OFF ..
         shell: bash
 
       - run: |
