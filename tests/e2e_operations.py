@@ -45,7 +45,9 @@ def force_become_primary(network, args, target_node):
     def wait_for_signature_from_node(node):
         with node.client("user0") as c:
             r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
-            assert r['leadership_state'] == 'Leader', f"Node {node.node_id} is not leader: {r}"
+            assert (
+                r["leadership_state"] == "Leader"
+            ), f"Node {node.node_id} is not leader: {r}"
             sig_interval = args.sig_ms_interval / 1000
             t0 = time.time()
             timeout = 3 * sig_interval
