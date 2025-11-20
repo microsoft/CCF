@@ -83,7 +83,7 @@ jobs:
 
       - run: |
           cd build
-          make -j16
+          ninja
         name: Run Make
 
       - name: Perform CodeQL Analysis
