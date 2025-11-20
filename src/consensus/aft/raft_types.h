@@ -19,7 +19,6 @@ namespace aft
   using Index = uint64_t;
   using Term = uint64_t;
   using Node2NodeMsg = uint64_t;
-  using Nonce = ccf::crypto::Sha256Hash;
 
   static constexpr size_t starting_view_change = 2;
 
