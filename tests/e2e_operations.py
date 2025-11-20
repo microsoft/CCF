@@ -40,17 +40,38 @@ from loguru import logger as LOG
 
 def force_become_primary(network, args, target_node):
     network.wait_for_node_commit_sync()
+    nodes = network.get_joined_nodes()
+
+    def wait_for_signature_from_node(node):
+        with node.client("user0") as c:
+            r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
+            assert r['leadership_state'] == 'Leader', f"Node {node.node_id} is not leader: {r}"
+            sig_interval = args.sig_ms_interval / 1000
+            t0 = time.time()
+            timeout = 3 * sig_interval
+            while time.time() - t0 < timeout:
+                r = c.get("/node/commit")
+                assert r.status_code == http.HTTPStatus.OK, r
+                tx_id = TxID.from_str(r.body.json()["transaction_id"])
+                receipt = node.get_receipt(view=tx_id.view, seqno=tx_id.seqno)
+                receipt_issuer = receipt.json()["node_id"]
+                LOG.info(receipt.json())
+                if receipt_issuer == node.node_id:
+                    return tx_id
+                time.sleep(sig_interval / 2)
+            raise TimeoutError(
+                f"Node {node.node_id} did not produce signature (and receipt) in current term after {timeout}s"
+            )
 
     # On each iteration suspend all nodes, and restart just the target node and a quorum of backups
     # This will have a 1/quorum size chance of winning the election each time
     # (this can probably be fiddled with to be more consistent)
     def try_make_target_primary():
-        nodes = network.get_joined_nodes()
         p, _ = network.find_primary()
         if p == target_node:
             return p
 
-        for node in network.get_joined_nodes():
+        for node in nodes:
             node.suspend()
 
         # stutter the node for some of the election timeout to drain message queue
@@ -75,9 +96,15 @@ def force_become_primary(network, args, target_node):
         except (infra.network.PrimaryNotFound, TimeoutError) as e:
             LOG.error(f"No primary found: {e}")
             primary = None
+
+        # allow primary to commit signature to ensure the quorum is stable
+        wait_for_signature_from_node(primary)
+
+        # Resume all nodes
         for node in nodes:
             if node.suspended:
                 node.resume()
+
         return primary
 
     iterations = 0
@@ -98,26 +125,8 @@ def force_become_primary(network, args, target_node):
             f"Node {target_node.node_id} was not elected primary in {eventual_timeout}s"
         )
 
-    # Wait for this node to emit and commit a signature
-    with target_node.client("user0") as c:
-        sig_interval = args.sig_ms_interval / 1000
-        t0 = time.time()
-        timeout = 3 * sig_interval
-        while time.time() - t0 < timeout:
-            r = c.get("/node/commit")
-            assert r.status_code == http.HTTPStatus.OK, r
-            tx_id = TxID.from_str(r.body.json()["transaction_id"])
-            receipt = target_node.get_receipt(view=tx_id.view, seqno=tx_id.seqno)
-            receipt_issuer = receipt.json()["node_id"]
-            LOG.info(receipt.json())
-            if receipt_issuer == target_node.node_id:
-                return tx_id
-
-            time.sleep(sig_interval / 2)
-
-        raise TimeoutError(
-            f"New primary did not produce signature (and receipt) in new term after {timeout}s"
-        )
+    primary_txid = wait_for_signature_from_node(primary)
+    return primary_txid
 
 
 @reqs.description("Move committed ledger files to read-only directory")
