@@ -79,10 +79,11 @@ def test_partition_majority(network, args):
             with primary.client() as c:
                 res = c.get("/node/network")  # Well-known read-only endpoint
                 body = res.body.json()
+                initial_view = body["current_view"]
 
     # The partitioned nodes will have called elections, but due to not having a majority, will be unable to increase their view.
     # When the partition is lifted, this may cause a new election.
-    network.wait_for_primary_unanimity()
+    network.wait_for_primary_unanimity(min_view=initial_view)
 
     return network
 
