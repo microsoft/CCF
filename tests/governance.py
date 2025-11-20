@@ -22,8 +22,11 @@ import tempfile
 import infra.interfaces
 import infra.log_capture
 import governance_api
-from hashlib import md5
+from hashlib import sha256
 import random
+
+import memberclient
+import membership
 
 from loguru import logger as LOG
 
@@ -596,7 +599,7 @@ def single_node(args):
             consortium = network.consortium
 
             def rand_hex():
-                return md5(random.getrandbits(32).to_bytes(4, "big")).hexdigest()
+                return sha256(random.getrandbits(32).to_bytes(4, "big")).hexdigest()
 
             validate_info = f"Logged at info during validate: {rand_hex()}"
             validate_warn = f"Logged at warn during validate: {rand_hex()}"
@@ -808,4 +811,19 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
-    cr.run(2)
+    cr.add(
+        "membership",
+        membership.run,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=0,
+    )
+
+    cr.add(
+        "member_client",
+        memberclient.run,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=1),
+    )
+
+    cr.run()
