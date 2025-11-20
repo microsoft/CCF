@@ -15,7 +15,7 @@
 
 namespace ccf::kv
 {
-  class CommittableTx : public Tx, public AbstractChangeContainer
+  class CommittableTx : public Tx
   {
   public:
     using TxFlags = uint8_t;
@@ -32,8 +32,6 @@ namespace ccf::kv
     bool success = false;
 
     Version version = NoVersion;
-
-    ccf::kv::TxHistory::RequestID req_id;
 
     TxFlags flags = 0;
     SerialisedEntryFlags entry_flags = 0;
@@ -328,29 +326,6 @@ namespace ccf::kv
         // Write transaction
         return TxID(pimpl->commit_view, version);
       }
-    }
-
-    void set_change_list(OrderedChanges&& change_list_, Term term_) override
-    {
-      // if all_changes is not empty then any coinciding keys will not be
-      // overwritten
-      all_changes.merge(change_list_);
-      pimpl->commit_view = term_;
-    }
-
-    void set_view(ccf::View view_)
-    {
-      pimpl->commit_view = view_;
-    }
-
-    void set_req_id(const ccf::kv::TxHistory::RequestID& req_id_)
-    {
-      req_id = req_id_;
-    }
-
-    const ccf::kv::TxHistory::RequestID& get_req_id()
-    {
-      return req_id;
     }
 
     void set_read_txid(const TxID& tx_id, Term commit_view_)
