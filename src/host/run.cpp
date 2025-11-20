@@ -822,6 +822,21 @@ namespace ccf
         return static_cast<int>(CLI::ExitCodes::ValidationError);
       }
 
+      for (const auto& readonly_ledger_directory :
+           config.ledger.read_only_directories)
+      {
+        if (
+          files::exists(readonly_ledger_directory) ||
+          !fs::is_empty(readonly_ledger_directory))
+        {
+          LOG_FATAL_FMT(
+            "On start, read-only ledger directories should not exist or be "
+            "empty ({})",
+            readonly_ledger_directory);
+          return static_cast<int>(CLI::ExitCodes::ValidationError);
+        }
+      }
+
       populate_config_for_start(config, startup_config);
     }
     else if (config.command.type == StartType::Join)
