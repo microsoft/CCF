@@ -126,7 +126,7 @@ namespace ccf::crypto
 
     if (EVP_PKEY_get_base_id(pk) == EVP_PKEY_EC)
     {
-      public_key = std::make_shared<ECPublicKey_OpenSSL>(pk);
+      public_key = std::make_shared<PublicKey_OpenSSL>(pk);
     }
     else
     {
@@ -136,7 +136,7 @@ namespace ccf::crypto
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const Pem& public_key_)
   {
-    public_key = std::make_shared<ECPublicKey_OpenSSL>(public_key_);
+    public_key = std::make_shared<PublicKey_OpenSSL>(public_key_);
   }
 
   COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;
@@ -148,7 +148,7 @@ namespace ccf::crypto
     EVP_PKEY* evp_key = *public_key;
 
     const auto alg_header = extract_algorithm_from_header(buf);
-    const auto alg_key = ccf::crypto::key_to_cose_alg_id(*public_key);
+    const auto alg_key = public_key->cose_alg_id();
     if (!alg_header || !alg_key || alg_key != alg_header)
     {
       LOG_DEBUG_FMT(
@@ -191,11 +191,11 @@ namespace ccf::crypto
     EVP_PKEY* evp_key = *public_key;
 
     const auto alg_header = extract_algorithm_from_header(buf);
-    const auto alg_key = ccf::crypto::key_to_cose_alg_id(*public_key);
+    const auto alg_key = public_key->cose_alg_id();
     if (!alg_header || !alg_key || alg_key != alg_header)
     {
       LOG_DEBUG_FMT(
-        "COSE Sign1 verification: incompatible key IDS ({} vs {})",
+        "COSE Sign1 verification: incompatible key IDs ({} vs {})",
         alg_header,
         alg_key);
       return false;

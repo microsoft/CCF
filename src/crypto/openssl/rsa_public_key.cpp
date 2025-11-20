@@ -48,25 +48,14 @@ namespace ccf::crypto
 {
   using namespace OpenSSL;
 
-  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(EVP_PKEY* key) : key(key)
-  {
-    if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
-    {
-      cleanup_pkey(&key);
-      throw std::logic_error("invalid RSA key");
-    }
-  }
-
-  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const Pem& pem)
-  {
-    Unique_BIO mem(pem);
-    key = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
-    if (key == nullptr || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
-    {
-      cleanup_pkey(&key);
-      throw std::logic_error("invalid RSA key");
-    }
-  }
+  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL() = default;
+  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(EVP_PKEY* key) :
+    PublicKey_OpenSSL(key)
+  {}
+  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const Pem& pem) :
+    PublicKey_OpenSSL(pem)
+  {}
+  RSAPublicKey_OpenSSL::~RSAPublicKey_OpenSSL() = default;
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(std::span<const uint8_t> der)
   {
@@ -110,11 +99,6 @@ namespace ccf::crypto
     CHECK1(EVP_PKEY_fromdata_init(pctx));
     CHECK1(EVP_PKEY_fromdata(
       pctx, &key, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
-  }
-
-  RSAPublicKey_OpenSSL::~RSAPublicKey_OpenSSL()
-  {
-    cleanup_pkey(&key);
   }
 
   size_t RSAPublicKey_OpenSSL::key_size() const
