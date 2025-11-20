@@ -826,7 +826,7 @@ namespace ccf
            config.ledger.read_only_directories)
       {
         if (
-          files::exists(readonly_ledger_directory) ||
+          files::exists(readonly_ledger_directory) &&
           !fs::is_empty(readonly_ledger_directory))
         {
           LOG_FATAL_FMT(
