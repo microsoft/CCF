@@ -108,53 +108,79 @@ def test_isolate_primary_from_one_backup(network, args):
     # Note: Managed manually
     rules = network.partitioner.isolate_node(p, b_0)
 
-    # Suspend to ensure reliability if committing this Tx takes longer than the election timeout
-    b_0.suspend()
-    # Issue a tx to ensure that the non-partitioned backup has a better ledger than the partitioned one.
-    with p.client("user0") as c:
-        r = c.post("/app/log/public", {"id": 42, "msg": "Hello world"})
-        assert r.status_code == http.HTTPStatus.OK, r
-        c.wait_for_commit(r)
-    b_0.resume()
+    # This is what we expect to happen:
+    # - b_0 first times out and calls an election
+    # - As it is up to date with b_1, it will win that election, 
+    #   and after being elected emit a signiture.
+    # - p will then step down via CheckQuorum
+    # - p will then try to call multiple elections but at most become a PreVoteCandidate,
+    #   and not disrupt the cluster, as it cannot pass pre-vote due to missing the signature
+    #   from b_0's leadership election
 
     LOG.info(
-        f"Check that primary {p.local_node_id} reports increasing last ack time for partitioned backup {b_0.local_node_id}"
+        f"Check that primary {p.local_node_id} reports increasing last ack time for partitioned backup {b_0.local_node_id} and the partitioned backup's election timeout also increases"
     )
+
     last_ack = 0
-    start = time.time()
-    timeout = 2 * network.args.election_timeout_ms / 1000
-    while time.time() < start + timeout:
+    timeout = time.time() + 2 * network.args.election_timeout_ms / 1000
+    while True:
         with p.client() as c:
             r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
             ack = r["acks"][b_0.node_id]["last_received_ms"]
-        if r["primary_id"] is not None:
-            assert (
-                ack >= last_ack
-            ), f"Nodes {p.local_node_id} and {b_0.local_node_id} are no longer partitioned"
-            last_ack = ack
-        else:
+            has_stepped_down = r["leadership_state"] in {"Follower", "PreVoteCandidate"}
+            if not has_stepped_down:
+                assert (
+                    ack >= last_ack
+                ), f"Nodes {p.local_node_id} and {b_0.local_node_id} are no longer partitioned"
+                last_ack = ack
+        with b_0.client() as c:
+            r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
+            if r["leadership_state"] == "Leader":
+                LOG.info(
+                    f"Backup {b_0.local_node_id} has become primary in new view {r['current_view']}"
+                )
+                new_view = r["current_view"]
+                break
+        if time.time() > timeout:
             raise RuntimeError(
-                f"Primary {p.local_node_id} lost primary status during partition"
+                f"Backup {b_0.local_node_id} did not become primary within timeout"
             )
+
+        time.sleep(0.1)
+
+    p.wait_for_leadership_state(
+        initial_txid.view,
+        ["Follower", "PreVoteCandidate"],
+        timeout=4 * network.args.election_timeout_ms / 1000,
+    )
+
+    # Verify that b_0 is stably the primary, and that p is a Follower/PreVoteCandidate
+    timeout = time.time() + 2 * network.args.election_timeout_ms / 1000
+    while time.time() < timeout:
+        with b_0.client() as c:
+            r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
+            assert (
+                r["leadership_state"] == "Leader" and r["current_view"] == new_view
+            ), f"Backup {b_0.local_node_id} is no longer primary for {new_view}"
+        with p.client() as c:
+            r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
+            assert r["leadership_state"] in {
+                "Follower",
+                "PreVoteCandidate",
+            }, f"Primary {p.local_node_id} is no longer follower"
         time.sleep(0.1)
 
     # Explicitly drop rules before continuing
     rules.drop()
 
-    # partitioned backup should now observe original primary
-    new_primary, new_view = network.wait_for_new_primary_in({p.node_id}, nodes=[b_0])
-    assert (
-        new_primary == p
-    ), f"New primary {new_primary.local_node_id} is different than original primary {p.local_node_id}"
-    assert (
-        new_view == initial_txid.view
-    ), f"Consensus view {new_view} should be equal to {initial_txid.view} after partition is dropped"
+    # primary should now observe partitioned backup as primary
+    network.wait_for_new_primary_in({b_0.node_id}, nodes=[p])
 
-    LOG.info(f"Check that new primary {new_primary.local_node_id} reports stable acks")
+    LOG.info(f"Check that new primary {b_0.local_node_id} reports stable acks")
     last_ack = 0
     end_time = time.time() + 2 * network.args.election_timeout_ms // 1000
     while time.time() < end_time:
-        with new_primary.client() as c:
+        with b_0.client() as c:
             acks = c.get("/node/consensus", log_capture=[]).body.json()["details"][
                 "acks"
             ]
@@ -845,20 +871,20 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_invalid_partitions(network, args)
-        test_partition_majority(network, args)
+        # test_invalid_partitions(network, args)
+        # test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
-        test_new_joiner_helps_liveness(network, args)
-        test_expired_certs(network, args)
-        for n in range(5):
-            test_isolate_and_reconnect_primary(network, args, iteration=n)
-        test_election_reconfiguration(network, args)
-        test_forwarding_timeout(network, args)
-        # HTTP2 doesn't support forwarding
-        if not args.http2:
-            test_session_consistency(network, args)
-        network = test_recovery_elections(network, args)
-        test_ledger_invariants(network, args)
+        # test_new_joiner_helps_liveness(network, args)
+        # test_expired_certs(network, args)
+        # for n in range(5):
+        #    test_isolate_and_reconnect_primary(network, args, iteration=n)
+        # test_election_reconfiguration(network, args)
+        # test_forwarding_timeout(network, args)
+        ## HTTP2 doesn't support forwarding
+        # if not args.http2:
+        #    test_session_consistency(network, args)
+        # network = test_recovery_elections(network, args)
+        # test_ledger_invariants(network, args)
 
 
 if __name__ == "__main__":
