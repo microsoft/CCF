@@ -109,6 +109,7 @@ def force_become_primary(network, args, target_node):
             tx_id = TxID.from_str(r.body.json()["transaction_id"])
             receipt = target_node.get_receipt(view=tx_id.view, seqno=tx_id.seqno)
             receipt_issuer = receipt.json()["node_id"]
+            LOG.info(receipt.json())
             if receipt_issuer == target_node.node_id:
                 return tx_id
 
