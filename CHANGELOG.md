@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Start nodes now confirm that read-only ledger directories are empty on startup.
+- Start nodes now confirm that read-only ledger directories are empty on startup (#7355).
 
 ## [7.0.0-dev5]
 
