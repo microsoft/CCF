@@ -152,7 +152,7 @@ namespace ccf::crypto
     if (!alg_header || !alg_key || alg_key != alg_header)
     {
       LOG_DEBUG_FMT(
-        "COSE Sign1 verification: incompatible key IDS ({} vs {})",
+        "COSE Sign1 verification: incompatible key IDs ({} vs {})",
         alg_header,
         alg_key);
       return false;
