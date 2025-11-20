@@ -55,7 +55,6 @@ def force_become_primary(network, args, target_node):
                 tx_id = TxID.from_str(r.body.json()["transaction_id"])
                 receipt = node.get_receipt(view=tx_id.view, seqno=tx_id.seqno)
                 receipt_issuer = receipt.json()["node_id"]
-                LOG.info(receipt.json())
                 if receipt_issuer == node.node_id:
                     return tx_id
                 time.sleep(sig_interval / 2)
