@@ -53,7 +53,7 @@ def force_become_primary(network, args, target_node):
         for node in network.get_joined_nodes():
             node.suspend()
 
-        # sleep for some of the election timeout to drain message queue of target
+        # stutter the node for some of the election timeout to drain message queue
         time.sleep(0.1 * args.election_timeout_ms / 1000)
         target_node.resume()
         time.sleep(0.1 * args.election_timeout_ms / 1000)
@@ -81,7 +81,8 @@ def force_become_primary(network, args, target_node):
         return primary
 
     iterations = 0
-    eventual_timeout = args.election_timeout_ms / 1000 * 30
+    timeout_multiplier = 30
+    eventual_timeout = args.election_timeout_ms / 1000 * timeout_multiplier
     timeout = time.time() + eventual_timeout
     while time.time() < timeout:
         iterations += 1
@@ -109,7 +110,7 @@ def force_become_primary(network, args, target_node):
             receipt = target_node.get_receipt(view=tx_id.view, seqno=tx_id.seqno)
             receipt_issuer = receipt.json()["node_id"]
             if receipt_issuer == target_node.node_id:
-                return iterations
+                return tx_id
 
             time.sleep(sig_interval / 2)
 
