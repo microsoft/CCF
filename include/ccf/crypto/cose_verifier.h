@@ -12,10 +12,11 @@ namespace ccf::crypto
   {
   public:
     virtual bool verify(
-      const std::span<const uint8_t>& buf,
+      const std::span<const uint8_t>& envelope,
       std::span<uint8_t>& authned_content) const = 0;
     [[nodiscard]] virtual bool verify_detached(
-      std::span<const uint8_t> buf, std::span<const uint8_t> payload) const = 0;
+      std::span<const uint8_t> envelope,
+      std::span<const uint8_t> payload) const = 0;
     virtual ~COSEVerifier() = default;
   };
 
