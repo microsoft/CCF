@@ -152,22 +152,9 @@ namespace ccf::crypto
           "OpenSSL error: {}", OpenSSL::error_string(ERR_get_error())));
       }
     }
-
-    int mdnid = 0;
-    int pknid = 0;
-    int secbits = 0;
-    X509_get_signature_info(cert, &mdnid, &pknid, &secbits, nullptr);
-
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
-    if (EVP_PKEY_get_base_id(pk) == EVP_PKEY_EC)
-    {
-      public_key = std::make_shared<PublicKey_OpenSSL>(pk);
-    }
-    else
-    {
-      throw std::logic_error("unsupported public key type");
-    }
+    public_key = std::make_shared<PublicKey_OpenSSL>(pk);
   }
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const Pem& public_key_)
