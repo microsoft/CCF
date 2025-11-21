@@ -2001,13 +2001,25 @@ def run_ledger_chunk_bytes_check(const_args):
             for tx_id in tx_ids
         }
 
+        def signatures_within_chunk(chunk_path):
+            chunk = ccf.ledger.LedgerChunk(chunk_path)
+            sig_count = 0
+            for tx in chunk:
+                tables = tx.get_public_domain().get_tables()
+                if ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables:
+                    sig_count += 1
+            return sig_count
+
         for path, actual_size in actual_chunk_sizes.items():
             start, end = ccf.ledger.range_from_filename(path)
             if end in chunk_ends_to_expected_size:
                 chunk_size = chunk_ends_to_expected_size[end]
                 num_transactions = 1 + end - start
                 min_expected = chunk_size + overhead(num_transactions, num_signatures=0)
-                max_expected = chunk_size + overhead(num_transactions, num_signatures=4)
+                sig_count = signatures_within_chunk(path)
+                max_expected = chunk_size + overhead(
+                    num_transactions, num_signatures=sig_count
+                )
 
                 r = range(min_expected, max_expected)
                 if actual_size not in r:
