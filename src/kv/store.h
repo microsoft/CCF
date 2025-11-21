@@ -607,30 +607,30 @@ namespace ccf::kv
 
       if (snapshotter)
       {
-        snapshotter->rollback(tx_id.version);
+        snapshotter->rollback(tx_id.seqno);
       }
 
       if (chunker)
       {
-        chunker->rolled_back_to(tx_id.version);
+        chunker->rolled_back_to(tx_id.seqno);
       }
 
       std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
 
       {
         std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-        if (tx_id.version < compacted)
+        if (tx_id.seqno < compacted)
         {
           throw std::logic_error(fmt::format(
             "Attempting rollback to {}, earlier than commit version {}",
-            tx_id.version,
+            tx_id.seqno,
             compacted));
         }
 
         // The term should always be updated on rollback() when passed
         // regardless of whether version needs to be updated or not
         term_of_next_version = term_of_next_version_;
-        term_of_last_version = tx_id.term;
+        term_of_last_version = tx_id.view;
 
         // History must be informed of the term_of_last_version change, even if
         // no actual rollback is required
@@ -640,20 +640,20 @@ namespace ccf::kv
           h->rollback(tx_id, term_of_next_version);
         }
 
-        if (tx_id.version >= version)
+        if (tx_id.seqno >= version)
         {
           return;
         }
 
-        version = tx_id.version;
-        last_replicated = tx_id.version;
+        version = tx_id.seqno;
+        last_replicated = tx_id.seqno;
         unset_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
         auto e = get_encryptor();
         if (e)
         {
-          e->rollback(tx_id.version);
+          e->rollback(tx_id.seqno);
         }
       }
 
@@ -669,8 +669,8 @@ namespace ccf::kv
         auto& [map_creation_version, map] = it->second;
         // Rollback this map whether we're forgetting about it or not. Anyone
         // else still holding it should see it has rolled back
-        map->rollback(tx_id.version);
-        if (map_creation_version > tx_id.version)
+        map->rollback(tx_id.seqno);
+        if (map_creation_version > tx_id.seqno)
         {
           // Map was created more recently; its creation is being forgotten.
           // Erase our knowledge of it
@@ -869,17 +869,11 @@ namespace ccf::kv
       return version;
     }
 
-    ccf::kv::TxID current_txid() override
+    ccf::TxID current_txid() override
     {
       // Must lock in case the version or read term is being incremented.
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
       return current_txid_unsafe();
-    }
-
-    ccf::TxID get_txid() override
-    {
-      const auto kv_id = current_txid();
-      return {kv_id.term, kv_id.version};
     }
 
     std::pair<TxID, Term> current_txid_and_commit_term() override
@@ -915,7 +909,7 @@ namespace ccf::kv
 
       LOG_DEBUG_FMT(
         "Store::commit {}{}",
-        txid.version,
+        txid.seqno,
         (globally_committable ? " globally_committable" : ""));
 
       BatchVector batch;
@@ -930,28 +924,28 @@ namespace ccf::kv
 
       {
         std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-        if (txid.term != term_of_next_version && get_consensus()->is_primary())
+        if (txid.view != term_of_next_version && get_consensus()->is_primary())
         {
           // This can happen when a transaction started before a view change,
           // but tries to commit after the view change is complete.
           LOG_DEBUG_FMT(
             "Want to commit for term {} but term is {}",
-            txid.term,
+            txid.view,
             term_of_next_version);
 
           return CommitResult::FAIL_NO_REPLICATE;
         }
 
-        if (globally_committable && txid.version > last_committable)
+        if (globally_committable && txid.seqno > last_committable)
         {
-          last_committable = txid.version;
+          last_committable = txid.seqno;
         }
 
         pending_txs.insert(
-          {txid.version,
+          {txid.seqno,
            std::make_tuple(std::move(pending_tx), globally_committable)});
 
-        LOG_TRACE_FMT("Inserting pending tx at {}", txid.version);
+        LOG_TRACE_FMT("Inserting pending tx at {}", txid.seqno);
 
         for (Version offset = 1; true; ++offset)
         {
@@ -964,8 +958,8 @@ namespace ccf::kv
               last_replicated + offset,
               last_replicated,
               offset,
-              txid.term,
-              txid.version);
+              txid.view,
+              txid.seqno);
             break;
           }
 
@@ -1024,8 +1018,8 @@ namespace ccf::kv
           "Batching {} ({}) during commit of {}.{}",
           previous_last_replicated + offset,
           data_shared->size(),
-          txid.term,
-          txid.version);
+          txid.view,
+          txid.seqno);
 
         batch.emplace_back(
           previous_last_replicated + offset,

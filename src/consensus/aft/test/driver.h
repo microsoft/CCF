@@ -79,14 +79,14 @@ struct LoggingStubStore_Mermaid : public aft::LoggingStubStoreConfig
     aft::LoggingStubStoreConfig::compact(idx);
   }
 
-  void rollback(const ccf::kv::TxID& tx_id, aft::Term t) override
+  void rollback(const ccf::TxID& tx_id, aft::Term t) override
   {
     RAFT_DRIVER_PRINT(
       "{}->>{}: [KV] rolling back to {}.{}, in term {}",
       _id,
       _id,
-      tx_id.term,
-      tx_id.version,
+      tx_id.view,
+      tx_id.seqno,
       t);
     aft::LoggingStubStoreConfig::rollback(tx_id, t);
   }

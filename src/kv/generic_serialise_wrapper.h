@@ -76,7 +76,7 @@ namespace ccf::kv
     {
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(entry_type);
-      serialise_internal(tx_id.version);
+      serialise_internal(tx_id.seqno);
       if (has_claims(entry_type))
       {
         serialise_internal(claims_digest_.value());
@@ -210,7 +210,7 @@ namespace ccf::kv
             historical_hint))
       {
         throw KvSerialiserException(fmt::format(
-          "Could not serialise transaction at seqno {}", tx_id.version));
+          "Could not serialise transaction at seqno {}", tx_id.seqno));
       }
 
       serialized::write(
