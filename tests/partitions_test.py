@@ -21,6 +21,7 @@ import copy
 from collections import defaultdict
 from ccf.tx_id import TxID
 import os
+from reconfiguration import test_ledger_invariants
 
 from loguru import logger as LOG
 
