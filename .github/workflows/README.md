@@ -42,7 +42,7 @@ File: `long-test.yml`
 
 # CodeQL analysis
 
-Builds CCF with CodeQL, and runs the security-extended checks. Triggered on PRs that affect ".github/workflows/codeql-analysis.yml", and once a week on main.
+Builds CCF with CodeQL, and runs the security-extended checks. Triggered on PRs that affect ".github/workflows/codeql-analysis.yml", on pushes to main, and once a week on schedule.
 
 File: `codeql-analysis.yml`
 3rd party dependencies:
