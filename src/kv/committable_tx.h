@@ -404,9 +404,9 @@ namespace ccf::kv
       Version rollback_count_) :
       CommittableTx(_store)
     {
-      version = reserved_tx_id.version;
-      pimpl->commit_view = reserved_tx_id.term;
-      pimpl->read_txid = TxID(read_term, reserved_tx_id.version - 1);
+      version = reserved_tx_id.seqno;
+      pimpl->commit_view = reserved_tx_id.view;
+      pimpl->read_txid = TxID(read_term, reserved_tx_id.seqno - 1);
       rollback_count = rollback_count_;
     }
 

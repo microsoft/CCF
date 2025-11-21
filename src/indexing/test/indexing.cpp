@@ -227,8 +227,7 @@ TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
   REQUIRE(indexer.install_strategy(index_b));
   REQUIRE_FALSE(indexer.install_strategy(index_b));
 
-  auto current_ = kv_store.current_txid();
-  ccf::TxID current{current_.term, current_.version};
+  ccf::TxID current = kv_store.current_txid();
   REQUIRE(index_a->get_indexed_watermark() == current);
   REQUIRE(index_b->get_indexed_watermark() == ccf::TxID());
 
@@ -832,7 +831,7 @@ TEST_CASE(
 
     while (true)
     {
-      const auto end_seqno = kv_store.get_txid().seqno;
+      const auto end_seqno = kv_store.current_txid().seqno;
       const auto range_end = std::min(end_seqno, range_start + max_range);
 
       auto results =

@@ -28,8 +28,8 @@ namespace ccf::kv
       // is acceptable for a live CCF as 2^31 elections will take decades, even
       // with an election timeout as low as 1 sec.
 
-      hdr.set_iv_seq(tx_id.version);
-      hdr.set_iv_term(tx_id.term);
+      hdr.set_iv_seq(tx_id.seqno);
+      hdr.set_iv_term(tx_id.view);
       if (entry_type == EntryType::Snapshot)
       {
         hdr.set_iv_is_snapshot();
@@ -83,7 +83,7 @@ namespace ccf::kv
       set_iv(hdr, tx_id, entry_type);
 
       auto key =
-        ledger_secrets->get_encryption_key_for(tx_id.version, historical_hint);
+        ledger_secrets->get_encryption_key_for(tx_id.seqno, historical_hint);
       if (key == nullptr)
       {
         return false;
@@ -146,12 +146,12 @@ namespace ccf::kv
       const TxID& tx_id, bool historical_hint = false) override
     {
       auto secret =
-        ledger_secrets->get_secret_for(tx_id.version, historical_hint);
+        ledger_secrets->get_secret_for(tx_id.seqno, historical_hint);
       if (secret == nullptr)
       {
         throw std::logic_error("Failed to get encryption key");
       }
-      auto txid_str = tx_id.str();
+      auto txid_str = tx_id.to_str();
       std::vector<uint8_t> txid = {
         txid_str.data(), txid_str.data() + txid_str.size()};
 
