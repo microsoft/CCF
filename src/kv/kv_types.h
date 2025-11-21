@@ -331,39 +331,6 @@ namespace ccf::kv
   class TxHistory
   {
   public:
-    using RequestID = std::tuple<
-      size_t /* Client Session ID */,
-      size_t /* Request sequence number */>;
-
-    struct RequestCallbackArgs
-    {
-      RequestID rid;
-      std::vector<uint8_t> request;
-      std::vector<uint8_t> caller_cert;
-      uint8_t frame_format;
-    };
-
-    struct ResultCallbackArgs
-    {
-      RequestID rid;
-      Version version;
-      ccf::crypto::Sha256Hash replicated_state_merkle_root;
-    };
-
-    struct ResponseCallbackArgs
-    {
-      RequestID rid;
-      std::vector<uint8_t> response;
-    };
-
-    enum class Result
-    {
-      FAIL = 0,
-      OK,
-      SEND_SIG_RECEIPT_ACK,
-      SEND_REPLY_AND_NONCE
-    };
-
     virtual ~TxHistory() {}
     virtual bool verify_root_signatures(ccf::kv::Version version) = 0;
     virtual void try_emit_signature() = 0;

@@ -15,12 +15,6 @@ namespace ccf::kv
   // maps in a stable order. The order here is by map name
   using MapCollection = std::map<std::string, std::shared_ptr<AbstractMap>>;
 
-  struct AbstractChangeContainer
-  {
-    virtual ~AbstractChangeContainer() = default;
-    virtual void set_change_list(OrderedChanges&& change_list, Term term) = 0;
-  };
-
   // Atomically checks for conflicts then applies the writes in the given change
   // sets to their underlying Maps. Calls f() at most once, iff the writes are
   // applied, to retrieve a unique Version for the write set and return the max

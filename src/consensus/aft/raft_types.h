@@ -19,13 +19,6 @@ namespace aft
   using Index = uint64_t;
   using Term = uint64_t;
   using Node2NodeMsg = uint64_t;
-  using Nonce = ccf::crypto::Sha256Hash;
-
-  using ReplyCallback = std::function<bool(
-    void* owner,
-    ccf::kv::TxHistory::RequestID caller_rid,
-    int status,
-    std::vector<uint8_t>&& data)>;
 
   static constexpr size_t starting_view_change = 2;
 
