@@ -16,7 +16,6 @@ import time
 import http
 import contextlib
 import ccf.ledger
-from reconfiguration import test_ledger_invariants
 import subprocess
 import copy
 from collections import defaultdict
@@ -861,9 +860,10 @@ def test_recovery_elections(orig_network, args):
 
     return recovery_network
 
+
 def force_become_primary(network, args, target_node):
     network.wait_for_node_commit_sync()
-    primary, backups = network.find_nodes() 
+    primary, backups = network.find_nodes()
 
     if primary != target_node:
         # In a fully sync'd cluster this will cause the following:
@@ -873,13 +873,15 @@ def force_become_primary(network, args, target_node):
         # target replicates signature
         # then we can remove the partition
         rules = network.partitioner.isolate_node(primary, target_node)
-        target_node.wait_for_leadership_state(0, "Leader", timeout=2*args.election_timeout_ms/1000)
+        target_node.wait_for_leadership_state(
+            0, "Leader", timeout=2 * args.election_timeout_ms / 1000
+        )
         network.wait_for_node_commit_sync(nodes=backups)
         rules.drop()
         # Wait for the old primary to observe the new one
         network.wait_for_new_primary_in({target_node.node_id}, nodes=[primary])
         primary = target_node
-    
+
     # Ensure a signature has been produced in the new term
     with target_node.client("user0") as c:
         r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
@@ -902,6 +904,7 @@ def force_become_primary(network, args, target_node):
             f"Node {target_node.node_id} did not produce signature (and receipt) in current term after {timeout}s"
         )
 
+
 def run_ledger_chunk_bytes_check(const_args):
     LOG.info("Confirm that ledger chunks are determined by the primary")
     args = copy.deepcopy(const_args)
@@ -914,7 +917,9 @@ def run_ledger_chunk_bytes_check(const_args):
 
     args.nodes = infra.e2e_args.nodes(args, 3)
 
-    with infra.network.network(args.nodes, args.binary_dir, init_partitioner=True) as network:
+    with infra.network.network(
+        args.nodes, args.binary_dir, init_partitioner=True
+    ) as network:
         # Start each node with a different chunk size
         unit_size = 16384
         size_0 = unit_size
@@ -1065,6 +1070,7 @@ def run_ledger_chunk_bytes_check(const_args):
 
         # Confirm we've seen all expected chunk ends
         assert len(chunk_ends_to_expected_size) == 0
+
 
 def run(args):
     txs = app.LoggingTxs("user0")
