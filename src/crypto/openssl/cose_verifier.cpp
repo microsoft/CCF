@@ -192,8 +192,11 @@ namespace ccf::crypto
 
     const auto alg_header = extract_algorithm_from_header(buf);
     const auto alg_key = public_key->cose_alg_id();
+
     if (!alg_header || !alg_key || alg_key != alg_header)
     {
+      throw std::logic_error(
+        fmt::format("Incompatible key IDs ({} vs {})", alg_header, alg_key));
       LOG_DEBUG_FMT(
         "COSE Sign1 verification: incompatible key IDs ({} vs {})",
         alg_header,

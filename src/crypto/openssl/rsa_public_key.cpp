@@ -51,10 +51,22 @@ namespace ccf::crypto
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL() = default;
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(EVP_PKEY* key) :
     PublicKey_OpenSSL(key)
-  {}
+  {
+    if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
+    {
+      throw std::logic_error(
+        "Cannot construct RSAPublicKey_OpenSSL from non-RSA key");
+    }
+  }
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const Pem& pem) :
     PublicKey_OpenSSL(pem)
-  {}
+  {
+    if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
+    {
+      throw std::logic_error(
+        "Cannot construct RSAPublicKey_OpenSSL from non-RSA key");
+    }
+  }
   RSAPublicKey_OpenSSL::~RSAPublicKey_OpenSSL() = default;
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(std::span<const uint8_t> der)
@@ -73,13 +85,10 @@ namespace ccf::crypto
       throw std::runtime_error(fmt::format("OpenSSL error: {}", msg));
     }
 
-    // As it's a common pattern to rely on successful key wrapper construction
-    // as a confirmation of a concrete key type, this must fail for non-RSA
-    // keys.
-    if (key == nullptr || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
+    if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
-      cleanup_pkey(&key);
-      throw std::logic_error("invalid RSA key");
+      throw std::logic_error(
+        "Cannot construct RSAPublicKey_OpenSSL from non-RSA key");
     }
   }
 
