@@ -104,12 +104,12 @@ namespace ccf::kv
 
       if (expected_txid.has_value())
       {
-        if (term != expected_txid->term || version != expected_txid->version)
+        if (term != expected_txid->view || version != expected_txid->seqno)
         {
           LOG_FAIL_FMT(
             "TxID mismatch during deserialisation. Expected {}.{}, got {}.{}",
-            expected_txid->term,
-            expected_txid->version,
+            expected_txid->view,
+            expected_txid->seqno,
             term,
             version);
           return ApplyResult::FAIL;

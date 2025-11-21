@@ -355,7 +355,7 @@ TEST_CASE("Backup catchup from many ledger secrets")
         ccf::kv::ApplyResult::PASS);
 
       auto tx_id = backup_store.current_txid();
-      tx_id.version--;
+      tx_id.seqno--;
       // While catching up, assume the backup rolls back (e.g. because of an
       // election)
       backup_store.rollback(tx_id, backup_store.commit_view());
