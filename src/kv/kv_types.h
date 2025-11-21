@@ -48,36 +48,6 @@ namespace ccf::kv
   using Term = uint64_t;
   using NodeId = ccf::NodeId;
 
-  struct TxID
-  {
-    Term term = 0;
-    Version version = 0;
-
-    TxID() = default;
-    TxID(Term t, Version v) : term(t), version(v) {}
-
-    // Would like to remove these duplicate types, but for now we just do free
-    // conversion
-    TxID(const ccf::TxID& other) : term(other.view), version(other.seqno) {}
-
-    operator ccf::TxID() const
-    {
-      return {term, version};
-    }
-
-    bool operator==(const TxID& other) const
-    {
-      return term == other.term && version == other.version;
-    }
-
-    std::string str() const
-    {
-      return fmt::format("{}.{}", term, version);
-    }
-  };
-  DECLARE_JSON_TYPE(TxID);
-  DECLARE_JSON_REQUIRED_FIELDS(TxID, term, version)
-
   using ReconfigurationId = uint64_t;
 
   struct Configuration
@@ -367,7 +337,7 @@ namespace ccf::kv
     virtual void emit_signature() = 0;
     virtual ccf::crypto::Sha256Hash get_replicated_state_root() = 0;
     virtual std::tuple<
-      ccf::kv::TxID /* TxID of last transaction seen by history */,
+      ccf::TxID /* TxID of last transaction seen by history */,
       ccf::crypto::Sha256Hash /* root as of TxID */,
       ccf::kv::Term /* term_of_next_version */>
     get_replicated_state_txid_and_root() = 0;
@@ -381,7 +351,7 @@ namespace ccf::kv
       const ccf::crypto::Sha256Hash& digest,
       std::optional<ccf::kv::Term> expected_term = std::nullopt) = 0;
     virtual void rollback(
-      const ccf::kv::TxID& tx_id, ccf::kv::Term term_of_next_version_) = 0;
+      const ccf::TxID& tx_id, ccf::kv::Term term_of_next_version_) = 0;
     virtual void compact(Version v) = 0;
     virtual void set_term(ccf::kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t to) = 0;
@@ -514,7 +484,7 @@ namespace ccf::kv
       const std::vector<uint8_t>& additional_data,
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
-      const TxID& tx_id,
+      const ccf::TxID& tx_id,
       EntryType entry_type = EntryType::WriteSet,
       bool historical_hint = false) = 0;
     virtual bool decrypt(
@@ -532,7 +502,7 @@ namespace ccf::kv
     virtual uint64_t get_term(const uint8_t* data, size_t size) = 0;
 
     virtual ccf::crypto::HashBytes get_commit_nonce(
-      const TxID& tx_id, bool historical_hint = false) = 0;
+      const ccf::TxID& tx_id, bool historical_hint = false) = 0;
   };
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
 
@@ -656,11 +626,11 @@ namespace ccf::kv
 
     virtual Version next_version() = 0;
     virtual std::tuple<Version, Version> next_version(bool commit_new_map) = 0;
-    virtual TxID next_txid() = 0;
+    virtual ccf::TxID next_txid() = 0;
 
     virtual Version current_version() = 0;
-    virtual TxID current_txid() = 0;
-    virtual std::pair<TxID, Term> current_txid_and_commit_term() = 0;
+    virtual ccf::TxID current_txid() = 0;
+    virtual std::pair<ccf::TxID, Term> current_txid_and_commit_term() = 0;
 
     virtual Version compacted_version() = 0;
     virtual Term commit_view() = 0;
@@ -679,12 +649,12 @@ namespace ccf::kv
     virtual std::unique_ptr<AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      const std::optional<TxID>& expected_txid = std::nullopt) = 0;
+      const std::optional<ccf::TxID>& expected_txid = std::nullopt) = 0;
     virtual void compact(Version v) = 0;
-    virtual void rollback(const TxID& tx_id, Term write_term_) = 0;
+    virtual void rollback(const ccf::TxID& tx_id, Term write_term_) = 0;
     virtual void initialise_term(Term t) = 0;
     virtual CommitResult commit(
-      const TxID& txid,
+      const ccf::TxID& txid,
       std::unique_ptr<PendingTx> pending_tx,
       bool globally_committable) = 0;
     virtual bool check_rollback_count(Version count) = 0;

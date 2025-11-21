@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Start nodes now confirm that read-only ledger directories are empty on startup (#7355).
+- In the C++ API, the method `get_txid()` on `ccf::kv::ReadOnlyStore` has been renamed to `current_txid()`. This may affect historical query code which works directly with the returned `StorePtr` (#7477).
 
 ## [7.0.0-dev5]
 

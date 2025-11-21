@@ -349,7 +349,7 @@ namespace aft
 
     virtual void compact(Index i) {}
 
-    virtual void rollback(const ccf::kv::TxID& tx_id, Term t) {}
+    virtual void rollback(const ccf::TxID& tx_id, Term t) {}
 
     virtual void initialise_term(Term t) {}
 
@@ -373,7 +373,7 @@ namespace aft
     public:
       ExecutionWrapper(
         const std::vector<uint8_t>& data_,
-        const std::optional<ccf::kv::TxID>& expected_txid,
+        const std::optional<ccf::TxID>& expected_txid,
         ccf::kv::ConsensusHookPtrs&& hooks_) :
         hooks(std::move(hooks_))
       {
@@ -390,7 +390,7 @@ namespace aft
 
         if (expected_txid.has_value())
         {
-          if (term != expected_txid->term || index != expected_txid->version)
+          if (term != expected_txid->view || index != expected_txid->seqno)
           {
             result = ccf::kv::ApplyResult::FAIL;
           }
@@ -452,7 +452,7 @@ namespace aft
     virtual std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      const std::optional<ccf::kv::TxID>& expected_txid = std::nullopt)
+      const std::optional<ccf::TxID>& expected_txid = std::nullopt)
     {
       ccf::kv::ConsensusHookPtrs hooks = {};
       return std::make_unique<ExecutionWrapper>(
@@ -504,20 +504,20 @@ namespace aft
         retired_committed_entries.end());
     }
 
-    virtual void rollback(const ccf::kv::TxID& tx_id, Term t) override
+    virtual void rollback(const ccf::TxID& tx_id, Term t) override
     {
       retired_committed_entries.erase(
         std::remove_if(
           retired_committed_entries.begin(),
           retired_committed_entries.end(),
-          [tx_id](const auto& entry) { return entry.first > tx_id.version; }),
+          [tx_id](const auto& entry) { return entry.first > tx_id.seqno; }),
         retired_committed_entries.end());
     }
 
     virtual std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      const std::optional<ccf::kv::TxID>& expected_txid = std::nullopt) override
+      const std::optional<ccf::TxID>& expected_txid = std::nullopt) override
     {
       // Set reconfiguration hook if there are any new nodes
       // Read wrapping term and version
