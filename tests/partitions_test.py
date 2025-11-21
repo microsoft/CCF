@@ -1100,6 +1100,7 @@ def run(args):
             test_session_consistency(network, args)
         network = test_recovery_elections(network, args)
         test_ledger_invariants(network, args)
+    run_ledger_chunk_bytes_check(args)
 
 
 if __name__ == "__main__":
