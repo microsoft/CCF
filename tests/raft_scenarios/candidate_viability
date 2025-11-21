@@ -27,7 +27,7 @@ periodic_one,0,100
 assert_detail,0,leadership_state,Follower
 
 periodic_one,0,100
-assert_detail,0,leadership_state,Candidate
+assert_detail,0,leadership_state,PreVoteCandidate
 dispatch_all
 assert_detail,0,leadership_state,Leader
 
@@ -53,7 +53,7 @@ disconnect_node,4
 
 # Node 1 calls an wins an election, and wins with 2 and 3
 periodic_one,1,100
-assert_detail,1,leadership_state,Candidate
+assert_detail,1,leadership_state,PreVoteCandidate
 dispatch_all
 assert_detail,1,leadership_state,Leader
 
@@ -75,7 +75,7 @@ dispatch_all
 
 # Node 0 calls a fresh election
 periodic_one,0,100
-assert_detail,0,leadership_state,Candidate
+assert_detail,0,leadership_state,PreVoteCandidate
 dispatch_all
 assert_detail,0,leadership_state,Leader
 
@@ -105,7 +105,7 @@ dispatch_all
 
 # Node 1 calls a fresh election
 periodic_one,1,100
-assert_detail,1,leadership_state,Candidate
+assert_detail,1,leadership_state,PreVoteCandidate
 dispatch_all
 assert_detail,1,leadership_state,Leader
 
@@ -160,9 +160,7 @@ dispatch_all
 
 # Could be any of the up-to-date nodes, we nominate 4
 periodic_one,4,100
-dispatch_all
-periodic_one,4,100
-assert_detail,4,leadership_state,Candidate
+assert_detail,4,leadership_state,PreVoteCandidate
 dispatch_all
 periodic_all,10
 dispatch_all

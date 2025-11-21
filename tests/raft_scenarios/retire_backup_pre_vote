@@ -1,4 +1,4 @@
-pre_vote_enabled,false
+pre_vote_enabled,true
 start_node,0
 assert_detail,0,leadership_state,Leader
 emit_signature,2
@@ -42,28 +42,11 @@ assert_commit_idx,1,8
 assert_commit_idx,2,8
 assert_commit_idx,3,6 # Node 3 hasn't heard anything for a long time
 
-## When Node 3 reconnects it becomes a candidate for term 3
+## When Node 3 reconnects and becomes a PreVoteCandidate
 reconnect_node,3
 periodic_one,3,100
-assert_detail,3,leadership_state,Candidate
+assert_detail,3,leadership_state,PreVoteCandidate
 
-## Node 3's candidacy causes node 0 to step down
+## Node 3's candidacy does not cause Node 0 to step down
 dispatch_single,3,0
-assert_detail,0,leadership_state,Follower
-
-## However Node 3 cannot be elected as after updating their term, nodes nack the message
-dispatch_all
-assert_detail,3,leadership_state,Candidate
-
-## Without communicating with Node 3, Node 0 becomes Leader
-periodic_one,0,100
-dispatch_single,0,1
-dispatch_single,1,0
 assert_detail,0,leadership_state,Leader
-
-## Node 3 can learn from Node 0 that it has been retired
-assert_detail,3,leadership_state,Candidate
-dispatch_single,0,3
-assert_detail,3,leadership_state,Follower
-
-summarise_logs_all

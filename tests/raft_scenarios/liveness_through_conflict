@@ -26,6 +26,9 @@ emit_signature,2
 
 # Node 1 calls and wins an election
 periodic_one,1,100
+assert_detail,1,leadership_state,PreVoteCandidate
+dispatch_one,1
+dispatch_one,2
 assert_detail,1,leadership_state,Candidate
 dispatch_one,1
 dispatch_one,2

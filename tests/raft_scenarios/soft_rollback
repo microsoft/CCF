@@ -1,3 +1,5 @@
+# This test checks rollback behaviour, and is easier to trigger without pre-vote
+pre_vote_enabled,false
 # Fully-connected 3-node network
 start_node,0
 assert_detail,0,leadership_state,Leader
@@ -61,7 +63,7 @@ state_all
 
 # Node 1 should not vote for node 2!
 dispatch_one,1
-assert_!detail,2,leadership_state,Primary
+assert_!detail,2,leadership_state,Leader
 
 # Because if they did, then node 2's AEs would break persistence!
 periodic_all,10
