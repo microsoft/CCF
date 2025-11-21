@@ -1421,15 +1421,17 @@ class Network:
             self.get_joined_nodes()
         ), f"Only {len(caught_up_nodes)} (out of {len(self.get_joined_nodes())}) nodes have joined the network"
 
-    def wait_for_node_commit_sync(self, timeout=3):
+    def wait_for_node_commit_sync(self, nodes=None, timeout=3):
         """
         Wait for commit level to get in sync on all nodes. This is expected to
         happen once CFTR has been established, in the absence of new transactions.
         """
+        if nodes is None:
+            nodes = self.get_joined_nodes()
         end_time = time.time() + timeout
         while time.time() < end_time:
             commits = []
-            for node in self.get_joined_nodes():
+            for node in nodes:
                 with node.client() as c:
                     r = c.get("/node/commit")
                     assert r.status_code == http.HTTPStatus.OK.value
@@ -1440,7 +1442,7 @@ class Network:
             time.sleep(0.1)
         expected = [commits[0]] * len(commits)
         if expected != commits:
-            for node in self.get_joined_nodes():
+            for node in nodes:
                 with node.client() as c:
                     r = c.get("/node/consensus")
                     pprint.pprint(r.body.json())
