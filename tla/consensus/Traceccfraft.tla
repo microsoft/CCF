@@ -175,12 +175,37 @@ IsBecomeCandidate ==
     /\ IsEvent("become_candidate")
     /\ logline.msg.state.leadership_state = "Candidate"
     /\ logline.msg.state.pre_vote_enabled /\ PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id]
-    /\ BecomeCandidate(logline.msg.state.node_id)
+    /\ BecomeCandidateFromPreVoteCandidate(logline.msg.state.node_id)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+
+\* Transition to candidate on receipt to allow using RcvProposeVoteRequest
+\* This means that the leadership state variable will be out of sync until the subsequent IsRcvProposeVoteBecomeCandidate
+IsRcvProposeVoteRequest ==
+  /\ IsEvent("recv_propose_request_vote")
+  /\ LET i == logline.msg.state.node_id
+     IN
+     \E j \in Servers:
+     \E m \in Network!MessagesTo(i,j):
+        /\ m.type = ProposeVoteRequest
+        /\ m.term = logline.msg.packet.term
+        /\ RcvProposeVoteRequest(i,j)
+  /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
+  /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+  /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
+
+IsRcvProposeVoteBecomeCandidate ==
+  /\ IsEvent("become_candidate")
+  /\ UNCHANGED vars
+  /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
+  /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+  /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
+  /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+  /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+  /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsBecomeLeader ==
     /\ IsEvent("become_leader")
@@ -434,22 +459,6 @@ IsCheckQuorum ==
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
     /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
-IsRcvProposeVoteRequest ==
-    /\ IsEvent("recv_propose_request_vote")
-    /\ LET i == logline.msg.state.node_id
-           j == logline.msg.from_node_id
-       IN \E m \in Network!MessagesTo(i, j):
-            /\ m.type = ProposeVoteRequest
-            /\ m.term = logline.msg.packet.term
-            /\ Discard(m)
-            /\ UNCHANGED <<preVoteStatus, commitIndex, reconfigurationVars, currentTerm, isNewFollower, leadershipState, log, matchIndex, membershipState, sentIndex, votedFor, votesGranted>>
-    /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
-    /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
-    /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
-    /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
-
 TraceNext ==
     \/ IsTimeout
     \/ IsBecomeCandidate
@@ -477,6 +486,7 @@ TraceNext ==
     \/ IsExecuteAppendEntries
 
     \/ IsRcvProposeVoteRequest
+    \/ IsRcvProposeVoteBecomeCandidate
 
     \/ IsDropPendingTo
 
