@@ -33,7 +33,7 @@ dispatch_one,0
 periodic_one,0,100
 assert_detail,0,leadership_state,Follower
 periodic_one,0,100
-assert_detail,0,leadership_state,Candidate
+assert_detail,0,leadership_state,PreVoteCandidate
 
 # Receive vote responses and AEs
 dispatch_all
