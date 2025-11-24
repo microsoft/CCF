@@ -668,17 +668,14 @@ BecomePreVoteCandidate(i) ==
     /\ votesGranted' = [votesGranted EXCEPT ![i] = {i}]
     /\ UNCHANGED <<currentTerm, membershipState, votedFor, isNewFollower, preVoteStatus, messageVars, reconfigurationVars, leaderVars, logVars>>
 
+\* NOTE: This currently allows a PreVoteEnabled service to become a candidate arbitrarily
+\* This behaviour is a superset of the behaviours in CCF as a Follower can only become a Candidate
+\* via a PreVoteCandidate or when a ProposeVoteRequest is received.
 BecomeCandidate(i) ==
     \* Only servers that haven't completed retirement can become candidates
     /\ membershipState[i] \in (MembershipStates \ {RetiredCommitted})
     \* Only servers that are followers/candidates can become candidates
-    /\ IF PreVoteEnabled \notin preVoteStatus[i]
-       THEN leadershipState[i] \in {Follower, Candidate} 
-       ELSE /\ leadershipState[i] = PreVoteCandidate
-            \* To become a Candidate, the PreVoteCandidate must have received votes from a majority in each active configuration
-            \* Only votes by nodes part of a given configuration should be tallied against it
-            /\ \A c \in DOMAIN configurations[i] : 
-              (votesGranted[i] \intersect configurations[i][c]) \in Quorums[configurations[i][c]]
+    /\ leadershipState[i] \in {Follower, PreVoteCandidate, Candidate} 
     /\
         \* Check that the reconfiguration which added this node is at least committable
         \/ \E c \in DOMAIN configurations[i] :
