@@ -13,6 +13,9 @@ namespace ccf::crypto
   class PublicKey_OpenSSL
   {
   protected:
+    // The key is always owned by the PublicKey_OpenSSL instance
+    // even when passed to the constructor, and is disposed of
+    // by the PublicKey_OpenSSL destructor.
     EVP_PKEY* key = nullptr;
 
   public:
