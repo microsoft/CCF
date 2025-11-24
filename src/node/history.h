@@ -26,25 +26,6 @@
 // #include "merklecpp_trace.h"
 #include <merklecpp/merklecpp.h>
 
-FMT_BEGIN_NAMESPACE
-template <>
-struct formatter<ccf::kv::TxHistory::RequestID>
-{
-  template <typename ParseContext>
-  constexpr auto parse(ParseContext& ctx)
-  {
-    return ctx.begin();
-  }
-
-  template <typename FormatContext>
-  auto format(const ccf::kv::TxHistory::RequestID& p, FormatContext& ctx) const
-  {
-    return format_to(
-      ctx.out(), "<RID {0}, {1}>", std::get<0>(p), std::get<1>(p));
-  }
-};
-FMT_END_NAMESPACE
-
 namespace ccf
 {
   enum HashOp
@@ -92,13 +73,13 @@ namespace ccf
 
   class NullTxHistoryPendingTx : public ccf::kv::PendingTx
   {
-    ccf::kv::TxID txid;
+    ccf::TxID txid;
     ccf::kv::Store& store;
     NodeId id;
 
   public:
     NullTxHistoryPendingTx(
-      ccf::kv::TxID txid_, ccf::kv::Store& store_, const NodeId& id_) :
+      ccf::TxID txid_, ccf::kv::Store& store_, const NodeId& id_) :
       txid(txid_),
       store(store_),
       id(id_)
@@ -114,7 +95,7 @@ namespace ccf
 
       auto serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
-      PrimarySignature sig_value(id, txid.version);
+      PrimarySignature sig_value(id, txid.seqno);
       signatures->put(sig_value);
       cose_signatures->put(ccf::CoseSignature{});
       serialised_tree->put({});
@@ -163,11 +144,10 @@ namespace ccf
       term_of_next_version = t;
     }
 
-    void rollback(
-      const ccf::kv::TxID& tx_id, ccf::kv::Term commit_term_) override
+    void rollback(const ccf::TxID& tx_id, ccf::kv::Term commit_term_) override
     {
-      version = tx_id.version;
-      term_of_last_version = tx_id.term;
+      version = tx_id.seqno;
+      term_of_last_version = tx_id.view;
       term_of_next_version = commit_term_;
     }
 
@@ -186,7 +166,7 @@ namespace ccf
     void emit_signature() override
     {
       auto txid = store.next_txid();
-      LOG_DEBUG_FMT("Issuing signature at {}.{}", txid.term, txid.version);
+      LOG_DEBUG_FMT("Issuing signature at {}.{}", txid.view, txid.seqno);
       store.commit(
         txid, std::make_unique<NullTxHistoryPendingTx>(txid, store, id), true);
     }
@@ -212,7 +192,7 @@ namespace ccf
       return ccf::crypto::Sha256Hash(std::to_string(version));
     }
 
-    std::tuple<ccf::kv::TxID, ccf::crypto::Sha256Hash, ccf::kv::Term>
+    std::tuple<ccf::TxID, ccf::crypto::Sha256Hash, ccf::kv::Term>
     get_replicated_state_txid_and_root() override
     {
       return {
@@ -320,7 +300,7 @@ namespace ccf
   template <class T>
   class MerkleTreeHistoryPendingTx : public ccf::kv::PendingTx
   {
-    ccf::kv::TxID txid;
+    ccf::TxID txid;
     ccf::kv::Store& store;
     ccf::kv::TxHistory& history;
     NodeId id;
@@ -331,7 +311,7 @@ namespace ccf
 
   public:
     MerkleTreeHistoryPendingTx(
-      ccf::kv::TxID txid_,
+      ccf::TxID txid_,
       ccf::kv::Store& store_,
       ccf::kv::TxHistory& history_,
       const NodeId& id_,
@@ -368,8 +348,8 @@ namespace ccf
 
       PrimarySignature sig_value(
         id,
-        txid.version,
-        txid.term,
+        txid.seqno,
+        txid.view,
         root,
         {}, // Nonce is currently empty
         primary_sig,
@@ -393,7 +373,7 @@ namespace ccf
               ccf::crypto::COSE_PHEADER_KEY_CCF),
             ccf::crypto::COSEHeadersArray{
               ccf::crypto::cose_params_string_string(
-                ccf::crypto::COSE_PHEADER_KEY_TXID, txid.str())}));
+                ccf::crypto::COSE_PHEADER_KEY_TXID, txid.to_str())}));
 
       auto cwt_headers =
         std::static_pointer_cast<ccf::crypto::COSEParametersFactory>(
@@ -427,7 +407,7 @@ namespace ccf
 
       signatures->put(sig_value);
       cose_signatures->put(cose_sign);
-      serialised_tree->put(history.serialise_tree(txid.version - 1));
+      serialised_tree->put(history.serialise_tree(txid.seqno - 1));
       return sig.commit_reserved();
     }
   };
@@ -760,7 +740,7 @@ namespace ccf
       return replicated_state_tree.get_root();
     }
 
-    std::tuple<ccf::kv::TxID, ccf::crypto::Sha256Hash, ccf::kv::Term>
+    std::tuple<ccf::TxID, ccf::crypto::Sha256Hash, ccf::kv::Term>
     get_replicated_state_txid_and_root() override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
@@ -858,13 +838,13 @@ namespace ccf
     }
 
     void rollback(
-      const ccf::kv::TxID& tx_id, ccf::kv::Term term_of_next_version_) override
+      const ccf::TxID& tx_id, ccf::kv::Term term_of_next_version_) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
-      LOG_TRACE_FMT("Rollback to {}.{}", tx_id.term, tx_id.version);
-      term_of_last_version = tx_id.term;
+      LOG_TRACE_FMT("Rollback to {}.{}", tx_id.view, tx_id.seqno);
+      term_of_last_version = tx_id.view;
       term_of_next_version = term_of_next_version_;
-      replicated_state_tree.retract(tx_id.version);
+      replicated_state_tree.retract(tx_id.seqno);
       log_hash(replicated_state_tree.get_root(), ROLLBACK);
     }
 
@@ -914,7 +894,7 @@ namespace ccf
 
       auto txid = store.next_txid();
 
-      LOG_DEBUG_FMT("Signed at {} in view: {}", txid.version, txid.term);
+      LOG_DEBUG_FMT("Signed at {} in view: {}", txid.seqno, txid.view);
 
       if (!signing_identity.has_value())
       {

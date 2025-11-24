@@ -110,7 +110,7 @@ namespace ccf::indexing
           auto stores = transaction_fetcher->fetch_transactions(seqnos);
           for (auto& store : stores)
           {
-            const ccf::TxID tx_id = store->get_txid();
+            const ccf::TxID tx_id = store->current_txid();
 
             for (auto& strategy : strategies)
             {

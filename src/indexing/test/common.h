@@ -191,7 +191,7 @@ static inline bool create_transactions(
       return false;
     }
 
-    const auto seqno = tx.get_txid()->version;
+    const auto seqno = tx.get_txid()->seqno;
 
     for (auto p_exp : modified)
     {

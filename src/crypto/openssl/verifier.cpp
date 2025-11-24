@@ -5,7 +5,8 @@
 
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "crypto/openssl/rsa_key_pair.h"
+#include "crypto/openssl/ec_public_key.h"
+#include "crypto/openssl/rsa_public_key.h"
 #include "ds/internal_logger.h"
 #include "x509_time.h"
 
@@ -52,11 +53,6 @@ namespace ccf::crypto
           "OpenSSL error: {}", OpenSSL::error_string(ERR_get_error())));
       }
     }
-
-    int mdnid = 0;
-    int pknid = 0;
-    int secbits = 0;
-    X509_get_signature_info(cert, &mdnid, &pknid, &secbits, nullptr);
 
     EVP_PKEY* pk = X509_get_pubkey(cert);
 

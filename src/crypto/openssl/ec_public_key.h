@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "crypto/openssl/public_key.h"
 
 #include <openssl/err.h>
 #include <openssl/evp.h>
@@ -12,19 +13,18 @@
 
 namespace ccf::crypto
 {
-  class ECPublicKey_OpenSSL : public ECPublicKey
+  class ECPublicKey_OpenSSL : public ECPublicKey, public PublicKey_OpenSSL
   {
   protected:
-    EVP_PKEY* key = nullptr;
     ECPublicKey_OpenSSL();
 
     static std::vector<uint8_t> ec_point_public_from_jwk(
       const JsonWebKeyECPublic& jwk);
 
   public:
-    ECPublicKey_OpenSSL(ECPublicKey_OpenSSL&& key) = default;
     ECPublicKey_OpenSSL(EVP_PKEY* key);
     ECPublicKey_OpenSSL(const Pem& pem);
+    ECPublicKey_OpenSSL(ECPublicKey_OpenSSL&& key) = default;
     ECPublicKey_OpenSSL(std::span<const uint8_t> der);
     ECPublicKey_OpenSSL(const JsonWebKeyECPublic& jwk);
     virtual ~ECPublicKey_OpenSSL();
@@ -55,11 +55,6 @@ namespace ccf::crypto
 
     int get_openssl_group_id() const;
     static int get_openssl_group_id(CurveID gid);
-
-    operator EVP_PKEY*() const
-    {
-      return key;
-    }
 
     virtual Coordinates coordinates() const override;
 
