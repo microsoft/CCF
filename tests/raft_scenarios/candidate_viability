@@ -113,11 +113,6 @@ assert_detail,1,leadership_state,Leader
 # Node 1 further extends their branch, in term 6
 emit_signature,6
 
-# TODO: No they don't
-# Node 1 finally shares their branch with 2 and 3, advancing commit
-# periodic_one,1,10
-# dispatch_all
-
 # Now we only connect nodes 1 with 3 and 4, to minimise unnecessary traffic
 assert_commit_idx,3,4 # 3 hasn't heard anything for a long time
 assert_commit_idx,4,4 # 4 hasn't heard anything for a long time
