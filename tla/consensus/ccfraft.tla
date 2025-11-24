@@ -688,13 +688,23 @@ BecomeCandidate(i) ==
     \* Candidate votes for itself
     /\ votedFor' = [votedFor EXCEPT ![i] = i]
     /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
-    /\ UNCHANGED <<preVoteStatus, messageVars, reconfigurationVars, leaderVars, logVars, membershipState, isNewFollower>>
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, leaderVars, logVars, membershipState, isNewFollower>>
+
+BecomeCandidateFromPreVoteCandidate(i) ==
+  /\ PreVoteEnabled \in preVoteStatus[i]
+  /\ leadershipState[i] = PreVoteCandidate
+  \* To become a Candidate, the PreVoteCandidate must have received votes from a majority in each active configuration
+  \* Only votes by nodes part of a given configuration should be tallied against it
+  /\ \A c \in DOMAIN configurations[i] : 
+    (votesGranted[i] \intersect configurations[i][c]) \in Quorums[configurations[i][c]]
+  /\ BecomeCandidate(i)
+  /\ UNCHANGED messageVars
 
 \* Server i times out (becomes candidate) and votes for itself in the election of the next term
 \* At some point later (non-deterministically), the candidate will request votes from the other nodes.
 Timeout(i) ==
     IF PreVoteEnabled \notin preVoteStatus[i]
-    THEN BecomeCandidate(i)
+    THEN BecomeCandidate(i) /\ UNCHANGED messageVars
     ELSE BecomePreVoteCandidate(i)
 
 \* Candidate i sends j a RequestVote request.
@@ -940,7 +950,7 @@ AdvanceCommitIndex(i) ==
                                    source      |-> i,
                                    dest        |-> j ]
                         IN Send(msg)
-            ELSE UNCHANGED <<messages>>
+            ELSE UNCHANGED messageVars
         /\ retirementCompleted' = [retirementCompleted EXCEPT ![i] = NextRetirementCompleted(retirementCompleted[i], configurations[i], log[i], commitIndex'[i], i)]
     /\ UNCHANGED <<preVoteStatus, candidateVars, leaderVars, log, currentTerm, votedFor, isNewFollower, hasJoined>>
 
@@ -1335,7 +1345,7 @@ Receive(i, j) ==
 \* Defines how the variables may transition, given a node i.
 NextInt(i) ==
     \/ Timeout(i)
-    \/ (PreVoteEnabled \in preVoteStatus[i] /\ BecomeCandidate(i))
+    \/ BecomeCandidateFromPreVoteCandidate(i)
     \/ BecomeLeader(i)
     \/ ClientRequest(i)
     \/ SignCommittableMessages(i)
@@ -1365,7 +1375,7 @@ Fairness ==
     /\ \A s \in Servers : WF_vars(SignCommittableMessages(s))
     /\ \A s \in Servers : WF_vars(AdvanceCommitIndex(s))
     /\ \A s \in Servers : WF_vars(AppendRetiredCommitted(s))
-    /\ \A s \in Servers : WF_vars(PreVoteEnabled \in preVoteStatus[s] /\ BecomeCandidate(s))
+    /\ \A s \in Servers : WF_vars(BecomeCandidateFromPreVoteCandidate(s))
     /\ \A s \in Servers : WF_vars(BecomeLeader(s))
     /\ \A s \in Servers : WF_vars(Timeout(s))
     /\ \A s \in Servers : WF_vars(ChangeConfiguration(s))
