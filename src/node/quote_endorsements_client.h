@@ -249,12 +249,6 @@ namespace ccf
 
           const std::chrono::seconds retry_after(retry_after_s);
 
-          LOG_INFO_FMT(
-            "{} endorsements endpoint had too many requests. Retrying "
-            "in {}s",
-            endpoint,
-            retry_after_s);
-
           ccf::tasks::add_delayed_task(
             ccf::tasks::make_basic_task(
               [self = this->self]() { self->fetch(); }),
