@@ -10,8 +10,6 @@
 
 namespace ccf::http
 {
-  using StreamOnCloseCallback = std::function<void(void)>;
-
   class HTTPResponder
   {
   public:
@@ -22,15 +20,6 @@ namespace ccf::http
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
       std::vector<uint8_t>&& body) = 0;
-
-    virtual bool start_stream(
-      http_status status, const http::HeaderMap& headers) = 0;
-
-    virtual bool stream_data(std::vector<uint8_t>&& data) = 0;
-
-    virtual bool close_stream(http::HeaderMap&& trailers) = 0;
-
-    virtual bool set_on_stream_close_callback(StreamOnCloseCallback cb) = 0;
 
     bool send_odata_error_response(ccf::ErrorDetails&& error)
     {
