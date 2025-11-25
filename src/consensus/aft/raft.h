@@ -1321,7 +1321,7 @@ namespace aft
           return;
         }
 
-        ccf::kv::TxID expected{r.term_of_idx, i};
+        ccf::TxID expected{r.term_of_idx, i};
         auto ds = store->deserialize(entry, public_only, expected);
         if (ds == nullptr)
         {

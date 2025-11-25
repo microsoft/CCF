@@ -19,13 +19,6 @@ namespace aft
   using Index = uint64_t;
   using Term = uint64_t;
   using Node2NodeMsg = uint64_t;
-  using Nonce = ccf::crypto::Sha256Hash;
-
-  using ReplyCallback = std::function<bool(
-    void* owner,
-    ccf::kv::TxHistory::RequestID caller_rid,
-    int status,
-    std::vector<uint8_t>&& data)>;
 
   static constexpr size_t starting_view_change = 2;
 
@@ -35,12 +28,12 @@ namespace aft
     virtual ~Store() = default;
     virtual void compact(Index v) = 0;
     virtual void rollback(
-      const ccf::kv::TxID& tx_id, Term term_of_next_version) = 0;
+      const ccf::TxID& tx_id, Term term_of_next_version) = 0;
     virtual void initialise_term(Term t) = 0;
     virtual std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(
       std::vector<uint8_t> data,
       bool public_only = false,
-      const std::optional<ccf::kv::TxID>& expected_txid = std::nullopt) = 0;
+      const std::optional<ccf::TxID>& expected_txid = std::nullopt) = 0;
   };
 
   template <typename T>
@@ -61,8 +54,7 @@ namespace aft
       }
     }
 
-    void rollback(
-      const ccf::kv::TxID& tx_id, Term term_of_next_version) override
+    void rollback(const ccf::TxID& tx_id, Term term_of_next_version) override
     {
       auto p = x.lock();
       if (p)
@@ -83,7 +75,7 @@ namespace aft
     std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t> data,
       bool public_only = false,
-      const std::optional<ccf::kv::TxID>& expected_txid = std::nullopt) override
+      const std::optional<ccf::TxID>& expected_txid = std::nullopt) override
     {
       auto p = x.lock();
       if (p)

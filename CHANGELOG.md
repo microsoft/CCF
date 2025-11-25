@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev6]
+
+[7.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev6
+
+### Changed
+
+- Start nodes now confirm that read-only ledger directories are empty on startup (#7355).
+- In the C++ API, the method `get_txid()` on `ccf::kv::ReadOnlyStore` has been renamed to `current_txid()`. This may affect historical query code which works directly with the returned `StorePtr` (#7477).
+
 ## [7.0.0-dev5]
 
 [7.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev5

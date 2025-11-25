@@ -12,6 +12,9 @@ on:
     paths:
       - ".github/workflows/codeql-analysis.yml"
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -49,7 +52,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git tar
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -75,13 +78,13 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF ..
+          cmake -DCMAKE_BUILD_TYPE=Debug -GNinja -DBUILD_TESTS=OFF ..
         shell: bash
 
       - run: |
           cd build
-          make -j16
-        name: Run Make
+          ninja
+        name: Run ninja
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4

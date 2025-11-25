@@ -32,7 +32,7 @@ jobs:
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update && tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -82,7 +82,7 @@ jobs:
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update && tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: main
           fetch-depth: 0
@@ -134,7 +134,7 @@ jobs:
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update && tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Download artifacts
         uses: actions/download-artifact@v6

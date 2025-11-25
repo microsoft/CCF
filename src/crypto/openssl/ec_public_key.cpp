@@ -26,16 +26,25 @@ namespace ccf::crypto
   using namespace OpenSSL;
 
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL() = default;
-
-  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(const Pem& pem)
+  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(EVP_PKEY* key) :
+    PublicKey_OpenSSL(key)
   {
-    Unique_BIO mem(pem);
-    key = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
-    if (key == nullptr)
+    if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
     {
-      throw std::runtime_error("could not parse PEM");
+      throw std::logic_error(
+        "Cannot construct ECPublicKey_OpenSSL from non-EC key");
     }
   }
+  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(const Pem& pem) :
+    PublicKey_OpenSSL(pem)
+  {
+    if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
+    {
+      throw std::logic_error(
+        "Cannot construct ECPublicKey_OpenSSL from non-EC key");
+    }
+  }
+  ECPublicKey_OpenSSL::~ECPublicKey_OpenSSL() = default;
 
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(std::span<const uint8_t> der)
   {
@@ -44,6 +53,12 @@ namespace ccf::crypto
     if (key == nullptr)
     {
       throw std::runtime_error("Could not read DER");
+    }
+
+    if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
+    {
+      throw std::logic_error(
+        "Cannot construct ECPublicKey_OpenSSL from non-EC key");
     }
   }
 
@@ -82,9 +97,9 @@ namespace ccf::crypto
     return buf;
   }
 
-  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(const JsonWebKeyECPublic& jwk) :
-    key(EVP_PKEY_new())
+  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(const JsonWebKeyECPublic& jwk)
   {
+    key = EVP_PKEY_new();
     auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
     auto buf = ec_point_public_from_jwk(jwk);
 
@@ -101,16 +116,6 @@ namespace ccf::crypto
     CHECK1(EVP_PKEY_fromdata_init(pctx));
     CHECK1(EVP_PKEY_fromdata(
       pctx, &key, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
-  }
-
-  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(EVP_PKEY* key) : key(key) {}
-
-  ECPublicKey_OpenSSL::~ECPublicKey_OpenSSL()
-  {
-    if (key != nullptr)
-    {
-      EVP_PKEY_free(key);
-    }
   }
 
   CurveID ECPublicKey_OpenSSL::get_curve_id() const

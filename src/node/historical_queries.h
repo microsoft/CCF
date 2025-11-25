@@ -1190,14 +1190,14 @@ namespace ccf::historical
         // Confirm this entry is from a precursor of the current state, and not
         // a fork
         const auto tx_id = store->current_txid();
-        if (tx_id.version != seqno)
+        if (tx_id.seqno != seqno)
         {
           LOG_FAIL_FMT(
             "Corrupt ledger entry received - claims to be {} but is actually "
             "{}.{}",
             seqno,
-            tx_id.term,
-            tx_id.version);
+            tx_id.view,
+            tx_id.seqno);
           return false;
         }
 
@@ -1209,13 +1209,13 @@ namespace ccf::historical
         }
 
         const auto actual_view = consensus->get_view(seqno);
-        if (actual_view != tx_id.term)
+        if (actual_view != tx_id.view)
         {
           LOG_FAIL_FMT(
             "Ledger entry comes from fork - contains {}.{} but this service "
             "expected {}.{}",
-            tx_id.term,
-            tx_id.version,
+            tx_id.view,
+            tx_id.seqno,
             actual_view,
             seqno);
           return false;

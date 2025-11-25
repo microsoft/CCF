@@ -15,7 +15,7 @@
 
 namespace ccf::kv
 {
-  class CommittableTx : public Tx, public AbstractChangeContainer
+  class CommittableTx : public Tx
   {
   public:
     using TxFlags = uint8_t;
@@ -32,8 +32,6 @@ namespace ccf::kv
     bool success = false;
 
     Version version = NoVersion;
-
-    ccf::kv::TxHistory::RequestID req_id;
 
     TxFlags flags = 0;
     SerialisedEntryFlags entry_flags = 0;
@@ -330,29 +328,6 @@ namespace ccf::kv
       }
     }
 
-    void set_change_list(OrderedChanges&& change_list_, Term term_) override
-    {
-      // if all_changes is not empty then any coinciding keys will not be
-      // overwritten
-      all_changes.merge(change_list_);
-      pimpl->commit_view = term_;
-    }
-
-    void set_view(ccf::View view_)
-    {
-      pimpl->commit_view = view_;
-    }
-
-    void set_req_id(const ccf::kv::TxHistory::RequestID& req_id_)
-    {
-      req_id = req_id_;
-    }
-
-    const ccf::kv::TxHistory::RequestID& get_req_id()
-    {
-      return req_id;
-    }
-
     void set_read_txid(const TxID& tx_id, Term commit_view_)
     {
       if (pimpl->read_txid.has_value())
@@ -404,9 +379,9 @@ namespace ccf::kv
       Version rollback_count_) :
       CommittableTx(_store)
     {
-      version = reserved_tx_id.version;
-      pimpl->commit_view = reserved_tx_id.term;
-      pimpl->read_txid = TxID(read_term, reserved_tx_id.version - 1);
+      version = reserved_tx_id.seqno;
+      pimpl->commit_view = reserved_tx_id.view;
+      pimpl->read_txid = TxID(read_term, reserved_tx_id.seqno - 1);
       rollback_count = rollback_count_;
     }
 
