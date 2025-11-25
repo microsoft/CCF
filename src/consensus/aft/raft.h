@@ -101,21 +101,21 @@ namespace aft
       Configuration::NodeInfo node_info;
 
       // the highest index sent to the node
-      Index sent_idx;
+      Index sent_idx = 0;
 
       // the highest matching index with the node that was confirmed
-      Index match_idx;
+      Index match_idx = 0;
 
       // timeout tracking the last time an ack was received from the node
-      std::chrono::milliseconds last_ack_timeout;
+      std::chrono::milliseconds last_ack_timeout{0};
 
       NodeState() = default;
 
       NodeState(
-        const Configuration::NodeInfo& node_info_,
+        Configuration::NodeInfo node_info_,
         Index sent_idx_,
         Index match_idx_ = 0) :
-        node_info(node_info_),
+        node_info(std::move(node_info_)),
         sent_idx(sent_idx_),
         match_idx(match_idx_),
         last_ack_timeout(0)
@@ -133,7 +133,7 @@ namespace aft
     struct Votes
     {
       std::unordered_set<ccf::NodeId> votes;
-      size_t quorum;
+      size_t quorum = 0;
     };
     std::map<Index, Votes> votes_for_me;
 
@@ -207,7 +207,6 @@ namespace aft
     std::unique_ptr<LedgerProxy> ledger;
     std::shared_ptr<ccf::NodeToNode> channels;
 
-  public:
     Aft(
       const ccf::consensus::Configuration& settings_,
       std::unique_ptr<Store> store_,
@@ -220,13 +219,13 @@ namespace aft
 
       timeout_elapsed(0),
 
-      state(state_),
+      state(std::move(state_)),
 
       request_timeout(settings_.message_timeout),
       election_timeout(settings_.election_timeout),
       max_uncommitted_tx_count(settings_.max_uncommitted_tx_count),
 
-      node_client(rpc_request_context_),
+      node_client(std::move(rpc_request_context_)),
       retired_node_cleanup(
         std::make_unique<ccf::RetiredNodeCleanup>(node_client)),
 
@@ -236,10 +235,10 @@ namespace aft
       rand((int)(uintptr_t)this),
 
       ledger(std::move(ledger_)),
-      channels(channels_)
+      channels(std::move(channels_))
     {}
 
-    virtual ~Aft() = default;
+    ~Aft() override = default;
 
     std::optional<ccf::NodeId> primary() override
     {
@@ -292,15 +291,9 @@ namespace aft
         {
           return Consensus::SignatureDisposition::SHOULD_SIGN;
         }
-        else
-        {
-          return Consensus::SignatureDisposition::CAN_SIGN;
-        }
+        return Consensus::SignatureDisposition::CAN_SIGN;
       }
-      else
-      {
-        return Consensus::SignatureDisposition::CANT_REPLICATE;
-      }
+      return Consensus::SignatureDisposition::CANT_REPLICATE;
     }
 
     bool is_backup() override
@@ -333,7 +326,7 @@ namespace aft
     void set_retired_committed(
       ccf::SeqNo seqno, const std::vector<ccf::kv::NodeId>& node_ids) override
     {
-      for (auto& node_id : node_ids)
+      for (const auto& node_id : node_ids)
       {
         if (id() == node_id)
         {
@@ -523,7 +516,6 @@ namespace aft
       return nodes;
     }
 
-  public:
     void add_configuration(
       Index idx, const ccf::kv::Configuration::Nodes& conf) override
     {
@@ -556,7 +548,7 @@ namespace aft
 
       if (configurations.empty() || conf != configurations.back().nodes)
       {
-        Configuration new_config = {idx, std::move(conf), idx};
+        Configuration new_config = {idx, conf, idx};
         configurations.push_back(new_config);
 
         create_and_remove_node_state();
@@ -655,12 +647,14 @@ namespace aft
 
       RAFT_DEBUG_FMT("Replicating {} entries", entries.size());
 
-      for (auto& [index, data, is_globally_committable, hooks] : entries)
+      for (const auto& [index, data, is_globally_committable, hooks] : entries)
       {
         bool globally_committable = is_globally_committable;
 
         if (index != state->last_idx + 1)
+        {
           return false;
+        }
 
         RAFT_DEBUG_FMT(
           "Replicated on leader {}: {}{} ({} hooks)",
@@ -737,7 +731,7 @@ namespace aft
     void recv_message(
       const ccf::NodeId& from, const uint8_t* data, size_t size) override
     {
-      RaftMsgType type = serialized::peek<RaftMsgType>(data, size);
+      auto type = serialized::peek<RaftMsgType>(data, size);
 
       try
       {
@@ -950,7 +944,7 @@ namespace aft
       return probe_index;
     }
 
-    inline void update_batch_size()
+    void update_batch_size()
     {
       auto avg_entry_size = (entry_count == 0) ?
         append_entries_size_limit :
@@ -969,7 +963,9 @@ namespace aft
     Term get_term_internal(Index idx)
     {
       if (idx > state->last_idx)
+      {
         return ccf::VIEW_UNKNOWN;
+      }
 
       return state->view_history.view_at(idx);
     }
@@ -1019,7 +1015,7 @@ namespace aft
         return std::min(start + entries_batch_size - 1, max_idx);
       };
 
-      Index end_idx;
+      Index end_idx = 0;
 
       // We break _after_ sending, so that in the case where this is called
       // with start==last, we send a single empty heartbeat
@@ -1138,7 +1134,7 @@ namespace aft
       {
         become_aware_of_new_term(r.term);
       }
-      else if (state->current_view < r.term)
+      if (state->current_view < r.term)
       {
         become_aware_of_new_term(r.term);
       }
@@ -1220,7 +1216,7 @@ namespace aft
       // Which captures this case in every situation, except r.prev_term == 0.
       // That only happens if r.prev_idx == 0 however, see line 1033,
       // in which case this path should not be taken either.
-      else if (r.prev_idx > state->last_idx)
+      if (r.prev_idx > state->last_idx)
       {
         RAFT_FAIL_FMT(
           "Recv {} to {} from {} but prev_idx ({}) > last_idx ({})",
@@ -1339,11 +1335,10 @@ namespace aft
           return;
         }
 
-        append_entries.push_back(std::make_tuple(std::move(ds), i));
+        append_entries.emplace_back(std::move(ds), i);
       }
 
-      execute_append_entries_sync(
-        std::move(append_entries), from, std::move(r));
+      execute_append_entries_sync(std::move(append_entries), from, r);
     }
 
     void execute_append_entries_sync(
@@ -1351,7 +1346,7 @@ namespace aft
         std::unique_ptr<ccf::kv::AbstractExecutionWrapper>,
         ccf::kv::Version>>&& append_entries,
       const ccf::NodeId& from,
-      AppendEntries&& r)
+      const AppendEntries& r)
     {
       for (auto& ae : append_entries)
       {
@@ -1417,7 +1412,7 @@ namespace aft
             }
             state->committable_indices.push_back(i);
 
-            if (ds->get_term())
+            if (ds->get_term() != 0u)
             {
               // A signature for sig_term tells us that all transactions from
               // the previous signature onwards (at least, if not further back)
@@ -1444,10 +1439,6 @@ namespace aft
           }
 
           case ccf::kv::ApplyResult::PASS:
-          {
-            break;
-          }
-
           case ccf::kv::ApplyResult::PASS_ENCRYPTED_PAST_LEDGER_SECRET:
           {
             break;
@@ -1464,7 +1455,7 @@ namespace aft
     }
 
     void execute_append_entries_finish(
-      AppendEntries& r, const ccf::NodeId& from)
+      const AppendEntries& r, const ccf::NodeId& from)
     {
       // After entries have been deserialised, try to commit the leader's
       // commit index and update our term history accordingly
@@ -1615,7 +1606,7 @@ namespace aft
         become_aware_of_new_term(r.term);
         return;
       }
-      else if (state->current_view != r.term)
+      if (state->current_view != r.term)
       {
         // Stale response, discard if success.
         // Otherwise reset sent_idx and try again.
@@ -1634,7 +1625,7 @@ namespace aft
           return;
         }
       }
-      else if (r.last_log_idx < node->second.match_idx)
+      if (r.last_log_idx < node->second.match_idx)
       {
         // Response about past indices, discard if success.
         // Otherwise reset sent_idx and try again.
@@ -1661,13 +1652,9 @@ namespace aft
           std::min(this_match, node->second.sent_idx), node->second.match_idx);
         return;
       }
-      else
-      {
-        // max(...) because why would we ever want to go backwards on a success
-        // response?!
-        node->second.match_idx =
-          std::max(node->second.match_idx, r.last_log_idx);
-      }
+      // max(...) because why would we ever want to go backwards on a success
+      // response?!
+      node->second.match_idx = std::max(node->second.match_idx, r.last_log_idx);
 
       RAFT_DEBUG_FMT(
         "Recv {} to {} from {} for index {}: success",
@@ -1959,7 +1946,7 @@ namespace aft
         become_aware_of_new_term(r.term);
         return;
       }
-      else if (state->current_view != r.term)
+      if (state->current_view != r.term)
       {
         // Ignore as it is stale.
         RAFT_INFO_FMT(
@@ -1982,7 +1969,7 @@ namespace aft
           from);
         return;
       }
-      else if (
+      if (
         election_type == ElectionType::RegularVote &&
         state->leadership_state != ccf::kv::LeadershipState::Candidate)
       {
@@ -1996,7 +1983,7 @@ namespace aft
           r.term);
         return;
       }
-      else if (
+      if (
         election_type == ElectionType::PreVote &&
         state->leadership_state != ccf::kv::LeadershipState::PreVoteCandidate)
       {
@@ -2179,7 +2166,7 @@ namespace aft
       }
     }
 
-    void become_leader(bool force_become_leader = false)
+    void become_leader(bool /*force_become_leader*/ = false)
     {
       if (is_retired_committed())
       {
@@ -2309,6 +2296,7 @@ namespace aft
         CCF_ASSERT_FMT(
           !state->retirement_idx.has_value(),
           "retirement_idx already set to {}",
+          // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
           state->retirement_idx.value());
         state->retirement_idx = idx;
         RAFT_INFO_FMT("Node retiring at {}", idx);
@@ -2317,9 +2305,11 @@ namespace aft
       {
         assert(state->retirement_idx.has_value());
         CCF_ASSERT_FMT(
+          // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
           idx >= state->retirement_idx.value(),
           "Index {} unexpectedly lower than retirement_idx {}",
           idx,
+          // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
           state->retirement_idx.value());
         state->retirement_committable_idx = idx;
         RAFT_INFO_FMT("Node retirement committable at {}", idx);
@@ -2466,7 +2456,7 @@ namespace aft
         std::vector<Index> match;
         match.reserve(c.nodes.size());
 
-        for (auto node : c.nodes)
+        for (const auto& node : c.nodes)
         {
           if (node.first == state->node_id)
           {
@@ -2568,7 +2558,9 @@ namespace aft
       // This could happen if a follower becomes the leader when it
       // has committed fewer log entries, although it has them available.
       if (idx <= state->commit_idx)
+      {
         return;
+      }
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -2587,10 +2579,15 @@ namespace aft
       if (
         is_retired() &&
         state->retirement_phase == ccf::kv::RetirementPhase::Signed &&
-        state->retirement_committable_idx.has_value() &&
-        idx >= state->retirement_committable_idx.value())
+        state->retirement_committable_idx.has_value())
       {
-        become_retired(idx, ccf::kv::RetirementPhase::Completed);
+        const auto retirement_committable =
+          state // NOLINT(bugprone-unchecked-optional-access)
+            ->retirement_committable_idx.value();
+        if (idx >= retirement_committable)
+        {
+          become_retired(idx, ccf::kv::RetirementPhase::Completed);
+        }
       }
 
       RAFT_DEBUG_FMT("Compacting...");
@@ -2690,10 +2687,16 @@ namespace aft
         state->retirement_phase == ccf::kv::RetirementPhase::Signed)
       {
         assert(state->retirement_committable_idx.has_value());
-        if (state->retirement_committable_idx.value() > idx)
+        if (state->retirement_committable_idx.has_value())
         {
-          state->retirement_committable_idx = std::nullopt;
-          state->retirement_phase = ccf::kv::RetirementPhase::Ordered;
+          const auto retirement_committable =
+            state // NOLINT(bugprone-unchecked-optional-access)
+              ->retirement_committable_idx.value();
+          if (retirement_committable > idx)
+          {
+            state->retirement_committable_idx = std::nullopt;
+            state->retirement_phase = ccf::kv::RetirementPhase::Ordered;
+          }
         }
       }
 
@@ -2702,12 +2705,18 @@ namespace aft
         state->retirement_phase == ccf::kv::RetirementPhase::Ordered)
       {
         assert(state->retirement_idx.has_value());
-        if (state->retirement_idx.value() > idx)
+        if (state->retirement_idx.has_value())
         {
-          state->retirement_idx = std::nullopt;
-          state->retirement_phase = std::nullopt;
-          state->membership_state = ccf::kv::MembershipState::Active;
-          RAFT_DEBUG_FMT("Becoming Active after rollback");
+          const auto retirement =
+            state // NOLINT(bugprone-unchecked-optional-access)
+              ->retirement_idx.value();
+          if (retirement > idx)
+          {
+            state->retirement_idx = std::nullopt;
+            state->retirement_phase = std::nullopt;
+            state->membership_state = ccf::kv::MembershipState::Active;
+            RAFT_DEBUG_FMT("Becoming Active after rollback");
+          }
         }
       }
 

@@ -73,8 +73,8 @@ namespace consensus
       const uint8_t* data,
       size_t size,
       bool globally_committable,
-      ccf::kv::Term term,
-      ccf::kv::Version index)
+      [[maybe_unused]] ccf::kv::Term term,
+      [[maybe_unused]] ccf::kv::Version index)
     {
       serializer::ByteRange byte_range = {data, size};
       RINGBUFFER_WRITE_MESSAGE(

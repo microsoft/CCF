@@ -4,7 +4,7 @@
 
 #include "ccf/ds/logger_level.h"
 
-enum CreateNodeStatus
+enum CreateNodeStatus : std::uint8_t
 {
   /** Call was successful and the node was successfully created */
   OK = 0,
@@ -88,7 +88,7 @@ constexpr char const* create_node_result_to_str(CreateNodeStatus result)
   }
 }
 
-enum StartType
+enum StartType : std::uint8_t
 {
   Start = 1,
   Join = 2,
