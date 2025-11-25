@@ -227,28 +227,6 @@ namespace http
       tls_io->send_raw(data.data(), data.size());
       return true;
     }
-
-    bool start_stream(
-      ccf::http_status status, const ccf::http::HeaderMap& headers) override
-    {
-      throw std::logic_error("Not implemented!");
-    }
-
-    bool stream_data(std::vector<uint8_t>&& data) override
-    {
-      throw std::logic_error("Not implemented!");
-    }
-
-    bool close_stream(ccf::http::HeaderMap&&) override
-    {
-      throw std::logic_error("Not implemented!");
-    }
-
-    bool set_on_stream_close_callback(
-      ccf::http::StreamOnCloseCallback cb) override
-    {
-      throw std::logic_error("Not implemented!");
-    }
   };
 
   class HTTPClientSession : public HTTPSession,
