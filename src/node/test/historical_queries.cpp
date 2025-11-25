@@ -206,7 +206,7 @@ void validate_business_transaction(
   REQUIRE(state->receipt != nullptr);
 
   const auto state_txid = state->transaction_id;
-  const auto store_txid = state->store->get_txid();
+  const auto store_txid = state->store->current_txid();
   REQUIRE(state_txid.view == store_txid.view);
   REQUIRE(state_txid.seqno == store_txid.seqno);
 }
@@ -903,7 +903,7 @@ TEST_CASE("StateCache range queries")
       for (auto& store : stores)
       {
         REQUIRE(store != nullptr);
-        const auto seqno = store->get_txid().seqno;
+        const auto seqno = store->current_txid().seqno;
 
         // Don't validate anything about signature transactions, just the
         // business transactions between them
@@ -1260,7 +1260,7 @@ TEST_CASE("StateCache sparse queries")
       for (auto& store : stores)
       {
         REQUIRE(store != nullptr);
-        const auto seqno = store->get_txid().seqno;
+        const auto seqno = store->current_txid().seqno;
 
         // Don't validate anything about signature transactions, just the
         // business transactions between them
@@ -1452,7 +1452,7 @@ TEST_CASE("StateCache concurrent access")
       for (auto& store : stores)
       {
         REQUIRE(store != nullptr);
-        const auto seqno = store->get_txid().seqno;
+        const auto seqno = store->current_txid().seqno;
         if (
           std::find(
             signature_versions.begin(), signature_versions.end(), seqno) ==
@@ -1468,7 +1468,7 @@ TEST_CASE("StateCache concurrent access")
       for (auto& state : states)
       {
         REQUIRE(state != nullptr);
-        const auto seqno = state->store->get_txid().seqno;
+        const auto seqno = state->store->current_txid().seqno;
         if (
           std::find(
             signature_versions.begin(), signature_versions.end(), seqno) ==
