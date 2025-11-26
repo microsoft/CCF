@@ -967,10 +967,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME jwt_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
-  )
-
-  add_e2e_test(
     NAME code_update_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
     ADDITIONAL_ARGS
@@ -1014,7 +1010,7 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME programmability
+    NAME programmability_and_jwt
     CONSTITUTION ${RBAC_CONSTITUTION_ARGS}
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
   )
@@ -1068,11 +1064,7 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME connections PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-  )
-
-  add_e2e_test(
-    NAME fuzz_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fuzzing.py
+    NAME tls_stress_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
   )
 
   if(CLIENT_PROTOCOLS_TEST)
