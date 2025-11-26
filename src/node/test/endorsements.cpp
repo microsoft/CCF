@@ -162,7 +162,6 @@ TEST_CASE("Check Test endorsement for UVM 0.2.10")
       "Malicious-ContainerPlat-AMD-UVM",
       "104"}};
 
-  /* Commented out awaiting on UVM endorsements with fixed alg type.
   REQUIRE_THROWS_WITH_AS(
     ccf::verify_uvm_endorsements_against_roots_of_trust(
       endorsement, uvm_measurement, custom_roots_of_trust),
@@ -171,7 +170,6 @@ TEST_CASE("Check Test endorsement for UVM 0.2.10")
     "1.4.1.311.76.59.1.1, feed ContainerPlat-AMD-UVM, svn 104 do not match any "
     "of the known UVM roots of trust",
     std::logic_error);
-  */
 
   /* Commented out awaiting on UVM endorsements with fixed EKUs (ending .2
   instead of .1).
