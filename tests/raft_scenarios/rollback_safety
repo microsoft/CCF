@@ -39,6 +39,10 @@ dispatch_one,0
 
 # Node 1 calls and wins an election
 periodic_one,1,100
+assert_detail,1,leadership_state,PreVoteCandidate
+dispatch_one,1
+dispatch_one,0
+dispatch_one,2
 assert_detail,1,leadership_state,Candidate
 dispatch_one,1
 dispatch_one,0
@@ -55,6 +59,10 @@ dispatch_one,1
 
 # Node 0 calls and wins an election
 periodic_one,0,100
+assert_detail,0,leadership_state,PreVoteCandidate
+dispatch_one,0
+dispatch_one,1
+dispatch_single,2,0
 assert_detail,0,leadership_state,Candidate
 dispatch_one,0
 dispatch_one,1
@@ -94,6 +102,10 @@ assert_commit_safety,0
 # To win, it now needs a vote from one of the previous dead nodes (we can't touch the 2->1 channel!)
 reconnect_node,3
 periodic_one,1,100
+assert_detail,1,leadership_state,PreVoteCandidate
+dispatch_one,1
+dispatch_one,0
+dispatch_one,3
 assert_detail,1,leadership_state,Candidate
 dispatch_one,1
 dispatch_one,0

@@ -1,3 +1,4 @@
+pre_vote_enabled,false
 # Node 0 is the start node
 start_node,0
 assert_detail,0,leadership_state,Leader

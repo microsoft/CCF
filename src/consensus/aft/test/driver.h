@@ -117,7 +117,7 @@ private:
     std::shared_ptr<TRaft> raft;
   };
 
-  bool pre_vote_enabled = false;
+  bool pre_vote_enabled = true;
   std::map<ccf::NodeId, NodeDriver> _nodes;
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
 

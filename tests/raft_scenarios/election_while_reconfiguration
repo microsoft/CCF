@@ -40,26 +40,32 @@ assert_commit_idx,0,4 # But it is not committed, because 0 has not heard back fr
 
 # One new node calls for an election (e.g. because primary 0 is dead)
 periodic_one,2,100
+assert_detail,2,leadership_state,PreVoteCandidate
 dispatch_one,2
-assert_detail,2,leadership_state,Candidate
 
 dispatch_one,3 # 3 sends vote response to 2
-assert_detail,2,leadership_state,Candidate
+assert_detail,2,leadership_state,PreVoteCandidate
 
-dispatch_one,4 # 4 sends vote response to 2: 2 becomes primary
+dispatch_one,4 # 4 sends vote response to 2:
 
-# Even though candidate 2 has received a majority of votes in C1, it does not have any votes
-# from C0 and so remains candidate
-assert_detail,2,leadership_state,Candidate
+# Even though PreVoteCandidate 2 has received a majority of votes in C1, it does not have any votes
+# from C0 and so remains PreVoteCandidate
+assert_detail,2,leadership_state,PreVoteCandidate
 state_all
 
 dispatch_one,0 # 0 sends vote response to 2
-assert_detail,2,leadership_state,Candidate
+assert_detail,2,leadership_state,PreVoteCandidate
 
 dispatch_one,1 # 1 sends vote response to 2
 
 # Eventually, 2 has received votes from a majority of nodes in _both_ configurations
 state_all
+assert_detail,2,leadership_state,Candidate
+dispatch_one,2
+dispatch_one,0 
+dispatch_one,1
+dispatch_one,3
+dispatch_one,4
 assert_detail,2,leadership_state,Leader
 
 # But commit has not progressed yet

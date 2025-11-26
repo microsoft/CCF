@@ -177,6 +177,15 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
   {
     rA.periodic(election_timeout);
 
+    // Dispatch RequestPreVotes
+    DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idA, channelsA->messages));
+
+    // Dispatch responses
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idB, channelsB->messages));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC, channelsC->messages));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idD, channelsD->messages));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idE, channelsE->messages));
+
     // Dispatch RequestVotes
     DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idA, channelsA->messages));
 
@@ -335,6 +344,14 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
   {
     rB.periodic(election_timeout);
 
+    // Dispatch RequestPreVotes
+    DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idB, channelsB->messages));
+
+    // Dispatch responses
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC, channelsC->messages));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idD, channelsD->messages));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idE, channelsE->messages));
+
     // Dispatch RequestVotes
     DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idB, channelsB->messages));
 
@@ -373,6 +390,14 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
   DOCTEST_INFO("Node C wins an election");
   {
     rC.periodic(election_timeout);
+
+    // Dispatch RequestPreVotes
+    DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idC, channelsC->messages));
+
+    // Dispatch responses
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idB, channelsB->messages));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idD, channelsD->messages));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idE, channelsE->messages));
 
     // Dispatch RequestVotes
     DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idC, channelsC->messages));
@@ -512,6 +537,10 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idB));
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC));
 
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idA));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idB));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC));
+
     DOCTEST_REQUIRE(rA.is_primary());
     DOCTEST_REQUIRE(rA.get_view() == 1);
 
@@ -577,6 +606,18 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
     }
 
     primary.periodic(election_timeout);
+
+    // RequestPreVote is only sent to Node C
+    keep_messages_for(node_idC, channels_primary->messages);
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, primary_id));
+
+    // Node C pre-votes in favour
+    DOCTEST_REQUIRE(
+      1 ==
+      dispatch_all_and_DOCTEST_CHECK<aft::RequestPreVoteResponse>(
+        nodes, node_idC, [](const aft::RequestPreVoteResponse& rvr) {
+          DOCTEST_REQUIRE(rvr.vote_granted == true);
+        }));
 
     // RequestVote is only sent to Node C
     keep_messages_for(node_idC, channels_primary->messages);
@@ -755,6 +796,10 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
       {
         channelsA->messages.clear();
         rA.periodic(election_timeout);
+
+        // Attempt pre-vote
+        dispatch_all(nodes, node_idA);
+        dispatch_all(nodes, node_idC);
       }
     }
     else
@@ -765,6 +810,10 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
       {
         channelsB->messages.clear();
         rB.periodic(election_timeout);
+
+        // Attempt pre-vote
+        dispatch_all(nodes, node_idB);
+        dispatch_all(nodes, node_idC);
       }
     }
 
@@ -772,8 +821,14 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
     const auto id_primary = aim_for_a_primary ? node_idA : node_idB;
     auto& channelsPrimary = aim_for_a_primary ? channelsA : channelsB;
 
+    // PreVote
     dispatch_all(nodes, id_primary);
     dispatch_all(nodes, node_idC);
+    // Election
+    dispatch_all(nodes, id_primary);
+    dispatch_all(nodes, node_idC);
+
+    DOCTEST_REQUIRE(rPrimary.is_primary());
 
     {
       DOCTEST_INFO("Catch node C up");

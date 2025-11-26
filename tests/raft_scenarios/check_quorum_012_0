@@ -32,7 +32,7 @@ periodic_one,0,100
 assert_detail,0,leadership_state,Follower
 
 periodic_one,1,100
-assert_detail,1,leadership_state,Candidate
+assert_detail,1,leadership_state,PreVoteCandidate
 
 dispatch_all
 periodic_all,10
