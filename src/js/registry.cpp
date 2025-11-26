@@ -474,15 +474,6 @@ namespace ccf::js
     }
   }
 
-  void BaseDynamicJSEndpointRegistry::execute_request_locally_committed(
-    const CustomJSEndpoint* endpoint,
-    ccf::endpoints::CommandEndpointContext& endpoint_ctx,
-    const ccf::TxID& tx_id)
-  {
-    (void)endpoint;
-    ccf::endpoints::default_locally_committed_func(endpoint_ctx, tx_id);
-  }
-
   BaseDynamicJSEndpointRegistry::BaseDynamicJSEndpointRegistry(
     ccf::AbstractNodeContext& context, const std::string& kv_prefix) :
     ccf::UserEndpointRegistry(context),
@@ -858,7 +849,7 @@ namespace ccf::js
     const auto* endpoint = dynamic_cast<const CustomJSEndpoint*>(e.get());
     if (endpoint != nullptr)
     {
-      execute_request_locally_committed(endpoint, endpoint_ctx, tx_id);
+      ccf::endpoints::default_locally_committed_func(endpoint_ctx, tx_id);
       return;
     }
 
