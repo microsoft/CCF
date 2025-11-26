@@ -251,30 +251,6 @@ namespace ccf::endpoints
       .set_redirection_strategy(RedirectionStrategy::None);
   }
 
-  Endpoint EndpointRegistry::make_endpoint_with_local_commit_handler(
-    const std::string& method,
-    RESTVerb verb,
-    const EndpointFunction& f,
-    const LocallyCommittedEndpointFunction& l,
-    const AuthnPolicies& ap)
-  {
-    auto endpoint = make_endpoint(method, verb, f, ap);
-    endpoint.locally_committed_func = l;
-    return endpoint;
-  }
-
-  Endpoint EndpointRegistry::make_read_only_endpoint_with_local_commit_handler(
-    const std::string& method,
-    RESTVerb verb,
-    const ReadOnlyEndpointFunction& f,
-    const LocallyCommittedEndpointFunction& l,
-    const AuthnPolicies& ap)
-  {
-    auto endpoint = make_read_only_endpoint(method, verb, f, ap);
-    endpoint.locally_committed_func = l;
-    return endpoint;
-  }
-
   Endpoint EndpointRegistry::make_command_endpoint(
     const std::string& method,
     RESTVerb verb,
