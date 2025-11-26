@@ -60,7 +60,10 @@ namespace ccf
     ringbuffer::WriterPtr to_host = nullptr;
     std::shared_ptr<RPCMap> rpc_map;
     std::unordered_map<ListenInterfaceID, std::shared_ptr<::tls::Cert>> certs;
-    std::shared_ptr<CustomProtocolSubsystem> custom_protocol_subsystem;
+    std::shared_ptr<CustomProtocolSubsystem> custom_protocol_subsystem =
+      nullptr;
+    std::shared_ptr<CommitCallbackSubsystem> commit_callbacks_subsystem =
+      nullptr;
 
     ccf::pal::Mutex lock;
     std::unordered_map<
@@ -164,7 +167,8 @@ namespace ccf
           writer_factory,
           std::move(ctx),
           parser_configuration,
-          shared_from_this());
+          shared_from_this(),
+          commit_callbacks_subsystem);
       }
       else if (custom_protocol_subsystem)
       {
@@ -184,8 +188,7 @@ namespace ccf
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::shared_ptr<RPCMap> rpc_map_) :
       writer_factory(writer_factory),
-      rpc_map(rpc_map_),
-      custom_protocol_subsystem(nullptr)
+      rpc_map(rpc_map_)
     {
       to_host = writer_factory.create_writer_to_outside();
     }
@@ -194,6 +197,12 @@ namespace ccf
       std::shared_ptr<CustomProtocolSubsystem> cpss)
     {
       custom_protocol_subsystem = cpss;
+    }
+
+    void set_commit_callbacks_subsystem(
+      std::shared_ptr<CommitCallbackSubsystem> fcss)
+    {
+      commit_callbacks_subsystem = fcss;
     }
 
     void report_parsing_error(const ccf::ListenInterfaceID& id) override
@@ -408,7 +417,8 @@ namespace ccf
               writer_factory,
               std::move(ctx),
               per_listen_interface.http_configuration,
-              shared_from_this());
+              shared_from_this(),
+              commit_callbacks_subsystem);
         }
         sessions.insert(std::make_pair(
           id, std::make_pair(listen_interface_id, std::move(capped_session))));

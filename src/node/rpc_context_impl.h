@@ -56,6 +56,18 @@ namespace ccf
     }
     // NOLINTEND(performance-move-const-arg)
 
+    bool respond_on_commit = false;
+    void set_respond_on_commit(bool roc) override
+    {
+      respond_on_commit = roc;
+    }
+
+    std::optional<ccf::TxID> respond_on_commit_txid = std::nullopt;
+    void set_respond_on_commit_txid(ccf::TxID txid) override
+    {
+      respond_on_commit_txid = txid;
+    }
+
     ccf::PathParams path_params = {};
     virtual const ccf::PathParams& get_request_path_params() override
     {
@@ -107,6 +119,7 @@ namespace ccf
 
     bool response_is_pending = false;
     bool terminate_session = false;
+    bool respond_when_committed = false;
 
     virtual void set_tx_id(const ccf::TxID& tx_id) = 0;
     virtual bool should_apply_writes() const = 0;

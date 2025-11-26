@@ -292,16 +292,7 @@ namespace ccf::kv
       return pimpl->commit_view;
     }
 
-    /** Version for the transaction set
-     *
-     * @return Committed version, or `ccf::kv::NoVersion` otherwise
-     */
-    Version get_version()
-    {
-      return version;
-    }
-
-    std::optional<TxID> get_txid()
+    std::optional<TxID> get_txid() const
     {
       if (!committed)
       {

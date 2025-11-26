@@ -518,6 +518,10 @@ namespace loggingapp
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
         // SNIPPET_END: private_table_access
         records_handle->put(in.id, in.msg);
+
+        // TODO: Temp
+        ctx.rpc_ctx->set_respond_on_commit(true);
+
         return ccf::make_success(true);
       };
       // SNIPPET_END: record
@@ -609,6 +613,9 @@ namespace loggingapp
         auto records_handle =
           ctx.tx.template ro<RecordsMap>(private_records(ctx));
         auto record = records_handle->get(id);
+
+        // TODO: Temp
+        ctx.rpc_ctx->set_respond_on_commit(true);
 
         if (record.has_value())
         {

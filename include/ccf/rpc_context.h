@@ -190,6 +190,10 @@ namespace ccf
     /// the transaction serialisation format or what is stored in the KV.
     /// The digest will be included in receipts issued for that transaction.
     virtual void set_claims_digest(ccf::ClaimsDigest::Digest&& digest) = 0;
+
+    /// TODO: Docs
+    virtual void set_respond_on_commit(bool respond_on_commit) = 0;
+    virtual void set_respond_on_commit_txid(ccf::TxID txid) = 0;
     ///@}
   };
 }
