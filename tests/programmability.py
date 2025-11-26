@@ -14,6 +14,7 @@ import ccf.cose
 import infra.clients
 
 import npm_tests
+import jwt_test
 
 from loguru import logger as LOG
 
@@ -632,6 +633,31 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         initial_user_count=2,
         initial_member_count=1,
+    )
+
+    cr.add(
+        "auto",
+        jwt_test.run_auto,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        jwt_key_refresh_interval_s=1,
+        issuer_port=12345,
+    )
+
+    cr.add(
+        "manual",
+        jwt_test.run_manual,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        jwt_key_refresh_interval_s=100000,
+        issuer_port=12346,
+    )
+
+    cr.add(
+        "ca_cert",
+        jwt_test.run_ca_cert,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
     cr.run()
