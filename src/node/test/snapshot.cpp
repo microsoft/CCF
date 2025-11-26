@@ -178,7 +178,6 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
 int main(int argc, char** argv)
 {
-  threading::ThreadMessaging::init(1);
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();

@@ -4,9 +4,7 @@
 
 #include "ccf/ds/nonstd.h"
 #include "ccf/rest_verb.h"
-#include "ccf/threading/thread_ids.h"
 #include "ds/internal_logger.h"
-#include "ds/thread_messaging.h"
 #include "host/proxy.h"
 
 #include <cstddef>
@@ -389,7 +387,6 @@ namespace ccf::curl
     std::unique_ptr<ccf::curl::ResponseBody> response;
     ResponseHeaders response_headers;
     std::optional<ResponseCallback> response_callback;
-    std::optional<uint16_t> response_thread;
 
   public:
     CurlRequest(
@@ -399,17 +396,14 @@ namespace ccf::curl
       UniqueSlist&& headers_,
       std::unique_ptr<RequestBody>&& request_body_,
       std::unique_ptr<ccf::curl::ResponseBody>&& response_,
-      std::optional<ResponseCallback>&& response_callback_,
-      std::optional<uint16_t> response_thread_ =
-        threading::get_current_thread_id()) :
+      std::optional<ResponseCallback>&& response_callback_) :
       curl_handle(std::move(curl_handle_)),
       method(method_),
       url(std::move(url_)),
       headers(std::move(headers_)),
       request_body(std::move(request_body_)),
       response(std::move(response_)),
-      response_callback(std::move(response_callback_)),
-      response_thread(response_thread_)
+      response_callback(std::move(response_callback_))
     {
       if (url.empty())
       {
@@ -542,11 +536,6 @@ namespace ccf::curl
     {
       return response_headers.data;
     }
-
-    [[nodiscard]] std::optional<uint16_t> get_response_thread() const
-    {
-      return response_thread;
-    }
   };
 
   class CurlRequestCURLM : public UniqueCURLM
@@ -606,26 +595,9 @@ namespace ccf::curl
           // destructor of CurlRequest
           curl_multi_remove_handle(p.get(), easy);
 
-          // dispatch the response handling to a thread for processing
-          if (request->get_response_thread().has_value())
-          {
-            using Data =
-              std::tuple<std::unique_ptr<curl::CurlRequest>, CURLcode>;
-            ::threading::ThreadMessaging::instance().add_task(
-              request->get_response_thread().value(),
-              std::make_unique<::threading::Tmsg<Data>>(
-                [](std::unique_ptr<::threading::Tmsg<Data>> msg) {
-                  auto& [curl_request, curl_code] = msg->data;
-                  CurlRequest::handle_response(
-                    std::move(curl_request), curl_code);
-                },
-                std::make_tuple(std::move(request_data_ptr), result)));
-          }
-          else
-          {
-            // If the response thread is not set, run on the uv thread
-            CurlRequest::handle_response(std::move(request_data_ptr), result);
-          }
+          // handle response inline. Note that if this is expensive, it should
+          // defer its work to a task
+          CurlRequest::handle_response(std::move(request_data_ptr), result);
         }
       } while (msgq > 0);
       return running_handles;
