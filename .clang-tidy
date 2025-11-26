@@ -9,6 +9,7 @@ Checks: >
   -bugprone-casting-through-void,
   -bugprone-reserved-identifier,
   -bugprone-macro-parentheses,
+  -bugprone-branch-clone,
   cert-*,
   -cert-con36-c,
   -cert-dcl37-c,

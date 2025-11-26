@@ -13,9 +13,9 @@ namespace ccf::tasks
     Fn fn;
     const std::string name;
 
-    BasicTask(const Fn& fn_, const std::string& s = "BasicTask") :
-      fn(fn_),
-      name(s)
+    BasicTask(Fn fn_, std::string s = "BasicTask") :
+      fn(std::move(fn_)),
+      name(std::move(s))
     {}
 
     void do_task_implementation() override
@@ -23,7 +23,7 @@ namespace ccf::tasks
       fn();
     }
 
-    const std::string& get_name() const override
+    [[nodiscard]] const std::string& get_name() const override
     {
       return name;
     }

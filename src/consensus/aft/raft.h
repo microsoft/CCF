@@ -1135,7 +1135,7 @@ namespace aft
       {
         become_aware_of_new_term(r.term);
       }
-      if (state->current_view < r.term)
+      else if (state->current_view < r.term)
       {
         become_aware_of_new_term(r.term);
       }

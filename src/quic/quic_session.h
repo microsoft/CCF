@@ -51,15 +51,14 @@ namespace quic
     QUICSession(
       int64_t session_id_, ringbuffer::AbstractWriterFactory& writer_factory_) :
       to_host(writer_factory_.create_writer_to_outside()),
-      session_id(session_id_),
-      status(handshake)
+      session_id(session_id_)
     {
       task_scheduler = ccf::tasks::OrderedTasks::create(
         ccf::tasks::get_main_job_board(),
         fmt::format("Session {}", session_id));
     }
 
-    ~QUICSession()
+    ~QUICSession() override
     {
       task_scheduler->cancel_task();
       // RINGBUFFER_WRITE_MESSAGE(quic::quic_closed, to_host, session_id);
@@ -166,7 +165,7 @@ namespace quic
         std::shared_ptr<QUICSession> s,
         std::span<const uint8_t> d,
         sockaddr sa) :
-        self(s),
+        self(std::move(s)),
         addr(sa)
       {
         data.assign(d.begin(), d.end());
@@ -182,7 +181,7 @@ namespace quic
         self->send_raw_thread(data, addr);
       }
 
-      const std::string& get_name() const override
+      [[nodiscard]] const std::string& get_name() const override
       {
         static const std::string name = "quic::SendDataTask";
         return name;
@@ -198,7 +197,7 @@ namespace quic
         self->recv(data.data(), data.size(), addr);
       }
 
-      const std::string& get_name() const override
+      [[nodiscard]] const std::string& get_name() const override
       {
         static const std::string name = "quic::RecvDataTask";
         return name;
