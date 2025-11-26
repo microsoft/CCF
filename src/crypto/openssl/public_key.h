@@ -51,20 +51,34 @@ namespace ccf::crypto
         gname.resize(gname_len);
 
         // Map curve to COSE algorithm
-        if (gname == SN_X9_62_prime256v1 && cose_alg != -7) // P-256
+        if (gname == SN_X9_62_prime256v1) // P-256
         {
-          throw std::domain_error(
-            fmt::format("Incompatible cose algorithm {} for P-256", cose_alg));
+          if (cose_alg != -7)
+          {
+            throw std::domain_error(fmt::format(
+              "secp256r1 key cannot be used with COSE algorithm {}", cose_alg));
+          }
         }
-        if (gname == SN_secp384r1 && cose_alg != -35) // P-384
+        else if (gname == SN_secp384r1) // P-384
         {
-          throw std::domain_error(
-            fmt::format("Incompatible cose algorithm {} for P-384", cose_alg));
+          if (cose_alg != -35)
+          {
+            throw std::domain_error(fmt::format(
+              "secp384r1 key cannot be used with COSE algorithm {}", cose_alg));
+          }
         }
-        if (gname == SN_secp521r1 && cose_alg != -36) // P-521
+        else if (gname == SN_secp521r1) // P-521
+        {
+          if (cose_alg != -36)
+          {
+            throw std::domain_error(fmt::format(
+              "secp521r1 key cannot be used with COSE algorithm {}", cose_alg));
+          }
+        }
+        else
         {
           throw std::domain_error(
-            fmt::format("Incompatible cose algorithm {} for P-521", cose_alg));
+            fmt::format("Unsupported EC curve: {}", gname));
         }
       }
       else if (key_type == EVP_PKEY_RSA || key_type == EVP_PKEY_RSA_PSS)
@@ -79,6 +93,11 @@ namespace ccf::crypto
           throw std::domain_error(
             fmt::format("Incompatible cose algorithm {} for RSA", cose_alg));
         }
+      }
+      else
+      {
+        throw std::domain_error(
+          fmt::format("Unsupported key type {}", key_type));
       }
     }
 
