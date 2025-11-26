@@ -86,7 +86,7 @@ namespace aft
     }
   };
 
-  //NOLINTNEXTLINE(performance-enum-size)
+  // NOLINTNEXTLINE(performance-enum-size)
   enum RaftMsgType : Node2NodeMsg
   {
     raft_append_entries = 0,
