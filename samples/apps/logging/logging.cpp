@@ -569,7 +569,7 @@ namespace loggingapp
         return ccf::make_success(nullptr);
       };
 
-      auto post_private_v2_url = "/log/private/anonymous/v2";
+      const auto* post_private_v2_url = "/log/private/anonymous/v2";
       make_endpoint(
         post_private_v2_url,
         HTTP_POST,
