@@ -69,7 +69,7 @@ namespace ccf::crypto
       }
       else if (key_type == EVP_PKEY_RSA || key_type == EVP_PKEY_RSA_PSS)
       {
-        // It is RECOMMENED although not required to match hash function and key
+        // It is RECOMMENDED although not required to match hash function and key
         // sizes, so any of PS256(37), PS384(38), and PS512(39) is acceptable.
         //
         // https://www.iana.org/assignments/cose/cose.xhtml
