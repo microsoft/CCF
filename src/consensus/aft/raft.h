@@ -8,6 +8,7 @@
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
 #include "consensus/aft/raft_types.h"
+#include "ds/ccf_assert.h"
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "impl/state.h"

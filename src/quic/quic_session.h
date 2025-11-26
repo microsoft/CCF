@@ -6,7 +6,6 @@
 #include "ds/messaging.h"
 #include "ds/pending_io.h"
 #include "ds/ring_buffer.h"
-#include "ds/thread_messaging.h"
 #include "enclave/session.h"
 #include "udp/msg_types.h"
 
@@ -20,7 +19,8 @@ namespace quic
   protected:
     ringbuffer::WriterPtr to_host;
     ccf::tls::ConnID session_id;
-    size_t execution_thread;
+
+    std::shared_ptr<ccf::tasks::OrderedTasks> task_scheduler;
 
     enum Status : std::uint8_t
     {
@@ -52,11 +52,18 @@ namespace quic
       int64_t session_id_, ringbuffer::AbstractWriterFactory& writer_factory_) :
       to_host(writer_factory_.create_writer_to_outside()),
       session_id(session_id_),
-      execution_thread(
-        threading::ThreadMessaging::instance().get_execution_thread(session_id))
-    {}
+      status(handshake)
+    {
+      task_scheduler = ccf::tasks::OrderedTasks::create(
+        ccf::tasks::get_main_job_board(),
+        fmt::format("Session {}", session_id));
+    }
 
-    ~QUICSession() override = default;
+    ~QUICSession()
+    {
+      task_scheduler->cancel_task();
+      // RINGBUFFER_WRITE_MESSAGE(quic::quic_closed, to_host, session_id);
+    }
 
     std::string hostname()
     {
@@ -144,45 +151,68 @@ namespace quic
 
     void recv_buffered(const uint8_t* data, size_t size, sockaddr addr)
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called recv_buffered from incorrect thread");
-      }
       LOG_TRACE_FMT("QUIC Session recv_buffered with {} bytes", size);
       pending_reads.emplace_back(const_cast<uint8_t*>(data), size, addr);
       do_handshake();
     }
 
-    struct SendRecvMsg
+    struct SessionDataTask : public ccf::tasks::ITaskAction
     {
-      std::vector<uint8_t> data;
       std::shared_ptr<QUICSession> self;
+      std::vector<uint8_t> data;
       sockaddr addr{};
+
+      SessionDataTask(
+        std::shared_ptr<QUICSession> s,
+        std::span<const uint8_t> d,
+        sockaddr sa) :
+        self(s),
+        addr(sa)
+      {
+        data.assign(d.begin(), d.end());
+      }
     };
 
-    static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
+    struct SendDataTask : public SessionDataTask
     {
-      msg->data.self->send_raw_thread(msg->data.data, msg->data.addr);
-    }
+      using SessionDataTask::SessionDataTask;
+
+      void do_action() override
+      {
+        self->send_raw_thread(data, addr);
+      }
+
+      const std::string& get_name() const override
+      {
+        static const std::string name = "quic::SendDataTask";
+        return name;
+      }
+    };
+
+    struct RecvDataTask : public SessionDataTask
+    {
+      using SessionDataTask::SessionDataTask;
+
+      void do_action() override
+      {
+        self->recv(data.data(), data.size(), addr);
+      }
+
+      const std::string& get_name() const override
+      {
+        static const std::string name = "quic::RecvDataTask";
+        return name;
+      }
+    };
 
     void send_raw(const uint8_t* data, size_t size, sockaddr addr)
     {
-      auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
-      msg->data.self = this->shared_from_this();
-      msg->data.data = std::vector<uint8_t>(data, data + size);
-      msg->data.addr = addr;
-
-      threading::ThreadMessaging::instance().add_task(
-        execution_thread, std::move(msg));
+      task_scheduler->add_action(std::make_shared<SendDataTask>(
+        shared_from_this(), std::span<const uint8_t>{data, size}, addr));
     }
 
     void send_raw_thread(const std::vector<uint8_t>& data, sockaddr addr)
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error(
-          "Called send_raw_thread from incorrect thread");
-      }
       // Writes as much of the data as possible. If the data cannot all
       // be written now, we store the remainder. We
       // will try to send pending writes again whenever write() is called.
@@ -208,22 +238,25 @@ namespace quic
 
     void send_buffered(const std::vector<uint8_t>& data, sockaddr addr)
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called send_buffered from incorrect thread");
-      }
-
       pending_writes.emplace_back(
         const_cast<uint8_t*>(data.data()), data.size(), addr);
     }
 
+    void handle_incoming_data(std::span<const uint8_t> data) override
+    {
+      auto [_, addr_family, addr_data, body] =
+        ringbuffer::read_message<udp::udp_inbound>(data);
+
+      task_scheduler->add_action(std::make_shared<RecvDataTask>(
+        shared_from_this(),
+        body,
+        udp::sockaddr_decode(addr_family, addr_data)));
+    }
+
+    virtual void recv(const uint8_t* data_, size_t size_, sockaddr addr_) = 0;
+
     void flush()
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called flush from incorrect thread");
-      }
-
       do_handshake();
 
       if (status != ready)
@@ -252,32 +285,15 @@ namespace quic
       PendingBuffer::clear_empty(pending_writes);
     }
 
-    struct EmptyMsg
-    {
-      std::shared_ptr<QUICSession> self;
-    };
-
-    static void close_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
-    {
-      msg->data.self->close_thread();
-    }
-
     void close_session() override
     {
-      auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
-      msg->data.self = this->shared_from_this();
-
-      threading::ThreadMessaging::instance().add_task(
-        execution_thread, std::move(msg));
+      auto self = shared_from_this();
+      task_scheduler->add_action(
+        ccf::tasks::make_basic_action([self]() { self->close_thread(); }));
     }
 
     void close_thread()
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called close_thread from incorrect thread");
-      }
-
       switch (status)
       {
         case handshake:
@@ -355,11 +371,6 @@ namespace quic
 
     int handle_recv(uint8_t* buf, size_t len, sockaddr addr)
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called handle_recv from incorrect thread");
-      }
-
       size_t len_read = 0;
       for (auto& read : pending_reads)
       {
@@ -429,27 +440,7 @@ namespace quic
       send_raw(data.data(), data.size(), addr);
     }
 
-    static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
-    {
-      reinterpret_cast<QUICEchoSession*>(msg->data.self.get())
-        ->recv_(msg->data.data.data(), msg->data.data.size(), msg->data.addr);
-    }
-
-    void handle_incoming_data(std::span<const uint8_t> data) override
-    {
-      auto [_, addr_family, addr_data, body] =
-        ringbuffer::read_message<udp::udp_inbound>(data);
-
-      auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_cb);
-      msg->data.self = this->shared_from_this();
-      msg->data.data.assign(body.data, body.data + body.size);
-      msg->data.addr = udp::sockaddr_decode(addr_family, addr_data);
-
-      threading::ThreadMessaging::instance().add_task(
-        execution_thread, std::move(msg));
-    }
-
-    void recv_(const uint8_t* data_, size_t size_, sockaddr addr_)
+    void recv(const uint8_t* data_, size_t size_, sockaddr addr_) override
     {
       recv_buffered(data_, size_, addr_);
       addr = addr_;

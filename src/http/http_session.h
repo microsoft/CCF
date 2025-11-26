@@ -67,7 +67,7 @@ namespace http
           ccf::errors::RequestBodyTooLarge,
           e.what()});
 
-        tls_io->close();
+        close_session();
       }
       catch (RequestHeaderTooLargeException& e)
       {
@@ -83,7 +83,7 @@ namespace http
           ccf::errors::RequestHeaderTooLarge,
           e.what()});
 
-        tls_io->close();
+        close_session();
       }
       catch (const std::exception& e)
       {
@@ -113,7 +113,7 @@ namespace http
           {},
           std::move(response_body));
 
-        tls_io->close();
+        close_session();
       }
 
       return false;
@@ -157,7 +157,7 @@ namespace http
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             fmt::format("Error constructing RpcContext: {}", e.what())});
-          tls_io->close();
+          close_session();
         }
 
         std::shared_ptr<ccf::RpcHandler> search =
@@ -181,7 +181,7 @@ namespace http
 
           if (rpc_ctx->terminate_session)
           {
-            tls_io->close();
+            close_session();
           }
         }
       }
@@ -195,7 +195,7 @@ namespace http
         // On any exception, close the connection.
         LOG_FAIL_FMT("Closing connection");
         LOG_DEBUG_FMT("Closing connection due to exception: {}", e.what());
-        tls_io->close();
+        close_session();
         throw;
       }
     }
@@ -223,31 +223,8 @@ namespace http
         false /* Don't overwrite any existing content-length header */
       );
 
-      auto data = response.build_response();
-      tls_io->send_raw(data.data(), data.size());
+      send_data(response.build_response());
       return true;
-    }
-
-    bool start_stream(
-      ccf::http_status status, const ccf::http::HeaderMap& headers) override
-    {
-      throw std::logic_error("Not implemented!");
-    }
-
-    bool stream_data(std::vector<uint8_t>&& data) override
-    {
-      throw std::logic_error("Not implemented!");
-    }
-
-    bool close_stream(ccf::http::HeaderMap&&) override
-    {
-      throw std::logic_error("Not implemented!");
-    }
-
-    bool set_on_stream_close_callback(
-      ccf::http::StreamOnCloseCallback cb) override
-    {
-      throw std::logic_error("Not implemented!");
     }
   };
 
