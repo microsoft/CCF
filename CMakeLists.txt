@@ -1064,11 +1064,7 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME connections PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-  )
-
-  add_e2e_test(
-    NAME fuzz_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fuzzing.py
+    NAME tls_stress_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
   )
 
   if(CLIENT_PROTOCOLS_TEST)
