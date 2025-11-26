@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/node/commit_callback_interface.h"
+#include "node/commit_callback_interface.h"
 
 #include <map>
 #include <mutex>
@@ -39,7 +39,7 @@ namespace ccf
         {
           // TxID is already known to be in a terminal state - execute callback
           // immediately
-          callback(status);
+          callback(tx_id, status);
           return;
         }
       }
@@ -84,7 +84,7 @@ namespace ccf
               nlohmann::json(status).dump()));
           }
 
-          callback(status);
+          callback(tx_id, status);
         }
 
         it = pending_callbacks.erase(it);

@@ -180,43 +180,35 @@ namespace http
 
           LOG_INFO_FMT(
             "!!! Enabling respond_on_commit for request @ {}", tx_id.to_str());
-          if (commit_callbacks != nullptr)
-          {
-            // Block any future work from happening on this session, to
-            // maintain session consistency
-            ccf::tasks::Resumable paused_task =
-              ccf::tasks::pause_current_task();
+          // Block any future work from happening on this session, to
+          // maintain session consistency
+          ccf::tasks::Resumable paused_task = ccf::tasks::pause_current_task();
 
-            // Register for a callback when this TxID is committed (or
-            // invalidated)
-            commit_callbacks->add_callback(
-              tx_id,
-              [this, tx_id, rpc_ctx, paused = std::move(paused_task)](
-                ccf::TxStatus status) mutable {
-                LOG_INFO_FMT(
-                  "!!!! Executing callback for tx {}, which just "
-                  "became {}",
-                  tx_id.to_str(),
-                  nlohmann::json(status).dump());
+          // Register for a callback when this TxID is committed (or
+          // invalidated)
+          commit_callbacks->add_callback(
+            tx_id,
+            [this, rpc_ctx, paused = std::move(paused_task)](
+              ccf::TxID tx_id, ccf::TxStatus status) mutable {
+              LOG_INFO_FMT(
+                "!!!! Executing callback for tx {}, which just "
+                "became {}",
+                tx_id.to_str(),
+                nlohmann::json(status).dump());
 
-                // Write the response!
-                this->send_response(
-                  rpc_ctx->get_response_http_status(),
-                  rpc_ctx->get_response_headers(),
-                  rpc_ctx->get_response_trailers(),
-                  std::move(rpc_ctx->take_response_body()));
+              // Write the response!
+              this->send_response(
+                rpc_ctx->get_response_http_status(),
+                rpc_ctx->get_response_headers(),
+                rpc_ctx->get_response_trailers(),
+                std::move(rpc_ctx->take_response_body()));
 
-                // TODO: If status is not Committed, write an error
-                // response!
+              // TODO: If status is not Committed, write an error
+              // response!
 
-                // Resume processing work for this session
-                ccf::tasks::resume_task(std::move(paused));
-              });
-          }
-          else
-          {
-            // TODO: Produce an internal error response?
-          }
+              // Resume processing work for this session
+              ccf::tasks::resume_task(std::move(paused));
+            });
         }
         else
         {

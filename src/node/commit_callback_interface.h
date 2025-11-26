@@ -8,11 +8,9 @@
 
 #include <functional>
 
-// TODO: Does this need to be a public header? I think it might be an
-// implementation detail!
 namespace ccf
 {
-  using CommitCallback = std::function<void(ccf::TxStatus)>;
+  using CommitCallback = std::function<void(ccf::TxID, ccf::TxStatus)>;
 
   class CommitCallbackInterface : public AbstractNodeSubSystem
   {
