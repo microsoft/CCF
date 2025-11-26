@@ -21,6 +21,8 @@ from infra.runner import ConcurrentRunner
 
 from loguru import logger as LOG
 
+import fuzzing
+
 
 class AllConnectionsCreatedException(Exception):
     """
@@ -443,6 +445,13 @@ def run_node_socket_robustness_tests(args):
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()
+
+    cr.add(
+        "fuzzing",
+        fuzzing.run,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+    )
 
     cr.add(
         "robustness",
