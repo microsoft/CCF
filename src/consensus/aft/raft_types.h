@@ -86,7 +86,8 @@ namespace aft
     }
   };
 
-  enum RaftMsgType : std::uint8_t
+  //NOLINTNEXTLINE(performance-enum-size)
+  enum RaftMsgType : Node2NodeMsg
   {
     raft_append_entries = 0,
     raft_append_entries_response,

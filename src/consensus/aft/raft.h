@@ -1626,7 +1626,7 @@ namespace aft
           return;
         }
       }
-      if (r.last_log_idx < node->second.match_idx)
+      else if (r.last_log_idx < node->second.match_idx)
       {
         // Response about past indices, discard if success.
         // Otherwise reset sent_idx and try again.
