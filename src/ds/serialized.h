@@ -6,6 +6,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #define FMT_HEADER_ONLY
@@ -19,9 +20,9 @@ namespace serialized
     std::string msg;
 
   public:
-    InsufficientSpaceException(const std::string& msg_) : msg(msg_) {}
+    InsufficientSpaceException(std::string msg_) : msg(std::move(msg_)) {}
 
-    const char* what() const throw() override
+    [[nodiscard]] const char* what() const noexcept override
     {
       return msg.c_str();
     }
@@ -48,11 +49,9 @@ namespace serialized
       std::memcpy(scratch, data, sizeof(T));
       return *(T*)scratch;
     }
-    else
-    {
-      // Cast directly from source memory
-      return *(T*)data;
-    }
+
+    // Cast directly from source memory
+    return *(T*)data;
   }
 
   template <class T>
@@ -74,7 +73,7 @@ namespace serialized
   template <>
   inline std::string read(const uint8_t*& data, size_t& size)
   {
-    size_t len = read<size_t>(data, size);
+    auto len = read<size_t>(data, size);
     if (size < len)
     {
       throw InsufficientSpaceException(
@@ -111,7 +110,7 @@ namespace serialized
         fmt::format("Insufficient space (write<T>: {} < {})", size, sizeof(T)));
     }
 
-    const auto src = reinterpret_cast<const uint8_t*>(&v);
+    const auto* const src = reinterpret_cast<const uint8_t*>(&v);
     std::memcpy(data, src, sizeof(T));
     data += sizeof(T);
     size -= sizeof(T);
@@ -145,7 +144,7 @@ namespace serialized
     }
 
     write(data, size, v.size());
-    write(data, size, (const uint8_t*)v.data(), v.size());
+    write(data, size, reinterpret_cast<const uint8_t*>(v.data()), v.size());
   }
 
   template <class T>

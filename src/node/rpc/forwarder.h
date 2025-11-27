@@ -162,6 +162,7 @@ namespace ccf
       if (includes_caller)
       {
         auto caller_size = serialized::read<size_t>(data_, size_);
+        // NOLINTNEXTLINE(readability-suspicious-call-argument)
         caller_cert = serialized::read(data_, size_, caller_size);
       }
       std::vector<uint8_t> raw_request = serialized::read(data_, size_, size_);

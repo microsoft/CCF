@@ -132,12 +132,12 @@ namespace aft
   class Replica
   {
   public:
-    Replica(const ccf::NodeId& id_, const std::vector<uint8_t>& cert_) :
-      id(id_),
+    Replica(ccf::NodeId id_, const std::vector<uint8_t>& cert_) :
+      id(std::move(id_)),
       verifier(ccf::crypto::make_unique_verifier(cert_))
     {}
 
-    ccf::NodeId get_id() const
+    [[nodiscard]] ccf::NodeId get_id() const
     {
       return id;
     }
@@ -149,8 +149,8 @@ namespace aft
 
   struct State
   {
-    State(const ccf::NodeId& node_id_, bool pre_vote_enabled_ = false) :
-      node_id(node_id_),
+    State(ccf::NodeId node_id_, bool pre_vote_enabled_ = false) :
+      node_id(std::move(node_id_)),
       pre_vote_enabled(pre_vote_enabled_)
     {}
     State() = default;

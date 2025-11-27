@@ -158,14 +158,12 @@ interface UserMemberCOSEAuthIdentityCommon {
 }
 
 export interface MemberCOSESign1AuthnIdentity
-  extends UserMemberAuthnIdentityCommon,
-    UserMemberCOSEAuthIdentityCommon {
+  extends UserMemberAuthnIdentityCommon, UserMemberCOSEAuthIdentityCommon {
   policy: "member_cose_sign1";
 }
 
 export interface UserCOSESign1AuthnIdentity
-  extends UserMemberAuthnIdentityCommon,
-    UserMemberCOSEAuthIdentityCommon {
+  extends UserMemberAuthnIdentityCommon, UserMemberCOSEAuthIdentityCommon {
   policy: "user_cose_sign1";
 }
 
