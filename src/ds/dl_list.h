@@ -15,9 +15,9 @@ namespace ds
   {
   private:
     static_assert(
-      std::is_same<decltype(T::prev), T*>::value, "T->prev must be a T*");
+      std::is_same_v<decltype(T::prev), T*>, "T->prev must be a T*");
     static_assert(
-      std::is_same<decltype(T::next), T*>::value, "T->next must be a T*");
+      std::is_same_v<decltype(T::next), T*>, "T->next must be a T*");
 
     T* head = nullptr;
     T* tail = nullptr;
@@ -25,11 +25,8 @@ namespace ds
   public:
     DLList() = default;
 
-    DLList(DLList&& o) noexcept
+    DLList(DLList&& o) noexcept : head(o.head), tail(o.tail)
     {
-      head = o.head;
-      tail = o.tail;
-
       o.head = nullptr;
       o.tail = nullptr;
     }
@@ -69,7 +66,9 @@ namespace ds
       T* item = head;
 
       if (item != nullptr)
+      {
         remove(item);
+      }
 
       return item;
     }
@@ -79,7 +78,9 @@ namespace ds
       T* item = tail;
 
       if (item != nullptr)
+      {
         remove(item);
+      }
 
       return item;
     }
@@ -94,9 +95,13 @@ namespace ds
       item->prev = nullptr;
 
       if (head != nullptr)
+      {
         head->prev = item;
+      }
       else
+      {
         tail = item;
+      }
 
       head = item;
 #ifndef NDEBUG
@@ -114,9 +119,13 @@ namespace ds
       item->next = nullptr;
 
       if (tail != nullptr)
+      {
         tail->next = item;
+      }
       else
+      {
         head = item;
+      }
 
       tail = item;
 #ifndef NDEBUG
@@ -131,14 +140,22 @@ namespace ds
 #endif
 
       if (item->next != nullptr)
+      {
         item->next->prev = item->prev;
+      }
       else
+      {
         tail = item->prev;
+      }
 
       if (item->prev != nullptr)
+      {
         item->prev->next = item->next;
+      }
       else
+      {
         head = item->next;
+      }
 
 #ifndef NDEBUG
       debug_check();
@@ -156,7 +173,7 @@ namespace ds
         // This is perhaps related to
         // https://github.com/llvm/llvm-project/issues/43395
         remove(c); // NOLINT(clang-analyzer-cplusplus.NewDelete)
-        delete c;
+        delete c; // NOLINT(cppcoreguidelines-owning-memory)
       }
     }
 
