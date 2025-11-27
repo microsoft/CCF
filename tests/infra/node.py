@@ -839,7 +839,7 @@ class Node:
 
         if not found:
             raise ValueError(
-                f"Unable to retrieve entry at TxID {view}.{seqno} on node {node.local_node_id} after {timeout}s"
+                f"Unable to retrieve entry at TxID {view}.{seqno} on node {self.local_node_id} after {timeout}s"
             )
 
     def wait_for_leadership_state(self, min_view, leadership_states, timeout=3):
