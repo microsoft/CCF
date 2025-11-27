@@ -16,7 +16,7 @@ namespace ccf
     std::optional<ccf::kv::Version> version;
 
     // Encrypted secret for each backup
-    std::vector<uint8_t> encrypted_secret = {};
+    std::vector<uint8_t> encrypted_secret;
 
     // Version at which the previous secret is stored at
     std::optional<ccf::kv::Version> previous_secret_stored_version =

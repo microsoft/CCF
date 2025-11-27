@@ -36,12 +36,12 @@ namespace tls
   public:
     Cert(
       std::shared_ptr<CA> peer_ca_,
-      const std::optional<ccf::crypto::Pem>& own_cert_ = std::nullopt,
-      const std::optional<ccf::crypto::Pem>& own_pkey_ = std::nullopt,
-      const std::optional<std::string>& peer_hostname_ = std::nullopt,
+      std::optional<ccf::crypto::Pem> own_cert_ = std::nullopt,
+      std::optional<ccf::crypto::Pem> own_pkey_ = std::nullopt,
+      std::optional<std::string> peer_hostname_ = std::nullopt,
       bool auth_required_ = true) :
-      peer_ca(peer_ca_),
-      peer_hostname(peer_hostname_),
+      peer_ca(std::move(peer_ca_)),
+      peer_hostname(std::move(peer_hostname_)),
       auth_required(auth_required_)
     {
       if (own_cert_.has_value() && own_pkey_.has_value())

@@ -5,6 +5,8 @@
 #include "ring_buffer.h"
 #include "work_beacon.h"
 
+#include <utility>
+
 namespace ringbuffer
 {
   class NotifyingWriter : public AbstractWriter
@@ -14,9 +16,9 @@ namespace ringbuffer
     ccf::ds::WorkBeaconPtr work_beacon;
 
   public:
-    NotifyingWriter(const WriterPtr& writer, const ccf::ds::WorkBeaconPtr& wb) :
-      underlying_writer(writer),
-      work_beacon(wb)
+    NotifyingWriter(WriterPtr writer, ccf::ds::WorkBeaconPtr wb) :
+      underlying_writer(std::move(writer)),
+      work_beacon(std::move(wb))
     {}
 
     // After the underlying writer finishes writing a message, notify any

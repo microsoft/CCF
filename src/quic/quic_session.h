@@ -22,7 +22,7 @@ namespace quic
 
     std::shared_ptr<ccf::tasks::OrderedTasks> task_scheduler;
 
-    enum Status
+    enum Status : std::uint8_t
     {
       handshake,
       ready,
@@ -36,7 +36,6 @@ namespace quic
       return status;
     }
 
-  protected:
     using PendingBuffer = PendingIO<uint8_t>;
     using PendingList = std::vector<PendingBuffer>;
     PendingList pending_writes;
@@ -46,21 +45,20 @@ namespace quic
     // Decrypted data
     std::vector<uint8_t> read_buffer;
 
-    Status status;
+    Status status = handshake;
 
   public:
     QUICSession(
       int64_t session_id_, ringbuffer::AbstractWriterFactory& writer_factory_) :
       to_host(writer_factory_.create_writer_to_outside()),
-      session_id(session_id_),
-      status(handshake)
+      session_id(session_id_)
     {
       task_scheduler = ccf::tasks::OrderedTasks::create(
         ccf::tasks::get_main_job_board(),
         fmt::format("Session {}", session_id));
     }
 
-    ~QUICSession()
+    ~QUICSession() override
     {
       task_scheduler->cancel_task();
       // RINGBUFFER_WRITE_MESSAGE(quic::quic_closed, to_host, session_id);
@@ -99,7 +97,7 @@ namespace quic
 
       size_t offset = 0;
 
-      if (read_buffer.size() > 0)
+      if (!read_buffer.empty())
       {
         LOG_TRACE_FMT(
           "Have existing read_buffer of size: {}", read_buffer.size());
@@ -107,12 +105,18 @@ namespace quic
         ::memcpy(data, read_buffer.data(), offset);
 
         if (offset < read_buffer.size())
+        {
           read_buffer.erase(read_buffer.begin(), read_buffer.begin() + offset);
+        }
         else
+        {
           read_buffer.clear();
+        }
 
         if (offset == size)
+        {
           return size;
+        }
 
         // NB: If we continue past here, read_buffer is empty
       }
@@ -155,13 +159,13 @@ namespace quic
     {
       std::shared_ptr<QUICSession> self;
       std::vector<uint8_t> data;
-      sockaddr addr;
+      sockaddr addr{};
 
       SessionDataTask(
         std::shared_ptr<QUICSession> s,
         std::span<const uint8_t> d,
         sockaddr sa) :
-        self(s),
+        self(std::move(s)),
         addr(sa)
       {
         data.assign(d.begin(), d.end());
@@ -177,7 +181,7 @@ namespace quic
         self->send_raw_thread(data, addr);
       }
 
-      const std::string& get_name() const override
+      [[nodiscard]] const std::string& get_name() const override
       {
         static const std::string name = "quic::SendDataTask";
         return name;
@@ -193,7 +197,7 @@ namespace quic
         self->recv(data.data(), data.size(), addr);
       }
 
-      const std::string& get_name() const override
+      [[nodiscard]] const std::string& get_name() const override
       {
         static const std::string name = "quic::RecvDataTask";
         return name;
@@ -221,7 +225,9 @@ namespace quic
       }
 
       if (status != ready)
+      {
         return;
+      }
 
       pending_writes.emplace_back(
         const_cast<uint8_t*>(data.data()), data.size(), addr);
@@ -253,7 +259,9 @@ namespace quic
       do_handshake();
 
       if (status != ready)
+      {
         return;
+      }
 
       for (auto& write : pending_writes)
       {
@@ -313,7 +321,9 @@ namespace quic
       // This should be called when additional data is written to the
       // input buffer, until the handshake is complete.
       if (status != handshake)
+      {
         return;
+      }
 
       // This will need to be handled by the actual QUIC stack
       LOG_TRACE_FMT("QUIC do_handshake unimplemented");
@@ -351,7 +361,9 @@ namespace quic
         serializer::ByteRange{buf, len});
 
       if (!wrote)
+      {
         return -1;
+      }
 
       return (int)len;
     }
@@ -362,8 +374,10 @@ namespace quic
       for (auto& read : pending_reads)
       {
         // Only handle pending reads that belong to the same address
-        if (!memcmp((void*)&addr, (void*)&read.addr, sizeof(addr)))
+        if (memcmp((void*)&addr, (void*)&read.addr, sizeof(addr)) != 0)
+        {
           continue;
+        }
 
         size_t rd = std::min(len, read.len);
         ::memcpy(buf, read.req, rd);
@@ -372,16 +386,19 @@ namespace quic
         // UDP packets are datagrams, so it's either whole or nothing
         len_read += rd;
         if (len_read >= len)
+        {
           break;
+        }
       }
 
       // Clear all marked for deletion
       PendingBuffer::clear_empty(pending_reads);
 
       if (len_read > 0)
+      {
         return len_read;
-      else
-        return -1;
+      }
+      return -1;
     }
   };
 
@@ -406,14 +423,15 @@ namespace quic
 
   public:
     QUICEchoSession(
-      std::shared_ptr<ccf::RPCMap> rpc_map,
-      int64_t session_id,
-      const ccf::ListenInterfaceID& interface_id,
+      std::shared_ptr<ccf::RPCMap> rpc_map_,
+      int64_t session_id_,
+      ccf::ListenInterfaceID interface_id_,
       ringbuffer::AbstractWriterFactory& writer_factory) :
-      QUICSession(session_id, writer_factory),
-      rpc_map(rpc_map),
-      session_id(session_id),
-      interface_id(interface_id)
+      QUICSession(session_id_, writer_factory),
+      rpc_map(std::move(rpc_map_)),
+      session_id(session_id_),
+      interface_id(std::move(interface_id_)),
+      addr{}
     {}
 
     void send_data(std::vector<uint8_t>&& data) override
