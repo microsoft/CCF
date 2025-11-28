@@ -1830,6 +1830,7 @@ def run_read_ledger_on_testdata(args):
     good_chunk = ccf.ledger.LedgerChunk(source_chunk)
     start_seqno, end_seqno = good_chunk.get_seqnos()
     expected_range = end_seqno - start_seqno + 1
+    tx_count_error = f"Expected to contain {expected_range} transactions due to filename"
     chunk_name = os.path.basename(source_chunk)
     with open(source_chunk, "rb") as src_f:
         good_data = src_f.read()
@@ -1849,9 +1850,14 @@ def run_read_ledger_on_testdata(args):
             f"File header claims offset table is at {source_offset}",
         ),
         (
+            "truncate_at_offsets",
+            good_data[:source_offset],
+            tx_count_error,
+        ),
+        (
             "truncate_tx_no_offsets",
             no_offsets_table[:source_size//2],
-            f"Expected to contain {expected_range} transactions due to filename",
+            tx_count_error,
         ),
         (
             "header_offset_too_large",
@@ -1861,7 +1867,7 @@ def run_read_ledger_on_testdata(args):
         (
             "truncate_mid_offsets",
             good_data[:-4],
-            f"Expected to contain {expected_range} transactions due to filename",
+            tx_count_error,
         ),
         (
             "misaligned_offsets_too_small",
@@ -1876,7 +1882,7 @@ def run_read_ledger_on_testdata(args):
         (
             "unread_data",
             good_data + b'\x00' * 4,
-            f"Expected to contain {expected_range} transactions due to filename",
+            tx_count_error,
         ),
         (
             "unread_data_no_offsets_misaligned",
@@ -1886,7 +1892,7 @@ def run_read_ledger_on_testdata(args):
         (
             "unread_data_no_offsets",
             no_offsets_table + b'\x00' * 8,
-            f"Expected to contain {expected_range} transactions due to filename",
+            tx_count_error,
         ),
     ]:
         temp_dir = tempfile.TemporaryDirectory(dir="workspace", prefix=name + "-", delete=False)
