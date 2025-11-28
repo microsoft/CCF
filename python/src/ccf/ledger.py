@@ -956,7 +956,13 @@ class LedgerChunk:
 
         # If the ledger chunk is not yet committed, the ledger header will be empty.
         # Default to reading the file size instead.
+        full_file_size = os.path.getsize(name)
         if self._pos_offset > 0:
+            if self._pos_offset > full_file_size:
+                raise ValueError(
+                    f"Invalid ledger chunk {name}: File header claims offset table is at {self._pos_offset}, yet file is only {full_file_size} bytes"
+                )
+
             self._file_size = self._pos_offset
 
             positions_buffer = _peek_all(self._file, self._pos_offset)
@@ -977,6 +983,14 @@ class LedgerChunk:
             self._positions = find_tx_positions(self._file, self._file_size)
 
         self.start_seqno, self.end_seqno = range_from_filename(name)
+
+        if self.end_seqno is not None:
+            tx_count_from_filename = self.end_seqno - self.start_seqno + 1
+            tx_count_from_positions = len(self._positions)
+            if tx_count_from_filename != tx_count_from_positions:
+                raise ValueError(
+                    f"Invalid ledger chunk {name}: Expected to contain {tx_count_from_filename} transactions due to filename, but found {tx_count_from_positions} by reading file"
+                )
 
     def __getitem__(self, key):
         if isinstance(key, int):
