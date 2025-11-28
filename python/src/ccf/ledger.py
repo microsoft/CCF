@@ -956,7 +956,11 @@ class LedgerChunk:
 
         # If the ledger chunk is not yet committed, the ledger header will be empty.
         # Default to reading the file size instead.
+        full_file_size = os.path.getsize(name)
         if self._pos_offset > 0:
+            if self._pos_offset > full_file_size:
+                raise ValueError(f"Invalid ledger chunk {name}: File header claims offset table is at {self._pos_offset}, yet file is only {full_file_size} bytes")
+
             self._file_size = self._pos_offset
 
             positions_buffer = _peek_all(self._file, self._pos_offset)
