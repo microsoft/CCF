@@ -1795,11 +1795,10 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
 
 
 def run_read_ledger_on_testdata(args):
-    services_dir = os.path.join(args.historical_testdata, "services")
-    for testdata_dir in os.scandir(services_dir):
+    for testdata_dir in os.scandir(args.historical_testdata):
         assert testdata_dir.is_dir()
         testdata_path = os.path.join(
-            services_dir, testdata_dir.name, "ledger"
+            args.historical_testdata, testdata_dir.name, "ledger"
         )
         LOG.info(f"Reading and validating ledger in {testdata_path}")
         tx_count = 0
@@ -1814,7 +1813,7 @@ def run_read_ledger_on_testdata(args):
                 tx_count += 1
         LOG.info(f"Read {tx_count} transactions from {testdata_path}")
         snapshot_path = os.path.join(
-            services_dir, testdata_dir.name, "snapshots"
+            args.historical_testdata, testdata_dir.name, "snapshots"
         )
         for snapshot_file in os.scandir(snapshot_path):
             if snapshot_file.is_file() and snapshot_file.name.endswith(".committed"):

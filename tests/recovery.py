@@ -554,7 +554,7 @@ def test_recover_service_from_files(
     args, directory, expected_recovery_count, test_receipt=True
 ):
     service_dir = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), "testdata", "services", directory
+        os.path.dirname(os.path.realpath(__file__)), "testdata", directory
     )
 
     old_common = os.path.join(service_dir, "common")
