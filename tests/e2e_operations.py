@@ -1853,6 +1853,8 @@ def run_read_ledger_on_testdata(args):
         + good_data[header_size:source_offset]
     )
 
+    null_block_size = source_size // 8
+
     for name, corrupted_data, expected_parse_error in [
         (
             "truncate_pre_offsets",
@@ -1868,6 +1870,11 @@ def run_read_ledger_on_testdata(args):
             "truncate_tx_no_offsets",
             no_offsets_table[: source_size // 2],
             tx_count_error,
+        ),
+        (
+            "nulled_block",
+            good_data[: source_size // 2] + b'\00' * null_block_size + good_data[source_size // 2 + null_block_size:],
+            "index out of range",
         ),
         (
             "header_offset_too_large",
@@ -1917,7 +1924,7 @@ def run_read_ledger_on_testdata(args):
         try:
             chunk = ccf.ledger.LedgerChunk(corrupted_chunk_path)
             for tx in chunk:
-                pass
+                tx.get_public_domain()
 
             assert (
                 False
