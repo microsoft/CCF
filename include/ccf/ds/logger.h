@@ -88,7 +88,7 @@ namespace ccf::logger
     // Sample: "2019-07-19 18:53:25.690267"
     constexpr size_t nano_per_micro = 1000;
     return fmt::format(
-      "{:%Y-%m-%dT%H:%M:%S}.{:0<6}Z", tm, ts.tv_nsec / nano_per_micro);
+      "{:%Y-%m-%dT%H:%M:%S}.{:0>6}Z", tm, ts.tv_nsec / nano_per_micro);
 #endif
   }
 
