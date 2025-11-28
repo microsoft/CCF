@@ -1873,7 +1873,9 @@ def run_read_ledger_on_testdata(args):
         ),
         (
             "nulled_block",
-            good_data[: source_size // 2] + b'\00' * null_block_size + good_data[source_size // 2 + null_block_size:],
+            good_data[: source_size // 2]
+            + b"\00" * null_block_size
+            + good_data[source_size // 2 + null_block_size :],
             "index out of range",
         ),
         (
