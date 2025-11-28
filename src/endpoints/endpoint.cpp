@@ -96,6 +96,13 @@ namespace ccf::endpoints
     return *this;
   }
 
+  Endpoint& Endpoint::set_locally_committed_function(
+    const LocallyCommittedEndpointFunction& lcf)
+  {
+    locally_committed_func = lcf;
+    return *this;
+  }
+
   Endpoint& Endpoint::set_openapi_description(const std::string& description)
   {
     openapi_description = description;
