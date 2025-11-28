@@ -989,7 +989,7 @@ class LedgerChunk:
             tx_count_from_positions = len(self._positions)
             if tx_count_from_filename != tx_count_from_positions:
                 raise ValueError(
-                    f"Invalid ledger chunk {name}: Expected to contain {tx_count_from_filename} transactions due to filename, but found only {tx_count_from_positions} by reading file"
+                    f"Invalid ledger chunk {name}: Expected to contain {tx_count_from_filename} transactions due to filename, but found {tx_count_from_positions} by reading file"
                 )
 
     def __getitem__(self, key):

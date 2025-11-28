@@ -1919,6 +1919,10 @@ def run_read_ledger_on_testdata(args):
             for tx in chunk:
                 pass
 
+            assert (
+                False
+            ), f"Expected to raise exception while parsing corrupted ledger chunk {name}"
+
         except Exception as e:
             assert expected_parse_error in str(
                 e
