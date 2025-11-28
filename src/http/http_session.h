@@ -161,6 +161,7 @@ namespace http
             ccf::errors::InternalError,
             fmt::format("Error constructing RpcContext: {}", e.what())});
           close_session();
+          return;
         }
 
         std::shared_ptr<ccf::RpcHandler> search =
@@ -178,8 +179,6 @@ namespace http
         {
           const auto tx_id = rpc_ctx->respond_on_commit_txid.value();
 
-          LOG_INFO_FMT(
-            "!!! Enabling respond_on_commit for request @ {}", tx_id.to_str());
           // Block any future work from happening on this session, to
           // maintain session consistency
           ccf::tasks::Resumable paused_task = ccf::tasks::pause_current_task();
@@ -188,26 +187,48 @@ namespace http
           // invalidated)
           commit_callbacks->add_callback(
             tx_id,
-            [this, rpc_ctx, paused = std::move(paused_task)](
-              ccf::TxID tx_id, ccf::TxStatus status) mutable {
-              LOG_INFO_FMT(
-                "!!!! Executing callback for tx {}, which just "
-                "became {}",
-                tx_id.to_str(),
-                nlohmann::json(status).dump());
+            [this, rpc_ctx, paused_task](
+              ccf::TxID tx_id, ccf::TxStatus status) {
+              switch (status)
+              {
+                case ccf::TxStatus::Committed:
+                {
+                  // Write the response
+                  this->send_response(
+                    rpc_ctx->get_response_http_status(),
+                    rpc_ctx->get_response_headers(),
+                    rpc_ctx->get_response_trailers(),
+                    std::move(rpc_ctx->take_response_body()));
+                  break;
+                }
 
-              // Write the response!
-              this->send_response(
-                rpc_ctx->get_response_http_status(),
-                rpc_ctx->get_response_headers(),
-                rpc_ctx->get_response_trailers(),
-                std::move(rpc_ctx->take_response_body()));
+                case ccf::TxStatus::Invalid:
+                {
+                  // If transaction is not Committed, write an error response
+                  send_odata_error_response(ccf::ErrorDetails{
+                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                    ccf::errors::TransactionInvalid,
+                    fmt::format(
+                      "While waiting for TxID {} to commit, it was "
+                      "invalidated",
+                      tx_id.to_str())});
+                  break;
+                }
 
-              // TODO: If status is not Committed, write an error
-              // response!
+                default:
+                {
+                  throw std::logic_error(
+                    "Unexpected TxStatus in on_commit callback");
+                }
+              }
+
+              if (rpc_ctx->terminate_session)
+              {
+                close_session();
+              }
 
               // Resume processing work for this session
-              ccf::tasks::resume_task(std::move(paused));
+              ccf::tasks::resume_task(std::move(paused_task));
             });
         }
         else
