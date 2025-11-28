@@ -626,6 +626,7 @@ def run_ledger_compatibility_since_first(
                     service_dir = os.path.join(
                         os.path.dirname(os.path.realpath(__file__)),
                         "testdata",
+                        "services",
                         "eol_service",
                     )
                     new_common = infra.network.get_common_folder_name(
