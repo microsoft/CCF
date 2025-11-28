@@ -959,7 +959,9 @@ class LedgerChunk:
         full_file_size = os.path.getsize(name)
         if self._pos_offset > 0:
             if self._pos_offset > full_file_size:
-                raise ValueError(f"Invalid ledger chunk {name}: File header claims offset table is at {self._pos_offset}, yet file is only {full_file_size} bytes")
+                raise ValueError(
+                    f"Invalid ledger chunk {name}: File header claims offset table is at {self._pos_offset}, yet file is only {full_file_size} bytes"
+                )
 
             self._file_size = self._pos_offset
 
@@ -986,7 +988,9 @@ class LedgerChunk:
             tx_count_from_filename = self.end_seqno - self.start_seqno + 1
             tx_count_from_positions = len(self._positions)
             if tx_count_from_filename != tx_count_from_positions:
-                raise ValueError(f"Invalid ledger chunk {name}: Expected to contain {tx_count_from_filename} transactions due to filename, but found only {tx_count_from_positions} by reading file")
+                raise ValueError(
+                    f"Invalid ledger chunk {name}: Expected to contain {tx_count_from_filename} transactions due to filename, but found only {tx_count_from_positions} by reading file"
+                )
 
     def __getitem__(self, key):
         if isinstance(key, int):
