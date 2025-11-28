@@ -1825,6 +1825,89 @@ def run_read_ledger_on_testdata(args):
                         f"Valid snapshot at {snapshot_file.path} with {len(tables)} tables"
                     )
 
+    # Corrupt a single chunk to confirm that read_ledger throws appropriate errors
+    source_chunk = os.path.join(args.historical_testdata, "double_sealed_service", "ledger", "ledger_44-64.committed")
+    good_chunk = ccf.ledger.LedgerChunk(source_chunk)
+    start_seqno, end_seqno = good_chunk.get_seqnos()
+    expected_range = end_seqno - start_seqno + 1
+    chunk_name = os.path.basename(source_chunk)
+    with open(source_chunk, "rb") as src_f:
+        good_data = src_f.read()
+    source_size = len(good_data)
+    header_size = ccf.ledger.LEDGER_HEADER_SIZE
+    source_offset = int.from_bytes(good_data[0:header_size], byteorder="little")
+    assert source_offset > 0
+    assert source_offset < source_size
+    
+    # Create an alternate version of the chunk without the offsets table. Should be equivalent to the file immediately before it was marked `.committed`
+    no_offsets_table = int(0).to_bytes(header_size, byteorder="little") + good_data[header_size:source_offset]
+
+    for name, corrupted_data, expected_parse_error in [
+        (
+            "truncate_pre_offsets",
+            good_data[:source_offset-1],
+            f"File header claims offset table is at {source_offset}",
+        ),
+        (
+            "truncate_tx_no_offsets",
+            no_offsets_table[:source_size//2],
+            f"Expected to contain {expected_range} transactions due to filename",
+        ),
+        (
+            "header_offset_too_large",
+            (source_size + 1).to_bytes(header_size, byteorder="little") + good_data[header_size:],
+            f"File header claims offset table is at {source_size + 1}",
+        ),
+        (
+            "truncate_mid_offsets",
+            good_data[:-4],
+            f"Expected to contain {expected_range} transactions due to filename",
+        ),
+        (
+            "misaligned_offsets_too_small",
+            good_data[:-1],
+            f"Expected positions to contain uint32s",
+        ),
+        (
+            "misaligned_offsets_too_large",
+            good_data + b'\x00',
+            f"Expected positions to contain uint32s",
+        ),
+        (
+            "unread_data",
+            good_data + b'\x00' * 4,
+            f"Expected to contain {expected_range} transactions due to filename",
+        ),
+        (
+            "unread_data_no_offsets_misaligned",
+            no_offsets_table + b'\x00',
+            "Failed to read precise number of bytes",
+        ),
+        (
+            "unread_data_no_offsets",
+            no_offsets_table + b'\x00' * 8,
+            f"Expected to contain {expected_range} transactions due to filename",
+        ),
+    ]:
+        temp_dir = tempfile.TemporaryDirectory(dir="workspace", prefix=name + "-", delete=False)
+        corrupted_chunk_path = os.path.join(temp_dir.name, chunk_name)
+        LOG.info(f"Testing chunk corruption {name} in {corrupted_chunk_path}")
+        with open(corrupted_chunk_path, "wb") as dst_f:
+            dst_f.write(corrupted_data)
+
+        try:
+            chunk = ccf.ledger.LedgerChunk(
+                corrupted_chunk_path
+            )
+            for tx in chunk:
+                pass
+
+        except Exception as e:
+            assert expected_parse_error in str(e), f"Unexpected error message for corruption {name}: {e}"
+
+        # NB: cleanup() is deliberately skipped if an assertion fails, so the corrupted files can be inspected
+        temp_dir.cleanup()
+
 
 def run_ledger_chunk_bytes_check(const_args):
     LOG.info("Confirm that ledger chunks are determined by the primary")
