@@ -141,7 +141,7 @@ namespace asynchost
   struct LedgerReadResult
   {
     std::vector<uint8_t> data;
-    size_t end_idx;
+    size_t end_idx{};
   };
 
   class LedgerFile
@@ -196,11 +196,14 @@ namespace asynchost
           file_name,
           dir));
       }
-      file = fopen(file_path.c_str(), "w+b");
-      if (!file)
+      file = fopen(
+        file_path.c_str(), "w+b"); // NOLINT(cppcoreguidelines-owning-memory)
+      if (file == nullptr)
       {
         throw std::logic_error(fmt::format(
-          "Unable to open ledger file {}: {}", file_path, strerror(errno)));
+          "Unable to open ledger file {}: {}",
+          file_path,
+          std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
       }
 
       // Header reserved for the offset to the position table
@@ -215,7 +218,6 @@ namespace asynchost
       bool from_existing_file_ = false) :
       dir(dir),
       file_name(file_name_),
-      completed(false),
       from_existing_file(from_existing_file_)
     {
       auto file_path = (fs::path(dir) / fs::path(file_name));
@@ -223,14 +225,17 @@ namespace asynchost
       committed = is_ledger_file_name_committed(file_name);
       start_idx = get_start_idx_from_file_name(file_name);
 
-      const auto mode = committed ? "rb" : "r+b";
+      const auto* const mode = committed ? "rb" : "r+b";
 
-      file = fopen(file_path.c_str(), mode);
+      file = fopen(
+        file_path.c_str(), mode); // NOLINT(cppcoreguidelines-owning-memory)
 
-      if (!file)
+      if (file == nullptr)
       {
         throw std::logic_error(fmt::format(
-          "Unable to open ledger file {}: {}", file_path, strerror(errno)));
+          "Unable to open ledger file {}: {}",
+          file_path,
+          std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
       }
 
       // First, get full size of file
@@ -350,38 +355,39 @@ namespace asynchost
 
     ~LedgerFile()
     {
-      if (file)
+      if (file != nullptr)
       {
-        fclose(file);
+        std::ignore =
+          fclose(file); // NOLINT(cppcoreguidelines-owning-memory,cert-err33-c)
       }
     }
 
-    size_t get_start_idx() const
+    [[nodiscard]] size_t get_start_idx() const
     {
       return start_idx;
     }
 
-    size_t get_last_idx() const
+    [[nodiscard]] size_t get_last_idx() const
     {
       return start_idx + positions.size() - 1;
     }
 
-    size_t get_current_size() const
+    [[nodiscard]] size_t get_current_size() const
     {
       return total_len;
     }
 
-    bool is_committed() const
+    [[nodiscard]] bool is_committed() const
     {
       return committed;
     }
 
-    bool is_complete() const
+    [[nodiscard]] bool is_complete() const
     {
       return completed;
     }
 
-    bool is_recovery() const
+    [[nodiscard]] bool is_recovery() const
     {
       return recovery;
     }
@@ -427,7 +433,8 @@ namespace asynchost
         if (committable && fflush(file) != 0)
         {
           throw std::logic_error(fmt::format(
-            "Failed to flush entry to ledger: {}", strerror(errno)));
+            "Failed to flush entry to ledger: {}",
+            std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
         }
       }
 
@@ -438,7 +445,7 @@ namespace asynchost
     }
 
     // Return pair containing entries size and index of last entry included
-    std::pair<size_t, size_t> entries_size(
+    [[nodiscard]] std::pair<size_t, size_t> entries_size(
       size_t from,
       size_t to,
       std::optional<size_t> max_size = std::nullopt) const
@@ -461,32 +468,30 @@ namespace asynchost
         {
           break;
         }
-        else
+
+        if (from == to)
         {
-          if (from == to)
-          {
-            // Request one entry that is too large: no entries are found
-            LOG_TRACE_FMT(
-              "Single ledger entry at {} in file {} is too large for remaining "
-              "space (size {} > max {})",
-              from,
-              file_name,
-              size,
-              max_size.value());
-            return {0, 0};
-          }
-          size_t to_ = from + (to - from) / 2;
+          // Request one entry that is too large: no entries are found
           LOG_TRACE_FMT(
-            "Requesting ledger entries from {} to {} in file {} but size {} > "
-            "max size {}: now requesting up to {}",
+            "Single ledger entry at {} in file {} is too large for remaining "
+            "space (size {} > max {})",
             from,
-            to,
             file_name,
             size,
-            max_size.value(),
-            to_);
-          to = to_;
+            max_size.value());
+          return {0, 0};
         }
+        size_t to_ = from + (to - from) / 2;
+        LOG_TRACE_FMT(
+          "Requesting ledger entries from {} to {} in file {} but size {} > "
+          "max size {}: now requesting up to {}",
+          from,
+          to,
+          file_name,
+          size,
+          max_size.value(),
+          to_);
+        to = to_;
       }
 
       return {size, to};
@@ -572,14 +577,16 @@ namespace asynchost
 
       if (fflush(file) != 0)
       {
-        throw std::logic_error(
-          fmt::format("Failed to flush ledger file: {}", strerror(errno)));
+        throw std::logic_error(fmt::format(
+          "Failed to flush ledger file: {}",
+          std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
       }
 
-      if (ftruncate(fileno(file), total_len))
+      if (ftruncate(fileno(file), total_len) != 0)
       {
-        throw std::logic_error(
-          fmt::format("Failed to truncate ledger: {}", strerror(errno)));
+        throw std::logic_error(fmt::format(
+          "Failed to truncate ledger: {}",
+          std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
       }
 
       fseeko(file, total_len, SEEK_SET);
@@ -626,8 +633,9 @@ namespace asynchost
 
       if (fflush(file) != 0)
       {
-        throw std::logic_error(
-          fmt::format("Failed to flush ledger file: {}", strerror(errno)));
+        throw std::logic_error(fmt::format(
+          "Failed to flush ledger file: {}",
+          std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
       }
 
       LOG_TRACE_FMT("Completed ledger file {}", file_name);
@@ -672,8 +680,9 @@ namespace asynchost
 
       if (fflush(file) != 0)
       {
-        throw std::logic_error(
-          fmt::format("Failed to flush ledger file: {}", strerror(errno)));
+        throw std::logic_error(fmt::format(
+          "Failed to flush ledger file: {}",
+          std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
       }
 
       auto committed_file_name = fmt::format(
@@ -739,7 +748,7 @@ namespace asynchost
     // complete
     std::optional<size_t> recovery_start_idx = std::nullopt;
 
-    auto get_it_contains_idx(size_t idx) const
+    [[nodiscard]] auto get_it_contains_idx(size_t idx) const
     {
       if (idx == 0)
       {
@@ -810,7 +819,8 @@ namespace asynchost
       std::shared_ptr<LedgerFile> match_file = nullptr;
       try
       {
-        match_file = std::make_shared<LedgerFile>(ledger_dir_, match.value());
+        match_file = std::make_shared<LedgerFile>(
+          ledger_dir_, *match); // NOLINT(bugprone-unchecked-optional-access)
       }
       catch (const std::exception& e)
       {
@@ -864,7 +874,7 @@ namespace asynchost
       return get_file_from_cache(idx);
     }
 
-    std::shared_ptr<LedgerFile> get_latest_file(
+    [[nodiscard]] std::shared_ptr<LedgerFile> get_latest_file(
       bool incomplete_only = true) const
     {
       if (files.empty())
@@ -945,10 +955,8 @@ namespace asynchost
       {
         return rr;
       }
-      else
-      {
-        return std::nullopt;
-      }
+
+      return std::nullopt;
     }
 
     void ignore_ledger_file(const std::string& file_name)
@@ -1169,13 +1177,11 @@ namespace asynchost
           last_idx = committed_idx;
           return;
         }
-        else
-        {
-          LOG_INFO_FMT(
-            "Main ledger directory {} contains {} restored (writeable) files",
-            ledger_dir,
-            files.size());
-        }
+
+        LOG_INFO_FMT(
+          "Main ledger directory {} contains {} restored (writeable) files",
+          ledger_dir,
+          files.size());
 
         files.sort([](
                      const std::shared_ptr<LedgerFile>& a,
@@ -1305,7 +1311,7 @@ namespace asynchost
       recovery_start_idx.reset();
     }
 
-    size_t get_last_idx() const
+    [[nodiscard]] size_t get_last_idx() const
     {
       return last_idx;
     }
@@ -1342,7 +1348,7 @@ namespace asynchost
       auto header =
         serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
 
-      if (header.flags & ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE)
+      if ((header.flags & ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE) != 0)
       {
         LOG_TRACE_FMT(
           "Forcing ledger chunk before entry as required by the entry header "
@@ -1357,7 +1363,7 @@ namespace asynchost
       }
 
       bool force_chunk_after =
-        header.flags & ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
+        (header.flags & ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER) != 0;
       if (force_chunk_after)
       {
         if (!committable)
@@ -1505,7 +1511,7 @@ namespace asynchost
       committed_idx = idx;
     }
 
-    bool is_in_committed_file(size_t idx)
+    [[nodiscard]] bool is_in_committed_file(size_t idx) const
     {
       return idx <= end_of_committed_files_idx;
     }
@@ -1513,10 +1519,10 @@ namespace asynchost
     struct AsyncLedgerGet
     {
       // Filled on construction
-      Ledger* ledger;
-      size_t from_idx;
-      size_t to_idx;
-      size_t max_size;
+      Ledger* ledger{};
+      size_t from_idx{};
+      size_t to_idx{};
+      size_t max_size{};
 
       // First argument is ledger entries (or nullopt if not found)
       // Second argument is uv status code, which may indicate a cancellation
@@ -1530,7 +1536,7 @@ namespace asynchost
 
     static void on_ledger_get_async(uv_work_t* req)
     {
-      auto data = static_cast<AsyncLedgerGet*>(req->data);
+      auto* data = static_cast<AsyncLedgerGet*>(req->data);
 
       data->read_result = data->ledger->read_entries_range(
         data->from_idx, data->to_idx, true, data->max_size);
@@ -1538,12 +1544,12 @@ namespace asynchost
 
     static void on_ledger_get_async_complete(uv_work_t* req, int status)
     {
-      auto data = static_cast<AsyncLedgerGet*>(req->data);
+      auto* data = static_cast<AsyncLedgerGet*>(req->data);
 
       data->result_cb(std::move(data->read_result), status);
 
-      delete data;
-      delete req;
+      delete data; // NOLINT(cppcoreguidelines-owning-memory)
+      delete req; // NOLINT(cppcoreguidelines-owning-memory)
     }
 
     void write_ledger_get_range_response(
@@ -1637,10 +1643,12 @@ namespace asynchost
           {
             // Start an asynchronous job to do this, since it is committed and
             // can be accessed independently (and in parallel)
-            uv_work_t* work_handle = new uv_work_t;
+            auto* work_handle =
+              new uv_work_t; // NOLINT(cppcoreguidelines-owning-memory)
 
             {
-              auto job = new AsyncLedgerGet;
+              auto* job =
+                new AsyncLedgerGet; // NOLINT(cppcoreguidelines-owning-memory)
               job->ledger = this;
               job->from_idx = from_idx;
               job->to_idx = to_idx;
@@ -1649,11 +1657,14 @@ namespace asynchost
                                 from_idx_ = from_idx,
                                 to_idx_ = to_idx,
                                 purpose_ =
-                                  purpose](auto&& read_result, int status) {
+                                  purpose](auto&& read_result, int /*status*/) {
                 // NB: Even if status is cancelled (and entry is empty), we
                 // want to write this result back to the enclave
                 write_ledger_get_range_response(
-                  from_idx_, to_idx_, std::move(read_result), purpose_);
+                  from_idx_,
+                  to_idx_,
+                  std::forward<decltype(read_result)>(read_result),
+                  purpose_);
               };
 
               work_handle->data = job;
