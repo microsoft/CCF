@@ -50,15 +50,15 @@ namespace ccf
     std::chrono::high_resolution_clock::time_point last_tick_time;
     std::atomic<bool> worker_stop_signal = false;
 
-    StartType start_type;
+    StartType start_type{};
 
     struct NodeContext : public ccf::AbstractNodeContext
     {
       const ccf::NodeId this_node;
 
-      NodeContext(const ccf::NodeId& id) : this_node(id) {}
+      NodeContext(ccf::NodeId id) : this_node(std::move(id)) {}
 
-      ccf::NodeId get_node_id() const override
+      [[nodiscard]] ccf::NodeId get_node_id() const override
       {
         return this_node;
       }
@@ -81,12 +81,11 @@ namespace ccf
       size_t chunk_threshold,
       const ccf::consensus::Configuration& consensus_config,
       const ccf::crypto::CurveID& curve_id,
-      const ccf::ds::WorkBeaconPtr& work_beacon_) :
+      ccf::ds::WorkBeaconPtr work_beacon_) :
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),
-      work_beacon(work_beacon_),
-      network(),
+      work_beacon(std::move(work_beacon_)),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
     {

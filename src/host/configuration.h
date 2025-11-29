@@ -12,7 +12,7 @@
 
 namespace host
 {
-  enum class LogFormat
+  enum class LogFormat : uint8_t
   {
     TEXT,
     JSON
@@ -56,8 +56,8 @@ namespace host
       std::string pid_file = "my_node.pid";
 
       // Addresses files
-      std::string node_to_node_address_file = "";
-      std::string rpc_addresses_file = "";
+      std::string node_to_node_address_file;
+      std::string rpc_addresses_file;
 
       std::optional<std::string> sealed_ledger_secret_location = std::nullopt;
 
@@ -90,8 +90,8 @@ namespace host
 
       struct Start
       {
-        std::vector<ParsedMemberInfo> members = {};
-        std::vector<std::string> constitution_files = {};
+        std::vector<ParsedMemberInfo> members;
+        std::vector<std::string> constitution_files;
         ccf::ServiceConfiguration service_configuration;
         size_t initial_service_certificate_validity_days = 1;
         std::string service_subject_name = "CN=CCF Service";

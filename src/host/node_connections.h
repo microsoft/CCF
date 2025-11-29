@@ -32,10 +32,10 @@ namespace asynchost
         std::optional<ccf::NodeId> node = std::nullopt) :
         SocketBehaviour<TCP>(name, "TCP"),
         parent(parent),
-        node(node)
+        node(std::move(node))
       {}
 
-      bool on_read(size_t len, uint8_t*& incoming, sockaddr) override
+      bool on_read(size_t len, uint8_t*& incoming, sockaddr /*unused*/) override
       {
         LOG_DEBUG_FMT(
           "from node {} received {} bytes",
@@ -72,7 +72,7 @@ namespace asynchost
 
           const auto size_pre_headers = size;
 
-          ccf::NodeMsgType msg_type;
+          ccf::NodeMsgType msg_type{};
           try
           {
             msg_type = serialized::read<ccf::NodeMsgType>(data, size);
@@ -147,7 +147,7 @@ namespace asynchost
         return true;
       }
 
-      virtual void associate_incoming(const ccf::NodeId&) {}
+      virtual void associate_incoming(const ccf::NodeId& /*unused*/) {}
     };
 
     class NodeIncomingBehaviour : public NodeConnectionBehaviour
@@ -210,32 +210,36 @@ namespace asynchost
       {
         LOG_DEBUG_FMT(
           "Disconnecting outgoing connection with {}: bind failed",
-          node.value());
-        parent.remove_connection(node.value());
+          *node); // NOLINT(bugprone-unchecked-optional-access)
+        parent.remove_connection(
+          *node); // NOLINT(bugprone-unchecked-optional-access)
       }
 
       void on_resolve_failed() override
       {
         LOG_DEBUG_FMT(
           "Disconnecting outgoing connection with {}: resolve failed",
-          node.value());
-        parent.remove_connection(node.value());
+          *node); // NOLINT(bugprone-unchecked-optional-access)
+        parent.remove_connection(
+          *node); // NOLINT(bugprone-unchecked-optional-access)
       }
 
       void on_connect_failed() override
       {
         LOG_DEBUG_FMT(
           "Disconnecting outgoing connection with {}: connect failed",
-          node.value());
-        parent.remove_connection(node.value());
+          *node); // NOLINT(bugprone-unchecked-optional-access)
+        parent.remove_connection(
+          *node); // NOLINT(bugprone-unchecked-optional-access)
       }
 
       void on_disconnect() override
       {
         LOG_DEBUG_FMT(
           "Disconnecting outgoing connection with {}: disconnected",
-          node.value());
-        parent.remove_connection(node.value());
+          *node); // NOLINT(bugprone-unchecked-optional-access)
+        parent.remove_connection(
+          *node); // NOLINT(bugprone-unchecked-optional-access)
       }
     };
 
@@ -374,7 +378,7 @@ namespace asynchost
               serialized::overlay<::consensus::AppendEntriesIndex>(data, size);
 
             // Find the total frame size, and write it along with the header.
-            uint32_t frame = (uint32_t)size_to_send;
+            auto frame = static_cast<uint32_t>(size_to_send);
 
             if (ae.idx > ae.prev_idx)
             {
@@ -389,7 +393,8 @@ namespace asynchost
                   ae.idx);
                 return;
               }
-              else if (ae.idx != read_result->end_idx)
+
+              if (ae.idx != read_result->end_idx)
               {
                 // NB: This should never happen since we do not pass a max_size
                 // to read_entries
@@ -401,21 +406,21 @@ namespace asynchost
                   read_result->end_idx);
                 return;
               }
-              else
-              {
-                const auto& framed_entries = read_result->data;
-                frame += (uint32_t)framed_entries.size();
-                outbound_connection->write(sizeof(uint32_t), (uint8_t*)&frame);
-                outbound_connection->write(size_to_send, data_to_send);
 
-                outbound_connection->write(
-                  framed_entries.size(), framed_entries.data());
-              }
+              const auto& framed_entries = read_result->data;
+              frame += static_cast<uint32_t>(framed_entries.size());
+              outbound_connection->write(
+                sizeof(uint32_t), reinterpret_cast<uint8_t*>(&frame));
+              outbound_connection->write(size_to_send, data_to_send);
+
+              outbound_connection->write(
+                framed_entries.size(), framed_entries.data());
             }
             else
             {
               // Header-only AE
-              outbound_connection->write(sizeof(uint32_t), (uint8_t*)&frame);
+              outbound_connection->write(
+                sizeof(uint32_t), reinterpret_cast<uint8_t*>(&frame));
               outbound_connection->write(size_to_send, data_to_send);
             }
 
@@ -429,11 +434,12 @@ namespace asynchost
           else
           {
             // Write as framed data to the recipient.
-            uint32_t frame = (uint32_t)size_to_send;
+            auto frame = static_cast<uint32_t>(size_to_send);
 
             LOG_DEBUG_FMT("node send to {} [{}]", to, frame);
 
-            outbound_connection->write(sizeof(uint32_t), (uint8_t*)&frame);
+            outbound_connection->write(
+              sizeof(uint32_t), reinterpret_cast<uint8_t*>(&frame));
             outbound_connection->write(size_to_send, data_to_send);
           }
         });

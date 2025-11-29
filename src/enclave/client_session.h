@@ -10,6 +10,8 @@ namespace ccf
   class ClientSession
   {
   public:
+    virtual ~ClientSession() = default;
+
     using HandleDataCallback = std::function<void(
       ccf::http_status status,
       http::HeaderMap&& headers,

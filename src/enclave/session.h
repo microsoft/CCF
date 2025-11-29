@@ -27,7 +27,7 @@ namespace ccf
 
       SessionDataTask(
         std::span<const uint8_t> d, std::shared_ptr<ThreadedSession> s) :
-        self(s)
+        self(std::move(s))
       {
         data.assign(d.begin(), d.end());
       }
@@ -47,7 +47,7 @@ namespace ccf
         self->handle_incoming_data_thread(std::move(data));
       }
 
-      const std::string& get_name() const override
+      [[nodiscard]] const std::string& get_name() const override
       {
         static const std::string name =
           "ThreadedSession::HandleIncomingDataTask";
@@ -64,7 +64,7 @@ namespace ccf
         self->send_data_thread(std::move(data));
       }
 
-      const std::string& get_name() const override
+      [[nodiscard]] const std::string& get_name() const override
       {
         static const std::string name = "ThreadedSession::SendDataTask";
         return name;
@@ -79,7 +79,7 @@ namespace ccf
         fmt::format("Session {}", session_id));
     }
 
-    ~ThreadedSession()
+    ~ThreadedSession() override
     {
       task_scheduler->cancel_task();
     }

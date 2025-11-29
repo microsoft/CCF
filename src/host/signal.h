@@ -18,7 +18,7 @@ namespace asynchost
     template <typename... Args>
     Signal(Args&&... args) : behaviour(std::forward<Args>(args)...)
     {
-      int rc;
+      int rc = 0;
 
       if ((rc = uv_signal_init(uv_default_loop(), &uv_handle)) < 0)
       {

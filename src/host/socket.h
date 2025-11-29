@@ -27,20 +27,21 @@ namespace asynchost
       name(name),
       conn_name(conn_name)
     {}
-    virtual ~SocketBehaviour() {}
+    virtual ~SocketBehaviour() = default;
 
     /// To be implemented by clients
     /// Return false to immediately disconnect socket.
-    virtual bool on_read(size_t, uint8_t*&, sockaddr)
+    virtual bool on_read(
+      size_t /*unused*/, uint8_t*& /*unused*/, sockaddr /*unused*/)
     {
       return true;
     }
 
     /// To be implemented by servers with connections
-    virtual void on_accept(ConnType&) {}
+    virtual void on_accept(ConnType& /*unused*/) {}
 
     /// To be implemented by all servers (after registration)
-    virtual void on_start(int64_t) {}
+    virtual void on_start(int64_t /*unused*/) {}
 
     /// Generic loggers for common reactions
     virtual void on_listening(
@@ -80,16 +81,16 @@ namespace asynchost
     }
   };
 
-  std::pair<std::string, std::string> addr_to_str(
+  inline std::pair<std::string, std::string> addr_to_str(
     const sockaddr* addr, int address_family = AF_INET)
   {
     constexpr auto buf_len = INET6_ADDRSTRLEN;
     char buf[buf_len] = {};
-    int rc;
+    int rc = 0;
 
     if (address_family == AF_INET6)
     {
-      const auto in6 = (const sockaddr_in6*)addr;
+      const auto* const in6 = reinterpret_cast<const sockaddr_in6*>(addr);
       if ((rc = uv_ip6_name(in6, buf, buf_len)) != 0)
       {
         LOG_FAIL_FMT("uv_ip6_name failed: {}", uv_strerror(rc));
@@ -100,7 +101,7 @@ namespace asynchost
     }
 
     assert(address_family == AF_INET);
-    const auto in4 = (const sockaddr_in*)addr;
+    const auto* const in4 = reinterpret_cast<const sockaddr_in*>(addr);
     if ((rc = uv_ip4_name(in4, buf, buf_len)) != 0)
     {
       LOG_FAIL_FMT("uv_ip4_name failed: {}", uv_strerror(rc));

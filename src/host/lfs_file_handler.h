@@ -44,7 +44,8 @@ namespace asynchost
           std::ofstream f(target_path, std::ios::trunc | std::ios::binary);
           LOG_TRACE_FMT(
             "Writing {} byte file to {}", encrypted.size(), target_path);
-          f.write((char const*)encrypted.data(), encrypted.size());
+          f.write(
+            reinterpret_cast<char const*>(encrypted.data()), encrypted.size());
           f.close();
         });
 
@@ -68,7 +69,7 @@ namespace asynchost
             f.seekg(0, f.beg);
 
             ccf::indexing::LFSEncryptedContents blob(file_size);
-            f.read((char*)blob.data(), blob.size());
+            f.read(reinterpret_cast<char*>(blob.data()), blob.size());
             f.close();
             RINGBUFFER_WRITE_MESSAGE(
               ccf::indexing::LFSMsg::response, writer, key, blob);

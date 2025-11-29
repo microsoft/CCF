@@ -21,7 +21,7 @@ namespace asynchost
     Timer(std::chrono::milliseconds repeat_ms, Args&&... args) :
       behaviour(std::forward<Args>(args)...)
     {
-      int rc;
+      int rc = 0;
 
       if ((rc = uv_timer_init(uv_default_loop(), &uv_handle)) < 0)
       {
