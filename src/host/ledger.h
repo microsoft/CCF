@@ -196,8 +196,8 @@ namespace asynchost
           file_name,
           dir));
       }
-      file = fopen(
-        file_path.c_str(), "w+b"); // NOLINT(cppcoreguidelines-owning-memory)
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      file = fopen(file_path.c_str(), "w+b");
       if (file == nullptr)
       {
         throw std::logic_error(fmt::format(
@@ -227,8 +227,8 @@ namespace asynchost
 
       const auto* const mode = committed ? "rb" : "r+b";
 
-      file = fopen(
-        file_path.c_str(), mode); // NOLINT(cppcoreguidelines-owning-memory)
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      file = fopen(file_path.c_str(), mode);
 
       if (file == nullptr)
       {
@@ -1643,12 +1643,12 @@ namespace asynchost
           {
             // Start an asynchronous job to do this, since it is committed and
             // can be accessed independently (and in parallel)
-            auto* work_handle =
-              new uv_work_t; // NOLINT(cppcoreguidelines-owning-memory)
+            // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+            auto* work_handle = new uv_work_t;
 
             {
-              auto* job =
-                new AsyncLedgerGet; // NOLINT(cppcoreguidelines-owning-memory)
+              // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+              auto* job = new AsyncLedgerGet;
               job->ledger = this;
               job->from_idx = from_idx;
               job->to_idx = to_idx;

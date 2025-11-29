@@ -101,8 +101,7 @@ namespace asynchost
     {
       {
         std::unique_lock<ccf::pal::Mutex> guard(pending_resolve_requests_mtx);
-        for (auto& req :
-             pending_resolve_requests) // NOLINT(readability-qualified-auto)
+        for (const auto& req : pending_resolve_requests)
         {
           // The UV request objects can stay, but if there are any references
           // to `this` left, we need to remove them.
@@ -791,8 +790,8 @@ namespace asynchost
           remaining_read_quota);
       }
 
-      buf->base =
-        new char[alloc_size]; // NOLINT(cppcoreguidelines-owning-memory)
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      buf->base = new char[alloc_size];
       buf->len = alloc_size;
     }
 

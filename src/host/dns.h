@@ -30,8 +30,8 @@ namespace asynchost
       hints.ai_protocol = IPPROTO_TCP;
       hints.ai_flags = 0;
 
-      auto* resolver =
-        new uv_getaddrinfo_t; // NOLINT(cppcoreguidelines-owning-memory)
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      auto* resolver = new uv_getaddrinfo_t;
       resolver->data = ud;
 
       std::string host =
