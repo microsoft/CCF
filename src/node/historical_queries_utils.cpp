@@ -8,6 +8,7 @@
 #include "ccf/service/tables/service.h"
 #include "consensus/aft/raft_types.h"
 #include "kv/kv_types.h"
+#include "node/cose_common.h"
 #include "node/historical_queries.h"
 #include "node/identity.h"
 #include "node/tx_receipt_impl.h"
@@ -434,6 +435,23 @@ namespace ccf
 
       state->receipt->cose_endorsements = result.endorsements.value();
       return true;
+    }
+
+    void verify_cose_receipt(
+      const std::vector<uint8_t>& cose_receipt,
+      std::shared_ptr<NetworkIdentitySubsystemInterface>
+        network_identity_subsystem)
+    {
+      auto receipt =
+        cose::decode_ccf_receipt(cose_receipt, /* recompute_root */ true);
+
+      const auto& raw_cert = network_identity_subsystem->get()->cert.raw();
+      const auto verifier = ccf::crypto::make_cose_verifier_from_cert(raw_cert);
+      if (!verifier->verify_detached(cose_receipt, receipt.merkle_root))
+      {
+        throw ccf::cose::COSESignatureValidationError(
+          "COSE receipt signature verification failed");
+      }
     }
   }
 }

@@ -2162,6 +2162,62 @@ namespace loggingapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
+      auto verify_cose_receipt =
+        [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+          const auto* const expected =
+            ccf::http::headervalues::contenttype::COSE;
+          const auto actual =
+            ctx.rpc_ctx->get_request_header(ccf::http::headers::CONTENT_TYPE)
+              .value_or("");
+          if (expected != actual)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE,
+              ccf::errors::InvalidHeaderValue,
+              fmt::format(
+                "Expected content-type '{}'. Got '{}'.", expected, actual));
+            return;
+          }
+
+          const std::vector<uint8_t>& receipt = ctx.rpc_ctx->get_request_body();
+
+          auto network_identity_subsystem =
+            context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
+          if (network_identity_subsystem == nullptr)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Network identity subsystem not available");
+            return;
+          }
+
+          try
+          {
+            ccf::historical::verify_cose_receipt(
+              receipt, network_identity_subsystem);
+          }
+          catch (const std::exception& e)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidInput,
+              fmt::format("COSE receipt verification failed: {}", e.what()));
+            return;
+          }
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        };
+
+      make_read_only_endpoint(
+        "/log/public/verify_cose_receipt",
+        HTTP_GET,
+        verify_cose_receipt,
+        auth_policies)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
       auto get_cose_signatures_config =
         [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
           auto subsystem =

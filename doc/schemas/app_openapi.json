@@ -1466,6 +1466,30 @@
         }
       }
     },
+    "/app/log/public/verify_cose_receipt": {
+      "get": {
+        "operationId": "GetAppLogPublicVerifyCoseReceipt",
+        "responses": {
+          "204": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          },
+          {
+            "user_cose_sign1": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
+    },
     "/app/log/request_query": {
       "get": {
         "operationId": "GetAppLogRequestQuery",
