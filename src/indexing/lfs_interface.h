@@ -20,7 +20,7 @@ namespace ccf::indexing
 
   struct FetchResult
   {
-    enum class FetchResultType: uint8_t
+    enum class FetchResultType : uint8_t
     {
       Fetching,
       Loaded,

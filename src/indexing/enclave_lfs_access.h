@@ -143,7 +143,8 @@ namespace ccf::indexing
             auto result = it->second.lock();
             if (result != nullptr)
             {
-              if (result->fetch_result == FetchResult::FetchResultType::Fetching)
+              if (
+                result->fetch_result == FetchResult::FetchResultType::Fetching)
               {
                 const auto success = verify_and_decrypt(
                   *encryption_key,
@@ -201,7 +202,8 @@ namespace ccf::indexing
             auto result = it->second.lock();
             if (result != nullptr)
             {
-              if (result->fetch_result == FetchResult::FetchResultType::Fetching)
+              if (
+                result->fetch_result == FetchResult::FetchResultType::Fetching)
               {
                 LOG_TRACE_FMT(
                   "Host has no contents for key {} (aka {})",

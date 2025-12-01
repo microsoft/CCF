@@ -256,8 +256,10 @@ namespace ccf::indexing::strategies
                 // This class previously wrote a bucket to disk which is no
                 // longer available or corrupted. Reset the watermark of what
                 // has been indexed, to re-index and rewrite those files.
-                const auto* problem =
-                  fetch_result == ccf::indexing::FetchResult::FetchResultType::NotFound ? "missing" : "corrupt";
+                const auto* problem = fetch_result ==
+                    ccf::indexing::FetchResult::FetchResultType::NotFound ?
+                  "missing" :
+                  "corrupt";
                 LOG_FAIL_FMT(
                   "A file that {} requires is {}. Re-indexing.", name, problem);
                 LOG_DEBUG_FMT(

@@ -123,18 +123,26 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
     INFO("Load entries");
 
     auto result_a = enclave_lfs.fetch(key_a);
-    REQUIRE(result_a->fetch_result == ccf::indexing::FetchResult::FetchResultType::Fetching);
+    REQUIRE(
+      result_a->fetch_result ==
+      ccf::indexing::FetchResult::FetchResultType::Fetching);
 
     auto result_b = enclave_lfs.fetch(key_b);
-    REQUIRE(result_b->fetch_result == ccf::indexing::FetchResult::FetchResultType::Fetching);
+    REQUIRE(
+      result_b->fetch_result ==
+      ccf::indexing::FetchResult::FetchResultType::Fetching);
 
     host_bp.read_all(outbound_reader);
     enclave_bp.read_all(inbound_reader);
 
-    REQUIRE(result_a->fetch_result == ccf::indexing::FetchResult::FetchResultType::Loaded);
+    REQUIRE(
+      result_a->fetch_result ==
+      ccf::indexing::FetchResult::FetchResultType::Loaded);
     REQUIRE(result_a->contents == blob_a);
 
-    REQUIRE(result_b->fetch_result == ccf::indexing::FetchResult::FetchResultType::Loaded);
+    REQUIRE(
+      result_b->fetch_result ==
+      ccf::indexing::FetchResult::FetchResultType::Loaded);
     REQUIRE(result_b->contents == blob_b);
   }
 
@@ -152,7 +160,9 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
     host_bp.read_all(outbound_reader);
     enclave_bp.read_all(inbound_reader);
 
-    REQUIRE(result->fetch_result == ccf::indexing::FetchResult::FetchResultType::Corrupt);
+    REQUIRE(
+      result->fetch_result ==
+      ccf::indexing::FetchResult::FetchResultType::Corrupt);
     REQUIRE(result->contents != blob_a);
   }
 
@@ -172,7 +182,9 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
       host_bp.read_all(outbound_reader);
       enclave_bp.read_all(inbound_reader);
 
-      REQUIRE(result->fetch_result == ccf::indexing::FetchResult::FetchResultType::Corrupt);
+      REQUIRE(
+        result->fetch_result ==
+        ccf::indexing::FetchResult::FetchResultType::Corrupt);
       REQUIRE(result->contents != blob_b);
     }
   }
