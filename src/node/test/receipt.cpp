@@ -65,6 +65,7 @@ void populate_receipt(std::shared_ptr<ccf::ProofReceipt> receipt)
   }
 
   const auto root = receipt->calculate_root();
+  REQUIRE(root == current_digest);
   receipt->signature = node_kp->sign_hash(root.h.data(), root.h.size());
 
   const auto num_endorsements = rand() % 3;
