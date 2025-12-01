@@ -30,12 +30,14 @@ namespace asynchost
       if (ignore_first_signal && signal_count <= 1)
       {
         LOG_INFO_FMT(
-          "SIG{}: Notifying enclave, but not shutting down.", sigabbrev_np(signal));
+          "SIG{}: Notifying enclave, but not shutting down.",
+          sigabbrev_np(signal));
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::stop_notice, to_enclave);
       }
       else
       {
-        LOG_INFO_FMT("SIG{}: Shutting down enclave gracefully...", sigabbrev_np(signal));
+        LOG_INFO_FMT(
+          "SIG{}: Shutting down enclave gracefully...", sigabbrev_np(signal));
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::stop, to_enclave);
       }
     }
