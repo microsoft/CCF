@@ -485,6 +485,9 @@ namespace ccf::endpoints
 
     Endpoint& set_redirection_strategy(RedirectionStrategy rs);
 
+    Endpoint& set_locally_committed_function(
+      const LocallyCommittedEndpointFunction& lcf);
+
     void install();
   };
 

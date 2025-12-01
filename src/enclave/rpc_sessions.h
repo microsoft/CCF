@@ -11,12 +11,8 @@
 #include "forwarder_types.h"
 #include "http/http2_session.h"
 #include "http/http_session.h"
-#include "node/session_metrics.h"
-// NB: This should be HTTP3 including QUIC, but this is
-// ok for now, as we only have an echo service for now
-#include "http/responder_lookup.h"
 #include "node/rpc/custom_protocol_subsystem.h"
-#include "quic/quic_session.h"
+#include "node/session_metrics.h"
 #include "rpc_handler.h"
 #include "tls/cert.h"
 #include "tls/client.h"
@@ -24,6 +20,10 @@
 #include "tls/plaintext_server.h"
 #include "tls/server.h"
 #include "udp/msg_types.h"
+
+// NB: This should be HTTP3 including QUIC, but this is
+// ok for now, as we only have an echo service for now
+#include "quic/quic_session.h"
 
 #include <limits>
 #include <map>
@@ -40,8 +40,7 @@ namespace ccf
 
   class RPCSessions : public std::enable_shared_from_this<RPCSessions>,
                       public AbstractRPCResponder,
-                      public ::http::ErrorReporter,
-                      public ::http::ResponderLookup
+                      public ::http::ErrorReporter
   {
   private:
     struct ListenInterface
@@ -154,8 +153,7 @@ namespace ccf
           writer_factory,
           std::move(ctx),
           parser_configuration,
-          shared_from_this(),
-          *this);
+          shared_from_this());
       }
       else if (app_protocol == "HTTP1")
       {
@@ -398,8 +396,7 @@ namespace ccf
               writer_factory,
               std::move(ctx),
               per_listen_interface.http_configuration,
-              shared_from_this(),
-              *this);
+              shared_from_this());
         }
         else
         {

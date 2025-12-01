@@ -21,14 +21,21 @@ namespace ringbuffer
   // Align by cacheline to avoid false sharing
   static constexpr size_t CACHELINE_SIZE = 64;
 
+  // NOLINTBEGIN(clang-analyzer-optin.performance.Padding)
   struct alignas(CACHELINE_SIZE) Offsets
   {
+    // This marks the start of the in-use segment. It is written only by the
+    // reader, advancing this value once it has read a message and cleared that
+    // message's memory. It is read by writers, but only to update the
+    // head_cache value which is used for calculations.
+    std::atomic<size_t> head = {0};
+
     // This is a lagging value of head, used only by writers. Its purpose is to
     // reduce contention on head. While there is sufficient space between the
     // tail and this cached value, the writers and readers do not interact with
     // any of the same data. Only when this range is filled do the writers
     // update this cache with a more recent value of head.
-    std::atomic<size_t> head_cache = {0};
+    alignas(CACHELINE_SIZE) std::atomic<size_t> head_cache = {0};
 
     // This marks the end of the in-use segment. The next ringbuffer message
     // will be written starting at this point, by a writer advancing this tail
@@ -36,14 +43,9 @@ namespace ringbuffer
     // for its own message. Many writers may try to access this concurrently, so
     // the winner is determined by an atomic compare-and-swap (with losers
     // immediately retrying with the new tail).
-    std::atomic<size_t> tail = {0};
-
-    // This marks the start of the in-use segment. It is written only by the
-    // reader, advancing this value once it has read a message and cleared that
-    // message's memory. It is read by writers, but only to update the
-    // head_cache value which is used for calculations.
-    alignas(CACHELINE_SIZE) std::atomic<size_t> head = {0};
+    alignas(CACHELINE_SIZE) std::atomic<size_t> tail = {0};
   };
+  // NOLINTEND(clang-analyzer-optin.performance.Padding)
 
   class message_error : public std::logic_error
   {
@@ -134,7 +136,9 @@ namespace ringbuffer
       const auto initial_marker = prepare(m, total_size, wait);
 
       if (!initial_marker.has_value())
+      {
         return false;
+      }
 
       auto next = initial_marker;
       ccf::nonstd::tuple_for_each(sections, [&](const auto& s) {

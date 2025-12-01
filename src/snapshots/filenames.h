@@ -27,7 +27,7 @@ namespace snapshots
   static size_t read_idx(const std::string& str)
   {
     size_t idx = 0;
-    auto end_ptr = str.data() + str.size();
+    const auto* end_ptr = str.data() + str.size();
 
     auto res = std::from_chars(str.data(), end_ptr, idx);
     if (res.ec != std::errc())
@@ -35,10 +35,11 @@ namespace snapshots
       throw std::logic_error(
         fmt::format("Could not read idx from string \"{}\": {}", str, res.ec));
     }
-    else if (res.ptr != end_ptr)
+
+    if (res.ptr != end_ptr)
     {
       throw std::logic_error(fmt::format(
-        "Trailing characters in \"{}\" cannot be converted to idx: \"{}\"",
+        R"(Trailing characters in "{}" cannot be converted to idx: "{}")",
         str,
         std::string(res.ptr, end_ptr)));
     }
@@ -137,7 +138,7 @@ namespace snapshots
   {
     std::optional<fs::path> latest_committed_snapshot_file_name = std::nullopt;
 
-    for (auto& f : fs::directory_iterator(directory))
+    for (const auto& f : fs::directory_iterator(directory))
     {
       auto file_name = f.path().filename();
       if (!is_snapshot_file(file_name))

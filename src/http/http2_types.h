@@ -5,7 +5,6 @@
 #include "ccf/ds/nonstd.h"
 #include "ccf/http_configuration.h"
 #include "ccf/http_header_map.h"
-#include "ccf/http_responder.h"
 #include "ccf/http_status.h"
 #include "ccf/rest_verb.h"
 #include "http_builder.h"
@@ -21,7 +20,7 @@ namespace http2
   using StreamId = int32_t;
   constexpr static StreamId DEFAULT_STREAM_ID = 0;
 
-  using StreamCloseCB = ccf::http::StreamOnCloseCallback;
+  using StreamCloseCB = std::function<void(void)>;
 
   // Used to keep track of response state between nghttp2 callbacks and to
   // differentiate unary from streaming responses
