@@ -1467,3 +1467,19 @@ TEST_CASE("Do not trust non-ca certs")
   REQUIRE_FALSE(
     non_ca_cert_verifier->verify_certificate({&non_ca_cert}, {}, true));
 }
+
+TEST_CASE("Sha256 hex conversions")
+{
+  {
+    INFO("Sha256 via operator<<");
+
+    const std::string hex{
+      "f3d25d4670b742f035c1f1d9fffa2eba676ddc491c5288403fa1091e62f26dd6"};
+    auto hash = ccf::crypto::Sha256Hash::from_hex_string(hex);
+
+    std::stringstream ss;
+    ss << hash;
+
+    REQUIRE(ss.str() == hex);
+  }
+}
