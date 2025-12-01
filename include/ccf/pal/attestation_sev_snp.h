@@ -430,7 +430,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         return {chip_id, sizeof(chip_id)};
       }
       // On Turin only the first 8 bytes are used for the chip ID
-      // VCED certificate and KDS interface spec section 3.1 
+      // VCED certificate and KDS interface spec section 3.1
       if (product == ProductName::Turin)
       {
         return {chip_id, 8};
@@ -474,7 +474,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
     EndorsementEndpointsConfiguration config;
 
-    auto chip_id_hex = fmt::format("{:02x}", fmt::join(quote.get_chip_id_for_vcek(), ""));
+    auto chip_id_hex =
+      fmt::format("{:02x}", fmt::join(quote.get_chip_id_for_vcek(), ""));
     auto reported_tcb = fmt::format(
       "{:0x}", *reinterpret_cast<const uint64_t*>(&quote.reported_tcb));
 
