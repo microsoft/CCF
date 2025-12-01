@@ -1,3 +1,4 @@
+pre_vote_enabled,false
 start_node,0
 assert_detail,0,leadership_state,Leader
 emit_signature,2
@@ -24,12 +25,13 @@ assert_commit_idx,2,6
 swap_nodes,2,out,3
 emit_signature,2
 
-## node 3 learns it is out of the network
-dispatch_one,0
+## node 3 learns it is out of the network but not that this entry is committed
+dispatch_single,0,3
 
+## Disconnect it to prevent it from learning that the entry is committed
 disconnect_node,3
 
-dispatch_all
+## node 0 commits removing Node 3
 periodic_all,10
 dispatch_all
 periodic_all,10
@@ -38,23 +40,30 @@ dispatch_all
 assert_commit_idx,0,8
 assert_commit_idx,1,8
 assert_commit_idx,2,8
-assert_commit_idx,3,6 # 3 hasn't heard anything for a long time
+assert_commit_idx,3,6 # Node 3 hasn't heard anything for a long time
 
-dispatch_all
-periodic_all,100
-dispatch_all
-
+## When Node 3 reconnects it becomes a candidate for term 3
 reconnect_node,3
-
-## When 3 reconnected it became a candidate for term 3 and caused 0 to step down
-assert_detail,0,leadership_state,Follower
+periodic_one,3,100
 assert_detail,3,leadership_state,Candidate
 
-## Node 3 is eventually removed, allowing leadership to be re-established
-disconnect_node,3
+## Node 3's candidacy causes node 0 to step down
+dispatch_single,3,0
+assert_detail,0,leadership_state,Follower
 
+## However Node 3 cannot be elected as after updating their term, nodes nack the message
 dispatch_all
-periodic_all,100
-dispatch_all
+assert_detail,3,leadership_state,Candidate
+
+## Without communicating with Node 3, Node 0 becomes Leader
+periodic_one,0,100
+dispatch_single,0,1
+dispatch_single,1,0
+assert_detail,0,leadership_state,Leader
+
+## Node 3 can learn from Node 0 that it has been retired
+assert_detail,3,leadership_state,Candidate
+dispatch_single,0,3
+assert_detail,3,leadership_state,Follower
 
 summarise_logs_all
