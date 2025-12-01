@@ -1,0 +1,52 @@
+pre_vote_enabled,true
+start_node,0
+assert_detail,0,leadership_state,Leader
+emit_signature,2
+
+assert_detail,0,leadership_state,Leader
+assert_commit_idx,0,2
+
+trust_node,2,1
+trust_node,2,2
+trust_node,2,3
+emit_signature,2
+
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+
+assert_commit_idx,0,6
+assert_commit_idx,1,6
+assert_commit_idx,2,6
+
+## the leader 0 reconfigures to remove 3
+swap_nodes,2,out,3
+emit_signature,2
+
+## node 3 learns it is out of the network but not that this entry is committed
+dispatch_single,0,3
+
+## Disconnect it to prevent it from learning that the entry is committed
+disconnect_node,3
+
+## node 0 commits removing Node 3
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+
+assert_commit_idx,0,8
+assert_commit_idx,1,8
+assert_commit_idx,2,8
+assert_commit_idx,3,6 # Node 3 hasn't heard anything for a long time
+
+## When Node 3 reconnects and becomes a PreVoteCandidate
+reconnect_node,3
+periodic_one,3,100
+assert_detail,3,leadership_state,PreVoteCandidate
+
+## Node 3's candidacy does not cause Node 0 to step down
+dispatch_single,3,0
+assert_detail,0,leadership_state,Leader
