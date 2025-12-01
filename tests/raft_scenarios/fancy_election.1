@@ -1,3 +1,4 @@
+pre_vote_enabled,true
 start_node,0
 assert_detail,0,leadership_state,Leader
 emit_signature,2
@@ -74,13 +75,13 @@ periodic_one,2,110
 dispatch_all
 
 # Eventually, Node 1 (the only live/connected node who has the committed suffix), will call
-# an election and win
+# an election and win with a vote from Node 2
 periodic_one,1,110
-
-# Node 1 asks for votes
+assert_detail,1,leadership_state,PreVoteCandidate
 dispatch_one,1
-
-# Node 2 responds in support
+dispatch_one,2
+assert_detail,1,leadership_state,Candidate
+dispatch_one,1
 dispatch_one,2
 
 # Node 1 appends a new committable entry to confirm its primaryship

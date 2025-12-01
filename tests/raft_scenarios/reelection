@@ -1,3 +1,4 @@
+pre_vote_enabled,true
 # Test what happens when a node is re-elected, and receives messages from previous terms
 start_node,0
 emit_signature,2
@@ -33,7 +34,7 @@ dispatch_one,0
 periodic_one,0,100
 assert_detail,0,leadership_state,Follower
 periodic_one,0,100
-assert_detail,0,leadership_state,Candidate
+assert_detail,0,leadership_state,PreVoteCandidate
 
 # Receive vote responses and AEs
 dispatch_all
