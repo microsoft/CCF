@@ -1,3 +1,4 @@
+pre_vote_enabled,true
 # Create a Start Node, commit initial transaction and signature
 # Append transaction to the node's log, observe that they are committed
 start_node,0

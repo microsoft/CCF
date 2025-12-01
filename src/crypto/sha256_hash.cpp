@@ -50,11 +50,7 @@ namespace ccf::crypto
 
   std::ostream& operator<<(std::ostream& os, const ccf::crypto::Sha256Hash& h)
   {
-    for (unsigned i = 0; i < ccf::crypto::Sha256Hash::SIZE; i++)
-    {
-      os << std::hex << static_cast<int>(h.h[i]);
-    }
-
+    os << h.hex_str();
     return os;
   }
 
