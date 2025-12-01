@@ -22,20 +22,17 @@ namespace ccf::indexing
     ccf::kv::ReadOnlyStorePtr deserialise_transaction(
       ccf::SeqNo seqno, const uint8_t* data, size_t size) override
     {
-      ccf::kv::ApplyResult result;
+      ccf::kv::ApplyResult result = ccf::kv::ApplyResult::FAIL;
       ccf::ClaimsDigest claims_digest;
-      bool has_commit_evidence;
+      bool has_commit_evidence = false;
       auto store = historical_cache->deserialise_ledger_entry(
         seqno, data, size, result, claims_digest, has_commit_evidence);
       if (store != nullptr && result != ccf::kv::ApplyResult::FAIL)
       {
         return store;
       }
-      else
-      {
-        LOG_FAIL_FMT("Unable to deserialise transaction at {}", seqno);
-      }
 
+      LOG_FAIL_FMT("Unable to deserialise transaction at {}", seqno);
       return nullptr;
     }
 
