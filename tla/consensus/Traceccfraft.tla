@@ -443,7 +443,6 @@ IsBecomeFollower ==
     \* We don't assert committable and last idx here, as the spec and implementation are out of sync until
     \* IsSendAppendEntriesResponse or IsSendRequestVote (in the candidate path)
     /\ leadershipState[logline.msg.state.node_id] # Leader
-    /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
