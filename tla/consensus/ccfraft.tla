@@ -1715,13 +1715,6 @@ LeaderProp ==
     \* There is repeatedly a non-retired leader.
     []<><<\E i \in Servers : leadershipState[i] = Leader /\ membershipState[i] # RetiredCommitted>>_vars
 
-VotesGrantedMonotonicProp ==
-  \A i \in Servers: [][
-    /\ leadershipState[i] = leadershipState'[i]
-    /\ currentTerm[i] = currentTerm'[i]
-    => votesGranted[i] \subseteq votesGranted'[i]
-  ]_vars
-
 ------------------------------------------------------------------------------
 \* Refinement of the more high-level specification abs.tla that abstracts the
 \* asynchronous network and the message passing between nodes.  Instead, any
