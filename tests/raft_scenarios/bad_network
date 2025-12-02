@@ -1,3 +1,4 @@
+pre_vote_enabled,false
 start_node,0
 assert_detail,0,leadership_state,Leader
 emit_signature,2
