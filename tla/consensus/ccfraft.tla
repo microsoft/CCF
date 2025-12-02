@@ -656,7 +656,7 @@ BecomePreVoteCandidate(i) ==
     /\ membershipState[i] \in (MembershipStates \ {RetiredCommitted})
     \* Only servers that are followers/candidates can become pre-vote-candidates
     \* Candidates can time out and become pre-vote-candidates for the next term
-    /\ leadershipState[i] \in {Follower, Candidate}
+    /\ leadershipState[i] \in {Follower, PreVoteCandidate, Candidate}
     /\
         \* Check that the reconfiguration which added this node is at least committable
         \/ \E c \in DOMAIN configurations[i] :
