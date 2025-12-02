@@ -23,8 +23,7 @@ namespace asynchost
       uv_getaddrinfo_cb cb,
       bool async)
     {
-      struct addrinfo hints
-      {};
+      addrinfo hints{};
       hints.ai_family = AF_UNSPEC;
       hints.ai_socktype = SOCK_STREAM;
       hints.ai_protocol = IPPROTO_TCP;
