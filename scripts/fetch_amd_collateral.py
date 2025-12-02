@@ -31,8 +31,8 @@ def make_leaf_url(base_url, product_family, chip_id, tcbm):
         raise ValueError("TCBM must be 16 hex characters (64 bits)")
 
     if product_family in [AMDCPUFamily.MILAN.value, AMDCPUFamily.GENOA.value]:
-        assert len(chip_id) == 32 * 2, "Chip ID must be 32 bytes long"
-        hwid = chip_id[0 : 32 * 2]
+        assert len(chip_id) == 64 * 2, "Chip ID must be 64 bytes long"
+        hwid = chip_id[0 : 64 * 2]
         params = {
             "ucodeSPL": int(tcbm[0:2], base=16),
             "snpSPL": int(tcbm[2:4], base=16),
