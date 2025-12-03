@@ -190,9 +190,11 @@ namespace ccf::kv
         size_t entry_size = read_size_prefixed_entry(entry_offset);
 
         T ret(entry_size / sizeof(typename T::value_type));
-        auto data_ = reinterpret_cast<uint8_t*>(ret.data());
-        auto size_ = entry_size;
-        serialized::write(data_, size_, data_ptr + entry_offset, entry_size);
+        auto* data_dest = reinterpret_cast<uint8_t*>(ret.data());
+        auto capacity = entry_size;
+        // NOLINTNEXTLINE(readability-suspicious-call-argument)
+        serialized::write(
+          data_dest, capacity, data_ptr + entry_offset, entry_size);
 
         return ret;
       }

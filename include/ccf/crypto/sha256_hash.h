@@ -27,8 +27,8 @@ namespace ccf::crypto
     }
 
     Sha256Hash(const uint8_t* data, size_t size);
-    Sha256Hash(const std::vector<uint8_t>& vec);
-    Sha256Hash(const std::string& str);
+    explicit Sha256Hash(const std::vector<uint8_t>& vec);
+    explicit Sha256Hash(const std::string& str);
     Sha256Hash(const Sha256Hash& left, const Sha256Hash& right);
     Sha256Hash(
       const Sha256Hash& first,

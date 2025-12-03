@@ -1296,6 +1296,91 @@ TEST_CASE("COSE sign & verify")
   REQUIRE(cose_verifier->verify_detached(cose_sign, {}));
 }
 
+TEST_CASE("COSE algorithm validation")
+{
+  INFO("EC key curves must match COSE algorithm");
+  {
+    // P-256 (secp256r1) requires COSE alg -7
+    auto p256_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP256R1);
+    auto p256_pubkey = std::dynamic_pointer_cast<ECPublicKey_OpenSSL>(
+      ccf::crypto::make_ec_public_key(p256_kp->public_key_pem()));
+
+    // Correct algorithm should work
+    REQUIRE_NOTHROW(p256_pubkey->check_is_cose_compatible(-7));
+
+    // Wrong algorithms should throw
+    REQUIRE_THROWS_WITH(
+      p256_pubkey->check_is_cose_compatible(-35),
+      "secp256r1 key cannot be used with COSE algorithm -35");
+    REQUIRE_THROWS_WITH(
+      p256_pubkey->check_is_cose_compatible(-36),
+      "secp256r1 key cannot be used with COSE algorithm -36");
+
+    // Unknown COSE algorithm for EC keys should throw
+    REQUIRE_THROWS_WITH(
+      p256_pubkey->check_is_cose_compatible(-999),
+      "secp256r1 key cannot be used with COSE algorithm -999");
+    REQUIRE_THROWS_WITH(
+      p256_pubkey->check_is_cose_compatible(42),
+      "secp256r1 key cannot be used with COSE algorithm 42");
+
+    // P-384 (secp384r1) requires COSE alg -35
+    auto p384_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP384R1);
+    auto p384_pubkey = std::dynamic_pointer_cast<ECPublicKey_OpenSSL>(
+      ccf::crypto::make_ec_public_key(p384_kp->public_key_pem()));
+
+    // Correct algorithm should work
+    REQUIRE_NOTHROW(p384_pubkey->check_is_cose_compatible(-35));
+
+    // Wrong algorithms should throw
+    REQUIRE_THROWS_WITH(
+      p384_pubkey->check_is_cose_compatible(-7),
+      "secp384r1 key cannot be used with COSE algorithm -7");
+    REQUIRE_THROWS_WITH(
+      p384_pubkey->check_is_cose_compatible(-36),
+      "secp384r1 key cannot be used with COSE algorithm -36");
+
+    // Unknown COSE algorithm for EC keys should throw
+    REQUIRE_THROWS_WITH(
+      p384_pubkey->check_is_cose_compatible(0),
+      "secp384r1 key cannot be used with COSE algorithm 0");
+    REQUIRE_THROWS_WITH(
+      p384_pubkey->check_is_cose_compatible(-100),
+      "secp384r1 key cannot be used with COSE algorithm -100");
+  }
+
+  INFO("RSA keys accept PS256, PS384, and PS512");
+  {
+    auto rsa_kp = ccf::crypto::make_rsa_key_pair();
+    auto rsa_pubkey = std::dynamic_pointer_cast<RSAPublicKey_OpenSSL>(
+      ccf::crypto::make_rsa_public_key(rsa_kp->public_key_pem()));
+
+    // All PS algorithms should work
+    REQUIRE_NOTHROW(rsa_pubkey->check_is_cose_compatible(-37)); // PS256
+    REQUIRE_NOTHROW(rsa_pubkey->check_is_cose_compatible(-38)); // PS384
+    REQUIRE_NOTHROW(rsa_pubkey->check_is_cose_compatible(-39)); // PS512
+
+    // Non-PS algorithms should throw
+    REQUIRE_THROWS_WITH(
+      rsa_pubkey->check_is_cose_compatible(-7),
+      "Incompatible cose algorithm -7 for RSA");
+    REQUIRE_THROWS_WITH(
+      rsa_pubkey->check_is_cose_compatible(-35),
+      "Incompatible cose algorithm -35 for RSA");
+
+    // Unknown COSE algorithm for RSA keys should throw
+    REQUIRE_THROWS_WITH(
+      rsa_pubkey->check_is_cose_compatible(1),
+      "Incompatible cose algorithm 1 for RSA");
+    REQUIRE_THROWS_WITH(
+      rsa_pubkey->check_is_cose_compatible(-256),
+      "Incompatible cose algorithm -256 for RSA");
+    REQUIRE_THROWS_WITH(
+      rsa_pubkey->check_is_cose_compatible(999),
+      "Incompatible cose algorithm 999 for RSA");
+  }
+}
+
 TEST_CASE("Sign and verify a chain with an intermediate and different subjects")
 {
   auto root_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP384R1);
@@ -1381,4 +1466,20 @@ TEST_CASE("Do not trust non-ca certs")
   // CA:FALSE).
   REQUIRE_FALSE(
     non_ca_cert_verifier->verify_certificate({&non_ca_cert}, {}, true));
+}
+
+TEST_CASE("Sha256 hex conversions")
+{
+  {
+    INFO("Sha256 via operator<<");
+
+    const std::string hex{
+      "f3d25d4670b742f035c1f1d9fffa2eba676ddc491c5288403fa1091e62f26dd6"};
+    auto hash = ccf::crypto::Sha256Hash::from_hex_string(hex);
+
+    std::stringstream ss;
+    ss << hash;
+
+    REQUIRE(ss.str() == hex);
+  }
 }

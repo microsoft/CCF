@@ -43,7 +43,9 @@ namespace ccf::pal
       const auto this_read = std::min(size - handled, buf_size);
       f.read(buf, this_read);
 
-      hasher->update_hash({(const uint8_t*)buf, this_read});
+      hasher->update_hash(
+        {static_cast<const uint8_t*>(static_cast<const void*>(buf)),
+         this_read});
 
       handled += this_read;
     }
@@ -61,7 +63,7 @@ namespace ccf::pal
   static void generate_virtual_quote(
     PlatformAttestationReportData& report_data,
     RetrieveEndorsementCallback endorsement_cb,
-    const snp::EndorsementsServers& endorsements_servers = {})
+    [[maybe_unused]] const snp::EndorsementsServers& endorsements_servers = {})
   {
     auto quote = files::slurp_json(virtual_attestation_path("measurement"));
     quote["report_data"] = ccf::crypto::b64_from_raw(report_data.data);

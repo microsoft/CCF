@@ -438,31 +438,19 @@ namespace loggingapp
         ap);
     }
 
-    // Wrap all endpoints with trace logging of their invocation
-    ccf::endpoints::Endpoint make_endpoint_with_local_commit_handler(
+    ccf::endpoints::LocallyCommittedEndpointFunction
+    make_tracing_local_commit_handler(
       const std::string& method,
       ccf::RESTVerb verb,
-      const ccf::endpoints::EndpointFunction& f,
-      const ccf::endpoints::LocallyCommittedEndpointFunction& lcf,
-      const ccf::AuthnPolicies& ap) override
+      const ccf::endpoints::LocallyCommittedEndpointFunction& lcf)
     {
-      return ccf::UserEndpointRegistry::make_endpoint_with_local_commit_handler(
-        method,
-        verb,
-        [method, verb, f](ccf::endpoints::EndpointContext& args) {
-          CCF_APP_TRACE("BEGIN {} {}", verb.c_str(), method);
-          f(args);
-          CCF_APP_TRACE("END   {} {}", verb.c_str(), method);
-        },
-        [method, verb, lcf](
-          ccf::endpoints::CommandEndpointContext& args, const ccf::TxID& txid) {
-          CCF_APP_TRACE(
-            "BEGIN LOCAL COMMIT HANDLER {} {}", verb.c_str(), method);
-          lcf(args, txid);
-          CCF_APP_TRACE(
-            "END LOCAL COMMIT HANDLER   {} {}", verb.c_str(), method);
-        },
-        ap);
+      return [method, verb, lcf](
+               ccf::endpoints::CommandEndpointContext& args,
+               const ccf::TxID& txid) {
+        CCF_APP_TRACE("BEGIN LOCAL COMMIT HANDLER {} {}", verb.c_str(), method);
+        lcf(args, txid);
+        CCF_APP_TRACE("END LOCAL COMMIT HANDLER   {} {}", verb.c_str(), method);
+      };
     }
 
   public:
@@ -585,13 +573,15 @@ namespace loggingapp
         return ccf::make_success(nullptr);
       };
 
-      make_endpoint_with_local_commit_handler(
-        "/log/private/anonymous/v2",
+      const auto* post_private_v2_url = "/log/private/anonymous/v2";
+      make_endpoint(
+        post_private_v2_url,
         HTTP_POST,
         ccf::json_adapter(record_v2),
-        add_txid_in_body_put,
         ccf::no_auth_required)
         .set_auto_schema<LoggingRecord::In, LoggingPut::Out>()
+        .set_locally_committed_function(make_tracing_local_commit_handler(
+          post_private_v2_url, HTTP_POST, add_txid_in_body_put))
         .install();
 
       // SNIPPET_START: get

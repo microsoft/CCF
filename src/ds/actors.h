@@ -7,7 +7,7 @@
 
 namespace ccf
 {
-  enum class ActorsType : uint64_t
+  enum class ActorsType : uint8_t
   {
     members = 0,
     users,
@@ -18,11 +18,7 @@ namespace ccf
 
   inline bool is_valid_actor(const std::string& actor)
   {
-    if (actor != "gov" && actor != "app" && actor != "node")
-    {
-      return false;
-    }
-    return true;
+    return actor == "gov" || actor == "app" || actor == "node";
   }
 
   constexpr auto get_actor_prefix(ActorsType at)
