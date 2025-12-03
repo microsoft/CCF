@@ -274,12 +274,16 @@ def test_snapshot_access(network, args):
     with open(os.path.join(snapshots_dir, snapshot_name), "rb") as f:
         snapshot_data = f.read()
 
+    interface = primary.host.rpc_interfaces[infra.interfaces.PRIMARY_RPC_INTERFACE]
+    loc = f"https://{interface.public_host}:{interface.public_port}"
+
     with primary.client() as c:
         r = c.head("/node/snapshot", allow_redirects=False)
         assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
         assert "location" in r.headers, r.headers
         location = r.headers["location"]
-        assert location == f"/node/snapshot/{snapshot_name}"
+        path = f"/node/snapshot/{snapshot_name}"
+        assert location == f"{loc}{path}"
         LOG.warning(r.headers)
 
         for since, expected in (
@@ -304,7 +308,7 @@ def test_snapshot_access(network, args):
                     actual = r.headers["location"]
                     assert actual == expected
 
-        r = c.head(location)
+        r = c.head(path)
         assert r.status_code == http.HTTPStatus.OK.value, r
         assert r.headers["accept-ranges"] == "bytes", r.headers
         total_size = int(r.headers["content-length"])
@@ -322,7 +326,7 @@ def test_snapshot_access(network, args):
             (b, None),
         ]:
             range_header_value = f"{start}-{'' if end is None else end}"
-            r = c.get(location, headers={"range": f"bytes={range_header_value}"})
+            r = c.get(path, headers={"range": f"bytes={range_header_value}"})
             assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
 
             expected = snapshot_data[start:end]
@@ -337,7 +341,7 @@ def test_snapshot_access(network, args):
             b,
         ]:
             range_header_value = f"-{negative_offset}"
-            r = c.get(location, headers={"range": f"bytes={range_header_value}"})
+            r = c.get(path, headers={"range": f"bytes={range_header_value}"})
             assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
 
             expected = snapshot_data[-negative_offset:]
@@ -357,7 +361,7 @@ def test_snapshot_access(network, args):
             ("-foo", "Unable to parse end of range offset value foo"),
             ("", "Invalid format"),
         ]:
-            r = c.get(location, headers={"range": f"bytes={invalid_range}"})
+            r = c.get(path, headers={"range": f"bytes={invalid_range}"})
             assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
             assert err_msg in r.body.json()["error"]["message"], r
 

@@ -874,7 +874,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
           config.command.service_certificate_file,
           latest_local_idx,
           config.command.join.fetch_snapshot_max_attempts,
-          config.command.join.fetch_snapshot_retry_interval.count_ms());
+          config.command.join.fetch_snapshot_retry_interval.count_ms(),
+          config.command.join.fetch_snapshot_max_size.count_bytes());
 
         if (latest_peer_snapshot.has_value())
         {
