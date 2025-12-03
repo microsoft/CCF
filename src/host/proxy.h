@@ -21,10 +21,10 @@ namespace asynchost
 
   public:
     template <typename... Args>
-    close_ptr(Args&&... args)
-    {
-      raw = new T(std::forward<Args>(args)...);
-    }
+    close_ptr(Args&&... args) :
+      raw(new T(
+        std::forward<Args>(args)...)) // NOLINT(cppcoreguidelines-owning-memory)
+    {}
     close_ptr(T* that) : raw(that) {}
 
     ~close_ptr()
@@ -55,7 +55,8 @@ namespace asynchost
   public:
     proxy_ptr(proxy_ptr<T>& that) : internal(that.internal) {}
     proxy_ptr(const proxy_ptr<T>& that) : internal(that.internal) {}
-    proxy_ptr(proxy_ptr<T>&& that) : internal(std::move(that.internal)) {}
+    proxy_ptr(proxy_ptr<T>&& that) noexcept : internal(std::move(that.internal))
+    {}
     proxy_ptr(std::nullptr_t that) : internal(that) {}
     proxy_ptr(T* that) : internal(std::make_shared<close_ptr<T>>(that)) {}
 
@@ -77,27 +78,28 @@ namespace asynchost
     }
   };
 
+  // NOLINTBEGIN(cppcoreguidelines-virtual-class-destructor)
   template <typename handle_type>
   class with_uv_handle
   {
-  protected:
-    handle_type uv_handle;
-
-    with_uv_handle() {}
+  public:
     with_uv_handle(const with_uv_handle<handle_type>& that) = delete;
     with_uv_handle(with_uv_handle<handle_type>&& that) = delete;
 
+  protected:
+    handle_type uv_handle{};
+
+    with_uv_handle() = default;
     virtual ~with_uv_handle() = default;
 
-  protected:
     template <typename T>
     friend class close_ptr;
 
     void close()
     {
-      if (!uv_is_closing((uv_handle_t*)&uv_handle))
+      if (uv_is_closing(reinterpret_cast<uv_handle_t*>(&uv_handle)) == 0)
       {
-        uv_close((uv_handle_t*)&uv_handle, on_close);
+        uv_close(reinterpret_cast<uv_handle_t*>(&uv_handle), on_close);
       }
     }
 
@@ -114,4 +116,5 @@ namespace asynchost
       delete this;
     }
   };
+  // NOLINTEND(cppcoreguidelines-virtual-class-destructor)
 }
