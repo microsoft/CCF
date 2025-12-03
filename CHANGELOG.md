@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - CheckQuorum now requires a quorum in every configuration (#7375)
 - `read_ledger.py` validates the offsets table in committed ledger files, reporting an error if this is truncated (#7501).
 
+### Changed
+
+- When the `fetch_recent_snapshot` behaviour is enabled by the node config, the Joiner will now prefer the peer's snapshot over _any_ local snapshot, regardless of version (#7314).
+
 ## [6.0.16]
 
 [6.0.16]: https://github.com/microsoft/CCF/releases/tag/6.0.16
