@@ -865,14 +865,9 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
         config.command.join.fetch_recent_snapshot)
       {
         // Try to fetch a recent snapshot from peer
-        const size_t latest_local_idx = latest_local_snapshot.has_value() ?
-          snapshots::get_snapshot_idx_from_file_name(
-            latest_local_snapshot->second) :
-          0;
         auto latest_peer_snapshot = snapshots::fetch_from_peer(
           config.command.join.target_rpc_address,
           config.command.service_certificate_file,
-          latest_local_idx,
           config.command.join.fetch_snapshot_max_attempts,
           config.command.join.fetch_snapshot_retry_interval.count_ms(),
           config.command.join.fetch_snapshot_max_size.count_bytes());

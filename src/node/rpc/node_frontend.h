@@ -1948,7 +1948,7 @@ namespace ccf
           if (primary_id.has_value())
           {
             const auto address =
-              get_redirect_address_for_node(ctx, ctx.tx, *primary_id);
+              get_redirect_address_for_node(ctx, *primary_id);
             if (!address.has_value())
             {
               return;
@@ -2006,8 +2006,8 @@ namespace ccf
 
         const auto& snapshot_path = latest_committed_snapshot.value();
 
-        const auto address = get_redirect_address_for_node(
-          ctx, ctx.tx, this->context.get_node_id());
+        const auto address =
+          get_redirect_address_for_node(ctx, this->context.get_node_id());
         if (!address.has_value())
         {
           return;
