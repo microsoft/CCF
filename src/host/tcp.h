@@ -15,6 +15,7 @@
 
 namespace asynchost
 {
+  // NOLINTBEGIN(cppcoreguidelines-virtual-class-destructor)
   class TCPImpl;
   using TCP = proxy_ptr<TCPImpl>;
 
@@ -202,6 +203,8 @@ namespace asynchost
         }
       }
     }
+
+    // NOLINTEND(cppcoreguidelines-virtual-class-destructor)
 
     static void on_client_resolved(
       uv_getaddrinfo_t* req, int rc, struct addrinfo* /*res*/)

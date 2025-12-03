@@ -14,6 +14,7 @@
 
 namespace asynchost
 {
+  // NOLINTBEGIN(cppcoreguidelines-virtual-class-destructor)
   class UDPImpl;
   using UDP = proxy_ptr<UDPImpl>;
 
@@ -524,6 +525,8 @@ namespace asynchost
       delete req; // NOLINT(cppcoreguidelines-owning-memory)
     }
   };
+
+  // NOLINTEND(cppcoreguidelines-virtual-class-destructor)
 
   class ResetUDPReadQuotaImpl
   {

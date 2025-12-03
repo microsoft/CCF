@@ -78,6 +78,7 @@ namespace asynchost
     }
   };
 
+  // NOLINTBEGIN(cppcoreguidelines-virtual-class-destructor)
   template <typename handle_type>
   class with_uv_handle
   {
@@ -115,4 +116,5 @@ namespace asynchost
       delete this;
     }
   };
+  // NOLINTEND(cppcoreguidelines-virtual-class-destructor)
 }

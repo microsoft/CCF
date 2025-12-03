@@ -37,7 +37,6 @@ Checks: >
   -cppcoreguidelines-non-private-member-variables-in-classes,
   -cppcoreguidelines-special-member-functions,
   -cppcoreguidelines-avoid-magic-numbers,
-  -cppcoreguidelines-virtual-class-destructor,
   misc-*,
   -misc-const-correctness,
   -misc-include-cleaner,
