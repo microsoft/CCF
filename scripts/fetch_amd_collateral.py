@@ -10,6 +10,7 @@ import base64
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
+import json
 
 
 class AMDCPUFamily(Enum):
@@ -19,10 +20,13 @@ class AMDCPUFamily(Enum):
 
 
 def make_host_amd_blob(tcbm, leaf, chain):
-    return (
-        "{"
-        + f'tcbm={tcbm}, leaf="{leaf.encode("unicode_escape").decode("utf-8")}", chain="{chain.encode("unicode_escape").decode("utf-8")}"'
-        + "}"
+    return json.dumps(
+        {
+            "cacheControl": 0,
+            "tcbm": tcbm.upper(),
+            "vcekCert": leaf,
+            "certificateChain": chain,
+        }
     )
 
 
@@ -76,7 +80,7 @@ if __name__ == "__main__":
         "-u",
         "--base-url",
         type=str,
-        default="https://kdsintf.amd.com:443",
+        default="https://kdsintf.amd.com",
         help="URL to fetch the AMD collateral data from.",
     )
     parser.add_argument(
