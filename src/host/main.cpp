@@ -103,7 +103,8 @@ void apply_stdlib_workarounds()
   {
     const auto& ct(std::use_facet<std::ctype<char>>(std::locale()));
 
-    for (size_t i(0); i != 256; ++i)
+    constexpr size_t char_end = 256;
+    for (size_t i(0); i != char_end; ++i)
     {
       ct.narrow(static_cast<char>(i), '\0');
     }
