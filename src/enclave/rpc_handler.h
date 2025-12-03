@@ -23,14 +23,14 @@ namespace ccf
   class RpcHandler
   {
   public:
-    virtual ~RpcHandler() {}
+    virtual ~RpcHandler() = default;
 
     // Used by enclave to initialise and tick frontends
     virtual void set_sig_intervals(
       size_t sig_tx_interval, size_t sig_ms_interval) = 0;
     virtual void set_cmd_forwarder(
       std::shared_ptr<AbstractForwarder> cmd_forwarder_) = 0;
-    virtual void tick(std::chrono::milliseconds) {}
+    virtual void tick(std::chrono::milliseconds /*elapsed*/) {}
     virtual void open() = 0;
     virtual bool is_open() = 0;
 

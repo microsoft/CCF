@@ -45,13 +45,13 @@ namespace ccf
   private:
     struct ListenInterface
     {
-      size_t open_sessions;
-      size_t peak_sessions;
-      size_t max_open_sessions_soft;
-      size_t max_open_sessions_hard;
-      ccf::Endorsement endorsement;
+      size_t open_sessions = 0;
+      size_t peak_sessions = 0;
+      size_t max_open_sessions_soft = 0;
+      size_t max_open_sessions_hard = 0;
+      ccf::Endorsement endorsement{};
       http::ParserConfiguration http_configuration;
-      ccf::SessionMetrics::Errors errors;
+      ccf::SessionMetrics::Errors errors{};
       ccf::ApplicationProtocol app_protocol;
     };
     std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
@@ -108,14 +108,18 @@ namespace ccf
       const auto initial = id;
 
       if (next_client_session_id > 0)
+      {
         next_client_session_id = -1;
+      }
 
       while (sessions.find(id) != sessions.end())
       {
         id--;
 
         if (id > 0)
+        {
           id = -1;
+        }
 
         if (id == initial)
         {
@@ -158,7 +162,7 @@ namespace ccf
           parser_configuration,
           shared_from_this());
       }
-      else if (app_protocol == "HTTP1")
+      if (app_protocol == "HTTP1")
       {
         return std::make_shared<::http::HTTPServerSession>(
           rpc_map,
@@ -170,17 +174,15 @@ namespace ccf
           shared_from_this(),
           commit_callbacks_subsystem);
       }
-      else if (custom_protocol_subsystem)
+      if (custom_protocol_subsystem)
       {
         return custom_protocol_subsystem->create_session(
           app_protocol, id, std::move(ctx));
       }
-      else
-      {
-        throw std::runtime_error(fmt::format(
-          "unknown protocol '{}' and custom protocol subsystem missing",
-          app_protocol));
-      }
+
+      throw std::runtime_error(fmt::format(
+        "unknown protocol '{}' and custom protocol subsystem missing",
+        app_protocol));
     }
 
   public:
@@ -576,7 +578,7 @@ namespace ccf
         sessions_peak = std::max(sessions_peak, sessions.size());
         return session;
       }
-      else if (app_protocol == "HTTP1")
+      if (app_protocol == "HTTP1")
       {
         auto session = std::make_shared<::http::HTTPClientSession>(
           id, writer_factory, std::move(ctx));
@@ -584,10 +586,8 @@ namespace ccf
         sessions_peak = std::max(sessions_peak, sessions.size());
         return session;
       }
-      else
-      {
-        throw std::runtime_error("unsupported client application protocol");
-      }
+
+      throw std::runtime_error("unsupported client application protocol");
     }
 
     std::shared_ptr<ClientSession> create_unencrypted_client()
@@ -655,7 +655,8 @@ namespace ccf
                 id);
               return;
             }
-            else if (!search->second.second && custom_protocol_subsystem)
+
+            if (!search->second.second && custom_protocol_subsystem)
             {
               LOG_DEBUG_FMT("Creating custom UDP session {}", id);
 

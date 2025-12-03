@@ -920,7 +920,7 @@ def run_sighup_check(const_args):
         out, _ = network.nodes[0].remote.get_logs()
         with open(out, "r") as outf:
             lines = outf.readlines()
-        assert any("Hangup: " in line for line in lines), "Hangup should be logged"
+        assert any("SIGHUP: " in line for line in lines), "Hangup should be logged"
 
 
 def run_configuration_file_checks(args):
