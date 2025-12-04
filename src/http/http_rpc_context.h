@@ -38,24 +38,24 @@ namespace http
   {
   private:
     ccf::RESTVerb verb;
-    std::string url = {};
+    std::string url;
 
-    std::string whole_path = {};
-    std::string path = {};
-    std::string query = {};
-    std::string fragment = {};
+    std::string whole_path;
+    std::string path;
+    std::string query;
+    std::string fragment;
 
-    ccf::http::HeaderMap request_headers = {};
+    ccf::http::HeaderMap request_headers;
 
-    std::vector<uint8_t> request_body = {};
+    std::vector<uint8_t> request_body;
 
     std::shared_ptr<ccf::http::HTTPResponder> responder = nullptr;
 
-    std::vector<uint8_t> serialised_request = {};
+    std::vector<uint8_t> serialised_request;
 
     ccf::http::HeaderMap response_headers;
     ccf::http::HeaderMap response_trailers;
-    std::vector<uint8_t> response_body = {};
+    std::vector<uint8_t> response_body;
     ccf::http_status response_status = HTTP_STATUS_OK;
 
     bool serialised = false;
@@ -97,19 +97,20 @@ namespace http
       ccf::HttpVersion http_version,
       llhttp_method verb_,
       const std::string_view& url_,
-      const ccf::http::HeaderMap& headers_,
+      ccf::http::HeaderMap headers_,
       const std::vector<uint8_t>& body_,
       const std::shared_ptr<ccf::http::HTTPResponder>& responder_ = nullptr,
       const std::vector<uint8_t>& raw_request_ = {}) :
       RpcContextImpl(s, http_version),
       verb(verb_),
       url(url_),
-      request_headers(headers_),
+      request_headers(std::move(headers_)),
       request_body(body_),
       responder(responder_),
       serialised_request(raw_request_)
     {
       const auto [path_, query_, fragment_] = split_url_path(url);
+      // NOLINTBEGIN(cppcoreguidelines-prefer-member-initializer)
       path = path_;
       whole_path = path_;
       query = url_decode(query_);
@@ -119,60 +120,61 @@ namespace http
       {
         serialised = true;
       }
+      // NOLINTEND(cppcoreguidelines-prefer-member-initializer)
     }
 
-    ccf::http::HeaderMap get_response_headers() const
+    [[nodiscard]] ccf::http::HeaderMap get_response_headers() const
     {
       return response_headers;
     }
 
-    ccf::http::HeaderMap get_response_trailers() const
+    [[nodiscard]] ccf::http::HeaderMap get_response_trailers() const
     {
       return response_trailers;
     }
 
-    ccf::http_status get_response_http_status() const
+    [[nodiscard]] ccf::http_status get_response_http_status() const
     {
       return response_status;
     }
 
-    virtual ccf::FrameFormat frame_format() const override
+    [[nodiscard]] ccf::FrameFormat frame_format() const override
     {
       return ccf::FrameFormat::http;
     }
 
-    virtual void set_tx_id(const ccf::TxID& tx_id) override
+    void set_tx_id(const ccf::TxID& tx_id) override
     {
       set_response_header(ccf::http::headers::CCF_TX_ID, tx_id.to_str());
     }
 
-    virtual const std::vector<uint8_t>& get_request_body() const override
+    [[nodiscard]] const std::vector<uint8_t>& get_request_body() const override
     {
       return request_body;
     }
 
-    virtual const std::string& get_request_query() const override
+    [[nodiscard]] const std::string& get_request_query() const override
     {
       return query;
     }
 
-    virtual const ccf::RESTVerb& get_request_verb() const override
+    [[nodiscard]] const ccf::RESTVerb& get_request_verb() const override
     {
       return verb;
     }
 
-    virtual std::string get_request_path() const override
+    [[nodiscard]] std::string get_request_path() const override
     {
       return whole_path;
     }
 
-    virtual const std::vector<uint8_t>& get_serialised_request() override
+    const std::vector<uint8_t>& get_serialised_request() override
     {
       serialise();
       return serialised_request;
     }
 
-    virtual std::string get_method() const override
+    [[nodiscard]] std::string get_method() const override
     {
       return path;
     }
@@ -182,12 +184,13 @@ namespace http
       path = p;
     }
 
-    virtual const ccf::http::HeaderMap& get_request_headers() const override
+    [[nodiscard]] const ccf::http::HeaderMap& get_request_headers()
+      const override
     {
       return request_headers;
     }
 
-    virtual std::optional<std::string> get_request_header(
+    [[nodiscard]] std::optional<std::string> get_request_header(
       const std::string_view& name) const override
     {
       const auto it = request_headers.find(name);
@@ -199,12 +202,12 @@ namespace http
       return std::nullopt;
     }
 
-    virtual const std::string& get_request_url() const override
+    [[nodiscard]] const std::string& get_request_url() const override
     {
       return url;
     }
 
-    virtual std::shared_ptr<ccf::http::HTTPResponder> get_responder()
+    [[nodiscard]] std::shared_ptr<ccf::http::HTTPResponder> get_responder()
       const override
     {
       return responder;
@@ -227,64 +230,64 @@ namespace http
       }
     }
 
-    virtual void set_response_body(const std::vector<uint8_t>& body) override
+    void set_response_body(const std::vector<uint8_t>& body) override
     {
       _set_response_body(body);
     }
 
-    virtual void set_response_body(std::vector<uint8_t>&& body) override
+    void set_response_body(std::vector<uint8_t>&& body) override
     {
       _set_response_body(std::move(body));
     }
 
-    virtual void set_response_body(std::string&& body) override
+    void set_response_body(std::string&& body) override
     {
       _set_response_body(std::move(body));
     }
 
-    virtual const std::vector<uint8_t>& get_response_body() const override
+    [[nodiscard]] const std::vector<uint8_t>& get_response_body() const override
     {
       return response_body;
     }
 
-    virtual std::vector<uint8_t>&& take_response_body() override
+    std::vector<uint8_t>&& take_response_body() override
     {
       return std::move(response_body);
     }
 
-    virtual void set_response_status(int status) override
+    void set_response_status(int status) override
     {
       response_status = (ccf::http_status)status;
     }
 
-    virtual int get_response_status() const override
+    [[nodiscard]] int get_response_status() const override
     {
       return response_status;
     }
 
-    virtual void set_response_header(
+    void set_response_header(
       const std::string_view& name, const std::string_view& value) override
     {
       response_headers[std::string(name)] = value;
     }
 
-    virtual void clear_response_headers() override
+    void clear_response_headers() override
     {
       response_headers.clear();
     }
 
-    virtual void set_response_trailer(
+    void set_response_trailer(
       const std::string_view& name, const std::string_view& value) override
     {
       response_trailers[std::string(name)] = value;
     }
 
-    virtual void set_apply_writes(bool apply) override
+    void set_apply_writes(bool apply) override
     {
       explicit_apply_writes = apply;
     }
 
-    virtual bool should_apply_writes() const override
+    [[nodiscard]] bool should_apply_writes() const override
     {
       if (explicit_apply_writes.has_value())
       {
@@ -295,7 +298,7 @@ namespace http
       return status_success(response_status);
     }
 
-    virtual void reset_response() override
+    void reset_response() override
     {
       response_headers.clear();
       response_body.clear();
@@ -303,7 +306,7 @@ namespace http
       explicit_apply_writes.reset();
     }
 
-    virtual std::vector<uint8_t> serialise_response() const override
+    [[nodiscard]] std::vector<uint8_t> serialise_response() const override
     {
       auto http_response = ::http::Response(response_status);
 
@@ -366,7 +369,8 @@ namespace http
       // process the request
       search = rpc_map->find(ccf::ActorsType::users);
     }
-    return search.value();
+    // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
+    return *search;
   }
 }
 

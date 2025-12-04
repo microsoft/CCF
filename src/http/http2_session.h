@@ -61,7 +61,7 @@ namespace http
         sp->respond(
           stream_id,
           status_code,
-          std::move(headers),
+          headers,
           std::move(trailers),
           std::move(body));
       }
@@ -200,10 +200,9 @@ namespace http
       {
         it = session_ctxs.emplace_hint(
           it,
-          std::make_pair(
-            stream_id,
-            std::make_shared<HTTP2SessionContext>(
-              session_id, tls_io->peer_cert(), interface_id, stream_id)));
+          stream_id,
+          std::make_shared<HTTP2SessionContext>(
+            session_id, tls_io->peer_cert(), interface_id, stream_id));
       }
 
       return it->second;
@@ -226,8 +225,8 @@ namespace http
     void respond_with_error(
       http2::StreamId stream_id, const ccf::ErrorDetails& error)
     {
-      nlohmann::json body = ccf::ODataErrorResponse{
-        ccf::ODataError{std::move(error.code), std::move(error.msg), {}}};
+      nlohmann::json body =
+        ccf::ODataErrorResponse{ccf::ODataError{error.code, error.msg, {}}};
       const std::string s = body.dump();
       std::vector<uint8_t> v(s.begin(), s.end());
 
@@ -241,19 +240,19 @@ namespace http
 
   public:
     HTTP2ServerSession(
-      std::shared_ptr<ccf::RPCMap> rpc_map,
+      std::shared_ptr<ccf::RPCMap> rpc_map_,
       int64_t session_id_,
-      const ccf::ListenInterfaceID& interface_id,
+      ccf::ListenInterfaceID interface_id_,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<ccf::tls::Context> ctx,
       const ccf::http::ParserConfiguration& configuration,
-      const std::shared_ptr<ErrorReporter>& error_reporter) :
+      const std::shared_ptr<ErrorReporter>& error_reporter_) :
       HTTP2Session(session_id_, writer_factory, std::move(ctx)),
       server_parser(
         std::make_shared<http2::ServerParser>(*this, configuration)),
-      rpc_map(rpc_map),
-      error_reporter(error_reporter),
-      interface_id(interface_id)
+      rpc_map(std::move(rpc_map_)),
+      error_reporter(error_reporter_),
+      interface_id(std::move(interface_id_))
     {
       server_parser->set_outgoing_data_handler(
         [this](std::span<const uint8_t> data) {
@@ -375,14 +374,12 @@ namespace http
           LOG_TRACE_FMT("Pending");
           return;
         }
-        else
-        {
-          responder->send_response(
-            rpc_ctx->get_response_http_status(),
-            rpc_ctx->get_response_headers(),
-            rpc_ctx->get_response_trailers(),
-            std::move(rpc_ctx->take_response_body()));
-        }
+
+        responder->send_response(
+          rpc_ctx->get_response_http_status(),
+          rpc_ctx->get_response_headers(),
+          rpc_ctx->get_response_trailers(),
+          std::move(rpc_ctx->take_response_body()));
       }
       catch (const std::exception& e)
       {
@@ -478,7 +475,8 @@ namespace http
         LOG_DEBUG_FMT(
           "Error occurred while parsing fragment {} byte fragment:\n{}",
           data.size(),
-          std::string_view((char const*)data.data(), data.size()));
+          std::string_view(
+            reinterpret_cast<char const*>(data.data()), data.size()));
 
         close_session();
       }
