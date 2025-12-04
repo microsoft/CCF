@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev6
 
+### Added
+
+- Support for Turin attestations (#7499)
+- verify_attestation script to fetch endorsements from AMD and check the provided attestation against them (#7499)
+
 ### Changed
 
 - Start nodes now confirm that read-only ledger directories are empty on startup (#7355).
