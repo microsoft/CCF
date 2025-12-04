@@ -1527,5 +1527,5 @@ TEST_CASE("Carriage returns in PEM certificates")
   auto cert_vec_cr = cert_pem_cr.raw();
   OpenSSL::Unique_BIO certbio_cr(cert_vec_cr);
   OpenSSL::Unique_X509 cert_cr(certbio_cr, true);
-  REQUIRE(cert_cr != nullptr);
+  REQUIRE_NE(cert_cr, nullptr);
 }
