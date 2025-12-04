@@ -1991,6 +1991,48 @@ TEST_CASE("Valid merkle proof from receipts")
   REQUIRE_FALSE(proof.has_value());
 }
 
+TEST_CASE("Cache size estimation")
+{
+  ccf::logger::config::default_init();
+  ccf::logger::config::level() = ccf::LoggerLevel::INFO;
+
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+
+  write_transactions_and_signature(kv_store, 10);
+
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+
+  auto stub_writer = std::make_shared<StubWriter>();
+  ccf::historical::StateCacheImpl cache(
+    kv_store, state.ledger_secrets, stub_writer);
+
+  cache.set_soft_cache_limit(0);
+
+  ccf::historical::CompoundHandle handle = {
+    ccf::historical::RequestNamespace::Application, 1};
+
+  {
+    ccf::ds::ContiguousSet<ccf::SeqNo> seqnos;
+    seqnos.insert(10);
+    cache.get_stores_for(handle, seqnos, std::chrono::seconds(1));
+  }
+
+  REQUIRE(cache.get_estimated_store_cache_size() == 0);
+  cache.handle_ledger_entry(10, ledger.at(10));
+  REQUIRE(cache.get_estimated_store_cache_size() == ledger.at(10).size());
+
+  {
+    ccf::ds::ContiguousSet<ccf::SeqNo> seqnos;
+    seqnos.insert(5);
+    cache.get_stores_for(handle, seqnos, std::chrono::seconds(1));
+  }
+
+  cache.tick(std::chrono::milliseconds(1000));
+
+  REQUIRE(cache.get_estimated_store_cache_size() == 0);
+}
+
 int main(int argc, char** argv)
 {
   doctest::Context context;
