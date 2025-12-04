@@ -249,8 +249,6 @@ namespace ccf::historical
       {
         std::vector<SeqNo> removed{}, added{};
 
-        bool any_diff = false;
-
         // If a seqno is earlier than the earliest known ledger secret, we will
         // store that it was requested with a nullptr in `my_stores`, but not
         // add it to `all_stores` to begin fetching until a sufficiently early
@@ -278,7 +276,6 @@ namespace ccf::historical
               // Remove it from my_stores
               removed.push_back(prev_it->first);
               prev_it = my_stores.erase(prev_it);
-              any_diff |= true;
             }
             else
             {
@@ -308,7 +305,6 @@ namespace ccf::historical
                 added.push_back(*new_it);
                 prev_it = my_stores.insert_or_assign(prev_it, *new_it, details);
               }
-              any_diff |= true;
             }
           }
 
@@ -316,10 +312,15 @@ namespace ccf::historical
           {
             // If we have a suffix of seqnos previously requested, now
             // unrequested, purge them
+            for (auto it = prev_it; it != my_stores.end(); ++it)
+            {
+              removed.push_back(it->first);
+            }
             my_stores.erase(prev_it, my_stores.end());
-            any_diff |= true;
           }
         }
+
+        const bool any_diff = !removed.empty() || !added.empty();
 
         if (!any_diff && (should_include_receipts == include_receipts))
         {
@@ -1395,6 +1396,12 @@ namespace ccf::historical
       }
 
       return store;
+    }
+
+    size_t get_estimated_store_cache_size()
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+      return estimated_store_cache_size;
     }
 
     void tick(const std::chrono::milliseconds& elapsed_ms)
