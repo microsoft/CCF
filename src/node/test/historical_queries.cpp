@@ -1993,9 +1993,6 @@ TEST_CASE("Valid merkle proof from receipts")
 
 TEST_CASE("Cache size estimation")
 {
-  ccf::logger::config::default_init();
-  ccf::logger::config::level() = ccf::LoggerLevel::INFO;
-
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
 
@@ -2035,6 +2032,8 @@ TEST_CASE("Cache size estimation")
 
 TEST_CASE("adjust_ranges")
 {
+  using SeqNoSet = std::set<ccf::SeqNo>;
+
   struct AdjustRangesAccessor : public ccf::historical::StateCacheImpl
   {
     Request request;
@@ -2047,10 +2046,7 @@ TEST_CASE("adjust_ranges")
       request(all_stores)
     {}
 
-    std::pair<std::vector<ccf::SeqNo>, std::vector<ccf::SeqNo>> adjust_ranges(
-      const std::set<ccf::SeqNo>& seqnos,
-      bool should_include_receipts,
-      ccf::SeqNo earliest_ledger_secret_seqno)
+    std::pair<SeqNoSet, SeqNoSet> adjust_ranges(const SeqNoSet& seqnos)
     {
       ccf::SeqNoCollection seqno_collection;
       for (const auto& seqno : seqnos)
@@ -2058,10 +2054,11 @@ TEST_CASE("adjust_ranges")
         seqno_collection.insert(seqno);
       }
 
-      return request.adjust_ranges(
-        seqno_collection,
-        should_include_receipts,
-        earliest_ledger_secret_seqno);
+      auto [removed_v, added_v] =
+        request.adjust_ranges(seqno_collection, true, 0);
+      SeqNoSet removed(removed_v.begin(), removed_v.end());
+      SeqNoSet added(added_v.begin(), added_v.end());
+      return {removed, added};
     }
   };
 
@@ -2069,20 +2066,67 @@ TEST_CASE("adjust_ranges")
   auto stub_writer = std::make_shared<StubWriter>();
 
   {
-    // An explicit manual regression test
+    DOCTEST_INFO("Minimal regression test");
     AdjustRangesAccessor cache(
       *state.kv_store, state.ledger_secrets, stub_writer);
 
-    auto [removed1, added1] = cache.adjust_ranges({100}, true, 0);
+    auto [removed1, added1] = cache.adjust_ranges({100});
     REQUIRE(added1.size() == 1);
-    REQUIRE(added1[0] == 100);
+    REQUIRE(added1 == SeqNoSet{100});
     REQUIRE(removed1.size() == 0);
 
-    auto [removed2, added2] = cache.adjust_ranges({42}, true, 0);
+    auto [removed2, added2] = cache.adjust_ranges({42});
     REQUIRE(added2.size() == 1);
-    REQUIRE(added2[0] == 42);
+    REQUIRE(added2 == SeqNoSet{42});
     REQUIRE(removed2.size() == 1);
-    REQUIRE(removed2[0] == 100);
+    REQUIRE(removed2 == SeqNoSet{100});
+  }
+
+  {
+    const auto seed = time(NULL);
+    DOCTEST_INFO("Random permutations, using seed: ", seed);
+    srand(seed);
+    for (size_t i = 0; i < 100; ++i)
+    {
+      DOCTEST_INFO("Iteration #", i);
+      AdjustRangesAccessor cache(
+        *state.kv_store, state.ledger_secrets, stub_writer);
+      SeqNoSet before;
+      for (auto j = 0; j < rand() % 6; ++j)
+      {
+        before.insert(rand() % 30);
+      }
+
+      auto [removed_init, added_init] = cache.adjust_ranges(before);
+      REQUIRE(added_init == before);
+      REQUIRE(removed_init.empty());
+
+      std::set<ccf::SeqNo> after;
+      for (auto j = 0; j < rand() % 6; ++j)
+      {
+        after.insert(rand() % 30);
+      }
+
+      auto [actual_removed, actual_added] = cache.adjust_ranges(after);
+
+      SeqNoSet expected_added;
+      std::set_difference(
+        after.begin(),
+        after.end(),
+        before.begin(),
+        before.end(),
+        std::inserter(expected_added, expected_added.begin()));
+      SeqNoSet expected_removed;
+      std::set_difference(
+        before.begin(),
+        before.end(),
+        after.begin(),
+        after.end(),
+        std::inserter(expected_removed, expected_removed.begin()));
+
+      REQUIRE(actual_added == expected_added);
+      REQUIRE(actual_removed == expected_removed);
+    }
   }
 }
 
