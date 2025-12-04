@@ -21,7 +21,7 @@ namespace tls
   private:
     ccf::crypto::ECKeyPairPtr own_key;
     ccf::crypto::ECPublicKeyPtr peer_key;
-    ccf::crypto::CurveID curve;
+    ccf::crypto::CurveID curve{ccf::crypto::CurveID::SECP384R1};
     std::vector<uint8_t> shared_secret;
 
     void compute_shared_secret()
@@ -41,9 +41,9 @@ namespace tls
     }
 
   public:
-    KeyExchangeContext() : curve(ccf::crypto::CurveID::SECP384R1) {}
+    KeyExchangeContext() = default;
 
-    ~KeyExchangeContext() {}
+    ~KeyExchangeContext() = default;
 
     std::vector<uint8_t> get_own_key_share()
     {
@@ -61,7 +61,7 @@ namespace tls
       return tmp;
     }
 
-    std::vector<uint8_t> get_peer_key_share() const
+    [[nodiscard]] std::vector<uint8_t> get_peer_key_share() const
     {
       if (!peer_key)
       {
@@ -83,7 +83,7 @@ namespace tls
 
     void load_peer_key_share(std::span<const uint8_t> ks)
     {
-      if (ks.size() == 0)
+      if (ks.empty())
       {
         throw std::runtime_error("Provided peer key share is empty");
       }
@@ -94,7 +94,7 @@ namespace tls
       int nid = ccf::crypto::ECPublicKey_OpenSSL::get_openssl_group_id(curve);
       auto pk = ccf::crypto::key_from_raw_ec_point(tmp, nid);
 
-      if (!pk)
+      if (pk == nullptr)
       {
         throw std::runtime_error("Failed to parse peer key share");
       }
