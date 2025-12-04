@@ -1708,13 +1708,6 @@ NeverCommitEntryPrevTermsProp ==
         \* points to equals the leader's term.
         commitIndex'[i] > commitIndex[i] => log[i][commitIndex'[i]].term = currentTerm'[i] ]_vars
 
-LogMatchingProp ==
-    \A i, j \in Servers : []<>(log[i] = log[j])
-
-LeaderProp ==
-    \* There is repeatedly a non-retired leader.
-    []<><<\E i \in Servers : leadershipState[i] = Leader /\ membershipState[i] # RetiredCommitted>>_vars
-
 ------------------------------------------------------------------------------
 \* Refinement of the more high-level specification abs.tla that abstracts the
 \* asynchronous network and the message passing between nodes.  Instead, any
