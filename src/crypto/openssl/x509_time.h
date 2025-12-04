@@ -28,7 +28,7 @@ namespace ccf::crypto::OpenSSL
 
   static inline std::string to_x509_time_string(const ASN1_TIME* time)
   {
-    std::tm t;
+    std::tm t{};
     CHECK1(ASN1_TIME_to_tm(time, &t));
     return ccf::ds::to_x509_time_string(t);
   }

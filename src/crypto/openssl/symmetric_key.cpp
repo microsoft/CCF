@@ -20,8 +20,7 @@ namespace ccf::crypto
   static constexpr size_t KEY_SIZE_128 = 128;
 
   KeyAesGcm_OpenSSL::KeyAesGcm_OpenSSL(std::span<const uint8_t> rawKey) :
-    key(std::vector<uint8_t>(rawKey.data(), rawKey.data() + rawKey.size())),
-    evp_cipher(nullptr)
+    key(std::vector<uint8_t>(rawKey.data(), rawKey.data() + rawKey.size()))
   {
     const auto n = static_cast<unsigned int>(rawKey.size() * CHAR_BIT);
     if (n >= KEY_SIZE_256)

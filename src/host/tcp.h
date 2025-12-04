@@ -15,6 +15,7 @@
 
 namespace asynchost
 {
+  // NOLINTBEGIN(cppcoreguidelines-virtual-class-destructor)
   class TCPImpl;
   using TCP = proxy_ptr<TCPImpl>;
 
@@ -31,7 +32,7 @@ namespace asynchost
     static size_t remaining_read_quota;
     static bool alloc_quota_logged;
 
-    enum Status
+    enum Status : uint8_t
     {
       FRESH,
       LISTENING_RESOLVING,
@@ -50,7 +51,7 @@ namespace asynchost
 
     bool is_client;
     std::optional<std::chrono::milliseconds> connection_timeout = std::nullopt;
-    Status status;
+    Status status{FRESH};
     std::unique_ptr<SocketBehaviour<TCP>> behaviour;
     using PendingWrites = std::vector<PendingIO<uv_write_t>>;
     PendingWrites pending_writes;
@@ -64,12 +65,12 @@ namespace asynchost
     addrinfo* addr_base = nullptr;
     addrinfo* addr_current = nullptr;
 
-    bool port_assigned() const
+    [[nodiscard]] bool port_assigned() const
     {
       return port != "0";
     }
 
-    std::string get_address_name() const
+    [[nodiscard]] std::string get_address_name() const
     {
       const std::string port_suffix =
         port_assigned() ? fmt::format(":{}", port) : "";
@@ -78,10 +79,8 @@ namespace asynchost
       {
         return fmt::format("[{}]{}", host, port_suffix);
       }
-      else
-      {
-        return fmt::format("{}{}", host, port_suffix);
-      }
+
+      return fmt::format("{}{}", host, port_suffix);
     }
 
     TCPImpl(
@@ -89,8 +88,7 @@ namespace asynchost
       std::optional<std::chrono::milliseconds> connection_timeout_ =
         std::nullopt) :
       is_client(is_client_),
-      connection_timeout(connection_timeout_),
-      status(FRESH)
+      connection_timeout(connection_timeout_)
     {
       if (!init())
       {
@@ -100,11 +98,11 @@ namespace asynchost
       uv_handle.data = this;
     }
 
-    ~TCPImpl()
+    ~TCPImpl() override
     {
       {
         std::unique_lock<ccf::pal::Mutex> guard(pending_resolve_requests_mtx);
-        for (auto& req : pending_resolve_requests)
+        for (const auto& req : pending_resolve_requests)
         {
           // The UV request objects can stay, but if there are any references
           // to `this` left, we need to remove them.
@@ -136,21 +134,23 @@ namespace asynchost
       behaviour = std::move(b);
     }
 
-    std::string get_host() const
+    [[nodiscard]] std::string get_host() const
     {
       return host;
     }
 
-    std::string get_port() const
+    [[nodiscard]] std::string get_port() const
     {
       return port;
     }
 
-    std::string get_peer_name() const
+    [[nodiscard]] std::string get_peer_name() const
     {
       sockaddr_storage sa = {};
       int name_len = sizeof(sa);
-      if (uv_tcp_getpeername(&uv_handle, (sockaddr*)&sa, &name_len) < 0)
+      if (
+        uv_tcp_getpeername(
+          &uv_handle, reinterpret_cast<sockaddr*>(&sa), &name_len) < 0)
       {
         LOG_FAIL_FMT("uv_tcp_getpeername failed");
         return "";
@@ -160,14 +160,14 @@ namespace asynchost
         case AF_INET:
         {
           char tmp[INET_ADDRSTRLEN];
-          sockaddr_in* sa4 = (sockaddr_in*)&sa;
+          auto* sa4 = reinterpret_cast<sockaddr_in*>(&sa);
           uv_ip4_name(sa4, tmp, sizeof(tmp));
           return tmp;
         }
         case AF_INET6:
         {
           char tmp[INET6_ADDRSTRLEN];
-          sockaddr_in6* sa6 = (sockaddr_in6*)&sa;
+          auto* sa6 = reinterpret_cast<sockaddr_in6*>(&sa);
           uv_ip6_name(sa6, tmp, sizeof(tmp));
           return tmp;
         }
@@ -176,14 +176,14 @@ namespace asynchost
       }
     }
 
-    std::optional<std::string> get_listen_name() const
+    [[nodiscard]] std::optional<std::string> get_listen_name() const
     {
       return listen_name;
     }
 
     void client_bind()
     {
-      int rc;
+      int rc = 0;
       if ((rc = uv_tcp_bind(&uv_handle, client_addr_base->ai_addr, 0)) < 0)
       {
         assert_status(BINDING, BINDING_FAILED);
@@ -204,15 +204,17 @@ namespace asynchost
       }
     }
 
+    // NOLINTEND(cppcoreguidelines-virtual-class-destructor)
+
     static void on_client_resolved(
-      uv_getaddrinfo_t* req, int rc, struct addrinfo*)
+      uv_getaddrinfo_t* req, int rc, struct addrinfo* /*res*/)
     {
       static_cast<TCPImpl*>(req->data)->on_client_resolved(req, rc);
     }
 
     void on_client_resolved(uv_getaddrinfo_t* req, int rc)
     {
-      if (!uv_is_closing((uv_handle_t*)&uv_handle))
+      if (uv_is_closing(reinterpret_cast<uv_handle_t*>(&uv_handle)) == 0)
       {
         if (rc < 0)
         {
@@ -227,11 +229,11 @@ namespace asynchost
         }
       }
 
-      delete req;
+      delete req; // NOLINT(cppcoreguidelines-owning-memory)
     }
 
     /// This is to mimic UDP's implementation. TCP's start is on_accept.
-    void start(int64_t id) {}
+    void start(int64_t /*id*/) {}
 
     bool connect(
       const std::string& host_,
@@ -294,13 +296,13 @@ namespace asynchost
         {
           // It's possible there was a request to close the uv_handle in the
           // meanwhile; in that case we abort the reconnection attempt.
-          if (!uv_is_closing((uv_handle_t*)&uv_handle))
+          if (uv_is_closing(reinterpret_cast<uv_handle_t*>(&uv_handle)) == 0)
           {
             // Close and reset the uv_handle before trying again with the same
             // addr_current that succeeded previously.
             LOG_DEBUG_FMT("Reconnect from resolved address");
             status = RECONNECTING;
-            uv_close((uv_handle_t*)&uv_handle, on_reconnect);
+            uv_close(reinterpret_cast<uv_handle_t*>(&uv_handle), on_reconnect);
           }
           return true;
         }
@@ -326,12 +328,14 @@ namespace asynchost
       return ret;
     }
 
-    bool write(size_t len, const uint8_t* data, sockaddr addr = {})
+    bool write(size_t len, const uint8_t* data, sockaddr /*addr*/ = {})
     {
-      auto req = new uv_write_t;
-      char* copy = new char[len];
-      if (data)
+      auto* req = new uv_write_t; // NOLINT(cppcoreguidelines-owning-memory)
+      auto* copy = new char[len]; // NOLINT(cppcoreguidelines-owning-memory)
+      if (data != nullptr)
+      {
         memcpy(copy, data, len);
+      }
       req->data = copy;
 
       switch (status)
@@ -376,14 +380,14 @@ namespace asynchost
     {
       assert_status(FRESH, FRESH);
 
-      int rc;
+      int rc = 0;
       if ((rc = uv_tcp_init(uv_default_loop(), &uv_handle)) < 0)
       {
         LOG_FAIL_FMT("uv_tcp_init failed: {}", uv_strerror(rc));
         return false;
       }
 
-      if ((rc = uv_tcp_nodelay(&uv_handle, true)) < 0)
+      if ((rc = uv_tcp_nodelay(&uv_handle, 1)) < 0)
       {
         LOG_FAIL_FMT("uv_tcp_nodelay failed: {}", uv_strerror(rc));
         return false;
@@ -391,10 +395,12 @@ namespace asynchost
 
       if (is_client)
       {
-        uv_os_sock_t sock;
+        uv_os_sock_t sock = 0;
         if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
         {
-          LOG_FAIL_FMT("socket creation failed: {}", strerror(errno));
+          LOG_FAIL_FMT(
+            "socket creation failed: {}",
+            std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
           return false;
         }
 
@@ -407,7 +413,7 @@ namespace asynchost
           {
             LOG_FAIL_FMT(
               "Failed to set socket option (TCP_USER_TIMEOUT): {}",
-              strerror(errno));
+              std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
             return false;
           }
         }
@@ -431,15 +437,21 @@ namespace asynchost
 
     bool send_write(uv_write_t* req, size_t len)
     {
-      char* copy = (char*)req->data;
+      auto* copy = static_cast<char*>(req->data);
 
       uv_buf_t buf;
       buf.base = copy;
       buf.len = len;
 
-      int rc;
+      int rc = 0;
 
-      if ((rc = uv_write(req, (uv_stream_t*)&uv_handle, &buf, 1, on_write)) < 0)
+      if (
+        (rc = uv_write(
+           req,
+           reinterpret_cast<uv_stream_t*>(&uv_handle),
+           &buf,
+           1,
+           on_write)) < 0)
       {
         free_write(req);
         LOG_FAIL_FMT("uv_write failed: {}", uv_strerror(rc));
@@ -461,7 +473,7 @@ namespace asynchost
 
     void listen_resolved()
     {
-      int rc;
+      int rc = 0;
 
       while (addr_current != nullptr)
       {
@@ -477,7 +489,10 @@ namespace asynchost
           continue;
         }
 
-        if ((rc = uv_listen((uv_stream_t*)&uv_handle, backlog, on_accept)) < 0)
+        if (
+          (rc = uv_listen(
+             reinterpret_cast<uv_stream_t*>(&uv_handle), backlog, on_accept)) <
+          0)
         {
           LOG_FAIL_FMT(
             "uv_listen failed on {}: {}", get_address_name(), uv_strerror(rc));
@@ -490,8 +505,8 @@ namespace asynchost
         // (addr_current will not contain it)
         if (!port_assigned())
         {
-          sockaddr_storage sa_storage;
-          const auto sa = (sockaddr*)&sa_storage;
+          sockaddr_storage sa_storage{};
+          auto* const sa = reinterpret_cast<sockaddr*>(&sa_storage);
           int sa_len = sizeof(sa_storage);
           if ((rc = uv_tcp_getsockname(&uv_handle, sa, &sa_len)) != 0)
           {
@@ -511,8 +526,8 @@ namespace asynchost
 
     bool connect_resolved()
     {
-      auto req = new uv_connect_t;
-      int rc;
+      auto* req = new uv_connect_t; // NOLINT(cppcoreguidelines-owning-memory)
+      int rc = 0;
 
       while (addr_current != nullptr)
       {
@@ -530,7 +545,7 @@ namespace asynchost
       }
 
       assert_status(CONNECTING_RESOLVING, CONNECTING_FAILED);
-      delete req;
+      delete req; // NOLINT(cppcoreguidelines-owning-memory)
 
       // This should show even when verbose logs are off
       LOG_INFO_FMT(
@@ -582,7 +597,7 @@ namespace asynchost
       std::unique_lock<ccf::pal::Mutex> guard(pending_resolve_requests_mtx);
       pending_resolve_requests.erase(req);
 
-      if (req->data)
+      if (req->data != nullptr)
       {
         static_cast<TCPImpl*>(req->data)->on_resolved(req, rc);
       }
@@ -591,7 +606,7 @@ namespace asynchost
         // The TCPImpl that submitted the request has been destroyed, but we
         // need to clean up the request object.
         uv_freeaddrinfo(res);
-        delete req;
+        delete req; // NOLINT(cppcoreguidelines-owning-memory)
       }
     }
 
@@ -601,11 +616,11 @@ namespace asynchost
       // request to close uv_handle. In this scenario, we should not try to
       // do anything with the handle and return immediately (otherwise,
       // uv_close cb will abort).
-      if (uv_is_closing((uv_handle_t*)&uv_handle))
+      if (uv_is_closing(reinterpret_cast<uv_handle_t*>(&uv_handle)) != 0)
       {
         LOG_DEBUG_FMT("on_resolved: closing");
         uv_freeaddrinfo(req->addrinfo);
-        delete req;
+        delete req; // NOLINT(cppcoreguidelines-owning-memory)
         return;
       }
 
@@ -642,7 +657,7 @@ namespace asynchost
         }
       }
 
-      delete req;
+      delete req; // NOLINT(cppcoreguidelines-owning-memory)
     }
 
     static void on_accept(uv_stream_t* handle, int rc)
@@ -652,7 +667,7 @@ namespace asynchost
 
     void on_accept(int rc)
     {
-      if (uv_is_closing((uv_handle_t*)&uv_handle) != 0)
+      if (uv_is_closing(reinterpret_cast<uv_handle_t*>(&uv_handle)) != 0)
       {
         LOG_DEBUG_FMT("on_accept: closing");
         return;
@@ -668,7 +683,8 @@ namespace asynchost
 
       if (
         (rc = uv_accept(
-           (uv_stream_t*)&uv_handle, (uv_stream_t*)&peer->uv_handle)) < 0)
+           reinterpret_cast<uv_stream_t*>(&uv_handle),
+           reinterpret_cast<uv_stream_t*>(&peer->uv_handle))) < 0)
       {
         LOG_DEBUG_FMT("uv_accept failed: {}", uv_strerror(rc));
         return;
@@ -677,15 +693,17 @@ namespace asynchost
       peer->assert_status(FRESH, CONNECTED);
 
       if (!peer->read_start())
+      {
         return;
+      }
 
       behaviour->on_accept(peer);
     }
 
     static void on_connect(uv_connect_t* req, int rc)
     {
-      auto self = static_cast<TCPImpl*>(req->handle->data);
-      delete req;
+      auto* self = static_cast<TCPImpl*>(req->handle->data);
+      delete req; // NOLINT(cppcoreguidelines-owning-memory)
 
       if (rc == UV_ECANCELED)
       {
@@ -699,7 +717,7 @@ namespace asynchost
 
     void on_connect(int rc)
     {
-      if (uv_is_closing((uv_handle_t*)&uv_handle) != 0)
+      if (uv_is_closing(reinterpret_cast<uv_handle_t*>(&uv_handle)) != 0)
       {
         LOG_DEBUG_FMT("on_connect: closing");
         return;
@@ -722,7 +740,7 @@ namespace asynchost
           return;
         }
 
-        for (auto& w : pending_writes)
+        for (auto& w : pending_writes) // NOLINT(readability-qualified-auto)
         {
           send_write(w.req, w.len);
           w.req = nullptr;
@@ -735,9 +753,11 @@ namespace asynchost
 
     bool read_start()
     {
-      int rc;
+      int rc = 0;
 
-      if ((rc = uv_read_start((uv_stream_t*)&uv_handle, on_alloc, on_read)) < 0)
+      if (
+        (rc = uv_read_start(
+           reinterpret_cast<uv_stream_t*>(&uv_handle), on_alloc, on_read)) < 0)
       {
         assert_status(CONNECTED, DISCONNECTED);
         LOG_FAIL_FMT("uv_read_start failed: {}", uv_strerror(rc));
@@ -773,13 +793,14 @@ namespace asynchost
           remaining_read_quota);
       }
 
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
       buf->base = new char[alloc_size];
       buf->len = alloc_size;
     }
 
     void on_free(const uv_buf_t* buf)
     {
-      delete[] buf->base;
+      delete[] buf->base; // NOLINT(cppcoreguidelines-owning-memory)
     }
 
     static void on_read(uv_stream_t* handle, ssize_t sz, const uv_buf_t* buf)
@@ -810,15 +831,15 @@ namespace asynchost
       {
         assert_status(CONNECTED, DISCONNECTED);
         on_free(buf);
-        uv_read_stop((uv_stream_t*)&uv_handle);
+        uv_read_stop(reinterpret_cast<uv_stream_t*>(&uv_handle));
 
-        LOG_DEBUG_FMT("TCP on_read: {}", uv_strerror(sz));
+        LOG_DEBUG_FMT("TCP on_read: {}", uv_strerror(static_cast<int>(sz)));
         behaviour->on_disconnect();
         return;
       }
 
-      uint8_t* p = (uint8_t*)buf->base;
-      const bool read_good = behaviour->on_read((size_t)sz, p, {});
+      auto* p = reinterpret_cast<uint8_t*>(buf->base);
+      const bool read_good = behaviour->on_read(static_cast<size_t>(sz), p, {});
 
       if (p != nullptr)
       {
@@ -832,7 +853,7 @@ namespace asynchost
       }
     }
 
-    static void on_write(uv_write_t* req, int)
+    static void on_write(uv_write_t* req, int /*status*/)
     {
       free_write(req);
     }
@@ -844,9 +865,9 @@ namespace asynchost
         return;
       }
 
-      char* copy = (char*)req->data;
-      delete[] copy;
-      delete req;
+      auto* copy = static_cast<char*>(req->data);
+      delete[] copy; // NOLINT(cppcoreguidelines-owning-memory)
+      delete req; // NOLINT(cppcoreguidelines-owning-memory)
     }
 
     static void on_reconnect(uv_handle_t* handle)
@@ -881,7 +902,7 @@ namespace asynchost
   class ResetTCPReadQuotaImpl
   {
   public:
-    ResetTCPReadQuotaImpl() {}
+    ResetTCPReadQuotaImpl() = default;
 
     void before_io()
     {

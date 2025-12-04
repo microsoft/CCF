@@ -25,16 +25,20 @@ namespace ccf::crypto
       std::vector<uint8_t> data(len);
 
       if (RAND_bytes(data.data(), data.size()) != 1)
+      {
         throw std::logic_error("Couldn't create random data");
+      }
 
       return data;
     }
 
     uint64_t random64() override
     {
-      uint64_t rnd;
+      uint64_t rnd = 0;
 
-      if (RAND_bytes((unsigned char*)&rnd, sizeof(uint64_t)) != 1)
+      if (
+        RAND_bytes(reinterpret_cast<unsigned char*>(&rnd), sizeof(uint64_t)) !=
+        1)
       {
         throw std::logic_error("Couldn't create random data");
       }

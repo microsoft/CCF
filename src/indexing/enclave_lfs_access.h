@@ -51,7 +51,7 @@ namespace ccf::indexing
         return false;
       }
 
-      auto data = (const uint8_t*)plaintext.data();
+      const auto* data = reinterpret_cast<const uint8_t*>(plaintext.data());
       auto size = plaintext.size();
       const auto prefix_size = serialized::read<size_t>(data, size);
       if (prefix_size != key.size())
@@ -74,11 +74,9 @@ namespace ccf::indexing
     {
       return true;
     }
-    else
-    {
-      LOG_TRACE_FMT("Decryption failed for {}", key);
-      return false;
-    }
+
+    LOG_TRACE_FMT("Decryption failed for {}", key);
+    return false;
   }
 
   class EnclaveLFSAccess : public AbstractLFSAccess
@@ -99,7 +97,7 @@ namespace ccf::indexing
       // Prefix the contents with the key, to be checked during decryption
       {
         std::vector<uint8_t> key_prefix(sizeof(key.size()) + key.size());
-        auto data = key_prefix.data();
+        auto* data = key_prefix.data();
         auto size = key_prefix.size();
         serialized::write(data, size, key);
         contents.insert(contents.begin(), key_prefix.begin(), key_prefix.end());
@@ -121,8 +119,8 @@ namespace ccf::indexing
     }
 
   public:
-    EnclaveLFSAccess(const ringbuffer::WriterPtr& writer) :
-      to_host(writer),
+    EnclaveLFSAccess(ringbuffer::WriterPtr writer) :
+      to_host(std::move(writer)),
       entropy_src(ccf::crypto::get_entropy())
     {
       // Generate a fresh random key. Only this specific instance, in this
@@ -145,7 +143,8 @@ namespace ccf::indexing
             auto result = it->second.lock();
             if (result != nullptr)
             {
-              if (result->fetch_result == FetchResult::Fetching)
+              if (
+                result->fetch_result == FetchResult::FetchResultType::Fetching)
               {
                 const auto success = verify_and_decrypt(
                   *encryption_key,
@@ -154,11 +153,11 @@ namespace ccf::indexing
                   result->contents);
                 if (success)
                 {
-                  result->fetch_result = FetchResult::Loaded;
+                  result->fetch_result = FetchResult::FetchResultType::Loaded;
                 }
                 else
                 {
-                  result->fetch_result = FetchResult::Corrupt;
+                  result->fetch_result = FetchResult::FetchResultType::Corrupt;
                   LOG_TRACE_FMT(
                     "Cache was given invalid contents for {} (aka {})",
                     obfuscated,
@@ -203,13 +202,14 @@ namespace ccf::indexing
             auto result = it->second.lock();
             if (result != nullptr)
             {
-              if (result->fetch_result == FetchResult::Fetching)
+              if (
+                result->fetch_result == FetchResult::FetchResultType::Fetching)
               {
                 LOG_TRACE_FMT(
                   "Host has no contents for key {} (aka {})",
                   obfuscated,
                   result->key);
-                result->fetch_result = FetchResult::NotFound;
+                result->fetch_result = FetchResult::FetchResultType::NotFound;
               }
               else
               {
@@ -237,13 +237,13 @@ namespace ccf::indexing
         });
     }
 
-    static inline LFSKey obfuscate_key(const LFSKey& key)
+    static LFSKey obfuscate_key(const LFSKey& key)
     {
 #ifdef PLAINTEXT_CACHE
       return key;
 #else
-      const auto h =
-        ccf::crypto::sha256((const uint8_t*)key.data(), key.size());
+      const auto h = ccf::crypto::sha256(
+        reinterpret_cast<const uint8_t*>(key.data()), key.size());
       return ds::to_hex(h);
 #endif
     }
@@ -285,11 +285,9 @@ namespace ccf::indexing
 
           return result;
         }
-        else
-        {
-          result = std::make_shared<FetchResult>();
-          it->second = result;
-        }
+
+        result = std::make_shared<FetchResult>();
+        it->second = result;
       }
       else
       {
@@ -297,7 +295,7 @@ namespace ccf::indexing
         pending.emplace(obfuscated, result);
       }
 
-      result->fetch_result = FetchResult::Fetching;
+      result->fetch_result = FetchResult::FetchResultType::Fetching;
       result->key = key;
       RINGBUFFER_WRITE_MESSAGE(LFSMsg::get, to_host, obfuscated);
       return result;

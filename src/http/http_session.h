@@ -30,18 +30,18 @@ namespace http
 
   public:
     HTTPServerSession(
-      std::shared_ptr<ccf::RPCMap> rpc_map,
+      std::shared_ptr<ccf::RPCMap> rpc_map_,
       ::tcp::ConnID session_id_,
-      const ccf::ListenInterfaceID& interface_id,
+      ccf::ListenInterfaceID interface_id_,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<ccf::tls::Context> ctx,
       const ccf::http::ParserConfiguration& configuration,
-      const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
+      const std::shared_ptr<ErrorReporter>& error_reporter_ = nullptr) :
       HTTPSession(session_id_, writer_factory, std::move(ctx)),
       request_parser(*this, configuration),
-      rpc_map(rpc_map),
-      error_reporter(error_reporter),
-      interface_id(interface_id)
+      rpc_map(std::move(rpc_map_)),
+      error_reporter(error_reporter_),
+      interface_id(std::move(interface_id_))
     {}
 
     bool parse(std::span<const uint8_t> data) override
@@ -124,7 +124,7 @@ namespace http
       const std::string_view& url,
       ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body,
-      int32_t) override
+      int32_t /*stream_id*/) override
     {
       LOG_TRACE_FMT(
         "Processing msg({}, {} [{} bytes])",
@@ -171,18 +171,16 @@ namespace http
           LOG_TRACE_FMT("Pending");
           return;
         }
-        else
-        {
-          send_response(
-            rpc_ctx->get_response_http_status(),
-            rpc_ctx->get_response_headers(),
-            rpc_ctx->get_response_trailers(),
-            std::move(rpc_ctx->take_response_body()));
 
-          if (rpc_ctx->terminate_session)
-          {
-            close_session();
-          }
+        send_response(
+          rpc_ctx->get_response_http_status(),
+          rpc_ctx->get_response_headers(),
+          rpc_ctx->get_response_trailers(),
+          std::move(rpc_ctx->take_response_body()));
+
+        if (rpc_ctx->terminate_session)
+        {
+          close_session();
         }
       }
       catch (const std::exception& e)
@@ -261,7 +259,8 @@ namespace http
         LOG_DEBUG_FMT(
           "Error occurred while parsing fragment {} byte fragment:\n{}",
           data.size(),
-          std::string_view((char const*)data.data(), data.size()));
+          std::string_view(
+            reinterpret_cast<char const*>(data.data()), data.size()));
 
         close_session();
       }
@@ -338,7 +337,8 @@ namespace http
         LOG_DEBUG_FMT(
           "Error occurred while parsing fragment {} byte fragment:\n{}",
           data.size(),
-          std::string_view((char const*)data.data(), data.size()));
+          std::string_view(
+            reinterpret_cast<char const*>(data.data()), data.size()));
 
         close_session();
       }

@@ -37,7 +37,7 @@ namespace http
     Message() = default;
 
   public:
-    const ccf::http::HeaderMap& get_headers() const
+    [[nodiscard]] const ccf::http::HeaderMap& get_headers() const
     {
       return headers;
     }
@@ -54,19 +54,17 @@ namespace http
       headers.clear();
     }
 
-    size_t get_content_length() const
+    [[nodiscard]] size_t get_content_length() const
     {
       if (body == nullptr)
       {
         return 0;
       }
-      else
-      {
-        return body_size;
-      }
+
+      return body_size;
     }
 
-    const uint8_t* get_content_data() const
+    [[nodiscard]] const uint8_t* get_content_data() const
     {
       return body;
     }
@@ -101,7 +99,8 @@ namespace http
 
     void set_body(const std::string& s, bool overwrite_content_length = true)
     {
-      body = (uint8_t*)s.data();
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      body = reinterpret_cast<const uint8_t*>(s.data());
       body_size = s.size();
 
       if (
@@ -119,11 +118,10 @@ namespace http
   private:
     llhttp_method method;
     std::string path = "/";
-    std::map<std::string, std::string> query_params = {};
+    std::map<std::string, std::string> query_params;
 
   public:
     Request(const std::string_view& p = "/", llhttp_method m = HTTP_POST) :
-      Message(),
       method(m)
     {
       set_path(p);
@@ -134,14 +132,14 @@ namespace http
       method = m;
     }
 
-    llhttp_method get_method() const
+    [[nodiscard]] llhttp_method get_method() const
     {
       return method;
     }
 
     void set_path(const std::string_view& p)
     {
-      if (p.size() > 0 && p[0] == '/')
+      if (!p.empty() && p[0] == '/')
       {
         path = p;
       }
@@ -151,7 +149,7 @@ namespace http
       }
     }
 
-    std::string get_path() const
+    [[nodiscard]] std::string get_path() const
     {
       return path;
     }
@@ -161,7 +159,7 @@ namespace http
       query_params[k] = v;
     }
 
-    std::string get_formatted_query() const
+    [[nodiscard]] std::string get_formatted_query() const
     {
       std::string formatted_query;
       bool first = true;
@@ -174,13 +172,15 @@ namespace http
       return formatted_query;
     }
 
-    std::vector<uint8_t> build_request(bool header_only = false) const
+    [[nodiscard]] std::vector<uint8_t> build_request(
+      bool header_only = false) const
     {
       const auto uri = fmt::format("{}{}", path, get_formatted_query());
 
       const auto body_view = (header_only || body == nullptr) ?
         std::string_view() :
-        std::string_view((char const*)body, body_size);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        std::string_view(reinterpret_cast<char const*>(body), body_size);
 
       const auto request_string = fmt::format(
         "{} {} HTTP/1.1\r\n"
@@ -192,7 +192,7 @@ namespace http
         get_header_string(headers),
         body_view);
 
-      return std::vector<uint8_t>(request_string.begin(), request_string.end());
+      return {request_string.begin(), request_string.end()};
     }
   };
 
@@ -204,11 +204,13 @@ namespace http
   public:
     Response(ccf::http_status s = HTTP_STATUS_OK) : status(s) {}
 
-    std::vector<uint8_t> build_response(bool header_only = false) const
+    [[nodiscard]] std::vector<uint8_t> build_response(
+      bool header_only = false) const
     {
       const auto body_view = (header_only || body == nullptr) ?
         std::string_view() :
-        std::string_view((char const*)body, body_size);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        std::string_view(reinterpret_cast<char const*>(body), body_size);
 
       const auto response_string = fmt::format(
         "HTTP/1.1 {} {}\r\n"
@@ -220,12 +222,9 @@ namespace http
         get_header_string(headers),
         body_view);
 
-      return std::vector<uint8_t>(
-        response_string.begin(), response_string.end());
+      return {response_string.begin(), response_string.end()};
     }
-  };
-
-// Most builder function are unused from enclave
+  }; // Most builder function are unused from enclave
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
 
