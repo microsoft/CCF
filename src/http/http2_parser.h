@@ -268,7 +268,7 @@ namespace http2
     void submit_response(
       StreamId stream_id,
       ccf::http_status status,
-      const ccf::http::HeaderMap& base_headers,
+      ccf::http::HeaderMap&& base_headers,
       const ccf::http::HeaderMap& extra_headers = {})
     {
       std::vector<nghttp2_nv> hdrs = {};
@@ -326,7 +326,7 @@ namespace http2
     void respond(
       StreamId stream_id,
       ccf::http_status status,
-      const ccf::http::HeaderMap& headers,
+      ccf::http::HeaderMap&& headers,
       ccf::http::HeaderMap&& trailers,
       std::vector<uint8_t>&& body)
     {
@@ -364,7 +364,7 @@ namespace http2
 
       if (should_submit_response)
       {
-        submit_response(stream_id, status, headers, extra_headers);
+        submit_response(stream_id, status, std::move(headers), extra_headers);
         send_all_submitted();
       }
 
@@ -375,7 +375,7 @@ namespace http2
     void start_stream(
       StreamId stream_id,
       ccf::http_status status,
-      const ccf::http::HeaderMap& headers)
+      ccf::http::HeaderMap&& headers)
     {
       LOG_TRACE_FMT(
         "http2::start_stream: stream {} - {} headers",
@@ -397,7 +397,7 @@ namespace http2
 
       stream_data->outgoing.state = StreamResponseState::Streaming;
 
-      submit_response(stream_id, status, headers);
+      submit_response(stream_id, status, std::move(headers));
       send_all_submitted();
     }
 
