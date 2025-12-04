@@ -75,15 +75,14 @@ namespace http
       return true;
     }
 
-    bool start_stream(
-      ccf::http_status status, const ccf::http::HeaderMap& headers)
+    bool start_stream(ccf::http_status status, ccf::http::HeaderMap&& headers)
     {
       auto sp = server_parser.lock();
       if (sp)
       {
         try
         {
-          sp->start_stream(stream_id, status, headers);
+          sp->start_stream(stream_id, status, std::move(headers));
         }
         catch (const std::exception& e)
         {
@@ -410,11 +409,10 @@ namespace http
           std::move(body));
     }
 
-    bool start_stream(
-      ccf::http_status status, const ccf::http::HeaderMap& headers)
+    bool start_stream(ccf::http_status status, ccf::http::HeaderMap&& headers)
     {
       return get_stream_responder(http2::DEFAULT_STREAM_ID)
-        ->start_stream(status, headers);
+        ->start_stream(status, std::move(headers));
     }
 
     bool stream_data(std::vector<uint8_t>&& data)

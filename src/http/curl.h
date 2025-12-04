@@ -474,16 +474,15 @@ namespace ccf::curl
       std::unique_ptr<CurlRequest>&& request, CURLcode curl_response_code)
     {
       LOG_TRACE_FMT("Handling response for {}", request->url);
-      if (request->response_callback.has_value())
+      auto& callback = request->response_callback;
+      if (callback.has_value())
       {
-        // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
-        auto& callback = *request->response_callback;
-        if (callback != nullptr)
+        if (callback.value() != nullptr)
         {
           long status_code = 0;
           CHECK_CURL_EASY_GETINFO(
             request->curl_handle, CURLINFO_RESPONSE_CODE, &status_code);
-          callback(std::move(request), curl_response_code, status_code);
+          callback.value()(std::move(request), curl_response_code, status_code);
         }
       }
     }
