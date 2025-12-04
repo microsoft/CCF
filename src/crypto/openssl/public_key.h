@@ -33,7 +33,7 @@ namespace ccf::crypto
 
     void check_is_cose_compatible(int cose_alg)
     {
-      if (!key)
+      if (key == nullptr)
       {
         throw std::logic_error("Public key is not initialized");
       }

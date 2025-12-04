@@ -20,11 +20,14 @@ namespace ccf::crypto
     // Decode Base64 into byte stream
     static std::vector<uint8_t> raw_from_b64(const std::string_view& b64_string)
     {
-      const auto data = reinterpret_cast<const uint8_t*>(b64_string.data());
+      const auto* const data =
+        reinterpret_cast<const uint8_t*>(b64_string.data());
       const auto size = b64_string.size();
 
       if (size == 0)
+      {
         return {};
+      }
 
       // Make sure the error queue is clean before we start
       // Trying to ameliorate #3677 and #3368
@@ -79,7 +82,9 @@ namespace ccf::crypto
     static std::string b64_from_raw(const uint8_t* data, size_t size)
     {
       if (size == 0)
+      {
         return "";
+      }
 
       // Make sure the error queue is clean before we start
       // Trying to ameliorate #3677 and #3368
@@ -125,7 +130,7 @@ namespace ccf::crypto
       }
 
       // Clean up result (last \0, newlines)
-      std::string ret = (const char*)output;
+      std::string ret = reinterpret_cast<const char*>(output);
       ret.pop_back();
       ret.erase(std::remove(ret.begin(), ret.end(), '\n'), ret.end());
 
