@@ -2033,6 +2033,59 @@ TEST_CASE("Cache size estimation")
   REQUIRE(cache.get_estimated_store_cache_size() == 0);
 }
 
+TEST_CASE("adjust_ranges")
+{
+  struct AdjustRangesAccessor : public ccf::historical::StateCacheImpl
+  {
+    Request request;
+
+    AdjustRangesAccessor(
+      ccf::kv::Store& store,
+      const std::shared_ptr<ccf::LedgerSecrets>& secrets,
+      const ringbuffer::WriterPtr& host_writer) :
+      StateCacheImpl(store, secrets, host_writer),
+      request(all_stores)
+    {}
+
+    std::pair<std::vector<ccf::SeqNo>, std::vector<ccf::SeqNo>> adjust_ranges(
+      const std::set<ccf::SeqNo>& seqnos,
+      bool should_include_receipts,
+      ccf::SeqNo earliest_ledger_secret_seqno)
+    {
+      ccf::SeqNoCollection seqno_collection;
+      for (const auto& seqno : seqnos)
+      {
+        seqno_collection.insert(seqno);
+      }
+
+      return request.adjust_ranges(
+        seqno_collection,
+        should_include_receipts,
+        earliest_ledger_secret_seqno);
+    }
+  };
+
+  auto state = create_and_init_state();
+  auto stub_writer = std::make_shared<StubWriter>();
+
+  {
+    // An explicit manual regression test
+    AdjustRangesAccessor cache(
+      *state.kv_store, state.ledger_secrets, stub_writer);
+
+    auto [removed1, added1] = cache.adjust_ranges({100}, true, 0);
+    REQUIRE(added1.size() == 1);
+    REQUIRE(added1[0] == 100);
+    REQUIRE(removed1.size() == 0);
+
+    auto [removed2, added2] = cache.adjust_ranges({42}, true, 0);
+    REQUIRE(added2.size() == 1);
+    REQUIRE(added2[0] == 42);
+    REQUIRE(removed2.size() == 1);
+    REQUIRE(removed2[0] == 100);
+  }
+}
+
 int main(int argc, char** argv)
 {
   doctest::Context context;
