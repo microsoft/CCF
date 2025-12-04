@@ -169,8 +169,7 @@ static const string pem_key_for_nested_cert =
   "PGqIrMOnX/7kv5j7sisqZKNq6fP+4MHvLb/tXyHCkW6FzX8mUlwyRNzBP3R4xaXB\n"
   "vykzJMaAiCW/Yr/TxycdnmwsTR7he1Q78q12KnYqLvUVjg/v39/RWGSbFnaP1YX5\n"
   "HwIDAQAB\n"
-  "-----END PUBLIC KEY-----\n"
-  "";
+  "-----END PUBLIC KEY-----\n";
 
 template <typename T>
 void corrupt(T& buf)
