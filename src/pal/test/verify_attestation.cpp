@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+
 #include "attestation_sev_snp_endorsements.h"
 #include "ccf/ds/hex.h"
 #include "ccf/ds/logger_level.h"
@@ -64,10 +67,10 @@ int main(int argc, char** argv)
       auto attest = ccf::ds::from_hex(attestation_hex);
       if (attest.size() != sizeof(ccf::pal::snp::Attestation))
       {
-        return std::string(
-          fmt::format("Attestation size is incorrect {} != {}", 
-                      attest.size(),
-                      sizeof(ccf::pal::snp::Attestation)));
+        return std::string(fmt::format(
+          "Attestation size is incorrect {} != {}",
+          attest.size(),
+          sizeof(ccf::pal::snp::Attestation)));
       }
       return std::string();
     });
@@ -115,7 +118,8 @@ int main(int argc, char** argv)
   ccf::pal::PlatformAttestationReportData rd = {};
   ccf::pal::verify_quote(quote, m, rd);
 
-  LOG_INFO_FMT("Successfully verified attestation against fetched endorsements");
+  LOG_INFO_FMT(
+    "Successfully verified attestation against fetched endorsements");
 
   return 0;
 }

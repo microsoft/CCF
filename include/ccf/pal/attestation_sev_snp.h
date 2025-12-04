@@ -430,7 +430,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         return {chip_id, sizeof(chip_id)};
       }
       // On Turin only the first 8 bytes are used for the chip ID
-      // VCED certificate and KDS interface spec section 3.1
+      // VCEK certificate and KDS interface spec section 3.1
       if (product == ProductName::Turin)
       {
         return {chip_id, 8};

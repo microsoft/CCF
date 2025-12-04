@@ -53,7 +53,7 @@ def make_leaf_url(base_url, product_family, chip_id, tcbm):
         hwid = chip_id[0 : 8 * 2]
         assert chip_id[8 * 2 :] == "0" * (
             len(chip_id) - len(hwid)
-        ), "Chip ID bytes 8-32 should be zero for Turin"
+        ), "Chip ID bytes 8-64 should be zero for Turin"
         params = {
             "ucodeSPL": int(tcbm[0:2], base=16),
             # 3 reserved bytes
