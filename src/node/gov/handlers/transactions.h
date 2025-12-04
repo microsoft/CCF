@@ -10,7 +10,7 @@
 
 namespace ccf::gov::endpoints
 {
-  void init_transactions_handlers(ccf::BaseEndpointRegistry& registry)
+  inline void init_transactions_handlers(ccf::BaseEndpointRegistry& registry)
   {
     auto get_transaction_status = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
@@ -20,7 +20,8 @@ namespace ccf::gov::endpoints
         default:
         {
           // Extract transaction ID from path parameter
-          std::string tx_id_str, error;
+          std::string tx_id_str;
+          std::string error;
           if (!ccf::endpoints::get_path_param(
                 ctx.rpc_ctx->get_request_path_params(),
                 "transactionId",
@@ -51,7 +52,7 @@ namespace ccf::gov::endpoints
           }
 
           // Lookup status
-          ccf::TxStatus status;
+          ccf::TxStatus status = ccf::TxStatus::Unknown;
           const auto result =
             registry.get_status_for_txid_v1(tx_id->view, tx_id->seqno, status);
           if (result != ccf::ApiResult::OK)
@@ -94,8 +95,8 @@ namespace ccf::gov::endpoints
         default:
         {
           // Lookup committed
-          ccf::View view;
-          ccf::SeqNo seqno;
+          ccf::View view = 0;
+          ccf::SeqNo seqno = 0;
           auto result = registry.get_last_committed_txid_v1(view, seqno);
           if (result != ccf::ApiResult::OK)
           {
@@ -110,7 +111,7 @@ namespace ccf::gov::endpoints
           }
 
           // Lookup status
-          ccf::TxStatus status;
+          ccf::TxStatus status = ccf::TxStatus::Unknown;
           result = registry.get_status_for_txid_v1(view, seqno, status);
           if (result != ccf::ApiResult::OK)
           {

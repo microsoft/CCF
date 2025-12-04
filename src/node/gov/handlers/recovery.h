@@ -9,7 +9,7 @@
 
 namespace ccf::gov::endpoints
 {
-  void init_recovery_handlers(
+  inline void init_recovery_handlers(
     ccf::BaseEndpointRegistry& registry,
     ShareManager& share_manager,
     ccf::AbstractNodeContext& node_context)

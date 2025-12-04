@@ -17,7 +17,7 @@ namespace ccf::gov::endpoints
   {
     struct ProposalSubmissionResult
     {
-      enum class Status
+      enum class Status : uint8_t
       {
         Acceptable,
         DuplicateInWindow,
@@ -26,25 +26,30 @@ namespace ccf::gov::endpoints
 
       // May be empty, a colliding proposal ID, or a min_created_at value,
       // depending on status
-      std::string info = "";
+      std::string info;
     };
 
-    ProposalSubmissionResult validate_proposal_submission_time(
+    inline ProposalSubmissionResult validate_proposal_submission_time(
       ccf::kv::Tx& tx,
       const std::string& created_at,
       const std::vector<uint8_t>& request_digest,
       const ccf::ProposalId& proposal_id)
     {
-      auto cose_recent_proposals =
+      auto* cose_recent_proposals =
         tx.rw<ccf::COSERecentProposals>(ccf::Tables::COSE_RECENT_PROPOSALS);
       auto key = fmt::format("{}:{}", created_at, ds::to_hex(request_digest));
 
       if (cose_recent_proposals->has(key))
       {
-        auto colliding_proposal_id = cose_recent_proposals->get(key).value();
-        return {
-          ProposalSubmissionResult::Status::DuplicateInWindow,
-          colliding_proposal_id};
+        auto colliding_proposal_id = cose_recent_proposals->get(key);
+        if (colliding_proposal_id.has_value())
+        {
+          return {
+            ProposalSubmissionResult::Status::DuplicateInWindow,
+            *colliding_proposal_id};
+        }
+        throw std::logic_error(
+          fmt::format("Failed to get value for existing key in {}", ccf::Tables::COSE_RECENT_PROPOSALS));
       }
 
       std::vector<std::string> replay_keys;
@@ -71,7 +76,7 @@ namespace ccf::gov::endpoints
       }
 
       size_t window_size = ccf::default_recent_cose_proposals_window_size;
-      auto config_handle =
+      auto* config_handle =
         tx.ro<ccf::Configuration>(ccf::Tables::CONFIGURATION);
       auto config = config_handle->get();
       if (
@@ -90,25 +95,25 @@ namespace ccf::gov::endpoints
           cose_recent_proposals->remove(replay_keys[i]);
         }
       }
-      return {ProposalSubmissionResult::Status::Acceptable};
+      return {ProposalSubmissionResult::Status::Acceptable, {} /* reason */};
     }
 
-    void record_cose_governance_history(
+    inline void record_cose_governance_history(
       ccf::kv::Tx& tx,
       const MemberId& caller_id,
       const std::span<const uint8_t>& cose_sign1)
     {
-      auto cose_governance_history =
+      auto* cose_governance_history =
         tx.wo<ccf::COSEGovernanceHistory>(ccf::Tables::COSE_GOV_HISTORY);
       cose_governance_history->put(
         caller_id, {cose_sign1.begin(), cose_sign1.end()});
     }
 
-    void remove_all_other_non_open_proposals(
+    inline void remove_all_other_non_open_proposals(
       ccf::kv::Tx& tx, const ProposalId& proposal_id)
     {
-      auto p = tx.rw<ccf::jsgov::ProposalMap>(jsgov::Tables::PROPOSALS);
-      auto pi =
+      auto* p = tx.rw<ccf::jsgov::ProposalMap>(jsgov::Tables::PROPOSALS);
+      auto* pi =
         tx.rw<ccf::jsgov::ProposalInfoMap>(jsgov::Tables::PROPOSALS_INFO);
       std::vector<ProposalId> to_be_removed;
       pi->foreach(
@@ -129,7 +134,7 @@ namespace ccf::gov::endpoints
 
     // Evaluate JS functions on this proposal. Result is presented in modified
     // proposal_info argument, which is written back to the KV by this function
-    void resolve_proposal(
+    inline void resolve_proposal(
       ccf::AbstractNodeContext& context,
       ccf::NetworkState& network,
       ccf::kv::Tx& tx,
@@ -144,9 +149,9 @@ namespace ccf::gov::endpoints
       ccf::jsgov::VoteFailures vote_failures = {};
 
       const std::string_view proposal{
-        (const char*)proposal_bytes.data(), proposal_bytes.size()};
+        reinterpret_cast<const char*>(proposal_bytes.data()), proposal_bytes.size()};
 
-      auto proposal_info_handle = tx.template rw<ccf::jsgov::ProposalInfoMap>(
+      auto* proposal_info_handle = tx.template rw<ccf::jsgov::ProposalInfoMap>(
         jsgov::Tables::PROPOSALS_INFO);
 
       // Evaluate ballots
@@ -341,7 +346,7 @@ namespace ccf::gov::endpoints
       }
     }
 
-    nlohmann::json convert_proposal_to_api_format(
+    inline nlohmann::json convert_proposal_to_api_format(
       const ProposalId& proposal_id, const ccf::jsgov::ProposalInfo& summary)
     {
       auto response_body = nlohmann::json::object();
@@ -383,7 +388,7 @@ namespace ccf::gov::endpoints
     }
   }
 
-  void init_proposals_handlers(
+  inline void init_proposals_handlers(
     ccf::BaseEndpointRegistry& registry,
     NetworkState& network,
     ccf::AbstractNodeContext& node_context)
@@ -568,9 +573,6 @@ namespace ccf::gov::endpoints
 
             const auto created_at_str = fmt::format(
               "{:0>10}", cose_ident.protected_header.gov_msg_created_at);
-
-            ccf::ProposalId colliding_proposal_id;
-            std::string min_created_at;
 
             const auto subtime_result =
               detail::validate_proposal_submission_time(
@@ -907,7 +909,7 @@ namespace ccf::gov::endpoints
             }
 
             // Look up proposal info and check expected state
-            auto proposal_info_handle =
+            auto* proposal_info_handle =
               ctx.tx.template rw<ccf::jsgov::ProposalInfoMap>(
                 jsgov::Tables::PROPOSALS_INFO);
             auto proposal_info = proposal_info_handle->get(proposal_id);
@@ -937,7 +939,7 @@ namespace ccf::gov::endpoints
             }
 
             // Look up proposal contents
-            auto proposals_handle = ctx.tx.template ro<ccf::jsgov::ProposalMap>(
+            auto* proposals_handle = ctx.tx.template ro<ccf::jsgov::ProposalMap>(
               ccf::jsgov::Tables::PROPOSALS);
             const auto proposal = proposals_handle->get(proposal_id);
             if (!proposal.has_value())
@@ -994,18 +996,16 @@ namespace ccf::gov::endpoints
                 ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
                 return;
               }
-              else
-              {
-                detail::set_gov_error(
-                  ctx.rpc_ctx,
-                  HTTP_STATUS_BAD_REQUEST,
-                  ccf::errors::VoteAlreadyExists,
-                  fmt::format(
-                    "Different ballot already submitted by {} for {}.",
-                    member_id,
-                    proposal_id));
-                return;
-              }
+
+              detail::set_gov_error(
+                ctx.rpc_ctx,
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::VoteAlreadyExists,
+                fmt::format(
+                  "Different ballot already submitted by {} for {}.",
+                  member_id,
+                  proposal_id));
+              return;
             }
 
             // Store newly provided ballot

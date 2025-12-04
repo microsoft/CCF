@@ -8,12 +8,12 @@
 
 namespace ccf::gov::endpoints::detail
 {
-  AuthnPolicies member_sig_only_policies(const std::string& gov_msg_type)
+  inline AuthnPolicies member_sig_only_policies(const std::string& gov_msg_type)
   {
     return {std::make_shared<MemberCOSESign1AuthnPolicy>(gov_msg_type)};
   }
 
-  AuthnPolicies active_member_sig_only_policies(const std::string& gov_msg_type)
+  inline AuthnPolicies active_member_sig_only_policies(const std::string& gov_msg_type)
   {
     return {std::make_shared<ActiveMemberCOSESign1AuthnPolicy>(gov_msg_type)};
   }
@@ -60,7 +60,7 @@ namespace ccf::gov::endpoints::detail
   }
 
   // Extract memberId from path parameter, confirm it is a plausible ID
-  bool try_parse_member_id(
+  inline bool try_parse_member_id(
     const std::shared_ptr<ccf::RpcContext>& rpc_ctx, ccf::MemberId& member_id)
   {
     // Extract member ID from path parameter
@@ -96,7 +96,7 @@ namespace ccf::gov::endpoints::detail
 
   // Like try_parse_member_id, but also confirm that the parsed member ID
   // matches the COSE signer
-  bool try_parse_signed_member_id(
+  inline bool try_parse_signed_member_id(
     const ccf::MemberCOSESign1AuthnIdentity& cose_ident,
     const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
     ccf::MemberId& member_id)
@@ -120,7 +120,7 @@ namespace ccf::gov::endpoints::detail
   }
 
   // Extract userId from path parameter, confirm it is a plausible ID
-  bool try_parse_user_id(
+  inline bool try_parse_user_id(
     const std::shared_ptr<ccf::RpcContext>& rpc_ctx, ccf::UserId& user_id)
   {
     // Extract user ID from path parameter
@@ -154,7 +154,7 @@ namespace ccf::gov::endpoints::detail
   }
 
   // Extract proposalId from path parameter, confirm it is a plausible ID
-  bool try_parse_proposal_id(
+  inline bool try_parse_proposal_id(
     const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
     ccf::ProposalId& proposal_id)
   {
@@ -194,7 +194,7 @@ namespace ccf::gov::endpoints::detail
 
   // Like try_parse_proposal_id, but also confirm that the parsed proposal ID
   // matches a signed COSE header
-  bool try_parse_signed_proposal_id(
+  inline bool try_parse_signed_proposal_id(
     const ccf::MemberCOSESign1AuthnIdentity& cose_ident,
     const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
     ccf::ProposalId& proposal_id)
@@ -222,7 +222,7 @@ namespace ccf::gov::endpoints::detail
   }
 
   // Extract nodeId from path parameter, confirm it is a plausible ID
-  bool try_parse_node_id(
+  inline bool try_parse_node_id(
     const std::shared_ptr<ccf::RpcContext>& rpc_ctx, ccf::NodeId& node_id)
   {
     // Extract node ID from path parameter
