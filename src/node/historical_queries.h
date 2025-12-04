@@ -315,6 +315,10 @@ namespace ccf::historical
           {
             // If we have a suffix of seqnos previously requested, now
             // unrequested, purge them
+            for (auto it = prev_it; it != my_stores.end(); ++it)
+            {
+              removed.push_back(it->first);
+            }
             my_stores.erase(prev_it, my_stores.end());
             any_diff |= true;
           }
