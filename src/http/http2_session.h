@@ -61,7 +61,7 @@ namespace http
         sp->respond(
           stream_id,
           status_code,
-          headers,
+          std::move(headers),
           std::move(trailers),
           std::move(body));
       }

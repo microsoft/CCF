@@ -20,7 +20,8 @@ namespace ccf::crypto
 
     [[nodiscard]] Pem public_key_pem() const override;
 
-    [[nodiscard]] std::vector<uint8_t> sign(std::span<const uint8_t> d) const override;
+    [[nodiscard]] std::vector<uint8_t> sign(
+      std::span<const uint8_t> d) const override;
 
     bool verify(
       const uint8_t* contents,

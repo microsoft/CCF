@@ -36,7 +36,9 @@ namespace ccf::crypto
     {
       uint64_t rnd = 0;
 
-      if (RAND_bytes(reinterpret_cast<unsigned char*>(&rnd), sizeof(uint64_t)) != 1)
+      if (
+        RAND_bytes(reinterpret_cast<unsigned char*>(&rnd), sizeof(uint64_t)) !=
+        1)
       {
         throw std::logic_error("Couldn't create random data");
       }

@@ -35,8 +35,7 @@ namespace ccf::crypto
 
     std::string serial_number() const override;
 
-    std::pair<std::string, std::string> validity_period()
-      const override;
+    std::pair<std::string, std::string> validity_period() const override;
 
     size_t remaining_seconds(
       const std::chrono::system_clock::time_point& now) const override;

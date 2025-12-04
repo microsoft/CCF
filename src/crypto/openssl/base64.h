@@ -20,7 +20,8 @@ namespace ccf::crypto
     // Decode Base64 into byte stream
     static std::vector<uint8_t> raw_from_b64(const std::string_view& b64_string)
     {
-      const auto* const data = reinterpret_cast<const uint8_t*>(b64_string.data());
+      const auto* const data =
+        reinterpret_cast<const uint8_t*>(b64_string.data());
       const auto size = b64_string.size();
 
       if (size == 0)
