@@ -24,7 +24,7 @@ namespace http2
 
   // Used to keep track of response state between nghttp2 callbacks and to
   // differentiate unary from streaming responses
-  enum class StreamResponseState
+  enum class StreamResponseState : uint8_t
   {
     Uninitialised = 0, // No response to send yet
     Closing, // Unary or last frame in stream
@@ -36,14 +36,11 @@ namespace http2
     // Utility class to consume data from underlying data vector in chunks from
     // nghttp2_data_source_read_callback
     std::vector<uint8_t> data;
-    size_t consumed;
+    size_t consumed = 0;
 
     DataSource() = default;
 
-    DataSource(std::vector<uint8_t>&& data_) :
-      data(std::move(data_)),
-      consumed(0)
-    {}
+    DataSource(std::vector<uint8_t>&& data_) : data(std::move(data_)) {}
   };
 
   struct StreamData
@@ -75,7 +72,8 @@ namespace http2
     virtual std::shared_ptr<StreamData> create_stream(StreamId stream_id) = 0;
     virtual std::shared_ptr<StreamData> get_stream(StreamId stream_id) = 0;
     virtual void destroy_stream(StreamId stream_id) = 0;
-    virtual StreamId get_last_stream_id() const = 0;
-    virtual ccf::http::ParserConfiguration get_configuration() const = 0;
+    [[nodiscard]] virtual StreamId get_last_stream_id() const = 0;
+    [[nodiscard]] virtual ccf::http::ParserConfiguration get_configuration()
+      const = 0;
   };
 }

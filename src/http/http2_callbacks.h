@@ -16,8 +16,8 @@ namespace http2
     uint8_t* buf,
     size_t length,
     uint32_t* data_flags,
-    nghttp2_data_source* source,
-    void* user_data)
+    nghttp2_data_source* /*source*/,
+    void* /*user_data*/)
   {
     auto* stream_data = get_stream_data(session, stream_id);
     if (stream_data->outgoing.state == StreamResponseState::Uninitialised)
@@ -64,7 +64,7 @@ namespace http2
   }
 
   static int on_begin_frame_recv_callback(
-    nghttp2_session* session, const nghttp2_frame_hd* hd, void* user_data)
+    nghttp2_session* /*session*/, const nghttp2_frame_hd* hd, void* user_data)
   {
     const auto& stream_id = hd->stream_id;
     LOG_TRACE_FMT(
@@ -124,7 +124,7 @@ namespace http2
         }
 
         // If the request is complete, process it
-        if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
+        if ((frame->hd.flags & NGHTTP2_FLAG_END_STREAM) != 0)
         {
           auto* p = get_parser(user_data);
           p->handle_completed(stream_id, stream_data);
@@ -176,7 +176,7 @@ namespace http2
     size_t namelen,
     const uint8_t* value,
     size_t valuelen,
-    uint8_t flags,
+    uint8_t /*flags*/,
     void* user_data)
   {
     const auto& stream_id = frame->hd.stream_id;
@@ -227,7 +227,7 @@ namespace http2
 
   static int on_data_callback(
     nghttp2_session* session,
-    uint8_t flags,
+    uint8_t /*flags*/,
     StreamId stream_id,
     const uint8_t* data,
     size_t len,
@@ -257,7 +257,7 @@ namespace http2
   }
 
   static int on_stream_close_callback(
-    nghttp2_session* session,
+    nghttp2_session* /*session*/,
     StreamId stream_id,
     uint32_t error_code,
     void* user_data)
@@ -272,8 +272,8 @@ namespace http2
   }
 
   static ssize_t on_data_source_read_length_callback(
-    nghttp2_session* session,
-    uint8_t frame_type,
+    nghttp2_session* /*session*/,
+    uint8_t /*frame_type*/,
     int32_t stream_id,
     int32_t session_remote_window_size,
     int32_t stream_remote_window_size,
@@ -298,11 +298,11 @@ namespace http2
   }
 
   static int on_error_callback(
-    nghttp2_session* session,
-    int lib_error_code,
+    nghttp2_session* /*session*/,
+    int /*lib_error_code*/,
     const char* msg,
     size_t len,
-    void* user_data)
+    void* /*user_data*/)
   {
     LOG_DEBUG_FMT("HTTP/2 error: {}", std::string(msg, msg + len));
     return 0;
