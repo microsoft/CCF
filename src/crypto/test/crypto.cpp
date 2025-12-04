@@ -1488,20 +1488,18 @@ TEST_CASE("Sha256 hex conversions")
 TEST_CASE("Carriage returns in PEM certificates")
 {
   const std::string single_cert =
-    "-----BEGIN "
-    "CERTIFICATE-----"
-    "\nMIIByDCCAU6gAwIBAgIQOBe5SrcwReWmSzTjzj2HDjAKBggqhkjOPQQDAzATMREw\nDwYDVQ"
-    "QDDAhDQ0YgTm9kZTAeFw0yMzA1MTcxMzUwMzFaFw0yMzA1MTgxMzUwMzBa\nMBMxETAPBgNVBA"
-    "MMCENDRiBOb2RlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE74qL\nAc/"
-    "45tiriN5MuquYhHVdMGQRvYSm08HBfYcODtET88qC0A39o6Y2TmfbIn6BdjMG\nkD58o377ZMT"
-    "aApQu/oJcwt7qZ9/LE8j8WU2qHn0cPTlpwH/"
-    "2tiud2w+U3voSo2cw\nZTASBgNVHRMBAf8ECDAGAQH/"
-    "AgEAMB0GA1UdDgQWBBS9FJNwWSXtUpHaBV57EwTW\noM8vHjAfBgNVHSMEGDAWgBS9FJNwWSXt"
-    "UpHaBV57EwTWoM8vHjAPBgNVHREECDAG\nhwR/"
-    "xF96MAoGCCqGSM49BAMDA2gAMGUCMQDKxpjPToJ7VSqKqQSeMuW9tr4iL+"
-    "9I\n7gTGdGwiIYV1qTSS35Sk9XQZ0VpSa58c/"
-    "5UCMEgmH71k7XlTGVUypm4jAgjpC46H\ns+hJpGMvyD9dKzEpZgmZYtghbyakUkwBiqmFQA=="
-    "\n-----END CERTIFICATE-----";
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIByDCCAU6gAwIBAgIQOBe5SrcwReWmSzTjzj2HDjAKBggqhkjOPQQDAzATMREw\n"
+    "DwYDVQQDDAhDQ0YgTm9kZTAeFw0yMzA1MTcxMzUwMzFaFw0yMzA1MTgxMzUwMzBa\n"
+    "MBMxETAPBgNVBAMMCENDRiBOb2RlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE74qL\n"
+    "Ac/45tiriN5MuquYhHVdMGQRvYSm08HBfYcODtET88qC0A39o6Y2TmfbIn6BdjMG\n"
+    "kD58o377ZMTaApQu/oJcwt7qZ9/LE8j8WU2qHn0cPTlpwH/2tiud2w+U3voSo2cw\n"
+    "ZTASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBS9FJNwWSXtUpHaBV57EwTW\n"
+    "oM8vHjAfBgNVHSMEGDAWgBS9FJNwWSXtUpHaBV57EwTWoM8vHjAPBgNVHREECDAG\n"
+    "hwR/xF96MAoGCCqGSM49BAMDA2gAMGUCMQDKxpjPToJ7VSqKqQSeMuW9tr4iL+9I\n"
+    "7gTGdGwiIYV1qTSS35Sk9XQZ0VpSa58c/5UCMEgmH71k7XlTGVUypm4jAgjpC46H\n"
+    "s+hJpGMvyD9dKzEpZgmZYtghbyakUkwBiqmFQA==\n"
+    "-----END CERTIFICATE-----";
   Pem cert_pem(single_cert);
   auto cert_vec = cert_pem.raw();
   OpenSSL::Unique_BIO certbio(cert_vec);
@@ -1509,20 +1507,18 @@ TEST_CASE("Carriage returns in PEM certificates")
   REQUIRE_NE(cert, nullptr);
 
   const std::string single_cert_cr =
-    "-----BEGIN "
-    "CERTIFICATE-----"
-    "\r\nMIIByDCCAU6gAwIBAgIQOBe5SrcwReWmSzTjzj2HDjAKBggqhkjOPQQDAzATMREw\r\nDw"
-    "YDVQQDDAhDQ0YgTm9kZTAeFw0yMzA1MTcxMzUwMzFaFw0yMzA1MTgxMzUwMzBa\r\nMBMxETAP"
-    "BgNVBAMMCENDRiBOb2RlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE74qL\r\nAc/"
-    "45tiriN5MuquYhHVdMGQRvYSm08HBfYcODtET88qC0A39o6Y2TmfbIn6BdjMG\r\nkD58o377Z"
-    "MTaApQu/oJcwt7qZ9/LE8j8WU2qHn0cPTlpwH/"
-    "2tiud2w+U3voSo2cw\r\nZTASBgNVHRMBAf8ECDAGAQH/"
-    "AgEAMB0GA1UdDgQWBBS9FJNwWSXtUpHaBV57EwTW\r\noM8vHjAfBgNVHSMEGDAWgBS9FJNwWS"
-    "XtUpHaBV57EwTWoM8vHjAPBgNVHREECDAG\r\nhwR/"
-    "xF96MAoGCCqGSM49BAMDA2gAMGUCMQDKxpjPToJ7VSqKqQSeMuW9tr4iL+"
-    "9I\r\n7gTGdGwiIYV1qTSS35Sk9XQZ0VpSa58c/"
-    "5UCMEgmH71k7XlTGVUypm4jAgjpC46H\r\ns+hJpGMvyD9dKzEpZgmZYtghbyakUkwBiqmFQA="
-    "=\r\n-----END CERTIFICATE-----";
+    "-----BEGIN CERTIFICATE-----\r\n"
+    "MIIByDCCAU6gAwIBAgIQOBe5SrcwReWmSzTjzj2HDjAKBggqhkjOPQQDAzATMREw\r\n"
+    "DwYDVQQDDAhDQ0YgTm9kZTAeFw0yMzA1MTcxMzUwMzFaFw0yMzA1MTgxMzUwMzBa\r\n"
+    "MBMxETAPBgNVBAMMCENDRiBOb2RlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE74qL\r\n"
+    "Ac/45tiriN5MuquYhHVdMGQRvYSm08HBfYcODtET88qC0A39o6Y2TmfbIn6BdjMG\r\n"
+    "kD58o377ZMTaApQu/oJcwt7qZ9/LE8j8WU2qHn0cPTlpwH/2tiud2w+U3voSo2cw\r\n"
+    "ZTASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBS9FJNwWSXtUpHaBV57EwTW\r\n"
+    "oM8vHjAfBgNVHSMEGDAWgBS9FJNwWSXtUpHaBV57EwTWoM8vHjAPBgNVHREECDAG\r\n"
+    "hwR/xF96MAoGCCqGSM49BAMDA2gAMGUCMQDKxpjPToJ7VSqKqQSeMuW9tr4iL+9I\r\n"
+    "7gTGdGwiIYV1qTSS35Sk9XQZ0VpSa58c/5UCMEgmH71k7XlTGVUypm4jAgjpC46H\r\n"
+    "s+hJpGMvyD9dKzEpZgmZYtghbyakUkwBiqmFQA==\r\n"
+    "-----END CERTIFICATE-----";
   Pem cert_pem_cr(single_cert_cr);
   auto cert_vec_cr = cert_pem_cr.raw();
   OpenSSL::Unique_BIO certbio_cr(cert_vec_cr);
