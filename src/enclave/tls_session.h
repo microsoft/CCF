@@ -13,7 +13,7 @@
 
 namespace ccf
 {
-  enum SessionStatus
+  enum SessionStatus : uint8_t
   {
     handshake,
     ready,
@@ -39,7 +39,7 @@ namespace ccf
     std::vector<uint8_t> read_buffer;
 
     std::unique_ptr<tls::Context> ctx;
-    SessionStatus status;
+    SessionStatus status = handshake;
 
     HandshakeErrorCB handshake_error_cb;
 
@@ -62,8 +62,7 @@ namespace ccf
       std::unique_ptr<tls::Context> ctx_) :
       to_host(writer_factory_.create_writer_to_outside()),
       session_id(session_id_),
-      ctx(std::move(ctx_)),
-      status(handshake)
+      ctx(std::move(ctx_))
     {
       ctx->set_bio(this, send_callback_openssl, recv_callback_openssl);
     }
@@ -134,7 +133,7 @@ namespace ccf
 
       size_t offset = 0;
 
-      if (read_buffer.size() > 0)
+      if (!read_buffer.empty())
       {
         LOG_TRACE_FMT(
           "Have existing read_buffer of size: {}", read_buffer.size());
@@ -142,12 +141,18 @@ namespace ccf
         ::memcpy(data, read_buffer.data(), offset);
 
         if (offset < read_buffer.size())
+        {
           read_buffer.erase(read_buffer.begin(), read_buffer.begin() + offset);
+        }
         else
+        {
           read_buffer.clear();
+        }
 
         if (offset == size)
+        {
           return size;
+        }
 
         // NB: If we continue past here, read_buffer is empty
       }
@@ -318,7 +323,7 @@ namespace ccf
         return;
       }
 
-      while (pending_write.size() > 0)
+      while (!pending_write.empty())
       {
         auto r = write_some(pending_write);
 
@@ -334,6 +339,7 @@ namespace ccf
         {
           LOG_TRACE_FMT("TLS session {} error on flush: {}", session_id, -r);
           stop(error);
+          break;
         }
       }
     }
@@ -480,14 +486,16 @@ namespace ccf
         serializer::ByteRange{buf, len});
 
       if (!wrote)
+      {
         return TLS_WRITING;
+      }
 
-      return (int)len;
+      return static_cast<int>(len);
     }
 
     int handle_recv(uint8_t* buf, size_t len)
     {
-      if (pending_read.size() > 0)
+      if (!pending_read.empty())
       {
         // Use the pending data vector. This is populated when the host
         // writes a chunk larger than the size requested by the enclave.
@@ -540,18 +548,21 @@ namespace ccf
       (void)argl;
       (void)argp;
 
-      if (ret && len > 0 && oper == (BIO_CB_WRITE | BIO_CB_RETURN))
+      if (ret != 0 && len > 0 && oper == (BIO_CB_WRITE | BIO_CB_RETURN))
       {
         // Flush BIO so the "pipe doesn't clog", but we don't use the
         // data here, because 'argp' already has it.
         BIO_flush(b);
         size_t pending = BIO_pending(b);
-        if (pending)
+        if (pending != 0)
+        {
           BIO_reset(b);
+        }
 
         // Pipe object
-        void* ctx = (BIO_get_callback_arg(b));
-        int put = send_callback(ctx, (const uint8_t*)argp, len);
+        void* ctx = BIO_get_callback_arg(b);
+        int put =
+          send_callback(ctx, reinterpret_cast<const uint8_t*>(argp), len);
 
         // WANTS_WRITE
         if (put == TLS_WRITING)
@@ -561,10 +572,8 @@ namespace ccf
           *processed = 0;
           return -1;
         }
-        else
-        {
-          LOG_TRACE_FMT("TLS Session::send_cb() : Put {} bytes", put);
-        }
+
+        LOG_TRACE_FMT("TLS Session::send_cb() : Put {} bytes", put);
 
         // Update the number of bytes to external users
         *processed = put;
@@ -597,11 +606,13 @@ namespace ccf
         return 0;
       }
 
-      if (ret && (oper == (BIO_CB_READ | BIO_CB_RETURN)))
+      if (ret != 0 && (oper == (BIO_CB_READ | BIO_CB_RETURN)))
       {
         // Pipe object
-        void* ctx = (BIO_get_callback_arg(b));
-        int got = recv_callback(ctx, (uint8_t*)argp, len);
+        void* ctx = BIO_get_callback_arg(b);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        int got = recv_callback(
+          ctx, reinterpret_cast<uint8_t*>(const_cast<char*>(argp)), len);
 
         // WANTS_READ
         if (got == TLS_READING)
@@ -611,11 +622,8 @@ namespace ccf
           *processed = 0;
           return -1;
         }
-        else
-        {
-          LOG_TRACE_FMT(
-            "TLS Session::recv_cb() : Got {} bytes of {}", got, len);
-        }
+
+        LOG_TRACE_FMT("TLS Session::recv_cb() : Got {} bytes of {}", got, len);
 
         // If got less than requested, return WANT_READ
         if ((size_t)got < len)
