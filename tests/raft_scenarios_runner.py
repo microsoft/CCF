@@ -69,6 +69,15 @@ def preprocess_for_trace_validation(log):
             entry["cmd"] = entry["cmd"] or removed["cmd"]
         log_by_node[node].append(entry)
 
+        # Collapse propose_vote->become_candidate to just propose_vote
+        if len(log_by_node[node]) >= 2 and [
+            e["msg"]["function"] for e in log_by_node[node][-2:]
+        ] == ["recv_propose_request_vote", "become_candidate"]:
+            bc = log_by_node[node].pop()
+            pr = log_by_node[node].pop()
+            assert bc["cmd"] == pr["cmd"], f"Command mismatch between {pr} and {bc}"
+            log_by_node[node].append(pr)
+
     def head():
         return log_by_node[initial_node].pop(0)
 
