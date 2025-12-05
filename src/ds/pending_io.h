@@ -79,7 +79,9 @@ struct PendingIO
    */
   static void clear_empty(std::vector<PendingIO<T>>& list)
   {
-    std::remove_if(
-      list.begin(), list.end(), [](PendingIO<T>& p) { return p.clear; });
+    list.erase(
+      std::remove_if(
+        list.begin(), list.end(), [](PendingIO<T>& p) { return p.clear; }),
+      list.end());
   }
 };

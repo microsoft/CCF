@@ -42,6 +42,7 @@ namespace ccf
     virtual bool is_accessible_to_members() const = 0;
 
     virtual bool can_replicate() = 0;
+    virtual std::optional<ccf::NodeId> get_primary() = 0;
 
     virtual ccf::kv::Version get_last_recovered_signed_idx() = 0;
     virtual ccf::kv::Version get_startup_snapshot_seqno() = 0;

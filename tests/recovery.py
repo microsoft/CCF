@@ -705,7 +705,7 @@ def test_persistence_old_snapshot(network, args):
     with old_primary.client() as c:
         latest_txid = c.get("/node/commit").body.json()["transaction_id"]
 
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     # Use invalid node-to-node interface so that the new node is isolated and does
     # not receive any consensus updates.
     new_node.n2n_interface = infra.interfaces.Interface(host="invalid", port=8000)

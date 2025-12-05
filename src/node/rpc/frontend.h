@@ -139,6 +139,41 @@ namespace ccf
         }
 
         auto& ncs = node_configuration_subsystem->get();
+
+        const auto& required_features = endpoint->required_operator_features;
+        if (!required_features.empty())
+        {
+          // Check that all required opt-in features are present on this
+          // interface's enabled features
+          const auto& interfaces = ncs.node_config.network.rpc_interfaces;
+          auto interface_it = interfaces.find(*interface_id);
+          if (interface_it == interfaces.end())
+          {
+            throw std::runtime_error(fmt::format(
+              "Could not find RPC interface named '{}' in startup config",
+              *interface_id));
+          }
+
+          const auto& enabled_features =
+            interface_it->second.enabled_operator_features;
+          for (const auto& required_feature : required_features)
+          {
+            if (
+              enabled_features.find(required_feature) == enabled_features.end())
+            {
+              LOG_INFO_FMT(
+                "Incoming request {} requires opt-in feature {}, which is not "
+                "enabled on interface {} where this request was received - "
+                "returning error",
+                endpoint->full_uri_path,
+                required_feature,
+                *interface_id);
+              ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+              return false;
+            }
+          }
+        }
+
         auto rit = ncs.rpc_interface_regexes.find(*interface_id);
 
         if (rit != ncs.rpc_interface_regexes.end())

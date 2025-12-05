@@ -8,6 +8,7 @@
 #include "ccf/http_consts.h"
 #include "ccf/rest_verb.h"
 #include "ccf/service/map.h"
+#include "ccf/service/operator_feature.h"
 
 #include <string>
 #include <utility>
@@ -229,6 +230,8 @@ namespace ccf::endpoints
      * @see ccf::any_cert_auth_policy
      */
     AuthnPolicies authn_policies;
+
+    std::set<OperatorFeature> required_operator_features;
   };
 
   using EndpointDefinitionPtr = std::shared_ptr<const EndpointDefinition>;
@@ -307,6 +310,14 @@ namespace ccf::endpoints
      * @return This Endpoint for further modification
      */
     Endpoint& set_openapi_hidden(bool hidden);
+
+    /** Add an opt-in feature which this endpoint uses. The endpoint will only
+     * be available on interfaces which have opted in to enabling all required
+     * features.
+     *
+     * @return This Endpoint for further modification
+     */
+    Endpoint& require_operator_feature(OperatorFeature feature);
 
     /** Sets the JSON schema that the request parameters must comply with.
      *

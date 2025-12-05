@@ -133,7 +133,6 @@ def test_new_service(
     kwargs["reconfiguration_type"] = "OneTransaction"
 
     new_node = network.create_node(
-        "local://localhost",
         binary_dir=binary_dir,
         library_dir=library_dir,
         version=version,
@@ -286,7 +285,6 @@ def run_code_upgrade_from(
             from_snapshot = True
             for _ in range(0, len(old_nodes)):
                 new_node = network.create_node(
-                    "local://localhost",
                     binary_dir=to_binary_dir,
                     library_dir=to_library_dir,
                     version=to_version,

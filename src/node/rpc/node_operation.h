@@ -65,6 +65,11 @@ namespace ccf
       return impl.can_replicate();
     }
 
+    std::optional<ccf::NodeId> get_primary() override
+    {
+      return impl.get_primary();
+    }
+
     ccf::kv::Version get_last_recovered_signed_idx() override
     {
       return impl.get_last_recovered_signed_idx();

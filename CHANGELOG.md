@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - When the `fetch_recent_snapshot` behaviour is enabled by the node config, the Joiner will now prefer the peer's snapshot over _any_ local snapshot, regardless of version (#7314).
+- The snapshot-serving endpoints required for `fetch_recent_snapshot` behaviour are now disabled-by-default to avoid public DoS requests. They should be enabled on a per-interface basis by adding `"enabled_operator_features": ["SnapshotRead"]` to the interface's configuration, on an interface with local visibility used for node-to-node join requests (#7440).
 
 ## [6.0.16]
 
