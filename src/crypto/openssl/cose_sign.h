@@ -20,7 +20,7 @@ namespace ccf::crypto
   static constexpr int64_t COSE_PHEADER_KEY_CWT = 15;
   // Standardised: verifiable data structure.
   static constexpr int64_t COSE_PHEADER_KEY_VDS = 395;
-  static constexpr int64_t COSE_PHEADER_VDS_MERKLE_TREE = 2;
+  static constexpr int64_t COSE_PHEADER_VDS_CCF_LEDGER_SHA256 = 2;
   // Standardised: issued at CWT claim. Value is **PLAIN INTEGER**, as per
   // https://www.rfc-editor.org/rfc/rfc8392#section-2. Quote:
   /* The "NumericDate" term in this specification has the same meaning and

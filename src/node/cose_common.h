@@ -22,7 +22,7 @@ namespace ccf::cose
     static constexpr int64_t PARAM_KID = 4;
     static constexpr int64_t PARAM_X5CHAIN = 33;
     static constexpr int64_t PARAM_VDP = 396;
-    static constexpr int64_t PARAM_MERKLE_PROOFS = -1;
+    static constexpr int64_t PARAM_INCLUSION_PROOFS = -1;
 
     static constexpr auto CONTENT_TYPE_APPLICATION_JSON_VALUE =
       "application/json";
@@ -223,11 +223,11 @@ namespace ccf::cose
     }
     phdr.vds = header_items[VDS_INDEX].val.int64;
 
-    if (phdr.vds != ccf::crypto::COSE_PHEADER_VDS_MERKLE_TREE)
+    if (phdr.vds != ccf::crypto::COSE_PHEADER_VDS_CCF_LEDGER_SHA256)
     {
       throw ccf::cose::COSEDecodeError(fmt::format(
-        "Expected VDS={} (Merkle tree), got {}",
-        ccf::crypto::COSE_PHEADER_VDS_MERKLE_TREE,
+        "Expected VDS={} (CCF_LEDGER_SHA256), got {}",
+        ccf::crypto::COSE_PHEADER_VDS_CCF_LEDGER_SHA256,
         phdr.vds));
     }
   }
@@ -375,7 +375,7 @@ namespace ccf::cose
         fmt::format("Failed to enter Merkle proofs map: {}", err));
     }
 
-    QCBORDecode_EnterArrayFromMapN(&ctx, headers::PARAM_MERKLE_PROOFS);
+    QCBORDecode_EnterArrayFromMapN(&ctx, headers::PARAM_INCLUSION_PROOFS);
     err = QCBORDecode_GetError(&ctx);
     if (err != QCBOR_SUCCESS)
     {

@@ -396,7 +396,7 @@ namespace ccf
                              // VDS
                              ccf::crypto::cose_params_int_int(
                                ccf::crypto::COSE_PHEADER_KEY_VDS,
-                               ccf::crypto::COSE_PHEADER_VDS_MERKLE_TREE),
+                               ccf::crypto::COSE_PHEADER_VDS_CCF_LEDGER_SHA256),
                              // CWT claims
                              cwt_headers,
                              // CCF headers
