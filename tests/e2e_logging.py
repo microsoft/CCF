@@ -922,7 +922,7 @@ def test_cbor_receipts(network, args):
                         headers={"Content-Type": "application/cose"},
                     )
                     assert (
-                        r.status_code == http.HTTPStatus.OK
+                        r.status_code == http.HTTPStatus.NO_CONTENT
                     ), f"Failed to verify COSE receipt for txid {txid}: {r.status_code} {r.body.text()}"
 
                     for cbor_proof in proofs:
@@ -950,7 +950,7 @@ def test_cbor_receipts(network, args):
                         headers={"Content-Type": "application/cose"},
                     )
                     assert (
-                        r.status_code != http.HTTPStatus.OK
+                        r.status_code != http.HTTPStatus.NO_CONTENT
                     ), f"Corrupted COSE receipt should not verify for txid {txid}"
                     LOG.debug(f"Verified that corrupted receipt fails for txid {txid}")
 

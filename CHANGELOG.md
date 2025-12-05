@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - In the C++ API, the method `get_txid()` on `ccf::kv::ReadOnlyStore` has been renamed to `current_txid()`. This may affect historical query code which works directly with the returned `StorePtr` (#7477).
 - The C++ API for installing endpoints with local commit handlers has changed. These handlers should now be added to an `Endpoint` with `.set_locally_committed_function(handler)`, and the `make_[read_only_]endpoint_with_local_commit_handler` methods on `EndpointRegistry` have been removed (#7487).
 - The format of CCF's stdout logging has changed. Each line previously tried to align host logs with enclave logs containing a timestamp offset. Since enclave logs no longer exist, this timestamp is never present, so the padding whitespace has been removed (#7491).
-- Introduced `ccf::historical::verify_cose_receipt` to verify COSE CCF receipts against current service identity (#7494).
+- Introduced `ccf::historical::verify_self_issued_receipt` to verify COSE CCF receipts against current service identity (#7494).
 
 ## [7.0.0-dev5]
 

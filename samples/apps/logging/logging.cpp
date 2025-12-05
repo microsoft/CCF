@@ -2013,39 +2013,6 @@ namespace loggingapp
         .set_auto_schema<void, std::string>()
         .install();
 
-      auto get_cbor_merkle_proof =
-        [](
-          ccf::endpoints::ReadOnlyEndpointContext& ctx,
-          ccf::historical::StatePtr historical_state) {
-          auto historical_tx = historical_state->store->create_read_only_tx();
-
-          assert(historical_state->receipt);
-          auto cbor_proof =
-            describe_merkle_proof_v1(*historical_state->receipt);
-          if (!cbor_proof.has_value())
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_NOT_FOUND,
-              ccf::errors::ResourceNotFound,
-              "No merkle proof available for this transaction");
-            return;
-          }
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          ctx.rpc_ctx->set_response_body(std::move(cbor_proof.value()));
-          ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::CONTENT_TYPE,
-            ccf::http::headervalues::contenttype::CBOR);
-        };
-      make_read_only_endpoint(
-        "/log/public/cbor_merkle_proof",
-        HTTP_GET,
-        ccf::historical::read_only_adapter_v4(
-          get_cbor_merkle_proof, context, is_tx_committed),
-        auth_policies)
-        .set_auto_schema<void, void>()
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .install();
-
       auto get_cose_endorsements =
         [](
           ccf::endpoints::ReadOnlyEndpointContext& ctx,
@@ -2194,7 +2161,7 @@ namespace loggingapp
 
           try
           {
-            ccf::historical::verify_cose_receipt(
+            ccf::historical::verify_self_issued_receipt(
               receipt, network_identity_subsystem);
           }
           catch (const std::exception& e)
@@ -2206,14 +2173,14 @@ namespace loggingapp
             return;
           }
 
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
         };
 
       make_read_only_endpoint(
         "/log/public/verify_cose_receipt",
         HTTP_GET,
         verify_cose_receipt,
-        auth_policies)
+        ccf::no_auth_required)
         .set_auto_schema<void, void>()
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();

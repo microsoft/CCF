@@ -437,7 +437,7 @@ namespace ccf
       return true;
     }
 
-    void verify_cose_receipt(
+    void verify_self_issued_receipt(
       const std::vector<uint8_t>& cose_receipt,
       std::shared_ptr<NetworkIdentitySubsystemInterface>
         network_identity_subsystem)

@@ -227,6 +227,14 @@ namespace ccf::cose
     }
     phdr.vds = header_items[VDS_INDEX].val.int64;
 
+    if (phdr.vds != ccf::crypto::COSE_PHEADER_VDS_MERKLE_TREE)
+    {
+      throw ccf::cose::COSEDecodeError(fmt::format(
+        "Expected VDS={} (Merkle tree), got {}",
+        ccf::crypto::COSE_PHEADER_VDS_MERKLE_TREE,
+        phdr.vds));
+    }
+
     QCBORDecode_EnterMapFromMapN(&ctx, crypto::COSE_PHEADER_KEY_CWT);
     auto decode_error = QCBORDecode_GetError(&ctx);
     if (decode_error != QCBOR_SUCCESS)
