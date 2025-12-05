@@ -3,8 +3,10 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/cose.h"
 
+#include "ccf/ds/hex.h"
 #include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/cose_verifier.h"
+#include "node/cose_common.h"
 
 #include <cstdint>
 #include <doctest/doctest.h>
@@ -274,4 +276,41 @@ TEST_CASE("Check unprotected header")
       err = QCBORDecode_Finish(&ctx);
     }
   }
+}
+
+TEST_CASE("Decode CCF COSE receipt")
+{
+  const std::string receipt_hex =
+    "d284588ca50138220458403464393230653531646339303636373336653433333738636131"
+    "34323863656165306435343335326634306535316232306564633863366237633536316430"
+    "3519018b020fa3061a692875730173736572766963652e6578616d706c652e636f6d02706c"
+    "65646765722e7369676e6174757265666363662e7631a1647478696464322e3137a119018c"
+    "a1208158b7a201835820e2a97fad0c69119d6e216158b762b19277a579d7a89047d98aa37f"
+    "152f194a92784863653a322e31363a38633765646230386135323963613237326166623062"
+    "31653664613939306233636137336665313064336535663462356633663231613561346638"
+    "37663637635820000000000000000000000000000000000000000000000000000000000000"
+    "0000028182f55820d774c9dfeec96478a0797f8ce3d78464767833d052fb78d72b2b8eeda5"
+    "21215af658604568ff2c93350fa181bf02186b26d3f04728a61fd2ef2c9388a55268ed8bf7"
+    "88a6bd06bfa195c78676bebeef5560a87980e8dd13725a87ef0b00ac0b78ff07ab7eb4646a"
+    "4a54b421456d14e90b7dea1f0b32044bf93116d85ef0834f493681d5";
+
+  const auto receipt_bytes = ccf::ds::from_hex(receipt_hex);
+
+  auto receipt =
+    ccf::cose::decode_ccf_receipt(receipt_bytes, /*recompute_root*/ true);
+
+  REQUIRE(receipt.phdr.alg == -35);
+  REQUIRE(
+    ccf::ds::to_hex(receipt.phdr.kid) ==
+    "34643932306535316463393036363733366534333337386361313432386365616530643534"
+    "333532663430653531623230656463386336623763353631643035");
+  REQUIRE(receipt.phdr.cwt.iat == 1764259187);
+  REQUIRE(receipt.phdr.cwt.iss == "service.example.com");
+  REQUIRE(receipt.phdr.cwt.sub == "ledger.signature");
+  REQUIRE(receipt.phdr.ccf.txid == "2.17");
+  REQUIRE(receipt.phdr.vds == 2);
+
+  REQUIRE(
+    ccf::ds::to_hex(receipt.merkle_root) ==
+    "209f5aefb0f45d7647c917337044c44a1b848fe833fa2869d016bea797d79a9e");
 }
