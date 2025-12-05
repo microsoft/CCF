@@ -901,7 +901,7 @@ def test_cbor_receipts(network, args):
 
         for seqno in range(last_txid.seqno, last_txid.seqno - 10, -1):
             txid = f"{last_txid.view}.{seqno}"
-            LOG.debug(f"Trying to get CBOR Merkle proof for txid {txid}")
+            LOG.debug(f"Trying to get COSE receipt for txid {txid}")
             max_retries = 10
             for _ in range(max_retries):
                 r = client.get(
