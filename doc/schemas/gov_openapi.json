@@ -523,6 +523,15 @@
               "bind_address": {
                 "type": "string"
               },
+              "enabled_operator_features": {
+                "items": {
+                  "enum": [
+                    "SnapshotRead"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
               "endorsement": {
                 "properties": {
                   "acme_configuration": {
@@ -661,6 +670,15 @@
                 },
                 "bind_address": {
                   "type": "string"
+                },
+                "enabled_operator_features": {
+                  "items": {
+                    "enum": [
+                      "SnapshotRead"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 "endorsement": {
                   "properties": {
@@ -1376,7 +1394,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.7.4"
+    "version": "4.7.5"
   },
   "openapi": "3.0.0",
   "paths": {
