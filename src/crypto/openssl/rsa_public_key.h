@@ -4,8 +4,8 @@
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/rsa_public_key.h"
-#include "crypto/openssl/ec_public_key.h"
 #include "crypto/openssl/hash.h"
+#include "crypto/openssl/public_key.h"
 
 #include <optional>
 #include <string>
@@ -13,43 +13,40 @@
 
 namespace ccf::crypto
 {
-  class RSAPublicKey_OpenSSL : public RSAPublicKey
+  class RSAPublicKey_OpenSSL : public RSAPublicKey, public PublicKey_OpenSSL
   {
   protected:
-    EVP_PKEY* key{nullptr};
-
-    // RSAKeyPair fully overwrites construction, so requires this to exist.
-    RSAPublicKey_OpenSSL() = default;
+    RSAPublicKey_OpenSSL();
 
   public:
+    RSAPublicKey_OpenSSL(EVP_PKEY* key);
     RSAPublicKey_OpenSSL(const Pem& pem);
+    RSAPublicKey_OpenSSL(RSAPublicKey_OpenSSL&& key) = default;
     RSAPublicKey_OpenSSL(std::span<const uint8_t> der);
     RSAPublicKey_OpenSSL(const JsonWebKeyRSAPublic& jwk);
 
-    RSAPublicKey_OpenSSL(EVP_PKEY* key);
+    ~RSAPublicKey_OpenSSL() override;
 
-    virtual ~RSAPublicKey_OpenSSL();
+    [[nodiscard]] size_t key_size() const override;
 
-    virtual size_t key_size() const override;
-
-    virtual std::vector<uint8_t> rsa_oaep_wrap(
+    std::vector<uint8_t> rsa_oaep_wrap(
       const uint8_t* input,
       size_t input_size,
       const uint8_t* label = nullptr,
       size_t label_size = 0) override;
 
-    virtual std::vector<uint8_t> rsa_oaep_wrap(
+    std::vector<uint8_t> rsa_oaep_wrap(
       const std::vector<uint8_t>& input,
       const std::optional<std::vector<std::uint8_t>>& label =
         std::nullopt) override;
 
-    virtual Pem public_key_pem() const override;
-    virtual std::vector<uint8_t> public_key_der() const override;
+    [[nodiscard]] Pem public_key_pem() const override;
+    [[nodiscard]] std::vector<uint8_t> public_key_der() const override;
 
-    virtual JsonWebKeyRSAPublic public_key_jwk(
+    [[nodiscard]] JsonWebKeyRSAPublic public_key_jwk(
       const std::optional<std::string>& kid = std::nullopt) const override;
 
-    virtual bool verify(
+    bool verify(
       const uint8_t* contents,
       size_t contents_size,
       const uint8_t* signature,
@@ -58,7 +55,7 @@ namespace ccf::crypto
       RSAPadding padding,
       size_t salt_length) override;
 
-    virtual bool verify_hash(
+    bool verify_hash(
       const uint8_t* hash,
       size_t hash_size,
       const uint8_t* signature,

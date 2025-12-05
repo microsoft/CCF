@@ -1,5 +1,5 @@
-# This test checks rollback behaviour, and is easier to trigger without pre-vote
 pre_vote_enabled,false
+# This test checks rollback behaviour, and is easier to trigger without pre-vote
 # Fully-connected 3-node network
 start_node,0
 assert_detail,0,leadership_state,Leader

@@ -2,8 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/thread_messaging.h"
 #include "node_client.h"
+#include "tasks/basic_task.h"
+#include "tasks/task_system.h"
 
 namespace ccf
 {
@@ -30,24 +31,10 @@ namespace ccf
       node_client->make_request(request);
     }
 
-    struct RetiredNodeCleanupMsg
-    {
-      RetiredNodeCleanupMsg(RetiredNodeCleanup& self_) : self(self_) {}
-
-      RetiredNodeCleanup& self;
-    };
-
     void cleanup()
     {
-      auto cleanup_msg =
-        std::make_unique<::threading::Tmsg<RetiredNodeCleanupMsg>>(
-          [](std::unique_ptr<::threading::Tmsg<RetiredNodeCleanupMsg>> msg) {
-            msg->data.self.send_cleanup_retired_nodes();
-          },
-          *this);
-
-      ::threading::ThreadMessaging::instance().add_task(
-        ccf::threading::get_current_thread_id(), std::move(cleanup_msg));
+      ccf::tasks::add_task(ccf::tasks::make_basic_task(
+        [this]() { this->send_cleanup_retired_nodes(); }));
     }
   };
 }

@@ -30,13 +30,13 @@ DECLARE_JSON_ENUM(
 
 struct EnclaveConfig
 {
-  uint8_t* to_enclave_buffer_start;
-  size_t to_enclave_buffer_size;
-  ringbuffer::Offsets* to_enclave_buffer_offsets;
+  uint8_t* to_enclave_buffer_start = nullptr;
+  size_t to_enclave_buffer_size = 0;
+  ringbuffer::Offsets* to_enclave_buffer_offsets = nullptr;
 
-  uint8_t* from_enclave_buffer_start;
-  size_t from_enclave_buffer_size;
-  ringbuffer::Offsets* from_enclave_buffer_offsets;
+  uint8_t* from_enclave_buffer_start = nullptr;
+  size_t from_enclave_buffer_size = 0;
+  ringbuffer::Offsets* from_enclave_buffer_offsets = nullptr;
 
   oversized::WriterConfig writer_config = {};
 };

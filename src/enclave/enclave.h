@@ -48,16 +48,17 @@ namespace ccf
     std::unique_ptr<ccf::NodeState> node;
     ringbuffer::WriterPtr to_host = nullptr;
     std::chrono::high_resolution_clock::time_point last_tick_time;
+    std::atomic<bool> worker_stop_signal = false;
 
-    StartType start_type;
+    StartType start_type{};
 
     struct NodeContext : public ccf::AbstractNodeContext
     {
       const ccf::NodeId this_node;
 
-      NodeContext(const ccf::NodeId& id) : this_node(id) {}
+      NodeContext(ccf::NodeId id) : this_node(std::move(id)) {}
 
-      ccf::NodeId get_node_id() const override
+      [[nodiscard]] ccf::NodeId get_node_id() const override
       {
         return this_node;
       }
@@ -80,12 +81,11 @@ namespace ccf
       size_t chunk_threshold,
       const ccf::consensus::Configuration& consensus_config,
       const ccf::crypto::CurveID& curve_id,
-      const ccf::ds::WorkBeaconPtr& work_beacon_) :
+      ccf::ds::WorkBeaconPtr work_beacon_) :
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),
-      work_beacon(work_beacon_),
-      network(),
+      work_beacon(std::move(work_beacon_)),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
     {
@@ -231,9 +231,9 @@ namespace ccf
         lfs_access->register_message_handlers(bp.get_dispatcher());
 
         DISPATCHER_SET_MESSAGE_HANDLER(
-          bp, AdminMessage::stop, [&bp](const uint8_t*, size_t) {
+          bp, AdminMessage::stop, [this, &bp](const uint8_t*, size_t) {
             bp.set_finished();
-            ::threading::ThreadMessaging::instance().set_finished();
+            this->worker_stop_signal.store(true);
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
@@ -263,7 +263,7 @@ namespace ccf
 
               node->tick(elapsed_ms);
               historical_state_cache->tick(elapsed_ms);
-              ::threading::ThreadMessaging::instance().tick(elapsed_ms);
+              ccf::tasks::tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // public ledger is being read
               if (!node->is_reading_public_ledger())
@@ -384,17 +384,24 @@ namespace ccf
           // First, read some messages from the ringbuffer
           auto read = bp.read_n(max_messages, circuit->read_from_outside());
 
-          // Then, execute some thread messages
-          size_t thread_msg = 0;
-          while (thread_msg < max_messages &&
-                 ::threading::ThreadMessaging::instance().run_one())
+          // Then, execute some tasks
+          auto& job_board = ccf::tasks::get_main_job_board();
+          ccf::tasks::Task task = job_board.get_task();
+          size_t tasks_done = 0;
+          while (task != nullptr)
           {
-            thread_msg++;
+            task->do_task();
+            ++tasks_done;
+            if (tasks_done >= max_messages)
+            {
+              break;
+            }
+            task = job_board.get_task();
           }
 
-          // If no messages were read from the ringbuffer and no thread
-          // messages were executed, idle
-          if (read == 0 && thread_msg == 0)
+          // If no messages were read from the ringbuffer and tasks were
+          // executed, idle
+          if (read == 0 && tasks_done == 0)
           {
             std::this_thread::yield();
           }
@@ -407,27 +414,22 @@ namespace ccf
       }
     }
 
-    struct Msg
-    {
-      uint64_t tid;
-    };
-
-    static void init_thread_cb(std::unique_ptr<::threading::Tmsg<Msg>> msg)
-    {
-      LOG_DEBUG_FMT("First thread CB:{}", msg->data.tid);
-    }
-
     bool run_worker()
     {
       LOG_DEBUG_FMT("Running worker thread");
 
       {
-        auto msg = std::make_unique<::threading::Tmsg<Msg>>(&init_thread_cb);
-        msg->data.tid = ccf::threading::get_current_thread_id();
-        ::threading::ThreadMessaging::instance().add_task(
-          msg->data.tid, std::move(msg));
+        auto& job_board = ccf::tasks::get_main_job_board();
+        const auto timeout = std::chrono::milliseconds(100);
 
-        ::threading::ThreadMessaging::instance().run();
+        while (!worker_stop_signal.load())
+        {
+          auto task = job_board.wait_for_task(timeout);
+          if (task != nullptr)
+          {
+            task->do_task();
+          }
+        }
       }
 
       return true;

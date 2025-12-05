@@ -21,7 +21,7 @@ namespace http
       stream_id(stream_id)
     {}
 
-    http2::StreamId get_stream_id() const
+    [[nodiscard]] http2::StreamId get_stream_id() const
     {
       return stream_id;
     }

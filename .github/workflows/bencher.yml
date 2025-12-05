@@ -2,7 +2,7 @@ name: "Benchmarks"
 
 on:
   schedule:
-    - cron: "0 0 * * 0"
+    - cron: "0 8,20 * * 1-5"
   push:
     branches:
       - main
@@ -30,7 +30,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -83,7 +83,7 @@ jobs:
         "JobId=bench_snp-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 

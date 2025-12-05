@@ -376,6 +376,7 @@ add_ccf_static_library(
             ccf_endpoints
             ccfcrypto
             ccf_kv
+            ccf_tasks
             nghttp2
             ${CMAKE_THREAD_LIBS_INIT}
             curl
@@ -556,7 +557,6 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serialized.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/thread_messaging.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
@@ -591,7 +591,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/committable_suffix.cpp
     )
-    target_link_libraries(raft_test PRIVATE ccfcrypto)
+    target_link_libraries(raft_test PRIVATE ccfcrypto ccf_tasks)
 
     add_unit_test(
       raft_enclave_test
@@ -622,7 +622,9 @@ if(BUILD_TESTS)
     add_unit_test(
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
     )
-    target_link_libraries(history_test PRIVATE ccfcrypto http_parser ccf_kv)
+    target_link_libraries(
+      history_test PRIVATE ccfcrypto http_parser ccf_kv ccf_tasks
+    )
 
     add_unit_test(
       encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
@@ -655,23 +657,26 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       historical_queries_test PRIVATE http_parser ccf_kv ccf_endpoints
+                                      ccf_tasks
     )
     add_unit_test(
       indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp
     )
-    target_link_libraries(indexing_test PRIVATE ccf_endpoints ccf_kv)
+    target_link_libraries(indexing_test PRIVATE ccf_endpoints ccf_kv ccf_tasks)
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
     )
-    target_link_libraries(snapshot_test PRIVATE ccf_kv)
+    target_link_libraries(snapshot_test PRIVATE ccf_kv ccf_tasks)
 
     add_unit_test(
       snapshotter_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshotter.cpp
     )
-    target_link_libraries(snapshotter_test PRIVATE ccf_kv ccf_endpoints)
+    target_link_libraries(
+      snapshotter_test PRIVATE ccf_kv ccf_endpoints ccf_tasks
+    )
 
     add_unit_test(
       node_info_json_test
@@ -722,8 +727,14 @@ if(BUILD_TESTS)
       ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
-                            ccf_endpoints ccfcrypto ccf_kv
+      frontend_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser
+              ccf_js
+              ccf_endpoints
+              ccfcrypto
+              ccf_kv
+              ccf_tasks
     )
 
     add_unit_test(
@@ -775,7 +786,7 @@ if(BUILD_TESTS)
       raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
                   src/enclave/thread_local.cpp
     )
-    target_link_libraries(raft_driver PRIVATE ccfcrypto)
+    target_link_libraries(raft_driver PRIVATE ccfcrypto ccf_tasks)
     target_include_directories(raft_driver PRIVATE src/aft)
 
     add_test(
@@ -818,7 +829,7 @@ if(BUILD_TESTS)
     add_picobench(
       history_bench
       SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
-      LINK_LIBS ccf_kv
+      LINK_LIBS ccf_kv ccf_tasks
     )
 
     add_picobench(
@@ -956,10 +967,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME jwt_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
-  )
-
-  add_e2e_test(
     NAME code_update_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
     ADDITIONAL_ARGS
@@ -1003,7 +1010,7 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME programmability
+    NAME programmability_and_jwt
     CONSTITUTION ${RBAC_CONSTITUTION_ARGS}
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
   )
@@ -1057,11 +1064,7 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME connections PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-  )
-
-  add_e2e_test(
-    NAME fuzz_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fuzzing.py
+    NAME tls_stress_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
   )
 
   if(CLIENT_PROTOCOLS_TEST)

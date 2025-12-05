@@ -13,7 +13,7 @@ namespace ccf
     /// Snapshot digest
     ccf::crypto::Sha256Hash hash;
     /// Sequence number to which the snapshot corresponds
-    ccf::kv::Version version;
+    ccf::kv::Version version = 0;
   };
 
   DECLARE_JSON_TYPE(SnapshotHash)

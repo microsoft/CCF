@@ -42,10 +42,12 @@ assert_commit_idx,1,8
 assert_commit_idx,2,8
 assert_commit_idx,3,6 # Node 3 hasn't heard anything for a long time
 
-## When Node 3 reconnects and becomes a PreVoteCandidate
+## When Node 3 reconnects it becomes a PreVoteCandidate
 reconnect_node,3
 periodic_one,3,100
 assert_detail,3,leadership_state,PreVoteCandidate
+
+dispatch_all
 
 ## Node 3's candidacy does not cause Node 0 to step down
 dispatch_single,3,0

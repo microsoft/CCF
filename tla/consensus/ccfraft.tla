@@ -656,7 +656,7 @@ BecomePreVoteCandidate(i) ==
     /\ membershipState[i] \in (MembershipStates \ {RetiredCommitted})
     \* Only servers that are followers/candidates can become pre-vote-candidates
     \* Candidates can time out and become pre-vote-candidates for the next term
-    /\ leadershipState[i] \in {Follower, Candidate}
+    /\ leadershipState[i] \in {Follower, PreVoteCandidate, Candidate}
     /\
         \* Check that the reconfiguration which added this node is at least committable
         \/ \E c \in DOMAIN configurations[i] :
@@ -1375,7 +1375,7 @@ Fairness ==
     /\ \A s \in Servers : WF_vars(SignCommittableMessages(s))
     /\ \A s \in Servers : WF_vars(AdvanceCommitIndex(s))
     /\ \A s \in Servers : WF_vars(AppendRetiredCommitted(s))
-    /\ \A s \in Servers : WF_vars(BecomeCandidateFromPreVoteCandidate(s))
+    /\ \A s \in Servers : SF_vars(BecomeCandidateFromPreVoteCandidate(s))
     /\ \A s \in Servers : WF_vars(BecomeLeader(s))
     /\ \A s \in Servers : WF_vars(Timeout(s))
     /\ \A s \in Servers : WF_vars(ChangeConfiguration(s))
@@ -1710,20 +1710,6 @@ NeverCommitEntryPrevTermsProp ==
         \* If the commitIndex of a leader changes, the log entry's term that the new commitIndex
         \* points to equals the leader's term.
         commitIndex'[i] > commitIndex[i] => log[i][commitIndex'[i]].term = currentTerm'[i] ]_vars
-
-LogMatchingProp ==
-    \A i, j \in Servers : []<>(log[i] = log[j])
-
-LeaderProp ==
-    \* There is repeatedly a non-retired leader.
-    []<><<\E i \in Servers : leadershipState[i] = Leader /\ membershipState[i] # RetiredCommitted>>_vars
-
-VotesGrantedMonotonicProp ==
-  \A i \in Servers: [][
-    /\ leadershipState[i] = leadershipState'[i]
-    /\ currentTerm[i] = currentTerm'[i]
-    => votesGranted[i] \subseteq votesGranted'[i]
-  ]_vars
 
 ------------------------------------------------------------------------------
 \* Refinement of the more high-level specification abs.tla that abstracts the

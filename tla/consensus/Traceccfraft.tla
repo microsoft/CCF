@@ -182,8 +182,6 @@ IsBecomeCandidate ==
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
-\* Transition to candidate on receipt to allow using RcvProposeVoteRequest
-\* This means that the leadership state variable will be out of sync until the subsequent IsRcvProposeVoteBecomeCandidate
 IsRcvProposeVoteRequest ==
   /\ IsEvent("recv_propose_request_vote")
   /\ LET i == logline.msg.state.node_id
@@ -195,16 +193,6 @@ IsRcvProposeVoteRequest ==
         /\ RcvProposeVoteRequest(i,j)
   /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
   /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
-  /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
-
-IsRcvProposeVoteBecomeCandidate ==
-  /\ IsEvent("become_candidate")
-  /\ UNCHANGED vars
-  /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
-  /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
-  /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
-  /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-  /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
   /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsBecomeLeader ==
@@ -443,7 +431,6 @@ IsBecomeFollower ==
     \* We don't assert committable and last idx here, as the spec and implementation are out of sync until
     \* IsSendAppendEntriesResponse or IsSendRequestVote (in the candidate path)
     /\ leadershipState[logline.msg.state.node_id] # Leader
-    /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])

@@ -1,3 +1,4 @@
+pre_vote_enabled,true
 # Set up 5 node network
 start_node,0
 assert_detail,0,leadership_state,Leader

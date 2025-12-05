@@ -63,7 +63,7 @@ namespace ccf::indexing
     // Returns true if it looks like there's still a gap to fill. Useful for
     // testing
     bool update_strategies(
-      std::chrono::milliseconds elapsed, const ccf::TxID& newly_committed)
+      std::chrono::milliseconds /*elapsed*/, const ccf::TxID& newly_committed)
     {
       update_commit(newly_committed);
 
@@ -71,7 +71,7 @@ namespace ccf::indexing
 
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
-      for (auto& strategy : strategies)
+      for (const auto& strategy : strategies)
       {
         strategy->tick();
 
@@ -112,7 +112,7 @@ namespace ccf::indexing
           {
             const ccf::TxID tx_id = store->current_txid();
 
-            for (auto& strategy : strategies)
+            for (const auto& strategy : strategies)
             {
               const auto next_requested = strategy->next_requested();
               if (

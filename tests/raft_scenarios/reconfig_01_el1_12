@@ -1,3 +1,4 @@
+pre_vote_enabled,true
 # Reconfigures from [0, 1] to [1, 2], with 1 becoming leader while the reconfiguration is in-progress
 start_node,0
 emit_signature,2

@@ -13,7 +13,6 @@ import infra.e2e_args
 import infra.proposal
 import suite.test_requirements as reqs
 from infra.jwt_issuer import get_jwt_issuers, get_jwt_keys
-from infra.runner import ConcurrentRunner
 import ca_certs
 import ccf.ledger
 from ccf.tx_id import TxID
@@ -685,34 +684,3 @@ def run_ca_cert(args):
     ) as network:
         network.start_and_open(args)
         ca_certs.test_cert_store(network, args)
-
-
-if __name__ == "__main__":
-    cr = ConcurrentRunner()
-
-    cr.add(
-        "auto",
-        run_auto,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        jwt_key_refresh_interval_s=1,
-        issuer_port=12345,
-    )
-
-    cr.add(
-        "manual",
-        run_manual,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        jwt_key_refresh_interval_s=100000,
-        issuer_port=12346,
-    )
-
-    cr.add(
-        "ca_cert",
-        run_ca_cert,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
-
-    cr.run()

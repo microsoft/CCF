@@ -1,3 +1,4 @@
+pre_vote_enabled,true
 # This scenario checks that an election completes successfully and with the right 
 # quorums when a reconfiguration is in flight
 # Note: This is a fix for the issue described in https://github.com/microsoft/CCF/issues/3948
