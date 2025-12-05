@@ -2007,6 +2007,7 @@ TEST_CASE("Valid merkle proof from receipts")
 
 TEST_CASE("Cache size estimation")
 {
+  ccf::crypto::openssl_sha256_init();
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
 
@@ -2042,10 +2043,12 @@ TEST_CASE("Cache size estimation")
   cache.tick(std::chrono::milliseconds(1000));
 
   REQUIRE(cache.get_estimated_store_cache_size() == 0);
+  ccf::crypto::openssl_sha256_shutdown();
 }
 
 TEST_CASE("adjust_ranges")
 {
+  ccf::crypto::openssl_sha256_init();
   using SeqNoSet = std::set<ccf::SeqNo>;
 
   struct AdjustRangesAccessor : public ccf::historical::StateCacheImpl
@@ -2142,6 +2145,7 @@ TEST_CASE("adjust_ranges")
       REQUIRE(actual_removed == expected_removed);
     }
   }
+  ccf::crypto::openssl_sha256_shutdown();
 }
 
 int main(int argc, char** argv)
