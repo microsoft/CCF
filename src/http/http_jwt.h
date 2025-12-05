@@ -14,7 +14,7 @@
 
 namespace http
 {
-  enum class JwtCryptoAlgorithm
+  enum class JwtCryptoAlgorithm : uint8_t
   {
     RS256,
     ES256,
@@ -26,7 +26,7 @@ namespace http
 
   struct JwtHeader
   {
-    JwtCryptoAlgorithm alg;
+    JwtCryptoAlgorithm alg{};
     std::string kid;
   };
   DECLARE_JSON_TYPE(JwtHeader)
@@ -34,7 +34,7 @@ namespace http
 
   struct JwtPayload
   {
-    size_t exp;
+    size_t exp{};
     std::string iss;
     std::optional<size_t> nbf;
     std::optional<std::string> tid;
@@ -59,7 +59,7 @@ namespace http
     static bool parse_auth_scheme(
       std::string_view& auth_header_value, std::string& error_reason)
     {
-      auto next_space = auth_header_value.find(" ");
+      auto next_space = auth_header_value.find(' ');
       if (next_space == std::string::npos)
       {
         error_reason = "Authorization header only contains one field";
