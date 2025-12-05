@@ -515,9 +515,8 @@ namespace ccf
             auto primary_id = consensus->primary();
             if (primary_id.has_value())
             {
-              const auto address = node::get_redirect_address_for_node(
-                args, args.tx, primary_id.value());
-              if (!address.has_value())
+              auto info = nodes->get(primary_id.value());
+              if (info)
               {
                 auto& interface_id =
                   args.rpc_ctx->get_session_context()->interface_id;
@@ -608,9 +607,8 @@ namespace ccf
             auto primary_id = consensus->primary();
             if (primary_id.has_value())
             {
-              const auto address = node::get_redirect_address_for_node(
-                args, args.tx, primary_id.value());
-              if (!address.has_value())
+              auto info = nodes->get(primary_id.value());
+              if (info)
               {
                 auto& interface_id =
                   args.rpc_ctx->get_session_context()->interface_id;
@@ -1330,39 +1328,6 @@ namespace ccf
             http::headers::LOCATION,
             fmt::format("https://{}/node/primary", address.value()));
           args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
-          if (consensus != nullptr)
-          {
-            auto primary_id = consensus->primary();
-            if (!primary_id.has_value())
-            {
-              args.rpc_ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "Primary unknown");
-              return;
-            }
-
-            auto nodes = args.tx.ro(this->network.nodes);
-            auto info = nodes->get(primary_id.value());
-            if (info)
-            {
-              auto& interface_id =
-                args.rpc_ctx->get_session_context()->interface_id;
-              if (!interface_id.has_value())
-              {
-                args.rpc_ctx->set_error(
-                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                  ccf::errors::InternalError,
-                  "Cannot redirect non-RPC request.");
-                return;
-              }
-              const auto& address =
-                info->rpc_interfaces[interface_id.value()].published_address;
-              args.rpc_ctx->set_response_header(
-                http::headers::LOCATION,
-                fmt::format("https://{}/node/primary", address));
-            }
-          }
         }
       };
       make_read_only_endpoint(
