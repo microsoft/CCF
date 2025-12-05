@@ -15,9 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- CheckQuorum now requires a quorum in every configuration (#7375)
+- CheckQuorum now requires a quorum in every configuration (#7375).
 - `read_ledger.py` validates the offsets table in committed ledger files, reporting an error if this is truncated (#7501).
-- Allow carriage returns in PEM certificatees (#7507)
+- Allow carriage returns in PEM certificatees (#7507).
+- Fixed a bug in calculation of historical query cache size, which could have resulted in evicted unnecessarily (#7511).
 
 ### Changed
 
