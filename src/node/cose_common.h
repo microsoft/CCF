@@ -159,11 +159,9 @@ namespace ccf::cose
     return {leaf_digest.h.begin(), leaf_digest.h.end()};
   }
 
-  static CcfCoseReceiptPhdr decode_ccf_receipt_phdr(QCBORDecodeContext& ctx)
+  static void decode_receipt_top_level_phdr(
+    QCBORDecodeContext& ctx, CcfCoseReceiptPhdr& phdr)
   {
-    QCBORDecode_EnterBstrWrapped(&ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, NULL);
-    QCBORDecode_EnterMap(&ctx, NULL);
-
     enum
     {
       ALG_INDEX,
@@ -203,8 +201,6 @@ namespace ccf::cose
         qcbor_err_to_str(qcbor_result)));
     }
 
-    CcfCoseReceiptPhdr phdr{};
-
     if (header_items[ALG_INDEX].uDataType == QCBOR_TYPE_NONE)
     {
       throw ccf::cose::COSEDecodeError(
@@ -234,7 +230,10 @@ namespace ccf::cose
         ccf::crypto::COSE_PHEADER_VDS_MERKLE_TREE,
         phdr.vds));
     }
+  }
 
+  static void decode_cwt_claims(QCBORDecodeContext& ctx, CwtClaims& cwt)
+  {
     QCBORDecode_EnterMapFromMapN(&ctx, crypto::COSE_PHEADER_KEY_CWT);
     auto decode_error = QCBORDecode_GetError(&ctx);
     if (decode_error != QCBOR_SUCCESS)
@@ -279,25 +278,28 @@ namespace ccf::cose
     {
       throw ccf::cose::COSEDecodeError("CWT claims missing 'iat' field");
     }
-    phdr.cwt.iat = cwt_items[IAT_INDEX].val.int64;
+    cwt.iat = cwt_items[IAT_INDEX].val.int64;
 
     if (cwt_items[ISS_INDEX].uDataType == QCBOR_TYPE_NONE)
     {
       throw ccf::cose::COSEDecodeError("CWT claims missing 'iss' field");
     }
-    phdr.cwt.iss = tstring_to_string(cwt_items[ISS_INDEX]);
+    cwt.iss = tstring_to_string(cwt_items[ISS_INDEX]);
 
     if (cwt_items[SUB_INDEX].uDataType == QCBOR_TYPE_NONE)
     {
       throw ccf::cose::COSEDecodeError("CWT claims missing 'sub' field");
     }
-    phdr.cwt.sub = tstring_to_string(cwt_items[SUB_INDEX]);
+    cwt.sub = tstring_to_string(cwt_items[SUB_INDEX]);
 
-    QCBORDecode_ExitMap(&ctx); // cwt
+    QCBORDecode_ExitMap(&ctx);
+  }
 
+  static void decode_ccf_claims(QCBORDecodeContext& ctx, CcfClaims& ccf)
+  {
     QCBORDecode_EnterMapFromMapSZ(
       &ctx, ccf::crypto::COSE_PHEADER_KEY_CCF.c_str());
-    decode_error = QCBORDecode_GetError(&ctx);
+    auto decode_error = QCBORDecode_GetError(&ctx);
     if (decode_error != QCBOR_SUCCESS)
     {
       throw COSEDecodeError(
@@ -332,9 +334,21 @@ namespace ccf::cose
     {
       throw ccf::cose::COSEDecodeError("CCF claims missing 'txid' field");
     }
-    phdr.ccf.txid = tstring_to_string(ccf_items[TXID_INDEX]);
+    ccf.txid = tstring_to_string(ccf_items[TXID_INDEX]);
 
-    QCBORDecode_ExitMap(&ctx); // ccf
+    QCBORDecode_ExitMap(&ctx);
+  }
+
+  static CcfCoseReceiptPhdr decode_ccf_receipt_phdr(QCBORDecodeContext& ctx)
+  {
+    QCBORDecode_EnterBstrWrapped(&ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, NULL);
+    QCBORDecode_EnterMap(&ctx, NULL);
+
+    CcfCoseReceiptPhdr phdr{};
+
+    decode_receipt_top_level_phdr(ctx, phdr);
+    decode_cwt_claims(ctx, phdr.cwt);
+    decode_ccf_claims(ctx, phdr.ccf);
 
     QCBORDecode_ExitMap(&ctx);
     QCBORDecode_ExitBstrWrapped(&ctx);
