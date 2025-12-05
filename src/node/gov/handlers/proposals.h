@@ -48,8 +48,9 @@ namespace ccf::gov::endpoints
             ProposalSubmissionResult::Status::DuplicateInWindow,
             *colliding_proposal_id};
         }
-        throw std::logic_error(
-          fmt::format("Failed to get value for existing key in {}", ccf::Tables::COSE_RECENT_PROPOSALS));
+        throw std::logic_error(fmt::format(
+          "Failed to get value for existing key in {}",
+          ccf::Tables::COSE_RECENT_PROPOSALS));
       }
 
       std::vector<std::string> replay_keys;
@@ -149,7 +150,8 @@ namespace ccf::gov::endpoints
       ccf::jsgov::VoteFailures vote_failures = {};
 
       const std::string_view proposal{
-        reinterpret_cast<const char*>(proposal_bytes.data()), proposal_bytes.size()};
+        reinterpret_cast<const char*>(proposal_bytes.data()),
+        proposal_bytes.size()};
 
       auto* proposal_info_handle = tx.template rw<ccf::jsgov::ProposalInfoMap>(
         jsgov::Tables::PROPOSALS_INFO);
@@ -883,169 +885,169 @@ namespace ccf::gov::endpoints
       .install();
 
     //// implementation of TSP interface Ballots
-    auto submit_ballot =
-      [&](ccf::endpoints::EndpointContext& ctx, ApiVersion api_version) {
-        switch (api_version)
+    auto submit_ballot = [&](
+                           ccf::endpoints::EndpointContext& ctx,
+                           ApiVersion api_version) {
+      switch (api_version)
+      {
+        case ApiVersion::preview_v1:
+        case ApiVersion::v1:
+        default:
         {
-          case ApiVersion::preview_v1:
-          case ApiVersion::v1:
-          default:
+          const auto& cose_ident =
+            ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
+
+          ccf::ProposalId proposal_id;
+          if (!detail::try_parse_signed_proposal_id(
+                cose_ident, ctx.rpc_ctx, proposal_id))
           {
-            const auto& cose_ident =
-              ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
-
-            ccf::ProposalId proposal_id;
-            if (!detail::try_parse_signed_proposal_id(
-                  cose_ident, ctx.rpc_ctx, proposal_id))
-            {
-              return;
-            }
-
-            ccf::MemberId member_id;
-            if (!detail::try_parse_signed_member_id(
-                  cose_ident, ctx.rpc_ctx, member_id))
-            {
-              return;
-            }
-
-            // Look up proposal info and check expected state
-            auto* proposal_info_handle =
-              ctx.tx.template rw<ccf::jsgov::ProposalInfoMap>(
-                jsgov::Tables::PROPOSALS_INFO);
-            auto proposal_info = proposal_info_handle->get(proposal_id);
-            if (!proposal_info.has_value())
-            {
-              detail::set_gov_error(
-                ctx.rpc_ctx,
-                HTTP_STATUS_NOT_FOUND,
-                ccf::errors::ProposalNotFound,
-                fmt::format("Could not find proposal {}.", proposal_id));
-              return;
-            }
-
-            if (proposal_info->state != ccf::ProposalState::OPEN)
-            {
-              detail::set_gov_error(
-                ctx.rpc_ctx,
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::ProposalNotOpen,
-                fmt::format(
-                  "Proposal {} is currently in state {} - only {} proposals "
-                  "can receive votes",
-                  proposal_id,
-                  proposal_info->state,
-                  ProposalState::OPEN));
-              return;
-            }
-
-            // Look up proposal contents
-            auto* proposals_handle = ctx.tx.template ro<ccf::jsgov::ProposalMap>(
-              ccf::jsgov::Tables::PROPOSALS);
-            const auto proposal = proposals_handle->get(proposal_id);
-            if (!proposal.has_value())
-            {
-              detail::set_gov_error(
-                ctx.rpc_ctx,
-                HTTP_STATUS_NOT_FOUND,
-                ccf::errors::ProposalNotFound,
-                fmt::format("Could not find proposal {}.", proposal_id));
-              return;
-            }
-
-            // Parse and validate incoming ballot
-            const auto params = nlohmann::json::parse(cose_ident.content);
-            const auto ballot_it = params.find("ballot");
-            if (ballot_it == params.end() || !ballot_it.value().is_string())
-            {
-              detail::set_gov_error(
-                ctx.rpc_ctx,
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidInput,
-                "Signed request body is not a JSON object containing required "
-                "string field \"ballot\"");
-              return;
-            }
-
-            // Access constitution to evaluate ballots
-            const auto constitution =
-              ctx.tx.template ro<ccf::Constitution>(ccf::Tables::CONSTITUTION)
-                ->get();
-            if (!constitution.has_value())
-            {
-              detail::set_gov_error(
-                ctx.rpc_ctx,
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "No constitution is set - ballots cannot be evaluated");
-              return;
-            }
-
-            const auto ballot = ballot_it.value().get<std::string>();
-
-            const auto info_ballot_it = proposal_info->ballots.find(member_id);
-            if (info_ballot_it != proposal_info->ballots.end())
-            {
-              // If ballot matches previously submitted, aim for idempotent
-              // matching response
-              if (info_ballot_it->second == ballot)
-              {
-                const auto response_body =
-                  detail::convert_proposal_to_api_format(
-                    proposal_id, proposal_info.value());
-
-                ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
-                return;
-              }
-
-              detail::set_gov_error(
-                ctx.rpc_ctx,
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::VoteAlreadyExists,
-                fmt::format(
-                  "Different ballot already submitted by {} for {}.",
-                  member_id,
-                  proposal_id));
-              return;
-            }
-
-            // Store newly provided ballot
-            proposal_info->ballots.insert_or_assign(
-              info_ballot_it, member_id, ballot_it.value().get<std::string>());
-
-            detail::record_cose_governance_history(
-              ctx.tx, cose_ident.member_id, cose_ident.envelope);
-
-            detail::resolve_proposal(
-              node_context,
-              network,
-              ctx.tx,
-              proposal_id,
-              proposal.value(),
-              proposal_info.value(),
-              constitution.value());
-
-            if (proposal_info->state == ProposalState::FAILED)
-            {
-              // If the proposal failed to apply, we want to discard the tx and
-              // not apply its side-effects to the KV state, because it may have
-              // failed mid-execution (eg - thrown an exception), in which case
-              // we do not want to apply partial writes
-              detail::set_gov_error(
-                ctx.rpc_ctx,
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                fmt::format("{}", proposal_info->failure));
-              return;
-            }
-
-            const auto response_body = detail::convert_proposal_to_api_format(
-              proposal_id, proposal_info.value());
-
-            ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
             return;
           }
+
+          ccf::MemberId member_id;
+          if (!detail::try_parse_signed_member_id(
+                cose_ident, ctx.rpc_ctx, member_id))
+          {
+            return;
+          }
+
+          // Look up proposal info and check expected state
+          auto* proposal_info_handle =
+            ctx.tx.template rw<ccf::jsgov::ProposalInfoMap>(
+              jsgov::Tables::PROPOSALS_INFO);
+          auto proposal_info = proposal_info_handle->get(proposal_id);
+          if (!proposal_info.has_value())
+          {
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ProposalNotFound,
+              fmt::format("Could not find proposal {}.", proposal_id));
+            return;
+          }
+
+          if (proposal_info->state != ccf::ProposalState::OPEN)
+          {
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::ProposalNotOpen,
+              fmt::format(
+                "Proposal {} is currently in state {} - only {} proposals "
+                "can receive votes",
+                proposal_id,
+                proposal_info->state,
+                ProposalState::OPEN));
+            return;
+          }
+
+          // Look up proposal contents
+          auto* proposals_handle = ctx.tx.template ro<ccf::jsgov::ProposalMap>(
+            ccf::jsgov::Tables::PROPOSALS);
+          const auto proposal = proposals_handle->get(proposal_id);
+          if (!proposal.has_value())
+          {
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ProposalNotFound,
+              fmt::format("Could not find proposal {}.", proposal_id));
+            return;
+          }
+
+          // Parse and validate incoming ballot
+          const auto params = nlohmann::json::parse(cose_ident.content);
+          const auto ballot_it = params.find("ballot");
+          if (ballot_it == params.end() || !ballot_it.value().is_string())
+          {
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidInput,
+              "Signed request body is not a JSON object containing required "
+              "string field \"ballot\"");
+            return;
+          }
+
+          // Access constitution to evaluate ballots
+          const auto constitution =
+            ctx.tx.template ro<ccf::Constitution>(ccf::Tables::CONSTITUTION)
+              ->get();
+          if (!constitution.has_value())
+          {
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "No constitution is set - ballots cannot be evaluated");
+            return;
+          }
+
+          const auto ballot = ballot_it.value().get<std::string>();
+
+          const auto info_ballot_it = proposal_info->ballots.find(member_id);
+          if (info_ballot_it != proposal_info->ballots.end())
+          {
+            // If ballot matches previously submitted, aim for idempotent
+            // matching response
+            if (info_ballot_it->second == ballot)
+            {
+              const auto response_body = detail::convert_proposal_to_api_format(
+                proposal_id, proposal_info.value());
+
+              ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
+              return;
+            }
+
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::VoteAlreadyExists,
+              fmt::format(
+                "Different ballot already submitted by {} for {}.",
+                member_id,
+                proposal_id));
+            return;
+          }
+
+          // Store newly provided ballot
+          proposal_info->ballots.insert_or_assign(
+            info_ballot_it, member_id, ballot_it.value().get<std::string>());
+
+          detail::record_cose_governance_history(
+            ctx.tx, cose_ident.member_id, cose_ident.envelope);
+
+          detail::resolve_proposal(
+            node_context,
+            network,
+            ctx.tx,
+            proposal_id,
+            proposal.value(),
+            proposal_info.value(),
+            constitution.value());
+
+          if (proposal_info->state == ProposalState::FAILED)
+          {
+            // If the proposal failed to apply, we want to discard the tx and
+            // not apply its side-effects to the KV state, because it may have
+            // failed mid-execution (eg - thrown an exception), in which case
+            // we do not want to apply partial writes
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format("{}", proposal_info->failure));
+            return;
+          }
+
+          const auto response_body = detail::convert_proposal_to_api_format(
+            proposal_id, proposal_info.value());
+
+          ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
+          return;
         }
-      };
+      }
+    };
     registry
       .make_endpoint(
         "/members/proposals/{proposalId}/ballots/{memberId}:submit",

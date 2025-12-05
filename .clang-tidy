@@ -59,5 +59,5 @@ Checks: >
   -readability-magic-numbers,
 
 WarningsAsErrors: '*'
-HeaderFilterRegex: '(include\/ccf\/|src\/(udp|tcp|tls|tasks|snapshots|service|quic|pal|apps|clients|common|consensus|ds|enclave|endpoints|host|indexing|http|node\/gov)\/).*'
+HeaderFilterRegex: '(include\/ccf\/|src\/(udp|tcp|tls|tasks|snapshots|service|quic|pal|apps|clients|common|consensus|ds|enclave|endpoints|host|indexing|http|node\/gov|node\/rpc)\/).*'
 FormatStyle:     'file'

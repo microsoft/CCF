@@ -13,7 +13,8 @@ namespace ccf::gov::endpoints::detail
     return {std::make_shared<MemberCOSESign1AuthnPolicy>(gov_msg_type)};
   }
 
-  inline AuthnPolicies active_member_sig_only_policies(const std::string& gov_msg_type)
+  inline AuthnPolicies active_member_sig_only_policies(
+    const std::string& gov_msg_type)
   {
     return {std::make_shared<ActiveMemberCOSESign1AuthnPolicy>(gov_msg_type)};
   }

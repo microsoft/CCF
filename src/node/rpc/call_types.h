@@ -33,7 +33,7 @@ namespace ccf
     struct Out
     {
       ccf::TxID transaction_id;
-      TxStatus status;
+      TxStatus status{};
     };
   };
 
@@ -42,12 +42,12 @@ namespace ccf
     struct Version
     {
       std::string digest;
-      ccf::CodeStatus status;
+      ccf::CodeStatus status{};
     };
 
     struct Out
     {
-      std::vector<Version> versions = {};
+      std::vector<Version> versions;
     };
   };
 
@@ -61,7 +61,7 @@ namespace ccf
 
     struct Out
     {
-      std::vector<GetSnpHostDataMap::HostData> host_data = {};
+      std::vector<GetSnpHostDataMap::HostData> host_data;
     };
   };
 
@@ -69,11 +69,11 @@ namespace ccf
   {
     struct Out
     {
-      ServiceStatus service_status;
+      ServiceStatus service_status{};
       ccf::crypto::Pem service_certificate;
       std::optional<ccf::View> current_view;
       std::optional<NodeId> primary_id;
-      size_t recovery_count;
+      size_t recovery_count{};
       nlohmann::json service_data;
       std::optional<ccf::TxID> current_service_create_txid;
     };
@@ -84,11 +84,11 @@ namespace ccf
     struct NodeInfo
     {
       NodeId node_id;
-      NodeStatus status;
-      bool primary;
+      NodeStatus status{};
+      bool primary{};
       ccf::NodeInfoNetwork::RpcInterfaces rpc_interfaces;
       nlohmann::json node_data;
-      ccf::SeqNo last_written;
+      ccf::SeqNo last_written{};
     };
 
     using Out = NodeInfo;
@@ -98,7 +98,7 @@ namespace ccf
   {
     struct Out
     {
-      std::vector<GetNode::NodeInfo> nodes = {};
+      std::vector<GetNode::NodeInfo> nodes;
     };
   };
 
@@ -111,7 +111,7 @@ namespace ccf
   {
     struct In
     {
-      std::vector<std::uint8_t> receipt = {};
+      std::vector<std::uint8_t> receipt;
     };
 
     struct Out

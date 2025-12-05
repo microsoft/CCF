@@ -41,9 +41,9 @@ namespace ccf
     ccf::pal::Mutex open_lock;
     bool is_open_ = false;
 
-    ccf::kv::Consensus* consensus;
+    ccf::kv::Consensus* consensus{nullptr};
     std::shared_ptr<AbstractForwarder> cmd_forwarder;
-    ccf::kv::TxHistory* history;
+    ccf::kv::TxHistory* history{nullptr};
 
     size_t sig_tx_interval = 5000;
     std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
@@ -54,7 +54,7 @@ namespace ccf
 
     void update_consensus()
     {
-      auto c = tables.get_consensus().get();
+      auto* c = tables.get_consensus().get();
 
       if (consensus != c)
       {
@@ -124,7 +124,7 @@ namespace ccf
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
       auto interface_id = ctx->get_session_context()->interface_id;
-      if (consensus && interface_id)
+      if ((consensus != nullptr) && interface_id)
       {
         if (!node_configuration_subsystem)
         {
@@ -137,7 +137,7 @@ namespace ccf
           }
         }
 
-        auto& ncs = node_configuration_subsystem->get();
+        const auto& ncs = node_configuration_subsystem->get();
 
         const auto& required_features = endpoint->required_operator_features;
         if (!required_features.empty())
@@ -196,7 +196,9 @@ namespace ccf
         else
         {
           auto icfg = ncs.node_config.network.rpc_interfaces.at(*interface_id);
-          if (icfg.endorsement->authority == Authority::UNSECURED)
+          if (
+            icfg.endorsement.has_value() &&
+            icfg.endorsement->authority == Authority::UNSECURED)
           {
             // Unsecured interfaces are opt-in only.
             LOG_FAIL_FMT(
@@ -267,7 +269,8 @@ namespace ccf
             return std::nullopt;
           }
 
-          const auto node_it = target_node_its[rand() % target_node_its.size()];
+          const auto node_it =
+            target_node_its[random() % target_node_its.size()];
           if (node_it != nodes.end())
           {
             const auto& interfaces = node_it->second.rpc_interfaces;
@@ -427,13 +430,15 @@ namespace ccf
           // First request on this session - assign the active term
           session_ctx->active_view = current_view;
         }
-        else if (current_view != session_ctx->active_view.value())
+        // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
+        else if (current_view != *session_ctx->active_view)
         {
           auto msg = fmt::format(
             "Potential loss of session consistency on session {}. Started "
             "in view {}, now in view {}. Closing session.",
             session_ctx->client_session_id,
-            session_ctx->active_view.value(),
+            *session_ctx // NOLINT(bugprone-unchecked-optional-access)
+               ->active_view,
             current_view);
           LOG_INFO_FMT("{}", msg);
 
@@ -470,14 +475,11 @@ namespace ccf
         {
           break;
         }
-        else
-        {
-          // Collate error details
-          error_details.emplace_back(ODataAuthErrorDetails{
-            policy->get_security_scheme_name(),
-            ccf::errors::InvalidAuthenticationInfo,
-            auth_error_reason});
-        }
+        // Collate error details
+        error_details.emplace_back(ODataAuthErrorDetails{
+          policy->get_security_scheme_name(),
+          ccf::errors::InvalidAuthenticationInfo,
+          auth_error_reason});
       }
 
       if (identity == nullptr)
@@ -488,21 +490,22 @@ namespace ccf
         // Return collated error details for the auth policies
         // declared in the request
         std::vector<nlohmann::json> json_details;
+        json_details.reserve(error_details.size());
         for (auto& details : error_details)
         {
-          json_details.push_back(details);
+          json_details.emplace_back(details);
         }
         ctx->set_error(
           HTTP_STATUS_UNAUTHORIZED,
           ccf::errors::InvalidAuthenticationInfo,
           "Invalid authentication credentials.",
-          std::move(json_details));
+          json_details);
       }
 
       return identity;
     }
 
-    std::chrono::milliseconds get_forwarding_timeout(
+    [[nodiscard]] std::chrono::milliseconds get_forwarding_timeout(
       std::shared_ptr<ccf::RpcContextImpl> ctx) const
     {
       auto r = std::chrono::milliseconds(3'000);
@@ -510,12 +513,13 @@ namespace ccf
       auto interface_id = ctx->get_session_context()->interface_id;
       if (interface_id.has_value())
       {
-        auto& ncs = node_configuration_subsystem->get();
+        const auto& ncs = node_configuration_subsystem->get();
         auto rit = ncs.node_config.network.rpc_interfaces.find(*interface_id);
         if (rit != ncs.node_config.network.rpc_interfaces.end())
         {
           if (rit->second.forwarding_timeout_ms.has_value())
           {
+            // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
             r = std::chrono::milliseconds(*rit->second.forwarding_timeout_ms);
           }
         }
@@ -526,8 +530,8 @@ namespace ccf
 
     void forward(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
-      ccf::kv::ReadOnlyTx& tx,
-      const endpoints::EndpointDefinitionPtr& endpoint)
+      ccf::kv::ReadOnlyTx& /*tx*/,
+      const endpoints::EndpointDefinitionPtr& /*endpoint*/)
     {
       // HTTP/2 does not support forwarding
       if (ctx->get_http_version() == HttpVersion::HTTP2)
@@ -540,7 +544,7 @@ namespace ccf
         return;
       }
 
-      if (!cmd_forwarder || !consensus)
+      if (!cmd_forwarder || (consensus == nullptr))
       {
         ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -602,8 +606,6 @@ namespace ccf
       // Ensure future requests on this session are forwarded for session
       // consistency
       ctx->get_session_context()->is_forwarding = true;
-
-      return;
     }
 
     void process_command(std::shared_ptr<ccf::RpcContextImpl> ctx)
@@ -708,14 +710,15 @@ namespace ccf
           if (ctx->get_session_context()->interface_id.has_value())
           {
             redirections = get_redirections_config(
-              ctx->get_session_context()->interface_id.value());
+              // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
+              *ctx->get_session_context()->interface_id);
           }
 
           // If a redirections config was specified, then redirections are used
           // and no forwarding is done
           if (redirections.has_value())
           {
-            if (check_redirect(*tx_p, ctx, endpoint, redirections.value()))
+            if (check_redirect(*tx_p, ctx, endpoint, *redirections))
             {
               return;
             }
@@ -769,10 +772,7 @@ namespace ccf
             {
               return;
             }
-            else
-            {
-              args.caller = std::move(identity);
-            }
+            args.caller = std::move(identity);
           }
 
           endpoints.execute_endpoint(endpoint, args);
@@ -793,7 +793,8 @@ namespace ccf
           {
             return;
           }
-          else if (args.owned_tx == nullptr)
+
+          if (args.owned_tx == nullptr)
           {
             LOG_FAIL_FMT(
               "Bad endpoint: During execution of {} {}, returned a non-pending "
@@ -945,8 +946,6 @@ namespace ccf
 
       static constexpr size_t retry_after_seconds = 3;
       ctx->set_response_header(http::headers::RETRY_AFTER, retry_after_seconds);
-
-      return;
     }
 
   public:
@@ -956,9 +955,7 @@ namespace ccf
       ccf::AbstractNodeContext& node_context_) :
       tables(tables_),
       endpoints(handlers_),
-      node_context(node_context_),
-      consensus(nullptr),
-      history(nullptr)
+      node_context(node_context_)
     {}
 
     void set_sig_intervals(
@@ -998,7 +995,7 @@ namespace ccf
       if (endpoints.request_needs_root(ctx))
       {
         update_history();
-        if (history)
+        if (history != nullptr)
         {
           // Warning: Retrieving the current TxID and root from the history
           // should only ever be used for the proposal creation endpoint and
