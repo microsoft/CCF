@@ -947,7 +947,7 @@ AdvanceCommitIndex(i) ==
                                    source      |-> i,
                                    dest        |-> j ]
                         IN Send(msg)
-            ELSE UNCHANGED <<messages>>
+            ELSE UNCHANGED <<messageVars>>
         /\ retirementCompleted' = [retirementCompleted EXCEPT ![i] = NextRetirementCompleted(retirementCompleted[i], configurations[i], log[i], commitIndex'[i], i)]
     /\ UNCHANGED <<preVoteStatus, candidateVars, leaderVars, log, currentTerm, votedFor, isNewFollower, hasJoined>>
 

@@ -1,4 +1,7 @@
 pre_vote_enabled,false
+# This test verifies the candidate selection criteria 
+# it is easier to create specific ledgers without pre-vote
+
 # Node 0 is the start node
 start_node,0
 assert_detail,0,leadership_state,Leader

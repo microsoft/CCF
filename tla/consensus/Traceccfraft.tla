@@ -473,6 +473,7 @@ TraceNext ==
     \/ IsExecuteAppendEntries
 
     \/ IsRcvProposeVoteRequest
+    \/ IsRcvProposeVoteBecomeCandidate
 
     \/ IsDropPendingTo
 

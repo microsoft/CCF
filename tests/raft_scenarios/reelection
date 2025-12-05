@@ -1,4 +1,3 @@
-pre_vote_enabled,true
 # Test what happens when a node is re-elected, and receives messages from previous terms
 start_node,0
 emit_signature,2

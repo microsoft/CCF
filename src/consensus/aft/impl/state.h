@@ -149,7 +149,7 @@ namespace aft
 
   struct State
   {
-    State(ccf::NodeId node_id_, bool pre_vote_enabled_ = false) :
+    State(ccf::NodeId node_id_, bool pre_vote_enabled_ = true) :
       node_id(std::move(node_id_)),
       pre_vote_enabled(pre_vote_enabled_)
     {}
@@ -191,7 +191,7 @@ namespace aft
     // that index itself is committed
     std::optional<ccf::SeqNo> retired_committed_idx = std::nullopt;
 
-    bool pre_vote_enabled = false;
+    bool pre_vote_enabled = true;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(State);
   DECLARE_JSON_REQUIRED_FIELDS(
