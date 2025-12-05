@@ -2,10 +2,15 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/verifier.h"
+#include "ccf/http_consts.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
-#include "enclave/rpc_sessions.h"
+#include "ccf/pal/locking.h"
 #include "http/curl.h"
+#include "tasks/basic_task.h"
+#include "tasks/task.h"
+#include "tasks/task_system.h"
 
 #include <curl/curl.h>
 
@@ -41,8 +46,6 @@ namespace ccf
     // remote server
     static constexpr size_t server_connection_timeout_s = 3;
     static constexpr size_t server_response_timeout_s = 3;
-
-    std::shared_ptr<RPCSessions> rpcsessions;
 
     const pal::snp::EndorsementEndpointsConfiguration config;
     QuoteEndorsementsFetchedCallback done_cb;
@@ -333,10 +336,8 @@ namespace ccf
 
   public:
     QuoteEndorsementsClient(
-      const std::shared_ptr<RPCSessions>& rpcsessions_,
       const pal::snp::EndorsementEndpointsConfiguration& config_,
       QuoteEndorsementsFetchedCallback cb) :
-      rpcsessions(rpcsessions_),
       config(config_),
       done_cb(cb) {};
 
