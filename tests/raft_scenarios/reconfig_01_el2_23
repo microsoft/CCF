@@ -1,3 +1,4 @@
+pre_vote_enabled,true
 # Reconfigures from [0, 1] to [2, 3], with 2 becoming leader while the reconfiguration is in-progress
 start_node,0
 emit_signature,2
@@ -34,7 +35,7 @@ dispatch_one,0
 
 # But node 2 runs for election before ack/cmt
 periodic_one,2,150
-assert_detail,2,leadership_state,Candidate
+assert_detail,2,leadership_state,PreVoteCandidate
 dispatch_all
 dispatch_all
 # which it wins, since it is sufficiently up to date
