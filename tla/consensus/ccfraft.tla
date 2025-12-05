@@ -668,9 +668,6 @@ BecomePreVoteCandidate(i) ==
     /\ votesGranted' = [votesGranted EXCEPT ![i] = {i}]
     /\ UNCHANGED <<currentTerm, membershipState, votedFor, isNewFollower, preVoteStatus, messageVars, reconfigurationVars, leaderVars, logVars>>
 
-\* NOTE: This currently allows a PreVoteEnabled service to become a candidate arbitrarily
-\* This behaviour is a superset of the behaviours in CCF as a Follower can only become a Candidate
-\* via a PreVoteCandidate or when a ProposeVoteRequest is received.
 BecomeCandidate(i) ==
     \* Only servers that haven't completed retirement can become candidates
     /\ membershipState[i] \in (MembershipStates \ {RetiredCommitted})
@@ -950,7 +947,7 @@ AdvanceCommitIndex(i) ==
                                    source      |-> i,
                                    dest        |-> j ]
                         IN Send(msg)
-            ELSE UNCHANGED messageVars
+            ELSE UNCHANGED <<messageVars>>
         /\ retirementCompleted' = [retirementCompleted EXCEPT ![i] = NextRetirementCompleted(retirementCompleted[i], configurations[i], log[i], commitIndex'[i], i)]
     /\ UNCHANGED <<preVoteStatus, candidateVars, leaderVars, log, currentTerm, votedFor, isNewFollower, hasJoined>>
 
