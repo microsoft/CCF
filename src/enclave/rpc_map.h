@@ -19,7 +19,7 @@ namespace ccf
     template <ccf::ActorsType T>
     void register_frontend(std::shared_ptr<RpcHandler> handler_)
     {
-      const auto name = get_actor_prefix(T);
+      const auto* const name = get_actor_prefix(T);
       actors_map.emplace(name, T);
       map.emplace(T, handler_);
     }
@@ -28,7 +28,9 @@ namespace ccf
     {
       auto search = actors_map.find(name);
       if (search == actors_map.end())
+      {
         return ccf::ActorsType::unknown;
+      }
 
       return search->second;
     }
@@ -37,7 +39,9 @@ namespace ccf
     {
       auto search = map.find(index);
       if (search == map.end())
+      {
         return {};
+      }
 
       return search->second;
     }

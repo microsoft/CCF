@@ -17,14 +17,16 @@ namespace http2
     return {
       const_cast<uint8_t*>(key),
       const_cast<uint8_t*>(value),
-      strlen((char*)key),
-      strlen((char*)value),
+      strlen(reinterpret_cast<const char*>(key)),
+      strlen(reinterpret_cast<const char*>(value)),
       NGHTTP2_NV_FLAG_NONE};
   }
 
   static inline nghttp2_nv make_nv(const char* key, const char* value)
   {
-    return make_nv((uint8_t*)key, (uint8_t*)value);
+    return make_nv(
+      reinterpret_cast<const uint8_t*>(key),
+      reinterpret_cast<const uint8_t*>(value));
   }
 
   static inline AbstractParser* get_parser(void* user_data)
@@ -43,7 +45,7 @@ namespace http2
     using HeaderKeysIt =
       ccf::nonstd::KeyIterator<ccf::http::HeaderMap::const_iterator>;
 
-    const auto trailer_header_val = fmt::format(
+    auto trailer_header_val = fmt::format(
       "{}",
       fmt::join(
         HeaderKeysIt(trailers.begin()), HeaderKeysIt(trailers.end()), ","));

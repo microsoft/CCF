@@ -248,7 +248,7 @@ namespace ccf::crypto::OpenSSL
     {}
   };
 
-  static const char pem_prefix[] = "-----BEGIN CERTIFICATE-----\n";
+  static const char pem_prefix[] = "-----BEGIN CERTIFICATE-----";
   // -1 for the null terminator
   static constexpr size_t pem_prefix_len = sizeof(pem_prefix) - 1;
 

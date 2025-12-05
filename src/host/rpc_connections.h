@@ -9,7 +9,7 @@
 
 #include <unordered_map>
 
-namespace
+namespace // NOLINT(cert-dcl59-cpp)
 {
   template <class T>
   constexpr bool isTCP()
@@ -64,14 +64,18 @@ namespace asynchost
       const auto initial = id;
 
       if (next_id < 0)
+      {
         next_id = 1;
+      }
 
       while (sockets.find(id) != sockets.end())
       {
         id++;
 
         if (id < 0)
+        {
           id = 1;
+        }
 
         if (id == initial)
         {
@@ -118,7 +122,7 @@ namespace asynchost
         cleanup();
       }
 
-      bool on_read(size_t len, uint8_t*& data, sockaddr) override
+      bool on_read(size_t len, uint8_t*& data, sockaddr /*unused*/) override
       {
         LOG_DEBUG_FMT("rpc read {}: {}", id, len);
 
@@ -374,7 +378,7 @@ namespace asynchost
           auto [id, body] =
             ringbuffer::read_message<::tcp::tcp_outbound>(data, size);
 
-          ConnID connect_id = (ConnID)id;
+          auto connect_id = static_cast<ConnID>(id);
           LOG_DEBUG_FMT("rpc write from enclave {}: {}", connect_id, body.size);
 
           write(connect_id, body.size, body.data);
@@ -427,7 +431,7 @@ namespace asynchost
           auto [id, addr_family, addr_data, body] =
             ringbuffer::read_message<udp::udp_outbound>(data, size);
 
-          ConnID connect_id = (ConnID)id;
+          auto connect_id = static_cast<ConnID>(id);
           LOG_DEBUG_FMT("rpc write from enclave {}: {}", connect_id, body.size);
 
           auto addr = udp::sockaddr_decode(addr_family, addr_data);
