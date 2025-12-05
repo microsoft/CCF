@@ -36,7 +36,6 @@ def test_primary(network, args):
     network.join_node(new_backup, args.package, args)
     network.trust_node(new_backup, args)
 
-    primary_interfaces = primary.host.rpc_interfaces
     for interface_name in new_backup.host.rpc_interfaces.keys():
         LOG.info(f"Testing interface {interface_name}")
         with new_backup.client(interface_name=interface_name) as c:
