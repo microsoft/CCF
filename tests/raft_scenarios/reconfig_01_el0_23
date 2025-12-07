@@ -1,3 +1,4 @@
+pre_vote_enabled,true
 # Reconfigures from [0, 1] to [2, 3], with 2 becoming leader while the reconfiguration is in-progress
 start_node,0
 emit_signature,2
@@ -38,22 +39,23 @@ emit_signature,2
 
 # But node 2 runs for election before ack/cmt
 periodic_one,2,150
-assert_detail,2,leadership_state,Candidate
+assert_detail,2,leadership_state,PreVoteCandidate
 dispatch_all
 dispatch_all
 # which it loses, since it is not sufficiently up to date
-assert_detail,2,leadership_state,Candidate
+assert_detail,2,leadership_state,PreVoteCandidate
 
 # 0 runs again
 periodic_one,0,150
-assert_detail,0,leadership_state,Candidate
+periodic_one,0,150
+assert_detail,0,leadership_state,PreVoteCandidate
 dispatch_all
 dispatch_all
 # and becomes leader once more
 assert_detail,0,leadership_state,Leader
 
 # 0 signs to extend, observes retirement committed
-emit_signature,4
+emit_signature,3
 periodic_all,10
 dispatch_all
 assert_commit_idx,0,9
@@ -63,8 +65,8 @@ assert_detail,1,leadership_state,Follower
 assert_detail,2,leadership_state,Follower
 
 # Now that the retirement of 0 and 1 is committed, 0 schedules retired_committed
-cleanup_nodes,4,0,1
-emit_signature,4
+cleanup_nodes,3,0,1
+emit_signature,3
 periodic_all,10
 dispatch_all
 periodic_all,10
@@ -87,8 +89,8 @@ assert_detail,0,retirement_phase,RetiredCommitted
 assert_detail,0,leadership_state,Follower
 
 # the network continues
-replicate,5,some_tx
-emit_signature,5
+replicate,4,some_tx
+emit_signature,4
 periodic_all,10
 dispatch_all
 periodic_all,10
