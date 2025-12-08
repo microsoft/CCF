@@ -2748,7 +2748,7 @@ namespace aft
       return *state;
     }
 
-    void nominate_successor()
+    void nominate_successor() override
     {
       if (state->leadership_state != ccf::kv::LeadershipState::Leader)
       {
