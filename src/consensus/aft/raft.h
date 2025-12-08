@@ -2758,6 +2758,8 @@ namespace aft
         return;
       }
 
+      LOG_INFO_FMT("Nominating successor for {}", state->node_id);
+
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
       j["function"] = "step_down_and_nominate_successor";
