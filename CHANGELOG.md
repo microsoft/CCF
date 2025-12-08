@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [6.0.23]
 
-[6.0.23]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.23
+[6.0.23]: htps://github.com/microsoft/CCF/releases/tag/ccf-6.0.23
 
 ### Changed
 
