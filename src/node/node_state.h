@@ -508,9 +508,7 @@ namespace ccf
           }
           // On SEV-SNP, fetch endorsements from servers if specified
           quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
-            rpcsessions,
-            endpoint_config,
-            [this](std::vector<uint8_t>&& endorsements) {
+            endpoint_config, [this](std::vector<uint8_t>&& endorsements) {
               std::lock_guard<pal::Mutex> guard(lock);
               quote_info.endorsements = std::move(endorsements);
               try

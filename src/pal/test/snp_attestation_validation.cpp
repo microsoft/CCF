@@ -58,6 +58,26 @@ TEST_CASE("genoa validation")
     genoa_quote_info, measurement, report_data);
 }
 
+TEST_CASE("turin validation")
+{
+  using namespace ccf;
+
+  auto turin_quote_info = QuoteInfo{
+    .format = QuoteFormat::amd_sev_snp_v1,
+    .quote = pal::snp::testing::turin_attestation,
+    .endorsements = std::vector<uint8_t>(
+      pal::snp::testing::turin_endorsements.begin(),
+      pal::snp::testing::turin_endorsements.end()),
+    .uvm_endorsements = std::nullopt,
+  };
+
+  pal::PlatformAttestationMeasurement measurement;
+  pal::PlatformAttestationReportData report_data;
+
+  pal::verify_snp_attestation_report(
+    turin_quote_info, measurement, report_data);
+}
+
 TEST_CASE("Mismatched attestation and endorsements fail")
 {
   using namespace ccf;
@@ -203,6 +223,41 @@ TEST_CASE("Quote endorsements url generation")
                 .max_retries_count = max_retries_count,
                 .max_client_response_size = ccf::ds::SizeString("100mb"),
               }}}}}},
+    {
+      .attestation = ccf::pal::snp::testing::turin_attestation,
+      .servers = {{
+        ccf::pal::snp::EndorsementsEndpointType::AMD,
+        "invalid.amd.com:12345",
+      }},
+      .expected_urls =
+        {.servers =
+           {
+             {{{
+                 .host = "invalid.amd.com",
+                 .port = "12345",
+                 .uri = "/vcek/v1/Turin/59790fb1c39f35c1",
+                 .params =
+                   {
+                     {"fmcSPL", "1"},
+                     {"blSPL", "1"},
+                     {"teeSPL", "1"},
+                     {"snpSPL", "4"},
+                     {"ucodeSPL", "81"},
+                   },
+                 .response_is_der = true, // DER response
+                 .max_retries_count = max_retries_count,
+                 .max_client_response_size = ccf::ds::SizeString("100mb"),
+               },
+               {
+                 .host = "invalid.amd.com",
+                 .port = "12345",
+                 .uri = "/vcek/v1/Turin/cert_chain",
+                 .params = {},
+                 .response_is_der = false, // Not DER response
+                 .max_retries_count = max_retries_count,
+                 .max_client_response_size = ccf::ds::SizeString("100mb"),
+               }}}}},
+    },
     {
       .attestation = ccf::pal::snp::testing::genoa_attestation,
       .servers = {{

@@ -30,7 +30,7 @@ assert_detail,0,leadership_state,Follower
 
 # Node 1 should try to start an election but fails without a quorum in {0}
 periodic_one,1,100
-assert_detail,1,leadership_state,Candidate
+assert_detail,1,leadership_state,PreVoteCandidate
 
 dispatch_all
 periodic_all,10
@@ -38,11 +38,10 @@ dispatch_all
 periodic_all,10
 dispatch_all
 
-assert_detail,1,leadership_state,Candidate
+assert_detail,1,leadership_state,PreVoteCandidate
 
 # Fixup the network to allow a leader to be elected and the test to pass
 reconnect_node,0
-periodic_all,100
-dispatch_all
-periodic_all,10
+periodic_one,1,100
+assert_detail,1,leadership_state,PreVoteCandidate
 dispatch_all

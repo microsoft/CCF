@@ -387,19 +387,20 @@ namespace ccf::pal
     }
 
     auto endorsed_chip_id = get_endorsed_chip_id_from_cert(vcek_cert);
+    auto reported_chip_id = quote.get_chip_id_for_vcek();
     if (
       endorsed_chip_id.has_value() &&
-      (endorsed_chip_id->size() != sizeof(quote.chip_id) ||
-       memcmp(endorsed_chip_id->data(), quote.chip_id, sizeof(quote.chip_id)) !=
-         0))
+      (endorsed_chip_id->size() != reported_chip_id.size() ||
+       memcmp(
+         endorsed_chip_id->data(),
+         reported_chip_id.data(),
+         reported_chip_id.size()) != 0))
     {
-      auto printable_reported_chip_id = std::span<uint8_t>(
-        quote.chip_id, quote.chip_id + sizeof(quote.chip_id));
       throw std::logic_error(fmt::format(
         "SEV-SNP: Chip ID in attestation does not match endorsed chip ID: {} "
         "!= {}",
         ccf::ds::to_hex(endorsed_chip_id.value()),
-        ccf::ds::to_hex(printable_reported_chip_id)));
+        ccf::ds::to_hex(reported_chip_id)));
     }
 
     if (quote_info.endorsed_tcb.has_value())

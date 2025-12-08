@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev6
 
+### Added
+
+- Support for Turin attestations (#7499)
+- verify_attestation script to fetch endorsements from AMD and check the provided attestation against them (#7499)
+- PreVote optimistaion enabled. This requires that a follower checks that it could be elected before becoming a candidate. This optimisation improves the availablilty of Raft when there are omission faults like partial network partitions. (#7462)
+
 ### Changed
 
 - Start nodes now confirm that read-only ledger directories are empty on startup (#7355).
