@@ -2006,7 +2006,7 @@ def run_propose_request_vote(const_args):
     args = copy.deepcopy(const_args)
     args.label += "_propose_vote"
     args.nodes = infra.e2e_args.nodes(args, 3)
-    # use a high timeout to hedge against flakey nodes which pause for seconds
+    # use a high timeout to hedge against flaky nodes which pause for seconds
     # In most cases this should not matter as the propose_request_vote will cause the election quickly
     args.election_timeout = 20000
     with infra.network.network(

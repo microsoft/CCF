@@ -2296,7 +2296,7 @@ namespace aft
       // about to retire too, but that node will then nudge
       // a successor, and that seems preferable to nudging a node that
       // risks not being eligible if reconfiguration id is prioritised.
-      // Alternatively, we could pick the node with the higest match idx
+      // Alternatively, we could pick the node with the highest match idx
       // in the latest config, provided that match idx at least as high as a
       // majority. That would make them both eligible and unlikely to retire
       // soon.
