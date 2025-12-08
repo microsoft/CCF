@@ -355,8 +355,6 @@ namespace ccf
         primary_sig,
         endorsed_cert);
 
-      constexpr int64_t vds_merkle_tree = 2;
-
       const auto& service_key_der = service_kp.public_key_der();
       auto kid = ccf::crypto::Sha256Hash(service_key_der).hex_str();
       std::span<const uint8_t> kid_span{
@@ -392,17 +390,17 @@ namespace ccf
                 cose_signatures_config.subject),
             }));
 
-      const auto pheaders = {
-        // Key digest
-        ccf::crypto::cose_params_int_bytes(
-          ccf::crypto::COSE_PHEADER_KEY_ID, kid_span),
-        // VDS
-        ccf::crypto::cose_params_int_int(
-          ccf::crypto::COSE_PHEADER_KEY_VDS, vds_merkle_tree),
-        // CWT claims
-        cwt_headers,
-        // CCF headers
-        ccf_headers};
+      const auto pheaders = {// Key digest
+                             ccf::crypto::cose_params_int_bytes(
+                               ccf::crypto::COSE_PHEADER_KEY_ID, kid_span),
+                             // VDS
+                             ccf::crypto::cose_params_int_int(
+                               ccf::crypto::COSE_PHEADER_KEY_VDS,
+                               ccf::crypto::COSE_PHEADER_VDS_CCF_LEDGER_SHA256),
+                             // CWT claims
+                             cwt_headers,
+                             // CCF headers
+                             ccf_headers};
 
       auto cose_sign = crypto::cose_sign1(service_kp, pheaders, root_hash);
 
