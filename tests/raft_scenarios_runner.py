@@ -51,13 +51,12 @@ def preprocess_for_trace_validation(log):
     last_cmd = ""
     for line in log:
         entry = json.loads(line)
-        if "cmd" in entry:
+        if "cmd" in entry and len(entry["cmd"]) > 0:
             last_cmd = entry["cmd"]
             continue
         node = entry["msg"]["state"]["node_id"]
         entry["cmd"] = last_cmd
         entry["cmd_prefix"] = entry["cmd"].split(",")[0]
-        last_cmd = ""
         if initial_node is None:
             initial_node = node
         if entry["msg"]["function"] == "add_configuration":
