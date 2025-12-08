@@ -262,6 +262,23 @@ public:
       start_node_id);
   }
 
+  void nominate_successor(std::string node_id_s, const size_t lineno)
+  {
+    ccf::NodeId node_id(node_id_s);
+    if (_nodes.find(node_id) == _nodes.end())
+    {
+      throw std::runtime_error(fmt::format(
+        "Attempted to nominate unknown node {} on line {}", node_id, lineno));
+    }
+
+    RAFT_DRIVER_PRINT(
+      "Note over {}: Node {} nominates a successor",
+      node_id,
+      node_id_s);
+
+    _nodes.at(node_id).raft->nominate_successor();
+  }
+
   void cleanup_nodes(
     const std::string& term,
     const std::vector<std::string>& node_ids,
