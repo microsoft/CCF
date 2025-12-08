@@ -120,6 +120,8 @@ int main(int argc, char** argv)
 
   LOG_INFO_FMT(
     "Successfully verified attestation against fetched endorsements");
+  LOG_INFO_FMT("Measurement: {}", ccf::ds::to_hex(m.data));
+  LOG_INFO_FMT("Report Data: {}", ccf::ds::to_hex(rd.data));
 
   return 0;
 }
