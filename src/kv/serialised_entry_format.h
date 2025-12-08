@@ -25,7 +25,7 @@ namespace ccf::kv
     static constexpr auto BITS_FOR_SIZE =
       (sizeof(uint64_t) - sizeof(uint8_t) - sizeof(SerialisedEntryFlags)) *
       CHAR_BIT;
-    uint64_t size : BITS_FOR_SIZE;
+    uint64_t size : BITS_FOR_SIZE = 0;
 
     void set_size(uint64_t size_)
     {

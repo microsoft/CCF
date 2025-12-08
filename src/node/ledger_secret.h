@@ -31,7 +31,7 @@ namespace ccf
           ccf::crypto::MDType::SHA256,
           raw_key,
           {commit_secret_label_,
-           commit_secret_label_ + sizeof(commit_secret_label_)});
+           commit_secret_label_ + strlen(commit_secret_label_)});
       }
       return commit_secret.value();
     }
@@ -109,7 +109,7 @@ namespace nlohmann
   {
     static void to_json(json& j, const ccf::LedgerSecretPtr& s)
     {
-      if (s.get())
+      if (s.get() != nullptr)
       {
         j = *s;
       }

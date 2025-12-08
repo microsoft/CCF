@@ -59,10 +59,9 @@ namespace ccf
     struct QuoteEndorsementsClientMsg
     {
       QuoteEndorsementsClientMsg(
-        const std::shared_ptr<QuoteEndorsementsClient>& self_,
-        const Server& server_) :
-        self(self_),
-        server(server_)
+        std::shared_ptr<QuoteEndorsementsClient> self_, Server server_) :
+        self(std::move(self_)),
+        server(std::move(server_))
       {}
 
       std::shared_ptr<QuoteEndorsementsClient> self;
@@ -149,7 +148,7 @@ namespace ccf
         std::unique_ptr<curl::CurlRequest>&& request_,
         CURLcode curl_response_,
         long status_code_) :
-        self(self_),
+        self(std::move(self_)),
         request(std::move(request_)),
         curl_response(curl_response_),
         status_code(status_code_)
@@ -193,7 +192,7 @@ namespace ccf
               self->config.servers.end(),
               std::string{},
               [](const std::string& a, const Server& b) {
-                return a + (a.length() > 0 ? ", " : "") + b.front().host;
+                return a + (!a.empty() ? ", " : "") + b.front().host;
               });
             LOG_FAIL_FMT(
               "Giving up retrying fetching attestation endorsements from [{}] "
@@ -256,7 +255,7 @@ namespace ccf
         }
       }
 
-      const std::string& get_name() const override
+      [[nodiscard]] const std::string& get_name() const override
       {
         static const std::string name =
           "QuoteEndorsementsClient::HandleResponseTask";
@@ -334,11 +333,11 @@ namespace ccf
   public:
     QuoteEndorsementsClient(
       const std::shared_ptr<RPCSessions>& rpcsessions_,
-      const pal::snp::EndorsementEndpointsConfiguration& config_,
+      pal::snp::EndorsementEndpointsConfiguration config_,
       QuoteEndorsementsFetchedCallback cb) :
       rpcsessions(rpcsessions_),
-      config(config_),
-      done_cb(cb) {};
+      config(std::move(config_)),
+      done_cb(std::move(cb)) {};
 
     void fetch_endorsements()
     {

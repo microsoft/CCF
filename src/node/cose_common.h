@@ -27,12 +27,12 @@ namespace ccf::cose
 
   static std::string qcbor_buf_to_string(const UsefulBufC& buf)
   {
-    return std::string(reinterpret_cast<const char*>(buf.ptr), buf.len);
+    return {reinterpret_cast<const char*>(buf.ptr), buf.len};
   }
 
   static std::vector<uint8_t> qcbor_buf_to_byte_vector(const UsefulBufC& buf)
   {
-    auto ptr = static_cast<const uint8_t*>(buf.ptr);
+    const auto* ptr = static_cast<const uint8_t*>(buf.ptr);
     return {ptr, ptr + buf.len};
   }
 
@@ -70,7 +70,7 @@ namespace ccf::cose
   static std::pair<std::string /* issuer */, std::string /* subject */>
   extract_iss_sub_from_sig(const std::vector<uint8_t>& cose_sign1)
   {
-    QCBORError qcbor_result;
+    QCBORError qcbor_result = QCBOR_SUCCESS;
     QCBORDecodeContext ctx;
     UsefulBufC buf{cose_sign1.data(), cose_sign1.size()};
     QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);
@@ -88,10 +88,11 @@ namespace ccf::cose
       throw COSEDecodeError("COSE_Sign1 is not tagged");
     }
 
-    QCBORDecode_EnterBstrWrapped(&ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, NULL);
-    QCBORDecode_EnterMap(&ctx, NULL);
+    QCBORDecode_EnterBstrWrapped(
+      &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, nullptr);
+    QCBORDecode_EnterMap(&ctx, nullptr);
 
-    enum
+    enum : std::uint8_t
     {
       CWT_CLAIMS_INDEX,
       END_INDEX,
@@ -126,7 +127,7 @@ namespace ccf::cose
         fmt::format("Failed to decode CWT claims: {}", decode_error));
     }
 
-    enum
+    enum : std::uint8_t
     {
       CWT_ISS_INDEX,
       CWT_SUB_INDEX,
@@ -160,10 +161,8 @@ namespace ccf::cose
       auto subject = tstring_to_string(cwt_items[CWT_SUB_INDEX]);
       return {issuer, subject};
     }
-    else
-    {
-      throw COSEDecodeError(
-        "Missing issuer and subject values in CWT Claims in COSE_Sign1");
-    }
+
+    throw COSEDecodeError(
+      "Missing issuer and subject values in CWT Claims in COSE_Sign1");
   }
 }

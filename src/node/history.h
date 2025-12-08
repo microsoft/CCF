@@ -29,7 +29,7 @@
 
 namespace ccf
 {
-  enum HashOp
+  enum HashOp : uint8_t
   {
     APPEND,
     VERIFY,
@@ -80,21 +80,21 @@ namespace ccf
 
   public:
     NullTxHistoryPendingTx(
-      ccf::TxID txid_, ccf::kv::Store& store_, const NodeId& id_) :
+      ccf::TxID txid_, ccf::kv::Store& store_, NodeId id_) :
       txid(txid_),
       store(store_),
-      id(id_)
+      id(std::move(id_))
     {}
 
     ccf::kv::PendingTxInfo call() override
     {
       auto sig = store.create_reserved_tx(txid);
-      auto signatures =
+      auto* signatures =
         sig.template wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      auto cose_signatures =
+      auto* cose_signatures =
         sig.template wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
 
-      auto serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
+      auto* serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
       PrimarySignature sig_value(id, txid.seqno);
       signatures->put(sig_value);
@@ -116,25 +116,25 @@ namespace ccf
 
   public:
     NullTxHistory(
-      ccf::kv::Store& store_, const NodeId& id_, ccf::crypto::ECKeyPair&) :
+      ccf::kv::Store& store_, NodeId id_, ccf::crypto::ECKeyPair& /*unused*/) :
       store(store_),
-      id(id_)
+      id(std::move(id_))
     {}
 
-    void append(const std::vector<uint8_t>&) override
+    void append(const std::vector<uint8_t>& /*data*/) override
     {
       version++;
     }
 
     void append_entry(
-      const ccf::crypto::Sha256Hash& digest,
-      std::optional<ccf::kv::Term> term_of_next_version_ =
+      const ccf::crypto::Sha256Hash& /*digest*/,
+      std::optional<ccf::kv::Term> /*term_of_next_version_*/ =
         std::nullopt) override
     {
       version++;
     }
 
-    bool verify_root_signatures(ccf::kv::Version v) override
+    bool verify_root_signatures(ccf::kv::Version /*v*/) override
     {
       return true;
     }
@@ -152,14 +152,15 @@ namespace ccf
       term_of_next_version = commit_term_;
     }
 
-    void compact(ccf::kv::Version) override {}
+    void compact(ccf::kv::Version /*v*/) override {}
 
-    bool init_from_snapshot(const std::vector<uint8_t>&) override
+    bool init_from_snapshot(
+      const std::vector<uint8_t>& /*hash_at_snapshot*/) override
     {
       return true;
     }
 
-    std::vector<uint8_t> get_raw_leaf(uint64_t) override
+    std::vector<uint8_t> get_raw_leaf(uint64_t /*index*/) override
     {
       return {};
     }
@@ -178,9 +179,9 @@ namespace ccf
 
     void set_service_signing_identity(
       std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp_,
-      const ccf::COSESignaturesConfig& cose_signatures) override
+      const ccf::COSESignaturesConfig& /*cose_signatures*/) override
     {
-      std::ignore = std::move(service_kp_);
+      std::ignore = service_kp_;
     }
 
     const ccf::COSESignaturesConfig& get_cose_signatures_config() override
@@ -202,17 +203,17 @@ namespace ccf
         term_of_next_version};
     }
 
-    std::vector<uint8_t> get_proof(ccf::kv::Version) override
+    std::vector<uint8_t> get_proof(ccf::kv::Version /*v*/) override
     {
       return {};
     }
 
-    bool verify_proof(const std::vector<uint8_t>&) override
+    bool verify_proof(const std::vector<uint8_t>& /*proof*/) override
     {
       return true;
     }
 
-    std::vector<uint8_t> serialise_tree(size_t) override
+    std::vector<uint8_t> serialise_tree(size_t /*to*/) override
     {
       return {};
     }
@@ -245,7 +246,7 @@ namespace ccf
     std::shared_ptr<HistoryTree::Path> path = nullptr;
 
   public:
-    Proof() {}
+    Proof() = default;
 
     Proof(const std::vector<uint8_t>& v)
     {
@@ -254,7 +255,7 @@ namespace ccf
       path = std::make_shared<HistoryTree::Path>(v, position);
     }
 
-    const HistoryTree::Hash& get_root() const
+    [[nodiscard]] const HistoryTree::Hash& get_root() const
     {
       return root;
     }
@@ -264,11 +265,10 @@ namespace ccf
       return path;
     }
 
-    Proof(HistoryTree* tree, uint64_t index)
-    {
-      root = tree->root();
-      path = tree->path(index);
-    }
+    Proof(HistoryTree* tree, uint64_t index) :
+      root(tree->root()),
+      path(tree->path(index))
+    {}
 
     Proof(const Proof&) = delete;
 
@@ -278,18 +278,17 @@ namespace ccf
       {
         return false;
       }
-      else if (tree->max_index() == path->max_index())
+
+      if (tree->max_index() == path->max_index())
       {
         return tree->root() == root && path->verify(root);
       }
-      else
-      {
-        auto past_root = tree->past_root(path->max_index());
-        return path->verify(*past_root);
-      }
+
+      auto past_root = tree->past_root(path->max_index());
+      return path->verify(*past_root);
     }
 
-    std::vector<uint8_t> to_v() const
+    [[nodiscard]] std::vector<uint8_t> to_v() const
     {
       std::vector<uint8_t> v;
       root.serialise(v);
@@ -315,7 +314,7 @@ namespace ccf
       ccf::TxID txid_,
       ccf::kv::Store& store_,
       ccf::kv::TxHistory& history_,
-      const NodeId& id_,
+      NodeId id_,
       ccf::crypto::ECKeyPair& node_kp_,
       ccf::crypto::ECKeyPair_OpenSSL& service_kp_,
       ccf::crypto::Pem& endorsed_cert_,
@@ -323,7 +322,7 @@ namespace ccf
       txid(txid_),
       store(store_),
       history(history_),
-      id(id_),
+      id(std::move(id_)),
       node_kp(node_kp_),
       service_kp(service_kp_),
       endorsed_cert(endorsed_cert_),
@@ -333,11 +332,11 @@ namespace ccf
     ccf::kv::PendingTxInfo call() override
     {
       auto sig = store.create_reserved_tx(txid);
-      auto signatures =
+      auto* signatures =
         sig.template wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      auto cose_signatures =
+      auto* cose_signatures =
         sig.template wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
-      auto serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
+      auto* serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
       ccf::crypto::Sha256Hash root = history.get_replicated_state_root();
 
@@ -360,7 +359,8 @@ namespace ccf
 
       const auto& service_key_der = service_kp.public_key_der();
       auto kid = ccf::crypto::Sha256Hash(service_key_der).hex_str();
-      std::span<const uint8_t> kid_span{(uint8_t*)kid.data(), kid.size()};
+      std::span<const uint8_t> kid_span{
+        reinterpret_cast<const uint8_t*>(kid.data()), kid.size()};
 
       const auto time_since_epoch =
         std::chrono::duration_cast<std::chrono::seconds>(
@@ -415,31 +415,24 @@ namespace ccf
 
   class MerkleTreeHistory
   {
-    HistoryTree* tree;
+    std::unique_ptr<HistoryTree> tree;
 
   public:
     MerkleTreeHistory(MerkleTreeHistory const&) = delete;
 
-    MerkleTreeHistory(const std::vector<uint8_t>& serialised)
-    {
-      tree = new HistoryTree(serialised);
-    }
+    MerkleTreeHistory(const std::vector<uint8_t>& serialised) :
+      tree(std::make_unique<HistoryTree>(serialised))
+    {}
 
-    MerkleTreeHistory(ccf::crypto::Sha256Hash first_hash = {})
-    {
-      tree = new HistoryTree(merkle::Hash(first_hash.h));
-    }
+    MerkleTreeHistory(ccf::crypto::Sha256Hash first_hash = {}) :
+      tree(std::make_unique<HistoryTree>(merkle::Hash(first_hash.h)))
+    {}
 
-    ~MerkleTreeHistory()
-    {
-      delete (tree);
-      tree = nullptr;
-    }
+    ~MerkleTreeHistory() = default;
 
     void deserialise(const std::vector<uint8_t>& serialised)
     {
-      delete (tree);
-      tree = new HistoryTree(serialised);
+      tree = std::make_unique<HistoryTree>(serialised);
     }
 
     void append(const ccf::crypto::Sha256Hash& hash)
@@ -447,7 +440,7 @@ namespace ccf
       tree->insert(merkle::Hash(hash.h));
     }
 
-    ccf::crypto::Sha256Hash get_root() const
+    [[nodiscard]] ccf::crypto::Sha256Hash get_root() const
     {
       const merkle::Hash& root = tree->root();
       ccf::crypto::Sha256Hash result;
@@ -455,11 +448,14 @@ namespace ccf
       return result;
     }
 
-    void operator=(const MerkleTreeHistory& rhs)
+    MerkleTreeHistory& operator=(const MerkleTreeHistory& rhs)
     {
-      delete (tree);
-      ccf::crypto::Sha256Hash root(rhs.get_root());
-      tree = new HistoryTree(merkle::Hash(root.h));
+      if (this != &rhs)
+      {
+        ccf::crypto::Sha256Hash root(rhs.get_root());
+        tree = std::make_unique<HistoryTree>(merkle::Hash(root.h));
+      }
+      return *this;
     }
 
     void flush(uint64_t index)
@@ -491,12 +487,12 @@ namespace ccf
           index,
           end_index()));
       }
-      return Proof(tree, index);
+      return {tree.get(), index};
     }
 
     bool verify(const Proof& r)
     {
-      return r.verify(tree);
+      return r.verify(tree.get());
     }
 
     std::vector<uint8_t> serialise()
@@ -551,8 +547,8 @@ namespace ccf
     T replicated_state_tree;
 
     ccf::crypto::ECKeyPair& node_kp;
-    ccf::crypto::COSEVerifierUniquePtr cose_verifier{};
-    std::vector<uint8_t> cose_cert_cached{};
+    ccf::crypto::COSEVerifierUniquePtr cose_verifier;
+    std::vector<uint8_t> cose_cert_cached;
 
     ccf::tasks::Task emit_signature_periodic_task;
     size_t sig_tx_interval;
@@ -560,7 +556,7 @@ namespace ccf
 
     ccf::pal::Mutex state_lock;
     ccf::kv::Term term_of_last_version = 0;
-    ccf::kv::Term term_of_next_version;
+    ccf::kv::Term term_of_next_version{};
 
     std::optional<ccf::crypto::Pem> endorsed_cert = std::nullopt;
 
@@ -575,13 +571,13 @@ namespace ccf
   public:
     HashedTxHistory(
       ccf::kv::Store& store_,
-      const NodeId& id_,
+      NodeId id_,
       ccf::crypto::ECKeyPair& node_kp_,
       size_t sig_tx_interval_ = 0,
       size_t sig_ms_interval_ = 0,
       bool signature_timer = false) :
       store(store_),
-      id(id_),
+      id(std::move(id_)),
       node_kp(node_kp_),
       sig_tx_interval(sig_tx_interval_),
       sig_ms_interval(sig_ms_interval_)
@@ -671,7 +667,7 @@ namespace ccf
       ccf::tasks::add_periodic_task(emit_signature_periodic_task, delay, delay);
     }
 
-    ~HashedTxHistory()
+    ~HashedTxHistory() override
     {
       if (emit_signature_periodic_task != nullptr)
       {
@@ -691,7 +687,7 @@ namespace ccf
       // deserialising the tree in the signatures table and then applying the
       // hash of the transaction at which the snapshot was taken
       auto tx = store.create_read_only_tx();
-      auto tree_h = tx.template ro<ccf::SerialisedMerkleTree>(
+      auto* tree_h = tx.template ro<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
       auto tree = tree_h->get();
       if (!tree.has_value())
@@ -740,7 +736,7 @@ namespace ccf
     {
       auto tx = store.create_read_only_tx();
 
-      auto signatures =
+      auto* signatures =
         tx.template ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
       auto sig = signatures->get();
       if (!sig.has_value())
@@ -756,7 +752,7 @@ namespace ccf
         return false;
       }
 
-      auto cose_signatures =
+      auto* cose_signatures =
         tx.template ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
       auto cose_sig = cose_signatures->get();
 
@@ -782,7 +778,7 @@ namespace ccf
         return true;
       }
 
-      auto service = tx.template ro<ccf::Service>(Tables::SERVICE);
+      auto* service = tx.template ro<ccf::Service>(Tables::SERVICE);
       auto service_info = service->get();
 
       if (!service_info.has_value())
@@ -807,10 +803,8 @@ namespace ccf
         return replicated_state_tree.serialise(
           replicated_state_tree.begin_index(), to);
       }
-      else
-      {
-        return {};
-      }
+
+      return {};
     }
 
     void set_term(ccf::kv::Term t) override

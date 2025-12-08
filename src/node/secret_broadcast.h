@@ -23,11 +23,11 @@ namespace ccf
     {
       LedgerSecretsForNodes secrets_for_nodes;
 
-      for (auto [nid, ni] : nodes)
+      for (const auto& [nid, ni] : nodes)
       {
         std::vector<EncryptedLedgerSecret> ledger_secrets_for_node;
 
-        for (auto s : some_ledger_secrets)
+        for (const auto& s : some_ledger_secrets)
         {
           ledger_secrets_for_node.push_back(
             {s.first,
@@ -50,7 +50,7 @@ namespace ccf
     {
       LedgerSecretsForNodes secrets_for_nodes;
 
-      for (auto [nid, ni] : nodes)
+      for (const auto& [nid, ni] : nodes)
       {
         std::vector<EncryptedLedgerSecret> ledger_secrets_for_node;
 
