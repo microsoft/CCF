@@ -272,9 +272,7 @@ public:
     }
 
     RAFT_DRIVER_PRINT(
-      "Note over {}: Node {} nominates a successor",
-      node_id,
-      node_id_s);
+      "Note over {}: Node {} nominates a successor", node_id, node_id_s);
 
     _nodes.at(node_id).raft->nominate_successor();
   }
