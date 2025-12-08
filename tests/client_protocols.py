@@ -156,4 +156,10 @@ if __name__ == "__main__":
     args.package = "samples/apps/logging/liblogging"
 
     args.nodes = infra.e2e_args.nodes(args, 1)
+
+    # Retain only the primary interface, delete any others
+    args.nodes[0].rpc_interfaces = {
+        infra.interfaces.PRIMARY_RPC_INTERFACE: args.nodes[0].get_primary_interface()
+    }
+
     run(args)

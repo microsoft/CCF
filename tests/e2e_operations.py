@@ -313,7 +313,7 @@ def test_large_snapshot(network, args):
 
 
 def test_snapshot_access(network, args):
-    primary, _ = network.find_primary()
+    primary, backups = network.find_nodes()
 
     snapshots_dir = network.get_committed_snapshots(primary)
     snapshot_name = ccf.ledger.latest_snapshot(snapshots_dir)
@@ -322,96 +322,122 @@ def test_snapshot_access(network, args):
     with open(os.path.join(snapshots_dir, snapshot_name), "rb") as f:
         snapshot_data = f.read()
 
-    interface = primary.host.rpc_interfaces[infra.interfaces.PRIMARY_RPC_INTERFACE]
+    for node in (primary, *backups):
+        with node.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
+            r = c.head("/node/snapshot")
+            assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+            r = c.get("/node/snapshot")
+            assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+
+    interface = primary.host.rpc_interfaces[infra.interfaces.FILE_SERVING_RPC_INTERFACE]
     loc = f"https://{interface.public_host}:{interface.public_port}"
 
-    with primary.client() as c:
-        r = c.head("/node/snapshot", allow_redirects=False)
-        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
-        assert "location" in r.headers, r.headers
-        location = r.headers["location"]
-        path = f"/node/snapshot/{snapshot_name}"
-        assert location == f"{loc}{path}"
-        LOG.warning(r.headers)
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as file_client:
+        with primary.client(
+            interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
+        ) as disabled_client:
 
-        for since, expected in (
-            (0, location),
-            (1, location),
-            (snapshot_index // 2, location),
-            (snapshot_index - 1, location),
-            (snapshot_index, None),
-            (snapshot_index + 1, None),
-        ):
-            for method in ("GET", "HEAD"):
-                r = c.call(
-                    f"/node/snapshot?since={since}",
-                    allow_redirects=False,
-                    http_verb=method,
+            def do_request(http_verb, *args, **kwargs):
+                r = disabled_client.call(*args, http_verb=http_verb, **kwargs)
+                assert (
+                    r.status_code == http.HTTPStatus.NOT_FOUND
+                ), f"Expected inaccessible due to disabled opt-in feature. Found:\n{r}"
+                return file_client.call(*args, http_verb=http_verb, **kwargs)
+
+            r = do_request("HEAD", "/node/snapshot", allow_redirects=False)
+            assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+            assert "location" in r.headers, r.headers
+            location = r.headers["location"]
+            path = f"/node/snapshot/{snapshot_name}"
+            assert location == f"{loc}{path}"
+            LOG.warning(r.headers)
+
+            for since, expected in (
+                (0, location),
+                (1, location),
+                (snapshot_index // 2, location),
+                (snapshot_index - 1, location),
+                (snapshot_index, None),
+                (snapshot_index + 1, None),
+            ):
+                for method in ("GET", "HEAD"):
+                    r = do_request(
+                        method,
+                        f"/node/snapshot?since={since}",
+                        allow_redirects=False,
+                    )
+                    if expected is None:
+                        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+                    else:
+                        assert (
+                            r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
+                        ), r
+                        assert "location" in r.headers, r.headers
+                        actual = r.headers["location"]
+                        assert actual == expected
+
+            r = do_request("HEAD", path)
+            assert r.status_code == http.HTTPStatus.OK.value, r
+            assert r.headers["accept-ranges"] == "bytes", r.headers
+            total_size = int(r.headers["content-length"])
+
+            a = total_size // 3
+            b = a * 2
+            for start, end in [
+                (0, None),
+                (0, total_size),
+                (0, a),
+                (a, a),
+                (a, b),
+                (b, b),
+                (b, total_size),
+                (b, None),
+            ]:
+                range_header_value = f"{start}-{'' if end is None else end}"
+                r = do_request(
+                    "GET", path, headers={"range": f"bytes={range_header_value}"}
                 )
-                if expected is None:
-                    assert r.status_code == http.HTTPStatus.NOT_FOUND, r
-                else:
-                    assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
-                    assert "location" in r.headers, r.headers
-                    actual = r.headers["location"]
-                    assert actual == expected
+                assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
 
-        r = c.head(path)
-        assert r.status_code == http.HTTPStatus.OK.value, r
-        assert r.headers["accept-ranges"] == "bytes", r.headers
-        total_size = int(r.headers["content-length"])
+                expected = snapshot_data[start:end]
+                actual = r.body.data()
+                assert (
+                    expected == actual
+                ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
 
-        a = total_size // 3
-        b = a * 2
-        for start, end in [
-            (0, None),
-            (0, total_size),
-            (0, a),
-            (a, a),
-            (a, b),
-            (b, b),
-            (b, total_size),
-            (b, None),
-        ]:
-            range_header_value = f"{start}-{'' if end is None else end}"
-            r = c.get(path, headers={"range": f"bytes={range_header_value}"})
-            assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
+            for negative_offset in [
+                1,
+                a,
+                b,
+            ]:
+                range_header_value = f"-{negative_offset}"
+                r = do_request(
+                    "GET", path, headers={"range": f"bytes={range_header_value}"}
+                )
+                assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
 
-            expected = snapshot_data[start:end]
-            actual = r.body.data()
-            assert (
-                expected == actual
-            ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
+                expected = snapshot_data[-negative_offset:]
+                actual = r.body.data()
+                assert (
+                    expected == actual
+                ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
 
-        for negative_offset in [
-            1,
-            a,
-            b,
-        ]:
-            range_header_value = f"-{negative_offset}"
-            r = c.get(path, headers={"range": f"bytes={range_header_value}"})
-            assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
-
-            expected = snapshot_data[-negative_offset:]
-            actual = r.body.data()
-            assert (
-                expected == actual
-            ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
-
-        # Check error handling for invalid ranges
-        for invalid_range, err_msg in [
-            (f"{a}-foo", "Unable to parse end of range value foo"),
-            ("foo-foo", "Unable to parse start of range value foo"),
-            (f"foo-{b}", "Unable to parse start of range value foo"),
-            (f"{b}-{a}", "out of order"),
-            ("-1-5", "Invalid format"),
-            ("-", "Invalid range"),
-            ("-foo", "Unable to parse end of range offset value foo"),
-            ("", "Invalid format"),
-        ]:
-            r = c.get(path, headers={"range": f"bytes={invalid_range}"})
-            assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
-            assert err_msg in r.body.json()["error"]["message"], r
+            # Check error handling for invalid ranges
+            for invalid_range, err_msg in [
+                (f"{a}-foo", "Unable to parse end of range value foo"),
+                ("foo-foo", "Unable to parse start of range value foo"),
+                (f"foo-{b}", "Unable to parse start of range value foo"),
+                (f"{b}-{a}", "out of order"),
+                ("-1-5", "Invalid format"),
+                ("-", "Invalid range"),
+                ("-foo", "Unable to parse end of range offset value foo"),
+                ("", "Invalid format"),
+            ]:
+                r = do_request("GET", path, headers={"range": f"bytes={invalid_range}"})
+                assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
+                assert err_msg in r.body.json()["error"]["message"], r
 
 
 def test_snapshot_selection(network, args):
@@ -438,7 +464,7 @@ def test_snapshot_selection(network, args):
 def _test_snapshot_selection(network, args):
     # Add nodes so we have at least 3
     while len(network.get_joined_nodes()) < 3:
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         network.join_node(
             new_node,
             args.package,
@@ -506,7 +532,9 @@ def _test_snapshot_selection(network, args):
     LOG.success(node_to_snapshot)
 
     def find_snapshot(node):
-        with node.client() as c:
+        with node.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
             r = c.head("/node/snapshot", allow_redirects=True)
             assert r.status_code == 200, r
             snapshot_name = r.headers["x-ms-ccf-snapshot-name"]
@@ -575,7 +603,7 @@ def test_empty_snapshot(network, args):
             ), temp_empty_snapshot.name
 
             # Create new node and join network
-            new_node = network.create_node("local://localhost")
+            new_node = network.create_node()
             network.join_node(
                 new_node,
                 args.package,
@@ -612,7 +640,7 @@ def test_nulled_snapshot(network, args):
         LOG.info(
             "Attempt to join a node using the corrupted snapshot copy (should fail)"
         )
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         failed = False
         try:
             network.join_node(
@@ -733,7 +761,9 @@ def run_file_operations(args):
                 args.common_read_only_ledger_dir = None  # Reset for future tests
 
 
-def run_tls_san_checks(args):
+def run_tls_san_checks(const_args):
+    args = copy.deepcopy(const_args)
+    args.label += "_tls_san"
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -748,39 +778,27 @@ def run_tls_san_checks(args):
 
         LOG.info("Check SAN value in TLS certificate")
         dummy_san = "*.dummy.com"
-        new_node = network.create_node(
-            infra.interfaces.HostSpec(
-                rpc_interfaces={
-                    infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                        endorsement=infra.interfaces.Endorsement(
-                            authority=infra.interfaces.EndorsementAuthority.Node
-                        )
-                    )
-                }
-            )
+        host_spec = infra.interfaces.HostSpec()
+        host_spec.get_primary_interface().endorsement.authority = (
+            infra.interfaces.EndorsementAuthority.Node
         )
+        new_node = network.create_node(host_spec)
         args.subject_alt_names = [f"dNSName:{dummy_san}"]
         network.join_node(new_node, args.package, args)
         sans = infra.crypto.get_san_from_pem_cert(new_node.get_tls_certificate_pem())
         assert len(sans) == 1, "Expected exactly one SAN"
         assert sans[0].value == dummy_san
 
-        LOG.info("A node started with no specified SAN defaults to public RPC host")
-        dummy_public_rpc_host = "123.123.123.123"
+        LOG.info("A node started with no specified SAN defaults to public RPC host(s)")
+        dummy_public_rpc_hosts = set()
         args.subject_alt_names = []
 
-        new_node = network.create_node(
-            infra.interfaces.HostSpec(
-                rpc_interfaces={
-                    infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                        public_host=dummy_public_rpc_host,
-                        endorsement=infra.interfaces.Endorsement(
-                            authority=infra.interfaces.EndorsementAuthority.Node
-                        ),
-                    )
-                }
-            )
-        )
+        for i, interface in enumerate(host_spec.rpc_interfaces.values()):
+            dummy_public_rpc_host = f"123.123.123.{i}"
+            interface.public_host = dummy_public_rpc_host
+            dummy_public_rpc_hosts.add(ipaddress.ip_address(dummy_public_rpc_host))
+
+        new_node = network.create_node(host_spec)
         network.join_node(new_node, args.package, args)
         # Cannot trust the node here as client cannot authenticate dummy public IP in cert
         with open(
@@ -788,13 +806,21 @@ def run_tls_san_checks(args):
             encoding="utf-8",
         ) as self_signed_cert:
             sans = infra.crypto.get_san_from_pem_cert(self_signed_cert.read())
-        assert len(sans) == 1, "Expected exactly one SAN"
-        assert sans[0].value == ipaddress.ip_address(dummy_public_rpc_host)
+        assert len(sans) == len(
+            dummy_public_rpc_hosts
+        ), f"Expected {len(dummy_public_rpc_hosts)} SANs ({dummy_public_rpc_hosts}), found {len(sans)} ({sans})"
+        ip_sans = set(sans.get_values_for_type(x509.IPAddress))
+        assert (
+            ip_sans == dummy_public_rpc_hosts
+        ), f"Expected SANs do not match: {ip_sans} vs {dummy_public_rpc_hosts}"
 
 
-def run_config_timeout_check(args):
+def run_config_timeout_check(const_args):
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    args.label += "_config_timeout"
     with infra.network.network(
-        ["local://localhost"],
+        args.nodes,
         args.binary_dir,
         args.debug_nodes,
         args.perf_nodes,
@@ -859,9 +885,12 @@ def run_config_timeout_check(args):
     proc.wait()
 
 
-def run_sighup_check(args):
+def run_sighup_check(const_args):
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    args.label += "_sighup_check"
     with infra.network.network(
-        ["local://localhost"],
+        args.nodes,
         args.binary_dir,
         args.debug_nodes,
         args.perf_nodes,
@@ -956,9 +985,12 @@ def run_pid_file_check(args):
         network.ignoring_shutdown_errors = True
 
 
-def run_max_uncommitted_tx_count(args):
+def run_max_uncommitted_tx_count(const_args):
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.nodes(args, 2)
+    args.label += "_max_uncommitted_tx"
     with infra.network.network(
-        ["local://localhost", "local://localhost"],
+        args.nodes,
         args.binary_dir,
         args.debug_nodes,
         args.perf_nodes,
@@ -1132,7 +1164,7 @@ def run_late_mounted_ledger_check(args):
 
         # Create a temporary directory to manually construct a ledger in
         with tempfile.TemporaryDirectory() as temp_dir:
-            new_node = network.create_node("local://localhost")
+            new_node = network.create_node()
             network.join_node(
                 new_node,
                 nargs.package,
@@ -1834,7 +1866,7 @@ def test_error_message_on_failure_to_read_aci_sec_context(args):
 
         args_copy = copy.deepcopy(args)
 
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         args_copy.snp_endorsements_servers = ["Azure:invalid.azure.com"]
         args_copy.snp_security_policy_file = "/a/fake/path"
         args_copy.snp_uvm_endorsements_file = "/a/fake/path"
@@ -1884,7 +1916,7 @@ def test_error_message_on_failure_to_fetch_snapshot(const_args):
 
         primary, _ = network.find_primary()
 
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
 
         # Shut down primary to cause snapshot fetch to fail
         primary.remote.stop()

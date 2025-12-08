@@ -13,6 +13,12 @@ namespace ccf::endpoints
     return *this;
   }
 
+  Endpoint& Endpoint::require_operator_feature(OperatorFeature feature)
+  {
+    required_operator_features.insert(feature);
+    return *this;
+  }
+
   Endpoint& Endpoint::set_params_schema(const nlohmann::json& j)
   {
     params_schema = j;
