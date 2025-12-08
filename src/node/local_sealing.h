@@ -138,7 +138,7 @@ namespace ccf
   }
 
   inline std::optional<LedgerSecretPtr> unseal_ledger_secret_from_disk(
-    ccf::kv::Version /*expected_version*/,
+    ccf::kv::Version expected_version,
     const files::fs::path& ledger_secret_path)
   {
     try

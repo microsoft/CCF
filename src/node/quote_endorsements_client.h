@@ -335,10 +335,10 @@ namespace ccf
 
   public:
     QuoteEndorsementsClient(
-      const pal::snp::EndorsementEndpointsConfiguration& config_,
+      pal::snp::EndorsementEndpointsConfiguration config_,
       QuoteEndorsementsFetchedCallback cb) :
-      config(config_),
-      done_cb(cb) {};
+      config(std::move(config_)),
+      done_cb(std::move(cb)) {};
 
     void fetch_endorsements()
     {
