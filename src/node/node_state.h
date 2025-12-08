@@ -1141,7 +1141,10 @@ namespace ccf
         LOG_INFO_FMT("COSE signature found after recovery");
         try
         {
-          auto [issuer, subject] = cose::extract_iss_sub_from_sig(cs);
+          auto receipt =
+            cose::decode_ccf_receipt(cs, /* recompute_root */ false);
+          auto issuer = receipt.phdr.cwt.iss;
+          auto subject = receipt.phdr.cwt.sub;
           LOG_INFO_FMT(
             "COSE signature issuer: {}, subject: {}", issuer, subject);
           cs_cfg = ccf::COSESignaturesConfig{issuer, subject};
