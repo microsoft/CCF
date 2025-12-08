@@ -72,31 +72,17 @@ namespace ccf
       }
 
       // Create channel
-      CCF_ASSERT_FMT(
-        this_node->endorsed_node_cert.has_value(),
-        "Endorsed node cert must be set before creating channels");
-      CCF_ASSERT_FMT(
-        message_limit.has_value(),
-        "Message limit must be set before creating channels");
-
-      if (auto cert_opt = this_node->endorsed_node_cert; cert_opt.has_value())
-      {
-        if (auto limit_opt = message_limit; limit_opt.has_value())
-        {
-          auto channel = std::make_shared<Channel>(
-            writer_factory,
-            this_node->service_cert,
-            this_node->node_kp,
-            cert_opt.value(),
-            this_node->node_id,
-            peer_id,
-            limit_opt.value());
-          auto info = ChannelInfo{channel, std::chrono::milliseconds(0)};
-          channels.try_emplace(peer_id, info);
-          return channel;
-        }
-      }
-      return nullptr;
+      auto channel = std::make_shared<Channel>(
+        writer_factory,
+        this_node->service_cert,
+        this_node->node_kp,
+        this_node->endorsed_node_cert.value(),
+        this_node->node_id,
+        peer_id,
+        message_limit.value());
+      auto info = ChannelInfo{channel, std::chrono::milliseconds(0)};
+      channels.try_emplace(peer_id, info);
+      return channel;
     }
 
   public:
