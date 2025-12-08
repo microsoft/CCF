@@ -9,45 +9,6 @@ extern "C" {
 #include "evercbor/CBORNondet.h"
 }
 
-// TODO: prove this function
-
-typedef struct {
-  cbor_nondet_t key;
-  cbor_nondet_t value;
-  bool found;
-} cbor_nondet_map_get_multiple_entry_t;
-
-static bool cbor_nondet_map_get_multiple(
-  cbor_nondet_t map,
-  cbor_nondet_map_get_multiple_entry_t *entries,
-  size_t count)
-{
-  if (entries == NULL)
-    return false;
-  cbor_nondet_map_iterator_t iter;
-  if (! cbor_nondet_map_iterator_start(map, &iter))
-    return false;
-  cbor_nondet_t key;
-  cbor_nondet_t value;
-  size_t found = 0;
-  for (size_t i = 0; i < count; ++i) {
-    entries[i].found = false;
-  }
-  while (cbor_nondet_map_iterator_next(&iter, &key, &value)) {
-    for (size_t i = 0; i < count; ++i) {
-      if (cbor_nondet_equal(key, entries[i].key)) {
-        entries[i].found = true;
-        entries[i].value = value;
-        found++;
-        if (found == count)
-          return true;
-        break;
-      }
-    }
-  };
-  return true;
-}
-
 namespace ccf
 {
   bool matches_uvm_roots_of_trust(
