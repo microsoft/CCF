@@ -50,8 +50,10 @@ namespace ccf
   {
     namespace
     {
-      constexpr auto HEADER_PARAM_ISSUER = "iss";
-      constexpr auto HEADER_PARAM_FEED = "feed";
+      // Header parameter names. We define their type explicitly as char[]
+      // to enable sizeof() usage later on.
+      constexpr char HEADER_PARAM_ISSUER[] = "iss";
+      constexpr char HEADER_PARAM_FEED[] = "feed";
 
       std::vector<std::vector<uint8_t>> decode_x5chain(
         cbor_nondet_t x5chain)
