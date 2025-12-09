@@ -527,9 +527,14 @@ namespace ccf
           return;
         }
 
-        throw std::runtime_error(fmt::format(
-          "Unsupported quote format for endorsements fetching: {}",
-          static_cast<int>(quote_info.format)));
+        if (quote_info.format != QuoteFormat::insecure_virtual)
+        {
+          throw std::runtime_error(fmt::format(
+            "Unsupported quote format: {}",
+            static_cast<int>(quote_info.format)));
+        }
+
+        launch_node();
       };
 
       pal::PlatformAttestationReportData report_data =
