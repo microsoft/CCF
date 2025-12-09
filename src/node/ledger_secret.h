@@ -13,7 +13,7 @@
 
 namespace ccf
 {
-  static constexpr auto commit_secret_label_ = "Commit Secret Label";
+  static constexpr auto commit_secret_label_ = "Commit S";
 
   struct LedgerSecret
   {
