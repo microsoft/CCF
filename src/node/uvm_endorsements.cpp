@@ -154,11 +154,11 @@ namespace ccf
         header_items[ALG_INDEX].key = cbor_nondet_mk_int64(headers::PARAM_ALG);
         header_items[CONTENT_TYPE_INDEX].key = cbor_nondet_mk_int64(headers::PARAM_CONTENT_TYPE);
         header_items[X5_CHAIN_INDEX].key = cbor_nondet_mk_int64(headers::PARAM_X5CHAIN);
-        if (! cbor_nondet_mk_text_string((uint8_t *)HEADER_PARAM_ISSUER, strlen(HEADER_PARAM_ISSUER), &header_items[ISS_INDEX].key))
+        if (! cbor_nondet_mk_text_string((uint8_t *)HEADER_PARAM_ISSUER, sizeof(HEADER_PARAM_ISSUER) - 1, &header_items[ISS_INDEX].key)) // sizeof() - 1 to strip the null terminator from the C-style string
         {
           throw COSEDecodeError("Failed to encode HEADER_PARAM_ISSUER");
         }
-        if (! cbor_nondet_mk_text_string((uint8_t *)HEADER_PARAM_FEED, strlen(HEADER_PARAM_FEED), &header_items[FEED_INDEX].key))
+        if (! cbor_nondet_mk_text_string((uint8_t *)HEADER_PARAM_FEED, sizeof(HEADER_PARAM_FEED) - 1, &header_items[FEED_INDEX].key)) // sizeof() - 1 to strip the null terminator from the C-style string
         {
           throw COSEDecodeError("Failed to encode HEADER_PARAM_FEED");
         }
