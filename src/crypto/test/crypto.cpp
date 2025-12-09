@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/base64.h"
 #include "ccf/crypto/ec_key_pair.h"
@@ -160,15 +161,15 @@ static const string nested_cert =
   "zN/W";
 
 static const string pem_key_for_nested_cert =
-  "-----BEGIN PUBLIC "
-  "KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2NBrEQdwXUzVy2p+"
-  "SZ7s\nBjxbVd4iTGNEQJu/Ot/C0NCzXIDT6DMEAeVZLSoWWcW6oXQ81h+yQWtw+jFW/"
-  "SPg\nG4FGSL1UnVO8Zak80thovQk0dbZDo+"
-  "9lsoOnOfXfPUL0T9AgHtqJpUr3tCfyRRLd\nC0MgF1tAyjZbMj8bHe2ZmJ9GLTJT5v9E0i5l3S4W"
-  "ZY52vMzZaVpfxw+0/s5tRzco\nPGqIrMOnX/7kv5j7sisqZKNq6fP+4MHvLb/"
-  "tXyHCkW6FzX8mUlwyRNzBP3R4xaXB\nvykzJMaAiCW/Yr/"
-  "TxycdnmwsTR7he1Q78q12KnYqLvUVjg/v39/RWGSbFnaP1YX5\nHwIDAQAB\n-----END "
-  "PUBLIC KEY-----\n";
+  "-----BEGIN PUBLIC KEY-----\n"
+  "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2NBrEQdwXUzVy2p+SZ7s\n"
+  "BjxbVd4iTGNEQJu/Ot/C0NCzXIDT6DMEAeVZLSoWWcW6oXQ81h+yQWtw+jFW/SPg\n"
+  "G4FGSL1UnVO8Zak80thovQk0dbZDo+9lsoOnOfXfPUL0T9AgHtqJpUr3tCfyRRLd\n"
+  "C0MgF1tAyjZbMj8bHe2ZmJ9GLTJT5v9E0i5l3S4WZY52vMzZaVpfxw+0/s5tRzco\n"
+  "PGqIrMOnX/7kv5j7sisqZKNq6fP+4MHvLb/tXyHCkW6FzX8mUlwyRNzBP3R4xaXB\n"
+  "vykzJMaAiCW/Yr/TxycdnmwsTR7he1Q78q12KnYqLvUVjg/v39/RWGSbFnaP1YX5\n"
+  "HwIDAQAB\n"
+  "-----END PUBLIC KEY-----\n";
 
 template <typename T>
 void corrupt(T& buf)
@@ -1296,6 +1297,91 @@ TEST_CASE("COSE sign & verify")
   REQUIRE(cose_verifier->verify_detached(cose_sign, {}));
 }
 
+TEST_CASE("COSE algorithm validation")
+{
+  INFO("EC key curves must match COSE algorithm");
+  {
+    // P-256 (secp256r1) requires COSE alg -7
+    auto p256_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP256R1);
+    auto p256_pubkey = std::dynamic_pointer_cast<ECPublicKey_OpenSSL>(
+      ccf::crypto::make_ec_public_key(p256_kp->public_key_pem()));
+
+    // Correct algorithm should work
+    REQUIRE_NOTHROW(p256_pubkey->check_is_cose_compatible(-7));
+
+    // Wrong algorithms should throw
+    REQUIRE_THROWS_WITH(
+      p256_pubkey->check_is_cose_compatible(-35),
+      "secp256r1 key cannot be used with COSE algorithm -35");
+    REQUIRE_THROWS_WITH(
+      p256_pubkey->check_is_cose_compatible(-36),
+      "secp256r1 key cannot be used with COSE algorithm -36");
+
+    // Unknown COSE algorithm for EC keys should throw
+    REQUIRE_THROWS_WITH(
+      p256_pubkey->check_is_cose_compatible(-999),
+      "secp256r1 key cannot be used with COSE algorithm -999");
+    REQUIRE_THROWS_WITH(
+      p256_pubkey->check_is_cose_compatible(42),
+      "secp256r1 key cannot be used with COSE algorithm 42");
+
+    // P-384 (secp384r1) requires COSE alg -35
+    auto p384_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP384R1);
+    auto p384_pubkey = std::dynamic_pointer_cast<ECPublicKey_OpenSSL>(
+      ccf::crypto::make_ec_public_key(p384_kp->public_key_pem()));
+
+    // Correct algorithm should work
+    REQUIRE_NOTHROW(p384_pubkey->check_is_cose_compatible(-35));
+
+    // Wrong algorithms should throw
+    REQUIRE_THROWS_WITH(
+      p384_pubkey->check_is_cose_compatible(-7),
+      "secp384r1 key cannot be used with COSE algorithm -7");
+    REQUIRE_THROWS_WITH(
+      p384_pubkey->check_is_cose_compatible(-36),
+      "secp384r1 key cannot be used with COSE algorithm -36");
+
+    // Unknown COSE algorithm for EC keys should throw
+    REQUIRE_THROWS_WITH(
+      p384_pubkey->check_is_cose_compatible(0),
+      "secp384r1 key cannot be used with COSE algorithm 0");
+    REQUIRE_THROWS_WITH(
+      p384_pubkey->check_is_cose_compatible(-100),
+      "secp384r1 key cannot be used with COSE algorithm -100");
+  }
+
+  INFO("RSA keys accept PS256, PS384, and PS512");
+  {
+    auto rsa_kp = ccf::crypto::make_rsa_key_pair();
+    auto rsa_pubkey = std::dynamic_pointer_cast<RSAPublicKey_OpenSSL>(
+      ccf::crypto::make_rsa_public_key(rsa_kp->public_key_pem()));
+
+    // All PS algorithms should work
+    REQUIRE_NOTHROW(rsa_pubkey->check_is_cose_compatible(-37)); // PS256
+    REQUIRE_NOTHROW(rsa_pubkey->check_is_cose_compatible(-38)); // PS384
+    REQUIRE_NOTHROW(rsa_pubkey->check_is_cose_compatible(-39)); // PS512
+
+    // Non-PS algorithms should throw
+    REQUIRE_THROWS_WITH(
+      rsa_pubkey->check_is_cose_compatible(-7),
+      "Incompatible cose algorithm -7 for RSA");
+    REQUIRE_THROWS_WITH(
+      rsa_pubkey->check_is_cose_compatible(-35),
+      "Incompatible cose algorithm -35 for RSA");
+
+    // Unknown COSE algorithm for RSA keys should throw
+    REQUIRE_THROWS_WITH(
+      rsa_pubkey->check_is_cose_compatible(1),
+      "Incompatible cose algorithm 1 for RSA");
+    REQUIRE_THROWS_WITH(
+      rsa_pubkey->check_is_cose_compatible(-256),
+      "Incompatible cose algorithm -256 for RSA");
+    REQUIRE_THROWS_WITH(
+      rsa_pubkey->check_is_cose_compatible(999),
+      "Incompatible cose algorithm 999 for RSA");
+  }
+}
+
 TEST_CASE("Sign and verify a chain with an intermediate and different subjects")
 {
   auto root_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP384R1);
@@ -1381,4 +1467,61 @@ TEST_CASE("Do not trust non-ca certs")
   // CA:FALSE).
   REQUIRE_FALSE(
     non_ca_cert_verifier->verify_certificate({&non_ca_cert}, {}, true));
+}
+
+TEST_CASE("Sha256 hex conversions")
+{
+  {
+    INFO("Sha256 via operator<<");
+
+    const std::string hex{
+      "f3d25d4670b742f035c1f1d9fffa2eba676ddc491c5288403fa1091e62f26dd6"};
+    auto hash = ccf::crypto::Sha256Hash::from_hex_string(hex);
+
+    std::stringstream ss;
+    ss << hash;
+
+    REQUIRE(ss.str() == hex);
+  }
+}
+
+TEST_CASE("Carriage returns in PEM certificates")
+{
+  const std::string single_cert =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIByDCCAU6gAwIBAgIQOBe5SrcwReWmSzTjzj2HDjAKBggqhkjOPQQDAzATMREw\n"
+    "DwYDVQQDDAhDQ0YgTm9kZTAeFw0yMzA1MTcxMzUwMzFaFw0yMzA1MTgxMzUwMzBa\n"
+    "MBMxETAPBgNVBAMMCENDRiBOb2RlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE74qL\n"
+    "Ac/45tiriN5MuquYhHVdMGQRvYSm08HBfYcODtET88qC0A39o6Y2TmfbIn6BdjMG\n"
+    "kD58o377ZMTaApQu/oJcwt7qZ9/LE8j8WU2qHn0cPTlpwH/2tiud2w+U3voSo2cw\n"
+    "ZTASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBS9FJNwWSXtUpHaBV57EwTW\n"
+    "oM8vHjAfBgNVHSMEGDAWgBS9FJNwWSXtUpHaBV57EwTWoM8vHjAPBgNVHREECDAG\n"
+    "hwR/xF96MAoGCCqGSM49BAMDA2gAMGUCMQDKxpjPToJ7VSqKqQSeMuW9tr4iL+9I\n"
+    "7gTGdGwiIYV1qTSS35Sk9XQZ0VpSa58c/5UCMEgmH71k7XlTGVUypm4jAgjpC46H\n"
+    "s+hJpGMvyD9dKzEpZgmZYtghbyakUkwBiqmFQA==\n"
+    "-----END CERTIFICATE-----";
+  Pem cert_pem(single_cert);
+  auto cert_vec = cert_pem.raw();
+  OpenSSL::Unique_BIO certbio(cert_vec);
+  OpenSSL::Unique_X509 cert(certbio, true);
+  REQUIRE_NE(cert, nullptr);
+
+  const std::string single_cert_cr =
+    "-----BEGIN CERTIFICATE-----\r\n"
+    "MIIByDCCAU6gAwIBAgIQOBe5SrcwReWmSzTjzj2HDjAKBggqhkjOPQQDAzATMREw\r\n"
+    "DwYDVQQDDAhDQ0YgTm9kZTAeFw0yMzA1MTcxMzUwMzFaFw0yMzA1MTgxMzUwMzBa\r\n"
+    "MBMxETAPBgNVBAMMCENDRiBOb2RlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE74qL\r\n"
+    "Ac/45tiriN5MuquYhHVdMGQRvYSm08HBfYcODtET88qC0A39o6Y2TmfbIn6BdjMG\r\n"
+    "kD58o377ZMTaApQu/oJcwt7qZ9/LE8j8WU2qHn0cPTlpwH/2tiud2w+U3voSo2cw\r\n"
+    "ZTASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBS9FJNwWSXtUpHaBV57EwTW\r\n"
+    "oM8vHjAfBgNVHSMEGDAWgBS9FJNwWSXtUpHaBV57EwTWoM8vHjAPBgNVHREECDAG\r\n"
+    "hwR/xF96MAoGCCqGSM49BAMDA2gAMGUCMQDKxpjPToJ7VSqKqQSeMuW9tr4iL+9I\r\n"
+    "7gTGdGwiIYV1qTSS35Sk9XQZ0VpSa58c/5UCMEgmH71k7XlTGVUypm4jAgjpC46H\r\n"
+    "s+hJpGMvyD9dKzEpZgmZYtghbyakUkwBiqmFQA==\r\n"
+    "-----END CERTIFICATE-----";
+  Pem cert_pem_cr(single_cert_cr);
+  auto cert_vec_cr = cert_pem_cr.raw();
+  OpenSSL::Unique_BIO certbio_cr(cert_vec_cr);
+  OpenSSL::Unique_X509 cert_cr(certbio_cr, true);
+  REQUIRE_NE(cert_cr, nullptr);
 }

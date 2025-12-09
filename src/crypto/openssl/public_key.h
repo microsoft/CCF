@@ -31,14 +31,14 @@ namespace ccf::crypto
       }
     }
 
-    std::optional<int> cose_alg_id()
+    void check_is_cose_compatible(int cose_alg)
     {
-      if (!key)
+      if (key == nullptr)
       {
-        return std::nullopt;
+        throw std::logic_error("Public key is not initialized");
       }
 
-      int key_type = EVP_PKEY_get_base_id(key);
+      const int key_type = EVP_PKEY_get_base_id(key);
 
       if (key_type == EVP_PKEY_EC)
       {
@@ -53,42 +53,52 @@ namespace ccf::crypto
         // Map curve to COSE algorithm
         if (gname == SN_X9_62_prime256v1) // P-256
         {
-          return -7; // ES256
+          if (cose_alg != -7)
+          {
+            throw std::domain_error(fmt::format(
+              "secp256r1 key cannot be used with COSE algorithm {}", cose_alg));
+          }
         }
-        if (gname == SN_secp384r1) // P-384
+        else if (gname == SN_secp384r1) // P-384
         {
-          return -35; // ES384
+          if (cose_alg != -35)
+          {
+            throw std::domain_error(fmt::format(
+              "secp384r1 key cannot be used with COSE algorithm {}", cose_alg));
+          }
         }
-        if (gname == SN_secp521r1) // P-521
+        else if (gname == SN_secp521r1) // P-521
         {
-          return -36; // ES512
+          if (cose_alg != -36)
+          {
+            throw std::domain_error(fmt::format(
+              "secp521r1 key cannot be used with COSE algorithm {}", cose_alg));
+          }
+        }
+        else
+        {
+          throw std::domain_error(
+            fmt::format("Unsupported EC curve: {}", gname));
         }
       }
       else if (key_type == EVP_PKEY_RSA || key_type == EVP_PKEY_RSA_PSS)
       {
-        int bits = EVP_PKEY_bits(key);
-
-        // Map key size to COSE PS algorithm
-        // RSASSA-PSS using SHA-256 and MGF1 with SHA-256
-        if (bits == 2048)
+        // It is RECOMMENDED although not required to match hash function and
+        // key sizes, so any of PS256(-37), PS384(-38), and PS512(-39) is
+        // acceptable.
+        //
+        // https://www.iana.org/assignments/cose/cose.xhtml
+        if (cose_alg != -37 && cose_alg != -38 && cose_alg != -39)
         {
-          return -37; // PS256
-        }
-
-        // RSASSA-PSS using SHA-384 and MGF1 with SHA-384
-        if (bits == 3072)
-        {
-          return -38; // PS384
-        }
-
-        // RSASSA-PSS using SHA-512 and MGF1 with SHA-512
-        if (bits == 4096)
-        {
-          return -39; // PS512
+          throw std::domain_error(
+            fmt::format("Incompatible cose algorithm {} for RSA", cose_alg));
         }
       }
-
-      return std::nullopt;
+      else
+      {
+        throw std::domain_error(
+          fmt::format("Unsupported key type {}", key_type));
+      }
     }
 
     operator EVP_PKEY*() const

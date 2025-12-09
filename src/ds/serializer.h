@@ -27,6 +27,11 @@ namespace serializer
   {
     const uint8_t* data;
     const size_t size;
+
+    operator std::span<const uint8_t>() const
+    {
+      return {data, size};
+    }
   };
 
   namespace details
@@ -130,8 +135,8 @@ namespace serializer
   struct AbstractSerializedSection
   {
     virtual ~AbstractSerializedSection() = default;
-    virtual const uint8_t* data() const = 0;
-    virtual size_t size() const = 0;
+    [[nodiscard]] virtual const uint8_t* data() const = 0;
+    [[nodiscard]] virtual size_t size() const = 0;
   };
 
   using PartialSerialization = std::shared_ptr<AbstractSerializedSection>;
@@ -143,12 +148,12 @@ namespace serializer
 
     CopiedSection(const T& t_) : t(t_) {}
 
-    virtual const uint8_t* data() const override
+    [[nodiscard]] const uint8_t* data() const override
     {
       return reinterpret_cast<const uint8_t*>(&t);
     }
 
-    virtual size_t size() const override
+    [[nodiscard]] size_t size() const override
     {
       return sizeof(T);
     }
@@ -161,12 +166,12 @@ namespace serializer
 
     RawSection(const T& t_) : t(t_) {}
 
-    virtual const uint8_t* data() const override
+    [[nodiscard]] const uint8_t* data() const override
     {
       return reinterpret_cast<const uint8_t*>(&t);
     }
 
-    virtual size_t size() const override
+    [[nodiscard]] size_t size() const override
     {
       return sizeof(T);
     }
@@ -180,12 +185,12 @@ namespace serializer
     MemoryRegionSection(const uint8_t* data_, size_t size_) : d(data_), s(size_)
     {}
 
-    virtual const uint8_t* data() const override
+    [[nodiscard]] const uint8_t* data() const override
     {
       return d;
     }
 
-    virtual size_t size() const override
+    [[nodiscard]] size_t size() const override
     {
       return s;
     }
@@ -207,14 +212,16 @@ namespace serializer
     }
 
     template <typename... Ts>
-    static std::tuple<> deserialize(const uint8_t*, size_t size)
+    static std::tuple<> deserialize(const uint8_t* /*unused*/, size_t size)
     {
       if constexpr (sizeof...(Ts) == 0)
       {
         if (size > 0)
+        {
           throw std::logic_error(
             "EmptySerializer asked to deserialize buffer of size " +
             std::to_string(size) + ", should be empty");
+        }
       }
       return std::make_tuple();
     }
@@ -224,7 +231,7 @@ namespace serializer
   {
     template <size_t N, size_t... Is>
     static auto serialize_byte_range_with_index_sequence(
-      const ByteRange (&brs)[N], std::index_sequence<Is...>)
+      const ByteRange (&brs)[N], std::index_sequence<Is...> /*unused*/)
     {
       return std::make_tuple(
         std::make_shared<MemoryRegionSection>(brs[Is].data, brs[Is].size)...);
@@ -278,11 +285,8 @@ namespace serializer
     }
 
     /// Generic case, for integral types - use raw byte representation
-    template <
-      typename T,
-      std::enable_if_t<
-        std::is_integral<T>::value || std::is_enum<T>::value,
-        bool> = true>
+    template <typename T>
+      requires(std::is_integral_v<T> || std::is_enum_v<T>)
     static auto serialize_value(const T& t)
     {
       auto rs = std::make_shared<RawSection<T>>(t);
@@ -327,7 +331,7 @@ namespace serializer
     ///@{
     /// Overload for ByteRange (refers to data in-place)
     static ByteRange deserialize_value(
-      const uint8_t*& data, size_t& size, const Tag<ByteRange>&)
+      const uint8_t*& data, size_t& size, const Tag<ByteRange>& /*unused*/)
     {
       const auto prefixed_size = serialized::read<size_t>(data, size);
       ByteRange br{data, prefixed_size};
@@ -337,7 +341,9 @@ namespace serializer
 
     /// Overload for std::vectors of bytes (copied)
     static std::vector<uint8_t> deserialize_value(
-      const uint8_t*& data, size_t& size, const Tag<std::vector<uint8_t>>&)
+      const uint8_t*& data,
+      size_t& size,
+      const Tag<std::vector<uint8_t>>& /*unused*/)
     {
       const auto prefixed_size = serialized::read<size_t>(data, size);
       return serialized::read(data, size, prefixed_size);
@@ -345,7 +351,9 @@ namespace serializer
 
     /// Overload for std::span of bytes
     static std::span<uint8_t> deserialize_value(
-      const uint8_t*& data, size_t& size, const Tag<std::span<uint8_t>>&)
+      const uint8_t*& data,
+      size_t& size,
+      const Tag<std::span<uint8_t>>& /*unused*/)
     {
       const auto ptr = serialized::read<uintptr_t>(data, size);
       const auto s = serialized::read<size_t>(data, size);
@@ -354,19 +362,16 @@ namespace serializer
 
     /// Overload for strings
     static std::string deserialize_value(
-      const uint8_t*& data, size_t& size, const Tag<std::string>&)
+      const uint8_t*& data, size_t& size, const Tag<std::string>& /*unused*/)
     {
       return serialized::read<std::string>(data, size);
     }
 
     /// Generic case
-    template <
-      typename T,
-      std::enable_if_t<
-        std::is_integral<T>::value || std::is_enum<T>::value,
-        bool> = true>
+    template <typename T>
+      requires(std::is_integral_v<T> || std::is_enum_v<T>)
     static T deserialize_value(
-      const uint8_t*& data, size_t& size, const Tag<T>&)
+      const uint8_t*& data, size_t& size, const Tag<T>& /*unused*/)
     {
       return serialized::read<T>(data, size);
     }
@@ -376,7 +381,7 @@ namespace serializer
     ///@{
     /// Overload for ByteRanges
     static auto deserialize_value_final(
-      const uint8_t*& data, size_t& size, const Tag<ByteRange>&)
+      const uint8_t*& data, size_t& size, const Tag<ByteRange>& /*unused*/)
     {
       ByteRange br{data, size};
       serialized::skip(data, size, size);
@@ -385,7 +390,9 @@ namespace serializer
 
     /// Overload for std::vectors of bytes
     static auto deserialize_value_final(
-      const uint8_t*& data, size_t& size, const Tag<std::vector<uint8_t>>&)
+      const uint8_t*& data,
+      size_t& size,
+      const Tag<std::vector<uint8_t>>& /*unused*/)
     {
       return serialized::read(data, size, size);
     }

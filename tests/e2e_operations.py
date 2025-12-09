@@ -31,61 +31,10 @@ import cbor2
 import sys
 import pathlib
 import infra.concurrency
-from collections import defaultdict
 import ccf.read_ledger
 import re
 
 from loguru import logger as LOG
-
-
-def force_become_primary(network, args, node):
-    # Ensure all nodes are equally up-to-date
-    network.wait_for_node_commit_sync()
-    p, _ = network.find_primary()
-    if p != node:
-        sleep_time = args.election_timeout_ms / 1000
-        LOG.info(
-            f"Suspending {node.node_id} and sleeping {sleep_time}s to trigger election"
-        )
-        # Suspend the target so they trigger an election on resume
-        # This is not guaranteed - if they process any queued message on wakeup, they may avoid calling an election. So try several times
-        attempts = 5
-        for attempt in range(attempts):
-            LOG.info(f"Attempt {attempt} / {attempts}")
-            node.suspend()
-            time.sleep(sleep_time)
-            node.resume()
-
-            try:
-                primary, _ = network.wait_for_new_primary_in(
-                    {node.node_id}, timeout_multiplier=3
-                )
-                break
-            except (infra.network.PrimaryNotFound, TimeoutError) as e:
-                LOG.error(f"No primary found: {e}")
-                continue
-
-        assert primary == node
-
-    # Wait for this node to emit and commit a signature
-    with node.client("user0") as c:
-        sig_interval = args.sig_ms_interval / 1000
-        t0 = time.time()
-        timeout = 3 * sig_interval
-        while time.time() - t0 < timeout:
-            r = c.get("/node/commit")
-            assert r.status_code == http.HTTPStatus.OK, r
-            tx_id = TxID.from_str(r.body.json()["transaction_id"])
-            receipt = node.get_receipt(view=tx_id.view, seqno=tx_id.seqno)
-            receipt_issuer = receipt.json()["node_id"]
-            if receipt_issuer == node.node_id:
-                return tx_id
-
-            time.sleep(sig_interval / 2)
-
-        raise TimeoutError(
-            f"New primary did not produce signature (and receipt) in new term after {timeout}s"
-        )
 
 
 @reqs.description("Move committed ledger files to read-only directory")
@@ -920,7 +869,7 @@ def run_sighup_check(const_args):
         out, _ = network.nodes[0].remote.get_logs()
         with open(out, "r") as outf:
             lines = outf.readlines()
-        assert any("Hangup: " in line for line in lines), "Hangup should be logged"
+        assert any("SIGHUP: " in line for line in lines), "Hangup should be logged"
 
 
 def run_configuration_file_checks(args):
@@ -1825,170 +1774,120 @@ def run_read_ledger_on_testdata(args):
                         f"Valid snapshot at {snapshot_file.path} with {len(tables)} tables"
                     )
 
+    # Corrupt a single chunk to confirm that read_ledger throws appropriate errors
+    source_chunk = os.path.join(
+        args.historical_testdata,
+        "double_sealed_service",
+        "ledger",
+        "ledger_44-64.committed",
+    )
+    good_chunk = ccf.ledger.LedgerChunk(source_chunk)
+    start_seqno, end_seqno = good_chunk.get_seqnos()
+    expected_range = end_seqno - start_seqno + 1
+    tx_count_error = (
+        f"Expected to contain {expected_range} transactions due to filename"
+    )
+    chunk_name = os.path.basename(source_chunk)
+    with open(source_chunk, "rb") as src_f:
+        good_data = src_f.read()
+    source_size = len(good_data)
+    header_size = ccf.ledger.LEDGER_HEADER_SIZE
+    source_offset = int.from_bytes(good_data[0:header_size], byteorder="little")
+    assert source_offset > 0
+    assert source_offset < source_size
 
-def run_ledger_chunk_bytes_check(const_args):
-    LOG.info("Confirm that ledger chunks are determined by the primary")
-    args = copy.deepcopy(const_args)
+    # Create an alternate version of the chunk without the offsets table. Should be equivalent to the file immediately before it was marked `.committed`
+    no_offsets_table = (
+        int(0).to_bytes(header_size, byteorder="little")
+        + good_data[header_size:source_offset]
+    )
 
-    # Don't emit snapshots
-    args.snapshot_tx_interval = 10000000
+    null_block_size = source_size // 8
 
-    # Don't sign too-often; give time to store many entries in a single chunk
-    args.sig_ms_interval = 1000
+    for name, corrupted_data, expected_parse_error in [
+        (
+            "truncate_pre_offsets",
+            good_data[: source_offset - 1],
+            f"File header claims offset table is at {source_offset}",
+        ),
+        (
+            "truncate_at_offsets",
+            good_data[:source_offset],
+            tx_count_error,
+        ),
+        (
+            "truncate_tx_no_offsets",
+            no_offsets_table[: source_size // 2],
+            tx_count_error,
+        ),
+        (
+            "nulled_block",
+            good_data[: source_size // 2]
+            + b"\00" * null_block_size
+            + good_data[source_size // 2 + null_block_size :],
+            "index out of range",
+        ),
+        (
+            "header_offset_too_large",
+            (source_size + 1).to_bytes(header_size, byteorder="little")
+            + good_data[header_size:],
+            f"File header claims offset table is at {source_size + 1}",
+        ),
+        (
+            "truncate_mid_offsets",
+            good_data[:-4],
+            tx_count_error,
+        ),
+        (
+            "misaligned_offsets_too_small",
+            good_data[:-1],
+            "Expected positions to contain uint32s",
+        ),
+        (
+            "misaligned_offsets_too_large",
+            good_data + b"\x00",
+            "Expected positions to contain uint32s",
+        ),
+        (
+            "unread_data",
+            good_data + b"\x00" * 4,
+            tx_count_error,
+        ),
+        (
+            "unread_data_no_offsets_misaligned",
+            no_offsets_table + b"\x00",
+            "Failed to read precise number of bytes",
+        ),
+        (
+            "unread_data_no_offsets",
+            no_offsets_table + b"\x00" * 8,
+            tx_count_error,
+        ),
+    ]:
+        temp_dir = tempfile.TemporaryDirectory(
+            dir="workspace", prefix=name + "-", delete=False
+        )
+        corrupted_chunk_path = os.path.join(temp_dir.name, chunk_name)
+        LOG.info(f"Testing chunk corruption {name} in {corrupted_chunk_path}")
+        with open(corrupted_chunk_path, "wb") as dst_f:
+            dst_f.write(corrupted_data)
 
-    args.nodes = infra.e2e_args.nodes(args, 3)
+        try:
+            chunk = ccf.ledger.LedgerChunk(corrupted_chunk_path)
+            for tx in chunk:
+                tx.get_public_domain()
 
-    with infra.network.network(args.nodes, args.binary_dir) as network:
-        # Start each node with a different chunk size
-        unit_size = 16384
-        size_0 = unit_size
-        size_1 = unit_size * 3
-        size_2 = unit_size * 9
+            assert (
+                False
+            ), f"Expected to raise exception while parsing corrupted ledger chunk {name}"
 
-        51869
-        51893
+        except Exception as e:
+            assert expected_parse_error in str(
+                e
+            ), f"Unexpected error message for corruption {name}: {e}"
 
-        def overhead(num_transactions, num_signatures):
-            # From checking a sample run, the overhead consists of:
-            # - 24 bytes of header + footer
-            # - 202 bytes of framing/encoding for each of our transactions
-            #   - Comes from
-            #      16384 content
-            #      + table name
-            #      + JSON quoting
-            #      + size prefixes
-            #      + transaction header
-            #      = 16586
-            # - ~2100 bytes per signature transaction
-            #   - Some variation from cert sizes
-            #   - Increasing over time as the mini-tree grows
-            #   - Adding 2400 bytes here to be safe
-            return 24 + (202 * num_transactions) + (2400 * num_signatures)
-
-        network.per_node_args_override[0] = {"ledger_chunk_bytes": f"{size_0}B"}
-        network.per_node_args_override[1] = {"ledger_chunk_bytes": f"{size_1}B"}
-        network.per_node_args_override[2] = {"ledger_chunk_bytes": f"{size_2}B"}
-
-        network.start_and_open(args)
-
-        primary, backups = network.find_nodes()
-
-        nodes_and_sizes = [
-            (primary, size_0),
-            (backups[0], size_1),
-            (backups[1], size_2),
-        ]
-
-        chunks_per_node = 2
-
-        chunk_ends_by_size = defaultdict(list)
-
-        for node, chunk_size in nodes_and_sizes:
-            force_become_primary(network, args, node)
-            with node.client("user0") as c:
-                for _ in range(chunks_per_node):
-                    written = 0
-                    while written < chunk_size:
-                        r = c.post(
-                            "/app/log/public",
-                            {"id": chunk_size, "msg": "X" * unit_size},
-                        )
-                        assert r.status_code == http.HTTPStatus.OK, r
-                        written += unit_size
-                    c.wait_for_commit(r)
-                    r = c.get("/node/commit")
-                    assert r.status_code == http.HTTPStatus.OK, r
-                    chunk_ends_by_size[chunk_size].append(
-                        TxID.from_str(r.body.json()["transaction_id"])
-                    )
-
-        # When a node becomes primary, it may discover the current chunk is already over
-        # the local chunk threshold, and should immediately terminate this chunk.
-        # Confirm it has been correctly tracking chunk sizes while it was backup in this case.
-        smallest_node, smallest_size = nodes_and_sizes[0]
-        for node, chunk_size in nodes_and_sizes[1:]:
-            force_become_primary(network, args, node)
-            with node.client("user0") as c:
-                written = 0
-                # Stop just before this node completes the chunk
-                target_chunk_size = chunk_size - unit_size
-                while written < target_chunk_size:
-                    r = c.post(
-                        "/app/log/public",
-                        {"id": chunk_size, "msg": "X" * unit_size},
-                    )
-                    assert r.status_code == http.HTTPStatus.OK, r
-                    written += unit_size
-                c.wait_for_commit(r)
-
-            force_become_primary(network, args, smallest_node)
-            # Sleep long enough that this new primary node can produce a new time-based signature,
-            # if they want to, to ensure they're tracking chunk sizes accurately
-            time.sleep(args.sig_ms_interval / 1000)
-            with smallest_node.client("user0") as c:
-                r = c.get("/node/commit")
-                assert r.status_code == http.HTTPStatus.OK, r
-                chunk_ends_by_size[target_chunk_size].append(
-                    TxID.from_str(r.body.json()["transaction_id"])
-                )
-
-        # Add a further write to trigger .committed rename of all chunks above
-        with primary.client("user0") as c:
-            r = c.post(
-                "/app/log/public",
-                {"id": 42, "msg": "Make a new chunk"},
-            )
-            assert r.status_code == http.HTTPStatus.OK, r
-            c.wait_for_commit(r)
-
-        # This explicitly checks that ledger chunks match on each node, which is the critical property
-        network.stop_all_nodes(accept_ledger_diff=False)
-
-        # Confirm that at least one ledger chunk of each expected size was produced
-        current, committeds = primary.get_ledger()
-        chunks = [
-            os.path.join(ledger_dir, basename)
-            for ledger_dir in (current, *committeds)
-            for basename in os.listdir(ledger_dir)
-        ]
-        actual_chunk_sizes = {chunk: os.path.getsize(chunk) for chunk in chunks}
-
-        chunk_ends_to_expected_size = {
-            tx_id.seqno: size
-            for size, tx_ids in chunk_ends_by_size.items()
-            for tx_id in tx_ids
-        }
-
-        for path, actual_size in actual_chunk_sizes.items():
-            start, end = ccf.ledger.range_from_filename(path)
-            if end in chunk_ends_to_expected_size:
-                chunk_size = chunk_ends_to_expected_size[end]
-                num_transactions = 1 + end - start
-                min_expected = chunk_size + overhead(num_transactions, num_signatures=0)
-                max_expected = chunk_size + overhead(num_transactions, num_signatures=4)
-
-                r = range(min_expected, max_expected)
-                if actual_size not in r:
-                    LOG.warning("About to fail. Giving some verbose logging output")
-                    for ledger_dir in (current, *committeds):
-                        cmd = f"ls -alv {ledger_dir}"
-                        LOG.warning(f"{cmd}")
-                        subprocess.run(cmd.split(" "))
-
-                    ccf.read_ledger.run(
-                        paths=[path],
-                        print_mode=ccf.read_ledger.PrintMode.Contents,
-                        insecure_skip_verification=True,
-                    )
-
-                assert (
-                    actual_size in r
-                ), f"Expected {os.path.basename(path)} (produced by a node with chunk-size {chunk_size:,}) to be between {min_expected:,} and {max_expected:,} bytes. It is actually {actual_size:,} bytes"
-
-                del chunk_ends_to_expected_size[end]
-
-        # Confirm we've seen all expected chunk ends
-        assert len(chunk_ends_to_expected_size) == 0
+        # NB: cleanup() is deliberately skipped if an assertion fails, so the corrupted files can be inspected
+        temp_dir.cleanup()
 
 
 def test_error_message_on_failure_to_read_aci_sec_context(args):
@@ -2128,4 +2027,3 @@ def run(args):
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
     run_read_ledger_on_testdata(args)
-    run_ledger_chunk_bytes_check(args)

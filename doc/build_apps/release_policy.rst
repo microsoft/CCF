@@ -103,7 +103,7 @@ Support calendar
      - October 25, 2024
    * - 5.0
      - July 17, 2024
-     - September 28, 2025 (planned)
+     - September 28, 2025
    * - 6.0
      - March 28, 2025
      - \-

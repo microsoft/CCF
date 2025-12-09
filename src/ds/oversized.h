@@ -9,6 +9,7 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <unordered_map>
+#include <utility>
 
 #define LOG_AND_THROW(ERROR_TYPE, ...) \
   do \
@@ -59,7 +60,8 @@ namespace oversized
 
             // No safety checks on the size - trust that in normal operation the
             // Writer has set sensible limits, don't duplicate here
-            uint8_t* dest = new uint8_t[total_size];
+            // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+            auto* dest = new uint8_t[total_size];
 
             auto ib =
               partial_messages.insert({message_id, {m, total_size, 0, dest}});
@@ -92,7 +94,7 @@ namespace oversized
             // Entire message received - dispatch it then free buffer
             dispatcher.dispatch(partial.m, partial.data, partial.total_size);
 
-            delete[] partial.data;
+            delete[] partial.data; // NOLINT(cppcoreguidelines-owning-memory)
 
             // Erase by key - dispatch may have invalidated previous iterator
             // (nested fragmented messages - odd, but no reason to disallow)
@@ -101,13 +103,20 @@ namespace oversized
         });
     }
 
-    ~FragmentReconstructor()
+    ~FragmentReconstructor() noexcept
     {
-      dispatcher.remove_message_handler(OversizedMessage::fragment);
+      try
+      {
+        dispatcher.remove_message_handler(OversizedMessage::fragment);
+      }
+      catch (...) // NOLINT(bugprone-empty-catch)
+      {
+        // Destructors must not throw - exception ignored
+      }
 
       for (const auto& [_, partial] : partial_messages)
       {
-        delete[] partial.data;
+        delete[] partial.data; // NOLINT(cppcoreguidelines-owning-memory)
       }
     }
   };
@@ -141,11 +150,10 @@ namespace oversized
     std::optional<FragmentProgress> fragment_progress;
 
   public:
-    Writer(const ringbuffer::WriterPtr& writer, size_t f, size_t t = -1) :
-      underlying_writer(writer),
+    Writer(ringbuffer::WriterPtr writer, size_t f, size_t t = -1) :
+      underlying_writer(std::move(writer)),
       max_fragment_size(f),
-      max_total_size(t),
-      fragment_progress({})
+      max_total_size(t)
     {
       if (max_fragment_size >= max_total_size)
       {
@@ -168,7 +176,7 @@ namespace oversized
       }
     }
 
-    virtual WriteMarker prepare(
+    WriteMarker prepare(
       ringbuffer::Message m,
       size_t total_size,
       bool wait = true,
@@ -210,7 +218,7 @@ namespace oversized
 
       // Prepare space for the first fragment, getting an id for all related
       // fragments
-      size_t outer_id;
+      size_t outer_id = 0;
       const auto marker = underlying_writer->prepare(
         OversizedMessage::fragment, max_fragment_size, wait, &outer_id);
       if (!marker.has_value())
@@ -221,21 +229,23 @@ namespace oversized
       // Write the header
       InitialFragmentHeader header = {outer_id, m, total_size};
       auto next = underlying_writer->write_bytes(
-        marker, (const uint8_t*)&header, sizeof(header));
+        marker, reinterpret_cast<const uint8_t*>(&header), sizeof(header));
 
       // Track progress in current oversized message
       fragment_progress = {
         marker, outer_id, max_fragment_size - sizeof(header)};
 
       if (identifier != nullptr)
+      {
         *identifier = outer_id;
+      }
 
       // Don't need to store next - it will be an argument of the next call to
       // write_bytes
       return next;
     }
 
-    virtual void finish(const WriteMarker& marker) override
+    void finish(const WriteMarker& marker) override
     {
       if (fragment_progress.has_value())
       {
@@ -262,7 +272,7 @@ namespace oversized
       }
     }
 
-    virtual WriteMarker write_bytes(
+    WriteMarker write_bytes(
       const WriteMarker& marker, const uint8_t* bytes, size_t size) override
     {
       if (!marker.has_value())
@@ -318,8 +328,8 @@ namespace oversized
         fragment_progress->remainder = write_size;
 
         // Write the id of the oversized message
-        next =
-          underlying_writer->write_bytes(next, (const uint8_t*)&id, sizeof(id));
+        next = underlying_writer->write_bytes(
+          next, reinterpret_cast<const uint8_t*>(&id), sizeof(id));
 
         // Write some fragment payload
         next = underlying_writer->write_bytes(next, bytes, write_size);

@@ -147,6 +147,73 @@ DOCTEST_TEST_CASE(
   r0.start_ticking();
   r0.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(
+    r0c->count_messages_with_type(aft::RaftMsgType::raft_request_pre_vote) ==
+    3);
+
+  DOCTEST_INFO("Node 1 receives the request pre-vote");
+
+  auto rpv_raw =
+    r0c->pop_first(aft::RaftMsgType::raft_request_pre_vote, node_id1);
+  DOCTEST_REQUIRE(rpv_raw.has_value());
+  {
+    auto rpv = *(aft::RequestPreVote*)rpv_raw->data();
+    DOCTEST_REQUIRE(rpv.term == 0);
+    DOCTEST_REQUIRE(rpv.last_committable_idx == 0);
+    DOCTEST_REQUIRE(
+      rpv.term_of_last_committable_idx == aft::ViewHistory::InvalidView);
+  }
+
+  receive_message(r0, r1, *rpv_raw);
+
+  DOCTEST_INFO("Node 2 receives the request pre-vote");
+
+  rpv_raw = r0c->pop_first(aft::RaftMsgType::raft_request_pre_vote, node_id2);
+  DOCTEST_REQUIRE(rpv_raw.has_value());
+  {
+    auto rpv = *(aft::RequestPreVote*)rpv_raw->data();
+    DOCTEST_REQUIRE(rpv.term == 0);
+    DOCTEST_REQUIRE(rpv.last_committable_idx == 0);
+    DOCTEST_REQUIRE(
+      rpv.term_of_last_committable_idx == aft::ViewHistory::InvalidView);
+  }
+
+  receive_message(r0, r2, *rpv_raw);
+
+  DOCTEST_INFO("Node 1 pre-votes for Node 0");
+
+  DOCTEST_REQUIRE(
+    r1c->count_messages_with_type(
+      aft::RaftMsgType::raft_request_pre_vote_response) == 1);
+
+  auto rpvr_raw =
+    r1c->pop_first(aft::RaftMsgType::raft_request_pre_vote_response, node_id0);
+  DOCTEST_REQUIRE(rpvr_raw.has_value());
+  {
+    auto rvrc = *(aft::RequestPreVoteResponse*)rpvr_raw->data();
+    DOCTEST_REQUIRE(rvrc.term == 0);
+    DOCTEST_REQUIRE(rvrc.vote_granted);
+  }
+
+  receive_message(r1, r0, *rpvr_raw);
+
+  DOCTEST_INFO("Node 2 pre-votes for Node 0");
+
+  DOCTEST_REQUIRE(
+    r2c->count_messages_with_type(
+      aft::RaftMsgType::raft_request_pre_vote_response) == 1);
+
+  rpvr_raw =
+    r2c->pop_first(aft::RaftMsgType::raft_request_pre_vote_response, node_id0);
+  DOCTEST_REQUIRE(rpvr_raw.has_value());
+  {
+    auto rvrc = *(aft::RequestPreVoteResponse*)rpvr_raw->data();
+    DOCTEST_REQUIRE(rvrc.term == 0);
+    DOCTEST_REQUIRE(rvrc.vote_granted);
+  }
+
+  receive_message(r2, r0, *rpvr_raw);
+
+  DOCTEST_REQUIRE(
     r0c->count_messages_with_type(aft::RaftMsgType::raft_request_vote) == 3);
 
   DOCTEST_INFO("Node 1 receives the request vote");
@@ -322,6 +389,13 @@ DOCTEST_TEST_CASE(
   r0.start_ticking();
   r0.periodic(election_timeout * 2);
 
+  DOCTEST_INFO("Send request_pre_votes to other nodes");
+  DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_id0, r0c->messages));
+
+  DOCTEST_INFO("Send request_pre_vote_reponses back");
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id2, r2c->messages));
+
   DOCTEST_INFO("Send request_votes to other nodes");
   DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_id0, r0c->messages));
 
@@ -456,6 +530,10 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
   r0.start_ticking();
   r0.periodic(election_timeout * 2);
 
+  // Pre-vote
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
+  // Vote
   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
@@ -567,6 +645,10 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
 
   DOCTEST_INFO("Initial election");
   {
+    // Pre-vote
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
+    // Vote
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
 
@@ -825,6 +907,10 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   r0.start_ticking();
   r0.periodic(election_timeout * 2);
 
+  // Pre-vote
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
+  // Vote
   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
@@ -983,6 +1069,10 @@ DOCTEST_TEST_CASE(
 
   DOCTEST_INFO("Initial election");
   {
+    // Pre-vote
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
+    // Vote
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
 
@@ -997,7 +1087,8 @@ DOCTEST_TEST_CASE(
     "because it isn't ticking yet");
   r1.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(
-    r1c->count_messages_with_type(aft::RaftMsgType::raft_request_vote) == 0);
+    r1c->count_messages_with_type(aft::RaftMsgType::raft_request_pre_vote) ==
+    0);
 
   r1.start_ticking();
   DOCTEST_INFO(
@@ -1005,12 +1096,12 @@ DOCTEST_TEST_CASE(
     "election");
   r1.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(
-    r1c->count_messages_with_type(aft::RaftMsgType::raft_request_vote) == 1);
+    r1c->count_messages_with_type(aft::RaftMsgType::raft_request_pre_vote) ==
+    1);
 }
 
 int main(int argc, char** argv)
 {
-  threading::ThreadMessaging::init(1);
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();

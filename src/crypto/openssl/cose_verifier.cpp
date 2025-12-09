@@ -117,12 +117,12 @@ namespace
       pkey(*pkey_)
     {
       const auto alg_header = extract_algorithm_from_header(envelope);
-      const auto alg_key = pkey_->cose_alg_id();
-      if (!alg_header || !alg_key || alg_key != alg_header)
+      if (!alg_header.has_value())
       {
-        throw std::domain_error(
-          fmt::format("Incompatible key IDs ({} vs {})", alg_header, alg_key));
+        throw std::domain_error("COSE header is missing 'alg' parameter");
       }
+
+      pkey_->check_is_cose_compatible(alg_header.value());
 
       cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
       cose_key.k.key_ptr = pkey;

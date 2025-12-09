@@ -56,11 +56,6 @@ namespace ccf::js
       const CustomJSEndpoint* endpoint,
       ccf::endpoints::EndpointContext& endpoint_ctx);
 
-    void execute_request_locally_committed(
-      const CustomJSEndpoint* endpoint,
-      ccf::endpoints::CommandEndpointContext& endpoint_ctx,
-      const ccf::TxID& tx_id);
-
   protected:
     std::string modules_map;
     std::string metadata_map;

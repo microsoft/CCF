@@ -10,12 +10,13 @@
 #include "crypto/openssl/ec_key_pair.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
-#include "ds/thread_messaging.h"
 #include "endian.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "node_signature_verify.h"
 #include "service/tables/signatures.h"
+#include "tasks/basic_task.h"
+#include "tasks/task_system.h"
 
 #include <array>
 #include <deque>
@@ -355,8 +356,6 @@ namespace ccf
         primary_sig,
         endorsed_cert);
 
-      constexpr int64_t vds_merkle_tree = 2;
-
       const auto& service_key_der = service_kp.public_key_der();
       auto kid = ccf::crypto::Sha256Hash(service_key_der).hex_str();
       std::span<const uint8_t> kid_span{(uint8_t*)kid.data(), kid.size()};
@@ -391,17 +390,17 @@ namespace ccf
                 cose_signatures_config.subject),
             }));
 
-      const auto pheaders = {
-        // Key digest
-        ccf::crypto::cose_params_int_bytes(
-          ccf::crypto::COSE_PHEADER_KEY_ID, kid_span),
-        // VDS
-        ccf::crypto::cose_params_int_int(
-          ccf::crypto::COSE_PHEADER_KEY_VDS, vds_merkle_tree),
-        // CWT claims
-        cwt_headers,
-        // CCF headers
-        ccf_headers};
+      const auto pheaders = {// Key digest
+                             ccf::crypto::cose_params_int_bytes(
+                               ccf::crypto::COSE_PHEADER_KEY_ID, kid_span),
+                             // VDS
+                             ccf::crypto::cose_params_int_int(
+                               ccf::crypto::COSE_PHEADER_KEY_VDS,
+                               ccf::crypto::COSE_PHEADER_VDS_CCF_LEDGER_SHA256),
+                             // CWT claims
+                             cwt_headers,
+                             // CCF headers
+                             ccf_headers};
 
       auto cose_sign = crypto::cose_sign1(service_kp, pheaders, root_hash);
 
@@ -553,8 +552,7 @@ namespace ccf
     ccf::crypto::COSEVerifierUniquePtr cose_verifier{};
     std::vector<uint8_t> cose_cert_cached{};
 
-    std::optional<::threading::TaskQueue::TimerEntry>
-      emit_signature_timer_entry = std::nullopt;
+    ccf::tasks::Task emit_signature_periodic_task;
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
@@ -625,72 +623,57 @@ namespace ccf
 
     void start_signature_emit_timer() override
     {
-      struct EmitSigMsg
-      {
-        EmitSigMsg(HashedTxHistory<T>* self_) : self(self_) {}
-        HashedTxHistory<T>* self;
-      };
+      const auto delay = std::chrono::milliseconds(sig_ms_interval);
 
-      auto emit_sig_msg = std::make_unique<::threading::Tmsg<EmitSigMsg>>(
-        [](std::unique_ptr<::threading::Tmsg<EmitSigMsg>> msg) {
-          auto self = msg->data.self;
+      emit_signature_periodic_task = ccf::tasks::make_basic_task([this]() {
+        std::unique_lock<ccf::pal::Mutex> mguard(
+          this->signature_lock, std::defer_lock);
 
-          std::unique_lock<ccf::pal::Mutex> mguard(
-            self->signature_lock, std::defer_lock);
+        bool should_emit_signature = false;
 
-          bool should_emit_signature = false;
-
-          if (mguard.try_lock())
+        if (mguard.try_lock())
+        {
+          auto consensus = this->store.get_consensus();
+          if (consensus != nullptr)
           {
-            auto consensus = self->store.get_consensus();
-            if (consensus != nullptr)
+            auto sig_disp = consensus->get_signature_disposition();
+            switch (sig_disp)
             {
-              auto sig_disp = consensus->get_signature_disposition();
-              switch (sig_disp)
+              case ccf::kv::Consensus::SignatureDisposition::CANT_REPLICATE:
               {
-                case ccf::kv::Consensus::SignatureDisposition::CANT_REPLICATE:
-                {
-                  break;
-                }
-                case ccf::kv::Consensus::SignatureDisposition::CAN_SIGN:
-                {
-                  if (self->store.committable_gap() > 0)
-                  {
-                    should_emit_signature = true;
-                  }
-                  break;
-                }
-                case ccf::kv::Consensus::SignatureDisposition::SHOULD_SIGN:
+                break;
+              }
+              case ccf::kv::Consensus::SignatureDisposition::CAN_SIGN:
+              {
+                if (this->store.committable_gap() > 0)
                 {
                   should_emit_signature = true;
-                  break;
                 }
+                break;
+              }
+              case ccf::kv::Consensus::SignatureDisposition::SHOULD_SIGN:
+              {
+                should_emit_signature = true;
+                break;
               }
             }
           }
+        }
 
-          if (should_emit_signature)
-          {
-            msg->data.self->emit_signature();
-          }
+        if (should_emit_signature)
+        {
+          this->emit_signature();
+        }
+      });
 
-          self->emit_signature_timer_entry =
-            ::threading::ThreadMessaging::instance().add_task_after(
-              std::move(msg), std::chrono::milliseconds(self->sig_ms_interval));
-        },
-        this);
-
-      emit_signature_timer_entry =
-        ::threading::ThreadMessaging::instance().add_task_after(
-          std::move(emit_sig_msg), std::chrono::milliseconds(sig_ms_interval));
+      ccf::tasks::add_periodic_task(emit_signature_periodic_task, delay, delay);
     }
 
     ~HashedTxHistory()
     {
-      if (emit_signature_timer_entry.has_value())
+      if (emit_signature_periodic_task != nullptr)
       {
-        ::threading::ThreadMessaging::instance().cancel_timer_task(
-          *emit_signature_timer_entry);
+        emit_signature_periodic_task->cancel_task();
       }
     }
 

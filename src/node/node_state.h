@@ -111,21 +111,6 @@ namespace ccf
 
     std::atomic<bool> stop_noticed = false;
 
-    struct NodeStateMsg
-    {
-      NodeStateMsg(
-        NodeState& self_,
-        View create_view_ = 0,
-        bool create_consortium_ = true) :
-        self(self_),
-        create_view(create_view_),
-        create_consortium(create_consortium_)
-      {}
-      NodeState& self;
-      View create_view;
-      bool create_consortium;
-    };
-
     //
     // kv store, replication, and I/O
     //
@@ -172,6 +157,8 @@ namespace ccf
     // Set to the snapshot seqno when a node starts from one and remembered for
     // the lifetime of the node
     ccf::kv::Version startup_seqno = 0;
+
+    ccf::tasks::Task join_periodic_task;
 
     std::shared_ptr<ccf::kv::AbstractTxEncryptor> make_encryptor()
     {
@@ -519,9 +506,7 @@ namespace ccf
           }
           // On SEV-SNP, fetch endorsements from servers if specified
           quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
-            rpcsessions,
-            endpoint_config,
-            [this](std::vector<uint8_t>&& endorsements) {
+            endpoint_config, [this](std::vector<uint8_t>&& endorsements) {
               std::lock_guard<pal::Mutex> guard(lock);
               quote_info.endorsements = std::move(endorsements);
               try
@@ -856,6 +841,12 @@ namespace ccf
               sm.advance(NodeStartupState::partOfNetwork);
             }
 
+            if (join_periodic_task != nullptr)
+            {
+              join_periodic_task->cancel_task();
+              join_periodic_task = nullptr;
+            }
+
             LOG_INFO_FMT(
               "Node has now joined the network as node {}: {}",
               self,
@@ -916,23 +907,18 @@ namespace ccf
     {
       initiate_join_unsafe();
 
-      auto timer_msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
-        [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
-          std::lock_guard<pal::Mutex> guard(msg->data.self.lock);
-          if (msg->data.self.sm.check(NodeStartupState::pending))
-          {
-            msg->data.self.initiate_join_unsafe();
-            auto delay = std::chrono::milliseconds(
-              msg->data.self.config.join.retry_timeout);
+      join_periodic_task = ccf::tasks::make_basic_task([this]() {
+        std::lock_guard<pal::Mutex> guard(this->lock);
+        if (this->sm.check(NodeStartupState::pending))
+        {
+          this->initiate_join_unsafe();
+        }
+      });
 
-            ::threading::ThreadMessaging::instance().add_task_after(
-              std::move(msg), delay);
-          }
-        },
-        *this);
-
-      ::threading::ThreadMessaging::instance().add_task_after(
-        std::move(timer_msg), config.join.retry_timeout);
+      ccf::tasks::add_periodic_task(
+        join_periodic_task,
+        config.join.retry_timeout,
+        config.join.retry_timeout);
     }
 
     void auto_refresh_jwt_keys()
@@ -1155,7 +1141,10 @@ namespace ccf
         LOG_INFO_FMT("COSE signature found after recovery");
         try
         {
-          auto [issuer, subject] = cose::extract_iss_sub_from_sig(cs);
+          auto receipt =
+            cose::decode_ccf_receipt(cs, /* recompute_root */ false);
+          auto issuer = receipt.phdr.cwt.iss;
+          auto subject = receipt.phdr.cwt.sub;
           LOG_INFO_FMT(
             "COSE signature issuer: {}, subject: {}", issuer, subject);
           cs_cfg = ccf::COSESignaturesConfig{issuer, subject};
@@ -2094,30 +2083,23 @@ namespace ccf
     {
       // Service creation transaction is asynchronous to avoid deadlocks
       // (e.g. https://github.com/microsoft/CCF/issues/3788)
-      auto msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
-        [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
-          if (!msg->data.self.send_create_request(
-                msg->data.self.serialize_create_request(
-                  msg->data.create_view, msg->data.create_consortium)))
+      ccf::tasks::add_task(
+        ccf::tasks::make_basic_task([this, create_view, create_consortium]() {
+          if (!this->send_create_request(
+                this->serialize_create_request(create_view, create_consortium)))
           {
             throw std::runtime_error(
               "Service creation request could not be committed");
           }
-          if (msg->data.create_consortium)
+          if (create_consortium)
           {
-            msg->data.self.advance_part_of_network();
+            this->advance_part_of_network();
           }
           else
           {
-            msg->data.self.advance_part_of_public_network();
+            this->advance_part_of_public_network();
           }
-        },
-        *this,
-        create_view,
-        create_consortium);
-
-      ::threading::ThreadMessaging::instance().add_task(
-        threading::get_current_thread_id(), std::move(msg));
+        }));
     }
 
     void begin_private_recovery()

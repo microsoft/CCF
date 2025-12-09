@@ -27,12 +27,12 @@ namespace ccf::crypto
     ECPublicKey_OpenSSL(ECPublicKey_OpenSSL&& key) = default;
     ECPublicKey_OpenSSL(std::span<const uint8_t> der);
     ECPublicKey_OpenSSL(const JsonWebKeyECPublic& jwk);
-    virtual ~ECPublicKey_OpenSSL();
+    ~ECPublicKey_OpenSSL() override;
 
     using ECPublicKey::verify;
     using ECPublicKey::verify_hash;
 
-    virtual bool verify(
+    bool verify(
       const uint8_t* contents,
       size_t contents_size,
       const uint8_t* sig,
@@ -40,25 +40,25 @@ namespace ccf::crypto
       MDType md_type,
       HashBytes& bytes) override;
 
-    virtual bool verify_hash(
+    bool verify_hash(
       const uint8_t* hash,
       size_t hash_size,
       const uint8_t* sig,
       size_t sig_size,
       MDType md_type) override;
 
-    virtual Pem public_key_pem() const override;
-    virtual std::vector<uint8_t> public_key_der() const override;
-    virtual std::vector<uint8_t> public_key_raw() const override;
+    [[nodiscard]] Pem public_key_pem() const override;
+    [[nodiscard]] std::vector<uint8_t> public_key_der() const override;
+    [[nodiscard]] std::vector<uint8_t> public_key_raw() const override;
 
-    virtual CurveID get_curve_id() const override;
+    [[nodiscard]] CurveID get_curve_id() const override;
 
-    int get_openssl_group_id() const;
+    [[nodiscard]] int get_openssl_group_id() const;
     static int get_openssl_group_id(CurveID gid);
 
-    virtual Coordinates coordinates() const override;
+    [[nodiscard]] Coordinates coordinates() const override;
 
-    virtual JsonWebKeyECPublic public_key_jwk(
+    [[nodiscard]] JsonWebKeyECPublic public_key_jwk(
       const std::optional<std::string>& kid = std::nullopt) const override;
   };
 

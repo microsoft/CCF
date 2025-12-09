@@ -25,13 +25,13 @@ namespace aft
   class Store
   {
   public:
-    virtual ~Store() {}
+    virtual ~Store() = default;
     virtual void compact(Index v) = 0;
     virtual void rollback(
       const ccf::TxID& tx_id, Term term_of_next_version) = 0;
     virtual void initialise_term(Term t) = 0;
     virtual std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(
-      const std::vector<uint8_t> data,
+      std::vector<uint8_t> data,
       bool public_only = false,
       const std::optional<ccf::TxID>& expected_txid = std::nullopt) = 0;
   };
@@ -86,6 +86,7 @@ namespace aft
     }
   };
 
+  // NOLINTNEXTLINE(performance-enum-size)
   enum RaftMsgType : Node2NodeMsg
   {
     raft_append_entries = 0,
@@ -180,7 +181,7 @@ namespace aft
   DECLARE_JSON_REQUIRED_FIELDS(
     AppendEntriesResponse, term, last_log_idx, success);
 
-  enum ElectionType
+  enum ElectionType : std::uint8_t
   {
     PreVote = 0,
     RegularVote = 1

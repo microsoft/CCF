@@ -104,17 +104,13 @@ namespace ccf::logger
       std::cout.flush();
     }
 
-    virtual void write(
-      const LogLine& ll,
-      const std::optional<double>& enclave_offset = std::nullopt) = 0;
+    virtual void write(const LogLine& ll) = 0;
   };
 
   class JsonConsoleLogger : public AbstractLogger
   {
   public:
-    void write(
-      const LogLine& ll,
-      const std::optional<double>& enclave_offset = std::nullopt) override
+    void write(const LogLine& ll) override
     {
       // Fetch time
       ::timespec host_ts{};
@@ -139,55 +135,22 @@ namespace ccf::logger
 #endif
 
       std::string s;
-      if (enclave_offset.has_value())
-      {
-        ::timespec enc_ts = host_ts;
-        enc_ts.tv_sec += (size_t)enclave_offset.value();
-        enc_ts.tv_nsec +=
-          (long long)(enclave_offset.value() * ns_per_s) % ns_per_s;
-
-        if (enc_ts.tv_nsec > ns_per_s)
-        {
-          enc_ts.tv_sec += 1;
-          enc_ts.tv_nsec -= ns_per_s;
-        }
-
-        std::tm enclave_tm{};
-        gmtime_r(&enc_ts.tv_sec, &enclave_tm);
-
-        s = fmt::format(
-          "{{\"h_ts\":\"{}\",\"e_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{"
-          "}\",\"tag\":\"{}\",\"file\":\"{}\",\"number\":\"{}\",\"msg\":{}}}\n",
-          get_timestamp(host_tm, host_ts),
-          get_timestamp(enclave_tm, enc_ts),
-          ll.thread_id,
-          to_string(ll.log_level),
-          ll.tag,
-          ll.file_name,
-          ll.line_number,
-          escaped_msg);
-      }
-      else
-      {
-        s = fmt::format(
-          "{{\"h_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{}\",\"tag\":\"{}"
-          "\",\"file\":\"{}\",\"number\":\"{}\",\"msg\":{}}}\n",
-          get_timestamp(host_tm, host_ts),
-          ll.thread_id,
-          to_string(ll.log_level),
-          ll.tag,
-          ll.file_name,
-          ll.line_number,
-          escaped_msg);
-      }
+      s = fmt::format(
+        "{{\"h_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{}\",\"tag\":\"{}"
+        "\",\"file\":\"{}\",\"number\":\"{}\",\"msg\":{}}}\n",
+        get_timestamp(host_tm, host_ts),
+        ll.thread_id,
+        to_string(ll.log_level),
+        ll.tag,
+        ll.file_name,
+        ll.line_number,
+        escaped_msg);
 
       emit(s);
     }
   };
 
-  static std::string format_to_text(
-    const LogLine& ll,
-    const std::optional<double>& enclave_offset = std::nullopt)
+  static std::string format_to_text(const LogLine& ll)
   {
     // Fetch time
     ::timespec host_ts{};
@@ -218,23 +181,8 @@ namespace ccf::logger
 
     preamble += file_line_data;
 
-    if (enclave_offset.has_value())
-    {
-      // Sample: "2019-07-19 18:53:25.690183 -0.130 " where -0.130 indicates
-      // that the time inside the enclave was 130 milliseconds earlier than
-      // the host timestamp printed on the line
-      return fmt::format(
-        "{} {:+01.3f} {:<3} {:<45}| {}\n",
-        get_timestamp(host_tm, host_ts),
-        enclave_offset.value(),
-        ll.thread_id,
-        preamble,
-        ll.msg);
-    }
-    // Padding on the right to align the rest of the message
-    // with lines that contain enclave time offsets
     return fmt::format(
-      "{}        {:<3} {:<45}| {}\n",
+      "{} {:<3} {:<45}| {}\n",
       get_timestamp(host_tm, host_ts),
       ll.thread_id,
       preamble,
@@ -244,11 +192,9 @@ namespace ccf::logger
   class TextConsoleLogger : public AbstractLogger
   {
   public:
-    void write(
-      const LogLine& ll,
-      const std::optional<double>& enclave_offset = std::nullopt) override
+    void write(const LogLine& ll) override
     {
-      emit(format_to_text(ll, enclave_offset));
+      emit(format_to_text(ll));
     }
   };
 

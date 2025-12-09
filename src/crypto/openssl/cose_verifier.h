@@ -21,11 +21,11 @@ namespace ccf::crypto
     std::shared_ptr<PublicKey_OpenSSL> public_key;
 
   public:
-    virtual ~COSEVerifier_OpenSSL() override;
-    virtual bool verify(
+    ~COSEVerifier_OpenSSL() override;
+    bool verify(
       const std::span<const uint8_t>& envelope,
       std::span<uint8_t>& authned_content) const override;
-    virtual bool verify_detached(
+    [[nodiscard]] bool verify_detached(
       std::span<const uint8_t> envelope,
       std::span<const uint8_t> payload) const override;
   };

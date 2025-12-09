@@ -15,7 +15,8 @@ namespace ccf::pal::snp
 #pragma pack(push, 1)
   // AMD CPUID specification. Chapter 2 Fn0000_0001_EAX
   // Milan: 0x00A00F11
-  // Genoa: 0X00A10F11
+  // Genoa: 0x00A10F11
+  // Turin: 0x00B00F21
   // Note: The CPUID is little-endian so the hex_string is reversed
   struct CPUID
   {
@@ -130,7 +131,7 @@ namespace ccf::pal::snp
       return ProductName::Genoa;
     }
     constexpr uint8_t turin_family = 0x1A;
-    constexpr uint8_t turin_model = 0x01;
+    constexpr uint8_t turin_model = 0x02;
     if (family == turin_family && model == turin_model)
     {
       return ProductName::Turin;

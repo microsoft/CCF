@@ -4,9 +4,7 @@
 
 #include "ccf/ds/nonstd.h"
 #include "ccf/rest_verb.h"
-#include "ccf/threading/thread_ids.h"
 #include "ds/internal_logger.h"
-#include "ds/thread_messaging.h"
 #include "host/proxy.h"
 
 #include <cstddef>
@@ -191,7 +189,7 @@ namespace ccf::curl
       unsent = std::span<const uint8_t>(buffer.data(), buffer.size());
     }
 
-    RequestBody(std::vector<uint8_t>&& buffer) : buffer(std::move(buffer))
+    RequestBody(std::vector<uint8_t>&& buffer_) : buffer(std::move(buffer_))
     {
       unsent = std::span<const uint8_t>(buffer.data(), buffer.size());
     }
@@ -244,7 +242,7 @@ namespace ccf::curl
     ResponseBody(size_t max_size_) : maximum_size(max_size_) {}
 
     static size_t write_response_chunk(
-      uint8_t* ptr, size_t size, size_t nmemb, ResponseBody* response)
+      const uint8_t* ptr, size_t size, size_t nmemb, ResponseBody* response)
     {
       if (response == nullptr)
       {
@@ -277,7 +275,7 @@ namespace ccf::curl
     }
 
     static size_t noop_write_function(
-      uint8_t* ptr, size_t size, size_t nmemb, ResponseBody* response)
+      const uint8_t* ptr, size_t size, size_t nmemb, ResponseBody* response)
     {
       (void)ptr;
       (void)response;
@@ -389,27 +387,23 @@ namespace ccf::curl
     std::unique_ptr<ccf::curl::ResponseBody> response;
     ResponseHeaders response_headers;
     std::optional<ResponseCallback> response_callback;
-    std::optional<uint16_t> response_thread;
 
   public:
     CurlRequest(
       UniqueCURL&& curl_handle_,
       RESTVerb method_,
-      const std::string& url_,
+      std::string url_,
       UniqueSlist&& headers_,
       std::unique_ptr<RequestBody>&& request_body_,
       std::unique_ptr<ccf::curl::ResponseBody>&& response_,
-      std::optional<ResponseCallback>&& response_callback_,
-      std::optional<uint16_t> response_thread_ =
-        threading::get_current_thread_id()) :
+      std::optional<ResponseCallback>&& response_callback_) :
       curl_handle(std::move(curl_handle_)),
       method(method_),
       url(std::move(url_)),
       headers(std::move(headers_)),
       request_body(std::move(request_body_)),
       response(std::move(response_)),
-      response_callback(std::move(response_callback_)),
-      response_thread(response_thread_)
+      response_callback(std::move(response_callback_))
     {
       if (url.empty())
       {
@@ -417,13 +411,14 @@ namespace ccf::curl
       }
       CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_URL, url.c_str());
 
-      if (!method.get_http_method().has_value())
+      auto http_method = method.get_http_method();
+      if (!http_method.has_value())
       {
         throw std::logic_error(
           fmt::format("Unsupported HTTP method: {}", method.c_str()));
       }
 
-      switch (method.get_http_method().value())
+      switch (http_method.value())
       {
         case HTTP_GET:
           CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPGET, 1L);
@@ -479,13 +474,16 @@ namespace ccf::curl
       std::unique_ptr<CurlRequest>&& request, CURLcode curl_response_code)
     {
       LOG_TRACE_FMT("Handling response for {}", request->url);
-      if (request->response_callback.has_value())
+      auto& callback = request->response_callback;
+      if (callback.has_value())
       {
-        long status_code = 0;
-        CHECK_CURL_EASY_GETINFO(
-          request->curl_handle, CURLINFO_RESPONSE_CODE, &status_code);
-        request->response_callback.value()(
-          std::move(request), curl_response_code, status_code);
+        if (callback.value() != nullptr)
+        {
+          long status_code = 0;
+          CHECK_CURL_EASY_GETINFO(
+            request->curl_handle, CURLINFO_RESPONSE_CODE, &status_code);
+          callback.value()(std::move(request), curl_response_code, status_code);
+        }
       }
     }
 
@@ -541,11 +539,6 @@ namespace ccf::curl
     [[nodiscard]] const ResponseHeaders::HeaderMap& get_response_headers() const
     {
       return response_headers.data;
-    }
-
-    [[nodiscard]] std::optional<uint16_t> get_response_thread() const
-    {
-      return response_thread;
     }
   };
 
@@ -606,26 +599,9 @@ namespace ccf::curl
           // destructor of CurlRequest
           curl_multi_remove_handle(p.get(), easy);
 
-          // dispatch the response handling to a thread for processing
-          if (request->get_response_thread().has_value())
-          {
-            using Data =
-              std::tuple<std::unique_ptr<curl::CurlRequest>, CURLcode>;
-            ::threading::ThreadMessaging::instance().add_task(
-              request->get_response_thread().value(),
-              std::make_unique<::threading::Tmsg<Data>>(
-                [](std::unique_ptr<::threading::Tmsg<Data>> msg) {
-                  auto& [curl_request, curl_code] = msg->data;
-                  CurlRequest::handle_response(
-                    std::move(curl_request), curl_code);
-                },
-                std::make_tuple(std::move(request_data_ptr), result)));
-          }
-          else
-          {
-            // If the response thread is not set, run on the uv thread
-            CurlRequest::handle_response(std::move(request_data_ptr), result);
-          }
+          // handle response inline. Note that if this is expensive, it should
+          // defer its work to a task
+          CurlRequest::handle_response(std::move(request_data_ptr), result);
         }
       } while (msgq > 0);
       return running_handles;
@@ -983,7 +959,8 @@ namespace ccf::curl
       // remove, stop and cleanup all curl easy handles
       std::unique_ptr<CURL*, void (*)(CURL**)> easy_handles(
         curl_multi_get_handles(curl_request_curlm),
-        [](CURL** handles) { curl_free(handles); });
+        // NOLINTNEXTLINE(bugprone-multi-level-implicit-pointer-conversion)
+        [](CURL** handles) { curl_free(static_cast<void*>(handles)); });
       // curl_multi_get_handles returns the handles as a null-terminated array
       for (size_t i = 0; easy_handles.get()[i] != nullptr; ++i)
       {

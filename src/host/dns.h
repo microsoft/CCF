@@ -23,13 +23,14 @@ namespace asynchost
       uv_getaddrinfo_cb cb,
       bool async)
     {
-      struct addrinfo hints;
+      addrinfo hints{};
       hints.ai_family = AF_UNSPEC;
       hints.ai_socktype = SOCK_STREAM;
       hints.ai_protocol = IPPROTO_TCP;
       hints.ai_flags = 0;
 
-      auto resolver = new uv_getaddrinfo_t;
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      auto* resolver = new uv_getaddrinfo_t;
       resolver->data = ud;
 
       std::string host =
@@ -37,7 +38,7 @@ namespace asynchost
            host_.substr(1, host_.size() - 2) :
            host_);
 
-      int rc;
+      int rc = 0;
 
       if (async)
       {
@@ -66,7 +67,7 @@ namespace asynchost
               pending_resolve_requests_mtx);
             pending_resolve_requests.erase(resolver);
           }
-          delete resolver;
+          delete resolver; // NOLINT(cppcoreguidelines-owning-memory)
           return false;
         }
       }
@@ -86,7 +87,7 @@ namespace asynchost
             host,
             service,
             uv_strerror(rc));
-          delete resolver;
+          delete resolver; // NOLINT(cppcoreguidelines-owning-memory)
           return false;
         }
 

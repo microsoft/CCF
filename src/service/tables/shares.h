@@ -36,7 +36,7 @@ namespace ccf
   struct PreviousLedgerSecretInfo
   {
     // Past ledger secret encrypted with the latest ledger secret
-    std::vector<uint8_t> encrypted_data = {};
+    std::vector<uint8_t> encrypted_data;
 
     // Version at which the ledger secret is applicable from
     ccf::kv::Version version = ccf::kv::NoVersion;
