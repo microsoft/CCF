@@ -143,8 +143,7 @@ namespace ccf::kv
 
     bool has_map_internal(const std::string& name)
     {
-      auto search = maps.find(name);
-      return search != maps.end();
+      return maps.contains(name);
     }
 
     Version next_version_unsafe()

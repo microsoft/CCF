@@ -527,18 +527,9 @@ namespace ccf
           return;
         }
 
-        // Non-SNP
-        if (
-          (quote_info.format == QuoteFormat::oe_sgx_v1 &&
-           quote_info.endorsements.empty()) ||
-          (quote_info.format != QuoteFormat::oe_sgx_v1 &&
-           !quote_info.endorsements.empty()))
-        {
-          throw std::runtime_error(
-            "SGX quote generation should have already fetched endorsements");
-        }
-
-        launch_node();
+        throw std::runtime_error(fmt::format(
+          "Unsupported quote format for endorsements fetching: {}",
+          static_cast<int>(quote_info.format)));
       };
 
       pal::PlatformAttestationReportData report_data =

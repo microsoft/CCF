@@ -127,8 +127,8 @@ namespace ccf
         return;
       }
 
-      this_node = std::make_unique<ThisNode>(
-        ThisNode{self_id, service_cert, node_kp, node_cert});
+      this_node =
+        std::make_unique<ThisNode>(self_id, service_cert, node_kp, node_cert);
     }
 
     void set_endorsed_node_cert(
