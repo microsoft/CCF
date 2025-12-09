@@ -49,10 +49,12 @@ namespace ccf
     }
 
     ccf::ClaimsDigest claims = ccf::empty_claims();
+    // NOLINTBEGIN(performance-move-const-arg)
     void set_claims_digest(ccf::ClaimsDigest::Digest&& digest) override
     {
       claims.set(std::move(digest));
     }
+    // NOLINTEND(performance-move-const-arg)
 
     ccf::PathParams path_params = {};
     virtual const ccf::PathParams& get_request_path_params() override
@@ -85,7 +87,7 @@ namespace ccf
     void set_error(ccf::ErrorDetails&& error) override
     {
       nlohmann::json body = ccf::ODataErrorResponse{
-        ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+        ccf::ODataError{std::move(error.code), std::move(error.msg), {}}};
       set_response_json(body, error.status);
     }
 

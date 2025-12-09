@@ -3,70 +3,105 @@
 #pragma once
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "ccf/crypto/public_key.h"
 
-#include <openssl/err.h>
 #include <openssl/evp.h>
 #include <stdexcept>
 #include <string>
 
 namespace ccf::crypto
 {
-  class PublicKey_OpenSSL : public PublicKey
+  class PublicKey_OpenSSL
   {
   protected:
+    // The key is always owned by the PublicKey_OpenSSL instance
+    // even when passed to the constructor, and is disposed of
+    // by the PublicKey_OpenSSL destructor.
     EVP_PKEY* key = nullptr;
-    PublicKey_OpenSSL();
-
-    static std::vector<uint8_t> ec_point_public_from_jwk(
-      const JsonWebKeyECPublic& jwk);
 
   public:
-    PublicKey_OpenSSL(PublicKey_OpenSSL&& key) = default;
-    PublicKey_OpenSSL(EVP_PKEY* key);
-    PublicKey_OpenSSL(const Pem& pem);
-    PublicKey_OpenSSL(std::span<const uint8_t> der);
-    PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk);
-    virtual ~PublicKey_OpenSSL();
+    PublicKey_OpenSSL() = default;
+    PublicKey_OpenSSL(EVP_PKEY* key) : key(key) {}
+    PublicKey_OpenSSL(const Pem& pem)
+    {
+      OpenSSL::Unique_BIO mem(pem);
+      key = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
+      if (key == nullptr)
+      {
+        throw std::runtime_error("could not parse PEM");
+      }
+    }
 
-    using PublicKey::verify;
-    using PublicKey::verify_hash;
+    std::optional<int> cose_alg_id()
+    {
+      if (!key)
+      {
+        return std::nullopt;
+      }
 
-    virtual bool verify(
-      const uint8_t* contents,
-      size_t contents_size,
-      const uint8_t* sig,
-      size_t sig_size,
-      MDType md_type,
-      HashBytes& bytes) override;
+      int key_type = EVP_PKEY_get_base_id(key);
 
-    virtual bool verify_hash(
-      const uint8_t* hash,
-      size_t hash_size,
-      const uint8_t* sig,
-      size_t sig_size,
-      MDType md_type) override;
+      if (key_type == EVP_PKEY_EC)
+      {
+        // Get the curve name
+        size_t gname_len = 0;
+        OpenSSL::CHECK1(EVP_PKEY_get_group_name(key, nullptr, 0, &gname_len));
+        std::string gname(gname_len + 1, '\0');
+        OpenSSL::CHECK1(
+          EVP_PKEY_get_group_name(key, gname.data(), gname.size(), &gname_len));
+        gname.resize(gname_len);
 
-    virtual Pem public_key_pem() const override;
-    virtual std::vector<uint8_t> public_key_der() const override;
-    virtual std::vector<uint8_t> public_key_raw() const override;
+        // Map curve to COSE algorithm
+        if (gname == SN_X9_62_prime256v1) // P-256
+        {
+          return -7; // ES256
+        }
+        if (gname == SN_secp384r1) // P-384
+        {
+          return -35; // ES384
+        }
+        if (gname == SN_secp521r1) // P-521
+        {
+          return -36; // ES512
+        }
+      }
+      else if (key_type == EVP_PKEY_RSA || key_type == EVP_PKEY_RSA_PSS)
+      {
+        int bits = EVP_PKEY_bits(key);
 
-    virtual CurveID get_curve_id() const override;
+        // Map key size to COSE PS algorithm
+        // RSASSA-PSS using SHA-256 and MGF1 with SHA-256
+        if (bits == 2048)
+        {
+          return -37; // PS256
+        }
 
-    int get_openssl_group_id() const;
-    static int get_openssl_group_id(CurveID gid);
+        // RSASSA-PSS using SHA-384 and MGF1 with SHA-384
+        if (bits == 3072)
+        {
+          return -38; // PS384
+        }
+
+        // RSASSA-PSS using SHA-512 and MGF1 with SHA-512
+        if (bits == 4096)
+        {
+          return -39; // PS512
+        }
+      }
+
+      return std::nullopt;
+    }
 
     operator EVP_PKEY*() const
     {
       return key;
     }
 
-    virtual Coordinates coordinates() const override;
-
-    virtual JsonWebKeyECPublic public_key_jwk(
-      const std::optional<std::string>& kid = std::nullopt) const override;
+    virtual ~PublicKey_OpenSSL()
+    {
+      if (key != nullptr)
+      {
+        EVP_PKEY_free(key);
+      }
+    }
   };
-
-  OpenSSL::Unique_PKEY key_from_raw_ec_point(
-    const std::vector<uint8_t>& raw, int nid);
 }

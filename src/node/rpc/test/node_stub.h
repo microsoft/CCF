@@ -66,6 +66,11 @@ namespace ccf
       return true;
     }
 
+    std::optional<ccf::NodeId> get_primary() override
+    {
+      return ccf::kv::test::PrimaryNodeId;
+    }
+
     ccf::kv::Version get_last_recovered_signed_idx() override
     {
       return ccf::kv::NoVersion;
@@ -135,14 +140,6 @@ namespace ccf
     }
 
     void trigger_snapshot(ccf::kv::Tx& tx) override
-    {
-      return;
-    }
-
-    void trigger_acme_refresh(
-      ccf::kv::Tx& tx,
-      const std::optional<std::vector<std::string>>& interfaces =
-        std::nullopt) override
     {
       return;
     }

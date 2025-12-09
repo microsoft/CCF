@@ -38,13 +38,13 @@ DEFAULT_FORWARDING_TIMEOUT_MS = 3000
 
 PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
 SECONDARY_RPC_INTERFACE = "secondary_rpc_interface"
+FILE_SERVING_RPC_INTERFACE = "file_serving_rpc_interface"
 NODE_TO_NODE_INTERFACE_NAME = "node_to_node_interface"
 
 
 class EndorsementAuthority(str, Enum):
     Service = "Service"
     Node = "Node"
-    ACME = "ACME"
     Unsecured = "Unsecured"
 
 
@@ -52,20 +52,15 @@ class EndorsementAuthority(str, Enum):
 class Endorsement:
     authority: EndorsementAuthority = EndorsementAuthority.Service
 
-    acme_configuration: Optional[str] = None
-
     @staticmethod
     def to_json(endorsement):
         r = {"authority": endorsement.authority.name}
-        if endorsement.acme_configuration:
-            r["acme_configuration"] = endorsement.acme_configuration
         return r
 
     @staticmethod
     def from_json(json):
         endorsement = Endorsement()
         endorsement.authority = EndorsementAuthority(json["authority"])
-        endorsement.acme_configuration = json.get("acme_configuration", None)
         return endorsement
 
 
@@ -199,25 +194,22 @@ class RPCInterface(Interface):
         default_factory=lambda: DEFAULT_MAX_FRAME_SIZE
     )
     endorsement: Optional[Endorsement] = field(default_factory=lambda: Endorsement())
-    acme_configuration: Optional[str] = None
     accepted_endpoints: Optional[str] = None
+    enabled_operator_features: Optional[list[str]] = None
     forwarding_timeout_ms: Optional[int] = field(
         default_factory=lambda: DEFAULT_FORWARDING_TIMEOUT_MS
     )
     redirections: Optional[RedirectionConfig] = None
     app_protocol: str = field(default_factory=lambda: "HTTP1")
 
-    @staticmethod
-    def from_args(args):
-        return RPCInterface(
-            max_open_sessions_soft=args.max_open_sessions,
-            max_open_sessions_hard=args.max_open_sessions_hard,
-            max_http_body_size=args.max_http_body_size,
-            max_http_header_size=args.max_http_header_size,
-            max_http_headers_count=args.max_http_headers_count,
-            forwarding_timeout_ms=args.forwarding_timeout_ms,
-            app_protocol="HTTP2" if args.http2 else "HTTP1",
-        )
+    def apply_args(self, args):
+        self.max_open_sessions_soft = args.max_open_sessions
+        self.max_open_sessions_hard = args.max_open_sessions_hard
+        self.max_http_body_size = args.max_http_body_size
+        self.max_http_header_size = args.max_http_header_size
+        self.max_http_headers_count = args.max_http_headers_count
+        self.forwarding_timeout_ms = args.forwarding_timeout_ms
+        self.app_protocol = "HTTP2" if args.http2 else "HTTP1"
 
     def parse_from_str(self, s):
         # Format: local|ssh(,tcp|udp)://hostname:port
@@ -232,8 +224,6 @@ class RPCInterface(Interface):
             self.public_host, self.public_port = split_netloc(published_address)
 
         self.host, self.port = split_netloc(address)
-
-        return self
 
     @staticmethod
     def to_json(interface):
@@ -265,6 +255,8 @@ class RPCInterface(Interface):
             )
         if interface.accepted_endpoints:
             r["accepted_endpoints"] = interface.accepted_endpoints
+        if interface.enabled_operator_features:
+            r["enabled_operator_features"] = interface.enabled_operator_features
         if interface.forwarding_timeout_ms:
             r["forwarding_timeout_ms"] = interface.forwarding_timeout_ms
         if interface.redirections:
@@ -298,6 +290,7 @@ class RPCInterface(Interface):
         if "endorsement" in json:
             interface.endorsement = Endorsement.from_json(json["endorsement"])
         interface.accepted_endpoints = json.get("accepted_endpoints")
+        interface.enabled_operator_features = json.get("enabled_operator_features")
         return interface
 
 
@@ -312,12 +305,21 @@ def make_secondary_interface(transport="tcp", interface_name=SECONDARY_RPC_INTER
 @dataclass
 class HostSpec:
     rpc_interfaces: Dict[str, RPCInterface] = field(
-        default_factory=lambda: {PRIMARY_RPC_INTERFACE: RPCInterface()}
+        default_factory=lambda: {
+            PRIMARY_RPC_INTERFACE: RPCInterface(),
+            FILE_SERVING_RPC_INTERFACE: RPCInterface(
+                enabled_operator_features=["SnapshotRead"],
+            ),
+        }
     )
-    acme_challenge_server_interface: Optional[str] = None
 
     def get_primary_interface(self):
         return self.rpc_interfaces[PRIMARY_RPC_INTERFACE]
+
+    def with_args(self, args):
+        for interface in self.rpc_interfaces.values():
+            interface.apply_args(args)
+        return self
 
     @staticmethod
     def to_json(host_spec):

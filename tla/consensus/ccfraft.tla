@@ -126,10 +126,12 @@ CONSTANTS
 VARIABLE
     preVoteStatus
 
-PreVoteStatusTypeInv == preVoteStatus \in {
-  {PreVoteDisabled},
-  {PreVoteCapable},
-  {PreVoteCapable, PreVoteEnabled}}
+PreVoteStatusTypeInv == preVoteStatus \in 
+    {F \in [Servers -> {
+      {PreVoteDisabled},
+      {PreVoteCapable},
+      {PreVoteCapable, PreVoteEnabled}}]:
+      /\ DOMAIN F = Servers}
 
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
@@ -636,7 +638,7 @@ InitLeaderVars ==
     /\ matchIndex = [i \in Servers |-> [j \in Servers |-> 0]]
 
 InitPreVoteStatus ==
-    /\ preVoteStatus = {PreVoteDisabled}
+    /\ preVoteStatus = [i \in Servers |-> {PreVoteDisabled}]
 
 Init ==
     /\ InitReconfigurationVars
@@ -649,7 +651,7 @@ Init ==
 \* Define state transitions
 
 BecomePreVoteCandidate(i) ==
-    /\ PreVoteEnabled \in preVoteStatus
+    /\ PreVoteEnabled \in preVoteStatus[i]
     \* Only servers that haven't completed retirement can become candidates
     /\ membershipState[i] \in (MembershipStates \ {RetiredCommitted})
     \* Only servers that are followers/candidates can become pre-vote-candidates
@@ -670,7 +672,7 @@ BecomeCandidate(i) ==
     \* Only servers that haven't completed retirement can become candidates
     /\ membershipState[i] \in (MembershipStates \ {RetiredCommitted})
     \* Only servers that are followers/candidates can become candidates
-    /\ IF PreVoteEnabled \notin preVoteStatus
+    /\ IF PreVoteEnabled \notin preVoteStatus[i]
        THEN leadershipState[i] \in {Follower, Candidate} 
        ELSE /\ leadershipState[i] = PreVoteCandidate
             \* To become a Candidate, the PreVoteCandidate must have received votes from a majority in each active configuration
@@ -694,7 +696,7 @@ BecomeCandidate(i) ==
 \* Server i times out (becomes candidate) and votes for itself in the election of the next term
 \* At some point later (non-deterministically), the candidate will request votes from the other nodes.
 Timeout(i) ==
-    IF PreVoteEnabled \notin preVoteStatus
+    IF PreVoteEnabled \notin preVoteStatus[i]
     THEN BecomeCandidate(i)
     ELSE BecomePreVoteCandidate(i)
 
@@ -977,14 +979,13 @@ HandleRequestVoteRequest(i, j, m) ==
                                       THEN /\ m.term = currentTerm[i]
                                            /\ votedFor[i] \in {Nil, j}
                                       ELSE m.term >= currentTerm[i]
-        grant == IF PreVoteDisabled \in preVoteStatus
+        grant == IF PreVoteDisabled \in preVoteStatus[i]
                  THEN grant_pre_vote_disabled
                  ELSE grant_pre_vote_capable
     IN /\ m.term <= currentTerm[i]
-       /\ \/ grant /\ \/ /\ ~m.isPreVote 
-                         /\ votedFor' = [votedFor EXCEPT ![i] = j]
-                      \/ /\ m.isPreVote
-                         /\ UNCHANGED votedFor
+       /\ \/ grant /\ IF PreVoteCapable \in preVoteStatus[i] /\ m.isPreVote
+                      THEN UNCHANGED votedFor
+                      ELSE votedFor' = [votedFor EXCEPT ![i] = j]
           \/ ~grant /\ UNCHANGED votedFor
        /\ Reply([type        |-> RequestVoteResponse,
                  term        |-> currentTerm[i],
@@ -1254,6 +1255,12 @@ DropIgnoredMessage(i,j,m) ==
        \* the next configurations learns that its retirement has been committed.
        \/ /\ membershipState[i] = RetiredCommitted
           /\ m.type /= AppendEntriesRequest
+       \* raft.h::recv_append_entries
+       \* We drop append entries which start before the commit index
+       \* This is safe as sentIndex will still be incremented allowing subsequent AppendEntries 
+       \* to start later and hence it won't livelock
+       \/ /\ m.type = AppendEntriesRequest
+          /\ m.prevLogIndex < commitIndex[i]
     /\ Discard(m)
     /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
@@ -1331,7 +1338,7 @@ Receive(i, j) ==
 \* Defines how the variables may transition, given a node i.
 NextInt(i) ==
     \/ Timeout(i)
-    \/ (PreVoteEnabled \in preVoteStatus /\ BecomeCandidate(i))
+    \/ (PreVoteEnabled \in preVoteStatus[i] /\ BecomeCandidate(i))
     \/ BecomeLeader(i)
     \/ ClientRequest(i)
     \/ SignCommittableMessages(i)
@@ -1361,7 +1368,7 @@ Fairness ==
     /\ \A s \in Servers : WF_vars(SignCommittableMessages(s))
     /\ \A s \in Servers : WF_vars(AdvanceCommitIndex(s))
     /\ \A s \in Servers : WF_vars(AppendRetiredCommitted(s))
-    /\ \A s \in Servers : WF_vars(PreVoteEnabled \in preVoteStatus /\ BecomeCandidate(s))
+    /\ \A s \in Servers : WF_vars(PreVoteEnabled \in preVoteStatus[s] /\ BecomeCandidate(s))
     /\ \A s \in Servers : WF_vars(BecomeLeader(s))
     /\ \A s \in Servers : WF_vars(Timeout(s))
     /\ \A s \in Servers : WF_vars(ChangeConfiguration(s))
@@ -1663,7 +1670,7 @@ PermittedLogChangesProp ==
 StateTransitionsProp ==
     [][\A i \in Servers :
         /\ leadershipState[i] = None => leadershipState'[i] \in {None, Follower}
-        /\ IF PreVoteEnabled \notin preVoteStatus
+        /\ IF PreVoteEnabled \notin preVoteStatus[i]
            THEN 
                 \* A follower can become a Candidate via a timeout or a ProposeVoteRequest
                 /\ leadershipState[i] = Follower => leadershipState'[i] \in {Follower, Candidate}

@@ -6,7 +6,9 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
+#include "crypto/openssl/ec_public_key.h"
 #include "crypto/openssl/public_key.h"
+#include "crypto/openssl/rsa_public_key.h"
 
 #include <chrono>
 #include <openssl/x509.h>
@@ -21,10 +23,10 @@ namespace ccf::crypto
   public:
     virtual ~COSEVerifier_OpenSSL() override;
     virtual bool verify(
-      const std::span<const uint8_t>& buf,
+      const std::span<const uint8_t>& envelope,
       std::span<uint8_t>& authned_content) const override;
     virtual bool verify_detached(
-      std::span<const uint8_t> buf,
+      std::span<const uint8_t> envelope,
       std::span<const uint8_t> payload) const override;
   };
 

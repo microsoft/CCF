@@ -14,7 +14,7 @@ namespace http
   inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
   {
     nlohmann::json body = ccf::ODataErrorResponse{
-      ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+      ccf::ODataError{std::move(error.code), std::move(error.msg), {}}};
     const auto s = body.dump();
 
     std::vector<uint8_t> data(s.begin(), s.end());
@@ -129,11 +129,6 @@ namespace http
     ccf::http::HeaderMap get_response_trailers() const
     {
       return response_trailers;
-    }
-
-    std::vector<uint8_t>& get_response_body()
-    {
-      return response_body;
     }
 
     ccf::http_status get_response_http_status() const
@@ -252,6 +247,11 @@ namespace http
       return response_body;
     }
 
+    virtual std::vector<uint8_t>&& take_response_body() override
+    {
+      return std::move(response_body);
+    }
+
     virtual void set_response_status(int status) override
     {
       response_status = (ccf::http_status)status;
@@ -330,23 +330,6 @@ namespace http
 
     auto actor = path.substr(first_slash + 1, second_slash - first_slash - 1);
     auto remaining_path = path.substr(second_slash);
-
-    // The "actor" is generally just a single path component, eg. `gov` or
-    // `node`.  We make an exception for .well-known paths however, which use
-    // two components, ie. `.well-known/acme-challenge`. This restricts the
-    // ACME frontend to just that particular sub-directory, and allows the
-    // application to handle other .well-known paths.
-    if (actor == ".well-known")
-    {
-      const auto third_slash = path.find_first_of('/', second_slash + 1);
-      if (third_slash == std::string::npos)
-      {
-        return std::nullopt;
-      }
-
-      actor = path.substr(first_slash + 1, third_slash - first_slash - 1);
-      remaining_path = path.substr(third_slash);
-    }
 
     if (actor.empty() || remaining_path.empty())
     {

@@ -102,27 +102,9 @@
                     "type": "string",
                     "enum": ["Node", "Service", "ACME", "Unsecured"],
                     "default": "Service",
-                    "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed, 'ACME' means an ACME-capable CA, 'Unsecured' means unencrypted traffic and no endorsement authority"
-                  },
-                  "acme_configuration": {
-                    "type": "string",
-                    "description": "Name of the ACME configuration defined in the network.acme.configurations section"
+                    "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed, 'ACME' is deprecated, 'Unsecured' means unencrypted traffic and no endorsement authority"
                   }
                 },
-                "oneOf": [
-                  {
-                    "required": ["acme_configuration"]
-                  },
-                  {
-                    "not": {
-                      "properties": {
-                        "authority": {
-                          "const": "ACME"
-                        }
-                      }
-                    }
-                  }
-                ],
                 "required": ["authority"],
                 "additionalProperties": false
               },
@@ -152,74 +134,19 @@
                   }
                 },
                 "additionalProperties": false
+              },
+              "enabled_operator_features": {
+                "type": "array",
+                "items": {
+                  "enum": ["SnapshotRead"],
+                  "type": "string"
+                },
+                "description": "An array of features which should be enabled on this interface, providing access to endpoints with specific security or performance constraints. The only feature currently supported is 'SnapshotRead', which gates access to the /snapshot/* endpoints used to fetch snapshots directly from nodes. Since these require disk IO and produce large responses, this feature should not be enabled on interfaces with public access, and instead restricted to interfaces with local connectivity for node-to-node and operator access."
               }
             },
             "required": ["bind_address"]
           },
           "description": "Interfaces to listen on for incoming client TLS connections, as a dictionary from unique interface name to RPC interface information"
-        },
-        "acme": {
-          "type": "object",
-          "properties": {
-            "configurations": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "object",
-                "properties": {
-                  "ca_certs": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "default": [],
-                    "description": "Root certificate(s) of the CA to connect to in PEM format (for TLS connections to the CA, e.g. Let's Encrypt's ISRG Root X1)"
-                  },
-                  "directory_url": {
-                    "type": "string",
-                    "description": "URL of the ACME server's directory"
-                  },
-                  "service_dns_name": {
-                    "type": "string",
-                    "description": "DNS name of the service we represent"
-                  },
-                  "alternative_names": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "default": [],
-                    "description": "Alternative names for the service we represent (X509 SANs)"
-                  },
-                  "contact": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "default": [],
-                    "description": "Contact addresses (see RFC8555 7.3, e.g. mailto:john@example.com)"
-                  },
-                  "terms_of_service_agreed": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Indication that the user/operator is aware of the latest terms and conditions for the CA"
-                  },
-                  "challenge_type": {
-                    "type": "string",
-                    "default": "http-01",
-                    "description": "Type of the ACME challenge (usually http-01; others are supported but require a custom challenge handler)"
-                  },
-                  "challenge_server_interface": {
-                    "type": "string",
-                    "description": "Name of the interface for the http-01 challenge frontend to listen on"
-                  }
-                },
-                "description": "ACME Configurations",
-                "additionalProperties": false
-              }
-            }
-          },
-          "description": "Configuration for the ACME client(s) to obtain globally valid TLS certificates, e.g. from Let's Encrypt",
-          "additionalProperties": false
         }
       },
       "description": "This section includes configuration for the interfaces a node listens on (for both client and node-to-node communications)",
@@ -381,7 +308,7 @@
                   "fetch_recent_snapshot": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Whether to ask the target for a newer snapshot before joining. The node will ask the target what their latest snapshot is, and if that is later than what the node has locally, will fetch it via RPC before launching. Should generally only be turned off for specific test cases"
+                    "description": "Whether to ask the target for a snapshot before joining. The node will ask the target what their latest snapshot is, and will fetch it via RPC before launching. Should generally only be turned off for specific test cases"
                   },
                   "fetch_snapshot_max_attempts": {
                     "type": "integer",

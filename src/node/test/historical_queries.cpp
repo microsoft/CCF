@@ -37,8 +37,8 @@ struct TestState
 {
   std::shared_ptr<ccf::kv::Store> kv_store = nullptr;
   std::shared_ptr<ccf::LedgerSecrets> ledger_secrets = nullptr;
-  ccf::crypto::KeyPairPtr node_kp = nullptr;
-  std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp = nullptr;
+  ccf::crypto::ECKeyPairPtr node_kp = nullptr;
+  std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp = nullptr;
 };
 
 TestState create_and_init_state(bool initialise_ledger_rekey = true)
@@ -50,9 +50,9 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   ts.kv_store->set_encryptor(encryptor);
 
-  ts.node_kp = ccf::crypto::make_key_pair();
-  ts.service_kp = std::dynamic_pointer_cast<ccf::crypto::KeyPair_OpenSSL>(
-    ccf::crypto::make_key_pair());
+  ts.node_kp = ccf::crypto::make_ec_key_pair();
+  ts.service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
+    ccf::crypto::make_ec_key_pair());
 
   // Make history to produce signatures
   const ccf::NodeId node_id = std::string("node_id");
@@ -96,7 +96,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-    auto kp = ccf::crypto::make_key_pair();
+    auto kp = ccf::crypto::make_ec_key_pair();
     auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
       ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(cert)).hex_str();
@@ -206,7 +206,7 @@ void validate_business_transaction(
   REQUIRE(state->receipt != nullptr);
 
   const auto state_txid = state->transaction_id;
-  const auto store_txid = state->store->get_txid();
+  const auto store_txid = state->store->current_txid();
   REQUIRE(state_txid.view == store_txid.view);
   REQUIRE(state_txid.seqno == store_txid.seqno);
 }
@@ -903,7 +903,7 @@ TEST_CASE("StateCache range queries")
       for (auto& store : stores)
       {
         REQUIRE(store != nullptr);
-        const auto seqno = store->get_txid().seqno;
+        const auto seqno = store->current_txid().seqno;
 
         // Don't validate anything about signature transactions, just the
         // business transactions between them
@@ -1260,7 +1260,7 @@ TEST_CASE("StateCache sparse queries")
       for (auto& store : stores)
       {
         REQUIRE(store != nullptr);
-        const auto seqno = store->get_txid().seqno;
+        const auto seqno = store->current_txid().seqno;
 
         // Don't validate anything about signature transactions, just the
         // business transactions between them
@@ -1452,7 +1452,7 @@ TEST_CASE("StateCache concurrent access")
       for (auto& store : stores)
       {
         REQUIRE(store != nullptr);
-        const auto seqno = store->get_txid().seqno;
+        const auto seqno = store->current_txid().seqno;
         if (
           std::find(
             signature_versions.begin(), signature_versions.end(), seqno) ==
@@ -1468,7 +1468,7 @@ TEST_CASE("StateCache concurrent access")
       for (auto& state : states)
       {
         REQUIRE(state != nullptr);
-        const auto seqno = state->store->get_txid().seqno;
+        const auto seqno = state->store->current_txid().seqno;
         if (
           std::find(
             signature_versions.begin(), signature_versions.end(), seqno) ==

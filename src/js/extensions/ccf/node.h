@@ -15,7 +15,6 @@ namespace ccf::js::extensions
    * - ccf.node.triggerRecoverySharesRefresh
    * - ccf.node.triggerLedgerChunk
    * - ccf.node.triggerSnapshot
-   * - ccf.node.triggerACMERefresh
    *
    **/
   class NodeExtension : public ExtensionInterface

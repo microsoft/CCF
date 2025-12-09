@@ -470,14 +470,9 @@ namespace ccf
       config.command.join.fetch_recent_snapshot)
     {
       // Try to fetch a recent snapshot from peer
-      const size_t latest_local_idx = latest_local_snapshot.has_value() ?
-        snapshots::get_snapshot_idx_from_file_name(
-          latest_local_snapshot->second) :
-        0;
       auto latest_peer_snapshot = snapshots::fetch_from_peer(
         config.command.join.target_rpc_address,
         config.command.service_certificate_file,
-        latest_local_idx,
         config.command.join.fetch_snapshot_max_attempts,
         config.command.join.fetch_snapshot_retry_interval.count_ms(),
         config.command.join.fetch_snapshot_max_size.count_bytes());
@@ -495,9 +490,10 @@ namespace ccf
           fs::path(latest_peer_snapshot->snapshot_name);
         if (files::exists(dst_path))
         {
-          throw std::logic_error(fmt::format(
-            "Unable to write peer snapshot - already have a file at {}",
-            dst_path));
+          LOG_FAIL_FMT(
+            "Overwriting existing snapshot at {} with data retrieved from "
+            "peer",
+            dst_path);
         }
         files::dump(latest_peer_snapshot->snapshot_data, dst_path);
         startup_snapshot = latest_peer_snapshot->snapshot_data;
@@ -826,6 +822,21 @@ namespace ccf
         return static_cast<int>(CLI::ExitCodes::ValidationError);
       }
 
+      for (const auto& readonly_ledger_directory :
+           config.ledger.read_only_directories)
+      {
+        if (
+          files::exists(readonly_ledger_directory) &&
+          !fs::is_empty(readonly_ledger_directory))
+        {
+          LOG_FATAL_FMT(
+            "On start, read-only ledger directories should not exist or be "
+            "empty ({})",
+            readonly_ledger_directory);
+          return static_cast<int>(CLI::ExitCodes::ValidationError);
+        }
+      }
+
       populate_config_for_start(config, startup_config);
     }
     else if (config.command.type == StartType::Join)
@@ -845,10 +856,6 @@ namespace ccf
     // Load startup snapshot if needed
     auto startup_snapshot = load_startup_snapshot(config, snapshots);
 
-    if (config.network.acme)
-    {
-      startup_config.network.acme = config.network.acme;
-    }
     // Used by GET /node/network/nodes/self to return rpc interfaces
     // prior to the KV being updated
     startup_config.network.rpc_interfaces = config.network.rpc_interfaces;
@@ -880,6 +887,24 @@ namespace ccf
     return std::nullopt;
   }
 
+  void apply_stdlib_workarounds()
+  {
+    // A data race happens in the libstdc++ implementation of ctype::narrow.
+    // See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=77704
+    // This workaround is from the mailing list - avoid unprotected lazy
+    // initialisation by eagerly initialising every value now.
+#if defined(__GLIBCXX__)
+    {
+      const auto& ct(std::use_facet<std::ctype<char>>(std::locale()));
+
+      for (size_t i(0); i != 256; ++i)
+      {
+        ct.narrow(static_cast<char>(i), '\0');
+      }
+    }
+#endif
+  }
+
   int run(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   {
     if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
@@ -887,6 +912,8 @@ namespace ccf
       LOG_FAIL_FMT("Failed to ignore SIGPIPE");
       return 1;
     }
+
+    apply_stdlib_workarounds();
 
     CLI::App app{
       "Run a single CCF node, based on the given configuration file.\n"
@@ -916,11 +943,11 @@ namespace ccf
 
     ccf::LoggerLevel log_level = ccf::LoggerLevel::INFO;
     std::map<std::string, ccf::LoggerLevel> log_level_options;
-    for (size_t i = ccf::logger::MOST_VERBOSE;
-         i < ccf::LoggerLevel::MAX_LOG_LEVEL;
+    for (auto i = static_cast<uint8_t>(ccf::logger::MOST_VERBOSE);
+         i < static_cast<uint8_t>(ccf::LoggerLevel::MAX_LOG_LEVEL);
          ++i)
     {
-      const auto level = (ccf::LoggerLevel)i;
+      const auto level = static_cast<ccf::LoggerLevel>(i);
       log_level_options[ccf::logger::to_string(level)] = level;
     }
 

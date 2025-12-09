@@ -22,7 +22,7 @@ namespace ccf::js
   class AbstractInterpreterCache : public ccf::AbstractNodeSubSystem
   {
   public:
-    virtual ~AbstractInterpreterCache() = default;
+    ~AbstractInterpreterCache() override = default;
 
     static char const* get_subsystem_name()
     {

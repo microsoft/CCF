@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "crypto/openssl/public_key.h"
+#include "crypto/openssl/ec_public_key.h"
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/hash.h"
@@ -25,25 +25,40 @@ namespace ccf::crypto
 {
   using namespace OpenSSL;
 
-  PublicKey_OpenSSL::PublicKey_OpenSSL() = default;
-
-  PublicKey_OpenSSL::PublicKey_OpenSSL(const Pem& pem)
+  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL() = default;
+  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(EVP_PKEY* key) :
+    PublicKey_OpenSSL(key)
   {
-    Unique_BIO mem(pem);
-    key = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
-    if (key == nullptr)
+    if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
     {
-      throw std::runtime_error("could not parse PEM");
+      throw std::logic_error(
+        "Cannot construct ECPublicKey_OpenSSL from non-EC key");
     }
   }
+  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(const Pem& pem) :
+    PublicKey_OpenSSL(pem)
+  {
+    if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
+    {
+      throw std::logic_error(
+        "Cannot construct ECPublicKey_OpenSSL from non-EC key");
+    }
+  }
+  ECPublicKey_OpenSSL::~ECPublicKey_OpenSSL() = default;
 
-  PublicKey_OpenSSL::PublicKey_OpenSSL(std::span<const uint8_t> der)
+  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(std::span<const uint8_t> der)
   {
     Unique_BIO buf(der);
     key = d2i_PUBKEY_bio(buf, &key);
     if (key == nullptr)
     {
       throw std::runtime_error("Could not read DER");
+    }
+
+    if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
+    {
+      throw std::logic_error(
+        "Cannot construct ECPublicKey_OpenSSL from non-EC key");
     }
   }
 
@@ -64,7 +79,7 @@ namespace ccf::crypto
     return xy;
   }
 
-  std::vector<uint8_t> PublicKey_OpenSSL::ec_point_public_from_jwk(
+  std::vector<uint8_t> ECPublicKey_OpenSSL::ec_point_public_from_jwk(
     const JsonWebKeyECPublic& jwk)
   {
     auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
@@ -82,9 +97,9 @@ namespace ccf::crypto
     return buf;
   }
 
-  PublicKey_OpenSSL::PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk) :
-    key(EVP_PKEY_new())
+  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(const JsonWebKeyECPublic& jwk)
   {
+    key = EVP_PKEY_new();
     auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
     auto buf = ec_point_public_from_jwk(jwk);
 
@@ -103,17 +118,7 @@ namespace ccf::crypto
       pctx, &key, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
   }
 
-  PublicKey_OpenSSL::PublicKey_OpenSSL(EVP_PKEY* key) : key(key) {}
-
-  PublicKey_OpenSSL::~PublicKey_OpenSSL()
-  {
-    if (key != nullptr)
-    {
-      EVP_PKEY_free(key);
-    }
-  }
-
-  CurveID PublicKey_OpenSSL::get_curve_id() const
+  CurveID ECPublicKey_OpenSSL::get_curve_id() const
   {
     int nid = get_openssl_group_id();
     switch (nid)
@@ -128,7 +133,7 @@ namespace ccf::crypto
     return CurveID::NONE;
   }
 
-  int PublicKey_OpenSSL::get_openssl_group_id() const
+  int ECPublicKey_OpenSSL::get_openssl_group_id() const
   {
     size_t gname_len = 0;
     CHECK1(EVP_PKEY_get_group_name(key, nullptr, 0, &gname_len));
@@ -149,7 +154,7 @@ namespace ccf::crypto
     throw std::runtime_error(fmt::format("Unknown OpenSSL group {}", gname));
   }
 
-  int PublicKey_OpenSSL::get_openssl_group_id(CurveID gid)
+  int ECPublicKey_OpenSSL::get_openssl_group_id(CurveID gid)
   {
     switch (gid)
     {
@@ -166,7 +171,7 @@ namespace ccf::crypto
     return NID_undef;
   }
 
-  bool PublicKey_OpenSSL::verify(
+  bool ECPublicKey_OpenSSL::verify(
     const uint8_t* contents,
     size_t contents_size,
     const uint8_t* sig,
@@ -183,7 +188,7 @@ namespace ccf::crypto
     return verify_hash(bytes.data(), bytes.size(), sig, sig_size, md_type);
   }
 
-  bool PublicKey_OpenSSL::verify_hash(
+  bool ECPublicKey_OpenSSL::verify_hash(
     const uint8_t* hash,
     size_t hash_size,
     const uint8_t* sig,
@@ -216,7 +221,7 @@ namespace ccf::crypto
     return ok;
   }
 
-  Pem PublicKey_OpenSSL::public_key_pem() const
+  Pem ECPublicKey_OpenSSL::public_key_pem() const
   {
     Unique_BIO buf;
 
@@ -227,7 +232,7 @@ namespace ccf::crypto
     return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
   }
 
-  std::vector<uint8_t> PublicKey_OpenSSL::public_key_der() const
+  std::vector<uint8_t> ECPublicKey_OpenSSL::public_key_der() const
   {
     Unique_BIO buf;
 
@@ -238,7 +243,7 @@ namespace ccf::crypto
     return {bptr->data, bptr->data + bptr->length};
   }
 
-  std::vector<uint8_t> PublicKey_OpenSSL::public_key_raw() const
+  std::vector<uint8_t> ECPublicKey_OpenSSL::public_key_raw() const
   {
     const size_t size_needed = i2d_PublicKey(key, nullptr);
 
@@ -290,7 +295,7 @@ namespace ccf::crypto
     return pk;
   }
 
-  PublicKey::Coordinates PublicKey_OpenSSL::coordinates() const
+  ECPublicKey::Coordinates ECPublicKey_OpenSSL::coordinates() const
   {
     Coordinates r;
     Unique_BIGNUM x;
@@ -310,7 +315,7 @@ namespace ccf::crypto
     return r;
   }
 
-  JsonWebKeyECPublic PublicKey_OpenSSL::public_key_jwk(
+  JsonWebKeyECPublic ECPublicKey_OpenSSL::public_key_jwk(
     const std::optional<std::string>& kid) const
   {
     JsonWebKeyECPublic jwk;
@@ -321,5 +326,20 @@ namespace ccf::crypto
     jwk.kid = kid;
     jwk.kty = JsonWebKeyType::EC;
     return jwk;
+  }
+
+  ECPublicKeyPtr make_ec_public_key(const Pem& pem)
+  {
+    return std::make_shared<ECPublicKey_OpenSSL>(pem);
+  }
+
+  ECPublicKeyPtr make_ec_public_key(const std::vector<uint8_t>& der)
+  {
+    return std::make_shared<ECPublicKey_OpenSSL>(der);
+  }
+
+  ECPublicKeyPtr make_ec_public_key(const JsonWebKeyECPublic& jwk)
+  {
+    return std::make_shared<ECPublicKey_OpenSSL>(jwk);
   }
 }

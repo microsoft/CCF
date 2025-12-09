@@ -3,8 +3,8 @@
 
 #include "crypto/openssl/cose_verifier.h"
 
+#include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "ccf/crypto/public_key.h"
 #include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "ds/internal_logger.h"
@@ -96,6 +96,42 @@ namespace
 
     return alg;
   }
+
+  q_useful_buf_c buf_from_span(const std::span<const uint8_t> span)
+  {
+    return {.ptr = span.data(), .len = span.size()};
+  }
+
+  class TCOSEVerify
+  {
+  private:
+    EVP_PKEY* pkey = nullptr;
+    t_cose_key cose_key = {};
+
+  public:
+    t_cose_sign1_verify_ctx ctx = {};
+
+    TCOSEVerify(
+      std::shared_ptr<ccf::crypto::PublicKey_OpenSSL> pkey_,
+      const std::span<const uint8_t> envelope) :
+      pkey(*pkey_)
+    {
+      const auto alg_header = extract_algorithm_from_header(envelope);
+      const auto alg_key = pkey_->cose_alg_id();
+      if (!alg_header || !alg_key || alg_key != alg_header)
+      {
+        throw std::domain_error(
+          fmt::format("Incompatible key IDs ({} vs {})", alg_header, alg_key));
+      }
+
+      cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
+      cose_key.k.key_ptr = pkey;
+
+      t_cose_sign1_verify_init(&ctx, T_COSE_OPT_TAG_REQUIRED);
+      t_cose_sign1_set_verification_key(&ctx, cose_key);
+    }
+  };
+
 }
 
 namespace ccf::crypto
@@ -116,22 +152,9 @@ namespace ccf::crypto
           "OpenSSL error: {}", OpenSSL::error_string(ERR_get_error())));
       }
     }
-
-    int mdnid = 0;
-    int pknid = 0;
-    int secbits = 0;
-    X509_get_signature_info(cert, &mdnid, &pknid, &secbits, nullptr);
-
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
-    if (EVP_PKEY_get_base_id(pk) == EVP_PKEY_EC)
-    {
-      public_key = std::make_shared<PublicKey_OpenSSL>(pk);
-    }
-    else
-    {
-      throw std::logic_error("unsupported public key type");
-    }
+    public_key = std::make_shared<PublicKey_OpenSSL>(pk);
   }
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const Pem& public_key_)
@@ -142,79 +165,62 @@ namespace ccf::crypto
   COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;
 
   bool COSEVerifier_OpenSSL::verify(
-    const std::span<const uint8_t>& buf,
+    const std::span<const uint8_t>& envelope,
     std::span<uint8_t>& authned_content) const
   {
-    EVP_PKEY* evp_key = *public_key;
-
-    t_cose_key cose_key = {};
-    cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
-    cose_key.k.key_ptr = evp_key;
-
-    t_cose_sign1_verify_ctx verify_ctx = {};
-    t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_TAG_REQUIRED);
-    t_cose_sign1_set_verification_key(&verify_ctx, cose_key);
-
-    q_useful_buf_c buf_ = {};
-    buf_.ptr = buf.data();
-    buf_.len = buf.size();
-
-    q_useful_buf_c authned_content_ = {};
-
-    t_cose_err_t error =
-      t_cose_sign1_verify(&verify_ctx, buf_, &authned_content_, nullptr);
-    if (error == T_COSE_SUCCESS)
+    try
     {
-      authned_content = {
-        reinterpret_cast<uint8_t*>(const_cast<void*>(authned_content_.ptr)),
-        authned_content_.len};
-      return true;
+      TCOSEVerify cose_verify(public_key, envelope);
+      q_useful_buf_c envelope_ = buf_from_span(envelope);
+
+      q_useful_buf_c authned_content_ = {};
+
+      t_cose_err_t error = t_cose_sign1_verify(
+        &cose_verify.ctx, envelope_, &authned_content_, nullptr);
+      if (error == T_COSE_SUCCESS)
+      {
+        authned_content = {
+          reinterpret_cast<uint8_t*>(const_cast<void*>(authned_content_.ptr)),
+          authned_content_.len};
+        return true;
+      }
+
+      LOG_DEBUG_FMT("COSE Sign1 verification failed: {}", error);
     }
-    LOG_DEBUG_FMT("COSE Sign1 verification failed with error {}", error);
+    catch (const std::exception& e)
+    {
+      LOG_DEBUG_FMT("COSE Sign1 verification failed: {}", e.what());
+    }
     return false;
   }
 
   bool COSEVerifier_OpenSSL::verify_detached(
-    std::span<const uint8_t> buf, std::span<const uint8_t> payload) const
+    std::span<const uint8_t> envelope, std::span<const uint8_t> payload) const
   {
-    EVP_PKEY* evp_key = *public_key;
-
-    const auto alg_header = extract_algorithm_from_header(buf);
-    const auto alg_key = ccf::crypto::key_to_cose_alg_id(*public_key);
-    if (!alg_header || !alg_key || alg_key != alg_header)
+    try
     {
-      LOG_DEBUG_FMT(
-        "COSE Sign1 verification: incompatible key IDS ({} vs {})",
-        alg_header,
-        alg_key);
-      return false;
+      TCOSEVerify cose_verify(public_key, envelope);
+
+      q_useful_buf_c envelope_ = buf_from_span(envelope);
+
+      q_useful_buf_c payload_ = {};
+      payload_.ptr = payload.data();
+      payload_.len = payload.size();
+
+      t_cose_err_t error = t_cose_sign1_verify_detached(
+        &cose_verify.ctx, envelope_, NULL_Q_USEFUL_BUF_C, payload_, nullptr);
+
+      if (error == T_COSE_SUCCESS)
+      {
+        return true;
+      }
+
+      LOG_DEBUG_FMT("COSE Sign1 verification failed: {}", error);
     }
-
-    t_cose_key cose_key = {};
-    cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
-    cose_key.k.key_ptr = evp_key;
-
-    t_cose_sign1_verify_ctx verify_ctx = {};
-    t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_TAG_REQUIRED);
-    t_cose_sign1_set_verification_key(&verify_ctx, cose_key);
-
-    q_useful_buf_c buf_ = {};
-    buf_.ptr = buf.data();
-    buf_.len = buf.size();
-
-    q_useful_buf_c payload_ = {};
-    payload_.ptr = payload.data();
-    payload_.len = payload.size();
-
-    t_cose_err_t error = t_cose_sign1_verify_detached(
-      &verify_ctx, buf_, NULL_Q_USEFUL_BUF_C, payload_, nullptr);
-
-    if (error == T_COSE_SUCCESS)
+    catch (const std::exception& e)
     {
-      return true;
+      LOG_DEBUG_FMT("COSE Sign1 verification failed: {}", e.what());
     }
-
-    LOG_DEBUG_FMT("COSE Sign1 verification failed with error {}", error);
     return false;
   }
 

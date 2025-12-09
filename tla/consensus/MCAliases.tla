@@ -64,6 +64,7 @@ DebugAliasAggregates ==
 
 DebugAliasVars ==
     [
+        preVoteStatus |-> preVoteStatus,
         configurations |-> configurations,
         messages |-> messages,
         currentTerm |-> currentTerm,
@@ -72,7 +73,7 @@ DebugAliasVars ==
         votedFor |-> votedFor,
         hasJoined |-> hasJoined,
         \* More compact visualization of the log.  
-\*        lg |-> [ s \in Servers |-> StringifyLog(s) ],
+        \* lg |-> [ s \in Servers |-> StringifyLog(s) ],
         log |-> log,
         commitIndex |-> commitIndex,
         votesGranted |-> votesGranted,
@@ -83,10 +84,10 @@ DebugAliasVars ==
     ]
 
 DebugAlias ==
-    [ _format |-> B[srv] \o "/\\[0m %1$s = %2$s\n" ]
-      @@
-    DebugAliasAggregates
-      @@
+    \*[ _format |-> B[srv] \o "/\\[0m %1$s = %2$s\n" ]
+    \*  @@
+    \*DebugAliasAggregates
+    \*  @@
     DebugAliasGlobals
       @@
     DebugAliasVars

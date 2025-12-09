@@ -339,11 +339,13 @@ namespace ccf::js::extensions
   {
     auto snp_attestation = ctx.new_obj();
 
-    snp_attestation.set(
+    JS_CHECK_OR_THROW(snp_attestation.set(
       "verifySnpAttestation",
-      ctx.new_c_function(js_verify_snp_attestation, "verifySnpAttestation", 4));
+      ctx.new_c_function(
+        js_verify_snp_attestation, "verifySnpAttestation", 4)));
 
     auto global_obj = ctx.get_global_obj();
-    global_obj.set("snp_attestation", std::move(snp_attestation));
+    JS_CHECK_OR_THROW(
+      global_obj.set("snp_attestation", std::move(snp_attestation)));
   }
 }

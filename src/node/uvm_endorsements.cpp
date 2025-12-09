@@ -266,7 +266,7 @@ namespace ccf
       case ccf::crypto::JsonWebKeyType::EC:
       {
         auto ec_jwk = jwk.get<ccf::crypto::JsonWebKeyECPublic>();
-        pubk = ccf::crypto::make_public_key(ec_jwk)->public_key_pem();
+        pubk = ccf::crypto::make_ec_public_key(ec_jwk)->public_key_pem();
         break;
       }
       default:

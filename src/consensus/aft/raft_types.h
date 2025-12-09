@@ -19,13 +19,6 @@ namespace aft
   using Index = uint64_t;
   using Term = uint64_t;
   using Node2NodeMsg = uint64_t;
-  using Nonce = ccf::crypto::Sha256Hash;
-
-  using ReplyCallback = std::function<bool(
-    void* owner,
-    ccf::kv::TxHistory::RequestID caller_rid,
-    int status,
-    std::vector<uint8_t>&& data)>;
 
   static constexpr size_t starting_view_change = 2;
 
@@ -35,12 +28,12 @@ namespace aft
     virtual ~Store() {}
     virtual void compact(Index v) = 0;
     virtual void rollback(
-      const ccf::kv::TxID& tx_id, Term term_of_next_version) = 0;
+      const ccf::TxID& tx_id, Term term_of_next_version) = 0;
     virtual void initialise_term(Term t) = 0;
     virtual std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t> data,
       bool public_only = false,
-      const std::optional<ccf::kv::TxID>& expected_txid = std::nullopt) = 0;
+      const std::optional<ccf::TxID>& expected_txid = std::nullopt) = 0;
   };
 
   template <typename T>
@@ -61,8 +54,7 @@ namespace aft
       }
     }
 
-    void rollback(
-      const ccf::kv::TxID& tx_id, Term term_of_next_version) override
+    void rollback(const ccf::TxID& tx_id, Term term_of_next_version) override
     {
       auto p = x.lock();
       if (p)
@@ -83,7 +75,7 @@ namespace aft
     std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t> data,
       bool public_only = false,
-      const std::optional<ccf::kv::TxID>& expected_txid = std::nullopt) override
+      const std::optional<ccf::TxID>& expected_txid = std::nullopt) override
     {
       auto p = x.lock();
       if (p)
@@ -102,6 +94,8 @@ namespace aft
     raft_request_vote,
     raft_request_vote_response,
     raft_propose_request_vote,
+    raft_request_pre_vote,
+    raft_request_pre_vote_response,
   };
   DECLARE_JSON_ENUM(
     RaftMsgType,
@@ -114,6 +108,9 @@ namespace aft
       {RaftMsgType::raft_request_vote, "raft_request_vote"},
       {RaftMsgType::raft_request_vote_response, "raft_request_vote_response"},
       {RaftMsgType::raft_propose_request_vote, "raft_propose_request_vote"},
+      {RaftMsgType::raft_request_pre_vote, "raft_request_pre_vote"},
+      {RaftMsgType::raft_request_pre_vote_response,
+       "raft_request_pre_vote_response"},
     });
 
 #pragma pack(push, 1)
@@ -183,6 +180,16 @@ namespace aft
   DECLARE_JSON_REQUIRED_FIELDS(
     AppendEntriesResponse, term, last_log_idx, success);
 
+  enum ElectionType
+  {
+    PreVote = 0,
+    RegularVote = 1
+  };
+  DECLARE_JSON_ENUM(
+    ElectionType,
+    {{ElectionType::PreVote, "PreVote"},
+     {ElectionType::RegularVote, "RegularVote"}});
+
   DECLARE_JSON_TYPE(RaftHeader<raft_request_vote>)
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote>, msg)
   struct RequestVote : RaftHeader<raft_request_vote>
@@ -195,6 +202,19 @@ namespace aft
   DECLARE_JSON_REQUIRED_FIELDS(
     RequestVote, term, last_committable_idx, term_of_last_committable_idx);
 
+  DECLARE_JSON_TYPE(RaftHeader<raft_request_pre_vote>);
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_pre_vote>, msg);
+  struct RequestPreVote : RaftHeader<raft_request_pre_vote>
+  {
+    Term term;
+    Index last_committable_idx;
+    Term term_of_last_committable_idx;
+  };
+  DECLARE_JSON_TYPE_WITH_BASE(
+    RequestPreVote, RaftHeader<raft_request_pre_vote>);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    RequestPreVote, term, last_committable_idx, term_of_last_committable_idx);
+
   DECLARE_JSON_TYPE(RaftHeader<raft_request_vote_response>)
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote_response>, msg)
   struct RequestVoteResponse : RaftHeader<raft_request_vote_response>
@@ -205,6 +225,17 @@ namespace aft
   DECLARE_JSON_TYPE_WITH_BASE(
     RequestVoteResponse, RaftHeader<raft_request_vote_response>);
   DECLARE_JSON_REQUIRED_FIELDS(RequestVoteResponse, term, vote_granted);
+
+  DECLARE_JSON_TYPE(RaftHeader<raft_request_pre_vote_response>)
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_pre_vote_response>, msg)
+  struct RequestPreVoteResponse : RaftHeader<raft_request_pre_vote_response>
+  {
+    Term term;
+    bool vote_granted;
+  };
+  DECLARE_JSON_TYPE_WITH_BASE(
+    RequestPreVoteResponse, RaftHeader<raft_request_pre_vote_response>);
+  DECLARE_JSON_REQUIRED_FIELDS(RequestPreVoteResponse, term, vote_granted);
 
   DECLARE_JSON_TYPE(RaftHeader<raft_propose_request_vote>)
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_propose_request_vote>, msg)
@@ -220,3 +251,59 @@ namespace aft
 
 #pragma pack(pop)
 }
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<aft::RaftMsgType>
+{
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const aft::RaftMsgType& msg_type, FormatContext& ctx) const
+    -> decltype(ctx.out())
+  {
+    switch (msg_type)
+    {
+      case (aft::RaftMsgType::raft_append_entries):
+      {
+        return fmt::format_to(ctx.out(), "append_entries");
+      }
+      case (aft::RaftMsgType::raft_append_entries_response):
+      {
+        return fmt::format_to(ctx.out(), "append_entries_response");
+      }
+      case (aft::RaftMsgType::raft_append_entries_signed_response):
+      {
+        return fmt::format_to(ctx.out(), "append_entries_signed_response");
+      }
+      case (aft::RaftMsgType::raft_request_vote):
+      {
+        return fmt::format_to(ctx.out(), "request_vote");
+      }
+      case (aft::RaftMsgType::raft_request_vote_response):
+      {
+        return fmt::format_to(ctx.out(), "request_vote_response");
+      }
+      case (aft::RaftMsgType::raft_propose_request_vote):
+      {
+        return fmt::format_to(ctx.out(), "propose_request_vote");
+      }
+      case (aft::RaftMsgType::raft_request_pre_vote):
+      {
+        return fmt::format_to(ctx.out(), "request_pre_vote");
+      }
+      case (aft::RaftMsgType::raft_request_pre_vote_response):
+      {
+        return fmt::format_to(ctx.out(), "request_pre_vote_response");
+      }
+      default:
+        throw std::runtime_error(
+          fmt::format("Unhandled RaftMsgType: {}", uint64_t(msg_type)));
+    }
+  }
+};
+FMT_END_NAMESPACE

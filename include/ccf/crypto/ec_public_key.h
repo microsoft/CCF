@@ -15,9 +15,11 @@
 
 namespace ccf::crypto
 {
-  class PublicKey
+  class ECPublicKey
   {
   public:
+    virtual ~ECPublicKey() = default;
+
     /**
      * Verify that a signature was produced on contents with the private key
      * associated with the public key held by the object.
@@ -121,22 +123,22 @@ namespace ccf::crypto
     /**
      * Get the public key in PEM format
      */
-    virtual Pem public_key_pem() const = 0;
+    [[nodiscard]] virtual Pem public_key_pem() const = 0;
 
     /**
      * Get the public key in DER format
      */
-    virtual std::vector<uint8_t> public_key_der() const = 0;
+    [[nodiscard]] virtual std::vector<uint8_t> public_key_der() const = 0;
 
     /**
      * Get the raw bytes of the public key
      */
-    virtual std::vector<uint8_t> public_key_raw() const = 0;
+    [[nodiscard]] virtual std::vector<uint8_t> public_key_raw() const = 0;
 
     /**
      * The curve ID
      */
-    virtual CurveID get_curve_id() const = 0;
+    [[nodiscard]] virtual CurveID get_curve_id() const = 0;
 
     struct Coordinates
     {
@@ -147,9 +149,35 @@ namespace ccf::crypto
     /**
      * The x/y coordinates of the public key
      */
-    virtual Coordinates coordinates() const = 0;
+    [[nodiscard]] virtual Coordinates coordinates() const = 0;
 
-    virtual JsonWebKeyECPublic public_key_jwk(
+    [[nodiscard]] virtual JsonWebKeyECPublic public_key_jwk(
       const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
+
+  using ECPublicKeyPtr = std::shared_ptr<ECPublicKey>;
+
+  /**
+   * Construct ECPublicKey from a raw public key in PEM format
+   *
+   * @param pem Sequence of bytes containing the key in PEM format
+   * @return Public key
+   */
+  ECPublicKeyPtr make_ec_public_key(const Pem& pem);
+
+  /**
+   * Construct ECPublicKey from a raw public key in DER format
+   *
+   * @param der Sequence of bytes containing the key in DER format
+   * @return Public key
+   */
+  ECPublicKeyPtr make_ec_public_key(const std::vector<uint8_t>& der);
+
+  /**
+   * Construct ECPublicKey from a JsonWebKeyECPublic object
+   *
+   * @param jwk JsonWebKeyECPublic object
+   * @return Public key
+   */
+  ECPublicKeyPtr make_ec_public_key(const JsonWebKeyECPublic& jwk);
 }

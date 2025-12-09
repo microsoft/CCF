@@ -731,7 +731,7 @@ def test_persistence_old_snapshot(network, args):
     with old_primary.client() as c:
         latest_txid = c.get("/node/commit").body.json()["transaction_id"]
 
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     # Use invalid node-to-node interface so that the new node is isolated and does
     # not receive any consensus updates.
     new_node.n2n_interface = infra.interfaces.Interface(host="invalid", port=8000)
@@ -1388,6 +1388,8 @@ checked. Note that the key for each logging message is unique (per table).
         ("double_sealed_service", 2, False),
         # cose_flipflop_service is a regression test for the issue described in #7002
         ("cose_flipflop_service", 0, False),
+        # acme_containing_service is a compatibility test for acme-containing ledgers
+        ("acme_containing_service", 0, True),
     ):
         cr.add(
             f"recovery_from_{directory}",

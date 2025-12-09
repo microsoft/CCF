@@ -82,7 +82,7 @@ namespace
 namespace ccf::crypto
 {
   std::optional<int> key_to_cose_alg_id(
-    const ccf::crypto::PublicKey_OpenSSL& key)
+    const ccf::crypto::ECPublicKey_OpenSSL& key)
   {
     const auto cid = key.get_curve_id();
     switch (cid)
@@ -229,7 +229,7 @@ namespace ccf::crypto
   }
 
   std::vector<uint8_t> cose_sign1(
-    const KeyPair_OpenSSL& key,
+    const ECKeyPair_OpenSSL& key,
     const std::vector<std::shared_ptr<COSEParametersFactory>>&
       protected_headers,
     std::span<const uint8_t> payload,

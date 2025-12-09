@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/crypto/curve.h"
+#include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/jwk.h"
 #include "ccf/crypto/pem.h"
-#include "ccf/crypto/public_key.h"
 #include "ccf/crypto/san.h"
 
 #include <cstdint>
@@ -15,15 +15,15 @@
 
 namespace ccf::crypto
 {
-  class KeyPair
+  class ECKeyPair
   {
   public:
-    virtual ~KeyPair() = default;
+    virtual ~ECKeyPair() = default;
 
-    virtual Pem private_key_pem() const = 0;
-    virtual Pem public_key_pem() const = 0;
-    virtual std::vector<uint8_t> public_key_der() const = 0;
-    virtual std::vector<uint8_t> private_key_der() const = 0;
+    [[nodiscard]] virtual Pem private_key_pem() const = 0;
+    [[nodiscard]] virtual Pem public_key_pem() const = 0;
+    [[nodiscard]] virtual std::vector<uint8_t> public_key_der() const = 0;
+    [[nodiscard]] virtual std::vector<uint8_t> private_key_der() const = 0;
 
     virtual bool verify(
       const std::vector<uint8_t>& contents,
@@ -44,20 +44,20 @@ namespace ccf::crypto
       size_t* sig_size,
       uint8_t* sig) const = 0;
 
-    virtual std::vector<uint8_t> sign(
+    [[nodiscard]] virtual std::vector<uint8_t> sign(
       std::span<const uint8_t> d, MDType md_type = {}) const = 0;
 
-    virtual Pem create_csr(
+    [[nodiscard]] virtual Pem create_csr(
       const std::string& subject_name,
       const std::vector<SubjectAltName>& subject_alt_names,
       const std::optional<Pem>& public_key = std::nullopt) const = 0;
 
-    Pem create_csr(const std::string& subject_name) const
+    [[nodiscard]] Pem create_csr(const std::string& subject_name) const
     {
       return create_csr(subject_name, {});
     }
 
-    virtual std::vector<uint8_t> create_csr_der(
+    [[nodiscard]] virtual std::vector<uint8_t> create_csr_der(
       const std::string& subject_name,
       const std::vector<SubjectAltName>& subject_alt_names,
       const std::optional<Pem>& public_key = std::nullopt) const = 0;
@@ -73,14 +73,14 @@ namespace ccf::crypto
     // by the current service identity (which doesn't have the private key of
     // previous ones).
 
-    enum class Signer
+    enum class Signer : std::uint8_t
     {
       SUBJECT = 0,
       ISSUER = 1
     };
 
   private:
-    virtual Pem sign_csr_impl(
+    [[nodiscard]] virtual Pem sign_csr_impl(
       const std::optional<Pem>& issuer_cert,
       const Pem& signing_request,
       const std::string& valid_from,
@@ -89,7 +89,7 @@ namespace ccf::crypto
       Signer signer = Signer::SUBJECT) const = 0;
 
   public:
-    virtual Pem sign_csr(
+    [[nodiscard]] virtual Pem sign_csr(
       const Pem& issuer_cert,
       const Pem& signing_request,
       const std::string& valid_from,
@@ -101,7 +101,7 @@ namespace ccf::crypto
         issuer_cert, signing_request, valid_from, valid_to, ca, signer);
     }
 
-    Pem self_sign(
+    [[nodiscard]] Pem self_sign(
       const std::string& name,
       const std::string& valid_from,
       const std::string& valid_to,
@@ -117,7 +117,7 @@ namespace ccf::crypto
       return sign_csr_impl(std::nullopt, csr, valid_from, valid_to, ca);
     }
 
-    Pem self_sign(
+    [[nodiscard]] Pem self_sign(
       const std::string& subject_name,
       const std::string& valid_from,
       const std::string& valid_to,
@@ -129,44 +129,19 @@ namespace ccf::crypto
     }
 
     virtual std::vector<uint8_t> derive_shared_secret(
-      const PublicKey& peer_key) = 0;
+      const ECPublicKey& peer_key) = 0;
 
-    virtual std::vector<uint8_t> public_key_raw() const = 0;
+    [[nodiscard]] virtual std::vector<uint8_t> public_key_raw() const = 0;
 
-    virtual CurveID get_curve_id() const = 0;
+    [[nodiscard]] virtual CurveID get_curve_id() const = 0;
 
-    virtual PublicKey::Coordinates coordinates() const = 0;
+    [[nodiscard]] virtual ECPublicKey::Coordinates coordinates() const = 0;
 
-    virtual JsonWebKeyECPrivate private_key_jwk(
+    [[nodiscard]] virtual JsonWebKeyECPrivate private_key_jwk(
       const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
 
-  using PublicKeyPtr = std::shared_ptr<PublicKey>;
-  using KeyPairPtr = std::shared_ptr<KeyPair>;
-
-  /**
-   * Construct PublicKey from a raw public key in PEM format
-   *
-   * @param pem Sequence of bytes containing the key in PEM format
-   * @return Public key
-   */
-  PublicKeyPtr make_public_key(const Pem& pem);
-
-  /**
-   * Construct PublicKey from a raw public key in DER format
-   *
-   * @param der Sequence of bytes containing the key in DER format
-   * @return Public key
-   */
-  PublicKeyPtr make_public_key(const std::vector<uint8_t>& der);
-
-  /**
-   * Construct PublicKey from a JsonWebKeyECPublic object
-   *
-   * @param jwk JsonWebKeyECPublic object
-   * @return Public key
-   */
-  PublicKeyPtr make_public_key(const JsonWebKeyECPublic& jwk);
+  using ECKeyPairPtr = std::shared_ptr<ECKeyPair>;
 
   /**
    * Create a new public / private ECDSA key pair on specified curve and
@@ -175,7 +150,8 @@ namespace ccf::crypto
    * @param curve_id Elliptic curve to use
    * @return Key pair
    */
-  KeyPairPtr make_key_pair(CurveID curve_id = service_identity_curve_choice);
+  ECKeyPairPtr make_ec_key_pair(
+    CurveID curve_id = service_identity_curve_choice);
 
   /**
    * Create a public / private ECDSA key pair from existing private key data
@@ -183,7 +159,7 @@ namespace ccf::crypto
    * @param pem PEM key to load
    * @return Key pair
    */
-  KeyPairPtr make_key_pair(const Pem& pem);
+  ECKeyPairPtr make_ec_key_pair(const Pem& pem);
 
   /**
    * Construct a new public / private ECDSA key pair from a JsonWebKeyECPrivate
@@ -192,5 +168,5 @@ namespace ccf::crypto
    * @param jwk JsonWebKeyECPrivate object
    * @return Key pair
    */
-  KeyPairPtr make_key_pair(const JsonWebKeyECPrivate& jwk);
+  ECKeyPairPtr make_ec_key_pair(const JsonWebKeyECPrivate& jwk);
 }

@@ -227,7 +227,6 @@ namespace quic
       if (status != ready)
         return;
 
-      int written = 0;
       for (auto& write : pending_writes)
       {
         LOG_TRACE_FMT("QUIC write_some {} bytes", write.len);
@@ -240,7 +239,6 @@ namespace quic
           stop(error);
           return;
         }
-        written += rc;
 
         // Mark for deletion (avoiding invalidating iterator)
         write.clear = true;
@@ -412,7 +410,7 @@ namespace quic
       interface_id(interface_id)
     {}
 
-    void send_data(std::span<const uint8_t> data) override
+    void send_data(std::vector<uint8_t>&& data) override
     {
       send_raw(data.data(), data.size(), addr);
     }

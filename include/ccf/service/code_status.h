@@ -8,7 +8,7 @@
 
 namespace ccf
 {
-  enum class CodeStatus
+  enum class CodeStatus : uint8_t
   {
     ALLOWED_TO_JOIN = 0
   };

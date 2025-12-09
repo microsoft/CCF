@@ -4,7 +4,6 @@
 
 #include "ccf/endpoint.h"
 #include "ccf/service/signed_req.h"
-#include "ccf/service/tables/acme_certificates.h"
 #include "ccf/service/tables/cert_bundles.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/constitution.h"
@@ -87,7 +86,6 @@ namespace ccf
     const Nodes nodes = {Tables::NODES};
     const NodeEndorsedCertificates node_endorsed_certificates = {
       Tables::NODE_ENDORSED_CERTIFICATES};
-    const ACMECertificates acme_certificates = {Tables::ACME_CERTIFICATES};
 
     const VirtualHostDataMap virtual_host_data = {Tables::VIRTUAL_HOST_DATA};
     const VirtualMeasurements virtual_measurements = {
@@ -105,7 +103,6 @@ namespace ccf
         node_code_ids,
         nodes,
         node_endorsed_certificates,
-        acme_certificates,
         virtual_host_data,
         virtual_measurements,
         host_data,
@@ -167,24 +164,11 @@ namespace ccf
     const JwtIssuers jwt_issuers = {Tables::JWT_ISSUERS};
     const JwtPublicSigningKeysMetadata jwt_public_signing_keys_metadata = {
       Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA};
-    const JwtPublicSigningKeysMetadataLegacy
-      legacy_jwt_public_signing_keys_metadata = {
-        Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS_METADATA};
-    const Tables::Legacy::JwtPublicSigningKeys legacy_jwt_public_signing_keys =
-      {Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS};
-    const Tables::Legacy::JwtPublicSigningKeyIssuer
-      legacy_jwt_public_signing_key_issuer = {
-        Tables::Legacy::JWT_PUBLIC_SIGNING_KEY_ISSUER};
 
     inline auto get_all_jwt_tables() const
     {
       return std::make_tuple(
-        ca_cert_bundles,
-        jwt_issuers,
-        jwt_public_signing_keys_metadata,
-        legacy_jwt_public_signing_keys_metadata,
-        legacy_jwt_public_signing_keys,
-        legacy_jwt_public_signing_key_issuer);
+        ca_cert_bundles, jwt_issuers, jwt_public_signing_keys_metadata);
     }
 
     //

@@ -32,33 +32,19 @@ namespace http2
     Streaming // Sending data frames to client
   };
 
-  class DataSource
+  struct DataSource
   {
     // Utility class to consume data from underlying data vector in chunks from
     // nghttp2_data_source_read_callback
-  private:
     std::vector<uint8_t> data;
+    size_t consumed;
 
-    std::span<const uint8_t> span;
-
-  public:
     DataSource() = default;
-
-    DataSource(std::span<const uint8_t> s)
-    {
-      data.assign(s.begin(), s.end());
-      span = s;
-    }
 
     DataSource(std::vector<uint8_t>&& data_) :
       data(std::move(data_)),
-      span(data)
+      consumed(0)
     {}
-
-    std::span<const uint8_t>& ro_data()
-    {
-      return span;
-    }
   };
 
   struct StreamData

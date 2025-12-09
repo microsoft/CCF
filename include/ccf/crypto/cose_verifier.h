@@ -2,10 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/key_pair.h"
-#include "ccf/crypto/pem.h"
-#include "ccf/crypto/public_key.h"
-#include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/crypto/verifier.h"
 
 #include <chrono>
 
@@ -15,10 +12,11 @@ namespace ccf::crypto
   {
   public:
     virtual bool verify(
-      const std::span<const uint8_t>& buf,
+      const std::span<const uint8_t>& envelope,
       std::span<uint8_t>& authned_content) const = 0;
-    virtual bool verify_detached(
-      std::span<const uint8_t> buf, std::span<const uint8_t> payload) const = 0;
+    [[nodiscard]] virtual bool verify_detached(
+      std::span<const uint8_t> envelope,
+      std::span<const uint8_t> payload) const = 0;
     virtual ~COSEVerifier() = default;
   };
 
@@ -30,8 +28,8 @@ namespace ccf::crypto
 
   struct COSEEndorsementValidity
   {
-    std::string from_txid{};
-    std::string to_txid{};
+    std::string from_txid;
+    std::string to_txid;
   };
   COSEEndorsementValidity extract_cose_endorsement_validity(
     std::span<const uint8_t> cose_msg);

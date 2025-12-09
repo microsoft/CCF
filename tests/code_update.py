@@ -365,7 +365,7 @@ def test_tcb_version_tables(network, args):
     LOG.info("Checking new nodes are prevented from joining")
     thrown_exception = None
     try:
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         network.join_node(new_node, args.package, args, timeout=3)
         network.trust_node(new_node, args)
     except TimeoutError as e:
@@ -386,7 +386,7 @@ def test_tcb_version_tables(network, args):
         ), "TCB version should not include the hexstring tcb if set with the old API"
 
     LOG.info("Checking new nodes are allowed to join using expanded api")
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     network.join_node(new_node, args.package, args, timeout=3)
     network.trust_node(new_node, args)
 
@@ -407,7 +407,7 @@ def test_tcb_version_tables(network, args):
         ), f"TCB version does not match, {versions[cpuid]['hexstring']} != {permissive_tcb_version_raw}"
 
     LOG.info("Checking new nodes are allowed to join using hexstring api")
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     network.join_node(new_node, args.package, args, timeout=3)
     network.trust_node(new_node, args)
 
@@ -421,7 +421,7 @@ def test_add_node_without_security_policy(network, args):
             shutil.copytree(security_context_dir, snp_dir, dirs_exist_ok=True)
             os.remove(os.path.join(snp_dir, snp.ACI_SEV_SNP_FILENAME_SECURITY_POLICY))
 
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         network.join_node(
             new_node,
             args.package,
@@ -453,7 +453,7 @@ def test_add_node_with_stubbed_security_policy(network, args):
     )
 
     # If we don't throw an exception, joining was successful
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     network.join_node(new_node, args.package, args, timeout=3)
     network.trust_node(new_node, args)
 
@@ -482,7 +482,7 @@ def test_start_node_with_mismatched_host_data(network, args):
                 ) as f:
                     f.write(b64encode(b"invalid_security_policy").decode())
 
-            new_node = network.create_node("local://localhost")
+            new_node = network.create_node()
             network.join_node(
                 new_node,
                 args.package,
@@ -511,7 +511,7 @@ def test_add_node_with_untrusted_measurement(network, args):
         primary, infra.platform_detection.get_platform(), measurement
     )
 
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     try:
         network.join_node(new_node, args.package, args, timeout=3)
     except infra.network.MeasurementNotFound:
@@ -540,7 +540,7 @@ def test_add_node_with_untrusted_host_data(network, args):
         primary, infra.platform_detection.get_platform(), host_data
     )
 
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     try:
         network.join_node(new_node, args.package, args, timeout=3)
     except infra.network.HostDataNotFound:
@@ -569,7 +569,7 @@ def test_add_node_with_no_uvm_endorsements(network, args):
             os.remove(os.path.join(snp_dir, snp.ACI_SEV_SNP_FILENAME_UVM_ENDORSEMENTS))
 
         try:
-            new_node = network.create_node("local://localhost")
+            new_node = network.create_node()
             network.join_node(
                 new_node,
                 args.package,
@@ -591,7 +591,7 @@ def test_add_node_with_no_uvm_endorsements(network, args):
 
         LOG.info("Add new node without UVM endorsements (expect success)")
         # This succeeds because node measurement are now trusted
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         network.join_node(
             new_node,
             args.package,
@@ -622,7 +622,7 @@ def test_add_node_with_different_package(network, args):
     LOG.info(f"Adding unsupported node running {replacement_package}")
     exception_thrown = None
     try:
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         network.join_node(
             new_node,
             replacement_package,
@@ -781,7 +781,7 @@ def test_update_all_nodes(network, args):
 
     LOG.info("Start fresh nodes running new code")
     for _ in range(0, len(old_nodes)):
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         network.join_node(new_node, replacement_package, args)
         network.trust_node(new_node, args)
 
@@ -862,7 +862,7 @@ def test_add_node_with_no_uvm_endorsements_in_kv(network, args):
     network.consortium.remove_snp_uvm_endorsement(primary, did, feed)
 
     try:
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         network.join_node(new_node, args.package, args, timeout=3)
     except infra.network.UVMEndorsementsNotAuthorised:
         LOG.info("As expected, node with no UVM endorsements failed to join")

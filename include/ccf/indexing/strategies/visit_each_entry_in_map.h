@@ -31,7 +31,7 @@ namespace ccf::indexing::strategies
       const std::string& map_name_,
       const std::string& strategy_prefix = "VisitEachEntryIn");
 
-    virtual ~VisitEachEntryInMap() = default;
+    ~VisitEachEntryInMap() override = default;
 
     void handle_committed_transaction(
       const ccf::TxID& tx_id, const ccf::kv::ReadOnlyStorePtr& store) override;

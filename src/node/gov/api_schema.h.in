@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include <string_view>
+
 namespace ccf::gov::endpoints::schema
 {
   // clang-format off
@@ -18,8 +20,12 @@ namespace ccf::gov::endpoints::schema
   static constexpr auto v2023_06_01_preview =
     R"!!!(@GOV_API_SCHEMA_2023_06_01_PREVIEW@)!!!";
 
+  static_assert(!std::string_view(v2023_06_01_preview).empty());
+
   static constexpr auto v2024_07_01 =
     R"!!!(@GOV_API_SCHEMA_2024_07_01@)!!!";
+
+  static_assert(!std::string_view(v2024_07_01).empty());
 
 #pragma clang diagnostic pop
 

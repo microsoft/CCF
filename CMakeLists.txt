@@ -64,19 +64,6 @@ else()
   set(PYTHON python3)
 endif()
 
-set(DISTRIBUTE_PERF_TESTS
-    ""
-    CACHE
-      STRING
-      "Hosts to which performance tests should be distributed, for example -n ssh://x.x.x.x -n ssh://x.x.x.x -n ssh://x.x.x.x"
-)
-
-if(DISTRIBUTE_PERF_TESTS)
-  separate_arguments(NODES UNIX_COMMAND ${DISTRIBUTE_PERF_TESTS})
-else()
-  unset(NODES)
-endif()
-
 option(
   VERBOSE_LOGGING
   "Enable verbose, potentially unsafe logging of enclave code. Affects logging level passed at run-time to end-to-end-tests."
@@ -497,12 +484,32 @@ if(BUILD_TESTS)
       snp_ioctl_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
     )
+    set_property(
+      TEST snp_ioctl_test
+      APPEND
+      PROPERTY LABELS snp
+    )
+    set_property(
+      TEST snp_ioctl_test
+      APPEND
+      PROPERTY CONFIGURATIONS snp
+    )
 
     add_unit_test(
       snp_attestation_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_attestation_validation.cpp
     )
     target_link_libraries(snp_attestation_test PRIVATE ccf_pal ccfcrypto)
+    set_property(
+      TEST snp_attestation_test
+      APPEND
+      PROPERTY LABELS snp
+    )
+    set_property(
+      TEST snp_attestation_test
+      APPEND
+      PROPERTY CONFIGURATIONS snp
+    )
 
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
@@ -843,9 +850,9 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME recovery_test_api_1
+    NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-    ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "2024-07-01"
+    ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
   )
 
   add_e2e_test(
@@ -871,7 +878,6 @@ if(BUILD_TESTS)
       --test-duration 300 --test-suite reconfiguration --jinja-templates-path
       ${CMAKE_SOURCE_DIR}/samples/templates
   )
-  set_property(TEST reconfiguration_test_suite PROPERTY LABELS reconfiguration)
 
   if(LONG_TESTS)
     add_e2e_test(
@@ -898,15 +904,10 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME committable_suffix_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
-    ADDITIONAL_ARGS --sig-ms-interval 100
-  )
-
-  add_e2e_test(
     NAME commit_latency
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/commit_latency.py
     LABEL perf
+    CONFIGURATIONS perf
   )
 
   add_e2e_test(
@@ -1032,12 +1033,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME membership_api_1
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
-    ADDITIONAL_ARGS --gov-api-version "2024-07-01"
-  )
-
-  add_e2e_test(
     NAME partitions
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     LABEL partitions
@@ -1070,11 +1065,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME consistency_trace_validation
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
-  )
-
-  add_e2e_test(
     NAME fuzz_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fuzzing.py
   )
 
@@ -1098,6 +1088,13 @@ if(BUILD_TESTS)
       ${CMAKE_SOURCE_DIR}/samples/config
       --historical-testdata
       ${CMAKE_SOURCE_DIR}/tests/testdata
+  )
+
+  add_e2e_test(
+    NAME snp_platform_tests
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/amd_snp.py
+    LABEL snp
+    CONFIGURATIONS snp
   )
 
   list(APPEND LTS_TEST_ARGS --ccf-version ${CCF_VERSION})
@@ -1131,32 +1128,12 @@ if(BUILD_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)
   endif()
 
-  add_e2e_test(
-    NAME rotation_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
-    LABEL rotation
-    ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
-  )
-
   set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
   add_e2e_test(
-    NAME reconfiguration_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-    ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}
+    NAME nodes_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/nodes.py
+    ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS} ${ROTATION_TEST_ARGS}
   )
-  set_property(TEST reconfiguration_test PROPERTY LABELS reconfiguration)
-
-  add_e2e_test(
-    NAME election_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-  )
-
-  if(LONG_TESTS)
-    add_e2e_test(
-      NAME acme_endorsement_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
-      LABEL ACME
-    )
-  endif()
 
   add_piccolo_test(
     NAME pi_ls
@@ -1221,6 +1198,11 @@ if(BUILD_TESTS)
   if(LONG_TESTS)
     add_e2e_test(
       NAME e2e_curl PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_curl.py
+    )
+
+    add_e2e_test(
+      NAME consistency_trace_validation
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
     )
   endif()
 endif()

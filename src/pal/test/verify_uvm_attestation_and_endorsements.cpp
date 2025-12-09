@@ -132,15 +132,10 @@ ccf::QuoteVerificationResult validate_join_policy(
     return ccf::QuoteVerificationResult::Failed;
   }
 
-  // auto rc = verify_host_data_against_store(tx, quote_info);
-
-  // rc = verify_enclave_measurement_against_store(
   ccf::verify_uvm_endorsements_against_roots_of_trust(
     quote_info.uvm_endorsements.value(),
     measurement,
     ccf::default_uvm_roots_of_trust);
-
-  // rc = verify_tcb_version_against_store(tx, quote_info);
 
   auto rc = ccf::verify_quoted_node_public_key(expected_pubk_der, quoted_hash);
 
@@ -211,7 +206,8 @@ int main(int argc, char** argv)
     LOG_INFO_FMT("Generating attestation");
 
     // generate private key
-    ccf::crypto::KeyPair_OpenSSL node_sign_kp(ccf::crypto::CurveID::SECP384R1);
+    ccf::crypto::ECKeyPair_OpenSSL node_sign_kp(
+      ccf::crypto::CurveID::SECP384R1);
     ccf::pal::PlatformAttestationReportData report_data =
       ccf::crypto::Sha256Hash(node_sign_kp.public_key_der());
     ccf::pal::generate_quote(

@@ -6,24 +6,24 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/http_configuration.h"
-#include "ccf/service/acme_client_config.h"
+#include "ccf/service/operator_feature.h"
 
 #include <string>
 
 namespace ccf
 {
-  enum class Authority
+  enum class Authority : uint8_t
   {
     NODE,
     SERVICE,
-    ACME,
+    ACME, // DEPRECATED
     UNSECURED
   };
   DECLARE_JSON_ENUM(
     Authority,
     {{Authority::NODE, "Node"},
      {Authority::SERVICE, "Service"},
-     {Authority::ACME, "ACME"},
+     {Authority::ACME, "ACME"}, // DEPRECATED
      {Authority::UNSECURED, "Unsecured"}});
 
   using ApplicationProtocol = std::string;
@@ -31,18 +31,13 @@ namespace ccf
   struct Endorsement
   {
     Authority authority;
-
-    std::optional<std::string> acme_configuration;
-
     bool operator==(const Endorsement& other) const
     {
-      return authority == other.authority &&
-        acme_configuration == other.acme_configuration;
+      return authority == other.authority;
     }
   };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Endorsement);
+  DECLARE_JSON_TYPE(Endorsement);
   DECLARE_JSON_REQUIRED_FIELDS(Endorsement, authority);
-  DECLARE_JSON_OPTIONAL_FIELDS(Endorsement, acme_configuration);
 
   struct NodeInfoNetwork_v1
   {
@@ -59,7 +54,7 @@ namespace ccf
 
   static constexpr auto PRIMARY_RPC_INTERFACE = "primary_rpc_interface";
 
-  enum class RedirectionResolutionKind
+  enum class RedirectionResolutionKind : uint8_t
   {
     NodeByRole,
     StaticAddress
@@ -115,6 +110,11 @@ namespace ccf
       /// Timeout for forwarded RPC calls (in milliseconds)
       std::optional<size_t> forwarding_timeout_ms = std::nullopt;
 
+      /// Features enabled for this interface. Any endpoint with required
+      /// features will be inaccessible (on this interface) if this does not
+      /// contain those features.
+      std::set<ccf::endpoints::OperatorFeature> enabled_operator_features;
+
       struct Redirections
       {
         RedirectionResolverConfig to_primary;
@@ -136,6 +136,7 @@ namespace ccf
           http_configuration == other.http_configuration &&
           accepted_endpoints == other.accepted_endpoints &&
           forwarding_timeout_ms == other.forwarding_timeout_ms &&
+          enabled_operator_features == other.enabled_operator_features &&
           redirections == other.redirections;
       }
     };
@@ -148,18 +149,6 @@ namespace ccf
 
     /// RPC interfaces
     RpcInterfaces rpc_interfaces;
-
-    /// ACME configuration description
-    struct ACME
-    {
-      /// Mapping of ACME client configuration names to configurations
-      std::map<std::string, ccf::ACMEClientConfig> configurations;
-
-      bool operator==(const ACME&) const = default;
-    };
-
-    /// ACME configuration
-    std::optional<ACME> acme = std::nullopt;
 
     // Denote whether this node will locally seal the ledger secret
     bool will_locally_seal_ledger_secrets = false;
@@ -183,14 +172,13 @@ namespace ccf
     http_configuration,
     accepted_endpoints,
     forwarding_timeout_ms,
+    enabled_operator_features,
     redirections);
-  DECLARE_JSON_TYPE(NodeInfoNetwork_v2::ACME);
-  DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::ACME, configurations);
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    NodeInfoNetwork_v2, acme, will_locally_seal_ledger_secrets);
+    NodeInfoNetwork_v2, will_locally_seal_ledger_secrets);
 
   struct NodeInfoNetwork : public NodeInfoNetwork_v2
   {
@@ -228,7 +216,7 @@ namespace ccf
       std::tie(v1.nodehost, v1.nodeport) =
         split_net_address(nin.node_to_node_interface.bind_address);
 
-      if (nin.rpc_interfaces.size() > 0)
+      if (!nin.rpc_interfaces.empty())
       {
         const auto& primary_interface = nin.rpc_interfaces.begin()->second;
         std::tie(v1.rpchost, v1.rpcport) =

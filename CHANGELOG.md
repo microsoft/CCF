@@ -5,17 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev6]
+
+[7.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev6
+
+### Changed
+
+- Start nodes now confirm that read-only ledger directories are empty on startup (#7355).
+- In the C++ API, the method `get_txid()` on `ccf::kv::ReadOnlyStore` has been renamed to `current_txid()`. This may affect historical query code which works directly with the returned `StorePtr` (#7477).
+
 ## [7.0.0-dev5]
 
 [7.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev5
 
+### Added
+
+- Support for PreVote optimisation. Nodes understand and are able to respond to PreVote messages, but will not become pre-vote candidates themselves. (#7419, #7445)
+
+### Changed
+
+- When the `fetch_recent_snapshot` behaviour is enabled by the node config, the Joiner will now prefer the peer's snapshot over _any_ local snapshot, regardless of version (#7314).
+- Crypto interface for RSA and EC keys (#7425)
+  - `ccf::crypto::PublicKey` becomes `ccf::crypto::ECPublicKey`
+  - `ccf::crypto::KeyPair` becomes `ccf::crypto::ECKeyPair`
+  - Error-prone inheritance between RSA and EC key classes has been removed.
+  - RSA keys now don't re-use CSR functionality from EC key interface.
+
 ### Removed
 
 - Removed the unused experimental `ccf.host.triggerSubprocess()` JS API
+- Removed ACME client and support for ACME-endorsed interfaces (#7414).
+- Removed fallback JWT authentication (#7442)
+  - It is recommended to clean up the old tables for services started before 6.x - check out `cleanup_legacy_jwt_records` proposal in the default sample constitution.
 
 ### Fixed
 
 - CheckQuorum now requires a quorum in every configuration (#7375)
+
+### Changed
+
+- The snapshot-serving endpoints required for `fetch_recent_snapshot` behaviour are now disabled-by-default to avoid public DoS requests. They should be enabled on a per-interface basis by adding `"enabled_operator_features": ["SnapshotRead"]` to the interface's configuration, on an interface with local visibility used for node-to-node join requests.
 
 ## [7.0.0-dev4]
 

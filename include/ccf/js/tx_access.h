@@ -6,7 +6,7 @@ namespace ccf::js
 {
   /// Describes the context in which JS script is currently executing. Used to
   /// determine which KV tables should be accessible.
-  enum class TxAccess
+  enum class TxAccess : uint8_t
   {
     /// Application code, during evaluation of an endpoint handler function
     /// marked as readonly

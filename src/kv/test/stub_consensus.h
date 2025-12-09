@@ -201,10 +201,7 @@ namespace ccf::kv::test
     {}
 
     void add_configuration(
-      ccf::SeqNo seqno,
-      const Configuration::Nodes& conf,
-      const std::unordered_set<NodeId>& learners = {},
-      const std::unordered_set<NodeId>& retired_nodes = {}) override
+      ccf::SeqNo seqno, const Configuration::Nodes& conf) override
     {}
 
     Configuration::Nodes get_latest_configuration_unsafe() const override
