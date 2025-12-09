@@ -190,7 +190,7 @@ namespace ccf
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::shared_ptr<RPCMap> rpc_map_) :
       writer_factory(writer_factory),
-      rpc_map(rpc_map_)
+      rpc_map(std::move(rpc_map_))
     {
       to_host = writer_factory.create_writer_to_outside();
     }

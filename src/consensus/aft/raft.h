@@ -234,7 +234,7 @@ namespace aft
       node_client(std::move(rpc_request_context_)),
       retired_node_cleanup(
         std::make_unique<ccf::RetiredNodeCleanup>(node_client)),
-      commit_callbacks(commit_callbacks_subsystem_),
+      commit_callbacks(std::move(commit_callbacks_subsystem_)),
 
       public_only(public_only_),
 
