@@ -20,6 +20,7 @@ namespace ccf::crypto
   static constexpr int64_t COSE_PHEADER_KEY_CWT = 15;
   // Standardised: verifiable data structure.
   static constexpr int64_t COSE_PHEADER_KEY_VDS = 395;
+  static constexpr int64_t COSE_PHEADER_VDS_CCF_LEDGER_SHA256 = 2;
   // Standardised: issued at CWT claim. Value is **PLAIN INTEGER**, as per
   // https://www.rfc-editor.org/rfc/rfc8392#section-2. Quote:
   /* The "NumericDate" term in this specification has the same meaning and
@@ -59,7 +60,7 @@ namespace ccf::crypto
   {
   public:
     virtual void apply(QCBOREncodeContext* ctx) const = 0;
-    virtual size_t estimated_size() const = 0;
+    [[nodiscard]] virtual size_t estimated_size() const = 0;
 
     virtual ~COSEMapKey() = default;
   };
@@ -71,7 +72,7 @@ namespace ccf::crypto
     ~COSEMapIntKey() override = default;
 
     void apply(QCBOREncodeContext* ctx) const override;
-    size_t estimated_size() const override;
+    [[nodiscard]] size_t estimated_size() const override;
 
   private:
     int64_t key;
@@ -84,7 +85,7 @@ namespace ccf::crypto
     ~COSEMapStringKey() override = default;
 
     void apply(QCBOREncodeContext* ctx) const override;
-    size_t estimated_size() const override;
+    [[nodiscard]] size_t estimated_size() const override;
 
   private:
     std::string key;
@@ -94,7 +95,7 @@ namespace ccf::crypto
   {
   public:
     virtual void apply(QCBOREncodeContext* ctx) const = 0;
-    virtual size_t estimated_size() const = 0;
+    [[nodiscard]] virtual size_t estimated_size() const = 0;
 
     virtual ~COSEParametersFactory() = default;
   };
@@ -107,13 +108,13 @@ namespace ccf::crypto
       const std::vector<std::shared_ptr<COSEParametersFactory>>& factories_);
 
     void apply(QCBOREncodeContext* ctx) const override;
-    size_t estimated_size() const override;
+    [[nodiscard]] size_t estimated_size() const override;
 
-    virtual ~COSEParametersMap() = default;
+    ~COSEParametersMap() override = default;
 
   private:
     std::shared_ptr<COSEMapKey> key;
-    std::vector<std::shared_ptr<COSEParametersFactory>> factories{};
+    std::vector<std::shared_ptr<COSEParametersFactory>> factories;
   };
 
   std::shared_ptr<COSEParametersFactory> cose_params_int_int(
@@ -143,20 +144,20 @@ namespace ccf::crypto
       args_size{args_size}
     {}
 
-    virtual ~COSEParametersPair() = default;
+    ~COSEParametersPair() override = default;
 
     void apply(QCBOREncodeContext* ctx) const override
     {
       impl(ctx);
     }
 
-    size_t estimated_size() const override
+    [[nodiscard]] size_t estimated_size() const override
     {
       return args_size;
     }
 
   private:
-    std::function<void(QCBOREncodeContext*)> impl{};
+    std::function<void(QCBOREncodeContext*)> impl;
     size_t args_size{};
   };
 

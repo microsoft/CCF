@@ -34,11 +34,6 @@ namespace ccf
   struct PrimarySignature;
 }
 
-namespace aft
-{
-  struct Request;
-}
-
 namespace ccf::kv
 {
   // Term describes an epoch of Versions. It is incremented when global kv's

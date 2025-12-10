@@ -1991,6 +1991,145 @@ TEST_CASE("Valid merkle proof from receipts")
   REQUIRE_FALSE(proof.has_value());
 }
 
+TEST_CASE("Cache size estimation")
+{
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+
+  write_transactions_and_signature(kv_store, 10);
+
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+
+  auto stub_writer = std::make_shared<StubWriter>();
+  ccf::historical::StateCacheImpl cache(
+    kv_store, state.ledger_secrets, stub_writer);
+
+  cache.set_soft_cache_limit(0);
+
+  ccf::historical::CompoundHandle handle = {
+    ccf::historical::RequestNamespace::Application, 1};
+
+  {
+    ccf::ds::ContiguousSet<ccf::SeqNo> seqnos;
+    seqnos.insert(10);
+    cache.get_stores_for(handle, seqnos, std::chrono::seconds(1));
+  }
+
+  REQUIRE(cache.get_estimated_store_cache_size() == 0);
+  cache.handle_ledger_entry(10, ledger.at(10));
+  REQUIRE(cache.get_estimated_store_cache_size() == ledger.at(10).size());
+
+  {
+    ccf::ds::ContiguousSet<ccf::SeqNo> seqnos;
+    seqnos.insert(5);
+    cache.get_stores_for(handle, seqnos, std::chrono::seconds(1));
+  }
+
+  cache.tick(std::chrono::milliseconds(1000));
+
+  REQUIRE(cache.get_estimated_store_cache_size() == 0);
+}
+
+TEST_CASE("adjust_ranges")
+{
+  using SeqNoSet = std::set<ccf::SeqNo>;
+
+  struct AdjustRangesAccessor : public ccf::historical::StateCacheImpl
+  {
+    Request request;
+
+    AdjustRangesAccessor(
+      ccf::kv::Store& store,
+      const std::shared_ptr<ccf::LedgerSecrets>& secrets,
+      const ringbuffer::WriterPtr& host_writer) :
+      StateCacheImpl(store, secrets, host_writer),
+      request(all_stores)
+    {}
+
+    std::pair<SeqNoSet, SeqNoSet> adjust_ranges(const SeqNoSet& seqnos)
+    {
+      ccf::SeqNoCollection seqno_collection;
+      for (const auto& seqno : seqnos)
+      {
+        seqno_collection.insert(seqno);
+      }
+
+      auto [removed_v, added_v] =
+        request.adjust_ranges(seqno_collection, true, 0);
+      SeqNoSet removed(removed_v.begin(), removed_v.end());
+      SeqNoSet added(added_v.begin(), added_v.end());
+      return {removed, added};
+    }
+  };
+
+  auto state = create_and_init_state();
+  auto stub_writer = std::make_shared<StubWriter>();
+
+  {
+    DOCTEST_INFO("Minimal regression test");
+    AdjustRangesAccessor cache(
+      *state.kv_store, state.ledger_secrets, stub_writer);
+
+    auto [removed1, added1] = cache.adjust_ranges({100});
+    REQUIRE(added1.size() == 1);
+    REQUIRE(added1 == SeqNoSet{100});
+    REQUIRE(removed1.size() == 0);
+
+    auto [removed2, added2] = cache.adjust_ranges({42});
+    REQUIRE(added2.size() == 1);
+    REQUIRE(added2 == SeqNoSet{42});
+    REQUIRE(removed2.size() == 1);
+    REQUIRE(removed2 == SeqNoSet{100});
+  }
+
+  {
+    const auto seed = time(NULL);
+    DOCTEST_INFO("Random permutations, using seed: ", seed);
+    srand(seed);
+    for (size_t i = 0; i < 100; ++i)
+    {
+      DOCTEST_INFO("Iteration #", i);
+      AdjustRangesAccessor cache(
+        *state.kv_store, state.ledger_secrets, stub_writer);
+      SeqNoSet before;
+      for (auto j = 0; j < rand() % 6; ++j)
+      {
+        before.insert(rand() % 30);
+      }
+
+      auto [removed_init, added_init] = cache.adjust_ranges(before);
+      REQUIRE(added_init == before);
+      REQUIRE(removed_init.empty());
+
+      std::set<ccf::SeqNo> after;
+      for (auto j = 0; j < rand() % 6; ++j)
+      {
+        after.insert(rand() % 30);
+      }
+
+      auto [actual_removed, actual_added] = cache.adjust_ranges(after);
+
+      SeqNoSet expected_added;
+      std::set_difference(
+        after.begin(),
+        after.end(),
+        before.begin(),
+        before.end(),
+        std::inserter(expected_added, expected_added.begin()));
+      SeqNoSet expected_removed;
+      std::set_difference(
+        before.begin(),
+        before.end(),
+        after.begin(),
+        after.end(),
+        std::inserter(expected_removed, expected_removed.begin()));
+
+      REQUIRE(actual_added == expected_added);
+      REQUIRE(actual_removed == expected_removed);
+    }
+  }
+}
+
 int main(int argc, char** argv)
 {
   doctest::Context context;

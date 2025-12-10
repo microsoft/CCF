@@ -512,9 +512,7 @@ namespace ccf
           }
           // On SEV-SNP, fetch endorsements from servers if specified
           quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
-            rpcsessions,
-            endpoint_config,
-            [this](std::vector<uint8_t>&& endorsements) {
+            endpoint_config, [this](std::vector<uint8_t>&& endorsements) {
               std::lock_guard<pal::Mutex> guard(lock);
               quote_info.endorsements = std::move(endorsements);
               try
@@ -1149,7 +1147,10 @@ namespace ccf
         LOG_INFO_FMT("COSE signature found after recovery");
         try
         {
-          auto [issuer, subject] = cose::extract_iss_sub_from_sig(cs);
+          auto receipt =
+            cose::decode_ccf_receipt(cs, /* recompute_root */ false);
+          auto issuer = receipt.phdr.cwt.iss;
+          auto subject = receipt.phdr.cwt.sub;
           LOG_INFO_FMT(
             "COSE signature issuer: {}, subject: {}", issuer, subject);
           cs_cfg = ccf::COSESignaturesConfig{issuer, subject};
