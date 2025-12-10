@@ -659,9 +659,7 @@ if(BUILD_TESTS)
         ENVIRONMENT
         "TEST_ENDORSEMENTS_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/uvm_endorsements"
     )
-    target_link_libraries(
-      endorsements_test PRIVATE evercbor
-    )
+    target_link_libraries(endorsements_test PRIVATE evercbor)
 
     add_unit_test(
       historical_queries_test
