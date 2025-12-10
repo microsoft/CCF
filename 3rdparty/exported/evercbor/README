@@ -7,6 +7,3 @@ duplicates during parsing.
 This code has been automatically generated from F* code formally
 verified for memory safety, arithmetic safety, and functional
 correctness.
-
-For more usage information, see the documented example at
-example/main.c
