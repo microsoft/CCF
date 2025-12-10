@@ -13,8 +13,15 @@
 
 namespace ccf
 {
-  static constexpr auto commit_secret_label_ = "Commit Secret Label";
-
+  // Unique label for deriving commit secrets from ledger secrets.
+  // See logic in get_commit_secret() below for derivation implementation.
+  // It is important that this label is _not_ re-used for other purposes,
+  // nor changed during the lifetime of a ledger, to preserve the semantics of
+  // commit evidence (i.e. their reveal implies an entry is committed).
+  static constexpr uint8_t commit_secret_label_[] = {
+    'C', 'o', 'm', 'm', 'i', 't', ' ', 'S'};
+  static std::span<const uint8_t> commit_secret_label{
+    commit_secret_label_, sizeof(commit_secret_label_)};
   struct LedgerSecret
   {
     std::vector<uint8_t> raw_key;
@@ -28,10 +35,7 @@ namespace ccf
       if (!commit_secret.has_value())
       {
         commit_secret = ccf::crypto::hmac(
-          ccf::crypto::MDType::SHA256,
-          raw_key,
-          {commit_secret_label_,
-           commit_secret_label_ + sizeof(commit_secret_label_)});
+          ccf::crypto::MDType::SHA256, raw_key, commit_secret_label);
       }
       return commit_secret.value();
     }
@@ -109,7 +113,7 @@ namespace nlohmann
   {
     static void to_json(json& j, const ccf::LedgerSecretPtr& s)
     {
-      if (s.get())
+      if (s.get() != nullptr)
       {
         j = *s;
       }

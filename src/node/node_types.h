@@ -14,6 +14,8 @@ namespace ccf
 {
   using Node2NodeMsg = uint64_t;
 
+  // NOLINTBEGIN(performance-enum-size)
+
   // Type of messages exchanged between nodes
   enum NodeMsgType : Node2NodeMsg
   {
@@ -51,6 +53,8 @@ namespace ccf
     forwarded_response_v3
   };
 
+  // NOLINTEND(performance-enum-size)
+
 #pragma pack(push, 1)
   // Channel-specific header for key exchange
   struct ChannelHeader
@@ -62,46 +66,46 @@ namespace ccf
   // Frontend-specific header for forwarding
   struct ForwardedHeader_v1
   {
-    ForwardedMsg msg;
+    ForwardedMsg msg{};
     ccf::FrameFormat frame_format = ccf::FrameFormat::http;
   };
 
   struct ForwardedHeader_v2 : public ForwardedHeader_v1
   {
     using ForwardedCommandId = size_t;
-    ForwardedCommandId id;
+    ForwardedCommandId id{};
   };
 
   struct ForwardedCommandHeader_v3 : public ForwardedHeader_v2
   {
     ForwardedCommandHeader_v3() = default;
     ForwardedCommandHeader_v3(
-      ForwardedHeader_v2::ForwardedCommandId cmd_id, ccf::View view)
+      ForwardedHeader_v2::ForwardedCommandId cmd_id, ccf::View view) :
+      active_view(view)
     {
       ForwardedHeader_v1::msg = ForwardedMsg::forwarded_cmd_v3;
       ForwardedHeader_v2::id = cmd_id;
-      active_view = view;
     }
 
     // The view in which this session is being executed. For consistency, we
     // pessimistically close this session if the node is in any other view.
-    ccf::View active_view;
+    ccf::View active_view{};
   };
 
   struct ForwardedResponseHeader_v3 : public ForwardedHeader_v2
   {
     ForwardedResponseHeader_v3() = default;
     ForwardedResponseHeader_v3(
-      ForwardedHeader_v2::ForwardedCommandId cmd_id, bool terminate)
+      ForwardedHeader_v2::ForwardedCommandId cmd_id, bool terminate) :
+      terminate_session(terminate)
     {
       ForwardedHeader_v1::msg = ForwardedMsg::forwarded_response_v3;
       ForwardedHeader_v2::id = cmd_id;
-      terminate_session = terminate;
     }
 
     // If the response contains a fatal error, indicate to the original node
     // that the session should be terminated.
-    bool terminate_session;
+    bool terminate_session{};
   };
 
   struct MessageHash
@@ -112,7 +116,7 @@ namespace ccf
       hash(std::move(hash_))
     {}
 
-    ForwardedMsg msg;
+    ForwardedMsg msg{};
     ccf::crypto::Sha256Hash hash;
   };
 #pragma pack(pop)

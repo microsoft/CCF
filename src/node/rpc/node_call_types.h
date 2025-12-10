@@ -28,15 +28,15 @@ namespace ccf
     struct Out
     {
       ccf::NodeId node_id;
-      ccf::NodeStartupState state;
-      ccf::kv::Version last_signed_seqno;
-      ccf::kv::Version startup_seqno;
+      ccf::NodeStartupState state{};
+      ccf::kv::Version last_signed_seqno{};
+      ccf::kv::Version startup_seqno{};
 
       // Only on recovery
       std::optional<ccf::kv::Version> recovery_target_seqno;
       std::optional<ccf::kv::Version> last_recovered_seqno;
 
-      bool stop_notice;
+      bool stop_notice{};
     };
   };
 
@@ -48,7 +48,7 @@ namespace ccf
     {
       std::string ccf_version;
       std::string quickjs_version;
-      bool unsafe;
+      bool unsafe{};
     };
   };
 
@@ -92,7 +92,7 @@ namespace ccf
 
     struct Out
     {
-      NodeStatus node_status;
+      NodeStatus node_status{};
 
       // Deprecated in 2.x
       std::optional<NodeId> node_id = std::nullopt;
@@ -109,24 +109,23 @@ namespace ccf
         std::optional<ccf::COSESignaturesConfig> cose_signatures_config =
           std::nullopt;
 
-        NetworkInfo() {}
+        NetworkInfo() = default;
 
         NetworkInfo(
           bool public_only,
           ccf::kv::Version last_recovered_signed_idx,
-          const LedgerSecretsMap& ledger_secrets,
+          LedgerSecretsMap ledger_secrets,
           const NetworkIdentity& identity,
           ServiceStatus service_status,
-          const std::optional<ccf::crypto::Pem>& endorsed_certificate,
-          const std::optional<ccf::COSESignaturesConfig>&
-            cose_signatures_config_) :
+          std::optional<ccf::crypto::Pem> endorsed_certificate,
+          std::optional<ccf::COSESignaturesConfig> cose_signatures_config_) :
           public_only(public_only),
           last_recovered_signed_idx(last_recovered_signed_idx),
-          ledger_secrets(ledger_secrets),
+          ledger_secrets(std::move(ledger_secrets)),
           identity(identity),
           service_status(service_status),
-          endorsed_certificate(endorsed_certificate),
-          cose_signatures_config(cose_signatures_config_)
+          endorsed_certificate(std::move(endorsed_certificate)),
+          cose_signatures_config(std::move(cose_signatures_config_))
         {}
 
         bool operator==(const NetworkInfo& other) const

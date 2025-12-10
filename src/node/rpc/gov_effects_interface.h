@@ -11,7 +11,7 @@ namespace ccf
   class AbstractGovernanceEffects : public ccf::AbstractNodeSubSystem
   {
   public:
-    virtual ~AbstractGovernanceEffects() = default;
+    ~AbstractGovernanceEffects() override = default;
 
     static char const* get_subsystem_name()
     {

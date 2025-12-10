@@ -22,7 +22,7 @@ namespace ccf
     {
     public:
       NodeId from;
-      DroppedMessageException(const NodeId& from) : from(from) {}
+      DroppedMessageException(NodeId from_) : from(std::move(from_)) {}
     };
 
     virtual void associate_node_address(

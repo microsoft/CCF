@@ -11,7 +11,7 @@ Hashing
 .. doxygenfunction:: ccf::crypto::sha256(const std::vector<uint8_t> &data)
   :project: CCF
 
-.. doxygenfunction:: ccf::crypto::hmac(MDType, const std::vector<uint8_t>&, const std::vector<uint8_t>&)
+.. doxygenfunction:: ccf::crypto::hmac(MDType, const std::span<const uint8_t>&, const std::span<const uint8_t>&)
   :project: CCF
 
 .. doxygenClass:: ccf::crypto::HashProvider

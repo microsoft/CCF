@@ -22,7 +22,7 @@ namespace ccf
       network_identity(network_identity_)
     {}
 
-    virtual const std::unique_ptr<NetworkIdentity>& get() override
+    const std::unique_ptr<NetworkIdentity>& get() override
     {
       return network_identity;
     }

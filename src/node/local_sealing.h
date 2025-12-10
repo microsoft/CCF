@@ -88,7 +88,7 @@ namespace ccf
   struct SealedLedgerSecretAAD
   {
     ccf::kv::Version version = 0;
-    ccf::pal::snp::TcbVersionRaw tcb_version = {};
+    ccf::pal::snp::TcbVersionRaw tcb_version;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SealedLedgerSecretAAD);
@@ -138,7 +138,7 @@ namespace ccf
   }
 
   inline std::optional<LedgerSecretPtr> unseal_ledger_secret_from_disk(
-    ccf::kv::Version expected_version,
+    [[maybe_unused]] ccf::kv::Version expected_version,
     const files::fs::path& ledger_secret_path)
   {
     try
@@ -193,7 +193,7 @@ namespace ccf
   {
     std::vector<std::pair<kv::Version, std::filesystem::path>> files;
     std::map<kv::Version, std::filesystem::path> files_map;
-    for (auto f : files::fs::directory_iterator(sealed_secret_dir))
+    for (const auto& f : files::fs::directory_iterator(sealed_secret_dir))
     {
       auto filename = f.path().filename();
       std::optional<kv::Version> ledger_version =
