@@ -158,7 +158,7 @@ static uint8_t pValidMapEncoded[] = {
    0x20, 0x61, 0x6e, 0x64, 0x20, 0x73, 0x74, 0x61,
    0x74, 0x69, 0x73, 0x74, 0x69, 0x63, 0x73 };
 
-#define cbor_nondet_mk_text_string_from_literal(X, Y) cbor_nondet_mk_text_string((X), sizeof(X) - 1, (Y))
+#define cbor_nondet_mk_text_string_from_literal(X, Y) cbor_nondet_mk_text_string((uint8_t *)(X), sizeof(X) - 1, (Y))
 
 void ValidMapEncoded(void) {
   cbor_nondet_map_entry_t outer_map[3];
