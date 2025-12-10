@@ -70,8 +70,7 @@ namespace ccf
             uint64_t len = 0;
             if (cbor_nondet_get_byte_string(item, &payload, &len))
             {
-              parsed.push_back(
-                std::vector<uint8_t>(payload, payload + len)); // This is a copy
+              parsed.emplace_back(payload, payload + len); // This is a copy
             }
             else
             {
@@ -90,8 +89,7 @@ namespace ccf
           uint64_t len = 0;
           if (cbor_nondet_get_byte_string(x5chain, &payload, &len))
           {
-            parsed.push_back(
-              std::vector<uint8_t>(payload, payload + len)); // This is a copy
+            parsed.emplace_back(payload, payload + len); // This is a copy
           }
           else
           {
