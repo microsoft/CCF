@@ -126,7 +126,7 @@ namespace ccf
 
       context->install_subsystem(
         std::make_shared<ccf::NetworkIdentitySubsystem>(
-          *node, network.identity));
+          *node, network.identity, historical_state_cache));
 
       context->install_subsystem(
         std::make_shared<ccf::NodeConfigurationSubsystem>(*node));
