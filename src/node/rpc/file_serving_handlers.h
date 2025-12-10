@@ -18,7 +18,7 @@ namespace ccf::node
     ccf::kv::ReadOnlyTx& ro_tx,
     const ccf::NodeId& target_node)
   {
-    auto nodes = ro_tx.ro<ccf::Nodes>(ccf::Tables::NODES);
+    auto* nodes = ro_tx.ro<ccf::Nodes>(ccf::Tables::NODES);
 
     auto node_info = nodes->get(target_node);
     if (!node_info.has_value())
@@ -85,7 +85,7 @@ namespace ccf::node
 
         if (snapshot_since.has_value())
         {
-          if (error_reason != "")
+          if (!error_reason.empty())
           {
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
@@ -252,7 +252,7 @@ namespace ccf::node
 
       LOG_DEBUG_FMT("Found snapshot: {}", snapshot_path.string());
 
-      f.seekg(0, f.end);
+      f.seekg(0, std::ifstream::end);
       const auto total_size = (size_t)f.tellg();
 
       ctx.rpc_ctx->set_response_header("accept-ranges", "bytes");
@@ -286,7 +286,7 @@ namespace ccf::node
             return;
           }
 
-          if (ranges.find(",") != std::string::npos)
+          if (ranges.find(',') != std::string::npos)
           {
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
@@ -392,7 +392,7 @@ namespace ccf::node
             if (!s_range_end.empty())
             {
               // Negative range, like "-Y"
-              size_t offset;
+              size_t offset = 0;
               const auto [p, ec] =
                 std::from_chars(s_range_end.begin(), s_range_end.end(), offset);
               if (ec != std::errc())
@@ -433,7 +433,8 @@ namespace ccf::node
       // Read requested range into buffer
       std::vector<uint8_t> contents(range_size);
       f.seekg(range_start);
-      f.read((char*)contents.data(), contents.size());
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      f.read(reinterpret_cast<char*>(contents.data()), contents.size());
       f.close();
 
       // Build successful response

@@ -17,7 +17,7 @@ namespace ccf
     size_t expected_root_size)
   {
     ccf::crypto::Pem node_cert;
-    auto node_endorsed_certs = tx.template ro<ccf::NodeEndorsedCertificates>(
+    auto* node_endorsed_certs = tx.template ro<ccf::NodeEndorsedCertificates>(
       ccf::Tables::NODE_ENDORSED_CERTIFICATES);
     auto node_endorsed_cert = node_endorsed_certs->get(node_id);
     if (!node_endorsed_cert.has_value())
@@ -25,7 +25,7 @@ namespace ccf
       // No endorsed certificate for node. Its (self-signed) certificate
       // must be stored in the nodes table (1.x ledger only)
 
-      auto nodes = tx.template ro<ccf::Nodes>(ccf::Tables::NODES);
+      auto* nodes = tx.template ro<ccf::Nodes>(ccf::Tables::NODES);
       auto node = nodes->get(node_id);
       if (!node.has_value())
       {
@@ -35,10 +35,13 @@ namespace ccf
         return false;
       }
 
-      CCF_ASSERT_FMT(
-        node->cert.has_value(),
-        "No certificate recorded in nodes table for {} (1.x ledger)",
-        node_id);
+      if (!node->cert.has_value())
+      {
+        LOG_FAIL_FMT(
+          "No certificate recorded in nodes table for {} (1.x ledger)",
+          node_id);
+        return false;
+      }
 
       node_cert = node->cert.value();
     }

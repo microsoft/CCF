@@ -27,8 +27,8 @@ namespace ccf
       Errors errors;
     };
 
-    size_t active;
-    size_t peak;
+    size_t active = 0;
+    size_t peak = 0;
     std::map<std::string, PerInterface> interfaces;
   };
 

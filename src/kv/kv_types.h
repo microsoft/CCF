@@ -54,9 +54,9 @@ namespace ccf::kv
 
       NodeInfo() = default;
 
-      NodeInfo(const std::string& hostname_, const std::string& port_) :
-        hostname(hostname_),
-        port(port_)
+      NodeInfo(std::string hostname_, std::string port_) :
+        hostname(std::move(hostname_)),
+        port(std::move(port_))
       {}
 
       bool operator==(const NodeInfo& other) const
@@ -67,9 +67,9 @@ namespace ccf::kv
 
     using Nodes = std::map<NodeId, NodeInfo>;
 
-    ccf::SeqNo idx;
+    ccf::SeqNo idx = 0;
     Nodes nodes;
-    ReconfigurationId rid;
+    ReconfigurationId rid = 0;
   };
 
   inline void to_json(nlohmann::json& j, const Configuration::NodeInfo& ni)
@@ -85,13 +85,13 @@ namespace ccf::kv
     ni.port = p;
   }
 
-  inline std::string schema_name(const Configuration::NodeInfo*)
+  inline std::string schema_name(const Configuration::NodeInfo* /*unused*/)
   {
     return "Configuration__NodeInfo";
   }
 
   inline void fill_json_schema(
-    nlohmann::json& schema, const Configuration::NodeInfo*)
+    nlohmann::json& schema, const Configuration::NodeInfo* /*unused*/)
   {
     schema["type"] = "object";
     schema["required"] = nlohmann::json::array();
@@ -101,7 +101,7 @@ namespace ccf::kv
     schema["properties"]["address"]["$ref"] = "#/components/schemas/string";
   }
 
-  enum class LeadershipState
+  enum class LeadershipState : uint8_t
   {
     None,
     Leader,
@@ -118,7 +118,7 @@ namespace ccf::kv
      {LeadershipState::PreVoteCandidate, "PreVoteCandidate"},
      {LeadershipState::Candidate, "Candidate"}});
 
-  enum class MembershipState
+  enum class MembershipState : uint8_t
   {
     Active,
     Retired
@@ -129,7 +129,7 @@ namespace ccf::kv
     {{MembershipState::Active, "Active"},
      {MembershipState::Retired, "Retired"}});
 
-  enum class RetirementPhase
+  enum class RetirementPhase : uint8_t
   {
     Ordered = 1,
     Signed = 2,
@@ -155,9 +155,9 @@ namespace ccf::kv
       size_t last_received_ms;
     };
 
-    std::vector<Configuration> configs = {};
-    std::unordered_map<ccf::NodeId, Ack> acks = {};
-    MembershipState membership_state;
+    std::vector<Configuration> configs;
+    std::unordered_map<ccf::NodeId, Ack> acks;
+    MembershipState membership_state{};
     std::optional<LeadershipState> leadership_state = std::nullopt;
     std::optional<RetirementPhase> retirement_phase = std::nullopt;
     std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners =
@@ -190,10 +190,12 @@ namespace ccf::kv
   class ConfigurableConsensus
   {
   public:
+    virtual ~ConfigurableConsensus() = default;
     virtual void add_configuration(
       ccf::SeqNo seqno, const Configuration::Nodes& conf) = 0;
     virtual Configuration::Nodes get_latest_configuration() = 0;
-    virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
+    [[nodiscard]] virtual Configuration::Nodes get_latest_configuration_unsafe()
+      const = 0;
     virtual ConsensusDetails get_details() = 0;
   };
 
@@ -203,21 +205,21 @@ namespace ccf::kv
     bool,
     std::shared_ptr<ConsensusHookPtrs>>>;
 
-  enum CommitResult
+  enum CommitResult : uint8_t
   {
     SUCCESS = 1,
     FAIL_CONFLICT = 2,
     FAIL_NO_REPLICATE = 3
   };
 
-  enum SecurityDomain
+  enum SecurityDomain : uint8_t
   {
     PUBLIC, // Public domain indicates the version and always appears first
     PRIVATE,
     SECURITY_DOMAIN_MAX
   };
 
-  enum AccessCategory
+  enum AccessCategory : uint8_t
   {
     INTERNAL,
     GOVERNANCE,
@@ -296,7 +298,7 @@ namespace ccf::kv
     return {security_domain, access_category};
   }
 
-  enum ApplyResult
+  enum ApplyResult : uint8_t
   {
     PASS = 1,
     PASS_SIGNATURE = 2,
@@ -315,9 +317,9 @@ namespace ccf::kv
     std::string msg;
 
   public:
-    KvSerialiserException(const std::string& msg_) : msg(msg_) {}
+    KvSerialiserException(std::string msg_) : msg(std::move(msg_)) {}
 
-    virtual const char* what() const throw()
+    [[nodiscard]] const char* what() const noexcept override
     {
       return msg.c_str();
     }
@@ -326,7 +328,7 @@ namespace ccf::kv
   class TxHistory
   {
   public:
-    virtual ~TxHistory() {}
+    virtual ~TxHistory() = default;
     virtual bool verify_root_signatures(ccf::kv::Version version) = 0;
     virtual void try_emit_signature() = 0;
     virtual void emit_signature() = 0;
@@ -361,7 +363,7 @@ namespace ccf::kv
   class Consensus : public ConfigurableConsensus
   {
   public:
-    virtual ~Consensus() {}
+    ~Consensus() override = default;
 
     virtual NodeId id() = 0;
     virtual bool is_primary() = 0;
@@ -370,7 +372,7 @@ namespace ccf::kv
     virtual bool can_replicate() = 0;
     virtual bool is_at_max_capacity() = 0;
 
-    enum class SignatureDisposition
+    enum class SignatureDisposition : uint8_t
     {
       CANT_REPLICATE,
       CAN_SIGN,
@@ -399,13 +401,13 @@ namespace ccf::kv
     virtual void recv_message(
       const NodeId& from, const uint8_t* data, size_t size) = 0;
 
-    virtual void periodic(std::chrono::milliseconds) {}
+    virtual void periodic(std::chrono::milliseconds /*elapsed*/) {}
     virtual void periodic_end() {}
 
     virtual void enable_all_domains() {}
 
     virtual void set_retired_committed(
-      ccf::SeqNo, const std::vector<NodeId>& node_ids)
+      ccf::SeqNo /*seqno*/, const std::vector<NodeId>& node_ids)
     {}
 
     virtual void nominate_successor() {};
@@ -462,19 +464,19 @@ namespace ccf::kv
 
     PendingTxInfo call() override
     {
-      return PendingTxInfo(
+      return {
         CommitResult::SUCCESS,
         std::move(data),
         std::move(claims_digest),
         std::move(commit_evidence_digest),
-        std::move(hooks));
+        std::move(hooks)};
     }
   };
 
   class AbstractTxEncryptor
   {
   public:
-    virtual ~AbstractTxEncryptor() {}
+    virtual ~AbstractTxEncryptor() = default;
 
     virtual bool encrypt(
       const std::vector<uint8_t>& plain,
@@ -519,7 +521,7 @@ namespace ccf::kv
   public:
     virtual ~AbstractChangeSet() = default;
 
-    virtual bool has_writes() const = 0;
+    [[nodiscard]] virtual bool has_writes() const = 0;
   };
 
   class AbstractCommitter
@@ -543,11 +545,11 @@ namespace ccf::kv
     public:
       virtual ~Snapshot() = default;
       virtual void serialise(KvStoreSerialiser& s) = 0;
-      virtual SecurityDomain get_security_domain() const = 0;
+      [[nodiscard]] virtual SecurityDomain get_security_domain() const = 0;
     };
 
     using GetName::GetName;
-    virtual ~AbstractMap() {}
+    ~AbstractMap() override = default;
 
     virtual std::unique_ptr<AbstractCommitter> create_committer(
       AbstractChangeSet* changes) = 0;
@@ -611,12 +613,12 @@ namespace ccf::kv
     {
     public:
       virtual ~AbstractSnapshot() = default;
-      virtual Version get_version() const = 0;
+      [[nodiscard]] virtual Version get_version() const = 0;
       virtual std::vector<uint8_t> serialise(
         const std::shared_ptr<AbstractTxEncryptor>& encryptor) = 0;
     };
 
-    virtual ~AbstractStore() {}
+    virtual ~AbstractStore() = default;
 
     virtual void lock_map_set() = 0;
     virtual void unlock_map_set() = 0;
@@ -683,7 +685,7 @@ namespace ccf::kv
     virtual bool flag_enabled(StoreFlag f) = 0;
     virtual void set_flag_unsafe(StoreFlag f) = 0;
     virtual void unset_flag_unsafe(StoreFlag f) = 0;
-    virtual bool flag_enabled_unsafe(StoreFlag f) const = 0;
+    [[nodiscard]] virtual bool flag_enabled_unsafe(StoreFlag f) const = 0;
   };
 
   template <class StorePointer>
@@ -691,7 +693,7 @@ namespace ccf::kv
   {
   public:
     ScopedStoreMapsLock() = delete;
-    ScopedStoreMapsLock(StorePointer _store) : store(_store)
+    ScopedStoreMapsLock(StorePointer _store) : store(std::move(_store))
     {
       store->lock_maps();
     }
@@ -722,7 +724,7 @@ struct formatter<ccf::kv::Configuration::Nodes>
     const -> decltype(ctx.out())
   {
     std::set<ccf::NodeId> node_ids;
-    for (auto& [nid, _] : nodes)
+    for (const auto& [nid, _] : nodes)
     {
       node_ids.insert(nid);
     }

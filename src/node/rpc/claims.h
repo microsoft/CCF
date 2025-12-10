@@ -9,7 +9,7 @@ namespace ccf
 {
   static ClaimsDigest no_claims()
   {
-    return ClaimsDigest();
+    return {};
   }
 
   static ccf::crypto::Sha256Hash entry_leaf(
@@ -23,27 +23,18 @@ namespace ccf
     {
       if (claims_digest.empty())
       {
-        return ccf::crypto::Sha256Hash(
-          write_set_digest, commit_evidence_digest.value());
+        return {write_set_digest, commit_evidence_digest.value()};
       }
-      else
-      {
-        return ccf::crypto::Sha256Hash(
-          write_set_digest,
-          commit_evidence_digest.value(),
-          claims_digest.value());
-      }
+      return {
+        write_set_digest,
+        commit_evidence_digest.value(),
+        claims_digest.value()};
     }
-    else
+
+    if (claims_digest.empty())
     {
-      if (claims_digest.empty())
-      {
-        return ccf::crypto::Sha256Hash(write_set_digest);
-      }
-      else
-      {
-        return ccf::crypto::Sha256Hash(write_set_digest, claims_digest.value());
-      }
+      return {write_set_digest};
     }
+    return {write_set_digest, claims_digest.value()};
   }
 }

@@ -10,9 +10,9 @@
 
 namespace ccf::gov::endpoints
 {
-  void init_ack_handlers(
+  inline void init_ack_handlers(
     ccf::BaseEndpointRegistry& registry,
-    NetworkState& network,
+    NetworkState& /*network*/,
     ShareManager& share_manager)
   {
     auto get_state_digest = [&](auto& ctx, ApiVersion api_version) {
