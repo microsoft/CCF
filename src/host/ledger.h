@@ -205,6 +205,10 @@ namespace asynchost
           file_path,
           std::strerror(errno))); // NOLINT(concurrency-mt-unsafe)
       }
+      std::filesystem::permissions(
+        file_path.c_str(),
+        std::filesystem::perms::owner_all | std::filesystem::perms::group_read,
+        std::filesystem::perm_options::add);
 
       // Header reserved for the offset to the position table
       fseeko(file, sizeof(positions_offset_header_t), SEEK_SET);
