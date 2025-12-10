@@ -5,7 +5,8 @@
 
 #include "ds/internal_logger.h"
 
-extern "C" {
+extern "C"
+{
 #include "evercbor/CBORNondet.h"
 }
 
@@ -55,8 +56,7 @@ namespace ccf
       constexpr char HEADER_PARAM_ISSUER[] = "iss";
       constexpr char HEADER_PARAM_FEED[] = "feed";
 
-      std::vector<std::vector<uint8_t>> decode_x5chain(
-        cbor_nondet_t x5chain)
+      std::vector<std::vector<uint8_t>> decode_x5chain(cbor_nondet_t x5chain)
       {
         std::vector<std::vector<uint8_t>> parsed;
 
@@ -66,11 +66,12 @@ namespace ccf
           cbor_nondet_t item;
           while (cbor_nondet_array_iterator_next(&array, &item))
           {
-            uint8_t *payload = NULL;
+            uint8_t* payload = NULL;
             uint64_t len = 0;
             if (cbor_nondet_get_byte_string(item, &payload, &len))
             {
-              parsed.push_back(std::vector<uint8_t>(payload, payload + len)); // This is a copy
+              parsed.push_back(
+                std::vector<uint8_t>(payload, payload + len)); // This is a copy
             }
             else
             {
@@ -83,12 +84,17 @@ namespace ccf
             throw COSEDecodeError("x5chain array length was 0 in COSE header");
           }
         }
-        else {
-          uint8_t *payload = NULL;
+        else
+        {
+          uint8_t* payload = NULL;
           uint64_t len = 0;
-          if (cbor_nondet_get_byte_string(x5chain, &payload, &len)) {
-            parsed.push_back(std::vector<uint8_t>(payload, payload + len)); // This is a copy
-          } else {
+          if (cbor_nondet_get_byte_string(x5chain, &payload, &len))
+          {
+            parsed.push_back(
+              std::vector<uint8_t>(payload, payload + len)); // This is a copy
+          }
+          else
+          {
             throw COSEDecodeError(fmt::format(
               "Value type {} of x5chain in COSE header is not array or byte "
               "string",
@@ -103,43 +109,65 @@ namespace ccf
         const std::vector<uint8_t>& uvm_endorsements_raw)
       {
         cbor_nondet_t cbor;
-        uint8_t * cbor_parse_input = (uint8_t *) uvm_endorsements_raw.data();
+        uint8_t* cbor_parse_input = (uint8_t*)uvm_endorsements_raw.data();
         size_t cbor_parse_size = uvm_endorsements_raw.size();
 
-        if (! cbor_nondet_parse(true, 0, &cbor_parse_input, &cbor_parse_size, &cbor)) {
-          throw COSEDecodeError("Failed to validate COSE_Sign1 as a definite-length CBOR object without floating-points and with no maps in map keys");
+        if (!cbor_nondet_parse(
+              true, 0, &cbor_parse_input, &cbor_parse_size, &cbor))
+        {
+          throw COSEDecodeError(
+            "Failed to validate COSE_Sign1 as a definite-length CBOR object "
+            "without floating-points and with no maps in map keys");
         }
 
         uint64_t tag;
         cbor_nondet_t tagged_payload;
-        if (! cbor_nondet_get_tagged(cbor, &tagged_payload, &tag)) {
+        if (!cbor_nondet_get_tagged(cbor, &tagged_payload, &tag))
+        {
           throw COSEDecodeError("Failed to parse COSE_Sign1 tag");
         }
-        
-        if (tag != CBOR_TAG_COSE_SIGN1) {
+
+        if (tag != CBOR_TAG_COSE_SIGN1)
+        {
           throw COSEDecodeError("Failed to parse COSE_Sign1 tag");
         }
-        
+
         cbor_nondet_array_iterator_t outer_array;
-        if (! cbor_nondet_array_iterator_start(tagged_payload, &outer_array)) {
+        if (!cbor_nondet_array_iterator_start(tagged_payload, &outer_array))
+        {
           throw COSEDecodeError("Failed to parse COSE_Sign1 outer array");
         }
 
         cbor_nondet_t protected_parameters_as_bstr;
-        if (! cbor_nondet_array_iterator_next(&outer_array, &protected_parameters_as_bstr)) {
-          throw COSEDecodeError("Failed to decode COSE_Sign1 protected parameters");
+        if (!cbor_nondet_array_iterator_next(
+              &outer_array, &protected_parameters_as_bstr))
+        {
+          throw COSEDecodeError(
+            "Failed to decode COSE_Sign1 protected parameters");
         }
 
-        uint8_t *protected_parameters_input;
+        uint8_t* protected_parameters_input;
         uint64_t protected_parameters_len64;
-        if (! cbor_nondet_get_byte_string(protected_parameters_as_bstr, &protected_parameters_input, &protected_parameters_len64)) {
-          throw COSEDecodeError("Failed to decode COSE_Sign1 protected parameters");
+        if (!cbor_nondet_get_byte_string(
+              protected_parameters_as_bstr,
+              &protected_parameters_input,
+              &protected_parameters_len64))
+        {
+          throw COSEDecodeError(
+            "Failed to decode COSE_Sign1 protected parameters");
         }
 
         size_t protected_parameters_len = protected_parameters_len64;
         cbor_nondet_t protected_parameters;
-        if (! cbor_nondet_parse(true, 0, &protected_parameters_input, &protected_parameters_len, &protected_parameters)) {
-          throw COSEDecodeError("Failed to decode COSE_Sign1 protected parameters");
+        if (!cbor_nondet_parse(
+              true,
+              0,
+              &protected_parameters_input,
+              &protected_parameters_len,
+              &protected_parameters))
+        {
+          throw COSEDecodeError(
+            "Failed to decode COSE_Sign1 protected parameters");
         }
 
         enum HeaderIndex : uint8_t
@@ -154,18 +182,32 @@ namespace ccf
         cbor_nondet_map_get_multiple_entry_t header_items[END_INDEX];
 
         header_items[ALG_INDEX].key = cbor_nondet_mk_int64(headers::PARAM_ALG);
-        header_items[CONTENT_TYPE_INDEX].key = cbor_nondet_mk_int64(headers::PARAM_CONTENT_TYPE);
-        header_items[X5_CHAIN_INDEX].key = cbor_nondet_mk_int64(headers::PARAM_X5CHAIN);
-        if (! cbor_nondet_mk_text_string((uint8_t *)HEADER_PARAM_ISSUER, sizeof(HEADER_PARAM_ISSUER) - 1, &header_items[ISS_INDEX].key)) // sizeof() - 1 to strip the null terminator from the C-style string
+        header_items[CONTENT_TYPE_INDEX].key =
+          cbor_nondet_mk_int64(headers::PARAM_CONTENT_TYPE);
+        header_items[X5_CHAIN_INDEX].key =
+          cbor_nondet_mk_int64(headers::PARAM_X5CHAIN);
+        if (!cbor_nondet_mk_text_string(
+              (uint8_t*)HEADER_PARAM_ISSUER,
+              sizeof(HEADER_PARAM_ISSUER) - 1,
+              &header_items[ISS_INDEX]
+                 .key)) // sizeof() - 1 to strip the null terminator from the
+                        // C-style string
         {
           throw COSEDecodeError("Failed to encode HEADER_PARAM_ISSUER");
         }
-        if (! cbor_nondet_mk_text_string((uint8_t *)HEADER_PARAM_FEED, sizeof(HEADER_PARAM_FEED) - 1, &header_items[FEED_INDEX].key)) // sizeof() - 1 to strip the null terminator from the C-style string
+        if (!cbor_nondet_mk_text_string(
+              (uint8_t*)HEADER_PARAM_FEED,
+              sizeof(HEADER_PARAM_FEED) - 1,
+              &header_items[FEED_INDEX]
+                 .key)) // sizeof() - 1 to strip the null terminator from the
+                        // C-style string
         {
           throw COSEDecodeError("Failed to encode HEADER_PARAM_FEED");
         }
 
-        if (! cbor_nondet_map_get_multiple(protected_parameters, header_items, END_INDEX)) {
+        if (!cbor_nondet_map_get_multiple(
+              protected_parameters, header_items, END_INDEX))
+        {
           throw COSEDecodeError("Failed to decode protected header");
         }
 
@@ -173,19 +215,26 @@ namespace ccf
 
         if (header_items[ALG_INDEX].found)
         {
-          if (! cbor_nondet_read_int64(header_items[ALG_INDEX].value, &phdr.alg)) {
+          if (!cbor_nondet_read_int64(header_items[ALG_INDEX].value, &phdr.alg))
+          {
             throw COSEDecodeError("Failed to decode protected header");
           }
         }
 
         if (header_items[CONTENT_TYPE_INDEX].found)
         {
-          uint8_t * payload = NULL;
+          uint8_t* payload = NULL;
           uint64_t len = 0;
-          if (! cbor_nondet_get_text_string(header_items[CONTENT_TYPE_INDEX].value, &payload, &len)) {
+          if (!cbor_nondet_get_text_string(
+                header_items[CONTENT_TYPE_INDEX].value, &payload, &len))
+          {
             throw COSEDecodeError("Failed to decode protected header");
           }
-          phdr.content_type = std::string((char*)payload, len); // This is a copy. We don't need to reinstate a null terminator because C++ strings are not null-terminated. The extra len argument to the constructor is crucial to this end.
+          phdr.content_type = std::string(
+            (char*)payload, len); // This is a copy. We don't need to reinstate
+                                  // a null terminator because C++ strings are
+                                  // not null-terminated. The extra len argument
+                                  // to the constructor is crucial to this end.
         }
 
         if (header_items[X5_CHAIN_INDEX].found)
@@ -195,22 +244,34 @@ namespace ccf
 
         if (header_items[ISS_INDEX].found)
         {
-          uint8_t * payload = NULL;
+          uint8_t* payload = NULL;
           uint64_t len = 0;
-          if (! cbor_nondet_get_text_string(header_items[ISS_INDEX].value, &payload, &len)) {
+          if (!cbor_nondet_get_text_string(
+                header_items[ISS_INDEX].value, &payload, &len))
+          {
             throw COSEDecodeError("Failed to decode protected header");
           }
-          phdr.iss = std::string((char*)payload, len); // This is a copy. We don't need to reinstate a null terminator because C++ strings are not null-terminated. The extra len argument to the constructor is crucial to this end.
+          phdr.iss = std::string(
+            (char*)payload, len); // This is a copy. We don't need to reinstate
+                                  // a null terminator because C++ strings are
+                                  // not null-terminated. The extra len argument
+                                  // to the constructor is crucial to this end.
         }
 
         if (header_items[FEED_INDEX].found)
         {
-          uint8_t * payload = NULL;
+          uint8_t* payload = NULL;
           uint64_t len = 0;
-          if (! cbor_nondet_get_text_string(header_items[FEED_INDEX].value, &payload, &len)) {
+          if (!cbor_nondet_get_text_string(
+                header_items[FEED_INDEX].value, &payload, &len))
+          {
             throw COSEDecodeError("Failed to decode protected header");
           }
-          phdr.feed = std::string((char*)payload, len); // This is a copy. We don't need to reinstate a null terminator because C++ strings are not null-terminated. The extra len argument to the constructor is crucial to this end.
+          phdr.feed = std::string(
+            (char*)payload, len); // This is a copy. We don't need to reinstate
+                                  // a null terminator because C++ strings are
+                                  // not null-terminated. The extra len argument
+                                  // to the constructor is crucial to this end.
         }
 
         return phdr;
@@ -222,43 +283,65 @@ namespace ccf
       const std::vector<uint8_t>& uvm_endorsements_raw)
     {
       cbor_nondet_t cbor;
-      uint8_t * cbor_parse_input = (uint8_t *) uvm_endorsements_raw.data();
+      uint8_t* cbor_parse_input = (uint8_t*)uvm_endorsements_raw.data();
       size_t cbor_parse_size = uvm_endorsements_raw.size();
 
-      if (! cbor_nondet_parse(true, 0, &cbor_parse_input, &cbor_parse_size, &cbor)) {
-        throw COSEDecodeError("Failed to validate COSE_Sign1 as a definite-length CBOR object without floating-points and with no maps in map keys");
+      if (!cbor_nondet_parse(
+            true, 0, &cbor_parse_input, &cbor_parse_size, &cbor))
+      {
+        throw COSEDecodeError(
+          "Failed to validate COSE_Sign1 as a definite-length CBOR object "
+          "without floating-points and with no maps in map keys");
       }
 
       uint64_t tag;
       cbor_nondet_t tagged_payload;
-      if (! cbor_nondet_get_tagged(cbor, &tagged_payload, &tag)) {
+      if (!cbor_nondet_get_tagged(cbor, &tagged_payload, &tag))
+      {
         throw COSEDecodeError("Failed to parse COSE_Sign1 tag");
       }
-      
-      if (tag != CBOR_TAG_COSE_SIGN1) {
+
+      if (tag != CBOR_TAG_COSE_SIGN1)
+      {
         throw COSEDecodeError("Failed to parse COSE_Sign1 tag");
       }
-      
+
       cbor_nondet_array_iterator_t outer_array;
-      if (! cbor_nondet_array_iterator_start(tagged_payload, &outer_array)) {
+      if (!cbor_nondet_array_iterator_start(tagged_payload, &outer_array))
+      {
         throw COSEDecodeError("Failed to parse COSE_Sign1 outer array");
       }
 
       cbor_nondet_t protected_parameters_as_bstr;
-      if (! cbor_nondet_array_iterator_next(&outer_array, &protected_parameters_as_bstr)) {
-        throw COSEDecodeError("Failed to decode COSE_Sign1 protected parameters");
+      if (!cbor_nondet_array_iterator_next(
+            &outer_array, &protected_parameters_as_bstr))
+      {
+        throw COSEDecodeError(
+          "Failed to decode COSE_Sign1 protected parameters");
       }
 
-      uint8_t *protected_parameters_input;
+      uint8_t* protected_parameters_input;
       uint64_t protected_parameters_len64;
-      if (! cbor_nondet_get_byte_string(protected_parameters_as_bstr, &protected_parameters_input, &protected_parameters_len64)) {
-        throw COSEDecodeError("Failed to decode COSE_Sign1 protected parameters");
+      if (!cbor_nondet_get_byte_string(
+            protected_parameters_as_bstr,
+            &protected_parameters_input,
+            &protected_parameters_len64))
+      {
+        throw COSEDecodeError(
+          "Failed to decode COSE_Sign1 protected parameters");
       }
 
       size_t protected_parameters_len = protected_parameters_len64;
       cbor_nondet_t protected_parameters;
-      if (! cbor_nondet_parse(true, 0, &protected_parameters_input, &protected_parameters_len, &protected_parameters)) {
-        throw COSEDecodeError("Failed to decode COSE_Sign1 protected parameters");
+      if (!cbor_nondet_parse(
+            true,
+            0,
+            &protected_parameters_input,
+            &protected_parameters_len,
+            &protected_parameters))
+      {
+        throw COSEDecodeError(
+          "Failed to decode COSE_Sign1 protected parameters");
       }
 
       enum HeaderIndex : uint8_t
@@ -273,11 +356,14 @@ namespace ccf
 
       header_items[ALG_INDEX].key = cbor_nondet_mk_int64(headers::PARAM_ALG);
       header_items[CONTENT_TYPE_INDEX].key = cbor_nondet_mk_int64(259);
-      header_items[X5_CHAIN_INDEX].key = cbor_nondet_mk_int64(headers::PARAM_X5CHAIN);
+      header_items[X5_CHAIN_INDEX].key =
+        cbor_nondet_mk_int64(headers::PARAM_X5CHAIN);
 
       header_items[CWT_CLAIMS_INDEX].key = cbor_nondet_mk_int64(15);
 
-      if (! cbor_nondet_map_get_multiple(protected_parameters, header_items, END_INDEX)) {
+      if (!cbor_nondet_map_get_multiple(
+            protected_parameters, header_items, END_INDEX))
+      {
         throw COSEDecodeError("Failed to decode protected header");
       }
 
@@ -285,19 +371,26 @@ namespace ccf
 
       if (header_items[ALG_INDEX].found)
       {
-        if (! cbor_nondet_read_int64(header_items[ALG_INDEX].value, &phdr.alg)) {
+        if (!cbor_nondet_read_int64(header_items[ALG_INDEX].value, &phdr.alg))
+        {
           throw COSEDecodeError("Failed to decode protected header");
         }
       }
 
       if (header_items[CONTENT_TYPE_INDEX].found)
       {
-        uint8_t * payload = NULL;
+        uint8_t* payload = NULL;
         uint64_t len = 0;
-        if (! cbor_nondet_get_text_string(header_items[CONTENT_TYPE_INDEX].value, &payload, &len)) {
+        if (!cbor_nondet_get_text_string(
+              header_items[CONTENT_TYPE_INDEX].value, &payload, &len))
+        {
           throw COSEDecodeError("Failed to decode protected header");
         }
-        phdr.content_type = std::string((char*)payload, len); // This is a copy. We don't need to reinstate a null terminator because C++ strings are not null-terminated. The extra len argument to the constructor is crucial to this end.
+        phdr.content_type = std::string(
+          (char*)payload,
+          len); // This is a copy. We don't need to reinstate a null terminator
+                // because C++ strings are not null-terminated. The extra len
+                // argument to the constructor is crucial to this end.
       }
 
       if (header_items[X5_CHAIN_INDEX].found)
@@ -318,24 +411,34 @@ namespace ccf
       cwt_items[CWT_SUB_INDEX].key = cbor_nondet_mk_int64(2);
 
       const char svn_label[] = "svn";
-      if (! cbor_nondet_mk_text_string((uint8_t *)svn_label, sizeof(svn_label) - 1, &cwt_items[CWT_SVN_INDEX].key)) // sizeof() - 1 to strip the null terminator from the C-style string
+      if (!cbor_nondet_mk_text_string(
+            (uint8_t*)svn_label,
+            sizeof(svn_label) - 1,
+            &cwt_items[CWT_SVN_INDEX]
+               .key)) // sizeof() - 1 to strip the null terminator from the
+                      // C-style string
       {
         throw COSEDecodeError("Failed to encode svn_label");
       }
 
-      if (! header_items[CWT_CLAIMS_INDEX].found) {
+      if (!header_items[CWT_CLAIMS_INDEX].found)
+      {
         throw COSEDecodeError("CWT claims not found in protected header");
       }
 
-      if (! cbor_nondet_map_get_multiple(header_items[CWT_CLAIMS_INDEX].value, cwt_items, CWT_END_INDEX)) {
+      if (!cbor_nondet_map_get_multiple(
+            header_items[CWT_CLAIMS_INDEX].value, cwt_items, CWT_END_INDEX))
+      {
         throw COSEDecodeError("Failed to decode CWT claim contents");
       }
 
       if (cwt_items[CWT_ISS_INDEX].found)
       {
-        uint8_t * payload = NULL;
+        uint8_t* payload = NULL;
         uint64_t len = 0;
-        if (! cbor_nondet_get_text_string(cwt_items[CWT_ISS_INDEX].value, &payload, &len)) {
+        if (!cbor_nondet_get_text_string(
+              cwt_items[CWT_ISS_INDEX].value, &payload, &len))
+        {
           throw COSEDecodeError("Failed to decode protected header");
         }
         phdr.iss = std::string((char*)payload, len);
@@ -343,9 +446,11 @@ namespace ccf
 
       if (cwt_items[CWT_SUB_INDEX].found)
       {
-        uint8_t * payload = NULL;
+        uint8_t* payload = NULL;
         uint64_t len = 0;
-        if (! cbor_nondet_get_text_string(cwt_items[CWT_SUB_INDEX].value, &payload, &len)) {
+        if (!cbor_nondet_get_text_string(
+              cwt_items[CWT_SUB_INDEX].value, &payload, &len))
+        {
           throw COSEDecodeError("Failed to decode protected header");
         }
         phdr.feed = std::string((char*)payload, len);
@@ -355,7 +460,8 @@ namespace ccf
       if (cwt_items[CWT_SVN_INDEX].found)
       {
         uint64_t svn64;
-        if (! cbor_nondet_read_uint64(cwt_items[CWT_SVN_INDEX].value, &svn64)) {
+        if (!cbor_nondet_read_uint64(cwt_items[CWT_SVN_INDEX].value, &svn64))
+        {
           throw COSEDecodeError("Failed to decode protected header");
         }
         svn = static_cast<size_t>(svn64);
