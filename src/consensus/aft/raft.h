@@ -2326,7 +2326,7 @@ namespace aft
       }
       if (successor.has_value())
       {
-        RAFT_INFO_FMT("Node retired, nudging {}", successor.value());
+        RAFT_INFO_FMT("Nominating successor, nudging {}", successor.value());
         channels->send_authenticated(
           successor.value(), ccf::NodeMsgType::consensus_msg, prv);
       }
