@@ -2282,6 +2282,55 @@ namespace aft
     }
 
   private:
+    void send_propose_request_vote()
+    {
+      ProposeRequestVote prv{.term = state->current_view};
+
+      std::optional<ccf::NodeId> successor = std::nullopt;
+      Index max_match_idx = 0;
+      ccf::kv::ReconfigurationId reconf_id_of_max_match = 0;
+
+      // Pick the node that has the highest match_idx, and break
+      // ties by looking at the highest reconfiguration id they are
+      // part of. This can lead to nudging a node that is
+      // about to retire too, but that node will then nudge
+      // a successor, and that seems preferable to nudging a node that
+      // risks not being eligible if reconfiguration id is prioritised.
+      // Alternatively, we could pick the node with the highest match idx
+      // in the latest config, provided that match idx at least as high as a
+      // majority. That would make them both eligible and unlikely to retire
+      // soon.
+      for (auto& [node, node_state] : all_other_nodes)
+      {
+        if (node_state.match_idx >= max_match_idx)
+        {
+          ccf::kv::ReconfigurationId latest_reconf_id = 0;
+          auto conf = configurations.rbegin();
+          while (conf != configurations.rend())
+          {
+            if (conf->nodes.find(node) != conf->nodes.end())
+            {
+              latest_reconf_id = conf->idx;
+              break;
+            }
+            conf++;
+          }
+          if (!(node_state.match_idx == max_match_idx &&
+                latest_reconf_id < reconf_id_of_max_match))
+          {
+            reconf_id_of_max_match = latest_reconf_id;
+            successor = node;
+            max_match_idx = node_state.match_idx;
+          }
+        }
+      }
+      if (successor.has_value())
+      {
+        RAFT_INFO_FMT("Proposing that {} becomes candidate", successor.value());
+        channels->send_authenticated(
+          successor.value(), ccf::NodeMsgType::consensus_msg, prv);
+      }
+    }
     void become_retired(Index idx, ccf::kv::RetirementPhase phase)
     {
       RAFT_INFO_FMT(
@@ -2319,52 +2368,7 @@ namespace aft
       {
         if (state->leadership_state == ccf::kv::LeadershipState::Leader)
         {
-          ProposeRequestVote prv{.term = state->current_view};
-
-          std::optional<ccf::NodeId> successor = std::nullopt;
-          Index max_match_idx = 0;
-          ccf::kv::ReconfigurationId reconf_id_of_max_match = 0;
-
-          // Pick the node that has the highest match_idx, and break
-          // ties by looking at the highest reconfiguration id they are
-          // part of. This can lead to nudging a node that is
-          // about to retire too, but that node will then nudge
-          // a successor, and that seems preferable to nudging a node that
-          // risks not being eligible if reconfiguration id is prioritised.
-          // Alternatively, we could pick the node with the higest match idx
-          // in the latest config, provided that match idx at least as high as a
-          // majority. That would make them both eligible and unlikely to retire
-          // soon.
-          for (auto& [node, node_state] : all_other_nodes)
-          {
-            if (node_state.match_idx >= max_match_idx)
-            {
-              ccf::kv::ReconfigurationId latest_reconf_id = 0;
-              auto conf = configurations.rbegin();
-              while (conf != configurations.rend())
-              {
-                if (conf->nodes.find(node) != conf->nodes.end())
-                {
-                  latest_reconf_id = conf->idx;
-                  break;
-                }
-                conf++;
-              }
-              if (!(node_state.match_idx == max_match_idx &&
-                    latest_reconf_id < reconf_id_of_max_match))
-              {
-                reconf_id_of_max_match = latest_reconf_id;
-                successor = node;
-                max_match_idx = node_state.match_idx;
-              }
-            }
-          }
-          if (successor.has_value())
-          {
-            RAFT_INFO_FMT("Node retired, nudging {}", successor.value());
-            channels->send_authenticated(
-              successor.value(), ccf::NodeMsgType::consensus_msg, prv);
-          }
+          send_propose_request_vote();
         }
 
         leader_id.reset();
@@ -2742,6 +2746,30 @@ namespace aft
     nlohmann::json get_state_representation() const
     {
       return *state;
+    }
+
+    void nominate_successor() override
+    {
+      if (state->leadership_state != ccf::kv::LeadershipState::Leader)
+      {
+        RAFT_DEBUG_FMT(
+          "Not proposing request vote from {} since not leader",
+          state->node_id);
+        return;
+      }
+
+      LOG_INFO_FMT("Nominating successor for {}", state->node_id);
+
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "step_down_and_nominate_successor";
+      j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
+      j["configurations"] = configurations;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
+
+      send_propose_request_vote();
     }
 
   private:

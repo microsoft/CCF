@@ -409,6 +409,8 @@ namespace ccf::kv
     virtual void set_retired_committed(
       ccf::SeqNo /*seqno*/, const std::vector<NodeId>& node_ids)
     {}
+
+    virtual void nominate_successor() {};
   };
 
   struct PendingTxInfo

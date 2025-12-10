@@ -1662,6 +1662,7 @@ namespace ccf
 
     void stop_notice() override
     {
+      consensus->nominate_successor();
       stop_noticed = true;
     }
 
