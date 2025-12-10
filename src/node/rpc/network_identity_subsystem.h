@@ -241,7 +241,7 @@ namespace ccf
       if (!node_state.is_part_of_network())
       {
         LOG_INFO_FMT(
-          "Rerty fetching network identity as node is not part of the network "
+          "Retry fetching network identity as node is not part of the network "
           "yet");
         retry_first_fetch();
         return;
@@ -332,7 +332,7 @@ namespace ccf
       if (from >= earliest_endorsed_seq)
       {
         fail_fetching(fmt::format(
-          "Fetched service endorsements with seqno {} which is greater than "
+          "Fetched service endorsement with seqno {} which is greater than "
           "the earliest known in the chain {}",
           from,
           earliest_endorsed_seq));
