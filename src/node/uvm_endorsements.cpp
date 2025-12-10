@@ -174,7 +174,7 @@ namespace ccf
         if (header_items[ALG_INDEX].found)
         {
           if (! cbor_nondet_read_int64(header_items[ALG_INDEX].value, &phdr.alg)) {
-            throw "Failed to decode protected header";
+            throw COSEDecodeError("Failed to decode protected header");
           }
         }
 
@@ -183,7 +183,7 @@ namespace ccf
           uint8_t * payload = NULL;
           uint64_t len = 0;
           if (! cbor_nondet_get_text_string(header_items[CONTENT_TYPE_INDEX].value, &payload, &len)) {
-            throw "Failed to decode protected header";
+            throw COSEDecodeError("Failed to decode protected header");
           }
           phdr.content_type = std::string((char*)payload, len); // This is a copy. We don't need to reinstate a null terminator because C++ strings are not null-terminated. The extra len argument to the constructor is crucial to this end.
         }
@@ -198,7 +198,7 @@ namespace ccf
           uint8_t * payload = NULL;
           uint64_t len = 0;
           if (! cbor_nondet_get_text_string(header_items[ISS_INDEX].value, &payload, &len)) {
-            throw "Failed to decode protected header";
+            throw COSEDecodeError("Failed to decode protected header");
           }
           phdr.iss = std::string((char*)payload, len); // This is a copy. We don't need to reinstate a null terminator because C++ strings are not null-terminated. The extra len argument to the constructor is crucial to this end.
         }
@@ -208,7 +208,7 @@ namespace ccf
           uint8_t * payload = NULL;
           uint64_t len = 0;
           if (! cbor_nondet_get_text_string(header_items[FEED_INDEX].value, &payload, &len)) {
-            throw "Failed to decode protected header";
+            throw COSEDecodeError("Failed to decode protected header");
           }
           phdr.feed = std::string((char*)payload, len); // This is a copy. We don't need to reinstate a null terminator because C++ strings are not null-terminated. The extra len argument to the constructor is crucial to this end.
         }
@@ -286,7 +286,7 @@ namespace ccf
       if (header_items[ALG_INDEX].found)
       {
         if (! cbor_nondet_read_int64(header_items[ALG_INDEX].value, &phdr.alg)) {
-          throw "Failed to decode protected header";
+          throw COSEDecodeError("Failed to decode protected header");
         }
       }
 
@@ -295,7 +295,7 @@ namespace ccf
         uint8_t * payload = NULL;
         uint64_t len = 0;
         if (! cbor_nondet_get_text_string(header_items[CONTENT_TYPE_INDEX].value, &payload, &len)) {
-          throw "Failed to decode protected header";
+          throw COSEDecodeError("Failed to decode protected header");
         }
         phdr.content_type = std::string((char*)payload, len); // This is a copy. We don't need to reinstate a null terminator because C++ strings are not null-terminated. The extra len argument to the constructor is crucial to this end.
       }
@@ -336,7 +336,7 @@ namespace ccf
         uint8_t * payload = NULL;
         uint64_t len = 0;
         if (! cbor_nondet_get_text_string(cwt_items[CWT_ISS_INDEX].value, &payload, &len)) {
-          throw "Failed to decode protected header";
+          throw COSEDecodeError("Failed to decode protected header");
         }
         phdr.iss = std::string((char*)payload, len);
       }
@@ -346,7 +346,7 @@ namespace ccf
         uint8_t * payload = NULL;
         uint64_t len = 0;
         if (! cbor_nondet_get_text_string(cwt_items[CWT_SUB_INDEX].value, &payload, &len)) {
-          throw "Failed to decode protected header";
+          throw COSEDecodeError("Failed to decode protected header");
         }
         phdr.feed = std::string((char*)payload, len);
       }
@@ -356,7 +356,7 @@ namespace ccf
       {
         uint64_t svn64;
         if (! cbor_nondet_read_uint64(cwt_items[CWT_SVN_INDEX].value, &svn64)) {
-          throw "Failed to decode protected header";
+          throw COSEDecodeError("Failed to decode protected header");
         }
         svn = static_cast<size_t>(svn64);
       }
