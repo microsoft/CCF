@@ -143,11 +143,6 @@ namespace http
       return ccf::FrameFormat::http;
     }
 
-    void set_tx_id(const ccf::TxID& tx_id) override
-    {
-      set_response_header(ccf::http::headers::CCF_TX_ID, tx_id.to_str());
-    }
-
     [[nodiscard]] const std::vector<uint8_t>& get_request_body() const override
     {
       return request_body;
