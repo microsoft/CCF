@@ -1,9 +1,0 @@
-This directory is the EverCBOR snapshot from EverParse v2025.12.10 (https://github.com/project-everest/everparse/tree/v2025.12.10/src/cbor/pulse/nondet/c)
-
-EverCBOR supports definite-length CBOR without
-floating-points. EverCBOR checks for well-formedness and map keys
-duplicates during parsing.
-
-This code has been automatically generated from F* code formally
-verified for memory safety, arithmetic safety, and functional
-correctness.
