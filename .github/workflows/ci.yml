@@ -93,6 +93,19 @@ jobs:
           cd build
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
 
+      - name: "Upload logs for VMSS A"
+        uses: actions/upload-artifact@v5
+        with:
+          name: logs-azurelinux-vmss-a
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
+          if-no-files-found: ignore
+        if: success() || failure()
+
   vmss-virtual-b:
     name: "VMSS Virtual B" # End-to-end tests, except for partitions
     runs-on:
@@ -155,10 +168,10 @@ jobs:
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
         shell: bash
 
-      - name: "Upload logs for virtual"
+      - name: "Upload logs for VMSS B"
         uses: actions/upload-artifact@v5
         with:
-          name: logs-azurelinux-virtual
+          name: logs-azurelinux-vmss-b
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
