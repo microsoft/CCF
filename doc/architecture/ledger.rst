@@ -89,3 +89,9 @@ When a transaction is committed, each ``Store::Map`` containing writes is serial
 Ledger entries are integrity-protected and encrypted using a symmetric key shared by all trusted nodes (see :doc:`/architecture/cryptography`). This key is kept secure inside each enclave. See :ref:`governance/common_member_operations:Rekeying Ledger` for details on how members can rotate the ledger encryption key.
 
 Note that even if a transaction only writes to a private ``Store::Map``, unencrypted information such as the sequence number is always present in the serialised entry.
+
+File Permissions
+----------------
+
+Ledger files are created with the default file creation mask (``umask``) of the process running the CCF node.
+Operators can configure the ``umask`` of the CCF node process to ensure newly created ledger files have the desired permissions.
