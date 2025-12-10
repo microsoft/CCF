@@ -133,6 +133,16 @@
       "component": {
         "type": "git",
         "git": {
+          "repositoryUrl": "https://github.com/project-everest/everparse",
+          "commitHash": "3eedec7ccde1762aefee10db4a1d505142bda12f",
+          "tag": "v2025.12.10"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
           "repositoryUrl": "https://github.com/microsoft/didx509cpp",
           "commitHash": "d6083ed6ec8437f77f44c2835c217f205ed24b86",
           "tag": "didx509cpp-0.11.0"
