@@ -109,7 +109,6 @@ namespace ccf
     bool response_is_pending = false;
     bool terminate_session = false;
 
-    virtual void set_tx_id(const ccf::TxID& tx_id) = 0;
     [[nodiscard]] virtual bool should_apply_writes() const = 0;
     virtual void reset_response() = 0;
     [[nodiscard]] virtual std::vector<uint8_t> serialise_response() const = 0;
