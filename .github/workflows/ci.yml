@@ -93,7 +93,7 @@ jobs:
           cd build
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
 
-      - name: "Upload logs for virtual"
+      - name: "Upload logs for virtual A"
         uses: actions/upload-artifact@v5
         with:
           name: logs-azurelinux-virtual-a
@@ -168,7 +168,7 @@ jobs:
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
         shell: bash
 
-      - name: "Upload logs for virtual"
+      - name: "Upload logs for virtual B"
         uses: actions/upload-artifact@v5
         with:
           name: logs-azurelinux-virtual-b
