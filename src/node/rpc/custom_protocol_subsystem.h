@@ -25,19 +25,19 @@ namespace ccf
       node_state(node_state_)
     {}
 
-    virtual void install(
+    void install(
       const std::string& protocol_name,
       CreateSessionFn create_session_f) override
     {
       session_creation_functions[protocol_name] = create_session_f;
     }
 
-    virtual void uninstall(const std::string& protocol_name) override
+    void uninstall(const std::string& protocol_name) override
     {
       session_creation_functions.erase(protocol_name);
     }
 
-    virtual std::shared_ptr<Session> create_session(
+    std::shared_ptr<Session> create_session(
       const std::string& protocol_name,
       ccf::tls::ConnID conn_id,
       const std::unique_ptr<tls::Context>&& ctx) override
@@ -47,15 +47,12 @@ namespace ccf
       {
         return it->second(conn_id, std::move(ctx));
       }
-      else
-      {
-        throw std::logic_error(fmt::format(
-          "Session creation function for protocol '{}' has not been installed",
-          protocol_name));
-      }
+      throw std::logic_error(fmt::format(
+        "Session creation function for protocol '{}' has not been installed",
+        protocol_name));
     }
 
-    virtual std::shared_ptr<Essentials> get_essentials() override
+    std::shared_ptr<Essentials> get_essentials() override
     {
       std::shared_ptr<Essentials> r = std::make_shared<Essentials>();
       r->writer = node_state.get_writer_factory().create_writer_to_outside();

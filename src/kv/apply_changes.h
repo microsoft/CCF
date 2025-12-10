@@ -46,10 +46,10 @@ namespace ccf::kv
       views[map_name] = mc.map->create_committer(mc.changeset.get());
     }
 
-    for (auto it = changes.begin(); it != changes.end(); ++it)
+    for (auto& [map_name, mc] : changes)
     {
-      has_writes |= it->second.changeset->has_writes();
-      it->second.map->lock();
+      has_writes |= mc.changeset->has_writes();
+      mc.map->lock();
     }
 
     bool ok = true;
@@ -59,7 +59,7 @@ namespace ccf::kv
       // expected_rollback_count is only set on signature transactions
       // which always contain some writes, and on which all the maps
       // point to the same store.
-      auto store = changes.begin()->second.map->get_store();
+      auto* store = changes.begin()->second.map->get_store();
       if (store != nullptr)
       {
         // Note that this is done when holding the lock on at least some maps
@@ -75,9 +75,9 @@ namespace ccf::kv
 
     if (ok && has_writes)
     {
-      for (auto it = views.begin(); it != views.end(); ++it)
+      for (auto& [view_name, view_ptr] : views)
       {
-        if (!it->second->prepare())
+        if (!view_ptr->prepare())
         {
           ok = false;
           break;
@@ -93,11 +93,11 @@ namespace ccf::kv
       // versions. This is fine - none can create maps (ie - change their
       // conflict set with this operation) while we hold the store lock. Assume
       // that the caller is currently holding store->lock()
-      auto store = map_ptr->get_store();
+      auto* store = map_ptr->get_store();
 
       // This is to avoid recursively locking version_lock by calling
       // current_version() in the commit_reserved case.
-      ccf::kv::Version current_v;
+      ccf::kv::Version current_v = 0;
       if (new_maps_conflict_version.has_value())
       {
         current_v = *new_maps_conflict_version;
@@ -117,7 +117,7 @@ namespace ccf::kv
     if (ok && has_writes)
     {
       // Get the version number to be used for this commit.
-      ccf::kv::Version version_last_new_map;
+      ccf::kv::Version version_last_new_map = 0;
       std::tie(version, version_last_new_map) =
         version_resolver_fn(!new_maps.empty());
 
@@ -132,15 +132,15 @@ namespace ccf::kv
         }
       }
 
-      for (auto it = views.begin(); it != views.end(); ++it)
+      for (auto& [view_name, view_ptr] : views)
       {
-        it->second->commit(version, track_deletes_on_missing_keys);
+        view_ptr->commit(version, track_deletes_on_missing_keys);
       }
 
       // Collect ConsensusHooks
-      for (auto it = views.begin(); it != views.end(); ++it)
+      for (auto& [view_name, view_ptr] : views)
       {
-        auto hook_ptr = it->second->post_commit();
+        auto hook_ptr = view_ptr->post_commit();
         if (hook_ptr != nullptr)
         {
           hooks.push_back(std::move(hook_ptr));
@@ -148,9 +148,9 @@ namespace ccf::kv
       }
     }
 
-    for (auto it = changes.begin(); it != changes.end(); ++it)
+    for (auto& [map_name, mc] : changes)
     {
-      it->second.map->unlock();
+      mc.map->unlock();
     }
 
     if (!ok)

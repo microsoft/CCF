@@ -23,13 +23,13 @@ namespace ccf
       ccf::crypto::ECKeyPairPtr node_sign_kp_,
       const ccf::crypto::Pem& self_signed_node_cert_,
       const std::optional<ccf::crypto::Pem>& endorsed_node_cert_) :
-      rpc_map(rpc_map_),
-      node_sign_kp(node_sign_kp_),
+      rpc_map(std::move(rpc_map_)),
+      node_sign_kp(std::move(node_sign_kp_)),
       self_signed_node_cert(self_signed_node_cert_),
       endorsed_node_cert(endorsed_node_cert_)
     {}
 
-    virtual ~NodeClient() {}
+    virtual ~NodeClient() = default;
 
     virtual bool make_request(::http::Request& request) = 0;
   };

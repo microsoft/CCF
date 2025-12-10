@@ -962,6 +962,16 @@ CheckQuorum(i) ==
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
     /\ UNCHANGED <<preVoteStatus, reconfigurationVars, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars, membershipState>>
 
+SigTermProposeVote(i) ==
+    /\ leadershipState[i] = Leader
+    /\ \E j \in PlausibleSucessorNodes(i):
+       /\ LET msg == [type        |-> ProposeVoteRequest,
+                      term        |-> currentTerm[i],
+                      source      |-> i,
+                      dest        |-> j ]
+           IN Send(msg)
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>> 
+
 ------------------------------------------------------------------------------
 \* Message handlers
 \* i = recipient, j = sender, m = message
@@ -1350,6 +1360,7 @@ NextInt(i) ==
     \/ AppendRetiredCommitted(i)
     \/ AdvanceCommitIndex(i)
     \/ CheckQuorum(i)
+    \/ SigTermProposeVote(i)
     \/ \E j \in Servers : RequestVote(i, j)
     \/ \E j \in Servers : AppendEntries(i, j)
     \/ \E j \in Servers : Receive(i, j)

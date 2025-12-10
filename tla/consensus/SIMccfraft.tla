@@ -36,6 +36,10 @@ SIMCheckQuorum(i) ==
     /\ 1 = RandomElement(Q)
     /\ CCF!CheckQuorum(i)
 
+SIMSigTermProposeVote(i) ==
+    /\ 1 = RandomElement(Q)
+    /\ CCF!SigTermProposeVote(i)
+
 LOCAL C ==
     1..IF "C" \in DOMAIN IOEnv THEN atoi(IOEnv.C) ELSE 10
 

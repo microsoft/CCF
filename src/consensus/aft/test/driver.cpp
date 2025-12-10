@@ -308,6 +308,10 @@ int main(int argc, char** argv)
         assert(items.size() == 1);
         driver->loop_until_sync(lineno);
         break;
+      case shash("nominate_successor"):
+        assert(items.size() == 2);
+        driver->nominate_successor(items[1], lineno);
+        break;
       case shash(""):
         // Ignore empty lines
         skip_invariants = true;

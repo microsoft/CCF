@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import tempfile
 import os
+import signal
 import shutil
 
 import infra.logging_app as app
@@ -2001,6 +2002,49 @@ def test_error_message_on_failure_to_fetch_snapshot(const_args):
         ), f"Did not find expected log messages: {expected_log_messages}"
 
 
+def run_propose_request_vote(const_args):
+    args = copy.deepcopy(const_args)
+    args.label += "_propose_vote"
+    args.nodes = infra.e2e_args.nodes(args, 3)
+    # use a high timeout to hedge against flaky nodes which pause for seconds
+    # In most cases this should not matter as the propose_request_vote will cause the election quickly
+    args.election_timeout = 20000
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        LOG.info("Start a network")
+        network.start_and_open(args, ignore_first_sigterm=True)
+        original_primary, original_term = network.find_primary()
+        backups = [
+            n
+            for n in network.get_joined_nodes()
+            if n.node_id != original_primary.node_id
+        ]
+
+        original_primary.remote.remote.proc.send_signal(signal.SIGTERM)
+        # Find any primary which wasn't the original one
+        # If propose_request_vote worked, the new primary will be elected immediately
+        # So if this times out, the propose_request_vote likely failed
+        new_primary, new_term = network.find_primary(
+            nodes=backups, timeout=(0.9 * args.election_timeout)
+        )
+        assert (
+            new_primary.node_id != original_primary.node_id
+        ), "A new primary should have been elected"
+        assert (
+            new_term > original_term
+        ), "The new primary should be in a higher term than the original primary"
+
+        LOG.info(f"New primary is node {new_primary.node_id}")
+
+        # send a sigterm to ensure they shutdown correctly
+        for node in backups:
+            node.remote.remote.proc.send_signal(signal.SIGTERM)
+
+
 def run_snp_tests(args):
     run_initial_uvm_descriptor_checks(args)
     run_initial_tcb_version_checks(args)
@@ -2027,3 +2071,4 @@ def run(args):
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
     run_read_ledger_on_testdata(args)
+    run_propose_request_vote(args)

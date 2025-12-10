@@ -7,7 +7,7 @@
 
 namespace ccf
 {
-  enum class HttpVersion
+  enum class HttpVersion : uint8_t
   {
     HTTP1 = 0,
     HTTP2
@@ -33,17 +33,18 @@ namespace ccf
       http_version(v)
     {}
 
-    std::shared_ptr<SessionContext> get_session_context() const override
+    [[nodiscard]] std::shared_ptr<SessionContext> get_session_context()
+      const override
     {
       return session;
     }
 
-    virtual void set_user_data(std::shared_ptr<void> data) override
+    void set_user_data(std::shared_ptr<void> data) override
     {
       user_data = data;
     }
 
-    virtual void* get_user_data() const override
+    [[nodiscard]] void* get_user_data() const override
     {
       return user_data.get();
     }
@@ -56,24 +57,24 @@ namespace ccf
     }
     // NOLINTEND(performance-move-const-arg)
 
-    ccf::PathParams path_params = {};
-    virtual const ccf::PathParams& get_request_path_params() override
+    ccf::PathParams path_params;
+    const ccf::PathParams& get_request_path_params() override
     {
       return path_params;
     }
 
-    ccf::PathParams decoded_path_params = {};
-    virtual const ccf::PathParams& get_decoded_request_path_params() override
+    ccf::PathParams decoded_path_params;
+    const ccf::PathParams& get_decoded_request_path_params() override
     {
       return decoded_path_params;
     }
 
-    HttpVersion get_http_version() const
+    [[nodiscard]] HttpVersion get_http_version() const
     {
       return http_version;
     }
 
-    virtual void set_error(
+    void set_error(
       ccf::http_status status,
       const std::string& code,
       std::string&& msg,
@@ -108,10 +109,9 @@ namespace ccf
     bool response_is_pending = false;
     bool terminate_session = false;
 
-    virtual void set_tx_id(const ccf::TxID& tx_id) = 0;
-    virtual bool should_apply_writes() const = 0;
+    [[nodiscard]] virtual bool should_apply_writes() const = 0;
     virtual void reset_response() = 0;
-    virtual std::vector<uint8_t> serialise_response() const = 0;
+    [[nodiscard]] virtual std::vector<uint8_t> serialise_response() const = 0;
     virtual const std::vector<uint8_t>& get_serialised_request() = 0;
   };
 }

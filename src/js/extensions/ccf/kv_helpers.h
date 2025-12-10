@@ -19,7 +19,8 @@ namespace ccf::js::extensions::kvhelpers
   static JSValue C_FUNC_NAME( \
     JSContext* ctx, JSValueConst this_val, int, JSValueConst*) \
   { \
-    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx); \
+    js::core::Context& jsctx = \
+      *static_cast<js::core::Context*>(JS_GetContextOpaque(ctx)); \
     const auto table_name = \
       jsctx.to_str(JS_GetPropertyStr(jsctx, this_val, "_map_name")) \
         .value_or(""); \
@@ -66,7 +67,8 @@ namespace ccf::js::extensions::kvhelpers
   static JSValue js_kv_map_has(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx =
+      *static_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
     if (argc != 1)
     {
@@ -74,7 +76,7 @@ namespace ccf::js::extensions::kvhelpers
         ctx, "Passed %d arguments, but expected 1", argc);
     }
 
-    size_t key_size;
+    size_t key_size = 0;
     uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
 
     if (!key)
@@ -82,7 +84,7 @@ namespace ccf::js::extensions::kvhelpers
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
     }
 
-    auto handle = GetReadOnlyHandle(jsctx, this_val);
+    auto* handle = GetReadOnlyHandle(jsctx, this_val);
     JS_CHECK_HANDLE(handle);
 
     auto has = handle->has({key, key + key_size});
@@ -94,7 +96,8 @@ namespace ccf::js::extensions::kvhelpers
   static JSValue js_kv_map_get(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx =
+      *static_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
     if (argc != 1)
     {
@@ -102,7 +105,7 @@ namespace ccf::js::extensions::kvhelpers
         ctx, "Passed %d arguments, but expected 1", argc);
     }
 
-    size_t key_size;
+    size_t key_size = 0;
     uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
 
     if (!key)
@@ -110,7 +113,7 @@ namespace ccf::js::extensions::kvhelpers
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
     }
 
-    auto handle = GetReadOnlyHandle(jsctx, this_val);
+    auto* handle = GetReadOnlyHandle(jsctx, this_val);
     JS_CHECK_HANDLE(handle);
 
     auto val = handle->get({key, key + key_size});
@@ -131,7 +134,8 @@ namespace ccf::js::extensions::kvhelpers
   static JSValue js_kv_get_version_of_previous_write(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx =
+      *static_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
     if (argc != 1)
     {
@@ -139,7 +143,7 @@ namespace ccf::js::extensions::kvhelpers
         ctx, "Passed %d arguments, but expected 1", argc);
     }
 
-    size_t key_size;
+    size_t key_size = 0;
     uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
 
     if (!key)
@@ -147,7 +151,7 @@ namespace ccf::js::extensions::kvhelpers
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
     }
 
-    auto handle = GetReadOnlyHandle(jsctx, this_val);
+    auto* handle = GetReadOnlyHandle(jsctx, this_val);
     JS_CHECK_HANDLE(handle);
 
     auto val = handle->get_version_of_previous_write({key, key + key_size});
@@ -162,11 +166,12 @@ namespace ccf::js::extensions::kvhelpers
 
   template <ROHandleGetter GetReadOnlyHandle>
   static JSValue js_kv_map_size_getter(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst*)
+    JSContext* ctx, JSValueConst this_val, int /*argc*/, JSValueConst*)
   {
-    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx =
+      *static_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
-    auto handle = GetReadOnlyHandle(jsctx, this_val);
+    auto* handle = GetReadOnlyHandle(jsctx, this_val);
     JS_CHECK_HANDLE(handle);
 
     const uint64_t size = handle->size();
@@ -183,7 +188,8 @@ namespace ccf::js::extensions::kvhelpers
   static JSValue js_kv_map_delete(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx =
+      *static_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
     if (argc != 1)
     {
@@ -191,7 +197,7 @@ namespace ccf::js::extensions::kvhelpers
         ctx, "Passed %d arguments, but expected 1", argc);
     }
 
-    size_t key_size;
+    size_t key_size = 0;
     uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
 
     if (!key)
@@ -199,7 +205,7 @@ namespace ccf::js::extensions::kvhelpers
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
     }
 
-    auto handle = GetWriteHandle(jsctx, this_val);
+    auto* handle = GetWriteHandle(jsctx, this_val);
     JS_CHECK_HANDLE(handle);
 
     handle->remove({key, key + key_size});
@@ -211,7 +217,8 @@ namespace ccf::js::extensions::kvhelpers
   static JSValue js_kv_map_set(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx =
+      *static_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
     if (argc != 2)
     {
@@ -219,10 +226,10 @@ namespace ccf::js::extensions::kvhelpers
         ctx, "Passed %d arguments, but expected 2", argc);
     }
 
-    size_t key_size;
+    size_t key_size = 0;
     uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
 
-    size_t val_size;
+    size_t val_size = 0;
     uint8_t* val = JS_GetArrayBuffer(ctx, &val_size, argv[1]);
 
     if (!key || !val)
@@ -230,7 +237,7 @@ namespace ccf::js::extensions::kvhelpers
       return JS_ThrowTypeError(ctx, "Arguments must be ArrayBuffers");
     }
 
-    auto handle = GetWriteHandle(jsctx, this_val);
+    auto* handle = GetWriteHandle(jsctx, this_val);
     JS_CHECK_HANDLE(handle);
 
     handle->put({key, key + key_size}, {val, val + val_size});
@@ -240,9 +247,10 @@ namespace ccf::js::extensions::kvhelpers
 
   template <RWHandleGetter GetWriteHandle>
   static JSValue js_kv_map_clear(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* /*argv*/)
   {
-    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx =
+      *static_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
     if (argc != 0)
     {
@@ -250,7 +258,7 @@ namespace ccf::js::extensions::kvhelpers
         ctx, "Passed %d arguments, but expected 0", argc);
     }
 
-    auto handle = GetWriteHandle(jsctx, this_val);
+    auto* handle = GetWriteHandle(jsctx, this_val);
     JS_CHECK_HANDLE(handle);
 
     handle->clear();
@@ -262,11 +270,14 @@ namespace ccf::js::extensions::kvhelpers
   static JSValue js_kv_map_foreach(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx =
+      *static_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
     if (argc != 1)
+    {
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 1", argc);
+    }
 
     js::core::JSWrappedValue func(ctx, argv[0]);
     js::core::JSWrappedValue obj(ctx, this_val);
@@ -276,7 +287,7 @@ namespace ccf::js::extensions::kvhelpers
       return JS_ThrowTypeError(ctx, "Argument must be a function");
     }
 
-    auto handle = GetReadOnlyHandle(jsctx, this_val);
+    auto* handle = GetReadOnlyHandle(jsctx, this_val);
     JS_CHECK_HANDLE(handle);
 
     bool failed = false;

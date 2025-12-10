@@ -35,7 +35,7 @@ namespace ccf
         static_cast<uint32_t>(term);
     }
 
-    uint64_t get_term() const
+    [[nodiscard]] uint64_t get_term() const
     {
       return *reinterpret_cast<const uint32_t*>(iv.data() + IV_DELIMITER);
     }
