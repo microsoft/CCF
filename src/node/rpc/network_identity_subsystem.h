@@ -45,7 +45,7 @@ namespace ccf
       if (!endorsement.endorsement_epoch_end.has_value())
       {
         throw std::logic_error(
-          "COSE endorsement doesn't contain epoch end in the table entry");
+          "COSE endorsement does not contain epoch end in the table entry");
       }
       if (
         endorsement.endorsement_epoch_begin != *from_txid ||
