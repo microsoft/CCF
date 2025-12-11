@@ -12,10 +12,7 @@
 
 #include <didx509cpp/didx509cpp.h>
 #include <nlohmann/json.hpp>
-#include <qcbor/qcbor.h>
-#include <qcbor/qcbor_spiffy_decode.h>
 #include <span>
-#include <t_cose/t_cose_sign1_verify.h>
 
 namespace ccf
 {
