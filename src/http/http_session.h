@@ -177,10 +177,10 @@ namespace http
           return;
         }
 
-        const auto& respond_on_commit_txid = rpc_ctx->respond_on_commit_txid;
-        if (respond_on_commit_txid.has_value())
+        const auto& respond_on_commit = rpc_ctx->respond_on_commit;
+        if (respond_on_commit.has_value())
         {
-          const auto tx_id = respond_on_commit_txid.value();
+          auto [tx_id, committed_func] = respond_on_commit.value();
 
           // Block any future work from happening on this session, to
           // maintain session consistency
@@ -190,40 +190,17 @@ namespace http
           // invalidated)
           commit_callbacks->add_callback(
             tx_id,
-            [this, rpc_ctx, paused_task](
-              ccf::TxID tx_id, ccf::TxStatus status) {
-              switch (status)
-              {
-                case ccf::TxStatus::Committed:
-                {
-                  // Write the response
-                  this->send_response(
-                    rpc_ctx->get_response_http_status(),
-                    rpc_ctx->get_response_headers(),
-                    rpc_ctx->get_response_trailers(),
-                    std::move(rpc_ctx->take_response_body()));
-                  break;
-                }
+            [this, rpc_ctx, paused_task, committed_func](
+              ccf::TxID transaction_id, ccf::TxStatus status) {
+              // Let the handler modify the response
+              committed_func(rpc_ctx, transaction_id, status);
 
-                case ccf::TxStatus::Invalid:
-                {
-                  // If transaction is not Committed, write an error response
-                  send_odata_error_response(ccf::ErrorDetails{
-                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                    ccf::errors::TransactionInvalid,
-                    fmt::format(
-                      "While waiting for TxID {} to commit, it was "
-                      "invalidated",
-                      tx_id.to_str())});
-                  break;
-                }
-
-                default:
-                {
-                  throw std::logic_error(
-                    "Unexpected TxStatus in on_commit callback");
-                }
-              }
+              // Write the response
+              this->send_response(
+                rpc_ctx->get_response_http_status(),
+                rpc_ctx->get_response_headers(),
+                rpc_ctx->get_response_trailers(),
+                std::move(rpc_ctx->take_response_body()));
 
               if (rpc_ctx->terminate_session)
               {

@@ -507,9 +507,6 @@ namespace loggingapp
         // SNIPPET_END: private_table_access
         records_handle->put(in.id, in.msg);
 
-        // TODO: Temp
-        ctx.rpc_ctx->set_respond_on_commit(true);
-
         return ccf::make_success(true);
       };
       // SNIPPET_END: record
@@ -518,6 +515,8 @@ namespace loggingapp
       make_endpoint(
         "/log/private", HTTP_POST, ccf::json_adapter(record), auth_policies)
         .set_auto_schema<LoggingRecord::In, bool>()
+        .set_consensus_committed_function(
+          ccf::endpoints::default_respond_on_commit_func)
         .install();
       // SNIPPET_END: install_record
 
@@ -604,9 +603,6 @@ namespace loggingapp
           ctx.tx.template ro<RecordsMap>(private_records(ctx));
         auto record = records_handle->get(id);
 
-        // TODO: Temp
-        ctx.rpc_ctx->set_respond_on_commit(true);
-
         if (record.has_value())
         {
           return ccf::make_success(LoggingGet::Out{record.value()});
@@ -626,6 +622,8 @@ namespace loggingapp
         ccf::json_read_only_adapter(get),
         auth_policies)
         .set_auto_schema<void, LoggingGet::Out>()
+        .set_consensus_committed_function(
+          ccf::endpoints::default_respond_on_commit_func)
         .add_query_parameter<size_t>("id")
         .install();
       // SNIPPET_END: install_get

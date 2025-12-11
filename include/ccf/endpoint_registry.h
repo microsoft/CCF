@@ -60,6 +60,11 @@ namespace ccf::endpoints
   void default_locally_committed_func(
     CommandEndpointContext& ctx, const TxID& tx_id);
 
+  void default_respond_on_commit_func(
+    std::shared_ptr<ccf::RpcContext> rpc_ctx,
+    const TxID& tx_id,
+    ccf::TxStatus status);
+
   template <typename T>
   inline bool get_path_param(
     const ccf::PathParams& params,

@@ -201,6 +201,24 @@ namespace ccf::endpoints
     ctx.rpc_ctx->set_response_header(http::headers::CCF_TX_ID, tx_id.to_str());
   }
 
+  void default_respond_on_commit_func(
+    std::shared_ptr<ccf::RpcContext> rpc_ctx,
+    const TxID& tx_id,
+    ccf::TxStatus status)
+  {
+    if (status == ccf::TxStatus::Invalid)
+    {
+      rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::TransactionInvalid,
+        fmt::format(
+          "While waiting for TxID {} to commit, it was invalidated",
+          tx_id.to_str()));
+    }
+
+    // Else leave the original response untouched, and return it now
+  }
+
   Endpoint EndpointRegistry::make_endpoint(
     const std::string& method,
     RESTVerb verb,

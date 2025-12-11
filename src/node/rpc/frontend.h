@@ -855,9 +855,16 @@ namespace ccf
                     "Failed to execute local commit handler func");
                 }
 
-                if (ctx->respond_on_commit)
                 {
-                  ctx->set_respond_on_commit_txid(tx_id);
+                  const auto* concrete_endpoint =
+                    dynamic_cast<const endpoints::Endpoint*>(endpoint.get());
+                  if (
+                    concrete_endpoint != nullptr &&
+                    concrete_endpoint->consensus_committed_func != nullptr)
+                  {
+                    ctx->respond_on_commit = std::make_pair(
+                      tx_id, concrete_endpoint->consensus_committed_func);
+                  }
                 }
               }
 
