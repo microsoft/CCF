@@ -16,16 +16,14 @@ CFT parameters can be configured when starting up a network (see :doc:`here </op
 Extensions for Omission Faults
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. warning:: Support for these extensions is work-in-progress. See https://github.com/microsoft/CCF/issues/2577. 
-
 The CFT consensus implementation in CCF also supports some extensions for :term:`omission fault`.
 This may happen when the network is unreliable and may lead to one or more nodes being isolated from the rest of the network.
 
 Supported extensions include:
 
 - "CheckQuorum": the primary node automatically steps down, in the same view, if it does not hear back (via ``AppendEntriesResponse`` messages) from a majority of backups within a ``consensus.election_timeout`` period. This prevents an isolated primary node from still processing client write requests without being able to commit them.
-- "NoTimeoutRetirement": a primary node that completes its retirement sends a ProposeRequestVote message to the most up-to-date node in the new configuration, causing that node to run for election without waiting for time out.
-  - A ProposeRequestVote message is also sent when a primary receives a termination signal. This reduces downtime when the orchestrator must suddenly retire the primary's host, but there is insufficient time to reconfigure the network first.
+- "NoTimeoutRetirement": a primary node that completes its retirement sends a ``ProposeRequestVote`` message to the most up-to-date node in the new configuration, causing that node to run for election without waiting for time out.
+  - A ``ProposeRequestVote`` message is also sent when a primary receives a termination signal. This reduces downtime when the orchestrator must suddenly retire the primary's host, but there is insufficient time to reconfigure the network first.
 - "PreVote": followers must first request a pre-vote before starting a new election. This prevents followers from starting elections (and increasing the term) when they are isolated from the rest of the network.
 
 Replica State Machine
