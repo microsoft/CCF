@@ -11,6 +11,7 @@ target_include_directories(
   evercbor PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/evercbor>
                   $<INSTALL_INTERFACE:include/3rdparty/evercbor>
 )
+target_compile_options(evercbor PRIVATE -Wno-everything)
 set_property(TARGET evercbor PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_san(evercbor)
 
