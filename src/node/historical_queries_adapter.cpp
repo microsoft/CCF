@@ -573,7 +573,7 @@ namespace ccf::historical
             state_cache,
             network_identity_subsystem)) ||
           !populate_cose_service_endorsements(
-            args.tx, historical_state, state_cache))
+            args.tx, historical_state, network_identity_subsystem))
         {
           auto reason = fmt::format(
             "Historical transaction {} is not currently available.",
