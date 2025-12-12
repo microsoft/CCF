@@ -247,10 +247,13 @@ namespace ccf
           bp,
           AdminMessage::tick,
           [this, &disp = bp.get_dispatcher()](const uint8_t*, size_t) {
-            const auto message_counts = disp.retrieve_message_counts();
-            const auto j = disp.convert_message_counts(message_counts);
-            RINGBUFFER_WRITE_MESSAGE(
-              AdminMessage::work_stats, to_host, j.dump());
+            if (ccf::logger::config().level() <= ccf::LoggerLevel::DEBUG)
+            {
+              const auto message_counts = disp.retrieve_message_counts();
+              const auto j = disp.convert_message_counts(message_counts);
+              RINGBUFFER_WRITE_MESSAGE(
+                AdminMessage::work_stats, to_host, j.dump());
+            }
 
             const auto time_now = decltype(last_tick_time)::clock::now();
 

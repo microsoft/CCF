@@ -175,9 +175,12 @@ namespace messaging
         throw e;
       }
 
-      auto& counts = message_counts[m];
-      counts.messages++;
-      counts.bytes += size;
+      if (ccf::logger::config().level() <= ccf::LoggerLevel::DEBUG)
+      {
+        auto& counts = message_counts[m];
+        counts.messages++;
+        counts.bytes += size;
+      }
     }
 
     MessageCounts retrieve_message_counts()

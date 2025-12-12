@@ -65,33 +65,36 @@ namespace asynchost
 
     void on_timer()
     {
-      const auto message_counts = dispatcher.retrieve_message_counts();
-      const auto time_now =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-          TClock::now().time_since_epoch());
-
-      if (!message_counts.empty())
+      if (ccf::logger::config().level() <= ccf::LoggerLevel::DEBUG)
       {
-        auto j = nlohmann::json::object();
+        const auto message_counts = dispatcher.retrieve_message_counts();
+        const auto time_now =
+          std::chrono::duration_cast<std::chrono::milliseconds>(
+            TClock::now().time_since_epoch());
 
-        j["start_time_ms"] = last_update.count();
-        j["end_time_ms"] = time_now.count();
-
+        if (!message_counts.empty())
         {
-          j["ringbuffer_messages"] =
-            dispatcher.convert_message_counts(message_counts);
+          auto j = nlohmann::json::object();
 
-          LOG_DEBUG_FMT("Host load: {}", j.dump());
+          j["start_time_ms"] = last_update.count();
+          j["end_time_ms"] = time_now.count();
+
+          {
+            j["ringbuffer_messages"] =
+              dispatcher.convert_message_counts(message_counts);
+
+            LOG_DEBUG_FMT("Host load: {}", j.dump());
+          }
+
+          {
+            j["ringbuffer_messages"] = enclave_counts;
+            enclave_counts = nlohmann::json::object();
+
+            LOG_DEBUG_FMT("Enclave load: {}", j.dump());
+          }
+
+          last_update = time_now;
         }
-
-        {
-          j["ringbuffer_messages"] = enclave_counts;
-          enclave_counts = nlohmann::json::object();
-
-          LOG_DEBUG_FMT("Enclave load: {}", j.dump());
-        }
-
-        last_update = time_now;
       }
     }
   };
