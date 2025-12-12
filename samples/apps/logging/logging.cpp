@@ -514,10 +514,18 @@ namespace loggingapp
       make_endpoint(
         "/log/private", HTTP_POST, ccf::json_adapter(record), auth_policies)
         .set_auto_schema<LoggingRecord::In, bool>()
+        .install();
+      // SNIPPET_END: install_record
+
+      make_endpoint(
+        "/log/blocking/private",
+        HTTP_POST,
+        ccf::json_adapter(record),
+        auth_policies)
+        .set_auto_schema<LoggingRecord::In, bool>()
         .set_consensus_committed_function(
           ccf::endpoints::default_respond_on_commit_func)
         .install();
-      // SNIPPET_END: install_record
 
       auto add_txid_in_body_put = [](auto& ctx, const auto& tx_id) {
         static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
@@ -621,11 +629,20 @@ namespace loggingapp
         ccf::json_read_only_adapter(get),
         auth_policies)
         .set_auto_schema<void, LoggingGet::Out>()
-        .set_consensus_committed_function(
-          ccf::endpoints::default_respond_on_commit_func)
         .add_query_parameter<size_t>("id")
         .install();
       // SNIPPET_END: install_get
+
+      make_read_only_endpoint(
+        "/log/blocking/private",
+        HTTP_GET,
+        ccf::json_read_only_adapter(get),
+        auth_policies)
+        .set_auto_schema<void, LoggingGet::Out>()
+        .add_query_parameter<size_t>("id")
+        .set_consensus_committed_function(
+          ccf::endpoints::default_respond_on_commit_func)
+        .install();
 
       make_read_only_endpoint(
         "/log/private/backup",
