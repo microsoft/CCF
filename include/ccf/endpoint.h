@@ -496,7 +496,7 @@ namespace ccf::endpoints
       const LocallyCommittedEndpointFunction& lcf);
 
     Endpoint& set_consensus_committed_function(
-      const ConsensusCommittedEndpointFunction& lcf);
+      const ConsensusCommittedEndpointFunction& ccf_);
 
     void install();
   };

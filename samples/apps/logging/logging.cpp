@@ -506,7 +506,6 @@ namespace loggingapp
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
         // SNIPPET_END: private_table_access
         records_handle->put(in.id, in.msg);
-
         return ccf::make_success(true);
       };
       // SNIPPET_END: record

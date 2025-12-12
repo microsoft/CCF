@@ -20,7 +20,7 @@ namespace ccf
     std::mutex callbacks_mutex;
 
   public:
-    CommitCallbackSubsystem() {}
+    CommitCallbackSubsystem() = default;
 
     void add_callback(ccf::TxID tx_id, CommitCallback&& callback) override
     {
