@@ -33,7 +33,6 @@
 #include "http/curl.h"
 #include "json_schema.h"
 #include "lfs_file_handler.h"
-#include "load_monitor.h"
 #include "node_connections.h"
 #include "pal/quote_generation.h"
 #include "rpc_connections.h"
@@ -665,9 +664,6 @@ namespace ccf
 
     // reset the inbound-UDP processing quota each iteration
     const asynchost::ResetUDPReadQuota reset_udp_quota;
-
-    // regularly record some load statistics
-    const asynchost::LoadMonitor load_monitor(500ms, buffer_processor);
 
     // handle outbound logging and admin messages from the enclave
     const asynchost::HandleRingbuffer handle_ringbuffer(
