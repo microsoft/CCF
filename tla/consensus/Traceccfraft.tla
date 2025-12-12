@@ -446,12 +446,24 @@ IsCheckQuorum ==
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
     /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
+IsSigTermProposeVote ==
+    /\ IsEvent("step_down_and_nominate_successor")
+    /\ SigTermProposeVote(logline.msg.state.node_id)
+    /\ leadershipState[logline.msg.state.node_id] = Leader
+    /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
+    /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
+    /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
+
 TraceNext ==
     \/ IsTimeout
     \/ IsBecomeCandidate
     \/ IsBecomeLeader
     \/ IsBecomeFollower
     \/ IsCheckQuorum
+    \/ IsSigTermProposeVote
 
     \/ IsClientRequest
     \/ IsCleanupNodes

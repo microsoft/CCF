@@ -34,7 +34,7 @@ namespace ccf::kv
       view_history = std::move(view_history_);
     }
 
-    Version get_version() const override
+    [[nodiscard]] Version get_version() const override
     {
       return version;
     }

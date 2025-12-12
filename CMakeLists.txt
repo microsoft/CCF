@@ -170,6 +170,7 @@ set(HTTP_PARSER_SOURCES
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)
+include(${CCF_DIR}/cmake/evercbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
 
 # Launcher library
@@ -260,7 +261,7 @@ add_ccf_static_library(
        ${CCF_DIR}/src/node/historical_queries_adapter.cpp
        ${CCF_DIR}/src/node/historical_queries_utils.cpp
        ${CCF_DIR}/src/node/receipt.cpp
-  LINK_LIBS qcbor t_cose http_parser ccfcrypto ccf_kv
+  LINK_LIBS qcbor evercbor t_cose http_parser ccfcrypto ccf_kv
 )
 
 # CCF task system library
@@ -658,6 +659,7 @@ if(BUILD_TESTS)
         ENVIRONMENT
         "TEST_ENDORSEMENTS_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/uvm_endorsements"
     )
+    target_link_libraries(endorsements_test PRIVATE evercbor)
 
     add_unit_test(
       historical_queries_test

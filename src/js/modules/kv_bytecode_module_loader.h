@@ -42,7 +42,7 @@ namespace ccf::js::modules
       }
     }
 
-    virtual std::optional<js::core::JSWrappedValue> get_module(
+    std::optional<js::core::JSWrappedValue> get_module(
       std::string_view module_name, js::core::Context& ctx) override
     {
       if (!version_ok)

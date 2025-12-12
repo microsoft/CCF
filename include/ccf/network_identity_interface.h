@@ -12,6 +12,16 @@ namespace ccf
 {
   struct NetworkIdentity;
 
+  using RawCoseEndorsement = std::vector<uint8_t>;
+  using CoseEndorsementsChain = std::vector<RawCoseEndorsement>;
+
+  enum class FetchStatus : uint8_t
+  {
+    Retry,
+    Done,
+    Failed
+  };
+
   class NetworkIdentitySubsystemInterface : public ccf::AbstractNodeSubSystem
   {
   public:
@@ -23,5 +33,10 @@ namespace ccf
     }
 
     virtual const std::unique_ptr<NetworkIdentity>& get() = 0;
+
+    [[nodiscard]] virtual FetchStatus endorsements_fetching_status() const = 0;
+
+    [[nodiscard]] virtual std::optional<CoseEndorsementsChain>
+    get_cose_endorsements_chain(ccf::SeqNo seqno) const = 0;
   };
 }

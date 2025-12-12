@@ -1,0 +1,42 @@
+start_node,0
+emit_signature,2
+
+swap_nodes,2,in,1,2
+emit_signature,2
+
+periodic_one,0,10
+dispatch_all
+periodic_one,0,10
+dispatch_all
+periodic_one,0,10
+dispatch_all
+
+assert_commit_idx,0,4
+assert_config,0,3,0,1,2
+
+assert_commit_idx,1,4
+assert_config,1,3,0,1,2
+
+assert_commit_idx,2,4
+assert_config,2,3,0,1,2
+
+# Node 0 nominates node 1 as a successor arbitrarily
+assert_detail,0,leadership_state,Leader
+nominate_successor,0
+assert_detail,0,leadership_state,Leader
+dispatch_single,0,1
+assert_detail,1,leadership_state,Candidate
+
+# Node 2 now is updated to have a better matchIdx than node 1
+emit_signature,2
+periodic_one,0,10
+dispatch_single,0,2
+dispatch_single,2,0
+assert_commit_idx,0,5
+
+# Node 0 nominates node 2 as a successor now
+nominate_successor,0
+dispatch_single,0,2
+assert_detail,2,leadership_state,Candidate
+
+loop_until_sync

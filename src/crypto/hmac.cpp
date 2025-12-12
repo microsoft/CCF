@@ -13,8 +13,8 @@ namespace ccf::crypto
   {
     HashBytes hmac(
       MDType type,
-      const std::vector<uint8_t>& key,
-      const std::vector<uint8_t>& data)
+      const std::span<const uint8_t>& key,
+      const std::span<const uint8_t>& data)
     {
       const auto* o_md_type = OpenSSL::get_md_type(type);
       HashBytes r(EVP_MD_size(o_md_type));
@@ -42,8 +42,8 @@ namespace ccf::crypto
 
   HashBytes hmac(
     MDType type,
-    const std::vector<uint8_t>& key,
-    const std::vector<uint8_t>& data)
+    const std::span<const uint8_t>& key,
+    const std::span<const uint8_t>& data)
   {
     return OpenSSL::hmac(type, key, data);
   }

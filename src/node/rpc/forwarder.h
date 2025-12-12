@@ -18,7 +18,7 @@ namespace ccf
   class ForwardedRpcHandler
   {
   public:
-    virtual ~ForwardedRpcHandler() {}
+    virtual ~ForwardedRpcHandler() = default;
 
     virtual void process_forwarded(
       std::shared_ptr<ccf::RpcContextImpl> fwd_ctx) = 0;
@@ -68,9 +68,9 @@ namespace ccf
       std::weak_ptr<ccf::AbstractRPCResponder> rpcresponder,
       std::shared_ptr<ChannelProxy> n2n_channels,
       std::weak_ptr<ccf::RPCMap> rpc_map_) :
-      rpcresponder(rpcresponder),
-      n2n_channels(n2n_channels),
-      rpc_map(rpc_map_)
+      rpcresponder(std::move(rpcresponder)),
+      n2n_channels(std::move(n2n_channels)),
+      rpc_map(std::move(rpc_map_))
     {}
 
     void initialize(const NodeId& self_)
@@ -87,7 +87,6 @@ namespace ccf
       auto session_ctx = rpc_ctx->get_session_context();
 
       IsCallerCertForwarded include_caller = false;
-      const auto method = rpc_ctx->get_method();
       const auto& raw_request = rpc_ctx->get_serialised_request();
       auto client_session_id = session_ctx->client_session_id;
       size_t size = sizeof(client_session_id) + sizeof(IsCallerCertForwarded) +
@@ -99,7 +98,7 @@ namespace ccf
       }
 
       std::vector<uint8_t> plain(size);
-      auto data_ = plain.data();
+      auto* data_ = plain.data();
       auto size_ = plain.size();
       serialized::write(data_, size_, client_session_id);
       serialized::write(data_, size_, include_caller);
@@ -110,13 +109,14 @@ namespace ccf
       }
       serialized::write(data_, size_, raw_request.data(), raw_request.size());
 
-      ForwardedCommandId command_id;
+      ForwardedCommandId command_id = 0;
       {
         std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
         command_id = next_command_id++;
-        auto task = ccf::tasks::make_basic_task([=, this]() {
-          this->send_timeout_error_response(to, client_session_id, timeout);
-        });
+        auto task =
+          ccf::tasks::make_basic_task([this, to, client_session_id, timeout]() {
+            this->send_timeout_error_response(to, client_session_id, timeout);
+          });
         timeout_tasks[command_id] = task;
         ccf::tasks::add_delayed_task(task, timeout);
       }
@@ -203,7 +203,7 @@ namespace ccf
       const std::vector<uint8_t>& data)
     {
       std::vector<uint8_t> plain(sizeof(client_session_id) + data.size());
-      auto data_ = plain.data();
+      auto* data_ = plain.data();
       auto size_ = plain.size();
       serialized::write(data_, size_, client_session_id);
       serialized::write(data_, size_, data.data(), data.size());
@@ -217,7 +217,7 @@ namespace ccf
 
     struct ForwardedResponseResult
     {
-      size_t client_session_id;
+      size_t client_session_id{};
       std::vector<uint8_t> response_body;
       bool should_terminate_session = false;
     };

@@ -33,15 +33,15 @@ namespace ccf
       const std::shared_ptr<ccf::kv::Consensus>& consensus,
       const std::shared_ptr<ccf::RPCSessions>& rpcsessions,
       const std::shared_ptr<ccf::RPCMap>& rpc_map,
-      const ccf::crypto::ECKeyPairPtr& node_sign_kp,
-      const ccf::crypto::Pem& node_cert) :
+      ccf::crypto::ECKeyPairPtr node_sign_kp,
+      ccf::crypto::Pem node_cert) :
       refresh_interval_s(refresh_interval_s),
       network(network),
       consensus(consensus),
       rpcsessions(rpcsessions),
       rpc_map(rpc_map),
-      node_sign_kp(node_sign_kp),
-      node_cert(node_cert),
+      node_sign_kp(std::move(node_sign_kp)),
+      node_cert(std::move(node_cert)),
       attempts(0)
     {}
 
@@ -278,8 +278,8 @@ namespace ccf
     void refresh_jwt_keys()
     {
       auto tx = network.tables->create_read_only_tx();
-      auto jwt_issuers = tx.ro(network.jwt_issuers);
-      auto ca_cert_bundles = tx.ro(network.ca_cert_bundles);
+      auto* jwt_issuers = tx.ro(network.jwt_issuers);
+      auto* ca_cert_bundles = tx.ro(network.ca_cert_bundles);
       jwt_issuers->foreach([this, &ca_cert_bundles](
                              const JwtIssuer& issuer,
                              const JwtIssuerMetadata& metadata) {
@@ -297,7 +297,7 @@ namespace ccf
 
         LOG_DEBUG_FMT(
           "JWT key auto-refresh: Refreshing keys for issuer '{}'", issuer);
-        auto& ca_cert_bundle_name = metadata.ca_cert_bundle_name.value();
+        const auto& ca_cert_bundle_name = metadata.ca_cert_bundle_name.value();
         auto ca_cert_bundle_pem = ca_cert_bundles->get(ca_cert_bundle_name);
         if (!ca_cert_bundle_pem.has_value())
         {
@@ -348,7 +348,7 @@ namespace ccf
     }
 
     // Returns a copy of the current attempts
-    size_t get_attempts() const
+    [[nodiscard]] size_t get_attempts() const
     {
       return attempts.load();
     }

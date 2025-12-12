@@ -8,7 +8,7 @@ namespace ccf::kv
 {
   struct BaseTx::PrivateImpl
   {
-    AbstractStore* store;
+    AbstractStore* store = nullptr;
 
     // NB: This exists only to maintain the old API, where this Tx stores
     // MapHandles and returns raw pointers to them. It could be removed entirely

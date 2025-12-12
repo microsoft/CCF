@@ -32,12 +32,12 @@ namespace ccf::cose
 
   static std::string qcbor_buf_to_string(const UsefulBufC& buf)
   {
-    return std::string(reinterpret_cast<const char*>(buf.ptr), buf.len);
+    return {reinterpret_cast<const char*>(buf.ptr), buf.len};
   }
 
   static std::vector<uint8_t> qcbor_buf_to_byte_vector(const UsefulBufC& buf)
   {
-    auto ptr = static_cast<const uint8_t*>(buf.ptr);
+    const auto* ptr = static_cast<const uint8_t*>(buf.ptr);
     return {ptr, ptr + buf.len};
   }
 
@@ -75,19 +75,19 @@ namespace ccf::cose
   struct CwtClaims
   {
     int64_t iat{};
-    std::string iss{};
-    std::string sub{};
+    std::string iss;
+    std::string sub;
   };
 
   struct CcfClaims
   {
-    std::string txid{};
+    std::string txid;
   };
 
   struct CcfCoseReceiptPhdr
   {
     int alg{};
-    std::vector<uint8_t> kid{};
+    std::vector<uint8_t> kid;
     CwtClaims cwt{};
     CcfClaims ccf{};
     int vds{};
@@ -140,7 +140,7 @@ namespace ccf::cose
 
     for (const auto& element : proof.path)
     {
-      if (element.first)
+      if (element.first != 0)
       {
         std::span<const uint8_t, ccf::crypto::Sha256Hash::SIZE> sibling{
           element.second.data(), ccf::crypto::Sha256Hash::SIZE};
@@ -162,7 +162,7 @@ namespace ccf::cose
   static void decode_receipt_top_level_phdr(
     QCBORDecodeContext& ctx, CcfCoseReceiptPhdr& phdr)
   {
-    enum
+    enum : std::uint8_t
     {
       ALG_INDEX,
       KID_INDEX,
@@ -242,7 +242,7 @@ namespace ccf::cose
         fmt::format("Failed to decode CWT claims: {}", decode_error));
     }
 
-    enum
+    enum : std::uint8_t
     {
       IAT_INDEX,
       ISS_INDEX,
@@ -306,7 +306,7 @@ namespace ccf::cose
         fmt::format("Failed to decode CCF claims: {}", decode_error));
     }
 
-    enum
+    enum : std::uint8_t
     {
       TXID_INDEX,
       END_CCF_INDEX,
@@ -341,8 +341,9 @@ namespace ccf::cose
 
   static CcfCoseReceiptPhdr decode_ccf_receipt_phdr(QCBORDecodeContext& ctx)
   {
-    QCBORDecode_EnterBstrWrapped(&ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, NULL);
-    QCBORDecode_EnterMap(&ctx, NULL);
+    QCBORDecode_EnterBstrWrapped(
+      &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, nullptr);
+    QCBORDecode_EnterMap(&ctx, nullptr);
 
     CcfCoseReceiptPhdr phdr{};
 
@@ -359,7 +360,7 @@ namespace ccf::cose
   /* Expects QCBORDecodeContext to be at 'uhdr'. */
   static std::vector<MerkleProof> decode_merkle_proofs(QCBORDecodeContext& ctx)
   {
-    QCBORDecode_EnterMap(&ctx, NULL);
+    QCBORDecode_EnterMap(&ctx, nullptr);
     auto err = QCBORDecode_GetError(&ctx);
     if (err != QCBOR_SUCCESS)
     {
@@ -387,7 +388,8 @@ namespace ccf::cose
     std::vector<MerkleProof> proofs;
     for (;;)
     {
-      QCBORDecode_EnterBstrWrapped(&ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, NULL);
+      QCBORDecode_EnterBstrWrapped(
+        &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, nullptr);
       err = QCBORDecode_GetError(&ctx);
       if (err != QCBOR_SUCCESS)
       {
@@ -400,7 +402,7 @@ namespace ccf::cose
         break;
       }
 
-      QCBORDecode_EnterMap(&ctx, NULL);
+      QCBORDecode_EnterMap(&ctx, nullptr);
       err = QCBORDecode_GetError(&ctx);
       if (err != QCBOR_SUCCESS)
       {
@@ -478,11 +480,11 @@ namespace ccf::cose
 
         if (item.uDataType == CBOR_SIMPLEV_TRUE)
         {
-          path_item.first = true;
+          path_item.first = 1;
         }
         else if (item.uDataType == CBOR_SIMPLEV_FALSE)
         {
-          path_item.first = false;
+          path_item.first = 0;
         }
         else
         {
@@ -569,7 +571,7 @@ namespace ccf::cose
   static CcfCoseReceipt decode_ccf_receipt(
     const std::vector<uint8_t>& cose_sign1, bool recompute_root)
   {
-    QCBORError qcbor_result;
+    QCBORError qcbor_result = QCBOR_SUCCESS;
     QCBORDecodeContext ctx;
     UsefulBufC buf{cose_sign1.data(), cose_sign1.size()};
     QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);

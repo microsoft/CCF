@@ -102,7 +102,7 @@ namespace ccf
       // another tx. To prevent conflicts, accessing the ledger secrets
       // require access to a tx object, which must take a dependency on the
       // secrets table.
-      auto secrets = tx.ro<Secrets>(Tables::ENCRYPTED_LEDGER_SECRETS);
+      auto* secrets = tx.ro<Secrets>(Tables::ENCRYPTED_LEDGER_SECRETS);
       secrets->get();
     }
 
@@ -225,7 +225,7 @@ namespace ccf
           fmt::format("No ledger secrets at {}", up_to.has_value()));
       }
 
-      return LedgerSecretsMap(ledger_secrets.begin(), ++search);
+      return {ledger_secrets.begin(), ++search};
     }
 
     void restore_historical(LedgerSecretsMap&& restored_ledger_secrets)
