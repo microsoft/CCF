@@ -31,6 +31,13 @@ namespace ccf
     Invalid,
   };
 
+  // Contains only the terminal values of TxStatus
+  enum class FinalTxStatus : uint8_t
+  {
+    Committed = static_cast<uint8_t>(TxStatus::Committed),
+    Invalid = static_cast<uint8_t>(TxStatus::Invalid),
+  };
+
   constexpr char const* tx_status_to_str(TxStatus status)
   {
     switch (status)

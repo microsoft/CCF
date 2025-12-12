@@ -69,7 +69,7 @@ namespace ccf::endpoints
   using ConsensusCommittedEndpointFunction = std::function<void(
     std::shared_ptr<ccf::RpcContext> rpc_ctx,
     const ccf::TxID& txid,
-    ccf::TxStatus status)>;
+    ccf::FinalTxStatus status)>;
 
   // Read-only endpoints can only get values from the kv, they cannot write
   struct ReadOnlyEndpointContext : public CommandEndpointContext

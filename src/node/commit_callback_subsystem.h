@@ -39,7 +39,8 @@ namespace ccf
         {
           // TxID is already known to be in a terminal state - execute callback
           // immediately
-          callback(tx_id, status);
+          const auto final_status = static_cast<ccf::FinalTxStatus>(status);
+          callback(tx_id, final_status);
           return;
         }
       }
@@ -84,7 +85,8 @@ namespace ccf
               nlohmann::json(status).dump()));
           }
 
-          callback(tx_id, status);
+          const auto final_status = static_cast<ccf::FinalTxStatus>(status);
+          callback(tx_id, final_status);
         }
 
         it = pending_callbacks.erase(it);

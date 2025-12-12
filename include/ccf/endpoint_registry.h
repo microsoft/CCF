@@ -63,7 +63,7 @@ namespace ccf::endpoints
   void default_respond_on_commit_func(
     std::shared_ptr<ccf::RpcContext> rpc_ctx,
     const TxID& tx_id,
-    ccf::TxStatus status);
+    ccf::FinalTxStatus status);
 
   template <typename T>
   inline bool get_path_param(

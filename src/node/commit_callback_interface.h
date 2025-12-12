@@ -10,7 +10,7 @@
 
 namespace ccf
 {
-  using CommitCallback = std::function<void(ccf::TxID, ccf::TxStatus)>;
+  using CommitCallback = std::function<void(ccf::TxID, ccf::FinalTxStatus)>;
 
   class CommitCallbackInterface : public AbstractNodeSubSystem
   {

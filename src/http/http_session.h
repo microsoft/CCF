@@ -191,7 +191,7 @@ namespace http
           commit_callbacks->add_callback(
             tx_id,
             [this, rpc_ctx, paused_task, committed_func](
-              ccf::TxID transaction_id, ccf::TxStatus status) {
+              ccf::TxID transaction_id, ccf::FinalTxStatus status) {
               // Let the handler modify the response
               committed_func(rpc_ctx, transaction_id, status);
 

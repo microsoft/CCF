@@ -204,9 +204,9 @@ namespace ccf::endpoints
   void default_respond_on_commit_func(
     std::shared_ptr<ccf::RpcContext> rpc_ctx,
     const TxID& tx_id,
-    ccf::TxStatus status)
+    ccf::FinalTxStatus status)
   {
-    if (status == ccf::TxStatus::Invalid)
+    if (status == ccf::FinalTxStatus::Invalid)
     {
       rpc_ctx->set_error(
         HTTP_STATUS_INTERNAL_SERVER_ERROR,
