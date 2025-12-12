@@ -65,7 +65,7 @@ namespace asynchost
 
     void on_timer()
     {
-      if (ccf::logger::config().level() <= ccf::LoggerLevel::DEBUG)
+      if (ccf::logger::config::level() <= ccf::LoggerLevel::DEBUG)
       {
         const auto message_counts = dispatcher.retrieve_message_counts();
         const auto time_now =

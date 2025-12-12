@@ -247,7 +247,7 @@ namespace ccf
           bp,
           AdminMessage::tick,
           [this, &disp = bp.get_dispatcher()](const uint8_t*, size_t) {
-            if (ccf::logger::config().level() <= ccf::LoggerLevel::DEBUG)
+            if (ccf::logger::config::level() <= ccf::LoggerLevel::DEBUG)
             {
               const auto message_counts = disp.retrieve_message_counts();
               const auto j = disp.convert_message_counts(message_counts);
