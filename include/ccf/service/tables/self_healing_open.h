@@ -31,7 +31,7 @@ namespace ccf
       service_identity,
       intrinsic_id);
 
-    enum class StateMachine
+    enum class StateMachine : uint8_t
     {
       GOSSIPING = 0,
       VOTING,
