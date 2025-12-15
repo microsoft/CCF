@@ -2234,7 +2234,7 @@ namespace ccf
         .install();
 
       ccf::node::init_self_healing_open_handlers(*this, context);
-        
+
       ccf::node::init_file_serving_handlers(*this, context);
     }
   };
