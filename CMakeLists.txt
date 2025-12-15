@@ -739,7 +739,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
       ${CCF_DIR}/src/node/quote.cpp
       ${CCF_DIR}/src/node/uvm_endorsements.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/self_healing_open_impl.cpp
+      ${CCF_DIR}/src/node/self_healing_open_impl.cpp
     )
     target_link_libraries(
       frontend_test
@@ -777,7 +777,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
       ${CCF_DIR}/src/node/quote.cpp
       ${CCF_DIR}/src/node/uvm_endorsements.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/self_healing_open_impl.cpp
+      ${CCF_DIR}/src/node/self_healing_open_impl.cpp
     )
     target_link_libraries(
       node_frontend_test
