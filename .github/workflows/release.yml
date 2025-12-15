@@ -315,7 +315,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download RPM
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: DOWNLOAD_DIR
           pattern: pkg
@@ -364,13 +364,13 @@ jobs:
         with:
           fetch-depth: 0
       - name: Download Prebuilt Packages
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: DOWNLOAD_DIR
           pattern: pkg
           merge-multiple: true
       - name: Download Reproducibility Metadata
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: repro
           pattern: reproduce-metadata
@@ -416,40 +416,40 @@ jobs:
         with:
           fetch-depth: 1
       - name: Download Packages
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: pkg
           pattern: pkg*
           merge-multiple: true
       - name: Download Release Notes
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: relnotes
       - name: Download Compatibility Report
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: compatibility
       - name: Download TLS Report
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: tls
       - name: Download Python Wheel
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: wheel
           name: wheel
       - name: Download TS Package
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: tstgz
           name: tstgz
       - name: Download SBOM
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: sbom
           name: sbom
       - name: Download Reproducibility Metadata
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: repro
           pattern: reproduce*
