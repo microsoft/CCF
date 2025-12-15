@@ -6,6 +6,7 @@
 #include "ccf/node/startup_config.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
+#include "tasks/task.h"
 
 namespace ccf::self_healing_open
 {
@@ -50,21 +51,22 @@ namespace ccf
     // finish before NodeState is destroyed
     NodeState* node_state;
 
+    // Periodic task handles - kept to allow cancellation
+    ccf::tasks::Task retry_task;
+    ccf::tasks::Task failover_task;
+
   public:
     SelfHealingOpenSubsystem(NodeState* node_state);
     void try_start(ccf::kv::Tx& tx, bool recovering);
     void advance(ccf::kv::Tx& tx, bool timeout);
 
   private:
-    struct SHOMsg
-    {
-      SHOMsg(SelfHealingOpenSubsystem& self_) : self(self_) {}
-      SelfHealingOpenSubsystem& self;
-    };
-
     // Start path
     void start_message_retry_timers();
     void start_failover_timers();
+
+    // Stop periodic tasks
+    void stop_timers();
 
     // Steady state operations
     self_healing_open::RequestNodeInfo make_node_info(kv::ReadOnlyTx&);

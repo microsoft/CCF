@@ -2265,7 +2265,7 @@ namespace ccf
         .install();
 
       auto self_healing_open_gossip =
-        [this](
+        [](
           auto& args,
           self_healing_open::GossipRequest in) -> std::optional<ErrorDetails> {
         LOG_TRACE_FMT(
@@ -2307,7 +2307,7 @@ namespace ccf
         .install();
 
       auto self_healing_open_vote =
-        [this](auto& args, self_healing_open::TaggedWithNodeInfo in)
+        [](auto& args, self_healing_open::TaggedWithNodeInfo in)
         -> std::optional<ErrorDetails> {
         LOG_TRACE_FMT(
           "Self-healing-open: recieve vote from {}", in.info.intrinsic_id);
@@ -2331,7 +2331,7 @@ namespace ccf
         .install();
 
       auto self_healing_open_iamopen =
-        [this](auto& args, self_healing_open::TaggedWithNodeInfo in)
+        [](auto& args, self_healing_open::TaggedWithNodeInfo in)
         -> std::optional<ErrorDetails> {
         LOG_TRACE_FMT(
           "Self-healing-open: recieve IAmOpen from {}", in.info.intrinsic_id);

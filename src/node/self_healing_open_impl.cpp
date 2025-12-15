@@ -6,7 +6,10 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
+#include "http/curl.h"
 #include "node_state.h"
+#include "tasks/basic_task.h"
+#include "tasks/task_system.h"
 
 #include <stdexcept>
 
@@ -231,18 +234,24 @@ namespace ccf
   void SelfHealingOpenSubsystem::start_message_retry_timers()
   {
     LOG_TRACE_FMT("Self-healing-open: Setting up retry timers");
-    auto retry_timer_msg = std::make_unique<::threading::Tmsg<SHOMsg>>(
-      [](std::unique_ptr<::threading::Tmsg<SHOMsg>> msg) {
-        auto& config =
-          msg->data.self.node_state->config.recover.self_healing_open;
+
+    auto& config = node_state->config.recover.self_healing_open;
+    if (!config.has_value())
+    {
+      throw std::logic_error("Self-healing-open not configured");
+    }
+
+    retry_task = ccf::tasks::make_basic_task(
+      [this]() {
+        auto& config = node_state->config.recover.self_healing_open;
         if (!config.has_value())
         {
           throw std::logic_error("Self-healing-open not configured");
         }
-        auto& node_state_ = msg->data.self.node_state;
-        std::lock_guard<pal::Mutex> guard(node_state_->lock);
 
-        auto tx = node_state_->network.tables->create_read_only_tx();
+        std::lock_guard<pal::Mutex> guard(node_state->lock);
+
+        auto tx = node_state->network.tables->create_read_only_tx();
         auto* sm_state_handle =
           tx.ro<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE);
 
@@ -250,22 +259,22 @@ namespace ccf
         if (!sm_state_opt.has_value())
         {
           throw std::logic_error(
-            "Self-healing-open state not set, cannot retry "
-            "self-healing-open");
+            "Self-healing-open state not set, cannot retry self-healing-open");
         }
         auto& sm_state = sm_state_opt.value();
 
-        // Keep doing this until the node is no longer in recovery
+        // Stop if self-healing-open is complete
         if (sm_state == self_healing_open::StateMachine::OPEN)
         {
-          LOG_INFO_FMT("Self-healing-open complete, stopping timers.");
+          LOG_INFO_FMT("Self-healing-open complete, stopping retry timers.");
+          stop_timers();
           return;
         }
 
         switch (sm_state)
         {
           case self_healing_open::StateMachine::GOSSIPING:
-            msg->data.self.send_gossip_unsafe(tx);
+            send_gossip_unsafe(tx);
             break;
           case self_healing_open::StateMachine::VOTING:
           {
@@ -286,30 +295,27 @@ namespace ccf
                 "Self-healing-open chosen node {} not found",
                 chosen_replica_handle->get().value()));
             }
-            msg->data.self.send_vote_unsafe(tx, chosen_node_info.value());
+            send_vote_unsafe(tx, chosen_node_info.value());
             // keep gossiping to allow lagging nodes to eventually vote
-            msg->data.self.send_gossip_unsafe(tx);
+            send_gossip_unsafe(tx);
             break;
           }
           case self_healing_open::StateMachine::OPENING:
-            msg->data.self.send_iamopen_unsafe(tx);
+            send_iamopen_unsafe(tx);
             break;
           case self_healing_open::StateMachine::JOINING:
+            stop_timers();
             return;
           default:
             throw std::logic_error(fmt::format(
               "Unknown self-healing-open state: {}",
               static_cast<int>(sm_state)));
         }
-
-        auto delay = config->retry_timeout;
-        ::threading::ThreadMessaging::instance().add_task_after(
-          std::move(msg), delay);
       },
-      *this);
-    // kick this off asynchronously as this can be called from a curl callback
-    ::threading::ThreadMessaging::instance().add_task(
-      threading::get_current_thread_id(), std::move(retry_timer_msg));
+      "SelfHealingOpenRetry");
+
+    ccf::tasks::add_periodic_task(
+      retry_task, config->retry_timeout, config->retry_timeout);
   }
 
   void SelfHealingOpenSubsystem::start_failover_timers()
@@ -321,41 +327,40 @@ namespace ccf
     }
 
     LOG_TRACE_FMT("Self-healing-open: Setting up failover timers");
-    // Dispatch timeouts
-    auto timeout_msg = std::make_unique<::threading::Tmsg<SHOMsg>>(
-      [](std::unique_ptr<::threading::Tmsg<SHOMsg>> msg) {
-        auto& config =
-          msg->data.self.node_state->config.recover.self_healing_open;
+
+    failover_task = ccf::tasks::make_basic_task(
+      [this]() {
+        auto& config = node_state->config.recover.self_healing_open;
         if (!config.has_value())
         {
           throw std::logic_error("Self-healing-open not configured");
         }
-        auto* node_state_ = msg->data.self.node_state;
-        std::lock_guard<pal::Mutex> guard(node_state_->lock);
+
+        std::lock_guard<pal::Mutex> guard(node_state->lock);
         LOG_TRACE_FMT(
           "Self-healing-open timeout, sending timeout to internal handlers");
 
         // Stop the timer if the node has completed its self-healing-open
-        auto tx = node_state_->network.tables->create_read_only_tx();
+        auto tx = node_state->network.tables->create_read_only_tx();
         auto* sm_state_handle =
           tx.ro<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE);
         if (!sm_state_handle->get().has_value())
         {
           throw std::logic_error(
-            "Self-healing-open state not set, cannot retry "
-            "self-healing-open");
+            "Self-healing-open state not set, cannot retry self-healing-open");
         }
         auto sm_state = sm_state_handle->get().value();
         if (sm_state == self_healing_open::StateMachine::OPEN)
         {
-          LOG_INFO_FMT("Self-healing-open complete, stopping timers.");
+          LOG_INFO_FMT("Self-healing-open complete, stopping failover timers.");
+          stop_timers();
           return;
         }
 
         // Send a timeout to the internal handlers
         curl::UniqueCURL curl_handle;
 
-        auto cert = node_state_->self_signed_node_cert;
+        auto cert = node_state->self_signed_node_cert;
         curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 0L);
         curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 0L);
         curl_handle.set_opt(CURLOPT_SSL_VERIFYSTATUS, 0L);
@@ -364,14 +369,14 @@ namespace ccf
           CURLOPT_SSLCERT_BLOB, cert.data(), cert.size());
         curl_handle.set_opt(CURLOPT_SSLCERTTYPE, "PEM");
 
-        auto privkey_pem = node_state_->node_sign_kp->private_key_pem();
+        auto privkey_pem = node_state->node_sign_kp->private_key_pem();
         curl_handle.set_blob_opt(
           CURLOPT_SSLKEY_BLOB, privkey_pem.data(), privkey_pem.size());
         curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
 
         auto url = fmt::format(
           "https://{}/{}/self_healing_open/timeout",
-          node_state_->config.network.rpc_interfaces.at("primary_rpc_interface")
+          node_state->config.network.rpc_interfaces.at("primary_rpc_interface")
             .published_address,
           get_actor_prefix(ActorsType::nodes));
 
@@ -388,14 +393,25 @@ namespace ccf
           std::nullopt);
         curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
           std::move(curl_request));
-
-        auto delay = config->failover_timeout;
-        ::threading::ThreadMessaging::instance().add_task_after(
-          std::move(msg), delay);
       },
-      *this);
-    ::threading::ThreadMessaging::instance().add_task_after(
-      std::move(timeout_msg), config->failover_timeout);
+      "SelfHealingOpenFailover");
+
+    ccf::tasks::add_periodic_task(
+      failover_task, config->failover_timeout, config->failover_timeout);
+  }
+
+  void SelfHealingOpenSubsystem::stop_timers()
+  {
+    if (retry_task)
+    {
+      retry_task->cancel_task();
+      retry_task = nullptr;
+    }
+    if (failover_task)
+    {
+      failover_task->cancel_task();
+      failover_task = nullptr;
+    }
   }
 
   void dispatch_authenticated_message(
