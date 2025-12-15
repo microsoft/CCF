@@ -789,6 +789,7 @@ if(BUILD_TESTS)
               ccf_kv
               uv
               curl
+              ccf_tasks
     )
 
     add_unit_test(
