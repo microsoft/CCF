@@ -33,7 +33,7 @@ jobs:
           ./sbom-tool generate -b . -bc . -pn CCF -ps Microsoft -nsb https://sbom.microsoft -pv $CCF_VERSION -V Error
         shell: bash
       - name: "Upload SBOM"
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: sbom
           path: _manifest/spdx_2.2/*
@@ -56,7 +56,7 @@ jobs:
           set -o pipefail
           ./scripts/extract-release-notes.py --target-git-version --describe-path-changes "./samples/constitution" | tee rel-notes.md
       - name: "Upload Release Notes"
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: relnotes
           path: rel-notes.md
@@ -146,7 +146,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: logs
           path: |
@@ -208,19 +208,19 @@ jobs:
         shell: bash
 
       - name: "Upload .rpm Package"
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: pkg
           path: build/${{ steps.make_rpm_devel.outputs.name }}
 
       - name: "Upload Compatibility Report"
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: compatibility
           path: build/compatibility_report.json
 
       - name: "Upload TLS Report"
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: tls
           path: build/tls_report.html
@@ -239,7 +239,7 @@ jobs:
         shell: bash
 
       - name: "Upload Python Wheel"
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: wheel
           path: python/${{ steps.build_wheel.outputs.name }}
@@ -259,7 +259,7 @@ jobs:
         shell: bash
 
       - name: "Upload TS Package"
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: tstgz
           path: js/ccf-app/${{ steps.build_tstgz.outputs.name }}
@@ -283,7 +283,7 @@ jobs:
           cat $filename
 
       - name: "Upload Reproducibility Metadata"
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: reproduce-metadata
           path: reproduce.json
@@ -397,7 +397,7 @@ jobs:
           cmp "$PKG" "DOWNLOAD_DIR/$(basename "$PKG")"
       - name: Upload Non-Reproduced Package
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: not-reproduced
           path: ${{ env.REPRO_DIR }}
