@@ -750,6 +750,8 @@ if(BUILD_TESTS)
               ccfcrypto
               ccf_kv
               ccf_tasks
+              curl
+              uv
     )
 
     add_unit_test(
