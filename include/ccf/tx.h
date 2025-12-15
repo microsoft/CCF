@@ -72,7 +72,7 @@ namespace ccf::kv
       const std::string& map_name, bool track_deletes_on_missing_keys)
     {
       auto possible_handles = get_possible_handles(map_name);
-      for (auto handle : possible_handles)
+      for (auto* handle : possible_handles)
       {
         auto typed_handle = dynamic_cast<THandle*>(handle);
         if (typed_handle != nullptr)
@@ -86,27 +86,26 @@ namespace ccf::kv
       {
         auto& [abstract_map, change_set] = it->second;
 
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
         auto typed_handle = new THandle(*change_set, map_name);
         std::unique_ptr<AbstractHandle> abstract_handle(typed_handle);
         retain_handle(map_name, std::move(abstract_handle));
         return typed_handle;
       }
-      else
+      auto [abstract_map, change_set] =
+        get_map_and_change_set_by_name(map_name, track_deletes_on_missing_keys);
+
+      if (change_set == nullptr)
       {
-        auto [abstract_map, change_set] = get_map_and_change_set_by_name(
-          map_name, track_deletes_on_missing_keys);
-
-        if (change_set == nullptr)
-        {
-          compacted_version_conflict(map_name);
-        }
-
-        auto typed_handle = new THandle(*change_set, map_name);
-        std::unique_ptr<AbstractHandle> abstract_handle(typed_handle);
-        retain_handle(map_name, std::move(abstract_handle));
-        retain_change_set(map_name, std::move(change_set), abstract_map);
-        return typed_handle;
+        compacted_version_conflict(map_name);
       }
+
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      auto typed_handle = new THandle(*change_set, map_name);
+      std::unique_ptr<AbstractHandle> abstract_handle(typed_handle);
+      retain_handle(map_name, std::move(abstract_handle));
+      retain_change_set(map_name, std::move(change_set), abstract_map);
+      return typed_handle;
     }
 
   public:

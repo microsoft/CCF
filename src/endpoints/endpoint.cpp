@@ -13,6 +13,12 @@ namespace ccf::endpoints
     return *this;
   }
 
+  Endpoint& Endpoint::require_operator_feature(OperatorFeature feature)
+  {
+    required_operator_features.insert(feature);
+    return *this;
+  }
+
   Endpoint& Endpoint::set_params_schema(const nlohmann::json& j)
   {
     params_schema = j;
@@ -90,6 +96,13 @@ namespace ccf::endpoints
     return *this;
   }
 
+  Endpoint& Endpoint::set_locally_committed_function(
+    const LocallyCommittedEndpointFunction& lcf)
+  {
+    locally_committed_func = lcf;
+    return *this;
+  }
+
   Endpoint& Endpoint::set_openapi_description(const std::string& description)
   {
     openapi_description = description;
@@ -137,7 +150,7 @@ namespace ccf::endpoints
   {
     switch (grp.kind)
     {
-      case InterpreterReusePolicy::KeyBased:
+      case InterpreterReusePolicy::Kind::KeyBased:
       {
         j = nlohmann::json::object();
         j["key"] = grp.key;
@@ -152,7 +165,7 @@ namespace ccf::endpoints
       const auto key_it = j.find("key");
       if (key_it != j.end())
       {
-        grp.kind = InterpreterReusePolicy::KeyBased;
+        grp.kind = InterpreterReusePolicy::Kind::KeyBased;
         grp.key = key_it->get<std::string>();
       }
     }

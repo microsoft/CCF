@@ -5,7 +5,6 @@
 #include "ccf/ds/nonstd.h"
 #include "ccf/http_configuration.h"
 #include "ccf/http_header_map.h"
-#include "ccf/http_responder.h"
 #include "ccf/http_status.h"
 #include "ccf/rest_verb.h"
 #include "http_builder.h"
@@ -21,44 +20,27 @@ namespace http2
   using StreamId = int32_t;
   constexpr static StreamId DEFAULT_STREAM_ID = 0;
 
-  using StreamCloseCB = ccf::http::StreamOnCloseCallback;
+  using StreamCloseCB = std::function<void(void)>;
 
   // Used to keep track of response state between nghttp2 callbacks and to
   // differentiate unary from streaming responses
-  enum class StreamResponseState
+  enum class StreamResponseState : uint8_t
   {
     Uninitialised = 0, // No response to send yet
     Closing, // Unary or last frame in stream
     Streaming // Sending data frames to client
   };
 
-  class DataSource
+  struct DataSource
   {
     // Utility class to consume data from underlying data vector in chunks from
     // nghttp2_data_source_read_callback
-  private:
     std::vector<uint8_t> data;
+    size_t consumed = 0;
 
-    std::span<const uint8_t> span;
-
-  public:
     DataSource() = default;
 
-    DataSource(std::span<const uint8_t> s)
-    {
-      data.assign(s.begin(), s.end());
-      span = s;
-    }
-
-    DataSource(std::vector<uint8_t>&& data_) :
-      data(std::move(data_)),
-      span(data)
-    {}
-
-    std::span<const uint8_t>& ro_data()
-    {
-      return span;
-    }
+    DataSource(std::vector<uint8_t>&& data_) : data(std::move(data_)) {}
   };
 
   struct StreamData
@@ -90,7 +72,8 @@ namespace http2
     virtual std::shared_ptr<StreamData> create_stream(StreamId stream_id) = 0;
     virtual std::shared_ptr<StreamData> get_stream(StreamId stream_id) = 0;
     virtual void destroy_stream(StreamId stream_id) = 0;
-    virtual StreamId get_last_stream_id() const = 0;
-    virtual ccf::http::ParserConfiguration get_configuration() const = 0;
+    [[nodiscard]] virtual StreamId get_last_stream_id() const = 0;
+    [[nodiscard]] virtual ccf::http::ParserConfiguration get_configuration()
+      const = 0;
   };
 }

@@ -15,7 +15,7 @@
 
 namespace ccf::kv
 {
-  class CommittableTx : public Tx, public AbstractChangeContainer
+  class CommittableTx : public Tx
   {
   public:
     using TxFlags = uint8_t;
@@ -33,8 +33,6 @@ namespace ccf::kv
 
     Version version = NoVersion;
 
-    ccf::kv::TxHistory::RequestID req_id;
-
     TxFlags flags = 0;
     SerialisedEntryFlags entry_flags = 0;
 
@@ -45,13 +43,19 @@ namespace ccf::kv
       bool include_reads = false)
     {
       if (!committed)
+      {
         throw std::logic_error("Transaction not yet committed");
+      }
 
       if (!success)
+      {
         throw std::logic_error("Transaction aborted");
+      }
 
       if (claims_digest_.empty())
+      {
         throw std::logic_error("Missing claims");
+      }
 
       // If no transactions made changes, return a zero length vector.
       const bool any_changes =
@@ -138,7 +142,9 @@ namespace ccf::kv
         const std::string& commit_evidence)> write_set_observer = nullptr)
     {
       if (committed)
+      {
         throw std::logic_error("Transaction already committed");
+      }
 
       if (all_changes.empty())
       {
@@ -186,75 +192,72 @@ namespace ccf::kv
         LOG_TRACE_FMT("Could not commit transaction due to conflict");
         return CommitResult::FAIL_CONFLICT;
       }
-      else
+
+      committed = true;
+      version = c.value();
+
+      if (tx_flag_enabled(TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE))
       {
-        committed = true;
-        version = c.value();
-
-        if (tx_flag_enabled(TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE))
+        auto chunker = pimpl->store->get_chunker();
+        if (chunker)
         {
-          auto chunker = pimpl->store->get_chunker();
-          if (chunker)
-          {
-            chunker->force_end_of_chunk(version);
-          }
+          chunker->force_end_of_chunk(version);
         }
+      }
 
-        if (tx_flag_enabled(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE))
-        {
-          pimpl->store->set_flag(
-            AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
-          unset_tx_flag(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
-        }
+      if (tx_flag_enabled(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE))
+      {
+        pimpl->store->set_flag(
+          AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+        unset_tx_flag(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      }
 
-        if (version == NoVersion)
+      if (version == NoVersion)
+      {
+        // Read-only transaction
+        return CommitResult::SUCCESS;
+      }
+
+      // From here, we have received a unique commit version and made
+      // modifications to our local kv. If we fail in any way, we cannot
+      // recover.
+      try
+      {
+        ccf::crypto::Sha256Hash commit_evidence_digest;
+        std::string commit_evidence;
+        auto data = serialise(commit_evidence_digest, commit_evidence, claims);
+
+        if (data.empty())
         {
-          // Read-only transaction
           return CommitResult::SUCCESS;
         }
 
-        // From here, we have received a unique commit version and made
-        // modifications to our local kv. If we fail in any way, we cannot
-        // recover.
-        try
+        if (write_set_observer != nullptr)
         {
-          ccf::crypto::Sha256Hash commit_evidence_digest;
-          std::string commit_evidence;
-          auto data =
-            serialise(commit_evidence_digest, commit_evidence, claims);
-
-          if (data.empty())
-          {
-            return CommitResult::SUCCESS;
-          }
-
-          if (write_set_observer != nullptr)
-          {
-            write_set_observer(data, commit_evidence);
-          }
-
-          auto claims_ = claims;
-
-          return pimpl->store->commit(
-            {pimpl->commit_view, version},
-            std::make_unique<MovePendingTx>(
-              std::move(data),
-              std::move(claims_),
-              std::move(commit_evidence_digest),
-              std::move(hooks)),
-            false);
+          write_set_observer(data, commit_evidence);
         }
-        catch (const std::exception& e)
-        {
-          committed = false;
 
-          LOG_FAIL_FMT("Error during serialisation");
-          LOG_DEBUG_FMT("Error during serialisation: {}", e.what());
+        auto claims_ = claims;
 
-          // Discard original exception type, throw as now fatal
-          // KvSerialiserException
-          throw KvSerialiserException(e.what());
-        }
+        return pimpl->store->commit(
+          {pimpl->commit_view, version},
+          std::make_unique<MovePendingTx>(
+            std::move(data),
+            std::move(claims_),
+            std::move(commit_evidence_digest),
+            std::move(hooks)),
+          false);
+      }
+      catch (const std::exception& e)
+      {
+        committed = false;
+
+        LOG_FAIL_FMT("Error during serialisation");
+        LOG_DEBUG_FMT("Error during serialisation: {}", e.what());
+
+        // Discard original exception type, throw as now fatal
+        // KvSerialiserException
+        throw KvSerialiserException(e.what());
       }
     }
 
@@ -265,13 +268,17 @@ namespace ccf::kv
      *
      * @return Commit version
      */
-    Version commit_version()
+    [[nodiscard]] Version commit_version() const
     {
       if (!committed)
+      {
         throw std::logic_error("Transaction not yet committed");
+      }
 
       if (!success)
+      {
         throw std::logic_error("Transaction aborted");
+      }
 
       return version;
     }
@@ -283,27 +290,22 @@ namespace ccf::kv
      *
      * @return Commit term
      */
-    Version commit_term()
+    [[nodiscard]] Version commit_term() const
     {
       if (!committed)
+      {
         throw std::logic_error("Transaction not yet committed");
+      }
 
       if (!success)
+      {
         throw std::logic_error("Transaction aborted");
+      }
 
       return pimpl->commit_view;
     }
 
-    /** Version for the transaction set
-     *
-     * @return Committed version, or `ccf::kv::NoVersion` otherwise
-     */
-    Version get_version()
-    {
-      return version;
-    }
-
-    std::optional<TxID> get_txid()
+    [[nodiscard]] std::optional<TxID> get_txid() const
     {
       if (!committed)
       {
@@ -321,36 +323,11 @@ namespace ccf::kv
       if (version == NoVersion)
       {
         // Read-only transaction
-        return pimpl->read_txid.value();
+        return pimpl->read_txid;
       }
-      else
-      {
-        // Write transaction
-        return TxID(pimpl->commit_view, version);
-      }
-    }
 
-    void set_change_list(OrderedChanges&& change_list_, Term term_) override
-    {
-      // if all_changes is not empty then any coinciding keys will not be
-      // overwritten
-      all_changes.merge(change_list_);
-      pimpl->commit_view = term_;
-    }
-
-    void set_view(ccf::View view_)
-    {
-      pimpl->commit_view = view_;
-    }
-
-    void set_req_id(const ccf::kv::TxHistory::RequestID& req_id_)
-    {
-      req_id = req_id_;
-    }
-
-    const ccf::kv::TxHistory::RequestID& get_req_id()
-    {
-      return req_id;
+      // Write transaction
+      return TxID(pimpl->commit_view, version);
     }
 
     void set_read_txid(const TxID& tx_id, Term commit_view_)
@@ -378,7 +355,7 @@ namespace ccf::kv
       flags &= ~static_cast<TxFlags>(flag);
     }
 
-    virtual bool tx_flag_enabled(TxFlag f) const
+    [[nodiscard]] virtual bool tx_flag_enabled(TxFlag f) const
     {
       return (flags & static_cast<TxFlags>(f)) != 0;
     }
@@ -402,22 +379,26 @@ namespace ccf::kv
       Term read_term,
       const TxID& reserved_tx_id,
       Version rollback_count_) :
-      CommittableTx(_store)
+      CommittableTx(_store),
+      rollback_count(rollback_count_)
     {
-      version = reserved_tx_id.version;
-      pimpl->commit_view = reserved_tx_id.term;
-      pimpl->read_txid = TxID(read_term, reserved_tx_id.version - 1);
-      rollback_count = rollback_count_;
+      version = reserved_tx_id.seqno;
+      pimpl->commit_view = reserved_tx_id.view;
+      pimpl->read_txid = TxID(read_term, reserved_tx_id.seqno - 1);
     }
 
     // Used by frontend to commit reserved transactions
     PendingTxInfo commit_reserved()
     {
       if (committed)
+      {
         throw std::logic_error("Transaction already committed");
+      }
 
       if (all_changes.empty())
+      {
         throw std::logic_error("Reserved transaction cannot be empty");
+      }
 
       std::vector<ConsensusHookPtr> hooks;
       bool track_deletes_on_missing_keys = false;
@@ -432,7 +413,9 @@ namespace ccf::kv
       success = c.has_value();
 
       if (!success)
+      {
         throw std::logic_error("Failed to commit reserved transaction");
+      }
 
       ccf::crypto::Sha256Hash commit_evidence_digest;
       std::string commit_evidence;

@@ -10,7 +10,7 @@ namespace ccf::js::extensions
   class MathRandomExtension : public ExtensionInterface
   {
   public:
-    MathRandomExtension() {}
+    MathRandomExtension() = default;
 
     void install(js::core::Context& ctx) override;
   };

@@ -16,8 +16,12 @@ import time
 import http
 import contextlib
 import ccf.ledger
-from reconfiguration import test_ledger_invariants
 import subprocess
+import copy
+from collections import defaultdict
+from ccf.tx_id import TxID
+import os
+from reconfiguration import test_ledger_invariants
 
 from loguru import logger as LOG
 
@@ -41,9 +45,11 @@ def test_invalid_partitions(network, args):
     except ValueError:
         pass
 
+    invalid_local_node_id = -1
+    new_node = infra.node.Node(
+        invalid_local_node_id, infra.interfaces.HostSpec().with_args(args)
+    )
     try:
-        invalid_local_node_id = -1
-        new_node = infra.node.Node(invalid_local_node_id, "local://localhost")
         network.partitioner.partition([new_node])
         assert False, "All nodes should belong to network"
     except ValueError:
@@ -81,10 +87,8 @@ def test_partition_majority(network, args):
                 body = res.body.json()
                 initial_view = body["current_view"]
 
-    # The partitioned nodes will have called elections, increasing their view.
-    # When the partition is lifted, the nodes must elect a new leader, in at least this
-    # increased term. The winning node could come from either partition, and could even
-    # be the original primary.
+    # The partitioned nodes will have called elections, but due to not having a majority, will be unable to increase their view.
+    # When the partition is lifted, this may cause a new election.
     network.wait_for_primary_unanimity(min_view=initial_view)
 
     return network
@@ -108,48 +112,79 @@ def test_isolate_primary_from_one_backup(network, args):
     # Note: Managed manually
     rules = network.partitioner.isolate_node(p, b_0)
 
+    # This is what we expect to happen:
+    # - b_0 first times out and calls an election
+    # - As it is up to date with b_1, it will win that election,
+    #   and after being elected emit a signature.
+    # - p will then step down via CheckQuorum
+    # - p will then try to call multiple elections but at most become a PreVoteCandidate,
+    #   and not disrupt the cluster, as it cannot pass pre-vote due to missing the signature
+    #   from b_0's leadership election
+
     LOG.info(
-        f"Check that primary {p.local_node_id} reports increasing last ack time for partitioned backup {b_0.local_node_id}"
+        f"Check that primary {p.local_node_id} reports increasing last ack time for partitioned backup {b_0.local_node_id} and the partitioned backup's election timeout also increases"
     )
+
     last_ack = 0
+    timeout = time.time() + 2 * network.args.election_timeout_ms / 1000
     while True:
         with p.client() as c:
             r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
             ack = r["acks"][b_0.node_id]["last_received_ms"]
-        if r["primary_id"] is not None:
-            assert (
-                ack >= last_ack
-            ), f"Nodes {p.local_node_id} and {b_0.local_node_id} are no longer partitioned"
-            last_ack = ack
-        else:
-            LOG.debug(f"Node {p.local_node_id} is no longer primary")
-            break
+            has_stepped_down = r["leadership_state"] in {"Follower", "PreVoteCandidate"}
+            if not has_stepped_down:
+                assert (
+                    ack >= last_ack
+                ), f"Nodes {p.local_node_id} and {b_0.local_node_id} are no longer partitioned"
+                last_ack = ack
+        with b_0.client() as c:
+            r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
+            if r["leadership_state"] == "Leader":
+                LOG.info(
+                    f"Backup {b_0.local_node_id} has become primary in new view {r['current_view']}"
+                )
+                new_view = r["current_view"]
+                break
+        if time.time() > timeout:
+            raise RuntimeError(
+                f"Backup {b_0.local_node_id} did not become primary within timeout"
+            )
+
         time.sleep(0.1)
 
-    # Now wait for several elections to occur. We expect:
-    # - b_0 to call and win an election with b_1's help
-    # - b_0 to produce a new signature, and commit it with b_1's help
-    # - p to call its own election, and lose because it doesn't have this signature
-    # - In the resulting election race:
-    #   - If p calls first, it loses and we're in the same situation
-    #   - If b_0 calls first, it wins, but then p calls its election and we've returned to the same situation
-    #   - If b_1 calls first, it can win and then bring _both_ nodes up-to-date, becoming a _stable_ primary
-    # So we repeat elections until b_1 is primary
+    p.wait_for_leadership_state(
+        initial_txid.view,
+        ["Follower", "PreVoteCandidate"],
+        timeout=4 * network.args.election_timeout_ms / 1000,
+    )
 
-    new_primary = network.wait_for_primary_unanimity(min_view=initial_txid.view)
-    assert new_primary == b_1
+    # Verify that b_0 is stably the primary, and that p is a Follower/PreVoteCandidate
+    timeout = time.time() + 2 * network.args.election_timeout_ms / 1000
+    while time.time() < timeout:
+        with b_0.client() as c:
+            r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
+            assert (
+                r["leadership_state"] == "Leader" and r["current_view"] == new_view
+            ), f"Backup {b_0.local_node_id} is no longer primary for {new_view}"
+        with p.client() as c:
+            r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
+            assert r["leadership_state"] in {
+                "Follower",
+                "PreVoteCandidate",
+            }, f"Primary {p.local_node_id} is no longer follower"
+        time.sleep(0.1)
 
-    new_view = network.txs.issue(network, send_private=False).view
-
-    # The partition is now between 2 backups, but both can talk to the new primary
     # Explicitly drop rules before continuing
     rules.drop()
 
-    LOG.info(f"Check that new primary {new_primary.local_node_id} reports stable acks")
+    # primary should now observe partitioned backup as primary
+    network.wait_for_new_primary_in({b_0.node_id}, nodes=[p])
+
+    LOG.info(f"Check that new primary {b_0.local_node_id} reports stable acks")
     last_ack = 0
     end_time = time.time() + 2 * network.args.election_timeout_ms // 1000
     while time.time() < end_time:
-        with new_primary.client() as c:
+        with b_0.client() as c:
             acks = c.get("/node/consensus", log_capture=[]).body.json()["details"][
                 "acks"
             ]
@@ -161,15 +196,6 @@ def test_isolate_primary_from_one_backup(network, args):
             if delayed_acks:
                 raise RuntimeError(f"New primary reported some delayed acks: {acks}")
         time.sleep(0.1)
-
-    # Original primary should now, or very soon, report the new primary
-    new_primary_, new_view_ = network.wait_for_new_primary(p, nodes=[p])
-    assert (
-        new_primary == new_primary_
-    ), f"New primary {new_primary_.local_node_id} after partition is dropped is different than before {new_primary.local_node_id}"
-    assert (
-        new_view == new_view_
-    ), f"Consensus view {new_view} should not have changed after partition is dropped: now {new_view_}"
 
     return network
 
@@ -194,7 +220,10 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
         # The isolated primary will stay in follower state once Pre-Vote
         # is implemented. https://github.com/microsoft/CCF/issues/2577
         primary.wait_for_leadership_state(
-            primary_view, ["Candidate"], timeout=2 * args.election_timeout_ms / 1000
+            # We want view >= primary_view, but comparison is > so subtract 1
+            primary_view - 1,
+            ["Follower", "PreVoteCandidate"],
+            timeout=2 * args.election_timeout_ms / 1000,
         )
 
     # Check reconnected former primary has caught up
@@ -234,7 +263,7 @@ def test_new_joiner_helps_liveness(network, args):
 
     with contextlib.ExitStack() as stack:
         # Add a new node, but partition them before trusting them
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         network.join_node(new_node, args.package, args, from_snapshot=False)
         new_joiner_partition = [new_node]
         new_joiner_rules = stack.enter_context(
@@ -338,13 +367,15 @@ def test_expired_certs(network, args):
             stack.enter_context(network.partitioner.partition([primary]))
 
         # Restore connectivity between backups and wait for election
-        network.wait_for_primary_unanimity(nodes=[backup_a, backup_b], min_view=r.view)
+        network.wait_for_primary_unanimity(
+            nodes=[backup_a, backup_b], min_view=r.view + 1
+        )
 
         # Should now be able to make progress
         check_can_progress(backup_a)
 
     # Restore connectivity with primary, an election may or may not happen
-    network.wait_for_primary_unanimity(min_view=r.view)
+    network.wait_for_primary_unanimity(min_view=r.view + 1)
 
     # Set valid node certs so that future clients can speak to these nodes
     set_certs(from_days_diff=-1, validity_period_days=7, nodes=(primary, backup_a))
@@ -440,7 +471,7 @@ def test_election_reconfiguration(network, args):
 
     LOG.info("Retire former primary and add new node")
     network.retire_node(backups[0], primary)
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     network.join_node(new_node, args.package, args, from_snapshot=False)
     network.trust_node(new_node, args)
 
@@ -507,13 +538,6 @@ def test_forwarding_timeout(network, args):
         assert r.status_code == http.HTTPStatus.OK, r
         assert r.body.json()["msg"] == val_b, r
 
-    # Wait for new view on isolated backup so that network is left
-    # in a stable state when partition is lifted
-    backup.wait_for_leadership_state(
-        min_view=view,
-        leadership_states=["Candidate"],
-        timeout=4 * args.election_timeout_ms / 1000,
-    )
     rules.drop()
 
     network.wait_for_primary_unanimity(min_view=view)
@@ -645,21 +669,6 @@ def test_session_consistency(network, args):
                 except ConnectionResetError:
                     LOG.info(f"Session {client.description} was terminated as expected")
 
-        def wait_for_new_view(node, original_view, timeout_multiplier):
-            election_s = args.election_timeout_ms / 1000
-            timeout = election_s * timeout_multiplier
-            end_time = time.time() + timeout
-            while time.time() < end_time:
-                with node.client() as c:
-                    r = c.get("/node/network")
-                    assert r.status_code == http.HTTPStatus.OK, r
-                    if r.body.json()["current_view"] > original_view:
-                        return
-                time.sleep(0.1)
-            raise TimeoutError(
-                f"Node failed to reach view higher than {original_view} after waiting {timeout}s"
-            )
-
         # Partition primary and forwarding backup from other backups
         with network.partitioner.partition([primary, backup]):
             # Write on partitioned primary
@@ -683,28 +692,26 @@ def test_session_consistency(network, args):
 
             # Once CheckQuorum takes effect and the primary stands down, all sessions
             # on the primary report a risk of inconsistency
-            wait_for_new_view(backup, r0.view, 4)
-            check_sessions_dead(
-                (
-                    # This session wrote state which is now at risk of being lost
-                    client_primary_A,
-                    # This session only read old state which is still valid
-                    client_primary_B,
-                    # This is also immediately true for forwarded sessions on the backup
-                    client_backup_C,
-                )
+            primary.wait_for_leadership_state(
+                r0.view - 1,
+                ["Follower", "PreVoteCandidate", "Candidate"],
+                timeout=2 * args.election_timeout_ms / 1000,
             )
 
-            # The backup may not have received any view increment yet, so a non-forwarded
-            # session on the backup may still be valid. This is a temporary, racey situation,
-            # and safe (the backup has not rolled back, and is still reporting state in the
-            # old session).
-            # Test that once the view has advanced, that backup session is also terminated.
-            wait_for_new_view(backup, r0.view, 1)
-            check_sessions_dead((client_backup_D,))
+        # Once we remove the network partition, a new primary will be elected in a higher term,
+        network.wait_for_primary_unanimity(min_view=r0.view + 1)
 
-    # Wait for network stability after healing partition
-    network.wait_for_primary_unanimity(min_view=r0.view)
+        # This will break all of the previous sessions
+        check_sessions_dead(
+            (
+                # This session wrote state to the partitioned primary which was at risk of being lost
+                client_primary_A,
+                # These sessions only read old state which is still valid
+                client_primary_B,
+                client_backup_C,
+                client_backup_D,
+            )
+        )
 
     # Restore original network size
     network.resize(original_size, args)
@@ -855,6 +862,217 @@ def test_recovery_elections(orig_network, args):
     return recovery_network
 
 
+def force_become_primary(network, args, target_node):
+    network.wait_for_node_commit_sync()
+    primary, backups = network.find_nodes()
+
+    if primary != target_node:
+        # In a fully sync'd cluster this will cause the following:
+        # target times out
+        # target starts election and wins
+        # target becomes primary and emits signature
+        # target replicates signature
+        # then we can remove the partition
+        rules = network.partitioner.isolate_node(primary, target_node)
+        target_node.wait_for_leadership_state(
+            0, "Leader", timeout=2 * args.election_timeout_ms / 1000
+        )
+        network.wait_for_node_commit_sync(nodes=backups)
+        rules.drop()
+        # Wait for the old primary to observe the new one
+        network.wait_for_new_primary_in({target_node.node_id}, nodes=[primary])
+        primary = target_node
+
+    # Ensure a signature has been produced in the new term
+    with target_node.client("user0") as c:
+        r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
+        assert (
+            r["leadership_state"] == "Leader"
+        ), f"Node {target_node.node_id} is not leader: {r}"
+        sig_interval = args.sig_ms_interval / 1000
+        t0 = time.time()
+        timeout = 3 * sig_interval
+        while time.time() - t0 < timeout:
+            r = c.get("/node/commit")
+            assert r.status_code == http.HTTPStatus.OK, r
+            tx_id = TxID.from_str(r.body.json()["transaction_id"])
+            receipt = target_node.get_receipt(view=tx_id.view, seqno=tx_id.seqno)
+            receipt_issuer = receipt.json()["node_id"]
+            if receipt_issuer == target_node.node_id:
+                return tx_id
+            time.sleep(sig_interval / 2)
+        raise TimeoutError(
+            f"Node {target_node.node_id} did not produce signature (and receipt) in current term after {timeout}s"
+        )
+
+
+def run_ledger_chunk_bytes_check(const_args):
+    LOG.info("Confirm that ledger chunks are determined by the primary")
+    args = copy.deepcopy(const_args)
+
+    # Don't emit snapshots
+    args.snapshot_tx_interval = 10000000
+
+    # Don't sign too-often; give time to store many entries in a single chunk
+    args.sig_ms_interval = 1000
+
+    args.nodes = infra.e2e_args.nodes(args, 3)
+
+    with infra.network.network(
+        args.nodes, args.binary_dir, init_partitioner=True
+    ) as network:
+        # Start each node with a different chunk size
+        unit_size = 16384
+        size_0 = unit_size
+        size_1 = unit_size * 3
+        size_2 = unit_size * 9
+
+        51869
+        51893
+
+        def overhead(num_transactions, num_signatures):
+            # From checking a sample run, the overhead consists of:
+            # - 24 bytes of header + footer
+            # - 202 bytes of framing/encoding for each of our transactions
+            #   - Comes from
+            #      16384 content
+            #      + table name
+            #      + JSON quoting
+            #      + size prefixes
+            #      + transaction header
+            #      = 16586
+            # - ~2100 bytes per signature transaction
+            #   - Some variation from cert sizes
+            #   - Increasing over time as the mini-tree grows
+            #   - Adding 2400 bytes here to be safe
+            return 24 + (202 * num_transactions) + (2400 * num_signatures)
+
+        network.per_node_args_override[0] = {"ledger_chunk_bytes": f"{size_0}B"}
+        network.per_node_args_override[1] = {"ledger_chunk_bytes": f"{size_1}B"}
+        network.per_node_args_override[2] = {"ledger_chunk_bytes": f"{size_2}B"}
+
+        network.start_and_open(args)
+
+        primary, backups = network.find_nodes()
+
+        nodes_and_sizes = [
+            (primary, size_0),
+            (backups[0], size_1),
+            (backups[1], size_2),
+        ]
+
+        chunks_per_node = 2
+
+        chunk_ends_by_size = defaultdict(list)
+
+        for node, chunk_size in nodes_and_sizes:
+            force_become_primary(network, args, node)
+            with node.client("user0") as c:
+                for _ in range(chunks_per_node):
+                    written = 0
+                    while written < chunk_size:
+                        r = c.post(
+                            "/app/log/public",
+                            {"id": chunk_size, "msg": "X" * unit_size},
+                        )
+                        assert r.status_code == http.HTTPStatus.OK, r
+                        written += unit_size
+                    c.wait_for_commit(r)
+                    r = c.get("/node/commit")
+                    assert r.status_code == http.HTTPStatus.OK, r
+                    chunk_ends_by_size[chunk_size].append(
+                        TxID.from_str(r.body.json()["transaction_id"])
+                    )
+
+        # When a node becomes primary, it may discover the current chunk is already over
+        # the local chunk threshold, and should immediately terminate this chunk.
+        # Confirm it has been correctly tracking chunk sizes while it was backup in this case.
+        smallest_node, smallest_size = nodes_and_sizes[0]
+        for node, chunk_size in nodes_and_sizes[1:]:
+            force_become_primary(network, args, node)
+            with node.client("user0") as c:
+                written = 0
+                # Stop just before this node completes the chunk
+                target_chunk_size = chunk_size - unit_size
+                while written < target_chunk_size:
+                    r = c.post(
+                        "/app/log/public",
+                        {"id": chunk_size, "msg": "X" * unit_size},
+                    )
+                    assert r.status_code == http.HTTPStatus.OK, r
+                    written += unit_size
+                c.wait_for_commit(r)
+
+            force_become_primary(network, args, smallest_node)
+            # Sleep long enough that this new primary node can produce a new time-based signature,
+            # if they want to, to ensure they're tracking chunk sizes accurately
+            time.sleep(args.sig_ms_interval / 1000)
+            with smallest_node.client("user0") as c:
+                r = c.get("/node/commit")
+                assert r.status_code == http.HTTPStatus.OK, r
+                chunk_ends_by_size[target_chunk_size].append(
+                    TxID.from_str(r.body.json()["transaction_id"])
+                )
+
+        # Add a further write to trigger .committed rename of all chunks above
+        with primary.client("user0") as c:
+            r = c.post(
+                "/app/log/public",
+                {"id": 42, "msg": "Make a new chunk"},
+            )
+            assert r.status_code == http.HTTPStatus.OK, r
+            c.wait_for_commit(r)
+
+        # This explicitly checks that ledger chunks match on each node, which is the critical property
+        network.stop_all_nodes(accept_ledger_diff=False)
+
+        # Confirm that at least one ledger chunk of each expected size was produced
+        current, committeds = primary.get_ledger()
+        chunks = [
+            os.path.join(ledger_dir, basename)
+            for ledger_dir in (current, *committeds)
+            for basename in os.listdir(ledger_dir)
+        ]
+        actual_chunk_sizes = {chunk: os.path.getsize(chunk) for chunk in chunks}
+
+        chunk_ends_to_expected_size = {
+            tx_id.seqno: size
+            for size, tx_ids in chunk_ends_by_size.items()
+            for tx_id in tx_ids
+        }
+
+        for path, actual_size in actual_chunk_sizes.items():
+            start, end = ccf.ledger.range_from_filename(path)
+            if end in chunk_ends_to_expected_size:
+                chunk_size = chunk_ends_to_expected_size[end]
+                num_transactions = 1 + end - start
+                min_expected = chunk_size + overhead(num_transactions, num_signatures=0)
+                max_expected = chunk_size + overhead(num_transactions, num_signatures=4)
+
+                r = range(min_expected, max_expected)
+                if actual_size not in r:
+                    LOG.warning("About to fail. Giving some verbose logging output")
+                    for ledger_dir in (current, *committeds):
+                        cmd = f"ls -alv {ledger_dir}"
+                        LOG.warning(f"{cmd}")
+                        subprocess.run(cmd.split(" "))
+
+                    ccf.read_ledger.run(
+                        paths=[path],
+                        print_mode=ccf.read_ledger.PrintMode.Contents,
+                        insecure_skip_verification=True,
+                    )
+
+                assert (
+                    actual_size in r
+                ), f"Expected {os.path.basename(path)} (produced by a node with chunk-size {chunk_size:,}) to be between {min_expected:,} and {max_expected:,} bytes. It is actually {actual_size:,} bytes"
+
+                del chunk_ends_to_expected_size[end]
+
+        # Confirm we've seen all expected chunk ends
+        assert len(chunk_ends_to_expected_size) == 0
+
+
 def run(args):
     txs = app.LoggingTxs("user0")
 
@@ -882,6 +1100,7 @@ def run(args):
             test_session_consistency(network, args)
         network = test_recovery_elections(network, args)
         test_ledger_invariants(network, args)
+    run_ledger_chunk_bytes_check(args)
 
 
 if __name__ == "__main__":

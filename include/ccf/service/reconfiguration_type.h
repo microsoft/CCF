@@ -6,7 +6,7 @@
 
 namespace ccf
 {
-  enum ReconfigurationType
+  enum ReconfigurationType : uint8_t
   {
     ONE_TRANSACTION = 0,
     TWO_TRANSACTION = 1

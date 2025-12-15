@@ -18,7 +18,6 @@
 namespace ccf
 {
   class AbstractGovernanceEffects;
-  class AbstractHostProcesses;
   struct NetworkState;
   class RpcContext;
   class BaseEndpointRegistry;
@@ -37,8 +36,8 @@ namespace ccf::js::core
   struct InterruptData
   {
     std::chrono::high_resolution_clock::time_point start_time;
-    std::chrono::milliseconds max_execution_time;
-    ccf::js::TxAccess access;
+    std::chrono::milliseconds max_execution_time = {};
+    ccf::js::TxAccess access = ccf::js::TxAccess::APP_RO;
     bool request_timed_out = false;
   };
 
@@ -94,8 +93,8 @@ namespace ccf::js::core
       std::string_view module_name);
 
     // Construct RAII wrapper around raw QuickJS value
-    JSWrappedValue wrap(JSValue&& val) const;
-    JSWrappedValue wrap(const JSValue& val) const;
+    [[nodiscard]] JSWrappedValue wrap(JSValue&& val) const;
+    [[nodiscard]] JSWrappedValue wrap(const JSValue& val) const;
 
     // If the first argument is a string-array, populates the second, and
     // returns undefined. Otherwise returns a JS error value.
@@ -107,7 +106,7 @@ namespace ccf::js::core
     // Getters
     JSWrappedValue get_property(
       JSValue object, char const* property_name) const;
-    JSWrappedValue get_global_obj() const;
+    [[nodiscard]] JSWrappedValue get_global_obj() const;
     JSWrappedValue get_global_property(const char* s) const;
     JSWrappedValue get_or_create_global_property(
       const char* s, JSWrappedValue&& default_value) const;
@@ -126,29 +125,33 @@ namespace ccf::js::core
       const std::string& path);
 
     // Constant values
-    JSWrappedValue null() const;
-    JSWrappedValue undefined() const;
+    [[nodiscard]] JSWrappedValue null() const;
+    [[nodiscard]] JSWrappedValue undefined() const;
 
     // Construct new values
-    JSWrappedValue new_obj() const;
-    JSWrappedValue new_obj_class(JSClassID class_id) const;
-    JSWrappedValue new_array() const;
+    [[nodiscard]] JSWrappedValue new_obj() const;
+    [[nodiscard]] JSWrappedValue new_obj_class(JSClassID class_id) const;
+    [[nodiscard]] JSWrappedValue new_array() const;
     JSWrappedValue new_array_buffer_copy(
       const uint8_t* buf, size_t buf_len) const;
-    JSWrappedValue new_array_buffer_copy(const char* buf, size_t buf_len) const;
-    JSWrappedValue new_array_buffer_copy(std::span<const uint8_t> data) const;
-    JSWrappedValue new_string(const std::string_view& str) const;
-    JSWrappedValue new_string_len(const char* buf, size_t buf_len) const;
-    JSWrappedValue new_string_len(const std::span<const uint8_t> buf) const;
+    [[nodiscard]] JSWrappedValue new_array_buffer_copy(
+      const char* buf, size_t buf_len) const;
+    [[nodiscard]] JSWrappedValue new_array_buffer_copy(
+      std::span<const uint8_t> data) const;
+    [[nodiscard]] JSWrappedValue new_string(const std::string_view& str) const;
+    [[nodiscard]] JSWrappedValue new_string_len(
+      const char* buf, size_t buf_len) const;
+    [[nodiscard]] JSWrappedValue new_string_len(
+      std::span<const uint8_t> buf) const;
     JSWrappedValue new_type_error(const char* fmt, ...) const;
     JSWrappedValue new_internal_error(const char* fmt, ...) const;
-    JSWrappedValue new_tag_value(int tag, int32_t val = 0) const;
+    [[nodiscard]] JSWrappedValue new_tag_value(int tag, int32_t val = 0) const;
     JSWrappedValue new_c_function(
       JSCFunction* func, const char* name, int length) const;
     JSWrappedValue new_getter_c_function(
       JSCFunction* func, const char* name, size_t arg_count = 0) const;
 
-    JSWrappedValue duplicate_value(JSValueConst original) const;
+    [[nodiscard]] JSWrappedValue duplicate_value(JSValueConst original) const;
 
     JSWrappedValue eval(
       const char* input,
@@ -172,16 +175,19 @@ namespace ccf::js::core
       const JSWrappedValue& f, const std::vector<JSWrappedValue>& argv);
 
     // JSON I/O
-    JSWrappedValue json_stringify(const JSWrappedValue& obj) const;
-    JSWrappedValue parse_json(const nlohmann::json& j) const;
+    [[nodiscard]] JSWrappedValue json_stringify(
+      const JSWrappedValue& obj) const;
+    [[nodiscard]] JSWrappedValue parse_json(const nlohmann::json& j) const;
     JSWrappedValue parse_json(
       const char* buf, size_t buf_len, const char* filename) const;
 
     // Convert objects to string
-    std::optional<std::string> to_str(const JSWrappedValue& x) const;
-    std::optional<std::string> to_str(const JSValue& x) const;
-    std::optional<std::string> to_str(const JSValue& x, size_t& len) const;
-    std::optional<std::string> to_str(const JSAtom& atom) const;
+    [[nodiscard]] std::optional<std::string> to_str(
+      const JSWrappedValue& x) const;
+    [[nodiscard]] std::optional<std::string> to_str(const JSValue& x) const;
+    [[nodiscard]] std::optional<std::string> to_str(
+      const JSValue& x, size_t& len) const;
+    [[nodiscard]] std::optional<std::string> to_str(const JSAtom& atom) const;
 
     void add_extension(const js::extensions::ExtensionPtr& extension);
     bool remove_extension(const js::extensions::ExtensionPtr& extension);
@@ -191,8 +197,7 @@ namespace ccf::js::core
     {
       for (auto& extension : extensions)
       {
-        if (TExtension* t = dynamic_cast<TExtension*>(extension.get());
-            t != nullptr)
+        if (auto* t = dynamic_cast<TExtension*>(extension.get()); t != nullptr)
         {
           return t;
         }

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/x509_time_fmt.h"
 
@@ -23,7 +23,7 @@ namespace ccf::crypto
   }
 
   static Pem create_self_signed_cert(
-    const KeyPairPtr& key_pair,
+    const ECKeyPairPtr& key_pair,
     const std::string& subject_name,
     const std::vector<SubjectAltName>& subject_alt_names,
     const std::string& valid_from,
@@ -34,7 +34,7 @@ namespace ccf::crypto
   }
 
   static Pem create_self_signed_cert(
-    const KeyPairPtr& key_pair,
+    const ECKeyPairPtr& key_pair,
     const std::string& subject_name,
     const std::vector<SubjectAltName>& subject_alt_names,
     const std::string& valid_from,
@@ -55,7 +55,7 @@ namespace ccf::crypto
     const Pem& issuer_private_key,
     const Pem& issuer_cert)
   {
-    return make_key_pair(issuer_private_key)
+    return make_ec_key_pair(issuer_private_key)
       ->sign_csr(issuer_cert, csr, valid_from, valid_to, false /* Not CA */);
   }
 
@@ -75,7 +75,7 @@ namespace ccf::crypto
   }
 
   static Pem create_endorsed_cert(
-    const KeyPairPtr& subject_key_pair,
+    const ECKeyPairPtr& subject_key_pair,
     const std::string& subject_name,
     const std::vector<SubjectAltName>& subject_alt_names,
     const std::string& valid_from,
@@ -101,11 +101,11 @@ namespace ccf::crypto
     const Pem& issuer_cert,
     bool ca = false)
   {
-    auto issuer_key_pair = make_key_pair(issuer_private_key);
+    auto issuer_key_pair = make_ec_key_pair(issuer_private_key);
     auto csr =
       issuer_key_pair->create_csr(subject_name, subject_alt_names, public_key);
     return issuer_key_pair->sign_csr(
-      issuer_cert, csr, valid_from, valid_to, ca, KeyPair::Signer::ISSUER);
+      issuer_cert, csr, valid_from, valid_to, ca, ECKeyPair::Signer::ISSUER);
   }
 
   static Pem create_endorsed_cert(

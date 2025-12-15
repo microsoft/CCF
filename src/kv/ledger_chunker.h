@@ -21,12 +21,12 @@ namespace ccf::kv
     const size_t chunk_threshold;
     Version current_tx_version;
 
-    std::map<Version, size_t> transaction_sizes = {};
-    std::set<Version> chunk_ends = {};
-    std::set<Version> forced_chunk_versions = {};
+    std::map<Version, size_t> transaction_sizes;
+    std::set<Version> chunk_ends;
+    std::set<Version> forced_chunk_versions;
     std::mutex chunker_lock;
 
-    size_t get_unchunked_size(Version up_to) const
+    [[nodiscard]] size_t get_unchunked_size(Version up_to) const
     {
       auto begin = transaction_sizes.cbegin();
       auto end = transaction_sizes.upper_bound(up_to);
@@ -114,7 +114,7 @@ namespace ccf::kv
     void compacted_to(Version v) override
     {
       std::lock_guard<std::mutex> l(chunker_lock);
-      Version compactable_v;
+      Version compactable_v = 0;
 
       auto compactable_it = chunk_ends.lower_bound(v);
       if (compactable_it != chunk_ends.begin())

@@ -1,0 +1,67 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+#pragma once
+
+#include "ccf/crypto/ec_public_key.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "crypto/openssl/public_key.h"
+
+#include <openssl/err.h>
+#include <openssl/evp.h>
+#include <stdexcept>
+#include <string>
+
+namespace ccf::crypto
+{
+  class ECPublicKey_OpenSSL : public ECPublicKey, public PublicKey_OpenSSL
+  {
+  protected:
+    ECPublicKey_OpenSSL();
+
+    static std::vector<uint8_t> ec_point_public_from_jwk(
+      const JsonWebKeyECPublic& jwk);
+
+  public:
+    ECPublicKey_OpenSSL(EVP_PKEY* key);
+    ECPublicKey_OpenSSL(const Pem& pem);
+    ECPublicKey_OpenSSL(ECPublicKey_OpenSSL&& key) = default;
+    ECPublicKey_OpenSSL(std::span<const uint8_t> der);
+    ECPublicKey_OpenSSL(const JsonWebKeyECPublic& jwk);
+    ~ECPublicKey_OpenSSL() override;
+
+    using ECPublicKey::verify;
+    using ECPublicKey::verify_hash;
+
+    bool verify(
+      const uint8_t* contents,
+      size_t contents_size,
+      const uint8_t* sig,
+      size_t sig_size,
+      MDType md_type,
+      HashBytes& bytes) override;
+
+    bool verify_hash(
+      const uint8_t* hash,
+      size_t hash_size,
+      const uint8_t* sig,
+      size_t sig_size,
+      MDType md_type) override;
+
+    [[nodiscard]] Pem public_key_pem() const override;
+    [[nodiscard]] std::vector<uint8_t> public_key_der() const override;
+    [[nodiscard]] std::vector<uint8_t> public_key_raw() const override;
+
+    [[nodiscard]] CurveID get_curve_id() const override;
+
+    [[nodiscard]] int get_openssl_group_id() const;
+    static int get_openssl_group_id(CurveID gid);
+
+    [[nodiscard]] Coordinates coordinates() const override;
+
+    [[nodiscard]] JsonWebKeyECPublic public_key_jwk(
+      const std::optional<std::string>& kid = std::nullopt) const override;
+  };
+
+  OpenSSL::Unique_PKEY key_from_raw_ec_point(
+    const std::vector<uint8_t>& raw, int nid);
+}

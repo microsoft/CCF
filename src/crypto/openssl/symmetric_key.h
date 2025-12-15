@@ -13,28 +13,28 @@ namespace ccf::crypto
   {
   private:
     const std::vector<uint8_t> key;
-    const EVP_CIPHER* evp_cipher;
+    const EVP_CIPHER* evp_cipher = nullptr;
     const EVP_CIPHER* evp_cipher_wrap_pad;
 
   public:
     KeyAesGcm_OpenSSL(std::span<const uint8_t> rawKey);
     KeyAesGcm_OpenSSL(const KeyAesGcm_OpenSSL& that) = delete;
-    KeyAesGcm_OpenSSL(KeyAesGcm_OpenSSL&& that);
-    virtual ~KeyAesGcm_OpenSSL()
+    KeyAesGcm_OpenSSL(KeyAesGcm_OpenSSL&& that) noexcept;
+    ~KeyAesGcm_OpenSSL() override
     {
       OPENSSL_cleanse(const_cast<uint8_t*>(key.data()), key.size());
     }
 
-    virtual size_t key_size() const override;
+    [[nodiscard]] size_t key_size() const override;
 
-    virtual void encrypt(
+    void encrypt(
       std::span<const uint8_t> iv,
       std::span<const uint8_t> plain,
       std::span<const uint8_t> aad,
       std::vector<uint8_t>& cipher,
       uint8_t tag[GCM_SIZE_TAG]) const override;
 
-    virtual bool decrypt(
+    bool decrypt(
       std::span<const uint8_t> iv,
       const uint8_t tag[GCM_SIZE_TAG],
       std::span<const uint8_t> cipher,
@@ -43,12 +43,12 @@ namespace ccf::crypto
 
     // @brief RFC 5649 AES key wrap with padding (CKM_AES_KEY_WRAP_PAD)
     // @param plain Plaintext key to wrap
-    std::vector<uint8_t> ckm_aes_key_wrap_pad(
+    [[nodiscard]] std::vector<uint8_t> ckm_aes_key_wrap_pad(
       std::span<const uint8_t> plain) const;
 
     // @brief RFC 5649 AES key unwrap (with padding, CKM_AES_KEY_WRAP_PAD)
     // @param cipher Wrapped key to unwrap
-    std::vector<uint8_t> ckm_aes_key_unwrap_pad(
+    [[nodiscard]] std::vector<uint8_t> ckm_aes_key_unwrap_pad(
       std::span<const uint8_t> cipher) const;
   };
 }

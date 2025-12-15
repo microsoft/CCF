@@ -64,19 +64,6 @@ else()
   set(PYTHON python3)
 endif()
 
-set(DISTRIBUTE_PERF_TESTS
-    ""
-    CACHE
-      STRING
-      "Hosts to which performance tests should be distributed, for example -n ssh://x.x.x.x -n ssh://x.x.x.x -n ssh://x.x.x.x"
-)
-
-if(DISTRIBUTE_PERF_TESTS)
-  separate_arguments(NODES UNIX_COMMAND ${DISTRIBUTE_PERF_TESTS})
-else()
-  unset(NODES)
-endif()
-
 option(
   VERBOSE_LOGGING
   "Enable verbose, potentially unsafe logging of enclave code. Affects logging level passed at run-time to end-to-end-tests."
@@ -174,13 +161,6 @@ if(SAN)
   install(FILES ${CCF_DIR}/src/san_common.suppressions DESTINATION bin)
 endif()
 
-# Install getting_started scripts for VM creation and setup
-install(
-  DIRECTORY ${CCF_DIR}/getting_started/
-  DESTINATION getting_started
-  USE_SOURCE_PERMISSIONS
-)
-
 set(HTTP_PARSER_SOURCES
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/api.c
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/http.c
@@ -190,6 +170,7 @@ set(HTTP_PARSER_SOURCES
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)
+include(${CCF_DIR}/cmake/evercbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
 
 # Launcher library
@@ -244,7 +225,6 @@ add_ccf_static_library(
        ${CCF_DIR}/src/js/extensions/ccf/gov.cpp
        ${CCF_DIR}/src/js/extensions/ccf/gov_effects.cpp
        ${CCF_DIR}/src/js/extensions/ccf/historical.cpp
-       ${CCF_DIR}/src/js/extensions/ccf/host.cpp
        ${CCF_DIR}/src/js/extensions/ccf/kv.cpp
        ${CCF_DIR}/src/js/extensions/ccf/network.cpp
        ${CCF_DIR}/src/js/extensions/ccf/node.cpp
@@ -281,15 +261,17 @@ add_ccf_static_library(
        ${CCF_DIR}/src/node/historical_queries_adapter.cpp
        ${CCF_DIR}/src/node/historical_queries_utils.cpp
        ${CCF_DIR}/src/node/receipt.cpp
-  LINK_LIBS qcbor t_cose http_parser ccfcrypto ccf_kv
+  LINK_LIBS qcbor evercbor t_cose http_parser ccfcrypto ccf_kv
 )
 
 # CCF task system library
 add_ccf_static_library(
   ccf_tasks
-  SRCS ${CCF_DIR}/src/tasks/task_system.cpp ${CCF_DIR}/src/tasks/job_board.cpp
+  SRCS ${CCF_DIR}/src/tasks/task_system.cpp
+       ${CCF_DIR}/src/tasks/job_board.cpp
        ${CCF_DIR}/src/tasks/ordered_tasks.cpp
        ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
+       ${CCF_DIR}/src/tasks/thread_manager.cpp
 )
 
 # Common test args for Python scripts starting up CCF networks
@@ -396,6 +378,7 @@ add_ccf_static_library(
             ccf_endpoints
             ccfcrypto
             ccf_kv
+            ccf_tasks
             nghttp2
             ${CMAKE_THREAD_LIBS_INIT}
             curl
@@ -480,6 +463,16 @@ target_link_libraries(
 )
 install(TARGETS verify_uvm_attestation_and_endorsements DESTINATION bin)
 
+# SNP attestation fetching and verification binary
+add_test_bin(
+  verify_attestation
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/verify_attestation.cpp
+)
+target_link_libraries(
+  verify_attestation PRIVATE ccf_pal ccf_tasks uv curl http_parser
+)
+install(TARGETS verify_attestation DESTINATION bin)
+
 if(BUILD_TESTS)
   enable_testing()
 
@@ -503,12 +496,32 @@ if(BUILD_TESTS)
       snp_ioctl_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
     )
+    set_property(
+      TEST snp_ioctl_test
+      APPEND
+      PROPERTY LABELS snp
+    )
+    set_property(
+      TEST snp_ioctl_test
+      APPEND
+      PROPERTY CONFIGURATIONS snp
+    )
 
     add_unit_test(
       snp_attestation_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_attestation_validation.cpp
     )
     target_link_libraries(snp_attestation_test PRIVATE ccf_pal ccfcrypto)
+    set_property(
+      TEST snp_attestation_test
+      APPEND
+      PROPERTY LABELS snp
+    )
+    set_property(
+      TEST snp_attestation_test
+      APPEND
+      PROPERTY CONFIGURATIONS snp
+    )
 
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
@@ -556,7 +569,6 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serialized.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/thread_messaging.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
@@ -573,6 +585,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/ordered_tasks.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/delayed_tasks.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/fan_in_tasks.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/tasks_api.cpp
     )
     target_link_libraries(task_system_test PRIVATE ccf_tasks)
 
@@ -590,7 +603,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/committable_suffix.cpp
     )
-    target_link_libraries(raft_test PRIVATE ccfcrypto)
+    target_link_libraries(raft_test PRIVATE ccfcrypto ccf_tasks)
 
     add_unit_test(
       raft_enclave_test
@@ -621,7 +634,9 @@ if(BUILD_TESTS)
     add_unit_test(
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
     )
-    target_link_libraries(history_test PRIVATE ccfcrypto http_parser ccf_kv)
+    target_link_libraries(
+      history_test PRIVATE ccfcrypto http_parser ccf_kv ccf_tasks
+    )
 
     add_unit_test(
       encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
@@ -645,6 +660,7 @@ if(BUILD_TESTS)
         ENVIRONMENT
         "TEST_ENDORSEMENTS_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/uvm_endorsements"
     )
+    target_link_libraries(endorsements_test PRIVATE evercbor)
 
     add_unit_test(
       historical_queries_test
@@ -654,23 +670,26 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       historical_queries_test PRIVATE http_parser ccf_kv ccf_endpoints
+                                      ccf_tasks
     )
     add_unit_test(
       indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp
     )
-    target_link_libraries(indexing_test PRIVATE ccf_endpoints ccf_kv)
+    target_link_libraries(indexing_test PRIVATE ccf_endpoints ccf_kv ccf_tasks)
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
     )
-    target_link_libraries(snapshot_test PRIVATE ccf_kv)
+    target_link_libraries(snapshot_test PRIVATE ccf_kv ccf_tasks)
 
     add_unit_test(
       snapshotter_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshotter.cpp
     )
-    target_link_libraries(snapshotter_test PRIVATE ccf_kv ccf_endpoints)
+    target_link_libraries(
+      snapshotter_test PRIVATE ccf_kv ccf_endpoints ccf_tasks
+    )
 
     add_unit_test(
       node_info_json_test
@@ -730,8 +749,7 @@ if(BUILD_TESTS)
               ccf_endpoints
               ccfcrypto
               ccf_kv
-              uv
-              curl
+              ccf_tasks
     )
 
     add_unit_test(
@@ -792,7 +810,7 @@ if(BUILD_TESTS)
       raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
                   src/enclave/thread_local.cpp
     )
-    target_link_libraries(raft_driver PRIVATE ccfcrypto)
+    target_link_libraries(raft_driver PRIVATE ccfcrypto ccf_tasks)
     target_include_directories(raft_driver PRIVATE src/aft)
 
     add_test(
@@ -835,7 +853,7 @@ if(BUILD_TESTS)
     add_picobench(
       history_bench
       SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
-      LINK_LIBS ccf_kv
+      LINK_LIBS ccf_kv ccf_tasks
     )
 
     add_picobench(
@@ -863,9 +881,9 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME recovery_test_api_1
+    NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-    ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "2024-07-01"
+    ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
   )
 
   add_e2e_test(
@@ -891,7 +909,6 @@ if(BUILD_TESTS)
       --test-duration 300 --test-suite reconfiguration --jinja-templates-path
       ${CMAKE_SOURCE_DIR}/samples/templates
   )
-  set_property(TEST reconfiguration_test_suite PROPERTY LABELS reconfiguration)
 
   if(LONG_TESTS)
     add_e2e_test(
@@ -918,15 +935,10 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME committable_suffix_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
-    ADDITIONAL_ARGS --sig-ms-interval 100
-  )
-
-  add_e2e_test(
     NAME commit_latency
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/commit_latency.py
     LABEL perf
+    CONFIGURATIONS perf
   )
 
   add_e2e_test(
@@ -957,14 +969,6 @@ if(BUILD_TESTS)
                     ${CMAKE_SOURCE_DIR}/tests
   )
 
-  add_e2e_test(
-    NAME launch_host_process_test
-    PYTHON_SCRIPT
-      ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process/host_process.py
-    ADDITIONAL_ARGS --js-app-bundle
-                    ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
-  )
-
   set(CONSTITUTION_ARGS
       --constitution
       ${CCF_DIR}/samples/constitutions/default/actions.js
@@ -984,10 +988,6 @@ if(BUILD_TESTS)
     CONSTITUTION ${CONSTITUTION_ARGS}
     ADDITIONAL_ARGS --initial-operator-count 1 --jinja-templates-path
                     ${CMAKE_SOURCE_DIR}/samples/templates
-  )
-
-  add_e2e_test(
-    NAME jwt_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
   )
 
   add_e2e_test(
@@ -1034,7 +1034,7 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME programmability
+    NAME programmability_and_jwt
     CONSTITUTION ${RBAC_CONSTITUTION_ARGS}
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
   )
@@ -1057,12 +1057,6 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
                     --http2
-  )
-
-  add_e2e_test(
-    NAME membership_api_1
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
-    ADDITIONAL_ARGS --gov-api-version "2024-07-01"
   )
 
   add_e2e_test(
@@ -1094,16 +1088,7 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME connections PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-  )
-
-  add_e2e_test(
-    NAME consistency_trace_validation
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
-  )
-
-  add_e2e_test(
-    NAME fuzz_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fuzzing.py
+    NAME tls_stress_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
   )
 
   if(CLIENT_PROTOCOLS_TEST)
@@ -1126,6 +1111,13 @@ if(BUILD_TESTS)
       ${CMAKE_SOURCE_DIR}/samples/config
       --historical-testdata
       ${CMAKE_SOURCE_DIR}/tests/testdata
+  )
+
+  add_e2e_test(
+    NAME snp_platform_tests
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/amd_snp.py
+    LABEL snp
+    CONFIGURATIONS snp
   )
 
   list(APPEND LTS_TEST_ARGS --ccf-version ${CCF_VERSION})
@@ -1159,32 +1151,12 @@ if(BUILD_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)
   endif()
 
-  add_e2e_test(
-    NAME rotation_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
-    LABEL rotation
-    ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
-  )
-
   set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
   add_e2e_test(
-    NAME reconfiguration_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-    ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}
+    NAME nodes_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/nodes.py
+    ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS} ${ROTATION_TEST_ARGS}
   )
-  set_property(TEST reconfiguration_test PROPERTY LABELS reconfiguration)
-
-  add_e2e_test(
-    NAME election_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-  )
-
-  if(LONG_TESTS)
-    add_e2e_test(
-      NAME acme_endorsement_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
-      LABEL ACME
-    )
-  endif()
 
   add_piccolo_test(
     NAME pi_ls
@@ -1246,10 +1218,10 @@ if(BUILD_TESTS)
       NAME e2e_curl PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_curl.py
     )
 
-    add_test_bin(
-      curl_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/curl_test.cpp
+    add_e2e_test(
+      NAME consistency_trace_validation
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
     )
-    target_link_libraries(curl_test PRIVATE curl uv http_parser)
   endif()
 endif()
 

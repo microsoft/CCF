@@ -6,12 +6,12 @@
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
 #include "ds/internal_logger.h"
-#include "ds/thread_messaging.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "node/network_state.h"
 #include "node/snapshot_serdes.h"
 #include "service/tables/snapshot_evidence.h"
+#include "tasks/task_system.h"
 
 #include <deque>
 #include <optional>
@@ -40,7 +40,7 @@ namespace ccf
 
     struct SnapshotInfo
     {
-      ccf::kv::Version version;
+      ccf::kv::Version version = 0;
       ccf::crypto::Sha256Hash write_set_digest;
       std::string commit_evidence;
       ccf::crypto::Sha256Hash snapshot_digest;
@@ -96,18 +96,35 @@ namespace ccf
         serialised_receipt);
     }
 
-    struct SnapshotMsg
+    struct SnapshotTask : public ccf::tasks::BaseTask
     {
       std::shared_ptr<Snapshotter> self;
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot;
       uint32_t generation_count;
-    };
 
-    static void snapshot_cb(std::unique_ptr<::threading::Tmsg<SnapshotMsg>> msg)
-    {
-      msg->data.self->snapshot_(
-        std::move(msg->data.snapshot), msg->data.generation_count);
-    }
+      const std::string name;
+
+      SnapshotTask(
+        std::shared_ptr<Snapshotter> _self,
+        std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot>&& _snapshot,
+        uint32_t _generation_count) :
+        self(std::move(_self)),
+        snapshot(std::move(_snapshot)),
+        generation_count(_generation_count),
+        name(fmt::format(
+          "snapshot@{}[{}]", snapshot->get_version(), generation_count))
+      {}
+
+      void do_task_implementation() override
+      {
+        self->snapshot_(std::move(snapshot), generation_count);
+      }
+
+      [[nodiscard]] const std::string& get_name() const override
+      {
+        return name;
+      }
+    };
 
     void snapshot_(
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot,
@@ -139,11 +156,12 @@ namespace ccf
       auto serialised_snapshot_size = serialised_snapshot.size();
 
       auto tx = store->create_tx();
-      auto evidence = tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
+      auto* evidence = tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
       auto snapshot_hash = ccf::crypto::Sha256Hash(serialised_snapshot);
       evidence->put({snapshot_hash, snapshot_version});
 
       ccf::ClaimsDigest cd;
+      // NOLINTNEXTLINE(performance-move-const-arg)
       cd.set(std::move(snapshot_hash));
 
       ccf::crypto::Sha256Hash ws_digest;
@@ -211,7 +229,10 @@ namespace ccf
 
         if (
           snapshot_info.is_stored && snapshot_info.evidence_idx.has_value() &&
-          idx > snapshot_info.evidence_idx.value())
+          idx > snapshot_info.evidence_idx.value() &&
+          snapshot_info.sig.has_value() && snapshot_info.tree.has_value() &&
+          snapshot_info.node_id.has_value() &&
+          snapshot_info.node_cert.has_value())
         {
           auto serialised_receipt = build_and_serialise_receipt(
             snapshot_info.sig.value(),
@@ -339,13 +360,12 @@ namespace ccf
         ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
       ::consensus::Index last_unforced_idx = last_snapshot_idx;
-      for (auto it = next_snapshot_indices.rbegin();
-           it != next_snapshot_indices.rend();
-           it++)
+      for (const auto& next_snapshot_indice :
+           std::ranges::reverse_view(next_snapshot_indices))
       {
-        if (!it->forced)
+        if (!next_snapshot_indice.forced)
         {
-          last_unforced_idx = it->idx;
+          last_unforced_idx = next_snapshot_indice.idx;
           break;
         }
       }
@@ -438,13 +458,13 @@ namespace ccf
     void schedule_snapshot(::consensus::Index idx)
     {
       static uint32_t generation_count = 0;
-      auto msg = std::make_unique<::threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
-      msg->data.self = shared_from_this();
-      msg->data.snapshot = store->snapshot_unsafe_maps(idx);
-      msg->data.generation_count = generation_count++;
 
-      auto& tm = ::threading::ThreadMessaging::instance();
-      tm.add_task(tm.get_execution_thread(generation_count), std::move(msg));
+      auto task = std::make_shared<SnapshotTask>(
+        shared_from_this(),
+        store->snapshot_unsafe_maps(idx),
+        generation_count++);
+
+      ccf::tasks::add_task(task);
     }
 
     void commit(::consensus::Index idx, bool generate_snapshot) override
@@ -479,7 +499,8 @@ namespace ccf
       auto due = next.idx - last_snapshot_idx >= snapshot_tx_interval;
       if (due || (next.forced && !next.done))
       {
-        if (snapshot_generation_enabled && generate_snapshot && next.idx)
+        if (
+          snapshot_generation_enabled && generate_snapshot && (next.idx != 0u))
         {
           schedule_snapshot(next.idx);
           next.done = true;
@@ -519,9 +540,8 @@ namespace ccf
       while (!pending_snapshots.empty())
       {
         const auto& last_snapshot = std::prev(pending_snapshots.end());
-        if (
-          last_snapshot->second.evidence_idx.has_value() &&
-          idx >= last_snapshot->second.evidence_idx.value())
+        if (auto evidence_opt = last_snapshot->second.evidence_idx;
+            evidence_opt.has_value() && idx >= evidence_opt.value())
         {
           break;
         }

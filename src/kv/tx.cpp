@@ -63,7 +63,7 @@ namespace ccf::kv
       pimpl->commit_view = p.second;
     }
 
-    auto abstract_map = pimpl->store->get_map(read_txid->version, map_name);
+    auto abstract_map = pimpl->store->get_map(read_txid->seqno, map_name);
     if (abstract_map == nullptr)
     {
       // Store doesn't know this map yet - create it dynamically
@@ -95,7 +95,7 @@ namespace ccf::kv
     return {
       abstract_map,
       untyped_map->create_change_set(
-        read_txid->version, track_deletes_on_missing_keys)};
+        read_txid->seqno, track_deletes_on_missing_keys)};
   }
 
   std::list<AbstractHandle*> BaseTx::get_possible_handles(
@@ -124,7 +124,7 @@ namespace ccf::kv
     throw CompactedVersionConflict(fmt::format(
       "Unable to retrieve state over map {} at {}",
       map_name,
-      read_txid->version));
+      read_txid->seqno));
   }
 
   BaseTx::BaseTx(AbstractStore* store_)

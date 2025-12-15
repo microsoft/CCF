@@ -5,7 +5,6 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/node_startup_state.h"
-#include "ccf/service/acme_client_config.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/code_id.h"
 #include "common/configuration.h"
@@ -23,7 +22,7 @@ namespace ccf
   class AbstractNodeState
   {
   public:
-    virtual ~AbstractNodeState() {}
+    virtual ~AbstractNodeState() = default;
 
     virtual void transition_service_to_open(
       ccf::kv::Tx& tx,
@@ -32,23 +31,14 @@ namespace ccf
     virtual void trigger_recovery_shares_refresh(ccf::kv::Tx& tx) = 0;
     virtual void trigger_ledger_chunk(ccf::kv::Tx& tx) = 0;
     virtual void trigger_snapshot(ccf::kv::Tx& tx) = 0;
-    virtual void trigger_host_process_launch(
-      const std::vector<std::string>& args,
-      const std::vector<uint8_t>& input) = 0;
-    virtual void trigger_acme_refresh(
-      ccf::kv::Tx& tx,
-      const std::optional<std::vector<std::string>>& interfaces =
-        std::nullopt) = 0;
-    virtual void install_custom_acme_challenge_handler(
-      const NodeInfoNetwork::RpcInterfaceID& interface_id,
-      std::shared_ptr<ACMEChallengeHandler> h) = 0;
-    virtual bool is_in_initialised_state() const = 0;
-    virtual bool is_part_of_public_network() const = 0;
-    virtual bool is_primary() const = 0;
+    [[nodiscard]] virtual bool is_in_initialised_state() const = 0;
+    [[nodiscard]] virtual bool is_part_of_public_network() const = 0;
+    [[nodiscard]] virtual bool is_primary() const = 0;
     virtual bool can_replicate() = 0;
-    virtual bool is_reading_public_ledger() const = 0;
-    virtual bool is_reading_private_ledger() const = 0;
-    virtual bool is_part_of_network() const = 0;
+    virtual std::optional<ccf::NodeId> get_primary() = 0;
+    [[nodiscard]] virtual bool is_reading_public_ledger() const = 0;
+    [[nodiscard]] virtual bool is_reading_private_ledger() const = 0;
+    [[nodiscard]] virtual bool is_part_of_network() const = 0;
     virtual ccf::kv::Version get_last_recovered_signed_idx() = 0;
     virtual void initiate_private_recovery(
       ccf::kv::Tx& tx,
@@ -66,13 +56,13 @@ namespace ccf
     virtual ccf::crypto::Pem get_self_signed_certificate() = 0;
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
     virtual SelfHealingOpenSubsystem& self_healing_open() = 0;
-    virtual const ccf::StartupConfig& get_node_config() const = 0;
+    [[nodiscard]] virtual const ccf::StartupConfig& get_node_config() const = 0;
     virtual ccf::crypto::Pem get_network_cert() = 0;
     virtual void stop_notice() = 0;
     virtual bool has_received_stop_notice() = 0;
     virtual bool is_member_frontend_open() = 0;
     virtual bool is_user_frontend_open() = 0;
-    virtual bool is_accessible_to_members() const = 0;
+    [[nodiscard]] virtual bool is_accessible_to_members() const = 0;
 
     virtual void make_http_request(
       const ::http::URL& url,

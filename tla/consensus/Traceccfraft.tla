@@ -4,13 +4,15 @@ EXTENDS ccfraft, Json, IOUtils, Sequences, MCAliases
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
     "raft_append_entries" :> AppendEntriesRequest @@ "raft_append_entries_response" :> AppendEntriesResponse @@
-    "raft_request_vote" :> RequestVoteRequest @@ "raft_request_vote_response" :> RequestVoteResponse @@
+    "raft_request_vote" :> RequestVoteRequest @@ "raft_request_pre_vote" :> RequestVoteRequest @@ 
+    "raft_request_vote_response" :> RequestVoteResponse @@ "raft_request_pre_vote_response" :> RequestVoteResponse @@
     "raft_propose_request_vote" :> ProposeVoteRequest
 
 ToLeadershipState ==
-    "Leader" :> Leader @@
     "Follower" :>  Follower @@ 
+    "PreVoteCandidate" :> PreVoteCandidate @@
     "Candidate" :> Candidate @@
+    "Leader" :> Leader @@
     "None" :> None
 
 ToMembershipState ==
@@ -55,6 +57,9 @@ IsRequestVoteRequest(msg, dst, src, logline) ==
     /\ IsHeader(msg, dst, src, logline, RequestVoteRequest)
     /\ msg.lastCommittableIndex = logline.msg.packet.last_committable_idx
     /\ msg.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
+    /\ IF logline.msg.packet.msg = "raft_request_vote"
+       THEN msg.isPreVote = FALSE
+       ELSE msg.isPreVote = TRUE
 
 IsRequestVoteResponse(msg, dst, src, logline) ==
     /\ IsHeader(msg, dst, src, logline, RequestVoteResponse)
@@ -111,6 +116,8 @@ TraceAppendEntriesBatchsize(i, j) ==
 TraceInitReconfigurationVars ==
     /\ InitLogConfigServerVars({TraceLog[1].msg.state.node_id}, StartLog)
 
+TraceInitPreVoteStatus == PreVoteStatusTypeInv
+
 -------------------------------------------------------------------------------------
 
 VARIABLE l, ts
@@ -149,17 +156,44 @@ IsDropPendingTo ==
     /\ IsEvent("drop_pending_to")
     /\ Network!DropMessage(logline.msg.to_node_id,
                 LAMBDA msg: IsMessage(msg, logline.msg.to_node_id, logline.msg.from_node_id, logline))
-    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 IsTimeout ==
-    /\ IsEvent("become_candidate")
-    /\ logline.msg.state.leadership_state = "Candidate"
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
+    /\ \/ /\ IsEvent("become_pre_vote_candidate")
+          /\ logline.msg.state.leadership_state = "PreVoteCandidate"
+       \/ /\ IsEvent("become_candidate")
+          /\ logline.msg.state.leadership_state = "Candidate"
     /\ Timeout(logline.msg.state.node_id)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+
+IsBecomeCandidate ==
+    /\ IsEvent("become_candidate")
+    /\ logline.msg.state.leadership_state = "Candidate"
+    /\ logline.msg.state.pre_vote_enabled /\ PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id]
+    /\ BecomeCandidateFromPreVoteCandidate(logline.msg.state.node_id)
+    /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
+    /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
+    /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+
+IsRcvProposeVoteRequest ==
+  /\ IsEvent("recv_propose_request_vote")
+  /\ LET i == logline.msg.state.node_id
+     IN
+     \E j \in Servers:
+     \E m \in Network!MessagesTo(i,j):
+        /\ m.type = ProposeVoteRequest
+        /\ m.term = logline.msg.packet.term
+        /\ RcvProposeVoteRequest(i,j)
+  /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
+  /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+  /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsBecomeLeader ==
     /\ IsEvent("become_leader")
@@ -170,6 +204,7 @@ IsBecomeLeader ==
     /\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
     
 IsClientRequest ==
     /\ IsEvent("replicate")
@@ -181,6 +216,7 @@ IsClientRequest ==
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsCleanupNodes ==
     /\ IsEvent("replicate")
@@ -192,6 +228,7 @@ IsCleanupNodes ==
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsSendAppendEntries ==
     /\ IsEvent("send_append_entries")
@@ -211,6 +248,7 @@ IsSendAppendEntries ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsRcvAppendEntriesRequest ==
     /\ IsEvent("recv_append_entries")
@@ -226,6 +264,7 @@ IsRcvAppendEntriesRequest ==
               /\ IsAppendEntriesRequest(m, i, j, logline)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsSendAppendEntriesResponse ==
     \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
@@ -237,12 +276,14 @@ IsSendAppendEntriesResponse ==
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
  
 IsAddConfiguration ==
     /\ IsEvent("add_configuration")
     /\ leadershipState[logline.msg.state.node_id] = Follower
     /\ UNCHANGED vars
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsSignCommittableMessages ==
     /\ IsEvent("replicate")
@@ -259,6 +300,7 @@ IsSignCommittableMessages ==
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsAdvanceCommitIndex ==
     \* This is enabled *after* a SignCommittableMessages because ACI looks for a 
@@ -273,11 +315,13 @@ IsAdvanceCommitIndex ==
        /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
        /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
        /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+       /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
     \/ /\ IsEvent("commit")
        /\ UNCHANGED vars
        /\ logline.msg.state.leadership_state = "Follower"
        /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
        /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+       /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsChangeConfiguration ==
     /\ IsEvent("add_configuration")
@@ -290,6 +334,7 @@ IsChangeConfiguration ==
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsRcvAppendEntriesResponse ==
     /\ IsEvent("recv_append_entries_response")
@@ -311,6 +356,7 @@ IsRcvAppendEntriesResponse ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsSendRequestVote ==
     /\ IsEvent("send_request_vote")
@@ -327,6 +373,7 @@ IsSendRequestVote ==
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsRcvRequestVoteRequest ==
     \/ /\ IsEvent("recv_request_vote")
@@ -342,6 +389,7 @@ IsRcvRequestVoteRequest ==
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsExecuteAppendEntries ==
     \* Skip append because ccfraft!HandleRequestVoteRequest atomically handles the request, sends the response,
@@ -354,9 +402,11 @@ IsExecuteAppendEntries ==
        /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
        /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
        /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+       /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsRcvRequestVoteResponse ==
-    /\ IsEvent("recv_request_vote_response")
+    /\ \/ IsEvent("recv_request_vote_response")
+       \/ IsEvent("recv_request_pre_vote_response")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
        IN \E m \in Network!MessagesTo(i, j):
@@ -373,16 +423,17 @@ IsRcvRequestVoteResponse ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
     /\ UNCHANGED vars \* UNCHANGED implies that it doesn't matter if we prime the previous variables.
+    \* We don't assert committable and last idx here, as the spec and implementation are out of sync until
+    \* IsSendAppendEntriesResponse or IsSendRequestVote (in the candidate path)
     /\ leadershipState[logline.msg.state.node_id] # Leader
-    /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
-    /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsCheckQuorum ==
     /\ IsEvent("become_follower")
@@ -393,27 +444,26 @@ IsCheckQuorum ==
     /\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
-IsRcvProposeVoteRequest ==
-    /\ IsEvent("recv_propose_request_vote")
-    /\ LET i == logline.msg.state.node_id
-           j == logline.msg.from_node_id
-       IN \E m \in Network!MessagesTo(i, j):
-            /\ m.type = ProposeVoteRequest
-            /\ m.term = logline.msg.packet.term
-            /\ Discard(m)
-            /\ UNCHANGED <<commitIndex, reconfigurationVars, currentTerm, isNewFollower, leadershipState, log, matchIndex, membershipState, sentIndex, votedFor, votesGranted>>
+IsSigTermProposeVote ==
+    /\ IsEvent("step_down_and_nominate_successor")
+    /\ SigTermProposeVote(logline.msg.state.node_id)
+    /\ leadershipState[logline.msg.state.node_id] = Leader
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 TraceNext ==
     \/ IsTimeout
+    \/ IsBecomeCandidate
     \/ IsBecomeLeader
     \/ IsBecomeFollower
     \/ IsCheckQuorum
+    \/ IsSigTermProposeVote
 
     \/ IsClientRequest
     \/ IsCleanupNodes
@@ -528,6 +578,7 @@ TraceDifferentialInv ==
 TraceAlias ==
     DebugAlias @@
     [
+        l |-> l,
         _logline |-> TraceLog[l-1]
 
         \* Uncomment _ENABLED when debugging the enablement state of ccfraft's actions.

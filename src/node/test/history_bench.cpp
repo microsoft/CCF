@@ -64,7 +64,7 @@ static void append(picobench::state& s)
   ::srand(42);
 
   ccf::kv::Store store;
-  auto node_kp = ccf::crypto::make_key_pair();
+  auto node_kp = ccf::crypto::make_ec_key_pair();
 
   std::shared_ptr<ccf::kv::Consensus> consensus =
     std::make_shared<DummyConsensus>();
@@ -103,7 +103,7 @@ static void append_compact(picobench::state& s)
   ::srand(42);
 
   ccf::kv::Store store;
-  auto node_kp = ccf::crypto::make_key_pair();
+  auto node_kp = ccf::crypto::make_ec_key_pair();
 
   std::shared_ptr<ccf::kv::Consensus> consensus =
     std::make_shared<DummyConsensus>();
@@ -158,7 +158,6 @@ PICOBENCH(append_compact<1000>).iterations(sizes);
 int main(int argc, char* argv[])
 {
   ccf::logger::config::level() = ccf::LoggerLevel::FATAL;
-  ::threading::ThreadMessaging::init(1);
 
   picobench::runner runner;
   runner.parse_cmd_line(argc, argv);

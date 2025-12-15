@@ -19,16 +19,7 @@ def absolute_path_to_existing_file(arg):
 
 
 def nodes(args, n):
-    return [
-        infra.interfaces.HostSpec(
-            rpc_interfaces={
-                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface.from_args(
-                    args
-                )
-            }
-        )
-        for _ in range(n)
-    ]
+    return [infra.interfaces.HostSpec().with_args(args) for _ in range(n)]
 
 
 def min_nodes(args, f):

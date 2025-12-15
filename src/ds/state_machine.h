@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <string>
+#include <utility>
 
 namespace ds
 {
@@ -16,8 +17,8 @@ namespace ds
     std::atomic<T> state;
 
   public:
-    StateMachine(const std::string& label_, T state_) :
-      label(label_),
+    StateMachine(std::string label_, T state_) :
+      label(std::move(label_)),
       state(state_)
     {}
 
@@ -31,12 +32,12 @@ namespace ds
       }
     }
 
-    bool check(T state_) const
+    [[nodiscard]] bool check(T state_) const
     {
       return state_ == state.load();
     }
 
-    T value() const
+    [[nodiscard]] T value() const
     {
       return state.load();
     }

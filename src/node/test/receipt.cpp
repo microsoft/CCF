@@ -3,11 +3,11 @@
 
 #include "ccf/receipt.h"
 
-#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/service/tables/nodes.h"
+#include "crypto/openssl/ec_key_pair.h"
 #include "crypto/openssl/hash.h"
-#include "crypto/openssl/key_pair.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
@@ -35,7 +35,7 @@ void populate_receipt(std::shared_ptr<ccf::ProofReceipt> receipt)
   const auto valid_to =
     ccf::ds::to_x509_time_string(std::chrono::system_clock::now() + 1h);
 
-  auto node_kp = ccf::crypto::make_key_pair();
+  auto node_kp = ccf::crypto::make_ec_key_pair();
   auto node_cert = node_kp->self_sign("CN=node", valid_from, valid_to);
 
   receipt->cert = node_cert;
@@ -46,14 +46,15 @@ void populate_receipt(std::shared_ptr<ccf::ProofReceipt> receipt)
   const auto num_proof_steps = rand() % 8;
   for (auto i = 0; i < num_proof_steps; ++i)
   {
-    const auto dir = rand() % 2 == 0 ? ccf::ProofReceipt::ProofStep::Left :
-                                       ccf::ProofReceipt::ProofStep::Right;
+    const auto dir = rand() % 2 == 0 ?
+      ccf::ProofReceipt::ProofStep::Direction::Left :
+      ccf::ProofReceipt::ProofStep::Direction::Right;
     const auto digest = rand_digest();
 
     ccf::ProofReceipt::ProofStep step{dir, digest};
     receipt->proof.push_back(step);
 
-    if (dir == ccf::ProofReceipt::ProofStep::Left)
+    if (dir == ccf::ProofReceipt::ProofStep::Direction::Left)
     {
       current_digest = ccf::crypto::Sha256Hash(digest, current_digest);
     }
@@ -64,12 +65,13 @@ void populate_receipt(std::shared_ptr<ccf::ProofReceipt> receipt)
   }
 
   const auto root = receipt->calculate_root();
+  REQUIRE(root == current_digest);
   receipt->signature = node_kp->sign_hash(root.h.data(), root.h.size());
 
   const auto num_endorsements = rand() % 3;
   for (auto i = 0; i < num_endorsements; ++i)
   {
-    auto service_kp = ccf::crypto::make_key_pair();
+    auto service_kp = ccf::crypto::make_ec_key_pair();
     auto service_cert =
       service_kp->self_sign("CN=service", valid_from, valid_to);
     const auto csr = node_kp->create_csr(fmt::format("CN=Test{}", i));

@@ -23,7 +23,7 @@ namespace ccf
   class AbstractNodeOperation : public ccf::AbstractNodeSubSystem
   {
   public:
-    virtual ~AbstractNodeOperation() = default;
+    ~AbstractNodeOperation() override = default;
 
     static char const* get_subsystem_name()
     {
@@ -32,17 +32,18 @@ namespace ccf
 
     virtual ExtendedState state() = 0;
 
-    virtual bool is_in_initialised_state() const = 0;
-    virtual bool is_part_of_public_network() const = 0;
-    virtual bool is_part_of_network() const = 0;
-    virtual bool is_reading_public_ledger() const = 0;
-    virtual bool is_reading_private_ledger() const = 0;
+    [[nodiscard]] virtual bool is_in_initialised_state() const = 0;
+    [[nodiscard]] virtual bool is_part_of_public_network() const = 0;
+    [[nodiscard]] virtual bool is_part_of_network() const = 0;
+    [[nodiscard]] virtual bool is_reading_public_ledger() const = 0;
+    [[nodiscard]] virtual bool is_reading_private_ledger() const = 0;
 
     virtual bool is_user_frontend_open() = 0;
     virtual bool is_member_frontend_open() = 0;
-    virtual bool is_accessible_to_members() const = 0;
+    [[nodiscard]] virtual bool is_accessible_to_members() const = 0;
 
     virtual bool can_replicate() = 0;
+    virtual std::optional<ccf::NodeId> get_primary() = 0;
 
     virtual ccf::kv::Version get_last_recovered_signed_idx() = 0;
     virtual ccf::kv::Version get_startup_snapshot_seqno() = 0;

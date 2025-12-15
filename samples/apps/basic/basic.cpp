@@ -95,7 +95,7 @@ namespace basicapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
-      auto post = [this](ccf::endpoints::EndpointContext& ctx) {
+      auto post = [](ccf::endpoints::EndpointContext& ctx) {
         const nlohmann::json body =
           nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
 

@@ -76,7 +76,7 @@ namespace ccf::kv
      * (true) or stop (false)
      */
     template <class F>
-    void foreach(F&& f)
+    void foreach(F&& f) // NOLINT(cppcoreguidelines-missing-std-forward)
     {
       auto g = [&](
                  const ccf::kv::serialisers::SerialisedEntry& k_rep,

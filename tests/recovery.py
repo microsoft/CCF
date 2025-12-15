@@ -475,6 +475,25 @@ def test_recover_service_with_wrong_identity(network, args):
         shifted_tx(curr_tx_id, 0, -3),
     ]
 
+    with primary.client("user0") as client:
+
+        def pull_with_handle():
+            # Receipts for previous service instances require back-endorsement.
+            # In this case it should trigger reading pulling up state
+            # for previous_service_created_tx_id, which will have an overlapping
+            # seqno with the target tx, but this has to work just fine due to
+            # App/Sys handle split.
+            return client.get(
+                f"/log/private/historical/handle?seqno={previous_service_created_tx_id.seqno + 1}&handle={previous_service_created_tx_id.seqno}"
+            ).status_code
+
+        for _ in range(10):
+            if pull_with_handle() == http.HTTPStatus.OK:
+                break
+            time.sleep(0.5)
+        else:
+            assert False, "Could not get a receipt with a custom handle"
+
     for tx in txids:
         receipt = primary.get_receipt(tx.view, tx.seqno).json()
 
@@ -712,7 +731,7 @@ def test_persistence_old_snapshot(network, args):
     with old_primary.client() as c:
         latest_txid = c.get("/node/commit").body.json()["transaction_id"]
 
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     # Use invalid node-to-node interface so that the new node is isolated and does
     # not receive any consensus updates.
     new_node.n2n_interface = infra.interfaces.Interface(host="invalid", port=8000)
@@ -1369,6 +1388,8 @@ checked. Note that the key for each logging message is unique (per table).
         ("double_sealed_service", 2, False),
         # cose_flipflop_service is a regression test for the issue described in #7002
         ("cose_flipflop_service", 0, False),
+        # acme_containing_service is a compatibility test for acme-containing ledgers
+        ("acme_containing_service", 0, True),
     ):
         cr.add(
             f"recovery_from_{directory}",

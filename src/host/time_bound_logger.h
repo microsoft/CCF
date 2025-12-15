@@ -18,11 +18,15 @@ namespace asynchost
       const auto us =
         std::chrono::duration_cast<std::chrono::microseconds>(d).count();
       if (us < 1000)
+      {
         return fmt::format("{:>7.03f}us", static_cast<float>(us));
+      }
 
       const auto ms = us / 1000.0f;
       if (ms < 1000)
+      {
         return fmt::format("{:>7.03f}ms", ms);
+      }
 
       const auto s = ms / 1000.0f;
       return fmt::format("{:>7.03f}s", s);
@@ -39,8 +43,8 @@ namespace asynchost
 
     template <typename Rep, typename Period>
     TimeBoundLogger(
-      const std::string& m, const std::chrono::duration<Rep, Period>& mt) :
-      message(m),
+      std::string m, const std::chrono::duration<Rep, Period>& mt) :
+      message(std::move(m)),
       max_time(std::chrono::duration_cast<TClock::duration>(mt)),
       start_time(TClock::now())
     {}
@@ -49,7 +53,13 @@ namespace asynchost
     {
       const auto end_time = TClock::now();
       const auto elapsed = end_time - start_time;
-      if (elapsed > max_time)
+      constexpr auto out_of_distribution_multiplier = 100;
+      if (elapsed > max_time * out_of_distribution_multiplier)
+      {
+        LOG_FAIL_FMT(
+          "Operation took too long ({}): {}", human_time(elapsed), message);
+      }
+      else if (elapsed > max_time)
       {
         LOG_INFO_FMT(
           "Operation took too long ({}): {}", human_time(elapsed), message);

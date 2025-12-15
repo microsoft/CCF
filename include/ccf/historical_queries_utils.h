@@ -39,5 +39,13 @@ namespace ccf::historical
   bool populate_cose_service_endorsements(
     ccf::kv::ReadOnlyTx& tx,
     ccf::historical::StatePtr& state,
-    AbstractStateCache& state_cache);
+    std::shared_ptr<NetworkIdentitySubsystemInterface>
+      network_identity_subsystem);
+
+  // Verifies CCF COSE receipt using the *current network* identity's
+  // certificate.
+  void verify_self_issued_receipt(
+    const std::vector<uint8_t>& cose_receipt,
+    std::shared_ptr<NetworkIdentitySubsystemInterface>
+      network_identity_subsystem);
 }

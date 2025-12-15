@@ -4,6 +4,7 @@
 from enum import StrEnum
 from os import getenv, path
 import sys
+import re
 
 
 class Platform(StrEnum):
@@ -26,11 +27,32 @@ def _detect_platform():
     )
 
 
+def _detect_amd_platform_name():
+    pattern = re.compile(r"model name\s*:\s*AMD EPYC (....) ")
+    milan = re.compile(r"7..3")
+    genoa = re.compile(r"9..4")
+    with open("/proc/cpuinfo", "r") as cpuinfo_file:
+        for line in cpuinfo_file:
+            match = pattern.match(line)
+            if match:
+                num = match.group(1)
+                if milan.match(num):
+                    return "milan"
+                elif genoa.match(num):
+                    return "genoa"
+    return "unknown"
+
+
 _CURRENT_PLATFORM = _detect_platform()
+_CURRENT_PLATFORM_AMD_NAME = _detect_amd_platform_name()
 
 
 def get_platform():
     return _CURRENT_PLATFORM
+
+
+def get_amd_platform_name():
+    return _CURRENT_PLATFORM_AMD_NAME
 
 
 def is_snp():
@@ -43,15 +65,16 @@ def is_virtual():
 
 if __name__ == "__main__":
     current = get_platform()
+    amd_name = get_amd_platform_name()
     if len(sys.argv) == 1:
-        print(f"Detected platform is: {current}")
-    elif len(sys.argv) == 2:
-        expectation = sys.argv[1]
-        if expectation == current:
+        print(f"Detected platform is: {current} {amd_name}")
+    elif len(sys.argv) in (2, 3):
+        expectation = sys.argv[1:]
+        if expectation == [current, amd_name] or expectation == [current]:
             print(f"Confirmed running on expected platform: {current}")
         else:
             print(
-                f"Not running on expected platform! Expected: {expectation}. Actual: {current}",
+                f"Not running on expected platform. Expected: {" ".join(expectation)}. Actual: {current} {amd_name}",
                 file=sys.stderr,
             )
             sys.exit(1)

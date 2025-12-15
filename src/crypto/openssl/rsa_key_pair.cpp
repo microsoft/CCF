@@ -81,7 +81,7 @@ namespace ccf::crypto
     CHECKPOSITIVE(
       BN_bn2nativepad(qi, qi_raw_native.data(), qi_raw_native.size()));
 
-    auto [n_raw, e_raw] = RSAPublicKey_OpenSSL::rsa_public_raw_from_jwk(jwk);
+    auto [n_raw, e_raw] = rsa_public_raw_from_jwk(jwk);
 
     // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
     OSSL_PARAM params[9];
@@ -114,11 +114,6 @@ namespace ccf::crypto
     CHECK1(EVP_PKEY_fromdata_init(pctx));
     CHECK1(EVP_PKEY_fromdata(
       pctx, &key, EVP_PKEY_KEYPAIR, static_cast<OSSL_PARAM*>(params)));
-  }
-
-  size_t RSAKeyPair_OpenSSL::key_size() const
-  {
-    return RSAPublicKey_OpenSSL::key_size();
   }
 
   std::vector<uint8_t> RSAKeyPair_OpenSSL::rsa_oaep_unwrap(
@@ -178,14 +173,44 @@ namespace ccf::crypto
     return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
   }
 
-  Pem RSAKeyPair_OpenSSL::public_key_pem() const
+  std::vector<uint8_t> RSAKeyPair_OpenSSL::private_key_der() const
   {
-    return RSAPublicKey_OpenSSL::public_key_pem();
+    Unique_BIO buf;
+
+    OpenSSL::CHECK1(i2d_PrivateKey_bio(buf, key));
+
+    BUF_MEM* bptr = nullptr;
+    BIO_get_mem_ptr(buf, &bptr);
+    return {bptr->data, bptr->data + bptr->length};
   }
 
-  std::vector<uint8_t> RSAKeyPair_OpenSSL::public_key_der() const
+  JsonWebKeyRSAPrivate RSAKeyPair_OpenSSL::private_key_jwk(
+    const std::optional<std::string>& kid) const
   {
-    return RSAPublicKey_OpenSSL::public_key_der();
+    JsonWebKeyRSAPrivate jwk = {RSAPublicKey_OpenSSL::public_key_jwk(kid)};
+
+    Unique_BIGNUM d;
+    Unique_BIGNUM p;
+    Unique_BIGNUM q;
+    Unique_BIGNUM dp;
+    Unique_BIGNUM dq;
+    Unique_BIGNUM qi;
+
+    d = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_D);
+    p = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_FACTOR1);
+    q = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_FACTOR2);
+    dp = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_EXPONENT1);
+    dq = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_EXPONENT2);
+    qi = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_COEFFICIENT1);
+
+    jwk.d = b64url_from_raw(bn_to_bytes(d), false);
+    jwk.p = b64url_from_raw(bn_to_bytes(p), false);
+    jwk.q = b64url_from_raw(bn_to_bytes(q), false);
+    jwk.dp = b64url_from_raw(bn_to_bytes(dp), false);
+    jwk.dq = b64url_from_raw(bn_to_bytes(dq), false);
+    jwk.qi = b64url_from_raw(bn_to_bytes(qi), false);
+
+    return jwk;
   }
 
   std::vector<uint8_t> RSAKeyPair_OpenSSL::sign(
@@ -206,44 +231,20 @@ namespace ccf::crypto
     return r;
   }
 
-  bool RSAKeyPair_OpenSSL::verify(
-    const uint8_t* contents,
-    size_t contents_size,
-    const uint8_t* signature,
-    size_t signature_size,
-    MDType md_type,
-    size_t salt_length)
+  RSAKeyPairPtr make_rsa_key_pair(
+    size_t public_key_size, size_t public_exponent)
   {
-    return RSAPublicKey_OpenSSL::verify(
-      contents, contents_size, signature, signature_size, md_type, salt_length);
+    return std::make_shared<RSAKeyPair_OpenSSL>(
+      public_key_size, public_exponent);
   }
 
-  JsonWebKeyRSAPrivate RSAKeyPair_OpenSSL::private_key_jwk_rsa(
-    const std::optional<std::string>& kid) const
+  RSAKeyPairPtr make_rsa_key_pair(const Pem& pem)
   {
-    JsonWebKeyRSAPrivate jwk = {RSAPublicKey_OpenSSL::public_key_jwk_rsa(kid)};
+    return std::make_shared<RSAKeyPair_OpenSSL>(pem);
+  }
 
-    Unique_BIGNUM d;
-    Unique_BIGNUM p;
-    Unique_BIGNUM q;
-    Unique_BIGNUM dp;
-    Unique_BIGNUM dq;
-    Unique_BIGNUM qi;
-
-    d = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_D);
-    p = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_FACTOR1);
-    q = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_FACTOR2);
-    dp = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_EXPONENT1);
-    dq = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_EXPONENT2);
-    qi = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_COEFFICIENT1);
-
-    jwk.d = b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(d), false);
-    jwk.p = b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(p), false);
-    jwk.q = b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(q), false);
-    jwk.dp = b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(dp), false);
-    jwk.dq = b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(dq), false);
-    jwk.qi = b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(qi), false);
-
-    return jwk;
+  RSAKeyPairPtr make_rsa_key_pair(const JsonWebKeyRSAPrivate& jwk)
+  {
+    return std::make_shared<RSAKeyPair_OpenSSL>(jwk);
   }
 }

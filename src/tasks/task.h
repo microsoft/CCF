@@ -27,10 +27,7 @@ namespace ccf::tasks
 
     void do_task();
 
-    virtual std::string_view get_name() const
-    {
-      return "[Anon]";
-    }
+    [[nodiscard]] virtual const std::string& get_name() const = 0;
 
     void cancel_task();
     bool is_cancelled();

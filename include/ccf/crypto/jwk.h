@@ -10,7 +10,7 @@
 
 namespace ccf::crypto
 {
-  enum class JsonWebKeyType
+  enum class JsonWebKeyType : uint8_t
   {
     EC = 0,
     RSA = 1,
@@ -24,7 +24,7 @@ namespace ccf::crypto
 
   struct JsonWebKey
   {
-    JsonWebKeyType kty;
+    JsonWebKeyType kty = JsonWebKeyType::EC;
     std::optional<std::string> kid = std::nullopt;
     std::optional<std::vector<std::string>> x5c = std::nullopt;
 
@@ -34,7 +34,7 @@ namespace ccf::crypto
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKey, kty);
   DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKey, kid, x5c);
 
-  enum class JsonWebKeyECCurve
+  enum class JsonWebKeyECCurve : uint8_t
   {
     P256 = 0,
     P384 = 1,
@@ -48,7 +48,7 @@ namespace ccf::crypto
 
   struct JsonWebKeyData
   {
-    JsonWebKeyType kty;
+    JsonWebKeyType kty = JsonWebKeyType::EC;
     std::optional<std::string> kid = std::nullopt;
     std::optional<std::vector<std::string>> x5c = std::nullopt;
     std::optional<std::string> n = std::nullopt;
@@ -91,7 +91,7 @@ namespace ccf::crypto
     }
   }
 
-  enum class JsonWebKeyEdDSACurve
+  enum class JsonWebKeyEdDSACurve : std::uint8_t
   {
     ED25519 = 0,
     X25519 = 1
@@ -116,7 +116,7 @@ namespace ccf::crypto
 
   struct JsonWebKeyECPublic : JsonWebKey
   {
-    JsonWebKeyECCurve crv;
+    JsonWebKeyECCurve crv = JsonWebKeyECCurve::P256;
     std::string x; // base64url
     std::string y; // base64url
 
@@ -160,7 +160,7 @@ namespace ccf::crypto
 
   struct JsonWebKeyEdDSAPublic : JsonWebKey
   {
-    JsonWebKeyEdDSACurve crv;
+    JsonWebKeyEdDSACurve crv = JsonWebKeyEdDSACurve::ED25519;
     std::string x; // base64url
 
     bool operator==(const JsonWebKeyEdDSAPublic&) const = default;

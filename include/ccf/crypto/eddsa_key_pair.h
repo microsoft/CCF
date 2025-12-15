@@ -3,12 +3,9 @@
 #pragma once
 
 #include "ccf/crypto/curve.h"
-#include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/eddsa_public_key.h"
 #include "ccf/crypto/jwk.h"
-#include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/pem.h"
-#include "ccf/crypto/public_key.h"
 #include "ccf/crypto/san.h"
 
 #include <cstdint>
@@ -26,14 +23,15 @@ namespace ccf::crypto
     /**
      * Get the private key in PEM format
      */
-    virtual Pem private_key_pem() const = 0;
+    [[nodiscard]] virtual Pem private_key_pem() const = 0;
 
     /**
      * Get the public key in PEM format
      */
-    virtual Pem public_key_pem() const = 0;
+    [[nodiscard]] virtual Pem public_key_pem() const = 0;
 
-    virtual std::vector<uint8_t> sign(std::span<const uint8_t> d) const = 0;
+    [[nodiscard]] virtual std::vector<uint8_t> sign(
+      std::span<const uint8_t> d) const = 0;
 
     virtual bool verify(
       const uint8_t* contents,
@@ -49,9 +47,9 @@ namespace ccf::crypto
         contents.data(), contents.size(), signature.data(), signature.size());
     }
 
-    virtual CurveID get_curve_id() const = 0;
+    [[nodiscard]] virtual CurveID get_curve_id() const = 0;
 
-    virtual JsonWebKeyEdDSAPrivate private_key_jwk_eddsa(
+    [[nodiscard]] virtual JsonWebKeyEdDSAPrivate private_key_jwk_eddsa(
       const std::optional<std::string>& kid = std::nullopt) const = 0;
   };
 

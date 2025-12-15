@@ -65,8 +65,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/snmalloc",
-          "commitHash": "3385660fd7c674c11c74b501fd57646dc50618e2",
-          "tag": "0.7.2"
+          "commitHash": "92ca9184886f983bb1cf9f4614c9569db442d097",
+          "tag": "0.7.3"
         }
       }
     },
@@ -126,6 +126,16 @@
           "repositoryUrl": "https://github.com/laurencelundblade/t_cose",
           "commitHash": "64fbc64dd5982a7f75834d2b9a2a8c9ba8207776",
           "tag": "v1.1.3"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/project-everest/everparse",
+          "commitHash": "3eedec7ccde1762aefee10db4a1d505142bda12f",
+          "tag": "v2025.12.10"
         }
       }
     },

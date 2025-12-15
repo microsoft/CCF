@@ -34,7 +34,8 @@ namespace ccf
     }
 
     template <typename T>
-    std::shared_ptr<T> get_subsystem(const std::string& name) const
+    [[nodiscard]] std::shared_ptr<T> get_subsystem(
+      const std::string& name) const
     {
       const auto it = subsystems.find(name);
       if (it != subsystems.end())
@@ -56,22 +57,23 @@ namespace ccf
     }
 
     template <typename T>
-    std::shared_ptr<T> get_subsystem() const
+    [[nodiscard]] std::shared_ptr<T> get_subsystem() const
     {
       return get_subsystem<T>(T::get_subsystem_name());
     }
 
-    virtual ccf::NodeId get_node_id() const
+    [[nodiscard]] virtual ccf::NodeId get_node_id() const
     {
       return {};
     }
 
-    virtual ccf::crypto::Pem get_self_signed_certificate() const
+    [[nodiscard]] virtual ccf::crypto::Pem get_self_signed_certificate() const
     {
       return {};
     }
 
-    ccf::historical::AbstractStateCache& get_historical_state()
+    [[nodiscard]] ccf::historical::AbstractStateCache& get_historical_state()
+      const
     {
       auto historical_state_cache =
         get_subsystem<ccf::historical::AbstractStateCache>();
@@ -83,7 +85,8 @@ namespace ccf
       return *historical_state_cache;
     }
 
-    ccf::indexing::IndexingStrategies& get_indexing_strategies()
+    [[nodiscard]] ccf::indexing::IndexingStrategies& get_indexing_strategies()
+      const
     {
       auto indexer = get_subsystem<ccf::indexing::IndexingStrategies>();
       if (indexer == nullptr)

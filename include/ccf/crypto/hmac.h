@@ -11,6 +11,6 @@ namespace ccf::crypto
    */
   HashBytes hmac(
     MDType type,
-    const std::vector<uint8_t>& key,
-    const std::vector<uint8_t>& data);
+    const std::span<const uint8_t>& key,
+    const std::span<const uint8_t>& data);
 }

@@ -3,70 +3,115 @@
 #pragma once
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "ccf/crypto/public_key.h"
 
-#include <openssl/err.h>
 #include <openssl/evp.h>
 #include <stdexcept>
 #include <string>
 
 namespace ccf::crypto
 {
-  class PublicKey_OpenSSL : public PublicKey
+  class PublicKey_OpenSSL
   {
   protected:
+    // The key is always owned by the PublicKey_OpenSSL instance
+    // even when passed to the constructor, and is disposed of
+    // by the PublicKey_OpenSSL destructor.
     EVP_PKEY* key = nullptr;
-    PublicKey_OpenSSL();
-
-    static std::vector<uint8_t> ec_point_public_from_jwk(
-      const JsonWebKeyECPublic& jwk);
 
   public:
-    PublicKey_OpenSSL(PublicKey_OpenSSL&& key) = default;
-    PublicKey_OpenSSL(EVP_PKEY* key);
-    PublicKey_OpenSSL(const Pem& pem);
-    PublicKey_OpenSSL(std::span<const uint8_t> der);
-    PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk);
-    virtual ~PublicKey_OpenSSL();
+    PublicKey_OpenSSL() = default;
+    PublicKey_OpenSSL(EVP_PKEY* key) : key(key) {}
+    PublicKey_OpenSSL(const Pem& pem)
+    {
+      OpenSSL::Unique_BIO mem(pem);
+      key = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
+      if (key == nullptr)
+      {
+        throw std::runtime_error("could not parse PEM");
+      }
+    }
 
-    using PublicKey::verify;
-    using PublicKey::verify_hash;
+    void check_is_cose_compatible(int cose_alg)
+    {
+      if (key == nullptr)
+      {
+        throw std::logic_error("Public key is not initialized");
+      }
 
-    virtual bool verify(
-      const uint8_t* contents,
-      size_t contents_size,
-      const uint8_t* sig,
-      size_t sig_size,
-      MDType md_type,
-      HashBytes& bytes) override;
+      const int key_type = EVP_PKEY_get_base_id(key);
 
-    virtual bool verify_hash(
-      const uint8_t* hash,
-      size_t hash_size,
-      const uint8_t* sig,
-      size_t sig_size,
-      MDType md_type) override;
+      if (key_type == EVP_PKEY_EC)
+      {
+        // Get the curve name
+        size_t gname_len = 0;
+        OpenSSL::CHECK1(EVP_PKEY_get_group_name(key, nullptr, 0, &gname_len));
+        std::string gname(gname_len + 1, '\0');
+        OpenSSL::CHECK1(
+          EVP_PKEY_get_group_name(key, gname.data(), gname.size(), &gname_len));
+        gname.resize(gname_len);
 
-    virtual Pem public_key_pem() const override;
-    virtual std::vector<uint8_t> public_key_der() const override;
-    virtual std::vector<uint8_t> public_key_raw() const override;
-
-    virtual CurveID get_curve_id() const override;
-
-    int get_openssl_group_id() const;
-    static int get_openssl_group_id(CurveID gid);
+        // Map curve to COSE algorithm
+        if (gname == SN_X9_62_prime256v1) // P-256
+        {
+          if (cose_alg != -7)
+          {
+            throw std::domain_error(fmt::format(
+              "secp256r1 key cannot be used with COSE algorithm {}", cose_alg));
+          }
+        }
+        else if (gname == SN_secp384r1) // P-384
+        {
+          if (cose_alg != -35)
+          {
+            throw std::domain_error(fmt::format(
+              "secp384r1 key cannot be used with COSE algorithm {}", cose_alg));
+          }
+        }
+        else if (gname == SN_secp521r1) // P-521
+        {
+          if (cose_alg != -36)
+          {
+            throw std::domain_error(fmt::format(
+              "secp521r1 key cannot be used with COSE algorithm {}", cose_alg));
+          }
+        }
+        else
+        {
+          throw std::domain_error(
+            fmt::format("Unsupported EC curve: {}", gname));
+        }
+      }
+      else if (key_type == EVP_PKEY_RSA || key_type == EVP_PKEY_RSA_PSS)
+      {
+        // It is RECOMMENDED although not required to match hash function and
+        // key sizes, so any of PS256(-37), PS384(-38), and PS512(-39) is
+        // acceptable.
+        //
+        // https://www.iana.org/assignments/cose/cose.xhtml
+        if (cose_alg != -37 && cose_alg != -38 && cose_alg != -39)
+        {
+          throw std::domain_error(
+            fmt::format("Incompatible cose algorithm {} for RSA", cose_alg));
+        }
+      }
+      else
+      {
+        throw std::domain_error(
+          fmt::format("Unsupported key type {}", key_type));
+      }
+    }
 
     operator EVP_PKEY*() const
     {
       return key;
     }
 
-    virtual Coordinates coordinates() const override;
-
-    virtual JsonWebKeyECPublic public_key_jwk(
-      const std::optional<std::string>& kid = std::nullopt) const override;
+    virtual ~PublicKey_OpenSSL()
+    {
+      if (key != nullptr)
+      {
+        EVP_PKEY_free(key);
+      }
+    }
   };
-
-  OpenSSL::Unique_PKEY key_from_raw_ec_point(
-    const std::vector<uint8_t>& raw, int nid);
 }

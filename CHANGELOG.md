@@ -5,6 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev6]
+
+[7.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev6
+
+### Added
+
+- Support for Turin attestations (#7499)
+- verify_attestation script to fetch endorsements from AMD and check the provided attestation against them (#7499)
+- PreVote optimistaion enabled. This requires that a follower checks that it could be elected before becoming a candidate. This optimisation improves the availablilty of Raft when there are omission faults like partial network partitions. (#7462)
+- ProposeRequestVote on SIGTERM. When a primary, with `ignore_first_sigterm` receives the first SIGTERM, it nominates a successor, allowing the successor to skip waiting for the election timeout and call an election right away. (#7514)
+
+### Changed
+
+- Start nodes now confirm that read-only ledger directories are empty on startup (#7355).
+- In the C++ API, the method `get_txid()` on `ccf::kv::ReadOnlyStore` has been renamed to `current_txid()`. This may affect historical query code which works directly with the returned `StorePtr` (#7477).
+- The C++ API for installing endpoints with local commit handlers has changed. These handlers should now be added to an `Endpoint` with `.set_locally_committed_function(handler)`, and the `make_[read_only_]endpoint_with_local_commit_handler` methods on `EndpointRegistry` have been removed (#7487).
+- The format of CCF's stdout logging has changed. Each line previously tried to align host logs with enclave logs containing a timestamp offset. Since enclave logs no longer exist, this timestamp is never present, so the padding whitespace has been removed (#7491).
+- Introduced `ccf::historical::verify_self_issued_receipt` to verify COSE CCF receipts against current service identity (#7494).
+
+## [7.0.0-dev5]
+
+[7.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev5
+
+### Added
+
+- Support for PreVote optimisation. Nodes understand and are able to respond to PreVote messages, but will not become pre-vote candidates themselves. (#7419, #7445)
+
+### Changed
+
+- When the `fetch_recent_snapshot` behaviour is enabled by the node config, the Joiner will now prefer the peer's snapshot over _any_ local snapshot, regardless of version (#7314).
+- Crypto interface for RSA and EC keys (#7425)
+  - `ccf::crypto::PublicKey` becomes `ccf::crypto::ECPublicKey`
+  - `ccf::crypto::KeyPair` becomes `ccf::crypto::ECKeyPair`
+  - Error-prone inheritance between RSA and EC key classes has been removed.
+  - RSA keys now don't re-use CSR functionality from EC key interface.
+
+### Removed
+
+- Removed the unused experimental `ccf.host.triggerSubprocess()` JS API
+- Removed ACME client and support for ACME-endorsed interfaces (#7414).
+- Removed fallback JWT authentication (#7442)
+  - It is recommended to clean up the old tables for services started before 6.x - check out `cleanup_legacy_jwt_records` proposal in the default sample constitution.
+
+### Fixed
+
+- CheckQuorum now requires a quorum in every configuration (#7375)
+
+### Changed
+
+- The snapshot-serving endpoints required for `fetch_recent_snapshot` behaviour are now disabled-by-default to avoid public DoS requests. They should be enabled on a per-interface basis by adding `"enabled_operator_features": ["SnapshotRead"]` to the interface's configuration, on an interface with local visibility used for node-to-node join requests.
+
 ## [7.0.0-dev4]
 
 [7.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev4

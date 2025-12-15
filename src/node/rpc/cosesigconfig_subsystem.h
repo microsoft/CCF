@@ -17,7 +17,8 @@ namespace ccf
       node_state(node_state_)
     {}
 
-    virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() const
+    [[nodiscard]] const ccf::COSESignaturesConfig& get_cose_signatures_config()
+      const override
     {
       return node_state.get_cose_signatures_config();
     }

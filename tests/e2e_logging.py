@@ -39,6 +39,7 @@ import programmability
 import e2e_common_endpoints
 import subprocess
 import base64
+import cbor2
 
 from loguru import logger as LOG
 
@@ -889,39 +890,72 @@ def test_genesis_receipt(network, args):
 
 
 @reqs.description("Read CBOR Merkle Proof")
-def test_cbor_merkle_proof(network, args):
+def test_cbor_receipts(network, args):
     primary, _ = network.find_nodes()
 
     with primary.client("user0") as client:
         r = client.get("/commit")
         assert r.status_code == http.HTTPStatus.OK
         last_txid = TxID.from_str(r.body.json()["transaction_id"])
+        found_receipt = False
 
         for seqno in range(last_txid.seqno, last_txid.seqno - 10, -1):
             txid = f"{last_txid.view}.{seqno}"
-            LOG.debug(f"Trying to get CBOR Merkle proof for txid {txid}")
+            LOG.debug(f"Trying to get COSE receipt for txid {txid}")
             max_retries = 10
-            found_proof = False
             for _ in range(max_retries):
                 r = client.get(
-                    "/log/public/cbor_merkle_proof",
+                    "/log/public/cose_receipt",
                     headers={infra.clients.CCF_TX_ID_HEADER: txid},
                     log_capture=[],  # Do not emit raw binary to stdout
                 )
                 if r.status_code == http.HTTPStatus.OK:
-                    cbor_proof = r.body.data()
-                    cbor_proof_filename = os.path.join(
-                        network.common_dir, f"proof_{txid}.cbor"
+                    found_receipt = True
+                    cose_receipt = r.body.data()
+                    uhdr = cbor2.loads(cose_receipt).value[1]
+                    proofs = uhdr[396][-1]
+                    assert len(proofs) > 0, "No Merkle proofs found in receipt"
+
+                    r = client.get(
+                        "/log/public/verify_cose_receipt",
+                        cose_receipt,
+                        headers={"Content-Type": "application/cose"},
                     )
-                    with open(cbor_proof_filename, "wb") as f:
-                        f.write(cbor_proof)
-                    subprocess.run(
-                        ["cddl", "../cddl/ccf-tree-alg.cddl", "v", cbor_proof_filename],
-                        check=True,
+                    assert (
+                        r.status_code == http.HTTPStatus.NO_CONTENT
+                    ), f"Failed to verify COSE receipt for txid {txid}: {r.status_code} {r.body.text()}"
+
+                    for cbor_proof in proofs:
+                        cbor_proof_filename = os.path.join(
+                            network.common_dir, f"proof_{txid}.cbor"
+                        )
+                        with open(cbor_proof_filename, "wb") as f:
+                            f.write(cbor_proof)
+                        subprocess.run(
+                            [
+                                "cddl",
+                                "../cddl/ccf-tree-alg.cddl",
+                                "v",
+                                cbor_proof_filename,
+                            ],
+                            check=True,
+                        )
+                        LOG.debug(f"Checked CBOR Merkle proof for txid {txid}")
+
+                    # change last four bytes of cose_receipt to 0000 and call verify again
+                    corrupted_receipt = cose_receipt[:-4] + b"\x00\x00\x00\x00"
+                    r = client.get(
+                        "/log/public/verify_cose_receipt",
+                        corrupted_receipt,
+                        headers={"Content-Type": "application/cose"},
                     )
-                    found_proof = True
-                    LOG.debug(f"Checked CBOR Merkle proof for txid {txid}")
-                    break
+                    assert (
+                        r.status_code != http.HTTPStatus.NO_CONTENT
+                    ), f"Corrupted COSE receipt should not verify for txid {txid}"
+                    LOG.debug(f"Verified that corrupted receipt fails for txid {txid}")
+
+                    break  # inner, found a receipt
+
                 elif r.status_code == http.HTTPStatus.ACCEPTED:
                     LOG.debug(f"Transaction {txid} accepted, retrying")
                     time.sleep(0.1)
@@ -932,10 +966,10 @@ def test_cbor_merkle_proof(network, args):
                 assert (
                     False
                 ), f"Failed to get receipt for txid {txid} after {max_retries} retries"
-            if found_proof:
-                break
-        else:
-            assert False, "Failed to find a non-signature in the last 10 transactions"
+
+        assert (
+            found_receipt
+        ), "Failed to find a non-signature in the last 10 transactions"
 
     return network
 
@@ -1408,7 +1442,7 @@ def test_long_lived_forwarding(network, args):
     primary, _ = network.find_primary()
 
     # Create a new node
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
 
     # Message limit must be high enough that the hard limit will not be reached
     # by the combined work of all threads. Note that each thread produces multiple
@@ -2242,7 +2276,7 @@ def run_main_tests(network, args):
     test_clear(network, args)
     test_record_count(network, args)
     if args.package == "samples/apps/logging/logging":
-        test_cbor_merkle_proof(network, args)
+        test_cbor_receipts(network, args)
         test_cose_signature_schema(network, args)
         test_cose_receipt_schema(network, args)
 

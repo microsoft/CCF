@@ -10,7 +10,7 @@ import os
 import difflib
 import re
 
-# As installed by ccf-dev Ansible playbook
+# As installed by setup scripts
 H2SPEC_BIN = "/opt/h2spec/h2spec"
 
 
@@ -156,4 +156,10 @@ if __name__ == "__main__":
     args.package = "samples/apps/logging/logging"
 
     args.nodes = infra.e2e_args.nodes(args, 1)
+
+    # Retain only the primary interface, delete any others
+    args.nodes[0].rpc_interfaces = {
+        infra.interfaces.PRIMARY_RPC_INTERFACE: args.nodes[0].get_primary_interface()
+    }
+
     run(args)

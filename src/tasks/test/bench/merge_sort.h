@@ -70,4 +70,10 @@ struct MergeSortTask : public ccf::tasks::BaseTask,
       merge();
     }
   }
+
+  const std::string& get_name() const override
+  {
+    static const std::string name("MergeSort");
+    return name;
+  }
 };

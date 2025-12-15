@@ -200,9 +200,6 @@
       },
       "Endorsement": {
         "properties": {
-          "acme_configuration": {
-            "$ref": "#/components/schemas/string"
-          },
           "authority": {
             "$ref": "#/components/schemas/Authority"
           }
@@ -464,6 +461,7 @@
           "None",
           "Leader",
           "Follower",
+          "PreVoteCandidate",
           "Candidate"
         ],
         "type": "string"
@@ -528,6 +526,9 @@
           "bind_address": {
             "$ref": "#/components/schemas/string"
           },
+          "enabled_operator_features": {
+            "$ref": "#/components/schemas/OperatorFeature_set"
+          },
           "endorsement": {
             "$ref": "#/components/schemas/Endorsement"
           },
@@ -587,6 +588,18 @@
           "Retired"
         ],
         "type": "string"
+      },
+      "OperatorFeature": {
+        "enum": [
+          "SnapshotRead"
+        ],
+        "type": "string"
+      },
+      "OperatorFeature_set": {
+        "items": {
+          "$ref": "#/components/schemas/OperatorFeature"
+        },
+        "type": "array"
       },
       "ParserConfiguration": {
         "properties": {
@@ -904,7 +917,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "4.13.0"
+    "version": "4.14.0"
   },
   "openapi": "3.0.0",
   "paths": {

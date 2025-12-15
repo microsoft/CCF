@@ -57,7 +57,7 @@ struct Action_ProcessClientAction : public ccf::tasks::ITaskAction
     }
   }
 
-  std::string_view get_name() const override
+  const std::string& get_name() const override
   {
     return name;
   }
@@ -65,7 +65,7 @@ struct Action_ProcessClientAction : public ccf::tasks::ITaskAction
 
 struct DispatcherState
 {
-  ccf::tasks::IJobBoard& job_board;
+  ccf::tasks::JobBoard& job_board;
   SessionManager& session_manager;
   std::atomic<size_t>& responses_sent;
 
@@ -78,7 +78,7 @@ struct DispatcherState
 struct Dispatcher : public LoopingThread<DispatcherState>
 {
   Dispatcher(
-    ccf::tasks::IJobBoard& jb,
+    ccf::tasks::JobBoard& jb,
     SessionManager& sm,
     std::atomic<size_t>& response_count) :
     LoopingThread<DispatcherState>(fmt::format("dsp"), jb, sm, response_count)

@@ -9,7 +9,7 @@ namespace http
   class ErrorReporter
   {
   public:
-    virtual ~ErrorReporter() {}
+    virtual ~ErrorReporter() = default;
     virtual void report_parsing_error(const ccf::ListenInterfaceID&) = 0;
     virtual void report_request_payload_too_large_error(
       const ccf::ListenInterfaceID&) = 0;

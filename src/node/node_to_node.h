@@ -22,7 +22,7 @@ namespace ccf
     {
     public:
       NodeId from;
-      DroppedMessageException(const NodeId& from) : from(from) {}
+      DroppedMessageException(NodeId from_) : from(std::move(from_)) {}
     };
 
     virtual void associate_node_address(
@@ -99,7 +99,7 @@ namespace ccf
     virtual void initialize(
       const NodeId& self_id,
       const ccf::crypto::Pem& service_cert,
-      ccf::crypto::KeyPairPtr node_kp,
+      ccf::crypto::ECKeyPairPtr node_kp,
       const std::optional<ccf::crypto::Pem>& node_cert = std::nullopt) = 0;
 
     virtual void set_endorsed_node_cert(

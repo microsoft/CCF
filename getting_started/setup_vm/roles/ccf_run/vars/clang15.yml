@@ -1,5 +1,0 @@
-workspace: "/tmp/"
-debs:
-  - libstdc++6
-  - libuv1
-  - libnghttp2-14

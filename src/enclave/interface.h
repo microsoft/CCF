@@ -26,9 +26,6 @@ enum AdminMessage : ringbuffer::Message
   /// Periodically update based on current time. Host -> Enclave
   DEFINE_RINGBUFFER_MSG_TYPE(tick),
 
-  /// Notify the host of work done since last message. Enclave -> Host
-  DEFINE_RINGBUFFER_MSG_TYPE(work_stats),
-
   /// Notify the host that it should restart
   DEFINE_RINGBUFFER_MSG_TYPE(restart)
 };
@@ -38,23 +35,4 @@ DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stop);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stop_notice);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stopped);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::tick);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::work_stats, std::string);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::restart);
-
-/// Messages sent from app endpoints
-enum AppMessage : ringbuffer::Message
-{
-  /// Start an arbitrary process on the host. Enclave -> Host
-  DEFINE_RINGBUFFER_MSG_TYPE(launch_host_process)
-};
-
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  AppMessage::launch_host_process, std::string, std::vector<uint8_t>);
-
-struct HostProcessArguments
-{
-  std::vector<std::string> args;
-};
-
-DECLARE_JSON_TYPE(HostProcessArguments);
-DECLARE_JSON_REQUIRED_FIELDS(HostProcessArguments, args);

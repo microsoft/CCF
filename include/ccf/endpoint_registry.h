@@ -40,12 +40,12 @@ namespace ccf::endpoints
 
   struct RequestCompletedEvent
   {
-    std::string method = "";
+    std::string method;
     // This contains the path template against which the request matched. For
     // instance `/user/{user_id}` rather than `/user/Bob`. This should be safe
     // to log, though doing so still reveals (to anyone with stdout access)
     // exactly which endpoints were executed and when.
-    std::string dispatch_path = "";
+    std::string dispatch_path;
     int status = 0;
     std::chrono::milliseconds exec_time{0};
     size_t attempts = 0;
@@ -53,7 +53,7 @@ namespace ccf::endpoints
 
   struct DispatchFailedEvent
   {
-    std::string method = "";
+    std::string method;
     int status = 0;
   };
 
@@ -116,7 +116,7 @@ namespace ccf::endpoints
   class EndpointRegistry : public Endpoint::Installer
   {
   public:
-    enum ReadWrite
+    enum class ReadWrite : uint8_t
     {
       Read,
       Write
@@ -165,11 +165,11 @@ namespace ccf::endpoints
     ccf::kv::TxHistory* history = nullptr;
 
   public:
-    EndpointRegistry(const std::string& method_prefix_) :
-      method_prefix(method_prefix_)
+    EndpointRegistry(std::string method_prefix_) :
+      method_prefix(std::move(method_prefix_))
     {}
 
-    virtual ~EndpointRegistry() {}
+    ~EndpointRegistry() override = default;
 
     /** Create a new endpoint.
      *
@@ -196,27 +196,6 @@ namespace ccf::endpoints
       const std::string& method,
       RESTVerb verb,
       const ReadOnlyEndpointFunction& f,
-      const AuthnPolicies& ap);
-
-    /** Create a new endpoint with a commit handler.
-     *
-     * Like make_endpoint but takes a functor to call once the transaction has
-     * been committed, but before consensus has completed.
-     */
-    virtual Endpoint make_endpoint_with_local_commit_handler(
-      const std::string& method,
-      RESTVerb verb,
-      const EndpointFunction& f,
-      const LocallyCommittedEndpointFunction& l,
-      const AuthnPolicies& ap);
-
-    /** See make_read_only_endpoint and make_endpoint_with_local_commit_handler.
-     */
-    virtual Endpoint make_read_only_endpoint_with_local_commit_handler(
-      const std::string& method,
-      RESTVerb verb,
-      const ReadOnlyEndpointFunction& f,
-      const LocallyCommittedEndpointFunction& l,
       const AuthnPolicies& ap);
 
     /** Create a new command endpoint.
@@ -254,12 +233,13 @@ namespace ccf::endpoints
      * internally, so must be able to populate the document
      * with the supported endpoints however it defines them.
      */
-    virtual void build_api(nlohmann::json& document, ccf::kv::ReadOnlyTx&);
+    virtual void build_api(
+      nlohmann::json& document, [[maybe_unused]] ccf::kv::ReadOnlyTx& tx);
 
     virtual void init_handlers();
 
     virtual EndpointDefinitionPtr find_endpoint(
-      ccf::kv::Tx&, ccf::RpcContext& rpc_ctx);
+      [[maybe_unused]] ccf::kv::Tx& tx, ccf::RpcContext& rpc_ctx);
 
     virtual void execute_endpoint(
       EndpointDefinitionPtr e, EndpointContext& ctx);
@@ -268,7 +248,7 @@ namespace ccf::endpoints
       EndpointDefinitionPtr e, CommandEndpointContext& ctx, const TxID& tx_id);
 
     virtual std::set<RESTVerb> get_allowed_verbs(
-      ccf::kv::Tx&, const ccf::RpcContext& rpc_ctx);
+      [[maybe_unused]] ccf::kv::Tx& tx, const ccf::RpcContext& rpc_ctx);
 
     virtual bool request_needs_root(const ccf::RpcContext& rpc_ctx);
 
@@ -276,7 +256,7 @@ namespace ccf::endpoints
       const std::string& path,
       const std::vector<EndpointDefinitionPtr>& matches);
 
-    virtual void tick(std::chrono::milliseconds);
+    virtual void tick([[maybe_unused]] std::chrono::milliseconds duration);
 
     void set_consensus(ccf::kv::Consensus* c);
 
@@ -291,7 +271,7 @@ namespace ccf::endpoints
       const ccf::endpoints::DispatchFailedEvent& event)
     {}
 
-    virtual bool apply_uncommitted_tx_backpressure() const
+    [[nodiscard]] virtual bool apply_uncommitted_tx_backpressure() const
     {
       return true;
     }

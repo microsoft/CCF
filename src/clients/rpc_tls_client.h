@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/key_pair.h"
 #include "ccf/http_consts.h"
 #include "http/http_builder.h"
 #include "http/http_parser.h"
@@ -36,7 +35,7 @@ namespace client
   protected:
     ::http::ResponseParser parser;
     std::optional<std::string> prefix;
-    ccf::crypto::KeyPairPtr key_pair = nullptr;
+    ccf::crypto::ECKeyPairPtr key_pair = nullptr;
     std::string key_id = "Invalid";
 
     size_t next_send_id = 0;
@@ -115,7 +114,7 @@ namespace client
 
     void create_key_pair(const ccf::crypto::Pem priv_key)
     {
-      key_pair = ccf::crypto::make_key_pair(priv_key);
+      key_pair = ccf::crypto::make_ec_key_pair(priv_key);
     }
 
     PreparedRpc gen_request(

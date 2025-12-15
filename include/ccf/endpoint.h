@@ -8,6 +8,7 @@
 #include "ccf/http_consts.h"
 #include "ccf/rest_verb.h"
 #include "ccf/service/map.h"
+#include "ccf/service/operator_feature.h"
 
 #include <string>
 #include <utility>
@@ -23,7 +24,7 @@ namespace ccf::endpoints
     /// HTTP Verb
     RESTVerb verb = HTTP_POST;
 
-    std::string to_str() const
+    [[nodiscard]] std::string to_str() const
     {
       return fmt::format("{} {}", verb.c_str(), uri_path);
     }
@@ -40,7 +41,7 @@ namespace ccf::kv::serialisers
     {
       auto str =
         fmt::format("{} {}", endpoint_key.verb.c_str(), endpoint_key.uri_path);
-      return SerialisedEntry(str.begin(), str.end());
+      return {str.begin(), str.end()};
     }
 
     static ccf::endpoints::EndpointKey from_serialised(
@@ -64,7 +65,7 @@ namespace ccf::endpoints
   DECLARE_JSON_TYPE(EndpointKey);
   DECLARE_JSON_REQUIRED_FIELDS(EndpointKey, uri_path, verb);
 
-  enum class ForwardingRequired
+  enum class ForwardingRequired : uint8_t
   {
     /** ForwardingRequired::Sometimes is the default value, and should be used
      * for most read-only operations. If this request is made to a backup node,
@@ -90,7 +91,7 @@ namespace ccf::endpoints
     Never
   };
 
-  enum class RedirectionStrategy
+  enum class RedirectionStrategy : uint8_t
   {
     /** This operation does not need to be redirected, and can be executed on
        the receiving node. Most read-only operations can be executed on any
@@ -109,14 +110,14 @@ namespace ccf::endpoints
     ToBackup,
   };
 
-  enum class Mode
+  enum class Mode : uint8_t
   {
     ReadWrite,
     ReadOnly,
     Historical
   };
 
-  enum QueryParamPresence
+  enum QueryParamPresence : uint8_t
   {
     RequiredParameter,
     OptionalParameter,
@@ -142,10 +143,10 @@ namespace ccf::endpoints
 
   struct InterpreterReusePolicy
   {
-    enum
+    enum class Kind : uint8_t
     {
       KeyBased
-    } kind;
+    } kind = Kind::KeyBased;
 
     std::string key;
 
@@ -154,8 +155,11 @@ namespace ccf::endpoints
 
   void to_json(nlohmann::json& j, const InterpreterReusePolicy& grp);
   void from_json(const nlohmann::json& j, InterpreterReusePolicy& grp);
-  std::string schema_name(const InterpreterReusePolicy*);
-  void fill_json_schema(nlohmann::json& schema, const InterpreterReusePolicy*);
+  std::string schema_name(
+    [[maybe_unused]] const InterpreterReusePolicy* policy);
+  void fill_json_schema(
+    nlohmann::json& schema,
+    [[maybe_unused]] const InterpreterReusePolicy* policy);
 
   struct EndpointProperties
   {
@@ -166,7 +170,7 @@ namespace ccf::endpoints
     /// Endpoint redirection policy
     RedirectionStrategy redirection_strategy = RedirectionStrategy::ToPrimary;
     /// Authentication policies
-    std::vector<nlohmann::json> authn_policies = {};
+    std::vector<nlohmann::json> authn_policies;
     /// OpenAPI schema for endpoint
     nlohmann::json openapi;
     //// Whether to include endpoint schema in frontend schema
@@ -229,6 +233,8 @@ namespace ccf::endpoints
      * @see ccf::any_cert_auth_policy
      */
     AuthnPolicies authn_policies;
+
+    std::set<OperatorFeature> required_operator_features;
   };
 
   using EndpointDefinitionPtr = std::shared_ptr<const EndpointDefinition>;
@@ -252,19 +258,20 @@ namespace ccf::endpoints
   struct Endpoint : public EndpointDefinition
   {
     // Functor which is invoked to process requests for this Endpoint
-    EndpointFunction func = {};
+    EndpointFunction func;
     // Functor which is invoked to modify the response post commit.
-    LocallyCommittedEndpointFunction locally_committed_func = {};
+    LocallyCommittedEndpointFunction locally_committed_func;
 
     struct Installer
     {
       virtual void install(Endpoint&) = 0;
+      virtual ~Installer() = default;
     };
-    Installer* installer;
+    Installer* installer = nullptr;
 
     using SchemaBuilderFn =
       std::function<void(nlohmann::json&, const Endpoint&)>;
-    std::vector<SchemaBuilderFn> schema_builders = {};
+    std::vector<SchemaBuilderFn> schema_builders;
 
     bool openapi_hidden = false;
 
@@ -308,6 +315,14 @@ namespace ccf::endpoints
      */
     Endpoint& set_openapi_hidden(bool hidden);
 
+    /** Add an opt-in feature which this endpoint uses. The endpoint will only
+     * be available on interfaces which have opted in to enabling all required
+     * features.
+     *
+     * @return This Endpoint for further modification
+     */
+    Endpoint& require_operator_feature(OperatorFeature feature);
+
     /** Sets the JSON schema that the request parameters must comply with.
      *
      * @param j Request parameters JSON schema
@@ -341,6 +356,7 @@ namespace ccf::endpoints
      * @param status Response status code
      * @return This Endpoint for further modification
      */
+    // NOLINTNEXTLINE(misc-confusable-identifiers)
     template <typename In, typename Out>
     Endpoint& set_auto_schema(std::optional<http_status> status = std::nullopt)
     {
@@ -430,7 +446,7 @@ namespace ccf::endpoints
     template <typename T>
     Endpoint& add_query_parameter(
       const std::string& param_name,
-      QueryParamPresence presence = RequiredParameter)
+      QueryParamPresence presence = QueryParamPresence::RequiredParameter)
     {
       schema_builders.push_back(
         [param_name,
@@ -448,7 +464,8 @@ namespace ccf::endpoints
           auto parameter = nlohmann::json::object();
           parameter["name"] = param_name;
           parameter["in"] = "query";
-          parameter["required"] = presence == RequiredParameter;
+          parameter["required"] =
+            presence == QueryParamPresence::RequiredParameter;
           parameter["schema"] = ds::openapi::add_schema_to_components(
             document, schema_name, query_schema);
           ds::openapi::add_request_parameter_schema(
@@ -467,6 +484,9 @@ namespace ccf::endpoints
     Endpoint& set_forwarding_required(ForwardingRequired fr);
 
     Endpoint& set_redirection_strategy(RedirectionStrategy rs);
+
+    Endpoint& set_locally_committed_function(
+      const LocallyCommittedEndpointFunction& lcf);
 
     void install();
   };
@@ -488,7 +508,7 @@ struct formatter<ccf::endpoints::ForwardingRequired>
   auto format(
     const ccf::endpoints::ForwardingRequired& v, FormatContext& ctx) const
   {
-    char const* s;
+    char const* s = nullptr;
     switch (v)
     {
       case ccf::endpoints::ForwardingRequired::Sometimes:

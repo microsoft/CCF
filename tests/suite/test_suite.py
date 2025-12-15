@@ -5,7 +5,7 @@ import e2e_logging
 import memberclient
 import reconfiguration
 import recovery
-import election
+import nodes
 import code_update
 import membership
 import governance_history
@@ -61,14 +61,14 @@ suite_reconfiguration = [
     reconfiguration.test_retire_primary,
     e2e_logging.test_rekey,
     reconfiguration.test_add_node,
-    election.test_kill_primary,
-    election.test_commit_view_history,
+    nodes.test_kill_primary,
+    nodes.test_commit_view_history,
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_from_snapshot,
     reconfiguration.test_retire_backup,
     reconfiguration.test_add_node,
-    election.test_kill_primary,
-    election.test_commit_view_history,
+    nodes.test_kill_primary,
+    nodes.test_commit_view_history,
     e2e_logging.test_view_history,
     reconfiguration.test_ledger_invariants,
 ]
@@ -114,7 +114,7 @@ all_tests_suite = [
     e2e_logging.test_rekey,
     # election:
     reconfiguration.test_add_node,
-    election.test_kill_primary,
+    nodes.test_kill_primary,
     # code update:
     code_update.test_verify_quotes,
     code_update.test_add_node_with_different_package,

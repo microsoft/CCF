@@ -12,7 +12,7 @@
 
 namespace host
 {
-  enum class LogFormat
+  enum class LogFormat : uint8_t
   {
     TEXT,
     JSON
@@ -56,8 +56,8 @@ namespace host
       std::string pid_file = "my_node.pid";
 
       // Addresses files
-      std::string node_to_node_address_file = "";
-      std::string rpc_addresses_file = "";
+      std::string node_to_node_address_file;
+      std::string rpc_addresses_file;
 
       std::optional<std::string> sealed_ledger_secret_location = std::nullopt;
 
@@ -90,8 +90,8 @@ namespace host
 
       struct Start
       {
-        std::vector<ParsedMemberInfo> members = {};
-        std::vector<std::string> constitution_files = {};
+        std::vector<ParsedMemberInfo> members;
+        std::vector<std::string> constitution_files;
         ccf::ServiceConfiguration service_configuration;
         size_t initial_service_certificate_validity_days = 1;
         std::string service_subject_name = "CN=CCF Service";
@@ -109,6 +109,7 @@ namespace host
         bool fetch_recent_snapshot = true;
         size_t fetch_snapshot_max_attempts = 3;
         ccf::ds::TimeString fetch_snapshot_retry_interval = {"1000ms"};
+        ccf::ds::SizeString fetch_snapshot_max_size = {"10GB"};
 
         bool operator==(const Join&) const = default;
       };
@@ -166,7 +167,8 @@ namespace host
     follow_redirect,
     fetch_recent_snapshot,
     fetch_snapshot_max_attempts,
-    fetch_snapshot_retry_interval);
+    fetch_snapshot_retry_interval,
+    fetch_snapshot_max_size);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Recover);

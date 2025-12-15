@@ -42,7 +42,7 @@ File: `long-test.yml`
 
 # CodeQL analysis
 
-Builds CCF with CodeQL, and runs the security-extended checks. Triggered on PRs that affect ".github/workflows/codeql-analysis.yml", and once a week on main.
+Builds CCF with CodeQL, and runs the security-extended checks. Triggered on PRs that affect ".github/workflows/codeql-analysis.yml", on pushes to main, and once a week on schedule.
 
 File: `codeql-analysis.yml`
 3rd party dependencies:
@@ -100,30 +100,4 @@ File: `pypi.yml`
 Builds and publishes documentation to GitHub Pages. Triggered on pushes to main, and manually. Note that special permissions (Settings > Environment) are configured.
 
 File: `doc.yml`
-3rd party dependencies:
-
-- peaceiris/actions-gh-pages@v3
-
-# Mothballed Actions
-
-## Continuous Integration Containers GHCR
-
-Produces the build images used by CI and release workflows for 5.x releases. Complete images are attested and published to GHCR. Triggered on label creation (`build/*`).
-
-File: `ci-containers-ghcr.yml`
-3rd party dependencies:
-
-- `docker/login-action@v3`
-- `docker/metadata-action@v5`
-- `docker/build-push-action@v6`
-
-## Containers GHCR
-
-Produces reference release images for 5.x release versions. Not used from 6.0.0 onwards. Complete images are attested and published to GHCR. Triggered on release publishing.
-
-File: `containers-ghcr.yml`
-3rd party dependencies:
-
-- `docker/login-action@v3`
-- `docker/metadata-action@v5`
-- `docker/build-push-action@v6`
+3rd party dependencies: None

@@ -21,27 +21,27 @@ namespace ccf
       return impl.state();
     }
 
-    bool is_in_initialised_state() const override
+    [[nodiscard]] bool is_in_initialised_state() const override
     {
       return impl.is_in_initialised_state();
     }
 
-    bool is_part_of_public_network() const override
+    [[nodiscard]] bool is_part_of_public_network() const override
     {
       return impl.is_part_of_public_network();
     }
 
-    bool is_part_of_network() const override
+    [[nodiscard]] bool is_part_of_network() const override
     {
       return impl.is_part_of_network();
     }
 
-    bool is_reading_public_ledger() const override
+    [[nodiscard]] bool is_reading_public_ledger() const override
     {
       return impl.is_reading_public_ledger();
     }
 
-    bool is_reading_private_ledger() const override
+    [[nodiscard]] bool is_reading_private_ledger() const override
     {
       return impl.is_reading_private_ledger();
     }
@@ -56,7 +56,7 @@ namespace ccf
       return impl.is_member_frontend_open();
     }
 
-    bool is_accessible_to_members() const override
+    [[nodiscard]] bool is_accessible_to_members() const override
     {
       return impl.is_accessible_to_members();
     }
@@ -64,6 +64,11 @@ namespace ccf
     bool can_replicate() override
     {
       return impl.can_replicate();
+    }
+
+    std::optional<ccf::NodeId> get_primary() override
+    {
+      return impl.get_primary();
     }
 
     ccf::kv::Version get_last_recovered_signed_idx() override

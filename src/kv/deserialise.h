@@ -18,6 +18,8 @@ namespace ccf::kv
   class ExecutionWrapperStore
   {
   public:
+    virtual ~ExecutionWrapperStore() = default;
+
     virtual bool fill_maps(
       const std::vector<uint8_t>& data,
       bool public_only,
@@ -47,14 +49,14 @@ namespace ccf::kv
     std::shared_ptr<ILedgerChunker> chunker;
     const std::vector<uint8_t> data;
     bool public_only;
-    ccf::kv::Version version;
-    Term term;
-    EntryFlags entry_flags;
+    ccf::kv::Version version{0};
+    Term term{0};
+    EntryFlags entry_flags{0};
     OrderedChanges changes;
     MapCollection new_maps;
     ccf::kv::ConsensusHookPtrs hooks;
     ccf::ClaimsDigest claims_digest;
-    std::optional<ccf::crypto::Sha256Hash> commit_evidence_digest = {};
+    std::optional<ccf::crypto::Sha256Hash> commit_evidence_digest;
 
     const std::optional<TxID> expected_txid;
 
@@ -67,8 +69,8 @@ namespace ccf::kv
       bool public_only_,
       const std::optional<TxID>& expected_txid_) :
       store(store_),
-      history(history_),
-      chunker(chunker_),
+      history(std::move(history_)),
+      chunker(std::move(chunker_)),
       data(data_),
       public_only(public_only_),
       expected_txid(expected_txid_)
@@ -104,12 +106,12 @@ namespace ccf::kv
 
       if (expected_txid.has_value())
       {
-        if (term != expected_txid->term || version != expected_txid->version)
+        if (term != expected_txid->view || version != expected_txid->seqno)
         {
           LOG_FAIL_FMT(
             "TxID mismatch during deserialisation. Expected {}.{}, got {}.{}",
-            expected_txid->term,
-            expected_txid->version,
+            expected_txid->view,
+            expected_txid->seqno,
             term,
             version);
           return ApplyResult::FAIL;
@@ -183,12 +185,12 @@ namespace ccf::kv
       {
         chunker->append_entry_size(data.size());
 
-        if (entry_flags & ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE)
+        if ((entry_flags & ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE) != 0)
         {
           chunker->produced_chunk_at(version - 1);
         }
 
-        if (entry_flags & ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER)
+        if ((entry_flags & ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER) != 0)
         {
           chunker->produced_chunk_at(version);
         }

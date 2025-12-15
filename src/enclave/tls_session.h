@@ -5,7 +5,6 @@
 #include "ds/internal_logger.h"
 #include "ds/messaging.h"
 #include "ds/ring_buffer.h"
-#include "ds/thread_messaging.h"
 #include "tcp/msg_types.h"
 #include "tls/context.h"
 #include "tls/tls.h"
@@ -14,7 +13,7 @@
 
 namespace ccf
 {
-  enum SessionStatus
+  enum SessionStatus : uint8_t
   {
     handshake,
     ready,
@@ -32,7 +31,6 @@ namespace ccf
   protected:
     ringbuffer::WriterPtr to_host;
     ::tcp::ConnID session_id;
-    size_t execution_thread;
 
   private:
     std::vector<uint8_t> pending_write;
@@ -41,7 +39,7 @@ namespace ccf
     std::vector<uint8_t> read_buffer;
 
     std::unique_ptr<tls::Context> ctx;
-    SessionStatus status;
+    SessionStatus status = handshake;
 
     HandshakeErrorCB handshake_error_cb;
 
@@ -57,17 +55,6 @@ namespace ccf
       return status == ready || status == handshake;
     }
 
-    struct SendRecvMsg
-    {
-      std::vector<uint8_t> data;
-      std::shared_ptr<TLSSession> self;
-    };
-
-    struct EmptyMsg
-    {
-      std::shared_ptr<TLSSession> self;
-    };
-
   public:
     TLSSession(
       int64_t session_id_,
@@ -75,12 +62,8 @@ namespace ccf
       std::unique_ptr<tls::Context> ctx_) :
       to_host(writer_factory_.create_writer_to_outside()),
       session_id(session_id_),
-      ctx(std::move(ctx_)),
-      status(handshake)
+      ctx(std::move(ctx_))
     {
-      execution_thread =
-        ::threading::ThreadMessaging::instance().get_execution_thread(
-          session_id);
       ctx->set_bio(this, send_callback_openssl, recv_callback_openssl);
     }
 
@@ -150,7 +133,7 @@ namespace ccf
 
       size_t offset = 0;
 
-      if (read_buffer.size() > 0)
+      if (!read_buffer.empty())
       {
         LOG_TRACE_FMT(
           "Have existing read_buffer of size: {}", read_buffer.size());
@@ -158,12 +141,18 @@ namespace ccf
         ::memcpy(data, read_buffer.data(), offset);
 
         if (offset < read_buffer.size())
+        {
           read_buffer.erase(read_buffer.begin(), read_buffer.begin() + offset);
+        }
         else
+        {
           read_buffer.clear();
+        }
 
         if (offset == size)
+        {
           return size;
+        }
 
         // NB: If we continue past here, read_buffer is empty
       }
@@ -236,11 +225,6 @@ namespace ccf
 
     void recv_buffered(const uint8_t* data, size_t size)
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called recv_buffered from incorrect thread");
-      }
-
       if (can_recv())
       {
         pending_read.insert(pending_read.end(), data, data + size);
@@ -252,32 +236,6 @@ namespace ccf
     void close()
     {
       status = closing;
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        auto msg = std::make_unique<::threading::Tmsg<EmptyMsg>>(&close_cb);
-        msg->data.self = this->shared_from_this();
-
-        ::threading::ThreadMessaging::instance().add_task(
-          execution_thread, std::move(msg));
-      }
-      else
-      {
-        // Close inline immediately
-        close_thread();
-      }
-    }
-
-    static void close_cb(std::unique_ptr<::threading::Tmsg<EmptyMsg>> msg)
-    {
-      msg->data.self->close_thread();
-    }
-
-    virtual void close_thread()
-    {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called close_thread from incorrect thread");
-      }
 
       switch (status)
       {
@@ -327,39 +285,8 @@ namespace ccf
       }
     }
 
-    void send_raw(const uint8_t* data, size_t size)
+    void send_data(const uint8_t* data, size_t size)
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        auto msg =
-          std::make_unique<::threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
-        msg->data.self = this->shared_from_this();
-        msg->data.data = std::vector<uint8_t>(data, data + size);
-
-        ::threading::ThreadMessaging::instance().add_task(
-          execution_thread, std::move(msg));
-      }
-      else
-      {
-        // Send inline immediately
-        send_raw_thread(data, size);
-      }
-    }
-
-  private:
-    static void send_raw_cb(std::unique_ptr<::threading::Tmsg<SendRecvMsg>> msg)
-    {
-      msg->data.self->send_raw_thread(
-        msg->data.data.data(), msg->data.data.size());
-    }
-
-    void send_raw_thread(const uint8_t* data, size_t size)
-    {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error(
-          "Called send_raw_thread from incorrect thread");
-      }
       // Writes as much of the data as possible. If the data cannot all
       // be written now, we store the remainder. We
       // will try to send pending writes again whenever write() is called.
@@ -381,23 +308,14 @@ namespace ccf
       flush();
     }
 
+  private:
     void send_buffered(const std::vector<uint8_t>& data)
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called send_buffered from incorrect thread");
-      }
-
       pending_write.insert(pending_write.end(), data.begin(), data.end());
     }
 
     void flush()
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called flush from incorrect thread");
-      }
-
       do_handshake();
 
       if (!can_send())
@@ -405,7 +323,7 @@ namespace ccf
         return;
       }
 
-      while (pending_write.size() > 0)
+      while (!pending_write.empty())
       {
         auto r = write_some(pending_write);
 
@@ -421,6 +339,7 @@ namespace ccf
         {
           LOG_TRACE_FMT("TLS session {} error on flush: {}", session_id, -r);
           stop(error);
+          break;
         }
       }
     }
@@ -567,18 +486,16 @@ namespace ccf
         serializer::ByteRange{buf, len});
 
       if (!wrote)
+      {
         return TLS_WRITING;
+      }
 
-      return (int)len;
+      return static_cast<int>(len);
     }
 
     int handle_recv(uint8_t* buf, size_t len)
     {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::runtime_error("Called handle_recv from incorrect thread");
-      }
-      if (pending_read.size() > 0)
+      if (!pending_read.empty())
       {
         // Use the pending data vector. This is populated when the host
         // writes a chunk larger than the size requested by the enclave.
@@ -631,18 +548,21 @@ namespace ccf
       (void)argl;
       (void)argp;
 
-      if (ret && len > 0 && oper == (BIO_CB_WRITE | BIO_CB_RETURN))
+      if (ret != 0 && len > 0 && oper == (BIO_CB_WRITE | BIO_CB_RETURN))
       {
         // Flush BIO so the "pipe doesn't clog", but we don't use the
         // data here, because 'argp' already has it.
         BIO_flush(b);
         size_t pending = BIO_pending(b);
-        if (pending)
+        if (pending != 0)
+        {
           BIO_reset(b);
+        }
 
         // Pipe object
-        void* ctx = (BIO_get_callback_arg(b));
-        int put = send_callback(ctx, (const uint8_t*)argp, len);
+        void* ctx = BIO_get_callback_arg(b);
+        int put =
+          send_callback(ctx, reinterpret_cast<const uint8_t*>(argp), len);
 
         // WANTS_WRITE
         if (put == TLS_WRITING)
@@ -652,10 +572,8 @@ namespace ccf
           *processed = 0;
           return -1;
         }
-        else
-        {
-          LOG_TRACE_FMT("TLS Session::send_cb() : Put {} bytes", put);
-        }
+
+        LOG_TRACE_FMT("TLS Session::send_cb() : Put {} bytes", put);
 
         // Update the number of bytes to external users
         *processed = put;
@@ -688,11 +606,13 @@ namespace ccf
         return 0;
       }
 
-      if (ret && (oper == (BIO_CB_READ | BIO_CB_RETURN)))
+      if (ret != 0 && (oper == (BIO_CB_READ | BIO_CB_RETURN)))
       {
         // Pipe object
-        void* ctx = (BIO_get_callback_arg(b));
-        int got = recv_callback(ctx, (uint8_t*)argp, len);
+        void* ctx = BIO_get_callback_arg(b);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        int got = recv_callback(
+          ctx, reinterpret_cast<uint8_t*>(const_cast<char*>(argp)), len);
 
         // WANTS_READ
         if (got == TLS_READING)
@@ -702,11 +622,8 @@ namespace ccf
           *processed = 0;
           return -1;
         }
-        else
-        {
-          LOG_TRACE_FMT(
-            "TLS Session::recv_cb() : Got {} bytes of {}", got, len);
-        }
+
+        LOG_TRACE_FMT("TLS Session::recv_cb() : Got {} bytes of {}", got, len);
 
         // If got less than requested, return WANT_READ
         if ((size_t)got < len)

@@ -57,10 +57,9 @@ namespace ccf::logger
       log_level(level_),
       tag(tag_),
       file_name(file_name_),
-      line_number(line_number_)
-    {
-      thread_id = ccf::threading::get_current_thread_id();
-    }
+      line_number(line_number_),
+      thread_id(ccf::threading::get_current_thread_id())
+    {}
 
     template <typename T>
     LogLine& operator<<(const T& item)
@@ -87,7 +86,9 @@ namespace ccf::logger
     return std::to_string(logical_clock++);
 #else
     // Sample: "2019-07-19 18:53:25.690267"
-    return fmt::format("{:%Y-%m-%dT%H:%M:%S}.{:0>6}Z", tm, ts.tv_nsec / 1000);
+    constexpr size_t nano_per_micro = 1000;
+    return fmt::format(
+      "{:%Y-%m-%dT%H:%M:%S}.{:0>6}Z", tm, ts.tv_nsec / nano_per_micro);
 #endif
   }
 
@@ -103,22 +104,21 @@ namespace ccf::logger
       std::cout.flush();
     }
 
-    virtual void write(
-      const LogLine& ll,
-      const std::optional<double>& enclave_offset = std::nullopt) = 0;
+    virtual void write(const LogLine& ll) = 0;
   };
 
   class JsonConsoleLogger : public AbstractLogger
   {
   public:
-    void write(
-      const LogLine& ll,
-      const std::optional<double>& enclave_offset = std::nullopt) override
+    void write(const LogLine& ll) override
     {
       // Fetch time
-      ::timespec host_ts;
-      ::timespec_get(&host_ts, TIME_UTC);
-      std::tm host_tm;
+      ::timespec host_ts{};
+      if (::timespec_get(&host_ts, TIME_UTC) == 0)
+      {
+        throw std::runtime_error("timespec_get failed");
+      }
+      std::tm host_tm{};
       ::gmtime_r(&host_ts.tv_sec, &host_tm);
 
 #ifdef CCF_RAFT_TRACING
@@ -135,64 +135,34 @@ namespace ccf::logger
 #endif
 
       std::string s;
-      if (enclave_offset.has_value())
-      {
-        ::timespec enc_ts = host_ts;
-        enc_ts.tv_sec += (size_t)enclave_offset.value();
-        enc_ts.tv_nsec +=
-          (long long)(enclave_offset.value() * ns_per_s) % ns_per_s;
-
-        if (enc_ts.tv_nsec > ns_per_s)
-        {
-          enc_ts.tv_sec += 1;
-          enc_ts.tv_nsec -= ns_per_s;
-        }
-
-        std::tm enclave_tm;
-        gmtime_r(&enc_ts.tv_sec, &enclave_tm);
-
-        s = fmt::format(
-          "{{\"h_ts\":\"{}\",\"e_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{"
-          "}\",\"tag\":\"{}\",\"file\":\"{}\",\"number\":\"{}\",\"msg\":{}}}\n",
-          get_timestamp(host_tm, host_ts),
-          get_timestamp(enclave_tm, enc_ts),
-          ll.thread_id,
-          to_string(ll.log_level),
-          ll.tag,
-          ll.file_name,
-          ll.line_number,
-          escaped_msg);
-      }
-      else
-      {
-        s = fmt::format(
-          "{{\"h_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{}\",\"tag\":\"{}"
-          "\",\"file\":\"{}\",\"number\":\"{}\",\"msg\":{}}}\n",
-          get_timestamp(host_tm, host_ts),
-          ll.thread_id,
-          to_string(ll.log_level),
-          ll.tag,
-          ll.file_name,
-          ll.line_number,
-          escaped_msg);
-      }
+      s = fmt::format(
+        "{{\"h_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{}\",\"tag\":\"{}"
+        "\",\"file\":\"{}\",\"number\":\"{}\",\"msg\":{}}}\n",
+        get_timestamp(host_tm, host_ts),
+        ll.thread_id,
+        to_string(ll.log_level),
+        ll.tag,
+        ll.file_name,
+        ll.line_number,
+        escaped_msg);
 
       emit(s);
     }
   };
 
-  static std::string format_to_text(
-    const LogLine& ll,
-    const std::optional<double>& enclave_offset = std::nullopt)
+  static std::string format_to_text(const LogLine& ll)
   {
     // Fetch time
-    ::timespec host_ts;
-    ::timespec_get(&host_ts, TIME_UTC);
-    std::tm host_tm;
+    ::timespec host_ts{};
+    if (::timespec_get(&host_ts, TIME_UTC) == 0)
+    {
+      throw std::runtime_error("timespec_get failed");
+    }
+    std::tm host_tm{};
     ::gmtime_r(&host_ts.tv_sec, &host_tm);
 
     auto file_line = fmt::format("{}:{} ", ll.file_name, ll.line_number);
-    auto file_line_data = file_line.data();
+    auto* file_line_data = file_line.data();
 
     // The preamble is the level, then tag, then file line. If the file line is
     // too long, the final characters are retained.
@@ -211,81 +181,61 @@ namespace ccf::logger
 
     preamble += file_line_data;
 
-    if (enclave_offset.has_value())
-    {
-      // Sample: "2019-07-19 18:53:25.690183 -0.130 " where -0.130 indicates
-      // that the time inside the enclave was 130 milliseconds earlier than
-      // the host timestamp printed on the line
-      return fmt::format(
-        "{} {:+01.3f} {:<3} {:<45}| {}\n",
-        get_timestamp(host_tm, host_ts),
-        enclave_offset.value(),
-        ll.thread_id,
-        preamble,
-        ll.msg);
-    }
-    else
-    {
-      // Padding on the right to align the rest of the message
-      // with lines that contain enclave time offsets
-      return fmt::format(
-        "{}        {:<3} {:<45}| {}\n",
-        get_timestamp(host_tm, host_ts),
-        ll.thread_id,
-        preamble,
-        ll.msg);
-    }
+    return fmt::format(
+      "{} {:<3} {:<45}| {}\n",
+      get_timestamp(host_tm, host_ts),
+      ll.thread_id,
+      preamble,
+      ll.msg);
   }
 
   class TextConsoleLogger : public AbstractLogger
   {
   public:
-    void write(
-      const LogLine& ll,
-      const std::optional<double>& enclave_offset = std::nullopt) override
+    void write(const LogLine& ll) override
     {
-      emit(format_to_text(ll, enclave_offset));
+      emit(format_to_text(ll));
     }
   };
 
   class config
   {
   public:
-    static inline std::vector<std::unique_ptr<AbstractLogger>>& loggers()
+    static std::vector<std::unique_ptr<AbstractLogger>>& loggers()
     {
       return get_loggers();
     }
 
-    static inline void add_text_console_logger()
+    static void add_text_console_logger()
     {
       get_loggers().emplace_back(std::make_unique<TextConsoleLogger>());
     }
 
-    static inline void add_json_console_logger()
+    static void add_json_console_logger()
     {
       get_loggers().emplace_back(std::make_unique<JsonConsoleLogger>());
     }
 
-    static inline void default_init()
+    static void default_init()
     {
       get_loggers().clear();
       add_text_console_logger();
     }
 
-    static inline LoggerLevel& level()
+    static LoggerLevel& level()
     {
       static LoggerLevel the_level = MOST_VERBOSE;
 
       return the_level;
     }
 
-    static inline bool ok(LoggerLevel l)
+    static bool ok(LoggerLevel l)
     {
       return l >= level();
     }
 
   private:
-    static inline std::vector<std::unique_ptr<AbstractLogger>>& get_loggers()
+    static std::vector<std::unique_ptr<AbstractLogger>>& get_loggers()
     {
       static std::vector<std::unique_ptr<AbstractLogger>> the_loggers;
       return the_loggers;

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/ds/hex.h"
 #include "ccf/ds/nonstd.h"
 #include "ds/internal_logger.h"
@@ -48,7 +48,7 @@ struct OrderedAction : public IAction
   const size_t id;
 
   OrderedAction() : id(++action_id_generator) {}
-  OrderedAction(size_t _id) : id(_id) {}
+  OrderedAction(size_t id_) : id(id_) {}
 
   SerialisedAction serialise() const override
   {
@@ -89,9 +89,9 @@ struct SignAction : public OrderedAction
   {
     LOG_DEBUG_FMT("Created a new SignAction id={}", id);
   }
-  SignAction(size_t _id, const std::vector<uint8_t>& _tbs) :
-    OrderedAction(_id),
-    tbs(_tbs)
+  SignAction(size_t id_, const std::vector<uint8_t>& tbs_) :
+    OrderedAction(id_),
+    tbs(tbs_)
   {}
 
   SerialisedAction serialise() const override
@@ -117,7 +117,7 @@ struct SignAction : public OrderedAction
       auto signature_s = b;
 
       ccf::crypto::Pem pem{std::string(key_s)};
-      auto pubk = ccf::crypto::make_public_key(pem);
+      auto pubk = ccf::crypto::make_ec_public_key(pem);
 
       auto signature = ccf::ds::from_hex(std::string(signature_s));
       REQUIRE(pubk->verify(tbs, signature));
@@ -136,7 +136,7 @@ struct SignAction : public OrderedAction
     }
     else
     {
-      auto key_pair = ccf::crypto::make_key_pair();
+      auto key_pair = ccf::crypto::make_ec_key_pair();
       auto signature = key_pair->sign(tbs);
       return fmt::format(
         "{}{}|{}",

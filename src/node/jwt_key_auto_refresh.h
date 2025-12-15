@@ -20,9 +20,11 @@ namespace ccf
     std::shared_ptr<ccf::kv::Consensus> consensus;
     std::shared_ptr<ccf::RPCSessions> rpcsessions;
     std::shared_ptr<ccf::RPCMap> rpc_map;
-    ccf::crypto::KeyPairPtr node_sign_kp;
+    ccf::crypto::ECKeyPairPtr node_sign_kp;
     ccf::crypto::Pem node_cert;
     std::atomic_size_t attempts;
+
+    ccf::tasks::Task periodic_refresh_task;
 
   public:
     JwtKeyAutoRefresh(
@@ -31,74 +33,66 @@ namespace ccf
       const std::shared_ptr<ccf::kv::Consensus>& consensus,
       const std::shared_ptr<ccf::RPCSessions>& rpcsessions,
       const std::shared_ptr<ccf::RPCMap>& rpc_map,
-      const ccf::crypto::KeyPairPtr& node_sign_kp,
-      const ccf::crypto::Pem& node_cert) :
+      ccf::crypto::ECKeyPairPtr node_sign_kp,
+      ccf::crypto::Pem node_cert) :
       refresh_interval_s(refresh_interval_s),
       network(network),
       consensus(consensus),
       rpcsessions(rpcsessions),
       rpc_map(rpc_map),
-      node_sign_kp(node_sign_kp),
-      node_cert(node_cert),
+      node_sign_kp(std::move(node_sign_kp)),
+      node_cert(std::move(node_cert)),
       attempts(0)
     {}
 
-    struct RefreshTimeMsg
+    ~JwtKeyAutoRefresh()
     {
-      RefreshTimeMsg(JwtKeyAutoRefresh& self_) : self(self_) {}
-
-      JwtKeyAutoRefresh& self;
-    };
+      stop();
+    }
 
     void start()
     {
-      auto refresh_msg = std::make_unique<::threading::Tmsg<RefreshTimeMsg>>(
-        [](std::unique_ptr<::threading::Tmsg<RefreshTimeMsg>> msg) {
-          if (!msg->data.self.consensus->can_replicate())
-          {
-            LOG_DEBUG_FMT(
-              "JWT key auto-refresh: Node is not primary, skipping");
-          }
-          else
-          {
-            msg->data.self.refresh_jwt_keys();
-          }
-          LOG_DEBUG_FMT(
-            "JWT key auto-refresh: Scheduling in {}s",
-            msg->data.self.refresh_interval_s);
-          auto delay = std::chrono::seconds(msg->data.self.refresh_interval_s);
-          ::threading::ThreadMessaging::instance().add_task_after(
-            std::move(msg), delay);
-        },
-        *this);
+      LOG_DEBUG_FMT("JWT key initial auto-refresh");
+      periodic_refresh_task = ccf::tasks::make_basic_task([this]() {
+        if (!this->consensus->can_replicate())
+        {
+          LOG_DEBUG_FMT("JWT key auto-refresh: Node is not primary, skipping");
+        }
+        else
+        {
+          this->refresh_jwt_keys();
+        }
 
-      LOG_DEBUG_FMT(
-        "JWT key auto-refresh: Scheduling in {}s", refresh_interval_s);
-      auto delay = std::chrono::seconds(refresh_interval_s);
-      ::threading::ThreadMessaging::instance().add_task_after(
-        std::move(refresh_msg), delay);
+        LOG_DEBUG_FMT(
+          "JWT key auto-refresh: Scheduling in {}s", this->refresh_interval_s);
+      });
+
+      const std::chrono::seconds period(refresh_interval_s);
+      ccf::tasks::add_periodic_task(periodic_refresh_task, period, period);
+    }
+
+    void stop()
+    {
+      if (periodic_refresh_task != nullptr)
+      {
+        periodic_refresh_task->cancel_task();
+      }
     }
 
     void schedule_once()
     {
-      auto refresh_msg = std::make_unique<::threading::Tmsg<RefreshTimeMsg>>(
-        [](std::unique_ptr<::threading::Tmsg<RefreshTimeMsg>> msg) {
-          if (!msg->data.self.consensus->can_replicate())
-          {
-            LOG_DEBUG_FMT(
-              "JWT key one-off refresh: Node is not primary, skipping");
-          }
-          else
-          {
-            msg->data.self.refresh_jwt_keys();
-          }
-        },
-        *this);
-
       LOG_DEBUG_FMT("JWT key one-off refresh: Scheduling without delay");
-      auto delay = std::chrono::seconds(0);
-      ::threading::ThreadMessaging::instance().add_task_after(
-        std::move(refresh_msg), delay);
+      ccf::tasks::add_task(ccf::tasks::make_basic_task([this]() {
+        if (!this->consensus->can_replicate())
+        {
+          LOG_DEBUG_FMT(
+            "JWT key one-off refresh: Node is not primary, skipping");
+        }
+        else
+        {
+          this->refresh_jwt_keys();
+        }
+      }));
     }
 
     template <typename T>
@@ -284,8 +278,8 @@ namespace ccf
     void refresh_jwt_keys()
     {
       auto tx = network.tables->create_read_only_tx();
-      auto jwt_issuers = tx.ro(network.jwt_issuers);
-      auto ca_cert_bundles = tx.ro(network.ca_cert_bundles);
+      auto* jwt_issuers = tx.ro(network.jwt_issuers);
+      auto* ca_cert_bundles = tx.ro(network.ca_cert_bundles);
       jwt_issuers->foreach([this, &ca_cert_bundles](
                              const JwtIssuer& issuer,
                              const JwtIssuerMetadata& metadata) {
@@ -303,7 +297,7 @@ namespace ccf
 
         LOG_DEBUG_FMT(
           "JWT key auto-refresh: Refreshing keys for issuer '{}'", issuer);
-        auto& ca_cert_bundle_name = metadata.ca_cert_bundle_name.value();
+        const auto& ca_cert_bundle_name = metadata.ca_cert_bundle_name.value();
         auto ca_cert_bundle_pem = ca_cert_bundles->get(ca_cert_bundle_name);
         if (!ca_cert_bundle_pem.has_value())
         {
@@ -354,7 +348,7 @@ namespace ccf
     }
 
     // Returns a copy of the current attempts
-    size_t get_attempts() const
+    [[nodiscard]] size_t get_attempts() const
     {
       return attempts.load();
     }

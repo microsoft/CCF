@@ -13,11 +13,14 @@
 #include <set>
 #include <sstream>
 
-namespace
+namespace ccf::jwt_management_detail
 {
-  std::vector<uint8_t> try_parse_raw_rsa(const ccf::crypto::JsonWebKeyData& jwk)
+  inline std::vector<uint8_t> try_parse_raw_rsa(
+    const ccf::crypto::JsonWebKeyData& jwk)
   {
-    if (!jwk.e || jwk.e->empty() || !jwk.n || jwk.n->empty())
+    if (
+      !jwk.kid.has_value() || !jwk.e.has_value() || jwk.e->empty() ||
+      !jwk.n.has_value() || jwk.n->empty())
     {
       return {};
     }
@@ -25,9 +28,9 @@ namespace
     std::vector<uint8_t> der;
     ccf::crypto::JsonWebKeyRSAPublic data;
     data.kty = ccf::crypto::JsonWebKeyType::RSA;
-    data.kid = jwk.kid.value();
-    data.n = jwk.n.value();
-    data.e = jwk.e.value();
+    data.kid = *jwk.kid;
+    data.n = *jwk.n;
+    data.e = *jwk.e;
     try
     {
       const auto pubkey = ccf::crypto::make_rsa_public_key(data);
@@ -40,22 +43,25 @@ namespace
     }
   }
 
-  std::vector<uint8_t> try_parse_raw_ec(const ccf::crypto::JsonWebKeyData& jwk)
+  inline std::vector<uint8_t> try_parse_raw_ec(
+    const ccf::crypto::JsonWebKeyData& jwk)
   {
-    if (!jwk.x || jwk.x->empty() || !jwk.y || jwk.y->empty() || !jwk.crv)
+    if (
+      !jwk.kid.has_value() || !jwk.x.has_value() || jwk.x->empty() ||
+      !jwk.y.has_value() || jwk.y->empty() || !jwk.crv.has_value())
     {
       return {};
     }
 
     ccf::crypto::JsonWebKeyECPublic data;
     data.kty = ccf::crypto::JsonWebKeyType::EC;
-    data.kid = jwk.kid.value();
-    data.crv = jwk.crv.value();
-    data.x = jwk.x.value();
-    data.y = jwk.y.value();
+    data.kid = *jwk.kid;
+    data.crv = *jwk.crv;
+    data.x = *jwk.x;
+    data.y = *jwk.y;
     try
     {
-      const auto pubkey = ccf::crypto::make_public_key(data);
+      const auto pubkey = ccf::crypto::make_ec_public_key(data);
       return pubkey->public_key_der();
     }
     catch (const std::invalid_argument& exc)
@@ -65,15 +71,16 @@ namespace
     }
   }
 
-  std::vector<uint8_t> try_parse_x5c(const ccf::crypto::JsonWebKeyData& jwk)
+  inline std::vector<uint8_t> try_parse_x5c(
+    const ccf::crypto::JsonWebKeyData& jwk)
   {
-    if (!jwk.x5c || jwk.x5c->empty())
+    if (!jwk.kid.has_value() || !jwk.x5c.has_value() || jwk.x5c->empty())
     {
       return {};
     }
 
-    const auto& kid = jwk.kid.value();
-    auto& der_base64 = jwk.x5c.value()[0];
+    const auto& kid = *jwk.kid;
+    const auto& der_base64 = (*jwk.x5c)[0];
     ccf::Cert der;
     try
     {
@@ -96,9 +103,14 @@ namespace
     }
   }
 
-  std::vector<uint8_t> try_parse_jwk(const ccf::crypto::JsonWebKeyData& jwk)
+  inline std::vector<uint8_t> try_parse_jwk(
+    const ccf::crypto::JsonWebKeyData& jwk)
   {
-    const auto& kid = jwk.kid.value();
+    if (!jwk.kid.has_value())
+    {
+      throw std::logic_error("Missing kid for JWT signing key");
+    }
+    const auto& kid = *jwk.kid;
     auto key = try_parse_raw_rsa(jwk);
     if (!key.empty())
     {
@@ -122,49 +134,6 @@ namespace
 
 namespace ccf
 {
-  static void legacy_remove_jwt_public_signing_keys(
-    ccf::kv::Tx& tx, std::string issuer)
-  {
-    auto keys = tx.rw<Tables::Legacy::JwtPublicSigningKeys>(
-      Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS);
-    auto key_issuer = tx.rw<Tables::Legacy::JwtPublicSigningKeyIssuer>(
-      Tables::Legacy::JWT_PUBLIC_SIGNING_KEY_ISSUER);
-
-    key_issuer->foreach(
-      [&issuer, &keys, &key_issuer](const auto& k, const auto& v) {
-        if (v == issuer)
-        {
-          keys->remove(k);
-          key_issuer->remove(k);
-        }
-        return true;
-      });
-
-    auto metadata = tx.rw<JwtPublicSigningKeysMetadataLegacy>(
-      Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS_METADATA);
-    metadata->foreach([&issuer, &metadata](const auto& k, const auto& v) {
-      std::vector<OpenIDJWKMetadataLegacy> updated;
-      for (const auto& key : v)
-      {
-        if (key.issuer != issuer)
-        {
-          updated.push_back(key);
-        }
-      }
-
-      if (updated.empty())
-      {
-        metadata->remove(k);
-      }
-      else if (updated.size() < v.size())
-      {
-        metadata->put(k, updated);
-      }
-
-      return true;
-    });
-  }
-
   static bool check_issuer_constraint(
     const std::string& issuer, const std::string& constraint)
   {
@@ -199,12 +168,7 @@ namespace ccf
   static void remove_jwt_public_signing_keys(
     ccf::kv::Tx& tx, std::string issuer)
   {
-    // Unlike resetting JWT keys for a particular issuer, removing keys can be
-    // safely done on both table revisions, as soon as the application
-    // shouldn't use them anyway after being ask about that explicitly.
-    legacy_remove_jwt_public_signing_keys(tx, issuer);
-
-    auto keys = tx.rw<JwtPublicSigningKeysMetadata>(
+    auto* keys = tx.rw<JwtPublicSigningKeysMetadata>(
       Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
 
     keys->foreach([&issuer, &keys](const auto& k, const auto& v) {
@@ -234,10 +198,10 @@ namespace ccf
     ccf::kv::Tx& tx,
     const std::string& log_prefix,
     std::string issuer,
-    const JwtIssuerMetadata& issuer_metadata,
+    const JwtIssuerMetadata& /*issuer_metadata*/,
     const JsonWebKeySet& jwks)
   {
-    auto keys = tx.rw<JwtPublicSigningKeysMetadata>(
+    auto* keys = tx.rw<JwtPublicSigningKeysMetadata>(
       Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
     // add keys
     if (jwks.keys.empty())
@@ -245,20 +209,20 @@ namespace ccf
       LOG_FAIL_FMT("{}: JWKS has no keys", log_prefix);
       return false;
     }
-    std::map<std::string, PublicKey> new_keys;
+    std::map<std::string, ECPublicKey> new_keys;
     std::map<std::string, JwtIssuer> issuer_constraints;
 
     try
     {
-      for (auto& jwk : jwks.keys)
+      for (const auto& jwk : jwks.keys)
       {
         if (!jwk.kid.has_value())
         {
           throw std::logic_error("Missing kid for JWT signing key");
         }
 
-        const auto& kid = jwk.kid.value();
-        auto key_der = try_parse_jwk(jwk);
+        const auto& kid = *jwk.kid;
+        auto key_der = jwt_management_detail::try_parse_jwk(jwk);
 
         if (jwk.issuer)
         {
@@ -292,8 +256,7 @@ namespace ccf
     }
 
     std::set<std::string> existing_kids;
-    keys->foreach([&existing_kids, &issuer_constraints, &issuer](
-                    const auto& k, const auto& v) {
+    keys->foreach([&existing_kids, &issuer](const auto& k, const auto& v) {
       if (find_if(v.begin(), v.end(), [&](const auto& metadata) {
             return metadata.issuer == issuer;
           }) != v.end())
@@ -316,10 +279,11 @@ namespace ccf
         value.constraint = it->second;
       }
 
-      if (existing_kids.count(kid))
+      if (existing_kids.contains(kid))
       {
         const auto& keys_for_kid = keys->get(kid);
         if (
+          keys_for_kid.has_value() &&
           find_if(
             keys_for_kid->begin(),
             keys_for_kid->end(),
@@ -366,11 +330,15 @@ namespace ccf
       }
     }
 
-    for (auto& kid : existing_kids)
+    for (const auto& kid : existing_kids)
     {
       if (!new_keys.contains(kid))
       {
         auto updated = keys->get(kid);
+        if (!updated.has_value())
+        {
+          continue;
+        }
         updated->erase(
           std::remove_if(
             updated->begin(),

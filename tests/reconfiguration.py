@@ -20,7 +20,6 @@ from datetime import datetime
 from infra.checker import check_can_progress
 from governance_history import check_signatures
 from infra.snp import SNP_SUPPORT
-from infra.runner import ConcurrentRunner
 import http
 import random
 
@@ -81,7 +80,7 @@ def test_add_node_invalid_service_cert(network, args):
     # Incorrect target service certificate file, in this case the primary's node
     # identity
     service_cert_file = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     try:
         network.join_node(
             new_node,
@@ -105,26 +104,18 @@ def test_add_node_invalid_service_cert(network, args):
 
 @reqs.description("Adding a valid node")
 def test_add_node(network, args, from_snapshot=True):
-    # Note: host is supplied explicitly to avoid having differently
-    # assigned IPs for the interfaces, something which the test infra doesn't
-    # support widely yet.
+    # Add an operator interface for early access/validation
     operator_rpc_interface = "operator_rpc_interface"
-    host = infra.net.expand_localhost()
-    new_node = network.create_node(
-        infra.interfaces.HostSpec(
-            rpc_interfaces={
-                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                    host=host
-                ),
-                operator_rpc_interface: infra.interfaces.RPCInterface(
-                    host=host,
-                    endorsement=infra.interfaces.Endorsement(
-                        authority=infra.interfaces.EndorsementAuthority.Node
-                    ),
-                ),
-            }
-        )
-    )
+
+    extra_interface = infra.interfaces.RPCInterface()
+    extra_interface.endorsement.authority = infra.interfaces.EndorsementAuthority.Node
+
+    host_spec = infra.interfaces.HostSpec()
+    host_spec.rpc_interfaces[operator_rpc_interface] = extra_interface
+    host_spec.with_args(args)
+
+    new_node = network.create_node(host_spec)
+
     network.join_node(
         new_node,
         args.package,
@@ -162,7 +153,7 @@ def test_ignore_first_sigterm(network, args):
     # Note: host is supplied explicitly to avoid having differently
     # assigned IPs for the interfaces, something which the test infra doesn't
     # support widely yet.
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     network.join_node(new_node, args.package, args, ignore_first_sigterm=True)
     network.trust_node(new_node, args)
 
@@ -192,7 +183,7 @@ def test_ignore_first_sigterm(network, args):
 
 @reqs.description("Adding a node with an invalid certificate validity period")
 def test_add_node_invalid_validity_period(network, args):
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     network.join_node(new_node, args.package, args)
     try:
         network.trust_node(
@@ -239,7 +230,7 @@ def test_change_curve(network, args):
 @reqs.description("Adding a valid node from a backup")
 @reqs.at_least_n_nodes(2)
 def test_add_node_from_backup(network, args):
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     network.join_node(
         new_node,
         args.package,
@@ -277,7 +268,7 @@ def test_add_node_endorsements_endpoints(network, args):
         LOG.info(
             f"Joining new node with endorsement server {servers} (expect success: {expected_result})"
         )
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         args_copy.snp_endorsements_servers = servers
         # Ensure these nodes go to the specified server, and do not get their endorsements from file
         args_copy.snp_endorsements_file = "/dev/null"
@@ -322,7 +313,7 @@ def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=Fal
     idx, historical_entry = network.txs.get_last_tx(priv=True)
     network.txs.issue(network, number_txs=1, repeat=True)
 
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     network.join_node(
         new_node,
         args.package,
@@ -428,7 +419,7 @@ def test_add_as_many_pending_nodes(network, args):
 
     new_nodes = []
     for _ in range(number_new_nodes):
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         network.join_node(new_node, args.package, args)
         new_nodes.append(new_node)
 
@@ -500,7 +491,7 @@ def test_node_filter(network, args):
         trusted_before = get_nodes("Trusted")
         pending_before = get_nodes("Pending")
         retired_before = get_nodes("Retired")
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node()
         network.join_node(new_node, args.package, args, target_node=primary)
         trusted_after = get_nodes("Trusted")
         pending_after = get_nodes("Pending")
@@ -665,7 +656,7 @@ def test_join_straddling_primary_replacement(network, args):
     # are unable to participate (one retired and one not yet joined).
     test_add_node(network, args)
     primary, _ = network.find_primary()
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     network.join_node(new_node, args.package, args)
     proposal_body = {
         "actions": [
@@ -756,7 +747,7 @@ def test_add_node_with_read_only_ledger(network, args):
     network.txs.issue(network, number_txs=10)
     network.txs.issue(network, number_txs=2, repeat=True)
 
-    new_node = network.create_node("local://localhost")
+    new_node = network.create_node()
     network.join_node(
         new_node, args.package, args, from_snapshot=False, copy_ledger=True
     )
@@ -822,13 +813,15 @@ def run_all(args):
     run_join_old_snapshot(args)
 
 
-def run_join_old_snapshot(args):
+def run_join_old_snapshot(const_args):
     txs = app.LoggingTxs("user0")
-    nodes = ["local://localhost"]
+    args = deepcopy(const_args)
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    args.label += "_old_snapshot"
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         with infra.network.network(
-            nodes,
+            args.nodes,
             args.binary_dir,
             args.debug_nodes,
             pdb=args.pdb,
@@ -851,7 +844,7 @@ def run_join_old_snapshot(args):
             txs.issue(network, number_txs=args.snapshot_tx_interval)
 
             for _ in range(0, 2):
-                new_node = network.create_node("local://localhost")
+                new_node = network.create_node()
                 network.join_node(
                     new_node,
                     args.package,
@@ -867,7 +860,7 @@ def run_join_old_snapshot(args):
 
             # Start new node from the old snapshot
             try:
-                new_node = network.create_node("local://localhost")
+                new_node = network.create_node()
                 network.join_node(
                     new_node,
                     args.package,
@@ -891,7 +884,7 @@ def run_join_old_snapshot(args):
 
             # Start new node from no snapshot
             try:
-                new_node = network.create_node("local://localhost")
+                new_node = network.create_node()
                 network.join_node(
                     new_node,
                     args.package,
@@ -913,7 +906,7 @@ def run_join_old_snapshot(args):
                 )
 
             # Start new node with no snapshot dir, but fetching recent snapshot on startup - this should only pass if snapshot fetch works correctly
-            new_node = network.create_node("local://localhost")
+            new_node = network.create_node()
             network.join_node(
                 new_node,
                 args.package,
@@ -922,15 +915,3 @@ def run_join_old_snapshot(args):
                 fetch_recent_snapshot=True,
                 timeout=3,
             )
-
-
-if __name__ == "__main__":
-    cr = ConcurrentRunner()
-    cr.add(
-        "reconfiguration",
-        run_all,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-    )
-
-    cr.run()

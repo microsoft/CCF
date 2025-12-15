@@ -4,6 +4,7 @@
 
 #include "ccf/pal/locking.h"
 #include "channels.h"
+#include "ds/ccf_assert.h"
 #include "node/node_to_node.h"
 
 namespace ccf
@@ -27,7 +28,7 @@ namespace ccf
     {
       NodeId node_id;
       ccf::crypto::Pem service_cert;
-      ccf::crypto::KeyPairPtr node_kp;
+      ccf::crypto::ECKeyPairPtr node_kp;
       std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     };
     std::unique_ptr<ThisNode> this_node; //< Not available at construction, only
@@ -53,14 +54,13 @@ namespace ccf
         "Requested channel with self {}",
         peer_id);
 
-      CCF_ASSERT_FMT(
-        message_limit.has_value(),
-        "Node-to-node message limit has not yet been set");
+      if (!message_limit.has_value())
+      {
+        throw std::runtime_error(
+          "Node-to-node message limit has not yet been set");
+      }
 
       std::lock_guard<ccf::pal::Mutex> guard(lock);
-      CCF_ASSERT_FMT(
-        this_node != nullptr && this_node->endorsed_node_cert.has_value(),
-        "Endorsed node certificate has not yet been set");
 
       auto search = channels.find(peer_id);
       if (search != channels.end())
@@ -70,12 +70,26 @@ namespace ccf
         return channel_info.channel;
       }
 
+      if (this_node == nullptr)
+      {
+        throw std::runtime_error(
+          "Endorsed node certificate has not yet been set");
+      }
+
+      auto& endorsed_node_cert = this_node->endorsed_node_cert;
+      if (!endorsed_node_cert.has_value())
+      {
+        throw std::runtime_error(
+          "Cannot create node-to-node channel without endorsed node "
+          "certificate");
+      }
+
       // Create channel
       auto channel = std::make_shared<Channel>(
         writer_factory,
         this_node->service_cert,
         this_node->node_kp,
-        this_node->endorsed_node_cert.value(),
+        *endorsed_node_cert,
         this_node->node_id,
         peer_id,
         message_limit.value());
@@ -94,7 +108,7 @@ namespace ccf
     void initialize(
       const NodeId& self_id,
       const ccf::crypto::Pem& service_cert,
-      ccf::crypto::KeyPairPtr node_kp,
+      ccf::crypto::ECKeyPairPtr node_kp,
       const std::optional<ccf::crypto::Pem>& node_cert) override
     {
       CCF_ASSERT_FMT(
@@ -113,8 +127,8 @@ namespace ccf
         return;
       }
 
-      this_node = std::unique_ptr<ThisNode>(
-        new ThisNode{self_id, service_cert, node_kp, node_cert});
+      this_node =
+        std::make_unique<ThisNode>(self_id, service_cert, node_kp, node_cert);
     }
 
     void set_endorsed_node_cert(
@@ -164,7 +178,7 @@ namespace ccf
       }
     }
 
-    virtual void associate_node_address(
+    void associate_node_address(
       const NodeId& peer_id,
       const std::string& peer_hostname,
       const std::string& peer_service) override

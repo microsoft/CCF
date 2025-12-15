@@ -28,12 +28,12 @@ namespace ccf
     ccf::ds::SizeString historical_cache_soft_limit = {"512MB"};
 
     ccf::consensus::Configuration consensus = {};
-    ccf::NodeInfoNetwork network = {};
+    ccf::NodeInfoNetwork network;
 
     struct NodeCertificateInfo
     {
       std::string subject_name = "CN=CCF Node";
-      std::vector<std::string> subject_alt_names = {};
+      std::vector<std::string> subject_alt_names;
       ccf::crypto::CurveID curve_id = ccf::crypto::CurveID::SECP384R1;
       size_t initial_validity_days = 1;
 
@@ -44,7 +44,7 @@ namespace ccf
     struct Ledger
     {
       std::string directory = "ledger";
-      std::vector<std::string> read_only_directories = {};
+      std::vector<std::string> read_only_directories;
       ccf::ds::SizeString chunk_size = {"5MB"};
 
       bool operator==(const Ledger&) const = default;
@@ -70,7 +70,7 @@ namespace ccf
 
     struct Attestation
     {
-      ccf::pal::snp::EndorsementsServers snp_endorsements_servers = {};
+      ccf::pal::snp::EndorsementsServers snp_endorsements_servers;
       std::optional<std::string> snp_security_policy_file = std::nullopt;
       std::optional<std::string> snp_uvm_endorsements_file = std::nullopt;
       std::optional<std::string> snp_endorsements_file = std::nullopt;
@@ -143,7 +143,7 @@ namespace ccf
     {
       ccf::NodeInfoNetwork::NetAddress target_rpc_address;
       ccf::ds::TimeString retry_timeout = {"1000ms"};
-      std::vector<uint8_t> service_cert = {};
+      std::vector<uint8_t> service_cert;
       bool follow_redirect = true;
     };
     Join join = {};

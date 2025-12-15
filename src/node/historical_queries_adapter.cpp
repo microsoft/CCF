@@ -153,8 +153,8 @@ namespace ccf
       {
         const auto direction =
           node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT ?
-          ccf::ProofReceipt::ProofStep::Left :
-          ccf::ProofReceipt::ProofStep::Right;
+          ccf::ProofReceipt::ProofStep::Direction::Left :
+          ccf::ProofReceipt::ProofStep::Direction::Right;
         const auto hash = ccf::crypto::Sha256Hash::from_span(
           std::span<const uint8_t, ccf::ClaimsDigest::Digest::SIZE>(
             node.hash.bytes, sizeof(node.hash.bytes)));
@@ -213,7 +213,7 @@ namespace ccf
   std::optional<std::vector<uint8_t>> describe_merkle_proof_v1(
     const TxReceiptImpl& receipt)
   {
-    constexpr size_t buf_size = 2048; // TBD: calculate why this is enough
+    constexpr size_t buf_size = 2048;
     std::vector<uint8_t> underlying_buffer(buf_size);
     UsefulBuf buffer{underlying_buffer.data(), underlying_buffer.size()};
     assert(buffer.len == buf_size);
@@ -573,7 +573,7 @@ namespace ccf::historical
             state_cache,
             network_identity_subsystem)) ||
           !populate_cose_service_endorsements(
-            args.tx, historical_state, state_cache))
+            args.tx, historical_state, network_identity_subsystem))
         {
           auto reason = fmt::format(
             "Historical transaction {} is not currently available.",

@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/pal/locking.h"
 #include "ccf/tx_status.h"
@@ -133,12 +132,12 @@ namespace aft
   class Replica
   {
   public:
-    Replica(const ccf::NodeId& id_, const std::vector<uint8_t>& cert_) :
-      id(id_),
+    Replica(ccf::NodeId id_, const std::vector<uint8_t>& cert_) :
+      id(std::move(id_)),
       verifier(ccf::crypto::make_unique_verifier(cert_))
     {}
 
-    ccf::NodeId get_id() const
+    [[nodiscard]] ccf::NodeId get_id() const
     {
       return id;
     }
@@ -150,7 +149,10 @@ namespace aft
 
   struct State
   {
-    State(const ccf::NodeId& node_id_) : node_id(node_id_) {}
+    State(ccf::NodeId node_id_, bool pre_vote_enabled_ = true) :
+      node_id(std::move(node_id_)),
+      pre_vote_enabled(pre_vote_enabled_)
+    {}
     State() = default;
 
     ccf::pal::Mutex lock;
@@ -188,6 +190,8 @@ namespace aft
     // Index at which this node observes its retired_committed, only set when
     // that index itself is committed
     std::optional<ccf::SeqNo> retired_committed_idx = std::nullopt;
+
+    bool pre_vote_enabled = true;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(State);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -197,7 +201,8 @@ namespace aft
     last_idx,
     commit_idx,
     leadership_state,
-    membership_state);
+    membership_state,
+    pre_vote_enabled);
   DECLARE_JSON_OPTIONAL_FIELDS(
     State,
     retirement_phase,

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "consensus/aft/raft.h"
+#include "consensus/aft/raft_types.h"
 #include "ds/internal_logger.h"
 #include "logging_stub.h"
 
@@ -78,14 +79,14 @@ struct LoggingStubStore_Mermaid : public aft::LoggingStubStoreConfig
     aft::LoggingStubStoreConfig::compact(idx);
   }
 
-  void rollback(const ccf::kv::TxID& tx_id, aft::Term t) override
+  void rollback(const ccf::TxID& tx_id, aft::Term t) override
   {
     RAFT_DRIVER_PRINT(
       "{}->>{}: [KV] rolling back to {}.{}, in term {}",
       _id,
       _id,
-      tx_id.term,
-      tx_id.version,
+      tx_id.view,
+      tx_id.seqno,
       t);
     aft::LoggingStubStoreConfig::rollback(tx_id, t);
   }
@@ -116,6 +117,7 @@ private:
     std::shared_ptr<TRaft> raft;
   };
 
+  bool pre_vote_enabled = true;
   std::map<ccf::NodeId, NodeDriver> _nodes;
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
 
@@ -197,7 +199,7 @@ private:
       std::make_unique<Adaptor>(kv),
       std::make_unique<LedgerStubProxy_Mermaid>(node_id),
       std::make_shared<aft::ChannelStubProxy>(),
-      std::make_shared<aft::State>(node_id),
+      std::make_shared<aft::State>(node_id, pre_vote_enabled),
       nullptr);
     kv->set_set_retired_committed_hook(
       [raft](aft::Index idx, const std::vector<ccf::kv::NodeId>& node_ids) {
@@ -258,6 +260,21 @@ public:
       "Note over {}: Node {} created",
       ccf::NodeId(start_node_id),
       start_node_id);
+  }
+
+  void nominate_successor(std::string node_id_s, const size_t lineno)
+  {
+    ccf::NodeId node_id(node_id_s);
+    if (_nodes.find(node_id) == _nodes.end())
+    {
+      throw std::runtime_error(fmt::format(
+        "Attempted to nominate unknown node {} on line {}", node_id, lineno));
+    }
+
+    RAFT_DRIVER_PRINT(
+      "Note over {}: Node {} nominates a successor", node_id, node_id_s);
+
+    _nodes.at(node_id).raft->nominate_successor();
   }
 
   void cleanup_nodes(
@@ -392,11 +409,12 @@ public:
   void log_msg_details(
     ccf::NodeId node_id,
     ccf::NodeId tgt_node_id,
-    aft::RequestVote rv,
+    aft::RequestPreVote rv,
     bool dropped)
   {
     const auto s = fmt::format(
-      "request_vote for term {}, at tx {}.{}",
+      "{} for term {}, at tx {}.{}",
+      rv.msg,
       rv.term,
       rv.term_of_last_committable_idx,
       rv.last_committable_idx);
@@ -406,13 +424,37 @@ public:
   void log_msg_details(
     ccf::NodeId node_id,
     ccf::NodeId tgt_node_id,
+    aft::RequestVote rv,
+    bool dropped)
+  {
+    const auto s = fmt::format(
+      "{} for term {}, at tx {}.{}",
+      rv.msg,
+      rv.term,
+      rv.term_of_last_committable_idx,
+      rv.last_committable_idx);
+    log(node_id, tgt_node_id, s, dropped);
+  }
+
+  void log_msg_details(
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
+    aft::RequestPreVoteResponse rv,
+    bool dropped)
+  {
+    const auto s = fmt::format(
+      "{} for term {} = {}", rv.msg, rv.term, (rv.vote_granted ? "Y" : "N"));
+    rlog(node_id, tgt_node_id, s, dropped);
+  }
+
+  void log_msg_details(
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
     aft::RequestVoteResponse rv,
     bool dropped)
   {
     const auto s = fmt::format(
-      "request_vote_response for term {} = {}",
-      rv.term,
-      (rv.vote_granted ? "Y" : "N"));
+      "{} for term {} = {}", rv.msg, rv.term, (rv.vote_granted ? "Y" : "N"));
     rlog(node_id, tgt_node_id, s, dropped);
   }
 
@@ -423,7 +465,8 @@ public:
     bool dropped)
   {
     const auto s = fmt::format(
-      "append_entries ({}.{}, {}.{}] (term {}, commit {})",
+      "{} ({}.{}, {}.{}] (term {}, commit {})",
+      ae.msg,
       ae.prev_term,
       ae.prev_idx,
       ae.term_of_idx,
@@ -454,10 +497,7 @@ public:
       }
     }
     const auto s = fmt::format(
-      "append_entries_response {} for {}.{}",
-      success,
-      aer.term,
-      aer.last_log_idx);
+      "{} {} for {}.{}", aer.msg, success, aer.term, aer.last_log_idx);
     rlog(node_id, tgt_node_id, s, dropped);
   }
 
@@ -467,7 +507,7 @@ public:
     aft::ProposeRequestVote prv,
     bool dropped)
   {
-    const auto s = fmt::format("propose_request_vote for term {}", prv.term);
+    const auto s = fmt::format("{} for term {}", prv.msg, prv.term);
     log(node_id, tgt_node_id, s, dropped);
   }
 
@@ -492,7 +532,21 @@ public:
         log_msg_details(node_id, tgt_node_id, rv, dropped);
         break;
       }
+      case (aft::RaftMsgType::raft_request_pre_vote):
+      {
+        auto rpv = *(aft::RequestPreVote*)data;
+        packet = rpv;
+        log_msg_details(node_id, tgt_node_id, rpv, dropped);
+        break;
+      }
       case (aft::RaftMsgType::raft_request_vote_response):
+      {
+        auto rvr = *(aft::RequestPreVoteResponse*)data;
+        packet = rvr;
+        log_msg_details(node_id, tgt_node_id, rvr, dropped);
+        break;
+      }
+      case (aft::RaftMsgType::raft_request_pre_vote_response):
       {
         auto rvr = *(aft::RequestVoteResponse*)data;
         packet = rvr;
@@ -997,6 +1051,11 @@ public:
     }
   }
 
+  void set_pre_vote_enabled(bool enabled)
+  {
+    pre_vote_enabled = enabled;
+  }
+
   using Discrepancies = std::map<ccf::NodeId, std::vector<std::string>>;
 
   Discrepancies check_state_sync(const std::map<ccf::NodeId, NodeDriver> nodes)
@@ -1280,6 +1339,15 @@ public:
     }
   }
 
+  std::string detail_to_string(const nlohmann::json& detail)
+  {
+    if (detail.is_string())
+    {
+      return detail.get<std::string>();
+    }
+    return detail.dump();
+  }
+
   void assert_detail(
     ccf::NodeId node_id,
     const std::string& detail,
@@ -1300,7 +1368,7 @@ public:
         std::to_string((int)lineno)));
     }
 
-    std::string value = d[detail];
+    std::string value = detail_to_string(d[detail]);
     if (equal ? (value != expected) : (value == expected))
     {
       std::string cmp = equal ? "!" : "=";
@@ -1319,6 +1387,60 @@ public:
         cmp,
         expected,
         std::to_string((int)lineno)));
+    }
+  }
+
+  void assert_config(
+    const std::string& node_id,
+    const std::string& config_idx_s,
+    const std::vector<std::string>& node_ids)
+  {
+    auto config_idx = std::stol(config_idx_s);
+    auto details = _nodes.at(node_id).raft->get_details();
+    for (const auto& config : details.configs)
+    {
+      if (config.idx == config_idx)
+      {
+        std::set<std::string> expected_nodes(node_ids.begin(), node_ids.end());
+        std::set<std::string> actual_nodes;
+        for (const auto& [id, _] : config.nodes)
+        {
+          actual_nodes.insert(id);
+        }
+        if (expected_nodes != actual_nodes)
+        {
+          auto actual_str =
+            fmt::format("{{{}}}", fmt::join(actual_nodes, ", "));
+          auto expected_str =
+            fmt::format("{{{}}}", fmt::join(expected_nodes, ", "));
+          throw std::runtime_error(fmt::format(
+            "Node {} configuration at idx {} ({}) does not match expected ({})",
+            node_id,
+            config_idx,
+            actual_str,
+            expected_str));
+        }
+        return;
+      }
+    }
+    throw std::runtime_error(fmt::format(
+      "Node {} does not have a configuration at idx {}", node_id, config_idx));
+  }
+
+  void assert_absent_config(
+    const std::string& node_id, const std::string& config_idx_s)
+  {
+    auto config_idx = std::stol(config_idx_s);
+    auto details = _nodes.at(node_id).raft->get_details();
+    for (const auto& config : details.configs)
+    {
+      if (config.idx == config_idx)
+      {
+        throw std::runtime_error(fmt::format(
+          "Node {} has unexpected configuration at idx {}",
+          node_id,
+          config_idx));
+      }
     }
   }
 };

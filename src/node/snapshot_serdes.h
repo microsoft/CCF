@@ -55,7 +55,7 @@ namespace ccf
       throw std::logic_error("Snapshot transaction size should not be zero");
     }
 
-    auto receipt_data = data + store_snapshot_size;
+    const auto* receipt_data = data + store_snapshot_size;
     auto receipt_size = size - store_snapshot_size;
 
     if (receipt_size == 0)
@@ -177,6 +177,7 @@ namespace ccf
     ccf::MerkleTreeHistory history(tree);
     auto proof = history.get_proof(seqno);
     ccf::ClaimsDigest cd;
+    // NOLINTNEXTLINE(performance-move-const-arg)
     cd.set(std::move(claims_digest));
     ccf::TxReceiptImpl tx_receipt(
       sig,
@@ -191,6 +192,6 @@ namespace ccf
 
     auto receipt = ccf::describe_receipt_v1(tx_receipt);
     const auto receipt_str = receipt.dump();
-    return std::vector<uint8_t>(receipt_str.begin(), receipt_str.end());
+    return {receipt_str.begin(), receipt_str.end()};
   }
 }

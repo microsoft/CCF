@@ -1,11 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.e2e_args
 import infra.network
-import infra.consortium
 import random
-from infra.runner import ConcurrentRunner
-import memberclient
 import infra.proposal
 import infra.member
 
@@ -637,24 +633,3 @@ def run(args):
     service_startups(args)
     recovery_shares_scenario(args)
     recovery_shares_with_owners_scenario(args)
-
-
-if __name__ == "__main__":
-    cr = ConcurrentRunner()
-
-    cr.add(
-        "membership",
-        run,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=0,
-    )
-
-    cr.add(
-        "member_client",
-        memberclient.run,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=1),
-    )
-
-    cr.run()

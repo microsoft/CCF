@@ -430,12 +430,6 @@ class CCFRemote(object):
             constitution
         ), f"Constitution contains files with duplicate names, which is not going to do what you want. Recommend renaming one of them, or improving this infra to copy them to unique names. {constitution=}"
 
-        # ACME
-        if "acme" in kwargs and host.acme_challenge_server_interface:
-            kwargs["acme"][
-                "challenge_server_interface"
-            ] = host.acme_challenge_server_interface
-
         # SNP endorsements servers
         snp_endorsements_servers = snp_endorsements_servers or []
         snp_endorsements_servers_list = []

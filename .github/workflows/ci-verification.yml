@@ -19,7 +19,12 @@ permissions: read-all
 jobs:
   model-checking-consistency:
     name: Model Checking - Consistency
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=civ_mc_consistency-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -32,11 +37,11 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install TLC dependencies
         run: |
           tdnf install -y jre wget
-          python3 tla/install_deps.py --skip-apt-packages
+          python3 tla/install_deps.py
 
       - run: cd tla && ./tlc.py mc consistency/MCSingleNode.tla
       - run: cd tla && ./tlc.py mc consistency/MCSingleNodeReads.tla
@@ -45,7 +50,7 @@ jobs:
       - run: cd tla && ./tlc.py mc consistency/MCMultiNodeReadsAlt.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: ${{ failure() }}
         with:
           name: tlc-model-checking-consistency
@@ -61,11 +66,11 @@ jobs:
         working-directory: tla
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install TLC dependencies
         run: |
           sudo apt update
-          sudo apt install -y default-jre
+          sudo apt install -y default-jre wget
           python3 install_deps.py
 
       - run: ./tlc_debug.sh --config consistency/MCSingleNodeCommitReachability.cfg mc consistency/MCSingleNodeReads.tla
@@ -81,17 +86,17 @@ jobs:
         working-directory: tla
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install TLC dependencies
         run: |
           sudo apt update
-          sudo apt install -y default-jre
+          sudo apt install -y default-jre wget
           python3 install_deps.py
 
       - run: ./tlc.py sim --num 500 --depth 50 consistency/MultiNodeReads.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: ${{ failure() }}
         with:
           name: tlc-simulation-consistency
@@ -101,7 +106,12 @@ jobs:
 
   model-checking-consensus:
     name: Model Checking - Consensus
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=civ_mc_consensus-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -114,18 +124,18 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install TLC dependencies
         run: |
           tdnf install -y jre wget
-          python3 tla/install_deps.py --skip-apt-packages
+          python3 tla/install_deps.py
 
       - run: cd tla && ./tlc.py mc consensus/MCabs.tla
       - run: cd tla && ./tlc.py --trace-name 1C2N mc --term-count 2 --request-count 2 --raft-configs 1C2N consensus/MCccfraft.tla
       - run: cd tla && ./tlc.py --trace-name 1C3N mc --term-count 0 --request-count 3 --raft-configs 1C3N consensus/MCccfraft.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: ${{ failure() }}
         with:
           name: tlc-model-checking-consensus
@@ -141,17 +151,17 @@ jobs:
         working-directory: tla
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install TLC dependencies
         run: |
           sudo apt update
-          sudo apt install -y default-jre
+          sudo apt install -y default-jre wget
           python3 install_deps.py
 
       - run: ./tlc.py sim consensus/SIMccfraft.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: ${{ failure() }}
         with:
           name: tlc-simulation-consensus
@@ -161,7 +171,12 @@ jobs:
 
   trace-validation-consensus:
     name: Trace Validation - Consensus
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=civ_tv_consensus-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -174,14 +189,9 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-
-      - name: Install TLC dependencies
-        run: |
-          tdnf install -y jre wget
-          python3 tla/install_deps.py --skip-apt-packages
 
       - name: "Install dependencies"
         shell: bash
@@ -189,11 +199,10 @@ jobs:
           set -ex
           ./scripts/setup-ci.sh
 
-          # Parallel
-          wget https://ftp.gnu.org/gnu/parallel/parallel-latest.tar.bz2
-          tar -xjf parallel-latest.tar.bz2
-          cd $(ls | grep 'parallel' | grep -v 'tar' | grep -v 'rpm')
-          ./configure && make && make install
+      - name: Install TLC dependencies
+        run: |
+          tdnf install -y jre wget
+          python3 tla/install_deps.py --tdnf-extended
 
       - name: "Build"
         run: |
@@ -224,7 +233,7 @@ jobs:
         shell: bash
 
       - name: Upload artifacts.
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: tlc-trace-validation-consensus

@@ -2,9 +2,6 @@
   "network": {
     "node_to_node_interface": { "bind_address": "{{ node_address }}", "published_address": "{{ published_node_address }}" },
     "rpc_interfaces": {{ rpc_interfaces|tojson }}
-    {% if acme %}
-    , "acme": {{ acme|tojson }}
-    {% endif %}
   },
   "node_certificate":
   {

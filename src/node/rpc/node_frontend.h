@@ -22,15 +22,15 @@
 #include "ds/std_formatters.h"
 #include "frontend.h"
 #include "node/network_state.h"
+#include "node/rpc/file_serving_handlers.h"
 #include "node/rpc/jwt_management.h"
-#include "node/rpc/no_create_tx_claims_digest.cpp"
+#include "node/rpc/no_create_tx_claims_digest.cpp" // NOLINT(bugprone-suspicious-include)
 #include "node/rpc/serialization.h"
 #include "node/self_healing_open_impl.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
 #include "service/internal_tables_access.h"
 #include "service/tables/previous_service_identity.h"
-#include "snapshots/filenames.h"
 
 #include <llhttp/llhttp.h>
 #include <stdexcept>
@@ -39,12 +39,12 @@ namespace ccf
 {
   struct Quote
   {
-    NodeId node_id = {};
+    NodeId node_id;
     std::vector<uint8_t> raw;
     std::vector<uint8_t> endorsements;
-    QuoteFormat format;
+    QuoteFormat format = QuoteFormat::oe_sgx_v1;
 
-    std::string measurement = {}; // < Hex-encoded
+    std::string measurement; // < Hex-encoded
 
     std::optional<std::vector<uint8_t>> uvm_endorsements =
       std::nullopt; // SNP only
@@ -95,11 +95,11 @@ namespace ccf
 
   struct JavaScriptMetrics
   {
-    uint64_t bytecode_size;
-    bool bytecode_used;
-    uint64_t max_heap_size;
-    uint64_t max_stack_size;
-    uint64_t max_execution_time;
+    uint64_t bytecode_size = 0;
+    bool bytecode_used = false;
+    uint64_t max_heap_size = 0;
+    uint64_t max_stack_size = 0;
+    uint64_t max_execution_time = 0;
     uint64_t max_cached_interpreters = 10;
   };
 
@@ -176,7 +176,7 @@ namespace ccf
   public:
     // The node frontend is exempt from backpressure rules to enable an operator
     // to access a node that is not making progress.
-    bool apply_uncommitted_tx_backpressure() const override
+    [[nodiscard]] bool apply_uncommitted_tx_backpressure() const override
     {
       return false;
     }
@@ -232,8 +232,8 @@ namespace ccf
     {
       // Check that a node exists by looking up its public key in the nodes
       // table.
-      auto nodes = tx.ro(network.nodes);
-      auto endorsed_node_certificates =
+      auto* nodes = tx.ro(network.nodes);
+      auto* endorsed_node_certificates =
         tx.ro(network.node_endorsed_certificates);
 
       LOG_DEBUG_FMT(
@@ -263,7 +263,7 @@ namespace ccf
     std::optional<NodeId> check_conflicting_node_network(
       ccf::kv::Tx& tx, const NodeInfoNetwork& node_info_network)
     {
-      auto nodes = tx.rw(network.nodes);
+      auto* nodes = tx.rw(network.nodes);
 
       std::optional<NodeId> duplicate_node_id = std::nullopt;
       nodes->foreach([&node_info_network, &duplicate_node_id](
@@ -292,11 +292,10 @@ namespace ccf
       const std::vector<uint8_t>& node_der,
       const JoinNetworkNodeToNode::In& in,
       NodeStatus node_status,
-      ServiceStatus service_status,
-      ccf::ReconfigurationType reconfiguration_type)
+      ServiceStatus service_status)
     {
-      auto nodes = tx.rw(network.nodes);
-      auto node_endorsed_certificates =
+      auto* nodes = tx.rw(network.nodes);
+      auto* node_endorsed_certificates =
         tx.rw(network.node_endorsed_certificates);
 
       auto conflicting_node_id =
@@ -394,7 +393,7 @@ namespace ccf
           node_operation.is_part_of_public_network(),
           node_operation.get_last_recovered_signed_idx(),
           this->network.ledger_secrets->get(tx),
-          *this->network.identity.get(),
+          *this->network.identity,
           service_status,
           endorsed_certificate,
           node_operation.get_cose_signatures_config()};
@@ -542,7 +541,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "4.13.0";
+      openapi_info.document_version = "4.14.0";
     }
 
     void init_handlers() override
@@ -596,9 +595,6 @@ namespace ccf
             "No service is available to accept new node.");
         }
 
-        auto config = args.tx.ro(network.config);
-        auto service_config = config->get();
-
         if (
           active_service->status == ServiceStatus::OPENING ||
           active_service->status == ServiceStatus::RECOVERING)
@@ -620,7 +616,7 @@ namespace ccf
               node_operation.get_last_recovered_signed_idx(),
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->ledger_secret_seqno),
-              *this->network.identity.get(),
+              *this->network.identity,
               active_service->status,
               existing_node_info->endorsed_certificate,
               node_operation.get_cose_signatures_config());
@@ -633,29 +629,21 @@ namespace ccf
             auto primary_id = consensus->primary();
             if (primary_id.has_value())
             {
-              auto info = nodes->get(primary_id.value());
-              if (info)
+              const auto address = node::get_redirect_address_for_node(
+                args, args.tx, primary_id.value());
+              if (!address.has_value())
               {
-                auto& interface_id =
-                  args.rpc_ctx->get_session_context()->interface_id;
-                if (!interface_id.has_value())
-                {
-                  return make_error(
-                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                    ccf::errors::InternalError,
-                    "Cannot redirect non-RPC request.");
-                }
-                const auto& address =
-                  info->rpc_interfaces[interface_id.value()].published_address;
-                args.rpc_ctx->set_response_header(
-                  http::headers::LOCATION,
-                  fmt::format("https://{}/node/join", address));
-
-                return make_error(
-                  HTTP_STATUS_PERMANENT_REDIRECT,
-                  ccf::errors::NodeCannotHandleRequest,
-                  "Node is not primary; cannot handle write");
+                return already_populated_response();
               }
+
+              args.rpc_ctx->set_response_header(
+                http::headers::LOCATION,
+                fmt::format("https://{}/node/join", address.value()));
+
+              return make_error(
+                HTTP_STATUS_PERMANENT_REDIRECT,
+                ccf::errors::NodeCannotHandleRequest,
+                "Node is not primary; cannot handle write");
             }
 
             return make_error(
@@ -669,8 +657,7 @@ namespace ccf
             args.rpc_ctx->get_session_context()->caller_cert,
             in,
             joining_node_status,
-            active_service->status,
-            ccf::ReconfigurationType::ONE_TRANSACTION);
+            active_service->status);
         }
 
         // If the service is open, new nodes are first added as pending and
@@ -697,74 +684,62 @@ namespace ccf
               node_operation.get_last_recovered_signed_idx(),
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->ledger_secret_seqno),
-              *this->network.identity.get(),
+              *this->network.identity,
               active_service->status,
               existing_node_info->endorsed_certificate,
               node_operation.get_cose_signatures_config());
 
             return make_success(rep);
           }
-          else if (node_status == NodeStatus::PENDING)
+
+          if (node_status == NodeStatus::PENDING)
           {
             // Only return node status and ID
             return make_success(rep);
           }
-          else
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidNodeState,
-              fmt::format(
-                "Joining node is not in expected state ({}).", node_status));
-          }
-        }
-        else
-        {
-          if (consensus != nullptr && !this->node_operation.can_replicate())
-          {
-            auto primary_id = consensus->primary();
-            if (primary_id.has_value())
-            {
-              auto info = nodes->get(primary_id.value());
-              if (info)
-              {
-                auto& interface_id =
-                  args.rpc_ctx->get_session_context()->interface_id;
-                if (!interface_id.has_value())
-                {
-                  return make_error(
-                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                    ccf::errors::InternalError,
-                    "Cannot redirect non-RPC request.");
-                }
-                const auto& address =
-                  info->rpc_interfaces[interface_id.value()].published_address;
-                args.rpc_ctx->set_response_header(
-                  http::headers::LOCATION,
-                  fmt::format("https://{}/node/join", address));
 
-                return make_error(
-                  HTTP_STATUS_PERMANENT_REDIRECT,
-                  ccf::errors::NodeCannotHandleRequest,
-                  "Node is not primary; cannot handle write");
-              }
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidNodeState,
+            fmt::format(
+              "Joining node is not in expected state ({}).", node_status));
+        }
+
+        if (consensus != nullptr && !this->node_operation.can_replicate())
+        {
+          auto primary_id = consensus->primary();
+          if (primary_id.has_value())
+          {
+            const auto address = node::get_redirect_address_for_node(
+              args, args.tx, primary_id.value());
+            if (!address.has_value())
+            {
+              return already_populated_response();
             }
 
+            args.rpc_ctx->set_response_header(
+              http::headers::LOCATION,
+              fmt::format("https://{}/node/join", address.value()));
+
             return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Primary unknown");
+              HTTP_STATUS_PERMANENT_REDIRECT,
+              ccf::errors::NodeCannotHandleRequest,
+              "Node is not primary; cannot handle write");
           }
 
-          // If the node does not exist, add it to the KV in state pending
-          return add_node(
-            args.tx,
-            args.rpc_ctx->get_session_context()->caller_cert,
-            in,
-            NodeStatus::PENDING,
-            active_service->status,
-            ccf::ReconfigurationType::ONE_TRANSACTION);
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Primary unknown");
         }
+
+        // If the node does not exist, add it to the KV in state pending
+        return add_node(
+          args.tx,
+          args.rpc_ctx->get_session_context()->caller_cert,
+          in,
+          NodeStatus::PENDING,
+          active_service->status);
       };
       make_endpoint("/join", HTTP_POST, json_adapter(accept), no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
@@ -773,7 +748,7 @@ namespace ccf
 
       auto set_retired_committed = [this](auto& ctx, nlohmann::json&&) {
         auto nodes = ctx.tx.rw(network.nodes);
-        nodes->foreach([this, &nodes](const auto& node_id, auto node_info) {
+        nodes->foreach([&nodes](const auto& node_id, auto node_info) {
           auto gc_node = nodes->get_globally_committed(node_id);
           if (
             gc_node.has_value() &&
@@ -879,20 +854,19 @@ namespace ccf
 
           return make_success(q);
         }
-        else if (result == ApiResult::NotFound)
+
+        if (result == ApiResult::NotFound)
         {
           return make_error(
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
             "Could not find node quote.");
         }
-        else
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
-        }
+
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          fmt::format("Error code: {}", ccf::api_result_to_str(result)));
       };
       make_read_only_endpoint(
         "/quotes/self",
@@ -955,9 +929,9 @@ namespace ccf
         .install();
 
       auto get_attestations =
-        [this, get_quotes](auto& args, nlohmann::json&& params) {
-          const auto res = get_quotes(args, std::move(params));
-          const auto body = std::get_if<nlohmann::json>(&res);
+        [get_quotes](auto& args, nlohmann::json&& params) {
+          auto res = get_quotes(args, std::move(params));
+          const auto* body = std::get_if<nlohmann::json>(&res);
           if (body != nullptr)
           {
             auto result = nlohmann::json::object();
@@ -1012,7 +986,7 @@ namespace ccf
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
-      auto service_previous_identity = [this](auto& args, nlohmann::json&&) {
+      auto service_previous_identity = [](auto& args, nlohmann::json&&) {
         auto psi_handle = args.tx.template ro<ccf::PreviousServiceIdentity>(
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
         const auto psi = psi_handle->get();
@@ -1022,13 +996,11 @@ namespace ccf
           out.previous_service_identity = psi.value();
           return make_success(out);
         }
-        else
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "This service is not a recovery of a previous service.");
-        }
+
+        return make_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          "This service is not a recovery of a previous service.");
       };
       make_read_only_endpoint(
         "/service/previous_identity",
@@ -1138,7 +1110,7 @@ namespace ccf
 
         auto nodes = args.tx.ro(this->network.nodes);
         nodes->foreach(
-          [this, &out, nodes](const NodeId& node_id, const NodeInfo& ni) {
+          [&out, nodes](const NodeId& node_id, const NodeInfo& /*ni*/) {
             // Only nodes whose retire_committed status is committed can be
             // safely removed, because any primary elected from here on would
             // consider them retired, and would consequently not need their
@@ -1238,10 +1210,11 @@ namespace ccf
         .set_auto_schema<void, bool>()
         .install();
 
-      auto get_self_signed_certificate = [this](auto& args, nlohmann::json&&) {
-        return SelfSignedNodeCertificateInfo{
-          this->node_operation.get_self_signed_node_certificate()};
-      };
+      auto get_self_signed_certificate =
+        [this](auto& /*args*/, nlohmann::json&&) {
+          return SelfSignedNodeCertificateInfo{
+            this->node_operation.get_self_signed_node_certificate()};
+        };
       make_command_endpoint(
         "/self_signed_certificate",
         HTTP_GET,
@@ -1329,28 +1302,26 @@ namespace ccf
             ni.node_data,
             nodes->get_version_of_previous_write(node_id).value_or(0)});
         }
-        else
+
+        // If the node isn't in its KV yet, fall back to configuration
+        auto node_configuration_subsystem =
+          this->context.get_subsystem<NodeConfigurationSubsystem>();
+        if (!node_configuration_subsystem)
         {
-          // If the node isn't in its KV yet, fall back to configuration
-          auto node_configuration_subsystem =
-            this->context.get_subsystem<NodeConfigurationSubsystem>();
-          if (!node_configuration_subsystem)
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "NodeConfigurationSubsystem is not available");
-          }
-          const auto& node_startup_config =
-            node_configuration_subsystem->get().node_config;
-          return make_success(GetNode::Out{
-            node_id,
-            ccf::NodeStatus::PENDING,
-            is_primary,
-            node_startup_config.network.rpc_interfaces,
-            node_startup_config.node_data,
-            0});
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfigurationSubsystem is not available");
         }
+        const auto& node_startup_config =
+          node_configuration_subsystem->get().node_config;
+        return make_success(GetNode::Out{
+          node_id,
+          ccf::NodeStatus::PENDING,
+          is_primary,
+          node_startup_config.network.rpc_interfaces,
+          node_startup_config.node_data,
+          0});
       };
       make_read_only_endpoint(
         "/network/nodes/self",
@@ -1393,13 +1364,11 @@ namespace ccf
             nodes->get_version_of_previous_write(primary_id.value())
               .value_or(0)});
         }
-        else
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "No configured consensus");
-        }
+
+        return make_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          "No configured consensus");
       };
       make_read_only_endpoint(
         "/network/nodes/primary",
@@ -1416,40 +1385,36 @@ namespace ccf
         }
         else
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
-          if (consensus != nullptr)
+          if (consensus == nullptr)
           {
-            auto primary_id = consensus->primary();
-            if (!primary_id.has_value())
-            {
-              args.rpc_ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "Primary unknown");
-              return;
-            }
-
-            auto nodes = args.tx.ro(this->network.nodes);
-            auto info = nodes->get(primary_id.value());
-            if (info)
-            {
-              auto& interface_id =
-                args.rpc_ctx->get_session_context()->interface_id;
-              if (!interface_id.has_value())
-              {
-                args.rpc_ctx->set_error(
-                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                  ccf::errors::InternalError,
-                  "Cannot redirect non-RPC request.");
-                return;
-              }
-              const auto& address =
-                info->rpc_interfaces[interface_id.value()].published_address;
-              args.rpc_ctx->set_response_header(
-                http::headers::LOCATION,
-                fmt::format("https://{}/node/primary", address));
-            }
+            args.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Consensus not initialised");
+            return;
           }
+
+          auto primary_id = consensus->primary();
+          if (!primary_id.has_value())
+          {
+            args.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Primary unknown");
+            return;
+          }
+
+          const auto address = node::get_redirect_address_for_node(
+            args, args.tx, primary_id.value());
+          if (!address.has_value())
+          {
+            return;
+          }
+
+          args.rpc_ctx->set_response_header(
+            http::headers::LOCATION,
+            fmt::format("https://{}/node/primary", address.value()));
+          args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
         }
       };
       make_read_only_endpoint(
@@ -1463,14 +1428,11 @@ namespace ccf
           args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           return;
         }
-        else
-        {
-          args.rpc_ctx->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "Node is not primary");
-          return;
-        }
+
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          "Node is not primary");
       };
       make_read_only_endpoint(
         "/primary", HTTP_GET, get_primary, no_auth_required)
@@ -1483,20 +1445,17 @@ namespace ccf
           args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           return;
         }
-        else
-        {
-          args.rpc_ctx->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "Node is not backup");
-          return;
-        }
+
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          "Node is not backup");
       };
       make_read_only_endpoint("/backup", HTTP_GET, get_backup, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
-      auto consensus_config = [this](auto& args, nlohmann::json&&) {
+      auto consensus_config = [this](auto& /*args*/, nlohmann::json&&) {
         // Query node for configurations, separate current from pending
         if (consensus != nullptr)
         {
@@ -1511,13 +1470,11 @@ namespace ccf
           }
           return make_success(cc);
         }
-        else
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "No configured consensus");
-        }
+
+        return make_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          "No configured consensus");
       };
 
       make_command_endpoint(
@@ -1529,18 +1486,16 @@ namespace ccf
         .set_auto_schema<void, ConsensusConfig>()
         .install();
 
-      auto consensus_state = [this](auto& args, nlohmann::json&&) {
+      auto consensus_state = [this](auto& /*args*/, nlohmann::json&&) {
         if (consensus != nullptr)
         {
           return make_success(ConsensusConfigDetails{consensus->get_details()});
         }
-        else
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "No configured consensus");
-        }
+
+        return make_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          "No configured consensus");
       };
 
       make_command_endpoint(
@@ -1621,7 +1576,7 @@ namespace ccf
         .set_auto_schema<void, JavaScriptMetrics>()
         .install();
 
-      auto version = [this](auto&, nlohmann::json&&) {
+      auto version = [](auto&, nlohmann::json&&) {
         GetVersion::Out result;
         result.ccf_version = ccf::ccf_version;
         result.quickjs_version = ccf::quickjs_version;
@@ -1687,7 +1642,7 @@ namespace ccf
         else
         {
           // On recovery, force a new ledger chunk
-          auto tx_ = static_cast<ccf::kv::CommittableTx*>(&ctx.tx);
+          auto* tx_ = static_cast<ccf::kv::CommittableTx*>(&ctx.tx);
           if (tx_ == nullptr)
           {
             throw std::logic_error("Could not cast tx to CommittableTx");
@@ -1873,9 +1828,10 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
-      auto get_jwt_metrics = [this](auto& args, const nlohmann::json& params) {
-        return make_success(jwt_refresh_metrics);
-      };
+      auto get_jwt_metrics =
+        [this](auto& /*args*/, const nlohmann::json& /*params*/) {
+          return make_success(jwt_refresh_metrics);
+        };
       make_read_only_endpoint(
         "/jwt_keys/refresh/metrics",
         HTTP_GET,
@@ -1885,7 +1841,7 @@ namespace ccf
         .install();
 
       auto service_config_handler =
-        [this](auto& args, const nlohmann::json& params) {
+        [this](auto& args, const nlohmann::json& /*params*/) {
           return make_success(args.tx.ro(network.config)->get());
         };
       make_endpoint(
@@ -1898,8 +1854,8 @@ namespace ccf
         .install();
 
       auto list_indexing_strategies = [this](
-                                        auto& args,
-                                        const nlohmann::json& params) {
+                                        auto& /*args*/,
+                                        const nlohmann::json& /*params*/) {
         return make_success(this->context.get_indexing_strategies().describe());
       };
 
@@ -2465,6 +2421,7 @@ namespace ccf
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_openapi_hidden(true)
         .install();
+      ccf::node::init_file_serving_handlers(*this, context);
     }
   };
 
