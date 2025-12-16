@@ -874,17 +874,14 @@ class Network:
                     yield item
 
         # Waiting for any node to transition-to-open
-        end_time = time.time() + timeout
-        for node in cycle(self.nodes):
+        # cycle round twice to avoid waiting for the same node forever
+        for node in cycle(self.nodes + self.nodes):
             LOG.info(f"Seeing if node {node.local_node_id} has opened")
-            if time.time() > end_time:
-                LOG.error("Timed out waiting for any node to open")
-                raise TimeoutError("Timed out waiting for any node to open")
             try:
                 self.wait_for_statuses(
                     node,
                     ["WaitingForRecoveryShares", "Open"],
-                    timeout=0.5,
+                    timeout=timeout / len(self.nodes),
                     verify_ca=False,
                 )
                 break
