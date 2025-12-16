@@ -22,7 +22,7 @@ jobs:
         1ES.Pool=gha-vmss-d16av5-ci,
         "JobId=bab_benchmark_pr-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'bench-ab') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    if: &check_trigger_conditions ${{ contains(github.event.pull_request.labels.*.name, 'bench-ab') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root
@@ -72,7 +72,7 @@ jobs:
         1ES.Pool=gha-vmss-d16av5-ci,
         "JobId=bab_benchmark_main-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'bench-ab') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    if: *check_trigger_conditions
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root
@@ -127,7 +127,7 @@ jobs:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root
     needs: [benchmark_pr, benchmark_main]
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'bench-ab') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    if: *check_trigger_conditions
     steps:
       - name: Setup container dependencies
         run: |
