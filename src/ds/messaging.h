@@ -46,8 +46,6 @@ namespace messaging
     std::map<MessageType, Handler> handlers;
     std::map<MessageType, char const*> message_labels;
 
-    MessageCounts message_counts;
-
     std::string get_error_prefix()
     {
       return std::string("[") + std::string(name) + std::string("] ");
@@ -174,28 +172,6 @@ namespace messaging
         LOG_TRACE_FMT("{}", e.what());
         throw e;
       }
-
-      auto& counts = message_counts[m];
-      counts.messages++;
-      counts.bytes += size;
-    }
-
-    MessageCounts retrieve_message_counts()
-    {
-      MessageCounts current;
-      std::swap(message_counts, current);
-      return current;
-    }
-
-    nlohmann::json convert_message_counts(const MessageCounts& mc)
-    {
-      auto j = nlohmann::json::object();
-      for (const auto& it : mc)
-      {
-        j[get_message_name(it.first)] = {
-          {"count", it.second.messages}, {"bytes", it.second.bytes}};
-      }
-      return j;
     }
   };
 

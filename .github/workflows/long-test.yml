@@ -15,7 +15,7 @@ permissions: read-all
 
 jobs:
   long-asan:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    if: &check_trigger_conditions ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: "ASAN"
     runs-on:
       [
@@ -63,7 +63,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: logs-asan
           path: |
@@ -75,7 +75,7 @@ jobs:
           if-no-files-found: ignore
 
   long-tsan:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    if: *check_trigger_conditions
     name: "TSAN"
     runs-on:
       [
@@ -123,7 +123,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: logs-tsan
           path: |
@@ -138,7 +138,7 @@ jobs:
   # - Sanitizer builds may slightly differ.
   # - Test durations may also differ, which is important for -L "suite" because they have fixed timeouts.
   long-e2e-debug:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    if: *check_trigger_conditions
     name: Long e2e - Debug
     runs-on:
       [
@@ -188,7 +188,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: logs-e2e-debug
           path: |
@@ -201,7 +201,7 @@ jobs:
 
   # All e2e tests in release mode (same as release build).
   long-e2e-release:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    if: *check_trigger_conditions
     name: Long e2e - Release
     runs-on:
       [
@@ -248,7 +248,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: logs-e2e-release
           path: |
@@ -265,7 +265,7 @@ jobs:
   # - Long LTS tests
   # - Ensure snmalloc linkage
   e2e-long-combined:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    if: *check_trigger_conditions
     name: Long Shuffled/LTS/Snmalloc
     runs-on:
       [
@@ -334,7 +334,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: e2e-long-combined
           path: |

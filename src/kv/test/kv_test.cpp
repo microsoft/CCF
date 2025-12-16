@@ -2792,7 +2792,7 @@ TEST_CASE("Reported TxID after commit")
     // No map handle acquired
 
     // Tx is not yet committed
-    REQUIRE_THROWS_AS(tx.get_txid(), std::logic_error);
+    REQUIRE_THROWS_AS(auto _ = tx.get_txid(), std::logic_error);
 
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
