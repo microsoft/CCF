@@ -18,10 +18,10 @@ jobs:
     name: Model Checking With Atomic Reconfig - Consensus
     if: &check_trigger_conditions >-
       ${{
-          (github.event.pull_request.action == 'labeled'
-            && github.event.pull_request.label.name == 'run-long-verification')
-          || (github.event.pull_request.action != 'labeled'
-            && contains(github.event.pull_request.labels.*.name, 'run-long-verification'))
+          (github.event.action == 'labeled'
+            && github.event.label.name == 'run-long-verification')
+          || (github.event.action != 'labeled'
+            && contains(github.event.labels.*.name, 'run-long-verification'))
           || github.event_name == 'workflow_dispatch'
           || github.event_name == 'schedule'
       }}

@@ -24,10 +24,10 @@ jobs:
       ]
     if: &check_trigger_conditions >-
       ${{
-          (github.event.pull_request.action == 'labeled'
-            && github.event.pull_request.label.name == 'bench-ab')
-          || (github.event.pull_request.action != 'labeled'
-            && contains(github.event.pull_request.labels.*.name, 'bench-ab'))
+          (github.event.action == 'labeled'
+            && github.event.label.name == 'bench-ab')
+          || (github.event.action != 'labeled'
+            && contains(github.event.labels.*.name, 'bench-ab'))
           || github.event_name == 'workflow_dispatch'
           || github.event_name == 'schedule'
       }}
