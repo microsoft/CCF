@@ -315,7 +315,7 @@ namespace ccf
       "SelfHealingOpenRetry");
 
     ccf::tasks::add_periodic_task(
-      retry_task, config->retry_timeout, config->retry_timeout);
+      retry_task, 0, config->retry_timeout);
   }
 
   void SelfHealingOpenSubsystem::start_failover_timers()
