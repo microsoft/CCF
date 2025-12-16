@@ -12,13 +12,13 @@
 
 namespace ccf::node
 {
-  template <typename In>
+  template <typename Input>
   using SelfHealingOpenHandler = std::function<std::optional<ErrorDetails>(
-    endpoints::EndpointContext& args, In& in)>;
+    endpoints::EndpointContext& args, Input& in)>;
 
-  template <typename In>
+  template <typename Input>
   static HandlerJsonParamsAndForward wrap_self_healing_open(
-    SelfHealingOpenHandler<In> cb, ccf::AbstractNodeContext& node_context)
+    SelfHealingOpenHandler<Input> cb, ccf::AbstractNodeContext& node_context)
   {
     return [cb = std::move(cb), node_context](
              endpoints::EndpointContext& args, const nlohmann::json& params) {
@@ -40,7 +40,7 @@ namespace ccf::node
           "This node cannot do self-healing-open");
       }
 
-      auto in = params.get<In>();
+      auto in = params.get<Input>();
       self_healing_open::RequestNodeInfo info = in.info;
 
       // ---- Validate the quote and store the node info ----
