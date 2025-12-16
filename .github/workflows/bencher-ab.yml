@@ -22,7 +22,15 @@ jobs:
         1ES.Pool=gha-vmss-d16av5-ci,
         "JobId=bab_benchmark_pr-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
-    if: &check_trigger_conditions ${{ contains(github.event.pull_request.labels.*.name, 'bench-ab') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    if: &check_trigger_conditions >-
+      ${{
+          (github.event.pull_request.action == "labeled"
+            && github.event.pull_request.label.name == 'bench-ab')
+          || (github.event.pull_request.action != "labeled"
+            && contains(github.event.pull_request.labels.*.name, 'bench-ab'))
+          || github.event_name == 'workflow_dispatch'
+          || github.event_name == 'schedule'
+      }}
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root
