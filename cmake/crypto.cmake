@@ -26,6 +26,7 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/openssl/cose_verifier.cpp
     ${CCF_DIR}/src/crypto/openssl/cose_sign.cpp
     ${CCF_DIR}/src/crypto/sharing.cpp
+    ${CCF_DIR}/src/crypto/cbor.cpp
 )
 
 find_library(CRYPTO_LIBRARY crypto)
