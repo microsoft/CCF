@@ -7,8 +7,10 @@
 #include "ccf/json_handler.h"
 #include "ccf/node_context.h"
 #include "ccf/odata_error.h"
+#include "ccf/service/tables/self_healing_open.h"
 #include "node/node_configuration_subsystem.h"
 #include "node/rpc/node_frontend_utils.h"
+#include "node/self_healing_open_impl.h"
 
 namespace ccf::node
 {

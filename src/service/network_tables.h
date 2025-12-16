@@ -15,7 +15,6 @@
 #include "ccf/service/tables/modules.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/proposals.h"
-#include "ccf/service/tables/self_healing_open.h"
 #include "ccf/service/tables/service.h"
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/tcb_verification.h"

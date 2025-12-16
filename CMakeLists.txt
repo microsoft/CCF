@@ -876,11 +876,6 @@ if(BUILD_TESTS)
     )
   endif()
 
-  add_test_bin(
-    curl_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/curl_test.cpp
-  )
-  target_link_libraries(curl_test PRIVATE curl uv http_parser)
-
   if(LONG_TESTS)
     set(ADDITIONAL_RECOVERY_ARGS --with-election --with-unsigned-suffix)
     if(NOT TSAN)
@@ -1220,6 +1215,11 @@ if(BUILD_TESTS)
     LABEL perf
     CONFIGURATIONS perf
   )
+
+  add_test_bin(
+    curl_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/curl_test.cpp
+  )
+  target_link_libraries(curl_test PRIVATE curl uv http_parser)
 
   if(LONG_TESTS)
     add_e2e_test(

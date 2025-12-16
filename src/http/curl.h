@@ -799,8 +799,6 @@ namespace ccf::curl
           CURL_CSELECT_ERR,
           &running_handles);
         self->curl_request_curlm.perform();
-        LOG_TRACE_FMT(
-          "Finished handling error on socket {}", socket_context->socket);
         return;
       }
 
