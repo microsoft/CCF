@@ -155,7 +155,7 @@ namespace
   Value consume_simple(cbor_nondet_t cbor)
   {
     // Return all as one bytes, leave detailed parsing to the user. EverCBOR
-    // does not support more granural parsing, as well as floating point numbers
+    // does not support more granular parsing, as well as floating point numbers
     // with extra payload yet.
     Simple value{0};
     if (!cbor_nondet_read_simple_value(cbor, &value))
