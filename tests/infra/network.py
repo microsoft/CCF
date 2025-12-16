@@ -780,7 +780,6 @@ class Network:
         committed_ledger_dirs=None,
         snapshot_dirs=None,
         common_dir=None,
-        set_authenticate_session=None,
         starting_nodes=None,
         timeout=10,
         sealed_ledger_secrets=None,
@@ -873,29 +872,43 @@ class Network:
                 for item in items:
                     yield item
 
-        # Waiting for any node to transition-to-open
-        # cycle round twice to avoid waiting for the same node forever
-        for node in cycle(self.nodes + self.nodes):
-            LOG.info(f"Seeing if node {node.local_node_id} has opened")
+        # One node will open, the remainder will stop themselves
+        waiting_nodes = set(self.nodes)
+        end_time = time.time() + timeout
+        for node in cycle(self.nodes):
+            if time.time() > end_time:
+                raise TimeoutError("Timed out waiting for cluster to open")
+            if len(waiting_nodes) == 0:
+                break 
+            if node not in waiting_nodes:
+                continue
+
+            if node.remote == None or node.remote.remote.proc.poll() != None:
+                LOG.info(f"{node.local_node_id} has stopped")
+                waiting_nodes.remove(node)
+                continue
+
             try:
                 self.wait_for_statuses(
                     node,
                     ["WaitingForRecoveryShares", "Open"],
-                    timeout=timeout / len(self.nodes),
+                    timeout=timeout / (len(self.nodes) * 2),
                     verify_ca=False,
                 )
-                break
+                LOG.info(f"{node.local_node_id} opened")
+                return
             except Exception as e:
-                if isinstance(e, (CCFIOException, TimeoutError)) or (
+                is_timeout = isinstance(e, (CCFIOException, TimeoutError)) or (
                     isinstance(e, RuntimeError) and "node is stopped" in str(e).lower()
-                ):
-                    LOG.info(
-                        f"Failed to get the status of {node.local_node_id}, retrying..."
-                    )
-                    continue
-                raise e
+                )
 
-        LOG.info("One node opened")
+                if not is_timeout:
+                    raise e
+
+                LOG.info(
+                    f"Failed to get the status of {node.local_node_id}, retrying..."
+                )
+                continue
 
     def recover(
         self,

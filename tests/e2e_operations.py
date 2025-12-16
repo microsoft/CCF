@@ -1747,6 +1747,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
 def run_self_healing_open(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.label += "_self_healing"
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -1778,9 +1779,6 @@ def run_self_healing_open(const_args):
                 ledger_dirs=ledger_dirs,
                 committed_ledger_dirs=committed_ledger_dirs,
             )
-
-            # Wait until all relevant nodes have restarted
-            time.sleep(3)
 
             # Refresh the the declared state of nodes which have shut themselves down to join.
             for node in recovered_network.nodes:
@@ -1818,6 +1816,7 @@ def run_self_healing_open(const_args):
 def run_self_healing_open_timeout_path(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.label += "_self_healing_open_timeout"
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -1848,11 +1847,8 @@ def run_self_healing_open_timeout_path(const_args):
                 recovery_args,
                 ledger_dirs=ledger_dirs,
                 committed_ledger_dirs=committed_ledger_dirs,
-                starting_nodes=1,  # Force timeout path by starting only one node
+                starting_nodes=0,  # Force timeout path by starting only one node
             )
-
-            # Wait until all relevant nodes have restarted
-            time.sleep(3)
 
             # Refresh the the declared state of nodes which have shut themselves down to join.
             for node in recovered_network.nodes:
@@ -1891,6 +1887,7 @@ def run_self_healing_open_local_unsealing(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.enable_local_sealing = True
+    args.label += "_self_healing_local_unsealing"
 
     with infra.network.network(
         args.nodes,
@@ -1925,9 +1922,6 @@ def run_self_healing_open_local_unsealing(const_args):
             committed_ledger_dirs=committed_ledger_dirs,
             sealed_ledger_secrets=node_secrets,
         )
-
-        # Wait until all relevant nodes have restarted
-        time.sleep(3)
 
         # Refresh the the declared state of nodes which have shut themselves down to join.
         for node in recovered_network.nodes:
