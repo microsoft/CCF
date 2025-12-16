@@ -165,9 +165,10 @@ endgroup
 group "Summary"
 if [[ -n "$FAIL" ]]; then
   echo "The following checks failed: ${FAIL//;/, }"
+  endgroup
   exit 1
 else
   echo "All checks passed"
+  endgroup
   exit 0
 fi
-endgroup
