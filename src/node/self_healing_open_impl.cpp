@@ -3,6 +3,7 @@
 
 #include "node/self_healing_open_impl.h"
 
+#include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
@@ -20,7 +21,7 @@ namespace ccf
     node_state(node_state_)
   {}
 
-  void SelfHealingOpenSubsystem::try_start(ccf::kv::Tx& tx, bool recovering)
+  void SelfHealingOpenSubsystem::reset_state(ccf::kv::Tx& tx)
   {
     // Clear any previous state
     tx.rw<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE)
@@ -38,7 +39,10 @@ namespace ccf
     tx.rw<self_healing_open::FailoverFlag>(
         Tables::SELF_HEALING_OPEN_FAILOVER_FLAG)
       ->clear();
+  }
 
+  void SelfHealingOpenSubsystem::try_start(ccf::kv::Tx& tx, bool recovering)
+  {
     auto& config = node_state->config.recover.self_healing_open;
     if (!recovering || !config.has_value())
     {
@@ -249,8 +253,6 @@ namespace ccf
           throw std::logic_error("Self-healing-open not configured");
         }
 
-        std::lock_guard<pal::Mutex> guard(node_state->lock);
-
         auto tx = node_state->network.tables->create_read_only_tx();
         auto* sm_state_handle =
           tx.ro<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE);
@@ -315,7 +317,9 @@ namespace ccf
       "SelfHealingOpenRetry");
 
     ccf::tasks::add_periodic_task(
-      retry_task, 0, config->retry_timeout);
+      retry_task,
+      std::chrono::milliseconds(0),
+      std::chrono::milliseconds(config->retry_timeout));
   }
 
   void SelfHealingOpenSubsystem::start_failover_timers()
@@ -336,7 +340,6 @@ namespace ccf
           throw std::logic_error("Self-healing-open not configured");
         }
 
-        std::lock_guard<pal::Mutex> guard(node_state->lock);
         LOG_TRACE_FMT(
           "Self-healing-open timeout, sending timeout to internal handlers");
 
@@ -360,7 +363,14 @@ namespace ccf
         // Send a timeout to the internal handlers
         curl::UniqueCURL curl_handle;
 
-        auto cert = node_state->self_signed_node_cert;
+        crypto::Pem cert;
+        crypto::Pem privkey_pem;
+        {
+          std::lock_guard<pal::Mutex> guard(node_state->lock);
+          cert = node_state->self_signed_node_cert;
+          privkey_pem = node_state->node_sign_kp->private_key_pem();
+        }
+
         curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 0L);
         curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 0L);
         curl_handle.set_opt(CURLOPT_SSL_VERIFYSTATUS, 0L);
@@ -369,7 +379,6 @@ namespace ccf
           CURLOPT_SSLCERT_BLOB, cert.data(), cert.size());
         curl_handle.set_opt(CURLOPT_SSLCERTTYPE, "PEM");
 
-        auto privkey_pem = node_state->node_sign_kp->private_key_pem();
         curl_handle.set_blob_opt(
           CURLOPT_SSLKEY_BLOB, privkey_pem.data(), privkey_pem.size());
         curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
@@ -397,7 +406,9 @@ namespace ccf
       "SelfHealingOpenFailover");
 
     ccf::tasks::add_periodic_task(
-      failover_task, config->failover_timeout, config->failover_timeout);
+      failover_task,
+      std::chrono::milliseconds(config->failover_timeout),
+      std::chrono::milliseconds(config->failover_timeout));
   }
 
   void SelfHealingOpenSubsystem::stop_timers()
@@ -491,16 +502,19 @@ namespace ccf
       throw std::logic_error(fmt::format(
         "Node {} not found in nodes table", node_state->get_node_id()));
     }
-    return {
-      .quote_info = node_info_opt->quote_info,
-      .published_network_address =
-        node_state->config.network.rpc_interfaces.at("primary_rpc_interface")
-          .published_address,
-      .intrinsic_id =
-        node_state->config.network.rpc_interfaces.at("primary_rpc_interface")
-          .published_address,
-      .service_identity = node_state->network.identity->cert.str(),
-    };
+    {
+      std::lock_guard<pal::Mutex> guard(node_state->lock);
+      return {
+        .quote_info = node_info_opt->quote_info,
+        .published_network_address =
+          node_state->config.network.rpc_interfaces.at("primary_rpc_interface")
+            .published_address,
+        .intrinsic_id =
+          node_state->config.network.rpc_interfaces.at("primary_rpc_interface")
+            .published_address,
+        .service_identity = node_state->network.identity->cert.str(),
+      };
+    }
   }
 
   void SelfHealingOpenSubsystem::send_gossip_unsafe(kv::ReadOnlyTx& tx)

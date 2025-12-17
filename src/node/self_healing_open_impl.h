@@ -57,6 +57,7 @@ namespace ccf
 
   public:
     SelfHealingOpenSubsystem(NodeState* node_state);
+    void reset_state(ccf::kv::Tx& tx);
     void try_start(ccf::kv::Tx& tx, bool recovering);
     void advance(ccf::kv::Tx& tx, bool timeout);
 
