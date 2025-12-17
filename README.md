@@ -6,7 +6,6 @@ The Confidential Consortium Framework (CCF) is an open-source framework for buil
 <img alt="ccf" src="doc/_static/ccf_overview.png" width="700">
 </p>
 
-
 ## Get Started with CCF
 
 - Read the [CCF overview](https://microsoft.github.io/CCF/main/overview/index.html) and become familiar with the [core concepts](https://microsoft.github.io/CCF/main/overview/what_is_ccf.html)
