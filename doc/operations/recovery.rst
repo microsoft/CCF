@@ -151,8 +151,8 @@ Self-Healing-Open recovery
 In environments with limited orchestration or limited operator access, it is desirable to allow an automated disaster recovery without operator intervention.
 At a high level, Self-Healing-Open recovery allows recovering replicas to discover which node has the most up-to-date ledger and automatically recover the network using that ledger.
 
-There are two paths, a election path, and a very-high-availablity failover path.
-The election path ensures that if: all nodes restart and have full network connectivity, a majority of nodes' on-disk ledger contains every committed transaction, and no timeouts trigger; then there will be only one recovered network, then all committed transaction will be persisted.
+There are two paths, an election path, and a very-high-availability failover path.
+The election path ensures that if all nodes restart and have full network connectivity, a majority of nodes' on-disk ledger contains every committed transaction, and no timeouts trigger, then there will be only one recovered network and all committed transactions will be persisted.
 However, the election path can become stuck, in which case the failover path is designed to ensure progress.
 
 In the election path, nodes first gossip with each other, learning of the ledgers of other nodes.

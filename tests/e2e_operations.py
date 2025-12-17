@@ -1780,7 +1780,7 @@ def run_self_healing_open(const_args):
                 committed_ledger_dirs=committed_ledger_dirs,
             )
 
-            # Refresh the the declared state of nodes which have shut themselves down to join.
+            # Refresh the declared state of nodes which have shut themselves down to join.
             for node in recovered_network.nodes:
                 node.refresh_network_state(verify_ca=False)
 
@@ -1855,7 +1855,7 @@ def run_self_healing_open_timeout_path(const_args):
                 starting_nodes=0,  # Force timeout path by starting only one node
             )
 
-            # Refresh the the declared state of nodes which have shut themselves down to join.
+            # Refresh the declared state of nodes which have shut themselves down to join.
             for node in recovered_network.nodes:
                 node.refresh_network_state(verify_ca=False)
 
@@ -1932,7 +1932,7 @@ def run_self_healing_open_local_unsealing(const_args):
             sealed_ledger_secrets=node_secrets,
         )
 
-        # Refresh the the declared state of nodes which have shut themselves down to join.
+        # Refresh the declared state of nodes which have shut themselves down to join.
         for node in recovered_network.nodes:
             node.refresh_network_state(verify_ca=False)
 

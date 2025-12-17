@@ -51,11 +51,9 @@ pub struct Node {
 }
 
 impl Node {
-    fn vote_for_max<'a>(gossips: &HashableHashSet<GossipStruct>, id: Id) -> (Id, VoteStruct)
-where {
+    fn vote_for_max<'a>(gossips: &HashableHashSet<GossipStruct>, id: Id) -> (Id, VoteStruct) {
         let dst = gossips
             .iter()
-            .clone()
             .max_by_key(|g| (g.txid, g.src))
             .unwrap()
             .src;
