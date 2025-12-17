@@ -447,7 +447,7 @@ namespace ccf
   {
     curl::UniqueCURL curl_handle;
 
-    // diable SSL verification as no private information is sent
+    // disable SSL verification as no private information is sent
     curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 0L);
     curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 0L);
     curl_handle.set_opt(CURLOPT_SSL_VERIFYSTATUS, 0L);
