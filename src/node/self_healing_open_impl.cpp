@@ -58,8 +58,21 @@ namespace ccf
         Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE)
       ->put(self_healing_open::StateMachine::GOSSIPING);
 
-    start_message_retry_timers();
-    start_failover_timers();
+    // Delay start of message retry and failover timers until after commit
+    node_state->network.tables->set_global_hook(
+      Tables::SELF_HEALING_OPEN_SM_STATE,
+      self_healing_open::SMState::wrap_commit_hook(
+        [this](
+          ccf::kv::Version /*hook_version*/,
+          const self_healing_open::SMState::Write& w) {
+          if (
+            w.has_value() &&
+            w.value() == self_healing_open::StateMachine::GOSSIPING)
+          {
+            start_message_retry_timers();
+            start_failover_timers();
+          }
+        }));
   }
 
   void SelfHealingOpenSubsystem::advance(ccf::kv::Tx& tx, bool timeout)
