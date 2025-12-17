@@ -19,12 +19,7 @@ permissions: read-all
 
 jobs:
   long-asan:
-    if: &check_trigger_conditions >-
-      ${{
-          contains(github.event.labels.*.name, 'run-long-test')
-          || github.event_name == 'workflow_dispatch'
-          || github.event_name == 'schedule'
-      }}
+    if: &check_trigger_conditions ${{ (github.event.action == 'labeled' && github.event.label.name == 'run-long-test') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-long-test')) || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
     name: "ASAN"
     runs-on:
       [
