@@ -24,10 +24,7 @@ jobs:
       ]
     if: &check_trigger_conditions >-
       ${{
-          (github.event.action == 'labeled'
-            && github.event.label.name == 'bench-ab')
-          || (github.event.action != 'labeled'
-            && contains(github.event.labels.*.name, 'bench-ab'))
+          contains(github.event.labels.*.name, 'bench-ab')
           || github.event_name == 'workflow_dispatch'
           || github.event_name == 'schedule'
       }}
