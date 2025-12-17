@@ -879,11 +879,11 @@ class Network:
             if time.time() > end_time:
                 raise TimeoutError("Timed out waiting for cluster to open")
             if len(waiting_nodes) == 0:
-                break 
+                break
             if node not in waiting_nodes:
                 continue
 
-            if node.remote == None or node.remote.remote.proc.poll() != None:
+            if node.remote is None or node.remote.remote.proc.poll() is not None:
                 LOG.info(f"{node.local_node_id} has stopped")
                 waiting_nodes.remove(node)
                 continue
