@@ -70,5 +70,7 @@ namespace ccf
     void send_vote_unsafe(
       kv::ReadOnlyTx& tx, const self_healing_open::NodeInfo& node_info);
     void send_iamopen_unsafe(kv::ReadOnlyTx& tx);
+
+    SelfHealingOpenConfig& get_config();
   };
 }

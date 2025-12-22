@@ -77,11 +77,7 @@ namespace ccf
 
   void SelfHealingOpenSubsystem::advance(ccf::kv::Tx& tx, bool timeout)
   {
-    auto& config = node_state->config.recover.self_healing_open;
-    if (!config.has_value())
-    {
-      throw std::logic_error("Self-healing-open not configured");
-    }
+    auto& config = get_config();
 
     auto* sm_state_handle =
       tx.rw<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE);
@@ -107,7 +103,7 @@ namespace ccf
       {
         auto* gossip_handle =
           tx.ro<self_healing_open::Gossips>(Tables::SELF_HEALING_OPEN_GOSSIPS);
-        auto quorum_size = config->cluster_identities.size();
+        auto quorum_size = config.cluster_identities.size();
         if (gossip_handle->size() >= quorum_size || valid_timeout)
         {
           if (gossip_handle->size() == 0)
@@ -145,7 +141,7 @@ namespace ccf
           tx.rw<self_healing_open::Votes>(Tables::SELF_HEALING_OPEN_VOTES);
 
         auto sufficient_quorum =
-          votes->size() >= config->cluster_identities.size() / 2 + 1;
+          votes->size() >= config.cluster_identities.size() / 2 + 1;
         if (sufficient_quorum || valid_timeout)
         {
           if (valid_timeout && !sufficient_quorum)
@@ -260,11 +256,7 @@ namespace ccf
   {
     LOG_TRACE_FMT("Self-healing-open: Setting up retry timers");
 
-    auto& config = node_state->config.recover.self_healing_open;
-    if (!config.has_value())
-    {
-      throw std::logic_error("Self-healing-open not configured");
-    }
+    auto& config = get_config();
 
     retry_task = ccf::tasks::make_basic_task(
       [this]() {
@@ -340,26 +332,18 @@ namespace ccf
     ccf::tasks::add_periodic_task(
       retry_task,
       std::chrono::milliseconds(0),
-      std::chrono::milliseconds(config->retry_timeout));
+      std::chrono::milliseconds(config.retry_timeout));
   }
 
   void SelfHealingOpenSubsystem::start_failover_timers()
   {
-    auto& config = node_state->config.recover.self_healing_open;
-    if (!config.has_value())
-    {
-      throw std::logic_error("Self-healing-open not configured");
-    }
+    auto& config = get_config();
 
     LOG_TRACE_FMT("Self-healing-open: Setting up failover timers");
 
     failover_task = ccf::tasks::make_basic_task(
       [this]() {
-        auto& config = node_state->config.recover.self_healing_open;
-        if (!config.has_value())
-        {
-          throw std::logic_error("Self-healing-open not configured");
-        }
+        auto& config = get_config();
 
         LOG_TRACE_FMT(
           "Self-healing-open timeout, sending timeout to internal handlers");
@@ -406,8 +390,7 @@ namespace ccf
 
         auto url = fmt::format(
           "https://{}/{}/self_healing_open/timeout",
-          node_state->config.network.rpc_interfaces.at("primary_rpc_interface")
-            .published_address,
+          config.identity.published_address,
           get_actor_prefix(ActorsType::nodes));
 
         curl::UniqueSlist headers;
@@ -428,8 +411,8 @@ namespace ccf
 
     ccf::tasks::add_periodic_task(
       failover_task,
-      std::chrono::milliseconds(config->failover_timeout),
-      std::chrono::milliseconds(config->failover_timeout));
+      std::chrono::milliseconds(config.failover_timeout),
+      std::chrono::milliseconds(config.failover_timeout));
   }
 
   void SelfHealingOpenSubsystem::stop_timers()
@@ -523,11 +506,12 @@ namespace ccf
       throw std::logic_error(fmt::format(
         "Node {} not found in nodes table", node_state->get_node_id()));
     }
+    auto& config = get_config();
     {
       std::lock_guard<pal::Mutex> guard(node_state->lock);
       return {
         .quote_info = node_info_opt->quote_info,
-        .identity = node_state->config.recover.self_healing_open->identity,
+        .identity = config.identity,
         .service_identity = node_state->network.identity->cert.str(),
       };
     }
@@ -535,11 +519,7 @@ namespace ccf
 
   void SelfHealingOpenSubsystem::send_gossip_unsafe(kv::ReadOnlyTx& tx)
   {
-    auto& config = node_state->config.recover.self_healing_open;
-    if (!config.has_value())
-    {
-      throw std::logic_error("Self-healing-open not configured");
-    }
+    auto& config = get_config();
 
     LOG_TRACE_FMT("Broadcasting self-healing-open gossip");
 
@@ -548,7 +528,7 @@ namespace ccf
     request.txid = node_state->last_recovered_signed_idx;
     nlohmann::json request_json = request;
 
-    for (auto& target : config->cluster_identities)
+    for (auto& target : config.cluster_identities)
     {
       auto target_address = target.published_address;
       dispatch_authenticated_message(
@@ -563,12 +543,6 @@ namespace ccf
   void SelfHealingOpenSubsystem::send_vote_unsafe(
     kv::ReadOnlyTx& tx, const self_healing_open::NodeInfo& node_info)
   {
-    auto& config = node_state->config.recover.self_healing_open;
-    if (!config.has_value())
-    {
-      throw std::logic_error("Self-healing-open not configured");
-    }
-
     LOG_TRACE_FMT(
       "Sending self-healing-open vote to {} at {}",
       node_info.identity.intrinsic_id,
@@ -588,18 +562,14 @@ namespace ccf
 
   void SelfHealingOpenSubsystem::send_iamopen_unsafe(ccf::kv::ReadOnlyTx& tx)
   {
-    auto& config = node_state->config.recover.self_healing_open;
-    if (!config.has_value())
-    {
-      throw std::logic_error("Self-healing-open not configured");
-    }
+    auto config = get_config();
 
     LOG_TRACE_FMT("Sending self-healing-open iamopen");
 
     self_healing_open::TaggedWithNodeInfo request{.info = make_node_info(tx)};
     nlohmann::json request_json = request;
 
-    for (auto& target : config->cluster_identities)
+    for (auto& target : config.cluster_identities)
     {
       if (
         target.intrinsic_id ==
@@ -617,4 +587,13 @@ namespace ccf
     }
   }
 
+  SelfHealingOpenConfig& SelfHealingOpenSubsystem::get_config()
+  {
+    auto& config = node_state->config.recover.self_healing_open;
+    if (!config.has_value())
+    {
+      throw std::logic_error("Self-healing-open not configured");
+    }
+    return config.value();
+  }
 }
