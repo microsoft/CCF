@@ -13,17 +13,12 @@ namespace ccf::self_healing_open
   struct RequestNodeInfo
   {
     QuoteInfo quote_info;
-    std::string published_network_address;
-    std::string intrinsic_id;
+    Identity identity;
     std::string service_identity;
   };
   DECLARE_JSON_TYPE(RequestNodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(
-    RequestNodeInfo,
-    quote_info,
-    published_network_address,
-    intrinsic_id,
-    service_identity);
+    RequestNodeInfo, quote_info, identity, service_identity);
 
   struct TaggedWithNodeInfo
   {

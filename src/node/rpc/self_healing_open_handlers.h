@@ -57,10 +57,8 @@ namespace ccf::node
       {
         const auto [code, message] = quote_verification_error(verify_result);
         LOG_FAIL_FMT(
-          "Self-healing-open message from intrinsic id {} has an invalid "
-          "quote: {} "
-          "({})",
-          info.intrinsic_id,
+          "Self-healing-open message from {} has an invalid quote: {} ({})",
+          info.identity.intrinsic_id,
           code,
           message);
         return make_error(code, ccf::errors::InvalidQuote, message);
@@ -68,13 +66,14 @@ namespace ccf::node
 
       LOG_TRACE_FMT(
         "Self-healing-open message from intrinsic id {} has a valid quote",
-        info.intrinsic_id);
+        info.identity.intrinsic_id);
 
       // Validating that we haven't heard from this node before, of if we have
       // that the cert hasn't changed
       auto* node_info_handle = args.tx.rw<self_healing_open::NodeInfoMap>(
         Tables::SELF_HEALING_OPEN_NODES);
-      auto existing_node_info = node_info_handle->get(info.intrinsic_id);
+      auto existing_node_info =
+        node_info_handle->get(info.identity.intrinsic_id);
 
       if (existing_node_info.has_value())
       {
@@ -84,7 +83,7 @@ namespace ccf::node
           auto message = fmt::format(
             "Self-healing-open message from intrinsic id {} is invalid: "
             "certificate has changed",
-            info.intrinsic_id);
+            info.identity.intrinsic_id);
           LOG_FAIL_FMT("{}", message);
           return make_error(
             HTTP_STATUS_BAD_REQUEST, ccf::errors::NodeAlreadyExists, message);
@@ -94,11 +93,10 @@ namespace ccf::node
       {
         self_healing_open::NodeInfo src_info{
           .quote_info = info.quote_info,
-          .published_network_address = info.published_network_address,
+          .identity = info.identity,
           .cert_der = cert_der,
-          .service_identity = info.service_identity,
-          .intrinsic_id = info.intrinsic_id};
-        node_info_handle->put(info.intrinsic_id, src_info);
+          .service_identity = info.service_identity};
+        node_info_handle->put(info.identity.intrinsic_id, src_info);
       }
 
       // ---- Run callback ----
@@ -131,14 +129,14 @@ namespace ccf::node
   }
 
   static void init_self_healing_open_handlers(
-    ccf::BaseEndpointRegistry& registry, ccf::AbstractNodeContext& node_context)
+    endpoints::EndpointRegistry& registry, ccf::AbstractNodeContext& node_context)
   {
     auto self_healing_open_gossip =
       [](
         auto& args,
         self_healing_open::GossipRequest in) -> std::optional<ErrorDetails> {
       LOG_TRACE_FMT(
-        "Self-healing-open: receive gossip from {}", in.info.intrinsic_id);
+        "Self-healing-open: receive gossip from {}", in.info.identity.intrinsic_id);
 
       // Stop accepting gossips once a node has voted
       auto chosen_replica = args.tx.template ro<self_healing_open::ChosenNode>(
@@ -155,13 +153,13 @@ namespace ccf::node
 
       auto gossip_handle = args.tx.template rw<self_healing_open::Gossips>(
         Tables::SELF_HEALING_OPEN_GOSSIPS);
-      if (gossip_handle->get(in.info.intrinsic_id).has_value())
+      if (gossip_handle->get(in.info.identity.intrinsic_id).has_value())
       {
         LOG_INFO_FMT(
-          "Node {} already gossiped, skipping", in.info.intrinsic_id);
+          "Node {} already gossiped, skipping", in.info.identity.intrinsic_id);
         return std::nullopt;
       }
-      gossip_handle->put(in.info.intrinsic_id, in.txid);
+      gossip_handle->put(in.info.identity.intrinsic_id, in.txid);
       return std::nullopt;
     };
     registry
@@ -179,11 +177,11 @@ namespace ccf::node
       [](auto& args, self_healing_open::TaggedWithNodeInfo in)
       -> std::optional<ErrorDetails> {
       LOG_TRACE_FMT(
-        "Self-healing-open: receive vote from {}", in.info.intrinsic_id);
+        "Self-healing-open: receive vote from {}", in.info.identity.intrinsic_id);
 
       args.tx
         .template rw<self_healing_open::Votes>(Tables::SELF_HEALING_OPEN_VOTES)
-        ->insert(in.info.intrinsic_id);
+        ->insert(in.info.identity.intrinsic_id);
 
       return std::nullopt;
     };
@@ -203,7 +201,7 @@ namespace ccf::node
       [](auto& args, self_healing_open::TaggedWithNodeInfo in)
       -> std::optional<ErrorDetails> {
       LOG_TRACE_FMT(
-        "Self-healing-open: receive IAmOpen from {}", in.info.intrinsic_id);
+        "Self-healing-open: receive IAmOpen from {}", in.info.identity.intrinsic_id);
       args.tx
         .template rw<self_healing_open::SMState>(
           Tables::SELF_HEALING_OPEN_SM_STATE)
@@ -211,7 +209,7 @@ namespace ccf::node
       args.tx
         .template rw<self_healing_open::ChosenNode>(
           Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
-        ->put(in.info.intrinsic_id);
+        ->put(in.info.identity.intrinsic_id);
       return std::nullopt;
     };
     registry

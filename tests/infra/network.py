@@ -832,8 +832,12 @@ class Network:
             arg: getattr(args, arg, None)
             for arg in infra.network.Network.node_args_to_forward
         }
-        self_healing_open_addresses = [
-            node.get_public_rpc_address() for node in self.nodes
+        self_healing_open_cluster_identities = [
+            {
+                "intrinsic_id": node.local_node_id,
+                "address": node.get_public_rpc_address(),
+            }
+            for node in self.nodes
         ]
 
         for i, node in enumerate(self.nodes):
@@ -850,7 +854,11 @@ class Network:
                     "common_dir": self.common_dir,
                 }
                 self_healing_open_kwargs = {
-                    "self_healing_open_addresses": self_healing_open_addresses
+                    "self_healing_open_cluster_identities": self_healing_open_cluster_identities,
+                    "self_healing_open_identity": {
+                        "intrinsic_id": node.local_node_id,
+                        "address": node.get_public_rpc_address(),
+                    }
                 }
                 # If a kwarg is passed in override automatically set variants
                 node_kwargs = (

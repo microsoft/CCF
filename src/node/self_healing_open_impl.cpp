@@ -107,7 +107,7 @@ namespace ccf
       {
         auto* gossip_handle =
           tx.ro<self_healing_open::Gossips>(Tables::SELF_HEALING_OPEN_GOSSIPS);
-        auto quorum_size = config->addresses.size();
+        auto quorum_size = config->cluster_identities.size();
         if (gossip_handle->size() >= quorum_size || valid_timeout)
         {
           if (gossip_handle->size() == 0)
@@ -145,7 +145,7 @@ namespace ccf
           tx.rw<self_healing_open::Votes>(Tables::SELF_HEALING_OPEN_VOTES);
 
         auto sufficient_quorum =
-          votes->size() >= config->addresses.size() / 2 + 1;
+          votes->size() >= config->cluster_identities.size() / 2 + 1;
         if (sufficient_quorum || valid_timeout)
         {
           if (valid_timeout && !sufficient_quorum)
@@ -209,8 +209,9 @@ namespace ccf
         }
 
         LOG_INFO_FMT(
-          "Self-healing-open joining {} with service identity {}",
-          node_config->published_network_address,
+          "Self-healing-open joining {} at {} with service identity {}",
+          node_config->identity.intrinsic_id,
+          node_config->identity.published_address,
           node_config->service_identity);
 
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::restart, node_state->to_host);
@@ -526,12 +527,7 @@ namespace ccf
       std::lock_guard<pal::Mutex> guard(node_state->lock);
       return {
         .quote_info = node_info_opt->quote_info,
-        .published_network_address =
-          node_state->config.network.rpc_interfaces.at("primary_rpc_interface")
-            .published_address,
-        .intrinsic_id =
-          node_state->config.network.rpc_interfaces.at("primary_rpc_interface")
-            .published_address,
+        .identity = node_state->config.recover.self_healing_open->identity,
         .service_identity = node_state->network.identity->cert.str(),
       };
     }
@@ -552,8 +548,9 @@ namespace ccf
     request.txid = node_state->last_recovered_signed_idx;
     nlohmann::json request_json = request;
 
-    for (auto& target_address : config->addresses)
+    for (auto& target : config->cluster_identities)
     {
+      auto target_address = target.published_address;
       dispatch_authenticated_message(
         request_json,
         target_address,
@@ -574,8 +571,8 @@ namespace ccf
 
     LOG_TRACE_FMT(
       "Sending self-healing-open vote to {} at {}",
-      node_info.intrinsic_id,
-      node_info.published_network_address);
+      node_info.identity.intrinsic_id,
+      node_info.identity.published_address);
 
     self_healing_open::TaggedWithNodeInfo request{.info = make_node_info(tx)};
 
@@ -583,7 +580,7 @@ namespace ccf
 
     dispatch_authenticated_message(
       request_json,
-      node_info.published_network_address,
+      node_info.identity.published_address,
       "vote",
       node_state->self_signed_node_cert,
       node_state->node_sign_kp->private_key_pem());
@@ -602,19 +599,18 @@ namespace ccf
     self_healing_open::TaggedWithNodeInfo request{.info = make_node_info(tx)};
     nlohmann::json request_json = request;
 
-    for (auto& target_address : config->addresses)
+    for (auto& target : config->cluster_identities)
     {
       if (
-        target_address ==
-        node_state->config.network.rpc_interfaces.at("primary_rpc_interface")
-          .published_address)
+        target.intrinsic_id ==
+        node_state->config.recover.self_healing_open->identity.intrinsic_id)
       {
         // Don't send to self
         continue;
       }
       dispatch_authenticated_message(
         request_json,
-        target_address,
+        target.published_address,
         "iamopen",
         node_state->self_signed_node_cert,
         node_state->node_sign_kp->private_key_pem());

@@ -6,20 +6,34 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/service/map.h"
+#include "ccf/service/node_info_network.h"
 
-using IntrinsicIdentifier = std::string;
 
 namespace ccf
 {
   namespace self_healing_open
   {
+    using IntrinsicIdentifier = std::string;
+    using NetAddress = std::string;
+
+    struct Identity
+    {
+      IntrinsicIdentifier intrinsic_id;
+      NetAddress published_address;
+
+      bool operator==(const Identity&) const = default;
+    };
+
+    DECLARE_JSON_TYPE(Identity);
+    DECLARE_JSON_REQUIRED_FIELDS(
+      Identity, intrinsic_id, published_address);
+
     struct NodeInfo
     {
       ccf::QuoteInfo quote_info;
-      std::string published_network_address;
+      Identity identity;
       std::vector<uint8_t> cert_der;
       std::string service_identity;
-      IntrinsicIdentifier intrinsic_id;
     };
 
     DECLARE_JSON_TYPE(NodeInfo);

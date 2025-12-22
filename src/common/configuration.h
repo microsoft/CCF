@@ -114,7 +114,8 @@ namespace ccf
     historical_cache_soft_limit);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SelfHealingOpenConfig);
-  DECLARE_JSON_REQUIRED_FIELDS(SelfHealingOpenConfig, addresses);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    SelfHealingOpenConfig, identity, cluster_identities);
   DECLARE_JSON_OPTIONAL_FIELDS(
     SelfHealingOpenConfig, retry_timeout, failover_timeout);
 
