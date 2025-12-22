@@ -551,7 +551,7 @@ def test_recover_service_with_wrong_identity(network, args):
 
 @reqs.description("Recover a service from local files")
 def test_recover_service_from_files(
-    args, directory, expected_recovery_count, test_receipt=True
+    args, directory, expected_recovery_count, test_receipts_at=None
 ):
     service_dir = os.path.join(
         os.path.dirname(os.path.realpath(__file__)), "testdata", directory
@@ -616,16 +616,17 @@ def test_recover_service_from_files(
 
         infra.checker.check_can_progress(primary, local_user_id=new_user_local_id)
 
-        if test_receipt:
-            r = primary.get_receipt(2, 3)
+        if test_receipts_at:
+            for view, seqno in test_receipts_at:
+                r = primary.get_receipt(view, seqno)
 
-            verify_receipt(
-                r.json(),
-                network.cert,
-                # Even when we want to check that receipts are valid,
-                # these old services are likely to use expired certs
-                skip_cert_chain_checks=True,
-            )
+                verify_receipt(
+                    r.json(),
+                    network.cert,
+                    # Even when we want to check that receipts are valid,
+                    # these old services are likely to use expired certs
+                    skip_cert_chain_checks=True,
+                )
 
 
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
@@ -1125,7 +1126,7 @@ def run_recovery_from_files(args):
         args,
         directory=args.directory,
         expected_recovery_count=args.expected_recovery_count,
-        test_receipt=args.test_receipt,
+        test_receipts_at=args.test_receipts_at,
     )
 
 
