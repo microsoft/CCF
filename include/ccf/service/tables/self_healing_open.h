@@ -8,7 +8,6 @@
 #include "ccf/service/map.h"
 #include "ccf/service/node_info_network.h"
 
-
 namespace ccf
 {
   namespace self_healing_open
@@ -25,8 +24,7 @@ namespace ccf
     };
 
     DECLARE_JSON_TYPE(Identity);
-    DECLARE_JSON_REQUIRED_FIELDS(
-      Identity, intrinsic_id, published_address);
+    DECLARE_JSON_REQUIRED_FIELDS(Identity, intrinsic_id, published_address);
 
     struct NodeInfo
     {
@@ -38,12 +36,7 @@ namespace ccf
 
     DECLARE_JSON_TYPE(NodeInfo);
     DECLARE_JSON_REQUIRED_FIELDS(
-      NodeInfo,
-      quote_info,
-      published_network_address,
-      cert_der,
-      service_identity,
-      intrinsic_id);
+      NodeInfo, quote_info, identity, cert_der, service_identity);
 
     enum class StateMachine : uint8_t
     {
@@ -75,18 +68,18 @@ namespace ccf
   namespace Tables
   {
     static constexpr auto SELF_HEALING_OPEN_NODES =
-      "public:ccf.gov.selfhealingopen.nodes";
+      "public:ccf.gov.self_healing_open.nodes";
     static constexpr auto SELF_HEALING_OPEN_GOSSIPS =
-      "public:ccf.gov.selfhealingopen.gossip";
+      "public:ccf.gov.self_healing_open.gossip";
     static constexpr auto SELF_HEALING_OPEN_CHOSEN_NODE =
-      "public:ccf.gov.selfhealingopen.chosen_node";
+      "public:ccf.gov.self_healing_open.chosen_node";
     static constexpr auto SELF_HEALING_OPEN_VOTES =
-      "public:ccf.gov.selfhealingopen.votes";
+      "public:ccf.gov.self_healing_open.votes";
     static constexpr auto SELF_HEALING_OPEN_SM_STATE =
-      "public:ccf.gov.selfhealingopen.sm_state";
+      "public:ccf.gov.self_healing_open.sm_state";
     static constexpr auto SELF_HEALING_OPEN_TIMEOUT_SM_STATE =
-      "public:ccf.gov.selfhealingopen.timeout_sm_state";
+      "public:ccf.gov.self_healing_open.timeout_sm_state";
     static constexpr auto SELF_HEALING_OPEN_FAILOVER_FLAG =
-      "public:ccf.gov.selfhealingopen.failover_open";
+      "public:ccf.gov.self_healing_open.failover_open";
   }
 }
