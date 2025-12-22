@@ -154,12 +154,19 @@ namespace ccf
                 Tables::SELF_HEALING_OPEN_FAILOVER_FLAG)
               ->put(true);
           }
-          if (votes->size() == 0)
+          if (valid_timeout && votes->size() == 0)
           {
-            throw std::logic_error(
-              "We didn't even vote for ourselves, so why should we open?");
+            // If we have voted for another node, that node is better placed
+            // than ourselves to begin operating
+            // So we do not attempt to open the service ourselves
+            LOG_FAIL_FMT(
+              "Self-healing-open timeout without any votes for ourselves, "
+              "skipping opening network");
+            return;
           }
-          LOG_INFO_FMT("Self-healing-open succeeded, now opening network");
+          LOG_INFO_FMT(
+            "Self-healing-open succeeded on the timeout path, now opening "
+            "network");
 
           auto* service = tx.ro<Service>(Tables::SERVICE);
           auto service_info = service->get();

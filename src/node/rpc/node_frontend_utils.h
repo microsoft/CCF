@@ -22,7 +22,7 @@ namespace ccf
       case QuoteVerificationResult::FailedInvalidQuotedPublicKey:
         return std::make_pair(
           HTTP_STATUS_UNAUTHORIZED,
-          "Quote report data does not contain node's public key hash");
+          "Quote report data does not match the hash of the public key for this node");
       case QuoteVerificationResult::FailedHostDataDigestNotFound:
         return std::make_pair(
           HTTP_STATUS_UNAUTHORIZED, "Quote does not contain trusted host data");
