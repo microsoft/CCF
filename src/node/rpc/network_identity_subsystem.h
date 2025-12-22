@@ -68,7 +68,7 @@ namespace ccf
         endorsement.endorsement_epoch_begin != *from_txid ||
         *endorsement.endorsement_epoch_end != *to_txid)
       {
-        throw std::logic_error(fmt ::format(
+        throw std::logic_error(fmt::format(
           "COSE endorsement fetched but range is invalid, epoch begin {}, "
           "epoch end {}, header epoch begin: {}, header epoch end: {}",
           endorsement.endorsement_epoch_begin.to_str(),
@@ -210,50 +210,45 @@ namespace ccf
       if (!current_service_from.has_value())
       {
         fail_fetching("Unset current_service_from when completing fetching");
-        return;
       }
 
       if (!endorsements.empty())
       {
+        auto next = endorsements.begin();
+        auto prev = next++;
         try
         {
-          auto next = endorsements.begin();
-          auto prev = next++;
           while (next != endorsements.end())
           {
             validate_chain_integrity(next->second, prev->second);
             ++prev;
             ++next;
           }
-
-          const auto& last = prev->second;
-          if (!last.endorsement_epoch_end.has_value())
-          {
-            fail_fetching(fmt::format(
-              "The last fetched endorsement at {} has no epoch end",
-              last.endorsement_epoch_begin.seqno));
-            return;
-          }
-
-          if (
-            current_service_from->view - aft::starting_view_change !=
-              last.endorsement_epoch_end->view ||
-            current_service_from->seqno - 1 !=
-              last.endorsement_epoch_end->seqno)
-          {
-            fail_fetching(fmt::format(
-              "COSE endorsement chain integrity is violated, the current "
-              "service start at {} is not chained with previous endorsement "
-              "ending at {}",
-              current_service_from->to_str(),
-              last.endorsement_epoch_end->to_str()));
-            return;
-          }
         }
         catch (const std::exception& e)
         {
           fail_fetching(e.what());
-          return;
+        }
+
+        const auto& last = prev->second;
+        if (!last.endorsement_epoch_end.has_value())
+        {
+          fail_fetching(fmt::format(
+            "The last fetched endorsement at {} has no epoch end",
+            last.endorsement_epoch_begin.seqno));
+        }
+
+        if (
+          current_service_from->view - aft::starting_view_change !=
+            last.endorsement_epoch_end->view ||
+          current_service_from->seqno - 1 != last.endorsement_epoch_end->seqno)
+        {
+          fail_fetching(fmt::format(
+            "COSE endorsement chain integrity is violated, the current "
+            "service start at {} is not chained with previous endorsement "
+            "ending at {}",
+            current_service_from->to_str(),
+            last.endorsement_epoch_end->to_str()));
         }
       }
 
@@ -318,7 +313,6 @@ namespace ccf
             "which is different from current_service_create_txid {}",
             endorsement->endorsement_epoch_begin.seqno,
             current_service_from->seqno));
-          return;
         }
 
         LOG_INFO_FMT(
@@ -359,7 +353,6 @@ namespace ccf
           "predecessor",
           endorsement.endorsement_epoch_begin.to_str(),
           format_epoch(endorsement.endorsement_epoch_end)));
-        return;
       }
 
       const auto from = endorsement.endorsement_epoch_begin.seqno;
@@ -370,7 +363,6 @@ namespace ccf
           fail_fetching(fmt::format(
             "Fetched self-endorsement with seqno {} which has not been seen",
             from));
-          return;
         }
         LOG_INFO_FMT("Got self-endorsement at {}, stopping fetching", from);
         complete_fetching();
@@ -384,14 +376,12 @@ namespace ccf
           "the earliest known in the chain {}",
           from,
           earliest_endorsed_seq));
-        return;
       }
 
       if (!endorsement.endorsement_epoch_end.has_value())
       {
         fail_fetching(
           fmt::format("Fetched endorsement at {} has no epoch end", from));
-        return;
       }
 
       earliest_endorsed_seq = from;
@@ -400,7 +390,6 @@ namespace ccf
         fail_fetching(fmt::format(
           "Fetched service endorsement with seqno {} which already exists",
           from));
-        return;
       }
 
       LOG_INFO_FMT(
@@ -434,7 +423,6 @@ namespace ccf
       {
         fail_fetching(fmt::format(
           "Fetched historical state with seqno {} with missing store", seq));
-        return;
       }
       auto htx = state->store->create_read_only_tx();
       const auto endorsement =
@@ -447,7 +435,6 @@ namespace ccf
       {
         fail_fetching(
           fmt::format("Fetched COSE endorsement for {} is invalid", seq));
-        return;
       }
 
       try
@@ -457,7 +444,6 @@ namespace ccf
       catch (const std::exception& e)
       {
         fail_fetching(e.what());
-        return;
       }
 
       process_endorsement(endorsement.value());
