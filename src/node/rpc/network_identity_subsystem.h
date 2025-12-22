@@ -210,6 +210,7 @@ namespace ccf
       if (!current_service_from.has_value())
       {
         fail_fetching("Unset current_service_from when completing fetching");
+        return; // to silence clang-tidy unchecked optional
       }
 
       if (!endorsements.empty())
@@ -236,6 +237,7 @@ namespace ccf
           fail_fetching(fmt::format(
             "The last fetched endorsement at {} has no epoch end",
             last.endorsement_epoch_begin.seqno));
+          return; // to silence clang-tidy unchecked optional
         }
 
         if (
@@ -382,6 +384,7 @@ namespace ccf
       {
         fail_fetching(
           fmt::format("Fetched endorsement at {} has no epoch end", from));
+        return; // to silence clang-tidy unchecked optional
       }
 
       earliest_endorsed_seq = from;
@@ -435,6 +438,7 @@ namespace ccf
       {
         fail_fetching(
           fmt::format("Fetched COSE endorsement for {} is invalid", seq));
+        return; // to silence clang-tidy unchecked optional
       }
 
       try
