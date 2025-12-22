@@ -858,15 +858,12 @@ namespace ccf::historical
         return true;
       }
 
-      if (
-        encrypted_past_ledger_secret->next_version.has_value() &&
-        encrypted_past_ledger_secret->next_version.value() >=
-          earliest_secret_.valid_from)
+      if (previous_ledger_secret->version >= earliest_secret_.valid_from)
       {
         LOG_INFO_FMT(
-          "Skipping redundant ledger secret with next_version of {} when the "
+          "Skipping redundant ledger secret with version of {} when the "
           "earliest known secret is from {}",
-          encrypted_past_ledger_secret->next_version.value(),
+          previous_ledger_secret->version,
           earliest_secret_.valid_from);
         return true;
       }

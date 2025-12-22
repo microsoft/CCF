@@ -13,14 +13,31 @@
 
 namespace ccf
 {
+  static std::string format_epoch(const std::optional<ccf::TxID>& epoch_end)
+  {
+    return epoch_end.has_value() ? epoch_end->to_str() : "null";
+  }
+
   static bool is_self_endorsement(const ccf::CoseEndorsement& endorsement)
   {
     return !endorsement.previous_version.has_value();
   }
 
+  static bool is_ill_formed(const ccf::CoseEndorsement& endorsement)
+  {
+    return endorsement.endorsement_epoch_end.has_value() &&
+      endorsement.endorsement_epoch_end->seqno <
+      endorsement.endorsement_epoch_begin.seqno;
+  }
+
   static void validate_fetched_endorsement(
     const ccf::CoseEndorsement& endorsement)
   {
+    LOG_INFO_FMT(
+      "Validating fetched endorsement from {} to {}",
+      endorsement.endorsement_epoch_begin.to_str(),
+      format_epoch(endorsement.endorsement_epoch_end));
+
     if (!is_self_endorsement(endorsement))
     {
       const auto [from, to] =
@@ -179,6 +196,12 @@ namespace ccf
         LOG_FAIL_FMT("Failed fetching network identity: {}", err);
       }
       fetch_status.store(FetchStatus::Failed);
+
+      // The caller may want to re-capture this, but by default it's supposed to
+      // fail the node startup early. This is purely reading, so there's no risk
+      // of corruption, but the endorsement chain is essential for the node to
+      // produce receipts for the past epochs as is a must-have functionality.
+      throw std::runtime_error("Failed fetching network identity: " + err);
     }
 
     void complete_fetching()
@@ -314,6 +337,30 @@ namespace ccf
 
     void process_endorsement(const ccf::CoseEndorsement& endorsement)
     {
+      if (is_ill_formed(endorsement))
+      {
+        // For double-sealed cases, which could've happened in the past. We mark
+        // with failed logs, but skip intentionally if there other endorsements
+        // follow. The overall chain integrity will be checked at the end and
+        // will fail anyway if it's not intact.
+        if (endorsement.previous_version.has_value())
+        {
+          LOG_INFO_FMT(
+            "Fetched endorsement for {} - {} is ill-formed but has a "
+            "predecessor, so skipping this entry",
+            endorsement.endorsement_epoch_begin.to_str(),
+            format_epoch(endorsement.endorsement_epoch_end));
+          fetch_next_at(endorsement.previous_version.value());
+          return;
+        }
+        fail_fetching(fmt::format(
+          "Found an ill-formed endorsement for {} - {} which has no "
+          "predecessor",
+          endorsement.endorsement_epoch_begin.to_str(),
+          format_epoch(endorsement.endorsement_epoch_end)));
+        return;
+      }
+
       const auto from = endorsement.endorsement_epoch_begin.seqno;
       if (is_self_endorsement(endorsement))
       {
