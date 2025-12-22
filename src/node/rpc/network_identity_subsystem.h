@@ -200,7 +200,8 @@ namespace ccf
       // The caller may want to re-capture this, but by default it's supposed to
       // fail the node startup early. This is purely reading, so there's no risk
       // of corruption, but the endorsement chain is essential for the node to
-      // produce receipts for the past epochs, which is a must-have functionality.
+      // produce receipts for the past epochs, which is a must-have
+      // functionality.
       throw std::runtime_error("Failed fetching network identity: " + err);
     }
 
@@ -339,10 +340,10 @@ namespace ccf
     {
       if (is_ill_formed(endorsement))
       {
-        // For double-sealed cases, which could have happened in the past. We mark
-        // with failed logs, but skip intentionally if there are other endorsements
-        // that follow. The overall chain integrity will be checked at the end and
-        // will fail anyway if it's not intact.
+        // For double-sealed cases, which could have happened in the past. We
+        // mark with failed logs, but skip intentionally if there are other
+        // endorsements that follow. The overall chain integrity will be checked
+        // at the end and will fail anyway if it's not intact.
         if (endorsement.previous_version.has_value())
         {
           LOG_INFO_FMT(
