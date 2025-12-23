@@ -55,6 +55,15 @@ namespace ccf
        {StateMachine::JOINING, "Joining"},
        {StateMachine::OPEN, "Open"}});
 
+    enum class OpenKinds : uint8_t
+    {
+      QUORUM = 0,
+      FAILOVER,
+    };
+    DECLARE_JSON_ENUM(
+      OpenKinds,
+      {{OpenKinds::QUORUM, "Quorum"}, {OpenKinds::FAILOVER, "Failover"}});
+
     using NodeInfoMap =
       ServiceMap<IntrinsicIdentifier, ccf::self_healing_open::NodeInfo>;
     using Gossips = ServiceMap<IntrinsicIdentifier, ccf::kv::Version>;
@@ -62,7 +71,7 @@ namespace ccf
     using Votes = ServiceSet<IntrinsicIdentifier>;
     using SMState = ServiceValue<ccf::self_healing_open::StateMachine>;
     using TimeoutSMState = ServiceValue<ccf::self_healing_open::StateMachine>;
-    using FailoverFlag = ServiceValue<bool>;
+    using OpenKind = ServiceValue<ccf::self_healing_open::OpenKinds>;
   }
 
   namespace Tables
@@ -79,7 +88,7 @@ namespace ccf
       "public:ccf.gov.self_healing_open.sm_state";
     static constexpr auto SELF_HEALING_OPEN_TIMEOUT_SM_STATE =
       "public:ccf.gov.self_healing_open.timeout_sm_state";
-    static constexpr auto SELF_HEALING_OPEN_FAILOVER_FLAG =
-      "public:ccf.gov.self_healing_open.failover_open";
+    static constexpr auto SELF_HEALING_OPEN_OPEN_KIND =
+      "public:ccf.gov.self_healing_open.open_kind";
   }
 }

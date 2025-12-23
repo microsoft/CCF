@@ -569,7 +569,7 @@ While the contents themselves are encrypted, the table is public so as to be acc
 ``self_healing_open.nodes``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Key** Intrinsic node ID: A string which is unique to a particular node role within a cluster. Currently its IP and port.
+**Key** Intrinsic node ID: A string which is unique to a particular node role within a cluster.
 
 **Value** 
 
@@ -598,17 +598,25 @@ While the contents themselves are encrypted, the table is public so as to be acc
 
 **Key** Intrinsic node ID of the node which has voted for this node to be opened.
 
-``selfhealingopen.sm_state``
+``self_healing_open.sm_state``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Value** State machine state of the self-healing open protocol.
 
-``selfhealingopen.timeout_sm_state``
+.. doxygenenum:: ccf::self_healing_open::StateMachine
+   :project: CCF
+
+``self_healing_open.timeout_sm_state``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Value** Timeout state machine state of the self-healing open protocol. Ticks based on `failover_timeout` and advances `selfhealingopen.sm_state` if it falls behind.
+**Value** Timeout state machine state of the self-healing open protocol. Ticks based on `failover_timeout` and advances `self_healing_open.sm_state` if it falls behind.
 
-``selfhealingopen.failover_open``
+See :cpp:enum:`ccf::self_healing_open::StateMachine` above.
+
+``self_healing_open.open_kind``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Value** Boolean flag indicating whether the latest self-healing-open recovery opened using a failover timeout.
+**Value** The kind of recovery that was performed, either `Quorum`-based which guarantees that there is at most one recovered service using this path, or `Failover`-based which could allow multiple services to recover.
+
+.. doxygenenum:: ccf::self_healing_open::OpenKinds
+   :project: CCF

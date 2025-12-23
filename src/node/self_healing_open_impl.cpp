@@ -36,8 +36,7 @@ namespace ccf
     tx.rw<self_healing_open::ChosenNode>(Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
       ->clear();
     tx.rw<self_healing_open::Votes>(Tables::SELF_HEALING_OPEN_VOTES)->clear();
-    tx.rw<self_healing_open::FailoverFlag>(
-        Tables::SELF_HEALING_OPEN_FAILOVER_FLAG)
+    tx.rw<self_healing_open::OpenKind>(Tables::SELF_HEALING_OPEN_OPEN_KIND)
       ->clear();
   }
 
@@ -144,12 +143,13 @@ namespace ccf
           votes->size() >= config.cluster_identities.size() / 2 + 1;
         if (sufficient_quorum || valid_timeout)
         {
-          if (valid_timeout && !sufficient_quorum)
-          {
-            tx.rw<self_healing_open::FailoverFlag>(
-                Tables::SELF_HEALING_OPEN_FAILOVER_FLAG)
-              ->put(true);
-          }
+          auto timeout_used = valid_timeout && !sufficient_quorum;
+          tx.rw<self_healing_open::OpenKind>(
+              Tables::SELF_HEALING_OPEN_OPEN_KIND)
+            ->put(
+              timeout_used ? self_healing_open::OpenKinds::FAILOVER :
+                             self_healing_open::OpenKinds::QUORUM);
+
           if (valid_timeout && votes->size() == 0)
           {
             // If we have voted for another node, that node is better placed
