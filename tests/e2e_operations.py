@@ -1810,12 +1810,13 @@ def run_self_healing_open(const_args):
 
             LOG.info("Completed self-healing open successfully")
 
-            # Verify no failover flag is set (quorum path succeeded)
             latest_public_tables, _ = recovered_network.get_latest_ledger_public_state()
+            recovery_type = latest_public_tables[
+                "public:ccf.gov.self_healing_open.open_kind"
+            ][b"\x00\x00\x00\x00\x00\x00\x00\x00"].decode("utf-8")
             assert (
-                "public:ccf.gov.self_healing_open.failover_open"
-                not in latest_public_tables
-            ), "Failover flag should not be set when quorum path succeeds"
+                recovery_type == '"Quorum"'
+            ), f"Network self-healing open type was {recovery_type} instead of Quorum"
 
 
 def run_self_healing_open_timeout_path(const_args):
@@ -1885,11 +1886,13 @@ def run_self_healing_open_timeout_path(const_args):
 
             LOG.info("Completed self-healing open successfully")
 
-            # Verify failover flag is set (timeout path was used)
             latest_public_tables, _ = recovered_network.get_latest_ledger_public_state()
+            recovery_type = latest_public_tables[
+                "public:ccf.gov.self_healing_open.open_kind"
+            ][b"\x00\x00\x00\x00\x00\x00\x00\x00"].decode("utf-8")
             assert (
-                "public:ccf.gov.self_healin_gopen.failover_open" in latest_public_tables
-            ), "Failover flag should be set when timeout path is used"
+                recovery_type == '"Failover"'
+            ), f"Network self-healing open type was {recovery_type} instead of Failover"
 
 
 def run_self_healing_open_local_unsealing(const_args):
@@ -1919,50 +1922,50 @@ def run_self_healing_open_local_unsealing(const_args):
             committed_ledger_dirs[i] = c
 
         LOG.info("Start a recovery network")
-        recovered_network = infra.network.Network(
+        with infra.network.network(
             recovery_args.nodes,
             recovery_args.binary_dir,
             recovery_args.debug_nodes,
             existing_network=network,
-        )
-        recovered_network.start_in_self_healing_open(
-            recovery_args,
-            ledger_dirs=ledger_dirs,
-            committed_ledger_dirs=committed_ledger_dirs,
-            sealed_ledger_secrets=node_secrets,
-        )
+        ) as recovered_network:
+            recovered_network.start_in_self_healing_open(
+                recovery_args,
+                ledger_dirs=ledger_dirs,
+                committed_ledger_dirs=committed_ledger_dirs,
+                sealed_ledger_secrets=node_secrets,
+            )
 
-        # Refresh the declared state of nodes which have shut themselves down to join.
-        for node in recovered_network.nodes:
-            node.refresh_network_state(verify_ca=False)
+            # Refresh the declared state of nodes which have shut themselves down to join.
+            for node in recovered_network.nodes:
+                node.refresh_network_state(verify_ca=False)
 
-        recovered_network.refresh_service_identity_file(recovery_args)
+            recovered_network.refresh_service_identity_file(recovery_args)
 
-        # Wait for all live replicas to report being part of the opened network
-        successfully_opened = 0
-        for node in recovered_network.get_joined_nodes():
-            try:
-                recovered_network.wait_for_status(
-                    node,
-                    "Open",
-                    timeout=10,
-                )
-                recovered_network._wait_for_app_open(node)
-                successfully_opened += 1
-            except TimeoutError:
-                pass
+            # Wait for all live replicas to report being part of the opened network
+            successfully_opened = 0
+            for node in recovered_network.get_joined_nodes():
+                try:
+                    recovered_network.wait_for_status(
+                        node,
+                        "Open",
+                        timeout=10,
+                    )
+                    recovered_network._wait_for_app_open(node)
+                    successfully_opened += 1
+                except TimeoutError:
+                    pass
 
-        assert successfully_opened == 1
+            assert successfully_opened == 1
 
-        LOG.info("Completed self-healing open successfully")
+            LOG.info("Completed self-healing open successfully")
 
-        # Verify no failover flag is set (quorum path succeeded with local unsealing)
-        latest_public_tables, _ = recovered_network.get_latest_ledger_public_state()
-        assert (
-            "public:ccf.gov.self_healing_open.failover_open" not in latest_public_tables
-        ), "Failover flag should not be set when quorum path succeeds"
-
-        recovered_network.stop_all_nodes()
+            latest_public_tables, _ = recovered_network.get_latest_ledger_public_state()
+            recovery_type = latest_public_tables[
+                "public:ccf.gov.self_healing_open.open_kind"
+            ][b"\x00\x00\x00\x00\x00\x00\x00\x00"].decode("utf-8")
+            assert (
+                recovery_type == '"Quorum"'
+            ), f"Network self-healing open type was {recovery_type} instead of Quorum"
 
 
 def run_read_ledger_on_testdata(args):

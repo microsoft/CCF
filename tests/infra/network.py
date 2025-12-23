@@ -799,31 +799,31 @@ class Network:
 
         # separate out all starting nodes' directories such that they recover independently
         self.per_node_args_override = {
-            i: (
-                d
+            node_id: (
+                current_options
                 | {
-                    "ledger_dir": ledger_dirs[i],
-                    "read_only_ledger_dirs": committed_ledger_dirs[i] or [],
-                    "snapshots_dir": snapshot_dirs[i] or None,
+                    "ledger_dir": ledger_dirs[node_id],
+                    "read_only_ledger_dirs": committed_ledger_dirs[node_id] or [],
+                    "snapshots_dir": snapshot_dirs[node_id] or None,
                 }
                 | (
-                    {"previous_sealed_ledger_secret_location": sealed_ledger_secrets[i]}
-                    if sealed_ledger_secrets and i < len(sealed_ledger_secrets)
+                    {
+                        "previous_sealed_ledger_secret_location": sealed_ledger_secrets[
+                            node_id
+                        ]
+                    }
+                    if sealed_ledger_secrets and node_id < len(sealed_ledger_secrets)
                     else {}
                 )
             )
-            for i, d in self.per_node_args_override.items()
+            for node_id, current_options in self.per_node_args_override.items()
         }
 
         # Fix the port numbers to make all nodes _well known_
-        for i, node in enumerate(self.nodes):
+        for node in self.nodes:
             port = 1000 + random.randint(0, 64534)
             node.host.get_primary_interface().port = port
             node.host.get_primary_interface().public_port = port
-
-        LOG.info("Set up nodes")
-        for node in self.nodes:
-            LOG.info(node.host)
 
         self.status = ServiceStatus.RECOVERING
         LOG.debug(f"Opening CCF service on {self.hosts}")
@@ -907,7 +907,7 @@ class Network:
                 return
             except Exception as e:
                 is_timeout = isinstance(e, (CCFIOException, TimeoutError)) or (
-                    isinstance(e, RuntimeError) and "node is stopped" in str(e).lower()
+                    isinstance(e, RuntimeError) and "node is stopped" in str(e)
                 )
 
                 if not is_timeout:
@@ -1376,12 +1376,12 @@ class Network:
     def get_f(self):
         return infra.e2e_args.max_f(self.args, len(self.nodes))
 
-    def wait_for_states(self, node, states, timeout=3, **client_kwargs):
+    def wait_for_states(self, node, states, timeout=3):
         end_time = time.time() + timeout
         final_state = None
         while time.time() < end_time:
             try:
-                with node.client(connection_timeout=timeout, **client_kwargs) as c:
+                with node.client(connection_timeout=timeout) as c:
                     r = c.get("/node/state").body.json()
                     if r["state"] in states:
                         final_state = r["state"]
@@ -1401,11 +1401,11 @@ class Network:
     def wait_for_state(self, node, state, timeout=3):
         self.wait_for_states(node, [state], timeout=timeout)
 
-    def wait_for_statuses(self, node, statuses, timeout=3, **client_kwargs):
+    def wait_for_statuses(self, node, statuses, timeout=3, verify_ca=True):
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
-                with node.client(connection_timeout=timeout, **client_kwargs) as c:
+                with node.client(connection_timeout=timeout, verify_ca=verify_ca) as c:
                     r = c.get("/node/network").body.json()
                     if r["service_status"] in statuses:
                         break
