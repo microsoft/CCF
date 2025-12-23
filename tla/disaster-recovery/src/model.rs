@@ -16,14 +16,14 @@ pub struct VoteStruct {
     pub recv: HashableHashSet<GossipStruct>,
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Msg {
     Gossip(GossipStruct),
     Vote(VoteStruct),
     IAmOpen(Id),
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Timer {
     ElectionTimeout,
 }

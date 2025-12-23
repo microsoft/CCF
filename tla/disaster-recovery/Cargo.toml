@@ -4,4 +4,4 @@ version = "0.0.0"
 
 [dependencies]
 clap = { version = "4.5.38", features = ["derive"] }
-stateright = { git = "https://github.com/cjen1-msft/stateright", branch="master" }
+stateright = "0.31.0"
