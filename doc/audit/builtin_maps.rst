@@ -567,7 +567,7 @@ While the contents themselves are encrypted, the table is public so as to be acc
    :project: CCF
 
 ``self_healing_open.nodes``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Key** Intrinsic node ID: A string which is unique to a particular node role within a cluster.
 
@@ -589,7 +589,7 @@ While the contents themselves are encrypted, the table is public so as to be acc
    :members:
 
 ``self_healing_open.chosen_node``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Value** The intrinsic node ID of the chosen node. This will either be the node this node voted for, or the node that is has received an `IAmOpen` message from.
 
@@ -599,7 +599,7 @@ While the contents themselves are encrypted, the table is public so as to be acc
 **Key** Intrinsic node ID of the node which has voted for this node to be opened.
 
 ``self_healing_open.sm_state``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Value** State machine state of the self-healing open protocol.
 
@@ -607,14 +607,14 @@ While the contents themselves are encrypted, the table is public so as to be acc
    :project: CCF
 
 ``self_healing_open.timeout_sm_state``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Value** Timeout state machine state of the self-healing open protocol. Ticks based on `failover_timeout` and advances `self_healing_open.sm_state` if it falls behind.
 
 See :cpp:enum:`ccf::self_healing_open::StateMachine` above.
 
 ``self_healing_open.open_kind``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Value** The kind of recovery that was performed, either `Quorum`-based which guarantees that there is at most one recovered service using this path, or `Failover`-based which could allow multiple services to recover.
 
