@@ -599,7 +599,7 @@ def test_issue_fake_join(network, args):
             else:
                 assert (
                     r.body.json()["error"]["message"]
-                    == "Quote report data does not contain node's public key hash"
+                    == "Quote report data does not match the hash of the public key for this node"
                 )
 
     return network

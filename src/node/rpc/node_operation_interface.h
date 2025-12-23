@@ -10,6 +10,7 @@
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/tx.h"
+#include "node/self_healing_open_impl.h"
 #include "node/session_metrics.h"
 
 namespace ccf
@@ -61,5 +62,7 @@ namespace ccf
     virtual ccf::crypto::Pem get_self_signed_node_certificate() = 0;
 
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
+
+    virtual SelfHealingOpenSubsystem& self_healing_open() = 0;
   };
 }

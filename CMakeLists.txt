@@ -366,6 +366,7 @@ endif()
 set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/thread_local.cpp
     ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
+    ${CCF_DIR}/src/node/self_healing_open_impl.cpp
 )
 
 add_ccf_static_library(
@@ -736,7 +737,9 @@ if(BUILD_TESTS)
     add_unit_test(
       frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
-      ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/node/quote.cpp
+      ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/node/self_healing_open_impl.cpp
     )
     target_link_libraries(
       frontend_test
@@ -747,6 +750,8 @@ if(BUILD_TESTS)
               ccfcrypto
               ccf_kv
               ccf_tasks
+              curl
+              uv
     )
 
     add_unit_test(
@@ -772,11 +777,21 @@ if(BUILD_TESTS)
     add_unit_test(
       node_frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
-      ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/node/quote.cpp
+      ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/node/self_healing_open_impl.cpp
     )
     target_link_libraries(
-      node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_js
-                                 ccf_endpoints ccfcrypto ccf_kv
+      node_frontend_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+              http_parser
+              ccf_js
+              ccf_endpoints
+              ccfcrypto
+              ccf_kv
+              uv
+              curl
+              ccf_tasks
     )
 
     add_unit_test(
