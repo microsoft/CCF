@@ -293,7 +293,7 @@ namespace ccf
           // part-of-network, but the service opening tx has not been replicated
           // yet. This will cause the first fetched endorsement to be obsolete,
           // but waiting for ServiceStatus::OPEN is sufficient, as it's supposed
-          // to arrive in the same TX that the previous indentity endorsement.
+          // to arrive in the same TX that the previous identity endorsement.
           LOG_INFO_FMT(
             "Retrying fetching network identity as service is not yet open");
           retry_first_fetch();
