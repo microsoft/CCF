@@ -114,7 +114,7 @@ Summary Diagram
 Once operators have established a recovered crash-fault tolerant public network, the existing members of the consortium :ref:`must vote to accept the recovery of the network and submit their recovery shares <governance/accept_recovery:Accepting Recovery and Submitting Shares>`.
 
 Local Sealing Recovery (Experimental)
-----------------------
+-------------------------------------
 
 SNP provides the `DERIVED_KEY` guest message which derives a key from the CPU's VCEK (or VLEK), TCB version and the guest's measurement and host_data (policy), thus any change to the CPU, measurement or policy, or a rolled-back TCB version, will prevent the key from being reconstructed.
 If configured, the node will unseal the secrets it previously sealed instead of waiting for recovery shares from members after `transition_to_open` is triggered.
@@ -146,7 +146,7 @@ Which of these two paths is taken is noted in the `public:ccf.internal.last_reco
     $ /opt/ccf/bin/js_generic --config /path/to/config/file
 
 Self-Healing-Open recovery (Experimental)
---------------------------
+-----------------------------------------
 
 In environments with limited orchestration or limited operator access, it is desirable to allow an automated disaster recovery without operator intervention.
 At a high level, Self-Healing-Open recovery allows recovering replicas to discover which node has the most up-to-date ledger and automatically recover the network using that ledger.
