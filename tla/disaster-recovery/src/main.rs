@@ -216,7 +216,6 @@ enum Commands {
 fn check(model: ActorModel<Node, ModelCfg, ()>) {
     let checker = model
         .checker()
-        //.symmetry()
         .spawn_bfs()
         .join_and_report(&mut WriteReporter::new(&mut std::io::stderr()));
     checker.assert_properties();
