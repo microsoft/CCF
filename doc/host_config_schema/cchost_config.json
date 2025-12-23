@@ -364,12 +364,35 @@
                   "self_healing_open": {
                     "type": "object",
                     "properties": {
-                      "addresses": {
+                      "identity": {
+                        "type": "object",
+                        "properties": {
+                          "intrinsic_id": {
+                            "type": "string",
+                            "description": "Intrinsic identifier of this node, used to identify it in the self-healing-open protocol"
+                          },
+                          "published_address": {
+                            "type": "string",
+                            "description": "Published address (host:port) of this node, used to identify it in the self-healing-open protocol"
+                          }
+                        }
+                      },
+                      "cluster_identities": {
                         "type": "array",
                         "items": {
-                          "type": "string"
+                          "type": "object",
+                          "properties": {
+                            "intrinsic_id": {
+                              "type": "string",
+                              "description": "Intrinsic identifier of the node, used to identify it in the self-healing-open protocol"
+                            },
+                            "published_address": {
+                              "type": "string",
+                              "description": "Published address (host:port) of the node, used for communication during the self-healing-open protocol"
+                            }
+                          }
                         },
-                        "description": "List of addresses (host:port) of the cluster that should open via self-healing-open"
+                        "description": "List of identities for all nodes in the cluster"
                       },
                       "retry_timeout": {
                         "type": "string",
