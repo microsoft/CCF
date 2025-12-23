@@ -54,7 +54,7 @@ namespace
     Unsigned value{0};
     if (!cbor_nondet_read_uint64(cbor, &value))
     {
-      throw CBORDecodeError("Failed to decode unsigned value");
+      throw CBORDecodeError("Failed to consume unsigned value");
     }
     return std::make_unique<WrappedValue>(value);
   }
