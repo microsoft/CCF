@@ -858,7 +858,7 @@ class Network:
                     "self_healing_open_identity": {
                         "intrinsic_id": node.local_node_id,
                         "published_address": node.get_public_rpc_address(),
-                    }
+                    },
                 }
                 # If a kwarg is passed in override automatically set variants
                 node_kwargs = (

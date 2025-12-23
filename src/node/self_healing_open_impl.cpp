@@ -571,9 +571,7 @@ namespace ccf
 
     for (auto& target : config.cluster_identities)
     {
-      if (
-        target.intrinsic_id ==
-        config.identity.intrinsic_id)
+      if (target.intrinsic_id == config.identity.intrinsic_id)
       {
         // Don't send to self
         continue;

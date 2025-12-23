@@ -129,14 +129,16 @@ namespace ccf::node
   }
 
   static void init_self_healing_open_handlers(
-    endpoints::EndpointRegistry& registry, ccf::AbstractNodeContext& node_context)
+    endpoints::EndpointRegistry& registry,
+    ccf::AbstractNodeContext& node_context)
   {
     auto self_healing_open_gossip =
       [](
         auto& args,
         self_healing_open::GossipRequest in) -> std::optional<ErrorDetails> {
       LOG_TRACE_FMT(
-        "Self-healing-open: receive gossip from {}", in.info.identity.intrinsic_id);
+        "Self-healing-open: receive gossip from {}",
+        in.info.identity.intrinsic_id);
 
       // Stop accepting gossips once a node has voted
       auto chosen_replica = args.tx.template ro<self_healing_open::ChosenNode>(
@@ -177,7 +179,8 @@ namespace ccf::node
       [](auto& args, self_healing_open::TaggedWithNodeInfo in)
       -> std::optional<ErrorDetails> {
       LOG_TRACE_FMT(
-        "Self-healing-open: receive vote from {}", in.info.identity.intrinsic_id);
+        "Self-healing-open: receive vote from {}",
+        in.info.identity.intrinsic_id);
 
       args.tx
         .template rw<self_healing_open::Votes>(Tables::SELF_HEALING_OPEN_VOTES)
@@ -201,7 +204,8 @@ namespace ccf::node
       [](auto& args, self_healing_open::TaggedWithNodeInfo in)
       -> std::optional<ErrorDetails> {
       LOG_TRACE_FMT(
-        "Self-healing-open: receive IAmOpen from {}", in.info.identity.intrinsic_id);
+        "Self-healing-open: receive IAmOpen from {}",
+        in.info.identity.intrinsic_id);
       args.tx
         .template rw<self_healing_open::SMState>(
           Tables::SELF_HEALING_OPEN_SM_STATE)
