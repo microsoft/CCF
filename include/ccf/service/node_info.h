@@ -14,6 +14,18 @@
 
 namespace ccf
 {
+  struct SealedRecoveryKey
+  {
+    int version = 1;
+    std::vector<uint8_t> ciphertext;
+    crypto::Pem pubkey;
+
+    bool operator==(const SealedRecoveryKey&) const = default;
+  };
+
+  DECLARE_JSON_TYPE(SealedRecoveryKey);
+  DECLARE_JSON_REQUIRED_FIELDS(SealedRecoveryKey, version, ciphertext, pubkey);
+
   enum class NodeStatus : uint8_t
   {
     PENDING = 0,
@@ -72,6 +84,8 @@ namespace ccf
      * compatibility.
      */
     bool retired_committed = false;
+
+    std::optional<SealedRecoveryKey> sealed_recovery_key = std::nullopt;
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -84,7 +98,8 @@ namespace ccf
     certificate_signing_request,
     public_key,
     node_data,
-    retired_committed);
+    retired_committed,
+    sealed_recovery_key);
 }
 
 FMT_BEGIN_NAMESPACE
