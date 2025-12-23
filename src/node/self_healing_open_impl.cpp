@@ -573,7 +573,7 @@ namespace ccf
     {
       if (
         target.intrinsic_id ==
-        node_state->config.recover.self_healing_open->identity.intrinsic_id)
+        config.identity.intrinsic_id)
       {
         // Don't send to self
         continue;

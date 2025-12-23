@@ -1813,7 +1813,7 @@ def run_self_healing_open(const_args):
             # Verify no failover flag is set (quorum path succeeded)
             latest_public_tables, _ = recovered_network.get_latest_ledger_public_state()
             assert (
-                "public:ccf.gov.selfhealingopen.failover_open"
+                "public:ccf.gov.self_healing_open.failover_open"
                 not in latest_public_tables
             ), "Failover flag should not be set when quorum path succeeds"
 
@@ -1888,7 +1888,7 @@ def run_self_healing_open_timeout_path(const_args):
             # Verify failover flag is set (timeout path was used)
             latest_public_tables, _ = recovered_network.get_latest_ledger_public_state()
             assert (
-                "public:ccf.gov.selfhealingopen.failover_open" in latest_public_tables
+                "public:ccf.gov.self_healin_gopen.failover_open" in latest_public_tables
             ), "Failover flag should be set when timeout path is used"
 
 
@@ -1959,7 +1959,7 @@ def run_self_healing_open_local_unsealing(const_args):
         # Verify no failover flag is set (quorum path succeeded with local unsealing)
         latest_public_tables, _ = recovered_network.get_latest_ledger_public_state()
         assert (
-            "public:ccf.gov.selfhealingopen.failover_open" not in latest_public_tables
+            "public:ccf.gov.self_healing_open.failover_open" not in latest_public_tables
         ), "Failover flag should not be set when quorum path succeeds"
 
         recovered_network.stop_all_nodes()

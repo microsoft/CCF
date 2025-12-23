@@ -50,18 +50,18 @@
     "recover": {
       "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }},
       "previous_service_identity_file": "{{ previous_service_identity_file }}" {% if previous_sealed_ledger_secret_location %},
-        "previous_sealed_ledger_secret_location": "{{ previous_sealed_ledger_secret_location }}"{% endif %} {% if self_healing_open_addresses and self_healing_open_identity %},
+        "previous_sealed_ledger_secret_location": "{{ previous_sealed_ledger_secret_location }}"{% endif %} {% if self_healing_open_cluster_identities and self_healing_open_identity %},
       "self_healing_open": {
         "identity": {
           "intrinsic_id": "{{self_healing_open_identity.intrinsic_id}}",
-          "address": "{{self_healing_open_identity.address}}",
+          "published_address": "{{self_healing_open_identity.published_address}}"
         },
-        "addresses" : [
-          {% for identity in self_healing_open_addresses %}
+        "cluster_identities" : [
+          {% for identity in self_healing_open_cluster_identities %}
             {
               "intrinsic_id": "{{identity.intrinsic_id}}",
-              "address": "{{identity.published_address}}
-            }
+              "published_address": "{{identity.published_address}}"
+            } {% if not loop.last %},{% endif %}
           {% endfor %}
         ]
       } {% endif %}
