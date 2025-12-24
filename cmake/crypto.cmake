@@ -42,6 +42,7 @@ target_link_libraries(ccfcrypto PUBLIC qcbor)
 target_link_libraries(ccfcrypto PUBLIC t_cose)
 target_link_libraries(ccfcrypto PUBLIC crypto)
 target_link_libraries(ccfcrypto PUBLIC ssl)
+target_link_libraries(ccfcrypto PRIVATE evercbor)
 set_property(TARGET ccfcrypto PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 install(
