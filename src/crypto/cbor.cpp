@@ -24,7 +24,7 @@ namespace
   // Helper to wrap operations with context-aware error messages
   template <typename F>
   decltype(auto) with_context(
-    std::string_view context, std::string_view operation, F&& func)
+    std::string_view context, std::string_view operation, const F& func)
   {
     try
     {
@@ -56,7 +56,7 @@ namespace
     {
       throw CBORDecodeError("Failed to consume unsigned value");
     }
-    return std::make_unique<WrappedValue>(value);
+    return std::make_unique<ValueImpl>(value);
   }
 
   Value consume_signed(cbor_nondet_t cbor)
@@ -66,7 +66,7 @@ namespace
     {
       throw CBORDecodeError("Failed to decode signed value");
     }
-    return std::make_unique<WrappedValue>(value);
+    return std::make_unique<ValueImpl>(value);
   }
 
   Value consume_byte_string(cbor_nondet_t cbor)
@@ -78,7 +78,7 @@ namespace
       throw CBORDecodeError("Failed to decode byte string");
     }
     Bytes value{data, static_cast<size_t>(length)};
-    return std::make_unique<WrappedValue>(value);
+    return std::make_unique<ValueImpl>(value);
   }
 
   Value consume_text_string(cbor_nondet_t cbor)
@@ -91,7 +91,7 @@ namespace
     }
     String value{
       reinterpret_cast<const char*>(data), static_cast<size_t>(length)};
-    return std::make_unique<WrappedValue>(value);
+    return std::make_unique<ValueImpl>(value);
   }
 
   Value consume_array(cbor_nondet_t cbor)
@@ -112,7 +112,7 @@ namespace
       }
       array.items.push_back(consume(item));
     }
-    return std::make_unique<WrappedValue>(std::move(array));
+    return std::make_unique<ValueImpl>(std::move(array));
   }
 
   Value consume_map(cbor_nondet_t cbor)
@@ -132,9 +132,9 @@ namespace
       {
         throw CBORDecodeError("Failed to get next map entry");
       }
-      map.items.push_back({consume(key_raw), consume(value_raw)});
+      map.items.emplace_back(consume(key_raw), consume(value_raw));
     }
-    return std::make_unique<WrappedValue>(std::move(map));
+    return std::make_unique<ValueImpl>(std::move(map));
   }
 
   Value consume_tagged(cbor_nondet_t cbor)
@@ -149,7 +149,7 @@ namespace
     Tagged tagged;
     tagged.tag = tag;
     tagged.item = consume(payload);
-    return std::make_unique<WrappedValue>(std::move(tagged));
+    return std::make_unique<ValueImpl>(std::move(tagged));
   }
 
   Value consume_simple(cbor_nondet_t cbor)
@@ -162,7 +162,7 @@ namespace
     {
       throw CBORDecodeError("Failed to decode simple value");
     }
-    return std::make_unique<WrappedValue>(value);
+    return std::make_unique<ValueImpl>(value);
   }
 
   Value consume(cbor_nondet_t cbor)
@@ -273,25 +273,31 @@ namespace ccf::cbor
 {
   Value make_unsigned(uint64_t value)
   {
-    return std::make_unique<WrappedValue>(value);
+    return std::make_unique<ValueImpl>(value);
   }
   Value make_signed(int64_t value)
   {
-    return std::make_unique<WrappedValue>(value);
+    return std::make_unique<ValueImpl>(value);
   }
   Value make_string(std::string_view data)
   {
-    return std::make_unique<WrappedValue>(data);
+    return std::make_unique<ValueImpl>(data);
   }
 
   Value parse_wrapped(std::span<const uint8_t> raw, std::string_view context)
   {
     return with_context(context, "parse", [&] {
       cbor_nondet_t cbor;
+      const bool check_map_key_bound = false;
+      const size_t map_key_bound = 0;
       auto* cbor_parse_input = const_cast<uint8_t*>(raw.data());
       size_t cbor_parse_size = raw.size();
       if (!cbor_nondet_parse(
-            true, 0, &cbor_parse_input, &cbor_parse_size, &cbor))
+            check_map_key_bound,
+            map_key_bound,
+            &cbor_parse_input,
+            &cbor_parse_size,
+            &cbor))
       {
         throw CBORDecodeError("Failed to parse top-level cbor");
       }
@@ -307,8 +313,7 @@ namespace ccf::cbor
     return os.str();
   }
 
-  const Value& WrappedValue::array_at(
-    size_t index, std::string_view context) const
+  const Value& ValueImpl::array_at(size_t index, std::string_view context) const
   {
     return with_context(context, "access array element", [&]() -> const Value& {
       if (!std::holds_alternative<Array>(value))
@@ -326,7 +331,7 @@ namespace ccf::cbor
     });
   }
 
-  const Value& WrappedValue::map_at(
+  const Value& ValueImpl::map_at(
     const Value& key, std::string_view context) const
   {
     return with_context(context, "access map key", [&]() -> const Value& {
@@ -390,26 +395,22 @@ namespace ccf::cbor
     });
   }
 
-  size_t WrappedValue::size() const
+  size_t ValueImpl::size() const
   {
     if (std::holds_alternative<Array>(value))
     {
       const auto& arr = std::get<Array>(value);
       return arr.items.size();
     }
-    else if (std::holds_alternative<Map>(value))
+    if (std::holds_alternative<Map>(value))
     {
       const auto& map = std::get<Map>(value);
       return map.items.size();
     }
-    else
-    {
-      throw CBORDecodeError("Not a collection");
-    }
+    throw CBORDecodeError("Not a collection");
   }
 
-  const Value& WrappedValue::tag_at(
-    const uint64_t tag, std::string_view context) const
+  const Value& ValueImpl::tag_at(uint64_t tag, std::string_view context) const
   {
     return with_context(context, "extract tag", [&]() -> const Value& {
       if (!std::holds_alternative<Tagged>(value))
@@ -427,7 +428,7 @@ namespace ccf::cbor
     });
   }
 
-  Unsigned WrappedValue::as_unsigned(std::string_view context) const
+  Unsigned ValueImpl::as_unsigned(std::string_view context) const
   {
     return with_context(context, "convert to unsigned", [&] {
       if (!std::holds_alternative<Unsigned>(value))
@@ -437,7 +438,7 @@ namespace ccf::cbor
       return std::get<Unsigned>(value);
     });
   }
-  Signed WrappedValue::as_signed(std::string_view context) const
+  Signed ValueImpl::as_signed(std::string_view context) const
   {
     return with_context(context, "convert to signed", [&] {
       if (!std::holds_alternative<Signed>(value))
@@ -447,7 +448,7 @@ namespace ccf::cbor
       return std::get<Signed>(value);
     });
   }
-  Bytes WrappedValue::as_bytes(std::string_view context) const
+  Bytes ValueImpl::as_bytes(std::string_view context) const
   {
     return with_context(context, "convert to bytes", [&] {
       if (!std::holds_alternative<Bytes>(value))
@@ -457,7 +458,7 @@ namespace ccf::cbor
       return std::get<Bytes>(value);
     });
   }
-  String WrappedValue::as_string(std::string_view context) const
+  String ValueImpl::as_string(std::string_view context) const
   {
     return with_context(context, "convert to string", [&] {
       if (!std::holds_alternative<String>(value))
@@ -467,7 +468,7 @@ namespace ccf::cbor
       return std::get<String>(value);
     });
   }
-  Simple WrappedValue::as_simple(std::string_view context) const
+  Simple ValueImpl::as_simple(std::string_view context) const
   {
     return with_context(context, "convert to simple", [&] {
       if (!std::holds_alternative<Simple>(value))

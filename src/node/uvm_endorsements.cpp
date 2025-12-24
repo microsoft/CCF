@@ -57,13 +57,15 @@ namespace ccf
         {
           for (size_t i = 0; i < x5chain_value->size(); ++i)
           {
-            const auto& bytes = x5chain_value->array_at(i)->as_bytes();
+            const auto x5chain_ctx = "x5chain[" + std::to_string(i) + "]";
+            const auto& bytes =
+              x5chain_value->array_at(i, x5chain_ctx)->as_bytes(x5chain_ctx);
             chain.emplace_back(bytes.begin(), bytes.end());
           }
         }
         catch (const ccf::cbor::CBORDecodeError&)
         {
-          auto bytes = x5chain_value->as_bytes();
+          auto bytes = x5chain_value->as_bytes("x5chain");
           chain.emplace_back(bytes.begin(), bytes.end());
         }
         return chain;
@@ -78,29 +80,39 @@ namespace ccf
         auto parsed = ccf::cbor::parse_wrapped(as_span, "COSE envelope");
         const auto& cose_array =
           parsed->tag_at(CBOR_TAG_COSE_SIGN1, "COSE_Sign1 tag");
-        const auto& phdr_bytes = cose_array->array_at(0, "phdr bytes");
-        auto phdr_bytes_span = phdr_bytes->as_bytes("phdr");
+        const auto phdr_context = "COSE_Sign1[0]";
+        const auto& phdr_bytes = cose_array->array_at(0, phdr_context);
+        auto phdr_bytes_span = phdr_bytes->as_bytes(phdr_context);
         auto parsed_phdr =
           ccf::cbor::parse_wrapped(phdr_bytes_span, "phdr CBOR");
 
         UvmEndorsementsProtectedHeader result;
-        const auto& alg = parsed_phdr->map_at(
-          ccf::cbor::make_unsigned(headers::PARAM_ALG), "algorithm");
-        result.alg = alg->as_signed("algorithm");
-        const auto& content_type = parsed_phdr->map_at(
-          ccf::cbor::make_unsigned(headers::PARAM_CONTENT_TYPE),
-          "content type");
-        result.content_type =
-          std::string(content_type->as_string("content type"));
-        result.x5_chain = parse_x5chain(parsed_phdr->map_at(
-          ccf::cbor::make_unsigned(headers::PARAM_X5CHAIN), "x5chain"));
-        const auto& iss =
-          parsed_phdr->map_at(ccf::cbor::make_string("iss"), "Issuer");
-        result.iss = iss->as_string("Issuer");
 
+        const auto alg_context = "phdr: " + std::to_string(headers::PARAM_ALG);
+        const auto& alg = parsed_phdr->map_at(
+          ccf::cbor::make_unsigned(headers::PARAM_ALG), alg_context);
+        result.alg = alg->as_signed(alg_context);
+
+        const auto ct_context =
+          "phdr: " + std::to_string(headers::PARAM_CONTENT_TYPE);
+        const auto& content_type = parsed_phdr->map_at(
+          ccf::cbor::make_unsigned(headers::PARAM_CONTENT_TYPE), ct_context);
+        result.content_type = std::string(content_type->as_string(ct_context));
+
+        const auto x5chain_context =
+          "phdr: " + std::to_string(headers::PARAM_X5CHAIN);
+        result.x5_chain = parse_x5chain(parsed_phdr->map_at(
+          ccf::cbor::make_unsigned(headers::PARAM_X5CHAIN), x5chain_context));
+
+        const auto iss_context = "phdr: iss";
+        const auto& iss =
+          parsed_phdr->map_at(ccf::cbor::make_string("iss"), iss_context);
+        result.iss = iss->as_string(iss_context);
+
+        const auto feed_context = "phdr: feed";
         const auto& feed =
-          parsed_phdr->map_at(ccf::cbor::make_string("feed"), "feed");
-        result.feed = std::string(feed->as_string("feed"));
+          parsed_phdr->map_at(ccf::cbor::make_string("feed"), feed_context);
+        result.feed = std::string(feed->as_string(feed_context));
 
         return result;
       }
@@ -115,35 +127,55 @@ namespace ccf
         auto parsed = ccf::cbor::parse_wrapped(as_span, "COSE envelope");
         const auto& cose_array =
           parsed->tag_at(CBOR_TAG_COSE_SIGN1, "COSE_Sign1 tag");
-        const auto& phdr_bytes = cose_array->array_at(0, "phdr bytes");
-        auto phdr_bytes_span = phdr_bytes->as_bytes("phdr");
+
+        const auto phdr_context = "COSE_Sign1[0]";
+        const auto& phdr_bytes = cose_array->array_at(0, phdr_context);
+        auto phdr_bytes_span = phdr_bytes->as_bytes(phdr_context);
+
         auto parsed_phdr =
           ccf::cbor::parse_wrapped(phdr_bytes_span, "phdr CBOR");
 
         UvmEndorsementsProtectedHeader result;
-        const auto& alg = parsed_phdr->map_at(
-          ccf::cbor::make_unsigned(headers::PARAM_ALG), "algorithm");
-        result.alg = alg->as_signed("algorithm");
-        const auto& content_type =
-          parsed_phdr->map_at(ccf::cbor::make_unsigned(259), "content type");
-        result.content_type =
-          std::string(content_type->as_string("content type"));
-        result.x5_chain = parse_x5chain(parsed_phdr->map_at(
-          ccf::cbor::make_unsigned(headers::PARAM_X5CHAIN), "x5chain"));
 
+        const auto alg_context = "phdr: " + std::to_string(headers::PARAM_ALG);
+        const auto& alg = parsed_phdr->map_at(
+          ccf::cbor::make_unsigned(headers::PARAM_ALG), alg_context);
+        result.alg = alg->as_signed(alg_context);
+
+        const auto ct_context = "phdr: " + std::to_string(259);
+        const auto& content_type =
+          parsed_phdr->map_at(ccf::cbor::make_unsigned(259), ct_context);
+        result.content_type = std::string(content_type->as_string(ct_context));
+
+        const auto x5chain_context =
+          "phdr: " + std::to_string(headers::PARAM_X5CHAIN);
+        result.x5_chain = parse_x5chain(parsed_phdr->map_at(
+          ccf::cbor::make_unsigned(headers::PARAM_X5CHAIN), x5chain_context));
+
+        const auto cwt_context =
+          "phdr: " + std::to_string(ccf::crypto::COSE_PHEADER_KEY_CWT);
         const auto& cwt_claims = parsed_phdr->map_at(
           ccf::cbor::make_unsigned(ccf::crypto::COSE_PHEADER_KEY_CWT),
-          "CWT claims");
+          cwt_context);
+
+        const auto iss_context =
+          "cwt: " + std::to_string(ccf::crypto::COSE_PHEADER_KEY_ISS);
         const auto& iss = cwt_claims->map_at(
           ccf::cbor::make_unsigned(ccf::crypto::COSE_PHEADER_KEY_ISS),
-          "issuer");
-        result.iss = std::string(iss->as_string("issuer"));
+          iss_context);
+        result.iss = std::string(iss->as_string(iss_context));
+
+        const auto feed_context =
+          "cwt: " + std::to_string(ccf::crypto::COSE_PHEADER_KEY_SUB);
         const auto& feed = cwt_claims->map_at(
-          ccf::cbor::make_unsigned(ccf::crypto::COSE_PHEADER_KEY_SUB), "feed");
-        result.feed = std::string(feed->as_string("feed"));
+          ccf::cbor::make_unsigned(ccf::crypto::COSE_PHEADER_KEY_SUB),
+          feed_context);
+        result.feed = std::string(feed->as_string(feed_context));
+
+        const auto svn_context = "cwt: svn";
         const auto& svn_value =
-          cwt_claims->map_at(ccf::cbor::make_string("svn"), "SVN");
-        auto svn = svn_value->as_unsigned("SVN");
+          cwt_claims->map_at(ccf::cbor::make_string("svn"), svn_context);
+        auto svn = svn_value->as_unsigned(svn_context);
 
         return {result, std::to_string(svn)};
       }

@@ -13,8 +13,8 @@
 
 namespace ccf::cbor
 {
-  struct WrappedValue;
-  using Value = std::unique_ptr<WrappedValue>;
+  struct ValueImpl;
+  using Value = std::unique_ptr<ValueImpl>;
 
   using Unsigned = uint64_t;
   using Signed = int64_t;
@@ -43,21 +43,23 @@ namespace ccf::cbor
 
   using CBORDecodeError = std::runtime_error;
 
-  struct WrappedValue
+  struct ValueImpl
   {
-    WrappedValue(Type value_) : value(std::move(value_)) {}
+    ValueImpl(Type value_) : value(std::move(value_)) {}
     Type value;
 
-    const Value& array_at(size_t index, std::string_view context = {}) const;
-    const Value& map_at(const Value& key, std::string_view context = {}) const;
-    const Value& tag_at(
-      const uint64_t tag, std::string_view context = {}) const;
-    Unsigned as_unsigned(std::string_view context = {}) const;
-    Signed as_signed(std::string_view context = {}) const;
-    Bytes as_bytes(std::string_view context = {}) const;
-    String as_string(std::string_view context = {}) const;
-    Simple as_simple(std::string_view context = {}) const;
-    size_t size() const;
+    [[nodiscard]] const Value& array_at(
+      size_t index, std::string_view context = {}) const;
+    [[nodiscard]] const Value& map_at(
+      const Value& key, std::string_view context = {}) const;
+    [[nodiscard]] const Value& tag_at(
+      uint64_t tag, std::string_view context = {}) const;
+    [[nodiscard]] Unsigned as_unsigned(std::string_view context = {}) const;
+    [[nodiscard]] Signed as_signed(std::string_view context = {}) const;
+    [[nodiscard]] Bytes as_bytes(std::string_view context = {}) const;
+    [[nodiscard]] String as_string(std::string_view context = {}) const;
+    [[nodiscard]] Simple as_simple(std::string_view context = {}) const;
+    [[nodiscard]] size_t size() const;
   };
 
   Value make_unsigned(uint64_t value);
