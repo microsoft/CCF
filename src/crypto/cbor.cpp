@@ -284,7 +284,7 @@ namespace ccf::cbor
     return std::make_unique<ValueImpl>(data);
   }
 
-  Value parse_wrapped(std::span<const uint8_t> raw, std::string_view context)
+  Value parse_value(std::span<const uint8_t> raw, std::string_view context)
   {
     return with_context(context, "parse", [&] {
       cbor_nondet_t cbor;

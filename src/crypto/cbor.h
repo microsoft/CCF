@@ -66,7 +66,7 @@ namespace ccf::cbor
   Value make_signed(int64_t value);
   Value make_string(std::string_view data);
 
-  Value parse_wrapped(
+  Value parse_value(
     std::span<const uint8_t> raw, std::string_view context = {});
   std::string print_value(const Value& value, size_t indent = 0);
 } // namespace ccf::cbor

@@ -77,14 +77,13 @@ namespace ccf
         std::span<const uint8_t> as_span(
           uvm_endorsements_raw.data(), uvm_endorsements_raw.size());
 
-        auto parsed = ccf::cbor::parse_wrapped(as_span, "COSE envelope");
+        auto parsed = ccf::cbor::parse_value(as_span, "COSE envelope");
         const auto& cose_array =
           parsed->tag_at(CBOR_TAG_COSE_SIGN1, "COSE_Sign1 tag");
         const auto phdr_context = "COSE_Sign1[0]";
         const auto& phdr_bytes = cose_array->array_at(0, phdr_context);
         auto phdr_bytes_span = phdr_bytes->as_bytes(phdr_context);
-        auto parsed_phdr =
-          ccf::cbor::parse_wrapped(phdr_bytes_span, "phdr CBOR");
+        auto parsed_phdr = ccf::cbor::parse_value(phdr_bytes_span, "phdr CBOR");
 
         UvmEndorsementsProtectedHeader result;
 
@@ -124,7 +123,7 @@ namespace ccf
         std::span<const uint8_t> as_span(
           uvm_endorsements_raw.data(), uvm_endorsements_raw.size());
 
-        auto parsed = ccf::cbor::parse_wrapped(as_span, "COSE envelope");
+        auto parsed = ccf::cbor::parse_value(as_span, "COSE envelope");
         const auto& cose_array =
           parsed->tag_at(CBOR_TAG_COSE_SIGN1, "COSE_Sign1 tag");
 
@@ -132,8 +131,7 @@ namespace ccf
         const auto& phdr_bytes = cose_array->array_at(0, phdr_context);
         auto phdr_bytes_span = phdr_bytes->as_bytes(phdr_context);
 
-        auto parsed_phdr =
-          ccf::cbor::parse_wrapped(phdr_bytes_span, "phdr CBOR");
+        auto parsed_phdr = ccf::cbor::parse_value(phdr_bytes_span, "phdr CBOR");
 
         UvmEndorsementsProtectedHeader result;
 
