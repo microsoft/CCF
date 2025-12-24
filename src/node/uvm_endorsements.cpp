@@ -80,7 +80,7 @@ namespace ccf
         auto parsed = ccf::cbor::parse_value(as_span, "COSE envelope");
         const auto& cose_array =
           parsed->tag_at(CBOR_TAG_COSE_SIGN1, "COSE_Sign1 tag");
-        const auto phdr_context = "COSE_Sign1[0]";
+        constexpr std::string_view phdr_context{"COSE_Sign1[0]"};
         const auto& phdr_bytes = cose_array->array_at(0, phdr_context);
         auto phdr_bytes_span = phdr_bytes->as_bytes(phdr_context);
         auto parsed_phdr = ccf::cbor::parse_value(phdr_bytes_span, "phdr CBOR");
@@ -103,12 +103,12 @@ namespace ccf
         result.x5_chain = parse_x5chain(parsed_phdr->map_at(
           ccf::cbor::make_unsigned(headers::PARAM_X5CHAIN), x5chain_context));
 
-        const auto iss_context = "phdr: iss";
+        constexpr std::string_view iss_context{"phdr: iss"};
         const auto& iss =
           parsed_phdr->map_at(ccf::cbor::make_string("iss"), iss_context);
         result.iss = iss->as_string(iss_context);
 
-        const auto feed_context = "phdr: feed";
+        constexpr std::string_view feed_context{"phdr: feed"};
         const auto& feed =
           parsed_phdr->map_at(ccf::cbor::make_string("feed"), feed_context);
         result.feed = std::string(feed->as_string(feed_context));
@@ -127,7 +127,7 @@ namespace ccf
         const auto& cose_array =
           parsed->tag_at(CBOR_TAG_COSE_SIGN1, "COSE_Sign1 tag");
 
-        const auto phdr_context = "COSE_Sign1[0]";
+        constexpr std::string_view phdr_context{"COSE_Sign1[0]"};
         const auto& phdr_bytes = cose_array->array_at(0, phdr_context);
         auto phdr_bytes_span = phdr_bytes->as_bytes(phdr_context);
 
@@ -170,7 +170,7 @@ namespace ccf
           feed_context);
         result.feed = std::string(feed->as_string(feed_context));
 
-        const auto svn_context = "cwt: svn";
+        constexpr std::string_view svn_context{"cwt: svn"};
         const auto& svn_value =
           cwt_claims->map_at(ccf::cbor::make_string("svn"), svn_context);
         auto svn = svn_value->as_unsigned(svn_context);
