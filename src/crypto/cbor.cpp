@@ -154,9 +154,9 @@ namespace
 
   Value consume_simple(cbor_nondet_t cbor)
   {
-    // Return the raw simple value (single byte) and leave detailed interpretation
-    // to the caller. EverCBOR does not yet support more granular parsing, or
-    // floating point numbers with extra payload.
+    // Return the raw simple value (single byte) and leave detailed
+    // interpretation to the caller. EverCBOR does not yet support more granular
+    // parsing, or floating point numbers with extra payload.
     Simple value{0};
     if (!cbor_nondet_read_simple_value(cbor, &value))
     {
@@ -262,6 +262,11 @@ namespace
           print_indent(os, indent);
           os << "Tagged[" << v.tag << "]:" << std::endl;
           print_value_impl(os, v.item, indent + 1);
+        }
+        else if constexpr (std::is_same_v<T, Simple>)
+        {
+          print_indent(os, indent);
+          os << "Simple: " << static_cast<int>(v) << std::endl;
         }
       },
       value->value);
