@@ -5,6 +5,7 @@
 #include "../ds/files.h"
 #include "../enclave/interface.h"
 #include "ds/internal_logger.h"
+#include "ds/non_blocking.h"
 #include "timer.h"
 
 #include <chrono>
@@ -52,6 +53,13 @@ namespace asynchost
         bp, AdminMessage::stopped, [](const uint8_t*, size_t) {
           uv_stop(uv_default_loop());
           LOG_INFO_FMT("Host stopped successfully");
+        });
+
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        bp, AdminMessage::restart, [&](const uint8_t*, size_t) {
+          LOG_INFO_FMT("Received request to restart enclave, sending stops");
+          auto to_enclave = nbwf.create_writer_to_inside();
+          RINGBUFFER_WRITE_MESSAGE(AdminMessage::stop, to_enclave);
         });
     }
 
