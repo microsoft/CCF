@@ -857,6 +857,21 @@ class Node:
             f"Node {self.local_node_id} was not in leadership states {leadership_states} in view > {min_view} after {timeout}s: {r}"
         )
 
+    def refresh_network_state(self, **client_kwargs):
+        try:
+            with self.client(**client_kwargs) as c:
+                LOG.info(f"Trying to refresh using {c}")
+                r = c.get(f"/node/network/nodes/{self.node_id}").body.json()
+                LOG.info(r)
+
+                if r["status"] == "Pending":
+                    self.network_state = NodeNetworkState.started
+                elif r["status"] == "Trusted":
+                    self.network_state = NodeNetworkState.joined
+        except Exception as e:
+            LOG.debug(f"Failed to connect {e}")
+            self.network_state = NodeNetworkState.stopped
+
     def log_stack_trace(self, timeout=20):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
             self.remote.log_stack_trace(timeout=timeout)
