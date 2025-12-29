@@ -1956,6 +1956,30 @@ class Network:
             )
 
 
+# Closes the network on error, logging stack traces and optionally dropping into pdb
+@contextmanager
+def close_on_error(net, has_partitioner=False, pdb=False):
+    try:
+        yield
+    except Exception:
+        # Don't try to verify txs on Exception path
+        net.txs = None
+
+        net.log_stack_traces(timeout=10)
+
+        if pdb:
+            import pdb
+
+            pdb.set_trace()
+
+        LOG.info("Stopping network")
+        net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
+        if has_partitioner:
+            net.partitioner.cleanup()
+
+        raise
+
+
 @contextmanager
 def network(
     hosts,
@@ -2000,21 +2024,8 @@ def network(
         **kwargs,
     )
     try:
-        yield net
-    except Exception:
-        # Don't try to verify txs on Exception path
-        net.txs = None
-
-        net.log_stack_traces(timeout=10)
-
-        if pdb:
-            import pdb
-
-            pdb.set_trace()
-        else:
-            raise
+        with close_on_error(net, has_partitioner=init_partitioner, pdb=pdb):
+            yield net
     finally:
         LOG.info("Stopping network")
-        net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
-        if init_partitioner:
-            net.partitioner.cleanup()
+        net.stop_all_nodes()

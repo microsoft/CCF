@@ -417,136 +417,139 @@ def test_recover_service_with_wrong_identity(network, args):
         existing_network=network,
     )
 
-    recovered_network.start_in_recovery(
-        args,
-        ledger_dir=current_ledger_dir,
-        committed_ledger_dirs=committed_ledger_dirs,
-        snapshots_dir=snapshots_dir,
-    )
-
-    # Must fail with a dedicated error message if requesting a receipt for a TX
-    # from past epochs, since ledger secrets are not yet available,
-    # therefore no receipt can be generated.
-    primary, _ = recovered_network.find_primary()
-    with primary.client() as cli:
-        curr_tx_id = ccf.tx_id.TxID.from_str(
-            cli.get("/node/commit").body.json()["transaction_id"]
+    with infra.network.close_on_error(recovered_network):
+        recovered_network.start_in_recovery(
+            args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+            snapshots_dir=snapshots_dir,
         )
 
-        response = cli.get(f"/node/receipt?transaction_id={str(before_recovery_tx_id)}")
-        assert response.status_code == http.HTTPStatus.NOT_FOUND, response
-        assert (
-            "not signed by the current service"
-            in response.body.json()["error"]["message"]
-        ), response
+        # Must fail with a dedicated error message if requesting a receipt for a TX
+        # from past epochs, since ledger secrets are not yet available,
+        # therefore no receipt can be generated.
+        primary, _ = recovered_network.find_primary()
+        with primary.client() as cli:
+            curr_tx_id = ccf.tx_id.TxID.from_str(
+                cli.get("/node/commit").body.json()["transaction_id"]
+            )
 
-        current_service_created_tx_id = ccf.tx_id.TxID.from_str(
-            cli.get("/node/network").body.json()["current_service_create_txid"]
-        )
+            response = cli.get(
+                f"/node/receipt?transaction_id={str(before_recovery_tx_id)}"
+            )
+            assert response.status_code == http.HTTPStatus.NOT_FOUND, response
+            assert (
+                "not signed by the current service"
+                in response.body.json()["error"]["message"]
+            ), response
 
-    # TX from the current epoch though can be verified, as soon as the caller
-    # trusts the current service identity.
-    receipt = primary.get_receipt(curr_tx_id.view, curr_tx_id.seqno).json()
-    verify_receipt(receipt, recovered_network.cert, is_signature_tx=True)
+            current_service_created_tx_id = ccf.tx_id.TxID.from_str(
+                cli.get("/node/network").body.json()["current_service_create_txid"]
+            )
 
-    recovered_network.recover(args)
+        # TX from the current epoch though can be verified, as soon as the caller
+        # trusts the current service identity.
+        receipt = primary.get_receipt(curr_tx_id.view, curr_tx_id.seqno).json()
+        verify_receipt(receipt, recovered_network.cert, is_signature_tx=True)
 
-    # Needs refreshing, recovery has completed.
-    with primary.client() as cli:
-        curr_tx_id = ccf.tx_id.TxID.from_str(
-            cli.get("/node/commit").body.json()["transaction_id"]
-        )
+        recovered_network.recover(args)
 
-    # Check receipts for transactions after multiple recoveries. This test
-    # relies on previous recoveries and is therefore prone to failures if
-    # surrounding test calls change.
-    txids = [
-        # Last TX before previous recovery
-        shifted_tx(previous_service_created_tx_id, -2, -1),
-        # First after previous recovery
-        previous_service_created_tx_id,
-        # Random TX before previous and last recovery
-        shifted_tx(current_service_created_tx_id, -2, -5),
-        # Last TX before last recovery
-        shifted_tx(current_service_created_tx_id, -2, -1),
-        # First TX after last recovery
-        current_service_created_tx_id,
-        # Random TX after last recovery
-        shifted_tx(curr_tx_id, 0, -3),
-    ]
+        # Needs refreshing, recovery has completed.
+        with primary.client() as cli:
+            curr_tx_id = ccf.tx_id.TxID.from_str(
+                cli.get("/node/commit").body.json()["transaction_id"]
+            )
 
-    with primary.client("user0") as client:
-
-        def pull_with_handle():
-            # Receipts for previous service instances require back-endorsement.
-            # In this case it should trigger reading pulling up state
-            # for previous_service_created_tx_id, which will have an overlapping
-            # seqno with the target tx, but this has to work just fine due to
-            # App/Sys handle split.
-            return client.get(
-                f"/log/private/historical/handle?seqno={previous_service_created_tx_id.seqno + 1}&handle={previous_service_created_tx_id.seqno}"
-            ).status_code
-
-        for _ in range(10):
-            if pull_with_handle() == http.HTTPStatus.OK:
-                break
-            time.sleep(0.5)
-        else:
-            assert False, "Could not get a receipt with a custom handle"
-
-    for tx in txids:
-        receipt = primary.get_receipt(tx.view, tx.seqno).json()
-
-        try:
-            verify_receipt(receipt, recovered_network.cert)
-        except AssertionError:
-            # May fail due to missing leaf components if it's a signature TX,
-            # try again with a flag to force skip leaf components verification.
-            verify_receipt(receipt, recovered_network.cert, is_signature_tx=True)
-
-    with primary.client() as cli:
-        service_cert = cli.get("/node/network").body.json()["service_certificate"]
-        cert = load_pem_x509_certificate(
-            service_cert.encode("ascii"), default_backend()
-        )
-
-    for tx in txids[0:1]:
-        response = query_endorsements_chain(primary, tx)
-        assert response.status_code == http.HTTPStatus.OK, response
-        endorsements = [
-            base64.b64decode(x) for x in response.body.json()["endorsements"]
+        # Check receipts for transactions after multiple recoveries. This test
+        # relies on previous recoveries and is therefore prone to failures if
+        # surrounding test calls change.
+        txids = [
+            # Last TX before previous recovery
+            shifted_tx(previous_service_created_tx_id, -2, -1),
+            # First after previous recovery
+            previous_service_created_tx_id,
+            # Random TX before previous and last recovery
+            shifted_tx(current_service_created_tx_id, -2, -5),
+            # Last TX before last recovery
+            shifted_tx(current_service_created_tx_id, -2, -1),
+            # First TX after last recovery
+            current_service_created_tx_id,
+            # Random TX after last recovery
+            shifted_tx(curr_tx_id, 0, -3),
         ]
-        assert len(endorsements) == 2  # 2 recoveries behind
-        verify_endorsements_chain(
-            primary,
-            endorsements,
-            cert.public_key().public_bytes(
-                serialization.Encoding.PEM,
-                serialization.PublicFormat.SubjectPublicKeyInfo,
-            ),
-        )
 
-    for tx in txids[1:4]:
-        response = query_endorsements_chain(primary, tx)
-        assert response.status_code == http.HTTPStatus.OK, response
-        endorsements = [
-            base64.b64decode(x) for x in response.body.json()["endorsements"]
-        ]
-        assert len(endorsements) == 1  # 1 recovery behind
-        verify_endorsements_chain(
-            primary,
-            endorsements,
-            cert.public_key().public_bytes(
-                serialization.Encoding.PEM,
-                serialization.PublicFormat.SubjectPublicKeyInfo,
-            ),
-        )
+        with primary.client("user0") as client:
 
-    for tx in txids[4:]:
-        response = query_endorsements_chain(primary, tx)
-        assert response.status_code == http.HTTPStatus.NOT_FOUND, response
+            def pull_with_handle():
+                # Receipts for previous service instances require back-endorsement.
+                # In this case it should trigger reading pulling up state
+                # for previous_service_created_tx_id, which will have an overlapping
+                # seqno with the target tx, but this has to work just fine due to
+                # App/Sys handle split.
+                return client.get(
+                    f"/log/private/historical/handle?seqno={previous_service_created_tx_id.seqno + 1}&handle={previous_service_created_tx_id.seqno}"
+                ).status_code
 
-    return recovered_network
+            for _ in range(10):
+                if pull_with_handle() == http.HTTPStatus.OK:
+                    break
+                time.sleep(0.5)
+            else:
+                assert False, "Could not get a receipt with a custom handle"
+
+        for tx in txids:
+            receipt = primary.get_receipt(tx.view, tx.seqno).json()
+
+            try:
+                verify_receipt(receipt, recovered_network.cert)
+            except AssertionError:
+                # May fail due to missing leaf components if it's a signature TX,
+                # try again with a flag to force skip leaf components verification.
+                verify_receipt(receipt, recovered_network.cert, is_signature_tx=True)
+
+        with primary.client() as cli:
+            service_cert = cli.get("/node/network").body.json()["service_certificate"]
+            cert = load_pem_x509_certificate(
+                service_cert.encode("ascii"), default_backend()
+            )
+
+        for tx in txids[0:1]:
+            response = query_endorsements_chain(primary, tx)
+            assert response.status_code == http.HTTPStatus.OK, response
+            endorsements = [
+                base64.b64decode(x) for x in response.body.json()["endorsements"]
+            ]
+            assert len(endorsements) == 2  # 2 recoveries behind
+            verify_endorsements_chain(
+                primary,
+                endorsements,
+                cert.public_key().public_bytes(
+                    serialization.Encoding.PEM,
+                    serialization.PublicFormat.SubjectPublicKeyInfo,
+                ),
+            )
+
+        for tx in txids[1:4]:
+            response = query_endorsements_chain(primary, tx)
+            assert response.status_code == http.HTTPStatus.OK, response
+            endorsements = [
+                base64.b64decode(x) for x in response.body.json()["endorsements"]
+            ]
+            assert len(endorsements) == 1  # 1 recovery behind
+            verify_endorsements_chain(
+                primary,
+                endorsements,
+                cert.public_key().public_bytes(
+                    serialization.Encoding.PEM,
+                    serialization.PublicFormat.SubjectPublicKeyInfo,
+                ),
+            )
+
+        for tx in txids[4:]:
+            response = query_endorsements_chain(primary, tx)
+            assert response.status_code == http.HTTPStatus.NOT_FOUND, response
+
+        return recovered_network
 
 
 @reqs.description("Recover a service from local files")
