@@ -2028,4 +2028,4 @@ def network(
             yield net
     finally:
         LOG.info("Stopping network")
-        net.stop_all_nodes()
+        net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
