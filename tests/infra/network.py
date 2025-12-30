@@ -2023,9 +2023,7 @@ def network(
         node_data_json_file=node_data_json_file,
         **kwargs,
     )
-    try:
-        with close_on_error(net, has_partitioner=init_partitioner, pdb=pdb):
-            yield net
-    finally:
-        LOG.info("Stopping network")
-        net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
+    with close_on_error(net, has_partitioner=init_partitioner, pdb=pdb):
+        yield net
+    LOG.info("Stopping network")
+    net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
