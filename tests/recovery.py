@@ -551,7 +551,11 @@ def test_recover_service_with_wrong_identity(network, args):
 
 @reqs.description("Recover a service from local files")
 def test_recover_service_from_files(
-    args, directory, expected_recovery_count, test_receipts_at=None
+    args,
+    directory,
+    expected_recovery_count,
+    test_receipts_at=None,
+    test_cose_receipts_at=None,
 ):
     service_dir = os.path.join(
         os.path.dirname(os.path.realpath(__file__)), "testdata", directory
@@ -616,17 +620,43 @@ def test_recover_service_from_files(
 
         infra.checker.check_can_progress(primary, local_user_id=new_user_local_id)
 
-        if test_receipts_at:
-            for view, seqno in test_receipts_at:
-                r = primary.get_receipt(view, seqno)
+        for view, seqno in test_receipts_at or []:
+            r = primary.get_receipt(view, seqno)
 
-                verify_receipt(
-                    r.json(),
-                    network.cert,
-                    # Even when we want to check that receipts are valid,
-                    # these old services are likely to use expired certs
-                    skip_cert_chain_checks=True,
-                )
+            verify_receipt(
+                r.json(),
+                network.cert,
+                # Even when we want to check that receipts are valid,
+                # these old services are likely to use expired certs
+                skip_cert_chain_checks=True,
+            )
+
+        for view, seqno in test_cose_receipts_at or []:
+            with primary.client("user0") as client:
+                for _ in range(0, 10):
+                    r = client.get(
+                        "/log/public/cose_receipt",
+                        headers={infra.clients.CCF_TX_ID_HEADER: f"{view}.{seqno}"},
+                        log_capture=[],  # Do not emit raw binary to stdout
+                    )
+                    if r.status_code == http.HTTPStatus.ACCEPTED:
+                        LOG.debug(f"Receipt for {view}.{seqno} not ready, retrying")
+                        time.sleep(0.1)
+                    elif r.status_code == http.HTTPStatus.OK:
+                        cose_receipt = r.body.data()
+                        r = client.get(
+                            "/log/public/verify_cose_receipt",
+                            cose_receipt,
+                            headers={"Content-Type": "application/cose"},
+                        )
+                        assert (
+                            r.status_code == http.HTTPStatus.NO_CONTENT
+                        ), f"Failed to verify COSE receipt for txid {view}.{seqno}: {r.status_code} {r.body.text()}"
+
+                    else:
+                        assert (
+                            False
+                        ), f"Failed to get COSE receipt for tx {view}.{seqno} with response {r.status_code} {r.body.text()}"
 
 
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
@@ -1127,6 +1157,7 @@ def run_recovery_from_files(args):
         directory=args.directory,
         expected_recovery_count=args.expected_recovery_count,
         test_receipts_at=args.test_receipts_at,
+        test_cose_receipts_at=args.test_cose_receipts_at,
     )
 
 
@@ -1380,17 +1411,22 @@ checked. Note that the key for each logging message is unique (per table).
         snapshot_tx_interval=30,
     )
 
-    for directory, expected_recovery_count, test_receipts_at in (
-        ("expired_service", 2, [(2, 3)]),
+    for directory, expected_recovery_count, test_receipts_at, test_cose_receipts_at in (
+        ("expired_service", 2, [(2, 3)], None),
         # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> 5.x -> main.
         # This is used to test recovery from SGX to SNP.
-        ("sgx_service", 4, None),
+        ("sgx_service", 4, None, None),
         # double_sealed_service is a regression test for the issue described in #6906
-        ("double_sealed_service", 2, [(2, 3), (4, 498)]),
+        (
+            "double_sealed_service",
+            2,
+            [(2, 3), (4, 498), (5, 504), (7, 506)],
+            [(2, 3), (4, 498), (5, 504), (7, 506)],
+        ),
         # cose_flipflop_service is a regression test for the issue described in #7002
-        ("cose_flipflop_service", 0, None),
+        ("cose_flipflop_service", 0, None, None),
         # acme_containing_service is a compatibility test for acme-containing ledgers
-        ("acme_containing_service", 0, [(2, 3)]),
+        ("acme_containing_service", 0, [(2, 3)], [(2, 3)]),
     ):
         cr.add(
             f"recovery_from_{directory}",
@@ -1402,6 +1438,7 @@ checked. Note that the key for each logging message is unique (per table).
             directory=directory,
             expected_recovery_count=expected_recovery_count,
             test_receipts_at=test_receipts_at,
+            test_cose_receipts_at=test_cose_receipts_at,
             gov_api_version="2024-07-01",
         )
 

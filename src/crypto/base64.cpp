@@ -48,6 +48,11 @@ namespace ccf::crypto
     return b64_from_raw(data.data(), data.size());
   }
 
+  std::string b64_from_raw(std::span<const uint8_t> data)
+  {
+    return b64_from_raw(data.data(), data.size());
+  }
+
   std::string b64url_from_raw(
     const uint8_t* data, size_t size, bool with_padding)
   {

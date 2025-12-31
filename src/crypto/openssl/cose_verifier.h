@@ -40,5 +40,6 @@ namespace ccf::crypto
   {
   public:
     COSEKeyVerifier_OpenSSL(const Pem& public_key);
+    COSEKeyVerifier_OpenSSL(std::span<const uint8_t> public_key);
   };
 }

@@ -253,8 +253,18 @@ namespace ccf
       auto receipt =
         cose::decode_ccf_receipt(cose_receipt, /* recompute_root */ true);
 
-      const auto& raw_cert = network_identity_subsystem->get()->cert.raw();
-      const auto verifier = ccf::crypto::make_cose_verifier_from_cert(raw_cert);
+      const auto tx_id = ccf::TxID::from_str(receipt.phdr.ccf.txid);
+      if (!tx_id.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to convert txid {} to ccf::TxID", receipt.phdr.ccf.txid));
+      }
+
+      const auto trusted_key =
+        network_identity_subsystem->get_trusted_identity_for(tx_id->seqno);
+
+      const auto verifier =
+        ccf::crypto::make_cose_verifier_from_key(trusted_key->public_key_pem());
       if (!verifier->verify_detached(cose_receipt, receipt.merkle_root))
       {
         throw ccf::cose::COSESignatureValidationError(

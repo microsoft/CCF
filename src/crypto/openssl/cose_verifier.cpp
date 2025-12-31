@@ -162,6 +162,12 @@ namespace ccf::crypto
     public_key = std::make_shared<PublicKey_OpenSSL>(public_key_);
   }
 
+  COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(
+    std::span<const uint8_t> public_key_)
+  {
+    public_key = std::make_shared<PublicKey_OpenSSL>(public_key_);
+  }
+
   COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;
 
   bool COSEVerifier_OpenSSL::verify(
@@ -231,6 +237,12 @@ namespace ccf::crypto
   }
 
   COSEVerifierUniquePtr make_cose_verifier_from_key(const Pem& public_key)
+  {
+    return std::make_unique<COSEKeyVerifier_OpenSSL>(public_key);
+  }
+
+  COSEVerifierUniquePtr make_cose_verifier_from_key(
+    std::span<const uint8_t> public_key)
   {
     return std::make_unique<COSEKeyVerifier_OpenSSL>(public_key);
   }
