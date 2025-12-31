@@ -6,6 +6,7 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/kv/version.h"
+#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/service/node_info_network.h"
 
 #define FMT_HEADER_ONLY
@@ -14,18 +15,6 @@
 
 namespace ccf
 {
-  struct SealedRecoveryKey
-  {
-    int version = 1;
-    std::vector<uint8_t> ciphertext;
-    crypto::Pem pubkey;
-
-    bool operator==(const SealedRecoveryKey&) const = default;
-  };
-
-  DECLARE_JSON_TYPE(SealedRecoveryKey);
-  DECLARE_JSON_REQUIRED_FIELDS(SealedRecoveryKey, version, ciphertext, pubkey);
-
   enum class NodeStatus : uint8_t
   {
     PENDING = 0,
@@ -37,6 +26,19 @@ namespace ccf
     {{NodeStatus::PENDING, "Pending"},
      {NodeStatus::TRUSTED, "Trusted"},
      {NodeStatus::RETIRED, "Retired"}});
+
+  struct SealedRecoveryKey
+  {
+    int version = 1;
+    std::vector<uint8_t> ciphertext;
+    crypto::Pem pubkey;
+    pal::snp::TcbVersionRaw tcb_version;
+
+    bool operator==(const SealedRecoveryKey&) const = default;
+  };
+
+  DECLARE_JSON_TYPE(SealedRecoveryKey);
+  DECLARE_JSON_REQUIRED_FIELDS(SealedRecoveryKey, version, ciphertext, pubkey);
 
   struct NodeInfo : NodeInfoNetwork
   {

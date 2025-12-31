@@ -6,6 +6,7 @@
 #include "ccf/crypto/hkdf.h"
 #include "ccf/crypto/md_type.h"
 #include "ccf/crypto/pem.h"
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/rsa_public_key.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/json.h"
@@ -14,12 +15,14 @@
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/snp_ioctl.h"
 #include "ccf/service/node_info.h"
+#include "ccf/service/tables/local_sealing.h"
 #include "ds/ccf_assert.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "node/ledger_secret.h"
 #include "node/ledger_secrets.h"
 #include "node/share_manager.h"
+#include "service/internal_tables_access.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -96,6 +99,8 @@ namespace ccf
 
   const std::string label = "CCF AMD Local Sealing Key";
 
+  constexpr uint32_t DERIVED_SEALING_KEY_VERSION = 1;
+
   inline std::vector<uint8_t> derive_sealing_key(
     const ccf::pal::snp::TcbVersionRaw& tcb_version, int version)
   {
@@ -120,49 +125,35 @@ namespace ccf
   }
 
   inline SealedRecoveryKey get_sealed_recovery_key(
-    std::span<const uint8_t> derived_key)
+    const pal::snp::Attestation& attestation
+  )
   {
+    auto derived_key = derive_sealing_key(
+      attestation.reported_tcb, DERIVED_SEALING_KEY_VERSION);
+    
     auto recovery_key_pair = crypto::make_ec_key_pair();
     auto recovery_pubkey = recovery_key_pair->public_key_pem();
-    auto recovery_privkey = recovery_key_pair->private_key_pem();
 
+    auto recovery_privkey = recovery_key_pair->private_key_pem();
     std::span<uint8_t> plaintext(
       recovery_privkey.data(), recovery_privkey.size());
     std::span<uint8_t> aad(recovery_pubkey.data(), recovery_pubkey.size());
-
     crypto::GcmCipher sealed_key = aes_gcm_sealing(derived_key, plaintext, aad);
 
     SealedRecoveryKey res = {
-      .version = 1,
+      .version = DERIVED_SEALING_KEY_VERSION,
       .ciphertext = sealed_key.serialise(),
-      .pubkey = recovery_pubkey};
+      .pubkey = recovery_pubkey,
+      .tcb_version = attestation.reported_tcb};
 
-    // TODO openssl cleanse plaintext?
+    OPENSSL_cleanse(recovery_privkey.data(), recovery_privkey.size());
     return res;
   }
-
-  inline crypto::ECKeyPairPtr unseal_recovery_key(
-    std::span<uint8_t> derived_key, const SealedRecoveryKey& sealed_key)
-  {
-    std::span<const uint8_t> aad(
-      sealed_key.pubkey.data(), sealed_key.pubkey.size());
-
-    auto plain = aes_gcm_unsealing(derived_key, sealed_key.ciphertext, aad);
-    crypto::Pem pem(plain.data(), plain.size());
-
-    return crypto::make_ec_key_pair(pem);
-  }
-
-  struct WrappedSealedLedgerSecret
-  {
-    std::vector<uint8_t> wrapped_latest_ledger_secret;
-    std::map<NodeId, std::vector<uint8_t>> encrypted_wrapping_keys;
-  };
 
   inline void seal_ledger_secret(
     ccf::kv::Tx& tx, const LedgerSecretPtr& latest_ledger_secret)
   {
-    // TODO don't use the shared ledger secret wrapping key?
+    // TODO what is the point of the wrapping key here?
     auto ls_wrapping_key = SharedLedgerSecretWrappingKey(1, 1);
     auto encrypted_wrapping_keys = std::map<NodeId, std::vector<uint8_t>>();
     for (const auto& [node_id, node_info] :
@@ -186,11 +177,76 @@ namespace ccf
       .wrapped_latest_ledger_secret =
         ls_wrapping_key.wrap(latest_ledger_secret),
       .encrypted_wrapping_keys = encrypted_wrapping_keys};
-    // TODO set the relevant table
+
+    auto* sealed_ledger_secrets =
+      tx.rw<SealedLedgerSecrets>(Tables::SEALED_LEDGER_SECRETS);
+    sealed_ledger_secrets->put(wrapped_sealed_ledger_secret);
+  }
+
+  inline crypto::RSAKeyPairPtr unseal_recovery_key(
+    std::span<uint8_t> derived_key, const SealedRecoveryKey& sealed_key)
+  {
+    std::span<const uint8_t> aad(
+      sealed_key.pubkey.data(), sealed_key.pubkey.size());
+
+    auto plain = aes_gcm_unsealing(derived_key, sealed_key.ciphertext, aad);
+    crypto::Pem pem(plain.data(), plain.size());
+
+    return crypto::make_rsa_key_pair(pem);
   }
 
   inline LedgerSecretPtr unseal_ledger_secret(
     ccf::kv::ReadOnlyTx& tx, const NodeId& node_id)
   {
-    throw std::logic_error("Not implemented");
+    // Retrieve wrapped secret
+    auto* sealed_ledger_secrets =
+      tx.ro<SealedLedgerSecrets>(Tables::SEALED_LEDGER_SECRETS);
+    auto wrapped_sealed_ledger_secret = sealed_ledger_secrets->get();
+    if (!wrapped_sealed_ledger_secret.has_value())
+    {
+      throw std::logic_error("No sealed ledger secret found");
+    }
+    auto wrapped_secret = wrapped_sealed_ledger_secret.value();
+
+    // Retrieve encrypted wrapping key for this node
+    auto it = wrapped_secret.encrypted_wrapping_keys.find(node_id);
+    if (it == wrapped_secret.encrypted_wrapping_keys.end())
+    {
+      throw std::logic_error(
+        fmt::format("No encrypted wrapping key for node {}", node_id));
+    }
+    auto encrypted_wrapping_key = it->second;
+
+    // Unseal the recovery key pair
+    auto* nodes = tx.ro<ccf::Nodes>(Tables::NODES);
+    auto node_info = nodes->get(node_id);
+    if (node_info == std::nullopt)
+    {
+      throw std::logic_error(
+        fmt::format("Node {} was not part of previous configuration", node_id));
+    }
+    if (!node_info->sealed_recovery_key.has_value())
+    {
+      throw std::logic_error(
+        fmt::format("Node {} has no sealed recovery key", node_id));
+    }
+    auto sealed_recovery_key = node_info->sealed_recovery_key.value();
+    auto derived_key = derive_sealing_key(
+      sealed_recovery_key.tcb_version, sealed_recovery_key.version);
+    auto recovery_key_pair =
+      unseal_recovery_key(derived_key, sealed_recovery_key);
+
+    // Unseal the wrapping key using the recovery key pair
+    auto serialised_wrapping_key =
+      recovery_key_pair->rsa_oaep_unwrap(encrypted_wrapping_key);
+    ccf::crypto::sharing::Share share(serialised_wrapping_key);
+    ReconstructedLedgerSecretWrappingKey wrapping_key =
+      ReconstructedLedgerSecretWrappingKey(share);
+
+    // Use the wrapping key to unseal the ledger secret
+    auto ledger_secret =
+      wrapping_key.unwrap(wrapped_secret.wrapped_latest_ledger_secret);
+
+    return ledger_secret;
   }
+}
