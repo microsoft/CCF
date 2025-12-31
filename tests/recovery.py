@@ -658,6 +658,8 @@ def test_recover_service_from_files(
                         assert (
                             False
                         ), f"Failed to get COSE receipt for tx {view}.{seqno} with response {r.status_code} {r.body.text()}"
+                else:
+                    assert False, f"Failed to get a receipt for tx {view}.{seqno}"
 
 
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
