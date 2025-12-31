@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Experimental self-healing-open protocol for automatically transitioning-to-open during a disaster recovery without operator intervention. (#7189)
 
+### Changed
+
+- Improved `ccf::historical::verify_self_issued_receipt` - now can verify receipts signed by the past service identities if they were back-endorsed (#7546).
+
 ## [7.0.0-dev6]
 
 [7.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev6
