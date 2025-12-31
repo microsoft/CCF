@@ -652,6 +652,7 @@ def test_recover_service_from_files(
                         assert (
                             r.status_code == http.HTTPStatus.NO_CONTENT
                         ), f"Failed to verify COSE receipt for txid {view}.{seqno}: {r.status_code} {r.body.text()}"
+                        break
 
                     else:
                         assert (
