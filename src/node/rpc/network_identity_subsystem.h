@@ -198,7 +198,7 @@ namespace ccf
       auto it = trusted_keys.upper_bound(seqno);
       if (it == trusted_keys.begin())
       {
-        // The earliest known trusted seqno is greater then the requested one.
+        // The earliest known trusted seqno is greater than the requested one.
         return nullptr;
       }
       const auto& [key_seqno, key_ptr] = *(--it);
