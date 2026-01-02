@@ -174,6 +174,14 @@ namespace ccf::crypto
   ECPublicKeyPtr make_ec_public_key(const std::vector<uint8_t>& der);
 
   /**
+   * Construct ECPublicKey from a raw public key in DER format
+   *
+   * @param der Sequence of bytes containing the key in DER format
+   * @return Public key
+   */
+  ECPublicKeyPtr make_ec_public_key(std::span<const uint8_t> der);
+
+  /**
    * Construct ECPublicKey from a JsonWebKeyECPublic object
    *
    * @param jwk JsonWebKeyECPublic object

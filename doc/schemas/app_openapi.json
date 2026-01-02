@@ -1269,14 +1269,6 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "security": [
-          {
-            "jwt": []
-          },
-          {
-            "user_cose_sign1": []
-          }
-        ],
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/never"
         }
