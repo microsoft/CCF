@@ -632,7 +632,7 @@ def test_recover_service_from_files(
             )
 
         for view, seqno in test_cose_receipts_at or []:
-            with primary.client("user0") as client:
+            with primary.client() as client:
                 for _ in range(0, 10):
                     r = client.get(
                         "/log/public/cose_receipt",

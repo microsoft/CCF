@@ -262,6 +262,12 @@ namespace ccf
 
       const auto trusted_key =
         network_identity_subsystem->get_trusted_identity_for(tx_id->seqno);
+      if (!trusted_key)
+      {
+        throw std::logic_error(fmt::format(
+          "Verifying receipt for seqno {} failed due to trusted key absence",
+          tx_id->seqno));
+      }
 
       const auto verifier =
         ccf::crypto::make_cose_verifier_from_key(trusted_key->public_key_pem());

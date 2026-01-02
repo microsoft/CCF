@@ -163,9 +163,9 @@ namespace ccf::crypto
   }
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(
-    std::span<const uint8_t> public_key_)
+    std::span<const uint8_t> public_key_der_)
   {
-    public_key = std::make_shared<PublicKey_OpenSSL>(public_key_);
+    public_key = std::make_shared<PublicKey_OpenSSL>(public_key_der_);
   }
 
   COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;

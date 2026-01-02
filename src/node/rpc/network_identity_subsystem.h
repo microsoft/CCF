@@ -474,7 +474,7 @@ namespace ccf
           "created seqno fetched");
       }
 
-      std::span<const uint8_t> previous_key{};
+      std::span<const uint8_t> previous_key_der{};
       for (const auto& [seqno, endorsement] : endorsements)
       {
         auto verifier =
@@ -498,10 +498,10 @@ namespace ccf
            ccf::crypto::make_ec_public_key(endorsed_key)});
 
         if (
-          !previous_key.empty() &&
+          !previous_key_der.empty() &&
           !std::equal(
-            previous_key.begin(),
-            previous_key.end(),
+            previous_key_der.begin(),
+            previous_key_der.end(),
             endorsed_key.begin(),
             endorsed_key.end()))
         {
@@ -511,19 +511,19 @@ namespace ccf
             endorsement.endorsement_epoch_begin.seqno,
             format_epoch(endorsement.endorsement_epoch_end),
             ccf::ds::to_hex(endorsed_key),
-            ccf::ds::to_hex(previous_key)));
+            ccf::ds::to_hex(previous_key_der)));
         }
 
-        previous_key = endorsement.endorsing_key;
+        previous_key_der = endorsement.endorsing_key;
       }
 
       const auto& current_pkey =
         network_identity->get_key_pair()->public_key_der();
       if (
-        !previous_key.empty() &&
+        !previous_key_der.empty() &&
         !std::equal(
-          previous_key.begin(),
-          previous_key.end(),
+          previous_key_der.begin(),
+          previous_key_der.end(),
           current_pkey.begin(),
           current_pkey.end()))
       {
@@ -531,7 +531,7 @@ namespace ccf
           "Current service identity public key {} does not match the last "
           "endorsing key {}",
           ccf::ds::to_hex(current_pkey),
-          ccf::ds::to_hex(previous_key)));
+          ccf::ds::to_hex(previous_key_der)));
       }
 
       LOG_INFO_FMT(
