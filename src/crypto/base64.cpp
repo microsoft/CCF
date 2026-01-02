@@ -43,11 +43,6 @@ namespace ccf::crypto
     return Base64Impl::b64_from_raw(data, size);
   }
 
-  std::string b64_from_raw(const std::vector<uint8_t>& data)
-  {
-    return b64_from_raw(data.data(), data.size());
-  }
-
   std::string b64_from_raw(std::span<const uint8_t> data)
   {
     return b64_from_raw(data.data(), data.size());
