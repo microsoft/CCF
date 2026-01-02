@@ -530,8 +530,8 @@ namespace ccf
         throw std::logic_error(fmt::format(
           "Current service identity public key {} does not match the last "
           "endorsing key {}",
-          ccf::ds::to_hex(previous_key),
-          ccf::ds::to_hex(current_pkey)));
+          ccf::ds::to_hex(current_pkey),
+          ccf::ds::to_hex(previous_key)));
       }
 
       LOG_INFO_FMT(
