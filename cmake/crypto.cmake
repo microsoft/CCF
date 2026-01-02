@@ -26,6 +26,7 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/openssl/cose_verifier.cpp
     ${CCF_DIR}/src/crypto/openssl/cose_sign.cpp
     ${CCF_DIR}/src/crypto/sharing.cpp
+    ${CCF_DIR}/src/crypto/cbor.cpp
 )
 
 find_library(CRYPTO_LIBRARY crypto)
@@ -41,6 +42,7 @@ target_link_libraries(ccfcrypto PUBLIC qcbor)
 target_link_libraries(ccfcrypto PUBLIC t_cose)
 target_link_libraries(ccfcrypto PUBLIC crypto)
 target_link_libraries(ccfcrypto PUBLIC ssl)
+target_link_libraries(ccfcrypto PRIVATE evercbor)
 set_property(TARGET ccfcrypto PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 install(

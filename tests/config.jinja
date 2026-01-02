@@ -49,10 +49,22 @@
     },
     "recover": {
       "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }},
-      {% if previous_sealed_ledger_secret_location %}
-        "previous_sealed_ledger_secret_location": "{{ previous_sealed_ledger_secret_location }}",
-      {% endif %}
-      "previous_service_identity_file": "{{ previous_service_identity_file }}"
+      "previous_service_identity_file": "{{ previous_service_identity_file }}" {% if previous_sealed_ledger_secret_location %},
+        "previous_sealed_ledger_secret_location": "{{ previous_sealed_ledger_secret_location }}"{% endif %} {% if self_healing_open_cluster_identities and self_healing_open_identity %},
+      "self_healing_open": {
+        "identity": {
+          "intrinsic_id": "{{self_healing_open_identity.intrinsic_id}}",
+          "published_address": "{{self_healing_open_identity.published_address}}"
+        },
+        "cluster_identities" : [
+          {% for identity in self_healing_open_cluster_identities %}
+            {
+              "intrinsic_id": "{{identity.intrinsic_id}}",
+              "published_address": "{{identity.published_address}}"
+            } {% if not loop.last %},{% endif %}
+          {% endfor %}
+        ]
+      } {% endif %}
     }
   },
   "ledger":

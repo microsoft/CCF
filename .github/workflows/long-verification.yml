@@ -11,12 +11,16 @@ on:
     - cron: "0 0 * * 0"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 permissions: read-all
 
 jobs:
   model-checking-with-atomic-reconfig-consensus:
     name: Model Checking With Atomic Reconfig - Consensus
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+    if: &check_trigger_conditions ${{ (github.event.action == 'labeled' && github.event.label.name == 'run-long-verification') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-long-verification')) || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
     runs-on:
       [
         self-hosted,
@@ -54,7 +58,7 @@ jobs:
 
   model-checking-with-reconfig-consensus:
     name: Model Checking With Reconfig - Consensus
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+    if: *check_trigger_conditions
     runs-on:
       [
         self-hosted,
@@ -92,7 +96,7 @@ jobs:
 
   simulation-consensus:
     name: Simulation - Consensus
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+    if: *check_trigger_conditions
     runs-on: ubuntu-latest
     defaults:
       run:

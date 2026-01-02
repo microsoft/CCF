@@ -551,7 +551,7 @@ def test_recover_service_with_wrong_identity(network, args):
 
 @reqs.description("Recover a service from local files")
 def test_recover_service_from_files(
-    args, directory, expected_recovery_count, test_receipt=True
+    args, directory, expected_recovery_count, test_receipts_at=None
 ):
     service_dir = os.path.join(
         os.path.dirname(os.path.realpath(__file__)), "testdata", directory
@@ -616,16 +616,17 @@ def test_recover_service_from_files(
 
         infra.checker.check_can_progress(primary, local_user_id=new_user_local_id)
 
-        if test_receipt:
-            r = primary.get_receipt(2, 3)
+        if test_receipts_at:
+            for view, seqno in test_receipts_at:
+                r = primary.get_receipt(view, seqno)
 
-            verify_receipt(
-                r.json(),
-                network.cert,
-                # Even when we want to check that receipts are valid,
-                # these old services are likely to use expired certs
-                skip_cert_chain_checks=True,
-            )
+                verify_receipt(
+                    r.json(),
+                    network.cert,
+                    # Even when we want to check that receipts are valid,
+                    # these old services are likely to use expired certs
+                    skip_cert_chain_checks=True,
+                )
 
 
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
@@ -1125,7 +1126,7 @@ def run_recovery_from_files(args):
         args,
         directory=args.directory,
         expected_recovery_count=args.expected_recovery_count,
-        test_receipt=args.test_receipt,
+        test_receipts_at=args.test_receipts_at,
     )
 
 
@@ -1379,17 +1380,17 @@ checked. Note that the key for each logging message is unique (per table).
         snapshot_tx_interval=30,
     )
 
-    for directory, expected_recovery_count, test_receipt in (
-        ("expired_service", 2, True),
+    for directory, expected_recovery_count, test_receipts_at in (
+        ("expired_service", 2, [(2, 3)]),
         # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> 5.x -> main.
         # This is used to test recovery from SGX to SNP.
-        ("sgx_service", 4, False),
+        ("sgx_service", 4, None),
         # double_sealed_service is a regression test for the issue described in #6906
-        ("double_sealed_service", 2, False),
+        ("double_sealed_service", 2, [(2, 3), (4, 498)]),
         # cose_flipflop_service is a regression test for the issue described in #7002
-        ("cose_flipflop_service", 0, False),
+        ("cose_flipflop_service", 0, None),
         # acme_containing_service is a compatibility test for acme-containing ledgers
-        ("acme_containing_service", 0, True),
+        ("acme_containing_service", 0, [(2, 3)]),
     ):
         cr.add(
             f"recovery_from_{directory}",
@@ -1400,7 +1401,7 @@ checked. Note that the key for each logging message is unique (per table).
             snapshot_tx_interval=30,
             directory=directory,
             expected_recovery_count=expected_recovery_count,
-            test_receipt=test_receipt,
+            test_receipts_at=test_receipts_at,
             gov_api_version="2024-07-01",
         )
 

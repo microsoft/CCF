@@ -18,7 +18,7 @@ namespace ccf
 {
   struct UvmEndorsementsProtectedHeader
   {
-    int64_t alg;
+    int64_t alg{};
     std::string content_type;
     std::vector<std::vector<uint8_t>> x5_chain;
     std::string iss;
