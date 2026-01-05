@@ -10,6 +10,7 @@
 #include "ds/internal_logger.h"
 #include "kv/encryptor.h"
 #include "ledger_secrets.h"
+#include "local_sealing.h"
 #include "network_state.h"
 #include "node/ledger_secret.h"
 #include "service/internal_tables_access.h"
@@ -286,14 +287,18 @@ namespace ccf
       std::optional<ccf::kv::Version> latest_ls_version = std::nullopt)
     {
       // First, generate a fresh ledger secrets wrapping key and wrap the
-      // latest ledger secret with it. Then, encrypt the penultimate ledger
-      // secret with the latest ledger secret and split the ledger secret
-      // wrapping key, allocating a new share for each active recovery member.
-      // Finally, encrypt each share with the public key of each member and
-      // record it in the shares table.
-
+      // latest ledger secret with it. Split the ledger secret wrapping key,
+      // allocating a new share for each active recovery member. Finally,
+      // encrypt each share with the public key of each member and record it in
+      // the shares table.
       shuffle_recovery_shares(tx, latest_ledger_secret);
 
+      // Similarly issue full recovery shares for another fresh ledger secrets
+      // wrapping key to each trusted replica with a sealing recovery key.
+      SealingManager::shuffle_sealed_shares(tx, latest_ledger_secret);
+
+      // Then, encrypt the penultimate ledger secret with the latest ledger
+      // secret
       auto* encrypted_ls = tx.rw<ccf::EncryptedLedgerSecretsInfo>(
         Tables::ENCRYPTED_PAST_LEDGER_SECRET);
 

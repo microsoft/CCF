@@ -47,6 +47,7 @@
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
 #include "service/internal_tables_access.h"
+#include "service/tables/local_sealing.h"
 #include "service/tables/recovery_type.h"
 #include "share_manager.h"
 #include "uvm_endorsements.h"
@@ -589,9 +590,6 @@ namespace ccf
             config.initial_service_certificate_validity_days);
 
           network.ledger_secrets->init();
-          // Safe as initiate_quote_generation has previously set the
-          // snp_tcb_version
-          seal_ledger_secret(network.ledger_secrets->get_first());
 
           history->set_service_signing_identity(
             network.identity->get_key_pair(), config.cose_signatures);
@@ -744,7 +742,6 @@ namespace ccf
 
             network.identity = std::make_unique<ccf::NetworkIdentity>(
               resp.network_info->identity);
-            seal_ledger_secret(*resp.network_info->ledger_secrets.rbegin());
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info->ledger_secrets));
 
@@ -878,14 +875,10 @@ namespace ccf
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
-      if (
-        config.should_seal_ledger_secrets &&
-        quote_info.format == QuoteFormat::amd_sev_snp_v1)
+      if (config.should_seal_ledger_secrets && snp_tcb_version.has_value())
       {
-        const auto* attestation =
-          reinterpret_cast<const pal::snp::Attestation*>(
-            quote_info.quote.data());
-        join_params.sealed_recovery_key = get_sealed_recovery_key(*attestation);
+        join_params.sealed_recovery_key =
+          SealingManager::get_sealed_recovery_key(snp_tcb_version.value());
       }
 
       LOG_DEBUG_FMT(
@@ -1560,14 +1553,13 @@ namespace ccf
         ShareManager::clear_submitted_recovery_shares(tx);
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
         service->put(service_info.value());
-        if (config.should_seal_ledger_secrets)
+        auto unsealed_ls = SealingManager::unseal_share(tx, self);
+        if (config.should_seal_ledger_secrets && unsealed_ls.has_value())
         {
-          // TODO
           tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
             ->put(RecoveryType::LOCAL_UNSEALING);
-          //auto unsealed_ls = unseal_ledger_secret();
-          //LOG_INFO_FMT("Unsealed ledger secret, initiating private recovery");
-          //initiate_private_recovery_unsafe(tx, unsealed_ls);
+          LOG_INFO_FMT("Unsealed ledger secret, initiating private recovery");
+          initiate_private_recovery_unsafe(tx, unsealed_ls);
         }
         else
         {
@@ -2021,9 +2013,10 @@ namespace ccf
       create_params.service_data = config.service_data;
       create_params.create_txid = {create_view, last_recovered_signed_idx + 1};
 
-      if (config.should_seal_ledger_secrets && quote_info.format == QuoteFormat::amd_sev_snp_v1){
-        const auto* attestation = reinterpret_cast<pal::snp::Attestation*>(quote_info.quote.data());
-        create_params.sealed_recovery_key = get_sealed_recovery_key(*attestation);
+      if (config.should_seal_ledger_secrets && snp_tcb_version.has_value())
+      {
+        create_params.sealed_recovery_key =
+          SealingManager::get_sealed_recovery_key(snp_tcb_version.value());
       }
 
       const auto body = nlohmann::json(create_params).dump();
@@ -2169,7 +2162,6 @@ namespace ccf
                 // previous ledger secret)
                 auto ledger_secret = std::make_shared<LedgerSecret>(
                   std::move(plain_ledger_secret), hook_version);
-                seal_ledger_secret(hook_version + 1, ledger_secret);
                 network.ledger_secrets->set_secret(
                   hook_version + 1, std::move(ledger_secret));
               }
@@ -2643,17 +2635,6 @@ namespace ccf
     {
       RINGBUFFER_WRITE_MESSAGE(
         ::consensus::ledger_truncate, to_host, idx, recovery_mode);
-    }
-
-    LedgerSecretPtr unseal_ledger_secret()
-    {
-      CCF_ASSERT(
-        snp_tcb_version.has_value(),
-        "TCB version must be set when unsealing ledger secret");
-
-      // TODO
-
-      return nullptr;
     }
 
   public:

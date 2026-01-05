@@ -15,7 +15,6 @@
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/snp_ioctl.h"
 #include "ccf/service/node_info.h"
-#include "ccf/service/tables/local_sealing.h"
 #include "ds/ccf_assert.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
@@ -23,43 +22,19 @@
 #include "node/ledger_secrets.h"
 #include "node/share_manager.h"
 #include "service/internal_tables_access.h"
+#include "service/tables/local_sealing.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <fmt/format.h>
 #include <map>
+#include <openssl/crypto.h>
 #include <optional>
 #include <ranges>
 
 namespace ccf
 {
-
-  inline std::string get_sealing_filename(const kv::Version& version)
-  {
-    return fmt::format("{}.sealed.json", version);
-  }
-
-  inline std::optional<kv::Version> version_of_filename(const std::string& path)
-  {
-    auto pos = path.find_first_of('.');
-    if (pos == std::string::npos)
-    {
-      throw std::logic_error(fmt::format(
-        "Sealed ledger secret file name {} does not contain a version", path));
-    }
-
-    try
-    {
-      return std::stol(path.substr(0, pos));
-    }
-    catch (const std::invalid_argument& e)
-    {
-      LOG_FAIL_FMT(
-        "Unable to parse version from file name {}, {}", path, e.what());
-      return std::nullopt;
-    }
-  }
 
   inline crypto::GcmCipher aes_gcm_sealing(
     std::span<const uint8_t> raw_key,
@@ -97,156 +72,183 @@ namespace ccf
     return plaintext;
   }
 
-  const std::string local_sealing_label = "CCF AMD Local Sealing Key";
-
+  const std::string LOCAL_SEALING_LABEL = "CCF AMD Local Sealing Key";
   constexpr uint32_t DERIVED_SEALING_KEY_VERSION = 1;
 
-  inline std::vector<uint8_t> derive_sealing_key(
-    const ccf::pal::snp::TcbVersionRaw& tcb_version, int version)
+  class SealingManager
   {
-    switch (version)
+  private:
+    static std::vector<uint8_t> derive_sealing_key(
+      const ccf::pal::snp::TcbVersionRaw& tcb_version, int version)
     {
-      case 1:
+      switch (version)
       {
-        auto derived_key = ccf::pal::snp::make_derived_key(tcb_version);
-        std::vector<uint8_t> salt = {};
-        std::vector<uint8_t> info(local_sealing_label.begin(), local_sealing_label.end());
-        auto sealing_key = crypto::hkdf(
-          crypto::MDType::SHA256, 256, derived_key->get_raw(), salt, info);
+        case 1:
+        {
+          auto derived_key = ccf::pal::snp::make_derived_key(tcb_version);
+          std::vector<uint8_t> salt = {};
+          std::vector<uint8_t> info(
+            LOCAL_SEALING_LABEL.begin(), LOCAL_SEALING_LABEL.end());
+          auto sealing_key = crypto::hkdf(
+            crypto::MDType::SHA256, 256, derived_key->get_raw(), salt, info);
 
-        return sealing_key;
-      }
-      default:
-      {
-        throw std::logic_error(fmt::format(
-          "Unsupported sealing key derivation version {}", version));
+          return sealing_key;
+        }
+        default:
+        {
+          throw std::logic_error(fmt::format(
+            "Unsupported sealing key derivation version {}", version));
+        }
       }
     }
-  }
 
-  inline SealedRecoveryKey get_sealed_recovery_key(
-    const pal::snp::Attestation& attestation
-  )
-  {
-    auto derived_key = derive_sealing_key(
-      attestation.reported_tcb, DERIVED_SEALING_KEY_VERSION);
-    
-    auto recovery_key_pair = crypto::make_ec_key_pair();
-    auto recovery_pubkey = recovery_key_pair->public_key_pem();
-
-    auto recovery_privkey = recovery_key_pair->private_key_pem();
-    std::span<uint8_t> plaintext(
-      recovery_privkey.data(), recovery_privkey.size());
-    std::span<uint8_t> aad(recovery_pubkey.data(), recovery_pubkey.size());
-    crypto::GcmCipher sealed_key = aes_gcm_sealing(derived_key, plaintext, aad);
-
-    SealedRecoveryKey res = {
-      .version = DERIVED_SEALING_KEY_VERSION,
-      .ciphertext = sealed_key.serialise(),
-      .pubkey = recovery_pubkey,
-      .tcb_version = attestation.reported_tcb};
-
-    OPENSSL_cleanse(recovery_privkey.data(), recovery_privkey.size());
-    return res;
-  }
-
-  inline void seal_ledger_secret(
-    ccf::kv::Tx& tx, const LedgerSecretPtr& latest_ledger_secret)
-  {
-    // TODO what is the point of the wrapping key here?
-    auto ls_wrapping_key = SharedLedgerSecretWrappingKey(1, 1);
-    auto encrypted_wrapping_keys = std::map<NodeId, std::vector<uint8_t>>();
-    for (const auto& [node_id, node_info] :
-         InternalTablesAccess::get_trusted_nodes(tx))
+  public:
+    static SealedRecoveryKey get_sealed_recovery_key(
+      const pal::snp::TcbVersionRaw& tcb_version)
     {
-      if (node_info.sealed_recovery_key.has_value())
+      auto derived_key =
+        derive_sealing_key(tcb_version, DERIVED_SEALING_KEY_VERSION);
+
+      auto recovery_key_pair = crypto::make_ec_key_pair();
+      auto recovery_pubkey = recovery_key_pair->public_key_pem();
+
+      auto recovery_privkey = recovery_key_pair->private_key_pem();
+      std::span<uint8_t> plaintext(
+        recovery_privkey.data(), recovery_privkey.size());
+      std::span<uint8_t> aad(recovery_pubkey.data(), recovery_pubkey.size());
+      crypto::GcmCipher sealed_key =
+        aes_gcm_sealing(derived_key, plaintext, aad);
+
+      SealedRecoveryKey res = {
+        .version = DERIVED_SEALING_KEY_VERSION,
+        .ciphertext = sealed_key.serialise(),
+        .pubkey = recovery_pubkey,
+        .tcb_version = tcb_version};
+
+      OPENSSL_cleanse(recovery_privkey.data(), recovery_privkey.size());
+      return res;
+    }
+
+  private:
+    std::shared_ptr<LedgerSecrets> ledger_secrets;
+
+    static EncryptedSealedSharesMap compute_encrypted_sealed_shares(
+      ccf::kv::Tx& tx, const SharedLedgerSecretWrappingKey& ls_wrapping_key)
+    {
+      EncryptedSealedSharesMap encrypted_sealed_shares;
+
+      auto trusted_nodes_info = InternalTablesAccess::get_trusted_nodes(tx);
+
       {
-        auto sealed_recovery_key = node_info.sealed_recovery_key.value();
-        auto node_enc_pubk =
-          ccf::crypto::make_rsa_public_key(sealed_recovery_key.pubkey);
-        std::vector<uint8_t> full_share_serialised(
-          (ccf::crypto::sharing::Share::serialised_size));
-        ls_wrapping_key.get_full_share_serialised(full_share_serialised);
-        encrypted_wrapping_keys[node_id] =
-          node_enc_pubk->rsa_oaep_wrap(full_share_serialised);
+        std::vector<uint8_t> sealed_share_serialised(
+          ccf::crypto::sharing::Share::serialised_size);
+        ls_wrapping_key.get_full_share_serialised(sealed_share_serialised);
+
+        for (const auto& [node_id, node_info] : trusted_nodes_info)
+        {
+          if (node_info.sealed_recovery_key.has_value())
+          {
+            auto sealed_recovery_key = node_info.sealed_recovery_key.value();
+            auto node_enc_pubk =
+              ccf::crypto::make_rsa_public_key(sealed_recovery_key.pubkey);
+            encrypted_sealed_shares[node_id] =
+              node_enc_pubk->rsa_oaep_wrap(sealed_share_serialised);
+          }
+        }
         OPENSSL_cleanse(
-          full_share_serialised.data(), full_share_serialised.size());
+          sealed_share_serialised.data(), sealed_share_serialised.size());
       }
+      return encrypted_sealed_shares;
     }
-    WrappedSealedLedgerSecret wrapped_sealed_ledger_secret = {
-      .wrapped_latest_ledger_secret =
-        ls_wrapping_key.wrap(latest_ledger_secret),
-      .encrypted_wrapping_keys = encrypted_wrapping_keys};
 
-    auto* sealed_ledger_secrets =
-      tx.rw<SealedLedgerSecrets>(Tables::SEALED_LEDGER_SECRETS);
-    sealed_ledger_secrets->put(wrapped_sealed_ledger_secret);
-  }
-
-  inline crypto::RSAKeyPairPtr unseal_recovery_key(
-    std::span<uint8_t> derived_key, const SealedRecoveryKey& sealed_key)
-  {
-    std::span<const uint8_t> aad(
-      sealed_key.pubkey.data(), sealed_key.pubkey.size());
-
-    auto plain = aes_gcm_unsealing(derived_key, sealed_key.ciphertext, aad);
-    crypto::Pem pem(plain.data(), plain.size());
-
-    return crypto::make_rsa_key_pair(pem);
-  }
-
-  inline LedgerSecretPtr unseal_ledger_secret(
-    ccf::kv::ReadOnlyTx& tx, const NodeId& node_id)
-  {
-    // Retrieve wrapped secret
-    auto* sealed_ledger_secrets =
-      tx.ro<SealedLedgerSecrets>(Tables::SEALED_LEDGER_SECRETS);
-    auto wrapped_sealed_ledger_secret = sealed_ledger_secrets->get();
-    if (!wrapped_sealed_ledger_secret.has_value())
+    static crypto::RSAKeyPairPtr unseal_recovery_key(
+      std::span<uint8_t> derived_key, const SealedRecoveryKey& sealed_key)
     {
-      throw std::logic_error("No sealed ledger secret found");
-    }
-    auto wrapped_secret = wrapped_sealed_ledger_secret.value();
+      std::span<const uint8_t> aad(
+        sealed_key.pubkey.data(), sealed_key.pubkey.size());
 
-    // Retrieve encrypted wrapping key for this node
-    auto it = wrapped_secret.encrypted_wrapping_keys.find(node_id);
-    if (it == wrapped_secret.encrypted_wrapping_keys.end())
+      auto plain = aes_gcm_unsealing(derived_key, sealed_key.ciphertext, aad);
+      crypto::Pem pem(plain.data(), plain.size());
+
+      return crypto::make_rsa_key_pair(pem);
+    }
+
+  public:
+    static void shuffle_sealed_shares(
+      ccf::kv::Tx& tx, const LedgerSecretPtr& latest_ledger_secret)
     {
-      throw std::logic_error(
-        fmt::format("No encrypted wrapping key for node {}", node_id));
+      auto ls_wrapping_key = SharedLedgerSecretWrappingKey(1, 1);
+      auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
+      auto* sealed_ledger_secrets =
+        tx.rw<SealedShares>(Tables::SEALED_LEDGER_SECRETS);
+      sealed_ledger_secrets->put(
+        {wrapped_latest_ls,
+         compute_encrypted_sealed_shares(tx, ls_wrapping_key),
+         latest_ledger_secret->previous_secret_stored_version});
     }
-    auto encrypted_wrapping_key = it->second;
 
-    // Unseal the recovery key pair
-    auto* nodes = tx.ro<ccf::Nodes>(Tables::NODES);
-    auto node_info = nodes->get(node_id);
-    if (node_info == std::nullopt)
+    static std::optional<LedgerSecretPtr> unseal_share(
+      ccf::kv::ReadOnlyTx& tx, const NodeId& node_id)
     {
-      throw std::logic_error(
-        fmt::format("Node {} was not part of previous configuration", node_id));
+
+      // Retrieve the node's sealed recovery key
+      auto* nodes = tx.ro<ccf::Nodes>(Tables::NODES);
+      auto node_info_opt = nodes->get(node_id);
+      if (!node_info_opt.has_value())
+      {
+        LOG_INFO_FMT(
+          "Node {} was not in previous configuration to unseal recovery "
+          "share",
+          node_id);
+        return std::nullopt;
+      }
+      auto& node_info = node_info_opt.value();
+      if (!node_info.sealed_recovery_key.has_value())
+      {
+        LOG_INFO_FMT(
+          "Node {} has no sealed recovery key to unseal recovery share",
+          node_id);
+        return std::nullopt;
+      }
+      auto sealed_recovery_key = node_info.sealed_recovery_key.value();
+
+      // Retrieve the encrypted sealed share
+      auto* sealed_shares = tx.ro<SealedShares>(Tables::SEALED_LEDGER_SECRETS);
+      if (!sealed_shares->get().has_value())
+      {
+        LOG_INFO_FMT("No sealed shares found to unseal recovery share");
+        return std::nullopt;
+      }
+      auto sealed_share_info = sealed_shares->get().value();
+      auto encrypted_full_share_it =
+        sealed_share_info.encrypted_wrapping_keys.find(node_id);
+      if (
+        encrypted_full_share_it ==
+        sealed_share_info.encrypted_wrapping_keys.end())
+      {
+        return std::nullopt;
+      }
+      auto encrypted_full_share = encrypted_full_share_it->second;
+
+      // Unseal the recovery key pair
+      auto derived_key = derive_sealing_key(
+        sealed_recovery_key.tcb_version, sealed_recovery_key.version);
+      auto recovery_key_pair =
+        unseal_recovery_key(derived_key, sealed_recovery_key);
+      OPENSSL_cleanse(derived_key.data(), derived_key.size());
+
+      // Decrypt the share
+      auto decrypted_share =
+        recovery_key_pair->rsa_oaep_unwrap(encrypted_full_share);
+      ccf::crypto::sharing::Share share(decrypted_share);
+      CCF_ASSERT_FMT(share.x == 0, "Expected full share when unsealing");
+      ReconstructedLedgerSecretWrappingKey wrapping_key = {share};
+      OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());
+
+      // Unwrap the ledger secret
+      return wrapping_key.unwrap(
+        sealed_share_info.wrapped_latest_ledger_secret);
     }
-    if (!node_info->sealed_recovery_key.has_value())
-    {
-      throw std::logic_error(
-        fmt::format("Node {} has no sealed recovery key", node_id));
-    }
-    auto sealed_recovery_key = node_info->sealed_recovery_key.value();
-    auto derived_key = derive_sealing_key(
-      sealed_recovery_key.tcb_version, sealed_recovery_key.version);
-    auto recovery_key_pair =
-      unseal_recovery_key(derived_key, sealed_recovery_key);
+  };
 
-    // Unseal the wrapping key using the recovery key pair
-    auto serialised_wrapping_key =
-      recovery_key_pair->rsa_oaep_unwrap(encrypted_wrapping_key);
-    ccf::crypto::sharing::Share share(serialised_wrapping_key);
-    ReconstructedLedgerSecretWrappingKey wrapping_key =
-      ReconstructedLedgerSecretWrappingKey(share);
-
-    // Use the wrapping key to unseal the ledger secret
-    auto ledger_secret =
-      wrapping_key.unwrap(wrapped_secret.wrapped_latest_ledger_secret);
-
-    return ledger_secret;
-  }
 }
