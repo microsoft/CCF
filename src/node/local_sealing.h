@@ -97,7 +97,7 @@ namespace ccf
     return plaintext;
   }
 
-  const std::string label = "CCF AMD Local Sealing Key";
+  const std::string local_sealing_label = "CCF AMD Local Sealing Key";
 
   constexpr uint32_t DERIVED_SEALING_KEY_VERSION = 1;
 
@@ -110,7 +110,7 @@ namespace ccf
       {
         auto derived_key = ccf::pal::snp::make_derived_key(tcb_version);
         std::vector<uint8_t> salt = {};
-        std::vector<uint8_t> info(label.begin(), label.end());
+        std::vector<uint8_t> info(local_sealing_label.begin(), local_sealing_label.end());
         auto sealing_key = crypto::hkdf(
           crypto::MDType::SHA256, 256, derived_key->get_raw(), salt, info);
 

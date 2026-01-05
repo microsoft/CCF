@@ -352,6 +352,7 @@ namespace ccf
         in.certificate_signing_request,
         client_public_key_pem,
         in.node_data};
+      node_info.sealed_recovery_key = in.sealed_recovery_key;
 
       nodes->put(joining_node_id, node_info);
 
@@ -1547,6 +1548,7 @@ namespace ccf
           in.certificate_signing_request,
           in.public_key,
           in.node_data};
+        node_info.sealed_recovery_key = in.sealed_recovery_key;
         InternalTablesAccess::add_node(ctx.tx, in.node_id, node_info);
 
         if (

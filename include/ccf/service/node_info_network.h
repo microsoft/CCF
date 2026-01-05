@@ -149,9 +149,6 @@ namespace ccf
 
     /// RPC interfaces
     RpcInterfaces rpc_interfaces;
-
-    // Denote whether this node will locally seal the ledger secret
-    bool will_locally_seal_ledger_secrets = false;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(
@@ -174,11 +171,9 @@ namespace ccf
     forwarding_timeout_ms,
     enabled_operator_features,
     redirections);
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);
+  DECLARE_JSON_TYPE(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    NodeInfoNetwork_v2, will_locally_seal_ledger_secrets);
 
   struct NodeInfoNetwork : public NodeInfoNetwork_v2
   {

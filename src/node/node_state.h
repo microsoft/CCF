@@ -878,6 +878,15 @@ namespace ccf
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
+      if (
+        config.should_seal_ledger_secrets &&
+        quote_info.format == QuoteFormat::amd_sev_snp_v1)
+      {
+        const auto* attestation =
+          reinterpret_cast<const pal::snp::Attestation*>(
+            quote_info.quote.data());
+        join_params.sealed_recovery_key = get_sealed_recovery_key(*attestation);
+      }
 
       LOG_DEBUG_FMT(
         "Sending join request to {}", config.join.target_rpc_address);
@@ -1551,13 +1560,14 @@ namespace ccf
         ShareManager::clear_submitted_recovery_shares(tx);
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
         service->put(service_info.value());
-        if (config.recover.previous_sealed_ledger_secret_location.has_value())
+        if (config.should_seal_ledger_secrets)
         {
+          // TODO
           tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
             ->put(RecoveryType::LOCAL_UNSEALING);
-          auto unsealed_ls = unseal_ledger_secret();
-          LOG_INFO_FMT("Unsealed ledger secret, initiating private recovery");
-          initiate_private_recovery_unsafe(tx, unsealed_ls);
+          //auto unsealed_ls = unseal_ledger_secret();
+          //LOG_INFO_FMT("Unsealed ledger secret, initiating private recovery");
+          //initiate_private_recovery_unsafe(tx, unsealed_ls);
         }
         else
         {
@@ -2010,6 +2020,11 @@ namespace ccf
       create_params.node_data = config.node_data;
       create_params.service_data = config.service_data;
       create_params.create_txid = {create_view, last_recovered_signed_idx + 1};
+
+      if (config.should_seal_ledger_secrets && quote_info.format == QuoteFormat::amd_sev_snp_v1){
+        const auto* attestation = reinterpret_cast<pal::snp::Attestation*>(quote_info.quote.data());
+        create_params.sealed_recovery_key = get_sealed_recovery_key(*attestation);
+      }
 
       const auto body = nlohmann::json(create_params).dump();
 
@@ -2630,53 +2645,13 @@ namespace ccf
         ::consensus::ledger_truncate, to_host, idx, recovery_mode);
     }
 
-    void seal_ledger_secret(const VersionedLedgerSecret& ledger_secret)
-    {
-      seal_ledger_secret(ledger_secret.first, ledger_secret.second);
-    }
-
-    void seal_ledger_secret(
-      const kv::Version& version, const LedgerSecretPtr& ledger_secret)
-    {
-      if (!config.sealed_ledger_secret_location.has_value())
-      {
-        return;
-      }
-
-      CCF_ASSERT(
-        snp_tcb_version.has_value(), "TCB version must be set before sealing");
-
-      if (auto loc_opt = config.sealed_ledger_secret_location;
-          loc_opt.has_value())
-      {
-        if (auto tcb_opt = snp_tcb_version; tcb_opt.has_value())
-        {
-          const auto& sealed_location = loc_opt.value();
-          const auto& tcb_version = tcb_opt.value();
-          seal_ledger_secret_to_disk(
-            sealed_location, tcb_version, version, ledger_secret);
-        }
-      }
-    }
-
     LedgerSecretPtr unseal_ledger_secret()
     {
       CCF_ASSERT(
         snp_tcb_version.has_value(),
         "TCB version must be set when unsealing ledger secret");
 
-      CCF_ASSERT(
-        config.recover.previous_sealed_ledger_secret_location.has_value(),
-        "Previous sealed ledger secret location must be set");
-
-      if (auto path_opt = config.recover.previous_sealed_ledger_secret_location;
-          path_opt.has_value())
-      {
-        const auto& ledger_secret_path = path_opt.value();
-        auto max_version = network.tables->current_version();
-        return find_and_unseal_ledger_secret_from_disk(
-          ledger_secret_path, max_version);
-      }
+      // TODO
 
       return nullptr;
     }
