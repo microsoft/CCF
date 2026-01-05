@@ -3,12 +3,8 @@
 
 #include "node/uvm_endorsements.h"
 
+#include "crypto/cbor.h"
 #include "ds/internal_logger.h"
-
-extern "C"
-{
-#include "evercbor/CBORNondet.h"
-}
 
 namespace ccf
 {
@@ -51,449 +47,155 @@ namespace ccf
   {
     namespace
     {
-      // Header parameter names. We define their type explicitly as char[]
-      // to enable sizeof() usage later on.
-      constexpr char HEADER_PARAM_ISSUER[] = "iss";
-      constexpr char HEADER_PARAM_FEED[] = "feed";
-
-      std::vector<std::vector<uint8_t>> decode_x5chain(cbor_nondet_t x5chain)
+      std::vector<std::vector<uint8_t>> parse_x5chain(
+        const ccf::cbor::Value& x5chain_value)
       {
-        std::vector<std::vector<uint8_t>> parsed;
-
-        cbor_nondet_array_iterator_t array;
-        if (cbor_nondet_array_iterator_start(x5chain, &array))
+        std::vector<std::vector<uint8_t>> chain;
+        // x5chain can be either an array of byte strings or a single byte
+        // string
+        try
         {
-          cbor_nondet_t item;
-          while (cbor_nondet_array_iterator_next(&array, &item))
+          for (size_t i = 0; i < x5chain_value->size(); ++i)
           {
-            uint8_t* payload = nullptr;
-            uint64_t len = 0;
-            if (cbor_nondet_get_byte_string(item, &payload, &len))
-            {
-              parsed.emplace_back(payload, payload + len); // This is a copy
-            }
-            else
-            {
-              throw COSEDecodeError(
-                "Next item in x5chain was not of type byte string");
-            }
-          }
-          if (parsed.empty())
-          {
-            throw COSEDecodeError("x5chain array length was 0 in COSE header");
+            const auto x5chain_ctx = "x5chain[" + std::to_string(i) + "]";
+            const auto& bytes =
+              x5chain_value->array_at(i, x5chain_ctx)->as_bytes(x5chain_ctx);
+            chain.emplace_back(bytes.begin(), bytes.end());
           }
         }
-        else
+        catch (const ccf::cbor::CBORDecodeError&)
         {
-          uint8_t* payload = nullptr;
-          uint64_t len = 0;
-          if (cbor_nondet_get_byte_string(x5chain, &payload, &len))
-          {
-            parsed.emplace_back(payload, payload + len); // This is a copy
-          }
-          else
-          {
-            throw COSEDecodeError(fmt::format(
-              "Value type {} of x5chain in COSE header is not array or byte "
-              "string",
-              cbor_nondet_major_type(x5chain)));
-          }
+          auto bytes = x5chain_value->as_bytes("x5chain");
+          chain.emplace_back(bytes.begin(), bytes.end());
         }
-
-        return parsed;
+        return chain;
       }
 
       UvmEndorsementsProtectedHeader decode_protected_header(
         const std::vector<uint8_t>& uvm_endorsements_raw)
       {
-        cbor_nondet_t cbor;
-        auto* cbor_parse_input =
-          const_cast<uint8_t*>(uvm_endorsements_raw.data());
-        size_t cbor_parse_size = uvm_endorsements_raw.size();
+        std::span<const uint8_t> as_span(
+          uvm_endorsements_raw.data(), uvm_endorsements_raw.size());
 
-        if (!cbor_nondet_parse(
-              true, 0, &cbor_parse_input, &cbor_parse_size, &cbor))
+        auto parsed = ccf::cbor::parse_value(as_span, "COSE envelope");
+        const auto& cose_array =
+          parsed->tag_at(CBOR_TAG_COSE_SIGN1, "COSE_Sign1 tag");
+        constexpr std::string_view phdr_context{"COSE_Sign1[0]"};
+        const auto& phdr_bytes = cose_array->array_at(0, phdr_context);
+        auto phdr_bytes_span = phdr_bytes->as_bytes(phdr_context);
+        auto parsed_phdr = ccf::cbor::parse_value(phdr_bytes_span, "phdr CBOR");
+
+        UvmEndorsementsProtectedHeader result;
+
+        const auto alg_context = "phdr: " + std::to_string(headers::PARAM_ALG);
+        const auto& alg = parsed_phdr->map_at(
+          ccf::cbor::make_unsigned(headers::PARAM_ALG), alg_context);
+        result.alg = alg->as_signed(alg_context);
+
+        const auto ct_context =
+          "phdr: " + std::to_string(headers::PARAM_CONTENT_TYPE);
+        const auto& content_type = parsed_phdr->map_at(
+          ccf::cbor::make_unsigned(headers::PARAM_CONTENT_TYPE), ct_context);
+        result.content_type = std::string(content_type->as_string(ct_context));
+
+        const auto x5chain_context =
+          "phdr: " + std::to_string(headers::PARAM_X5CHAIN);
+        result.x5_chain = parse_x5chain(parsed_phdr->map_at(
+          ccf::cbor::make_unsigned(headers::PARAM_X5CHAIN), x5chain_context));
+
+        constexpr std::string_view iss_context{"phdr: iss"};
+        const auto& iss =
+          parsed_phdr->map_at(ccf::cbor::make_string("iss"), iss_context);
+        result.iss = iss->as_string(iss_context);
+
+        constexpr std::string_view feed_context{"phdr: feed"};
+        const auto& feed =
+          parsed_phdr->map_at(ccf::cbor::make_string("feed"), feed_context);
+        result.feed = std::string(feed->as_string(feed_context));
+
+        return result;
+      }
+
+      std::pair<UvmEndorsementsProtectedHeader, std::string>
+      decode_protected_header_with_cwt(
+        const std::vector<uint8_t>& uvm_endorsements_raw)
+      {
+        std::span<const uint8_t> as_span(
+          uvm_endorsements_raw.data(), uvm_endorsements_raw.size());
+
+        auto parsed = ccf::cbor::parse_value(as_span, "COSE envelope");
+        const auto& cose_array =
+          parsed->tag_at(CBOR_TAG_COSE_SIGN1, "COSE_Sign1 tag");
+
+        constexpr std::string_view phdr_context{"COSE_Sign1[0]"};
+        const auto& phdr_bytes = cose_array->array_at(0, phdr_context);
+        auto phdr_bytes_span = phdr_bytes->as_bytes(phdr_context);
+
+        auto parsed_phdr = ccf::cbor::parse_value(phdr_bytes_span, "phdr CBOR");
+
+        UvmEndorsementsProtectedHeader result;
+
+        const auto alg_context = "phdr: " + std::to_string(headers::PARAM_ALG);
+        const auto& alg = parsed_phdr->map_at(
+          ccf::cbor::make_unsigned(headers::PARAM_ALG), alg_context);
+        result.alg = alg->as_signed(alg_context);
+
+        const auto ct_context = "phdr: " + std::to_string(259);
+        const auto& content_type =
+          parsed_phdr->map_at(ccf::cbor::make_unsigned(259), ct_context);
+        result.content_type = std::string(content_type->as_string(ct_context));
+
+        const auto x5chain_context =
+          "phdr: " + std::to_string(headers::PARAM_X5CHAIN);
+        result.x5_chain = parse_x5chain(parsed_phdr->map_at(
+          ccf::cbor::make_unsigned(headers::PARAM_X5CHAIN), x5chain_context));
+
+        const auto cwt_context =
+          "phdr: " + std::to_string(ccf::crypto::COSE_PHEADER_KEY_CWT);
+        const auto& cwt_claims = parsed_phdr->map_at(
+          ccf::cbor::make_unsigned(ccf::crypto::COSE_PHEADER_KEY_CWT),
+          cwt_context);
+
+        const auto iss_context =
+          "cwt: " + std::to_string(ccf::crypto::COSE_PHEADER_KEY_ISS);
+        const auto& iss = cwt_claims->map_at(
+          ccf::cbor::make_unsigned(ccf::crypto::COSE_PHEADER_KEY_ISS),
+          iss_context);
+        result.iss = std::string(iss->as_string(iss_context));
+
+        const auto feed_context =
+          "cwt: " + std::to_string(ccf::crypto::COSE_PHEADER_KEY_SUB);
+        const auto& feed = cwt_claims->map_at(
+          ccf::cbor::make_unsigned(ccf::crypto::COSE_PHEADER_KEY_SUB),
+          feed_context);
+        result.feed = std::string(feed->as_string(feed_context));
+
+        constexpr std::string_view svn_context{"cwt: svn"};
+        const auto& svn_value =
+          cwt_claims->map_at(ccf::cbor::make_string("svn"), svn_context);
+        auto svn = svn_value->as_unsigned(svn_context);
+
+        return {result, std::to_string(svn)};
+      }
+
+      std::span<const uint8_t> verify_uvm_endorsements_signature(
+        const ccf::crypto::Pem& leaf_cert_pub_key,
+        const std::vector<uint8_t>& uvm_endorsements_raw)
+      {
+        auto verifier =
+          ccf::crypto::make_cose_verifier_from_key(leaf_cert_pub_key);
+
+        std::span<uint8_t> payload;
+        if (!verifier->verify(uvm_endorsements_raw, payload))
         {
-          throw COSEDecodeError(
-            "Failed to validate COSE_Sign1 as a definite-length CBOR object "
-            "without floating-points and with no maps in map keys");
+          throw cose::COSESignatureValidationError(
+            "Signature verification failed");
         }
 
-        uint64_t tag = 0;
-        cbor_nondet_t tagged_payload;
-        if (!cbor_nondet_get_tagged(cbor, &tagged_payload, &tag))
-        {
-          throw COSEDecodeError("Failed to parse COSE_Sign1 tag");
-        }
-
-        if (tag != CBOR_TAG_COSE_SIGN1)
-        {
-          throw COSEDecodeError("Failed to parse COSE_Sign1 tag");
-        }
-
-        cbor_nondet_array_iterator_t outer_array;
-        if (!cbor_nondet_array_iterator_start(tagged_payload, &outer_array))
-        {
-          throw COSEDecodeError("Failed to parse COSE_Sign1 outer array");
-        }
-
-        cbor_nondet_t protected_parameters_as_bstr;
-        if (!cbor_nondet_array_iterator_next(
-              &outer_array, &protected_parameters_as_bstr))
-        {
-          throw COSEDecodeError(
-            "Failed to decode COSE_Sign1 protected parameters");
-        }
-
-        uint8_t* protected_parameters_input = nullptr;
-        uint64_t protected_parameters_len64 = 0;
-        if (!cbor_nondet_get_byte_string(
-              protected_parameters_as_bstr,
-              &protected_parameters_input,
-              &protected_parameters_len64))
-        {
-          throw COSEDecodeError(
-            "Failed to decode COSE_Sign1 protected parameters");
-        }
-
-        size_t protected_parameters_len = protected_parameters_len64;
-        cbor_nondet_t protected_parameters;
-        if (!cbor_nondet_parse(
-              true,
-              0,
-              &protected_parameters_input,
-              &protected_parameters_len,
-              &protected_parameters))
-        {
-          throw COSEDecodeError(
-            "Failed to decode COSE_Sign1 protected parameters");
-        }
-
-        enum HeaderIndex : uint8_t
-        {
-          ALG_INDEX,
-          CONTENT_TYPE_INDEX,
-          X5_CHAIN_INDEX,
-          ISS_INDEX,
-          FEED_INDEX,
-          END_INDEX
-        };
-        cbor_nondet_map_get_multiple_entry_t header_items[END_INDEX];
-
-        header_items[ALG_INDEX].key = cbor_nondet_mk_int64(headers::PARAM_ALG);
-        header_items[CONTENT_TYPE_INDEX].key =
-          cbor_nondet_mk_int64(headers::PARAM_CONTENT_TYPE);
-        header_items[X5_CHAIN_INDEX].key =
-          cbor_nondet_mk_int64(headers::PARAM_X5CHAIN);
-        if (!cbor_nondet_mk_text_string(
-              const_cast<uint8_t*>(
-                reinterpret_cast<const uint8_t*>(HEADER_PARAM_ISSUER)),
-              sizeof(HEADER_PARAM_ISSUER) - 1,
-              &header_items[ISS_INDEX]
-                 .key)) // sizeof() - 1 to strip the null terminator from the
-                        // C-style string
-        {
-          throw COSEDecodeError("Failed to encode HEADER_PARAM_ISSUER");
-        }
-        if (!cbor_nondet_mk_text_string(
-              const_cast<uint8_t*>(
-                reinterpret_cast<const uint8_t*>(HEADER_PARAM_FEED)),
-              sizeof(HEADER_PARAM_FEED) - 1,
-              &header_items[FEED_INDEX]
-                 .key)) // sizeof() - 1 to strip the null terminator from the
-                        // C-style string
-        {
-          throw COSEDecodeError("Failed to encode HEADER_PARAM_FEED");
-        }
-
-        if (!cbor_nondet_map_get_multiple(
-              protected_parameters, header_items, END_INDEX))
-        {
-          throw COSEDecodeError("Failed to decode protected header");
-        }
-
-        UvmEndorsementsProtectedHeader phdr = {};
-
-        if (header_items[ALG_INDEX].found)
-        {
-          if (!cbor_nondet_read_int64(header_items[ALG_INDEX].value, &phdr.alg))
-          {
-            throw COSEDecodeError("Failed to decode protected header");
-          }
-        }
-
-        if (header_items[CONTENT_TYPE_INDEX].found)
-        {
-          uint8_t* payload = nullptr;
-          uint64_t len = 0;
-          if (!cbor_nondet_get_text_string(
-                header_items[CONTENT_TYPE_INDEX].value, &payload, &len))
-          {
-            throw COSEDecodeError("Failed to decode protected header");
-          }
-          phdr.content_type = std::string(
-            reinterpret_cast<char*>(payload),
-            len); // This is a copy. We don't need to reinstate
-                  // a null terminator because C++ strings are
-                  // not null-terminated. The extra len argument
-                  // to the constructor is crucial to this end.
-        }
-
-        if (header_items[X5_CHAIN_INDEX].found)
-        {
-          phdr.x5_chain = decode_x5chain(header_items[X5_CHAIN_INDEX].value);
-        }
-
-        if (header_items[ISS_INDEX].found)
-        {
-          uint8_t* payload = nullptr;
-          uint64_t len = 0;
-          if (!cbor_nondet_get_text_string(
-                header_items[ISS_INDEX].value, &payload, &len))
-          {
-            throw COSEDecodeError("Failed to decode protected header");
-          }
-          phdr.iss = std::string(
-            reinterpret_cast<char*>(payload),
-            len); // This is a copy. We don't need to reinstate
-                  // a null terminator because C++ strings are
-                  // not null-terminated. The extra len argument
-                  // to the constructor is crucial to this end.
-        }
-
-        if (header_items[FEED_INDEX].found)
-        {
-          uint8_t* payload = nullptr;
-          uint64_t len = 0;
-          if (!cbor_nondet_get_text_string(
-                header_items[FEED_INDEX].value, &payload, &len))
-          {
-            throw COSEDecodeError("Failed to decode protected header");
-          }
-          phdr.feed = std::string(
-            reinterpret_cast<char*>(payload),
-            len); // This is a copy. We don't need to reinstate
-                  // a null terminator because C++ strings are
-                  // not null-terminated. The extra len argument
-                  // to the constructor is crucial to this end.
-        }
-
-        return phdr;
+        return payload;
       }
     }
-
-    std::pair<UvmEndorsementsProtectedHeader, std::string>
-    decode_protected_header_with_cwt(
-      const std::vector<uint8_t>& uvm_endorsements_raw)
-    {
-      cbor_nondet_t cbor;
-      auto* cbor_parse_input =
-        const_cast<uint8_t*>(uvm_endorsements_raw.data());
-      size_t cbor_parse_size = uvm_endorsements_raw.size();
-
-      if (!cbor_nondet_parse(
-            true, 0, &cbor_parse_input, &cbor_parse_size, &cbor))
-      {
-        throw COSEDecodeError(
-          "Failed to validate COSE_Sign1 as a definite-length CBOR object "
-          "without floating-points and with no maps in map keys");
-      }
-
-      uint64_t tag = 0;
-      cbor_nondet_t tagged_payload;
-      if (!cbor_nondet_get_tagged(cbor, &tagged_payload, &tag))
-      {
-        throw COSEDecodeError("Failed to parse COSE_Sign1 tag");
-      }
-
-      if (tag != CBOR_TAG_COSE_SIGN1)
-      {
-        throw COSEDecodeError("Failed to parse COSE_Sign1 tag");
-      }
-
-      cbor_nondet_array_iterator_t outer_array;
-      if (!cbor_nondet_array_iterator_start(tagged_payload, &outer_array))
-      {
-        throw COSEDecodeError("Failed to parse COSE_Sign1 outer array");
-      }
-
-      cbor_nondet_t protected_parameters_as_bstr;
-      if (!cbor_nondet_array_iterator_next(
-            &outer_array, &protected_parameters_as_bstr))
-      {
-        throw COSEDecodeError(
-          "Failed to decode COSE_Sign1 protected parameters");
-      }
-
-      uint8_t* protected_parameters_input = nullptr;
-      uint64_t protected_parameters_len64 = 0;
-      if (!cbor_nondet_get_byte_string(
-            protected_parameters_as_bstr,
-            &protected_parameters_input,
-            &protected_parameters_len64))
-      {
-        throw COSEDecodeError(
-          "Failed to decode COSE_Sign1 protected parameters");
-      }
-
-      size_t protected_parameters_len = protected_parameters_len64;
-      cbor_nondet_t protected_parameters;
-      if (!cbor_nondet_parse(
-            true,
-            0,
-            &protected_parameters_input,
-            &protected_parameters_len,
-            &protected_parameters))
-      {
-        throw COSEDecodeError(
-          "Failed to decode COSE_Sign1 protected parameters");
-      }
-
-      enum HeaderIndex : uint8_t
-      {
-        ALG_INDEX,
-        CONTENT_TYPE_INDEX,
-        X5_CHAIN_INDEX,
-        CWT_CLAIMS_INDEX,
-        END_INDEX
-      };
-      cbor_nondet_map_get_multiple_entry_t header_items[END_INDEX];
-
-      header_items[ALG_INDEX].key = cbor_nondet_mk_int64(headers::PARAM_ALG);
-      header_items[CONTENT_TYPE_INDEX].key = cbor_nondet_mk_int64(259);
-      header_items[X5_CHAIN_INDEX].key =
-        cbor_nondet_mk_int64(headers::PARAM_X5CHAIN);
-
-      header_items[CWT_CLAIMS_INDEX].key = cbor_nondet_mk_int64(15);
-
-      if (!cbor_nondet_map_get_multiple(
-            protected_parameters, header_items, END_INDEX))
-      {
-        throw COSEDecodeError("Failed to decode protected header");
-      }
-
-      UvmEndorsementsProtectedHeader phdr = {};
-
-      if (header_items[ALG_INDEX].found)
-      {
-        if (!cbor_nondet_read_int64(header_items[ALG_INDEX].value, &phdr.alg))
-        {
-          throw COSEDecodeError("Failed to decode protected header");
-        }
-      }
-
-      if (header_items[CONTENT_TYPE_INDEX].found)
-      {
-        uint8_t* payload = nullptr;
-        uint64_t len = 0;
-        if (!cbor_nondet_get_text_string(
-              header_items[CONTENT_TYPE_INDEX].value, &payload, &len))
-        {
-          throw COSEDecodeError("Failed to decode protected header");
-        }
-        phdr.content_type = std::string(
-          reinterpret_cast<char*>(payload),
-          len); // This is a copy. We don't need to reinstate a null terminator
-                // because C++ strings are not null-terminated. The extra len
-                // argument to the constructor is crucial to this end.
-      }
-
-      if (header_items[X5_CHAIN_INDEX].found)
-      {
-        phdr.x5_chain = decode_x5chain(header_items[X5_CHAIN_INDEX].value);
-      }
-
-      enum CwtIndex : std::uint8_t
-      {
-        CWT_ISS_INDEX,
-        CWT_SUB_INDEX,
-        CWT_SVN_INDEX,
-        CWT_END_INDEX,
-      };
-      cbor_nondet_map_get_multiple_entry_t cwt_items[CWT_END_INDEX];
-
-      cwt_items[CWT_ISS_INDEX].key = cbor_nondet_mk_int64(1);
-      cwt_items[CWT_SUB_INDEX].key = cbor_nondet_mk_int64(2);
-
-      const char svn_label[] = "svn";
-      if (!cbor_nondet_mk_text_string(
-            const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(svn_label)),
-            sizeof(svn_label) - 1,
-            &cwt_items[CWT_SVN_INDEX]
-               .key)) // sizeof() - 1 to strip the null terminator from the
-                      // C-style string
-      {
-        throw COSEDecodeError("Failed to encode svn_label");
-      }
-
-      if (!header_items[CWT_CLAIMS_INDEX].found)
-      {
-        throw COSEDecodeError("CWT claims not found in protected header");
-      }
-
-      if (!cbor_nondet_map_get_multiple(
-            header_items[CWT_CLAIMS_INDEX].value, cwt_items, CWT_END_INDEX))
-      {
-        throw COSEDecodeError("Failed to decode CWT claim contents");
-      }
-
-      if (cwt_items[CWT_ISS_INDEX].found)
-      {
-        uint8_t* payload = nullptr;
-        uint64_t len = 0;
-        if (!cbor_nondet_get_text_string(
-              cwt_items[CWT_ISS_INDEX].value, &payload, &len))
-        {
-          throw COSEDecodeError("Failed to decode protected header");
-        }
-        phdr.iss = std::string(reinterpret_cast<char*>(payload), len);
-      }
-
-      if (cwt_items[CWT_SUB_INDEX].found)
-      {
-        uint8_t* payload = nullptr;
-        uint64_t len = 0;
-        if (!cbor_nondet_get_text_string(
-              cwt_items[CWT_SUB_INDEX].value, &payload, &len))
-        {
-          throw COSEDecodeError("Failed to decode protected header");
-        }
-        phdr.feed = std::string(reinterpret_cast<char*>(payload), len);
-      }
-
-      size_t svn{0};
-      if (cwt_items[CWT_SVN_INDEX].found)
-      {
-        uint64_t svn64 = 0;
-        if (!cbor_nondet_read_uint64(cwt_items[CWT_SVN_INDEX].value, &svn64))
-        {
-          throw COSEDecodeError("Failed to decode protected header");
-        }
-        svn = static_cast<size_t>(svn64);
-      }
-
-      return {phdr, std::to_string(svn)};
-    }
-
-    std::span<const uint8_t> verify_uvm_endorsements_signature(
-      const ccf::crypto::Pem& leaf_cert_pub_key,
-      const std::vector<uint8_t>& uvm_endorsements_raw)
-    {
-      auto verifier =
-        ccf::crypto::make_cose_verifier_from_key(leaf_cert_pub_key);
-
-      std::span<uint8_t> payload;
-      if (!verifier->verify(uvm_endorsements_raw, payload))
-      {
-        throw cose::COSESignatureValidationError(
-          "Signature verification failed");
-      }
-
-      return payload;
-    }
-
   }
-
   pal::UVMEndorsements verify_uvm_endorsements(
     const std::vector<uint8_t>& uvm_endorsements_raw,
     const pal::PlatformAttestationMeasurement& uvm_measurement,
@@ -510,7 +212,7 @@ namespace ccf
     }
     // Since ContainerPlat 0.2.10, UVM endorsements carry SVN in CWT claims,
     // alongside ISS and SUB(feed), so on decoding failure fallback to legacy.
-    catch (const cose::COSEDecodeError&)
+    catch (const ccf::cbor::CBORDecodeError&)
     {
       phdr = cose::decode_protected_header(uvm_endorsements_raw);
     }

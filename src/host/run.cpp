@@ -438,6 +438,8 @@ namespace ccf
     }
     LOG_INFO_FMT("Reading previous service identity from {}", idf);
     startup_config.recover.previous_service_identity = files::slurp(idf);
+    startup_config.recover.self_healing_open =
+      config.command.recover.self_healing_open;
   }
 
   std::vector<uint8_t> load_startup_snapshot(
@@ -785,7 +787,7 @@ namespace ccf
     startup_config.startup_host_time =
       ccf::ds::to_x509_time_string(startup_host_time);
 
-    if(config.should_seal_ledger_secrets)
+    if (config.should_seal_ledger_secrets)
     {
       CCF_ASSERT_FMT(
         ccf::pal::platform == ccf::pal::Platform::SNP,

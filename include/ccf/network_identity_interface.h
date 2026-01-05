@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/ec_public_key.h"
 #include "ccf/node_subsystem_interface.h"
 
 #include <optional>
@@ -38,5 +39,8 @@ namespace ccf
 
     [[nodiscard]] virtual std::optional<CoseEndorsementsChain>
     get_cose_endorsements_chain(ccf::SeqNo seqno) const = 0;
+
+    [[nodiscard]] virtual ccf::crypto::ECPublicKeyPtr get_trusted_identity_for(
+      ccf::SeqNo seqno) const = 0;
   };
 }

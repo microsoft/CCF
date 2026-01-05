@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -14,7 +15,7 @@ namespace ccf::crypto
 
   std::string b64_from_raw(const uint8_t* data, size_t size);
 
-  std::string b64_from_raw(const std::vector<uint8_t>& data);
+  std::string b64_from_raw(std::span<const uint8_t> data);
 
   std::string b64url_from_raw(
     const uint8_t* data, size_t size, bool with_padding = true);

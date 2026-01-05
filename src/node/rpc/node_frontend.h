@@ -4,6 +4,7 @@
 
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
+#include "ccf/endpoint_context.h"
 #include "ccf/http_query.h"
 #include "ccf/js/core/context.h"
 #include "ccf/json_handler.h"
@@ -22,11 +23,16 @@
 #include "node/rpc/file_serving_handlers.h"
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/no_create_tx_claims_digest.cpp" // NOLINT(bugprone-suspicious-include)
+#include "node/rpc/node_frontend_utils.h"
+#include "node/rpc/self_healing_open_handlers.h"
 #include "node/rpc/serialization.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
 #include "service/internal_tables_access.h"
 #include "service/tables/previous_service_identity.h"
+
+#include <llhttp/llhttp.h>
+#include <stdexcept>
 
 namespace ccf
 {
@@ -177,39 +183,6 @@ namespace ccf
   private:
     NetworkState& network;
     ccf::AbstractNodeOperation& node_operation;
-
-    static std::pair<http_status, std::string> quote_verification_error(
-      QuoteVerificationResult result)
-    {
-      switch (result)
-      {
-        case QuoteVerificationResult::Failed:
-          return std::make_pair(
-            HTTP_STATUS_UNAUTHORIZED, "Quote could not be verified");
-        case QuoteVerificationResult::FailedMeasurementNotFound:
-          return std::make_pair(
-            HTTP_STATUS_UNAUTHORIZED,
-            "Quote does not contain known enclave measurement");
-        case QuoteVerificationResult::FailedInvalidQuotedPublicKey:
-          return std::make_pair(
-            HTTP_STATUS_UNAUTHORIZED,
-            "Quote report data does not contain node's public key hash");
-        case QuoteVerificationResult::FailedHostDataDigestNotFound:
-          return std::make_pair(
-            HTTP_STATUS_UNAUTHORIZED,
-            "Quote does not contain trusted host data");
-        case QuoteVerificationResult::FailedInvalidHostData:
-          return std::make_pair(
-            HTTP_STATUS_UNAUTHORIZED, "Quote host data is not authorised");
-        case ccf::QuoteVerificationResult::FailedUVMEndorsementsNotFound:
-          return std::make_pair(
-            HTTP_STATUS_UNAUTHORIZED, "UVM endorsements are not authorised");
-        default:
-          return std::make_pair(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Unknown quote verification error");
-      }
-    }
 
     struct ExistingNodeInfo
     {
@@ -1609,6 +1582,9 @@ namespace ccf
           ctx.rpc_ctx->set_claims_digest(std::move(digest_value));
         }
 
+        this->node_operation.self_healing_open().reset_state(ctx.tx);
+        this->node_operation.self_healing_open().try_start(ctx.tx, recovering);
+
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };
@@ -1811,6 +1787,8 @@ namespace ccf
         .set_auto_schema<void, void>()
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
+
+      ccf::node::init_self_healing_open_handlers(*this, context);
 
       ccf::node::init_file_serving_handlers(*this, context);
     }

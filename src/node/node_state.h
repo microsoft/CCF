@@ -16,6 +16,7 @@
 #include "ccf/pal/uvm_endorsements.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/reconfiguration_type.h"
+#include "ccf/service/tables/self_healing_open.h"
 #include "ccf/service/tables/service.h"
 #include "ccf/tx.h"
 #include "consensus/aft/raft.h"
@@ -39,6 +40,7 @@
 #include "node/ledger_secrets.h"
 #include "node/local_sealing.h"
 #include "node/node_to_node_channel_manager.h"
+#include "node/self_healing_open_impl.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
 #include "pal/quote_generation.h"
@@ -86,6 +88,8 @@ namespace ccf
 
   class NodeState : public AbstractNodeState
   {
+    friend class SelfHealingOpenSubsystem;
+
   private:
     //
     // this node's core state
@@ -211,6 +215,8 @@ namespace ccf
       last_recovered_signed_idx = last_recovered_idx;
     }
 
+    SelfHealingOpenSubsystem self_healing_open_impl;
+
   public:
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
@@ -226,7 +232,8 @@ namespace ccf
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
       rpcsessions(std::move(rpcsessions)),
-      share_manager(network.ledger_secrets)
+      share_manager(network.ledger_secrets),
+      self_healing_open_impl(this)
     {}
 
     QuoteVerificationResult verify_quote(
@@ -2707,6 +2714,11 @@ namespace ccf
     ringbuffer::AbstractWriterFactory& get_writer_factory() override
     {
       return writer_factory;
+    }
+
+    SelfHealingOpenSubsystem& self_healing_open() override
+    {
+      return self_healing_open_impl;
     }
   };
 }

@@ -2124,7 +2124,7 @@ namespace loggingapp
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
           get_cose_receipt, context, is_tx_committed),
-        auth_policies)
+        ccf::no_auth_required)
         .set_auto_schema<void, void>()
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();

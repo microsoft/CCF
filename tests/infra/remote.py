@@ -335,6 +335,8 @@ class CCFRemote(object):
         cose_signatures_subject="ledger.signature",
         sealed_ledger_secret_location=None,
         previous_sealed_ledger_secret_location=None,
+        self_healing_open_cluster_identities=None,
+        self_healing_open_identity=None,
         **kwargs,
     ):
         """
@@ -534,6 +536,8 @@ class CCFRemote(object):
                 historical_cache_soft_limit=historical_cache_soft_limit,
                 cose_signatures_issuer=cose_signatures_issuer,
                 cose_signatures_subject=cose_signatures_subject,
+                self_healing_open_cluster_identities=self_healing_open_cluster_identities,
+                self_healing_open_identity=self_healing_open_identity,
                 **auto_dr_args,
                 **kwargs,
             )
