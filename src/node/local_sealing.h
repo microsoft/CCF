@@ -130,8 +130,6 @@ namespace ccf
     }
 
   private:
-    std::shared_ptr<LedgerSecrets> ledger_secrets;
-
     static EncryptedSealedSharesMap compute_encrypted_sealed_shares(
       ccf::kv::Tx& tx, const SharedLedgerSecretWrappingKey& ls_wrapping_key)
     {
@@ -187,10 +185,15 @@ namespace ccf
          latest_ledger_secret->previous_secret_stored_version});
     }
 
+    void shuffle_sealed_shares(ccf::kv::Tx& tx)
+    {
+      auto latest_ledger_secret = ledger_secrets->get_latest(tx).second;
+      shuffle_sealed_shares(tx, latest_ledger_secret);
+    }
+
     static std::optional<LedgerSecretPtr> unseal_share(
       ccf::kv::ReadOnlyTx& tx, const NodeId& node_id)
     {
-
       // Retrieve the node's sealed recovery key
       auto* nodes = tx.ro<ccf::Nodes>(Tables::NODES);
       auto node_info_opt = nodes->get(node_id);
