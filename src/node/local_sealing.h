@@ -177,18 +177,11 @@ namespace ccf
     {
       auto ls_wrapping_key = SharedLedgerSecretWrappingKey(1, 1);
       auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
-      auto* sealed_ledger_secrets =
-        tx.rw<SealedShares>(Tables::SEALED_LEDGER_SECRETS);
+      auto* sealed_ledger_secrets = tx.rw<SealedShares>(Tables::SEALED_SHARES);
       sealed_ledger_secrets->put(
         {wrapped_latest_ls,
          compute_encrypted_sealed_shares(tx, ls_wrapping_key),
          latest_ledger_secret->previous_secret_stored_version});
-    }
-
-    void shuffle_sealed_shares(ccf::kv::Tx& tx)
-    {
-      auto latest_ledger_secret = ledger_secrets->get_latest(tx).second;
-      shuffle_sealed_shares(tx, latest_ledger_secret);
     }
 
     static std::optional<LedgerSecretPtr> unseal_share(
@@ -216,7 +209,7 @@ namespace ccf
       auto sealed_recovery_key = node_info.sealed_recovery_key.value();
 
       // Retrieve the encrypted sealed share
-      auto* sealed_shares = tx.ro<SealedShares>(Tables::SEALED_LEDGER_SECRETS);
+      auto* sealed_shares = tx.ro<SealedShares>(Tables::SEALED_SHARES);
       if (!sealed_shares->get().has_value())
       {
         LOG_INFO_FMT("No sealed shares found to unseal recovery share");

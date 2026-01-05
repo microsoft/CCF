@@ -631,6 +631,18 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
+      auto shuffle_sealed_shares = [this](auto& ctx, nlohmann::json&&) {
+        this->node_operation.shuffle_sealed_shares(ctx.tx);
+        return make_success();
+      };
+      make_endpoint(
+        "network/nodes/shuffle_sealed_shares",
+        HTTP_POST,
+        json_adapter(shuffle_sealed_shares),
+        {std::make_shared<NodeCertAuthnPolicy>()})
+        .set_openapi_hidden(true)
+        .install();
+
       auto get_state = [this](auto& args, nlohmann::json&&) {
         GetState::Out result;
         auto [s, rts, lrs] = this->node_operation.state();

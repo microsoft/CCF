@@ -2435,6 +2435,68 @@ namespace ccf
               LOG_INFO_FMT("Service open at seqno {}", hook_version);
             }
           }));
+
+      network.tables->set_global_hook(
+        network.nodes.get_name(),
+        Nodes::wrap_commit_hook(
+          [this](ccf::kv::Version /*version*/, const Nodes::Write& w) {
+            bool new_trusted_node = false;
+            for (const auto& [node_id, node_info] : w)
+            {
+              if (node_info.has_value() && node_info->status == NodeStatus::TRUSTED)
+              {
+                new_trusted_node = true;
+              }
+            }
+            if (new_trusted_node)
+            {
+              LOG_TRACE_FMT("A new trusted node has been added to the network, triggering share refresh");
+
+              // Get the first RPC interface address for the local RPC call
+              if (config.network.rpc_interfaces.empty())
+              {
+                LOG_FAIL_FMT("No RPC interfaces configured, cannot shuffle sealed shares");
+                return;
+              }
+              auto& interface = config.network.rpc_interfaces.begin()->second;
+
+              curl::UniqueCURL curl_handle;
+
+              curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 0L);
+              curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 0L);
+              curl_handle.set_opt(CURLOPT_SSL_VERIFYSTATUS, 0L);
+
+              curl_handle.set_blob_opt(
+                CURLOPT_SSLCERT_BLOB,
+                self_signed_node_cert.data(),
+                self_signed_node_cert.size());
+              curl_handle.set_opt(CURLOPT_SSLCERTTYPE, "PEM");
+
+              auto privkey_pem = node_sign_kp->private_key_pem();
+              curl_handle.set_blob_opt(
+                CURLOPT_SSLKEY_BLOB, privkey_pem.data(), privkey_pem.size());
+              curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
+
+              auto url = fmt::format(
+                "https://{}/{}/network/nodes/shuffle_sealed_shares",
+                interface.published_address,
+                get_actor_prefix(ActorsType::nodes));
+
+              curl::UniqueSlist headers;
+              headers.append("Content-Type: application/json");
+
+              auto curl_request = std::make_unique<curl::CurlRequest>(
+                std::move(curl_handle),
+                HTTP_POST,
+                std::move(url),
+                std::move(headers),
+                nullptr,
+                nullptr,
+                std::nullopt);
+              curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+                std::move(curl_request));
+            }
+          }));
     }
 
     ccf::kv::Version get_last_recovered_signed_idx() override
@@ -2719,6 +2781,12 @@ namespace ccf
     SelfHealingOpenSubsystem& self_healing_open() override
     {
       return self_healing_open_impl;
+    }
+
+    void shuffle_sealed_shares(ccf::kv::Tx& tx) override
+    {
+      SealingManager::shuffle_sealed_shares(
+        tx, network.ledger_secrets->get_latest(tx).second);
     }
   };
 }

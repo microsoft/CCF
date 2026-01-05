@@ -36,7 +36,7 @@ namespace ccf
   using SealedShares = ServiceValue<SealedSharesInfo>;
   namespace Tables
   {
-    static constexpr auto SEALED_LEDGER_SECRETS =
-      "public:ccf.gov.sealed_ledger_secrets";
+    static constexpr auto SEALED_SHARES =
+      "public:ccf.gov.sealed_shares";
   }
 }
