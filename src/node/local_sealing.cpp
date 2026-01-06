@@ -10,7 +10,6 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/rsa_public_key.h"
 #include "ccf/crypto/symmetric_key.h"
-#include "ccf/ds/hex.h"
 #include "ccf/entity_id.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/snp_ioctl.h"
@@ -47,12 +46,6 @@ namespace ccf::sealing
     cipher.hdr.set_random_iv();
 
     key->encrypt(cipher.hdr.iv, plaintext, aad, cipher.cipher, cipher.hdr.tag);
-    LOG_INFO_FMT(
-      "Sealing {} with {} using {} getting {}",
-      ccf::ds::to_hex(plaintext),
-      ccf::ds::to_hex(aad),
-      ccf::ds::to_hex(raw_key),
-      ccf::ds::to_hex(cipher.serialise()));
     return cipher;
   }
 
@@ -61,11 +54,6 @@ namespace ccf::sealing
     std::vector<uint8_t> sealed_text,
     std::span<const uint8_t> aad)
   {
-    LOG_INFO_FMT(
-      "Unsealing {} with {} using {}",
-      ccf::ds::to_hex(sealed_text),
-      ccf::ds::to_hex(aad),
-      ccf::ds::to_hex(raw_key));
     ccf::crypto::check_supported_aes_key_size(raw_key.size() * 8);
     auto key = ccf::crypto::make_key_aes_gcm(raw_key);
 
@@ -86,50 +74,34 @@ namespace ccf::sealing
     const ccf::pal::snp::TcbVersionRaw& tcb_version)
   {
     auto derived_key = ccf::pal::snp::make_derived_key(tcb_version);
-    LOG_INFO_FMT("Derived key from TCB version");
-    LOG_INFO_FMT("Derived Key: {}", ccf::ds::to_hex(derived_key));
     std::vector<uint8_t> salt = {};
     std::vector<uint8_t> info(
       LOCAL_SEALING_LABEL.begin(), LOCAL_SEALING_LABEL.end());
     auto sealing_key = crypto::hkdf(
       crypto::MDType::SHA256, 32, derived_key->get_raw(), salt, info);
 
-    LOG_INFO_FMT("Final Sealing Key: {}", ccf::ds::to_hex(sealing_key));
     return sealing_key;
   }
 
   SealedRecoveryKey get_snp_sealed_recovery_key(
     const pal::snp::TcbVersionRaw& tcb_version)
   {
-    LOG_DEBUG_FMT("Getting sealed recovery key");
     auto derived_key = derive_snp_sealing_key(tcb_version);
-    LOG_DEBUG_FMT("Derived sealing key: {}", ccf::ds::to_hex(derived_key));
 
     auto recovery_key_pair = crypto::make_rsa_key_pair();
-    LOG_INFO_FMT("Generated recovery key pair");
-    LOG_INFO_FMT("{}", recovery_key_pair->public_key_pem());
     auto recovery_pubkey = recovery_key_pair->public_key_pem();
 
     auto recovery_privkey = recovery_key_pair->private_key_pem();
     std::span<uint8_t> plaintext(
       recovery_privkey.data(), recovery_privkey.size());
     std::span<uint8_t> aad(recovery_pubkey.data(), recovery_pubkey.size());
-
-    LOG_DEBUG_FMT(
-      "Sealing recovery key. Derived key size: {}", derived_key.size());
-    std::span<const uint8_t> derived_key_span(
-      derived_key.data(), derived_key.size());
-    crypto::GcmCipher sealed_key = aes_gcm_sealing(derived_key_span, plaintext, aad);
+    crypto::GcmCipher sealed_key = aes_gcm_sealing(derived_key, plaintext, aad);
 
     SealedRecoveryKey res = {
       .version = DerivedSealingKeyAlgorithm::SNP_v1,
       .ciphertext = sealed_key.serialise(),
       .pubkey = recovery_pubkey,
       .tcb_version = tcb_version};
-
-    LOG_INFO_FMT("Sealed recovery key created");
-    LOG_INFO_FMT("Sealed Recovery Key:");
-    LOG_INFO_FMT("{}", nlohmann::json(res).dump());
 
     OPENSSL_cleanse(recovery_privkey.data(), recovery_privkey.size());
     return res;
@@ -152,9 +124,6 @@ namespace ccf::sealing
         if (node_info.sealed_recovery_key.has_value())
         {
           auto sealed_recovery_key = node_info.sealed_recovery_key.value();
-          LOG_INFO_FMT("Sealed Recovery Key for node {}", node_id);
-          LOG_INFO_FMT("{}", nlohmann::json(sealed_recovery_key).dump());
-
           auto node_enc_pubk =
             ccf::crypto::make_rsa_public_key(sealed_recovery_key.pubkey);
           encrypted_sealed_shares[node_id] =
@@ -206,8 +175,6 @@ namespace ccf::sealing
       return std::nullopt;
     }
     auto& node_info = node_info_opt.value();
-    LOG_INFO_FMT("Retrieved node info for node {}", node_id);
-    LOG_INFO_FMT("{}", nlohmann::json(node_info).dump());
     if (!node_info.sealed_recovery_key.has_value())
     {
       LOG_INFO_FMT(
@@ -244,10 +211,8 @@ namespace ccf::sealing
       default:
         throw std::logic_error("Unknown derived sealing key algorithm");
     }
-    std::span<uint8_t> derived_key_span(
-      derived_key.data(), derived_key.size());
     auto recovery_key_pair =
-      unseal_recovery_key(derived_key_span, sealed_recovery_key);
+      unseal_recovery_key(derived_key, sealed_recovery_key);
     OPENSSL_cleanse(derived_key.data(), derived_key.size());
 
     // Decrypt the share
