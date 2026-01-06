@@ -136,18 +136,6 @@ namespace ccf::sealing
     return encrypted_sealed_shares;
   }
 
-  crypto::RSAKeyPairPtr unseal_recovery_key(
-    std::span<uint8_t> derived_key, const SealedRecoveryKey& sealed_key)
-  {
-    std::span<const uint8_t> aad(
-      sealed_key.pubkey.data(), sealed_key.pubkey.size());
-
-    auto plain = aes_gcm_unsealing(derived_key, sealed_key.ciphertext, aad);
-    crypto::Pem pem(plain.data(), plain.size());
-
-    return crypto::make_rsa_key_pair(pem);
-  }
-
   void shuffle_sealed_shares(
     ccf::kv::Tx& tx, const LedgerSecretPtr& latest_ledger_secret)
   {
@@ -158,6 +146,18 @@ namespace ccf::sealing
       {wrapped_latest_ls,
        compute_encrypted_sealed_shares(tx, ls_wrapping_key),
        latest_ledger_secret->previous_secret_stored_version});
+  }
+
+  crypto::RSAKeyPairPtr unseal_recovery_key(
+    std::span<uint8_t> derived_key, const SealedRecoveryKey& sealed_key)
+  {
+    std::span<const uint8_t> aad(
+      sealed_key.pubkey.data(), sealed_key.pubkey.size());
+
+    auto plain = aes_gcm_unsealing(derived_key, sealed_key.ciphertext, aad);
+    crypto::Pem pem(plain.data(), plain.size());
+
+    return crypto::make_rsa_key_pair(pem);
   }
 
   std::optional<LedgerSecretPtr> unseal_share(
