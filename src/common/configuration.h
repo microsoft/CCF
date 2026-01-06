@@ -134,7 +134,7 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(StartupConfig::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(
     StartupConfig::Recover, previous_service_identity);
-  DECLARE_JSON_OPTIONAL_FIELDS(StartupConfig::Recover, self_healing_open);
+  DECLARE_JSON_OPTIONAL_FIELDS(StartupConfig::Recover, previous_local_sealing_identity, self_healing_open);
 
   DECLARE_JSON_TYPE_WITH_BASE(StartupConfig, CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(

@@ -1447,6 +1447,12 @@ def run_recovery_local_unsealing(
                 next_node_id=prev_network.next_node_id,
             ) as recovery_network:
 
+                recovery_network.per_node_args_override = {
+                    0: {
+                        "previous_local_sealing_identity": node.node_id
+                    }
+                }
+
                 # Reset consortium and users to prevent issues with hosts from existing_network
                 recovery_network.consortium = prev_network.consortium
                 recovery_network.users = prev_network.users

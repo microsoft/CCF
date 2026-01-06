@@ -1560,9 +1560,10 @@ namespace ccf
         ShareManager::clear_submitted_recovery_shares(tx);
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
         service->put(service_info.value());
-        if (config.enable_local_sealing)
+        auto previous_id = config.recover.previous_local_sealing_identity;
+        if (config.enable_local_sealing && previous_id.has_value())
         {
-          auto unsealed_ls = sealing::unseal_share(tx, self);
+          auto unsealed_ls = sealing::unseal_share(tx, previous_id.value());
           if (unsealed_ls.has_value())
           {
             tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
@@ -2740,8 +2741,7 @@ namespace ccf
       {
         return;
       }
-      auto latest_ledger_secret =
-        network.ledger_secrets->get_latest(tx);
+      auto latest_ledger_secret = network.ledger_secrets->get_latest(tx);
       sealing::shuffle_sealed_shares(tx, latest_ledger_secret.second);
     }
   };

@@ -438,6 +438,8 @@ namespace ccf
     }
     LOG_INFO_FMT("Reading previous service identity from {}", idf);
     startup_config.recover.previous_service_identity = files::slurp(idf);
+    startup_config.recover.previous_local_sealing_identity =
+      config.command.recover.previous_local_sealing_identity;
     startup_config.recover.self_healing_open =
       config.command.recover.self_healing_open;
   }

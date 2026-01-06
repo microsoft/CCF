@@ -118,6 +118,8 @@ namespace host
       {
         size_t initial_service_certificate_validity_days = 1;
         std::string previous_service_identity_file;
+        std::optional<std::string> previous_local_sealing_identity =
+          std::nullopt;
         std::optional<ccf::SelfHealingOpenConfig> self_healing_open =
           std::nullopt;
         bool operator==(const Recover&) const = default;
@@ -172,6 +174,7 @@ namespace host
     CCHostConfig::Command::Recover,
     initial_service_certificate_validity_days,
     previous_service_identity_file,
+    previous_local_sealing_identity,
     self_healing_open);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
