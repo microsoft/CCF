@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "ccf/ds/ccf_exception.h"
+
 #include "ccf/ds/json.h"
 #include "ccf/pal/locking.h"
 #include "ccf/version.h"
@@ -109,12 +109,6 @@ extern "C"
         ccf_config.node_certificate.curve_id,
         work_beacon);
       // NOLINTEND(cppcoreguidelines-owning-memory)
-    }
-    catch (const ccf::ccf_openssl_rdrand_init_error& exc)
-    {
-      LOG_FAIL_FMT(
-        "ccf_openssl_rdrand_init_error during enclave init: {}", exc.what());
-      return CreateNodeStatus::OpenSSLRDRANDInitFailed;
     }
     catch (const std::exception& exc)
     {
