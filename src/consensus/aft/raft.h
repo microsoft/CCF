@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/ccf_exception.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/tx_id.h"
