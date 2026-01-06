@@ -78,7 +78,7 @@ namespace ccf::sealing
     std::vector<uint8_t> info(
       LOCAL_SEALING_LABEL.begin(), LOCAL_SEALING_LABEL.end());
     auto sealing_key = crypto::hkdf(
-      crypto::MDType::SHA256, 256, derived_key->get_raw(), salt, info);
+      crypto::MDType::SHA256, 32, derived_key->get_raw(), salt, info);
 
     return sealing_key;
   }

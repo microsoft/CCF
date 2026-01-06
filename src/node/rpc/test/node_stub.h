@@ -8,6 +8,7 @@
 #include "node/rpc/node_interface.h"
 #include "node/rpc/node_operation_interface.h"
 #include "node/self_healing_open_impl.h"
+#include <stdexcept>
 
 namespace ccf
 {
@@ -117,6 +118,11 @@ namespace ccf
     }
 
     SelfHealingOpenSubsystem& self_healing_open() override
+    {
+      throw std::logic_error("Unimplemented");
+    }
+
+    void shuffle_sealed_shares(ccf::kv::Tx& /*tx*/) override
     {
       throw std::logic_error("Unimplemented");
     }
