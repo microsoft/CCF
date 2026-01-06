@@ -360,6 +360,51 @@
                   "previous_sealed_ledger_secret_location": {
                     "type": ["string"],
                     "description": "Path to the sealed ledger secret folder, the ledger secrets for the recovered service will be unsealed from here instead of reconstructed from recovery shares."
+                  },
+                  "self_healing_open": {
+                    "type": "object",
+                    "properties": {
+                      "identity": {
+                        "type": "object",
+                        "properties": {
+                          "intrinsic_id": {
+                            "type": "string",
+                            "description": "Intrinsic identifier of this node, used to identify it in the self-healing-open protocol"
+                          },
+                          "published_address": {
+                            "type": "string",
+                            "description": "Published address (host:port) of this node, used to identify it in the self-healing-open protocol"
+                          }
+                        }
+                      },
+                      "cluster_identities": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "intrinsic_id": {
+                              "type": "string",
+                              "description": "Intrinsic identifier of the node, used to identify it in the self-healing-open protocol"
+                            },
+                            "published_address": {
+                              "type": "string",
+                              "description": "Published address (host:port) of the node, used for communication during the self-healing-open protocol"
+                            }
+                          }
+                        },
+                        "description": "List of identities for all nodes in the cluster"
+                      },
+                      "retry_timeout": {
+                        "type": "string",
+                        "default": "100ms",
+                        "description": "Interval (time string) at which the node re-sends self-healing-open messages. This should be significantly less than 'failover_timeout'"
+                      },
+                      "failover_timeout": {
+                        "type": "string",
+                        "default": "2000ms",
+                        "description": "Interval (time string) after which the node forcibly advances to the next phase of the self-healing-open protocol"
+                      }
+                    }
                   }
                 },
                 "required": ["previous_service_identity_file"],

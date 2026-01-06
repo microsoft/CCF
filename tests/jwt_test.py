@@ -355,11 +355,15 @@ def test_jwt_key_auto_refresh(network, args):
             )
             metadata_fp.flush()
             network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
             # Make sure we did serve at least one request with oversized headers to CCF before
             # reverting to normal headers.
-            assert (
-                server.request_count > req_count
-            ), "No request was served with oversized headers"
+            def assert_request_count_increased():
+                assert (
+                    server.request_count > req_count
+                ), "No request was served with oversized headers"
+
+            with_timeout(assert_request_count_increased, timeout=1)
             server.inject_oversized_header = False
 
             LOG.info("Check that keys got refreshed")

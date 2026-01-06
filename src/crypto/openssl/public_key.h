@@ -31,6 +31,16 @@ namespace ccf::crypto
       }
     }
 
+    PublicKey_OpenSSL(std::span<const uint8_t> der)
+    {
+      OpenSSL::Unique_BIO buf(der);
+      key = d2i_PUBKEY_bio(buf, &key);
+      if (key == nullptr)
+      {
+        throw std::runtime_error("Could not read DER");
+      }
+    }
+
     void check_is_cose_compatible(int cose_alg)
     {
       if (key == nullptr)
