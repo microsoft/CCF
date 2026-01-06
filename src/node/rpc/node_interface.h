@@ -53,6 +53,7 @@ namespace ccf
     virtual ccf::crypto::Pem get_self_signed_certificate() = 0;
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
     virtual SelfHealingOpenSubsystem& self_healing_open() = 0;
+    virtual void shuffle_sealed_shares(ccf::kv::Tx& tx) = 0;
     [[nodiscard]] virtual const ccf::StartupConfig& get_node_config() const = 0;
     virtual ccf::crypto::Pem get_network_cert() = 0;
     virtual void stop_notice() = 0;

@@ -149,6 +149,11 @@ namespace ccf
     {
       return;
     }
+
+    void shuffle_sealed_shares(ccf::kv::Tx& tx) override
+    {
+      return;
+    }
   };
 
   class StubNodeStateCache : public historical::AbstractStateCache
