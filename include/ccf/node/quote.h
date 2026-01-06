@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ccf_deprecated.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/measurement.h"
