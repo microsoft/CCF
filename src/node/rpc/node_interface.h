@@ -40,10 +40,7 @@ namespace ccf
     [[nodiscard]] virtual bool is_reading_private_ledger() const = 0;
     [[nodiscard]] virtual bool is_part_of_network() const = 0;
     virtual ccf::kv::Version get_last_recovered_signed_idx() = 0;
-    virtual void initiate_private_recovery(
-      ccf::kv::Tx& tx,
-      const std::optional<LedgerSecretPtr>& unsealed_ledger_secret =
-        std::nullopt) = 0;
+    virtual void initiate_private_recovery(ccf::kv::Tx& tx) = 0;
     virtual ExtendedState state() = 0;
     virtual QuoteVerificationResult verify_quote(
       ccf::kv::ReadOnlyTx& tx,
@@ -56,7 +53,6 @@ namespace ccf
     virtual ccf::crypto::Pem get_self_signed_certificate() = 0;
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
     virtual SelfHealingOpenSubsystem& self_healing_open() = 0;
-    virtual void shuffle_sealed_shares(ccf::kv::Tx& tx) = 0;
     [[nodiscard]] virtual const ccf::StartupConfig& get_node_config() const = 0;
     virtual ccf::crypto::Pem get_network_cert() = 0;
     virtual void stop_notice() = 0;

@@ -295,7 +295,7 @@ namespace ccf
 
       // Similarly issue full recovery shares for another fresh ledger secrets
       // wrapping key to each trusted replica with a sealing recovery key.
-      SealingManager::shuffle_sealed_shares(tx, latest_ledger_secret);
+      sealing::shuffle_sealed_shares(tx, latest_ledger_secret);
 
       // Then, encrypt the penultimate ledger secret with the latest ledger
       // secret
@@ -516,35 +516,34 @@ namespace ccf
 
     LedgerSecretsMap restore_recovery_shares_info(
       ccf::kv::Tx& tx,
+      const RecoveredEncryptedLedgerSecrets& recovery_ledger_secrets)
+    {
+      // First, re-assemble the ledger secret wrapping key from the submitted
+      // encrypted shares. Then, unwrap the latest ledger secret and use it to
+      // decrypt the sequence of recovered ledger secrets, from the last one.
+
+      auto recovery_shares_info =
+        tx.ro<ccf::RecoveryShares>(Tables::SHARES)->get();
+      if (!recovery_shares_info.has_value())
+      {
+        throw std::logic_error(
+          "Failed to retrieve current recovery shares info");
+      }
+
+      LedgerSecretPtr restored_ls =
+        combine_from_encrypted_submitted_shares(tx).unwrap(
+          recovery_shares_info->wrapped_latest_ledger_secret);
+      return restore_ledger_secrets_map(tx, recovery_ledger_secrets, restored_ls);
+    }
+
+    LedgerSecretsMap restore_ledger_secrets_map(
+      ccf::kv::Tx& tx,
       const RecoveredEncryptedLedgerSecrets& recovery_ledger_secrets,
-      const std::optional<LedgerSecretPtr>& restored_ls_opt = std::nullopt)
+      const LedgerSecretPtr& restored_ls)
     {
       if (recovery_ledger_secrets.empty())
       {
         throw std::logic_error("No recovery ledger secrets");
-      }
-
-      LedgerSecretPtr restored_ls;
-      if (restored_ls_opt.has_value())
-      {
-        restored_ls = restored_ls_opt.value();
-      }
-      else
-      {
-        // First, re-assemble the ledger secret wrapping key from the submitted
-        // encrypted shares. Then, unwrap the latest ledger secret and use it to
-        // decrypt the sequence of recovered ledger secrets, from the last one.
-
-        auto recovery_shares_info =
-          tx.ro<ccf::RecoveryShares>(Tables::SHARES)->get();
-        if (!recovery_shares_info.has_value())
-        {
-          throw std::logic_error(
-            "Failed to retrieve current recovery shares info");
-        }
-
-        restored_ls = combine_from_encrypted_submitted_shares(tx).unwrap(
-          recovery_shares_info->wrapped_latest_ledger_secret);
       }
 
       LOG_DEBUG_FMT(

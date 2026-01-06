@@ -120,10 +120,5 @@ namespace ccf
     {
       return impl.self_healing_open();
     }
-
-    void shuffle_sealed_shares(ccf::kv::Tx& tx) override
-    {
-      impl.shuffle_sealed_shares(tx);
-    }
   };
 }

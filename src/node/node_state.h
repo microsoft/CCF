@@ -885,7 +885,7 @@ namespace ccf
       if (config.should_seal_ledger_secrets && snp_tcb_version.has_value())
       {
         join_params.sealed_recovery_key =
-          SealingManager::get_sealed_recovery_key(snp_tcb_version.value());
+          sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());
       }
 
       LOG_DEBUG_FMT(
@@ -1560,13 +1560,21 @@ namespace ccf
         ShareManager::clear_submitted_recovery_shares(tx);
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
         service->put(service_info.value());
-        auto unsealed_ls = SealingManager::unseal_share(tx, self);
-        if (config.should_seal_ledger_secrets && unsealed_ls.has_value())
+        if (config.should_seal_ledger_secrets)
         {
-          tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
-            ->put(RecoveryType::LOCAL_UNSEALING);
-          LOG_INFO_FMT("Unsealed ledger secret, initiating private recovery");
-          initiate_private_recovery_unsafe(tx, unsealed_ls);
+          auto unsealed_ls = sealing::unseal_share(tx, self);
+          if (unsealed_ls.has_value())
+          {
+            tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
+              ->put(RecoveryType::LOCAL_UNSEALING);
+            LOG_INFO_FMT("Unsealed ledger secret, initiating private recovery");
+            initiate_private_recovery_unsealing_unsafe(tx, unsealed_ls.value());
+          }
+          else
+          {
+            throw std::logic_error(
+              "Failed to unseal ledger secret for private recovery");
+          }
         }
         else
         {
@@ -1602,34 +1610,38 @@ namespace ccf
         fmt::format("Node in state {} cannot open service", sm.value()));
     }
 
+    void initiate_private_recovery(ccf::kv::Tx& tx) override
+    {
+      std::lock_guard<pal::Mutex> guard(lock);
+      sm.expect(NodeStartupState::partOfPublicNetwork);
+      LedgerSecretsMap recovered_ledger_secrets =
+        share_manager.restore_recovery_shares_info(
+          tx, recovered_encrypted_ledger_secrets);
+      initiate_private_recovery_unsafe(tx, recovered_ledger_secrets);
+    }
+
+    void initiate_private_recovery_unsealing_unsafe(
+      ccf::kv::Tx& tx, const LedgerSecretPtr& unsealed_ledger_secret)
+    {
+      sm.expect(NodeStartupState::partOfPublicNetwork);
+      LedgerSecretsMap recovered_ledger_secrets =
+        share_manager.restore_ledger_secrets_map(
+          tx, recovered_encrypted_ledger_secrets, unsealed_ledger_secret);
+      initiate_private_recovery_unsafe(tx, recovered_ledger_secrets);
+    }
+
     // Decrypts chain of ledger secrets, and writes those to the ledger
     // encrypted for each node. On a commit hook for this write, each node
     // (including this one!) will begin_private_recovery().
     void initiate_private_recovery_unsafe(
-      ccf::kv::Tx& tx,
-      const std::optional<LedgerSecretPtr>& unsealed_ledger_secret =
-        std::nullopt)
+      ccf::kv::Tx& tx, LedgerSecretsMap recovered_ledger_secrets)
     {
-      sm.expect(NodeStartupState::partOfPublicNetwork);
-      LedgerSecretsMap recovered_ledger_secrets =
-        share_manager.restore_recovery_shares_info(
-          tx, recovered_encrypted_ledger_secrets, unsealed_ledger_secret);
-
       // Broadcast decrypted ledger secrets to other nodes for them to
       // initiate private recovery too
       LedgerSecretsBroadcast::broadcast_some(
         InternalTablesAccess::get_trusted_nodes(tx),
         tx.wo(network.secrets),
         recovered_ledger_secrets);
-    }
-
-    void initiate_private_recovery(
-      ccf::kv::Tx& tx,
-      const std::optional<LedgerSecretPtr>& unsealed_ledger_secret =
-        std::nullopt) override
-    {
-      std::lock_guard<pal::Mutex> guard(lock);
-      initiate_private_recovery_unsafe(tx, unsealed_ledger_secret);
     }
 
     //
@@ -2023,7 +2035,7 @@ namespace ccf
       if (config.should_seal_ledger_secrets && snp_tcb_version.has_value())
       {
         create_params.sealed_recovery_key =
-          SealingManager::get_sealed_recovery_key(snp_tcb_version.value());
+          sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());
       }
 
       const auto body = nlohmann::json(create_params).dump();
@@ -2435,68 +2447,6 @@ namespace ccf
               LOG_INFO_FMT("Service open at seqno {}", hook_version);
             }
           }));
-
-      network.tables->set_global_hook(
-        network.nodes.get_name(),
-        Nodes::wrap_commit_hook(
-          [this](ccf::kv::Version /*version*/, const Nodes::Write& w) {
-            bool new_trusted_node = false;
-            for (const auto& [node_id, node_info] : w)
-            {
-              if (node_info.has_value() && node_info->status == NodeStatus::TRUSTED)
-              {
-                new_trusted_node = true;
-              }
-            }
-            if (new_trusted_node)
-            {
-              LOG_TRACE_FMT("A new trusted node has been added to the network, triggering share refresh");
-
-              // Get the first RPC interface address for the local RPC call
-              if (config.network.rpc_interfaces.empty())
-              {
-                LOG_FAIL_FMT("No RPC interfaces configured, cannot shuffle sealed shares");
-                return;
-              }
-              auto& interface = config.network.rpc_interfaces.begin()->second;
-
-              curl::UniqueCURL curl_handle;
-
-              curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 0L);
-              curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 0L);
-              curl_handle.set_opt(CURLOPT_SSL_VERIFYSTATUS, 0L);
-
-              curl_handle.set_blob_opt(
-                CURLOPT_SSLCERT_BLOB,
-                self_signed_node_cert.data(),
-                self_signed_node_cert.size());
-              curl_handle.set_opt(CURLOPT_SSLCERTTYPE, "PEM");
-
-              auto privkey_pem = node_sign_kp->private_key_pem();
-              curl_handle.set_blob_opt(
-                CURLOPT_SSLKEY_BLOB, privkey_pem.data(), privkey_pem.size());
-              curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
-
-              auto url = fmt::format(
-                "https://{}/{}/network/nodes/shuffle_sealed_shares",
-                interface.published_address,
-                get_actor_prefix(ActorsType::nodes));
-
-              curl::UniqueSlist headers;
-              headers.append("Content-Type: application/json");
-
-              auto curl_request = std::make_unique<curl::CurlRequest>(
-                std::move(curl_handle),
-                HTTP_POST,
-                std::move(url),
-                std::move(headers),
-                nullptr,
-                nullptr,
-                std::nullopt);
-              curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
-                std::move(curl_request));
-            }
-          }));
     }
 
     ccf::kv::Version get_last_recovered_signed_idx() override
@@ -2781,12 +2731,6 @@ namespace ccf
     SelfHealingOpenSubsystem& self_healing_open() override
     {
       return self_healing_open_impl;
-    }
-
-    void shuffle_sealed_shares(ccf::kv::Tx& tx) override
-    {
-      SealingManager::shuffle_sealed_shares(
-        tx, network.ledger_secrets->get_latest(tx).second);
     }
   };
 }
