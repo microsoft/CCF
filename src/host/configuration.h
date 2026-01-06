@@ -49,7 +49,7 @@ namespace host
     std::optional<std::string> node_data_json_file = std::nullopt;
     std::optional<std::string> service_data_json_file = std::nullopt;
     bool ignore_first_sigterm = false;
-    bool should_seal_ledger_secrets = false;
+    bool enable_local_sealing = false;
 
     struct OutputFiles
     {
@@ -191,7 +191,7 @@ namespace host
     node_data_json_file,
     service_data_json_file,
     ignore_first_sigterm,
-    should_seal_ledger_secrets,
+    enable_local_sealing,
     output_files,
     snapshots,
     logging,

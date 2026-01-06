@@ -213,7 +213,6 @@ class Network:
         "subject_name",
         "idle_connection_timeout_s",
         "enable_local_sealing",
-        "previous_sealed_ledger_secret_location",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -782,7 +781,6 @@ class Network:
         common_dir=None,
         starting_nodes=None,
         timeout=10,
-        sealed_ledger_secrets=None,
         **kwargs,
     ):
         self.common_dir = common_dir or get_common_folder_name(
@@ -806,15 +804,6 @@ class Network:
                     "read_only_ledger_dirs": committed_ledger_dirs[node_id] or [],
                     "snapshots_dir": snapshot_dirs[node_id] or None,
                 }
-                | (
-                    {
-                        "previous_sealed_ledger_secret_location": sealed_ledger_secrets[
-                            node_id
-                        ]
-                    }
-                    if sealed_ledger_secrets and node_id < len(sealed_ledger_secrets)
-                    else {}
-                )
             )
             for node_id, current_options in self.per_node_args_override.items()
         }

@@ -201,31 +201,6 @@ class Node:
         self._start()
         self.network_state = NodeNetworkState.joined
 
-    def save_sealed_ledger_secret(self, destination=None):
-        if self.sealed_ledger_secret_location is None:
-            raise RuntimeError(
-                "Sealed secret location was not set so no secrets were sealed."
-            )
-        sealed_ledger_secret_location = self.sealed_ledger_secret_location
-        if not os.path.isabs(sealed_ledger_secret_location):
-            sealed_ledger_secret_location = os.path.join(
-                self.remote.remote.root, sealed_ledger_secret_location
-            )
-
-        if not os.path.exists(sealed_ledger_secret_location):
-            raise RuntimeError(
-                f"Sealed ledger secret file {sealed_ledger_secret_location} does not exist"
-            )
-
-        if destination is None:
-            destination = os.path.join(
-                self.common_dir, f"{self.local_node_id}.sealed_ledger_secret"
-            )
-
-        copytree(sealed_ledger_secret_location, destination)
-
-        return destination
-
     def join(
         self,
         lib_name,
@@ -285,7 +260,6 @@ class Node:
         common_dir,
         members_info=None,
         enable_local_sealing=False,
-        previous_sealed_ledger_secret_location=None,
         **kwargs,
     ):
         """
@@ -306,13 +280,6 @@ class Node:
         members_info = members_info or []
         self.label = label
         self.enable_local_sealing = enable_local_sealing
-        if enable_local_sealing:
-            self.sealed_ledger_secret_location = "sealed_ledger_secret"
-        else:
-            self.sealed_ledger_secret_location = None
-        self.previous_sealed_ledger_secret_location = (
-            previous_sealed_ledger_secret_location
-        )
 
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         self.remote = infra.remote.CCFRemote(
@@ -334,8 +301,6 @@ class Node:
             major_version=self.major_version,
             node_data_json_file=self.initial_node_data_json_file,
             enable_local_sealing=enable_local_sealing,
-            sealed_ledger_secret_location=self.sealed_ledger_secret_location,
-            previous_sealed_ledger_secret_location=previous_sealed_ledger_secret_location,
             **kwargs,
         )
         self.remote.setup()

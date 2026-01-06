@@ -49,8 +49,7 @@
     },
     "recover": {
       "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }},
-      "previous_service_identity_file": "{{ previous_service_identity_file }}" {% if previous_sealed_ledger_secret_location %},
-        "previous_sealed_ledger_secret_location": "{{ previous_sealed_ledger_secret_location }}"{% endif %} {% if self_healing_open_cluster_identities and self_healing_open_identity %},
+      "previous_service_identity_file": "{{ previous_service_identity_file }}" {% if self_healing_open_cluster_identities and self_healing_open_identity %},
       "self_healing_open": {
         "identity": {
           "intrinsic_id": "{{self_healing_open_identity.intrinsic_id}}",
@@ -103,9 +102,6 @@
     "node_certificate_file": "{{ node_certificate_file or "node.pem" }}",
     "pid_file": "{{ node_pid_file or "node.pid" }}",
     "node_to_node_address_file": "{{ node_address_file }}",
-    {% if sealed_ledger_secret_location %}
-      "sealed_ledger_secret_location": "{{ sealed_ledger_secret_location }}",
-    {% endif %}
     "rpc_addresses_file" : "{{ rpc_addresses_file }}"
   },
   "tick_interval": "{{ tick_ms }}ms",
@@ -121,5 +117,6 @@
   },
   "ignore_first_sigterm": {{ ignore_first_sigterm|tojson }}{% if node_to_node_message_limit %},
   "node_to_node_message_limit": {{ node_to_node_message_limit|tojson }}{% endif %}{% if historical_cache_soft_limit %},
-  "historical_cache_soft_limit": {{ historical_cache_soft_limit|tojson }}{% endif %}
+  "historical_cache_soft_limit": {{ historical_cache_soft_limit|tojson }}{% endif %},
+  "enable_local_sealing": {{ enable_local_sealing }}
 }

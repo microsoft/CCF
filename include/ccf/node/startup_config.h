@@ -125,7 +125,7 @@ namespace ccf
     std::string service_subject_name = "CN=CCF Service";
     ccf::COSESignaturesConfig cose_signatures;
 
-    bool should_seal_ledger_secrets = false;
+    bool enable_local_sealing = false;
 
     nlohmann::json service_data = nullptr;
 

@@ -882,7 +882,7 @@ namespace ccf
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
-      if (config.should_seal_ledger_secrets && snp_tcb_version.has_value())
+      if (config.enable_local_sealing && snp_tcb_version.has_value())
       {
         join_params.sealed_recovery_key =
           sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());
@@ -1560,7 +1560,7 @@ namespace ccf
         ShareManager::clear_submitted_recovery_shares(tx);
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
         service->put(service_info.value());
-        if (config.should_seal_ledger_secrets)
+        if (config.enable_local_sealing)
         {
           auto unsealed_ls = sealing::unseal_share(tx, self);
           if (unsealed_ls.has_value())
@@ -2032,7 +2032,7 @@ namespace ccf
       create_params.service_data = config.service_data;
       create_params.create_txid = {create_view, last_recovered_signed_idx + 1};
 
-      if (config.should_seal_ledger_secrets && snp_tcb_version.has_value())
+      if (config.enable_local_sealing && snp_tcb_version.has_value())
       {
         create_params.sealed_recovery_key =
           sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());

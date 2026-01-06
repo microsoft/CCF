@@ -149,5 +149,5 @@ namespace ccf
     start,
     join,
     recover,
-    should_seal_ledger_secrets);
+    enable_local_sealing);
 }
