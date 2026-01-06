@@ -20,7 +20,6 @@ import copy
 import json
 import time
 import http
-from shutil import copytree
 
 import ccf._versionifier
 

@@ -31,12 +31,12 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SealedSharesInfo);
   DECLARE_JSON_REQUIRED_FIELDS(
     SealedSharesInfo, wrapped_latest_ledger_secret, encrypted_wrapping_keys);
-  DECLARE_JSON_OPTIONAL_FIELDS(SealedSharesInfo, previous_secret_stored_version);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    SealedSharesInfo, previous_secret_stored_version);
 
   using SealedShares = ServiceValue<SealedSharesInfo>;
   namespace Tables
   {
-    static constexpr auto SEALED_SHARES =
-      "public:ccf.gov.sealed_shares";
+    static constexpr auto SEALED_SHARES = "public:ccf.gov.sealed_shares";
   }
 }

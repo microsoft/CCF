@@ -80,8 +80,7 @@ namespace ccf
     service_data,
     snp_security_policy,
     snp_uvm_endorsements,
-    sealed_recovery_key
-  )
+    sealed_recovery_key)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetCommit::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, transaction_id)

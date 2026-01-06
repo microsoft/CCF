@@ -438,10 +438,13 @@ namespace ccf
     }
     LOG_INFO_FMT("Reading previous service identity from {}", idf);
     startup_config.recover.previous_service_identity = files::slurp(idf);
-    if (config.command.recover.previous_local_sealing_identity.has_value() && !config.enable_local_sealing)
+    if (
+      config.command.recover.previous_local_sealing_identity.has_value() &&
+      !config.enable_local_sealing)
     {
       throw std::logic_error(
-        "Previous local sealing identity provided but local sealing is not enabled");
+        "Previous local sealing identity provided but local sealing is not "
+        "enabled");
     }
     startup_config.recover.previous_local_sealing_identity =
       config.command.recover.previous_local_sealing_identity;

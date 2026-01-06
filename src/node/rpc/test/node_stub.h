@@ -8,6 +8,7 @@
 #include "node/rpc/node_interface.h"
 #include "node/rpc/node_operation_interface.h"
 #include "node/self_healing_open_impl.h"
+
 #include <stdexcept>
 
 namespace ccf

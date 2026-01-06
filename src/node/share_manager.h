@@ -533,7 +533,8 @@ namespace ccf
       LedgerSecretPtr restored_ls =
         combine_from_encrypted_submitted_shares(tx).unwrap(
           recovery_shares_info->wrapped_latest_ledger_secret);
-      return restore_ledger_secrets_map(tx, recovery_ledger_secrets, restored_ls);
+      return restore_ledger_secrets_map(
+        tx, recovery_ledger_secrets, restored_ls);
     }
 
     LedgerSecretsMap restore_ledger_secrets_map(
