@@ -2736,8 +2736,8 @@ namespace ccf
     void shuffle_sealed_shares(ccf::kv::Tx& tx) override
     {
       auto latest_ledger_secret =
-        network.ledger_secrets->get_latest();
-      sealing::shuffle_sealed_shares(tx, latest_ledger_secret)
+        network.ledger_secrets->get_latest(tx);
+      sealing::shuffle_sealed_shares(tx, latest_ledger_secret.second);
     }
   };
 }

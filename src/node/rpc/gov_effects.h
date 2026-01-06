@@ -41,7 +41,7 @@ namespace ccf
       impl.trigger_snapshot(tx);
     }
 
-    void shuffle_sealeded_shares(ccf::kv::Tx& tx) override
+    void shuffle_sealed_shares(ccf::kv::Tx& tx) override
     {
       impl.shuffle_sealed_shares(tx);
     }
