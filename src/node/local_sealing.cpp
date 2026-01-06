@@ -88,7 +88,7 @@ namespace ccf::sealing
   {
     auto derived_key = derive_snp_sealing_key(tcb_version);
 
-    auto recovery_key_pair = crypto::make_ec_key_pair();
+    auto recovery_key_pair = crypto::make_rsa_key_pair();
     auto recovery_pubkey = recovery_key_pair->public_key_pem();
 
     auto recovery_privkey = recovery_key_pair->private_key_pem();
