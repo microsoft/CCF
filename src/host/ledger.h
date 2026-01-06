@@ -1539,6 +1539,32 @@ namespace asynchost
       return idx <= end_of_committed_files_idx;
     }
 
+    /**
+     * Returns the path to the committed ledger file containing the given
+     * index, or nullopt if no such file exists. Only returns paths from the
+     * main ledger directory.
+     */
+    [[nodiscard]] std::optional<fs::path> committed_ledger_path_with_idx(
+      size_t idx)
+    {
+      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+
+      if (idx > end_of_committed_files_idx)
+      {
+        return std::nullopt;
+      }
+
+      auto name = get_file_name_with_idx(
+        ledger_dir, idx, false /* do not allow recovery files */);
+
+      if (!name.has_value())
+      {
+        return std::nullopt;
+      }
+
+      return ledger_dir / name.value();
+    }
+
     struct AsyncLedgerGet
     {
       // Filled on construction

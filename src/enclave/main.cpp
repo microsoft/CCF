@@ -7,6 +7,7 @@
 #include "common/enclave_interface_types.h"
 #include "ds/internal_logger.h"
 #include "enclave.h"
+#include "host/ledger.h"
 
 #include <chrono>
 #include <cstdint>
@@ -33,7 +34,8 @@ extern "C"
     StartType start_type,
     ccf::LoggerLevel log_level,
     size_t num_worker_threads,
-    const ccf::ds::WorkBeaconPtr& work_beacon)
+    const ccf::ds::WorkBeaconPtr& work_beacon,
+    asynchost::Ledger& ledger)
   {
     std::lock_guard<ccf::pal::Mutex> guard(create_lock);
 
@@ -107,7 +109,8 @@ extern "C"
         ccf_config.ledger.chunk_size,
         ccf_config.consensus,
         ccf_config.node_certificate.curve_id,
-        work_beacon);
+        work_beacon,
+        ledger);
       // NOLINTEND(cppcoreguidelines-owning-memory)
     }
     catch (const ccf::ccf_openssl_rdrand_init_error& exc)
