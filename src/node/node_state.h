@@ -2735,6 +2735,11 @@ namespace ccf
 
     void shuffle_sealed_shares(ccf::kv::Tx& tx) override
     {
+      // skip if during recovery as the ledger secrets are not yet restored
+      if (!is_part_of_network())
+      {
+        return;
+      }
       auto latest_ledger_secret =
         network.ledger_secrets->get_latest(tx);
       sealing::shuffle_sealed_shares(tx, latest_ledger_secret.second);
