@@ -30,5 +30,5 @@ namespace ccf
   };
 
   DECLARE_JSON_TYPE(SealedRecoveryKey);
-  DECLARE_JSON_REQUIRED_FIELDS(SealedRecoveryKey, version, ciphertext, pubkey);
+  DECLARE_JSON_REQUIRED_FIELDS(SealedRecoveryKey, version, ciphertext, pubkey, tcb_version);
 }
