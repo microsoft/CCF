@@ -357,6 +357,10 @@
                     "type": "string",
                     "description": "Path to the previous service certificate (PEM) file"
                   },
+                  "previous_local_sealing_identity": {
+                    "type": ["string", "null"],
+                    "description": "The identity of the previous node which sealed the ledger secrets. Required if local sealing is enabled"
+                  },
                   "self_healing_open": {
                     "type": "object",
                     "properties": {
