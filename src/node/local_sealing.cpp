@@ -83,7 +83,7 @@ namespace ccf::sealing
     return sealing_key;
   }
 
-  SealedRecoveryKey get_snp_v1_sealed_recovery_key(
+  SealedRecoveryKey get_snp_sealed_recovery_key(
     const pal::snp::TcbVersionRaw& tcb_version)
   {
     auto derived_key = derive_snp_sealing_key(tcb_version);
