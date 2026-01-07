@@ -850,6 +850,16 @@ namespace ccf::historical
         return true;
       }
 
+      if (previous_ledger_secret->version >= earliest_secret_.valid_from)
+      {
+        LOG_INFO_FMT(
+          "Skipping redundant ledger secret with version of {} when the "
+          "earliest known secret is from {}",
+          previous_ledger_secret->version,
+          earliest_secret_.valid_from);
+        return true;
+      }
+
       auto recovered_ledger_secret = std::make_shared<LedgerSecret>(
         ccf::decrypt_previous_ledger_secret_raw(
           encrypting_secret, std::move(previous_ledger_secret->encrypted_data)),
