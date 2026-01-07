@@ -388,7 +388,7 @@ namespace ccf::cbor
             if constexpr (
               std::is_same_v<TA, Unsigned> && std::is_same_v<TB, Signed>)
             {
-              return signed_equals_unsigned(a, b);
+              return signed_equals_unsigned(b, a);
             }
             return false;
           }
