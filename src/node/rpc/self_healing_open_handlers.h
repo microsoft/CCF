@@ -203,6 +203,17 @@ namespace ccf::node
     auto self_healing_open_iamopen =
       [](auto& args, self_healing_open::TaggedWithNodeInfo in)
       -> std::optional<ErrorDetails> {
+      auto sm_state = args.tx.template ro<self_healing_open::SMState>(
+        Tables::SELF_HEALING_OPEN_SM_STATE);
+      if (
+        sm_state == self_healing_open::StateMachine::OPENING ||
+        sm_state == self_healing_open::StateMachine::OPEN)
+      {
+        return ErrorDetails{
+          .status = HTTP_STATUS_BAD_REQUEST,
+          .code = ccf::errors::InvalidNodeState,
+          .msg = "Node is already opening, ignoring iamopen request"};
+      }
       LOG_TRACE_FMT(
         "Self-healing-open: receive IAmOpen from {}",
         in.info.identity.intrinsic_id);
