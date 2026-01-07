@@ -1934,7 +1934,7 @@ def run_self_healing_open_multiple_timeout(const_args):
                 committed_ledger_dirs=committed_ledger_dirs,
                 suspend_after_start=True,  # suspend each node after starting to ensure they don't progress
             )
-            # for each node start it and wait until that node is waiting for others to join
+            # for each node start it and wait until it finishes the self-healing-open on the timeout path
             for node in recovered_network.nodes:
                 node.resume()
                 network.wait_for_statuses(
