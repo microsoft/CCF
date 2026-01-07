@@ -1489,7 +1489,7 @@ def run_recovery_unsealing_validate_audit(const_args):
         node_info = latest_public_tables["public:ccf.gov.nodes.info"]
         for info in node_info.values():
             node_info = json.loads(info.decode("utf-8"))
-            assert node_info["will_locally_seal_ledger_secrets"]
+            assert node_info["sealed_recovery_key"] is not None, "Node does not have sealed recovery key"
         assert (
             "public:ccf.internal.last_recovery_type" not in latest_public_tables
         ), "last_recovery_type was set when no recovery was performed."
