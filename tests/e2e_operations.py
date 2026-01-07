@@ -29,7 +29,6 @@ import infra.snp as snp
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 import cbor2
-import sys
 import pathlib
 import infra.concurrency
 import ccf.read_ledger
