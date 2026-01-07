@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/ccf_exception.h"
 #include "enclave/forwarder_types.h"
 #include "enclave/rpc_map.h"
 #include "http/http_rpc_context.h"
