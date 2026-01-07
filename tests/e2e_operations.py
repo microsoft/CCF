@@ -1780,6 +1780,7 @@ def run_self_healing_open(const_args):
                 ledger_dirs=ledger_dirs,
                 committed_ledger_dirs=committed_ledger_dirs,
             )
+            recovered_network.wait_for_self_healing_open_finish()
 
             # Refresh the declared state of nodes which have shut themselves down to join.
             for node in recovered_network.nodes:
@@ -1856,6 +1857,7 @@ def run_self_healing_open_timeout_path(const_args):
                 committed_ledger_dirs=committed_ledger_dirs,
                 starting_nodes=0,  # Force timeout path by starting only one node
             )
+            recovered_network.wait_for_self_healing_open_finish()
 
             # Refresh the declared state of nodes which have shut themselves down to join.
             for node in recovered_network.nodes:
