@@ -1954,6 +1954,7 @@ def run_self_healing_open_multiple_timeout(const_args):
 
             assert len(recovered_network.get_joined_nodes()) == 3
 
+
 def run_self_healing_open_local_unsealing(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
@@ -2342,20 +2343,20 @@ def run_snp_tests(args):
 
 
 def run(args):
-    #run_max_uncommitted_tx_count(args)
-    #run_file_operations(args)
-    #run_tls_san_checks(args)
-    #run_config_timeout_check(args)
-    #run_configuration_file_checks(args)
-    #run_pid_file_check(args)
-    #run_preopen_readiness_check(args)
-    #run_sighup_check(args)
-    #run_service_subject_name_check(args)
-    #run_cose_signatures_config_check(args)
-    #run_late_mounted_ledger_check(args)
-    #run_empty_ledger_dir_check(args)
-    #run_self_healing_open(args)
-    #run_self_healing_open_timeout_path(args)
+    run_max_uncommitted_tx_count(args)
+    run_file_operations(args)
+    run_tls_san_checks(args)
+    run_config_timeout_check(args)
+    run_configuration_file_checks(args)
+    run_pid_file_check(args)
+    run_preopen_readiness_check(args)
+    run_sighup_check(args)
+    run_service_subject_name_check(args)
+    run_cose_signatures_config_check(args)
+    run_late_mounted_ledger_check(args)
+    run_empty_ledger_dir_check(args)
+    run_self_healing_open(args)
+    run_self_healing_open_timeout_path(args)
     run_self_healing_open_multiple_timeout(args)
-    #run_read_ledger_on_testdata(args)
-    #run_propose_request_vote(args)
+    run_read_ledger_on_testdata(args)
+    run_propose_request_vote(args)
