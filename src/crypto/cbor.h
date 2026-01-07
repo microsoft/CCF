@@ -80,7 +80,7 @@ namespace ccf::cbor
   Value parse(std::span<const uint8_t> raw);
   std::string to_string(const Value& value);
 
-  decltype(auto) rethrow_with_context(auto&& f, std::string_view context = {})
+  decltype(auto) rethrow_with_msg(auto&& f, std::string_view context = {})
   {
     try
     {
