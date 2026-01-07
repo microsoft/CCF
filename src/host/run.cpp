@@ -802,6 +802,7 @@ namespace ccf
       CCF_ASSERT_FMT(
         ccf::pal::platform == ccf::pal::Platform::SNP,
         "Sealing ledger secrets is only supported on SEV-SNP platforms");
+      startup_config.network.will_locally_seal_ledger_secrets = true;
       startup_config.enable_local_sealing = true;
     }
 
