@@ -619,6 +619,12 @@ if(BUILD_TESTS)
     target_link_libraries(crypto_test PRIVATE ccfcrypto)
 
     add_unit_test(
+      cbor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cbor.cpp
+    )
+    target_include_directories(cbor_test PRIVATE ${CCFCRYPTO_INC})
+    target_link_libraries(cbor_test PRIVATE ccfcrypto)
+
+    add_unit_test(
       sharing_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/secret_sharing.cpp
     )
