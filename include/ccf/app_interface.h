@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ccf_deprecated.h"
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/node_context.h"
 
