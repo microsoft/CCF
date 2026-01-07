@@ -527,7 +527,7 @@ class CCFRemote(object):
                 historical_cache_soft_limit=historical_cache_soft_limit,
                 cose_signatures_issuer=cose_signatures_issuer,
                 cose_signatures_subject=cose_signatures_subject,
-                enable_local_sealing=enable_local_sealing,
+                enable_local_sealing=enable_local_sealing if enable_local_sealing is not None else False,
                 previous_local_sealing_identity=previous_local_sealing_identity,
                 self_healing_open_cluster_identities=self_healing_open_cluster_identities,
                 self_healing_open_identity=self_healing_open_identity,
