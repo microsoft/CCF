@@ -144,11 +144,20 @@ namespace ccf
         if (sufficient_quorum || valid_timeout)
         {
           auto timeout_used = valid_timeout && !sufficient_quorum;
-          tx.rw<self_healing_open::OpenKind>(
-              Tables::SELF_HEALING_OPEN_OPEN_KIND)
-            ->put(
-              timeout_used ? self_healing_open::OpenKinds::FAILOVER :
-                             self_healing_open::OpenKinds::QUORUM);
+          if (timeout_used)
+          {
+            tx.rw<self_healing_open::OpenKind>(
+                Tables::SELF_HEALING_OPEN_OPEN_KIND)
+              ->put(self_healing_open::OpenKinds::FAILOVER);
+            LOG_INFO_FMT("Self-healing-open succeeded on the failover path");
+          }
+          else
+          {
+            tx.rw<self_healing_open::OpenKind>(
+                Tables::SELF_HEALING_OPEN_OPEN_KIND)
+              ->put(self_healing_open::OpenKinds::QUORUM);
+            LOG_INFO_FMT("Self-healing-open succeeded on the quorum path");
+          }
 
           if (valid_timeout && votes->size() == 0)
           {
@@ -160,9 +169,6 @@ namespace ccf
               "skipping opening network");
             return;
           }
-          LOG_INFO_FMT(
-            "Self-healing-open succeeded on the timeout path, now opening "
-            "network");
 
           auto* service = tx.ro<Service>(Tables::SERVICE);
           auto service_info = service->get();
