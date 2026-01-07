@@ -207,10 +207,15 @@ namespace ccf::node
                         .template ro<self_healing_open::SMState>(
                           Tables::SELF_HEALING_OPEN_SM_STATE)
                         ->get();
+      if (!sm_state.has_value())
+      {
+        throw std::logic_error(
+          "Self-healing-open state machine state is not set");
+      }
+
       if (
-        sm_state.has_value() &&
-        (sm_state.value() == self_healing_open::StateMachine::OPENING ||
-         sm_state.value() == self_healing_open::StateMachine::OPEN))
+        sm_state.value() == self_healing_open::StateMachine::OPENING ||
+        sm_state.value() == self_healing_open::StateMachine::OPEN)
       {
         LOG_INFO_FMT(
           "Ignoring iamopen request as node is already opening/open");
