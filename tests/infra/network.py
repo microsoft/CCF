@@ -1973,7 +1973,7 @@ def close_on_error(net, pdb=False):
         if pdb:
             import pdb
 
-            pdb.set_trace()
+            pdb.post_mortem()
 
         LOG.info("Stopping network")
         net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
