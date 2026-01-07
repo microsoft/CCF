@@ -143,6 +143,17 @@ namespace ccf
           votes->size() >= config.cluster_identities.size() / 2 + 1;
         if (sufficient_quorum || valid_timeout)
         {
+          if (valid_timeout && votes->size() == 0)
+          {
+            // If we have voted for another node, that node is better placed
+            // than ourselves to begin operating
+            // So we do not attempt to open the service ourselves
+            LOG_FAIL_FMT(
+              "Self-healing-open timeout without any votes for ourselves, "
+              "skipping opening network");
+            return;
+          }
+
           auto timeout_used = valid_timeout && !sufficient_quorum;
           if (timeout_used)
           {
@@ -157,17 +168,6 @@ namespace ccf
                 Tables::SELF_HEALING_OPEN_OPEN_KIND)
               ->put(self_healing_open::OpenKinds::QUORUM);
             LOG_INFO_FMT("Self-healing-open succeeded on the quorum path");
-          }
-
-          if (valid_timeout && votes->size() == 0)
-          {
-            // If we have voted for another node, that node is better placed
-            // than ourselves to begin operating
-            // So we do not attempt to open the service ourselves
-            LOG_FAIL_FMT(
-              "Self-healing-open timeout without any votes for ourselves, "
-              "skipping opening network");
-            return;
           }
 
           auto* service = tx.ro<Service>(Tables::SERVICE);
