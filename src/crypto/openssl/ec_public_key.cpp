@@ -338,6 +338,11 @@ namespace ccf::crypto
     return std::make_shared<ECPublicKey_OpenSSL>(der);
   }
 
+  ECPublicKeyPtr make_ec_public_key(std::span<const uint8_t> der)
+  {
+    return std::make_shared<ECPublicKey_OpenSSL>(der);
+  }
+
   ECPublicKeyPtr make_ec_public_key(const JsonWebKeyECPublic& jwk)
   {
     return std::make_shared<ECPublicKey_OpenSSL>(jwk);

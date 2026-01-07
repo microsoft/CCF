@@ -111,6 +111,7 @@ namespace ccf
     const std::unique_ptr<NetworkIdentity>& network_identity;
     std::shared_ptr<historical::StateCacheImpl> historical_cache;
     std::map<SeqNo, CoseEndorsement> endorsements;
+    std::map<SeqNo, ccf::crypto::ECPublicKeyPtr> trusted_keys;
     std::optional<TxID> current_service_from;
     SeqNo earliest_endorsed_seq{0};
     std::atomic<FetchStatus> fetch_status{FetchStatus::Retry};
@@ -177,6 +178,38 @@ namespace ccf
       }
       std::reverse(result.begin(), result.end());
       return result;
+    }
+
+    [[nodiscard]] ccf::crypto::ECPublicKeyPtr get_trusted_identity_for(
+      ccf::SeqNo seqno) const override
+    {
+      if (fetch_status.load() != FetchStatus::Done)
+      {
+        throw std::logic_error(fmt::format(
+          "Trusted key requested for seqno {} but the fetching has "
+          "not been completed yet",
+          seqno));
+      }
+      if (trusted_keys.empty())
+      {
+        throw std::logic_error(fmt::format(
+          "No trusted keys fetched when requested one for seqno {}", seqno));
+      }
+      auto it = trusted_keys.upper_bound(seqno);
+      if (it == trusted_keys.begin())
+      {
+        // The earliest known trusted seqno is greater than the requested one.
+        return nullptr;
+      }
+      const auto& [key_seqno, key_ptr] = *(--it);
+      if (key_seqno > seqno)
+      {
+        throw std::logic_error(fmt::format(
+          "Resolved trusted key for {} with wrong starting seqno {}",
+          seqno,
+          key_seqno));
+      }
+      return key_ptr;
     }
 
   private:
@@ -254,6 +287,15 @@ namespace ccf
         }
       }
 
+      try
+      {
+        build_trusted_key_chain();
+      }
+      catch (const std::exception& e)
+      {
+        fail_fetching(e.what());
+      }
+
       fetch_status.store(FetchStatus::Done);
     }
 
@@ -283,6 +325,19 @@ namespace ccf
           LOG_INFO_FMT(
             "Retrying fetching network identity as current service create txid "
             "is not yet available");
+          retry_first_fetch();
+          return;
+        }
+
+        if (service_info->status != ServiceStatus::OPEN)
+        {
+          // It can happen that node advances its internal state machine to
+          // part-of-network, but the service opening tx has not been replicated
+          // yet. This will cause the first fetched endorsement to be obsolete,
+          // but waiting for ServiceStatus::OPEN is sufficient, as it's supposed
+          // to arrive in the same TX that the previous identity endorsement.
+          LOG_INFO_FMT(
+            "Retrying fetching network identity as service is not yet open");
           retry_first_fetch();
           return;
         }
@@ -408,6 +463,84 @@ namespace ccf
       }
 
       complete_fetching();
+    }
+
+    void build_trusted_key_chain()
+    {
+      if (!current_service_from.has_value())
+      {
+        throw std::logic_error(
+          "Attempting to build trusted key chain but no current service "
+          "created seqno fetched");
+      }
+
+      std::span<const uint8_t> previous_key_der{};
+      for (const auto& [seqno, endorsement] : endorsements)
+      {
+        auto verifier =
+          ccf::crypto::make_cose_verifier_from_key(endorsement.endorsing_key);
+        std::span<uint8_t> endorsed_key;
+        if (!verifier->verify(endorsement.endorsement, endorsed_key))
+        {
+          throw std::logic_error(fmt::format(
+            "COSE endorsement chain integrity is violated, endorsement from {} "
+            "to {} failed signature verification",
+            endorsement.endorsement_epoch_begin.to_str(),
+            format_epoch(endorsement.endorsement_epoch_end)));
+        }
+
+        LOG_INFO_FMT(
+          "Adding trusted seq {} key {}",
+          endorsement.endorsement_epoch_begin.seqno,
+          ccf::crypto::b64_from_raw(endorsed_key));
+        trusted_keys.insert(
+          {endorsement.endorsement_epoch_begin.seqno,
+           ccf::crypto::make_ec_public_key(endorsed_key)});
+
+        if (
+          !previous_key_der.empty() &&
+          !std::equal(
+            previous_key_der.begin(),
+            previous_key_der.end(),
+            endorsed_key.begin(),
+            endorsed_key.end()))
+        {
+          throw std::logic_error(fmt::format(
+            "Endorsement from {} to {} over public key {} doesn't chain with "
+            "the previous endorsement with key {}",
+            endorsement.endorsement_epoch_begin.seqno,
+            format_epoch(endorsement.endorsement_epoch_end),
+            ccf::ds::to_hex(endorsed_key),
+            ccf::ds::to_hex(previous_key_der)));
+        }
+
+        previous_key_der = endorsement.endorsing_key;
+      }
+
+      const auto& current_pkey =
+        network_identity->get_key_pair()->public_key_der();
+      if (
+        !previous_key_der.empty() &&
+        !std::equal(
+          previous_key_der.begin(),
+          previous_key_der.end(),
+          current_pkey.begin(),
+          current_pkey.end()))
+      {
+        throw std::logic_error(fmt::format(
+          "Current service identity public key {} does not match the last "
+          "endorsing key {}",
+          ccf::ds::to_hex(current_pkey),
+          ccf::ds::to_hex(previous_key_der)));
+      }
+
+      LOG_INFO_FMT(
+        "Adding trusted seq {} key {}",
+        current_service_from->seqno,
+        ccf::crypto::b64_from_raw(current_pkey));
+      trusted_keys.insert(
+        {current_service_from->seqno,
+         ccf::crypto::make_ec_public_key(current_pkey)});
     }
 
     void fetch_next_at(ccf::SeqNo seq)
