@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
+#include "ccf/endpoint_context.h"
 #include "ccf/rpc_context.h"
 
 namespace ccf
