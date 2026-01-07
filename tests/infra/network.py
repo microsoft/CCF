@@ -782,6 +782,7 @@ class Network:
         common_dir=None,
         starting_nodes=None,
         sealed_ledger_secrets=None,
+        suspend_after_start=False,
         **kwargs,
     ):
         self.common_dir = common_dir or get_common_folder_name(
@@ -867,6 +868,8 @@ class Network:
                     | kwargs
                 )
                 node.recover(**node_kwargs)
+                if suspend_after_start:
+                    node.suspend()
             except Exception:
                 LOG.exception(f"Failed to start node {node.local_node_id}")
                 raise

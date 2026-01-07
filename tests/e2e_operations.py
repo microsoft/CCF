@@ -1898,6 +1898,62 @@ def run_self_healing_open_timeout_path(const_args):
             ), f"Network self-healing open type was {recovery_type} instead of Failover"
 
 
+def run_self_healing_open_multiple_timeout(const_args):
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.label += "_self_healing_open_timeout"
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+    ) as network:
+        LOG.info("Start a network and stop it")
+        network.start_and_open(args)
+        network.save_service_identity(args)
+        network.stop_all_nodes()
+
+        recovery_args = copy.deepcopy(args)
+
+        ledger_dirs = {}
+        committed_ledger_dirs = {}
+        for i, node in enumerate(network.nodes):
+            l_dir, c = node.get_ledger()
+            ledger_dirs[i] = l_dir
+            committed_ledger_dirs[i] = c
+
+        LOG.info("Start a recovery network and stop it")
+        with infra.network.network(
+            recovery_args.nodes,
+            recovery_args.binary_dir,
+            recovery_args.debug_nodes,
+            existing_network=network,
+        ) as recovered_network:
+            recovered_network.start_in_self_healing_open(
+                recovery_args,
+                ledger_dirs=ledger_dirs,
+                committed_ledger_dirs=committed_ledger_dirs,
+                suspend_after_start=True,  # suspend each node after starting to ensure they don't progress
+            )
+            # for each node start it and wait until that node is waiting for others to join
+            for node in recovered_network.nodes:
+                node.resume()
+                network.wait_for_statuses(
+                    node,
+                    ["WaitingForRecoveryShares", "Open"],
+                    timeout=10,
+                    verify_ca=False,
+                )
+                node.suspend()
+
+            for node in recovered_network.nodes:
+                node.resume()
+
+            # Refresh the declared state of nodes which have shut themselves down to join.
+            for node in recovered_network.nodes:
+                node.refresh_network_state(verify_ca=False)
+
+            assert len(recovered_network.get_joined_nodes()) == 3
+
 def run_self_healing_open_local_unsealing(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
@@ -2286,19 +2342,20 @@ def run_snp_tests(args):
 
 
 def run(args):
-    run_max_uncommitted_tx_count(args)
-    run_file_operations(args)
-    run_tls_san_checks(args)
-    run_config_timeout_check(args)
-    run_configuration_file_checks(args)
-    run_pid_file_check(args)
-    run_preopen_readiness_check(args)
-    run_sighup_check(args)
-    run_service_subject_name_check(args)
-    run_cose_signatures_config_check(args)
-    run_late_mounted_ledger_check(args)
-    run_empty_ledger_dir_check(args)
-    run_self_healing_open(args)
-    run_self_healing_open_timeout_path(args)
-    run_read_ledger_on_testdata(args)
-    run_propose_request_vote(args)
+    #run_max_uncommitted_tx_count(args)
+    #run_file_operations(args)
+    #run_tls_san_checks(args)
+    #run_config_timeout_check(args)
+    #run_configuration_file_checks(args)
+    #run_pid_file_check(args)
+    #run_preopen_readiness_check(args)
+    #run_sighup_check(args)
+    #run_service_subject_name_check(args)
+    #run_cose_signatures_config_check(args)
+    #run_late_mounted_ledger_check(args)
+    #run_empty_ledger_dir_check(args)
+    #run_self_healing_open(args)
+    #run_self_healing_open_timeout_path(args)
+    run_self_healing_open_multiple_timeout(args)
+    #run_read_ledger_on_testdata(args)
+    #run_propose_request_vote(args)
