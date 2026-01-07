@@ -22,7 +22,7 @@ namespace
 std::atomic<uint16_t> num_pending_threads = 0;
 std::atomic<uint16_t> num_complete_threads = 0;
 
-extern "C"
+namespace ccf
 {
   CreateNodeStatus enclave_create_node(
     const EnclaveConfig& enclave_config,
