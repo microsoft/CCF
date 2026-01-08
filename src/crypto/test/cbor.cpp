@@ -12,254 +12,135 @@
 
 using namespace ccf::cbor;
 
-TEST_CASE("CBOR: unsigned integer 0")
+TEST_CASE("CBOR: signed integers")
 {
-  auto cbor_bytes = ccf::ds::from_hex("00");
-  auto value = parse(cbor_bytes);
+  std::vector<std::tuple<doctest::String, std::string, int64_t, std::string>>
+    test_cases{
+      {"signed integer -1", "20", -1, "Signed: -1"},
+      {"signed integer 1", "01", 1, "Signed: 1"},
+      {"signed integer -42", "3829", -42, "Signed: -42"},
+      {"signed integer 42", "182a", 42, "Signed: 42"},
+      {"signed integer -1000", "3903e7", -1000, "Signed: -1000"},
+      {"signed integer 1000", "1903e8", 1000, "Signed: 1000"},
+      {"signed integer min int64",
+       "3b7fffffffffffffff",
+       std::numeric_limits<int64_t>::min(),
+       "Signed: -9223372036854775808"},
+      {"signed integer max int64",
+       "1B7FFFFFFFFFFFFFFF",
+       std::numeric_limits<int64_t>::max(),
+       "Signed: 9223372036854775807"}};
 
-  REQUIRE(value->as_unsigned() == 0);
+  for (const auto& [name, hex, expected_value, expected_repr] : test_cases)
+  {
+    SUBCASE(name)
+    {
+      auto cbor_bytes = ccf::ds::from_hex(hex);
+      auto value = parse(cbor_bytes);
 
-  const std::string expected_repr = "Unsigned: 0";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
+      REQUIRE(value->as_signed() == expected_value);
+
+      const std::string result = to_string(value);
+      REQUIRE(result == expected_repr);
+    }
+  }
 }
 
-TEST_CASE("CBOR: unsigned integer 42")
+TEST_CASE("CBOR: signed integer overflow")
 {
-  auto cbor_bytes = ccf::ds::from_hex("182a");
-  auto value = parse(cbor_bytes);
-
-  REQUIRE(value->as_unsigned() == 42);
-
-  const std::string expected_repr = "Unsigned: 42";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
+  // 9223372036854775807 + 1 = 9223372036854775808
+  auto cbor_bytes = ccf::ds::from_hex("1b8000000000000000");
+  REQUIRE_THROWS_AS(parse(cbor_bytes), CBORDecodeError);
 }
 
-TEST_CASE("CBOR: unsigned integer 255")
+TEST_CASE("CBOR: strings")
 {
-  auto cbor_bytes = ccf::ds::from_hex("18ff");
-  auto value = parse(cbor_bytes);
+  std::vector<
+    std::tuple<doctest::String, std::string, std::string, std::string>>
+    test_cases{
+      {"empty string", "60", "", R"(String: "")"},
+      {"string 'hello'", "6568656c6c6f", "hello", R"(String: "hello")"},
+      {"string 'Hello, World!'",
+       "6d48656c6c6f2c20576f726c6421",
+       "Hello, World!",
+       R"(String: "Hello, World!")"}};
 
-  REQUIRE(value->as_unsigned() == 255);
+  for (const auto& [name, hex, expected_value, expected_repr] : test_cases)
+  {
+    SUBCASE(name)
+    {
+      auto cbor_bytes = ccf::ds::from_hex(hex);
+      auto value = parse(cbor_bytes);
 
-  const std::string expected_repr = "Unsigned: 255";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
+      REQUIRE(value->as_string() == expected_value);
+
+      const std::string result = to_string(value);
+      REQUIRE(result == expected_repr);
+    }
+  }
 }
 
-TEST_CASE("CBOR: unsigned integer 65535")
+TEST_CASE("CBOR: bytes")
 {
-  auto cbor_bytes = ccf::ds::from_hex("19ffff");
-  auto value = parse(cbor_bytes);
+  std::vector<
+    std::tuple<doctest::String, std::string, std::vector<uint8_t>, std::string>>
+    test_cases{
+      {"empty bytes", "40", {}, "Bytes[0]:"},
+      {"bytes [0,1,2,3]",
+       "4400010203",
+       {0x00, 0x01, 0x02, 0x03},
+       "Bytes[4]: 00010203"},
+      {"bytes deadbeef",
+       "44deadbeef",
+       {0xde, 0xad, 0xbe, 0xef},
+       "Bytes[4]: deadbeef"}};
 
-  REQUIRE(value->as_unsigned() == 65535);
+  for (const auto& [name, hex, expected_value, expected_repr] : test_cases)
+  {
+    SUBCASE(name)
+    {
+      auto cbor_bytes = ccf::ds::from_hex(hex);
+      auto value = parse(cbor_bytes);
 
-  const std::string expected_repr = "Unsigned: 65535";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
+      auto bytes = value->as_bytes();
+      REQUIRE(std::equal(
+        expected_value.begin(),
+        expected_value.end(),
+        bytes.begin(),
+        bytes.end()));
+
+      const std::string result = to_string(value);
+      REQUIRE(result == expected_repr);
+    }
+  }
 }
 
-TEST_CASE("CBOR: unsigned integer max uint64")
+TEST_CASE("CBOR: simple values")
 {
-  auto cbor_bytes = ccf::ds::from_hex("1bffffffffffffffff");
-  auto value = parse(cbor_bytes);
+  std::vector<
+    std::tuple<doctest::String, std::string, SimpleValue, std::string>>
+    test_cases{
+      {"simple value false", "f4", SimpleValue::False, "Simple: False"},
+      {"simple value true", "f5", SimpleValue::True, "Simple: True"},
+      {"simple value null", "f6", SimpleValue::Null, "Simple: Null"},
+      {"simple value undefined",
+       "f7",
+       SimpleValue::Undefined,
+       "Simple: Undefined"}};
 
-  REQUIRE(value->as_unsigned() == 18446744073709551615ULL);
+  for (const auto& [name, hex, expected_value, expected_repr] : test_cases)
+  {
+    SUBCASE(name)
+    {
+      auto cbor_bytes = ccf::ds::from_hex(hex);
+      auto value = parse(cbor_bytes);
 
-  const std::string expected_repr = "Unsigned: 18446744073709551615";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
+      REQUIRE(value->as_simple() == expected_value);
 
-TEST_CASE("CBOR: signed integer -1")
-{
-  auto cbor_bytes = ccf::ds::from_hex("20");
-  auto value = parse(cbor_bytes);
-
-  REQUIRE(value->as_signed() == -1);
-
-  const std::string expected_repr = "Signed: -1";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
-
-TEST_CASE("CBOR: signed integer -42")
-{
-  auto cbor_bytes = ccf::ds::from_hex("3829");
-  auto value = parse(cbor_bytes);
-
-  REQUIRE(value->as_signed() == -42);
-
-  const std::string expected_repr = "Signed: -42";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
-
-TEST_CASE("CBOR: signed integer -1000")
-{
-  auto cbor_bytes = ccf::ds::from_hex("3903e7");
-  auto value = parse(cbor_bytes);
-
-  REQUIRE(value->as_signed() == -1000);
-
-  const std::string expected_repr = "Signed: -1000";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
-
-TEST_CASE("CBOR: signed integer min int64")
-{
-  auto cbor_bytes = ccf::ds::from_hex("3b7fffffffffffffff");
-  auto value = parse(cbor_bytes);
-
-  REQUIRE(value->as_signed() == INT64_MIN);
-
-  const std::string expected_repr = "Signed: -9223372036854775808";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
-
-TEST_CASE("CBOR: empty string")
-{
-  auto cbor_bytes = ccf::ds::from_hex("60");
-  auto value = parse(cbor_bytes);
-
-  REQUIRE(value->as_string() == "");
-
-  const std::string expected_repr = R"(String: "")";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
-
-TEST_CASE("CBOR: string 'hello'")
-{
-  auto cbor_bytes = ccf::ds::from_hex("6568656c6c6f");
-  auto value = parse(cbor_bytes);
-
-  REQUIRE(value->as_string() == "hello");
-
-  const std::string expected_repr = R"(String: "hello")";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
-
-TEST_CASE("CBOR: string 'Hello, World!'")
-{
-  auto cbor_bytes = ccf::ds::from_hex("6d48656c6c6f2c20576f726c6421");
-  auto value = parse(cbor_bytes);
-
-  REQUIRE(value->as_string() == "Hello, World!");
-
-  const std::string expected_repr = R"(String: "Hello, World!")";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
-
-TEST_CASE("CBOR: empty bytes")
-{
-  auto cbor_bytes = ccf::ds::from_hex("40");
-  auto value = parse(cbor_bytes);
-
-  auto bytes = value->as_bytes();
-  REQUIRE(bytes.size() == 0);
-
-  const std::string expected_repr = "Bytes[0]:";
-
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
-
-TEST_CASE("CBOR: bytes [0,1,2,3]")
-{
-  auto cbor_bytes = ccf::ds::from_hex("4400010203");
-  auto value = parse(cbor_bytes);
-
-  auto bytes = value->as_bytes();
-  std::vector<uint8_t> expected{0x00, 0x01, 0x02, 0x03};
-  REQUIRE(
-    std::equal(expected.begin(), expected.end(), bytes.begin(), bytes.end()));
-
-  const std::string expected_repr = "Bytes[4]: 00010203";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
-
-TEST_CASE("CBOR: bytes deadbeef")
-{
-  auto cbor_bytes = ccf::ds::from_hex("44deadbeef");
-  auto value = parse(cbor_bytes);
-
-  auto bytes = value->as_bytes();
-  std::vector<uint8_t> expected{0xde, 0xad, 0xbe, 0xef};
-  REQUIRE(
-    std::equal(expected.begin(), expected.end(), bytes.begin(), bytes.end()));
-
-  const std::string expected_repr = "Bytes[4]: deadbeef";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
-
-TEST_CASE("CBOR: simple value false")
-{
-  auto cbor_bytes = ccf::ds::from_hex("f4");
-  auto value = parse(cbor_bytes);
-
-  REQUIRE(value->as_simple() == SimpleValue::False);
-
-  const std::string expected_repr = "Simple: False";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
-
-TEST_CASE("CBOR: simple value true")
-{
-  auto cbor_bytes = ccf::ds::from_hex("f5");
-  auto value = parse(cbor_bytes);
-
-  REQUIRE(value->as_simple() == SimpleValue::True);
-
-  const std::string expected_repr = "Simple: True";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
-
-TEST_CASE("CBOR: simple value null")
-{
-  auto cbor_bytes = ccf::ds::from_hex("f6");
-  auto value = parse(cbor_bytes);
-
-  REQUIRE(value->as_simple() == SimpleValue::Null);
-
-  const std::string expected_repr = "Simple: Null";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
-
-TEST_CASE("CBOR: simple value undefined")
-{
-  auto cbor_bytes = ccf::ds::from_hex("f7");
-  auto value = parse(cbor_bytes);
-
-  REQUIRE(value->as_simple() == SimpleValue::Undefined);
-
-  const std::string expected_repr = "Simple: Undefined";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
-}
-
-TEST_CASE("CBOR: tagged value Tag(9000) with unsigned 42")
-{
-  auto cbor_bytes = ccf::ds::from_hex("d92328182a");
-  auto value = parse(cbor_bytes);
-
-  const auto& item = value->tag_at(9000);
-  REQUIRE(item->as_unsigned() == 42);
-
-  const std::string expected_repr = R"(Tagged[9000]:
-  Unsigned: 42)";
-  const std::string result = to_string(value);
-  REQUIRE(result == expected_repr);
+      const std::string result = to_string(value);
+      REQUIRE(result == expected_repr);
+    }
+  }
 }
 
 TEST_CASE("CBOR: tagged value Tag(9001) with signed -42")
@@ -359,15 +240,15 @@ TEST_CASE("CBOR: array [1, 2, 3, 4, 5]")
 
   for (size_t i = 0; i < 5; i++)
   {
-    REQUIRE(arr.items[i]->as_unsigned() == i + 1);
+    REQUIRE(arr.items[i]->as_signed() == i + 1);
   }
 
   const std::string expected_repr = R"(Array[5]:
-  Unsigned: 1
-  Unsigned: 2
-  Unsigned: 3
-  Unsigned: 4
-  Unsigned: 5)";
+  Signed: 1
+  Signed: 2
+  Signed: 3
+  Signed: 4
+  Signed: 5)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -468,7 +349,7 @@ TEST_CASE("CBOR: array [1, 'two', b'3', True, None]")
   const auto& arr = std::get<Array>(value->value);
   REQUIRE(arr.items.size() == 5);
 
-  REQUIRE(arr.items[0]->as_unsigned() == 1);
+  REQUIRE(arr.items[0]->as_signed() == 1);
 
   REQUIRE(arr.items[1]->as_string() == "two");
 
@@ -481,7 +362,7 @@ TEST_CASE("CBOR: array [1, 'two', b'3', True, None]")
   REQUIRE(arr.items[4]->as_simple() == SimpleValue::Null);
 
   const std::string expected_repr = R"(Array[5]:
-  Unsigned: 1
+  Signed: 1
   String: "two"
   Bytes[1]: 33
   Simple: True
@@ -498,22 +379,22 @@ TEST_CASE("CBOR: array [0, -1, 42, -100, 65535]")
   const auto& arr = std::get<Array>(value->value);
   REQUIRE(arr.items.size() == 5);
 
-  REQUIRE(arr.items[0]->as_unsigned() == 0);
+  REQUIRE(arr.items[0]->as_signed() == 0);
 
   REQUIRE(arr.items[1]->as_signed() == -1);
 
-  REQUIRE(arr.items[2]->as_unsigned() == 42);
+  REQUIRE(arr.items[2]->as_signed() == 42);
 
   REQUIRE(arr.items[3]->as_signed() == -100);
 
-  REQUIRE(arr.items[4]->as_unsigned() == 65535);
+  REQUIRE(arr.items[4]->as_signed() == 65535);
 
   const std::string expected_repr = R"(Array[5]:
-  Unsigned: 0
+  Signed: 0
   Signed: -1
-  Unsigned: 42
+  Signed: 42
   Signed: -100
-  Unsigned: 65535)";
+  Signed: 65535)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -531,20 +412,20 @@ TEST_CASE("CBOR: nested array [[1, 2], [3, 4], [5, 6]]")
     const auto& inner = std::get<Array>(arr.items[i]->value);
     REQUIRE(inner.items.size() == 2);
 
-    REQUIRE(inner.items[0]->as_unsigned() == i * 2 + 1);
-    REQUIRE(inner.items[1]->as_unsigned() == i * 2 + 2);
+    REQUIRE(inner.items[0]->as_signed() == i * 2 + 1);
+    REQUIRE(inner.items[1]->as_signed() == i * 2 + 2);
   }
 
   const std::string expected_repr = R"(Array[3]:
   Array[2]:
-    Unsigned: 1
-    Unsigned: 2
+    Signed: 1
+    Signed: 2
   Array[2]:
-    Unsigned: 3
-    Unsigned: 4
+    Signed: 3
+    Signed: 4
   Array[2]:
-    Unsigned: 5
-    Unsigned: 6)";
+    Signed: 5
+    Signed: 6)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -557,35 +438,35 @@ TEST_CASE("CBOR: deeply nested array [1, [2, 3], 4, [5, [6, 7]]]")
   const auto& arr = std::get<Array>(value->value);
   REQUIRE(arr.items.size() == 4);
 
-  REQUIRE(arr.items[0]->as_unsigned() == 1);
+  REQUIRE(arr.items[0]->as_signed() == 1);
 
   const auto& arr1 = std::get<Array>(arr.items[1]->value);
   REQUIRE(arr1.items.size() == 2);
-  REQUIRE(arr1.items[0]->as_unsigned() == 2);
-  REQUIRE(arr1.items[1]->as_unsigned() == 3);
+  REQUIRE(arr1.items[0]->as_signed() == 2);
+  REQUIRE(arr1.items[1]->as_signed() == 3);
 
-  REQUIRE(arr.items[2]->as_unsigned() == 4);
+  REQUIRE(arr.items[2]->as_signed() == 4);
 
   const auto& arr3 = std::get<Array>(arr.items[3]->value);
   REQUIRE(arr3.items.size() == 2);
-  REQUIRE(arr3.items[0]->as_unsigned() == 5);
+  REQUIRE(arr3.items[0]->as_signed() == 5);
 
   const auto& arr3_1 = std::get<Array>(arr3.items[1]->value);
   REQUIRE(arr3_1.items.size() == 2);
-  REQUIRE(arr3_1.items[0]->as_unsigned() == 6);
-  REQUIRE(arr3_1.items[1]->as_unsigned() == 7);
+  REQUIRE(arr3_1.items[0]->as_signed() == 6);
+  REQUIRE(arr3_1.items[1]->as_signed() == 7);
 
   const std::string expected_repr = R"(Array[4]:
-  Unsigned: 1
+  Signed: 1
   Array[2]:
-    Unsigned: 2
-    Unsigned: 3
-  Unsigned: 4
+    Signed: 2
+    Signed: 3
+  Signed: 4
   Array[2]:
-    Unsigned: 5
+    Signed: 5
     Array[2]:
-      Unsigned: 6
-      Unsigned: 7)";
+      Signed: 6
+      Signed: 7)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -598,15 +479,15 @@ TEST_CASE("CBOR: tagged array Tag(9100) with [1, 2, 3]")
   const auto& item = value->tag_at(9100);
   const auto& arr = std::get<Array>(item->value);
   REQUIRE(arr.items.size() == 3);
-  REQUIRE(arr.items[0]->as_unsigned() == 1);
-  REQUIRE(arr.items[1]->as_unsigned() == 2);
-  REQUIRE(arr.items[2]->as_unsigned() == 3);
+  REQUIRE(arr.items[0]->as_signed() == 1);
+  REQUIRE(arr.items[1]->as_signed() == 2);
+  REQUIRE(arr.items[2]->as_signed() == 3);
 
   const std::string expected_repr = R"(Tagged[9100]:
   Array[3]:
-    Unsigned: 1
-    Unsigned: 2
-    Unsigned: 3)";
+    Signed: 1
+    Signed: 2
+    Signed: 3)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -645,21 +526,21 @@ TEST_CASE("CBOR: map {1: 'one', 2: 'two', 3: 'three'}")
 
   REQUIRE(value->size() == 3);
 
-  REQUIRE(value->map_at(make_unsigned(1))->as_string() == "one");
-  REQUIRE(value->map_at(make_unsigned(2))->as_string() == "two");
-  REQUIRE(value->map_at(make_unsigned(3))->as_string() == "three");
+  REQUIRE(value->map_at(make_signed(1))->as_string() == "one");
+  REQUIRE(value->map_at(make_signed(2))->as_string() == "two");
+  REQUIRE(value->map_at(make_signed(3))->as_string() == "three");
 
   const std::string expected_repr = R"(Map[3]:
   Key:
-    Unsigned: 1
+    Signed: 1
   Value:
     String: "one"
   Key:
-    Unsigned: 2
+    Signed: 2
   Value:
     String: "two"
   Key:
-    Unsigned: 3
+    Signed: 3
   Value:
     String: "three")";
   const std::string result = to_string(value);
@@ -673,23 +554,23 @@ TEST_CASE("CBOR: map {0: 100, 1: 200, 2: 300}")
 
   REQUIRE(value->size() == 3);
 
-  REQUIRE(value->map_at(make_unsigned(0))->as_unsigned() == 100);
-  REQUIRE(value->map_at(make_unsigned(1))->as_unsigned() == 200);
-  REQUIRE(value->map_at(make_unsigned(2))->as_unsigned() == 300);
+  REQUIRE(value->map_at(make_signed(0))->as_signed() == 100);
+  REQUIRE(value->map_at(make_signed(1))->as_signed() == 200);
+  REQUIRE(value->map_at(make_signed(2))->as_signed() == 300);
 
   const std::string expected_repr = R"(Map[3]:
   Key:
-    Unsigned: 0
+    Signed: 0
   Value:
-    Unsigned: 100
+    Signed: 100
   Key:
-    Unsigned: 1
+    Signed: 1
   Value:
-    Unsigned: 200
+    Signed: 200
   Key:
-    Unsigned: 2
+    Signed: 2
   Value:
-    Unsigned: 300)";
+    Signed: 300)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -703,25 +584,25 @@ TEST_CASE("CBOR: map {'a': 1, 'b': 2, 'c': 3}")
   REQUIRE(map.items.size() == 3);
 
   REQUIRE(map.items[0].first->as_string() == "a");
-  REQUIRE(map.items[0].second->as_unsigned() == 1);
+  REQUIRE(map.items[0].second->as_signed() == 1);
   REQUIRE(map.items[1].first->as_string() == "b");
-  REQUIRE(map.items[1].second->as_unsigned() == 2);
+  REQUIRE(map.items[1].second->as_signed() == 2);
   REQUIRE(map.items[2].first->as_string() == "c");
-  REQUIRE(map.items[2].second->as_unsigned() == 3);
+  REQUIRE(map.items[2].second->as_signed() == 3);
 
   const std::string expected_repr = R"(Map[3]:
   Key:
     String: "a"
   Value:
-    Unsigned: 1
+    Signed: 1
   Key:
     String: "b"
   Value:
-    Unsigned: 2
+    Signed: 2
   Key:
     String: "c"
   Value:
-    Unsigned: 3)";
+    Signed: 3)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -816,22 +697,22 @@ TEST_CASE("CBOR: array with map [1, {'a': 2}, 3]")
 
   REQUIRE(value->size() == 3);
 
-  REQUIRE(value->array_at(0)->as_unsigned() == 1);
+  REQUIRE(value->array_at(0)->as_signed() == 1);
 
   const auto& map = value->array_at(1);
   REQUIRE(map->size() == 1);
-  REQUIRE(map->map_at(make_string("a"))->as_unsigned() == 2);
+  REQUIRE(map->map_at(make_string("a"))->as_signed() == 2);
 
-  REQUIRE(value->array_at(2)->as_unsigned() == 3);
+  REQUIRE(value->array_at(2)->as_signed() == 3);
 
   const std::string expected_repr = R"(Array[3]:
-  Unsigned: 1
+  Signed: 1
   Map[1]:
     Key:
       String: "a"
     Value:
-      Unsigned: 2
-  Unsigned: 3)";
+      Signed: 2
+  Signed: 3)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -844,30 +725,30 @@ TEST_CASE("CBOR: array of maps [{'x': 1}, {'y': 2}, {'z': 3}]")
   REQUIRE(value->size() == 3);
 
   REQUIRE(value->array_at(0)->size() == 1);
-  REQUIRE(value->array_at(0)->map_at(make_string("x"))->as_unsigned() == 1);
+  REQUIRE(value->array_at(0)->map_at(make_string("x"))->as_signed() == 1);
 
   REQUIRE(value->array_at(1)->size() == 1);
-  REQUIRE(value->array_at(1)->map_at(make_string("y"))->as_unsigned() == 2);
+  REQUIRE(value->array_at(1)->map_at(make_string("y"))->as_signed() == 2);
 
   REQUIRE(value->array_at(2)->size() == 1);
-  REQUIRE(value->array_at(2)->map_at(make_string("z"))->as_unsigned() == 3);
+  REQUIRE(value->array_at(2)->map_at(make_string("z"))->as_signed() == 3);
 
   const std::string expected_repr = R"(Array[3]:
   Map[1]:
     Key:
       String: "x"
     Value:
-      Unsigned: 1
+      Signed: 1
   Map[1]:
     Key:
       String: "y"
     Value:
-      Unsigned: 2
+      Signed: 2
   Map[1]:
     Key:
       String: "z"
     Value:
-      Unsigned: 3)";
+      Signed: 3)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -881,18 +762,18 @@ TEST_CASE("CBOR: map with array {'items': [1, 2, 3]}")
 
   const auto& arr = value->map_at(make_string("items"));
   REQUIRE(arr->size() == 3);
-  REQUIRE(arr->array_at(0)->as_unsigned() == 1);
-  REQUIRE(arr->array_at(1)->as_unsigned() == 2);
-  REQUIRE(arr->array_at(2)->as_unsigned() == 3);
+  REQUIRE(arr->array_at(0)->as_signed() == 1);
+  REQUIRE(arr->array_at(1)->as_signed() == 2);
+  REQUIRE(arr->array_at(2)->as_signed() == 3);
 
   const std::string expected_repr = R"(Map[1]:
   Key:
     String: "items"
   Value:
     Array[3]:
-      Unsigned: 1
-      Unsigned: 2
-      Unsigned: 3)";
+      Signed: 1
+      Signed: 2
+      Signed: 3)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -906,38 +787,38 @@ TEST_CASE("CBOR: map with multiple arrays")
 
   const auto& arr_a = value->map_at(make_string("a"));
   REQUIRE(arr_a->size() == 2);
-  REQUIRE(arr_a->array_at(0)->as_unsigned() == 1);
-  REQUIRE(arr_a->array_at(1)->as_unsigned() == 2);
+  REQUIRE(arr_a->array_at(0)->as_signed() == 1);
+  REQUIRE(arr_a->array_at(1)->as_signed() == 2);
 
   const auto& arr_b = value->map_at(make_string("b"));
   REQUIRE(arr_b->size() == 2);
-  REQUIRE(arr_b->array_at(0)->as_unsigned() == 3);
-  REQUIRE(arr_b->array_at(1)->as_unsigned() == 4);
+  REQUIRE(arr_b->array_at(0)->as_signed() == 3);
+  REQUIRE(arr_b->array_at(1)->as_signed() == 4);
 
   const auto& arr_c = value->map_at(make_string("c"));
   REQUIRE(arr_c->size() == 2);
-  REQUIRE(arr_c->array_at(0)->as_unsigned() == 5);
-  REQUIRE(arr_c->array_at(1)->as_unsigned() == 6);
+  REQUIRE(arr_c->array_at(0)->as_signed() == 5);
+  REQUIRE(arr_c->array_at(1)->as_signed() == 6);
 
   const std::string expected_repr = R"(Map[3]:
   Key:
     String: "a"
   Value:
     Array[2]:
-      Unsigned: 1
-      Unsigned: 2
+      Signed: 1
+      Signed: 2
   Key:
     String: "b"
   Value:
     Array[2]:
-      Unsigned: 3
-      Unsigned: 4
+      Signed: 3
+      Signed: 4
   Key:
     String: "c"
   Value:
     Array[2]:
-      Unsigned: 5
-      Unsigned: 6)";
+      Signed: 5
+      Signed: 6)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -949,19 +830,19 @@ TEST_CASE("CBOR: tagged map Tag(10000) with {'a': 1, 'b': 2}")
 
   const auto& item = value->tag_at(10000);
   REQUIRE(item->size() == 2);
-  REQUIRE(item->map_at(make_string("a"))->as_unsigned() == 1);
-  REQUIRE(item->map_at(make_string("b"))->as_unsigned() == 2);
+  REQUIRE(item->map_at(make_string("a"))->as_signed() == 1);
+  REQUIRE(item->map_at(make_string("b"))->as_signed() == 2);
 
   const std::string expected_repr = R"(Tagged[10000]:
   Map[2]:
     Key:
       String: "a"
     Value:
-      Unsigned: 1
+      Signed: 1
     Key:
       String: "b"
     Value:
-      Unsigned: 2)";
+      Signed: 2)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -979,7 +860,7 @@ TEST_CASE(
 
   const auto& map = value->array_at(1);
   REQUIRE(map->size() == 3);
-  REQUIRE(map->map_at(make_string("count"))->as_unsigned() == 42);
+  REQUIRE(map->map_at(make_string("count"))->as_signed() == 42);
   REQUIRE(map->map_at(make_string("label"))->as_string() == "items");
   REQUIRE(map->map_at(make_string("active"))->as_simple() == SimpleValue::True);
 
@@ -991,7 +872,7 @@ TEST_CASE(
     Key:
       String: "count"
     Value:
-      Unsigned: 42
+      Signed: 42
     Key:
       String: "label"
     Value:
@@ -1017,7 +898,7 @@ TEST_CASE("CBOR: array ['header', {'id': 123, 'name': 'test'}, 'footer']")
 
   const auto& map = value->array_at(1);
   REQUIRE(map->size() == 2);
-  REQUIRE(map->map_at(make_string("id"))->as_unsigned() == 123);
+  REQUIRE(map->map_at(make_string("id"))->as_signed() == 123);
   REQUIRE(map->map_at(make_string("name"))->as_string() == "test");
 
   REQUIRE(value->array_at(2)->as_string() == "footer");
@@ -1028,7 +909,7 @@ TEST_CASE("CBOR: array ['header', {'id': 123, 'name': 'test'}, 'footer']")
     Key:
       String: "id"
     Value:
-      Unsigned: 123
+      Signed: 123
     Key:
       String: "name"
     Value:
@@ -1046,8 +927,8 @@ TEST_CASE("CBOR: array [1, 2, {'nested': {'key': 'value'}}, 3]")
 
   REQUIRE(value->size() == 4);
 
-  REQUIRE(value->array_at(0)->as_unsigned() == 1);
-  REQUIRE(value->array_at(1)->as_unsigned() == 2);
+  REQUIRE(value->array_at(0)->as_signed() == 1);
+  REQUIRE(value->array_at(1)->as_signed() == 2);
 
   const auto& map = value->array_at(2);
   REQUIRE(map->size() == 1);
@@ -1056,11 +937,11 @@ TEST_CASE("CBOR: array [1, 2, {'nested': {'key': 'value'}}, 3]")
   REQUIRE(nested_map->size() == 1);
   REQUIRE(nested_map->map_at(make_string("key"))->as_string() == "value");
 
-  REQUIRE(value->array_at(3)->as_unsigned() == 3);
+  REQUIRE(value->array_at(3)->as_signed() == 3);
 
   const std::string expected_repr = R"(Array[4]:
-  Unsigned: 1
-  Unsigned: 2
+  Signed: 1
+  Signed: 2
   Map[1]:
     Key:
       String: "nested"
@@ -1070,7 +951,7 @@ TEST_CASE("CBOR: array [1, 2, {'nested': {'key': 'value'}}, 3]")
           String: "key"
         Value:
           String: "value"
-  Unsigned: 3)";
+  Signed: 3)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -1082,18 +963,18 @@ TEST_CASE("CBOR: array [1, Tag(9600, 'tagged'), 3]")
 
   REQUIRE(value->size() == 3);
 
-  REQUIRE(value->array_at(0)->as_unsigned() == 1);
+  REQUIRE(value->array_at(0)->as_signed() == 1);
 
   const auto& item = value->array_at(1)->tag_at(9600);
   REQUIRE(item->as_string() == "tagged");
 
-  REQUIRE(value->array_at(2)->as_unsigned() == 3);
+  REQUIRE(value->array_at(2)->as_signed() == 3);
 
   const std::string expected_repr = R"(Array[3]:
-  Unsigned: 1
+  Signed: 1
   Tagged[9600]:
     String: "tagged"
-  Unsigned: 3)";
+  Signed: 3)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -1123,8 +1004,8 @@ TEST_CASE("CBOR: map with mixed key types")
 
   REQUIRE(value->size() == 3);
 
-  REQUIRE(value->map_at(make_unsigned(1))->as_string() == "num");
-  REQUIRE(value->map_at(make_string("str"))->as_unsigned() == 2);
+  REQUIRE(value->map_at(make_signed(1))->as_string() == "num");
+  REQUIRE(value->map_at(make_string("str"))->as_signed() == 2);
 
   const auto bytes_key = ccf::ds::from_hex("6279746573");
   REQUIRE(
@@ -1132,13 +1013,13 @@ TEST_CASE("CBOR: map with mixed key types")
 
   const std::string expected_repr = R"(Map[3]:
   Key:
-    Unsigned: 1
+    Signed: 1
   Value:
     String: "num"
   Key:
     String: "str"
   Value:
-    Unsigned: 2
+    Signed: 2
   Key:
     Bytes[5]: 6279746573
   Value:
@@ -1154,7 +1035,7 @@ TEST_CASE("CBOR: map {'a': 1, 'b': 'two', 'c': b'3', 'd': False}")
 
   REQUIRE(value->size() == 4);
 
-  REQUIRE(value->map_at(make_string("a"))->as_unsigned() == 1);
+  REQUIRE(value->map_at(make_string("a"))->as_signed() == 1);
   REQUIRE(value->map_at(make_string("b"))->as_string() == "two");
 
   const auto byte_value = value->map_at(make_string("c"))->as_bytes();
@@ -1167,7 +1048,7 @@ TEST_CASE("CBOR: map {'a': 1, 'b': 'two', 'c': b'3', 'd': False}")
   Key:
     String: "a"
   Value:
-    Unsigned: 1
+    Signed: 1
   Key:
     String: "b"
   Value:
@@ -1218,36 +1099,36 @@ TEST_CASE("CBOR: map {1: [10, 20], 2: ['a', 'b'], 3: [b'x', b'y']}")
 
   REQUIRE(value->size() == 3);
 
-  const auto& arr0 = value->map_at(make_unsigned(1));
+  const auto& arr0 = value->map_at(make_signed(1));
   REQUIRE(arr0->size() == 2);
-  REQUIRE(arr0->array_at(0)->as_unsigned() == 10);
-  REQUIRE(arr0->array_at(1)->as_unsigned() == 20);
+  REQUIRE(arr0->array_at(0)->as_signed() == 10);
+  REQUIRE(arr0->array_at(1)->as_signed() == 20);
 
-  const auto& arr1 = value->map_at(make_unsigned(2));
+  const auto& arr1 = value->map_at(make_signed(2));
   REQUIRE(arr1->size() == 2);
   REQUIRE(arr1->array_at(0)->as_string() == "a");
   REQUIRE(arr1->array_at(1)->as_string() == "b");
 
-  const auto& arr2 = value->map_at(make_unsigned(3));
+  const auto& arr2 = value->map_at(make_signed(3));
   REQUIRE(arr2->size() == 2);
   REQUIRE(arr2->array_at(0)->as_bytes()[0] == 'x');
   REQUIRE(arr2->array_at(1)->as_bytes()[0] == 'y');
 
   const std::string expected_repr = R"(Map[3]:
   Key:
-    Unsigned: 1
+    Signed: 1
   Value:
     Array[2]:
-      Unsigned: 10
-      Unsigned: 20
+      Signed: 10
+      Signed: 20
   Key:
-    Unsigned: 2
+    Signed: 2
   Value:
     Array[2]:
       String: "a"
       String: "b"
   Key:
-    Unsigned: 3
+    Signed: 3
   Value:
     Array[2]:
       Bytes[1]: 78
@@ -1263,19 +1144,19 @@ TEST_CASE("CBOR: map {1: b'data1', 2: b'data2'}")
 
   REQUIRE(value->size() == 2);
 
-  const auto data1 = value->map_at(make_unsigned(1))->as_bytes();
+  const auto data1 = value->map_at(make_signed(1))->as_bytes();
   REQUIRE(data1.size() == 5);
 
-  const auto data2 = value->map_at(make_unsigned(2))->as_bytes();
+  const auto data2 = value->map_at(make_signed(2))->as_bytes();
   REQUIRE(data2.size() == 5);
 
   const std::string expected_repr = R"(Map[2]:
   Key:
-    Unsigned: 1
+    Signed: 1
   Value:
     Bytes[5]: 6461746131
   Key:
-    Unsigned: 2
+    Signed: 2
   Value:
     Bytes[5]: 6461746132)";
   const std::string result = to_string(value);
@@ -1292,25 +1173,25 @@ TEST_CASE("CBOR: map {'nested': [1, [2, 3], 4]}")
   const auto& arr = value->map_at(make_string("nested"));
   REQUIRE(arr->size() == 3);
 
-  REQUIRE(arr->array_at(0)->as_unsigned() == 1);
+  REQUIRE(arr->array_at(0)->as_signed() == 1);
 
   const auto& nested = arr->array_at(1);
   REQUIRE(nested->size() == 2);
-  REQUIRE(nested->array_at(0)->as_unsigned() == 2);
-  REQUIRE(nested->array_at(1)->as_unsigned() == 3);
+  REQUIRE(nested->array_at(0)->as_signed() == 2);
+  REQUIRE(nested->array_at(1)->as_signed() == 3);
 
-  REQUIRE(arr->array_at(2)->as_unsigned() == 4);
+  REQUIRE(arr->array_at(2)->as_signed() == 4);
 
   const std::string expected_repr = R"(Map[1]:
   Key:
     String: "nested"
   Value:
     Array[3]:
-      Unsigned: 1
+      Signed: 1
       Array[2]:
-        Unsigned: 2
-        Unsigned: 3
-      Unsigned: 4)";
+        Signed: 2
+        Signed: 3
+      Signed: 4)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -1348,9 +1229,9 @@ TEST_CASE(
 
   const auto& nums = value->map_at(make_string("numbers"));
   REQUIRE(nums->size() == 3);
-  REQUIRE(nums->array_at(0)->as_unsigned() == 1);
-  REQUIRE(nums->array_at(1)->as_unsigned() == 2);
-  REQUIRE(nums->array_at(2)->as_unsigned() == 3);
+  REQUIRE(nums->array_at(0)->as_signed() == 1);
+  REQUIRE(nums->array_at(1)->as_signed() == 2);
+  REQUIRE(nums->array_at(2)->as_signed() == 3);
 
   const auto& strs = value->map_at(make_string("strings"));
   REQUIRE(strs->size() == 2);
@@ -1367,9 +1248,9 @@ TEST_CASE(
     String: "numbers"
   Value:
     Array[3]:
-      Unsigned: 1
-      Unsigned: 2
-      Unsigned: 3
+      Signed: 1
+      Signed: 2
+      Signed: 3
   Key:
     String: "strings"
   Value:
@@ -1399,13 +1280,13 @@ TEST_CASE("CBOR: map {'empty': [], 'single': [42], 'multiple': [1, 2, 3]}")
 
   const auto& single = value->map_at(make_string("single"));
   REQUIRE(single->size() == 1);
-  REQUIRE(single->array_at(0)->as_unsigned() == 42);
+  REQUIRE(single->array_at(0)->as_signed() == 42);
 
   const auto& multiple = value->map_at(make_string("multiple"));
   REQUIRE(multiple->size() == 3);
-  REQUIRE(multiple->array_at(0)->as_unsigned() == 1);
-  REQUIRE(multiple->array_at(1)->as_unsigned() == 2);
-  REQUIRE(multiple->array_at(2)->as_unsigned() == 3);
+  REQUIRE(multiple->array_at(0)->as_signed() == 1);
+  REQUIRE(multiple->array_at(1)->as_signed() == 2);
+  REQUIRE(multiple->array_at(2)->as_signed() == 3);
 
   const std::string expected_repr = R"(Map[3]:
   Key:
@@ -1416,14 +1297,14 @@ TEST_CASE("CBOR: map {'empty': [], 'single': [42], 'multiple': [1, 2, 3]}")
     String: "single"
   Value:
     Array[1]:
-      Unsigned: 42
+      Signed: 42
   Key:
     String: "multiple"
   Value:
     Array[3]:
-      Unsigned: 1
-      Unsigned: 2
-      Unsigned: 3)";
+      Signed: 1
+      Signed: 2
+      Signed: 3)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -1476,13 +1357,13 @@ TEST_CASE("CBOR: tagged array Tag(9400, [1, 'two', b'3'])")
 
   const auto& item = value->tag_at(9400);
   REQUIRE(item->size() == 3);
-  REQUIRE(item->array_at(0)->as_unsigned() == 1);
+  REQUIRE(item->array_at(0)->as_signed() == 1);
   REQUIRE(item->array_at(1)->as_string() == "two");
   REQUIRE(item->array_at(2)->as_bytes()[0] == 0x33);
 
   const std::string expected_repr = R"(Tagged[9400]:
   Array[3]:
-    Unsigned: 1
+    Signed: 1
     String: "two"
     Bytes[1]: 33)";
   const std::string result = to_string(value);
@@ -1504,22 +1385,22 @@ TEST_CASE("CBOR: tagged array Tag(20000, [{'x': 1}, {'y': 2}])")
       Key:
         String: "x"
       Value:
-        Unsigned: 1
+        Signed: 1
     Map[1]:
       Key:
         String: "y"
       Value:
-        Unsigned: 2)";
+        Signed: 2)";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
-TEST_CASE("CBOR: helper function make_unsigned")
+TEST_CASE("CBOR: helper function make_signed")
 {
-  auto value = make_unsigned(42);
+  auto value = make_signed(42);
   REQUIRE(value != nullptr);
-  REQUIRE(value->as_unsigned() == 42);
+  REQUIRE(value->as_signed() == 42);
 
-  const std::string expected_repr = "Unsigned: 42";
+  const std::string expected_repr = "Signed: 42";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
@@ -1565,63 +1446,6 @@ TEST_CASE("CBOR: error - unexpected tag")
   auto value = parse(cbor_bytes);
 
   REQUIRE_THROWS_AS((void)value->tag_at(9004), CBORDecodeError);
-}
-
-TEST_CASE("CBOR: back and forth (un)signed")
-{
-  auto cbor_bytes = ccf::ds::from_hex("820120");
-  auto value = parse(cbor_bytes);
-
-  {
-    auto s = make_signed(64);
-    REQUIRE(s->as_signed() == 64);
-    REQUIRE(s->as_unsigned() == 64);
-  }
-
-  {
-    auto u = make_unsigned(64);
-    REQUIRE(u->as_unsigned() == 64);
-    REQUIRE(u->as_signed() == 64);
-  }
-
-  {
-    auto s = make_signed(-64);
-    REQUIRE(s->as_signed() == -64);
-    REQUIRE_THROWS_AS((void)s->as_unsigned(), CBORDecodeError);
-  }
-
-  {
-    const auto value = 1ull + std::numeric_limits<int64_t>::max();
-    auto u = make_unsigned(value);
-    REQUIRE(u->as_unsigned() == value);
-    REQUIRE_THROWS_AS((void)u->as_signed(), CBORDecodeError);
-  }
-}
-
-TEST_CASE("CBOR: back and forth (un)signed")
-{
-  auto cbor_bytes = ccf::ds::from_hex(
-    "A320622D311B7FFFFFFFFFFFFFFF73393232333337323033363835343737353830371B80"
-    "00"
-    "0000000000007339323233333732303336383534373735383038");
-  auto value = parse(cbor_bytes);
-
-  // Signed only
-  REQUIRE(value->map_at(make_signed(-1))->as_string() == "-1");
-
-  // Both have to match
-  REQUIRE(
-    value->map_at(make_signed(9223372036854775807ll))->as_string() ==
-    "9223372036854775807");
-
-  REQUIRE(
-    value->map_at(make_unsigned(9223372036854775807ull))->as_string() ==
-    "9223372036854775807");
-
-  // Unsigned only
-  REQUIRE(
-    value->map_at(make_unsigned(9223372036854775808ull))->as_string() ==
-    "9223372036854775808");
 }
 
 TEST_CASE("CBOR: throw with context")

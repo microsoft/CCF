@@ -19,7 +19,6 @@ namespace ccf::cbor
   struct ValueImpl;
   using Value = std::unique_ptr<ValueImpl>;
 
-  using Unsigned = uint64_t;
   using Signed = int64_t;
   using Bytes = std::span<const uint8_t>;
   using String = std::string_view;
@@ -52,8 +51,7 @@ namespace ccf::cbor
     Value item{nullptr};
   };
 
-  using Type =
-    std::variant<Unsigned, Signed, Bytes, String, Array, Map, Tagged, Simple>;
+  using Type = std::variant<Signed, Bytes, String, Array, Map, Tagged, Simple>;
 
   using CBORDecodeError = std::runtime_error;
 
@@ -65,7 +63,6 @@ namespace ccf::cbor
     [[nodiscard]] const Value& array_at(size_t index) const;
     [[nodiscard]] const Value& map_at(const Value& key) const;
     [[nodiscard]] const Value& tag_at(uint64_t tag) const;
-    [[nodiscard]] Unsigned as_unsigned() const;
     [[nodiscard]] Signed as_signed() const;
     [[nodiscard]] Bytes as_bytes() const;
     [[nodiscard]] String as_string() const;
@@ -73,7 +70,6 @@ namespace ccf::cbor
     [[nodiscard]] size_t size() const;
   };
 
-  Value make_unsigned(uint64_t value);
   Value make_signed(int64_t value);
   Value make_string(std::string_view data);
   Value make_bytes(std::span<const uint8_t> data);

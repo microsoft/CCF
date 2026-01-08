@@ -29,16 +29,6 @@ namespace
     }
   }
 
-  Value consume_unsigned(cbor_nondet_t cbor)
-  {
-    Unsigned value{0};
-    if (!cbor_nondet_read_uint64(cbor, &value))
-    {
-      throw CBORDecodeError("Failed to consume unsigned value");
-    }
-    return std::make_unique<ValueImpl>(value);
-  }
-
   Value consume_signed(cbor_nondet_t cbor)
   {
     Signed value{0};
@@ -151,7 +141,6 @@ namespace
     switch (mt)
     {
       case CBOR_MAJOR_TYPE_UINT64:
-        return consume_unsigned(cbor);
       case CBOR_MAJOR_TYPE_NEG_INT64:
         return consume_signed(cbor);
       case CBOR_MAJOR_TYPE_BYTE_STRING:
@@ -184,12 +173,7 @@ namespace
     std::visit(
       [&os, indent](const auto& v) {
         using T = std::decay_t<decltype(v)>;
-        if constexpr (std::is_same_v<T, Unsigned>)
-        {
-          print_indent(os, indent);
-          os << "Unsigned: " << v << std::endl;
-        }
-        else if constexpr (std::is_same_v<T, Signed>)
+        if constexpr (std::is_same_v<T, Signed>)
         {
           print_indent(os, indent);
           os << "Signed: " << v << std::endl;
@@ -268,24 +252,10 @@ namespace
       },
       value->value);
   }
-
-  bool signed_equals_unsigned(Signed a, Unsigned b)
-  {
-    if (a < 0 || b > std::numeric_limits<Signed>::max())
-    {
-      return false;
-    }
-    return a == b;
-  }
 } // namespace
 
 namespace ccf::cbor
 {
-  Value make_unsigned(uint64_t value)
-  {
-    return std::make_unique<ValueImpl>(value);
-  }
-
   Value make_signed(int64_t value)
   {
     return std::make_unique<ValueImpl>(value);
@@ -382,21 +352,9 @@ namespace ccf::cbor
 
           if constexpr (!std::is_same_v<TA, TB>)
           {
-            // Handle unsigned/signed equally for key comparison.
-            if constexpr (
-              std::is_same_v<TA, Signed> && std::is_same_v<TB, Unsigned>)
-            {
-              return signed_equals_unsigned(a, b);
-            }
-            if constexpr (
-              std::is_same_v<TA, Unsigned> && std::is_same_v<TB, Signed>)
-            {
-              return signed_equals_unsigned(b, a);
-            }
             return false;
           }
-          else if constexpr (
-            std::is_same_v<TA, Unsigned> || std::is_same_v<TA, Signed>)
+          else if constexpr (std::is_same_v<TA, Signed>)
           {
             return a == b;
           }
@@ -453,40 +411,15 @@ namespace ccf::cbor
     return tagged.item;
   }
 
-  Unsigned ValueImpl::as_unsigned() const
-  {
-    if (!std::holds_alternative<Unsigned>(value))
-    {
-      if (!std::holds_alternative<Signed>(value))
-      {
-        throw CBORDecodeError("Not an unsigned value");
-      }
-      const auto s_value = std::get<Signed>(value);
-      if (s_value < 0)
-      {
-        throw CBORDecodeError("Casting signed to unsigned will overflow");
-      }
-      return static_cast<Unsigned>(s_value);
-    }
-    return std::get<Unsigned>(value);
-  }
   Signed ValueImpl::as_signed() const
   {
     if (!std::holds_alternative<Signed>(value))
     {
-      if (!std::holds_alternative<Unsigned>(value))
-      {
-        throw CBORDecodeError("Not a signed value");
-      }
-      const auto u_value = std::get<Unsigned>(value);
-      if (u_value > std::numeric_limits<int64_t>::max())
-      {
-        throw CBORDecodeError("Casting unsigned to signed will overflow");
-      }
-      return static_cast<Signed>(u_value);
+      throw CBORDecodeError("Not a signed value");
     }
     return std::get<Signed>(value);
   }
+
   Bytes ValueImpl::as_bytes() const
   {
     if (!std::holds_alternative<Bytes>(value))
@@ -495,6 +428,7 @@ namespace ccf::cbor
     }
     return std::get<Bytes>(value);
   }
+
   String ValueImpl::as_string() const
   {
     if (!std::holds_alternative<String>(value))
@@ -503,6 +437,7 @@ namespace ccf::cbor
     }
     return std::get<String>(value);
   }
+
   Simple ValueImpl::as_simple() const
   {
     if (!std::holds_alternative<Simple>(value))

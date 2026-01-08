@@ -99,7 +99,7 @@ namespace ccf
         result.alg = ccf::cbor::rethrow_with_msg(
           [&]() {
             return parsed_phdr
-              ->map_at(ccf::cbor::make_unsigned(headers::PARAM_ALG))
+              ->map_at(ccf::cbor::make_signed(headers::PARAM_ALG))
               ->as_signed();
           },
           fmt::format(
@@ -110,7 +110,7 @@ namespace ccf
           [&]() {
             return std::string(
               parsed_phdr
-                ->map_at(ccf::cbor::make_unsigned(headers::PARAM_CONTENT_TYPE))
+                ->map_at(ccf::cbor::make_signed(headers::PARAM_CONTENT_TYPE))
                 ->as_string());
           },
           fmt::format(
@@ -120,7 +120,7 @@ namespace ccf
         result.x5_chain = ccf::cbor::rethrow_with_msg(
           [&]() {
             return parse_x5chain(parsed_phdr->map_at(
-              ccf::cbor::make_unsigned(headers::PARAM_X5CHAIN)));
+              ccf::cbor::make_signed(headers::PARAM_X5CHAIN)));
           },
           fmt::format(
             "Parse x5chain ({}) in protected header in UVM endorsements",
@@ -172,7 +172,7 @@ namespace ccf
         result.alg = ccf::cbor::rethrow_with_msg(
           [&]() {
             return parsed_phdr
-              ->map_at(ccf::cbor::make_unsigned(headers::PARAM_ALG))
+              ->map_at(ccf::cbor::make_signed(headers::PARAM_ALG))
               ->as_signed();
           },
           fmt::format(
@@ -182,7 +182,7 @@ namespace ccf
         result.content_type = ccf::cbor::rethrow_with_msg(
           [&]() {
             return std::string(parsed_phdr
-                                 ->map_at(ccf::cbor::make_unsigned(
+                                 ->map_at(ccf::cbor::make_signed(
                                    headers::PARAM_CONTENT_TYPE_HASH_ENVELOPE))
                                  ->as_string());
           },
@@ -193,7 +193,7 @@ namespace ccf
         result.x5_chain = ccf::cbor::rethrow_with_msg(
           [&]() {
             return parse_x5chain(parsed_phdr->map_at(
-              ccf::cbor::make_unsigned(headers::PARAM_X5CHAIN)));
+              ccf::cbor::make_signed(headers::PARAM_X5CHAIN)));
           },
           fmt::format(
             "Parse x5chain ({}) in protected header in UVM endorsements",
@@ -202,7 +202,7 @@ namespace ccf
         const ccf::cbor::Value& cwt_claims = ccf::cbor::rethrow_with_msg(
           [&]() -> const ccf::cbor::Value& {
             return parsed_phdr->map_at(
-              ccf::cbor::make_unsigned(ccf::crypto::COSE_PHEADER_KEY_CWT));
+              ccf::cbor::make_signed(ccf::crypto::COSE_PHEADER_KEY_CWT));
           },
           fmt::format(
             "Parse CWT claims ({}) in protected header in UVM endorsements",
@@ -211,7 +211,7 @@ namespace ccf
         result.iss = ccf::cbor::rethrow_with_msg(
           [&]() {
             return std::string(cwt_claims
-                                 ->map_at(ccf::cbor::make_unsigned(
+                                 ->map_at(ccf::cbor::make_signed(
                                    ccf::crypto::COSE_PHEADER_KEY_ISS))
                                  ->as_string());
           },
@@ -222,7 +222,7 @@ namespace ccf
         result.feed = ccf::cbor::rethrow_with_msg(
           [&]() {
             return std::string(cwt_claims
-                                 ->map_at(ccf::cbor::make_unsigned(
+                                 ->map_at(ccf::cbor::make_signed(
                                    ccf::crypto::COSE_PHEADER_KEY_SUB))
                                  ->as_string());
           },
@@ -235,7 +235,7 @@ namespace ccf
             return cwt_claims
               ->map_at(
                 ccf::cbor::make_string(ccf::crypto::COSE_PHEADER_UVM_SVN))
-              ->as_unsigned();
+              ->as_signed();
           },
           fmt::format(
             "Parse svn ({}) in CWT claims in UVM endorsements",
