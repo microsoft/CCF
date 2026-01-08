@@ -3,6 +3,7 @@
 # Licensed under the Apache 2.0 License.
 
 set -e
+set -o pipefail
 
 function usage()
 {

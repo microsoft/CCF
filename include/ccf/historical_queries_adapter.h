@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ccf_deprecated.h"
 #include "ccf/endpoint_context.h"
 #include "ccf/historical_queries_interface.h"
 #include "ccf/node_context.h"
@@ -79,27 +78,6 @@ namespace ccf::historical
     ccf::View view,
     ccf::SeqNo seqno,
     std::string& error_reason);
-
-  CCF_DEPRECATED("Replaced by _v4")
-  ccf::endpoints::EndpointFunction adapter_v3(
-    const HandleHistoricalQuery& f,
-    ccf::AbstractNodeContext& node_context,
-    const CheckHistoricalTxStatus& available,
-    const TxIDExtractor& extractor = txid_from_header);
-
-  CCF_DEPRECATED("Replaced by _v4")
-  ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v3(
-    const HandleReadOnlyHistoricalQuery& f,
-    ccf::AbstractNodeContext& node_context,
-    const CheckHistoricalTxStatus& available,
-    const ReadOnlyTxIDExtractor& extractor = txid_from_header);
-
-  CCF_DEPRECATED("Replaced by _v4")
-  ccf::endpoints::EndpointFunction read_write_adapter_v3(
-    const HandleReadWriteHistoricalQuery& f,
-    ccf::AbstractNodeContext& node_context,
-    const CheckHistoricalTxStatus& available,
-    const TxIDExtractor& extractor = txid_from_header);
 
   ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v4(
     const HandleReadOnlyHistoricalQuery& f,
