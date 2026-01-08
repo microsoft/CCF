@@ -38,13 +38,12 @@ namespace http
       std::unique_ptr<ccf::tls::Context> ctx,
       const ccf::http::ParserConfiguration& configuration,
       const std::shared_ptr<ErrorReporter>& error_reporter_,
-      const std::shared_ptr<ccf::CommitCallbackSubsystem>& commit_callbacks =
-        nullptr) :
+      const std::shared_ptr<ccf::CommitCallbackSubsystem>& commit_callbacks_) :
       HTTPSession(session_id_, writer_factory, std::move(ctx)),
       request_parser(*this, configuration),
       rpc_map(std::move(rpc_map_)),
       error_reporter(error_reporter_),
-      commit_callbacks(commit_callbacks),
+      commit_callbacks(commit_callbacks_),
       interface_id(std::move(interface_id_))
     {}
 
@@ -186,17 +185,21 @@ namespace http
           // maintain session consistency
           ccf::tasks::Resumable paused_task = ccf::tasks::pause_current_task();
 
+          // shared_from_this returns a base session type
+          std::shared_ptr<ccf::ThreadedSession> self = shared_from_this();
+
           // Register for a callback when this TxID is committed (or
           // invalidated)
           commit_callbacks->add_callback(
             tx_id,
-            [this, rpc_ctx, paused_task, committed_func](
+            [self, rpc_ctx, paused_task, committed_func](
               ccf::TxID transaction_id, ccf::FinalTxStatus status) {
               // Let the handler modify the response
               committed_func(rpc_ctx, transaction_id, status);
 
               // Write the response
-              this->send_response(
+              send_response_impl(
+                *self,
                 rpc_ctx->get_response_http_status(),
                 rpc_ctx->get_response_headers(),
                 rpc_ctx->get_response_trailers(),
@@ -204,7 +207,7 @@ namespace http
 
               if (rpc_ctx->terminate_session)
               {
-                close_session();
+                self->close_session();
               }
 
               // Resume processing work for this session
@@ -240,11 +243,12 @@ namespace http
       }
     }
 
-    bool send_response(
+    static bool send_response_impl(
+      ccf::ThreadedSession& session,
       ccf::http_status status_code,
       ccf::http::HeaderMap&& headers,
       ccf::http::HeaderMap&& trailers,
-      std::vector<uint8_t>&& body) override
+      std::vector<uint8_t>&& body)
     {
       if (!trailers.empty())
       {
@@ -263,8 +267,22 @@ namespace http
         false /* Don't overwrite any existing content-length header */
       );
 
-      send_data(response.build_response());
+      session.send_data(response.build_response());
       return true;
+    }
+
+    bool send_response(
+      ccf::http_status status_code,
+      ccf::http::HeaderMap&& headers,
+      ccf::http::HeaderMap&& trailers,
+      std::vector<uint8_t>&& body) override
+    {
+      return send_response_impl(
+        *this,
+        status_code,
+        std::move(headers),
+        std::move(trailers),
+        std::move(body));
     }
   };
 

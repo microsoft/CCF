@@ -17,14 +17,16 @@ namespace ccf
 
     std::optional<ccf::TxID> known_commit = std::nullopt;
 
-    std::mutex callbacks_mutex;
+    // Use a recursive mutex so that `add_callback` may safely be called while a
+    // callback is executing (and the mutex is locked)
+    std::recursive_mutex callbacks_mutex;
 
   public:
     CommitCallbackSubsystem() = default;
 
     void add_callback(ccf::TxID tx_id, CommitCallback&& callback) override
     {
-      std::lock_guard<std::mutex> guard(callbacks_mutex);
+      std::lock_guard<std::recursive_mutex> guard(callbacks_mutex);
 
       if (known_commit.has_value())
       {
@@ -49,9 +51,9 @@ namespace ccf
         std::make_pair(tx_id, std::move(callback)));
     }
 
-    void execute_callbacks(ccf::TxID committed)
+    void trigger_callbacks(ccf::TxID committed)
     {
-      std::lock_guard<std::mutex> guard(callbacks_mutex);
+      std::lock_guard<std::recursive_mutex> guard(callbacks_mutex);
 
       known_commit = committed;
 

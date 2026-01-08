@@ -264,7 +264,7 @@ namespace ccf::endpoints
     // committed (ie - assigned a transaction ID)
     LocallyCommittedEndpointFunction locally_committed_func;
 
-    // Functor which is invoked to modify the response after it is reaches a
+    // Functor which is invoked to modify the response after it reaches a
     // terminal consensus state (ie - it is either globally committed, or
     // invalidated)
     ConsensusCommittedEndpointFunction consensus_committed_func;
