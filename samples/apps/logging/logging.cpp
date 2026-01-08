@@ -468,7 +468,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.8.0";
+      openapi_info.document_version = "2.8.1";
     };
 
     void init_handlers() override
