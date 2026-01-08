@@ -2345,6 +2345,7 @@ def test_blocking_calls(network, args):
 
     return network
 
+
 def run_main_tests(network, args):
     test_basic_constraints(network, args)
     test(network, args)
