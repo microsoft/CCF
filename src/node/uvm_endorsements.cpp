@@ -164,7 +164,8 @@ namespace ccf
           [&]() { return phdr_bytes->as_bytes(); }, phdr_context);
 
         auto parsed_phdr = ccf::cbor::rethrow_with_msg(
-          [&]() { return ccf::cbor::parse(phdr_bytes_span); }, "phdr CBOR");
+          [&]() { return ccf::cbor::parse(phdr_bytes_span); },
+          "Parse protected header in UVM endorsements");
 
         UvmEndorsementsProtectedHeader result;
 
@@ -204,7 +205,7 @@ namespace ccf
               ccf::cbor::make_unsigned(ccf::crypto::COSE_PHEADER_KEY_CWT));
           },
           fmt::format(
-            "Parse CWT ({}) in protected header in UVM endorsements",
+            "Parse CWT claims ({}) in protected header in UVM endorsements",
             ccf::crypto::COSE_PHEADER_KEY_CWT));
 
         result.iss = ccf::cbor::rethrow_with_msg(
@@ -226,15 +227,19 @@ namespace ccf
                                  ->as_string());
           },
           fmt::format(
-            "Parse feed ({}) in CWT claims in UVM endorsements",
+            "Parse sub ({}) in CWT claims in UVM endorsements",
             ccf::crypto::COSE_PHEADER_KEY_SUB));
 
         uint64_t svn = ccf::cbor::rethrow_with_msg(
           [&]() {
-            return cwt_claims->map_at(ccf::cbor::make_string("svn"))
+            return cwt_claims
+              ->map_at(
+                ccf::cbor::make_string(ccf::crypto::COSE_PHEADER_UVM_SVN))
               ->as_unsigned();
           },
-          "Parse svn in CWT claims in UVM endorsements");
+          fmt::format(
+            "Parse svn ({}) in CWT claims in UVM endorsements",
+            ccf::crypto::COSE_PHEADER_UVM_SVN));
 
         return {result, std::to_string(svn)};
       }

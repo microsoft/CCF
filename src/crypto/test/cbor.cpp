@@ -241,9 +241,9 @@ TEST_CASE("CBOR: simple value undefined")
   auto cbor_bytes = ccf::ds::from_hex("f7");
   auto value = parse(cbor_bytes);
 
-  REQUIRE(value->as_simple() == 23);
+  REQUIRE(value->as_simple() == SimpleValue::Undefined);
 
-  const std::string expected_repr = "Simple: 23";
+  const std::string expected_repr = "Simple: Undefined";
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }

@@ -258,6 +258,9 @@ namespace
             case SimpleValue::Null:
               os << "Simple: Null" << std::endl;
               break;
+            case SimpleValue::Undefined:
+              os << "Simple: Undefined" << std::endl;
+              break;
             default:
               os << "Simple: " << casted << std::endl;
           }

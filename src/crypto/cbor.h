@@ -33,6 +33,7 @@ namespace ccf::cbor
     False = 20,
     True = 21,
     Null = 22,
+    Undefined = 23,
   };
 
   struct Array
@@ -80,7 +81,7 @@ namespace ccf::cbor
   Value parse(std::span<const uint8_t> raw);
   std::string to_string(const Value& value);
 
-  decltype(auto) rethrow_with_msg(auto&& f, std::string_view context = {})
+  decltype(auto) rethrow_with_msg(auto&& f, std::string_view msg = {})
   {
     try
     {
@@ -88,9 +89,9 @@ namespace ccf::cbor
     }
     catch (const CBORDecodeError& err)
     {
-      if (!context.empty())
+      if (!msg.empty())
       {
-        throw CBORDecodeError(fmt::format("{}: {}", err.what(), context));
+        throw CBORDecodeError(fmt::format("{}: {}", err.what(), msg));
       }
       throw err;
     }
