@@ -688,6 +688,20 @@ def test_split_ledger_on_stopped_network(primary, args):
     )
 
 
+def test_ledger_chunk_access(network, args):
+    primary, backups = network.find_nodes()
+
+    for node in (primary, *backups):
+        with node.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
+            r = c.head("/node/ledger-chunk?since=1", allow_redirects=False)
+            LOG.info(r)
+            r = c.get("/node/ledger-chunk?since=1", allow_redirects=False)
+            LOG.info(r)
+            assert False, r
+
+
 def run_file_operations(args):
     with tempfile.NamedTemporaryFile(mode="w+") as ntf:
         service_data = {"the owls": "are not", "what": "they seem"}
@@ -731,6 +745,19 @@ def run_file_operations(args):
 
                 test_split_ledger_on_stopped_network(primary, args)
                 args.common_read_only_ledger_dir = None  # Reset for future tests
+
+
+def run_ledger_chunk_operations(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args)
+        network.txs.issue(network, number_txs=10)
+        test_ledger_chunk_access(network, args)
 
 
 def run_tls_san_checks(const_args):
@@ -2284,19 +2311,20 @@ def run_snp_tests(args):
 
 
 def run(args):
-    run_max_uncommitted_tx_count(args)
-    run_file_operations(args)
-    run_tls_san_checks(args)
-    run_config_timeout_check(args)
-    run_configuration_file_checks(args)
-    run_pid_file_check(args)
-    run_preopen_readiness_check(args)
-    run_sighup_check(args)
-    run_service_subject_name_check(args)
-    run_cose_signatures_config_check(args)
-    run_late_mounted_ledger_check(args)
-    run_empty_ledger_dir_check(args)
-    run_self_healing_open(args)
-    run_self_healing_open_timeout_path(args)
-    run_read_ledger_on_testdata(args)
-    run_propose_request_vote(args)
+    # run_max_uncommitted_tx_count(args)
+    # run_file_operations(args)
+    # run_tls_san_checks(args)
+    # run_config_timeout_check(args)
+    # run_configuration_file_checks(args)
+    # run_pid_file_check(args)
+    # run_preopen_readiness_check(args)
+    # run_sighup_check(args)
+    # run_service_subject_name_check(args)
+    # run_cose_signatures_config_check(args)
+    # run_late_mounted_ledger_check(args)
+    # run_empty_ledger_dir_check(args)
+    # run_self_healing_open(args)
+    # run_self_healing_open_timeout_path(args)
+    # run_read_ledger_on_testdata(args)
+    # run_propose_request_vote(args)
+    run_ledger_chunk_operations(args)

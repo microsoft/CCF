@@ -1551,6 +1551,11 @@ namespace asynchost
 
       if (idx > end_of_committed_files_idx)
       {
+        LOG_INFO_FMT(
+          "Index {} is beyond end of committed files at {}, cannot get "
+          "committed ledger path",
+          idx,
+          end_of_committed_files_idx);
         return std::nullopt;
       }
 
@@ -1559,6 +1564,10 @@ namespace asynchost
 
       if (!name.has_value())
       {
+        LOG_INFO_FMT(
+          "Could not find committed ledger file for index {} in {}",
+          idx,
+          ledger_dir);
         return std::nullopt;
       }
 

@@ -211,6 +211,8 @@ namespace ccf::node
     auto find_chunk = [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
       size_t since_idx = 0;
       {
+        LOG_INFO_FMT("Finding ledger chunk including index {}", since_idx);
+
         // Get since_idx from query param, if present
         const auto parsed_query =
           http::parse_query(ctx.rpc_ctx->get_request_query());
@@ -284,10 +286,10 @@ namespace ccf::node
         return;
       }
 
+      const auto chunk_filename = chunk_path.value().filename();
+
       auto redirect_url = fmt::format(
-        "https://{}/node/ledger-chunk/{}",
-        address.value(),
-        chunk_path.value().string());
+        "https://{}/node/ledger-chunk/{}", address.value(), chunk_filename);
       LOG_DEBUG_FMT("Redirecting to ledger chunk: {}", redirect_url);
       ctx.rpc_ctx->set_response_header(
         ccf::http::headers::LOCATION, redirect_url);
