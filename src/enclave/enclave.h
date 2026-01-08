@@ -24,6 +24,7 @@
 #include "node/rpc/custom_protocol_subsystem.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/gov_effects.h"
+#include "node/rpc/ledger_subsystem.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/rpc/node_frontend.h"
@@ -137,7 +138,9 @@ namespace ccf
       context->install_subsystem(cpss);
       rpcsessions->set_custom_protocol_subsystem(cpss);
 
-      // TODO: install a ledger files subsystem to manage ledger access
+      auto ledger_subsystem =
+        std::make_shared<ccf::ReadLedgerSubsystem>(ledger_);
+      context->install_subsystem(ledger_subsystem);
 
       static constexpr size_t max_interpreter_cache_size = 10;
       auto interpreter_cache =
