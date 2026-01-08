@@ -7,7 +7,6 @@
 #include "ccf/crypto/hkdf.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
-#include "ccf/ds/ccf_exception.h"
 #include "ccf/ds/hex.h"
 #include "ccf/entity_id.h"
 #include "ccf/pal/locking.h"

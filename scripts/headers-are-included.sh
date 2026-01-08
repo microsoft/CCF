@@ -9,7 +9,8 @@ find src/ include/ -type f -print0 | xargs -0 grep -h "#include" | grep -E "incl
 
 pushd include/ || exit 1
 # version.h may have been generated, if cmake was run
-find ccf -type f -name "*.h" | grep -v "ccf/version.h" | sort -u > /tmp/CCF_HEADERS
+# ccf_deprecated.h may not be included if no APIs are currently deprecated
+find ccf -type f -name "*.h" | grep -v "ccf/version.h" | grep -v "ccf/ccf_deprecated.h" | sort -u > /tmp/CCF_HEADERS
 popd || exit 1
 
 diff -y --suppress-common-lines /tmp/CCF_HEADERS /tmp/CCF_INCLUDED

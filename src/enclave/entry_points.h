@@ -7,7 +7,7 @@
 
 #include <cstdint>
 
-extern "C"
+namespace ccf
 {
   CreateNodeStatus enclave_create_node(
     const EnclaveConfig& enclave_config,

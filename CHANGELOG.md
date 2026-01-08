@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Improved `ccf::historical::verify_self_issued_receipt` - now can verify receipts signed by the past service identities if they were back-endorsed (#7546).
 
+### Removed
+
+- `ccf::historical::adapter_v3` has been removed, `ccf::historical::read_only_adapter_v4` and `ccf::historical::read_write_adapter_v4` can be used instead (#7553).
+
 ## [7.0.0-dev6]
 
 [7.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev6

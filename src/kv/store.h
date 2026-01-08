@@ -3,7 +3,6 @@
 #pragma once
 
 #include "apply_changes.h"
-#include "ccf/ds/ccf_exception.h"
 #include "ccf/kv/read_only_store.h"
 #include "ccf/pal/locking.h"
 #include "deserialise.h"
