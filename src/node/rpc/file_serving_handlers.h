@@ -4,6 +4,7 @@
 
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/service/tables/nodes.h"
+#include "node/rpc/ledger_subsystem.h"
 #include "snapshots/filenames.h"
 
 namespace ccf::node
@@ -199,6 +200,111 @@ namespace ccf::node
     registry
       .make_read_only_endpoint(
         "/snapshot", HTTP_GET, find_snapshot, no_auth_required)
+      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .add_query_parameter<ccf::SeqNo>(
+        snapshot_since_param_key, ccf::endpoints::OptionalParameter)
+      .set_openapi_hidden(true)
+      .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
+      .install();
+
+    // Find a ledger chunk that includes the since value
+    auto find_chunk = [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+      size_t since_idx = 0;
+      {
+        // Get since_idx from query param, if present
+        const auto parsed_query =
+          http::parse_query(ctx.rpc_ctx->get_request_query());
+
+        std::string error_reason;
+        auto chunk_since = http::get_query_value_opt<ccf::SeqNo>(
+          parsed_query, snapshot_since_param_key, error_reason);
+
+        if (chunk_since.has_value())
+        {
+          if (!error_reason.empty())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidQueryParameterValue,
+              std::move(error_reason));
+            return;
+          }
+          since_idx = chunk_since.value();
+        }
+      }
+
+      auto node_operation = node_context.get_subsystem<AbstractNodeOperation>();
+      if (node_operation == nullptr)
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Unable to access NodeOperation subsystem");
+        return;
+      }
+
+      auto node_configuration_subsystem =
+        node_context.get_subsystem<NodeConfigurationSubsystem>();
+      if (node_configuration_subsystem == nullptr)
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "NodeConfigurationSubsystem is not available");
+        return;
+      }
+
+      const auto address =
+        get_redirect_address_for_node(ctx, ctx.tx, node_context.get_node_id());
+      if (!address.has_value())
+      {
+        return;
+      }
+
+      auto read_ledger_subsystem =
+        node_context.get_subsystem<ccf::ReadLedgerSubsystem>();
+      if (read_ledger_subsystem == nullptr)
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "LedgerReadSubsystem is not available");
+        return;
+      }
+
+      const auto chunk_path =
+        read_ledger_subsystem->committed_ledger_path_with_idx(since_idx);
+      if (!chunk_path.has_value())
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          fmt::format(
+            "This node has no ledger chunk including index {}", since_idx));
+        return;
+      }
+
+      auto redirect_url = fmt::format(
+        "https://{}/node/ledger-chunk/{}",
+        address.value(),
+        chunk_path.value().string());
+      LOG_DEBUG_FMT("Redirecting to ledger chunk: {}", redirect_url);
+      ctx.rpc_ctx->set_response_header(
+        ccf::http::headers::LOCATION, redirect_url);
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/ledger-chunk", HTTP_HEAD, find_chunk, no_auth_required)
+      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .add_query_parameter<ccf::SeqNo>(
+        snapshot_since_param_key, ccf::endpoints::OptionalParameter)
+      .set_openapi_hidden(true)
+      .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
+      .install();
+    registry
+      .make_read_only_endpoint(
+        "/ledger-chunk", HTTP_GET, find_chunk, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         snapshot_since_param_key, ccf::endpoints::OptionalParameter)
