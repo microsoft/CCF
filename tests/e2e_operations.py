@@ -724,6 +724,7 @@ def run_file_operations(args):
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
 
+                # Ensure that the network is still live
                 primary, _ = network.find_primary()
                 # Scoped transactions are not handled by historical range queries
                 network.stop_all_nodes(skip_verification=True)

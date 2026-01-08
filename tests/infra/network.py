@@ -1100,6 +1100,9 @@ class Network:
                     "Fatal error found during node shutdown", node_errors
                 )
 
+        if self.partitioner is not None:
+            self.partitioner.cleanup()
+
     def setup_join_node(
         self,
         node,
@@ -1956,6 +1959,28 @@ class Network:
             )
 
 
+# Closes the network on error, logging stack traces and optionally dropping into pdb
+@contextmanager
+def close_on_error(net, pdb=False):
+    try:
+        yield
+    except Exception:
+        # Don't try to verify txs on Exception path
+        net.txs = None
+
+        net.log_stack_traces(timeout=10)
+
+        if pdb:
+            import pdb
+
+            pdb.post_mortem()
+
+        LOG.info("Stopping network")
+        net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
+
+        raise
+
+
 @contextmanager
 def network(
     hosts,
@@ -1999,22 +2024,9 @@ def network(
         node_data_json_file=node_data_json_file,
         **kwargs,
     )
-    try:
+    with close_on_error(net, pdb=pdb):
         yield net
-    except Exception:
-        # Don't try to verify txs on Exception path
-        net.txs = None
-
-        net.log_stack_traces(timeout=10)
-
-        if pdb:
-            import pdb
-
-            pdb.set_trace()
-        else:
-            raise
-    finally:
-        LOG.info("Stopping network")
-        net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
-        if init_partitioner:
-            net.partitioner.cleanup()
+    LOG.info("Stopping network")
+    net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
+    if init_partitioner:
+        net.partitioner.cleanup()
