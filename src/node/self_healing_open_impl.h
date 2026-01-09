@@ -33,8 +33,7 @@ namespace ccf::self_healing_open
   };
 
   DECLARE_JSON_TYPE_WITH_BASE(IAmOpenRequest, TaggedWithNodeInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    IAmOpenRequest, prev_service_fingerprint, txid);
+  DECLARE_JSON_REQUIRED_FIELDS(IAmOpenRequest, prev_service_fingerprint, txid);
 }
 
 namespace ccf

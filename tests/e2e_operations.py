@@ -1901,7 +1901,7 @@ def run_self_healing_open_timeout_path(const_args):
 def run_self_healing_open_multiple_timeout(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.label += "_self_healing_open_timeout"
+    args.label += "_self_healing_open_multiple_timeout"
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -1921,7 +1921,7 @@ def run_self_healing_open_multiple_timeout(const_args):
             ledger_dirs[i] = l_dir
             committed_ledger_dirs[i] = c
 
-        LOG.info("Start a recovery network and stop it")
+        LOG.info("Start a recovery network")
         with infra.network.network(
             recovery_args.nodes,
             recovery_args.binary_dir,
@@ -1937,7 +1937,7 @@ def run_self_healing_open_multiple_timeout(const_args):
             # for each node start it and wait until it finishes the self-healing-open on the timeout path
             for node in recovered_network.nodes:
                 node.resume()
-                network.wait_for_statuses(
+                recovered_network.wait_for_statuses(
                     node,
                     ["WaitingForRecoveryShares", "Open"],
                     timeout=10,
