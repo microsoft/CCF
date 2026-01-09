@@ -3,6 +3,7 @@
 
 #include "node/self_healing_open_impl.h"
 
+#include "ccf/crypto/verifier.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/self_healing_open.h"
@@ -38,6 +39,13 @@ namespace ccf
     tx.rw<self_healing_open::Votes>(Tables::SELF_HEALING_OPEN_VOTES)->clear();
     tx.rw<self_healing_open::OpenKind>(Tables::SELF_HEALING_OPEN_OPEN_KIND)
       ->clear();
+  }
+
+  std::string service_id_from_pem(const ccf::crypto::Pem& pem)
+  {
+    return ccf::crypto::Sha256Hash(
+             ccf::crypto::public_key_der_from_cert(pem.raw()))
+      .hex_str();
   }
 
   void SelfHealingOpenSubsystem::try_start(ccf::kv::Tx& tx, bool recovering)
@@ -566,14 +574,43 @@ namespace ccf
       node_state->node_sign_kp->private_key_pem());
   }
 
+  self_healing_open::IAmOpenRequest& SelfHealingOpenSubsystem::
+    get_iamopen_request(kv::ReadOnlyTx& tx)
+  {
+    std::lock_guard<pal::Mutex> guard(self_healing_open_lock);
+
+    if (iamopen_request_cache.has_value())
+    {
+      return iamopen_request_cache.value();
+    }
+
+    auto previous_service_cert =
+      tx.ro(node_state->network.previous_service_identity)->get();
+    if (!previous_service_cert.has_value())
+    {
+      throw std::logic_error(
+        "Previous service identity not found in table but expected as "
+        "recovering");
+    }
+    auto previous_service_identity_fingerprint =
+      service_id_from_pem(previous_service_cert.value());
+
+    iamopen_request_cache = self_healing_open::IAmOpenRequest{};
+    iamopen_request_cache->info = make_node_info(tx);
+    iamopen_request_cache->prev_service_fingerprint =
+      previous_service_identity_fingerprint;
+    iamopen_request_cache->txid = node_state->last_recovered_signed_idx;
+
+    return iamopen_request_cache.value();
+  }
+
   void SelfHealingOpenSubsystem::send_iamopen_unsafe(ccf::kv::ReadOnlyTx& tx)
   {
     auto config = get_config();
 
     LOG_TRACE_FMT("Sending self-healing-open iamopen");
 
-    self_healing_open::TaggedWithNodeInfo request{.info = make_node_info(tx)};
-    nlohmann::json request_json = request;
+    nlohmann::json request_json = get_iamopen_request(tx);
 
     for (auto& target : config.cluster_identities)
     {

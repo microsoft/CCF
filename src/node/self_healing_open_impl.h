@@ -4,6 +4,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/node/startup_config.h"
+#include "ccf/pal/locking.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
 #include "tasks/task.h"
@@ -34,6 +35,12 @@ namespace ccf::self_healing_open
   };
   DECLARE_JSON_TYPE_WITH_BASE(GossipRequest, TaggedWithNodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(GossipRequest, txid);
+
+  struct IAmOpenRequest : public TaggedWithNodeInfo
+  {
+    std::string prev_service_fingerprint;
+    ccf::kv::Version txid{};
+  };
 }
 
 namespace ccf
@@ -50,11 +57,16 @@ namespace ccf
     ccf::tasks::Task retry_task;
     ccf::tasks::Task failover_task;
 
+    pal::Mutex self_healing_open_lock;
+    std::optional<self_healing_open::IAmOpenRequest> iamopen_request_cache;
+
   public:
     SelfHealingOpenSubsystem(NodeState* node_state);
     void reset_state(ccf::kv::Tx& tx);
     void try_start(ccf::kv::Tx& tx, bool recovering);
     void advance(ccf::kv::Tx& tx, bool timeout);
+
+    self_healing_open::IAmOpenRequest& get_iamopen_request(kv::ReadOnlyTx& tx);
 
   private:
     // Start path

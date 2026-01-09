@@ -22,7 +22,7 @@ namespace ccf::node
   static HandlerJsonParamsAndForward wrap_self_healing_open(
     SelfHealingOpenHandler<Input> cb, ccf::AbstractNodeContext& node_context)
   {
-    return [cb = std::move(cb), node_context](
+    return [cb = std::move(cb), &node_context](
              endpoints::EndpointContext& args, const nlohmann::json& params) {
       auto config = node_context.get_subsystem<NodeConfigurationSubsystem>();
       auto node_operation = node_context.get_subsystem<AbstractNodeOperation>();
@@ -201,8 +201,9 @@ namespace ccf::node
       .install();
 
     auto self_healing_open_iamopen =
-      [](auto& args, self_healing_open::TaggedWithNodeInfo in)
-      -> std::optional<ErrorDetails> {
+      [&node_context](
+        auto& args,
+        self_healing_open::IAmOpenRequest in) -> std::optional<ErrorDetails> {
       auto sm_state = args.tx
                         .template ro<self_healing_open::SMState>(
                           Tables::SELF_HEALING_OPEN_SM_STATE)
@@ -217,8 +218,22 @@ namespace ccf::node
         sm_state.value() == self_healing_open::StateMachine::OPENING ||
         sm_state.value() == self_healing_open::StateMachine::OPEN)
       {
-        LOG_INFO_FMT(
-          "Ignoring iamopen request as node is already opening/open");
+        auto node_operation =
+          node_context.get_subsystem<AbstractNodeOperation>();
+        auto& self_iamopen_request =
+          node_operation->self_healing_open().get_iamopen_request(args.tx);
+        LOG_FAIL_FMT(
+          "Ignoring IAmOpen request from Node {} (service {}, previously {}, "
+          "at txid {}) as I am already open, Node {} (service {}, previously "
+          "{}, at txid {})",
+          in.info.identity.intrinsic_id,
+          in.info.service_identity,
+          in.prev_service_fingerprint,
+          in.txid,
+          self_iamopen_request.info.identity.intrinsic_id,
+          self_iamopen_request.info.service_identity,
+          self_iamopen_request.prev_service_fingerprint,
+          self_iamopen_request.txid);
         return ErrorDetails{
           .status = HTTP_STATUS_BAD_REQUEST,
           .code = ccf::errors::InvalidNodeState,
@@ -241,9 +256,8 @@ namespace ccf::node
       .make_endpoint(
         "/self_healing_open/iamopen",
         HTTP_PUT,
-        json_adapter(
-          wrap_self_healing_open<self_healing_open::TaggedWithNodeInfo>(
-            self_healing_open_iamopen, node_context)),
+        json_adapter(wrap_self_healing_open<self_healing_open::IAmOpenRequest>(
+          self_healing_open_iamopen, node_context)),
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
