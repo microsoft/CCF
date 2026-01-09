@@ -17,10 +17,13 @@ namespace ccf::cose
 {
   namespace headers
   {
+    // https://www.iana.org/assignments/cose/cose.xhtml
     static constexpr int64_t PARAM_ALG = 1;
     static constexpr int64_t PARAM_CONTENT_TYPE = 3;
     static constexpr int64_t PARAM_KID = 4;
     static constexpr int64_t PARAM_X5CHAIN = 33;
+    // https://www.ietf.org/archive/id/draft-ietf-cose-hash-envelope-10.html#section-4
+    static constexpr int64_t PARAM_CONTENT_TYPE_HASH_ENVELOPE = 259;
     static constexpr int64_t PARAM_VDP = 396;
     static constexpr int64_t PARAM_INCLUSION_PROOFS = -1;
 
