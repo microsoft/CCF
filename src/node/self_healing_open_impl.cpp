@@ -41,13 +41,6 @@ namespace ccf
       ->clear();
   }
 
-  std::string service_id_from_pem(const ccf::crypto::Pem& pem)
-  {
-    return ccf::crypto::Sha256Hash(
-             ccf::crypto::public_key_der_from_cert(pem.raw()))
-      .hex_str();
-  }
-
   void SelfHealingOpenSubsystem::try_start(ccf::kv::Tx& tx, bool recovering)
   {
     auto& config = node_state->config.recover.self_healing_open;
@@ -219,10 +212,14 @@ namespace ccf
         }
 
         LOG_INFO_FMT(
-          "Self-healing-open joining {} at {} with service identity {}",
+          "Self-healing-open joining {} at {} with fingerprint {}",
           node_config->identity.intrinsic_id,
           node_config->identity.published_address,
-          node_config->service_identity);
+          self_healing_open::service_fingerprint_from_pem(
+            ccf::crypto::cert_der_to_pem(node_config->service_cert_der)));
+        auto service_cert =
+          ccf::crypto::cert_der_to_pem(node_config->service_cert_der);
+        LOG_INFO_FMT("{}", service_cert.str());
 
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::restart, node_state->to_host);
       }
@@ -510,9 +507,16 @@ namespace ccf
       std::move(curl_request));
   }
 
-  self_healing_open::RequestNodeInfo SelfHealingOpenSubsystem::make_node_info(
+  self_healing_open::RequestNodeInfo& SelfHealingOpenSubsystem::get_node_info(
     kv::ReadOnlyTx& tx)
   {
+    std::lock_guard<pal::Mutex> guard(self_healing_open_lock);
+
+    if (node_info_cache.has_value())
+    {
+      return node_info_cache.value();
+    }
+
     auto* nodes_handle = tx.ro<Nodes>(Tables::NODES);
     auto node_info_opt = nodes_handle->get(node_state->get_node_id());
     if (!node_info_opt.has_value())
@@ -522,13 +526,15 @@ namespace ccf
     }
     auto& config = get_config();
     {
-      std::lock_guard<pal::Mutex> guard(node_state->lock);
-      return {
+      std::lock_guard<pal::Mutex> ns_guard(node_state->lock);
+      node_info_cache = self_healing_open::RequestNodeInfo{
         .quote_info = node_info_opt->quote_info,
         .identity = config.identity,
-        .service_identity = node_state->network.identity->cert.str(),
+        .service_cert_der =
+          ccf::crypto::cert_pem_to_der(node_state->network.identity->cert),
       };
     }
+    return node_info_cache.value();
   }
 
   void SelfHealingOpenSubsystem::send_gossip_unsafe(kv::ReadOnlyTx& tx)
@@ -538,7 +544,7 @@ namespace ccf
     LOG_TRACE_FMT("Broadcasting self-healing-open gossip");
 
     self_healing_open::GossipRequest request;
-    request.info = make_node_info(tx);
+    request.info = get_node_info(tx);
     request.txid = node_state->last_recovered_signed_idx;
     nlohmann::json request_json = request;
 
@@ -562,7 +568,7 @@ namespace ccf
       node_info.identity.intrinsic_id,
       node_info.identity.published_address);
 
-    self_healing_open::TaggedWithNodeInfo request{.info = make_node_info(tx)};
+    self_healing_open::TaggedWithNodeInfo request{.info = get_node_info(tx)};
 
     nlohmann::json request_json = request;
 
@@ -577,11 +583,12 @@ namespace ccf
   self_healing_open::IAmOpenRequest& SelfHealingOpenSubsystem::
     get_iamopen_request(kv::ReadOnlyTx& tx)
   {
-    std::lock_guard<pal::Mutex> guard(self_healing_open_lock);
-
-    if (iamopen_request_cache.has_value())
     {
-      return iamopen_request_cache.value();
+      std::lock_guard<pal::Mutex> guard(self_healing_open_lock);
+      if (iamopen_request_cache.has_value())
+      {
+        return iamopen_request_cache.value();
+      }
     }
 
     auto previous_service_cert =
@@ -593,13 +600,19 @@ namespace ccf
         "recovering");
     }
     auto previous_service_identity_fingerprint =
-      service_id_from_pem(previous_service_cert.value());
+      self_healing_open::service_fingerprint_from_pem(
+        previous_service_cert.value());
 
-    iamopen_request_cache = self_healing_open::IAmOpenRequest{};
-    iamopen_request_cache->info = make_node_info(tx);
-    iamopen_request_cache->prev_service_fingerprint =
-      previous_service_identity_fingerprint;
-    iamopen_request_cache->txid = node_state->last_recovered_signed_idx;
+    auto& node_info = get_node_info(tx);
+
+    {
+      std::lock_guard<pal::Mutex> guard(self_healing_open_lock);
+      iamopen_request_cache = self_healing_open::IAmOpenRequest{};
+      iamopen_request_cache->info = node_info;
+      iamopen_request_cache->prev_service_fingerprint =
+        previous_service_identity_fingerprint;
+      iamopen_request_cache->txid = node_state->last_recovered_signed_idx;
+    }
 
     return iamopen_request_cache.value();
   }

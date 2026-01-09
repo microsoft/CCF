@@ -3,10 +3,13 @@
 #pragma once
 
 #include "ccf/common_auth_policies.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/endpoint_context.h"
 #include "ccf/json_handler.h"
 #include "ccf/node_context.h"
 #include "ccf/odata_error.h"
+#include "ccf/service/operator_feature.h"
+#include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "node/node_configuration_subsystem.h"
 #include "node/rpc/node_frontend_utils.h"
@@ -45,7 +48,7 @@ namespace ccf::node
       auto in = params.get<Input>();
       self_healing_open::RequestNodeInfo info = in.info;
 
-      // ---- Validate the quote and store the node info ----
+      // ---- Validate the quote against our store and store the node info ----
 
       auto cert_der = ccf::crypto::public_key_der_from_cert(
         args.rpc_ctx->get_session_context()->caller_cert);
@@ -68,6 +71,8 @@ namespace ccf::node
         "Self-healing-open message from intrinsic id {} has a valid quote",
         info.identity.intrinsic_id);
 
+      // ---- The sender now has trusted code ----
+
       // Validating that we haven't heard from this node before, of if we have
       // that the cert hasn't changed
       auto* node_info_handle = args.tx.rw<self_healing_open::NodeInfoMap>(
@@ -78,11 +83,11 @@ namespace ccf::node
       if (existing_node_info.has_value())
       {
         // If we have seen this node before, check that the cert is the same
-        if (existing_node_info->cert_der != cert_der)
+        if (existing_node_info->node_cert_der != cert_der)
         {
           auto message = fmt::format(
             "Self-healing-open message from intrinsic id {} is invalid: "
-            "certificate has changed",
+            "certificate public key has changed",
             info.identity.intrinsic_id);
           LOG_FAIL_FMT("{}", message);
           return make_error(
@@ -92,10 +97,9 @@ namespace ccf::node
       else
       {
         self_healing_open::NodeInfo src_info{
-          .quote_info = info.quote_info,
-          .identity = info.identity,
-          .cert_der = cert_der,
-          .service_identity = info.service_identity};
+          info,
+          cert_der,
+        };
         node_info_handle->put(info.identity.intrinsic_id, src_info);
       }
 
@@ -222,23 +226,30 @@ namespace ccf::node
           node_context.get_subsystem<AbstractNodeOperation>();
         auto& self_iamopen_request =
           node_operation->self_healing_open().get_iamopen_request(args.tx);
-        LOG_FAIL_FMT(
-          "Ignoring IAmOpen request from Node {} (service {}, previously {}, "
-          "at txid {}) as I am already open, Node {} (service {}, previously "
-          "{}, at txid {})",
+        LOG_INFO_FMT(
+          "Ignoring IAmOpen request from Node {} as I, Node {}, am already "
+          "open. Node {}: (service {}, previously {}, at txid {}) Node {}: "
+          "(service {}, previously {}, at txid {})",
           in.info.identity.intrinsic_id,
-          in.info.service_identity,
+          self_iamopen_request.info.identity.intrinsic_id,
+          in.info.identity.intrinsic_id,
+          self_healing_open::service_fingerprint_from_pem(
+            crypto::cert_der_to_pem(in.info.service_cert_der)),
           in.prev_service_fingerprint,
           in.txid,
           self_iamopen_request.info.identity.intrinsic_id,
-          self_iamopen_request.info.service_identity,
+          self_healing_open::service_fingerprint_from_pem(
+            crypto::cert_der_to_pem(
+              self_iamopen_request.info.service_cert_der)),
           self_iamopen_request.prev_service_fingerprint,
           self_iamopen_request.txid);
+
         return ErrorDetails{
           .status = HTTP_STATUS_BAD_REQUEST,
           .code = ccf::errors::InvalidNodeState,
           .msg = "Node is already opening, ignoring iamopen request"};
       }
+
       LOG_TRACE_FMT(
         "Self-healing-open: receive IAmOpen from {}",
         in.info.identity.intrinsic_id);

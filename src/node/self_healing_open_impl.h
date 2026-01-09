@@ -11,16 +11,6 @@
 
 namespace ccf::self_healing_open
 {
-  struct RequestNodeInfo
-  {
-    QuoteInfo quote_info;
-    Identity identity;
-    std::string service_identity;
-  };
-  DECLARE_JSON_TYPE(RequestNodeInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    RequestNodeInfo, quote_info, identity, service_identity);
-
   struct TaggedWithNodeInfo
   {
   public:
@@ -41,6 +31,10 @@ namespace ccf::self_healing_open
     std::string prev_service_fingerprint;
     ccf::kv::Version txid{};
   };
+
+  DECLARE_JSON_TYPE_WITH_BASE(IAmOpenRequest, TaggedWithNodeInfo);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    IAmOpenRequest, prev_service_fingerprint, txid);
 }
 
 namespace ccf
@@ -58,6 +52,7 @@ namespace ccf
     ccf::tasks::Task failover_task;
 
     pal::Mutex self_healing_open_lock;
+    std::optional<self_healing_open::RequestNodeInfo> node_info_cache;
     std::optional<self_healing_open::IAmOpenRequest> iamopen_request_cache;
 
   public:
@@ -77,7 +72,7 @@ namespace ccf
     void stop_timers();
 
     // Steady state operations
-    self_healing_open::RequestNodeInfo make_node_info(kv::ReadOnlyTx& tx);
+    self_healing_open::RequestNodeInfo& get_node_info(kv::ReadOnlyTx& tx);
     void send_gossip_unsafe(kv::ReadOnlyTx& tx);
     void send_vote_unsafe(
       kv::ReadOnlyTx& tx, const self_healing_open::NodeInfo& node_info);
