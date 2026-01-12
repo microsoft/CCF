@@ -272,6 +272,8 @@ MerkleProofData decode_merkle_proof(const std::vector<uint8_t>& encoded)
   const auto& leaf = decoded->map_at(
     ccf::cbor::make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL));
 
+  REQUIRE_EQ(leaf->size(), 3);
+
   const auto& wsd = leaf->array_at(0)->as_bytes();
   data.write_set_digest.assign(wsd.begin(), wsd.end());
 
