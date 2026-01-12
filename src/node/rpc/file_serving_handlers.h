@@ -301,7 +301,6 @@ namespace ccf::node
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         snapshot_since_param_key, ccf::endpoints::OptionalParameter)
-      .set_openapi_hidden(true)
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
     registry
@@ -310,7 +309,6 @@ namespace ccf::node
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         snapshot_since_param_key, ccf::endpoints::OptionalParameter)
-      .set_openapi_hidden(true)
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
 
@@ -825,7 +823,6 @@ namespace ccf::node
         get_ledger_chunk,
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
-      .set_openapi_hidden(true)
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
     registry
@@ -835,7 +832,6 @@ namespace ccf::node
         get_ledger_chunk,
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
-      .set_openapi_hidden(true)
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
   }

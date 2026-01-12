@@ -697,36 +697,56 @@ def test_ledger_chunk_access(network, args):
         with node.client(
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         ) as c:
-            r = c.head("/node/ledger-chunk?since=1", allow_redirects=False)
-            assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
-            assert r.headers["Location"].endswith(
-                "/node/ledger-chunk/ledger_1-2.committed"
-            ), r
-            r = c.get("/node/ledger-chunk?since=1", allow_redirects=False)
-            assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
-            assert r.headers["Location"].endswith(
-                "/node/ledger-chunk/ledger_1-2.committed"
-            ), r
-
-            chunk_url = urllib.parse.urlparse(r.headers["Location"])
-
-            r = c.head(chunk_url.path, allow_redirects=False)
-            chunk_size = int(r.headers["Content-Length"])
-
             main_ledger_dir = node.get_main_ledger_dir()
-            ledger_chunk_path = os.path.join(main_ledger_dir, "ledger_1-2.committed")
-            actual_chunk_size = os.stat(ledger_chunk_path).st_size
-            assert (
-                chunk_size == actual_chunk_size
-            ), f"Expected chunk size {actual_chunk_size}, got {chunk_size}"
+            chunks = [
+                f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")
+            ]
+            chunks = sorted(chunks, key=lambda x: int(x.split("_")[1].split("-")[0]))
 
-            r = c.get(chunk_url.path, allow_redirects=False)
-            dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
-            with open(ledger_chunk_path, "rb") as f:
-                actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
-            assert (
-                dled_chunk_digest == actual_chunk_digest
-            ), "Ledger chunk content does not match"
+            for chunk in chunks:
+                range = chunk.split("_")[1]
+                start_index = int(range.split("-")[0])
+                end_index = int(range.split("-")[1].split(".")[0])
+
+                chunk_url = None
+                # Asking about any index in the chunk should redirect to the chunk
+                for index in (start_index, end_index, (start_index + end_index) // 2):
+                    r = c.head(
+                        f"/node/ledger-chunk?since={index}", allow_redirects=False
+                    )
+                    assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+                    assert r.headers["Location"].endswith(
+                        f"/node/ledger-chunk/{chunk}"
+                    ), r
+                    r = c.get(
+                        f"/node/ledger-chunk?since={index}", allow_redirects=False
+                    )
+                    assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+                    assert r.headers["Location"].endswith(
+                        f"/node/ledger-chunk/{chunk}"
+                    ), r
+
+                    chunk_url = urllib.parse.urlparse(r.headers["Location"])
+
+                assert chunk_url is not None
+
+                r = c.head(chunk_url.path, allow_redirects=False)
+                chunk_size = int(r.headers["Content-Length"])
+
+                main_ledger_dir = node.get_main_ledger_dir()
+                ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
+                actual_chunk_size = os.stat(ledger_chunk_path).st_size
+                assert (
+                    chunk_size == actual_chunk_size
+                ), f"Expected chunk size {actual_chunk_size}, got {chunk_size}"
+
+                r = c.get(chunk_url.path, allow_redirects=False)
+                dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
+                with open(ledger_chunk_path, "rb") as f:
+                    actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
+                assert (
+                    dled_chunk_digest == actual_chunk_digest
+                ), "Ledger chunk content does not match"
 
 
 def run_file_operations(args):
