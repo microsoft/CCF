@@ -211,8 +211,6 @@ namespace ccf::node
     auto find_chunk = [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
       size_t since_idx = 0;
       {
-        LOG_INFO_FMT("Finding ledger chunk including index {}", since_idx);
-
         // Get since_idx from query param, if present
         const auto parsed_query =
           http::parse_query(ctx.rpc_ctx->get_request_query());
@@ -233,7 +231,18 @@ namespace ccf::node
           }
           since_idx = chunk_since.value();
         }
+        else
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            fmt::format(
+              "Missing required query parameter '{}'",
+              snapshot_since_param_key));
+          return;
+        }
       }
+      LOG_INFO_FMT("Finding ledger chunk including index {}", since_idx);
 
       auto node_operation = node_context.get_subsystem<AbstractNodeOperation>();
       if (node_operation == nullptr)
@@ -256,10 +265,14 @@ namespace ccf::node
         return;
       }
 
-      const auto address =
+      auto address =
         get_redirect_address_for_node(ctx, ctx.tx, node_context.get_node_id());
       if (!address.has_value())
       {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Failed to get redirect address for this node");
         return;
       }
 
@@ -276,24 +289,55 @@ namespace ccf::node
 
       const auto chunk_path =
         read_ledger_subsystem->committed_ledger_path_with_idx(since_idx);
-      if (!chunk_path.has_value())
+
+      // If the file is found locally, always serve it from this node
+      if (chunk_path.has_value())
       {
-        ctx.rpc_ctx->set_error(
-          HTTP_STATUS_NOT_FOUND,
-          ccf::errors::ResourceNotFound,
-          fmt::format(
-            "This node has no ledger chunk including index {}", since_idx));
+        const auto chunk_filename = chunk_path.value().filename();
+
+        auto redirect_url = fmt::format(
+          "https://{}/node/ledger-chunk/{}", address.value(), chunk_filename);
+        LOG_INFO_FMT("Redirecting to ledger chunk: {}", redirect_url);
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::LOCATION, redirect_url);
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
         return;
       }
 
-      const auto chunk_filename = chunk_path.value().filename();
+      // Otherwise, if we are not primary, try to redirect to primary
+      if (!node_operation->can_replicate())
+      {
+        LOG_INFO_FMT(
+          "This node cannot serve ledger chunk including index {} - trying "
+          "to redirect to primary",
+          since_idx);
+        auto primary_id = node_operation->get_primary();
+        if (primary_id.has_value())
+        {
+          address = get_redirect_address_for_node(ctx, ctx.tx, *primary_id);
+          if (address.has_value())
+          {
+            auto location =
+              fmt::format("https://{}/node/ledger-chunk", address.value());
+            location +=
+              fmt::format("?{}={}", snapshot_since_param_key, since_idx);
 
-      auto redirect_url = fmt::format(
-        "https://{}/node/ledger-chunk/{}", address.value(), chunk_filename);
-      LOG_DEBUG_FMT("Redirecting to ledger chunk: {}", redirect_url);
-      ctx.rpc_ctx->set_response_header(
-        ccf::http::headers::LOCATION, redirect_url);
-      ctx.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+            ctx.rpc_ctx->set_response_header(http::headers::LOCATION, location);
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_PERMANENT_REDIRECT,
+              ccf::errors::NodeCannotHandleRequest,
+              "Ledger chunk not found locally; redirecting to primary");
+            return;
+          }
+        }
+      }
+
+      ctx.rpc_ctx->set_error(
+        HTTP_STATUS_NOT_FOUND,
+        ccf::errors::ResourceNotFound,
+        fmt::format(
+          "This node has no ledger chunk including index {}", since_idx));
+      return;
     };
     registry
       .make_read_only_endpoint(
