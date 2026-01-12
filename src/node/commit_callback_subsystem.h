@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "kv/kv_types.h"
 #include "node/commit_callback_interface.h"
 
 #include <map>
@@ -21,21 +22,24 @@ namespace ccf
     // callback is executing (and the mutex is locked)
     std::recursive_mutex callbacks_mutex;
 
+    ccf::kv::Consensus* consensus = nullptr;
+
   public:
     CommitCallbackSubsystem() = default;
+
+    void set_consensus(ccf::kv::Consensus* c)
+    {
+      consensus = c;
+    }
 
     void add_callback(ccf::TxID tx_id, CommitCallback&& callback) override
     {
       std::lock_guard<std::recursive_mutex> guard(callbacks_mutex);
 
-      if (known_commit.has_value())
+      if (known_commit.has_value() && consensus != nullptr)
       {
-        const auto status = ccf::evaluate_tx_status(
-          tx_id.view,
-          tx_id.seqno,
-          known_commit->view,
-          known_commit->view,
-          known_commit->seqno);
+        const auto status =
+          consensus->evaluate_tx_status(tx_id.view, tx_id.seqno);
 
         if (status == TxStatus::Committed || status == TxStatus::Invalid)
         {
@@ -53,6 +57,12 @@ namespace ccf
 
     void trigger_callbacks(ccf::TxID committed)
     {
+      if (consensus == nullptr)
+      {
+        throw std::logic_error(
+          "trigger_callbacks() called before set_consensus()");
+      }
+
       std::lock_guard<std::recursive_mutex> guard(callbacks_mutex);
 
       known_commit = committed;
@@ -70,12 +80,8 @@ namespace ccf
         // should now be known
         for (auto& [tx_id, callback] : callbacks)
         {
-          const auto status = ccf::evaluate_tx_status(
-            tx_id.view,
-            tx_id.seqno,
-            committed.view,
-            committed.view,
-            committed.seqno);
+          const auto status =
+            consensus->evaluate_tx_status(tx_id.view, tx_id.seqno);
 
           if (status != TxStatus::Committed && status != TxStatus::Invalid)
           {
