@@ -572,5 +572,271 @@ namespace ccf::node
       .set_openapi_hidden(true)
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
+
+    auto get_ledger_chunk = [&](ccf::endpoints::CommandEndpointContext& ctx) {
+      auto node_configuration_subsystem =
+        node_context.get_subsystem<NodeConfigurationSubsystem>();
+      if (node_configuration_subsystem == nullptr)
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "NodeConfigurationSubsystem is not available");
+        return;
+      }
+
+      const auto& ledger_config =
+        node_configuration_subsystem->get().node_config.ledger;
+
+      std::string chunk_name;
+      std::string error;
+      if (!ccf::endpoints::get_path_param(
+            ctx.rpc_ctx->get_request_path_params(),
+            "chunk_name",
+            chunk_name,
+            error))
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidResourceName,
+          std::move(error));
+        return;
+      }
+
+      LOG_INFO_FMT("Getting ledger chunk {}", chunk_name);
+
+      files::fs::path chunk_path =
+        files::fs::path(ledger_config.directory) / chunk_name;
+
+      std::ifstream f(chunk_path, std::ios::binary);
+      if (!f.good())
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          fmt::format(
+            "This node does not have a ledger chunk named {}", chunk_name));
+        return;
+      }
+
+      LOG_DEBUG_FMT("Found ledger chunk: {}", chunk_path.string());
+      f.seekg(0, std::ifstream::end);
+      const auto total_size = (size_t)f.tellg();
+
+      ctx.rpc_ctx->set_response_header("accept-ranges", "bytes");
+
+      ctx.rpc_ctx->set_response_header(
+        ccf::http::headers::CCF_LEDGER_CHUNK_NAME, chunk_name);
+
+      if (ctx.rpc_ctx->get_request_verb() == HTTP_HEAD)
+      {
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CONTENT_LENGTH, total_size);
+        return;
+      }
+
+      size_t range_start = 0;
+      size_t range_end = total_size;
+      {
+        const auto range_header = ctx.rpc_ctx->get_request_header("range");
+        if (range_header.has_value())
+        {
+          LOG_TRACE_FMT("Parsing range header {}", range_header.value());
+
+          auto [unit, ranges] = ccf::nonstd::split_1(range_header.value(), "=");
+          if (unit != "bytes")
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidHeaderValue,
+              "Only 'bytes' is supported as a Range header unit");
+            return;
+          }
+
+          if (ranges.find(',') != std::string::npos)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidHeaderValue,
+              "Multiple ranges are not supported");
+            return;
+          }
+
+          const auto segments = ccf::nonstd::split(ranges, "-");
+          if (segments.size() != 2)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidHeaderValue,
+              fmt::format(
+                "Invalid format, cannot parse range in {}",
+                range_header.value()));
+            return;
+          }
+
+          const auto s_range_start = segments[0];
+          const auto s_range_end = segments[1];
+
+          if (!s_range_start.empty())
+          {
+            {
+              const auto [p, ec] = std::from_chars(
+                s_range_start.begin(), s_range_start.end(), range_start);
+              if (ec != std::errc())
+              {
+                ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidHeaderValue,
+                  fmt::format(
+                    "Unable to parse start of range value {} in {}",
+                    s_range_start,
+                    range_header.value()));
+                return;
+              }
+            }
+
+            if (range_start > total_size)
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidHeaderValue,
+                fmt::format(
+                  "Start of range {} is larger than total file size {}",
+                  range_start,
+                  total_size));
+              return;
+            }
+
+            if (!s_range_end.empty())
+            {
+              // Fully-specified range, like "X-Y"
+              {
+                const auto [p, ec] = std::from_chars(
+                  s_range_end.begin(), s_range_end.end(), range_end);
+                if (ec != std::errc())
+                {
+                  ctx.rpc_ctx->set_error(
+                    HTTP_STATUS_BAD_REQUEST,
+                    ccf::errors::InvalidHeaderValue,
+                    fmt::format(
+                      "Unable to parse end of range value {} in {}",
+                      s_range_end,
+                      range_header.value()));
+                  return;
+                }
+              }
+
+              if (range_end > total_size)
+              {
+                LOG_DEBUG_FMT(
+                  "Requested ledger chunk range ending at {}, but file size is "
+                  "only {} - shrinking range end",
+                  range_end,
+                  total_size);
+                range_end = total_size;
+              }
+
+              if (range_end < range_start)
+              {
+                ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidHeaderValue,
+                  fmt::format(
+                    "Invalid range: Start ({}) and end ({}) out of order",
+                    range_start,
+                    range_end));
+                return;
+              }
+            }
+            else
+            {
+              // Else this is an open-ended range like "X-"
+              range_end = total_size;
+            }
+          }
+          else
+          {
+            if (!s_range_end.empty())
+            {
+              // Negative range, like "-Y"
+              size_t offset = 0;
+              const auto [p, ec] =
+                std::from_chars(s_range_end.begin(), s_range_end.end(), offset);
+              if (ec != std::errc())
+              {
+                ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidHeaderValue,
+                  fmt::format(
+                    "Unable to parse end of range offset value {} in {}",
+                    s_range_end,
+                    range_header.value()));
+                return;
+              }
+
+              range_end = total_size;
+              range_start = range_end - offset;
+            }
+            else
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidHeaderValue,
+                "Invalid range: Must contain range-start or range-end");
+              return;
+            }
+          }
+        }
+      }
+
+      const auto range_size = range_end - range_start;
+
+      LOG_TRACE_FMT(
+        "Reading {}-byte range from {} to {}",
+        range_size,
+        range_start,
+        range_end);
+
+      // Read requested range into buffer
+      std::vector<uint8_t> contents(range_size);
+      f.seekg(range_start);
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      f.read(reinterpret_cast<char*>(contents.data()), contents.size());
+      f.close();
+
+      // Build successful response
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_PARTIAL_CONTENT);
+      ctx.rpc_ctx->set_response_header(
+        ccf::http::headers::CONTENT_TYPE,
+        ccf::http::headervalues::contenttype::OCTET_STREAM);
+      ctx.rpc_ctx->set_response_body(std::move(contents));
+
+      // Partial Content responses describe the current response in
+      // Content-Range
+      ctx.rpc_ctx->set_response_header(
+        ccf::http::headers::CONTENT_RANGE,
+        fmt::format("bytes {}-{}/{}", range_start, range_end, total_size));
+    };
+    registry
+      .make_command_endpoint(
+        "/ledger_chunk/{chunk_name}",
+        HTTP_HEAD,
+        get_ledger_chunk,
+        no_auth_required)
+      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_openapi_hidden(true)
+      .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
+      .install();
+    registry
+      .make_command_endpoint(
+        "/ledger_chunk/{chunk_name}",
+        HTTP_GET,
+        get_ledger_chunk,
+        no_auth_required)
+      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_openapi_hidden(true)
+      .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
+      .install();
   }
 }

@@ -699,7 +699,11 @@ def test_ledger_chunk_access(network, args):
             LOG.info(r)
             r = c.get("/node/ledger-chunk?since=1", allow_redirects=False)
             LOG.info(r)
-            assert False, r
+            chunk_url = r.headers["Location"]
+            r = c.head(chunk_url, allow_redirects=False)
+            LOG.info(r)
+            r = c.get(chunk_url, allow_redirects=False)
+            LOG.info(r)
 
 
 def run_file_operations(args):
