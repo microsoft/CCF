@@ -253,7 +253,7 @@ namespace ccf
     }
   }
 
-  void configure_snp_attestation(ccf::StartupConfig& startup_config)
+  void configure_snp_attestation(ccf::CCFConfig& startup_config)
   {
     if (ccf::pal::platform != ccf::pal::Platform::SNP)
     {
@@ -346,7 +346,7 @@ namespace ccf
   }
 
   void populate_config_for_start(
-    const host::CCHostConfig& config, ccf::StartupConfig& startup_config)
+    const host::CCHostConfig& config, ccf::CCFConfig& startup_config)
   {
     for (auto const& member : config.command.start.members)
     {
@@ -409,7 +409,7 @@ namespace ccf
   }
 
   void populate_config_for_join(
-    const host::CCHostConfig& config, ccf::StartupConfig& startup_config)
+    const host::CCHostConfig& config, ccf::CCFConfig& startup_config)
   {
     LOG_INFO_FMT(
       "Creating new node - join existing network at {}",
@@ -423,7 +423,7 @@ namespace ccf
   }
 
   void populate_config_for_recover(
-    const host::CCHostConfig& config, ccf::StartupConfig& startup_config)
+    const host::CCHostConfig& config, ccf::CCFConfig& startup_config)
   {
     LOG_INFO_FMT("Creating new node - recover");
     startup_config.initial_service_certificate_validity_days =
@@ -525,7 +525,7 @@ namespace ccf
     messaging::BufferProcessor& buffer_processor,
     ringbuffer::Circuit& circuit,
     EnclaveConfig& enclave_config,
-    ccf::StartupConfig& startup_config,
+    ccf::CCFConfig& startup_config,
     std::vector<uint8_t> startup_snapshot,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
@@ -758,7 +758,8 @@ namespace ccf
     std::vector<uint8_t> node_cert(certificate_size);
     std::vector<uint8_t> service_cert(certificate_size);
 
-    ccf::StartupConfig startup_config(config);
+    // Create startup config by copying the CCFConfig base from the host config
+    ccf::CCFConfig startup_config = static_cast<const ccf::CCFConfig&>(config);
 
     // Configure SNP attestation if on SNP platform
     configure_snp_attestation(startup_config);

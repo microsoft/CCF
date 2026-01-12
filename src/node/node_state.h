@@ -108,7 +108,7 @@ namespace ccf
     QuoteInfo quote_info;
     pal::PlatformAttestationMeasurement node_measurement;
     std::optional<pal::snp::TcbVersionRaw> snp_tcb_version = std::nullopt;
-    ccf::StartupConfig config;
+    ccf::CCFConfig config;
     std::optional<pal::UVMEndorsements> snp_uvm_endorsements = std::nullopt;
     std::vector<uint8_t> startup_snapshot;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
@@ -555,7 +555,7 @@ namespace ccf
 
     NodeCreateInfo create(
       StartType start_type_,
-      const ccf::StartupConfig& config_,
+      const ccf::CCFConfig& config_,
       std::vector<uint8_t>&& startup_snapshot_)
     {
       std::lock_guard<pal::Mutex> guard(lock);
@@ -2699,7 +2699,7 @@ namespace ccf
       n2n_channels->set_idle_timeout(idle_timeout);
     }
 
-    [[nodiscard]] const ccf::StartupConfig& get_node_config() const override
+    [[nodiscard]] const ccf::CCFConfig& get_node_config() const override
     {
       return config;
     }

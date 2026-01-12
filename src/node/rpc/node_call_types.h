@@ -73,7 +73,7 @@ namespace ccf
       ccf::TxID create_txid;
 
       // Only set on genesis transaction, but not on recovery
-      std::optional<ccf::StartupConfig::Start> genesis_info = std::nullopt;
+      std::optional<ccf::CCFConfig::Start> genesis_info = std::nullopt;
     };
   };
 

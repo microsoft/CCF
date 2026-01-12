@@ -90,6 +90,7 @@ namespace host
 
       struct Start
       {
+        // File paths (from JSON config)
         std::vector<ParsedMemberInfo> members;
         std::vector<std::string> constitution_files;
         ccf::ServiceConfiguration service_configuration;
@@ -123,6 +124,7 @@ namespace host
           std::nullopt;
         std::optional<ccf::SelfHealingOpenConfig> self_healing_open =
           std::nullopt;
+
         bool operator==(const Recover&) const = default;
       };
       Recover recover = {};

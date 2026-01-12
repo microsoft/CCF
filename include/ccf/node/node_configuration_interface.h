@@ -13,7 +13,7 @@ namespace ccf
 {
   struct NodeConfigurationState
   {
-    const ccf::StartupConfig& node_config;
+    const ccf::CCFConfig& node_config;
     std::map<NodeInfoNetwork::RpcInterfaceID, std::vector<std::regex>>
       rpc_interface_regexes;
     bool initialized = false;

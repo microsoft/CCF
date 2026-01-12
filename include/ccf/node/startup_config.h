@@ -19,6 +19,15 @@
 
 namespace ccf
 {
+  struct SelfHealingOpenConfig
+  {
+    self_healing_open::Identity identity;
+    std::vector<self_healing_open::Identity> cluster_identities;
+    ccf::ds::TimeString retry_timeout = {"100ms"};
+    ccf::ds::TimeString failover_timeout = {"2000ms"};
+    bool operator==(const SelfHealingOpenConfig&) const = default;
+  };
+
   struct CCFConfig
   {
     size_t worker_threads = 0;
@@ -101,35 +110,17 @@ namespace ccf
       bool operator==(const Snapshots&) const = default;
     };
     Snapshots snapshots = {};
-  };
 
-  struct SelfHealingOpenConfig
-  {
-    self_healing_open::Identity identity;
-    std::vector<self_healing_open::Identity> cluster_identities;
-    ccf::ds::TimeString retry_timeout = {"100ms"};
-    ccf::ds::TimeString failover_timeout = {"2000ms"};
-    bool operator==(const SelfHealingOpenConfig&) const = default;
-  };
-
-  struct StartupConfig : CCFConfig
-  {
-    StartupConfig() = default;
-    StartupConfig(const CCFConfig& common_base) : CCFConfig(common_base) {}
-
+    // Runtime fields populated by host before passing to enclave
     std::string startup_host_time;
-    size_t snapshot_tx_interval = 10'000;
+    nlohmann::json node_data = nullptr;
+    nlohmann::json service_data = nullptr;
+    std::optional<std::string> sealed_ledger_secret_location = std::nullopt;
 
     // Only if starting or recovering
     size_t initial_service_certificate_validity_days = 1;
     std::string service_subject_name = "CN=CCF Service";
     ccf::COSESignaturesConfig cose_signatures;
-
-    std::optional<std::string> sealed_ledger_secret_location;
-
-    nlohmann::json service_data = nullptr;
-
-    nlohmann::json node_data = nullptr;
 
     struct Start
     {
@@ -147,6 +138,8 @@ namespace ccf
       ccf::ds::TimeString retry_timeout = {"1000ms"};
       std::vector<uint8_t> service_cert;
       bool follow_redirect = true;
+
+      bool operator==(const Join& other) const = default;
     };
     Join join = {};
 
@@ -157,7 +150,13 @@ namespace ccf
       std::optional<std::string> previous_sealed_ledger_secret_location =
         std::nullopt;
       std::optional<SelfHealingOpenConfig> self_healing_open = std::nullopt;
+
+      bool operator==(const Recover& other) const = default;
     };
     Recover recover = {};
   };
+
+  // StartupConfig is now an alias for CCFConfig for backward compatibility
+  // The distinct in-memory config type has been removed per issue #6946
+  using StartupConfig = CCFConfig;
 }
