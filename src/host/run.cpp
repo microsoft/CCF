@@ -452,8 +452,7 @@ namespace ccf
       config.command.recover.self_healing_open;
   }
 
-  std::vector<uint8_t> load_startup_snapshot(
-    const host::CCHostConfig& config, snapshots::SnapshotManager& snapshots)
+  std::vector<uint8_t> load_startup_snapshot(const host::CCHostConfig& config)
   {
     std::vector<uint8_t> startup_snapshot = {};
 
@@ -464,7 +463,15 @@ namespace ccf
       return startup_snapshot;
     }
 
-    auto latest_local_snapshot = snapshots.find_latest_committed_snapshot();
+    std::vector<fs::path> directories;
+    directories.emplace_back(config.snapshots.directory);
+    const auto& read_only_dir = config.snapshots.read_only_directory;
+    if (read_only_dir.has_value())
+    {
+      directories.emplace_back(read_only_dir.value());
+    }
+    auto latest_local_snapshot =
+      snapshots::find_latest_committed_snapshot_in_directories(directories);
 
     if (
       config.command.type == StartType::Join &&
@@ -851,7 +858,8 @@ namespace ccf
     }
 
     // Load startup snapshot if needed
-    auto startup_snapshot = load_startup_snapshot(config, snapshots);
+    // TODO: Do this much later, just before join
+    auto startup_snapshot = load_startup_snapshot(config);
 
     // Used by GET /node/network/nodes/self to return rpc interfaces
     // prior to the KV being updated
