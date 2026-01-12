@@ -55,6 +55,7 @@ namespace ccf::crypto
   // CCF-specific: last signed Merkle root hash in the range.
   static const std::string COSE_PHEADER_KEY_EPOCH_LAST_MERKLE_ROOT =
     "epoch.end.merkle.root";
+  static const std::string COSE_PHEADER_UVM_SVN = "svn";
 
   class COSEMapKey
   {
