@@ -313,7 +313,7 @@ namespace ccf::cbor
       case SimpleValue::True:
         return true;
       default:
-        throw CBORDecodeError("Simple value can't be matched to boolean");
+        throw CBORDecodeError("Simple value cannot be matched to boolean");
     }
   }
 
