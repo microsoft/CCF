@@ -503,12 +503,11 @@ namespace ccf
 
     if (startup_snapshot.empty() && latest_local_snapshot.has_value())
     {
-      auto& [snapshot_dir, snapshot_file] = latest_local_snapshot.value();
-      startup_snapshot = files::slurp(snapshot_dir / snapshot_file);
+      startup_snapshot = files::slurp(latest_local_snapshot.value());
 
       LOG_INFO_FMT(
         "Found latest local snapshot file: {} (size: {})",
-        snapshot_dir / snapshot_file,
+        latest_local_snapshot,
         startup_snapshot.size());
     }
     else if (startup_snapshot.empty())

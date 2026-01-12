@@ -169,4 +169,22 @@ namespace snapshots
 
     return latest_committed_snapshot_file_name;
   }
+
+  inline std::optional<fs::path> find_latest_committed_snapshot_in_directories(
+    const std::vector<fs::path>& directories)
+  {
+    size_t latest_committed_snapshot_idx = 0;
+    std::optional<fs::path> best = std::nullopt;
+    for (const auto& dir : directories)
+    {
+      const auto best_in_dir = find_latest_committed_snapshot_in_directory(
+        dir, latest_committed_snapshot_idx);
+      if (best_in_dir.has_value())
+      {
+        best = dir / best_in_dir.value();
+      }
+    }
+
+    return best;
+  }
 }
