@@ -225,11 +225,20 @@ if __name__ == "__main__":
     #     initial_member_count=1,
     # )
 
+    # cr.add(
+    #     "operations",
+    #     e2e_operations.run,
+    #     package="samples/apps/logging/logging",
+    #     nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+    #     initial_user_count=1,
+    #     ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction
+    # )
+
     cr.add(
-        "operations",
-        e2e_operations.run,
+        "download",
+        e2e_operations.run_ledger_download,
         package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=1,
         ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction
     )

@@ -535,8 +535,7 @@ class Node:
         """
         Get the main ledger directory
         """
-        main_ledger_dir, _ = self.remote.get_ledger(f"{self.local_node_id}.ledger")
-        return main_ledger_dir
+        return self.remote.get_ledger_main_dir()
 
     def get_ledger(self):
         """

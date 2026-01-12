@@ -749,6 +749,48 @@ def test_ledger_chunk_access(network, args):
                 ), "Ledger chunk content does not match"
 
 
+def test_ledger_chunk_redirect(network, args):
+    primary, backups = network.find_nodes()
+
+    late_backup = backups[-1]
+    main_ledger_dir = late_backup.get_main_ledger_dir()
+    LOG.info(f"Late backup main ledger directory: {main_ledger_dir}")
+    chunks = [f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")]
+    chunks = sorted(chunks, key=lambda x: int(x.split("_")[1].split("-")[0]))
+    start_of_last_chunk = int(chunks[-1].split("_")[1].split("-")[0])
+    # Drop last chunk from the backup to force redirect
+    LOG.info(
+        f"Dropping last ledger chunk {chunks[-1]} from late backup main ledger directory {main_ledger_dir}"
+    )
+    os.remove(os.path.join(main_ledger_dir, chunks[-1]))
+    with late_backup.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        r = c.head(
+            f"/node/ledger-chunk?since={start_of_last_chunk}", allow_redirects=False
+        )
+        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+        expected_host = primary.get_public_rpc_host(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        )
+        expected_port = primary.get_public_rpc_port(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        )
+        expected_location = f"https://{expected_host}:{expected_port}/node/ledger-chunk?since={start_of_last_chunk}"
+        assert r.headers["Location"] == expected_location, r
+        r = c.get(
+            f"/node/ledger-chunk?since={start_of_last_chunk}", allow_redirects=True
+        )
+        primary_main_ledger_dir = primary.get_main_ledger_dir()
+        ledger_chunk_path = os.path.join(primary_main_ledger_dir, chunks[-1])
+        dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
+        with open(ledger_chunk_path, "rb") as f:
+            actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
+        assert (
+            dled_chunk_digest == actual_chunk_digest
+        ), f"Ledger chunk content for {chunks[-1]} does not match"
+
+
 def run_file_operations(args):
     with tempfile.NamedTemporaryFile(mode="w+") as ntf:
         service_data = {"the owls": "are not", "what": "they seem"}
@@ -806,6 +848,7 @@ def run_ledger_chunk_operations(args):
         # Issue enough transactions to create multiple ledger chunks
         network.txs.issue(network, number_txs=10)
         test_ledger_chunk_access(network, args)
+        test_ledger_chunk_redirect(network, args)
 
 
 def run_tls_san_checks(const_args):
@@ -2359,20 +2402,23 @@ def run_snp_tests(args):
 
 
 def run(args):
-    # run_max_uncommitted_tx_count(args)
-    # run_file_operations(args)
-    # run_tls_san_checks(args)
-    # run_config_timeout_check(args)
-    # run_configuration_file_checks(args)
-    # run_pid_file_check(args)
-    # run_preopen_readiness_check(args)
-    # run_sighup_check(args)
-    # run_service_subject_name_check(args)
-    # run_cose_signatures_config_check(args)
-    # run_late_mounted_ledger_check(args)
-    # run_empty_ledger_dir_check(args)
-    # run_self_healing_open(args)
-    # run_self_healing_open_timeout_path(args)
-    # run_read_ledger_on_testdata(args)
-    # run_propose_request_vote(args)
+    run_max_uncommitted_tx_count(args)
+    run_file_operations(args)
+    run_tls_san_checks(args)
+    run_config_timeout_check(args)
+    run_configuration_file_checks(args)
+    run_pid_file_check(args)
+    run_preopen_readiness_check(args)
+    run_sighup_check(args)
+    run_service_subject_name_check(args)
+    run_cose_signatures_config_check(args)
+    run_late_mounted_ledger_check(args)
+    run_empty_ledger_dir_check(args)
+    run_self_healing_open(args)
+    run_self_healing_open_timeout_path(args)
+    run_read_ledger_on_testdata(args)
+    run_propose_request_vote(args)
+
+
+def run_ledger_download(args):
     run_ledger_chunk_operations(args)
