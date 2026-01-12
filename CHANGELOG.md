@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Improved `ccf::historical::verify_self_issued_receipt` - now can verify receipts signed by the past service identities if they were back-endorsed (#7546).
+- Removed the distinct in-memory config type `StartupConfig`. It is now an alias for `CCFConfig`, which consolidates the configuration types used by the host and enclave. The runtime/loaded content fields (such as `startup_host_time`, `node_data`, `service_data`, `start`, `join`, `recover`) are now part of `CCFConfig` directly.
 
 ### Removed
 
