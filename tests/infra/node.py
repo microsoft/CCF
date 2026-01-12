@@ -531,6 +531,13 @@ class Node:
         assert ledger.last_committed_chunk_range[1] >= seqno
         return ledger.get_latest_public_state()
 
+    def get_main_ledger_dir(self):
+        """
+        Get the main ledger directory
+        """
+        main_ledger_dir, _ = self.remote.get_ledger(f"{self.local_node_id}.ledger")
+        return main_ledger_dir
+
     def get_ledger(self):
         """
         Triage committed and un-committed (i.e. current) ledger files

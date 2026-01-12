@@ -4,6 +4,7 @@ import tempfile
 import os
 import signal
 import shutil
+import urllib.parse
 
 import infra.logging_app as app
 import infra.e2e_args
@@ -34,6 +35,7 @@ import pathlib
 import infra.concurrency
 import ccf.read_ledger
 import re
+import hashlib
 
 from loguru import logger as LOG
 
@@ -696,14 +698,35 @@ def test_ledger_chunk_access(network, args):
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         ) as c:
             r = c.head("/node/ledger-chunk?since=1", allow_redirects=False)
-            LOG.info(r)
+            assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+            assert r.headers["Location"].endswith(
+                "/node/ledger-chunk/ledger_1-2.committed"
+            ), r
             r = c.get("/node/ledger-chunk?since=1", allow_redirects=False)
-            LOG.info(r)
-            chunk_url = r.headers["Location"]
-            r = c.head(chunk_url, allow_redirects=False)
-            LOG.info(r)
-            r = c.get(chunk_url, allow_redirects=False)
-            LOG.info(r)
+            assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+            assert r.headers["Location"].endswith(
+                "/node/ledger-chunk/ledger_1-2.committed"
+            ), r
+
+            chunk_url = urllib.parse.urlparse(r.headers["Location"])
+
+            r = c.head(chunk_url.path, allow_redirects=False)
+            chunk_size = int(r.headers["Content-Length"])
+
+            main_ledger_dir = node.get_main_ledger_dir()
+            ledger_chunk_path = os.path.join(main_ledger_dir, "ledger_1-2.committed")
+            actual_chunk_size = os.stat(ledger_chunk_path).st_size
+            assert (
+                chunk_size == actual_chunk_size
+            ), f"Expected chunk size {actual_chunk_size}, got {chunk_size}"
+
+            r = c.get(chunk_url.path, allow_redirects=False)
+            dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
+            with open(ledger_chunk_path, "rb") as f:
+                actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
+            assert (
+                dled_chunk_digest == actual_chunk_digest
+            ), "Ledger chunk content does not match"
 
 
 def run_file_operations(args):
@@ -760,6 +783,7 @@ def run_ledger_chunk_operations(args):
         txs=app.LoggingTxs("user0"),
     ) as network:
         network.start_and_open(args)
+        # Issue enough transactions to create multiple ledger chunks
         network.txs.issue(network, number_txs=10)
         test_ledger_chunk_access(network, args)
 

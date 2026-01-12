@@ -820,7 +820,7 @@ namespace ccf::node
     };
     registry
       .make_command_endpoint(
-        "/ledger_chunk/{chunk_name}",
+        "/ledger-chunk/{chunk_name}",
         HTTP_HEAD,
         get_ledger_chunk,
         no_auth_required)
@@ -830,7 +830,7 @@ namespace ccf::node
       .install();
     registry
       .make_command_endpoint(
-        "/ledger_chunk/{chunk_name}",
+        "/ledger-chunk/{chunk_name}",
         HTTP_GET,
         get_ledger_chunk,
         no_auth_required)
