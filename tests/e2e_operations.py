@@ -836,7 +836,7 @@ def run_file_operations(args):
                 args.common_read_only_ledger_dir = None  # Reset for future tests
 
 
-def run_ledger_chunk_operations(args):
+def run_ledger_chunk_download(args):
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -2418,7 +2418,3 @@ def run(args):
     run_self_healing_open_timeout_path(args)
     run_read_ledger_on_testdata(args)
     run_propose_request_vote(args)
-
-
-def run_ledger_download(args):
-    run_ledger_chunk_operations(args)

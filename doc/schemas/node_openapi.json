@@ -917,7 +917,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "4.14.0"
+    "version": "5.0.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1164,6 +1164,96 @@
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
+    },
+    "/node/ledger-chunk": {
+      "get": {
+        "operationId": "GetNodeLedgerChunk",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      },
+      "head": {
+        "operationId": "HeadNodeLedgerChunk",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
+    },
+    "/node/ledger-chunk/{chunk_name}": {
+      "get": {
+        "operationId": "GetNodeLedgerChunkChunkName",
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      },
+      "head": {
+        "operationId": "HeadNodeLedgerChunkChunkName",
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "chunk_name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
     },
     "/node/memory": {
       "get": {
