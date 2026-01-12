@@ -304,6 +304,19 @@ namespace ccf::cbor
     return as_string;
   }
 
+  bool simple_to_boolean(const Simple& value)
+  {
+    switch (value)
+    {
+      case SimpleValue::False:
+        return false;
+      case SimpleValue::True:
+        return true;
+      default:
+        throw CBORDecodeError("Simple value can't be matched to boolean");
+    }
+  }
+
   const Value& ValueImpl::array_at(size_t index) const
   {
     if (!std::holds_alternative<Array>(value))
