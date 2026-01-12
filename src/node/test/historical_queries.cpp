@@ -255,7 +255,7 @@ size_t get_cache_limit_for_entries(
 
 struct MerkleProofData
 {
-  using PathItem = std::pair<bool, std::vector<uint8_t>>;
+  using PathItem = std::pair</* left/right */ bool, /* digest */ std::vector<uint8_t>>;
 
   std::vector<uint8_t> write_set_digest;
   std::string commit_evidence;
