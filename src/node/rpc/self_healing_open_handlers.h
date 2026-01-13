@@ -248,7 +248,7 @@ namespace ccf::node
         return ErrorDetails{
           .status = HTTP_STATUS_BAD_REQUEST,
           .code = ccf::errors::InvalidNodeState,
-          .msg = "Node is already opening, ignoring iamopen request"};
+          .msg = "Node is already open, ignoring iamopen request"};
       }
 
       LOG_TRACE_FMT(

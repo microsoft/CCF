@@ -113,7 +113,7 @@ namespace ccf
             throw std::logic_error("No gossip addresses provided yet");
           }
 
-          // Lexographically maximum <txid, iid> pair
+          // Find the lexographical maximum by <view, seqno, intrinsic_id>
           std::optional<std::tuple<ccf::View, ccf::SeqNo, std::string>> maximum;
           gossip_handle->foreach([&maximum](const auto& iid, const auto& txid) {
             if (
