@@ -326,7 +326,7 @@ namespace ccf::node
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_PERMANENT_REDIRECT,
               ccf::errors::NodeCannotHandleRequest,
-              "Ledger chunk not found locally; redirecting to primary");
+              fmt::format("Ledger chunk including index {} not found locally; redirecting to primary", since_idx));
             return;
           }
         }
