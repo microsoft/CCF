@@ -155,7 +155,7 @@ namespace aft
     {}
     State() = default;
 
-    std::recursive_mutex lock;
+    ccf::pal::Mutex lock;
 
     ccf::NodeId node_id;
     ccf::View current_view = 0;
