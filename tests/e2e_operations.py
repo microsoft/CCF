@@ -1952,7 +1952,7 @@ def run_self_healing_open_multiple_timeout(const_args):
             for node in recovered_network.nodes:
                 node.refresh_network_state(verify_ca=False)
 
-            assert len(recovered_network.get_joined_nodes()) == 3
+            assert len(recovered_network.get_joined_nodes()) == len(args.nodes)
 
 
 def run_self_healing_open_local_unsealing(const_args):
