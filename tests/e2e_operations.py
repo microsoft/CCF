@@ -704,6 +704,7 @@ def test_ledger_chunk_access(network, args):
             chunks = sorted(
                 (*ccf.ledger.range_from_filename(chunk), chunk) for chunk in chunks
             )
+            assert len(chunks) > 10, f"Unexpectedly small number of chunks {chunks}"
 
             for start_index, end_index, chunk in chunks:
                 chunk_url = None

@@ -70,8 +70,7 @@ namespace ccf::node
   static void init_file_serving_handlers(
     ccf::BaseEndpointRegistry& registry, ccf::AbstractNodeContext& node_context)
   {
-    // Redirect to endpoint for a single specific snapshot
-    static constexpr auto snapshot_since_param_key = "since";
+    static constexpr auto file_since_param_key = "since";
 
     auto find_snapshot = [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
       size_t latest_idx = 0;
@@ -82,7 +81,7 @@ namespace ccf::node
 
         std::string error_reason;
         auto snapshot_since = http::get_query_value_opt<ccf::SeqNo>(
-          parsed_query, snapshot_since_param_key, error_reason);
+          parsed_query, file_since_param_key, error_reason);
 
         if (snapshot_since.has_value())
         {
@@ -126,8 +125,7 @@ namespace ccf::node
             fmt::format("https://{}/node/snapshot", address.value());
           if (latest_idx != 0)
           {
-            location +=
-              fmt::format("?{}={}", snapshot_since_param_key, latest_idx);
+            location += fmt::format("?{}={}", file_since_param_key, latest_idx);
           }
 
           ctx.rpc_ctx->set_response_header(http::headers::LOCATION, location);
@@ -193,7 +191,7 @@ namespace ccf::node
         "/snapshot", HTTP_HEAD, find_snapshot, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
-        snapshot_since_param_key, ccf::endpoints::OptionalParameter)
+        file_since_param_key, ccf::endpoints::OptionalParameter)
       .set_openapi_hidden(true)
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
@@ -202,7 +200,7 @@ namespace ccf::node
         "/snapshot", HTTP_GET, find_snapshot, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
-        snapshot_since_param_key, ccf::endpoints::OptionalParameter)
+        file_since_param_key, ccf::endpoints::OptionalParameter)
       .set_openapi_hidden(true)
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
@@ -217,7 +215,7 @@ namespace ccf::node
 
         std::string error_reason;
         auto chunk_since = http::get_query_value_opt<ccf::SeqNo>(
-          parsed_query, snapshot_since_param_key, error_reason);
+          parsed_query, file_since_param_key, error_reason);
 
         if (chunk_since.has_value())
         {
@@ -237,12 +235,11 @@ namespace ccf::node
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidQueryParameterValue,
             fmt::format(
-              "Missing required query parameter '{}'",
-              snapshot_since_param_key));
+              "Missing required query parameter '{}'", file_since_param_key));
           return;
         }
       }
-      LOG_INFO_FMT("Finding ledger chunk including index {}", since_idx);
+      LOG_DEBUG_FMT("Finding ledger chunk including index {}", since_idx);
 
       auto node_operation = node_context.get_subsystem<AbstractNodeOperation>();
       if (node_operation == nullptr)
@@ -269,10 +266,6 @@ namespace ccf::node
         get_redirect_address_for_node(ctx, ctx.tx, node_context.get_node_id());
       if (!address.has_value())
       {
-        ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Failed to get redirect address for this node");
         return;
       }
 
@@ -297,7 +290,7 @@ namespace ccf::node
 
         auto redirect_url = fmt::format(
           "https://{}/node/ledger-chunk/{}", address.value(), chunk_filename);
-        LOG_INFO_FMT("Redirecting to ledger chunk: {}", redirect_url);
+        LOG_DEBUG_FMT("Redirecting to ledger chunk: {}", redirect_url);
         ctx.rpc_ctx->set_response_header(
           ccf::http::headers::LOCATION, redirect_url);
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
@@ -307,7 +300,7 @@ namespace ccf::node
       // Otherwise, if we are not primary, try to redirect to primary
       if (!node_operation->can_replicate())
       {
-        LOG_INFO_FMT(
+        LOG_DEBUG_FMT(
           "This node cannot serve ledger chunk including index {} - trying "
           "to redirect to primary",
           since_idx);
@@ -319,8 +312,7 @@ namespace ccf::node
           {
             auto location =
               fmt::format("https://{}/node/ledger-chunk", address.value());
-            location +=
-              fmt::format("?{}={}", snapshot_since_param_key, since_idx);
+            location += fmt::format("?{}={}", file_since_param_key, since_idx);
 
             ctx.rpc_ctx->set_response_header(http::headers::LOCATION, location);
             ctx.rpc_ctx->set_error(
@@ -347,7 +339,7 @@ namespace ccf::node
         "/ledger-chunk", HTTP_HEAD, find_chunk, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
-        snapshot_since_param_key, ccf::endpoints::OptionalParameter)
+        file_since_param_key, ccf::endpoints::OptionalParameter)
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .install();
     registry
@@ -355,7 +347,7 @@ namespace ccf::node
         "/ledger-chunk", HTTP_GET, find_chunk, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
-        snapshot_since_param_key, ccf::endpoints::OptionalParameter)
+        file_since_param_key, ccf::endpoints::OptionalParameter)
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .install();
 
@@ -648,7 +640,7 @@ namespace ccf::node
         return;
       }
 
-      LOG_INFO_FMT("Getting ledger chunk {}", chunk_name);
+      LOG_DEBUG_FMT("Fetching ledger chunk {}", chunk_name);
 
       files::fs::path chunk_path =
         files::fs::path(ledger_config.directory) / chunk_name;
