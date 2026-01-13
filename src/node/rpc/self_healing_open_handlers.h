@@ -226,23 +226,24 @@ namespace ccf::node
           node_context.get_subsystem<AbstractNodeOperation>();
         auto& self_iamopen_request =
           node_operation->self_healing_open().get_iamopen_request(args.tx);
-        LOG_INFO_FMT(
-          "Ignoring IAmOpen request from Node {} as I, Node {}, am already "
-          "open. Node {}: (service {}, previously {}, at txid {}) Node {}: "
-          "(service {}, previously {}, at txid {})",
-          in.info.identity.intrinsic_id,
-          self_iamopen_request.info.identity.intrinsic_id,
-          in.info.identity.intrinsic_id,
-          self_healing_open::service_fingerprint_from_pem(
-            crypto::cert_der_to_pem(in.info.service_cert_der)),
-          in.prev_service_fingerprint,
-          in.txid,
+
+        auto myid = fmt::format(
+          "{}:{} previously {}@{}",
           self_iamopen_request.info.identity.intrinsic_id,
           self_healing_open::service_fingerprint_from_pem(
             crypto::cert_der_to_pem(
               self_iamopen_request.info.service_cert_der)),
           self_iamopen_request.prev_service_fingerprint,
           self_iamopen_request.txid);
+        auto inid = fmt::format(
+          "{}:{} previously {}@{}",
+          in.info.identity.intrinsic_id,
+          self_healing_open::service_fingerprint_from_pem(
+            crypto::cert_der_to_pem(in.info.service_cert_der)),
+          in.prev_service_fingerprint,
+          in.txid);
+        LOG_INFO_FMT(
+          "{} is already open, ignoring IAmOpen from {}", myid, inid);
 
         return ErrorDetails{
           .status = HTTP_STATUS_BAD_REQUEST,
