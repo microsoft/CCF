@@ -1146,22 +1146,22 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        # test_invalid_partitions(network, args)
-        # test_partition_majority(network, args)
-        # test_isolate_primary_from_one_backup(network, args)
-        # test_new_joiner_helps_liveness(network, args)
-        # test_expired_certs(network, args)
-        # for n in range(5):
-        #     test_isolate_and_reconnect_primary(network, args, iteration=n)
-        # test_election_reconfiguration(network, args)
-        # test_forwarding_timeout(network, args)
+        test_invalid_partitions(network, args)
+        test_partition_majority(network, args)
+        test_isolate_primary_from_one_backup(network, args)
+        test_new_joiner_helps_liveness(network, args)
+        test_expired_certs(network, args)
+        for n in range(5):
+            test_isolate_and_reconnect_primary(network, args, iteration=n)
+        test_election_reconfiguration(network, args)
+        test_forwarding_timeout(network, args)
         test_invalidated_blocking_calls(network, args)
-        # # HTTP2 doesn't support forwarding
-        # if not args.http2:
-        #     test_session_consistency(network, args)
-        # network = test_recovery_elections(network, args)
-        # test_ledger_invariants(network, args)
-    # run_ledger_chunk_bytes_check(args)
+        # HTTP2 doesn't support forwarding
+        if not args.http2:
+            test_session_consistency(network, args)
+        network = test_recovery_elections(network, args)
+        test_ledger_invariants(network, args)
+    run_ledger_chunk_bytes_check(args)
 
 
 if __name__ == "__main__":
