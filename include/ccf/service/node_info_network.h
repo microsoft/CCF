@@ -176,7 +176,8 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);
-  DECLARE_JSON_OPTIONAL_FIELDS(NodeInfoNetwork_v2, will_locally_seal_ledger_secrets);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    NodeInfoNetwork_v2, will_locally_seal_ledger_secrets);
 
   struct NodeInfoNetwork : public NodeInfoNetwork_v2
   {
