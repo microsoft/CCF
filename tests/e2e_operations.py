@@ -1995,6 +1995,8 @@ def run_self_healing_open_local_unsealing(const_args):
                 sealed_ledger_secrets=node_secrets,
             )
 
+            recovered_network.wait_for_self_healing_open_finish()
+
             # Refresh the declared state of nodes which have shut themselves down to join.
             for node in recovered_network.nodes:
                 node.refresh_network_state(verify_ca=False)
