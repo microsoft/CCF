@@ -243,7 +243,10 @@ namespace aft
       ledger(std::move(ledger_)),
       channels(std::move(channels_))
     {
-      commit_callbacks->set_consensus(this);
+      if (commit_callbacks != nullptr)
+      {
+        commit_callbacks->set_consensus(this);
+      }
     }
 
     ~Aft() override = default;
