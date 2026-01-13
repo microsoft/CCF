@@ -1323,7 +1323,9 @@ const actions = new Map([
             ccf.strToBuf(args.node_id),
             ccf.jsonCompatibleToBuf(nodeInfo),
           );
-          ccf.node.shuffleSealedShares();
+          if (ccf.node.shuffleSealedShares !== undefined) {
+            ccf.node.shuffleSealedShares();
+          }
 
           // Also generate and record service-endorsed node certificate from node CSR
           if (nodeInfo.certificate_signing_request !== undefined) {
