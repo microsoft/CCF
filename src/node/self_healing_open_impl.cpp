@@ -8,12 +8,14 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
+#include "ccf/tx_id.h"
 #include "http/curl.h"
 #include "node_state.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 
 #include <stdexcept>
+#include <tuple>
 
 namespace ccf
 {
@@ -112,13 +114,13 @@ namespace ccf
           }
 
           // Lexographically maximum <txid, iid> pair
-          std::optional<std::pair<ccf::kv::Version, std::string>> maximum;
+          std::optional<std::tuple<ccf::View, ccf::SeqNo, std::string>> maximum;
           gossip_handle->foreach([&maximum](const auto& iid, const auto& txid) {
             if (
               !maximum.has_value() ||
-              maximum.value() < std::make_pair(txid, iid))
+              maximum.value() < std::make_tuple(txid.view, txid.seqno, iid))
             {
-              maximum = std::make_pair(txid, iid);
+              maximum = std::make_tuple(txid.view, txid.seqno, iid);
             }
             return true;
           });
@@ -129,7 +131,7 @@ namespace ccf
           }
           tx.rw<self_healing_open::ChosenNode>(
               Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
-            ->put(maximum->second);
+            ->put(std::get<2>(maximum.value()));
 
           sm_state_handle->put(self_healing_open::StateMachine::VOTING);
         }
@@ -543,9 +545,12 @@ namespace ccf
 
     LOG_TRACE_FMT("Broadcasting self-healing-open gossip");
 
+    auto seqno = node_state->last_recovered_signed_idx;
+    auto view = node_state->consensus->get_view(seqno);
+
     self_healing_open::GossipRequest request;
     request.info = get_node_info(tx);
-    request.txid = node_state->last_recovered_signed_idx;
+    request.txid = ccf::TxID{view, seqno};
     nlohmann::json request_json = request;
 
     for (auto& target : config.cluster_identities)
@@ -605,13 +610,16 @@ namespace ccf
 
     auto& node_info = get_node_info(tx);
 
+    auto seqno = node_state->last_recovered_signed_idx;
+    auto view = node_state->consensus->get_view(seqno);
+
     {
       std::lock_guard<pal::Mutex> guard(self_healing_open_lock);
       iamopen_request_cache = self_healing_open::IAmOpenRequest{};
       iamopen_request_cache->info = node_info;
       iamopen_request_cache->prev_service_fingerprint =
         previous_service_identity_fingerprint;
-      iamopen_request_cache->txid = node_state->last_recovered_signed_idx;
+      iamopen_request_cache->txid = ccf::TxID{view, seqno};
     }
 
     return iamopen_request_cache.value();

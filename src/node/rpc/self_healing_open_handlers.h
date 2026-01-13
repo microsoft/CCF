@@ -234,14 +234,14 @@ namespace ccf::node
             crypto::cert_der_to_pem(
               self_iamopen_request.info.service_cert_der)),
           self_iamopen_request.prev_service_fingerprint,
-          self_iamopen_request.txid);
+          self_iamopen_request.txid.to_str());
         auto inid = fmt::format(
           "{}:{} previously {}@{}",
           in.info.identity.intrinsic_id,
           self_healing_open::service_fingerprint_from_pem(
             crypto::cert_der_to_pem(in.info.service_cert_der)),
           in.prev_service_fingerprint,
-          in.txid);
+          in.txid.to_str());
         LOG_INFO_FMT(
           "{} is already open, ignoring IAmOpen from {}", myid, inid);
 

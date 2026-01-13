@@ -10,6 +10,7 @@
 #include "ccf/ds/quote_info.h"
 #include "ccf/service/map.h"
 #include "ccf/service/node_info_network.h"
+#include "ccf/tx_id.h"
 
 namespace ccf
 {
@@ -82,7 +83,7 @@ namespace ccf
 
     using NodeInfoMap =
       ServiceMap<IntrinsicIdentifier, ccf::self_healing_open::NodeInfo>;
-    using Gossips = ServiceMap<IntrinsicIdentifier, ccf::kv::Version>;
+    using Gossips = ServiceMap<IntrinsicIdentifier, ccf::TxID>;
     using ChosenNode = ServiceValue<IntrinsicIdentifier>;
     using Votes = ServiceSet<IntrinsicIdentifier>;
     using SMState = ServiceValue<ccf::self_healing_open::StateMachine>;

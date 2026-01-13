@@ -5,6 +5,7 @@
 #include "ccf/ds/json.h"
 #include "ccf/node/startup_config.h"
 #include "ccf/pal/locking.h"
+#include "ccf/tx_id.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
 #include "tasks/task.h"
@@ -21,7 +22,7 @@ namespace ccf::self_healing_open
 
   struct GossipRequest : public TaggedWithNodeInfo
   {
-    ccf::kv::Version txid{};
+    ccf::TxID txid{};
   };
   DECLARE_JSON_TYPE_WITH_BASE(GossipRequest, TaggedWithNodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(GossipRequest, txid);
@@ -29,7 +30,7 @@ namespace ccf::self_healing_open
   struct IAmOpenRequest : public TaggedWithNodeInfo
   {
     std::string prev_service_fingerprint;
-    ccf::kv::Version txid{};
+    ccf::TxID txid{};
   };
 
   DECLARE_JSON_TYPE_WITH_BASE(IAmOpenRequest, TaggedWithNodeInfo);
