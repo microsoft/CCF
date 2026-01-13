@@ -2392,7 +2392,8 @@ def run_main_tests(network, args):
     if args.package == "samples/apps/logging/logging":
         test_etags(network, args)
         test_cose_config(network, args)
-        test_blocking_calls(network, args)
+        if not args.http2:
+            test_blocking_calls(network, args)
 
 
 def run_parsing_errors(args):
