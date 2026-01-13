@@ -326,7 +326,10 @@ namespace ccf::node
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_PERMANENT_REDIRECT,
               ccf::errors::NodeCannotHandleRequest,
-              fmt::format("Ledger chunk including index {} not found locally; redirecting to primary", since_idx));
+              fmt::format(
+                "Ledger chunk including index {} not found locally; "
+                "redirecting to primary",
+                since_idx));
             return;
           }
         }
@@ -345,7 +348,7 @@ namespace ccf::node
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         snapshot_since_param_key, ccf::endpoints::OptionalParameter)
-      .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
+      .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .install();
     registry
       .make_read_only_endpoint(
@@ -353,7 +356,7 @@ namespace ccf::node
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         snapshot_since_param_key, ccf::endpoints::OptionalParameter)
-      .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
+      .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .install();
 
     auto get_snapshot = [&](ccf::endpoints::CommandEndpointContext& ctx) {
@@ -867,7 +870,7 @@ namespace ccf::node
         get_ledger_chunk,
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
-      .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
+      .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .install();
     registry
       .make_command_endpoint(
@@ -876,7 +879,7 @@ namespace ccf::node
         get_ledger_chunk,
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
-      .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
+      .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .install();
   }
 }

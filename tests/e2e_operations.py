@@ -701,13 +701,11 @@ def test_ledger_chunk_access(network, args):
             chunks = [
                 f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")
             ]
-            chunks = sorted(chunks, key=lambda x: int(x.split("_")[1].split("-")[0]))
+            chunks = sorted(
+                (*ccf.ledger.range_from_filename(chunk), chunk) for chunk in chunks
+            )
 
-            for chunk in chunks:
-                range = chunk.split("_")[1]
-                start_index = int(range.split("-")[0])
-                end_index = int(range.split("-")[1].split(".")[0])
-
+            for start_index, end_index, chunk in chunks:
                 chunk_url = None
                 # Asking about any index in the chunk should redirect to the chunk
                 for index in (start_index, end_index, (start_index + end_index) // 2):
@@ -756,8 +754,8 @@ def test_ledger_chunk_redirect(network, args):
     main_ledger_dir = late_backup.get_main_ledger_dir()
     LOG.info(f"Late backup main ledger directory: {main_ledger_dir}")
     chunks = [f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")]
-    chunks = sorted(chunks, key=lambda x: int(x.split("_")[1].split("-")[0]))
-    start_of_last_chunk = int(chunks[-1].split("_")[1].split("-")[0])
+    chunks = sorted(chunks, key=lambda chunk: ccf.ledger.range_from_filename(chunk)[0])
+    start_of_last_chunk = ccf.ledger.range_from_filename(chunks[-1])[0]
     # Drop last chunk from the backup to force redirect
     LOG.info(
         f"Dropping last ledger chunk {chunks[-1]} from late backup main ledger directory {main_ledger_dir}"
