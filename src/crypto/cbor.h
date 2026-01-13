@@ -76,6 +76,7 @@ namespace ccf::cbor
 
   Value parse(std::span<const uint8_t> raw);
   std::string to_string(const Value& value);
+  bool simple_to_boolean(const Simple& value);
 
   decltype(auto) rethrow_with_msg(auto&& f, std::string_view msg = {})
   {

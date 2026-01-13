@@ -10,6 +10,7 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/pal/locking.h"
 #include "ccf/receipt.h"
+#include "crypto/cbor.h"
 #include "crypto/openssl/hash.h"
 #include "ds/messaging.h"
 #include "ds/test/stub_writer.h"
@@ -254,89 +255,48 @@ size_t get_cache_limit_for_entries(
 
 struct MerkleProofData
 {
+  using PathItem =
+    std::pair</* left/right */ bool, /* digest */ std::vector<uint8_t>>;
+
   std::vector<uint8_t> write_set_digest;
   std::string commit_evidence;
   std::vector<uint8_t> claims_digest;
-  std::vector<std::pair<int64_t, std::vector<uint8_t>>> path;
+  std::vector<PathItem> path;
 };
-
-std::vector<uint8_t> bstring_to_bytes(QCBORItem& item)
-{
-  return {
-    static_cast<const uint8_t*>(item.val.string.ptr),
-    static_cast<const uint8_t*>(item.val.string.ptr) + item.val.string.len};
-}
-
-std::string tstring_to_string(QCBORItem& item)
-{
-  return {
-    static_cast<const char*>(item.val.string.ptr),
-    static_cast<const char*>(item.val.string.ptr) + item.val.string.len};
-}
 
 MerkleProofData decode_merkle_proof(const std::vector<uint8_t>& encoded)
 {
-  q_useful_buf_c buf{encoded.data(), encoded.size()};
-  QCBORDecodeContext ctx;
-  QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);
-  struct q_useful_buf_c params;
-  QCBORDecode_EnterMap(&ctx, NULL);
-  QCBORDecode_EnterArrayFromMapN(
-    &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL);
-  QCBORItem item;
   MerkleProofData data;
 
-  QCBORDecode_GetNext(&ctx, &item);
-  REQUIRE(item.uDataType == QCBOR_TYPE_BYTE_STRING);
-  data.write_set_digest = bstring_to_bytes(item);
+  auto decoded = ccf::cbor::parse(encoded);
 
-  QCBORDecode_GetNext(&ctx, &item);
-  REQUIRE(item.uDataType == QCBOR_TYPE_TEXT_STRING);
-  data.commit_evidence = tstring_to_string(item);
+  const auto& leaf = decoded->map_at(
+    ccf::cbor::make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL));
 
-  QCBORDecode_GetNext(&ctx, &item);
-  REQUIRE(item.uDataType == QCBOR_TYPE_BYTE_STRING);
-  data.claims_digest = bstring_to_bytes(item);
+  REQUIRE_EQ(leaf->size(), 3);
 
-  QCBORDecode_ExitArray(&ctx);
-  QCBORDecode_EnterArrayFromMapN(
-    &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL);
+  const auto& wsd = leaf->array_at(0)->as_bytes();
+  data.write_set_digest.assign(wsd.begin(), wsd.end());
 
-  for (;;)
+  data.commit_evidence = leaf->array_at(1)->as_string();
+
+  const auto& cd = leaf->array_at(2)->as_bytes();
+  data.claims_digest.assign(cd.begin(), cd.end());
+
+  const auto& path = decoded->map_at(
+    ccf::cbor::make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL));
+
+  for (size_t i = 0; i < path->size(); i++)
   {
-    QCBORDecode_EnterArray(&ctx, &item);
-    if (QCBORDecode_GetError(&ctx) != QCBOR_SUCCESS)
-      break;
+    const auto& node = path->array_at(i);
+    const auto& dir = node->array_at(0)->as_simple();
+    const auto& hash = node->array_at(1)->as_bytes();
 
-    std::pair<int64_t, std::vector<uint8_t>> path_item;
-
-    REQUIRE(QCBORDecode_GetNext(&ctx, &item) == QCBOR_SUCCESS);
-    if (item.uDataType == CBOR_SIMPLEV_TRUE)
-    {
-      path_item.first = true;
-    }
-    else if (item.uDataType == CBOR_SIMPLEV_FALSE)
-    {
-      path_item.first = false;
-    }
-    else
-    {
-      // Not a valid CBOR boolean
-      REQUIRE(false);
-    }
-
-    REQUIRE(QCBORDecode_GetNext(&ctx, &item) == QCBOR_SUCCESS);
-    REQUIRE(item.uDataType == QCBOR_TYPE_BYTE_STRING);
-    path_item.second = bstring_to_bytes(item);
-
-    data.path.push_back(path_item);
-    QCBORDecode_ExitArray(&ctx);
+    MerkleProofData::PathItem item;
+    item.first = ccf::cbor::simple_to_boolean(dir);
+    item.second.assign(hash.begin(), hash.end());
+    data.path.push_back(item);
   }
-
-  QCBORDecode_ExitArray(&ctx);
-  QCBORDecode_ExitMap(&ctx);
-
-  REQUIRE(QCBORDecode_Finish(&ctx) == QCBOR_ERR_NO_MORE_ITEMS);
 
   return data;
 }
