@@ -551,10 +551,8 @@ def test_forwarding_timeout(network, args):
 @reqs.at_least_n_nodes(3)
 def test_invalidated_blocking_calls(network, args):
     primary, backups = network.find_nodes()
-    backup = backups[0]
     key = 42
     val_a = "Hello"
-    val_b = "Goodbye"
 
     ready_to_go = threading.Event()
     partition_created = threading.Event()
@@ -564,12 +562,16 @@ def test_invalidated_blocking_calls(network, args):
         with primary.client("user0") as c:
             ready_to_go.set()
             partition_created.wait()
-            r = c.post("/app/log/blocking/private", {"id": key, "msg": val_a}, timeout=10)
+            r = c.post(
+                "/app/log/blocking/private", {"id": key, "msg": val_a}, timeout=10
+            )
             assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR
             tx_id = r.headers[infra.clients.CCF_TX_ID_HEADER]
             body = r.body.json()
-            assert body["error"]["message"] == f"While waiting for TxID {tx_id} to commit, it was invalidated"
-
+            assert (
+                body["error"]["message"]
+                == f"While waiting for TxID {tx_id} to commit, it was invalidated"
+            )
 
     send_thread = threading.Thread(target=blocking_send, name="blocking")
     send_thread.start()
@@ -578,7 +580,9 @@ def test_invalidated_blocking_calls(network, args):
         ready_to_go.wait()
         partition_created.set()
 
-        new_primary, new_term = network.wait_for_new_primary(old_primary=primary, nodes=backups)
+        new_primary, new_term = network.wait_for_new_primary(
+            old_primary=primary, nodes=backups
+        )
 
         LOG.info(f"Polling for commit in {new_term}")
         with new_primary.client() as c:
@@ -596,7 +600,9 @@ def test_invalidated_blocking_calls(network, args):
 
                 if time.time() > end_time:
                     flush_info(logs)
-                    raise AssertionError(f"New primary made no commit progress after {timeout}s")
+                    raise AssertionError(
+                        f"New primary made no commit progress after {timeout}s"
+                    )
 
     LOG.info("Drop partition and wait for reunification")
     send_thread.join()
