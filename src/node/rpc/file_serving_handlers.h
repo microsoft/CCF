@@ -67,6 +67,27 @@ namespace ccf::node
     return interface.published_address;
   }
 
+  // Helper function to get NodeConfigurationSubsystem from NodeContext,
+  // and populate error on ctx and log if not available
+  static std::shared_ptr<NodeConfigurationSubsystem>
+  get_node_configuration_subsystem(
+    ccf::AbstractNodeContext& node_context,
+    ccf::endpoints::CommandEndpointContext& ctx)
+  {
+    auto node_configuration_subsystem =
+      node_context.get_subsystem<NodeConfigurationSubsystem>();
+    if (node_configuration_subsystem == nullptr)
+    {
+      LOG_FAIL_FMT(
+        "NodeConfigurationSubsystem is not available in NodeContext");
+      ctx.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        "NodeConfigurationSubsystem is not available");
+    }
+    return node_configuration_subsystem;
+  }
+
   static void init_file_serving_handlers(
     ccf::BaseEndpointRegistry& registry, ccf::AbstractNodeContext& node_context)
   {
@@ -142,13 +163,9 @@ namespace ccf::node
       }
 
       auto node_configuration_subsystem =
-        node_context.get_subsystem<NodeConfigurationSubsystem>();
+        get_node_configuration_subsystem(node_context, ctx);
       if (node_configuration_subsystem == nullptr)
       {
-        ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "NodeConfigurationSubsystem is not available");
         return;
       }
 
@@ -251,17 +268,6 @@ namespace ccf::node
         return;
       }
 
-      auto node_configuration_subsystem =
-        node_context.get_subsystem<NodeConfigurationSubsystem>();
-      if (node_configuration_subsystem == nullptr)
-      {
-        ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "NodeConfigurationSubsystem is not available");
-        return;
-      }
-
       auto address =
         get_redirect_address_for_node(ctx, ctx.tx, node_context.get_node_id());
       if (!address.has_value())
@@ -353,13 +359,9 @@ namespace ccf::node
 
     auto get_snapshot = [&](ccf::endpoints::CommandEndpointContext& ctx) {
       auto node_configuration_subsystem =
-        node_context.get_subsystem<NodeConfigurationSubsystem>();
+        get_node_configuration_subsystem(node_context, ctx);
       if (node_configuration_subsystem == nullptr)
       {
-        ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "NodeConfigurationSubsystem is not available");
         return;
       }
 
@@ -612,13 +614,9 @@ namespace ccf::node
 
     auto get_ledger_chunk = [&](ccf::endpoints::CommandEndpointContext& ctx) {
       auto node_configuration_subsystem =
-        node_context.get_subsystem<NodeConfigurationSubsystem>();
+        get_node_configuration_subsystem(node_context, ctx);
       if (node_configuration_subsystem == nullptr)
       {
-        ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "NodeConfigurationSubsystem is not available");
         return;
       }
 
