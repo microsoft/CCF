@@ -1794,8 +1794,6 @@ def run_self_healing_open(const_args):
 
             assert len(joined_nodes) == 1, joined_nodes
 
-            recovered_network.stop_all_nodes()
-
             LOG.info("Completed self-healing open successfully")
 
             latest_public_tables, _ = recovered_network.get_latest_ledger_public_state()
