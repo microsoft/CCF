@@ -174,6 +174,13 @@ class Node:
                     host=rpc_interface.host, port=node_port
                 )
 
+            # LedgerChunkRead operator feature is only supported on after 7.0.0-dev6
+            if self.version is not None and Version(
+                strip_version(self.version)
+            ) <= Version("7.0.0-dev6"):
+                if rpc_interface.enabled_operator_features:
+                    rpc_interface.enabled_operator_features.remove("LedgerChunkRead")
+
     def __hash__(self):
         return self.local_node_id
 
