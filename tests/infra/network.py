@@ -781,8 +781,8 @@ class Network:
         snapshot_dirs=None,
         common_dir=None,
         starting_nodes=None,
-        timeout=10,
         sealed_ledger_secrets=None,
+        suspend_after_start=False,
         **kwargs,
     ):
         self.common_dir = common_dir or get_common_folder_name(
@@ -868,6 +868,8 @@ class Network:
                     | kwargs
                 )
                 node.recover(**node_kwargs)
+                if suspend_after_start:
+                    node.suspend()
             except Exception:
                 LOG.exception(f"Failed to start node {node.local_node_id}")
                 raise
@@ -875,12 +877,12 @@ class Network:
         self.election_duration = args.election_timeout_ms / 1000
         self.observed_election_duration = self.election_duration + 1
 
+    def wait_for_self_healing_open_finish(self, timeout=10):
         def cycle(items):
             while True:
                 for item in items:
                     yield item
 
-        # One node will open, the remainder will stop themselves
         waiting_nodes = set(self.nodes)
         end_time = time.time() + timeout
         for node in cycle(self.nodes):
