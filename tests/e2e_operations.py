@@ -1811,6 +1811,8 @@ def run_self_healing_open_timeout_path(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.label += "_self_healing_open_timeout"
+    args.enable_local_sealing = True
+
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -1869,6 +1871,8 @@ def run_self_healing_open_multiple_timeout(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.label += "_self_healing_open_multiple_timeout"
+    args.enable_local_sealing = True
+
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -1906,7 +1910,7 @@ def run_self_healing_open_multiple_timeout(const_args):
                 node.resume()
                 recovered_network.wait_for_statuses(
                     node,
-                    ["WaitingForRecoveryShares", "Open"],
+                    ["Open"],
                     timeout=10,
                     verify_ca=False,
                 )
