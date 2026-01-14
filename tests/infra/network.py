@@ -906,7 +906,7 @@ class Network:
                     verify_ca=False,
                 )
                 LOG.info(f"{node.local_node_id} opened")
-                return
+                waiting_nodes.remove(node)
             except Exception as e:
                 is_timeout = isinstance(e, (CCFIOException, TimeoutError)) or (
                     isinstance(e, RuntimeError) and "node is stopped" in str(e)
