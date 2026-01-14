@@ -2,11 +2,15 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/pem.h"
+#include "ccf/crypto/sha256_hash.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/ds/enum_formatter.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/service/map.h"
 #include "ccf/service/node_info_network.h"
+#include "ccf/tx_id.h"
 
 namespace ccf
 {
@@ -26,17 +30,30 @@ namespace ccf
     DECLARE_JSON_TYPE(Identity);
     DECLARE_JSON_REQUIRED_FIELDS(Identity, intrinsic_id, published_address);
 
-    struct NodeInfo
+    inline std::string service_fingerprint_from_pem(const ccf::crypto::Pem& pem)
     {
-      ccf::QuoteInfo quote_info;
+      return ccf::crypto::Sha256Hash(
+               ccf::crypto::public_key_der_from_cert(pem.raw()))
+        .hex_str();
+    }
+
+    struct RequestNodeInfo
+    {
+      QuoteInfo quote_info;
       Identity identity;
-      std::vector<uint8_t> cert_der;
-      std::string service_identity;
+      std::vector<uint8_t> service_cert_der;
+    };
+    DECLARE_JSON_TYPE(RequestNodeInfo);
+    DECLARE_JSON_REQUIRED_FIELDS(
+      RequestNodeInfo, quote_info, identity, service_cert_der);
+
+    struct NodeInfo : RequestNodeInfo
+    {
+      std::vector<uint8_t> node_cert_der;
     };
 
-    DECLARE_JSON_TYPE(NodeInfo);
-    DECLARE_JSON_REQUIRED_FIELDS(
-      NodeInfo, quote_info, identity, cert_der, service_identity);
+    DECLARE_JSON_TYPE_WITH_BASE(NodeInfo, RequestNodeInfo);
+    DECLARE_JSON_REQUIRED_FIELDS(NodeInfo, node_cert_der);
 
     enum class StateMachine : uint8_t
     {
@@ -66,7 +83,7 @@ namespace ccf
 
     using NodeInfoMap =
       ServiceMap<IntrinsicIdentifier, ccf::self_healing_open::NodeInfo>;
-    using Gossips = ServiceMap<IntrinsicIdentifier, ccf::kv::Version>;
+    using Gossips = ServiceMap<IntrinsicIdentifier, ccf::TxID>;
     using ChosenNode = ServiceValue<IntrinsicIdentifier>;
     using Votes = ServiceSet<IntrinsicIdentifier>;
     using SMState = ServiceValue<ccf::self_healing_open::StateMachine>;
