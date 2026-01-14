@@ -79,5 +79,6 @@ namespace ccf
     void send_iamopen_unsafe(kv::ReadOnlyTx& tx);
 
     SelfHealingOpenConfig& get_config();
+    ccf::TxID get_last_recovered_signed_txid();
   };
 }

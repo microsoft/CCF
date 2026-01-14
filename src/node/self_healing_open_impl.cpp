@@ -545,12 +545,9 @@ namespace ccf
 
     LOG_TRACE_FMT("Broadcasting self-healing-open gossip");
 
-    auto seqno = node_state->last_recovered_signed_idx;
-    auto view = node_state->consensus->get_view(seqno);
-
     self_healing_open::GossipRequest request;
     request.info = get_node_info(tx);
-    request.txid = ccf::TxID{view, seqno};
+    request.txid = get_last_recovered_signed_txid();
     nlohmann::json request_json = request;
 
     for (auto& target : config.cluster_identities)
@@ -610,16 +607,13 @@ namespace ccf
 
     auto& node_info = get_node_info(tx);
 
-    auto seqno = node_state->last_recovered_signed_idx;
-    auto view = node_state->consensus->get_view(seqno);
-
     {
       std::lock_guard<pal::Mutex> guard(self_healing_open_lock);
       iamopen_request_cache = self_healing_open::IAmOpenRequest{};
       iamopen_request_cache->info = node_info;
       iamopen_request_cache->prev_service_fingerprint =
         previous_service_identity_fingerprint;
-      iamopen_request_cache->txid = ccf::TxID{view, seqno};
+      iamopen_request_cache->txid = get_last_recovered_signed_txid();
     }
 
     return iamopen_request_cache.value();
@@ -657,5 +651,20 @@ namespace ccf
       throw std::logic_error("Self-healing-open not configured");
     }
     return config.value();
+  }
+
+  ccf::TxID SelfHealingOpenSubsystem::get_last_recovered_signed_txid()
+  {
+    auto recovery_seqno = node_state->last_recovered_signed_idx;
+    auto recovery_view = node_state->consensus->get_view(recovery_seqno);
+    // get_view returns VIEW_UNKNOWN=InvalidView if the view is not in the view
+    // history (too old or too new)
+    if (recovery_view == ccf::VIEW_UNKNOWN)
+    {
+      throw std::logic_error(fmt::format(
+        "Could not find view for last recovered signed seqno {}",
+        recovery_seqno));
+    }
+    return ccf::TxID{recovery_view, recovery_seqno};
   }
 }
