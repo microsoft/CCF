@@ -51,6 +51,8 @@
 #include "service/internal_tables_access.h"
 #include "service/tables/recovery_type.h"
 #include "share_manager.h"
+#include "snapshots/fetch.h"
+#include "snapshots/filenames.h"
 #include "uvm_endorsements.h"
 
 #include <optional>
@@ -110,7 +112,6 @@ namespace ccf
     std::optional<pal::snp::TcbVersionRaw> snp_tcb_version = std::nullopt;
     ccf::StartupConfig config;
     std::optional<pal::UVMEndorsements> snp_uvm_endorsements = std::nullopt;
-    std::vector<uint8_t> startup_snapshot;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
       nullptr;
 
@@ -177,6 +178,13 @@ namespace ccf
     // Returns true if the snapshot is already verified (via embedded receipt)
     void initialise_startup_snapshot(bool recovery = false)
     {
+      // TODO: VALIDATE this snapshot as well!
+      auto startup_snapshot = load_startup_snapshot();
+      if (startup_snapshot.empty())
+      {
+        return;
+      }
+
       std::shared_ptr<ccf::kv::Store> snapshot_store;
       if (!recovery)
       {
@@ -212,6 +220,11 @@ namespace ccf
       startup_seqno = startup_snapshot_info->seqno;
       last_recovered_idx = startup_seqno;
       last_recovered_signed_idx = last_recovered_idx;
+
+      if (recovery)
+      {
+        snapshotter->set_last_snapshot_idx(last_recovered_idx);
+      }
     }
 
     SelfHealingOpenSubsystem self_healing_open_impl;
@@ -382,10 +395,7 @@ namespace ccf
         }
         case StartType::Join:
         {
-          if (!startup_snapshot.empty())
-          {
-            initialise_startup_snapshot();
-          }
+          initialise_startup_snapshot();
 
           sm.advance(NodeStartupState::pending);
           start_join_timer();
@@ -394,11 +404,8 @@ namespace ccf
         case StartType::Recover:
         {
           setup_recovery_hook();
-          if (!startup_snapshot.empty())
-          {
-            initialise_startup_snapshot(true);
-            snapshotter->set_last_snapshot_idx(last_recovered_idx);
-          }
+
+          initialise_startup_snapshot(true);
 
           sm.advance(NodeStartupState::readingPublicLedger);
           start_ledger_recovery_unsafe();
@@ -410,6 +417,77 @@ namespace ccf
             fmt::format("Node was launched in unknown mode {}", start_type));
         }
       }
+    }
+
+    std::vector<uint8_t> load_startup_snapshot()
+    {
+      std::vector<uint8_t> startup_snapshot = {};
+
+      if (start_type != StartType::Join && start_type != StartType::Recover)
+      {
+        return startup_snapshot;
+      }
+
+      std::vector<std::filesystem::path> directories;
+      directories.emplace_back(config.snapshots.directory);
+      const auto& read_only_dir = config.snapshots.read_only_directory;
+      if (read_only_dir.has_value())
+      {
+        directories.emplace_back(read_only_dir.value());
+      }
+      auto latest_local_snapshot =
+        snapshots::find_latest_committed_snapshot_in_directories(directories);
+
+      if (start_type == StartType::Join && config.join.fetch_recent_snapshot)
+      {
+        // Try to fetch a recent snapshot from peer
+        auto latest_peer_snapshot = snapshots::fetch_from_peer(
+          config.join.target_rpc_address,
+          config.join.service_cert, // TODO: Cert vs path-to-cert
+          config.join.fetch_snapshot_max_attempts,
+          config.join.fetch_snapshot_retry_interval.count_ms(),
+          config.join.fetch_snapshot_max_size.count_bytes());
+
+        if (latest_peer_snapshot.has_value())
+        {
+          LOG_INFO_FMT(
+            "Received snapshot {} from peer (size: {}) - writing this to "
+            "disk "
+            "and using for join startup",
+            latest_peer_snapshot->snapshot_name,
+            latest_peer_snapshot->snapshot_data.size());
+
+          const auto dst_path =
+            std::filesystem::path(config.snapshots.directory) /
+            std::filesystem::path(latest_peer_snapshot->snapshot_name);
+          if (files::exists(dst_path))
+          {
+            LOG_FAIL_FMT(
+              "Overwriting existing snapshot at {} with data retrieved from "
+              "peer",
+              dst_path);
+          }
+          files::dump(latest_peer_snapshot->snapshot_data, dst_path);
+          startup_snapshot = latest_peer_snapshot->snapshot_data;
+        }
+      }
+
+      if (startup_snapshot.empty() && latest_local_snapshot.has_value())
+      {
+        startup_snapshot = files::slurp(latest_local_snapshot.value());
+
+        LOG_INFO_FMT(
+          "Found latest local snapshot file: {} (size: {})",
+          latest_local_snapshot,
+          startup_snapshot.size());
+      }
+      else if (startup_snapshot.empty())
+      {
+        LOG_INFO_FMT(
+          "No snapshot found: Node will replay all historical transactions");
+      }
+
+      return startup_snapshot;
     }
 
     void initiate_quote_generation()
@@ -554,16 +632,13 @@ namespace ccf
     }
 
     NodeCreateInfo create(
-      StartType start_type_,
-      const ccf::StartupConfig& config_,
-      std::vector<uint8_t>&& startup_snapshot_)
+      StartType start_type_, const ccf::StartupConfig& config_)
     {
       std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
       start_type = start_type_;
 
       config = config_;
-      startup_snapshot = std::move(startup_snapshot_);
       subject_alt_names = get_subject_alternative_names();
 
       js::register_class_ids();

@@ -12,7 +12,6 @@ namespace ccf
   CreateNodeStatus enclave_create_node(
     const EnclaveConfig& enclave_config,
     const ccf::StartupConfig& ccf_config,
-    std::vector<uint8_t>&& startup_snapshot,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
     StartType start_type,

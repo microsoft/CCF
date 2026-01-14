@@ -27,7 +27,6 @@ namespace ccf
   CreateNodeStatus enclave_create_node(
     const EnclaveConfig& enclave_config,
     const ccf::StartupConfig& ccf_config,
-    std::vector<uint8_t>&& startup_snapshot,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
     StartType start_type,
@@ -130,11 +129,7 @@ namespace ccf
     try
     {
       status = enclave->create_new_node(
-        start_type,
-        ccf_config,
-        std::move(startup_snapshot),
-        node_cert,
-        service_cert);
+        start_type, ccf_config, node_cert, service_cert);
     }
     catch (...)
     {

@@ -120,13 +120,14 @@ namespace snapshots
 
   static std::optional<SnapshotResponse> try_fetch_from_peer(
     const std::string& peer_address,
-    const std::string& path_to_peer_ca,
+    const std::vector<uint8_t>& peer_ca,
     size_t max_size)
   {
     try
     {
       ccf::curl::UniqueCURL curl_easy;
-      curl_easy.set_opt(CURLOPT_CAINFO, path_to_peer_ca.c_str());
+      curl_easy.set_blob_opt(
+        CURLOPT_CAINFO_BLOB, peer_ca.data(), peer_ca.size());
 
       auto response_body = std::make_unique<ccf::curl::ResponseBody>(max_size);
 
@@ -339,7 +340,7 @@ namespace snapshots
 
   static std::optional<SnapshotResponse> fetch_from_peer(
     const std::string& peer_address,
-    const std::string& path_to_peer_ca,
+    const std::vector<uint8_t>& peer_ca,
     size_t max_attempts,
     size_t retry_delay_ms,
     size_t max_size)
@@ -357,8 +358,7 @@ namespace snapshots
         std::this_thread::sleep_for(std::chrono::milliseconds(retry_delay_ms));
       }
 
-      auto response =
-        try_fetch_from_peer(peer_address, path_to_peer_ca, max_size);
+      auto response = try_fetch_from_peer(peer_address, peer_ca, max_size);
       if (response.has_value())
       {
         return response;
