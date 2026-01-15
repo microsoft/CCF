@@ -144,14 +144,11 @@ namespace ccf
         },
         "Parse alg in protected header");
 
-      parsed.kid = rethrow_with_msg(
+      parsed.kid = buf_to_string(rethrow_with_msg(
         [&]() {
-          auto bytes =
-            phdr->map_at(make_signed(headers::PARAM_KID))->as_bytes();
-          return std::string(
-            reinterpret_cast<const char*>(bytes.data()), bytes.size());
+          return phdr->map_at(make_signed(headers::PARAM_KID))->as_bytes();
         },
-        "Parse kid in protected header");
+        "Parse kid in protected header"));
 
       try
       {

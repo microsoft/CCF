@@ -66,7 +66,7 @@ namespace ccf::cbor
   {
   public:
     explicit CBORDecodeError(Error err, const std::string& what);
-    Error error_code() const;
+    [[nodiscard]] Error error_code() const;
 
   private:
     Error error{Error::UNDEFINED};
