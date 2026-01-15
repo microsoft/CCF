@@ -88,7 +88,7 @@ namespace ccf::cbor
     {
       if (!msg.empty())
       {
-        throw CBORDecodeError(fmt::format("{}: {}", err.what(), msg));
+        throw CBORDecodeError(fmt::format("{}: {}", msg, err.what()));
       }
       throw err;
     }
