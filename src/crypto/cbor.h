@@ -53,7 +53,24 @@ namespace ccf::cbor
 
   using Type = std::variant<Signed, Bytes, String, Array, Map, Tagged, Simple>;
 
-  using CBORDecodeError = std::runtime_error;
+  enum class Error : uint8_t
+  {
+    UNDEFINED = 0,
+    DECODE_FAILED = 1,
+    KEY_NOT_FOUND = 2,
+    OUT_OF_BOUND = 3,
+    TYPE_MISMATCH = 4,
+  };
+
+  class CBORDecodeError : public std::runtime_error
+  {
+  public:
+    explicit CBORDecodeError(Error err, const std::string& what);
+    Error error_code() const;
+
+  private:
+    Error error{Error::UNDEFINED};
+  };
 
   struct ValueImpl
   {
@@ -88,7 +105,8 @@ namespace ccf::cbor
     {
       if (!msg.empty())
       {
-        throw CBORDecodeError(fmt::format("{}: {}", msg, err.what()));
+        throw CBORDecodeError(
+          err.error_code(), fmt::format("{}: {}", msg, err.what()));
       }
       throw err;
     }
