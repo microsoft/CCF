@@ -338,8 +338,7 @@ namespace ccf::cose
       {
         std::pair<int64_t, std::vector<uint8_t>> path_item;
         const auto& link = rethrow_with_msg(
-          [&]() -> auto& { return cbor_path->array_at(j); },
-          "Parse path link");
+          [&]() -> auto& { return cbor_path->array_at(j); }, "Parse path link");
 
         path_item.first = rethrow_with_msg(
           [&]() { return simple_to_boolean(link->array_at(0)->as_simple()); },
