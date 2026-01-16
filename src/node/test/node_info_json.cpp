@@ -66,47 +66,34 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
     REQUIRE(
       new_converted.node_to_node_interface.bind_address ==
       ccf::NodeInfoNetwork::NetAddress(v1.nodehost + ":" + v1.nodeport));
+    REQUIRE(
+      new_converted.node_to_node_interface.published_address ==
+      ccf::NodeInfoNetwork::NetAddress(v1.nodehost + ":" + v1.nodeport));
+
+    REQUIRE(new_converted.rpc_interfaces.size() == 1);
+    const auto& primary_rpc_it =
+      new_converted.rpc_interfaces.find(ccf::PRIMARY_RPC_INTERFACE);
+    const auto& primary_rpc = primary_rpc_it->second;
+    REQUIRE(
+      primary_rpc.bind_address ==
+      ccf::NodeInfoNetwork::NetAddress(v1.rpchost + ":" + v1.rpcport));
+    REQUIRE(
+      primary_rpc.published_address ==
+      ccf::NodeInfoNetwork::NetAddress(v1.pubhost + ":" + v1.pubport));
   }
 
-  // No longer true, to_json NEVER writes v1 fields now,
-  // So the current format cannot be read as v1 anymore
-  // {
-  //   INFO(
-  //     "Current format loses some information when round-tripping through
-  //     old");
-  //   nlohmann::json j = current;
-  //   const auto intermediate = j.get<ccf::NodeInfoNetwork_v1>();
-  //   nlohmann::json j2 = intermediate;
-  //   const auto converted = j2.get<ccf::NodeInfoNetwork>();
-  //   REQUIRE(!(current == converted));
+  // Test that slightly malformed v2 JSON does not get misparsed as v1
+  // and triggers an exception instead, for example when an unknown
+  // operator feature is present
+  {
+    INFO("Malformed new format does not get misparsed as old format");
+    nlohmann::json j = current;
+    // Inject an unknown operator feature to make the JSON invalid for v2
+    j["node_to_node_interface"]["enabled_operator_features"].push_back(
+      "UnknownFeature");
 
-  //   // The node information has been kept
-  //   REQUIRE(current.node_to_node_interface ==
-  //   converted.node_to_node_interface);
-
-  //   // Only the _first_ RPC interface has kept its addresses, though lost its
-  //   // sessions caps
-  //   REQUIRE(converted.rpc_interfaces.size() > 0);
-
-  //   const auto& current_interface = current.rpc_interfaces.begin()->second;
-  //   const auto& converted_interface =
-  //     converted.rpc_interfaces.at(ccf::PRIMARY_RPC_INTERFACE);
-
-  //   REQUIRE(current_interface.bind_address ==
-  //   converted_interface.bind_address); REQUIRE(
-  //     current_interface.published_address ==
-  //     converted_interface.published_address);
-  //   REQUIRE(
-  //     current_interface.max_open_sessions_hard !=
-  //     converted_interface.max_open_sessions_hard);
-  //   REQUIRE(
-  //     current_interface.max_open_sessions_soft !=
-  //     converted_interface.max_open_sessions_soft);
-
-  //   // The second RPC interface has been lost
-  //   REQUIRE(converted.rpc_interfaces.size() == 1);
-  //   REQUIRE(converted.rpc_interfaces.size() < current.rpc_interfaces.size());
-  // }
+    REQUIRE_THROWS_AS(j.get<ccf::NodeInfoNetwork>(), ccf::JsonParseError);
+  }
 
   {
     INFO("Old format survives round-trip through new");
