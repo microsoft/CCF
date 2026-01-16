@@ -781,6 +781,8 @@ class Network:
         common_dir=None,
         starting_nodes=None,
         timeout=10,
+        sealed_ledger_secrets=None,
+        suspend_after_start=False,
         **kwargs,
     ):
         self.common_dir = common_dir or get_common_folder_name(
@@ -857,6 +859,8 @@ class Network:
                     | kwargs
                 )
                 node.recover(**node_kwargs)
+                if suspend_after_start:
+                    node.suspend()
             except Exception:
                 LOG.exception(f"Failed to start node {node.local_node_id}")
                 raise
@@ -864,12 +868,12 @@ class Network:
         self.election_duration = args.election_timeout_ms / 1000
         self.observed_election_duration = self.election_duration + 1
 
+    def wait_for_self_healing_open_finish(self, timeout=10):
         def cycle(items):
             while True:
                 for item in items:
                     yield item
 
-        # One node will open, the remainder will stop themselves
         waiting_nodes = set(self.nodes)
         end_time = time.time() + timeout
         for node in cycle(self.nodes):
@@ -893,7 +897,7 @@ class Network:
                     verify_ca=False,
                 )
                 LOG.info(f"{node.local_node_id} opened")
-                return
+                waiting_nodes.remove(node)
             except Exception as e:
                 is_timeout = isinstance(e, (CCFIOException, TimeoutError)) or (
                     isinstance(e, RuntimeError) and "node is stopped" in str(e)
@@ -1088,6 +1092,9 @@ class Network:
                 raise NetworkShutdownError(
                     "Fatal error found during node shutdown", node_errors
                 )
+
+        if self.partitioner is not None:
+            self.partitioner.cleanup()
 
     def setup_join_node(
         self,
@@ -1945,6 +1952,28 @@ class Network:
             )
 
 
+# Closes the network on error, logging stack traces and optionally dropping into pdb
+@contextmanager
+def close_on_error(net, pdb=False):
+    try:
+        yield
+    except Exception:
+        # Don't try to verify txs on Exception path
+        net.txs = None
+
+        net.log_stack_traces(timeout=10)
+
+        if pdb:
+            import pdb
+
+            pdb.post_mortem()
+
+        LOG.info("Stopping network")
+        net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
+
+        raise
+
+
 @contextmanager
 def network(
     hosts,
@@ -1988,22 +2017,9 @@ def network(
         node_data_json_file=node_data_json_file,
         **kwargs,
     )
-    try:
+    with close_on_error(net, pdb=pdb):
         yield net
-    except Exception:
-        # Don't try to verify txs on Exception path
-        net.txs = None
-
-        net.log_stack_traces(timeout=10)
-
-        if pdb:
-            import pdb
-
-            pdb.set_trace()
-        else:
-            raise
-    finally:
-        LOG.info("Stopping network")
-        net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
-        if init_partitioner:
-            net.partitioner.cleanup()
+    LOG.info("Stopping network")
+    net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
+    if init_partitioner:
+        net.partitioner.cleanup()

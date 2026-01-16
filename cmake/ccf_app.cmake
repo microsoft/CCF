@@ -30,17 +30,12 @@ function(add_ccf_app name)
   add_warning_checks(${name})
 
   target_link_libraries(
-    ${name} PRIVATE ${PARSED_ARGS_LINK_LIBS} ccf ccf_launcher
+    ${name} PRIVATE ${PARSED_ARGS_LINK_LIBS} ccf_launcher ccf
   )
 
   if(NOT (SAN OR TSAN))
     target_link_options(${name} PRIVATE LINKER:--no-undefined)
   endif()
-
-  target_link_options(
-    ${name} PRIVATE
-    LINKER:--undefined=enclave_create_node,--undefined=enclave_run
-  )
 
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 

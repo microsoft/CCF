@@ -410,58 +410,6 @@ namespace ccf::historical
     class TQueryHandler,
     class TEndpointFunction,
     class TEndpointContext,
-    class TTxIDExtractor>
-  TEndpointFunction _adapter_v3(
-    const TQueryHandler& f,
-    ccf::AbstractNodeContext& node_context,
-    const CheckHistoricalTxStatus& available,
-    const TTxIDExtractor& extractor)
-  {
-    return _adapter_v4<TQueryHandler, TEndpointFunction, TEndpointContext>(
-      f, node_context, available, extractor, default_error_handler);
-  }
-
-  ccf::endpoints::EndpointFunction adapter_v3(
-    const HandleHistoricalQuery& f,
-    ccf::AbstractNodeContext& node_context,
-    const CheckHistoricalTxStatus& available,
-    const TxIDExtractor& extractor)
-  {
-    return _adapter_v3<
-      HandleHistoricalQuery,
-      ccf::endpoints::EndpointFunction,
-      ccf::endpoints::EndpointContext>(f, node_context, available, extractor);
-  }
-
-  ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v3(
-    const HandleReadOnlyHistoricalQuery& f,
-    ccf::AbstractNodeContext& node_context,
-    const CheckHistoricalTxStatus& available,
-    const ReadOnlyTxIDExtractor& extractor)
-  {
-    return _adapter_v3<
-      HandleReadOnlyHistoricalQuery,
-      ccf::endpoints::ReadOnlyEndpointFunction,
-      ccf::endpoints::ReadOnlyEndpointContext>(
-      f, node_context, available, extractor);
-  }
-
-  ccf::endpoints::EndpointFunction read_write_adapter_v3(
-    const HandleReadWriteHistoricalQuery& f,
-    ccf::AbstractNodeContext& node_context,
-    const CheckHistoricalTxStatus& available,
-    const TxIDExtractor& extractor)
-  {
-    return _adapter_v3<
-      HandleReadWriteHistoricalQuery,
-      ccf::endpoints::EndpointFunction,
-      ccf::endpoints::EndpointContext>(f, node_context, available, extractor);
-  }
-
-  template <
-    class TQueryHandler,
-    class TEndpointFunction,
-    class TEndpointContext,
     class TTxIDExtractor,
     class TErrorHandler>
   TEndpointFunction _adapter_v4(

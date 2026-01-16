@@ -21,26 +21,6 @@ namespace
 {
   Value consume(cbor_nondet_t cbor);
 
-  // Helper to wrap operations with context-aware error messages
-  template <typename F>
-  decltype(auto) with_context(
-    std::string_view context, std::string_view operation, const F& func)
-  {
-    try
-    {
-      return func();
-    }
-    catch (const CBORDecodeError& e)
-    {
-      if (!context.empty())
-      {
-        throw CBORDecodeError(
-          fmt::format("Failed to {} {}: {}", operation, context, e.what()));
-      }
-      throw;
-    }
-  }
-
   void print_indent(std::ostringstream& os, size_t indent)
   {
     for (size_t i = 0; i < indent; ++i)
@@ -49,22 +29,13 @@ namespace
     }
   }
 
-  Value consume_unsigned(cbor_nondet_t cbor)
-  {
-    Unsigned value{0};
-    if (!cbor_nondet_read_uint64(cbor, &value))
-    {
-      throw CBORDecodeError("Failed to consume unsigned value");
-    }
-    return std::make_unique<ValueImpl>(value);
-  }
-
   Value consume_signed(cbor_nondet_t cbor)
   {
     Signed value{0};
     if (!cbor_nondet_read_int64(cbor, &value))
     {
-      throw CBORDecodeError("Failed to decode signed value");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to decode signed value");
     }
     return std::make_unique<ValueImpl>(value);
   }
@@ -75,7 +46,8 @@ namespace
     uint64_t length = 0;
     if (!cbor_nondet_get_byte_string(cbor, &data, &length))
     {
-      throw CBORDecodeError("Failed to decode byte string");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to decode byte string");
     }
     Bytes value{data, static_cast<size_t>(length)};
     return std::make_unique<ValueImpl>(value);
@@ -87,7 +59,8 @@ namespace
     uint64_t length = 0;
     if (!cbor_nondet_get_text_string(cbor, &data, &length))
     {
-      throw CBORDecodeError("Failed to decode text string");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to decode text string");
     }
     String value{
       reinterpret_cast<const char*>(data), static_cast<size_t>(length)};
@@ -99,7 +72,8 @@ namespace
     cbor_nondet_array_iterator_t iter;
     if (!cbor_nondet_array_iterator_start(cbor, &iter))
     {
-      throw CBORDecodeError("Failed to start array iterator");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to start array iterator");
     }
 
     Array array;
@@ -108,7 +82,8 @@ namespace
       cbor_nondet_t item;
       if (!cbor_nondet_array_iterator_next(&iter, &item))
       {
-        throw CBORDecodeError("Failed to get next array item");
+        throw CBORDecodeError(
+          Error::DECODE_FAILED, "Failed to get next array item");
       }
       array.items.push_back(consume(item));
     }
@@ -120,7 +95,8 @@ namespace
     cbor_map_iterator iter;
     if (!cbor_nondet_map_iterator_start(cbor, &iter))
     {
-      throw CBORDecodeError("Failed to start map iterator");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to start map iterator");
     }
 
     Map map;
@@ -130,7 +106,8 @@ namespace
       cbor_raw value_raw;
       if (!cbor_nondet_map_iterator_next(&iter, &key_raw, &value_raw))
       {
-        throw CBORDecodeError("Failed to get next map entry");
+        throw CBORDecodeError(
+          Error::DECODE_FAILED, "Failed to get next map entry");
       }
       map.items.emplace_back(consume(key_raw), consume(value_raw));
     }
@@ -143,7 +120,8 @@ namespace
     cbor_nondet_t payload;
     if (!cbor_nondet_get_tagged(cbor, &payload, &tag))
     {
-      throw CBORDecodeError("Failed to decode tagged value");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to decode tagged value");
     }
 
     Tagged tagged;
@@ -160,7 +138,8 @@ namespace
     Simple value{0};
     if (!cbor_nondet_read_simple_value(cbor, &value))
     {
-      throw CBORDecodeError("Failed to decode simple value");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to decode simple value");
     }
     return std::make_unique<ValueImpl>(value);
   }
@@ -171,7 +150,6 @@ namespace
     switch (mt)
     {
       case CBOR_MAJOR_TYPE_UINT64:
-        return consume_unsigned(cbor);
       case CBOR_MAJOR_TYPE_NEG_INT64:
         return consume_signed(cbor);
       case CBOR_MAJOR_TYPE_BYTE_STRING:
@@ -187,7 +165,7 @@ namespace
       case CBOR_MAJOR_TYPE_SIMPLE_VALUE:
         return consume_simple(cbor);
       default:
-        throw CBORDecodeError("Unknown CBOR major type");
+        throw CBORDecodeError(Error::DECODE_FAILED, "Unknown CBOR major type");
     }
   }
 
@@ -204,12 +182,7 @@ namespace
     std::visit(
       [&os, indent](const auto& v) {
         using T = std::decay_t<decltype(v)>;
-        if constexpr (std::is_same_v<T, Unsigned>)
-        {
-          print_indent(os, indent);
-          os << "Unsigned: " << v << std::endl;
-        }
-        else if constexpr (std::is_same_v<T, Signed>)
+        if constexpr (std::is_same_v<T, Signed>)
         {
           print_indent(os, indent);
           os << "Signed: " << v << std::endl;
@@ -217,15 +190,15 @@ namespace
         else if constexpr (std::is_same_v<T, Bytes>)
         {
           print_indent(os, indent);
-          os << "Bytes[" << v.size() << "]: ";
-          for (size_t i = 0; i < std::min(v.size(), size_t(16)); ++i)
+          os << "Bytes[" << v.size() << "]:";
+          if (!v.empty())
+          {
+            os << " ";
+          }
+          for (size_t i = 0; i < v.size(); ++i)
           {
             os << std::hex << std::setw(2) << std::setfill('0')
                << static_cast<int>(v[i]);
-          }
-          if (v.size() > 16)
-          {
-            os << "...";
           }
           os << std::dec << std::endl;
         }
@@ -266,138 +239,180 @@ namespace
         else if constexpr (std::is_same_v<T, Simple>)
         {
           print_indent(os, indent);
-          os << "Simple: " << static_cast<int>(v) << std::endl;
+          const auto casted = static_cast<int>(v);
+          switch (casted)
+          {
+            case SimpleValue::False:
+              os << "Simple: False" << std::endl;
+              break;
+            case SimpleValue::True:
+              os << "Simple: True" << std::endl;
+              break;
+            case SimpleValue::Null:
+              os << "Simple: Null" << std::endl;
+              break;
+            case SimpleValue::Undefined:
+              os << "Simple: Undefined" << std::endl;
+              break;
+            default:
+              os << "Simple: " << casted << std::endl;
+          }
         }
       },
       value->value);
   }
-
 } // namespace
 
 namespace ccf::cbor
 {
-  Value make_unsigned(uint64_t value)
+  CBORDecodeError::CBORDecodeError(Error err, const std::string& what) :
+    std::runtime_error(what),
+    error(err)
+  {}
+
+  Error CBORDecodeError::error_code() const
   {
-    return std::make_unique<ValueImpl>(value);
+    return error;
   }
+
   Value make_signed(int64_t value)
   {
     return std::make_unique<ValueImpl>(value);
   }
+
   Value make_string(std::string_view data)
   {
     return std::make_unique<ValueImpl>(data);
   }
 
-  Value parse_value(std::span<const uint8_t> raw, std::string_view context)
+  Value make_bytes(std::span<const uint8_t> data)
   {
-    return with_context(context, "parse", [&] {
-      cbor_nondet_t cbor;
-      const bool check_map_key_bound = false;
-      const size_t map_key_bound = 0;
-      auto* cbor_parse_input = const_cast<uint8_t*>(raw.data());
-      size_t cbor_parse_size = raw.size();
-      if (!cbor_nondet_parse(
-            check_map_key_bound,
-            map_key_bound,
-            &cbor_parse_input,
-            &cbor_parse_size,
-            &cbor))
-      {
-        throw CBORDecodeError("Failed to parse top-level cbor");
-      }
-
-      return consume(cbor);
-    });
+    return std::make_unique<ValueImpl>(data);
   }
 
-  std::string print_value(const Value& value, size_t indent)
+  Value parse(std::span<const uint8_t> raw)
+  {
+    cbor_nondet_t cbor;
+    const bool check_map_key_bound = false;
+    const size_t map_key_bound = 0;
+    auto* cbor_parse_input = const_cast<uint8_t*>(raw.data());
+    size_t cbor_parse_size = raw.size();
+    if (!cbor_nondet_parse(
+          check_map_key_bound,
+          map_key_bound,
+          &cbor_parse_input,
+          &cbor_parse_size,
+          &cbor))
+    {
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to parse top-level cbor");
+    }
+
+    return consume(cbor);
+  }
+
+  std::string to_string(const Value& value)
   {
     std::ostringstream os;
-    print_value_impl(os, value, indent);
-    return os.str();
+    constexpr size_t initial_indent{0};
+    print_value_impl(os, value, initial_indent);
+    auto as_string = os.str();
+    if (!as_string.empty() && as_string.back() == '\n')
+    {
+      as_string.pop_back();
+    }
+    return as_string;
   }
 
-  const Value& ValueImpl::array_at(size_t index, std::string_view context) const
+  bool simple_to_boolean(const Simple& value)
   {
-    return with_context(context, "access array element", [&]() -> const Value& {
-      if (!std::holds_alternative<Array>(value))
-      {
-        throw CBORDecodeError("Not an array");
-      }
-
-      const auto& arr = std::get<Array>(value);
-      if (index >= arr.items.size())
-      {
-        throw CBORDecodeError("Array index out of bounds");
-      }
-
-      return arr.items[index];
-    });
+    switch (value)
+    {
+      case SimpleValue::False:
+        return false;
+      case SimpleValue::True:
+        return true;
+      default:
+        throw CBORDecodeError(
+          Error::TYPE_MISMATCH, "Simple value cannot be matched to boolean");
+    }
   }
 
-  const Value& ValueImpl::map_at(
-    const Value& key, std::string_view context) const
+  const Value& ValueImpl::array_at(size_t index) const
   {
-    return with_context(context, "access map key", [&]() -> const Value& {
-      if (!std::holds_alternative<Map>(value))
-      {
-        throw CBORDecodeError("Not a map");
-      }
+    if (!std::holds_alternative<Array>(value))
+    {
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not an array");
+    }
 
-      // Fail fast: Array, Map, Tagged are not supported as map keys in this
-      // version, and probably shouldn't be in the future.
-      std::visit(
-        [](const auto& k) {
-          using T = std::decay_t<decltype(k)>;
-          if constexpr (
-            std::is_same_v<T, Array> || std::is_same_v<T, Map> ||
-            std::is_same_v<T, Tagged>)
+    const auto& arr = std::get<Array>(value);
+    if (index >= arr.items.size())
+    {
+      throw CBORDecodeError(Error::OUT_OF_BOUND, "Array index out of bounds");
+    }
+
+    return arr.items[index];
+  }
+
+  const Value& ValueImpl::map_at(const Value& key) const
+  {
+    if (!std::holds_alternative<Map>(value))
+    {
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a map");
+    }
+
+    // Fail fast: Array, Map, Tagged are not supported as map keys in this
+    // version, and probably shouldn't be in the future.
+    std::visit(
+      [](const auto& k) {
+        using T = std::decay_t<decltype(k)>;
+        if constexpr (
+          std::is_same_v<T, Array> || std::is_same_v<T, Map> ||
+          std::is_same_v<T, Tagged>)
+        {
+          throw CBORDecodeError(
+            Error::TYPE_MISMATCH,
+            "Array, Map, and Tagged values cannot be used as map keys");
+        }
+      },
+      key->value);
+
+    const auto& map = std::get<Map>(value);
+    for (const auto& [k, v] : map.items)
+    {
+      const bool match = std::visit(
+        [](const auto& a, const auto& b) -> bool {
+          using TA = std::decay_t<decltype(a)>;
+          using TB = std::decay_t<decltype(b)>;
+
+          if constexpr (!std::is_same_v<TA, TB>)
           {
-            throw CBORDecodeError(
-              "Array, Map, and Tagged values cannot be used as map keys");
+            return false;
+          }
+          else if constexpr (std::is_same_v<TA, Signed>)
+          {
+            return a == b;
+          }
+          else if constexpr (
+            std::is_same_v<TA, Bytes> || std::is_same_v<TA, String>)
+          {
+            return std::equal(a.begin(), a.end(), b.begin(), b.end());
+          }
+          else
+          {
+            return false;
           }
         },
-        key->value);
+        key->value,
+        k->value);
 
-      const auto& map = std::get<Map>(value);
-      for (const auto& [k, v] : map.items)
+      if (match)
       {
-        const bool match = std::visit(
-          [](const auto& a, const auto& b) -> bool {
-            using TA = std::decay_t<decltype(a)>;
-            using TB = std::decay_t<decltype(b)>;
-
-            if constexpr (!std::is_same_v<TA, TB>)
-            {
-              return false;
-            }
-            else if constexpr (
-              std::is_same_v<TA, Unsigned> || std::is_same_v<TA, Signed>)
-            {
-              return a == b;
-            }
-            else if constexpr (
-              std::is_same_v<TA, Bytes> || std::is_same_v<TA, String>)
-            {
-              return std::equal(a.begin(), a.end(), b.begin(), b.end());
-            }
-            else
-            {
-              return false;
-            }
-          },
-          key->value,
-          k->value);
-
-        if (match)
-        {
-          return v;
-        }
+        return v;
       }
+    }
 
-      throw CBORDecodeError("Key not found in map");
-    });
+    throw CBORDecodeError(Error::KEY_NOT_FOUND, "Key not found in map");
   }
 
   size_t ValueImpl::size() const
@@ -412,75 +427,58 @@ namespace ccf::cbor
       const auto& map = std::get<Map>(value);
       return map.items.size();
     }
-    throw CBORDecodeError("Not a collection");
+    throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a collection");
   }
 
-  const Value& ValueImpl::tag_at(uint64_t tag, std::string_view context) const
+  const Value& ValueImpl::tag_at(uint64_t tag) const
   {
-    return with_context(context, "extract tag", [&]() -> const Value& {
-      if (!std::holds_alternative<Tagged>(value))
-      {
-        throw CBORDecodeError("Not a tagged value");
-      }
+    if (!std::holds_alternative<Tagged>(value))
+    {
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a tagged value");
+    }
 
-      const auto& tagged = std::get<Tagged>(value);
-      if (tagged.tag != tag)
-      {
-        throw CBORDecodeError("Tag does not match");
-      }
+    const auto& tagged = std::get<Tagged>(value);
+    if (tagged.tag != tag)
+    {
+      throw CBORDecodeError(Error::KEY_NOT_FOUND, "Tag does not match");
+    }
 
-      return tagged.item;
-    });
+    return tagged.item;
   }
 
-  Unsigned ValueImpl::as_unsigned(std::string_view context) const
+  Signed ValueImpl::as_signed() const
   {
-    return with_context(context, "convert to unsigned", [&] {
-      if (!std::holds_alternative<Unsigned>(value))
-      {
-        throw CBORDecodeError("Not an unsigned value");
-      }
-      return std::get<Unsigned>(value);
-    });
+    if (!std::holds_alternative<Signed>(value))
+    {
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a signed value");
+    }
+    return std::get<Signed>(value);
   }
-  Signed ValueImpl::as_signed(std::string_view context) const
+
+  Bytes ValueImpl::as_bytes() const
   {
-    return with_context(context, "convert to signed", [&] {
-      if (!std::holds_alternative<Signed>(value))
-      {
-        throw CBORDecodeError("Not a signed value");
-      }
-      return std::get<Signed>(value);
-    });
+    if (!std::holds_alternative<Bytes>(value))
+    {
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a bytes value");
+    }
+    return std::get<Bytes>(value);
   }
-  Bytes ValueImpl::as_bytes(std::string_view context) const
+
+  String ValueImpl::as_string() const
   {
-    return with_context(context, "convert to bytes", [&] {
-      if (!std::holds_alternative<Bytes>(value))
-      {
-        throw CBORDecodeError("Not a bytes value");
-      }
-      return std::get<Bytes>(value);
-    });
+    if (!std::holds_alternative<String>(value))
+    {
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a string value");
+    }
+    return std::get<String>(value);
   }
-  String ValueImpl::as_string(std::string_view context) const
+
+  Simple ValueImpl::as_simple() const
   {
-    return with_context(context, "convert to string", [&] {
-      if (!std::holds_alternative<String>(value))
-      {
-        throw CBORDecodeError("Not a string value");
-      }
-      return std::get<String>(value);
-    });
-  }
-  Simple ValueImpl::as_simple(std::string_view context) const
-  {
-    return with_context(context, "convert to simple", [&] {
-      if (!std::holds_alternative<Simple>(value))
-      {
-        throw CBORDecodeError("Not a simple value");
-      }
-      return std::get<Simple>(value);
-    });
+    if (!std::holds_alternative<Simple>(value))
+    {
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a simple value");
+    }
+    return std::get<Simple>(value);
   }
 } // namespace ccf::cbor
