@@ -237,7 +237,7 @@ namespace ccf::cose
             ->as_bytes();
         phdr.kid.assign(bytes.begin(), bytes.end());
       },
-      "Parse protected header kid)");
+      "Parse protected header kid");
 
     phdr.vds = rethrow_with_msg(
       [&]() {
