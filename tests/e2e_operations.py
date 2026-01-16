@@ -1759,6 +1759,7 @@ def run_self_healing_open(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         network.save_service_identity(args)
+        node_secrets = [node.save_sealed_ledger_secret() for node in network.nodes]
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
@@ -1781,6 +1782,7 @@ def run_self_healing_open(const_args):
                 recovery_args,
                 ledger_dirs=ledger_dirs,
                 committed_ledger_dirs=committed_ledger_dirs,
+                sealed_ledger_secrets=node_secrets,
             )
             recovered_network.wait_for_self_healing_open_finish()
 
@@ -1819,6 +1821,7 @@ def run_self_healing_open_timeout_path(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         network.save_service_identity(args)
+        node_secrets = [node.save_sealed_ledger_secret() for node in network.nodes]
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
@@ -1841,6 +1844,7 @@ def run_self_healing_open_timeout_path(const_args):
                 recovery_args,
                 ledger_dirs=ledger_dirs,
                 committed_ledger_dirs=committed_ledger_dirs,
+                sealed_ledger_secrets=node_secrets,
                 starting_nodes=0,  # Force timeout path by starting only one node
             )
             recovered_network.wait_for_self_healing_open_finish()
@@ -1879,6 +1883,7 @@ def run_self_healing_open_multiple_timeout(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         network.save_service_identity(args)
+        node_secrets = [node.save_sealed_ledger_secret() for node in network.nodes]
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
@@ -1901,6 +1906,7 @@ def run_self_healing_open_multiple_timeout(const_args):
                 recovery_args,
                 ledger_dirs=ledger_dirs,
                 committed_ledger_dirs=committed_ledger_dirs,
+                sealed_ledger_secrets=node_secrets,
                 suspend_after_start=True,  # suspend each node after starting to ensure they don't progress
             )
             # for each node: start it and wait until it finishes the self-healing-open on the timeout path
