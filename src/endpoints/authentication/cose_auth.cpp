@@ -16,7 +16,7 @@
 
 namespace
 {
-  static std::string buf_to_string(std::span<const uint8_t> buf)
+  std::string buf_to_string(std::span<const uint8_t> buf)
   {
     return {reinterpret_cast<const char*>(buf.data()), buf.size()};
   }
