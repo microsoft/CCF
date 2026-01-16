@@ -377,7 +377,7 @@ def test_expired_certs(network, args):
     # Restore connectivity with primary, an election may or may not happen
     network.wait_for_primary_unanimity(min_view=r.view + 1)
 
-    check_can_progress(timeout, timeout=6)
+    check_can_progress(primary, timeout=6)
 
     # Set valid node certs so that future clients can speak to these nodes
     set_certs(from_days_diff=-1, validity_period_days=7, nodes=(primary, backup_a))
