@@ -340,9 +340,9 @@ namespace ccf::cose
         const auto& link = rethrow_with_msg(
           [&]() -> auto& { return cbor_path->array_at(j); }, "Parse path link");
 
-        path_item.first = rethrow_with_msg(
+        path_item.first = static_cast<int64_t>(rethrow_with_msg(
           [&]() { return simple_to_boolean(link->array_at(0)->as_simple()); },
-          "Parse path link at direction");
+          "Parse path link at direction"));
         rethrow_with_msg(
           [&]() {
             const auto& bytes = link->array_at(1)->as_bytes();
