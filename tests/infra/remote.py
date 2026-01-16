@@ -759,6 +759,12 @@ class CCFRemote(object):
     def get_logs(self):
         return self.remote.get_logs()
 
+    def get_ledger_main_dir(self):
+        """
+        Get the main ledger directory
+        """
+        return os.path.join(self.remote.root, self.ledger_dir_name)
+
 
 class StartType(Enum):
     start = auto()

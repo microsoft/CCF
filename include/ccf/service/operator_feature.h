@@ -9,11 +9,13 @@ namespace ccf::endpoints
   enum class OperatorFeature : uint8_t
   {
     SnapshotRead,
+    LedgerChunkRead
   };
 
   DECLARE_JSON_ENUM(
     OperatorFeature,
     {
       {OperatorFeature::SnapshotRead, "SnapshotRead"},
+      {OperatorFeature::LedgerChunkRead, "LedgerChunkRead"},
     });
 }

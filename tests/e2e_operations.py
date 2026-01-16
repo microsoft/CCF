@@ -4,6 +4,7 @@ import tempfile
 import os
 import signal
 import shutil
+import urllib.parse
 
 import infra.logging_app as app
 import infra.e2e_args
@@ -34,6 +35,7 @@ import pathlib
 import infra.concurrency
 import ccf.read_ledger
 import re
+import hashlib
 
 from loguru import logger as LOG
 
@@ -688,6 +690,106 @@ def test_split_ledger_on_stopped_network(primary, args):
     )
 
 
+def test_ledger_chunk_access(network, args):
+    primary, backups = network.find_nodes()
+
+    for node in (primary, *backups):
+        with node.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
+            main_ledger_dir = node.get_main_ledger_dir()
+            chunks = [
+                f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")
+            ]
+            chunks = sorted(
+                (*ccf.ledger.range_from_filename(chunk), chunk) for chunk in chunks
+            )
+            assert len(chunks) > 10, f"Unexpectedly small number of chunks {chunks}"
+
+            for start_index, end_index, chunk in chunks:
+                chunk_url = None
+                # Asking about any index in the chunk should redirect to the chunk
+                for index in (start_index, end_index, (start_index + end_index) // 2):
+                    r = c.head(
+                        f"/node/ledger-chunk?since={index}", allow_redirects=False
+                    )
+                    assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+                    assert r.headers["Location"].endswith(
+                        f"/node/ledger-chunk/{chunk}"
+                    ), r
+                    r = c.get(
+                        f"/node/ledger-chunk?since={index}", allow_redirects=False
+                    )
+                    assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+                    assert r.headers["Location"].endswith(
+                        f"/node/ledger-chunk/{chunk}"
+                    ), r
+
+                    chunk_url = urllib.parse.urlparse(r.headers["Location"])
+
+                assert chunk_url is not None
+
+                r = c.head(chunk_url.path, allow_redirects=False)
+                chunk_size = int(r.headers["Content-Length"])
+
+                main_ledger_dir = node.get_main_ledger_dir()
+                ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
+                actual_chunk_size = os.stat(ledger_chunk_path).st_size
+                assert (
+                    chunk_size == actual_chunk_size
+                ), f"Expected chunk size {actual_chunk_size}, got {chunk_size}"
+
+                r = c.get(chunk_url.path, allow_redirects=False)
+                dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
+                with open(ledger_chunk_path, "rb") as f:
+                    actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
+                assert (
+                    dled_chunk_digest == actual_chunk_digest
+                ), "Ledger chunk content does not match"
+
+
+def test_ledger_chunk_redirect(network, args):
+    primary, backups = network.find_nodes()
+
+    late_backup = backups[-1]
+    main_ledger_dir = late_backup.get_main_ledger_dir()
+    LOG.info(f"Late backup main ledger directory: {main_ledger_dir}")
+    chunks = [f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")]
+    chunks = sorted(chunks, key=lambda chunk: ccf.ledger.range_from_filename(chunk)[0])
+    start_of_last_chunk = ccf.ledger.range_from_filename(chunks[-1])[0]
+    # Drop last chunk from the backup to force redirect
+    LOG.info(
+        f"Dropping last ledger chunk {chunks[-1]} from late backup main ledger directory {main_ledger_dir}"
+    )
+    os.remove(os.path.join(main_ledger_dir, chunks[-1]))
+    with late_backup.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        r = c.head(
+            f"/node/ledger-chunk?since={start_of_last_chunk}", allow_redirects=False
+        )
+        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+        expected_host = primary.get_public_rpc_host(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        )
+        expected_port = primary.get_public_rpc_port(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        )
+        expected_location = f"https://{expected_host}:{expected_port}/node/ledger-chunk?since={start_of_last_chunk}"
+        assert r.headers["Location"] == expected_location, r
+        r = c.get(
+            f"/node/ledger-chunk?since={start_of_last_chunk}", allow_redirects=True
+        )
+        primary_main_ledger_dir = primary.get_main_ledger_dir()
+        ledger_chunk_path = os.path.join(primary_main_ledger_dir, chunks[-1])
+        dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
+        with open(ledger_chunk_path, "rb") as f:
+            actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
+        assert (
+            dled_chunk_digest == actual_chunk_digest
+        ), f"Ledger chunk content for {chunks[-1]} does not match"
+
+
 def run_file_operations(args):
     with tempfile.NamedTemporaryFile(mode="w+") as ntf:
         service_data = {"the owls": "are not", "what": "they seem"}
@@ -731,6 +833,21 @@ def run_file_operations(args):
 
                 test_split_ledger_on_stopped_network(primary, args)
                 args.common_read_only_ledger_dir = None  # Reset for future tests
+
+
+def run_ledger_chunk_download(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args)
+        # Issue enough transactions to create multiple ledger chunks
+        network.txs.issue(network, number_txs=10)
+        test_ledger_chunk_access(network, args)
+        test_ledger_chunk_redirect(network, args)
 
 
 def run_tls_san_checks(const_args):
