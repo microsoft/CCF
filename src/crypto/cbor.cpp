@@ -34,7 +34,8 @@ namespace
     Signed value{0};
     if (!cbor_nondet_read_int64(cbor, &value))
     {
-      throw CBORDecodeError("Failed to decode signed value");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to decode signed value");
     }
     return std::make_unique<ValueImpl>(value);
   }
@@ -45,7 +46,8 @@ namespace
     uint64_t length = 0;
     if (!cbor_nondet_get_byte_string(cbor, &data, &length))
     {
-      throw CBORDecodeError("Failed to decode byte string");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to decode byte string");
     }
     Bytes value{data, static_cast<size_t>(length)};
     return std::make_unique<ValueImpl>(value);
@@ -57,7 +59,8 @@ namespace
     uint64_t length = 0;
     if (!cbor_nondet_get_text_string(cbor, &data, &length))
     {
-      throw CBORDecodeError("Failed to decode text string");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to decode text string");
     }
     String value{
       reinterpret_cast<const char*>(data), static_cast<size_t>(length)};
@@ -69,7 +72,8 @@ namespace
     cbor_nondet_array_iterator_t iter;
     if (!cbor_nondet_array_iterator_start(cbor, &iter))
     {
-      throw CBORDecodeError("Failed to start array iterator");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to start array iterator");
     }
 
     Array array;
@@ -78,7 +82,8 @@ namespace
       cbor_nondet_t item;
       if (!cbor_nondet_array_iterator_next(&iter, &item))
       {
-        throw CBORDecodeError("Failed to get next array item");
+        throw CBORDecodeError(
+          Error::DECODE_FAILED, "Failed to get next array item");
       }
       array.items.push_back(consume(item));
     }
@@ -90,7 +95,8 @@ namespace
     cbor_map_iterator iter;
     if (!cbor_nondet_map_iterator_start(cbor, &iter))
     {
-      throw CBORDecodeError("Failed to start map iterator");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to start map iterator");
     }
 
     Map map;
@@ -100,7 +106,8 @@ namespace
       cbor_raw value_raw;
       if (!cbor_nondet_map_iterator_next(&iter, &key_raw, &value_raw))
       {
-        throw CBORDecodeError("Failed to get next map entry");
+        throw CBORDecodeError(
+          Error::DECODE_FAILED, "Failed to get next map entry");
       }
       map.items.emplace_back(consume(key_raw), consume(value_raw));
     }
@@ -113,7 +120,8 @@ namespace
     cbor_nondet_t payload;
     if (!cbor_nondet_get_tagged(cbor, &payload, &tag))
     {
-      throw CBORDecodeError("Failed to decode tagged value");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to decode tagged value");
     }
 
     Tagged tagged;
@@ -130,7 +138,8 @@ namespace
     Simple value{0};
     if (!cbor_nondet_read_simple_value(cbor, &value))
     {
-      throw CBORDecodeError("Failed to decode simple value");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to decode simple value");
     }
     return std::make_unique<ValueImpl>(value);
   }
@@ -156,7 +165,7 @@ namespace
       case CBOR_MAJOR_TYPE_SIMPLE_VALUE:
         return consume_simple(cbor);
       default:
-        throw CBORDecodeError("Unknown CBOR major type");
+        throw CBORDecodeError(Error::DECODE_FAILED, "Unknown CBOR major type");
     }
   }
 
@@ -256,6 +265,16 @@ namespace
 
 namespace ccf::cbor
 {
+  CBORDecodeError::CBORDecodeError(Error err, const std::string& what) :
+    std::runtime_error(what),
+    error(err)
+  {}
+
+  Error CBORDecodeError::error_code() const
+  {
+    return error;
+  }
+
   Value make_signed(int64_t value)
   {
     return std::make_unique<ValueImpl>(value);
@@ -285,7 +304,8 @@ namespace ccf::cbor
           &cbor_parse_size,
           &cbor))
     {
-      throw CBORDecodeError("Failed to parse top-level cbor");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to parse top-level cbor");
     }
 
     return consume(cbor);
@@ -313,7 +333,8 @@ namespace ccf::cbor
       case SimpleValue::True:
         return true;
       default:
-        throw CBORDecodeError("Simple value cannot be matched to boolean");
+        throw CBORDecodeError(
+          Error::TYPE_MISMATCH, "Simple value cannot be matched to boolean");
     }
   }
 
@@ -321,13 +342,13 @@ namespace ccf::cbor
   {
     if (!std::holds_alternative<Array>(value))
     {
-      throw CBORDecodeError("Not an array");
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not an array");
     }
 
     const auto& arr = std::get<Array>(value);
     if (index >= arr.items.size())
     {
-      throw CBORDecodeError("Array index out of bounds");
+      throw CBORDecodeError(Error::OUT_OF_BOUND, "Array index out of bounds");
     }
 
     return arr.items[index];
@@ -337,7 +358,7 @@ namespace ccf::cbor
   {
     if (!std::holds_alternative<Map>(value))
     {
-      throw CBORDecodeError("Not a map");
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a map");
     }
 
     // Fail fast: Array, Map, Tagged are not supported as map keys in this
@@ -350,6 +371,7 @@ namespace ccf::cbor
           std::is_same_v<T, Tagged>)
         {
           throw CBORDecodeError(
+            Error::TYPE_MISMATCH,
             "Array, Map, and Tagged values cannot be used as map keys");
         }
       },
@@ -390,7 +412,7 @@ namespace ccf::cbor
       }
     }
 
-    throw CBORDecodeError("Key not found in map");
+    throw CBORDecodeError(Error::KEY_NOT_FOUND, "Key not found in map");
   }
 
   size_t ValueImpl::size() const
@@ -405,20 +427,20 @@ namespace ccf::cbor
       const auto& map = std::get<Map>(value);
       return map.items.size();
     }
-    throw CBORDecodeError("Not a collection");
+    throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a collection");
   }
 
   const Value& ValueImpl::tag_at(uint64_t tag) const
   {
     if (!std::holds_alternative<Tagged>(value))
     {
-      throw CBORDecodeError("Not a tagged value");
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a tagged value");
     }
 
     const auto& tagged = std::get<Tagged>(value);
     if (tagged.tag != tag)
     {
-      throw CBORDecodeError("Tag does not match");
+      throw CBORDecodeError(Error::KEY_NOT_FOUND, "Tag does not match");
     }
 
     return tagged.item;
@@ -428,7 +450,7 @@ namespace ccf::cbor
   {
     if (!std::holds_alternative<Signed>(value))
     {
-      throw CBORDecodeError("Not a signed value");
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a signed value");
     }
     return std::get<Signed>(value);
   }
@@ -437,7 +459,7 @@ namespace ccf::cbor
   {
     if (!std::holds_alternative<Bytes>(value))
     {
-      throw CBORDecodeError("Not a bytes value");
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a bytes value");
     }
     return std::get<Bytes>(value);
   }
@@ -446,7 +468,7 @@ namespace ccf::cbor
   {
     if (!std::holds_alternative<String>(value))
     {
-      throw CBORDecodeError("Not a string value");
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a string value");
     }
     return std::get<String>(value);
   }
@@ -455,7 +477,7 @@ namespace ccf::cbor
   {
     if (!std::holds_alternative<Simple>(value))
     {
-      throw CBORDecodeError("Not a simple value");
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a simple value");
     }
     return std::get<Simple>(value);
   }
