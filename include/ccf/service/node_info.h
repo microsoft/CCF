@@ -6,6 +6,7 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/kv/version.h"
+#include "ccf/service/local_sealing.h"
 #include "ccf/service/node_info_network.h"
 
 #define FMT_HEADER_ONLY
@@ -72,6 +73,8 @@ namespace ccf
      * compatibility.
      */
     bool retired_committed = false;
+
+    std::optional<SealedRecoveryKey> sealed_recovery_key = std::nullopt;
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -84,7 +87,8 @@ namespace ccf
     certificate_signing_request,
     public_key,
     node_data,
-    retired_committed);
+    retired_committed,
+    sealed_recovery_key);
 }
 
 FMT_BEGIN_NAMESPACE

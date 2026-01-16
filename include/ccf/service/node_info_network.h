@@ -150,7 +150,6 @@ namespace ccf
     /// RPC interfaces
     RpcInterfaces rpc_interfaces;
 
-    // Denote whether this node will locally seal the ledger secret
     bool will_locally_seal_ledger_secrets = false;
   };
 

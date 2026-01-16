@@ -71,6 +71,7 @@ namespace ccf
       nlohmann::json node_data;
       nlohmann::json service_data;
       ccf::TxID create_txid;
+      std::optional<SealedRecoveryKey> sealed_recovery_key = std::nullopt;
 
       // Only set on genesis transaction, but not on recovery
       std::optional<ccf::StartupConfig::Start> genesis_info = std::nullopt;
@@ -88,6 +89,7 @@ namespace ccf
       std::optional<ccf::crypto::Pem> certificate_signing_request =
         std::nullopt;
       nlohmann::json node_data = nullptr;
+      std::optional<SealedRecoveryKey> sealed_recovery_key = std::nullopt;
     };
 
     struct Out

@@ -325,6 +325,7 @@ namespace ccf
         in.certificate_signing_request,
         client_public_key_pem,
         in.node_data};
+      node_info.sealed_recovery_key = in.sealed_recovery_key;
 
       nodes->put(joining_node_id, node_info);
 
@@ -336,6 +337,7 @@ namespace ccf
 
       if (node_status == NodeStatus::TRUSTED)
       {
+        node_operation.shuffle_sealed_shares(tx);
         // Joining node only submit a CSR from 2.x
         std::optional<ccf::crypto::Pem> endorsed_certificate = std::nullopt;
         if (in.certificate_signing_request.has_value())
@@ -1520,7 +1522,9 @@ namespace ccf
           in.certificate_signing_request,
           in.public_key,
           in.node_data};
+        node_info.sealed_recovery_key = in.sealed_recovery_key;
         InternalTablesAccess::add_node(ctx.tx, in.node_id, node_info);
+        node_operation.shuffle_sealed_shares(ctx.tx);
 
         if (
           in.quote_info.format != QuoteFormat::amd_sev_snp_v1 ||
