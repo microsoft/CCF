@@ -63,9 +63,9 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
       deserialized_converted.get<ccf::NodeInfoNetwork>();
 
     // v2 fields have been constructed correctly
-    REQUIRE(new_converted.node_to_node_interface.bind_address ==
-            ccf::NodeInfoNetwork::NetAddress(
-              v1.nodehost + ":" + v1.nodeport));
+    REQUIRE(
+      new_converted.node_to_node_interface.bind_address ==
+      ccf::NodeInfoNetwork::NetAddress(v1.nodehost + ":" + v1.nodeport));
   }
 
   // No longer true, to_json NEVER writes v1 fields now,
