@@ -1454,7 +1454,7 @@ TEST_CASE("CBOR: throw with context")
 
   const std::string context = "Custom enough context";
   const std::string err = "Not a string value";
-  const std::string expected_err = err + ": " + context;
+  const std::string expected_err = context + ": " + err;
   REQUIRE_THROWS_WITH_AS(
     rethrow_with_msg([&]() { std::ignore = v->as_string(); }, context),
     expected_err.c_str(),
