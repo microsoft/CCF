@@ -103,6 +103,8 @@ namespace ccf::sealing
       .pubkey = recovery_pubkey,
       .tcb_version = tcb_version};
 
+    // Do we also need to cleanse the recovery_key_pair or will openssl handle that in the EVP_KEY destructor?
+    OPENSSL_cleanse(derived_key.data(), derived_key.size());
     OPENSSL_cleanse(recovery_privkey.data(), recovery_privkey.size());
     return res;
   }
