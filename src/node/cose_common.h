@@ -246,6 +246,10 @@ namespace ccf::cose
       },
       "Parse protected header vds");
 
+    if (phdr.vds != ccf::crypto::COSE_PHEADER_VDS_CCF_LEDGER_SHA256)
+    {
+      throw COSEDecodeError("Unsupported VDS value in protected header");
+    }
     decode_cwt_claims(cbor, phdr.cwt);
     decode_ccf_claims(cbor, phdr.ccf);
 
