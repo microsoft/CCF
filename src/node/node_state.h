@@ -209,6 +209,8 @@ namespace ccf
       }
 
       ccf::kv::ConsensusHookPtrs hooks;
+      // TODO: Only deser here, have verified already?
+      // TODO: Do we _even_ deser here? Or defer to join?
       startup_snapshot_info = initialise_from_snapshot(
         snapshot_store,
         std::move(startup_snapshot),
@@ -443,7 +445,7 @@ namespace ccf
         // Try to fetch a recent snapshot from peer
         auto latest_peer_snapshot = snapshots::fetch_from_peer(
           config.join.target_rpc_address,
-          config.join.service_cert, // TODO: Cert vs path-to-cert
+          config.join.service_cert,
           config.join.fetch_snapshot_max_attempts,
           config.join.fetch_snapshot_retry_interval.count_ms(),
           config.join.fetch_snapshot_max_size.count_bytes());
@@ -859,7 +861,7 @@ namespace ccf
             std::vector<ccf::kv::Version> view_history_ = {};
             if (startup_snapshot_info)
             {
-              // It is only possible to deserialise the entire snapshot then,
+              // It is only possible to deserialise the entire snapshot now,
               // once the ledger secrets have been passed in by the network
               ccf::kv::ConsensusHookPtrs hooks;
               deserialise_snapshot(
@@ -867,8 +869,7 @@ namespace ccf
                 startup_snapshot_info->raw,
                 hooks,
                 &view_history_,
-                resp.network_info->public_only,
-                config.recover.previous_service_identity);
+                resp.network_info->public_only);
 
               for (auto& hook : hooks)
               {
@@ -1526,8 +1527,7 @@ namespace ccf
           startup_snapshot_info->raw,
           hooks,
           &view_history_,
-          false,
-          config.recover.previous_service_identity);
+          false);
         startup_snapshot_info.reset();
       }
 
