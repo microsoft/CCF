@@ -3,6 +3,8 @@
 
 #include "crypto/cbor.h"
 
+#include "ccf/ds/hex.h"
+
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
@@ -169,6 +171,126 @@ namespace
     }
   }
 
+  std::string format_simple(const Simple& v)
+  {
+    const auto casted = static_cast<int>(v);
+    switch (casted)
+    {
+      case SimpleValue::False:
+        return "Simple: False";
+      case SimpleValue::True:
+        return "Simple: True";
+      case SimpleValue::Null:
+        return "Simple: Null";
+      case SimpleValue::Undefined:
+        return "Simple: Undefined";
+      default:
+        return "Simple: " + std::to_string(casted);
+    }
+  }
+
+  cbor_raw to_raw_signed(const Signed& v)
+  {
+    return cbor_nondet_mk_int64(v);
+  }
+
+  cbor_raw to_raw_string(const String& v)
+  {
+    cbor_raw result;
+    if (!cbor_nondet_mk_text_string(
+          reinterpret_cast<uint8_t*>(const_cast<char*>(v.data())),
+          v.size(),
+          &result))
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED, fmt::format("Encoding text string {} failed", v));
+    }
+    return result;
+  }
+
+  cbor_raw to_raw_bytes(const Bytes& v)
+  {
+    cbor_raw result;
+    if (!cbor_nondet_mk_byte_string(
+          const_cast<uint8_t*>(v.data()), v.size(), &result))
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED,
+        fmt::format("Encoding bytes string {} failed", ccf::ds::to_hex(v)));
+    }
+    return result;
+  }
+
+  cbor_raw to_raw_simple(const Simple& v)
+  {
+    cbor_raw result;
+    if (!cbor_nondet_mk_simple_value(v, &result))
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED,
+        fmt::format("Encoding simple value {} failed", format_simple(v)));
+    }
+    return result;
+  }
+
+  cbor_raw to_raw_tagged(const Tagged& v)
+  {
+    cbor_raw result;
+    // not implemented yet
+    return result;
+  }
+
+  cbor_raw to_raw_array(const Array& v)
+  {
+    cbor_raw result;
+    // not implemented yet
+    return result;
+  }
+
+  cbor_raw to_raw_map(const Map& v)
+  {
+    cbor_raw result;
+    // not implemented yet
+    return result;
+  }
+
+  cbor_raw to_raw_cbor(const Value& value)
+  {
+    return std::visit(
+      [&](const auto& v) {
+        using T = std::decay_t<decltype(v)>;
+        if constexpr (std::is_same_v<T, Signed>)
+        {
+          return to_raw_signed(v);
+        }
+        if constexpr (std::is_same_v<T, String>)
+        {
+          return to_raw_string(v);
+        }
+        if constexpr (std::is_same_v<T, Bytes>)
+        {
+          return to_raw_bytes(v);
+        }
+        if constexpr (std::is_same_v<T, Simple>)
+        {
+          return to_raw_simple(v);
+        }
+        if constexpr (std::is_same_v<T, Tagged>)
+        {
+          return to_raw_tagged(v);
+        }
+        if constexpr (std::is_same_v<T, Array>)
+        {
+          return to_raw_array(v);
+        }
+        if constexpr (std::is_same_v<T, Map>)
+        {
+          return to_raw_map(v);
+        }
+      },
+      value->value);
+  }
+
   void print_value_impl(
     std::ostringstream& os, const Value& value, size_t indent)
   {
@@ -195,12 +317,7 @@ namespace
           {
             os << " ";
           }
-          for (size_t i = 0; i < v.size(); ++i)
-          {
-            os << std::hex << std::setw(2) << std::setfill('0')
-               << static_cast<int>(v[i]);
-          }
-          os << std::dec << std::endl;
+          os << ccf::ds::to_hex(v) << std::endl;
         }
         else if constexpr (std::is_same_v<T, String>)
         {
@@ -239,24 +356,7 @@ namespace
         else if constexpr (std::is_same_v<T, Simple>)
         {
           print_indent(os, indent);
-          const auto casted = static_cast<int>(v);
-          switch (casted)
-          {
-            case SimpleValue::False:
-              os << "Simple: False" << std::endl;
-              break;
-            case SimpleValue::True:
-              os << "Simple: True" << std::endl;
-              break;
-            case SimpleValue::Null:
-              os << "Simple: Null" << std::endl;
-              break;
-            case SimpleValue::Undefined:
-              os << "Simple: Undefined" << std::endl;
-              break;
-            default:
-              os << "Simple: " << casted << std::endl;
-          }
+          os << format_simple(v) << std::endl;
         }
       },
       value->value);
@@ -265,6 +365,16 @@ namespace
 
 namespace ccf::cbor
 {
+  CBOREncodeError::CBOREncodeError(Error err, const std::string& what) :
+    std::runtime_error(what),
+    error(err)
+  {}
+
+  Error CBOREncodeError::error_code() const
+  {
+    return error;
+  }
+
   CBORDecodeError::CBORDecodeError(Error err, const std::string& what) :
     std::runtime_error(what),
     error(err)
@@ -309,6 +419,29 @@ namespace ccf::cbor
     }
 
     return consume(cbor);
+  }
+
+  std::vector<uint8_t> serialize(const Value& value)
+  {
+    auto raw = to_raw_cbor(value);
+    const auto expected_size =
+      cbor_nondet_size(raw, std::numeric_limits<size_t>::max());
+
+    std::vector<uint8_t> result(expected_size);
+
+    const auto bytes_written =
+      cbor_nondet_serialize(raw, result.data(), expected_size);
+    if (bytes_written != expected_size)
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED,
+        fmt::format(
+          "Encoded CBOR of size {} when expected {}",
+          bytes_written,
+          expected_size));
+    }
+
+    return result;
   }
 
   std::string to_string(const Value& value)

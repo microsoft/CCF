@@ -60,6 +60,17 @@ namespace ccf::cbor
     KEY_NOT_FOUND = 2,
     OUT_OF_BOUND = 3,
     TYPE_MISMATCH = 4,
+    ENCODE_FAILED = 5,
+  };
+
+  class CBOREncodeError : public std::runtime_error
+  {
+  public:
+    explicit CBOREncodeError(Error err, const std::string& what);
+    [[nodiscard]] Error error_code() const;
+
+  private:
+    Error error{Error::UNDEFINED};
   };
 
   class CBORDecodeError : public std::runtime_error
@@ -92,6 +103,8 @@ namespace ccf::cbor
   Value make_bytes(std::span<const uint8_t> data);
 
   Value parse(std::span<const uint8_t> raw);
+  std::vector<uint8_t> serialize(const Value& value);
+
   std::string to_string(const Value& value);
   bool simple_to_boolean(const Simple& value);
 

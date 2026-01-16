@@ -40,6 +40,11 @@ TEST_CASE("CBOR: signed integers")
 
       REQUIRE(value->as_signed() == expected_value);
 
+      auto encoded = serialize(value);
+      auto decoded = parse(encoded);
+      REQUIRE(decoded->as_signed() == expected_value);
+      REQUIRE_EQ(encoded, cbor_bytes);
+
       const std::string result = to_string(value);
       REQUIRE(result == expected_repr);
     }
@@ -73,6 +78,11 @@ TEST_CASE("CBOR: strings")
       auto value = parse(cbor_bytes);
 
       REQUIRE(value->as_string() == expected_value);
+
+      auto encoded = serialize(value);
+      auto decoded = parse(encoded);
+      REQUIRE(decoded->as_string() == expected_value);
+      REQUIRE_EQ(encoded, cbor_bytes);
 
       const std::string result = to_string(value);
       REQUIRE(result == expected_repr);
@@ -109,6 +119,17 @@ TEST_CASE("CBOR: bytes")
         bytes.begin(),
         bytes.end()));
 
+      auto encoded = serialize(value);
+      auto decoded = parse(encoded);
+      bytes = decoded->as_bytes();
+      REQUIRE(std::equal(
+        expected_value.begin(),
+        expected_value.end(),
+        bytes.begin(),
+        bytes.end()));
+
+      REQUIRE_EQ(encoded, cbor_bytes);
+
       const std::string result = to_string(value);
       REQUIRE(result == expected_repr);
     }
@@ -136,6 +157,11 @@ TEST_CASE("CBOR: simple values")
       auto value = parse(cbor_bytes);
 
       REQUIRE(value->as_simple() == expected_value);
+
+      auto encoded = serialize(value);
+      auto decoded = parse(encoded);
+      REQUIRE(decoded->as_simple() == expected_value);
+      REQUIRE_EQ(encoded, cbor_bytes);
 
       const std::string result = to_string(value);
       REQUIRE(result == expected_repr);
