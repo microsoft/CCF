@@ -179,7 +179,8 @@ namespace ccf::cose
           ->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_IAT))
           ->as_signed();
       },
-      "Parse CWT claim IAT(6) field");
+      fmt::format(
+        "Parse CWT claim IAT({}) field", ccf::crypto::COSE_PHEADER_KEY_IAT));
 
     claims.iss = rethrow_with_msg(
       [&]() {
@@ -187,7 +188,8 @@ namespace ccf::cose
           ->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_ISS))
           ->as_string();
       },
-      "Parse CWT claim ISS(1) field");
+      fmt::format(
+        "Parse CWT claim ISS({}) field", ccf::crypto::COSE_PHEADER_KEY_ISS));
 
     claims.sub = rethrow_with_msg(
       [&]() {
@@ -195,7 +197,8 @@ namespace ccf::cose
           ->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_SUB))
           ->as_string();
       },
-      "Parse CWT claim SUB(2) field");
+      fmt::format(
+        "Parse CWT claim SUB({}) field", ccf::crypto::COSE_PHEADER_KEY_SUB));
   }
 
   static void decode_ccf_claims(const ccf::cbor::Value& cbor, CcfClaims& claims)
@@ -228,7 +231,8 @@ namespace ccf::cose
         return cbor->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_ALG))
           ->as_signed();
       },
-      "Parse protected header alg");
+      fmt::format(
+        "Parse protected header alg({})", ccf::crypto::COSE_PHEADER_KEY_ALG));
 
     rethrow_with_msg(
       [&]() {
@@ -237,19 +241,23 @@ namespace ccf::cose
             ->as_bytes();
         phdr.kid.assign(bytes.begin(), bytes.end());
       },
-      "Parse protected header kid");
+      fmt::format(
+        "Parse protected header kid({})", ccf::crypto::COSE_PHEADER_KEY_ID));
 
     phdr.vds = rethrow_with_msg(
       [&]() {
         return cbor->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_VDS))
           ->as_signed();
       },
-      "Parse protected header vds");
+      fmt::format(
+        "Parse protected header vds({})", ccf::crypto::COSE_PHEADER_KEY_VDS));
 
     if (phdr.vds != ccf::crypto::COSE_PHEADER_VDS_CCF_LEDGER_SHA256)
     {
-      throw COSEDecodeError("Unsupported VDS value in protected header");
+      throw COSEDecodeError(fmt::format(
+        "Unsupported VDS value ({}) in protected header", phdr.vds));
     }
+
     decode_cwt_claims(cbor, phdr.cwt);
     decode_ccf_claims(cbor, phdr.ccf);
 
