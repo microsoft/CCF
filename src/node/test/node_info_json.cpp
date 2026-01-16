@@ -41,22 +41,32 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
     REQUIRE(current == converted);
   }
 
-  // No longer true, to_json NEVER writes v1 fields now
-  // Because no legitimate current node should be using v1 anymore
-  // {
-  //   INFO("Old format survives round-trip through current");
-  //   nlohmann::json j = v1;
-  //   const auto intermediate = j.get<ccf::NodeInfoNetwork>();
-  //   nlohmann::json j2 = intermediate;
-  //   const auto converted = j2.get<ccf::NodeInfoNetwork_v1>();
+  // to_json(NodeInfoNetwork) NEVER writes v1 fields now
+  // No current node should be using v1 anymore
+  {
+    INFO("Old format loses old fields when converted to new format");
+    nlohmann::json j = v1;
+    nlohmann::json converted;
+    to_json(converted, j.get<ccf::NodeInfoNetwork>());
+    const auto dumped_converted = converted.dump();
+    const auto deserialized_converted = nlohmann::json::parse(dumped_converted);
 
-  //   // Manual equality check - not implementing it now for a deprecated
-  //   format REQUIRE(v1.nodehost == converted.nodehost); REQUIRE(v1.nodeport ==
-  //   converted.nodeport); REQUIRE(v1.rpchost == converted.rpchost);
-  //   REQUIRE(v1.rpcport == converted.rpcport);
-  //   REQUIRE(v1.pubhost == converted.pubhost);
-  //   REQUIRE(v1.pubport == converted.pubport);
-  // }
+    // v1 fields are not present anymore
+    REQUIRE(!deserialized_converted.contains("nodehost"));
+    REQUIRE(!deserialized_converted.contains("nodeport"));
+    REQUIRE(!deserialized_converted.contains("rpchost"));
+    REQUIRE(!deserialized_converted.contains("rpcport"));
+    REQUIRE(!deserialized_converted.contains("pubhost"));
+    REQUIRE(!deserialized_converted.contains("pubport"));
+
+    const auto new_converted =
+      deserialized_converted.get<ccf::NodeInfoNetwork>();
+
+    // v2 fields have been constructed correctly
+    REQUIRE(new_converted.node_to_node_interface.bind_address ==
+            ccf::NodeInfoNetwork::NetAddress(
+              v1.nodehost + ":" + v1.nodeport));
+  }
 
   // No longer true, to_json NEVER writes v1 fields now,
   // So the current format cannot be read as v1 anymore

@@ -208,7 +208,7 @@ namespace ccf
 
   // All NodeInfoNetwork read that may lead to re-serialization for
   // write purposes must be v2 by now, so we only serialize as v2.
-  // If any v2 NodeInfoNetwork is read at all, it must be for historical
+  // If any v1 NodeInfoNetwork is read at all, it must be for historical
   // query purposes, and does not need to be re-serialized to v2.
   inline void to_json(nlohmann::json& j, const NodeInfoNetwork& nin)
   {
