@@ -41,57 +41,62 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
     REQUIRE(current == converted);
   }
 
-  {
-    INFO("Old format survives round-trip through current");
-    nlohmann::json j = v1;
-    const auto intermediate = j.get<ccf::NodeInfoNetwork>();
-    nlohmann::json j2 = intermediate;
-    const auto converted = j2.get<ccf::NodeInfoNetwork_v1>();
+  // No longer true, to_json NEVER writes v1 fields now
+  // Because no legitimate current node should be using v1 anymore
+  // {
+  //   INFO("Old format survives round-trip through current");
+  //   nlohmann::json j = v1;
+  //   const auto intermediate = j.get<ccf::NodeInfoNetwork>();
+  //   nlohmann::json j2 = intermediate;
+  //   const auto converted = j2.get<ccf::NodeInfoNetwork_v1>();
 
-    // Manual equality check - not implementing it now for a deprecated format
-    REQUIRE(v1.nodehost == converted.nodehost);
-    REQUIRE(v1.nodeport == converted.nodeport);
-    REQUIRE(v1.rpchost == converted.rpchost);
-    REQUIRE(v1.rpcport == converted.rpcport);
-    REQUIRE(v1.pubhost == converted.pubhost);
-    REQUIRE(v1.pubport == converted.pubport);
-  }
+  //   // Manual equality check - not implementing it now for a deprecated
+  //   format REQUIRE(v1.nodehost == converted.nodehost); REQUIRE(v1.nodeport ==
+  //   converted.nodeport); REQUIRE(v1.rpchost == converted.rpchost);
+  //   REQUIRE(v1.rpcport == converted.rpcport);
+  //   REQUIRE(v1.pubhost == converted.pubhost);
+  //   REQUIRE(v1.pubport == converted.pubport);
+  // }
 
-  {
-    INFO(
-      "Current format loses some information when round-tripping through old");
-    nlohmann::json j = current;
-    const auto intermediate = j.get<ccf::NodeInfoNetwork_v1>();
-    nlohmann::json j2 = intermediate;
-    const auto converted = j2.get<ccf::NodeInfoNetwork>();
-    REQUIRE(!(current == converted));
+  // No longer true, to_json NEVER writes v1 fields now,
+  // So the current format cannot be read as v1 anymore
+  // {
+  //   INFO(
+  //     "Current format loses some information when round-tripping through
+  //     old");
+  //   nlohmann::json j = current;
+  //   const auto intermediate = j.get<ccf::NodeInfoNetwork_v1>();
+  //   nlohmann::json j2 = intermediate;
+  //   const auto converted = j2.get<ccf::NodeInfoNetwork>();
+  //   REQUIRE(!(current == converted));
 
-    // The node information has been kept
-    REQUIRE(current.node_to_node_interface == converted.node_to_node_interface);
+  //   // The node information has been kept
+  //   REQUIRE(current.node_to_node_interface ==
+  //   converted.node_to_node_interface);
 
-    // Only the _first_ RPC interface has kept its addresses, though lost its
-    // sessions caps
-    REQUIRE(converted.rpc_interfaces.size() > 0);
+  //   // Only the _first_ RPC interface has kept its addresses, though lost its
+  //   // sessions caps
+  //   REQUIRE(converted.rpc_interfaces.size() > 0);
 
-    const auto& current_interface = current.rpc_interfaces.begin()->second;
-    const auto& converted_interface =
-      converted.rpc_interfaces.at(ccf::PRIMARY_RPC_INTERFACE);
+  //   const auto& current_interface = current.rpc_interfaces.begin()->second;
+  //   const auto& converted_interface =
+  //     converted.rpc_interfaces.at(ccf::PRIMARY_RPC_INTERFACE);
 
-    REQUIRE(current_interface.bind_address == converted_interface.bind_address);
-    REQUIRE(
-      current_interface.published_address ==
-      converted_interface.published_address);
-    REQUIRE(
-      current_interface.max_open_sessions_hard !=
-      converted_interface.max_open_sessions_hard);
-    REQUIRE(
-      current_interface.max_open_sessions_soft !=
-      converted_interface.max_open_sessions_soft);
+  //   REQUIRE(current_interface.bind_address ==
+  //   converted_interface.bind_address); REQUIRE(
+  //     current_interface.published_address ==
+  //     converted_interface.published_address);
+  //   REQUIRE(
+  //     current_interface.max_open_sessions_hard !=
+  //     converted_interface.max_open_sessions_hard);
+  //   REQUIRE(
+  //     current_interface.max_open_sessions_soft !=
+  //     converted_interface.max_open_sessions_soft);
 
-    // The second RPC interface has been lost
-    REQUIRE(converted.rpc_interfaces.size() == 1);
-    REQUIRE(converted.rpc_interfaces.size() < current.rpc_interfaces.size());
-  }
+  //   // The second RPC interface has been lost
+  //   REQUIRE(converted.rpc_interfaces.size() == 1);
+  //   REQUIRE(converted.rpc_interfaces.size() < current.rpc_interfaces.size());
+  // }
 
   {
     INFO("Old format survives round-trip through new");
