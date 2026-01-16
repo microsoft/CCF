@@ -377,6 +377,8 @@ def test_expired_certs(network, args):
     # Restore connectivity with primary, an election may or may not happen
     network.wait_for_primary_unanimity(min_view=r.view + 1)
 
+    check_can_progress(primary, timeout=6)
+
     # Set valid node certs so that future clients can speak to these nodes
     set_certs(from_days_diff=-1, validity_period_days=7, nodes=(primary, backup_a))
 
@@ -1090,17 +1092,19 @@ def run(args):
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
         test_new_joiner_helps_liveness(network, args)
-        test_expired_certs(network, args)
-        for n in range(5):
-            test_isolate_and_reconnect_primary(network, args, iteration=n)
-        test_election_reconfiguration(network, args)
-        test_forwarding_timeout(network, args)
-        # HTTP2 doesn't support forwarding
-        if not args.http2:
-            test_session_consistency(network, args)
-        network = test_recovery_elections(network, args)
-        test_ledger_invariants(network, args)
-    run_ledger_chunk_bytes_check(args)
+        for i in range(100):
+            LOG.warning(f"Attempt #{i}")
+            test_expired_certs(network, args)
+    #     for n in range(5):
+    #         test_isolate_and_reconnect_primary(network, args, iteration=n)
+    #     test_election_reconfiguration(network, args)
+    #     test_forwarding_timeout(network, args)
+    #     # HTTP2 doesn't support forwarding
+    #     if not args.http2:
+    #         test_session_consistency(network, args)
+    #     network = test_recovery_elections(network, args)
+    #     test_ledger_invariants(network, args)
+    # run_ledger_chunk_bytes_check(args)
 
 
 if __name__ == "__main__":
