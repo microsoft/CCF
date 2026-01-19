@@ -31,7 +31,7 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
 
   ccf::NodeInfoNetwork_v1 v1;
   std::tie(v1.nodehost, v1.nodeport) = ccf::split_net_address(node);
-  std::tie(v1.rpchost, v1.nodeport) = ccf::split_net_address(rpc_a);
+  std::tie(v1.rpchost, v1.rpcport) = ccf::split_net_address(rpc_a);
   std::tie(v1.pubhost, v1.pubport) = ccf::split_net_address(rpc_b);
 
   {
