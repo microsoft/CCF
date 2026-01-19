@@ -255,7 +255,7 @@ namespace ccf::cose
     if (phdr.vds != ccf::crypto::COSE_PHEADER_VDS_CCF_LEDGER_SHA256)
     {
       throw COSEDecodeError(fmt::format(
-        "Unsupported VDS value ({}) in protected header", phdr.vds));
+        "Unsupported vds value ({}) in protected header", phdr.vds));
     }
 
     decode_cwt_claims(cbor, phdr.cwt);
