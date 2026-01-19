@@ -22,7 +22,7 @@ using namespace ccf::cbor;
 
 namespace
 {
-  /* Handy storage of 'cbor_raw's when recurively nesting objects. EverCBOR
+  /* Handy storage of 'cbor_raw's when recursively nesting objects. EverCBOR
    * collections work as pointers from one cbor_raw to another, with arrays
    * relying on space continuity, and that has to stay intact until calling
    * cbor_nondet_serialize. Therefore, the following choices have been made:
