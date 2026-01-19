@@ -38,4 +38,4 @@ jobs:
           set -ex
           cd js/ccf-app
           echo "registry=https://registry.npmjs.org/" > .npmrc
-          npm publish microsoft-ccf-app*.tgz --access public
+          NPM_CONFIG_PROVENANCE=false npm publish microsoft-ccf-app*.tgz --access public
