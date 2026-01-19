@@ -198,7 +198,7 @@ namespace ccf::cose
           ->as_string();
       },
       fmt::format(
-        "Parse CWT claim SUB({}) field", ccf::crypto::COSE_PHEADER_KEY_SUB));
+        "Parse CWT claim sub({}) field", ccf::crypto::COSE_PHEADER_KEY_SUB));
   }
 
   static void decode_ccf_claims(const ccf::cbor::Value& cbor, CcfClaims& claims)
