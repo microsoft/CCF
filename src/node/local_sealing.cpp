@@ -73,6 +73,7 @@ namespace ccf::sealing
   std::vector<uint8_t> derive_snp_sealing_key(
     const ccf::pal::snp::TcbVersionRaw& tcb_version)
   {
+    // key is cleansed by destructor of ioctl6::DerivedKey
     auto derived_key = ccf::pal::snp::make_derived_key(tcb_version);
     std::vector<uint8_t> salt = {};
     std::vector<uint8_t> info(
@@ -194,6 +195,9 @@ namespace ccf::sealing
       encrypted_full_share_it ==
       sealed_share_info.encrypted_wrapping_keys.end())
     {
+      LOG_INFO_FMT(
+        "Node {} has no encrypted sealed share to unseal recovery share",
+        node_id);
       return std::nullopt;
     }
     auto encrypted_full_share = encrypted_full_share_it->second;
