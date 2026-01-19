@@ -320,7 +320,7 @@ namespace
 
     size_t arr_size = items.size();
 
-    // A workaround to encode an enpty array by passing a fake ptr with size=0.
+    // A workaround to encode an empty array by passing a fake ptr with size=0.
     if (items.empty())
     {
       items.push_back(cbor_raw{});
