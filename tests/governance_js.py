@@ -1134,15 +1134,11 @@ def test_set_constitution_validation(network, args):
         """
         export function validate(input) { return {valid: true} }
         export function resolve(proposal, proposerId, votes) { return "Accepted" }
-        export function apply(proposal, proposerId) { """
-        + apply_body
-        + "}",
+        export function apply(proposal, proposerId) { """ + apply_body + "}",
         """
         export function validate(input) { return {valid: true} }
         export function resolve(proposal, proposerId, votes, proposalId) { return "Accepted" }
-        export function apply(proposal, proposerId) { """
-        + apply_body
-        + "}",
+        export function apply(proposal, proposerId) { """ + apply_body + "}",
     ):
         network.consortium.set_constitution_raw(node, constitution)
 
