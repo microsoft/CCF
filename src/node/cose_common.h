@@ -6,6 +6,7 @@
 #include "ccf/ds/hex.h"
 #include "ccf/receipt.h"
 
+#include <crypto/cbor.h>
 #include <crypto/openssl/cose_sign.h>
 #include <qcbor/qcbor.h>
 #include <qcbor/qcbor_spiffy_decode.h>
@@ -24,6 +25,7 @@ namespace ccf::cose
     static constexpr int64_t PARAM_X5CHAIN = 33;
     // https://www.ietf.org/archive/id/draft-ietf-cose-hash-envelope-10.html#section-4
     static constexpr int64_t PARAM_CONTENT_TYPE_HASH_ENVELOPE = 259;
+    // https://www.ietf.org/archive/id/draft-ietf-cose-merkle-tree-proofs-18.html#name-cose-header-parameter
     static constexpr int64_t PARAM_VDP = 396;
     static constexpr int64_t PARAM_INCLUSION_PROOFS = -1;
 
@@ -162,410 +164,210 @@ namespace ccf::cose
     return {leaf_digest.h.begin(), leaf_digest.h.end()};
   }
 
-  static void decode_receipt_top_level_phdr(
-    QCBORDecodeContext& ctx, CcfCoseReceiptPhdr& phdr)
+  static void decode_cwt_claims(const ccf::cbor::Value& cbor, CwtClaims& claims)
   {
-    enum : std::uint8_t
-    {
-      ALG_INDEX,
-      KID_INDEX,
-      CWT_INDEX,
-      VDS_INDEX,
-      END_INDEX,
-    };
+    using namespace ccf::cbor;
 
-    QCBORItem header_items[END_INDEX + 1];
+    const auto& cwt_claims = rethrow_with_msg(
+      [&]() -> auto& {
+        return cbor->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_CWT));
+      },
+      "Parse CWT claims map");
 
-    header_items[ALG_INDEX].label.int64 = ccf::crypto::COSE_PHEADER_KEY_ALG;
-    header_items[ALG_INDEX].uLabelType = QCBOR_TYPE_INT64;
-    header_items[ALG_INDEX].uDataType = QCBOR_TYPE_INT64;
+    claims.iat = rethrow_with_msg(
+      [&]() {
+        return cwt_claims
+          ->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_IAT))
+          ->as_signed();
+      },
+      fmt::format(
+        "Parse CWT claim sub({}) field", ccf::crypto::COSE_PHEADER_KEY_IAT));
 
-    header_items[KID_INDEX].label.int64 = ccf::crypto::COSE_PHEADER_KEY_ID;
-    header_items[KID_INDEX].uLabelType = QCBOR_TYPE_INT64;
-    header_items[KID_INDEX].uDataType = QCBOR_TYPE_BYTE_STRING;
+    claims.iss = rethrow_with_msg(
+      [&]() {
+        return cwt_claims
+          ->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_ISS))
+          ->as_string();
+      },
+      fmt::format(
+        "Parse CWT claim iss({}) field", ccf::crypto::COSE_PHEADER_KEY_ISS));
 
-    header_items[CWT_INDEX].label.int64 = ccf::crypto::COSE_PHEADER_KEY_CWT;
-    header_items[CWT_INDEX].uLabelType = QCBOR_TYPE_INT64;
-    header_items[CWT_INDEX].uDataType = QCBOR_TYPE_MAP;
-
-    header_items[VDS_INDEX].label.int64 = ccf::crypto::COSE_PHEADER_KEY_VDS;
-    header_items[VDS_INDEX].uLabelType = QCBOR_TYPE_INT64;
-    header_items[VDS_INDEX].uDataType = QCBOR_TYPE_INT64;
-
-    header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
-
-    QCBORDecode_GetItemsInMap(&ctx, header_items);
-
-    auto qcbor_result = QCBORDecode_GetError(&ctx);
-    if (qcbor_result != QCBOR_SUCCESS)
-    {
-      throw ccf::cose::COSEDecodeError(fmt::format(
-        "Failed to decode protected header: {}",
-        qcbor_err_to_str(qcbor_result)));
-    }
-
-    if (header_items[ALG_INDEX].uDataType == QCBOR_TYPE_NONE)
-    {
-      throw ccf::cose::COSEDecodeError(
-        "COSE receipt missing 'alg' in protected header");
-    }
-    phdr.alg = header_items[ALG_INDEX].val.int64;
-
-    if (header_items[KID_INDEX].uDataType == QCBOR_TYPE_NONE)
-    {
-      throw ccf::cose::COSEDecodeError(
-        "COSE receipt missing 'kid' in protected header");
-    }
-    phdr.kid =
-      ccf::cose::qcbor_buf_to_byte_vector(header_items[KID_INDEX].val.string);
-
-    if (header_items[VDS_INDEX].uDataType == QCBOR_TYPE_NONE)
-    {
-      throw ccf::cose::COSEDecodeError(
-        "COSE receipt missing 'vds' in protected header");
-    }
-    phdr.vds = header_items[VDS_INDEX].val.int64;
-
-    if (phdr.vds != ccf::crypto::COSE_PHEADER_VDS_CCF_LEDGER_SHA256)
-    {
-      throw ccf::cose::COSEDecodeError(fmt::format(
-        "Expected VDS={} (CCF_LEDGER_SHA256), got {}",
-        ccf::crypto::COSE_PHEADER_VDS_CCF_LEDGER_SHA256,
-        phdr.vds));
-    }
+    claims.sub = rethrow_with_msg(
+      [&]() {
+        return cwt_claims
+          ->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_SUB))
+          ->as_string();
+      },
+      fmt::format(
+        "Parse CWT claim sub({}) field", ccf::crypto::COSE_PHEADER_KEY_SUB));
   }
 
-  static void decode_cwt_claims(QCBORDecodeContext& ctx, CwtClaims& cwt)
+  static void decode_ccf_claims(const ccf::cbor::Value& cbor, CcfClaims& claims)
   {
-    QCBORDecode_EnterMapFromMapN(&ctx, crypto::COSE_PHEADER_KEY_CWT);
-    auto decode_error = QCBORDecode_GetError(&ctx);
-    if (decode_error != QCBOR_SUCCESS)
-    {
-      throw COSEDecodeError(
-        fmt::format("Failed to decode CWT claims: {}", decode_error));
-    }
+    using namespace ccf::cbor;
 
-    enum : std::uint8_t
-    {
-      IAT_INDEX,
-      ISS_INDEX,
-      SUB_INDEX,
-      END_CWT_INDEX,
-    };
+    const auto& ccf_claims = rethrow_with_msg(
+      [&]() -> auto& {
+        return cbor->map_at(make_string(ccf::crypto::COSE_PHEADER_KEY_CCF));
+      },
+      "Parse CCF claims map");
 
-    QCBORItem cwt_items[END_CWT_INDEX + 1];
-
-    cwt_items[IAT_INDEX].label.int64 = ccf::crypto::COSE_PHEADER_KEY_IAT;
-    cwt_items[IAT_INDEX].uLabelType = QCBOR_TYPE_INT64;
-    cwt_items[IAT_INDEX].uDataType = QCBOR_TYPE_INT64;
-
-    cwt_items[ISS_INDEX].label.int64 = ccf::crypto::COSE_PHEADER_KEY_ISS;
-    cwt_items[ISS_INDEX].uLabelType = QCBOR_TYPE_INT64;
-    cwt_items[ISS_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-    cwt_items[SUB_INDEX].label.int64 = ccf::crypto::COSE_PHEADER_KEY_SUB;
-    cwt_items[SUB_INDEX].uLabelType = QCBOR_TYPE_INT64;
-    cwt_items[SUB_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-    cwt_items[END_CWT_INDEX].uLabelType = QCBOR_TYPE_NONE;
-
-    QCBORDecode_GetItemsInMap(&ctx, cwt_items);
-    decode_error = QCBORDecode_GetError(&ctx);
-    if (decode_error != QCBOR_SUCCESS)
-    {
-      throw COSEDecodeError(
-        fmt::format("Failed to decode CWT claims: {}", decode_error));
-    }
-
-    if (cwt_items[IAT_INDEX].uDataType == QCBOR_TYPE_NONE)
-    {
-      throw ccf::cose::COSEDecodeError("CWT claims missing 'iat' field");
-    }
-    cwt.iat = cwt_items[IAT_INDEX].val.int64;
-
-    if (cwt_items[ISS_INDEX].uDataType == QCBOR_TYPE_NONE)
-    {
-      throw ccf::cose::COSEDecodeError("CWT claims missing 'iss' field");
-    }
-    cwt.iss = tstring_to_string(cwt_items[ISS_INDEX]);
-
-    if (cwt_items[SUB_INDEX].uDataType == QCBOR_TYPE_NONE)
-    {
-      throw ccf::cose::COSEDecodeError("CWT claims missing 'sub' field");
-    }
-    cwt.sub = tstring_to_string(cwt_items[SUB_INDEX]);
-
-    QCBORDecode_ExitMap(&ctx);
+    claims.txid = rethrow_with_msg(
+      [&]() {
+        return ccf_claims
+          ->map_at(make_string(ccf::crypto::COSE_PHEADER_KEY_TXID))
+          ->as_string();
+      },
+      fmt::format(
+        "Parse CCF claims TxID ({}) field",
+        ccf::crypto::COSE_PHEADER_KEY_TXID));
   }
 
-  static void decode_ccf_claims(QCBORDecodeContext& ctx, CcfClaims& ccf)
+  static CcfCoseReceiptPhdr decode_ccf_receipt_phdr(ccf::cbor::Value& cbor)
   {
-    QCBORDecode_EnterMapFromMapSZ(
-      &ctx, ccf::crypto::COSE_PHEADER_KEY_CCF.c_str());
-    auto decode_error = QCBORDecode_GetError(&ctx);
-    if (decode_error != QCBOR_SUCCESS)
-    {
-      throw COSEDecodeError(
-        fmt::format("Failed to decode CCF claims: {}", decode_error));
-    }
-
-    enum : std::uint8_t
-    {
-      TXID_INDEX,
-      END_CCF_INDEX,
-    };
-
-    QCBORItem ccf_items[END_CCF_INDEX + 1];
-
-    ccf_items[TXID_INDEX].label.string = UsefulBufC{
-      ccf::crypto::COSE_PHEADER_KEY_TXID.data(),
-      ccf::crypto::COSE_PHEADER_KEY_TXID.size()};
-    ccf_items[TXID_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
-    ccf_items[TXID_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-    ccf_items[END_CCF_INDEX].uLabelType = QCBOR_TYPE_NONE;
-
-    QCBORDecode_GetItemsInMap(&ctx, ccf_items);
-    decode_error = QCBORDecode_GetError(&ctx);
-    if (decode_error != QCBOR_SUCCESS)
-    {
-      throw COSEDecodeError(
-        fmt::format("Failed to decode CCF claims: {}", decode_error));
-    }
-
-    if (ccf_items[TXID_INDEX].uDataType == QCBOR_TYPE_NONE)
-    {
-      throw ccf::cose::COSEDecodeError("CCF claims missing 'txid' field");
-    }
-    ccf.txid = tstring_to_string(ccf_items[TXID_INDEX]);
-
-    QCBORDecode_ExitMap(&ctx);
-  }
-
-  static CcfCoseReceiptPhdr decode_ccf_receipt_phdr(QCBORDecodeContext& ctx)
-  {
-    QCBORDecode_EnterBstrWrapped(
-      &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, nullptr);
-    QCBORDecode_EnterMap(&ctx, nullptr);
+    using namespace ccf::cbor;
 
     CcfCoseReceiptPhdr phdr{};
 
-    decode_receipt_top_level_phdr(ctx, phdr);
-    decode_cwt_claims(ctx, phdr.cwt);
-    decode_ccf_claims(ctx, phdr.ccf);
+    phdr.alg = rethrow_with_msg(
+      [&]() {
+        return cbor->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_ALG))
+          ->as_signed();
+      },
+      fmt::format(
+        "Parse protected header alg({})", ccf::crypto::COSE_PHEADER_KEY_ALG));
 
-    QCBORDecode_ExitMap(&ctx);
-    QCBORDecode_ExitBstrWrapped(&ctx);
+    rethrow_with_msg(
+      [&]() {
+        const auto& bytes =
+          cbor->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_ID))
+            ->as_bytes();
+        phdr.kid.assign(bytes.begin(), bytes.end());
+      },
+      fmt::format(
+        "Parse protected header kid({})", ccf::crypto::COSE_PHEADER_KEY_ID));
+
+    phdr.vds = rethrow_with_msg(
+      [&]() {
+        return cbor->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_VDS))
+          ->as_signed();
+      },
+      fmt::format(
+        "Parse protected header vds({})", ccf::crypto::COSE_PHEADER_KEY_VDS));
+
+    if (phdr.vds != ccf::crypto::COSE_PHEADER_VDS_CCF_LEDGER_SHA256)
+    {
+      throw COSEDecodeError(fmt::format(
+        "Unsupported vds value ({}) in protected header", phdr.vds));
+    }
+
+    decode_cwt_claims(cbor, phdr.cwt);
+    decode_ccf_claims(cbor, phdr.ccf);
 
     return phdr;
   }
 
-  /* Expects QCBORDecodeContext to be at 'uhdr'. */
-  static std::vector<MerkleProof> decode_merkle_proofs(QCBORDecodeContext& ctx)
+  static std::vector<MerkleProof> decode_merkle_proofs(
+    const ccf::cbor::Value& cbor)
   {
-    QCBORDecode_EnterMap(&ctx, nullptr);
-    auto err = QCBORDecode_GetError(&ctx);
-    if (err != QCBOR_SUCCESS)
-    {
-      throw COSEDecodeError(
-        fmt::format("Failed to enter unprotected header map: {}", err));
-    }
+    using namespace ccf::cbor;
 
-    QCBORDecode_EnterMapFromMapN(&ctx, headers::PARAM_VDP);
-    err = QCBORDecode_GetError(&ctx);
-    if (err != QCBOR_SUCCESS)
-    {
-      throw COSEDecodeError(
-        fmt::format("Failed to enter Merkle proofs map: {}", err));
-    }
+    const auto& uhdr = rethrow_with_msg(
+      [&]() -> auto& { return cbor->array_at(1); },
+      "Parse unprotected header map");
 
-    QCBORDecode_EnterArrayFromMapN(&ctx, headers::PARAM_INCLUSION_PROOFS);
-    err = QCBORDecode_GetError(&ctx);
-    if (err != QCBOR_SUCCESS)
-    {
-      throw COSEDecodeError(
-        fmt::format("Failed to enter Merkle proofs array: {}", err));
-    }
+    const auto& vdp = rethrow_with_msg(
+      [&]() -> auto& { return uhdr->map_at(make_signed(headers::PARAM_VDP)); },
+      fmt::format("Parse vdp() map", headers::PARAM_VDP));
 
-    std::vector<uint8_t> root;
+    const auto& proofs_array = rethrow_with_msg(
+      [&]() -> auto& {
+        return vdp->map_at(make_signed(headers::PARAM_INCLUSION_PROOFS));
+      },
+      "Parse inclusion proofs");
+
     std::vector<MerkleProof> proofs;
-    for (;;)
-    {
-      QCBORDecode_EnterBstrWrapped(
-        &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, nullptr);
-      err = QCBORDecode_GetError(&ctx);
-      if (err != QCBOR_SUCCESS)
-      {
-        err = QCBORDecode_GetAndResetError(&ctx);
-        if (err != QCBOR_ERR_NO_MORE_ITEMS)
+
+    rethrow_with_msg(
+      [&]() {
+        if (proofs_array->size() == 0)
         {
-          throw COSEDecodeError(fmt::format(
-            "Expected NO_MORE_ITEMS after reading Merkle proofs, got {}", err));
+          throw CBORDecodeError(Error::DECODE_FAILED, "Empty proofs array");
         }
-        break;
-      }
+      },
+      "Check proofs array");
 
-      QCBORDecode_EnterMap(&ctx, nullptr);
-      err = QCBORDecode_GetError(&ctx);
-      if (err != QCBOR_SUCCESS)
-      {
-        throw COSEDecodeError(fmt::format("Failed to enter leaf map: {}", err));
-      }
+    for (size_t i = 0; i < proofs_array->size(); ++i)
+    {
+      auto cbor_proof = rethrow_with_msg(
+        [&]() { return parse(proofs_array->array_at(i)->as_bytes()); },
+        "Parse an encoded proof");
 
-      QCBORDecode_EnterArrayFromMapN(
-        &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL);
+      const auto& leaf = rethrow_with_msg(
+        [&]() -> auto& {
+          return cbor_proof->map_at(
+            make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL));
+        },
+        "Parse proof: leaf");
 
-      QCBORItem item;
       MerkleProof proof;
 
-      QCBORDecode_GetNext(&ctx, &item);
-      if (item.uDataType != QCBOR_TYPE_BYTE_STRING)
-      {
-        throw COSEDecodeError(fmt::format(
-          "Expected byte string for write_set_digest, got {}", item.uDataType));
-      }
-      proof.leaf.write_set_digest =
-        ccf::cose::qcbor_buf_to_byte_vector(item.val.string);
+      rethrow_with_msg(
+        [&]() {
+          const auto& bytes =
+            leaf->array_at(ccf::MerkleProofPathBranch::LEFT)->as_bytes();
+          proof.leaf.write_set_digest.assign(bytes.begin(), bytes.end());
+        },
+        "Parse leaf at wsd");
 
-      QCBORDecode_GetNext(&ctx, &item);
-      if (item.uDataType != QCBOR_TYPE_TEXT_STRING)
-      {
-        throw COSEDecodeError(fmt::format(
-          "Expected text string for commit_evidence, got {}", item.uDataType));
-      }
+      proof.leaf.commit_evidence = rethrow_with_msg(
+        [&]() {
+          return leaf->array_at(ccf::MerkleProofPathBranch::RIGHT)->as_string();
+        },
+        "Parse leaf at ce");
 
-      proof.leaf.commit_evidence =
-        ccf::cose::qcbor_buf_to_string(item.val.string);
+      rethrow_with_msg(
+        [&]() {
+          const auto& bytes = leaf->array_at(2)->as_bytes();
+          proof.leaf.claims_digest.assign(bytes.begin(), bytes.end());
+        },
+        "Parse leaf at cd");
 
-      QCBORDecode_GetNext(&ctx, &item);
-      if (item.uDataType != QCBOR_TYPE_BYTE_STRING)
-      {
-        throw COSEDecodeError(fmt::format(
-          "Expected byte string for claims_digest, got {}", item.uDataType));
-      }
+      const auto& cbor_path = rethrow_with_msg(
+        [&]() -> auto& {
+          return cbor_proof->map_at(
+            make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL));
+        },
+        "Parse proof: path");
 
-      proof.leaf.claims_digest =
-        ccf::cose::qcbor_buf_to_byte_vector(item.val.string);
-
-      QCBORDecode_ExitArray(&ctx);
-
-      QCBORDecode_EnterArrayFromMapN(
-        &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL);
-      err = QCBORDecode_GetError(&ctx);
-      if (err != QCBOR_SUCCESS)
-      {
-        throw COSEDecodeError(
-          fmt::format("Failed to enter path array: {}", err));
-      }
-
-      for (;;)
-      {
-        QCBORDecode_EnterArray(&ctx, &item);
-        if (QCBORDecode_GetError(&ctx) != QCBOR_SUCCESS)
-        {
-          err = QCBORDecode_GetAndResetError(&ctx);
-          if (err != QCBOR_ERR_NO_MORE_ITEMS)
+      rethrow_with_msg(
+        [&]() {
+          if (cbor_path->size() == 0)
           {
-            throw COSEDecodeError(fmt::format(
-              "Expected NO_MORE_ITEMS after reading path, got {}", err));
+            throw CBORDecodeError(Error::DECODE_FAILED, "Empty path");
           }
-          break;
-        }
+        },
+        "Check proof: path");
 
+      for (size_t j = 0; j < cbor_path->size(); j++)
+      {
         std::pair<int64_t, std::vector<uint8_t>> path_item;
+        const auto& link = rethrow_with_msg(
+          [&]() -> auto& { return cbor_path->array_at(j); }, "Parse path link");
 
-        err = QCBORDecode_GetNext(&ctx, &item);
-        if (err != QCBOR_SUCCESS)
-        {
-          throw COSEDecodeError(
-            fmt::format("Failed to get path direction item: {}", err));
-        }
-
-        if (item.uDataType == CBOR_SIMPLEV_TRUE)
-        {
-          path_item.first = 1;
-        }
-        else if (item.uDataType == CBOR_SIMPLEV_FALSE)
-        {
-          path_item.first = 0;
-        }
-        else
-        {
-          // Not a valid CBOR boolean
-          throw COSEDecodeError(fmt::format(
-            "Invalid path direction in Merkle proof: {}", item.uDataType));
-        }
-
-        err = QCBORDecode_GetNext(&ctx, &item);
-        if (err != QCBOR_SUCCESS)
-        {
-          throw COSEDecodeError(
-            fmt::format("Failed to get path hash item: {}", err));
-        }
-        if (item.uDataType != QCBOR_TYPE_BYTE_STRING)
-        {
-          throw COSEDecodeError(fmt::format(
-            "Expected byte string for path hash, got {}", item.uDataType));
-        }
-
-        path_item.second = ccf::cose::qcbor_buf_to_byte_vector(item.val.string);
+        path_item.first = static_cast<int64_t>(rethrow_with_msg(
+          [&]() { return simple_to_boolean(link->array_at(0)->as_simple()); },
+          "Parse path element at direction"));
+        rethrow_with_msg(
+          [&]() {
+            const auto& bytes = link->array_at(1)->as_bytes();
+            path_item.second.assign(bytes.begin(), bytes.end());
+          },
+          "Parse path element at hash");
         proof.path.push_back(path_item);
-
-        QCBORDecode_ExitArray(&ctx);
-        err = QCBORDecode_GetError(&ctx);
-        if (err != QCBOR_SUCCESS)
-        {
-          throw COSEDecodeError(
-            fmt::format("Failed to exit path item array: {}", err));
-        }
-      }
-
-      QCBORDecode_ExitArray(&ctx); // path
-      err = QCBORDecode_GetError(&ctx);
-      if (err != QCBOR_SUCCESS)
-      {
-        throw COSEDecodeError(
-          fmt::format("Failed to exit path array: {}", err));
-      }
-
-      QCBORDecode_ExitMap(&ctx); // proof
-      err = QCBORDecode_GetError(&ctx);
-      if (err != QCBOR_SUCCESS)
-      {
-        throw COSEDecodeError(fmt::format("Failed to exit proof map: {}", err));
-      }
-
-      QCBORDecode_ExitBstrWrapped(&ctx); // wrapped proof
-      err = QCBORDecode_GetError(&ctx);
-      if (err != QCBOR_SUCCESS)
-      {
-        throw COSEDecodeError(
-          fmt::format("Failed to exit wrapped proof: {}", err));
       }
 
       proofs.push_back(proof);
-    }
-
-    QCBORDecode_ExitArray(&ctx); // proofs array
-    err = QCBORDecode_GetError(&ctx);
-    if (err != QCBOR_SUCCESS)
-    {
-      throw COSEDecodeError(
-        fmt::format("Failed to exit proofs array: {}", err));
-    }
-
-    QCBORDecode_ExitMap(&ctx); // VDP
-    err = QCBORDecode_GetError(&ctx);
-    if (err != QCBOR_SUCCESS)
-    {
-      throw COSEDecodeError(fmt::format("Failed to exit VDP map: {}", err));
-    }
-
-    QCBORDecode_ExitMap(&ctx); // uhdr
-    err = QCBORDecode_GetError(&ctx);
-    if (err != QCBOR_SUCCESS)
-    {
-      throw COSEDecodeError(fmt::format("Failed to exit uhdr map: {}", err));
     }
 
     return proofs;
@@ -574,31 +376,28 @@ namespace ccf::cose
   static CcfCoseReceipt decode_ccf_receipt(
     const std::vector<uint8_t>& cose_sign1, bool recompute_root)
   {
-    QCBORError qcbor_result = QCBOR_SUCCESS;
-    QCBORDecodeContext ctx;
-    UsefulBufC buf{cose_sign1.data(), cose_sign1.size()};
-    QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);
+    using namespace ccf::cbor;
 
-    QCBORDecode_EnterArray(&ctx, nullptr);
-    qcbor_result = QCBORDecode_GetError(&ctx);
-    if (qcbor_result != QCBOR_SUCCESS)
-    {
-      throw COSEDecodeError("Failed to parse COSE_Sign1 outer array");
-    }
+    auto cose_cbor =
+      rethrow_with_msg([&]() { return parse(cose_sign1); }, "Parse COSE CBOR");
 
-    uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
-    if (tag != CBOR_TAG_COSE_SIGN1)
-    {
-      throw COSEDecodeError("COSE_Sign1 is not tagged");
-    }
+    const auto& cose_envelope = rethrow_with_msg(
+      [&]() -> auto& { return cose_cbor->tag_at(18); }, "Parse COSE tag");
+
+    const auto& phdr_raw = rethrow_with_msg(
+      [&]() -> auto& { return cose_envelope->array_at(0); },
+      "Parse raw protected header");
+
+    auto phdr = rethrow_with_msg(
+      [&]() { return parse(phdr_raw->as_bytes()); }, "Parse protected header");
 
     CcfCoseReceipt receipt;
 
-    receipt.phdr = decode_ccf_receipt_phdr(ctx);
+    receipt.phdr = decode_ccf_receipt_phdr(phdr);
 
     if (recompute_root)
     {
-      auto proofs = decode_merkle_proofs(ctx);
+      auto proofs = decode_merkle_proofs(cose_envelope);
       if (proofs.empty())
       {
         throw COSEDecodeError("No Merkle proofs found in COSE receipt");
