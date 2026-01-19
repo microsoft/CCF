@@ -25,6 +25,7 @@ namespace ccf::cose
     static constexpr int64_t PARAM_X5CHAIN = 33;
     // https://www.ietf.org/archive/id/draft-ietf-cose-hash-envelope-10.html#section-4
     static constexpr int64_t PARAM_CONTENT_TYPE_HASH_ENVELOPE = 259;
+    // https://www.ietf.org/archive/id/draft-ietf-cose-merkle-tree-proofs-18.html#name-cose-header-parameter
     static constexpr int64_t PARAM_VDP = 396;
     static constexpr int64_t PARAM_INCLUSION_PROOFS = -1;
 
@@ -189,7 +190,7 @@ namespace ccf::cose
           ->as_string();
       },
       fmt::format(
-        "Parse CWT claim ISS({}) field", ccf::crypto::COSE_PHEADER_KEY_ISS));
+        "Parse CWT claim iss({}) field", ccf::crypto::COSE_PHEADER_KEY_ISS));
 
     claims.sub = rethrow_with_msg(
       [&]() {
@@ -217,7 +218,9 @@ namespace ccf::cose
           ->map_at(make_string(ccf::crypto::COSE_PHEADER_KEY_TXID))
           ->as_string();
       },
-      fmt::format("Parse CCF claims TxID ({}) field", ccf::crypto::COSE_PHEADER_KEY_TXID));
+      fmt::format(
+        "Parse CCF claims TxID ({}) field",
+        ccf::crypto::COSE_PHEADER_KEY_TXID));
   }
 
   static CcfCoseReceiptPhdr decode_ccf_receipt_phdr(ccf::cbor::Value& cbor)
@@ -275,7 +278,7 @@ namespace ccf::cose
 
     const auto& vdp = rethrow_with_msg(
       [&]() -> auto& { return uhdr->map_at(make_signed(headers::PARAM_VDP)); },
-      "Parse VDP map");
+      fmt::format("Parse vdp() map", headers::PARAM_VDP));
 
     const auto& proofs_array = rethrow_with_msg(
       [&]() -> auto& {
@@ -311,13 +314,17 @@ namespace ccf::cose
 
       rethrow_with_msg(
         [&]() {
-          const auto& bytes = leaf->array_at(0)->as_bytes();
+          const auto& bytes =
+            leaf->array_at(ccf::MerkleProofPathBranch::LEFT)->as_bytes();
           proof.leaf.write_set_digest.assign(bytes.begin(), bytes.end());
         },
         "Parse leaf at wsd");
 
       proof.leaf.commit_evidence = rethrow_with_msg(
-        [&]() { return leaf->array_at(1)->as_string(); }, "Parse leaf at ce");
+        [&]() {
+          return leaf->array_at(ccf::MerkleProofPathBranch::RIGHT)->as_string();
+        },
+        "Parse leaf at ce");
 
       rethrow_with_msg(
         [&]() {
@@ -350,13 +357,13 @@ namespace ccf::cose
 
         path_item.first = static_cast<int64_t>(rethrow_with_msg(
           [&]() { return simple_to_boolean(link->array_at(0)->as_simple()); },
-          "Parse path link at direction"));
+          "Parse path element at direction"));
         rethrow_with_msg(
           [&]() {
             const auto& bytes = link->array_at(1)->as_bytes();
             path_item.second.assign(bytes.begin(), bytes.end());
           },
-          "Parse path link at hash");
+          "Parse path element at hash");
         proof.path.push_back(path_item);
       }
 
