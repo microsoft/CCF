@@ -9,9 +9,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [6.0.18]: https://github.com/microsoft/CCF/releases/tag/6.0.18
 
+### Changed
+
+- NodeInfoNetwork serialisation handling has become stricter (#7576), yielding better error messages in failure cases.
+- JavaScript toolchain updates for security reasons (#7579).
+
 ### Fixed
 
 - Correct handling of double-sealed secrets in historical cache (#7558).
+
+### Added
+
+- LedgerChunkRead feature flag (#7578), to enable compatible live migration. Note that the feature itself is not included.
 
 ## [6.0.17]
 
