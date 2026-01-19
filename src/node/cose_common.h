@@ -217,7 +217,7 @@ namespace ccf::cose
           ->map_at(make_string(ccf::crypto::COSE_PHEADER_KEY_TXID))
           ->as_string();
       },
-      "Parse CCF claims TxID field");
+      fmt::format("Parse CCF claims TxID ({}) field", ccf::crypto::COSE_PHEADER_KEY_TXID));
   }
 
   static CcfCoseReceiptPhdr decode_ccf_receipt_phdr(ccf::cbor::Value& cbor)
