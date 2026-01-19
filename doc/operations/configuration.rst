@@ -20,6 +20,20 @@ The configuration for each CCF node must be contained in a single JSON configura
 
 .. include:: generated_config.rst
 
+
+Operator Features
+-----------------
+
+The `enabled_operator_features` configuration field allows enabling or disabling specific operator features on a per-interface basis.
+
+Currently supported features are:
+
+1. 'SnapshotRead': gates access to endpoints used to fetch snapshots directly from nodes (:http:GET:`/node/snapshot`, :http:HEAD:`/node/snapshot`, :http:GET:`/node/snapshot/{snapshot_name}` and :http:HEAD:`/node/snapshot/{snapshot_name}`).
+2. 'LedgerChunkRead': gates access to endpoints used to retrieve ledger chunks, to be added in a future release.
+
+Since these operations may require disk IO and produce large responses, these features should not be enabled on interfaces with public access, and instead restricted to interfaces with local connectivity for node-to-node and operator access.
+
+
 .. note::
 
     - Size strings are expressed as the value suffixed with the size in bytes (``B``, ``KB``, ``MB``, ``GB``, ``TB``, as factors of 1024), e.g. ``"20MB"``, ``"100KB"`` or ``"2048"`` (bytes).
