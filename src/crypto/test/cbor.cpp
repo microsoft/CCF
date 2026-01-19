@@ -45,7 +45,6 @@ TEST_CASE("CBOR: signed integers")
       REQUIRE_EQ(cbor_bytes, encoded);
 
       REQUIRE(decoded->as_signed() == expected_value);
-      REQUIRE_EQ(encoded, cbor_bytes);
 
       const std::string result = to_string(value);
       REQUIRE(result == expected_repr);
@@ -86,7 +85,6 @@ TEST_CASE("CBOR: strings")
       REQUIRE_EQ(cbor_bytes, encoded);
 
       REQUIRE(decoded->as_string() == expected_value);
-      REQUIRE_EQ(encoded, cbor_bytes);
 
       const std::string result = to_string(value);
       REQUIRE(result == expected_repr);
@@ -134,8 +132,6 @@ TEST_CASE("CBOR: bytes")
         bytes.begin(),
         bytes.end()));
 
-      REQUIRE_EQ(encoded, cbor_bytes);
-
       const std::string result = to_string(value);
       REQUIRE(result == expected_repr);
     }
@@ -169,7 +165,6 @@ TEST_CASE("CBOR: simple values")
       REQUIRE_EQ(cbor_bytes, encoded);
 
       REQUIRE(decoded->as_simple() == expected_value);
-      REQUIRE_EQ(encoded, cbor_bytes);
 
       const std::string result = to_string(value);
       REQUIRE(result == expected_repr);
