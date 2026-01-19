@@ -23,7 +23,6 @@ from cryptography.hazmat.backends import default_backend
 
 from loguru import logger as LOG
 
-
 # Assumption:
 # By default, this assumes that the local checkout is not a non-release branch (e.g. main)
 # that is older than the latest release branch. This is to simplify the test, and assume

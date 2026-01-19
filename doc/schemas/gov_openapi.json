@@ -526,7 +526,8 @@
               "enabled_operator_features": {
                 "items": {
                   "enum": [
-                    "SnapshotRead"
+                    "SnapshotRead",
+                    "LedgerChunkRead"
                   ],
                   "type": "string"
                 },
@@ -674,7 +675,8 @@
                 "enabled_operator_features": {
                   "items": {
                     "enum": [
-                      "SnapshotRead"
+                      "SnapshotRead",
+                      "LedgerChunkRead"
                     ],
                     "type": "string"
                   },
@@ -1394,7 +1396,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.7.5"
+    "version": "4.7.6"
   },
   "openapi": "3.0.0",
   "paths": {
