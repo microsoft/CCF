@@ -122,7 +122,7 @@ If configured, the node will unseal the secrets it previously sealed instead of 
 Overview
 ~~~~~~~~
 
-When local sealing is enabled, each node generates an RSA key pair (the "recovery key pair") during join. The private key is encrypted (sealed) using an AES-GCM key derived from the SNP ``DERIVED_KEY``, and the public key along with the sealed private key is stored in the node's entry in the ``public:ccf.gov.nodes.info`` table.
+When local sealing is enabled, each node generates an RSA key pair (the "recovery key pair") during join. The private key is encrypted (sealed) using an AES-GCM key derived from the SNP ``DERIVED_KEY``, and the public key along with the sealed private key is stored in the ``public:ccf.gov.nodes.sealed_recovery_keys`` table.
 
 During normal operation, whenever the ledger secret changes, or a node joins the network, the system also shuffles "sealed shares". 
 The primary generates a fresh ledger secret wrapping key, encrypts the ledger secret with that key, and stores a sealed copy of the wrapping key for each trusted node with a sealed recovery public key. 
@@ -165,7 +165,7 @@ The following diagram illustrates the key hierarchy and encryption relationships
             LSWK["Ledger secret wrapping key"]
         end
 
-        subgraph Sealed["Store: nodes.info"]
+        subgraph Sealed["Store: nodes.sealed_recovery_keys"]
             SPK["Sealed Private Key<br/>(AES-GCM encrypted)"]
             SK -->|key| SPK
             PrivKey --> SPK

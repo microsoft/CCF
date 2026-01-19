@@ -1487,12 +1487,14 @@ def run_recovery_unsealing_validate_audit(const_args):
         network.wait_for_node_commit_sync()
 
         latest_public_tables, _ = network.get_latest_ledger_public_state()
-        node_info = latest_public_tables["public:ccf.gov.nodes.info"]
-        for info in node_info.values():
-            node_info = json.loads(info.decode("utf-8"))
+        sealed_recovery_keys = latest_public_tables[
+            "public:ccf.gov.nodes.sealed_recovery_keys"
+        ]
+        for node in network.nodes:
+            node_id_bytes = node.node_id.encode("utf-8")
             assert (
-                node_info["sealed_recovery_key"] is not None
-            ), "Node does not have sealed recovery key"
+                node_id_bytes in sealed_recovery_keys
+            ), f"Node {node.node_id} does not have sealed recovery key"
         assert (
             "public:ccf.internal.last_recovery_type" not in latest_public_tables
         ), "last_recovery_type was set when no recovery was performed."

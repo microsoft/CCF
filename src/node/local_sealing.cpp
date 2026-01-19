@@ -103,7 +103,8 @@ namespace ccf::sealing
       .pubkey = recovery_pubkey,
       .tcb_version = tcb_version};
 
-    // Do we also need to cleanse the recovery_key_pair or will openssl handle that in the EVP_KEY destructor?
+    // Do we also need to cleanse the recovery_key_pair or will openssl handle
+    // that in the EVP_KEY destructor?
     OPENSSL_cleanse(derived_key.data(), derived_key.size());
     OPENSSL_cleanse(recovery_privkey.data(), recovery_privkey.size());
     return res;
@@ -115,6 +116,8 @@ namespace ccf::sealing
     EncryptedSealedSharesMap encrypted_sealed_shares;
 
     auto trusted_nodes_info = InternalTablesAccess::get_trusted_nodes(tx);
+    auto* sealed_recovery_keys =
+      tx.ro<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
 
     {
       std::vector<uint8_t> sealed_share_serialised(
@@ -123,11 +126,11 @@ namespace ccf::sealing
 
       for (const auto& [node_id, node_info] : trusted_nodes_info)
       {
-        if (node_info.sealed_recovery_key.has_value())
+        auto sealed_recovery_key = sealed_recovery_keys->get(node_id);
+        if (sealed_recovery_key.has_value())
         {
-          auto sealed_recovery_key = node_info.sealed_recovery_key.value();
           auto node_enc_pubk =
-            ccf::crypto::make_rsa_public_key(sealed_recovery_key.pubkey);
+            ccf::crypto::make_rsa_public_key(sealed_recovery_key->pubkey);
           encrypted_sealed_shares[node_id] =
             node_enc_pubk->rsa_oaep_wrap(sealed_share_serialised);
         }
@@ -166,24 +169,16 @@ namespace ccf::sealing
     ccf::kv::ReadOnlyTx& tx, const NodeId& node_id)
   {
     // Retrieve the node's sealed recovery key
-    auto* nodes = tx.ro<ccf::Nodes>(Tables::NODES);
-    auto node_info_opt = nodes->get(node_id);
-    if (!node_info_opt.has_value())
-    {
-      LOG_INFO_FMT(
-        "Node {} was not in previous configuration to unseal recovery "
-        "share",
-        node_id);
-      return std::nullopt;
-    }
-    auto& node_info = node_info_opt.value();
-    if (!node_info.sealed_recovery_key.has_value())
+    auto* sealed_recovery_keys =
+      tx.ro<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
+    auto sealed_recovery_key_opt = sealed_recovery_keys->get(node_id);
+    if (!sealed_recovery_key_opt.has_value())
     {
       LOG_INFO_FMT(
         "Node {} has no sealed recovery key to unseal recovery share", node_id);
       return std::nullopt;
     }
-    auto sealed_recovery_key = node_info.sealed_recovery_key.value();
+    auto& sealed_recovery_key = sealed_recovery_key_opt.value();
 
     // Retrieve the encrypted sealed share
     auto* sealed_shares = tx.ro<SealedShares>(Tables::SEALED_SHARES);

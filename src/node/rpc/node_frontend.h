@@ -29,6 +29,7 @@
 #include "node/session_metrics.h"
 #include "node_interface.h"
 #include "service/internal_tables_access.h"
+#include "service/tables/local_sealing.h"
 #include "service/tables/previous_service_identity.h"
 
 #include <llhttp/llhttp.h>
@@ -325,9 +326,16 @@ namespace ccf
         in.certificate_signing_request,
         client_public_key_pem,
         in.node_data};
-      node_info.sealed_recovery_key = in.sealed_recovery_key;
 
       nodes->put(joining_node_id, node_info);
+
+      if (in.sealed_recovery_key.has_value())
+      {
+        auto* sealed_recovery_keys =
+          tx.rw<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
+        sealed_recovery_keys->put(
+          joining_node_id, in.sealed_recovery_key.value());
+      }
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
 
@@ -1047,6 +1055,10 @@ namespace ccf
           {
             nodes->remove(node_id);
             node_endorsed_certificates->remove(node_id);
+
+            auto* sealed_recovery_keys =
+              args.tx.template rw<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
+            sealed_recovery_keys->remove(node_id);
           }
           else
           {
@@ -1522,8 +1534,15 @@ namespace ccf
           in.certificate_signing_request,
           in.public_key,
           in.node_data};
-        node_info.sealed_recovery_key = in.sealed_recovery_key;
         InternalTablesAccess::add_node(ctx.tx, in.node_id, node_info);
+
+        if (in.sealed_recovery_key.has_value())
+        {
+          auto* sealed_recovery_keys =
+            ctx.tx.template rw<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
+          sealed_recovery_keys->put(in.node_id, in.sealed_recovery_key.value());
+        }
+
         node_operation.shuffle_sealed_shares(ctx.tx);
 
         if (

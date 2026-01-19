@@ -4,6 +4,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/entity_id.h"
+#include "ccf/service/local_sealing.h"
 #include "ccf/service/map.h"
 #include "shares.h"
 
@@ -35,8 +36,16 @@ namespace ccf
     SealedSharesInfo, previous_secret_stored_version);
 
   using SealedShares = ServiceValue<SealedSharesInfo>;
+
+  // Map from NodeId to SealedRecoveryKey for each node that supports local
+  // sealing
+  using SealedRecoveryKeys =
+    ServiceMap<NodeId, ccf::SealedRecoveryKey>;
+
   namespace Tables
   {
     static constexpr auto SEALED_SHARES = "public:ccf.internal.sealed_shares";
+    static constexpr auto SEALED_RECOVERY_KEYS =
+      "public:ccf.gov.nodes.sealed_recovery_keys";
   }
 }

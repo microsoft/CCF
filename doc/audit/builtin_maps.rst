@@ -218,6 +218,17 @@ The minimum trusted TCB version for new nodes allowed to join the network (:doc`
    * - ``00a00f11``
      - ``{"hexstring": "d315000000000004", "boot_loader": 4, "tee": 0, "snp": 21, "microcode": 211}``
 
+``nodes.sealed_recovery_keys``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Key** Node ID: SHA-256 digest of the node public key, represented as a hex-encoded string.
+
+**Value** Sealed recovery key for the node. The private key is encrypted using a key derived from SNP's ``DERIVED_KEY``, allowing the node to unseal its recovery share during local sealing recovery.
+
+.. doxygenstruct:: ccf::SealedRecoveryKey
+    :project: CCF
+    :members:
+
 ``service.info``
 ~~~~~~~~~~~~~~~~
 
@@ -562,7 +573,7 @@ While the contents themselves are encrypted, the table is public so as to be acc
 ``sealed_shares``
 ~~~~~~~~~~~~~~~~~
 
-**Value** Nodes' sealed recovery keys, encrypted by the keys recorded in ``nodes.info[].sealed_recovery_key``.
+**Value** Per-node encrypted ledger secret wrapping keys, encrypted by the public keys recorded in ``nodes.sealed_recovery_keys``.
 
 While the contents themselves are encrypted, the table is public so as to be accessible by a node starting a recovery service.
 
