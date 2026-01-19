@@ -559,6 +559,17 @@ While the contents themselves are encrypted, the table is public so as to be acc
 
 **Value** Last signed Merkle root of previous service instance, represented as a hex-encoded string.
 
+``sealed_shares``
+~~~~~~~~~~~~~~~~~
+
+**Value** Nodes' sealed recovery keys, encrypted by the keys recorded in ``nodes.info[].sealed_recovery_key``.
+
+While the contents themselves are encrypted, the table is public so as to be accessible by a node starting a recovery service.
+
+.. doxygenstruct:: ccf::SealedSharesInfo
+    :project: CCF
+    :members:
+
 ``last_recovery_type``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 **Value** The mechanism by which the ledger secret was recovered.
