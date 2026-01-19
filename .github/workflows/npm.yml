@@ -36,5 +36,7 @@ jobs:
       - name: Publish NPM Package to https://www.npmjs.com/package/@microsoft/ccf-app
         run: |
           set -ex
-          cd js/ccf-app
+          cd js/ccf-app          
+          npm whoami
+          npm owner ls @microsoft/ccf-app
           npm publish microsoft-ccf-app*.tgz --access public
