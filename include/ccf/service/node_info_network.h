@@ -226,27 +226,12 @@ namespace ccf
     return fmt::format("{}:{}", host, port);
   }
 
-  // The JSON representation of a NodeInfoNetwork is the union of a
-  // NodeInfoNetwork_v1 and a NodeInfoNetwork_v2. It contains the fields of
-  // both, so can be read as (or from!) either
+  // All NodeInfoNetwork read that may lead to re-serialization for
+  // write purposes must be v2 by now, so we only serialize as v2.
+  // If any v1 NodeInfoNetwork is read at all, it must be for historical
+  // query purposes, and does not need to be re-serialized to v2.
   inline void to_json(nlohmann::json& j, const NodeInfoNetwork& nin)
   {
-    {
-      NodeInfoNetwork_v1 v1;
-      std::tie(v1.nodehost, v1.nodeport) =
-        split_net_address(nin.node_to_node_interface.bind_address);
-
-      if (nin.rpc_interfaces.size() > 0)
-      {
-        const auto& primary_interface = nin.rpc_interfaces.begin()->second;
-        std::tie(v1.rpchost, v1.rpcport) =
-          split_net_address(primary_interface.bind_address);
-        std::tie(v1.pubhost, v1.pubport) =
-          split_net_address(primary_interface.published_address);
-      }
-      to_json(j, v1);
-    }
-
     to_json(j, (const NodeInfoNetwork_v2&)nin);
   }
 
@@ -263,6 +248,14 @@ namespace ccf
       NodeInfoNetwork_v1 v1;
       try
       {
+        if (
+          j.contains("rpc_interfaces") || j.contains("node_to_node_interface"))
+        {
+          // If these v2 fields are present, rethrow the error - the JSON is
+          // malformed for v2. Only proceed to parse as v1 if these fields are
+          // absent and the NodeInfoNetwork is a pure v1.
+          throw jpe;
+        }
         from_json(j, v1);
       }
       catch (const ccf::JsonParseError& _)
@@ -274,6 +267,9 @@ namespace ccf
       }
 
       nin.node_to_node_interface.bind_address =
+        make_net_address(v1.nodehost, v1.nodeport);
+      // If published address is not explicitly set, default to bind address
+      nin.node_to_node_interface.published_address =
         make_net_address(v1.nodehost, v1.nodeport);
 
       NodeInfoNetwork::NetInterface primary_interface;
