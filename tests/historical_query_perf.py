@@ -96,13 +96,11 @@ def get_all_entries(
         else:
             LOG.error("Printing historical/range logs on unexpected status")
             flush_info(logs, None)
-            raise ValueError(
-                f"""
+            raise ValueError(f"""
                 Unexpected status code from historical range query: {r.status_code}
 
                 {r.body}
-                """
-            )
+                """)
 
     LOG.error("Printing historical/range logs on timeout")
     flush_info(logs, None)
