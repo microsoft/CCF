@@ -3,6 +3,9 @@ name: "Build and Publish NPM package"
 on:
   release:
     types: [published]
+  push:
+    branches:
+      - push_6.0.18_npm
 
 permissions:
   contents: read
@@ -19,9 +22,9 @@ jobs:
         with:
           node-version: 24
 
-      - name: Get release number from git tag (release) or latest (branch)
+      - name: Release is 6.0.18
         run: |
-          echo "version=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
+          echo "version=6.0.18" >> $GITHUB_OUTPUT
         id: tref
 
       - name: Fetch NPM Package from release
