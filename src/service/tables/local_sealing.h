@@ -37,6 +37,6 @@ namespace ccf
   using SealedShares = ServiceValue<SealedSharesInfo>;
   namespace Tables
   {
-    static constexpr auto SEALED_SHARES = "public:ccf.gov.sealed_shares";
+    static constexpr auto SEALED_SHARES = "public:ccf.internal.sealed_shares";
   }
 }
