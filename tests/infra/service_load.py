@@ -15,7 +15,6 @@ from contextlib import contextmanager
 
 from loguru import logger as LOG
 
-
 # Interval (s) at which the network is polled to find out
 # when the load client should be restarted
 NETWORK_POLL_INTERVAL_S = 1

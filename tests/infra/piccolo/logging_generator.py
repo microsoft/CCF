@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 from generator import Messages
 
-
 common_headers = {"host": "127.0.0.1:8000"}
 msgs = Messages()
 
