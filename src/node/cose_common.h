@@ -180,7 +180,7 @@ namespace ccf::cose
           ->as_signed();
       },
       fmt::format(
-        "Parse CWT claim IAT({}) field", ccf::crypto::COSE_PHEADER_KEY_IAT));
+        "Parse CWT claim sub({}) field", ccf::crypto::COSE_PHEADER_KEY_IAT));
 
     claims.iss = rethrow_with_msg(
       [&]() {
