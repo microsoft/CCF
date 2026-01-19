@@ -39,8 +39,7 @@ namespace ccf
 
   // Map from NodeId to SealedRecoveryKey for each node that supports local
   // sealing
-  using SealedRecoveryKeys =
-    ServiceMap<NodeId, ccf::SealedRecoveryKey>;
+  using SealedRecoveryKeys = ServiceMap<NodeId, ccf::SealedRecoveryKey>;
 
   namespace Tables
   {
