@@ -4,7 +4,6 @@ import infra.e2e_args
 from infra.runner import ConcurrentRunner
 import e2e_operations
 
-
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
