@@ -43,7 +43,7 @@ namespace
       singles.push_back(single);
     }
 
-    cbor_raw* single() const
+    [[nodiscard]] cbor_raw* single() const
     {
       return const_cast<cbor_raw*>(&singles.back());
     }
@@ -53,7 +53,7 @@ namespace
       arrays.push_back(array);
     }
 
-    cbor_raw* array() const
+    [[nodiscard]] cbor_raw* array() const
     {
       return const_cast<cbor_raw*>(&arrays.back().front());
     }
@@ -63,7 +63,7 @@ namespace
       maps.push_back(map);
     }
 
-    cbor_map_entry* map() const
+    [[nodiscard]] cbor_map_entry* map() const
     {
       return const_cast<cbor_map_entry*>(&maps.back().front());
     }
@@ -312,6 +312,7 @@ namespace
   {
     cbor_raw result;
     std::vector<cbor_raw> items;
+    items.reserve(v.items.size());
     for (const auto& item : v.items)
     {
       items.push_back(to_raw_cbor(item, arena));
@@ -341,6 +342,7 @@ namespace
     cbor_raw result;
 
     std::vector<cbor_map_entry> entries;
+    entries.reserve(v.items.size());
     for (const auto& [key, value] : v.items)
     {
       auto cbor_key = to_raw_cbor(key, arena);
