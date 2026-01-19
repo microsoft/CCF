@@ -352,7 +352,7 @@ namespace
 
     size_t map_size = entries.size();
 
-    // A workaround to encode an enpty map by passing a fake ptr with size=0.
+    // A workaround to encode an empty map by passing a fake ptr with size=0.
     if (entries.empty())
     {
       entries.push_back(cbor_map_entry{});
