@@ -298,13 +298,11 @@ class LoggingTxs:
                     continue
                 else:
                     LOG.error("Printing historical/range logs on unexpected status")
-                    raise ValueError(
-                        f"""
+                    raise ValueError(f"""
                         Unexpected status code from historical range query: {r.status_code}
 
                         {r.body}
-                        """
-                    )
+                        """)
 
         raise TimeoutError(
             f"Historical range for idx {idx} not available after {timeout}s"

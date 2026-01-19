@@ -255,7 +255,7 @@ def sign(algorithm: dict, key_pem: str, data: bytes) -> bytes:
 def convert_ecdsa_signature_from_der_to_p1363(
     signature_der: bytes, key_size_bits: int
 ) -> bytes:
-    (r, s) = decode_dss_signature(signature_der)
+    r, s = decode_dss_signature(signature_der)
     assert key_size_bits % 8 == 0
     n = key_size_bits // 8
     signature_p1363 = r.to_bytes(n, byteorder="big") + s.to_bytes(n, byteorder="big")

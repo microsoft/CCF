@@ -20,9 +20,7 @@ def format_message(idx):
     Nodes whisper secrets,
     Across vast digital realms,
     Harmony in bits.
-    """ + str(
-        idx
-    )
+    """ + str(idx)
 
 
 def submit_log_entry(primary, idx):
@@ -62,13 +60,11 @@ def get_and_verify_entry(client, idx):
             time.sleep(0.1)
             continue
         else:
-            raise ValueError(
-                f"""
+            raise ValueError(f"""
                 Unexpected status code from historical range query: {r.status_code}
 
                 {r.body}
-                """
-            )
+                """)
 
     raise TimeoutError("Historical range not available")
 
