@@ -40,6 +40,13 @@ TEST_CASE("CBOR: signed integers")
 
       REQUIRE(value->as_signed() == expected_value);
 
+      auto encoded = serialize(value);
+      auto decoded = parse(encoded);
+      REQUIRE_EQ(cbor_bytes, encoded);
+
+      REQUIRE(decoded->as_signed() == expected_value);
+      REQUIRE_EQ(encoded, cbor_bytes);
+
       const std::string result = to_string(value);
       REQUIRE(result == expected_repr);
     }
@@ -73,6 +80,13 @@ TEST_CASE("CBOR: strings")
       auto value = parse(cbor_bytes);
 
       REQUIRE(value->as_string() == expected_value);
+
+      auto encoded = serialize(value);
+      auto decoded = parse(encoded);
+      REQUIRE_EQ(cbor_bytes, encoded);
+
+      REQUIRE(decoded->as_string() == expected_value);
+      REQUIRE_EQ(encoded, cbor_bytes);
 
       const std::string result = to_string(value);
       REQUIRE(result == expected_repr);
@@ -109,6 +123,19 @@ TEST_CASE("CBOR: bytes")
         bytes.begin(),
         bytes.end()));
 
+      auto encoded = serialize(value);
+      auto decoded = parse(encoded);
+      REQUIRE_EQ(cbor_bytes, encoded);
+
+      bytes = decoded->as_bytes();
+      REQUIRE(std::equal(
+        expected_value.begin(),
+        expected_value.end(),
+        bytes.begin(),
+        bytes.end()));
+
+      REQUIRE_EQ(encoded, cbor_bytes);
+
       const std::string result = to_string(value);
       REQUIRE(result == expected_repr);
     }
@@ -137,6 +164,13 @@ TEST_CASE("CBOR: simple values")
 
       REQUIRE(value->as_simple() == expected_value);
 
+      auto encoded = serialize(value);
+      auto decoded = parse(encoded);
+      REQUIRE_EQ(cbor_bytes, encoded);
+
+      REQUIRE(decoded->as_simple() == expected_value);
+      REQUIRE_EQ(encoded, cbor_bytes);
+
       const std::string result = to_string(value);
       REQUIRE(result == expected_repr);
     }
@@ -151,6 +185,12 @@ TEST_CASE("CBOR: tagged value Tag(9001) with signed -42")
   const auto& item = value->tag_at(9001);
   REQUIRE(item->as_signed() == -42);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
+  REQUIRE_EQ(decoded->tag_at(9001)->as_signed(), -42);
+
   const std::string expected_repr = R"(Tagged[9001]:
   Signed: -42)";
   const std::string result = to_string(value);
@@ -164,6 +204,12 @@ TEST_CASE("CBOR: tagged value Tag(9002) with string")
 
   const auto& item = value->tag_at(9002);
   REQUIRE(item->as_string() == "tagged string");
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
+  REQUIRE_EQ(decoded->tag_at(9002)->as_string(), "tagged string");
 
   const std::string expected_repr = R"(Tagged[9002]:
   String: "tagged string")";
@@ -182,6 +228,17 @@ TEST_CASE("CBOR: tagged value Tag(9003) with bytes")
   REQUIRE(bytes[0] == 0xca);
   REQUIRE(bytes[1] == 0xfe);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
+  auto round_trip_bytes = decoded->tag_at(9003)->as_bytes();
+  REQUIRE(std::equal(
+    round_trip_bytes.begin(),
+    round_trip_bytes.end(),
+    bytes.begin(),
+    bytes.end()));
+
   const std::string expected_repr = R"(Tagged[9003]:
   Bytes[2]: cafe)";
   const std::string result = to_string(value);
@@ -195,6 +252,12 @@ TEST_CASE("CBOR: tagged value Tag(9004) with boolean")
 
   const auto& item = value->tag_at(9004);
   REQUIRE(item->as_simple() == SimpleValue::True);
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
+  REQUIRE_EQ(decoded->tag_at(9004)->as_simple(), SimpleValue::True);
 
   const std::string expected_repr = R"(Tagged[9004]:
   Simple: True)";
@@ -211,6 +274,12 @@ TEST_CASE("CBOR: nested tags Tag(9010, Tag(9020))")
   const auto& inner_item = outer_item->tag_at(9020);
   REQUIRE(inner_item->as_string() == "nested");
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
+  REQUIRE_EQ(decoded->tag_at(9010)->tag_at(9020)->as_string(), "nested");
+
   const std::string expected_repr = R"(Tagged[9010]:
   Tagged[9020]:
     String: "nested")";
@@ -224,6 +293,10 @@ TEST_CASE("CBOR: empty array")
   auto value = parse(cbor_bytes);
 
   REQUIRE(value->size() == 0);
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   const std::string expected_repr = "Array[0]:";
   const std::string result = to_string(value);
@@ -241,6 +314,15 @@ TEST_CASE("CBOR: array [1, 2, 3, 4, 5]")
   for (size_t i = 0; i < 5; i++)
   {
     REQUIRE(arr.items[i]->as_signed() == i + 1);
+  }
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
+  for (size_t i = 0; i < 5; i++)
+  {
+    REQUIRE_EQ(decoded->array_at(i)->as_signed(), i + 1);
   }
 
   const std::string expected_repr = R"(Array[5]:
@@ -265,6 +347,14 @@ TEST_CASE("CBOR: array [-1, -2, -3]")
   REQUIRE(arr.items[1]->as_signed() == -2);
   REQUIRE(arr.items[2]->as_signed() == -3);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
+  REQUIRE_EQ(decoded->array_at(0)->as_signed(), -1);
+  REQUIRE_EQ(decoded->array_at(1)->as_signed(), -2);
+  REQUIRE_EQ(decoded->array_at(2)->as_signed(), -3);
+
   const std::string expected_repr = R"(Array[3]:
   Signed: -1
   Signed: -2
@@ -284,6 +374,14 @@ TEST_CASE("CBOR: array ['a', 'b', 'c']")
   REQUIRE(arr.items[0]->as_string() == "a");
   REQUIRE(arr.items[1]->as_string() == "b");
   REQUIRE(arr.items[2]->as_string() == "c");
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
+  REQUIRE_EQ(decoded->array_at(0)->as_string(), "a");
+  REQUIRE_EQ(decoded->array_at(1)->as_string(), "b");
+  REQUIRE_EQ(decoded->array_at(2)->as_string(), "c");
 
   const std::string expected_repr = R"(Array[3]:
   String: "a"
@@ -313,6 +411,10 @@ TEST_CASE("CBOR: array [b'x', b'y', b'z']")
   REQUIRE(bytes2.size() == 1);
   REQUIRE(bytes2[0] == 'z');
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Array[3]:
   Bytes[1]: 78
   Bytes[1]: 79
@@ -332,6 +434,10 @@ TEST_CASE("CBOR: array [True, False, None]")
   REQUIRE(arr.items[0]->as_simple() == SimpleValue::True);
   REQUIRE(arr.items[1]->as_simple() == SimpleValue::False);
   REQUIRE(arr.items[2]->as_simple() == SimpleValue::Null);
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   const std::string expected_repr = R"(Array[3]:
   Simple: True
@@ -361,6 +467,10 @@ TEST_CASE("CBOR: array [1, 'two', b'3', True, None]")
 
   REQUIRE(arr.items[4]->as_simple() == SimpleValue::Null);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Array[5]:
   Signed: 1
   String: "two"
@@ -389,6 +499,10 @@ TEST_CASE("CBOR: array [0, -1, 42, -100, 65535]")
 
   REQUIRE(arr.items[4]->as_signed() == 65535);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Array[5]:
   Signed: 0
   Signed: -1
@@ -415,6 +529,10 @@ TEST_CASE("CBOR: nested array [[1, 2], [3, 4], [5, 6]]")
     REQUIRE(inner.items[0]->as_signed() == i * 2 + 1);
     REQUIRE(inner.items[1]->as_signed() == i * 2 + 2);
   }
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   const std::string expected_repr = R"(Array[3]:
   Array[2]:
@@ -483,6 +601,10 @@ TEST_CASE("CBOR: tagged array Tag(9100) with [1, 2, 3]")
   REQUIRE(arr.items[1]->as_signed() == 2);
   REQUIRE(arr.items[2]->as_signed() == 3);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Tagged[9100]:
   Array[3]:
     Signed: 1
@@ -501,6 +623,13 @@ TEST_CASE("CBOR: tagged empty array Tag(9300) with []")
   const auto& arr = std::get<Array>(item->value);
   REQUIRE(arr.items.size() == 0);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
+  const auto& array = decoded->tag_at(9300);
+  REQUIRE_THROWS_AS((void)array->array_at(0), CBORDecodeError);
+
   const std::string expected_repr = R"(Tagged[9300]:
   Array[0]:)";
   const std::string result = to_string(value);
@@ -513,6 +642,10 @@ TEST_CASE("CBOR: empty map")
   auto value = parse(cbor_bytes);
 
   REQUIRE(value->size() == 0);
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   const std::string expected_repr = "Map[0]:";
   const std::string result = to_string(value);
@@ -529,6 +662,17 @@ TEST_CASE("CBOR: map {1: 'one', 2: 'two', 3: 'three'}")
   REQUIRE(value->map_at(make_signed(1))->as_string() == "one");
   REQUIRE(value->map_at(make_signed(2))->as_string() == "two");
   REQUIRE(value->map_at(make_signed(3))->as_string() == "three");
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
+  for (size_t i = 0; i < 3; i++)
+  {
+    REQUIRE_EQ(
+      decoded->map_at(make_signed(i + 1))->as_string(),
+      value->map_at(make_signed(i + 1))->as_string());
+  }
 
   const std::string expected_repr = R"(Map[3]:
   Key:
@@ -557,6 +701,10 @@ TEST_CASE("CBOR: map {0: 100, 1: 200, 2: 300}")
   REQUIRE(value->map_at(make_signed(0))->as_signed() == 100);
   REQUIRE(value->map_at(make_signed(1))->as_signed() == 200);
   REQUIRE(value->map_at(make_signed(2))->as_signed() == 300);
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   const std::string expected_repr = R"(Map[3]:
   Key:
@@ -590,6 +738,10 @@ TEST_CASE("CBOR: map {'a': 1, 'b': 2, 'c': 3}")
   REQUIRE(map.items[2].first->as_string() == "c");
   REQUIRE(map.items[2].second->as_signed() == 3);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Map[3]:
   Key:
     String: "a"
@@ -620,6 +772,10 @@ TEST_CASE("CBOR: map {'x': 'y', 'foo': 'bar'}")
   REQUIRE(map.items[1].first->as_string() == "foo");
   REQUIRE(map.items[1].second->as_string() == "bar");
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Map[2]:
   Key:
     String: "x"
@@ -641,6 +797,10 @@ TEST_CASE("CBOR: map {'enabled': True, 'disabled': False, 'unknown': None}")
 
   const auto& map = std::get<Map>(value->value);
   REQUIRE(map.items.size() == 3);
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   REQUIRE(map.items[0].first->as_string() == "enabled");
   REQUIRE(map.items[0].second->as_simple() == SimpleValue::True);
@@ -677,6 +837,10 @@ TEST_CASE("CBOR: map {-1: 'minus one', -10: 'minus ten'}")
   REQUIRE(value->map_at(make_signed(-1))->as_string() == "minus one");
   REQUIRE(value->map_at(make_signed(-10))->as_string() == "minus ten");
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Map[2]:
   Key:
     Signed: -1
@@ -705,6 +869,10 @@ TEST_CASE("CBOR: array with map [1, {'a': 2}, 3]")
 
   REQUIRE(value->array_at(2)->as_signed() == 3);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Array[3]:
   Signed: 1
   Map[1]:
@@ -732,6 +900,10 @@ TEST_CASE("CBOR: array of maps [{'x': 1}, {'y': 2}, {'z': 3}]")
 
   REQUIRE(value->array_at(2)->size() == 1);
   REQUIRE(value->array_at(2)->map_at(make_string("z"))->as_signed() == 3);
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   const std::string expected_repr = R"(Array[3]:
   Map[1]:
@@ -766,6 +938,10 @@ TEST_CASE("CBOR: map with array {'items': [1, 2, 3]}")
   REQUIRE(arr->array_at(1)->as_signed() == 2);
   REQUIRE(arr->array_at(2)->as_signed() == 3);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Map[1]:
   Key:
     String: "items"
@@ -780,7 +956,7 @@ TEST_CASE("CBOR: map with array {'items': [1, 2, 3]}")
 
 TEST_CASE("CBOR: map with multiple arrays")
 {
-  auto cbor_bytes = ccf::ds::from_hex("a361618201026162820304616382050682");
+  auto cbor_bytes = ccf::ds::from_hex("a3616182010261628203046163820506");
   auto value = parse(cbor_bytes);
 
   REQUIRE(value->size() == 3);
@@ -799,6 +975,10 @@ TEST_CASE("CBOR: map with multiple arrays")
   REQUIRE(arr_c->size() == 2);
   REQUIRE(arr_c->array_at(0)->as_signed() == 5);
   REQUIRE(arr_c->array_at(1)->as_signed() == 6);
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   const std::string expected_repr = R"(Map[3]:
   Key:
@@ -825,13 +1005,17 @@ TEST_CASE("CBOR: map with multiple arrays")
 
 TEST_CASE("CBOR: tagged map Tag(10000) with {'a': 1, 'b': 2}")
 {
-  auto cbor_bytes = ccf::ds::from_hex("d92710a26161016162021b");
+  auto cbor_bytes = ccf::ds::from_hex("d92710a2616101616202");
   auto value = parse(cbor_bytes);
 
   const auto& item = value->tag_at(10000);
   REQUIRE(item->size() == 2);
   REQUIRE(item->map_at(make_string("a"))->as_signed() == 1);
   REQUIRE(item->map_at(make_string("b"))->as_signed() == 2);
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   const std::string expected_repr = R"(Tagged[10000]:
   Map[2]:
@@ -865,6 +1049,10 @@ TEST_CASE(
   REQUIRE(map->map_at(make_string("active"))->as_simple() == SimpleValue::True);
 
   REQUIRE(value->array_at(2)->as_simple() == SimpleValue::Null);
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   const std::string expected_repr = R"(Array[3]:
   Simple: True
@@ -903,6 +1091,10 @@ TEST_CASE("CBOR: array ['header', {'id': 123, 'name': 'test'}, 'footer']")
 
   REQUIRE(value->array_at(2)->as_string() == "footer");
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Array[3]:
   String: "header"
   Map[2]:
@@ -939,6 +1131,10 @@ TEST_CASE("CBOR: array [1, 2, {'nested': {'key': 'value'}}, 3]")
 
   REQUIRE(value->array_at(3)->as_signed() == 3);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Array[4]:
   Signed: 1
   Signed: 2
@@ -970,6 +1166,10 @@ TEST_CASE("CBOR: array [1, Tag(9600, 'tagged'), 3]")
 
   REQUIRE(value->array_at(2)->as_signed() == 3);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Array[3]:
   Signed: 1
   Tagged[9600]:
@@ -991,6 +1191,10 @@ TEST_CASE("CBOR: large bytes array (16 bytes)")
     REQUIRE(bytes[i] == static_cast<uint8_t>(i));
   }
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr =
     "Bytes[16]: 000102030405060708090a0b0c0d0e0f";
   const std::string result = to_string(value);
@@ -1010,6 +1214,10 @@ TEST_CASE("CBOR: map with mixed key types")
   const auto bytes_key = ccf::ds::from_hex("6279746573");
   REQUIRE(
     value->map_at(make_bytes(bytes_key))->as_simple() == SimpleValue::True);
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   const std::string expected_repr = R"(Map[3]:
   Key:
@@ -1043,6 +1251,10 @@ TEST_CASE("CBOR: map {'a': 1, 'b': 'two', 'c': b'3', 'd': False}")
   REQUIRE(byte_value[0] == 0x33);
 
   REQUIRE(value->map_at(make_string("d"))->as_simple() == SimpleValue::False);
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   const std::string expected_repr = R"(Map[4]:
   Key:
@@ -1079,6 +1291,10 @@ TEST_CASE("CBOR: map {'key1': b'value1', 'key2': b'value2'}")
   const auto value2 = value->map_at(make_string("key2"))->as_bytes();
   REQUIRE(value2.size() == 6);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Map[2]:
   Key:
     String: "key1"
@@ -1113,6 +1329,10 @@ TEST_CASE("CBOR: map {1: [10, 20], 2: ['a', 'b'], 3: [b'x', b'y']}")
   REQUIRE(arr2->size() == 2);
   REQUIRE(arr2->array_at(0)->as_bytes()[0] == 'x');
   REQUIRE(arr2->array_at(1)->as_bytes()[0] == 'y');
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   const std::string expected_repr = R"(Map[3]:
   Key:
@@ -1150,6 +1370,10 @@ TEST_CASE("CBOR: map {1: b'data1', 2: b'data2'}")
   const auto data2 = value->map_at(make_signed(2))->as_bytes();
   REQUIRE(data2.size() == 5);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Map[2]:
   Key:
     Signed: 1
@@ -1182,6 +1406,10 @@ TEST_CASE("CBOR: map {'nested': [1, [2, 3], 4]}")
 
   REQUIRE(arr->array_at(2)->as_signed() == 4);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Map[1]:
   Key:
     String: "nested"
@@ -1206,6 +1434,10 @@ TEST_CASE("CBOR: map {'tagged': Tag(9500, 'value')}")
   const auto& tagged_value = value->map_at(make_string("tagged"));
   const auto& item = tagged_value->tag_at(9500);
   REQUIRE(item->as_string() == "value");
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   const std::string expected_repr = R"(Map[1]:
   Key:
@@ -1242,6 +1474,10 @@ TEST_CASE(
   REQUIRE(flags->size() == 2);
   REQUIRE(flags->array_at(0)->as_simple() == SimpleValue::True);
   REQUIRE(flags->array_at(1)->as_simple() == SimpleValue::False);
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   const std::string expected_repr = R"(Map[3]:
   Key:
@@ -1288,6 +1524,10 @@ TEST_CASE("CBOR: map {'empty': [], 'single': [42], 'multiple': [1, 2, 3]}")
   REQUIRE(multiple->array_at(1)->as_signed() == 2);
   REQUIRE(multiple->array_at(2)->as_signed() == 3);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Map[3]:
   Key:
     String: "empty"
@@ -1314,7 +1554,7 @@ TEST_CASE("CBOR: large string (100 'A's)")
   auto cbor_bytes = ccf::ds::from_hex(
     "786441414141414141414141414141414141414141414141414141414141414141414141"
     "41414141414141414141414141414141414141414141414141414141414141414141414141"
-    "4141414141414141414141414141414141414141414141414141414141414141");
+    "4141414141414141414141414141414141414141414141414141414141");
   auto value = parse(cbor_bytes);
 
   auto str = value->as_string();
@@ -1323,6 +1563,10 @@ TEST_CASE("CBOR: large string (100 'A's)")
   {
     REQUIRE(str[i] == 'A');
   }
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   const std::string expected_repr =
     R"(String: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")";
@@ -1340,6 +1584,10 @@ TEST_CASE("CBOR: tagged array Tag(9200, ['a', 'b', 'c'])")
   REQUIRE(item->array_at(0)->as_string() == "a");
   REQUIRE(item->array_at(1)->as_string() == "b");
   REQUIRE(item->array_at(2)->as_string() == "c");
+
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
 
   const std::string expected_repr = R"(Tagged[9200]:
   Array[3]:
@@ -1361,6 +1609,10 @@ TEST_CASE("CBOR: tagged array Tag(9400, [1, 'two', b'3'])")
   REQUIRE(item->array_at(1)->as_string() == "two");
   REQUIRE(item->array_at(2)->as_bytes()[0] == 0x33);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Tagged[9400]:
   Array[3]:
     Signed: 1
@@ -1379,6 +1631,10 @@ TEST_CASE("CBOR: tagged array Tag(20000, [{'x': 1}, {'y': 2}])")
   const auto& arr = std::get<Array>(item->value);
   REQUIRE(arr.items.size() == 2);
 
+  auto encoded = serialize(value);
+  auto decoded = parse(encoded);
+  REQUIRE_EQ(cbor_bytes, encoded);
+
   const std::string expected_repr = R"(Tagged[20000]:
   Array[2]:
     Map[1]:
@@ -1394,6 +1650,7 @@ TEST_CASE("CBOR: tagged array Tag(20000, [{'x': 1}, {'y': 2}])")
   const std::string result = to_string(value);
   REQUIRE(result == expected_repr);
 }
+
 TEST_CASE("CBOR: helper function make_signed")
 {
   auto value = make_signed(42);
