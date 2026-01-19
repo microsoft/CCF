@@ -27,7 +27,7 @@ namespace
    * relying on space continuity, and that has to stay intact until calling
    * cbor_nondet_serialize. Therefore, the following choices have been made:
    *
-   * - individual items stored in lists rather then collections to avoid
+   * - individual items stored in lists rather than collections to avoid
    * move-on-resize
    * - CBOR collections are made vectors for continuity, and only referenced
    * after filled up.
