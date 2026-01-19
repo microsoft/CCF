@@ -19,6 +19,7 @@ namespace ccf::crypto
   // Standardised: CWT claims map.
   static constexpr int64_t COSE_PHEADER_KEY_CWT = 15;
   // Standardised: verifiable data structure.
+  // https://www.ietf.org/archive/id/draft-ietf-cose-merkle-tree-proofs-18.html#name-cose-header-parameter
   static constexpr int64_t COSE_PHEADER_KEY_VDS = 395;
   static constexpr int64_t COSE_PHEADER_VDS_CCF_LEDGER_SHA256 = 2;
   // Standardised: issued at CWT claim. Value is **PLAIN INTEGER**, as per
