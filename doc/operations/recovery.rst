@@ -175,7 +175,7 @@ The following diagram illustrates the key hierarchy and encryption relationships
         end
 
 
-        subgraph Shares["Store: gov.sealed_shares table"]
+        subgraph Shares["Store: internal.sealed_shares table"]
             WLS["Wrapped Ledger Secret<br/>(AES-GCM encrypted)"]
             LSWK -->|key| WLS
             LS --> WLS
