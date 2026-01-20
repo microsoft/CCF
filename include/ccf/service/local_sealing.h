@@ -21,7 +21,7 @@ namespace ccf
 
   struct SealedRecoveryKey
   {
-    DerivedSealingKeyAlgorithm version;
+    DerivedSealingKeyAlgorithm version = DerivedSealingKeyAlgorithm::SNP_v1;
     std::vector<uint8_t> ciphertext;
     crypto::Pem pubkey;
     pal::snp::TcbVersionRaw tcb_version;

@@ -182,13 +182,13 @@ namespace ccf::sealing
     auto& sealed_recovery_key = sealed_recovery_key_opt.value();
 
     // Retrieve the encrypted sealed share
-    auto* sealed_shares = tx.ro<SealedShares>(Tables::SEALED_SHARES);
-    if (!sealed_shares->get().has_value())
+    auto sealed_shares = tx.ro<SealedShares>(Tables::SEALED_SHARES)->get();
+    if (!sealed_shares.has_value())
     {
       LOG_INFO_FMT("No sealed shares found to unseal recovery share");
       return std::nullopt;
     }
-    auto sealed_share_info = sealed_shares->get().value();
+    auto sealed_share_info = sealed_shares.value();
     auto encrypted_full_share_it =
       sealed_share_info.encrypted_wrapping_keys.find(node_id);
     if (
