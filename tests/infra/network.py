@@ -780,8 +780,6 @@ class Network:
         snapshot_dirs=None,
         common_dir=None,
         starting_nodes=None,
-        timeout=10,
-        sealed_ledger_secrets=None,
         suspend_after_start=False,
         **kwargs,
     ):
