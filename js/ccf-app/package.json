@@ -1,5 +1,9 @@
 {
   "name": "@microsoft/ccf-app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/ccf"
+  },
   "version": "0.0.0",
   "description": "CCF app support package",
   "main": "index.js",
