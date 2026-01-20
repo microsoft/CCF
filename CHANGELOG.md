@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.19]
+
+[6.0.19]: https://github.com/microsoft/CCF/releases/tag/6.0.19
+
+### Changed
+
+- Partial revert to `fetch_recent_snapshot` behaviour. Nodes will now use a local snapshot if available and sufficiently fresh, and only prefer the peer's snapshot if it is newer (#7589).
+
 ## [6.0.18]
 
 [6.0.18]: https://github.com/microsoft/CCF/releases/tag/6.0.18
