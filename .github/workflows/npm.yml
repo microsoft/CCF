@@ -18,6 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          registry-url: "https://registry.npmjs.org"
 
       - name: Get release number from git tag (release) or latest (branch)
         run: |
@@ -33,4 +34,5 @@ jobs:
         run: |
           set -ex
           cd js/ccf-app
-          npm publish microsoft-ccf-app*.tgz --access public
+          echo "registry=https://registry.npmjs.org/" > .npmrc
+          NPM_CONFIG_PROVENANCE=false npm publish microsoft-ccf-app*.tgz --access public
