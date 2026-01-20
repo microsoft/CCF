@@ -313,9 +313,9 @@ namespace ccf::js::extensions
       }
       catch (const std::exception& e)
       {
-        GOV_FAIL_FMT("Unable to request snapshot: {}", e.what());
+        GOV_FAIL_FMT("Unable to shuffle sealed shares: {}", e.what());
         return JS_ThrowInternalError(
-          ctx, "Unable to request snapshot: %s", e.what());
+          ctx, "Unable to shuffle sealed shares: %s", e.what());
       }
 
       return ccf::js::core::constants::Undefined;

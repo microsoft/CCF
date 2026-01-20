@@ -127,7 +127,7 @@ When local sealing is enabled, each node generates an RSA key pair (the "recover
 During normal operation, whenever the ledger secret changes, or a node joins the network, the system also shuffles "sealed shares". 
 The primary generates a fresh ledger secret wrapping key, encrypts the ledger secret with that key, and stores a sealed copy of the wrapping key for each trusted node with a sealed recovery public key. 
 
-During recovery, if the node was previously part of the network and has the same CPU, measurement, and policy, it can bypassing the need for member recovery shares by re-deriving the sealing key, unsealing its recovery private key, decrypting the sealed wrapping key, and using that to unwrap the ledger secret. 
+During recovery, if the node was previously part of the network and has the same CPU, measurement, and policy, it can bypass the need for member recovery shares by re-deriving the sealing key, unsealing its recovery private key, decrypting the sealed wrapping key, and using that to unwrap the ledger secret. 
 
 The following diagram illustrates the key hierarchy and encryption relationships:
 
