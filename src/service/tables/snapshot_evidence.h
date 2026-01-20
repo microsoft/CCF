@@ -16,8 +16,8 @@ namespace ccf
     ccf::kv::Version version = 0;
   };
 
-  DECLARE_JSON_TYPE(SnapshotHash)
-  DECLARE_JSON_REQUIRED_FIELDS(SnapshotHash, hash, version)
+  DECLARE_JSON_TYPE(SnapshotHash);
+  DECLARE_JSON_REQUIRED_FIELDS(SnapshotHash, hash, version);
 
   using SnapshotEvidence = ServiceValue<SnapshotHash>;
   namespace Tables

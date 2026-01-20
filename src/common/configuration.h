@@ -54,7 +54,7 @@ namespace ccf
      {LoggerLevel::FATAL, "Fatal"}});
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::NodeCertificateInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::NodeCertificateInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::NodeCertificateInfo);
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCFConfig::NodeCertificateInfo,
     subject_name,
