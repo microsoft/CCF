@@ -17,7 +17,7 @@ namespace ccf
 
   DECLARE_JSON_ENUM(
     DerivedSealingKeyAlgorithm,
-    {{DerivedSealingKeyAlgorithm::SNP_v1, "SNP_TCB_v1"}})
+    {{DerivedSealingKeyAlgorithm::SNP_v1, "SNP_TCB_v1"}});
 
   struct SealedRecoveryKey
   {
