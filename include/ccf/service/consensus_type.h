@@ -13,5 +13,5 @@ namespace ccf
   };
 
   DECLARE_JSON_ENUM(
-    ConsensusType, {{ConsensusType::CFT, "CFT"}, {ConsensusType::BFT, "BFT"}})
+    ConsensusType, {{ConsensusType::CFT, "CFT"}, {ConsensusType::BFT, "BFT"}});
 }
