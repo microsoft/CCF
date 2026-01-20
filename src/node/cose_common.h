@@ -35,17 +35,6 @@ namespace ccf::cose
 
   using Signature = std::span<const uint8_t>;
 
-  static std::string qcbor_buf_to_string(const UsefulBufC& buf)
-  {
-    return {reinterpret_cast<const char*>(buf.ptr), buf.len};
-  }
-
-  static std::vector<uint8_t> qcbor_buf_to_byte_vector(const UsefulBufC& buf)
-  {
-    const auto* ptr = static_cast<const uint8_t*>(buf.ptr);
-    return {ptr, ptr + buf.len};
-  }
-
   static bool is_ecdsa_alg(int64_t cose_alg)
   {
     return cose_alg == T_COSE_ALGORITHM_ES256 ||
@@ -69,13 +58,6 @@ namespace ccf::cose
       std::runtime_error(msg)
     {}
   };
-
-  static std::string tstring_to_string(QCBORItem& item)
-  {
-    return {
-      static_cast<const char*>(item.val.string.ptr),
-      static_cast<const char*>(item.val.string.ptr) + item.val.string.len};
-  }
 
   struct CwtClaims
   {

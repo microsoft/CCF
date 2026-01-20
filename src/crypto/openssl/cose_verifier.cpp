@@ -20,11 +20,6 @@
 
 namespace
 {
-  std::string qcbor_buf_to_string(const UsefulBufC& buf)
-  {
-    return {reinterpret_cast<const char*>(buf.ptr), buf.len};
-  }
-
   std::optional<int> extract_algorithm_from_header(
     std::span<const uint8_t> cose_msg)
   {
