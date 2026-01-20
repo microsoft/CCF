@@ -17,7 +17,7 @@
 namespace ccf::cbor
 {
   struct ValueImpl;
-  using Value = std::unique_ptr<ValueImpl>;
+  using Value = std::shared_ptr<ValueImpl>;
 
   using Signed = int64_t;
   using Bytes = std::span<const uint8_t>;
@@ -40,9 +40,10 @@ namespace ccf::cbor
     std::vector<Value> items;
   };
 
+  using MapItem = std::pair<Value, Value>;
   struct Map
   {
-    std::vector<std::pair<Value, Value>> items;
+    std::vector<MapItem> items;
   };
 
   struct Tagged
@@ -99,14 +100,19 @@ namespace ccf::cbor
   };
 
   Value make_signed(int64_t value);
+  Value make_simple(SimpleValue value);
   Value make_string(std::string_view data);
   Value make_bytes(std::span<const uint8_t> data);
+  Value make_tagged(uint64_t tag, Value&& value);
+  Value make_array(std::vector<Value>&& data);
+  Value make_map(std::vector<MapItem>&& data);
 
   Value parse(std::span<const uint8_t> raw);
   std::vector<uint8_t> serialize(const Value& value);
 
   std::string to_string(const Value& value);
   bool simple_to_boolean(const Simple& value);
+  SimpleValue boolean_to_simple(bool value);
 
   decltype(auto) rethrow_with_msg(auto&& f, std::string_view msg = {})
   {

@@ -3,6 +3,8 @@
 
 #include "ccf/crypto/cose.h"
 
+#include "crypto/cbor.h"
+
 #include <qcbor/qcbor_decode.h>
 #include <qcbor/qcbor_encode.h>
 #include <qcbor/qcbor_spiffy_decode.h>
@@ -14,158 +16,70 @@ namespace ccf::cose::edit
   std::vector<uint8_t> set_unprotected_header(
     const std::span<const uint8_t>& cose_input, const desc::Type& descriptor)
   {
-    UsefulBufC buf{cose_input.data(), cose_input.size()};
+    using namespace ccf::cbor;
 
-    QCBORError err = QCBOR_SUCCESS;
-    QCBORDecodeContext ctx;
-    QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);
+    auto cose_cbor = rethrow_with_msg(
+      [&]() { return parse(cose_input); }, "Failed to parse COSE_Sign1");
 
-    size_t pos_start = 0;
-    size_t pos_end = 0;
+    const auto& cose_envelope = rethrow_with_msg(
+      [&]() -> auto& { return cose_cbor->tag_at(18); },
+      "Failed to parse COSE_Sign1 tag");
 
-    QCBORDecode_EnterArray(&ctx, nullptr);
-    err = QCBORDecode_GetError(&ctx);
-    if (err != QCBOR_SUCCESS)
-    {
-      throw std::logic_error("Failed to parse COSE_Sign1 outer array");
-    }
+    const auto& phdr = rethrow_with_msg(
+      [&]() -> auto& { return cose_envelope->array_at(0); },
+      "Failed to parse COSE_Sign1 protected header");
 
-    auto tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
-    if (tag != CBOR_TAG_COSE_SIGN1)
-    {
-      throw std::logic_error("Failed to parse COSE_Sign1 tag");
-    }
+    const auto& payload = rethrow_with_msg(
+      [&]() -> auto& { return cose_envelope->array_at(2); },
+      "Failed to parse COSE_Sign1 payload");
 
-    QCBORItem item;
-    err = QCBORDecode_GetNext(&ctx, &item);
-    if (err != QCBOR_SUCCESS || item.uDataType != QCBOR_TYPE_BYTE_STRING)
-    {
-      throw std::logic_error(
-        "Failed to parse COSE_Sign1 protected header as bstr");
-    }
-    UsefulBufC phdr = {item.val.string.ptr, item.val.string.len};
+    const auto& signature = rethrow_with_msg(
+      [&]() -> auto& { return cose_envelope->array_at(3); },
+      "Failed to parse COSE_Sign1 signature");
 
-    // Skip unprotected header
-    QCBORDecode_VGetNextConsume(&ctx, &item);
-
-    err = QCBORDecode_PartialFinish(&ctx, &pos_start);
-    if (err != QCBOR_ERR_ARRAY_OR_MAP_UNCONSUMED)
-    {
-      throw std::logic_error("Failed to find start of payload");
-    }
-    QCBORDecode_VGetNextConsume(&ctx, &item);
-    err = QCBORDecode_PartialFinish(&ctx, &pos_end);
-    if (err != QCBOR_ERR_ARRAY_OR_MAP_UNCONSUMED)
-    {
-      throw std::logic_error("Failed to find end of payload");
-    }
-    UsefulBufC payload = {cose_input.data() + pos_start, pos_end - pos_start};
-
-    // QCBORDecode_PartialFinish() before and after should allow constructing a
-    // span of the encoded payload, which can perhaps then be passed to
-    // QCBOREncode_AddEncoded and would allow blindly copying the payload
-    // without parsing it.
-
-    err = QCBORDecode_GetNext(&ctx, &item);
-    if (err != QCBOR_SUCCESS && item.uDataType != QCBOR_TYPE_BYTE_STRING)
-    {
-      throw std::logic_error("Failed to parse COSE_Sign1 signature");
-    }
-    UsefulBufC signature = {item.val.string.ptr, item.val.string.len};
-
-    QCBORDecode_ExitArray(&ctx);
-    err = QCBORDecode_Finish(&ctx);
-    if (err != QCBOR_SUCCESS)
-    {
-      throw std::logic_error("Failed to parse COSE_Sign1");
-    }
-
-    size_t additional_map_size = 0;
+    std::vector<Value> edited;
+    edited.push_back(phdr);
 
     if (std::holds_alternative<desc::Empty>(descriptor))
     {
-      // Nothing to do
+      edited.push_back(make_map({}));
     }
     else if (std::holds_alternative<desc::Value>(descriptor))
     {
       const auto& [pos, key, value] = std::get<desc::Value>(descriptor);
-
-      // Maximum expected size of the additional map, sub-map is the
-      // worst-case scenario
-      additional_map_size = QCBOR_HEAD_BUFFER_SIZE + // map
-        QCBOR_HEAD_BUFFER_SIZE + // key
-        sizeof(key) + // key
-        QCBOR_HEAD_BUFFER_SIZE + // submap
-        QCBOR_HEAD_BUFFER_SIZE + // subkey
-        sizeof(pos::AtKey::key) + // subkey
-        QCBOR_HEAD_BUFFER_SIZE + // value
-        value.size(); // value
-    }
-    else
-    {
-      throw std::logic_error("Invalid COSE_Sign1 edit descriptor");
-    }
-
-    // We add one extra QCBOR_HEAD_BUFFER_SIZE, because we parse and re-encode
-    // the protected header bstr, which involves variable integer encoding, just
-    // in case the library does not pick the most compact encoding.
-    std::vector<uint8_t> output(
-      cose_input.size() + additional_map_size + QCBOR_HEAD_BUFFER_SIZE);
-    UsefulBuf output_buf{output.data(), output.size()};
-
-    QCBOREncodeContext ectx;
-    QCBOREncode_Init(&ectx, output_buf);
-    QCBOREncode_AddTag(&ectx, CBOR_TAG_COSE_SIGN1);
-    QCBOREncode_OpenArray(&ectx);
-    QCBOREncode_AddBytes(&ectx, phdr);
-    QCBOREncode_OpenMap(&ectx);
-
-    if (std::holds_alternative<desc::Empty>(descriptor))
-    {
-      // Nothing to do
-    }
-    else if (std::holds_alternative<desc::Value>(descriptor))
-    {
-      const auto& [pos, key, value] = std::get<desc::Value>(descriptor);
+      std::vector<MapItem> uhdr;
 
       if (std::holds_alternative<pos::InArray>(pos))
       {
-        QCBOREncode_OpenArrayInMapN(&ectx, key);
-        QCBOREncode_AddBytes(&ectx, {value.data(), value.size()});
-        QCBOREncode_CloseArray(&ectx);
+        std::vector<Value> items{make_bytes(value)};
+        uhdr.emplace_back(make_signed(key), make_array(std::move(items)));
       }
       else if (std::holds_alternative<pos::AtKey>(pos))
       {
-        QCBOREncode_OpenMapInMapN(&ectx, key);
         auto subkey = std::get<pos::AtKey>(pos).key;
-        QCBOREncode_OpenArrayInMapN(&ectx, subkey);
-        QCBOREncode_AddBytes(&ectx, {value.data(), value.size()});
-        QCBOREncode_CloseArray(&ectx);
-        QCBOREncode_CloseMap(&ectx);
+
+        std::vector<Value> items{make_bytes(value)};
+        std::vector<MapItem> submap{
+          {make_signed(subkey), make_array(std::move(items))}};
+
+        uhdr.emplace_back(make_signed(key), make_map(std::move(submap)));
       }
       else
       {
         throw std::logic_error("Invalid COSE_Sign1 edit operation");
       }
+
+      edited.push_back(make_map(std::move(uhdr)));
     }
     else
     {
       throw std::logic_error("Invalid COSE_Sign1 edit descriptor");
     }
 
-    QCBOREncode_CloseMap(&ectx);
-    QCBOREncode_AddEncoded(&ectx, payload);
-    QCBOREncode_AddBytes(&ectx, signature);
-    QCBOREncode_CloseArray(&ectx);
+    edited.push_back(payload);
+    edited.push_back(signature);
 
-    UsefulBufC cose_output;
-    err = QCBOREncode_Finish(&ectx, &cose_output);
-    if (err != QCBOR_SUCCESS)
-    {
-      throw std::logic_error("Failed to encode COSE_Sign1");
-    }
-    output.resize(cose_output.len);
-    output.shrink_to_fit();
-    return output;
-  };
+    auto edited_envelope = make_tagged(18, make_array(std::move(edited)));
+    return serialize(edited_envelope);
+  }
 }
