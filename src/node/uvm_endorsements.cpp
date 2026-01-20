@@ -326,17 +326,18 @@ namespace ccf
     auto raw_payload =
       cose::verify_uvm_endorsements_signature(pubk, uvm_endorsements_raw);
 
-    if (phdr.content_type != cose::headers::CONTENT_TYPE_APPLICATION_JSON_VALUE)
-    {
-      throw std::logic_error(fmt::format(
-        "Unexpected payload content type {}, expected {}",
-        phdr.content_type,
-        cose::headers::CONTENT_TYPE_APPLICATION_JSON_VALUE));
-    }
-
     std::string sevsnpvm_launch_measurement{};
     if (sevsnpvm_guest_svn.empty())
     {
+      if (
+        phdr.content_type != cose::headers::CONTENT_TYPE_APPLICATION_JSON_VALUE)
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected payload content type {}, expected {}",
+          phdr.content_type,
+          cose::headers::CONTENT_TYPE_APPLICATION_JSON_VALUE));
+      }
+
       auto payload = nlohmann::json::parse(raw_payload);
       sevsnpvm_launch_measurement =
         payload["x-ms-sevsnpvm-launchmeasurement"].get<std::string>();
@@ -373,6 +374,16 @@ namespace ccf
     }
     else
     {
+      if (
+        phdr.content_type !=
+        cose::headers::CONTENT_TYPE_APPLICATION_OCTET_STREAM)
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected payload content type {}, expected {}",
+          phdr.content_type,
+          cose::headers::CONTENT_TYPE_APPLICATION_OCTET_STREAM));
+      }
+
       sevsnpvm_launch_measurement =
         ccf::ds::to_hex(raw_payload.begin(), raw_payload.end());
     }
