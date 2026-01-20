@@ -123,10 +123,7 @@ namespace ccf
       throw std::logic_error("Unimplemented");
     }
 
-    void shuffle_sealed_shares(ccf::kv::Tx& /*tx*/) override
-    {
-      throw std::logic_error("Unimplemented");
-    }
+    void shuffle_sealed_shares(ccf::kv::Tx& /*tx*/) override {}
   };
 
   class StubGovernanceEffects : public ccf::AbstractGovernanceEffects
