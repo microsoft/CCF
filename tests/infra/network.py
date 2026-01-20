@@ -26,6 +26,7 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 from infra.consortium import slurp_file
 from collections import deque
+import inspect
 
 
 from loguru import logger as LOG
@@ -218,6 +219,23 @@ class Network:
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
     replication_delay = 30
+
+    def _set_common_dir(self, args, common_dir=None):
+        caller = inspect.stack()[1]
+        assert caller.function in (
+            "start",
+            "start_in_recovery",
+            "start_in_self_healing_open",
+        ), f"Common dir can only be set from start, start_in_recovery or start_in_self_healing_open, not {caller.function}"
+        caller = inspect.stack()[2]
+        # Most networks are created through the network context manager
+        if caller.function == "network":
+            caller = inspect.stack()[3]
+
+        self.common_dir = common_dir or get_common_folder_name(
+            args.workspace,
+            f"{args.label}:{inspect.getmodulename(caller.filename)}.{caller.function}:{caller.lineno}",
+        )
 
     def __init__(
         self,
@@ -566,7 +584,7 @@ class Network:
         Starts a CCF network.
         :param args: command line arguments to configure the CCF nodes.
         """
-        self.common_dir = get_common_folder_name(args.workspace, args.label)
+        self._set_common_dir(args)
 
         assert (
             args.constitution
@@ -695,9 +713,7 @@ class Network:
         :param snapshots_dir: snapshot directory to recover from.
         :param common_dir: common directory containing member and user keys and certs.
         """
-        self.common_dir = common_dir or get_common_folder_name(
-            args.workspace, args.label
-        )
+        self._set_common_dir(args, common_dir)
         committed_ledger_dirs = committed_ledger_dirs or []
 
         primary = self._start_all_nodes(
@@ -785,9 +801,7 @@ class Network:
         suspend_after_start=False,
         **kwargs,
     ):
-        self.common_dir = common_dir or get_common_folder_name(
-            args.workspace, args.label
-        )
+        self._set_common_dir(args, common_dir)
 
         self.per_node_args_override = self.per_node_args_override or {
             i: {} for i in range(len(self.nodes))
