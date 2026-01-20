@@ -150,7 +150,7 @@ The following diagram illustrates the key hierarchy and encryption relationships
         subgraph KG["Key Generation"]
             subgraph Sealing Key
                 SK["Sealing Key<br/>(HKDF)"]
-                Label["Label: <br/>CCF_LOCAL_SEALING_KEY"]
+                Label["Label: <br/>CCF AMD Local Sealing Key"]
                 DK -->|ikm| SK
                 Label -->|info| SK
             end
