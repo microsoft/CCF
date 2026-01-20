@@ -54,20 +54,18 @@ struct Signer
         break;
       case PayloadType::NestedCBOR:
       {
-        payload.resize(1024);
-        QCBOREncodeContext ctx;
-        QCBOREncode_Init(&ctx, {payload.data(), payload.size()});
-        QCBOREncode_OpenArray(&ctx);
-        QCBOREncode_AddInt64(&ctx, 1);
-        QCBOREncode_OpenArray(&ctx);
-        QCBOREncode_AddInt64(&ctx, 2);
-        QCBOREncode_AddInt64(&ctx, 3);
-        QCBOREncode_CloseArray(&ctx);
-        QCBOREncode_CloseArray(&ctx);
-        UsefulBufC result;
-        QCBOREncode_Finish(&ctx, &result);
-        payload.resize(result.len);
-        payload.shrink_to_fit();
+        using namespace ccf::cbor;
+
+        std::vector<Value> arr;
+        arr.push_back(make_signed(1));
+
+        std::vector<Value> inner;
+        inner.push_back(make_signed(2));
+        inner.push_back(make_signed(3));
+
+        arr.push_back(make_array(std::move(inner)));
+
+        payload = serialize(make_array(std::move(arr)));
       }
       break;
     }
