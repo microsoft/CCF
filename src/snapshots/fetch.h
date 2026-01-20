@@ -121,6 +121,7 @@ namespace snapshots
   static std::optional<SnapshotResponse> try_fetch_from_peer(
     const std::string& peer_address,
     const std::string& path_to_peer_ca,
+    size_t latest_local_snapshot,
     size_t max_size)
   {
     try
@@ -135,8 +136,10 @@ namespace snapshots
       // redirects terminate, the final response is likely to be extremely large
       // so is fetched over multiple requests for a sub-range, returning
       // PARTIAL_CONTENT each time.
-      std::string snapshot_url =
-        fmt::format("https://{}/node/snapshot", peer_address);
+      std::string snapshot_url = fmt::format(
+        "https://{}/node/snapshot?since={}",
+        peer_address,
+        latest_local_snapshot);
 
       // Fetch 4MB chunks at a time
       constexpr size_t range_size = 4L * 1024 * 1024;
@@ -239,7 +242,8 @@ namespace snapshots
 
         if (status_code == HTTP_STATUS_NOT_FOUND)
         {
-          LOG_INFO_FMT("Peer has no suitable snapshot");
+          LOG_INFO_FMT(
+            "Peer has no snapshot newer than {}", latest_local_snapshot);
           return std::nullopt;
         }
 
@@ -340,6 +344,7 @@ namespace snapshots
   static std::optional<SnapshotResponse> fetch_from_peer(
     const std::string& peer_address,
     const std::string& path_to_peer_ca,
+    size_t latest_local_snapshot,
     size_t max_attempts,
     size_t retry_delay_ms,
     size_t max_size)
@@ -357,8 +362,8 @@ namespace snapshots
         std::this_thread::sleep_for(std::chrono::milliseconds(retry_delay_ms));
       }
 
-      auto response =
-        try_fetch_from_peer(peer_address, path_to_peer_ca, max_size);
+      auto response = try_fetch_from_peer(
+        peer_address, path_to_peer_ca, latest_local_snapshot, max_size);
       if (response.has_value())
       {
         return response;
