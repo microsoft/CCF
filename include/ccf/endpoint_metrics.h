@@ -31,9 +31,9 @@ namespace ccf
     std::vector<EndpointMetricsEntry> metrics;
   };
 
-  DECLARE_JSON_TYPE(EndpointMetricsEntry)
+  DECLARE_JSON_TYPE(EndpointMetricsEntry);
   DECLARE_JSON_REQUIRED_FIELDS(
-    EndpointMetricsEntry, path, method, calls, errors, failures, retries)
-  DECLARE_JSON_TYPE(EndpointMetrics)
-  DECLARE_JSON_REQUIRED_FIELDS(EndpointMetrics, metrics)
+    EndpointMetricsEntry, path, method, calls, errors, failures, retries);
+  DECLARE_JSON_TYPE(EndpointMetrics);
+  DECLARE_JSON_REQUIRED_FIELDS(EndpointMetrics, metrics);
 }

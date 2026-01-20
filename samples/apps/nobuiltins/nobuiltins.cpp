@@ -18,8 +18,8 @@ namespace nobuiltins
     std::vector<uint8_t> endorsements;
   };
 
-  DECLARE_JSON_TYPE(NodeQuote)
-  DECLARE_JSON_REQUIRED_FIELDS(NodeQuote, quote_format, quote, endorsements)
+  DECLARE_JSON_TYPE(NodeQuote);
+  DECLARE_JSON_REQUIRED_FIELDS(NodeQuote, quote_format, quote, endorsements);
 
   struct NodeSummary : public NodeQuote
   {
@@ -29,40 +29,40 @@ namespace nobuiltins
     ccf::NodeId node_id;
   };
 
-  DECLARE_JSON_TYPE_WITH_BASE(NodeSummary, NodeQuote)
+  DECLARE_JSON_TYPE_WITH_BASE(NodeSummary, NodeQuote);
   DECLARE_JSON_REQUIRED_FIELDS(
-    NodeSummary, committed_view, committed_seqno, node_id)
+    NodeSummary, committed_view, committed_seqno, node_id);
 
   struct AllNodesSummary
   {
     std::map<std::string, NodeQuote> nodes;
   };
 
-  DECLARE_JSON_TYPE(AllNodesSummary)
-  DECLARE_JSON_REQUIRED_FIELDS(AllNodesSummary, nodes)
+  DECLARE_JSON_TYPE(AllNodesSummary);
+  DECLARE_JSON_REQUIRED_FIELDS(AllNodesSummary, nodes);
 
   struct TransactionIDResponse
   {
     std::string transaction_id;
   };
 
-  DECLARE_JSON_TYPE(TransactionIDResponse)
-  DECLARE_JSON_REQUIRED_FIELDS(TransactionIDResponse, transaction_id)
+  DECLARE_JSON_TYPE(TransactionIDResponse);
+  DECLARE_JSON_REQUIRED_FIELDS(TransactionIDResponse, transaction_id);
 
   struct TimeResponse
   {
     std::string timestamp;
   };
 
-  DECLARE_JSON_TYPE(TimeResponse)
-  DECLARE_JSON_REQUIRED_FIELDS(TimeResponse, timestamp)
+  DECLARE_JSON_TYPE(TimeResponse);
+  DECLARE_JSON_REQUIRED_FIELDS(TimeResponse, timestamp);
 
   struct GetCommit
   {
     ccf::TxID transaction_id;
   };
-  DECLARE_JSON_TYPE(GetCommit)
-  DECLARE_JSON_REQUIRED_FIELDS(GetCommit, transaction_id)
+  DECLARE_JSON_TYPE(GetCommit);
+  DECLARE_JSON_REQUIRED_FIELDS(GetCommit, transaction_id);
 
   // SNIPPET: registry_inheritance
   class NoBuiltinsRegistry : public ccf::BaseEndpointRegistry
