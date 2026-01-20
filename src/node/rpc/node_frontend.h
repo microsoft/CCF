@@ -120,7 +120,8 @@ namespace ccf
   };
 
   DECLARE_JSON_TYPE(JWTRefreshMetrics);
-  DECLARE_JSON_REQUIRED_FIELDS(JWTRefreshMetrics, attempts, successes, failures);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    JWTRefreshMetrics, attempts, successes, failures);
 
   struct SetJwtPublicSigningKeys
   {
