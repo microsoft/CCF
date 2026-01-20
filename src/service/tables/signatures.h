@@ -49,9 +49,9 @@ namespace ccf
     {}
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(
-    PrimarySignature, NodeSignature)
+    PrimarySignature, NodeSignature);
   DECLARE_JSON_REQUIRED_FIELDS(
-    PrimarySignature, seqno, view, commit_seqno, commit_view, root)
+    PrimarySignature, seqno, view, commit_seqno, commit_view, root);
   DECLARE_JSON_OPTIONAL_FIELDS(PrimarySignature, cert);
 
   // Most recent signature is a single Value in the KV

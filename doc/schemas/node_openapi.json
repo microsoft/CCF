@@ -1709,6 +1709,96 @@
         }
       }
     },
+    "/node/snapshot": {
+      "get": {
+        "operationId": "GetNodeSnapshot",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      },
+      "head": {
+        "operationId": "HeadNodeSnapshot",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
+    },
+    "/node/snapshot/{snapshot_name}": {
+      "get": {
+        "operationId": "GetNodeSnapshotSnapshotName",
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      },
+      "head": {
+        "operationId": "HeadNodeSnapshotSnapshotName",
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "snapshot_name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
     "/node/state": {
       "get": {
         "operationId": "GetNodeState",

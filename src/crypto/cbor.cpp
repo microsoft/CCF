@@ -3,8 +3,11 @@
 
 #include "crypto/cbor.h"
 
+#include "ccf/ds/hex.h"
+
 #include <algorithm>
 #include <iomanip>
+#include <list>
 #include <sstream>
 
 #define FMT_HEADER_ONLY
@@ -19,6 +22,65 @@ using namespace ccf::cbor;
 
 namespace
 {
+  /* Handy storage of 'cbor_raw's when recursively nesting objects. EverCBOR
+   * collections work as pointers from one cbor_raw to another, with arrays
+   * relying on space continuity, and that has to stay intact until calling
+   * cbor_nondet_serialize. Therefore, the following choices have been made:
+   *
+   * - individual items stored in lists rather than collections to avoid
+   * move-on-resize
+   * - CBOR collections are made vectors for continuity, and only referenced
+   * after filled up.
+   */
+  class CborRawArena
+  {
+  public:
+    CborRawArena() = default;
+    ~CborRawArena() = default;
+
+    void push(cbor_raw&& single)
+    {
+      singles.push_back(single);
+    }
+
+    [[nodiscard]] cbor_raw* single() const
+    {
+      return const_cast<cbor_raw*>(&singles.back());
+    }
+
+    void push(std::vector<cbor_raw>&& array)
+    {
+      arrays.push_back(array);
+    }
+
+    [[nodiscard]] cbor_raw* array() const
+    {
+      return const_cast<cbor_raw*>(&arrays.back().front());
+    }
+
+    void push(std::vector<cbor_map_entry>&& map)
+    {
+      maps.push_back(map);
+    }
+
+    [[nodiscard]] cbor_map_entry* map() const
+    {
+      return const_cast<cbor_map_entry*>(&maps.back().front());
+    }
+
+    // No copy
+    CborRawArena(const CborRawArena&) = delete;
+    CborRawArena& operator=(const CborRawArena&) = delete;
+
+    // No move
+    CborRawArena(CborRawArena&&) = delete;
+    CborRawArena& operator=(CborRawArena&&) = delete;
+
+  private:
+    std::list<cbor_raw> singles;
+    std::list<std::vector<cbor_raw>> arrays;
+    std::list<std::vector<cbor_map_entry>> maps;
+  };
   Value consume(cbor_nondet_t cbor);
 
   void print_indent(std::ostringstream& os, size_t indent)
@@ -169,6 +231,181 @@ namespace
     }
   }
 
+  std::string format_simple(const Simple& v)
+  {
+    const auto casted = static_cast<int>(v);
+    switch (casted)
+    {
+      case SimpleValue::False:
+        return "Simple: False";
+      case SimpleValue::True:
+        return "Simple: True";
+      case SimpleValue::Null:
+        return "Simple: Null";
+      case SimpleValue::Undefined:
+        return "Simple: Undefined";
+      default:
+        return "Simple: " + std::to_string(casted);
+    }
+  }
+
+  cbor_raw to_raw_cbor(const Value& value, CborRawArena& arena);
+
+  cbor_raw to_raw_signed(const Signed& v)
+  {
+    return cbor_nondet_mk_int64(v);
+  }
+
+  cbor_raw to_raw_string(const String& v)
+  {
+    cbor_raw result;
+    if (!cbor_nondet_mk_text_string(
+          reinterpret_cast<uint8_t*>(const_cast<char*>(v.data())),
+          v.size(),
+          &result))
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED, fmt::format("Encoding text string {} failed", v));
+    }
+    return result;
+  }
+
+  cbor_raw to_raw_bytes(const Bytes& v)
+  {
+    cbor_raw result;
+    if (!cbor_nondet_mk_byte_string(
+          const_cast<uint8_t*>(v.data()), v.size(), &result))
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED,
+        fmt::format("Encoding bytes string {} failed", ccf::ds::to_hex(v)));
+    }
+    return result;
+  }
+
+  cbor_raw to_raw_simple(const Simple& v)
+  {
+    cbor_raw result;
+    if (!cbor_nondet_mk_simple_value(v, &result))
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED,
+        fmt::format("Encoding simple value {} failed", format_simple(v)));
+    }
+    return result;
+  }
+
+  cbor_raw to_raw_tagged(const Tagged& v, CborRawArena& arena)
+  {
+    cbor_raw result;
+    arena.push(to_raw_cbor(v.item, arena));
+    if (!cbor_nondet_mk_tagged(v.tag, arena.single(), &result))
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED, fmt::format("Encoding tag {} failed", v.tag));
+    }
+
+    return result;
+  }
+
+  cbor_raw to_raw_array(const Array& v, CborRawArena& arena)
+  {
+    cbor_raw result;
+    std::vector<cbor_raw> items;
+    items.reserve(v.items.size());
+    for (const auto& item : v.items)
+    {
+      items.push_back(to_raw_cbor(item, arena));
+    }
+
+    size_t arr_size = items.size();
+
+    // A workaround to encode an empty array by passing a fake ptr with size=0.
+    if (items.empty())
+    {
+      items.push_back(cbor_raw{});
+    }
+
+    arena.push(std::move(items));
+    if (!cbor_nondet_mk_array(arena.array(), arr_size, &result))
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED,
+        fmt::format("Encoding array of size {} failed", arr_size));
+    }
+
+    return result;
+  }
+
+  cbor_raw to_raw_map(const Map& v, CborRawArena& arena)
+  {
+    cbor_raw result;
+
+    std::vector<cbor_map_entry> entries;
+    entries.reserve(v.items.size());
+    for (const auto& [key, value] : v.items)
+    {
+      auto cbor_key = to_raw_cbor(key, arena);
+      auto cbor_value = to_raw_cbor(value, arena);
+      entries.push_back(cbor_nondet_mk_map_entry(cbor_key, cbor_value));
+    }
+
+    size_t map_size = entries.size();
+
+    // A workaround to encode an empty map by passing a fake ptr with size=0.
+    if (entries.empty())
+    {
+      entries.push_back(cbor_map_entry{});
+    }
+
+    arena.push(std::move(entries));
+    if (!cbor_nondet_mk_map(arena.map(), map_size, &result))
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED,
+        fmt::format("Encoding map of size {} failed", map_size));
+    }
+
+    return result;
+  }
+
+  cbor_raw to_raw_cbor(const Value& value, CborRawArena& arena)
+  {
+    return std::visit(
+      [&](const auto& v) {
+        using T = std::decay_t<decltype(v)>;
+        if constexpr (std::is_same_v<T, Signed>)
+        {
+          return to_raw_signed(v);
+        }
+        if constexpr (std::is_same_v<T, String>)
+        {
+          return to_raw_string(v);
+        }
+        if constexpr (std::is_same_v<T, Bytes>)
+        {
+          return to_raw_bytes(v);
+        }
+        if constexpr (std::is_same_v<T, Simple>)
+        {
+          return to_raw_simple(v);
+        }
+        if constexpr (std::is_same_v<T, Tagged>)
+        {
+          return to_raw_tagged(v, arena);
+        }
+        if constexpr (std::is_same_v<T, Array>)
+        {
+          return to_raw_array(v, arena);
+        }
+        if constexpr (std::is_same_v<T, Map>)
+        {
+          return to_raw_map(v, arena);
+        }
+      },
+      value->value);
+  }
+
   void print_value_impl(
     std::ostringstream& os, const Value& value, size_t indent)
   {
@@ -195,12 +432,7 @@ namespace
           {
             os << " ";
           }
-          for (size_t i = 0; i < v.size(); ++i)
-          {
-            os << std::hex << std::setw(2) << std::setfill('0')
-               << static_cast<int>(v[i]);
-          }
-          os << std::dec << std::endl;
+          os << ccf::ds::to_hex(v) << std::endl;
         }
         else if constexpr (std::is_same_v<T, String>)
         {
@@ -239,24 +471,7 @@ namespace
         else if constexpr (std::is_same_v<T, Simple>)
         {
           print_indent(os, indent);
-          const auto casted = static_cast<int>(v);
-          switch (casted)
-          {
-            case SimpleValue::False:
-              os << "Simple: False" << std::endl;
-              break;
-            case SimpleValue::True:
-              os << "Simple: True" << std::endl;
-              break;
-            case SimpleValue::Null:
-              os << "Simple: Null" << std::endl;
-              break;
-            case SimpleValue::Undefined:
-              os << "Simple: Undefined" << std::endl;
-              break;
-            default:
-              os << "Simple: " << casted << std::endl;
-          }
+          os << format_simple(v) << std::endl;
         }
       },
       value->value);
@@ -265,6 +480,16 @@ namespace
 
 namespace ccf::cbor
 {
+  CBOREncodeError::CBOREncodeError(Error err, const std::string& what) :
+    std::runtime_error(what),
+    error(err)
+  {}
+
+  Error CBOREncodeError::error_code() const
+  {
+    return error;
+  }
+
   CBORDecodeError::CBORDecodeError(Error err, const std::string& what) :
     std::runtime_error(what),
     error(err)
@@ -309,6 +534,30 @@ namespace ccf::cbor
     }
 
     return consume(cbor);
+  }
+
+  std::vector<uint8_t> serialize(const Value& value)
+  {
+    CborRawArena arena{};
+    auto raw = to_raw_cbor(value, arena);
+    const auto expected_size =
+      cbor_nondet_size(raw, std::numeric_limits<size_t>::max());
+
+    std::vector<uint8_t> result(expected_size);
+
+    const auto bytes_written =
+      cbor_nondet_serialize(raw, result.data(), expected_size);
+    if (bytes_written != expected_size)
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED,
+        fmt::format(
+          "Encoded CBOR of size {} when expected {}",
+          bytes_written,
+          expected_size));
+    }
+
+    return result;
   }
 
   std::string to_string(const Value& value)
