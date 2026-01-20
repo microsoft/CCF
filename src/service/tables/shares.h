@@ -27,11 +27,11 @@ namespace ccf
       std::nullopt;
   };
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoverySharesInfo)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoverySharesInfo);
   DECLARE_JSON_REQUIRED_FIELDS(
-    RecoverySharesInfo, wrapped_latest_ledger_secret, encrypted_shares)
+    RecoverySharesInfo, wrapped_latest_ledger_secret, encrypted_shares);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    RecoverySharesInfo, previous_secret_stored_version)
+    RecoverySharesInfo, previous_secret_stored_version);
 
   struct PreviousLedgerSecretInfo
   {
@@ -70,11 +70,11 @@ namespace ccf
     }
   };
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(PreviousLedgerSecretInfo)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(PreviousLedgerSecretInfo);
   DECLARE_JSON_REQUIRED_FIELDS(
-    PreviousLedgerSecretInfo, encrypted_data, version)
+    PreviousLedgerSecretInfo, encrypted_data, version);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    PreviousLedgerSecretInfo, previous_secret_stored_version)
+    PreviousLedgerSecretInfo, previous_secret_stored_version);
 
   struct EncryptedLedgerSecretInfo
   {
@@ -95,10 +95,10 @@ namespace ccf
   };
 
   // Note: Both fields are never empty at the same time
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EncryptedLedgerSecretInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(EncryptedLedgerSecretInfo)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EncryptedLedgerSecretInfo);
+  DECLARE_JSON_REQUIRED_FIELDS(EncryptedLedgerSecretInfo);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    EncryptedLedgerSecretInfo, previous_ledger_secret, next_version)
+    EncryptedLedgerSecretInfo, previous_ledger_secret, next_version);
 
   // The following two tables are distinct because some operations trigger a
   // re-share without requiring the ledger secrets to be updated (e.g. updating

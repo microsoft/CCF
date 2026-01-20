@@ -29,8 +29,8 @@ namespace http
     JwtCryptoAlgorithm alg{};
     std::string kid;
   };
-  DECLARE_JSON_TYPE(JwtHeader)
-  DECLARE_JSON_REQUIRED_FIELDS(JwtHeader, alg, kid)
+  DECLARE_JSON_TYPE(JwtHeader);
+  DECLARE_JSON_REQUIRED_FIELDS(JwtHeader, alg, kid);
 
   struct JwtPayload
   {
@@ -39,7 +39,7 @@ namespace http
     std::optional<size_t> nbf;
     std::optional<std::string> tid;
   };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JwtPayload)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JwtPayload);
   DECLARE_JSON_REQUIRED_FIELDS(JwtPayload, exp, iss);
   DECLARE_JSON_OPTIONAL_FIELDS(JwtPayload, nbf, tid);
 

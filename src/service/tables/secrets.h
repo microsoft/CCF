@@ -23,10 +23,10 @@ namespace ccf
       std::nullopt;
   };
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EncryptedLedgerSecret)
-  DECLARE_JSON_REQUIRED_FIELDS(EncryptedLedgerSecret, version, encrypted_secret)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EncryptedLedgerSecret);
+  DECLARE_JSON_REQUIRED_FIELDS(EncryptedLedgerSecret, version, encrypted_secret);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    EncryptedLedgerSecret, previous_secret_stored_version)
+    EncryptedLedgerSecret, previous_secret_stored_version);
 
   using EncryptedLedgerSecrets = std::vector<EncryptedLedgerSecret>;
   using LedgerSecretsForNodes = std::map<NodeId, EncryptedLedgerSecrets>;
