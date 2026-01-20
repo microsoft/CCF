@@ -9,6 +9,7 @@
 #include <limits>
 #include <map>
 #include <thread>
+#include <atomic>
 
 namespace ccf::threading
 {
@@ -19,24 +20,24 @@ namespace ccf::threading
 
   static constexpr ThreadID MAIN_THREAD_ID = 0;
 
-  static std::atomic<ThreadID>& get_next_thread_id()
+  static inline std::atomic<ThreadID>& get_next_thread_id()
   {
     static std::atomic<ThreadID> next_thread_id = MAIN_THREAD_ID;
     return next_thread_id;
   }
 
-  static uint16_t& current_thread_id()
+  static inline uint16_t& current_thread_id()
   {
     thread_local ThreadID this_thread_id = get_next_thread_id().fetch_add(1);
     return this_thread_id;
   }
 
-  static uint16_t get_current_thread_id()
+  static inline uint16_t get_current_thread_id()
   {
     return current_thread_id();
   }
 
-  static void set_current_thread_id(ThreadID to)
+  static inline void set_current_thread_id(ThreadID to)
   {
     current_thread_id() = to;
   }
