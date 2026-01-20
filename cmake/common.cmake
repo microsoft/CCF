@@ -28,7 +28,7 @@ endfunction()
 
 # Unit test wrapper
 function(add_unit_test name)
-  add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
+  add_executable(${name} ${ARGN})
   target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(
     ${name} PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
@@ -49,7 +49,7 @@ endfunction()
 
 # Test binary wrapper
 function(add_test_bin name)
-  add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
+  add_executable(${name} ${ARGN})
   target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(
     ${name} PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
@@ -203,9 +203,7 @@ function(add_picobench name)
     PARSE_ARGV 1 PARSED_ARGS "" "" "SRCS;INCLUDE_DIRS;LINK_LIBS"
   )
 
-  add_executable(
-    ${name} ${PARSED_ARGS_SRCS} ${CCF_DIR}/src/enclave/thread_local.cpp
-  )
+  add_executable(${name} ${PARSED_ARGS_SRCS})
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
 

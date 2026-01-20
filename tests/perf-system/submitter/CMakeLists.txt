@@ -1,9 +1,8 @@
 set(SUBMITTER_DIR ${CCF_DIR}/tests/perf-system/submitter)
 
 add_executable(
-  submit
-  ${SUBMITTER_DIR}/submit.cpp ${SUBMITTER_DIR}/handle_arguments.h
-  ${SUBMITTER_DIR}/parquet_data.h ${CCF_DIR}/src/enclave/thread_local.cpp
+  submit ${SUBMITTER_DIR}/submit.cpp ${SUBMITTER_DIR}/handle_arguments.h
+         ${SUBMITTER_DIR}/parquet_data.h
 )
 
 target_link_libraries(submit PRIVATE http_parser ccfcrypto arrow parquet)
