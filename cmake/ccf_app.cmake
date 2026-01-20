@@ -37,6 +37,11 @@ function(add_ccf_app name)
     target_link_options(${name} PRIVATE LINKER:--no-undefined)
   endif()
 
+  target_link_options(
+    ${name} PRIVATE
+    LINKER:--undefined=_ZN3ccf9threading21get_current_thread_idEv
+  )
+
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   add_san(${name})
