@@ -1774,6 +1774,7 @@ def run_self_healing_open(const_args):
         ) as recovered_network:
             recovered_network.start_in_self_healing_open(
                 recovery_args,
+                common_dir=network.common_dir,
                 ledger_dirs=ledger_dirs,
                 committed_ledger_dirs=committed_ledger_dirs,
                 sealed_ledger_secrets=node_secrets,
@@ -1836,6 +1837,7 @@ def run_self_healing_open_timeout_path(const_args):
         ) as recovered_network:
             recovered_network.start_in_self_healing_open(
                 recovery_args,
+                common_dir=network.common_dir,
                 ledger_dirs=ledger_dirs,
                 committed_ledger_dirs=committed_ledger_dirs,
                 sealed_ledger_secrets=node_secrets,
@@ -1898,6 +1900,7 @@ def run_self_healing_open_multiple_timeout(const_args):
         ) as recovered_network:
             recovered_network.start_in_self_healing_open(
                 recovery_args,
+                common_dir=network.common_dir,
                 ledger_dirs=ledger_dirs,
                 committed_ledger_dirs=committed_ledger_dirs,
                 sealed_ledger_secrets=node_secrets,
