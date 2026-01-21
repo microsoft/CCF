@@ -697,7 +697,9 @@ class Network:
         :param common_dir: common directory containing member and user keys and certs.
         """
         if not common_dir:
-            assert not os.path.exists(get_common_folder_name(args.workspace, args.label))
+            assert not os.path.exists(
+                get_common_folder_name(args.workspace, args.label)
+            )
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
@@ -789,7 +791,9 @@ class Network:
         **kwargs,
     ):
         if not common_dir:
-            assert not os.path.exists(get_common_folder_name(args.workspace, args.label))
+            assert not os.path.exists(
+                get_common_folder_name(args.workspace, args.label)
+            )
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
