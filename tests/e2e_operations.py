@@ -1258,7 +1258,7 @@ def run_initial_uvm_descriptor_checks(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         primary, _ = network.find_primary()
-        network_service_identity_file = network.save_service_identity_to_file()
+        network_service_identity_file, _ = network.save_service_identity_to_file()
         snapshots_dir = network.get_committed_snapshots(primary)
         network.stop_all_nodes()
         LOG.info("Check that the a UVM descriptor is present")
@@ -1344,7 +1344,7 @@ def run_initial_tcb_version_checks(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         primary, _ = network.find_primary()
-        network_service_identity_file = network.save_service_identity_to_file()
+        network_service_identity_file, _ = network.save_service_identity_to_file()
         snapshots_dir = network.get_committed_snapshots(primary)
         network.stop_all_nodes()
 
