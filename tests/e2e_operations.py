@@ -1374,7 +1374,7 @@ def run_initial_tcb_version_checks(const_args):
         ) as recovered_network:
             recovered_network.start_in_recovery(
                 recovered_network_args,
-                common_dir=network.common,
+                common_dir=network.common_dir,
                 ledger_dir=current_ledger_dir,
                 committed_ledger_dirs=committed_ledger_dirs,
                 snapshots_dir=snapshots_dir,
