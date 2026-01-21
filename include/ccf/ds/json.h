@@ -527,8 +527,7 @@ namespace std
 #define REQUIRES_SEMICOLON_TERMINATION \
   static_assert( \
     true, \
-    "Please add a semi-colon after use of this macro, or else doxygen will " \
-    "get confused")
+    "Semicolon required after macro")
 
 /** Defines from_json, to_json, fill_json_schema, schema_name and
  * add_schema_components functions for struct/class types, converting member
