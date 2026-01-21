@@ -1286,7 +1286,9 @@ def run_initial_uvm_descriptor_checks(const_args):
             existing_network=network,
         ) as recovered_network:
 
-            recovered_network_args.previous_service_identity_file = network_service_identity_file
+            recovered_network_args.previous_service_identity_file = (
+                network_service_identity_file
+            )
             recovered_network.start_in_recovery(
                 recovered_network_args,
                 common_dir=network.common_dir,
@@ -1360,7 +1362,9 @@ def run_initial_tcb_version_checks(const_args):
         current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
         recovered_network_args = copy.deepcopy(args)
-        recovered_network_args.previous_service_identity_file = network_service_identity_file
+        recovered_network_args.previous_service_identity_file = (
+            network_service_identity_file
+        )
         recovered_network_args.label += "_recovery"
         with infra.network.network(
             recovered_network_args.nodes,
