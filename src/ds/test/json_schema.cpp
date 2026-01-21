@@ -581,7 +581,7 @@ namespace renamed
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Foo);
   DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
-    Foo, x, "X", y, "SOMETHING_ELSE", z, "z-z!?(),;")
+    Foo, x, "X", y, "SOMETHING_ELSE", z, "z-z!?(),;");
   DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(
     Foo, a, "A", b, "OTHER_NAME", c, "c");
 }
