@@ -3,83 +3,14 @@
 
 #include "crypto/openssl/cose_sign.h"
 
+#include "crypto/cbor.h"
 #include "ds/internal_logger.h"
 
 #include <openssl/evp.h>
+#include <t_cose/src/t_cose_crypto.h>
+#include <t_cose/src/t_cose_util.h>
 
 namespace
-{
-  constexpr size_t extra_size_for_int_tag = 1; // type
-  constexpr size_t extra_size_for_seq_tag = 1 + 8; // type + size
-
-  constexpr size_t RESERVED_BUFFER_SIZE = 300;
-
-  size_t estimate_buffer_size(
-    const ccf::crypto::COSEHeadersArray& protected_headers,
-    std::span<const uint8_t> payload)
-  {
-    // bytes for metadata even everything else is empty. This's the most
-    // often used value in the t_cose examples, however no recommendation
-    // is provided which one to use. We will consider this an affordable
-    // starting point, as soon as we don't expect a shortage of memory on
-    // the target platforms.
-    size_t result = RESERVED_BUFFER_SIZE;
-
-    result = std::accumulate(
-      protected_headers.begin(),
-      protected_headers.end(),
-      result,
-      [](auto result, const auto& factory) {
-        return result + factory->estimated_size();
-      });
-
-    return result + payload.size();
-  }
-
-  void encode_protected_headers(
-    t_cose_sign1_sign_ctx* ctx,
-    QCBOREncodeContext* encode_ctx,
-    const ccf::crypto::COSEHeadersArray& protected_headers)
-  {
-    QCBOREncode_BstrWrap(encode_ctx);
-    QCBOREncode_OpenMap(encode_ctx);
-
-    // This's what the t_cose implementation of `encode_protected_parameters`
-    // sets unconditionally.
-    QCBOREncode_AddInt64ToMapN(
-      encode_ctx, ccf::crypto::COSE_PHEADER_KEY_ALG, ctx->cose_algorithm_id);
-
-    // Caller-provided headers follow
-    for (const auto& factory : protected_headers)
-    {
-      factory->apply(encode_ctx);
-    }
-
-    QCBOREncode_CloseMap(encode_ctx);
-    QCBOREncode_CloseBstrWrap2(encode_ctx, false, &ctx->protected_parameters);
-  }
-
-  /* The original `t_cose_sign1_encode_parameters` can't accept a custom set of
-   parameters to be encoded into headers. This version tags the context as
-   COSE_SIGN1 and encodes the protected headers in the following order:
-     - defaults
-       - algorithm version
-     - those provided by caller
-   */
-  void encode_parameters_custom(
-    struct t_cose_sign1_sign_ctx* me,
-    QCBOREncodeContext* cbor_encode,
-    const ccf::crypto::COSEHeadersArray& protected_headers)
-  {
-    encode_protected_headers(me, cbor_encode, protected_headers);
-
-    QCBOREncode_OpenMap(cbor_encode);
-    // Explicitly leave unprotected headers empty to be an empty map.
-    QCBOREncode_CloseMap(cbor_encode);
-  }
-}
-
-namespace ccf::crypto
 {
   std::optional<int> key_to_cose_alg_id(
     const ccf::crypto::ECPublicKey_OpenSSL& key)
@@ -96,216 +27,173 @@ namespace ccf::crypto
     }
   }
 
-  COSEMapIntKey::COSEMapIntKey(int64_t key_) : key(key_) {}
-
-  void COSEMapIntKey::apply(QCBOREncodeContext* ctx) const
+  t_cose_key init_signing_key_and_set_phdr(
+    const ccf::crypto::ECKeyPair_OpenSSL& key,
+    int32_t algorithm_id,
+    ccf::cbor::Value& protected_headers)
   {
-    QCBOREncode_AddInt64(ctx, key);
-  }
+    using namespace ccf::cbor;
 
-  size_t COSEMapIntKey::estimated_size() const
-  {
-    return sizeof(key) + extra_size_for_int_tag;
-  }
-
-  COSEMapStringKey::COSEMapStringKey(std::string key_) : key(std::move(key_)) {}
-
-  void COSEMapStringKey::apply(QCBOREncodeContext* ctx) const
-  {
-    QCBOREncode_AddSZString(ctx, key.c_str());
-  }
-
-  size_t COSEMapStringKey::estimated_size() const
-  {
-    return key.size() + extra_size_for_seq_tag;
-  }
-
-  COSEParametersMap::COSEParametersMap(
-    std::shared_ptr<COSEMapKey> key_,
-    const std::vector<std::shared_ptr<COSEParametersFactory>>& factories_) :
-    key(std::move(key_)),
-    factories(factories_)
-  {}
-
-  void COSEParametersMap::apply(QCBOREncodeContext* ctx) const
-  {
-    key->apply(ctx);
-    QCBOREncode_OpenMap(ctx);
-    for (const auto& f : factories)
+    bool alg_set{true};
+    try
     {
-      f->apply(ctx);
+      std::ignore = protected_headers->map_at(
+        ccf::cbor::make_signed(ccf::crypto::COSE_PHEADER_KEY_ALG));
     }
-    QCBOREncode_CloseMap(ctx);
-  }
-
-  size_t COSEParametersMap::estimated_size() const
-  {
-    size_t value = key->estimated_size() + extra_size_for_seq_tag;
-    std::accumulate(
-      factories.begin(),
-      factories.end(),
-      value,
-      [](auto value, const auto& factory) {
-        return value + factory->estimated_size();
-      });
-    return value;
-  }
-
-  std::shared_ptr<COSEParametersFactory> cose_params_int_int(
-    int64_t key, int64_t value)
-  {
-    const size_t args_size = sizeof(key) + sizeof(value) +
-      extra_size_for_int_tag + extra_size_for_int_tag;
-    return std::make_shared<COSEParametersPair>(
-      [=](QCBOREncodeContext* ctx) {
-        QCBOREncode_AddInt64ToMapN(ctx, key, value);
-      },
-      args_size);
-  }
-
-  std::shared_ptr<COSEParametersFactory> cose_params_int_string(
-    int64_t key, const std::string& value)
-  {
-    const size_t args_size = sizeof(key) + value.size() +
-      extra_size_for_int_tag + extra_size_for_seq_tag;
-    return std::make_shared<COSEParametersPair>(
-      [=](QCBOREncodeContext* ctx) {
-        QCBOREncode_AddSZStringToMapN(ctx, key, value.data());
-      },
-      args_size);
-  }
-
-  std::shared_ptr<COSEParametersFactory> cose_params_string_int(
-    const std::string& key, int64_t value)
-  {
-    const size_t args_size = key.size() + sizeof(value) +
-      extra_size_for_seq_tag + extra_size_for_int_tag;
-    return std::make_shared<COSEParametersPair>(
-      [=](QCBOREncodeContext* ctx) {
-        QCBOREncode_AddSZString(ctx, key.data());
-        QCBOREncode_AddInt64(ctx, value);
-      },
-      args_size);
-  }
-
-  std::shared_ptr<COSEParametersFactory> cose_params_string_string(
-    const std::string& key, const std::string& value)
-  {
-    const size_t args_size = key.size() + value.size() +
-      extra_size_for_seq_tag + extra_size_for_seq_tag;
-    return std::make_shared<COSEParametersPair>(
-      [=](QCBOREncodeContext* ctx) {
-        QCBOREncode_AddSZString(ctx, key.data());
-        QCBOREncode_AddSZString(ctx, value.data());
-      },
-      args_size);
-  }
-
-  std::shared_ptr<COSEParametersFactory> cose_params_int_bytes(
-    int64_t key, std::span<const uint8_t> value)
-  {
-    const size_t args_size = sizeof(key) + value.size() +
-      +extra_size_for_int_tag + extra_size_for_seq_tag;
-    q_useful_buf_c buf{value.data(), value.size()};
-    return std::make_shared<COSEParametersPair>(
-      [=](QCBOREncodeContext* ctx) {
-        QCBOREncode_AddBytesToMapN(ctx, key, buf);
-      },
-      args_size);
-  }
-
-  std::shared_ptr<COSEParametersFactory> cose_params_string_bytes(
-    const std::string& key, std::span<const uint8_t> value)
-  {
-    const size_t args_size = key.size() + value.size() +
-      extra_size_for_seq_tag + extra_size_for_seq_tag;
-    q_useful_buf_c buf{value.data(), value.size()};
-    return std::make_shared<COSEParametersPair>(
-      [=](QCBOREncodeContext* ctx) {
-        QCBOREncode_AddSZString(ctx, key.data());
-        QCBOREncode_AddBytes(ctx, buf);
-      },
-      args_size);
-  }
-
-  std::vector<uint8_t> cose_sign1(
-    const ECKeyPair_OpenSSL& key,
-    const std::vector<std::shared_ptr<COSEParametersFactory>>&
-      protected_headers,
-    std::span<const uint8_t> payload,
-    bool detached_payload)
-  {
-    const auto buf_size = estimate_buffer_size(protected_headers, payload);
-    std::vector<uint8_t> underlying_buffer(buf_size);
-    q_useful_buf signed_cose_buffer{underlying_buffer.data(), buf_size};
-
-    QCBOREncodeContext cbor_encode;
-    QCBOREncode_Init(&cbor_encode, signed_cose_buffer);
-
-    t_cose_sign1_sign_ctx sign_ctx = {};
-    const auto algorithm_id = key_to_cose_alg_id(key);
-    if (!algorithm_id.has_value())
+    catch (const CBORDecodeError& err)
     {
-      throw ccf::crypto::COSESignError(fmt::format("Unsupported key type"));
+      if (err.error_code() == Error::KEY_NOT_FOUND)
+      {
+        alg_set = false;
+      }
+      else
+      {
+        throw ccf::crypto::COSESignError(
+          fmt::format("Failed to parse protected header: {}", err.what()));
+      }
     }
 
-    t_cose_sign1_sign_init(&sign_ctx, 0, *algorithm_id);
+    if (alg_set)
+    {
+      throw ccf::crypto::COSESignError(
+        "Protected headers should not have alg(1) set");
+    }
+
+    auto& items = std::get<Map>(protected_headers->value).items;
+    items.insert(
+      items.begin(),
+      {make_signed(ccf::crypto::COSE_PHEADER_KEY_ALG),
+       make_signed(algorithm_id)});
 
     EVP_PKEY* evp_key = key;
     t_cose_key signing_key = {};
     signing_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
     signing_key.k.key_ptr = evp_key;
 
-    t_cose_sign1_set_signing_key(&sign_ctx, signing_key, NULL_Q_USEFUL_BUF_C);
+    return signing_key;
+  }
 
-    QCBOREncode_AddTag(&cbor_encode, CBOR_TAG_COSE_SIGN1);
-    QCBOREncode_OpenArray(&cbor_encode);
+  q_useful_buf_c cose_sign(
+    t_cose_key signing_key,
+    int32_t algorithm_id,
+    std::span<const uint8_t> phdr,
+    std::span<const uint8_t> payload,
+    std::span<uint8_t> signature)
+  {
+    q_useful_buf_c phdr_buf{phdr.data(), phdr.size()};
+    q_useful_buf_c payload_buf{payload.data(), payload.size()};
+    std::vector<uint8_t> tbs(T_COSE_CRYPTO_MAX_HASH_SIZE);
+    UsefulBuf buffer_for_tbs_hash{tbs.data(), tbs.size()};
+    q_useful_buf_c tbs_hash{};
 
-    encode_parameters_custom(&sign_ctx, &cbor_encode, protected_headers);
+    auto err = create_tbs_hash(
+      algorithm_id,
+      phdr_buf,
+      NULL_Q_USEFUL_BUF_C,
+      payload_buf,
+      buffer_for_tbs_hash,
+      &tbs_hash);
 
+    if (err != 0)
+    {
+      throw ccf::crypto::COSESignError(
+        fmt::format("Failed to create TBS with err: ", err));
+    }
+
+    UsefulBuf signature_buf{signature.data(), signature.size()};
+    q_useful_buf_c out_signature{};
+    err = t_cose_crypto_sign(
+      algorithm_id, signing_key, tbs_hash, signature_buf, &out_signature);
+
+    if (err != 0)
+    {
+      throw ccf::crypto::COSESignError(
+        fmt::format("Failed to cose_sign1 with err: ", err));
+    }
+
+    return out_signature;
+  }
+}
+
+namespace ccf::crypto
+{
+  std::vector<uint8_t> cose_sign1(
+    const ECKeyPair_OpenSSL& key,
+    ccf::cbor::Value protected_headers,
+    std::span<const uint8_t> payload,
+    bool detached_payload)
+  {
+    if (protected_headers == nullptr)
+    {
+      throw ccf::crypto::COSESignError("Unsupported missing protected headers");
+    }
+
+    const auto algorithm_id = key_to_cose_alg_id(key);
+    if (!algorithm_id.has_value())
+    {
+      throw ccf::crypto::COSESignError("Unsupported key type");
+    }
+
+    auto signing_key = init_signing_key_and_set_phdr(
+      key, algorithm_id.value(), protected_headers);
+
+    size_t sig_len{0};
+    auto err =
+      t_cose_crypto_sig_size(algorithm_id.value(), signing_key, &sig_len);
+
+    if (err != 0 || sig_len == 0)
+    {
+      throw ccf::crypto::COSESignError(
+        fmt::format("Failed to calculate signature size with err: ", err));
+    }
+
+    std::vector<uint8_t> signature(sig_len);
+    auto phdr_cbor = ccf::cbor::serialize(protected_headers);
+    auto signature_buf = cose_sign(
+      signing_key, algorithm_id.value(), phdr_cbor, payload, signature);
+
+    if (signature_buf.ptr != signature.data())
+    {
+      throw ccf::crypto::COSESignError(fmt::format(
+        "Failed to match signature address {} to pre-allocated buffer {}",
+        signature_buf.ptr,
+        (void*)signature.data()));
+    }
+
+    if (signature_buf.len > signature.size())
+    {
+      throw ccf::crypto::COSESignError(fmt::format(
+        "Signature size {} exceeds pre-allocated buffer size {}",
+        signature_buf.len,
+        signature.size()));
+    }
+
+    signature.resize(signature_buf.len);
+    signature.shrink_to_fit();
+
+    using namespace ccf::cbor;
+
+    std::vector<Value> cose_array;
+    cose_array.push_back(make_bytes(phdr_cbor));
+    cose_array.push_back(make_map({}));
     if (detached_payload)
     {
-      // Mark empty payload explicitly.
-      QCBOREncode_AddNULL(&cbor_encode);
+      cose_array.push_back(make_simple(SimpleValue::Null));
     }
     else
     {
-      UsefulBufC payload_buffer{payload.data(), payload.size()};
-      QCBOREncode_AddBytes(&cbor_encode, payload_buffer);
+      cose_array.push_back(make_bytes(payload));
     }
+    cose_array.push_back(make_bytes(signature));
 
-    // If payload is empty - we still want to sign. Putting NULL_Q_USEFUL_BUF_C,
-    // however, makes t_cose think that the payload is included into the
-    // context. Luckily, passing empty string instead works, so t_cose works
-    // emplaces it for TBS (to be signed) as an empty byte sequence.
-    q_useful_buf_c payload_to_encode = {"", 0};
-    if (!payload.empty())
+    auto envelope = make_tagged(18, make_array(std::move(cose_array)));
+    try
     {
-      payload_to_encode.ptr = payload.data();
-      payload_to_encode.len = payload.size();
+      return serialize(envelope);
     }
-    auto err = t_cose_sign1_encode_signature_aad_internal(
-      &sign_ctx, NULL_Q_USEFUL_BUF_C, payload_to_encode, &cbor_encode);
-    if (err != T_COSE_SUCCESS)
+    catch (const CBOREncodeError& err)
     {
-      throw COSESignError(
-        fmt::format("Can't encode signature with error code {}", err));
+      throw ccf::crypto::COSESignError(err.what());
     }
-
-    q_useful_buf_c signed_cose = {};
-    auto qerr = QCBOREncode_Finish(&cbor_encode, &signed_cose);
-    if (qerr != QCBOR_SUCCESS)
-    {
-      throw COSESignError(
-        fmt::format("Can't finish QCBOR encoding with error code {}", err));
-    }
-
-    // Memory address is said to match:
-    // github.com/laurencelundblade/QCBOR/blob/v1.4.1/inc/qcbor/qcbor_encode.h#L2190-L2191
-    assert(signed_cose.ptr == underlying_buffer.data());
-
-    underlying_buffer.resize(signed_cose.len);
-    underlying_buffer.shrink_to_fit();
-    return underlying_buffer;
   }
 }
