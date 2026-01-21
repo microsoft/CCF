@@ -7,7 +7,6 @@ import os
 import json
 from typing import Optional
 
-
 COLORS = {
     "Black": 40,
     "Red": 41,

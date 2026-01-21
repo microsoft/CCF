@@ -15,5 +15,5 @@ namespace ccf
   DECLARE_JSON_ENUM(
     ReconfigurationType,
     {{ReconfigurationType::ONE_TRANSACTION, "OneTransaction"},
-     {ReconfigurationType::TWO_TRANSACTION, "TwoTransaction"}})
+     {ReconfigurationType::TWO_TRANSACTION, "TwoTransaction"}});
 }

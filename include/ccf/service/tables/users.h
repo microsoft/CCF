@@ -15,9 +15,9 @@ namespace ccf
     ccf::crypto::Pem cert;
     nlohmann::json user_data = nullptr;
   };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewUser)
-  DECLARE_JSON_REQUIRED_FIELDS(NewUser, cert)
-  DECLARE_JSON_OPTIONAL_FIELDS(NewUser, user_data)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewUser);
+  DECLARE_JSON_REQUIRED_FIELDS(NewUser, cert);
+  DECLARE_JSON_OPTIONAL_FIELDS(NewUser, user_data);
 
   struct UserDetails
   {
@@ -25,8 +25,8 @@ namespace ccf
         example. */
     nlohmann::json user_data = nullptr;
   };
-  DECLARE_JSON_TYPE(UserDetails)
-  DECLARE_JSON_REQUIRED_FIELDS(UserDetails, user_data)
+  DECLARE_JSON_TYPE(UserDetails);
+  DECLARE_JSON_REQUIRED_FIELDS(UserDetails, user_data);
 
   using UserCerts = ccf::kv::RawCopySerialisedMap<UserId, ccf::crypto::Pem>;
   using UserInfo = ServiceMap<UserId, UserDetails>;

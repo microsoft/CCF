@@ -37,6 +37,6 @@ namespace ccf
       return !(*this == other);
     }
   };
-  DECLARE_JSON_TYPE(SignedReq)
-  DECLARE_JSON_REQUIRED_FIELDS(SignedReq, sig, req, request_body, md, key_id)
+  DECLARE_JSON_TYPE(SignedReq);
+  DECLARE_JSON_REQUIRED_FIELDS(SignedReq, sig, req, request_body, md, key_id);
 }

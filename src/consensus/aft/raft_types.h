@@ -121,8 +121,8 @@ namespace aft
     RaftMsgType msg = M;
   };
 
-  DECLARE_JSON_TYPE(RaftHeader<raft_append_entries>)
-  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_append_entries>, msg)
+  DECLARE_JSON_TYPE(RaftHeader<raft_append_entries>);
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_append_entries>, msg);
   struct AppendEntries : RaftHeader<raft_append_entries>,
                          ::consensus::AppendEntriesIndex
   {
@@ -160,8 +160,8 @@ namespace aft
     {{AppendEntriesResponseType::OK, "OK"},
      {AppendEntriesResponseType::FAIL, "FAIL"}});
 
-  DECLARE_JSON_TYPE(RaftHeader<raft_append_entries_response>)
-  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_append_entries_response>, msg)
+  DECLARE_JSON_TYPE(RaftHeader<raft_append_entries_response>);
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_append_entries_response>, msg);
   struct AppendEntriesResponse : RaftHeader<raft_append_entries_response>
   {
     // This term and idx usually refer to the tail of the sender's log. The
@@ -191,8 +191,8 @@ namespace aft
     {{ElectionType::PreVote, "PreVote"},
      {ElectionType::RegularVote, "RegularVote"}});
 
-  DECLARE_JSON_TYPE(RaftHeader<raft_request_vote>)
-  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote>, msg)
+  DECLARE_JSON_TYPE(RaftHeader<raft_request_vote>);
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote>, msg);
   struct RequestVote : RaftHeader<raft_request_vote>
   {
     Term term;
@@ -216,8 +216,8 @@ namespace aft
   DECLARE_JSON_REQUIRED_FIELDS(
     RequestPreVote, term, last_committable_idx, term_of_last_committable_idx);
 
-  DECLARE_JSON_TYPE(RaftHeader<raft_request_vote_response>)
-  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote_response>, msg)
+  DECLARE_JSON_TYPE(RaftHeader<raft_request_vote_response>);
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote_response>, msg);
   struct RequestVoteResponse : RaftHeader<raft_request_vote_response>
   {
     Term term;
@@ -227,8 +227,8 @@ namespace aft
     RequestVoteResponse, RaftHeader<raft_request_vote_response>);
   DECLARE_JSON_REQUIRED_FIELDS(RequestVoteResponse, term, vote_granted);
 
-  DECLARE_JSON_TYPE(RaftHeader<raft_request_pre_vote_response>)
-  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_pre_vote_response>, msg)
+  DECLARE_JSON_TYPE(RaftHeader<raft_request_pre_vote_response>);
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_pre_vote_response>, msg);
   struct RequestPreVoteResponse : RaftHeader<raft_request_pre_vote_response>
   {
     Term term;
@@ -238,8 +238,8 @@ namespace aft
     RequestPreVoteResponse, RaftHeader<raft_request_pre_vote_response>);
   DECLARE_JSON_REQUIRED_FIELDS(RequestPreVoteResponse, term, vote_granted);
 
-  DECLARE_JSON_TYPE(RaftHeader<raft_propose_request_vote>)
-  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_propose_request_vote>, msg)
+  DECLARE_JSON_TYPE(RaftHeader<raft_propose_request_vote>);
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_propose_request_vote>, msg);
   struct ProposeRequestVote : RaftHeader<raft_propose_request_vote>
   {
     // A node sends this to nudge another node to begin an election, for

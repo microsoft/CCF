@@ -9,11 +9,18 @@
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/users.h"
+#include "crypto/cbor.h"
 #include "node/cose_common.h"
 
-#include <qcbor/qcbor.h>
-#include <qcbor/qcbor_spiffy_decode.h>
 #include <t_cose/t_cose_sign1_verify.h>
+
+namespace
+{
+  std::string buf_to_string(std::span<const uint8_t> buf)
+  {
+    return {reinterpret_cast<const char*>(buf.data()), buf.size()};
+  }
+}
 
 namespace ccf
 {
@@ -29,142 +36,82 @@ namespace ccf
     extract_governance_protected_header_and_signature(
       const std::vector<uint8_t>& cose_sign1)
     {
+      using namespace ccf::cbor;
+
+      auto cose_cbor = rethrow_with_msg(
+        [&]() { return parse(cose_sign1); }, "Parse COSE CBOR");
+
+      const auto& cose_envelope = rethrow_with_msg(
+        [&]() -> auto& { return cose_cbor->tag_at(18); }, "Parse COSE tag");
+
+      const auto& phdr_raw = rethrow_with_msg(
+        [&]() -> auto& { return cose_envelope->array_at(0); },
+        "Parse raw protected header");
+
+      auto phdr = rethrow_with_msg(
+        [&]() { return parse(phdr_raw->as_bytes()); },
+        "Decode protected header");
+
       ccf::GovernanceProtectedHeader parsed;
 
-      // Adapted from parse_cose_header_parameters in t_cose_parameters.c.
-      // t_cose doesn't support custom header parameters yet.
-      UsefulBufC msg{cose_sign1.data(), cose_sign1.size()};
+      parsed.alg = rethrow_with_msg(
+        [&]() {
+          return phdr->map_at(make_signed(headers::PARAM_ALG))->as_signed();
+        },
+        "Parse alg in protected header");
 
-      QCBORError qcbor_result = QCBOR_SUCCESS;
+      parsed.kid = buf_to_string(rethrow_with_msg(
+        [&]() {
+          return phdr->map_at(make_signed(headers::PARAM_KID))->as_bytes();
+        },
+        "Parse kid in protected header"));
 
-      QCBORDecodeContext ctx;
-      QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
+      parsed.gov_msg_created_at = rethrow_with_msg(
+        [&]() {
+          const int64_t value =
+            phdr->map_at(make_string(HEADER_PARAM_MSG_CREATED_AT))->as_signed();
+          if (value < 0)
+          {
+            throw CBORDecodeError(Error::TYPE_MISMATCH, "Must be non-negative");
+          }
+          return value;
+        },
+        "Parse created_at in protected header");
 
-      QCBORDecode_EnterArray(&ctx, nullptr);
-      qcbor_result = QCBORDecode_GetError(&ctx);
-      if (qcbor_result != QCBOR_SUCCESS)
+      try
       {
-        throw COSEDecodeError("Failed to parse COSE_Sign1 outer array");
+        parsed.gov_msg_type = rethrow_with_msg([&]() {
+          return phdr->map_at(make_string(HEADER_PARAM_MSG_TYPE))->as_string();
+        });
+      }
+      catch (const CBORDecodeError& err)
+      {
+        if (err.error_code() != Error::KEY_NOT_FOUND)
+        {
+          throw err;
+        }
       }
 
-      uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
-      if (tag != CBOR_TAG_COSE_SIGN1)
+      try
       {
-        throw COSEDecodeError("COSE_Sign1 is not tagged");
+        parsed.gov_msg_proposal_id = rethrow_with_msg([&]() {
+          return phdr->map_at(make_string(HEADER_PARAM_MSG_PROPOSAL_ID))
+            ->as_string();
+        });
+      }
+      catch (const CBORDecodeError& err)
+      {
+        if (err.error_code() != Error::KEY_NOT_FOUND)
+        {
+          throw err;
+        }
       }
 
-      struct q_useful_buf_c protected_parameters = {};
-      QCBORDecode_EnterBstrWrapped(
-        &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
-      QCBORDecode_EnterMap(&ctx, nullptr);
+      auto signature = rethrow_with_msg(
+        [&]() { return cose_envelope->array_at(3)->as_bytes(); },
+        "Parse COSE signature");
 
-      enum HeaderIndex : uint8_t
-      {
-        ALG_INDEX,
-        KID_INDEX,
-        GOV_MSG_TYPE,
-        GOV_MSG_PROPOSAL_ID,
-        GOV_MSG_MSG_CREATED_AT,
-        END_INDEX,
-      };
-      QCBORItem header_items[END_INDEX + 1];
-
-      header_items[ALG_INDEX].label.int64 = headers::PARAM_ALG;
-      header_items[ALG_INDEX].uLabelType = QCBOR_TYPE_INT64;
-      header_items[ALG_INDEX].uDataType = QCBOR_TYPE_INT64;
-
-      header_items[KID_INDEX].label.int64 = headers::PARAM_KID;
-      header_items[KID_INDEX].uLabelType = QCBOR_TYPE_INT64;
-      header_items[KID_INDEX].uDataType = QCBOR_TYPE_BYTE_STRING;
-
-      const auto* gov_msg_type_label = HEADER_PARAM_MSG_TYPE;
-      header_items[GOV_MSG_TYPE].label.string =
-        UsefulBuf_FromSZ(gov_msg_type_label);
-      header_items[GOV_MSG_TYPE].uLabelType = QCBOR_TYPE_TEXT_STRING;
-      header_items[GOV_MSG_TYPE].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-      const auto* gov_msg_proposal_id = HEADER_PARAM_MSG_PROPOSAL_ID;
-      header_items[GOV_MSG_PROPOSAL_ID].label.string =
-        UsefulBuf_FromSZ(gov_msg_proposal_id);
-      header_items[GOV_MSG_PROPOSAL_ID].uLabelType = QCBOR_TYPE_TEXT_STRING;
-      header_items[GOV_MSG_PROPOSAL_ID].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-      const auto* gov_msg_proposal_created_at = HEADER_PARAM_MSG_CREATED_AT;
-      header_items[GOV_MSG_MSG_CREATED_AT].label.string =
-        UsefulBuf_FromSZ(gov_msg_proposal_created_at);
-      header_items[GOV_MSG_MSG_CREATED_AT].uLabelType = QCBOR_TYPE_TEXT_STRING;
-      // Although this is really uint, specify QCBOR_TYPE_INT64
-      // QCBOR_TYPE_UINT64 only matches uint values that are greater than
-      // INT64_MAX
-      header_items[GOV_MSG_MSG_CREATED_AT].uDataType = QCBOR_TYPE_INT64;
-
-      header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
-
-      QCBORDecode_GetItemsInMap(&ctx, header_items);
-
-      qcbor_result = QCBORDecode_GetError(&ctx);
-      if (qcbor_result != QCBOR_SUCCESS)
-      {
-        throw COSEDecodeError(
-          fmt::format("Failed to decode protected header: {}", qcbor_result));
-      }
-
-      if (header_items[ALG_INDEX].uDataType == QCBOR_TYPE_NONE)
-      {
-        throw COSEDecodeError("Missing algorithm in protected header");
-      }
-      parsed.alg = header_items[ALG_INDEX].val.int64;
-
-      if (header_items[KID_INDEX].uDataType == QCBOR_TYPE_NONE)
-      {
-        throw COSEDecodeError("Missing kid in protected header");
-      }
-      parsed.kid = qcbor_buf_to_string(header_items[KID_INDEX].val.string);
-
-      if (header_items[GOV_MSG_MSG_CREATED_AT].uDataType == QCBOR_TYPE_NONE)
-      {
-        throw COSEDecodeError("Missing created_at in protected header");
-      }
-
-      if (header_items[GOV_MSG_TYPE].uDataType != QCBOR_TYPE_NONE)
-      {
-        parsed.gov_msg_type =
-          qcbor_buf_to_string(header_items[GOV_MSG_TYPE].val.string);
-      }
-      if (header_items[GOV_MSG_PROPOSAL_ID].uDataType != QCBOR_TYPE_NONE)
-      {
-        parsed.gov_msg_proposal_id =
-          qcbor_buf_to_string(header_items[GOV_MSG_PROPOSAL_ID].val.string);
-      }
-      // Really uint, but the parser doesn't enforce that, so we must check
-      if (header_items[GOV_MSG_MSG_CREATED_AT].val.int64 < 0)
-      {
-        throw COSEDecodeError("Header parameter created_at must be positive");
-      }
-      parsed.gov_msg_created_at =
-        header_items[GOV_MSG_MSG_CREATED_AT].val.int64;
-
-      QCBORDecode_ExitMap(&ctx);
-      QCBORDecode_ExitBstrWrapped(&ctx);
-
-      QCBORItem item;
-      // skip unprotected header
-      QCBORDecode_VGetNextConsume(&ctx, &item);
-      // payload
-      QCBORDecode_GetNext(&ctx, &item);
-      // signature
-      QCBORDecode_GetNext(&ctx, &item);
-      auto signature = item.val.string;
-
-      QCBORDecode_ExitArray(&ctx);
-      auto error = QCBORDecode_Finish(&ctx);
-      if (error != QCBOR_SUCCESS)
-      {
-        throw COSEDecodeError("Failed to decode COSE_Sign1");
-      }
-
-      Signature sig{static_cast<const uint8_t*>(signature.ptr), signature.len};
-      return {parsed, sig};
+      return {parsed, signature};
     }
 
     std::pair<ccf::TimestampedProtectedHeader, Signature>
@@ -173,123 +120,81 @@ namespace ccf
       const std::string& msg_type_name,
       const std::string& created_at_name)
     {
+      using namespace ccf::cbor;
+
+      auto cose_cbor = rethrow_with_msg(
+        [&]() { return parse(cose_sign1); }, "Parse COSE CBOR");
+
+      const auto& cose_envelope = rethrow_with_msg(
+        [&]() -> auto& { return cose_cbor->tag_at(18); }, "Parse COSE tag");
+
+      const auto& phdr_raw = rethrow_with_msg(
+        [&]() -> auto& { return cose_envelope->array_at(0); },
+        "Parse raw protected header");
+
+      auto phdr = rethrow_with_msg(
+        [&]() { return parse(phdr_raw->as_bytes()); },
+        "Decode protected header");
+
       ccf::TimestampedProtectedHeader parsed;
 
-      // Adapted from parse_cose_header_parameters in t_cose_parameters.c.
-      // t_cose doesn't support custom header parameters yet.
-      UsefulBufC msg{cose_sign1.data(), cose_sign1.size()};
+      parsed.alg = rethrow_with_msg(
+        [&]() {
+          return phdr->map_at(make_signed(headers::PARAM_ALG))->as_signed();
+        },
+        "Parse alg in protected header");
 
-      QCBORError qcbor_result = QCBOR_SUCCESS;
+      parsed.kid = buf_to_string(rethrow_with_msg(
+        [&]() {
+          return phdr->map_at(make_signed(headers::PARAM_KID))->as_bytes();
+        },
+        "Parse kid in protected header"));
 
-      QCBORDecodeContext ctx;
-      QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
-
-      QCBORDecode_EnterArray(&ctx, nullptr);
-      qcbor_result = QCBORDecode_GetError(&ctx);
-      if (qcbor_result != QCBOR_SUCCESS)
+      try
       {
-        throw COSEDecodeError("Failed to parse COSE_Sign1 outer array");
+        parsed.msg_type = rethrow_with_msg(
+          [&]() {
+            return std::string(
+              phdr->map_at(make_string(msg_type_name))->as_string());
+          },
+          "Parse msg type in protected header");
+      }
+      catch (const CBORDecodeError& err)
+      {
+        if (err.error_code() != Error::KEY_NOT_FOUND)
+        {
+          throw err;
+        }
       }
 
-      uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
-      if (tag != CBOR_TAG_COSE_SIGN1)
+      try
       {
-        throw COSEDecodeError("COSE_Sign1 is not tagged");
+        auto val = rethrow_with_msg(
+          [&]() {
+            return phdr->map_at(make_string(created_at_name))->as_signed();
+          },
+          "Parse created_at in protected header");
+        if (val < 0)
+        {
+          throw CBORDecodeError(
+            Error::TYPE_MISMATCH,
+            "Header parameter created_at must be positive");
+        }
+        parsed.msg_created_at = val;
+      }
+      catch (const CBORDecodeError& err)
+      {
+        if (err.error_code() != Error::KEY_NOT_FOUND)
+        {
+          throw err;
+        }
       }
 
-      struct q_useful_buf_c protected_parameters = {};
-      QCBORDecode_EnterBstrWrapped(
-        &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
-      QCBORDecode_EnterMap(&ctx, nullptr);
+      auto signature = rethrow_with_msg(
+        [&]() { return cose_envelope->array_at(3)->as_bytes(); },
+        "Parse COSE signature");
 
-      enum HeaderIndex : uint8_t
-      {
-        ALG_INDEX,
-        KID_INDEX,
-        MSG_TYPE,
-        MSG_CREATED_AT,
-        END_INDEX,
-      };
-      QCBORItem header_items[END_INDEX + 1];
-
-      header_items[ALG_INDEX].label.int64 = headers::PARAM_ALG;
-      header_items[ALG_INDEX].uLabelType = QCBOR_TYPE_INT64;
-      header_items[ALG_INDEX].uDataType = QCBOR_TYPE_INT64;
-
-      header_items[KID_INDEX].label.int64 = headers::PARAM_KID;
-      header_items[KID_INDEX].uLabelType = QCBOR_TYPE_INT64;
-      header_items[KID_INDEX].uDataType = QCBOR_TYPE_BYTE_STRING;
-
-      header_items[MSG_TYPE].label.string =
-        UsefulBuf_FromSZ(msg_type_name.c_str());
-      header_items[MSG_TYPE].uLabelType = QCBOR_TYPE_TEXT_STRING;
-      header_items[MSG_TYPE].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-      header_items[MSG_CREATED_AT].label.string =
-        UsefulBuf_FromSZ(created_at_name.c_str());
-      header_items[MSG_CREATED_AT].uLabelType = QCBOR_TYPE_TEXT_STRING;
-      // Although this is really uint, specify QCBOR_TYPE_INT64
-      // QCBOR_TYPE_UINT64 only matches uint values that are greater than
-      // INT64_MAX
-      header_items[MSG_CREATED_AT].uDataType = QCBOR_TYPE_INT64;
-
-      header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
-
-      QCBORDecode_GetItemsInMap(&ctx, header_items);
-
-      qcbor_result = QCBORDecode_GetError(&ctx);
-      if (qcbor_result != QCBOR_SUCCESS)
-      {
-        throw COSEDecodeError(
-          fmt::format("Failed to decode protected header: {}", qcbor_result));
-      }
-
-      if (header_items[ALG_INDEX].uDataType == QCBOR_TYPE_NONE)
-      {
-        throw COSEDecodeError("Missing algorithm in protected header");
-      }
-      parsed.alg = header_items[ALG_INDEX].val.int64;
-
-      if (header_items[KID_INDEX].uDataType == QCBOR_TYPE_NONE)
-      {
-        throw COSEDecodeError("Missing kid in protected header");
-      }
-      parsed.kid = qcbor_buf_to_string(header_items[KID_INDEX].val.string);
-
-      if (header_items[MSG_TYPE].uDataType != QCBOR_TYPE_NONE)
-      {
-        parsed.msg_type =
-          qcbor_buf_to_string(header_items[MSG_TYPE].val.string);
-      }
-      if (
-        header_items[MSG_CREATED_AT].uDataType != QCBOR_TYPE_NONE &&
-        // Really uint, but the parser doesn't enforce that, so we must check
-        header_items[MSG_CREATED_AT].val.int64 > 0)
-      {
-        parsed.msg_created_at = header_items[MSG_CREATED_AT].val.int64;
-      }
-
-      QCBORDecode_ExitMap(&ctx);
-      QCBORDecode_ExitBstrWrapped(&ctx);
-
-      QCBORItem item;
-      // skip unprotected header
-      QCBORDecode_VGetNextConsume(&ctx, &item);
-      // payload
-      QCBORDecode_GetNext(&ctx, &item);
-      // signature
-      QCBORDecode_GetNext(&ctx, &item);
-      auto signature = item.val.string;
-
-      QCBORDecode_ExitArray(&ctx);
-      auto error = QCBORDecode_Finish(&ctx);
-      if (error != QCBOR_SUCCESS)
-      {
-        throw COSEDecodeError("Failed to decode COSE_Sign1");
-      }
-
-      Signature sig{static_cast<const uint8_t*>(signature.ptr), signature.len};
-      return {parsed, sig};
+      return {parsed, signature};
     }
   }
 

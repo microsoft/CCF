@@ -53,7 +53,35 @@ namespace ccf::cbor
 
   using Type = std::variant<Signed, Bytes, String, Array, Map, Tagged, Simple>;
 
-  using CBORDecodeError = std::runtime_error;
+  enum class Error : uint8_t
+  {
+    UNDEFINED = 0,
+    DECODE_FAILED = 1,
+    KEY_NOT_FOUND = 2,
+    OUT_OF_BOUND = 3,
+    TYPE_MISMATCH = 4,
+    ENCODE_FAILED = 5,
+  };
+
+  class CBOREncodeError : public std::runtime_error
+  {
+  public:
+    explicit CBOREncodeError(Error err, const std::string& what);
+    [[nodiscard]] Error error_code() const;
+
+  private:
+    Error error{Error::UNDEFINED};
+  };
+
+  class CBORDecodeError : public std::runtime_error
+  {
+  public:
+    explicit CBORDecodeError(Error err, const std::string& what);
+    [[nodiscard]] Error error_code() const;
+
+  private:
+    Error error{Error::UNDEFINED};
+  };
 
   struct ValueImpl
   {
@@ -75,6 +103,8 @@ namespace ccf::cbor
   Value make_bytes(std::span<const uint8_t> data);
 
   Value parse(std::span<const uint8_t> raw);
+  std::vector<uint8_t> serialize(const Value& value);
+
   std::string to_string(const Value& value);
   bool simple_to_boolean(const Simple& value);
 
@@ -88,7 +118,8 @@ namespace ccf::cbor
     {
       if (!msg.empty())
       {
-        throw CBORDecodeError(fmt::format("{}: {}", msg, err.what()));
+        throw CBORDecodeError(
+          err.error_code(), fmt::format("{}: {}", msg, err.what()));
       }
       throw err;
     }

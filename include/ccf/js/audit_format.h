@@ -27,6 +27,6 @@ namespace ccf
     std::string action_name;
   };
 
-  DECLARE_JSON_TYPE(AuditInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(AuditInfo, format, user_id, action_name)
+  DECLARE_JSON_TYPE(AuditInfo);
+  DECLARE_JSON_REQUIRED_FIELDS(AuditInfo, format, user_id, action_name);
 }
