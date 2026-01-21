@@ -566,6 +566,7 @@ class Network:
         Starts a CCF network.
         :param args: command line arguments to configure the CCF nodes.
         """
+        assert not os.path.exists(get_common_folder_name(args.workspace, args.label))
         self.common_dir = get_common_folder_name(args.workspace, args.label)
 
         assert (
@@ -695,6 +696,8 @@ class Network:
         :param snapshots_dir: snapshot directory to recover from.
         :param common_dir: common directory containing member and user keys and certs.
         """
+        if not common_dir:
+            assert not os.path.exists(get_common_folder_name(args.workspace, args.label))
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
@@ -785,6 +788,8 @@ class Network:
         suspend_after_start=False,
         **kwargs,
     ):
+        if not common_dir:
+            assert not os.path.exists(get_common_folder_name(args.workspace, args.label))
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
