@@ -510,6 +510,26 @@ namespace std
     #FIELD \
   }
 
+// Some macros below use variadic macro args, so we need to suppress the clang
+// diagnostic which objects to them.
+// Since these suppressions need to be produced as a result of macro expansions,
+// they cannot be emitted by a #pragma directive and must use the _Pragma
+// operator (C99 feature introduced for exactly this purpose).
+// However, if we use _Pragma("foo") inline directly in a multiline macro, we
+// must terminate it with a semicolon (_Pragma("foo");). This terminating
+// semicolon gets shunted to its own line during expansion (when the _Pragma has
+// become a #pragma), and so can unhelpfully count as the terminator for
+// REQUIRES_SEMICOLON_TERMINATION below. We _need_ those semicolons to exist at
+// the call-site, to placate doxygen, so we introduce this horrible indirection
+// that lets us use _Pragma _without_ terminating semicolons.
+#define NESTED_PRAGMA(arg) _Pragma(arg)
+
+#define REQUIRES_SEMICOLON_TERMINATION \
+  static_assert( \
+    true, \
+    "Please add a semi-colon after use of this macro, or else doxygen will " \
+    "get confused")
+
 /** Defines from_json, to_json, fill_json_schema, schema_name and
  * add_schema_components functions for struct/class types, converting member
  * fields to JSON elements and populating schema documents describing this
@@ -662,7 +682,8 @@ namespace std
     PRE_ADD_SCHEMA; \
     add_schema_components_required_fields(doc, j, t); \
     POST_ADD_SCHEMA; \
-  }
+  } \
+  REQUIRES_SEMICOLON_TERMINATION
 
 #define DECLARE_JSON_TYPE(TYPE) DECLARE_JSON_TYPE_IMPL(TYPE, , , , , , , , )
 
@@ -716,8 +737,9 @@ namespace std
     add_schema_components_optional_fields(doc, j, t))
 
 #define DECLARE_JSON_REQUIRED_FIELDS(TYPE, ...) \
-  _Pragma("clang diagnostic push"); \
-  _Pragma("clang diagnostic ignored \"-Wgnu-zero-variadic-macro-arguments\""); \
+  NESTED_PRAGMA("clang diagnostic push") \
+  NESTED_PRAGMA( \
+    "clang diagnostic ignored \"-Wgnu-zero-variadic-macro-arguments\"") \
   inline void to_json_required_fields( \
     nlohmann::json& j, [[maybe_unused]] const TYPE& t) \
   { \
@@ -751,7 +773,8 @@ namespace std
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP1)(ADD_SCHEMA_COMPONENTS_REQUIRED, TYPE, ##__VA_ARGS__); \
   } \
-  _Pragma("clang diagnostic pop");
+  NESTED_PRAGMA("clang diagnostic pop") \
+  REQUIRES_SEMICOLON_TERMINATION
 
 #define DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(TYPE, ...) \
   inline void to_json_required_fields(nlohmann::json& j, const TYPE& t) \
@@ -785,7 +808,8 @@ namespace std
     j["type"] = "object"; \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES, TYPE, ##__VA_ARGS__); \
-  }
+  } \
+  REQUIRES_SEMICOLON_TERMINATION
 
 #define DECLARE_JSON_OPTIONAL_FIELDS(TYPE, ...) \
   inline void to_json_optional_fields(nlohmann::json& j, const TYPE& t) \
@@ -808,7 +832,8 @@ namespace std
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP1)(ADD_SCHEMA_COMPONENTS_OPTIONAL, TYPE, ##__VA_ARGS__); \
-  }
+  } \
+  REQUIRES_SEMICOLON_TERMINATION
 
 #define DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(TYPE, ...) \
   inline void to_json_optional_fields(nlohmann::json& j, const TYPE& t) \
@@ -834,7 +859,8 @@ namespace std
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__); \
-  }
+  } \
+  REQUIRES_SEMICOLON_TERMINATION
 
 // Enum conversion, based on NLOHMANN_JSON_SERIALIZE_ENUM, but less permissive
 // (throws on unknown JSON values)
@@ -890,6 +916,7 @@ namespace std
     } \
     j["enum"] = enums; \
     j["type"] = "string"; \
-  }
+  } \
+  REQUIRES_SEMICOLON_TERMINATION
 
 #pragma clang diagnostic pop
