@@ -1958,7 +1958,7 @@ class Network:
         return previous_identity_file, current_ident
 
     def save_service_identity(self, args):
-        identity, path = self.save_service_identity_to_file()
+        path, identity = self.save_service_identity_to_file()
         args.previous_service_identity_file = path
         return identity
 
