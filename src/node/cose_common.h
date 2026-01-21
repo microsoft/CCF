@@ -31,6 +31,8 @@ namespace ccf::cose
 
     static constexpr auto CONTENT_TYPE_APPLICATION_JSON_VALUE =
       "application/json";
+    static constexpr auto CONTENT_TYPE_APPLICATION_OCTET_STREAM =
+      "application/octet-stream";
   }
 
   using Signature = std::span<const uint8_t>;
