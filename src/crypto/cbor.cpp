@@ -99,7 +99,7 @@ namespace
       throw CBORDecodeError(
         Error::DECODE_FAILED, "Failed to decode signed value");
     }
-    return std::make_unique<ValueImpl>(value);
+    return std::make_shared<ValueImpl>(value);
   }
 
   Value consume_byte_string(cbor_nondet_t cbor)
@@ -112,7 +112,7 @@ namespace
         Error::DECODE_FAILED, "Failed to decode byte string");
     }
     Bytes value{data, static_cast<size_t>(length)};
-    return std::make_unique<ValueImpl>(value);
+    return std::make_shared<ValueImpl>(value);
   }
 
   Value consume_text_string(cbor_nondet_t cbor)
@@ -126,7 +126,7 @@ namespace
     }
     String value{
       reinterpret_cast<const char*>(data), static_cast<size_t>(length)};
-    return std::make_unique<ValueImpl>(value);
+    return std::make_shared<ValueImpl>(value);
   }
 
   Value consume_array(cbor_nondet_t cbor)
@@ -149,7 +149,7 @@ namespace
       }
       array.items.push_back(consume(item));
     }
-    return std::make_unique<ValueImpl>(std::move(array));
+    return std::make_shared<ValueImpl>(std::move(array));
   }
 
   Value consume_map(cbor_nondet_t cbor)
@@ -173,7 +173,7 @@ namespace
       }
       map.items.emplace_back(consume(key_raw), consume(value_raw));
     }
-    return std::make_unique<ValueImpl>(std::move(map));
+    return std::make_shared<ValueImpl>(std::move(map));
   }
 
   Value consume_tagged(cbor_nondet_t cbor)
@@ -189,7 +189,7 @@ namespace
     Tagged tagged;
     tagged.tag = tag;
     tagged.item = consume(payload);
-    return std::make_unique<ValueImpl>(std::move(tagged));
+    return std::make_shared<ValueImpl>(std::move(tagged));
   }
 
   Value consume_simple(cbor_nondet_t cbor)
@@ -203,7 +203,7 @@ namespace
       throw CBORDecodeError(
         Error::DECODE_FAILED, "Failed to decode simple value");
     }
-    return std::make_unique<ValueImpl>(value);
+    return std::make_shared<ValueImpl>(value);
   }
 
   Value consume(cbor_nondet_t cbor)
@@ -502,17 +502,38 @@ namespace ccf::cbor
 
   Value make_signed(int64_t value)
   {
-    return std::make_unique<ValueImpl>(value);
+    return std::make_shared<ValueImpl>(value);
+  }
+
+  Value make_simple(SimpleValue value)
+  {
+    return std::make_shared<ValueImpl>(value);
   }
 
   Value make_string(std::string_view data)
   {
-    return std::make_unique<ValueImpl>(data);
+    return std::make_shared<ValueImpl>(data);
   }
 
   Value make_bytes(std::span<const uint8_t> data)
   {
-    return std::make_unique<ValueImpl>(data);
+    return std::make_shared<ValueImpl>(data);
+  }
+
+  Value make_tagged(uint64_t tag, Value&& value)
+  {
+    return std::make_shared<ValueImpl>(
+      Tagged{.tag = tag, .item = std::move(value)});
+  }
+
+  Value make_array(std::vector<Value>&& data)
+  {
+    return std::make_shared<ValueImpl>(Array{.items = std::move(data)});
+  }
+
+  Value make_map(std::vector<MapItem>&& data)
+  {
+    return std::make_shared<ValueImpl>(Map{.items = std::move(data)});
   }
 
   Value parse(std::span<const uint8_t> raw)
@@ -585,6 +606,11 @@ namespace ccf::cbor
         throw CBORDecodeError(
           Error::TYPE_MISMATCH, "Simple value cannot be matched to boolean");
     }
+  }
+
+  SimpleValue boolean_to_simple(bool value)
+  {
+    return value ? SimpleValue::True : SimpleValue::False;
   }
 
   const Value& ValueImpl::array_at(size_t index) const
