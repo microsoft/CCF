@@ -10,7 +10,6 @@ import enum
 
 from loguru import logger as LOG
 
-
 CCF_IPTABLES_CHAIN = "CCF-TEST"
 
 CCF_INPUT_RULE = {

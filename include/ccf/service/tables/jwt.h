@@ -82,6 +82,6 @@ namespace ccf
       return keys != rhs.keys;
     }
   };
-  DECLARE_JSON_TYPE(JsonWebKeySet)
-  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeySet, keys)
+  DECLARE_JSON_TYPE(JsonWebKeySet);
+  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeySet, keys);
 }

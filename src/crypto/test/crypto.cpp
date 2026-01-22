@@ -14,6 +14,7 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/x509_time_fmt.h"
+#include "crypto/cbor.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "crypto/openssl/cose_sign.h"
@@ -29,7 +30,6 @@
 #include <ctime>
 #include <doctest/doctest.h>
 #include <optional>
-#include <qcbor/qcbor_spiffy_decode.h>
 #include <span>
 #include <t_cose/t_cose_sign1_sign.h>
 #include <t_cose/t_cose_sign1_verify.h>
@@ -196,11 +196,6 @@ ccf::crypto::Pem generate_self_signed_cert(
     kp, name, {}, valid_from, certificate_validity_period_days);
 }
 
-std::string qcbor_buf_to_string(const UsefulBufC& buf)
-{
-  return std::string(reinterpret_cast<const char*>(buf.ptr), buf.len);
-}
-
 t_cose_err_t verify_detached(
   EVP_PKEY* key, std::span<const uint8_t> buf, std::span<const uint8_t> payload)
 {
@@ -233,88 +228,47 @@ void require_match_headers(
   std::pair<std::string_view, std::optional<std::string_view>> kv4,
   const std::vector<uint8_t>& cose_sign)
 {
-  UsefulBufC msg{cose_sign.data(), cose_sign.size()};
+  auto decoded = ccf::cbor::parse(cose_sign);
 
-  // 0. Init and verify COSE tag
-  QCBORDecodeContext ctx;
-  QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
-  QCBORDecode_EnterArray(&ctx, nullptr);
-  REQUIRE_EQ(QCBORDecode_GetError(&ctx), QCBOR_SUCCESS);
-  REQUIRE_EQ(QCBORDecode_GetNthTagOfLast(&ctx, 0), CBOR_TAG_COSE_SIGN1);
+  const auto& as_cose = decoded->tag_at(18);
+  const auto& raw_phdr = as_cose->array_at(0)->as_bytes();
 
-  // 1. Protected headers
-  struct q_useful_buf_c protected_parameters;
-  QCBORDecode_EnterBstrWrapped(
-    &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
-  QCBORDecode_EnterMap(&ctx, NULL);
-
-  QCBORItem header_items[5 + 1];
-
-  // Verify 'alg' is default-encoded.
-  header_items[0].label.int64 = 1;
-  header_items[0].uLabelType = QCBOR_TYPE_INT64;
-  header_items[0].uDataType = QCBOR_TYPE_INT64;
-
-  header_items[1].label.int64 = kv1.first;
-  header_items[1].uLabelType = QCBOR_TYPE_INT64;
-  header_items[1].uDataType = QCBOR_TYPE_INT64;
-
-  header_items[2].label.int64 = kv2.first;
-  header_items[2].uLabelType = QCBOR_TYPE_INT64;
-  header_items[2].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-  header_items[3].label.string = {kv3.first.data(), kv3.first.size()};
-  header_items[3].uLabelType = QCBOR_TYPE_TEXT_STRING;
-  header_items[3].uDataType = QCBOR_TYPE_INT64;
-
-  header_items[4].label.string = {kv4.first.data(), kv4.first.size()};
-  header_items[4].uLabelType = QCBOR_TYPE_TEXT_STRING;
-  header_items[4].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-  header_items[5].uLabelType = QCBOR_TYPE_NONE;
-
-  QCBORDecode_GetItemsInMap(&ctx, header_items);
-  REQUIRE_EQ(QCBORDecode_GetError(&ctx), QCBOR_SUCCESS);
+  auto phdr = ccf::cbor::parse(raw_phdr);
 
   // 'alg'
-  REQUIRE_NE(header_items[0].uDataType, QCBOR_TYPE_NONE);
+  REQUIRE_NOTHROW((void)phdr->map_at(ccf::cbor::make_signed(1)));
 
   if (kv1.second)
-    REQUIRE_EQ(header_items[1].val.int64, *kv1.second);
+    REQUIRE_EQ(
+      phdr->map_at(ccf::cbor::make_signed(kv1.first))->as_signed(),
+      *kv1.second);
   else
-    REQUIRE_EQ(header_items[1].uDataType, QCBOR_TYPE_NONE);
+    REQUIRE_THROWS(
+      (void)phdr->map_at(ccf::cbor::make_signed(kv1.first))->as_signed());
 
   if (kv2.second)
-    REQUIRE_EQ(qcbor_buf_to_string(header_items[2].val.string), *kv2.second);
+    REQUIRE_EQ(
+      phdr->map_at(ccf::cbor::make_signed(kv2.first))->as_string(),
+      *kv2.second);
   else
-    REQUIRE_EQ(header_items[2].uDataType, QCBOR_TYPE_NONE);
+    REQUIRE_THROWS(
+      (void)phdr->map_at(ccf::cbor::make_signed(kv2.first))->as_string());
 
   if (kv3.second)
-    REQUIRE_EQ(header_items[3].val.int64, *kv3.second);
+    REQUIRE_EQ(
+      phdr->map_at(ccf::cbor::make_string(kv3.first))->as_signed(),
+      *kv3.second);
   else
-    REQUIRE_EQ(header_items[3].uDataType, QCBOR_TYPE_NONE);
+    REQUIRE_THROWS(
+      (void)phdr->map_at(ccf::cbor::make_string(kv3.first))->as_signed());
 
   if (kv4.second)
-    REQUIRE_EQ(qcbor_buf_to_string(header_items[4].val.string), *kv4.second);
+    REQUIRE_EQ(
+      phdr->map_at(ccf::cbor::make_string(kv4.first))->as_string(),
+      *kv4.second);
   else
-    REQUIRE_EQ(header_items[4].uDataType, QCBOR_TYPE_NONE);
-
-  QCBORDecode_ExitMap(&ctx);
-  QCBORDecode_ExitBstrWrapped(&ctx);
-
-  // 2. Unprotected headers (skip).
-  QCBORItem item;
-  QCBORDecode_VGetNextConsume(&ctx, &item);
-
-  // 3. Skip payload (detached);
-  QCBORDecode_GetNext(&ctx, &item);
-
-  // 4. skip signature (should be verified by cose verifier).
-  QCBORDecode_GetNext(&ctx, &item);
-
-  // 5. Decode can be completed.
-  QCBORDecode_ExitArray(&ctx);
-  REQUIRE_EQ(QCBORDecode_Finish(&ctx), QCBOR_SUCCESS);
+    REQUIRE_THROWS(
+      (void)phdr->map_at(ccf::cbor::make_string(kv4.first))->as_string());
 }
 
 TEST_CASE("Check verifier handles nested certs for both PEM and DER inputs")

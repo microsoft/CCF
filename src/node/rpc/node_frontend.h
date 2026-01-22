@@ -119,8 +119,9 @@ namespace ccf
     size_t failures = 0;
   };
 
-  DECLARE_JSON_TYPE(JWTRefreshMetrics)
-  DECLARE_JSON_REQUIRED_FIELDS(JWTRefreshMetrics, attempts, successes, failures)
+  DECLARE_JSON_TYPE(JWTRefreshMetrics);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    JWTRefreshMetrics, attempts, successes, failures);
 
   struct SetJwtPublicSigningKeys
   {
@@ -396,7 +397,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "4.14.0";
+      openapi_info.document_version = "4.16.0";
     }
 
     void init_handlers() override

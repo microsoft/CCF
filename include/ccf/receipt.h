@@ -142,6 +142,14 @@ namespace ccf
     MERKLE_PROOF_LEAF_LABEL = 1,
     MERKLE_PROOF_PATH_LABEL = 2
   };
+  // NOLINTNEXTLINE(performance-enum-size)
+  enum MerkleProofPathBranch : int64_t
+  {
+    // Values set in
+    // https://github.com/ietf-scitt/draft-birkholz-cose-cometre-ccf-profile
+    LEFT = 0,
+    RIGHT = 1
+  };
   std::optional<std::vector<uint8_t>> describe_merkle_proof_v1(
     const TxReceiptImpl& receipt);
 

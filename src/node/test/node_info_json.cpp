@@ -31,7 +31,7 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
 
   ccf::NodeInfoNetwork_v1 v1;
   std::tie(v1.nodehost, v1.nodeport) = ccf::split_net_address(node);
-  std::tie(v1.rpchost, v1.nodeport) = ccf::split_net_address(rpc_a);
+  std::tie(v1.rpchost, v1.rpcport) = ccf::split_net_address(rpc_a);
   std::tie(v1.pubhost, v1.pubport) = ccf::split_net_address(rpc_b);
 
   {
@@ -41,56 +41,58 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
     REQUIRE(current == converted);
   }
 
+  // to_json(NodeInfoNetwork) NEVER writes v1 fields now
+  // No current node should be using v1 anymore
   {
-    INFO("Old format survives round-trip through current");
+    INFO("Old format loses old fields when converted to new format");
     nlohmann::json j = v1;
-    const auto intermediate = j.get<ccf::NodeInfoNetwork>();
-    nlohmann::json j2 = intermediate;
-    const auto converted = j2.get<ccf::NodeInfoNetwork_v1>();
+    nlohmann::json converted;
+    to_json(converted, j.get<ccf::NodeInfoNetwork>());
+    const auto dumped_converted = converted.dump();
+    const auto deserialized_converted = nlohmann::json::parse(dumped_converted);
 
-    // Manual equality check - not implementing it now for a deprecated format
-    REQUIRE(v1.nodehost == converted.nodehost);
-    REQUIRE(v1.nodeport == converted.nodeport);
-    REQUIRE(v1.rpchost == converted.rpchost);
-    REQUIRE(v1.rpcport == converted.rpcport);
-    REQUIRE(v1.pubhost == converted.pubhost);
-    REQUIRE(v1.pubport == converted.pubport);
+    // v1 fields are not present anymore
+    REQUIRE(!deserialized_converted.contains("nodehost"));
+    REQUIRE(!deserialized_converted.contains("nodeport"));
+    REQUIRE(!deserialized_converted.contains("rpchost"));
+    REQUIRE(!deserialized_converted.contains("rpcport"));
+    REQUIRE(!deserialized_converted.contains("pubhost"));
+    REQUIRE(!deserialized_converted.contains("pubport"));
+
+    const auto new_converted =
+      deserialized_converted.get<ccf::NodeInfoNetwork>();
+
+    // v2 fields have been constructed correctly
+    REQUIRE(
+      new_converted.node_to_node_interface.bind_address ==
+      ccf::NodeInfoNetwork::NetAddress(v1.nodehost + ":" + v1.nodeport));
+    REQUIRE(
+      new_converted.node_to_node_interface.published_address ==
+      ccf::NodeInfoNetwork::NetAddress(v1.nodehost + ":" + v1.nodeport));
+
+    REQUIRE(new_converted.rpc_interfaces.size() == 1);
+    const auto& primary_rpc_it =
+      new_converted.rpc_interfaces.find(ccf::PRIMARY_RPC_INTERFACE);
+    const auto& primary_rpc = primary_rpc_it->second;
+    REQUIRE(
+      primary_rpc.bind_address ==
+      ccf::NodeInfoNetwork::NetAddress(v1.rpchost + ":" + v1.rpcport));
+    REQUIRE(
+      primary_rpc.published_address ==
+      ccf::NodeInfoNetwork::NetAddress(v1.pubhost + ":" + v1.pubport));
   }
 
+  // Test that slightly malformed v2 JSON does not get misparsed as v1
+  // and triggers an exception instead, for example when an unknown
+  // operator feature is present
   {
-    INFO(
-      "Current format loses some information when round-tripping through old");
+    INFO("Malformed new format does not get misparsed as old format");
     nlohmann::json j = current;
-    const auto intermediate = j.get<ccf::NodeInfoNetwork_v1>();
-    nlohmann::json j2 = intermediate;
-    const auto converted = j2.get<ccf::NodeInfoNetwork>();
-    REQUIRE(!(current == converted));
+    // Inject an unknown operator feature to make the JSON invalid for v2
+    j["node_to_node_interface"]["enabled_operator_features"].push_back(
+      "UnknownFeature");
 
-    // The node information has been kept
-    REQUIRE(current.node_to_node_interface == converted.node_to_node_interface);
-
-    // Only the _first_ RPC interface has kept its addresses, though lost its
-    // sessions caps
-    REQUIRE(converted.rpc_interfaces.size() > 0);
-
-    const auto& current_interface = current.rpc_interfaces.begin()->second;
-    const auto& converted_interface =
-      converted.rpc_interfaces.at(ccf::PRIMARY_RPC_INTERFACE);
-
-    REQUIRE(current_interface.bind_address == converted_interface.bind_address);
-    REQUIRE(
-      current_interface.published_address ==
-      converted_interface.published_address);
-    REQUIRE(
-      current_interface.max_open_sessions_hard !=
-      converted_interface.max_open_sessions_hard);
-    REQUIRE(
-      current_interface.max_open_sessions_soft !=
-      converted_interface.max_open_sessions_soft);
-
-    // The second RPC interface has been lost
-    REQUIRE(converted.rpc_interfaces.size() == 1);
-    REQUIRE(converted.rpc_interfaces.size() < current.rpc_interfaces.size());
+    REQUIRE_THROWS_AS(j.get<ccf::NodeInfoNetwork>(), ccf::JsonParseError);
   }
 
   {

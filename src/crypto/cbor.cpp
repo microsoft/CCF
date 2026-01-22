@@ -3,8 +3,11 @@
 
 #include "crypto/cbor.h"
 
+#include "ccf/ds/hex.h"
+
 #include <algorithm>
 #include <iomanip>
+#include <list>
 #include <sstream>
 
 #define FMT_HEADER_ONLY
@@ -19,6 +22,65 @@ using namespace ccf::cbor;
 
 namespace
 {
+  /* Handy storage of 'cbor_raw's when recursively nesting objects. EverCBOR
+   * collections work as pointers from one cbor_raw to another, with arrays
+   * relying on space continuity, and that has to stay intact until calling
+   * cbor_nondet_serialize. Therefore, the following choices have been made:
+   *
+   * - individual items stored in lists rather than collections to avoid
+   * move-on-resize
+   * - CBOR collections are made vectors for continuity, and only referenced
+   * after filled up.
+   */
+  class CborRawArena
+  {
+  public:
+    CborRawArena() = default;
+    ~CborRawArena() = default;
+
+    void push(cbor_raw&& single)
+    {
+      singles.push_back(single);
+    }
+
+    [[nodiscard]] cbor_raw* single() const
+    {
+      return const_cast<cbor_raw*>(&singles.back());
+    }
+
+    void push(std::vector<cbor_raw>&& array)
+    {
+      arrays.push_back(array);
+    }
+
+    [[nodiscard]] cbor_raw* array() const
+    {
+      return const_cast<cbor_raw*>(&arrays.back().front());
+    }
+
+    void push(std::vector<cbor_map_entry>&& map)
+    {
+      maps.push_back(map);
+    }
+
+    [[nodiscard]] cbor_map_entry* map() const
+    {
+      return const_cast<cbor_map_entry*>(&maps.back().front());
+    }
+
+    // No copy
+    CborRawArena(const CborRawArena&) = delete;
+    CborRawArena& operator=(const CborRawArena&) = delete;
+
+    // No move
+    CborRawArena(CborRawArena&&) = delete;
+    CborRawArena& operator=(CborRawArena&&) = delete;
+
+  private:
+    std::list<cbor_raw> singles;
+    std::list<std::vector<cbor_raw>> arrays;
+    std::list<std::vector<cbor_map_entry>> maps;
+  };
   Value consume(cbor_nondet_t cbor);
 
   void print_indent(std::ostringstream& os, size_t indent)
@@ -34,9 +96,10 @@ namespace
     Signed value{0};
     if (!cbor_nondet_read_int64(cbor, &value))
     {
-      throw CBORDecodeError("Failed to decode signed value");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to decode signed value");
     }
-    return std::make_unique<ValueImpl>(value);
+    return std::make_shared<ValueImpl>(value);
   }
 
   Value consume_byte_string(cbor_nondet_t cbor)
@@ -45,10 +108,11 @@ namespace
     uint64_t length = 0;
     if (!cbor_nondet_get_byte_string(cbor, &data, &length))
     {
-      throw CBORDecodeError("Failed to decode byte string");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to decode byte string");
     }
     Bytes value{data, static_cast<size_t>(length)};
-    return std::make_unique<ValueImpl>(value);
+    return std::make_shared<ValueImpl>(value);
   }
 
   Value consume_text_string(cbor_nondet_t cbor)
@@ -57,11 +121,12 @@ namespace
     uint64_t length = 0;
     if (!cbor_nondet_get_text_string(cbor, &data, &length))
     {
-      throw CBORDecodeError("Failed to decode text string");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to decode text string");
     }
     String value{
       reinterpret_cast<const char*>(data), static_cast<size_t>(length)};
-    return std::make_unique<ValueImpl>(value);
+    return std::make_shared<ValueImpl>(value);
   }
 
   Value consume_array(cbor_nondet_t cbor)
@@ -69,7 +134,8 @@ namespace
     cbor_nondet_array_iterator_t iter;
     if (!cbor_nondet_array_iterator_start(cbor, &iter))
     {
-      throw CBORDecodeError("Failed to start array iterator");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to start array iterator");
     }
 
     Array array;
@@ -78,11 +144,12 @@ namespace
       cbor_nondet_t item;
       if (!cbor_nondet_array_iterator_next(&iter, &item))
       {
-        throw CBORDecodeError("Failed to get next array item");
+        throw CBORDecodeError(
+          Error::DECODE_FAILED, "Failed to get next array item");
       }
       array.items.push_back(consume(item));
     }
-    return std::make_unique<ValueImpl>(std::move(array));
+    return std::make_shared<ValueImpl>(std::move(array));
   }
 
   Value consume_map(cbor_nondet_t cbor)
@@ -90,7 +157,8 @@ namespace
     cbor_map_iterator iter;
     if (!cbor_nondet_map_iterator_start(cbor, &iter))
     {
-      throw CBORDecodeError("Failed to start map iterator");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to start map iterator");
     }
 
     Map map;
@@ -100,11 +168,12 @@ namespace
       cbor_raw value_raw;
       if (!cbor_nondet_map_iterator_next(&iter, &key_raw, &value_raw))
       {
-        throw CBORDecodeError("Failed to get next map entry");
+        throw CBORDecodeError(
+          Error::DECODE_FAILED, "Failed to get next map entry");
       }
       map.items.emplace_back(consume(key_raw), consume(value_raw));
     }
-    return std::make_unique<ValueImpl>(std::move(map));
+    return std::make_shared<ValueImpl>(std::move(map));
   }
 
   Value consume_tagged(cbor_nondet_t cbor)
@@ -113,13 +182,14 @@ namespace
     cbor_nondet_t payload;
     if (!cbor_nondet_get_tagged(cbor, &payload, &tag))
     {
-      throw CBORDecodeError("Failed to decode tagged value");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to decode tagged value");
     }
 
     Tagged tagged;
     tagged.tag = tag;
     tagged.item = consume(payload);
-    return std::make_unique<ValueImpl>(std::move(tagged));
+    return std::make_shared<ValueImpl>(std::move(tagged));
   }
 
   Value consume_simple(cbor_nondet_t cbor)
@@ -130,9 +200,10 @@ namespace
     Simple value{0};
     if (!cbor_nondet_read_simple_value(cbor, &value))
     {
-      throw CBORDecodeError("Failed to decode simple value");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to decode simple value");
     }
-    return std::make_unique<ValueImpl>(value);
+    return std::make_shared<ValueImpl>(value);
   }
 
   Value consume(cbor_nondet_t cbor)
@@ -156,8 +227,183 @@ namespace
       case CBOR_MAJOR_TYPE_SIMPLE_VALUE:
         return consume_simple(cbor);
       default:
-        throw CBORDecodeError("Unknown CBOR major type");
+        throw CBORDecodeError(Error::DECODE_FAILED, "Unknown CBOR major type");
     }
+  }
+
+  std::string format_simple(const Simple& v)
+  {
+    const auto casted = static_cast<int>(v);
+    switch (casted)
+    {
+      case SimpleValue::False:
+        return "Simple: False";
+      case SimpleValue::True:
+        return "Simple: True";
+      case SimpleValue::Null:
+        return "Simple: Null";
+      case SimpleValue::Undefined:
+        return "Simple: Undefined";
+      default:
+        return "Simple: " + std::to_string(casted);
+    }
+  }
+
+  cbor_raw to_raw_cbor(const Value& value, CborRawArena& arena);
+
+  cbor_raw to_raw_signed(const Signed& v)
+  {
+    return cbor_nondet_mk_int64(v);
+  }
+
+  cbor_raw to_raw_string(const String& v)
+  {
+    cbor_raw result;
+    if (!cbor_nondet_mk_text_string(
+          reinterpret_cast<uint8_t*>(const_cast<char*>(v.data())),
+          v.size(),
+          &result))
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED, fmt::format("Encoding text string {} failed", v));
+    }
+    return result;
+  }
+
+  cbor_raw to_raw_bytes(const Bytes& v)
+  {
+    cbor_raw result;
+    if (!cbor_nondet_mk_byte_string(
+          const_cast<uint8_t*>(v.data()), v.size(), &result))
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED,
+        fmt::format("Encoding bytes string {} failed", ccf::ds::to_hex(v)));
+    }
+    return result;
+  }
+
+  cbor_raw to_raw_simple(const Simple& v)
+  {
+    cbor_raw result;
+    if (!cbor_nondet_mk_simple_value(v, &result))
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED,
+        fmt::format("Encoding simple value {} failed", format_simple(v)));
+    }
+    return result;
+  }
+
+  cbor_raw to_raw_tagged(const Tagged& v, CborRawArena& arena)
+  {
+    cbor_raw result;
+    arena.push(to_raw_cbor(v.item, arena));
+    if (!cbor_nondet_mk_tagged(v.tag, arena.single(), &result))
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED, fmt::format("Encoding tag {} failed", v.tag));
+    }
+
+    return result;
+  }
+
+  cbor_raw to_raw_array(const Array& v, CborRawArena& arena)
+  {
+    cbor_raw result;
+    std::vector<cbor_raw> items;
+    items.reserve(v.items.size());
+    for (const auto& item : v.items)
+    {
+      items.push_back(to_raw_cbor(item, arena));
+    }
+
+    size_t arr_size = items.size();
+
+    // A workaround to encode an empty array by passing a fake ptr with size=0.
+    if (items.empty())
+    {
+      items.push_back(cbor_raw{});
+    }
+
+    arena.push(std::move(items));
+    if (!cbor_nondet_mk_array(arena.array(), arr_size, &result))
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED,
+        fmt::format("Encoding array of size {} failed", arr_size));
+    }
+
+    return result;
+  }
+
+  cbor_raw to_raw_map(const Map& v, CborRawArena& arena)
+  {
+    cbor_raw result;
+
+    std::vector<cbor_map_entry> entries;
+    entries.reserve(v.items.size());
+    for (const auto& [key, value] : v.items)
+    {
+      auto cbor_key = to_raw_cbor(key, arena);
+      auto cbor_value = to_raw_cbor(value, arena);
+      entries.push_back(cbor_nondet_mk_map_entry(cbor_key, cbor_value));
+    }
+
+    size_t map_size = entries.size();
+
+    // A workaround to encode an empty map by passing a fake ptr with size=0.
+    if (entries.empty())
+    {
+      entries.push_back(cbor_map_entry{});
+    }
+
+    arena.push(std::move(entries));
+    if (!cbor_nondet_mk_map(arena.map(), map_size, &result))
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED,
+        fmt::format("Encoding map of size {} failed", map_size));
+    }
+
+    return result;
+  }
+
+  cbor_raw to_raw_cbor(const Value& value, CborRawArena& arena)
+  {
+    return std::visit(
+      [&](const auto& v) {
+        using T = std::decay_t<decltype(v)>;
+        if constexpr (std::is_same_v<T, Signed>)
+        {
+          return to_raw_signed(v);
+        }
+        if constexpr (std::is_same_v<T, String>)
+        {
+          return to_raw_string(v);
+        }
+        if constexpr (std::is_same_v<T, Bytes>)
+        {
+          return to_raw_bytes(v);
+        }
+        if constexpr (std::is_same_v<T, Simple>)
+        {
+          return to_raw_simple(v);
+        }
+        if constexpr (std::is_same_v<T, Tagged>)
+        {
+          return to_raw_tagged(v, arena);
+        }
+        if constexpr (std::is_same_v<T, Array>)
+        {
+          return to_raw_array(v, arena);
+        }
+        if constexpr (std::is_same_v<T, Map>)
+        {
+          return to_raw_map(v, arena);
+        }
+      },
+      value->value);
   }
 
   void print_value_impl(
@@ -186,12 +432,7 @@ namespace
           {
             os << " ";
           }
-          for (size_t i = 0; i < v.size(); ++i)
-          {
-            os << std::hex << std::setw(2) << std::setfill('0')
-               << static_cast<int>(v[i]);
-          }
-          os << std::dec << std::endl;
+          os << ccf::ds::to_hex(v) << std::endl;
         }
         else if constexpr (std::is_same_v<T, String>)
         {
@@ -230,24 +471,7 @@ namespace
         else if constexpr (std::is_same_v<T, Simple>)
         {
           print_indent(os, indent);
-          const auto casted = static_cast<int>(v);
-          switch (casted)
-          {
-            case SimpleValue::False:
-              os << "Simple: False" << std::endl;
-              break;
-            case SimpleValue::True:
-              os << "Simple: True" << std::endl;
-              break;
-            case SimpleValue::Null:
-              os << "Simple: Null" << std::endl;
-              break;
-            case SimpleValue::Undefined:
-              os << "Simple: Undefined" << std::endl;
-              break;
-            default:
-              os << "Simple: " << casted << std::endl;
-          }
+          os << format_simple(v) << std::endl;
         }
       },
       value->value);
@@ -256,19 +480,60 @@ namespace
 
 namespace ccf::cbor
 {
+  CBOREncodeError::CBOREncodeError(Error err, const std::string& what) :
+    std::runtime_error(what),
+    error(err)
+  {}
+
+  Error CBOREncodeError::error_code() const
+  {
+    return error;
+  }
+
+  CBORDecodeError::CBORDecodeError(Error err, const std::string& what) :
+    std::runtime_error(what),
+    error(err)
+  {}
+
+  Error CBORDecodeError::error_code() const
+  {
+    return error;
+  }
+
   Value make_signed(int64_t value)
   {
-    return std::make_unique<ValueImpl>(value);
+    return std::make_shared<ValueImpl>(value);
+  }
+
+  Value make_simple(SimpleValue value)
+  {
+    return std::make_shared<ValueImpl>(value);
   }
 
   Value make_string(std::string_view data)
   {
-    return std::make_unique<ValueImpl>(data);
+    return std::make_shared<ValueImpl>(data);
   }
 
   Value make_bytes(std::span<const uint8_t> data)
   {
-    return std::make_unique<ValueImpl>(data);
+    return std::make_shared<ValueImpl>(data);
+  }
+
+  Value make_tagged(uint64_t tag, Value&& value)
+  {
+    return std::make_shared<ValueImpl>(
+      Tagged{.tag = tag, .item = std::move(value)});
+  }
+
+  Value make_array(std::vector<Value>&& data)
+  {
+    return std::make_shared<ValueImpl>(Array{.items = std::move(data)});
+  }
+
+  Value make_map(std::vector<MapItem>&& data)
+  {
+    return std::make_shared<ValueImpl>(Map{.items = std::move(data)});
   }
 
   Value parse(std::span<const uint8_t> raw)
@@ -285,10 +550,35 @@ namespace ccf::cbor
           &cbor_parse_size,
           &cbor))
     {
-      throw CBORDecodeError("Failed to parse top-level cbor");
+      throw CBORDecodeError(
+        Error::DECODE_FAILED, "Failed to parse top-level cbor");
     }
 
     return consume(cbor);
+  }
+
+  std::vector<uint8_t> serialize(const Value& value)
+  {
+    CborRawArena arena{};
+    auto raw = to_raw_cbor(value, arena);
+    const auto expected_size =
+      cbor_nondet_size(raw, std::numeric_limits<size_t>::max());
+
+    std::vector<uint8_t> result(expected_size);
+
+    const auto bytes_written =
+      cbor_nondet_serialize(raw, result.data(), expected_size);
+    if (bytes_written != expected_size)
+    {
+      throw CBOREncodeError(
+        Error::ENCODE_FAILED,
+        fmt::format(
+          "Encoded CBOR of size {} when expected {}",
+          bytes_written,
+          expected_size));
+    }
+
+    return result;
   }
 
   std::string to_string(const Value& value)
@@ -304,17 +594,36 @@ namespace ccf::cbor
     return as_string;
   }
 
+  bool simple_to_boolean(const Simple& value)
+  {
+    switch (value)
+    {
+      case SimpleValue::False:
+        return false;
+      case SimpleValue::True:
+        return true;
+      default:
+        throw CBORDecodeError(
+          Error::TYPE_MISMATCH, "Simple value cannot be matched to boolean");
+    }
+  }
+
+  SimpleValue boolean_to_simple(bool value)
+  {
+    return value ? SimpleValue::True : SimpleValue::False;
+  }
+
   const Value& ValueImpl::array_at(size_t index) const
   {
     if (!std::holds_alternative<Array>(value))
     {
-      throw CBORDecodeError("Not an array");
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not an array");
     }
 
     const auto& arr = std::get<Array>(value);
     if (index >= arr.items.size())
     {
-      throw CBORDecodeError("Array index out of bounds");
+      throw CBORDecodeError(Error::OUT_OF_BOUND, "Array index out of bounds");
     }
 
     return arr.items[index];
@@ -324,7 +633,7 @@ namespace ccf::cbor
   {
     if (!std::holds_alternative<Map>(value))
     {
-      throw CBORDecodeError("Not a map");
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a map");
     }
 
     // Fail fast: Array, Map, Tagged are not supported as map keys in this
@@ -337,6 +646,7 @@ namespace ccf::cbor
           std::is_same_v<T, Tagged>)
         {
           throw CBORDecodeError(
+            Error::TYPE_MISMATCH,
             "Array, Map, and Tagged values cannot be used as map keys");
         }
       },
@@ -377,7 +687,7 @@ namespace ccf::cbor
       }
     }
 
-    throw CBORDecodeError("Key not found in map");
+    throw CBORDecodeError(Error::KEY_NOT_FOUND, "Key not found in map");
   }
 
   size_t ValueImpl::size() const
@@ -392,20 +702,20 @@ namespace ccf::cbor
       const auto& map = std::get<Map>(value);
       return map.items.size();
     }
-    throw CBORDecodeError("Not a collection");
+    throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a collection");
   }
 
   const Value& ValueImpl::tag_at(uint64_t tag) const
   {
     if (!std::holds_alternative<Tagged>(value))
     {
-      throw CBORDecodeError("Not a tagged value");
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a tagged value");
     }
 
     const auto& tagged = std::get<Tagged>(value);
     if (tagged.tag != tag)
     {
-      throw CBORDecodeError("Tag does not match");
+      throw CBORDecodeError(Error::KEY_NOT_FOUND, "Tag does not match");
     }
 
     return tagged.item;
@@ -415,7 +725,7 @@ namespace ccf::cbor
   {
     if (!std::holds_alternative<Signed>(value))
     {
-      throw CBORDecodeError("Not a signed value");
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a signed value");
     }
     return std::get<Signed>(value);
   }
@@ -424,7 +734,7 @@ namespace ccf::cbor
   {
     if (!std::holds_alternative<Bytes>(value))
     {
-      throw CBORDecodeError("Not a bytes value");
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a bytes value");
     }
     return std::get<Bytes>(value);
   }
@@ -433,7 +743,7 @@ namespace ccf::cbor
   {
     if (!std::holds_alternative<String>(value))
     {
-      throw CBORDecodeError("Not a string value");
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a string value");
     }
     return std::get<String>(value);
   }
@@ -442,7 +752,7 @@ namespace ccf::cbor
   {
     if (!std::holds_alternative<Simple>(value))
     {
-      throw CBORDecodeError("Not a simple value");
+      throw CBORDecodeError(Error::TYPE_MISMATCH, "Not a simple value");
     }
     return std::get<Simple>(value);
   }
