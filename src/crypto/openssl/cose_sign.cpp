@@ -97,7 +97,7 @@ namespace
     if (err != 0)
     {
       throw ccf::crypto::COSESignError(
-        fmt::format("Failed to create TBS with err: ", err));
+        fmt::format("Failed to create TBS with err: {}", err));
     }
 
     UsefulBuf signature_buf{signature.data(), signature.size()};
@@ -108,7 +108,7 @@ namespace
     if (err != 0)
     {
       throw ccf::crypto::COSESignError(
-        fmt::format("Failed to cose_sign1 with err: ", err));
+        fmt::format("Failed to cose_sign1 with err: {}", err));
     }
 
     return out_signature;
@@ -144,7 +144,7 @@ namespace ccf::crypto
     if (err != 0 || sig_len == 0)
     {
       throw ccf::crypto::COSESignError(
-        fmt::format("Failed to calculate signature size with err: ", err));
+        fmt::format("Failed to calculate signature size with err: {}", err));
     }
 
     std::vector<uint8_t> signature(sig_len);
