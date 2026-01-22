@@ -568,7 +568,6 @@ class Network:
         """
         self.common_dir = get_common_folder_name(args.workspace, args.label)
 
-
         assert (
             args.constitution
         ), "--constitution argument must be provided to start a network"
