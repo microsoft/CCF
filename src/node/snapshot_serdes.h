@@ -17,21 +17,12 @@ namespace ccf
 {
   struct StartupSnapshotInfo
   {
-    std::vector<uint8_t> raw;
     ccf::kv::Version seqno;
+    std::vector<uint8_t> raw;
 
-    // Store used to verify a snapshot (either created fresh when a node joins
-    // from a snapshot or points to the main store when recovering from a
-    // snapshot)
-    std::shared_ptr<ccf::kv::Store> store = nullptr;
-
-    StartupSnapshotInfo(
-      const std::shared_ptr<ccf::kv::Store>& store_,
-      std::vector<uint8_t>&& raw_,
-      ccf::kv::Version seqno_) :
-      raw(std::move(raw_)),
-      seqno(seqno_),
-      store(store_)
+    StartupSnapshotInfo(ccf::kv::Version s, std::vector<uint8_t>&& r) :
+      seqno(s),
+      raw(std::move(r))
     {}
   };
 
@@ -182,25 +173,6 @@ namespace ccf
   {
     const auto segments = separate_segments(snapshot);
     deserialise_snapshot(store, segments, hooks, view_history, public_only);
-  }
-
-  // TODO: Use this one throughout tests, which verifies _and_ deserialises?
-  static std::unique_ptr<StartupSnapshotInfo> initialise_from_snapshot(
-    const std::shared_ptr<ccf::kv::Store>& store,
-    std::vector<uint8_t>&& snapshot,
-    ccf::kv::ConsensusHookPtrs& hooks,
-    std::vector<ccf::kv::Version>* view_history = nullptr,
-    bool public_only = false,
-    std::optional<std::vector<uint8_t>> previous_service_identity =
-      std::nullopt)
-  {
-    const auto segments = separate_segments(snapshot);
-
-    verify_snapshot(segments, previous_service_identity);
-    deserialise_snapshot(store, segments, hooks, view_history, public_only);
-
-    return std::make_unique<StartupSnapshotInfo>(
-      store, std::move(snapshot), store->current_version());
   }
 
   static std::vector<uint8_t> build_and_serialise_receipt(

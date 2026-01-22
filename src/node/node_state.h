@@ -175,49 +175,92 @@ namespace ccf
 #endif
     }
 
-    // Returns true if the snapshot is already verified (via embedded receipt)
     void initialise_startup_snapshot(bool recovery = false)
     {
-      // TODO: VALIDATE this snapshot as well!
-      auto startup_snapshot = load_startup_snapshot();
-      if (startup_snapshot.empty())
+      if (start_type != StartType::Join && start_type != StartType::Recover)
       {
         return;
       }
 
-      std::shared_ptr<ccf::kv::Store> snapshot_store;
-      if (!recovery)
+      std::vector<std::filesystem::path> directories;
+      directories.emplace_back(config.snapshots.directory);
+      const auto& read_only_dir = config.snapshots.read_only_directory;
+      if (read_only_dir.has_value())
       {
-        // Create a new store to verify the snapshot only
-        snapshot_store = make_store();
-        auto snapshot_history = std::make_shared<MerkleTxHistory>(
-          *snapshot_store,
-          self,
-          *node_sign_kp,
-          sig_tx_interval,
-          sig_ms_interval,
-          false /* No signature timer on snapshot_history */);
-
-        auto snapshot_encryptor = make_encryptor();
-
-        snapshot_store->set_history(snapshot_history);
-        snapshot_store->set_encryptor(snapshot_encryptor);
+        directories.emplace_back(read_only_dir.value());
       }
-      else
+      auto latest_local_snapshot =
+        snapshots::find_latest_committed_snapshot_in_directories(directories);
+
+      if (start_type == StartType::Join && config.join.fetch_recent_snapshot)
       {
-        snapshot_store = network.tables;
+        // Try to fetch a recent snapshot from peer
+        auto latest_peer_snapshot = snapshots::fetch_from_peer(
+          config.join.target_rpc_address,
+          config.join.service_cert,
+          config.join.fetch_snapshot_max_attempts,
+          config.join.fetch_snapshot_retry_interval.count_ms(),
+          config.join.fetch_snapshot_max_size.count_bytes());
+
+        if (latest_peer_snapshot.has_value())
+        {
+          LOG_INFO_FMT(
+            "Received snapshot {} from peer (size: {}) - writing this to "
+            "disk "
+            "and using for join startup",
+            latest_peer_snapshot->snapshot_name,
+            latest_peer_snapshot->snapshot_data.size());
+
+          const auto dst_path =
+            std::filesystem::path(config.snapshots.directory) /
+            std::filesystem::path(latest_peer_snapshot->snapshot_name);
+          if (files::exists(dst_path))
+          {
+            LOG_FAIL_FMT(
+              "Overwriting existing snapshot at {} with data retrieved from "
+              "peer",
+              dst_path);
+          }
+          files::dump(latest_peer_snapshot->snapshot_data, dst_path);
+
+          const auto snapshot_seqno =
+            snapshots::get_snapshot_idx_from_file_name(
+              latest_peer_snapshot->snapshot_name);
+          startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
+            snapshot_seqno, std::move(latest_peer_snapshot->snapshot_data));
+        }
       }
 
-      ccf::kv::ConsensusHookPtrs hooks;
-      // TODO: Only deser here, have verified already?
-      // TODO: Do we _even_ deser here? Or defer to join?
-      startup_snapshot_info = initialise_from_snapshot(
-        snapshot_store,
-        std::move(startup_snapshot),
-        hooks,
-        &view_history,
-        true,
-        config.recover.previous_service_identity);
+      if (startup_snapshot_info == nullptr)
+      {
+        if (latest_local_snapshot.has_value())
+        {
+          const auto snapshot_seqno =
+            snapshots::get_snapshot_idx_from_file_name(
+              std::filesystem::path(latest_local_snapshot.value())
+                .filename()
+                .string());
+
+          auto snapshot_data = files::slurp(latest_local_snapshot.value());
+
+          LOG_INFO_FMT(
+            "Found latest local snapshot file: {} (size: {})",
+            latest_local_snapshot,
+            snapshot_data.size());
+
+          startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
+            snapshot_seqno, std::move(snapshot_data));
+        }
+        else
+        {
+          LOG_INFO_FMT(
+            "No snapshot found: Node will replay all historical transactions");
+          return;
+        }
+      }
+
+      const auto segments = separate_segments(startup_snapshot_info->raw);
+      verify_snapshot(segments, config.recover.previous_service_identity);
 
       startup_seqno = startup_snapshot_info->seqno;
       last_recovered_idx = startup_seqno;
@@ -225,6 +268,14 @@ namespace ccf
 
       if (recovery)
       {
+        ccf::kv::ConsensusHookPtrs hooks;
+        deserialise_snapshot(
+          network.tables,
+          segments,
+          hooks,
+          &view_history,
+          true /* public_only */);
+
         snapshotter->set_last_snapshot_idx(last_recovered_idx);
       }
     }
@@ -419,77 +470,6 @@ namespace ccf
             fmt::format("Node was launched in unknown mode {}", start_type));
         }
       }
-    }
-
-    std::vector<uint8_t> load_startup_snapshot()
-    {
-      std::vector<uint8_t> startup_snapshot = {};
-
-      if (start_type != StartType::Join && start_type != StartType::Recover)
-      {
-        return startup_snapshot;
-      }
-
-      std::vector<std::filesystem::path> directories;
-      directories.emplace_back(config.snapshots.directory);
-      const auto& read_only_dir = config.snapshots.read_only_directory;
-      if (read_only_dir.has_value())
-      {
-        directories.emplace_back(read_only_dir.value());
-      }
-      auto latest_local_snapshot =
-        snapshots::find_latest_committed_snapshot_in_directories(directories);
-
-      if (start_type == StartType::Join && config.join.fetch_recent_snapshot)
-      {
-        // Try to fetch a recent snapshot from peer
-        auto latest_peer_snapshot = snapshots::fetch_from_peer(
-          config.join.target_rpc_address,
-          config.join.service_cert,
-          config.join.fetch_snapshot_max_attempts,
-          config.join.fetch_snapshot_retry_interval.count_ms(),
-          config.join.fetch_snapshot_max_size.count_bytes());
-
-        if (latest_peer_snapshot.has_value())
-        {
-          LOG_INFO_FMT(
-            "Received snapshot {} from peer (size: {}) - writing this to "
-            "disk "
-            "and using for join startup",
-            latest_peer_snapshot->snapshot_name,
-            latest_peer_snapshot->snapshot_data.size());
-
-          const auto dst_path =
-            std::filesystem::path(config.snapshots.directory) /
-            std::filesystem::path(latest_peer_snapshot->snapshot_name);
-          if (files::exists(dst_path))
-          {
-            LOG_FAIL_FMT(
-              "Overwriting existing snapshot at {} with data retrieved from "
-              "peer",
-              dst_path);
-          }
-          files::dump(latest_peer_snapshot->snapshot_data, dst_path);
-          startup_snapshot = latest_peer_snapshot->snapshot_data;
-        }
-      }
-
-      if (startup_snapshot.empty() && latest_local_snapshot.has_value())
-      {
-        startup_snapshot = files::slurp(latest_local_snapshot.value());
-
-        LOG_INFO_FMT(
-          "Found latest local snapshot file: {} (size: {})",
-          latest_local_snapshot,
-          startup_snapshot.size());
-      }
-      else if (startup_snapshot.empty())
-      {
-        LOG_INFO_FMT(
-          "No snapshot found: Node will replay all historical transactions");
-      }
-
-      return startup_snapshot;
     }
 
     void initiate_quote_generation()
@@ -2250,7 +2230,7 @@ namespace ccf
         Secrets::wrap_commit_hook([this](
                                     ccf::kv::Version hook_version,
                                     const Secrets::Write& w) {
-          // Used on recovery to initiate private recovery on backup nodes.
+          // Used on recovery to initiate private recovery on all nodes.
           if (!is_part_of_public_network())
           {
             return;
