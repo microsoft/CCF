@@ -14,7 +14,7 @@ namespace ccf
     std::map<std::string, std::shared_ptr<ccf::AbstractNodeSubSystem>>
       subsystems;
 
-    void install_subsystem(
+    void install_subsystem_by_name(
       const std::shared_ptr<ccf::AbstractNodeSubSystem>& subsystem,
       const std::string& name)
     {
@@ -33,8 +33,8 @@ namespace ccf
       subsystems.emplace_hint(it, name, subsystem);
     }
 
-    template <typename T>
-    [[nodiscard]] std::shared_ptr<T> get_subsystem(
+    template <SubsystemType T>
+    [[nodiscard]] std::shared_ptr<T> get_subsystem_by_name(
       const std::string& name) const
     {
       const auto it = subsystems.find(name);
@@ -50,16 +50,16 @@ namespace ccf
   public:
     virtual ~AbstractNodeContext() = default;
 
-    template <typename T>
+    template <SubsystemType T>
     void install_subsystem(const std::shared_ptr<T>& subsystem)
     {
-      install_subsystem(subsystem, T::get_subsystem_name());
+      install_subsystem_by_name(subsystem, T::get_subsystem_name());
     }
 
-    template <typename T>
+    template <SubsystemType T>
     [[nodiscard]] std::shared_ptr<T> get_subsystem() const
     {
-      return get_subsystem<T>(T::get_subsystem_name());
+      return get_subsystem_by_name<T>(T::get_subsystem_name());
     }
 
     [[nodiscard]] virtual ccf::NodeId get_node_id() const
