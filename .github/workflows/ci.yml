@@ -35,6 +35,14 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
+      - name: "Capture SOURCE_DATE_EPOCH"
+        run: |
+          set -ex
+          epoch=$(date +%s)
+          echo "SOURCE_DATE_EPOCH=$epoch" >> $GITHUB_ENV
+          echo "SOURCE_DATE_EPOCH: $epoch"
+        shell: bash
+
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
@@ -43,9 +51,14 @@ jobs:
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
-          git ls-files -z | xargs -0 stat -c "%Y" | sort -u
-          # Fail if there is more than one timestamp
-          git ls-files -z | xargs -0 stat -c "%Y" | sort -u | awk 'NR>1 {exit 1}'
+          export OLDEST_GIT_FILE=$(git ls-files -z | xargs -0 stat -c "%Y" | sort -u | head -1)
+          echo "Oldest git-tracked file time: ${OLDEST_GIT_FILE}"
+          # Even the oldest git-tracked file should not be newer than SOURCE_DATE_EPOCH
+          if [ "${OLDEST_GIT_FILE}" -gt "${SOURCE_DATE_EPOCH}" ];
+          then
+            echo "Error: git-tracked files are newer than SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
+            exit 1
+          fi
         shell: bash
 
       - name: "Install dependencies"
