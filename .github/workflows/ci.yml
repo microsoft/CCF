@@ -42,6 +42,7 @@ jobs:
       - name: "Check files mtime"
         run: |
           set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
           git ls-files -z | xargs -0 stat -c "%Y" | sort -u
           # Fail if there is more than one timestamp
           git ls-files -z | xargs -0 stat -c "%Y" | sort -u | awk 'NR>1 {exit 1}'
