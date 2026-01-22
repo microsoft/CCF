@@ -54,9 +54,9 @@ jobs:
           export OLDEST_GIT_FILE=$(git ls-files -z | xargs -0 stat -c "%Y" | sort -u | head -1)
           echo "Oldest git-tracked file time: ${OLDEST_GIT_FILE}"
           # Even the oldest git-tracked file should not be newer than SOURCE_DATE_EPOCH
-          if [ "${OLDEST_GIT_FILE}" -gt "${SOURCE_DATE_EPOCH}" ];
+          if [ "${OLDEST_GIT_FILE}" -lt "${SOURCE_DATE_EPOCH}" ];
           then
-            echo "Error: git-tracked files are newer than SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
+            echo "Error: git-tracked files are older than SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
             exit 1
           fi
         shell: bash
