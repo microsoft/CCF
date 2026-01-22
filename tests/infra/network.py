@@ -566,9 +566,7 @@ class Network:
         Starts a CCF network.
         :param args: command line arguments to configure the CCF nodes.
         """
-        common_dir = get_common_folder_name(args.workspace, args.label)
-        assert not os.path.exists(common_dir)
-        self.common_dir = common_dir
+        self.common_dir = get_common_folder_name(args.workspace, args.label)
 
 
         assert (
