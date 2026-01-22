@@ -108,8 +108,8 @@ jobs:
           echo "Setting SOURCE_DATE_EPOCH env variable to ${{ needs.image_digest.outputs.SOURCE_DATE_EPOCH }}"
           echo "SOURCE_DATE_EPOCH=${{ needs.image_digest.outputs.SOURCE_DATE_EPOCH }}" >> $GITHUB_ENV
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf --snapshottime=${{ needs.image_digest.outputs.SOURCE_DATE_EPOCH }} -y update
-          tdnf --snapshottime=${{ needs.image_digest.outputs.SOURCE_DATE_EPOCH }} -y install ca-certificates git
+          tdnf --snapshottime=$SOURCE_DATE_EPOCH -y update
+          tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install ca-certificates git
 
       - uses: actions/checkout@v6
         with:
@@ -277,7 +277,7 @@ jobs:
           cat <<EOF > $filename
           {
             "build_container_image": "${{needs.image_digest.outputs.image_digest}}",
-            "tdnf_snapshottime": ${{ needs.image_digest.outputs.SOURCE_DATE_EPOCH }},
+            "tdnf_snapshottime": $SOURCE_DATE_EPOCH,
             "commit_sha": "$commit_id"
           }
           EOF
