@@ -699,8 +699,10 @@ class Network:
         common_dir_path = get_common_folder_name(args.workspace, args.label)
         if (common_dir or self.common_dir) is None:
             assert not os.path.exists(common_dir_path), common_dir_path
-        self.common_dir = common_dir or self.common_dir or get_common_folder_name(
-            args.workspace, args.label
+        self.common_dir = (
+            common_dir
+            or self.common_dir
+            or get_common_folder_name(args.workspace, args.label)
         )
         committed_ledger_dirs = committed_ledger_dirs or []
 
@@ -792,8 +794,10 @@ class Network:
         common_dir_path = get_common_folder_name(args.workspace, args.label)
         if (common_dir or self.common_dir) is None:
             assert not os.path.exists(common_dir_path), common_dir_path
-        self.common_dir = common_dir or self.common_dir or get_common_folder_name(
-            args.workspace, args.label
+        self.common_dir = (
+            common_dir
+            or self.common_dir
+            or get_common_folder_name(args.workspace, args.label)
         )
 
         self.per_node_args_override = self.per_node_args_override or {
