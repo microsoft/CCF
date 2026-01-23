@@ -221,7 +221,7 @@ class Network:
 
     def __init__(
         self,
-        hosts,
+        hosts=None,
         binary_dir=".",
         dbg_nodes=None,
         existing_network=None,
@@ -248,13 +248,14 @@ class Network:
             self.jwt_issuer = jwt_issuer
             self.service_load = service_load
             self.recovery_count = 0
+            self.common_dir = None
         else:
             self.consortium = existing_network.consortium
             self.users = existing_network.users
             self.next_node_id = existing_network.next_node_id
             self.txs = existing_network.txs
             self.jwt_issuer = existing_network.jwt_issuer
-            self.hosts = infra.e2e_args.nodes(
+            self.hosts = hosts or infra.e2e_args.nodes(
                 existing_network.args, len(existing_network.nodes)
             )
             self.service_load = None
@@ -262,6 +263,7 @@ class Network:
                 self.service_load = existing_network.service_load
                 self.service_load.set_network(self)
             self.recovery_count = existing_network.recovery_count
+            self.common_dir = existing_network.common_dir
 
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []
@@ -269,7 +271,6 @@ class Network:
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
         self.library_dir = library_dir
-        self.common_dir = None
         self.election_duration = None
         self.observed_election_duration = None
         self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
@@ -696,9 +697,9 @@ class Network:
         :param common_dir: common directory containing member and user keys and certs.
         """
         common_dir_path = get_common_folder_name(args.workspace, args.label)
-        if not common_dir:
+        if (common_dir or self.common_dir) is None:
             assert not os.path.exists(common_dir_path), common_dir_path
-        self.common_dir = common_dir or get_common_folder_name(
+        self.common_dir = common_dir or self.common_dir or get_common_folder_name(
             args.workspace, args.label
         )
         committed_ledger_dirs = committed_ledger_dirs or []
@@ -789,9 +790,9 @@ class Network:
         **kwargs,
     ):
         common_dir_path = get_common_folder_name(args.workspace, args.label)
-        if not common_dir:
+        if not common_dir or not self.common_dir:
             assert not os.path.exists(common_dir_path), common_dir_path
-        self.common_dir = common_dir or get_common_folder_name(
+        self.common_dir = common_dir or self.common_dir or get_common_folder_name(
             args.workspace, args.label
         )
 
