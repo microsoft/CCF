@@ -622,21 +622,26 @@ namespace ccf
         key_to_endorse = endorsement.endorsing_key;
       }
 
-      std::vector<std::shared_ptr<ccf::crypto::COSEParametersFactory>>
-        ccf_headers_arr{};
-      ccf_headers_arr.push_back(ccf::crypto::cose_params_string_string(
-        ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN,
-        endorsement.endorsement_epoch_begin.to_str()));
+      std::vector<cbor::MapItem> ccf_headers;
+      auto from_txid = endorsement.endorsement_epoch_begin.to_str();
+      ccf_headers.emplace_back(
+        cbor::make_string(ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN),
+        cbor::make_string(from_txid));
+
+      std::string to_txid{};
       if (endorsement.endorsement_epoch_end)
       {
-        ccf_headers_arr.push_back(ccf::crypto::cose_params_string_string(
-          ccf::crypto::COSE_PHEADER_KEY_RANGE_END,
-          endorsement.endorsement_epoch_end->to_str()));
+        to_txid = endorsement.endorsement_epoch_end->to_str();
+        ccf_headers.emplace_back(
+          cbor::make_string(ccf::crypto::COSE_PHEADER_KEY_RANGE_END),
+          cbor::make_string(to_txid));
       }
       if (!previous_root.empty())
       {
-        ccf_headers_arr.push_back(ccf::crypto::cose_params_string_bytes(
-          ccf::crypto::COSE_PHEADER_KEY_EPOCH_LAST_MERKLE_ROOT, previous_root));
+        ccf_headers.emplace_back(
+          cbor::make_string(
+            ccf::crypto::COSE_PHEADER_KEY_EPOCH_LAST_MERKLE_ROOT),
+          cbor::make_bytes(previous_root));
       }
 
       const auto time_since_epoch =
@@ -644,28 +649,25 @@ namespace ccf
           std::chrono::system_clock::now().time_since_epoch())
           .count();
 
-      auto cwt_headers =
-        std::static_pointer_cast<ccf::crypto::COSEParametersFactory>(
-          std::make_shared<ccf::crypto::COSEParametersMap>(
-            std::make_shared<ccf::crypto::COSEMapIntKey>(
-              ccf::crypto::COSE_PHEADER_KEY_CWT),
-            ccf::crypto::COSEHeadersArray{ccf::crypto::cose_params_int_int(
-              ccf::crypto::COSE_PHEADER_KEY_IAT, time_since_epoch)}));
+      std::vector<cbor::MapItem> cwt_headers;
+      cwt_headers.emplace_back(
+        cbor::make_signed(ccf::crypto::COSE_PHEADER_KEY_IAT),
+        cbor::make_signed(time_since_epoch));
 
-      auto ccf_headers =
-        std::static_pointer_cast<ccf::crypto::COSEParametersFactory>(
-          std::make_shared<ccf::crypto::COSEParametersMap>(
-            std::make_shared<ccf::crypto::COSEMapStringKey>(
-              ccf::crypto::COSE_PHEADER_KEY_CCF),
-            ccf_headers_arr));
+      std::vector<cbor::MapItem> phdr;
+      phdr.emplace_back(
+        cbor::make_signed(ccf::crypto::COSE_PHEADER_KEY_CWT),
+        cbor::make_map(std::move(cwt_headers)));
+      phdr.emplace_back(
+        cbor::make_string(ccf::crypto::COSE_PHEADER_KEY_CCF),
+        cbor::make_map(std::move(ccf_headers)));
 
-      ccf::crypto::COSEHeadersArray pheaders{cwt_headers, ccf_headers};
-
+      auto phdr_map = cbor::make_map(std::move(phdr));
       try
       {
         endorsement.endorsement = cose_sign1(
           service_key,
-          pheaders,
+          phdr_map,
           key_to_endorse,
           false // detached payload
         );
