@@ -959,7 +959,10 @@ class Network:
         self.consortium.set_constitution(random_node, args.constitution)
 
         prev_service_identity = None
-        if args.previous_service_identity_file is not None:
+        if (
+            args.previous_service_identity_file is not None
+            and args.previous_service_identity_file != ""
+        ):
             prev_service_identity = slurp_file(args.previous_service_identity_file)
 
         self.consortium.transition_service_to_open(

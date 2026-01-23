@@ -129,24 +129,6 @@ namespace aft
     }
   };
 
-  class Replica
-  {
-  public:
-    Replica(ccf::NodeId id_, const std::vector<uint8_t>& cert_) :
-      id(std::move(id_)),
-      verifier(ccf::crypto::make_unique_verifier(cert_))
-    {}
-
-    [[nodiscard]] ccf::NodeId get_id() const
-    {
-      return id;
-    }
-
-  private:
-    ccf::NodeId id;
-    ccf::crypto::VerifierUniquePtr verifier;
-  };
-
   struct State
   {
     State(ccf::NodeId node_id_, bool pre_vote_enabled_ = true) :
