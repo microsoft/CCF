@@ -73,11 +73,14 @@ struct Signer
 
   std::vector<uint8_t> make_cose_sign1()
   {
-    const auto pheaders = {
-      ccf::crypto::cose_params_int_bytes(300, value),
-      ccf::crypto::cose_params_int_int(301, 34)};
+    using namespace ccf::cbor;
 
-    return ccf::crypto::cose_sign1(kp, pheaders, payload, detached_payload);
+    std::vector<MapItem> phdr;
+    phdr.emplace_back(make_signed(300), make_bytes(value));
+    phdr.emplace_back(make_signed(301), make_signed(34));
+    auto phdr_map = make_map(std::move(phdr));
+
+    return ccf::crypto::cose_sign1(kp, phdr_map, payload, detached_payload);
   };
 
   void verify(const std::vector<uint8_t>& cose_sign1)
