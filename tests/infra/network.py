@@ -790,7 +790,7 @@ class Network:
         **kwargs,
     ):
         common_dir_path = get_common_folder_name(args.workspace, args.label)
-        if not common_dir or not self.common_dir:
+        if (common_dir or self.common_dir) is None:
             assert not os.path.exists(common_dir_path), common_dir_path
         self.common_dir = common_dir or self.common_dir or get_common_folder_name(
             args.workspace, args.label
