@@ -948,7 +948,10 @@ class Network:
         self.consortium.set_constitution(random_node, args.constitution)
 
         prev_service_identity = None
-        if args.previous_service_identity_file:
+        if (
+            args.previous_service_identity_file is not None
+            and args.previous_service_identity_file != ""
+        ):
             prev_service_identity = slurp_file(args.previous_service_identity_file)
 
         self.consortium.transition_service_to_open(
@@ -1934,23 +1937,33 @@ class Network:
         with open(identity_filepath, "w", encoding="utf-8") as f:
             f.write(new_service_identity)
 
-    def save_service_identity(self, args):
+    def get_service_identity(self):
         n = self.find_random_node()
         with n.client() as c:
             r = c.get("/node/network")
             assert r.status_code == 200, r
             current_ident = r.body.json()["service_certificate"]
+        return current_ident
+
+    def save_service_identity_to_file(self):
+        current_ident = self.get_service_identity()
         prev_cert_count = 0
-        previous_identity = os.path.join(self.common_dir, "previous_service_cert.pem")
-        while os.path.exists(previous_identity):
+        previous_identity_file = os.path.join(
+            self.common_dir, "previous_service_cert.pem"
+        )
+        while os.path.exists(previous_identity_file):
             prev_cert_count += 1
-            previous_identity = os.path.join(
+            previous_identity_file = os.path.join(
                 self.common_dir, f"previous_service_cert_{prev_cert_count}.pem"
             )
-        with open(previous_identity, "w", encoding="utf-8") as f:
+        with open(previous_identity_file, "w", encoding="utf-8") as f:
             f.write(current_ident)
-        args.previous_service_identity_file = previous_identity
-        return current_ident
+        return previous_identity_file, current_ident
+
+    def save_service_identity(self, args):
+        path, identity = self.save_service_identity_to_file()
+        args.previous_service_identity_file = path
+        return identity
 
     def identity(self, name=None):
         if name is not None:
