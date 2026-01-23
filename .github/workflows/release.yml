@@ -62,6 +62,7 @@ jobs:
           path: rel-notes.md
 
   image_digest:
+    name: Snapshot Build Image Digest and SOURCE_DATE_EPOCH
     runs-on:
       [
         self-hosted,
@@ -70,6 +71,7 @@ jobs:
       ]
     outputs:
       image_digest: ${{ steps.digest.outputs.digest }}
+      SOURCE_DATE_EPOCH: ${{ steps.set_epoch.outputs.SOURCE_DATE_EPOCH }}
     steps:
       - id: digest
         run: |
@@ -77,11 +79,17 @@ jobs:
           docker pull $IMAGE
           echo "digest=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE)" >> "$GITHUB_OUTPUT"
 
+      - name: Set SOURCE_DATE_EPOCH
+        id: set_epoch
+        run: |
+          set -ex
+          epoch=$(date +%s)
+          echo "SOURCE_DATE_EPOCH=$epoch" >> $GITHUB_OUTPUT
+          echo "$epoch"
+
   build_release:
     name: Build Release
     needs: [release_notes, image_digest]
-    outputs:
-      SOURCE_DATE_EPOCH: ${{ steps.set_epoch.outputs.SOURCE_DATE_EPOCH }}
     runs-on:
       [
         self-hosted,
@@ -93,19 +101,12 @@ jobs:
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
 
     steps:
-      - name: Set SOURCE_DATE_EPOCH env variable
-        id: set_epoch
-        run: |
-          set -ex
-          epoch=$(date +%s)
-          echo "SOURCE_DATE_EPOCH=$epoch" >> $GITHUB_ENV
-          echo "SOURCE_DATE_EPOCH=$epoch" >> $GITHUB_OUTPUT
-          echo "$epoch"
-
       - name: "Checkout dependencies"
         shell: bash
         run: |
           set -ex
+          echo "Setting SOURCE_DATE_EPOCH env variable to ${{ needs.image_digest.outputs.SOURCE_DATE_EPOCH }}"
+          echo "SOURCE_DATE_EPOCH=${{ needs.image_digest.outputs.SOURCE_DATE_EPOCH }}" >> $GITHUB_ENV
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf --snapshottime=$SOURCE_DATE_EPOCH -y update
           tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install ca-certificates git
@@ -125,6 +126,10 @@ jobs:
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
+          # Ensure all files have timestamps strictly after SOURCE_DATE_EPOCH,
+          # otherwise rpmbuild will not clamp to SOURCE_DATE_EPOCH and the build
+          # will not be reproducible.
+          find . -type f -exec touch {} +
           mkdir build
           cd build
           cmake -GNinja -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
@@ -358,8 +363,8 @@ jobs:
         run: |
           set -ex
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf --snapshottime=${{ needs.build_release.outputs.SOURCE_DATE_EPOCH }} -y update
-          tdnf --snapshottime=${{ needs.build_release.outputs.SOURCE_DATE_EPOCH }} -y install ca-certificates git
+          tdnf --snapshottime=${{ needs.image_digest.outputs.SOURCE_DATE_EPOCH }} -y update
+          tdnf --snapshottime=${{ needs.image_digest.outputs.SOURCE_DATE_EPOCH }} -y install ca-certificates git
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
@@ -380,8 +385,12 @@ jobs:
         shell: bash
         run: |
           set -ex
-          tdnf install --snapshottime=${{ needs.build_release.outputs.SOURCE_DATE_EPOCH }} -y jq
+          tdnf install --snapshottime=${{ needs.image_digest.outputs.SOURCE_DATE_EPOCH }} -y jq
           git config --global --add safe.directory /__w/CCF/CCF
+          # Ensure all files have timestamps strictly after SOURCE_DATE_EPOCH,
+          # otherwise rpmbuild will not clamp to SOURCE_DATE_EPOCH and the build
+          # will not be reproducible.
+          find . -type f -exec touch {} +
           ./reproduce/reproduce_rpm.sh repro/reproduce.json
           RPM_NAME=$(ls "$REPRO_DIR" || true)
           if [ -z "$RPM_NAME" ]; then
