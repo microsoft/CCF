@@ -3,7 +3,6 @@ name: "Build and Publish NPM package"
 on:
   release:
     types: [published]
-on:
   push:
     branches:
       - fix_7.0.0_dev8
