@@ -696,9 +696,6 @@ class Network:
         :param snapshots_dir: snapshot directory to recover from.
         :param common_dir: common directory containing member and user keys and certs.
         """
-        common_dir_path = get_common_folder_name(args.workspace, args.label)
-        if (common_dir or self.common_dir) is None:
-            assert not os.path.exists(common_dir_path), common_dir_path
         self.common_dir = (
             common_dir
             or self.common_dir
@@ -791,9 +788,6 @@ class Network:
         suspend_after_start=False,
         **kwargs,
     ):
-        common_dir_path = get_common_folder_name(args.workspace, args.label)
-        if (common_dir or self.common_dir) is None:
-            assert not os.path.exists(common_dir_path), common_dir_path
         self.common_dir = (
             common_dir
             or self.common_dir
