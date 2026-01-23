@@ -195,8 +195,7 @@ namespace ccf
       {
         LOG_TRACE_FMT(
           "Creating node with start_type {}", start_type_to_str(start_type));
-        create_info =
-          node->create(start_type, ccf_config_);
+        create_info = node->create(start_type, ccf_config_);
       }
       catch (const std::exception& e)
       {
