@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/aft/impl/state.h"
 #include "kv/kv_types.h"
 #include "node/commit_callback_interface.h"
 
@@ -55,7 +56,8 @@ namespace ccf
         std::make_pair(tx_id, std::move(callback)));
     }
 
-    void trigger_callbacks(ccf::TxID committed)
+    void trigger_callbacks(
+      ccf::TxID committed, const aft::ViewHistory& view_history)
     {
       if (consensus == nullptr)
       {
@@ -80,8 +82,13 @@ namespace ccf
         // should now be known
         for (auto& [tx_id, callback] : callbacks)
         {
-          const auto status =
-            consensus->evaluate_tx_status(tx_id.view, tx_id.seqno);
+          const auto local_view = view_history.view_at(tx_id.seqno);
+          const auto status = ccf::evaluate_tx_status(
+            tx_id.view,
+            tx_id.seqno,
+            local_view,
+            committed.view,
+            committed.seqno);
 
           if (status != TxStatus::Committed && status != TxStatus::Invalid)
           {

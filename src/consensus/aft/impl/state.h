@@ -55,7 +55,7 @@ namespace aft
       LOG_DEBUG_FMT("Resulting views: {}", fmt::join(views, ", "));
     }
 
-    ccf::View view_at(ccf::kv::Version idx)
+    ccf::View view_at(ccf::kv::Version idx) const
     {
       auto it = upper_bound(views.begin(), views.end(), idx);
 
@@ -68,7 +68,7 @@ namespace aft
       return (it - views.begin());
     }
 
-    ccf::kv::Version start_of_view(ccf::View view)
+    ccf::kv::Version start_of_view(ccf::View view) const
     {
       if (view > views.size() || view == InvalidView)
       {
@@ -85,7 +85,7 @@ namespace aft
       return tentative;
     }
 
-    ccf::kv::Version end_of_view(ccf::View view)
+    ccf::kv::Version end_of_view(ccf::View view) const
     {
       // If this view has no start (potentially because it contains no
       // transactions), then it can't have an end
@@ -105,13 +105,13 @@ namespace aft
     }
 
     std::vector<ccf::kv::Version> get_history_until(
-      ccf::kv::Version idx = std::numeric_limits<ccf::kv::Version>::max())
+      ccf::kv::Version idx = std::numeric_limits<ccf::kv::Version>::max()) const
     {
       return {views.begin(), std::upper_bound(views.begin(), views.end(), idx)};
     }
 
     // view should be non-zero as views start at one in here
-    std::vector<ccf::kv::Version> get_history_since(uint64_t view)
+    std::vector<ccf::kv::Version> get_history_since(uint64_t view) const
     {
       if (view > views.size())
       {

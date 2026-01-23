@@ -2612,7 +2612,7 @@ namespace aft
       if (commit_callbacks != nullptr)
       {
         const auto term = get_term_internal(idx);
-        commit_callbacks->trigger_callbacks({term, idx});
+        commit_callbacks->trigger_callbacks({term, idx}, state->view_history);
       }
 
       RAFT_DEBUG_FMT("Commit on {}: {}", state->node_id, idx);
