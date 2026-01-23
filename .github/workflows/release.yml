@@ -126,6 +126,10 @@ jobs:
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
+          # Ensure all files have timestamps strictly after SOURCE_DATE_EPOCH,
+          # otherwise rpmbuild will not clamp to SOURCE_DATE_EPOCH and the build
+          # will not be reproducible.
+          find . -type f -exec touch {} +
           mkdir build
           cd build
           cmake -GNinja -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
@@ -383,6 +387,10 @@ jobs:
           set -ex
           tdnf install --snapshottime=${{ needs.image_digest.outputs.SOURCE_DATE_EPOCH }} -y jq
           git config --global --add safe.directory /__w/CCF/CCF
+          # Ensure all files have timestamps strictly after SOURCE_DATE_EPOCH,
+          # otherwise rpmbuild will not clamp to SOURCE_DATE_EPOCH and the build
+          # will not be reproducible.
+          find . -type f -exec touch {} +
           ./reproduce/reproduce_rpm.sh repro/reproduce.json
           RPM_NAME=$(ls "$REPRO_DIR" || true)
           if [ -z "$RPM_NAME" ]; then
