@@ -3,6 +3,10 @@ name: "Build and Publish NPM package"
 on:
   release:
     types: [published]
+on:
+  push:
+    branches:
+      - fix_7.0.0_dev8
 
 permissions:
   contents: read
@@ -28,11 +32,11 @@ jobs:
       - name: Fetch NPM Package from release
         run: |
           cd js/ccf-app
-          wget https://github.com/microsoft/CCF/releases/download/ccf-${{steps.tref.outputs.version}}/microsoft-ccf-app-${{steps.tref.outputs.version}}.tgz
+          wget https://github.com/microsoft/CCF/releases/download/ccf-7.0.0-dev8/microsoft-ccf-app-7.0.0-dev8.tgz
 
       - name: Publish NPM Package to https://www.npmjs.com/package/@microsoft/ccf-app
         run: |
           set -ex
           cd js/ccf-app
           echo "registry=https://registry.npmjs.org/" > .npmrc
-          npm publish microsoft-ccf-app*.tgz --access public
+          npm publish microsoft-ccf-app*.tgz --access public --tag dev
