@@ -44,7 +44,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git tar
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
