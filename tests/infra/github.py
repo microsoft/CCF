@@ -14,7 +14,6 @@ from packaging.version import Version  # type: ignore
 
 from loguru import logger as LOG
 
-
 REPOSITORY_NAME = "microsoft/CCF"
 REMOTE_URL = f"https://github.com/{REPOSITORY_NAME}"
 BRANCH_RELEASE_PREFIX = "release/"

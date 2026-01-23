@@ -1,4 +1,4 @@
-wheel >= 0.45.1, < 0.46
+wheel >= 0.46.2, < 0.47
 loguru >= 0.7.3, < 0.8
 openapi-spec-validator >= 0.7.2, < 0.8
 PyJWT >= 2.10.0, < 3

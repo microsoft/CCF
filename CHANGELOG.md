@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev8]
+
+[7.0.0-dev8]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev8
+
+### Fixed
+
+- Linking issue that could affect applications that do not include `main.cpp` in their executable (#7595)
+- Fixed two issues that could affect build reproducibility (#7606, #7607)
+- Python test dependency update (#7609)
+
 ## [7.0.0-dev7]
 
 [7.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev7
