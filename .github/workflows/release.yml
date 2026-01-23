@@ -103,12 +103,17 @@ jobs:
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
 
     steps:
-      - name: "Checkout dependencies"
+      - name: "Set SOURCE_DATE_EPOCH"
         shell: bash
         run: |
           set -ex
           echo "Setting SOURCE_DATE_EPOCH env variable to ${{ needs.image_digest.outputs.SOURCE_DATE_EPOCH }}"
           echo "SOURCE_DATE_EPOCH=${{ needs.image_digest.outputs.SOURCE_DATE_EPOCH }}" >> $GITHUB_ENV
+
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          set -ex
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf --snapshottime=$SOURCE_DATE_EPOCH -y update
           tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install ca-certificates git
