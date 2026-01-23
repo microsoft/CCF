@@ -91,6 +91,63 @@ namespace ccf
   {
     friend class SelfHealingOpenSubsystem;
 
+    struct FetchSnapshot : public ccf::tasks::BaseTask
+    {
+      const ccf::StartupConfig::Join join_config;
+      NodeState* owner;
+
+      void do_task_implementation() override
+      {
+        // TODO: Dedupe this with the initial fetch
+        // TODO: Really don't want this to be blocking
+        auto latest_peer_snapshot = snapshots::fetch_from_peer(
+          join_config.target_rpc_address,
+          join_config.service_cert,
+          join_config.fetch_snapshot_max_attempts,
+          join_config.fetch_snapshot_retry_interval.count_ms(),
+          join_config.fetch_snapshot_max_size.count_bytes());
+
+        if (latest_peer_snapshot.has_value())
+        {
+          LOG_INFO_FMT(
+            "Received snapshot {} from peer (size: {}) - writing this to "
+            "disk "
+            "and using for join startup",
+            latest_peer_snapshot->snapshot_name,
+            latest_peer_snapshot->snapshot_data.size());
+
+          const auto dst_path =
+            std::filesystem::path(config.snapshots.directory) /
+            std::filesystem::path(latest_peer_snapshot->snapshot_name);
+          if (files::exists(dst_path))
+          {
+            LOG_FAIL_FMT(
+              "Overwriting existing snapshot at {} with data retrieved from "
+              "peer",
+              dst_path);
+          }
+          files::dump(latest_peer_snapshot->snapshot_data, dst_path);
+
+          const auto snapshot_seqno =
+            snapshots::get_snapshot_idx_from_file_name(
+              latest_peer_snapshot->snapshot_name);
+
+          // TODO: Populate this on NodeState?
+          startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
+            snapshot_seqno, std::move(latest_peer_snapshot->snapshot_data));
+
+          // TODO: Verify?
+          // TODO: Update node_state->startup_seqno etc
+        }
+      }
+
+      [[nodiscard]] const std::string& get_name() const override
+      {
+        static const std::string name = "FetchSnapshot";
+        return name;
+      }
+    };
+
   private:
     //
     // this node's core state
@@ -732,7 +789,10 @@ namespace ccf
       join_client->connect(
         target_host,
         target_port,
-        [this](
+        // Capture target_address by value, and use them when
+        // logging about this response. Do not use config target address, which
+        // may have updated in the interim.
+        [this, target_address = config.join.target_rpc_address](
           ccf::http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
@@ -742,17 +802,58 @@ namespace ccf
             return;
           }
 
+          auto j = nlohmann::json::parse(data);
+
           if (is_http_status_client_error(status))
           {
-            auto error_msg = fmt::format(
-              "Join request to {} returned {} Bad Request: {}. Shutting "
-              "down node gracefully.",
-              config.join.target_rpc_address,
-              status,
-              std::string(data.begin(), data.end()));
-            LOG_FAIL_FMT("{}", error_msg);
-            RINGBUFFER_WRITE_MESSAGE(
-              AdminMessage::fatal_error_msg, to_host, error_msg);
+            std::optional<ccf::ODataErrorResponse> error_response =
+              std::nullopt;
+
+            try
+            {
+              error_response = j.get<ccf::ODataErrorResponse>();
+            }
+            catch (const nlohmann::json::parse_error& e)
+            {
+              // Leave error_response == nullopt
+              LOG_FAIL_FMT(
+                "Join request returned {}, body is not ODataErrorResponse: {}",
+                status,
+                std::string(data.begin(), data.end()));
+            }
+
+            if (
+              error_response.has_value() &&
+              error_response->error.code == ccf::errors::StartupSeqnoIsOld &&
+              config.join.fetch_recent_snapshot)
+            {
+              LOG_INFO_FMT(
+                "Join request to {} returned {} error. Attempting to fetch "
+                "fresher snapshot",
+                target_address,
+                ccf::errors::StartupSeqnoIsOld);
+
+              // If we've followed a redirect, it will have been updated in
+              // config.join. Note that this is fire-and-forget, it is assumed
+              // that it proceeds in the background, updating state when it
+              // completes, and the join timer separately re-attempts join after
+              // this succeeds
+              ccf::tasks::add_task(
+                std::make_shared<FetchSnapshot>(config.join, this));
+              return
+            }
+            else
+            {
+              auto error_msg = fmt::format(
+                "Join request to {} returned {} Bad Request: {}. Shutting "
+                "down node gracefully.",
+                target_address,
+                status,
+                std::string(data.begin(), data.end()));
+              LOG_FAIL_FMT("{}", error_msg);
+              RINGBUFFER_WRITE_MESSAGE(
+                AdminMessage::fatal_error_msg, to_host, error_msg);
+            }
           }
           else if (status != HTTP_STATUS_OK)
           {
@@ -780,8 +881,6 @@ namespace ccf
             }
             return;
           }
-
-          auto j = nlohmann::json::parse(data);
 
           JoinNetworkNodeToNode::Out resp;
           try
