@@ -389,7 +389,7 @@ jobs:
           # Ensure all files have timestamps strictly after SOURCE_DATE_EPOCH,
           # otherwise rpmbuild will not clamp to SOURCE_DATE_EPOCH and the build
           # will not be reproducible.
-          find /__w/CCF/CCF -type f -exec touch {} +
+          find . -type f -exec touch {} +
           ./reproduce/reproduce_rpm.sh repro/reproduce.json
           RPM_NAME=$(ls "$REPRO_DIR" || true)
           if [ -z "$RPM_NAME" ]; then
