@@ -416,6 +416,7 @@ jobs:
       contents: write
     needs:
       - reproduce_rpm
+      - test_rpm_against_app
       - build_release
       - make_sbom
     name: Create Release
