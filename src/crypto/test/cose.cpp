@@ -54,20 +54,18 @@ struct Signer
         break;
       case PayloadType::NestedCBOR:
       {
-        payload.resize(1024);
-        QCBOREncodeContext ctx;
-        QCBOREncode_Init(&ctx, {payload.data(), payload.size()});
-        QCBOREncode_OpenArray(&ctx);
-        QCBOREncode_AddInt64(&ctx, 1);
-        QCBOREncode_OpenArray(&ctx);
-        QCBOREncode_AddInt64(&ctx, 2);
-        QCBOREncode_AddInt64(&ctx, 3);
-        QCBOREncode_CloseArray(&ctx);
-        QCBOREncode_CloseArray(&ctx);
-        UsefulBufC result;
-        QCBOREncode_Finish(&ctx, &result);
-        payload.resize(result.len);
-        payload.shrink_to_fit();
+        using namespace ccf::cbor;
+
+        std::vector<Value> arr;
+        arr.push_back(make_signed(1));
+
+        std::vector<Value> inner;
+        inner.push_back(make_signed(2));
+        inner.push_back(make_signed(3));
+
+        arr.push_back(make_array(std::move(inner)));
+
+        payload = serialize(make_array(std::move(arr)));
       }
       break;
     }
@@ -168,6 +166,8 @@ TEST_CASE("Check unprotected header")
     Signer signer(type);
     auto csp = signer.make_cose_sign1();
 
+    using namespace ccf::cbor;
+
     for (const auto& key : keys)
     {
       for (const auto& position : positions)
@@ -175,61 +175,29 @@ TEST_CASE("Check unprotected header")
         ccf::cose::edit::desc::Value desc{position, key, value};
         auto csp_set = ccf::cose::edit::set_unprotected_header(csp, desc);
 
-        std::vector<uint8_t> ref(1024);
+        auto edited = parse(csp_set);
+        const auto& uhdr = edited->tag_at(18)->array_at(1);
+
+        std::vector<MapItem> ref;
+        if (std::holds_alternative<ccf::cose::edit::pos::InArray>(position))
         {
-          // Create expected reference value for the unprotected header
-          UsefulBuf ref_buf{ref.data(), ref.size()};
-          QCBOREncodeContext ctx;
-          QCBOREncode_Init(&ctx, ref_buf);
-          QCBOREncode_OpenMap(&ctx);
+          std::vector<Value> items{make_bytes(value)};
 
-          if (std::holds_alternative<ccf::cose::edit::pos::InArray>(position))
-          {
-            QCBOREncode_OpenArrayInMapN(&ctx, key);
-            QCBOREncode_AddBytes(&ctx, {value.data(), value.size()});
-            QCBOREncode_CloseArray(&ctx);
-          }
-          else if (std::holds_alternative<ccf::cose::edit::pos::AtKey>(
-                     position))
-          {
-            QCBOREncode_OpenMapInMapN(&ctx, key);
-            auto subkey = std::get<ccf::cose::edit::pos::AtKey>(position).key;
-            QCBOREncode_OpenArrayInMapN(&ctx, subkey);
-            QCBOREncode_AddBytes(&ctx, {value.data(), value.size()});
-            QCBOREncode_CloseArray(&ctx);
-            QCBOREncode_CloseMap(&ctx);
-          }
-          QCBOREncode_CloseMap(&ctx);
-          UsefulBufC ref_buf_c;
-          QCBOREncode_Finish(&ctx, &ref_buf_c);
-          ref.resize(ref_buf_c.len);
-          ref.shrink_to_fit();
+          ref.emplace_back(make_signed(key), make_array(std::move(items)));
         }
+        else if (std::holds_alternative<ccf::cose::edit::pos::AtKey>(position))
+        {
+          auto subkey = std::get<ccf::cose::edit::pos::AtKey>(position).key;
 
-        size_t uhdr_start, uhdr_end;
-        QCBORError err;
-        QCBORItem item;
-        QCBORDecodeContext ctx;
-        UsefulBufC buf{csp_set.data(), csp_set.size()};
-        QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);
-        QCBORDecode_EnterArray(&ctx, nullptr);
-        QCBORDecode_GetNthTagOfLast(&ctx, 0);
-        // Protected header
-        QCBORDecode_VGetNextConsume(&ctx, &item);
-        // Unprotected header
-        QCBORDecode_PartialFinish(&ctx, &uhdr_start);
-        QCBORDecode_VGetNextConsume(&ctx, &item);
-        QCBORDecode_PartialFinish(&ctx, &uhdr_end);
-        std::vector<uint8_t> uhdr{
-          csp_set.data() + uhdr_start, csp_set.data() + uhdr_end};
-        REQUIRE(uhdr == ref);
-        // Payload
-        QCBORDecode_VGetNextConsume(&ctx, &item);
-        // Signature
-        QCBORDecode_VGetNextConsume(&ctx, &item);
-        QCBORDecode_ExitArray(&ctx);
-        err = QCBORDecode_Finish(&ctx);
-        REQUIRE(err == QCBOR_SUCCESS);
+          std::vector<Value> items{make_bytes(value)};
+          std::vector<MapItem> inner_map{
+            {make_signed(subkey), make_array(std::move(items))}};
+
+          ref.emplace_back(make_signed(key), make_map(std::move(inner_map)));
+        }
+        auto ref_map = make_map(std::move(ref));
+
+        REQUIRE_EQ(to_string(ref_map), to_string(uhdr));
       }
     }
 
@@ -237,43 +205,12 @@ TEST_CASE("Check unprotected header")
       auto csp_set_empty = ccf::cose::edit::set_unprotected_header(
         csp, ccf::cose::edit::desc::Empty{});
 
-      std::vector<uint8_t> ref(1024);
-      {
-        // Create expected reference value for the unprotected header
-        UsefulBuf ref_buf{ref.data(), ref.size()};
-        QCBOREncodeContext ctx;
-        QCBOREncode_Init(&ctx, ref_buf);
-        QCBOREncode_OpenMap(&ctx);
-        QCBOREncode_CloseMap(&ctx);
-        UsefulBufC ref_buf_c;
-        QCBOREncode_Finish(&ctx, &ref_buf_c);
-        ref.resize(ref_buf_c.len);
-        ref.shrink_to_fit();
-      }
+      auto edited = parse(csp_set_empty);
+      const auto& uhdr = edited->tag_at(18)->array_at(1);
 
-      size_t uhdr_start, uhdr_end;
-      QCBORError err;
-      QCBORItem item;
-      QCBORDecodeContext ctx;
-      UsefulBufC buf{csp_set_empty.data(), csp_set_empty.size()};
-      QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);
-      QCBORDecode_EnterArray(&ctx, nullptr);
-      QCBORDecode_GetNthTagOfLast(&ctx, 0);
-      // Protected header
-      QCBORDecode_VGetNextConsume(&ctx, &item);
-      // Unprotected header
-      QCBORDecode_PartialFinish(&ctx, &uhdr_start);
-      QCBORDecode_VGetNextConsume(&ctx, &item);
-      QCBORDecode_PartialFinish(&ctx, &uhdr_end);
-      std::vector<uint8_t> uhdr{
-        csp_set_empty.data() + uhdr_start, csp_set_empty.data() + uhdr_end};
-      REQUIRE(uhdr == ref);
-      // Payload
-      QCBORDecode_VGetNextConsume(&ctx, &item);
-      // Signature
-      QCBORDecode_VGetNextConsume(&ctx, &item);
-      QCBORDecode_ExitArray(&ctx);
-      err = QCBORDecode_Finish(&ctx);
+      auto ref_map = make_map({});
+
+      REQUIRE_EQ(to_string(ref_map), to_string(uhdr));
     }
   }
 }
