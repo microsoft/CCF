@@ -194,16 +194,27 @@ namespace http
             tx_id,
             [self, rpc_ctx, paused_task, committed_func](
               ccf::TxID transaction_id, ccf::FinalTxStatus status) {
-              // Let the handler modify the response
-              committed_func(rpc_ctx, transaction_id, status);
+              try
+              {
+                // Let the handler modify the response
+                committed_func(rpc_ctx, transaction_id, status);
 
-              // Write the response
-              send_response_impl(
-                *self,
-                rpc_ctx->get_response_http_status(),
-                rpc_ctx->get_response_headers(),
-                rpc_ctx->get_response_trailers(),
-                std::move(rpc_ctx->take_response_body()));
+                // Write the response
+                send_response_impl(
+                  *self,
+                  rpc_ctx->get_response_http_status(),
+                  rpc_ctx->get_response_headers(),
+                  rpc_ctx->get_response_trailers(),
+                  std::move(rpc_ctx->take_response_body()));
+              }
+              catch (const std::exception& e)
+              {
+                LOG_FAIL_FMT(
+                  "Exception thrown while executing commit callback for {}: {}",
+                  transaction_id.to_str(),
+                  e.what());
+                rpc_ctx->terminate_session = true;
+              }
 
               if (rpc_ctx->terminate_session)
               {
