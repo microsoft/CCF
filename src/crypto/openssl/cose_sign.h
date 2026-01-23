@@ -10,6 +10,8 @@
 
 namespace ccf::crypto
 {
+  // Standardised field: COSE tag.
+  static constexpr int64_t COSE_TAG = 18;
   // Standardised field: algorithm used to sign.
   static constexpr int64_t COSE_PHEADER_KEY_ALG = 1;
   // Standardised: hash of the signing key.
