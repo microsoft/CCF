@@ -29,6 +29,7 @@
 #include "node/session_metrics.h"
 #include "node_interface.h"
 #include "service/internal_tables_access.h"
+#include "service/tables/local_sealing.h"
 #include "service/tables/previous_service_identity.h"
 
 #include <llhttp/llhttp.h>
@@ -329,6 +330,14 @@ namespace ccf
 
       nodes->put(joining_node_id, node_info);
 
+      if (in.sealed_recovery_key.has_value())
+      {
+        auto* sealed_recovery_keys =
+          tx.rw<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
+        sealed_recovery_keys->put(
+          joining_node_id, in.sealed_recovery_key.value());
+      }
+
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
 
       JoinNetworkNodeToNode::Out rep;
@@ -337,6 +346,7 @@ namespace ccf
 
       if (node_status == NodeStatus::TRUSTED)
       {
+        node_operation.shuffle_sealed_shares(tx);
         // Joining node only submit a CSR from 2.x
         std::optional<ccf::crypto::Pem> endorsed_certificate = std::nullopt;
         if (in.certificate_signing_request.has_value())
@@ -1000,63 +1010,67 @@ namespace ccf
         .set_auto_schema<void, GetNodes::Out>()
         .install();
 
-      auto delete_retired_committed_node =
-        [this](auto& args, nlohmann::json&&) {
-          GetNodes::Out out;
+      auto delete_retired_committed_node = [this](
+                                             auto& args, nlohmann::json&&) {
+        GetNodes::Out out;
 
-          std::string node_id;
-          std::string error;
-          if (!get_path_param(
-                args.rpc_ctx->get_request_path_params(),
-                "node_id",
-                node_id,
-                error))
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
-          }
+        std::string node_id;
+        std::string error;
+        if (!get_path_param(
+              args.rpc_ctx->get_request_path_params(),
+              "node_id",
+              node_id,
+              error))
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+        }
 
-          auto nodes = args.tx.rw(this->network.nodes);
-          if (!nodes->has(node_id))
-          {
-            return make_error(
-              HTTP_STATUS_NOT_FOUND,
-              ccf::errors::ResourceNotFound,
-              "No such node");
-          }
+        auto nodes = args.tx.rw(this->network.nodes);
+        if (!nodes->has(node_id))
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "No such node");
+        }
 
-          auto node_endorsed_certificates =
-            args.tx.rw(network.node_endorsed_certificates);
+        auto node_endorsed_certificates =
+          args.tx.rw(network.node_endorsed_certificates);
 
-          // A node's retirement is only complete when the
-          // transition of retired_committed is itself committed,
-          // i.e. when the next eligible primary is guaranteed to
-          // be aware the retirement is committed.
-          // As a result, the handler must check node info at the
-          // current committed level, rather than at the end of the
-          // local suffix.
-          // While this transaction does execute a write, it specifically
-          // deletes the value it reads from. It is therefore safe to
-          // execute on the basis of a potentially stale read-set,
-          // which get_globally_committed() typically produces.
-          auto node = nodes->get_globally_committed(node_id);
-          if (
-            node.has_value() && node->status == ccf::NodeStatus::RETIRED &&
-            node->retired_committed)
-          {
-            nodes->remove(node_id);
-            node_endorsed_certificates->remove(node_id);
-          }
-          else
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::NodeNotRetiredCommitted,
-              "Node is not completely retired");
-          }
+        // A node's retirement is only complete when the
+        // transition of retired_committed is itself committed,
+        // i.e. when the next eligible primary is guaranteed to
+        // be aware the retirement is committed.
+        // As a result, the handler must check node info at the
+        // current committed level, rather than at the end of the
+        // local suffix.
+        // While this transaction does execute a write, it specifically
+        // deletes the value it reads from. It is therefore safe to
+        // execute on the basis of a potentially stale read-set,
+        // which get_globally_committed() typically produces.
+        auto node = nodes->get_globally_committed(node_id);
+        if (
+          node.has_value() && node->status == ccf::NodeStatus::RETIRED &&
+          node->retired_committed)
+        {
+          nodes->remove(node_id);
+          node_endorsed_certificates->remove(node_id);
 
-          return make_success(true);
-        };
+          auto* sealed_recovery_keys = args.tx.template rw<SealedRecoveryKeys>(
+            Tables::SEALED_RECOVERY_KEYS);
+          sealed_recovery_keys->remove(node_id);
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::NodeNotRetiredCommitted,
+            "Node is not completely retired");
+        }
+
+        return make_success(true);
+      };
 
       make_endpoint(
         "/network/nodes/{node_id}",
@@ -1522,6 +1536,15 @@ namespace ccf
           in.public_key,
           in.node_data};
         InternalTablesAccess::add_node(ctx.tx, in.node_id, node_info);
+
+        if (in.sealed_recovery_key.has_value())
+        {
+          auto* sealed_recovery_keys = ctx.tx.template rw<SealedRecoveryKeys>(
+            Tables::SEALED_RECOVERY_KEYS);
+          sealed_recovery_keys->put(in.node_id, in.sealed_recovery_key.value());
+        }
+
+        node_operation.shuffle_sealed_shares(ctx.tx);
 
         if (
           in.quote_info.format != QuoteFormat::amd_sev_snp_v1 ||

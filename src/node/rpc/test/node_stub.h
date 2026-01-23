@@ -9,6 +9,8 @@
 #include "node/rpc/node_operation_interface.h"
 #include "node/self_healing_open_impl.h"
 
+#include <stdexcept>
+
 namespace ccf
 {
   class StubNodeOperation : public ccf::AbstractNodeOperation
@@ -120,6 +122,8 @@ namespace ccf
     {
       throw std::logic_error("Unimplemented");
     }
+
+    void shuffle_sealed_shares(ccf::kv::Tx& /*tx*/) override {}
   };
 
   class StubGovernanceEffects : public ccf::AbstractGovernanceEffects
@@ -146,6 +150,11 @@ namespace ccf
     }
 
     void trigger_snapshot(ccf::kv::Tx& tx) override
+    {
+      return;
+    }
+
+    void shuffle_sealed_shares(ccf::kv::Tx& /*tx*/) override
     {
       return;
     }

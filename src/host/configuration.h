@@ -49,6 +49,7 @@ namespace host
     std::optional<std::string> node_data_json_file = std::nullopt;
     std::optional<std::string> service_data_json_file = std::nullopt;
     bool ignore_first_sigterm = false;
+    bool enable_local_sealing = false;
 
     struct OutputFiles
     {
@@ -58,8 +59,6 @@ namespace host
       // Addresses files
       std::string node_to_node_address_file;
       std::string rpc_addresses_file;
-
-      std::optional<std::string> sealed_ledger_secret_location = std::nullopt;
 
       bool operator==(const OutputFiles&) const = default;
     };
@@ -119,7 +118,7 @@ namespace host
       {
         size_t initial_service_certificate_validity_days = 1;
         std::string previous_service_identity_file;
-        std::optional<std::string> previous_sealed_ledger_secret_location =
+        std::optional<std::string> previous_local_sealing_identity =
           std::nullopt;
         std::optional<ccf::SelfHealingOpenConfig> self_healing_open =
           std::nullopt;
@@ -137,8 +136,7 @@ namespace host
     node_certificate_file,
     pid_file,
     node_to_node_address_file,
-    rpc_addresses_file,
-    sealed_ledger_secret_location);
+    rpc_addresses_file);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Logging);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Logging);
@@ -176,7 +174,7 @@ namespace host
     CCHostConfig::Command::Recover,
     initial_service_certificate_validity_days,
     previous_service_identity_file,
-    previous_sealed_ledger_secret_location,
+    previous_local_sealing_identity,
     self_healing_open);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
@@ -196,6 +194,7 @@ namespace host
     node_data_json_file,
     service_data_json_file,
     ignore_first_sigterm,
+    enable_local_sealing,
     output_files,
     snapshots,
     logging,

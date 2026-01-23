@@ -278,6 +278,48 @@ namespace ccf::js::extensions
 
       return ccf::js::core::constants::Undefined;
     }
+
+    JSValue js_shuffle_sealed_shares(
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      [[maybe_unused]] int argc,
+      [[maybe_unused]] JSValueConst* argv)
+    {
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+
+      auto* extension = jsctx.get_extension<NodeExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto* gov_effects = extension->gov_effects;
+      if (gov_effects == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get governance effects object");
+      }
+
+      auto* tx_ptr = extension->tx;
+      if (tx_ptr == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get tx object");
+      }
+
+      try
+      {
+        gov_effects->shuffle_sealed_shares(*tx_ptr);
+      }
+      catch (const std::exception& e)
+      {
+        GOV_FAIL_FMT("Unable to shuffle sealed shares: {}", e.what());
+        return JS_ThrowInternalError(
+          ctx, "Unable to shuffle sealed shares: %s", e.what());
+      }
+
+      return ccf::js::core::constants::Undefined;
+    }
   }
 
   void NodeExtension::install(js::core::Context& ctx)
@@ -304,6 +346,9 @@ namespace ccf::js::extensions
     JS_CHECK_OR_THROW(node.set(
       "triggerSnapshot",
       ctx.new_c_function(js_trigger_snapshot, "triggerSnapshot", 0)));
+    JS_CHECK_OR_THROW(node.set(
+      "shuffleSealedShares",
+      ctx.new_c_function(js_shuffle_sealed_shares, "shuffleSealedShares", 0)));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
     JS_CHECK_OR_THROW(ccf.set("node", std::move(node)));

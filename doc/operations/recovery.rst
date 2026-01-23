@@ -116,34 +116,106 @@ Once operators have established a recovered crash-fault tolerant public network,
 Local Sealing Recovery (Experimental)
 -------------------------------------
 
-SNP provides the `DERIVED_KEY` guest message which derives a key from the CPU's VCEK (or VLEK), TCB version and the guest's measurement and host_data (policy), thus any change to the CPU, measurement or policy, or a rolled-back TCB version, will prevent the key from being reconstructed.
-If configured, the node will unseal the secrets it previously sealed instead of waiting for recovery shares from members after `transition_to_open` is triggered.
+SNP provides the ``DERIVED_KEY`` guest message which derives a key from the CPU's VCEK (or VLEK), TCB version and the guest's measurement and host_data (policy), thus any change to the CPU, measurement or policy, or a rolled-back TCB version, will prevent the key from being reconstructed.
+If configured, the node will unseal the secrets it previously sealed instead of waiting for recovery shares from members after ``transition_to_open`` is triggered.
 
-If, in config.json, `output_files.sealed_ledger_secret_location` is set, the node will derive a key and seal versioned ledger secrets to that directory.
-This capability is noted in `public:ccf.gov.node.info[node].will_locally_seal_ledger_secrets`, to allow it to be audited.
+Overview
+~~~~~~~~
 
-Then if `command.recover.previous_sealed_ledger_secret_location` is set in the config.json, when the node recovers and receives the `transition_to_open` transaction, the node will try to unseal the latest ledger secret and use that to recover the ledger.
-If this is unsuccessful, it will fall back to waiting for recovery shares.
-Which of these two paths is taken is noted in the `public:ccf.internal.last_recovery_type`.
+When local sealing is enabled, each node generates an RSA key pair (the "recovery key pair") during join. The private key is encrypted (sealed) using an AES-GCM key derived from the SNP ``DERIVED_KEY``, and the public key along with the sealed private key is stored in the ``public:ccf.gov.nodes.sealed_recovery_keys`` table.
 
-.. code-block:: bash
+During normal operation, whenever the ledger secret changes, or a node joins the network, the system also shuffles "sealed shares". 
+The primary generates a fresh ledger secret wrapping key, encrypts the ledger secret with that key, and stores a sealed copy of the wrapping key for each trusted node with a sealed recovery public key. 
 
-    $ cat /path/to/config/file
-      ...
+During recovery, if the node was previously part of the network and has the same CPU, measurement, and policy, it can bypass the need for member recovery shares by re-deriving the sealing key, unsealing its recovery private key, decrypting the sealed wrapping key, and using that to unwrap the ledger secret. 
+
+The following diagram illustrates the key hierarchy and encryption relationships:
+
+.. mermaid::
+
+    flowchart TB
+        subgraph SNP["SNP PSP"]
+            DK["DERIVED_KEY"]
+            VCEK
+            Measurement
+            Policy["UserData (Policy)"]
+            TCB
+
+            VCEK --> DK
+            Measurement --> DK
+            Policy --> DK            
+            TCB --> DK
+        end
+
+        subgraph KG["Key Generation"]
+            subgraph Sealing Key
+                SK["Sealing Key<br/>(HKDF)"]
+                Label["Label: <br/>CCF AMD Local Sealing Key"]
+                DK -->|ikm| SK
+                Label -->|info| SK
+            end
+            
+            RSA["Recovery Key<br/>(RSA Key Pair)"]
+            PubKey["Public Key"]
+            PrivKey["Private Key"]
+            RSA --> PubKey
+            RSA --> PrivKey
+
+            LS["Ledger secret"]
+            LSWK["Ledger secret wrapping key"]
+        end
+
+        subgraph Sealed["Store: nodes.sealed_recovery_keys"]
+            SPK["Sealed Private Key<br/>(AES-GCM encrypted)"]
+            SK -->|key| SPK
+            PrivKey --> SPK
+
+            StoredPubKey["Public Key (plaintext)"]
+            PubKey --> StoredPubKey
+        end
+
+
+        subgraph Shares["Store: internal.sealed_shares table"]
+            WLS["Wrapped Ledger Secret<br/>(AES-GCM encrypted)"]
+            LSWK -->|key| WLS
+            LS --> WLS
+
+            EWK["Encrypted Wrapping Key<br/>(per-node, RSA-OAEP encrypted)"]
+            StoredPubKey -->|key| EWK
+            LSWK --> EWK
+        end
+
+        subgraph Recovery["Recovery Process"]
+            UPK["Unsealed Private Key"]
+            SK -->|key| UPK
+            SPK --> UPK
+
+            UWK["Unsealed Wrapping Key"]
+            UPK -->|key| UWK
+            EWK --> UWK
+
+            ULS["Unsealed Ledger Secret"]
+            UWK -->|key| ULS
+            WLS --> ULS            
+        end
+
+Configuration
+~~~~~~~~~~~~~
+
+To enable local sealing, set ``enable_local_sealing`` to ``true`` in the node configuration. During recovery, the node's previous identity (node ID) must be specified via ``command.recover.previous_local_sealing_identity`` so the node can look up its sealed share.
+In the future this will be a single shared identifier for both self-healing-open and local sealing recovery, but for now it is simply the previous node ID.
+
+.. code-block:: json
+
+    {
+      "enable_local_sealing": true,
       "command": {
         "type": "Recover",
-        ...
         "recover": {
-          ...
-          "previous_sealed_ledger_secret_location": "/path/to/previous/secret"
+          "previous_local_sealing_identity": "<previous-node-id>"
         }
       }
-      "output_files": {
-        ...
-        "sealed_ledger_secret_location": "/path/to/new/secret"
-      }
-      ...
-    $ /opt/ccf/bin/js_generic --config /path/to/config/file
+    }
 
 Self-Healing-Open recovery (Experimental)
 -----------------------------------------
