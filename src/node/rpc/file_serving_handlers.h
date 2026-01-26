@@ -567,8 +567,11 @@ namespace ccf::node
           return;
         }
 
-        auto location =
-          fmt::format("https://{}/node/ledger-chunk?{}={}", address.value(), file_since_param_key, since_idx);
+        auto location = fmt::format(
+          "https://{}/node/ledger-chunk?{}={}",
+          address.value(),
+          file_since_param_key,
+          since_idx);
         ctx.rpc_ctx->set_response_header(http::headers::LOCATION, location);
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_PERMANENT_REDIRECT,
