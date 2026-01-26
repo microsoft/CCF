@@ -16,6 +16,12 @@
 
 namespace ccf::cbor
 {
+  namespace tag
+  {
+    // https://www.rfc-editor.org/rfc/rfc8152.html#section-2
+    static constexpr int64_t COSE_SIGN_1 = 18;
+  }
+
   struct ValueImpl;
   using Value = std::shared_ptr<ValueImpl>;
 

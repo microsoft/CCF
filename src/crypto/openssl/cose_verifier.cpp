@@ -11,11 +11,11 @@
 #include "x509_time.h"
 
 #include <crypto/cbor.h>
+#include <crypto/cose.h>
 #include <openssl/evp.h>
 #include <openssl/ossl_typ.h>
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
-#include <qcbor/qcbor_spiffy_decode.h>
 #include <t_cose/t_cose_sign1_verify.h>
 
 namespace
@@ -29,7 +29,8 @@ namespace
       rethrow_with_msg([&]() { return parse(cose_msg); }, "Parse COSE CBOR");
 
     const auto& cose_envelope = rethrow_with_msg(
-      [&]() -> auto& { return cose_cbor->tag_at(18); }, "Parse COSE tag");
+      [&]() -> auto& { return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1); },
+      "Parse COSE tag");
 
     const auto& phdr_raw = rethrow_with_msg(
       [&]() -> auto& { return cose_envelope->array_at(0); },
@@ -40,7 +41,7 @@ namespace
 
     const int64_t alg = rethrow_with_msg(
       [&]() {
-        return phdr->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_ALG))
+        return phdr->map_at(make_signed(ccf::cose::header::iana::ALG))
           ->as_signed();
       },
       "Retrieve alg from protected header");
@@ -207,7 +208,8 @@ namespace ccf::crypto
       rethrow_with_msg([&]() { return parse(cose_msg); }, "Parse COSE CBOR");
 
     const auto& cose_envelope = rethrow_with_msg(
-      [&]() -> auto& { return cose_cbor->tag_at(18); }, "Parse COSE tag");
+      [&]() -> auto& { return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1); },
+      "Parse COSE tag");
 
     const auto& phdr_raw = rethrow_with_msg(
       [&]() -> auto& { return cose_envelope->array_at(0); },
@@ -218,20 +220,22 @@ namespace ccf::crypto
 
     const auto& ccf_claims = rethrow_with_msg(
       [&]() -> auto& {
-        return phdr->map_at(make_string(ccf::crypto::COSE_PHEADER_KEY_CCF));
+        return phdr->map_at(make_string(ccf::cose::header::custom::CCF_V1));
       },
       "Retrieve CCF claims");
 
     auto from = rethrow_with_msg(
       [&]() {
-        return ccf_claims->map_at(make_string(COSE_PHEADER_KEY_RANGE_BEGIN))
+        return ccf_claims
+          ->map_at(make_string(ccf::cose::header::custom::TX_RANGE_BEGIN))
           ->as_string();
       },
       "Retrieve epoch range begin");
 
     auto to = rethrow_with_msg(
       [&]() {
-        return ccf_claims->map_at(make_string(COSE_PHEADER_KEY_RANGE_END))
+        return ccf_claims
+          ->map_at(make_string(ccf::cose::header::custom::TX_RANGE_END))
           ->as_string();
       },
       "Retrieve epoch range end");

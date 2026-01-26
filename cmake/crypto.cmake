@@ -38,11 +38,8 @@ add_tidy(ccfcrypto)
 target_compile_options(ccfcrypto PUBLIC ${COMPILE_LIBCXX})
 target_link_options(ccfcrypto PUBLIC ${LINK_LIBCXX})
 
-target_link_libraries(ccfcrypto PUBLIC qcbor)
-target_link_libraries(ccfcrypto PUBLIC t_cose)
-target_link_libraries(ccfcrypto PUBLIC crypto)
-target_link_libraries(ccfcrypto PUBLIC ssl)
-target_link_libraries(ccfcrypto PRIVATE evercbor)
+target_link_libraries(ccfcrypto PUBLIC crypto ssl evercbor)
+target_link_libraries(ccfcrypto PRIVATE t_cose)
 set_property(TARGET ccfcrypto PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 install(
