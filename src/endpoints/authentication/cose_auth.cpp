@@ -12,8 +12,6 @@
 #include "crypto/cbor.h"
 #include "node/cose_common.h"
 
-#include <t_cose/t_cose_sign1_verify.h>
-
 namespace
 {
   std::string buf_to_string(std::span<const uint8_t> buf)

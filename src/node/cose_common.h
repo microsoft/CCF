@@ -8,11 +8,8 @@
 
 #include <crypto/cbor.h>
 #include <crypto/openssl/cose_sign.h>
-#include <qcbor/qcbor.h>
-#include <qcbor/qcbor_spiffy_decode.h>
 #include <stdexcept>
 #include <string>
-#include <t_cose/t_cose_common.h>
 
 namespace ccf::cose
 {
@@ -39,14 +36,22 @@ namespace ccf::cose
 
   static bool is_ecdsa_alg(int64_t cose_alg)
   {
-    return cose_alg == T_COSE_ALGORITHM_ES256 ||
-      cose_alg == T_COSE_ALGORITHM_ES384 || cose_alg == T_COSE_ALGORITHM_ES512;
+    // https://www.iana.org/assignments/cose/cose.xhtml
+    constexpr int COSE_ALGORITHM_ES256 = -7;
+    constexpr int COSE_ALGORITHM_ES384 = -35;
+    constexpr int COSE_ALGORITHM_ES512 = -36;
+    return cose_alg == COSE_ALGORITHM_ES256 ||
+      cose_alg == COSE_ALGORITHM_ES384 || cose_alg == COSE_ALGORITHM_ES512;
   }
 
   static bool is_rsa_alg(int64_t cose_alg)
   {
-    return cose_alg == T_COSE_ALGORITHM_PS256 ||
-      cose_alg == T_COSE_ALGORITHM_PS384 || cose_alg == T_COSE_ALGORITHM_PS512;
+    // https: // www.iana.org/assignments/cose/cose.xhtml
+    constexpr int COSE_ALGORITHM_PS256 = -37;
+    constexpr int COSE_ALGORITHM_PS384 = -38;
+    constexpr int COSE_ALGORITHM_PS512 = -39;
+    return cose_alg == COSE_ALGORITHM_PS256 ||
+      cose_alg == COSE_ALGORITHM_PS384 || cose_alg == COSE_ALGORITHM_PS512;
   }
 
   struct COSEDecodeError : public std::runtime_error

@@ -12,8 +12,6 @@
 #include <doctest/doctest.h>
 #include <fstream>
 #include <limits>
-#include <qcbor/qcbor_decode.h>
-#include <qcbor/qcbor_spiffy_decode.h>
 #include <string>
 #include <vector>
 

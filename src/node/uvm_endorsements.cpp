@@ -81,7 +81,7 @@ namespace ccf
           "UVM endorsements COSE envelope");
         const auto& cose_array = ccf::cbor::rethrow_with_msg(
           [&]() -> const ccf::cbor::Value& {
-            return parsed->tag_at(CBOR_TAG_COSE_SIGN1);
+            return parsed->tag_at(ccf::crypto::COSE_TAG);
           },
           "COSE_Sign1 tag");
         constexpr std::string_view phdr_context{"COSE_Sign1[0]"};
@@ -152,7 +152,7 @@ namespace ccf
           "COSE envelope");
         const auto& cose_array = ccf::cbor::rethrow_with_msg(
           [&]() -> const ccf::cbor::Value& {
-            return parsed->tag_at(CBOR_TAG_COSE_SIGN1);
+            return parsed->tag_at(ccf::crypto::COSE_TAG);
           },
           "COSE_Sign1 tag");
 
