@@ -21,5 +21,7 @@ namespace ccf
 
     virtual std::optional<std::filesystem::path> committed_ledger_path_with_idx(
       size_t idx) = 0;
+
+    virtual size_t get_init_idx() = 0;
   };
 }

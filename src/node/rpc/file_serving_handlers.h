@@ -67,6 +67,49 @@ namespace ccf::node
     return interface.published_address;
   }
 
+  // Helper function to redirect to the next node in order after self_node_id
+  // using node IDs as a sorting key, and wrapping around to the lowest ID.
+  // Will either return an address, or populate an appropriate error on the
+  // response context.
+  static std::optional<std::string> get_redirect_address_for_next_node(
+    const ccf::endpoints::CommandEndpointContext& ctx,
+    ccf::kv::ReadOnlyTx& ro_tx,
+    const ccf::NodeId& self_node_id)
+  {
+    auto* nodes = ro_tx.ro<ccf::Nodes>(ccf::Tables::NODES);
+    std::set<ccf::NodeId> other_node_ids;
+    nodes->foreach([&](const ccf::NodeId& node_id, const ccf::NodeInfo&) {
+      if (node_id != self_node_id)
+      {
+        other_node_ids.insert(node_id);
+      }
+      return true;
+    });
+
+    if (other_node_ids.empty())
+    {
+      LOG_FAIL_FMT("Node redirection error: No nodes present in the network");
+      ctx.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        "Cannot redirect request. No nodes present in the network");
+      return std::nullopt;
+    }
+
+    auto it = other_node_ids.upper_bound(self_node_id);
+    std::optional<ccf::NodeId> next_node_id;
+    if (it != other_node_ids.end())
+    {
+      next_node_id = *it;
+    }
+    else
+    {
+      next_node_id = *other_node_ids.begin();
+    }
+
+    return get_redirect_address_for_node(ctx, ro_tx, next_node_id.value());
+  }
+
   // Helper function to get NodeConfigurationSubsystem from NodeContext,
   // and populate error on ctx and log if not available
   static std::shared_ptr<NodeConfigurationSubsystem>
@@ -291,7 +334,6 @@ namespace ccf::node
     ctx.rpc_ctx->set_response_header(
       ccf::http::headers::CONTENT_RANGE,
       fmt::format("bytes {}-{}/{}", range_start, range_end, total_size));
-    return;
   }
 
   static void init_file_serving_handlers(
@@ -507,7 +549,36 @@ namespace ccf::node
         return;
       }
 
-      // Otherwise, if we are not primary, try to redirect to primary
+      // Otherwise, if the file is before our init index, i.e. where we started
+      // replicating, redirect to the next node in order.
+      const size_t init_idx = read_ledger_subsystem->get_init_idx();
+      if (since_idx < init_idx)
+      {
+        LOG_DEBUG_FMT(
+          "This node cannot serve ledger chunk including index {} which is "
+          "before its init index {} - trying to redirect to next node",
+          since_idx,
+          init_idx);
+
+        address = get_redirect_address_for_next_node(
+          ctx, ctx.tx, node_context.get_node_id());
+        if (!address.has_value())
+        {
+          return;
+        }
+
+        auto location =
+          fmt::format("https://{}/node/ledger-chunk?{}={}", address.value(), file_since_param_key, since_idx);
+        ctx.rpc_ctx->set_response_header(http::headers::LOCATION, location);
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_PERMANENT_REDIRECT,
+          ccf::errors::NodeCannotHandleRequest,
+          "Node does not have ledger chunk; redirecting to next node");
+        return;
+      }
+
+      // If the file is beyond our init index, but we do not have it, we are
+      // probably a backup and lagging behind. Redirect to primary.
       if (!node_operation->can_replicate())
       {
         LOG_DEBUG_FMT(
@@ -537,6 +608,7 @@ namespace ccf::node
         }
       }
 
+      // Redirect possibilities exhausted
       ctx.rpc_ctx->set_error(
         HTTP_STATUS_NOT_FOUND,
         ccf::errors::ResourceNotFound,

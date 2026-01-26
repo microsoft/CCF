@@ -746,6 +746,9 @@ namespace asynchost
     // use_existing_files can be disabled once this idx is passed
     std::optional<size_t> last_idx_on_init = std::nullopt;
 
+    // Use to remember the index from which replication started
+    size_t init_idx = 0;
+
     // Set during recovery to mark files as temporary until the recovery is
     // complete
     std::optional<size_t> recovery_start_idx = std::nullopt;
@@ -1223,6 +1226,8 @@ namespace asynchost
 
       std::unique_lock<ccf::pal::Mutex> guard(state_lock);
 
+      init_idx = idx;
+
       // Used by backup nodes to initialise the ledger when starting from a
       // non-empty state, i.e. snapshot. It is assumed that idx is included in a
       // committed ledger file.
@@ -1572,6 +1577,13 @@ namespace asynchost
       }
 
       return ledger_dir / name.value();
+    }
+
+    [[nodiscard]] size_t get_init_idx()
+    {
+      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+
+      return init_idx;
     }
 
     struct AsyncLedgerGet

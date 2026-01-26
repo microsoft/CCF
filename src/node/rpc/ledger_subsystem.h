@@ -20,5 +20,10 @@ namespace ccf
     {
       return ledger.committed_ledger_path_with_idx(idx);
     }
+
+    [[nodiscard]] size_t get_init_idx() override
+    {
+      return ledger.get_init_idx();
+    }
   };
 }
