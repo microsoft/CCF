@@ -152,7 +152,7 @@ namespace ccf::cose
           ->as_signed();
       },
       fmt::format(
-        "Parse CWT claim sub({}) field", ccf::cwt::header::iana::IAT));
+        "Parse CWT claim iat({}) field", ccf::cwt::header::iana::IAT));
 
     claims.iss = rethrow_with_msg(
       [&]() {
