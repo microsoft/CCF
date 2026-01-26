@@ -2,16 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/cbor.h"
 #include "crypto/openssl/ec_key_pair.h"
 
 #include <openssl/ossl_typ.h>
-#include <span>
 #include <string>
-#include <t_cose/t_cose_sign1_sign.h>
-#include <unordered_map>
 
 namespace ccf::crypto
 {
+  // Standardised field: COSE tag.
+  static constexpr int64_t COSE_TAG = 18;
   // Standardised field: algorithm used to sign.
   static constexpr int64_t COSE_PHEADER_KEY_ALG = 1;
   // Standardised: hash of the signing key.
@@ -58,121 +58,10 @@ namespace ccf::crypto
     "epoch.end.merkle.root";
   static const std::string COSE_PHEADER_UVM_SVN = "svn";
 
-  class COSEMapKey
-  {
-  public:
-    virtual void apply(QCBOREncodeContext* ctx) const = 0;
-    [[nodiscard]] virtual size_t estimated_size() const = 0;
-
-    virtual ~COSEMapKey() = default;
-  };
-
-  class COSEMapIntKey : public COSEMapKey
-  {
-  public:
-    COSEMapIntKey(int64_t key_);
-    ~COSEMapIntKey() override = default;
-
-    void apply(QCBOREncodeContext* ctx) const override;
-    [[nodiscard]] size_t estimated_size() const override;
-
-  private:
-    int64_t key;
-  };
-
-  class COSEMapStringKey : public COSEMapKey
-  {
-  public:
-    COSEMapStringKey(std::string key_);
-    ~COSEMapStringKey() override = default;
-
-    void apply(QCBOREncodeContext* ctx) const override;
-    [[nodiscard]] size_t estimated_size() const override;
-
-  private:
-    std::string key;
-  };
-
-  class COSEParametersFactory
-  {
-  public:
-    virtual void apply(QCBOREncodeContext* ctx) const = 0;
-    [[nodiscard]] virtual size_t estimated_size() const = 0;
-
-    virtual ~COSEParametersFactory() = default;
-  };
-
-  class COSEParametersMap : public COSEParametersFactory
-  {
-  public:
-    COSEParametersMap(
-      std::shared_ptr<COSEMapKey> key_,
-      const std::vector<std::shared_ptr<COSEParametersFactory>>& factories_);
-
-    void apply(QCBOREncodeContext* ctx) const override;
-    [[nodiscard]] size_t estimated_size() const override;
-
-    ~COSEParametersMap() override = default;
-
-  private:
-    std::shared_ptr<COSEMapKey> key;
-    std::vector<std::shared_ptr<COSEParametersFactory>> factories;
-  };
-
-  std::shared_ptr<COSEParametersFactory> cose_params_int_int(
-    int64_t key, int64_t value);
-
-  std::shared_ptr<COSEParametersFactory> cose_params_int_string(
-    int64_t key, const std::string& value);
-
-  std::shared_ptr<COSEParametersFactory> cose_params_string_int(
-    const std::string& key, int64_t value);
-
-  std::shared_ptr<COSEParametersFactory> cose_params_string_string(
-    const std::string& key, const std::string& value);
-
-  std::shared_ptr<COSEParametersFactory> cose_params_int_bytes(
-    int64_t key, std::span<const uint8_t> value);
-
-  std::shared_ptr<COSEParametersFactory> cose_params_string_bytes(
-    const std::string& key, std::span<const uint8_t> value);
-
-  class COSEParametersPair : public COSEParametersFactory
-  {
-  public:
-    template <typename Callable>
-    COSEParametersPair(Callable&& impl, size_t args_size) :
-      impl(std::forward<Callable>(impl)),
-      args_size{args_size}
-    {}
-
-    ~COSEParametersPair() override = default;
-
-    void apply(QCBOREncodeContext* ctx) const override
-    {
-      impl(ctx);
-    }
-
-    [[nodiscard]] size_t estimated_size() const override
-    {
-      return args_size;
-    }
-
-  private:
-    std::function<void(QCBOREncodeContext*)> impl;
-    size_t args_size{};
-  };
-
-  using COSEHeadersArray =
-    std::vector<std::shared_ptr<ccf::crypto::COSEParametersFactory>>;
-
   struct COSESignError : public std::runtime_error
   {
     COSESignError(const std::string& msg) : std::runtime_error(msg) {}
   };
-
-  std::optional<int> key_to_cose_alg_id(
-    const ccf::crypto::ECPublicKey_OpenSSL& key);
 
   /* Sign a cose_sign1 payload with custom protected headers as strings, where
        - key: integer label to be assigned in a COSE value
@@ -183,8 +72,7 @@ namespace ccf::crypto
    */
   std::vector<uint8_t> cose_sign1(
     const ECKeyPair_OpenSSL& key,
-    const std::vector<std::shared_ptr<COSEParametersFactory>>&
-      protected_headers,
+    ccf::cbor::Value protected_headers,
     std::span<const uint8_t> payload,
     bool detached_payload = true);
 }

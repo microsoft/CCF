@@ -1258,7 +1258,7 @@ def run_initial_uvm_descriptor_checks(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         primary, _ = network.find_primary()
-        old_common = infra.network.get_common_folder_name(args.workspace, args.label)
+        network_service_identity_file, _ = network.save_service_identity_to_file()
         snapshots_dir = network.get_committed_snapshots(primary)
         network.stop_all_nodes()
         LOG.info("Check that the a UVM descriptor is present")
@@ -1286,12 +1286,12 @@ def run_initial_uvm_descriptor_checks(const_args):
             existing_network=network,
         ) as recovered_network:
 
-            recovered_network_args.previous_service_identity_file = os.path.join(
-                old_common, "service_cert.pem"
+            recovered_network_args.previous_service_identity_file = (
+                network_service_identity_file
             )
             recovered_network.start_in_recovery(
                 recovered_network_args,
-                common_dir=old_common,
+                common_dir=network.common_dir,
                 ledger_dir=current_ledger_dir,
                 committed_ledger_dirs=committed_ledger_dirs,
                 snapshots_dir=snapshots_dir,
@@ -1344,7 +1344,7 @@ def run_initial_tcb_version_checks(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         primary, _ = network.find_primary()
-        old_common = infra.network.get_common_folder_name(args.workspace, args.label)
+        network_service_identity_file, _ = network.save_service_identity_to_file()
         snapshots_dir = network.get_committed_snapshots(primary)
         network.stop_all_nodes()
 
@@ -1362,8 +1362,8 @@ def run_initial_tcb_version_checks(const_args):
         current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
         recovered_network_args = copy.deepcopy(args)
-        recovered_network_args.previous_service_identity_file = os.path.join(
-            old_common, "service_cert.pem"
+        recovered_network_args.previous_service_identity_file = (
+            network_service_identity_file
         )
         recovered_network_args.label += "_recovery"
         with infra.network.network(
@@ -1374,7 +1374,7 @@ def run_initial_tcb_version_checks(const_args):
         ) as recovered_network:
             recovered_network.start_in_recovery(
                 recovered_network_args,
-                common_dir=old_common,
+                common_dir=network.common_dir,
                 ledger_dir=current_ledger_dir,
                 committed_ledger_dirs=committed_ledger_dirs,
                 snapshots_dir=snapshots_dir,
@@ -1494,9 +1494,7 @@ def run_recovery_local_unsealing(
                 current_ledger_dir, committed_ledger_dirs = node.get_ledger()
                 recovery_network.start_in_recovery(
                     recovery_network_args,
-                    common_dir=infra.network.get_common_folder_name(
-                        args.workspace, args.label
-                    ),
+                    common_dir=network.common_dir,
                     ledger_dir=current_ledger_dir,
                     committed_ledger_dirs=committed_ledger_dirs,
                 )
@@ -1563,9 +1561,7 @@ def run_recovery_unsealing_validate_audit(const_args):
                 ].get_ledger()
                 recovery_network.start_in_recovery(
                     recovery_network_args,
-                    common_dir=infra.network.get_common_folder_name(
-                        args.workspace, args.label
-                    ),
+                    common_dir=network.common_dir,
                     ledger_dir=current_ledger_dir,
                     committed_ledger_dirs=committed_ledger_dirs,
                 )
@@ -1718,9 +1714,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 try:
                     recovery_network.start_in_recovery(
                         recovery_network_args,
-                        common_dir=infra.network.get_common_folder_name(
-                            args.workspace, args.label
-                        ),
+                        common_dir=prev_network.common_dir,
                         ledger_dir=current_ledger_dir,
                         committed_ledger_dirs=committed_ledger_dirs,
                     )

@@ -365,44 +365,39 @@ namespace ccf
           std::chrono::system_clock::now().time_since_epoch())
           .count();
 
-      auto ccf_headers =
-        std::static_pointer_cast<ccf::crypto::COSEParametersFactory>(
-          std::make_shared<ccf::crypto::COSEParametersMap>(
-            std::make_shared<ccf::crypto::COSEMapStringKey>(
-              ccf::crypto::COSE_PHEADER_KEY_CCF),
-            ccf::crypto::COSEHeadersArray{
-              ccf::crypto::cose_params_string_string(
-                ccf::crypto::COSE_PHEADER_KEY_TXID, txid.to_str())}));
+      std::vector<cbor::MapItem> ccf_headers;
+      const auto tx_id = txid.to_str();
+      ccf_headers.emplace_back(
+        cbor::make_string(ccf::crypto::COSE_PHEADER_KEY_TXID),
+        cbor::make_string(tx_id));
 
-      auto cwt_headers =
-        std::static_pointer_cast<ccf::crypto::COSEParametersFactory>(
-          std::make_shared<ccf::crypto::COSEParametersMap>(
-            std::make_shared<ccf::crypto::COSEMapIntKey>(
-              ccf::crypto::COSE_PHEADER_KEY_CWT),
-            ccf::crypto::COSEHeadersArray{
-              ccf::crypto::cose_params_int_int(
-                ccf::crypto::COSE_PHEADER_KEY_IAT, time_since_epoch),
-              ccf::crypto::cose_params_int_string(
-                ccf::crypto::COSE_PHEADER_KEY_ISS,
-                cose_signatures_config.issuer),
-              ccf::crypto::cose_params_int_string(
-                ccf::crypto::COSE_PHEADER_KEY_SUB,
-                cose_signatures_config.subject),
-            }));
+      std::vector<cbor::MapItem> cwt_headers;
+      cwt_headers.emplace_back(
+        cbor::make_signed(ccf::crypto::COSE_PHEADER_KEY_IAT),
+        cbor::make_signed(time_since_epoch));
+      cwt_headers.emplace_back(
+        cbor::make_signed(ccf::crypto::COSE_PHEADER_KEY_ISS),
+        cbor::make_string(cose_signatures_config.issuer));
+      cwt_headers.emplace_back(
+        cbor::make_signed(ccf::crypto::COSE_PHEADER_KEY_SUB),
+        cbor::make_string(cose_signatures_config.subject));
 
-      const auto pheaders = {// Key digest
-                             ccf::crypto::cose_params_int_bytes(
-                               ccf::crypto::COSE_PHEADER_KEY_ID, kid_span),
-                             // VDS
-                             ccf::crypto::cose_params_int_int(
-                               ccf::crypto::COSE_PHEADER_KEY_VDS,
-                               ccf::crypto::COSE_PHEADER_VDS_CCF_LEDGER_SHA256),
-                             // CWT claims
-                             cwt_headers,
-                             // CCF headers
-                             ccf_headers};
+      std::vector<cbor::MapItem> phdr;
+      phdr.emplace_back(
+        cbor::make_signed(ccf::crypto::COSE_PHEADER_KEY_ID),
+        cbor::make_bytes(kid_span));
+      phdr.emplace_back(
+        cbor::make_signed(ccf::crypto::COSE_PHEADER_KEY_VDS),
+        cbor::make_signed(ccf::crypto::COSE_PHEADER_VDS_CCF_LEDGER_SHA256));
+      phdr.emplace_back(
+        cbor::make_signed(ccf::crypto::COSE_PHEADER_KEY_CWT),
+        cbor::make_map(std::move(cwt_headers)));
+      phdr.emplace_back(
+        cbor::make_string(ccf::crypto::COSE_PHEADER_KEY_CCF),
+        cbor::make_map(std::move(ccf_headers)));
 
-      auto cose_sign = crypto::cose_sign1(service_kp, pheaders, root_hash);
+      auto phdr_map = cbor::make_map(std::move(phdr));
+      auto cose_sign = crypto::cose_sign1(service_kp, phdr_map, root_hash);
 
       signatures->put(sig_value);
       cose_signatures->put(cose_sign);
