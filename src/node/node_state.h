@@ -94,7 +94,17 @@ namespace ccf
     struct FetchSnapshot : public ccf::tasks::BaseTask
     {
       const ccf::StartupConfig::Join join_config;
+      const ccf::CCFConfig::Snapshots snapshot_config;
       NodeState* owner;
+
+      FetchSnapshot(
+        const ccf::StartupConfig::Join& join_config_,
+        const ccf::CCFConfig::Snapshots& snapshot_config_,
+        NodeState* owner_) :
+        join_config(join_config_),
+        snapshot_config(snapshot_config_),
+        owner(owner_)
+      {}
 
       void do_task_implementation() override
       {
@@ -117,7 +127,7 @@ namespace ccf
             latest_peer_snapshot->snapshot_data.size());
 
           const auto dst_path =
-            std::filesystem::path(config.snapshots.directory) /
+            std::filesystem::path(snapshot_config.directory) /
             std::filesystem::path(latest_peer_snapshot->snapshot_name);
           if (files::exists(dst_path))
           {
@@ -132,12 +142,14 @@ namespace ccf
             snapshots::get_snapshot_idx_from_file_name(
               latest_peer_snapshot->snapshot_name);
 
-          // TODO: Populate this on NodeState?
-          startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
+          // TODO: Verify?
+
+          owner->startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
             snapshot_seqno, std::move(latest_peer_snapshot->snapshot_data));
 
-          // TODO: Verify?
-          // TODO: Update node_state->startup_seqno etc
+          owner->startup_seqno = snapshot_seqno;
+          owner->last_recovered_idx = snapshot_seqno;
+          owner->last_recovered_signed_idx = snapshot_seqno;
         }
       }
 
@@ -838,9 +850,9 @@ namespace ccf
               // that it proceeds in the background, updating state when it
               // completes, and the join timer separately re-attempts join after
               // this succeeds
-              ccf::tasks::add_task(
-                std::make_shared<FetchSnapshot>(config.join, this));
-              return
+              ccf::tasks::add_task(std::make_shared<FetchSnapshot>(
+                config.join, config.snapshots, this));
+              return;
             }
             else
             {
