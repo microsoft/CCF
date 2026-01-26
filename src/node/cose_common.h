@@ -7,30 +7,13 @@
 #include "ccf/receipt.h"
 
 #include <crypto/cbor.h>
+#include <crypto/cose.h>
 #include <crypto/openssl/cose_sign.h>
 #include <stdexcept>
 #include <string>
 
 namespace ccf::cose
 {
-  namespace headers
-  {
-    // https://www.iana.org/assignments/cose/cose.xhtml
-    static constexpr int64_t PARAM_ALG = 1;
-    static constexpr int64_t PARAM_CONTENT_TYPE = 3;
-    static constexpr int64_t PARAM_KID = 4;
-    static constexpr int64_t PARAM_X5CHAIN = 33;
-    // https://www.ietf.org/archive/id/draft-ietf-cose-hash-envelope-10.html#section-4
-    static constexpr int64_t PARAM_CONTENT_TYPE_HASH_ENVELOPE = 259;
-    // https://www.ietf.org/archive/id/draft-ietf-cose-merkle-tree-proofs-18.html#name-cose-header-parameter
-    static constexpr int64_t PARAM_VDP = 396;
-    static constexpr int64_t PARAM_INCLUSION_PROOFS = -1;
-
-    static constexpr auto CONTENT_TYPE_APPLICATION_JSON_VALUE =
-      "application/json";
-    static constexpr auto CONTENT_TYPE_APPLICATION_OCTET_STREAM =
-      "application/octet-stream";
-  }
 
   using Signature = std::span<const uint8_t>;
 
@@ -159,36 +142,39 @@ namespace ccf::cose
 
     const auto& cwt_claims = rethrow_with_msg(
       [&]() -> auto& {
-        return cbor->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_CWT));
+        return cbor->map_at(make_signed(ccf::cose::headers::COSE_KEY_CWT));
       },
       "Parse CWT claims map");
 
     claims.iat = rethrow_with_msg(
       [&]() {
         return cwt_claims
-          ->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_IAT))
+          ->map_at(make_signed(ccf::cose::headers::CWT_CLAIMS_KEY_IAT))
           ->as_signed();
       },
       fmt::format(
-        "Parse CWT claim sub({}) field", ccf::crypto::COSE_PHEADER_KEY_IAT));
+        "Parse CWT claim sub({}) field",
+        ccf::cose::headers::CWT_CLAIMS_KEY_IAT));
 
     claims.iss = rethrow_with_msg(
       [&]() {
         return cwt_claims
-          ->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_ISS))
+          ->map_at(make_signed(ccf::cose::headers::CWT_CLAIMS_KEY_ISS))
           ->as_string();
       },
       fmt::format(
-        "Parse CWT claim iss({}) field", ccf::crypto::COSE_PHEADER_KEY_ISS));
+        "Parse CWT claim iss({}) field",
+        ccf::cose::headers::CWT_CLAIMS_KEY_ISS));
 
     claims.sub = rethrow_with_msg(
       [&]() {
         return cwt_claims
-          ->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_SUB))
+          ->map_at(make_signed(ccf::cose::headers::CWT_CLAIMS_KEY_SUB))
           ->as_string();
       },
       fmt::format(
-        "Parse CWT claim sub({}) field", ccf::crypto::COSE_PHEADER_KEY_SUB));
+        "Parse CWT claim sub({}) field",
+        ccf::cose::headers::CWT_CLAIMS_KEY_SUB));
   }
 
   static void decode_ccf_claims(const ccf::cbor::Value& cbor, CcfClaims& claims)
@@ -197,19 +183,19 @@ namespace ccf::cose
 
     const auto& ccf_claims = rethrow_with_msg(
       [&]() -> auto& {
-        return cbor->map_at(make_string(ccf::crypto::COSE_PHEADER_KEY_CCF));
+        return cbor->map_at(make_string(ccf::cose::headers::COSE_KEY_CCF));
       },
       "Parse CCF claims map");
 
     claims.txid = rethrow_with_msg(
       [&]() {
         return ccf_claims
-          ->map_at(make_string(ccf::crypto::COSE_PHEADER_KEY_TXID))
+          ->map_at(make_string(ccf::cose::headers::CCF_CLAIMS_KEY_TXID))
           ->as_string();
       },
       fmt::format(
         "Parse CCF claims TxID ({}) field",
-        ccf::crypto::COSE_PHEADER_KEY_TXID));
+        ccf::cose::headers::CCF_CLAIMS_KEY_TXID));
   }
 
   static CcfCoseReceiptPhdr decode_ccf_receipt_phdr(ccf::cbor::Value& cbor)
@@ -220,31 +206,31 @@ namespace ccf::cose
 
     phdr.alg = rethrow_with_msg(
       [&]() {
-        return cbor->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_ALG))
+        return cbor->map_at(make_signed(ccf::cose::headers::COSE_KEY_ALG))
           ->as_signed();
       },
       fmt::format(
-        "Parse protected header alg({})", ccf::crypto::COSE_PHEADER_KEY_ALG));
+        "Parse protected header alg({})", ccf::cose::headers::COSE_KEY_ALG));
 
     rethrow_with_msg(
       [&]() {
         const auto& bytes =
-          cbor->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_ID))
+          cbor->map_at(make_signed(ccf::cose::headers::COSE_KEY_ID))
             ->as_bytes();
         phdr.kid.assign(bytes.begin(), bytes.end());
       },
       fmt::format(
-        "Parse protected header kid({})", ccf::crypto::COSE_PHEADER_KEY_ID));
+        "Parse protected header kid({})", ccf::cose::headers::COSE_KEY_ID));
 
     phdr.vds = rethrow_with_msg(
       [&]() {
-        return cbor->map_at(make_signed(ccf::crypto::COSE_PHEADER_KEY_VDS))
+        return cbor->map_at(make_signed(ccf::cose::headers::COSE_KEY_VDS))
           ->as_signed();
       },
       fmt::format(
-        "Parse protected header vds({})", ccf::crypto::COSE_PHEADER_KEY_VDS));
+        "Parse protected header vds({})", ccf::cose::headers::COSE_KEY_VDS));
 
-    if (phdr.vds != ccf::crypto::COSE_PHEADER_VDS_CCF_LEDGER_SHA256)
+    if (phdr.vds != ccf::cose::headers::COSE_KEY_VDS_CCF_LEDGER_SHA256)
     {
       throw COSEDecodeError(fmt::format(
         "Unsupported vds value ({}) in protected header", phdr.vds));
@@ -266,12 +252,15 @@ namespace ccf::cose
       "Parse unprotected header map");
 
     const auto& vdp = rethrow_with_msg(
-      [&]() -> auto& { return uhdr->map_at(make_signed(headers::PARAM_VDP)); },
-      fmt::format("Parse vdp() map", headers::PARAM_VDP));
+      [&]() -> auto& {
+        return uhdr->map_at(make_signed(ccf::cose::headers::COSE_KEY_VDP));
+      },
+      fmt::format("Parse vdp() map", ccf::cose::headers::COSE_KEY_VDP));
 
     const auto& proofs_array = rethrow_with_msg(
       [&]() -> auto& {
-        return vdp->map_at(make_signed(headers::PARAM_INCLUSION_PROOFS));
+        return vdp->map_at(
+          make_signed(ccf::cose::headers::COSE_KEY_INCL_PROOF));
       },
       "Parse inclusion proofs");
 
@@ -371,7 +360,10 @@ namespace ccf::cose
       rethrow_with_msg([&]() { return parse(cose_sign1); }, "Parse COSE CBOR");
 
     const auto& cose_envelope = rethrow_with_msg(
-      [&]() -> auto& { return cose_cbor->tag_at(18); }, "Parse COSE tag");
+      [&]() -> auto& {
+        return cose_cbor->tag_at(ccf::cose::headers::COSE_TAG);
+      },
+      "Parse COSE tag");
 
     const auto& phdr_raw = rethrow_with_msg(
       [&]() -> auto& { return cose_envelope->array_at(0); },

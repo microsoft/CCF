@@ -625,7 +625,7 @@ namespace ccf
       std::vector<cbor::MapItem> ccf_headers;
       auto from_txid = endorsement.endorsement_epoch_begin.to_str();
       ccf_headers.emplace_back(
-        cbor::make_string(ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN),
+        cbor::make_string(ccf::cose::headers::CCF_CLAIMS_KEY_RANGE_BEGIN),
         cbor::make_string(from_txid));
 
       std::string to_txid{};
@@ -633,14 +633,14 @@ namespace ccf
       {
         to_txid = endorsement.endorsement_epoch_end->to_str();
         ccf_headers.emplace_back(
-          cbor::make_string(ccf::crypto::COSE_PHEADER_KEY_RANGE_END),
+          cbor::make_string(ccf::cose::headers::CCF_CLAIMS_KEY_RANGE_END),
           cbor::make_string(to_txid));
       }
       if (!previous_root.empty())
       {
         ccf_headers.emplace_back(
           cbor::make_string(
-            ccf::crypto::COSE_PHEADER_KEY_EPOCH_LAST_MERKLE_ROOT),
+            ccf::cose::headers::CCF_CLAIMS_KEY_EPOCH_LAST_MERKLE_ROOT),
           cbor::make_bytes(previous_root));
       }
 
@@ -651,15 +651,15 @@ namespace ccf
 
       std::vector<cbor::MapItem> cwt_headers;
       cwt_headers.emplace_back(
-        cbor::make_signed(ccf::crypto::COSE_PHEADER_KEY_IAT),
+        cbor::make_signed(ccf::cose::headers::CWT_CLAIMS_KEY_IAT),
         cbor::make_signed(time_since_epoch));
 
       std::vector<cbor::MapItem> phdr;
       phdr.emplace_back(
-        cbor::make_signed(ccf::crypto::COSE_PHEADER_KEY_CWT),
+        cbor::make_signed(ccf::cose::headers::COSE_KEY_CWT),
         cbor::make_map(std::move(cwt_headers)));
       phdr.emplace_back(
-        cbor::make_string(ccf::crypto::COSE_PHEADER_KEY_CCF),
+        cbor::make_string(ccf::cose::headers::COSE_KEY_CCF),
         cbor::make_map(std::move(ccf_headers)));
 
       auto phdr_map = cbor::make_map(std::move(phdr));

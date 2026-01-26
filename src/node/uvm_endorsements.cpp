@@ -81,7 +81,7 @@ namespace ccf
           "UVM endorsements COSE envelope");
         const auto& cose_array = ccf::cbor::rethrow_with_msg(
           [&]() -> const ccf::cbor::Value& {
-            return parsed->tag_at(ccf::crypto::COSE_TAG);
+            return parsed->tag_at(ccf::cose::headers::COSE_TAG);
           },
           "COSE_Sign1 tag");
         constexpr std::string_view phdr_context{"COSE_Sign1[0]"};
@@ -99,32 +99,32 @@ namespace ccf
         result.alg = ccf::cbor::rethrow_with_msg(
           [&]() {
             return parsed_phdr
-              ->map_at(ccf::cbor::make_signed(headers::PARAM_ALG))
+              ->map_at(ccf::cbor::make_signed(headers::COSE_KEY_ALG))
               ->as_signed();
           },
           fmt::format(
             "Parse alg ({}) in protected header in UVM endorsements",
-            headers::PARAM_ALG));
+            headers::COSE_KEY_ALG));
 
         result.content_type = ccf::cbor::rethrow_with_msg(
           [&]() {
             return std::string(
               parsed_phdr
-                ->map_at(ccf::cbor::make_signed(headers::PARAM_CONTENT_TYPE))
+                ->map_at(ccf::cbor::make_signed(headers::COSE_KEY_CONTENT_TYPE))
                 ->as_string());
           },
           fmt::format(
             "Parse content-type ({}) in protected header in UVM endorsements",
-            headers::PARAM_CONTENT_TYPE));
+            headers::COSE_KEY_CONTENT_TYPE));
 
         result.x5_chain = ccf::cbor::rethrow_with_msg(
           [&]() {
             return parse_x5chain(parsed_phdr->map_at(
-              ccf::cbor::make_signed(headers::PARAM_X5CHAIN)));
+              ccf::cbor::make_signed(headers::COSE_KEY_X5CHAIN)));
           },
           fmt::format(
             "Parse x5chain ({}) in protected header in UVM endorsements",
-            headers::PARAM_X5CHAIN));
+            headers::COSE_KEY_X5CHAIN));
 
         result.iss = ccf::cbor::rethrow_with_msg(
           [&]() {
@@ -152,7 +152,7 @@ namespace ccf
           "COSE envelope");
         const auto& cose_array = ccf::cbor::rethrow_with_msg(
           [&]() -> const ccf::cbor::Value& {
-            return parsed->tag_at(ccf::crypto::COSE_TAG);
+            return parsed->tag_at(ccf::cose::headers::COSE_TAG);
           },
           "COSE_Sign1 tag");
 
@@ -172,74 +172,75 @@ namespace ccf
         result.alg = ccf::cbor::rethrow_with_msg(
           [&]() {
             return parsed_phdr
-              ->map_at(ccf::cbor::make_signed(headers::PARAM_ALG))
+              ->map_at(ccf::cbor::make_signed(headers::COSE_KEY_ALG))
               ->as_signed();
           },
           fmt::format(
             "Parse alg ({}) in protected header in UVM endorsements",
-            headers::PARAM_ALG));
+            headers::COSE_KEY_ALG));
 
         result.content_type = ccf::cbor::rethrow_with_msg(
           [&]() {
-            return std::string(parsed_phdr
-                                 ->map_at(ccf::cbor::make_signed(
-                                   headers::PARAM_CONTENT_TYPE_HASH_ENVELOPE))
-                                 ->as_string());
+            return std::string(
+              parsed_phdr
+                ->map_at(ccf::cbor::make_signed(
+                  headers::COSE_KEY_CONTENT_TYPE_HASH_ENVELOPE))
+                ->as_string());
           },
           fmt::format(
             "Parse content-type ({}) in protected header in UVM endorsements",
-            headers::PARAM_CONTENT_TYPE_HASH_ENVELOPE));
+            headers::COSE_KEY_CONTENT_TYPE_HASH_ENVELOPE));
 
         result.x5_chain = ccf::cbor::rethrow_with_msg(
           [&]() {
             return parse_x5chain(parsed_phdr->map_at(
-              ccf::cbor::make_signed(headers::PARAM_X5CHAIN)));
+              ccf::cbor::make_signed(headers::COSE_KEY_X5CHAIN)));
           },
           fmt::format(
             "Parse x5chain ({}) in protected header in UVM endorsements",
-            headers::PARAM_X5CHAIN));
+            headers::COSE_KEY_X5CHAIN));
 
         const ccf::cbor::Value& cwt_claims = ccf::cbor::rethrow_with_msg(
           [&]() -> const ccf::cbor::Value& {
             return parsed_phdr->map_at(
-              ccf::cbor::make_signed(ccf::crypto::COSE_PHEADER_KEY_CWT));
+              ccf::cbor::make_signed(ccf::cose::headers::COSE_KEY_CWT));
           },
           fmt::format(
             "Parse CWT claims ({}) in protected header in UVM endorsements",
-            ccf::crypto::COSE_PHEADER_KEY_CWT));
+            ccf::cose::headers::COSE_KEY_CWT));
 
         result.iss = ccf::cbor::rethrow_with_msg(
           [&]() {
             return std::string(cwt_claims
                                  ->map_at(ccf::cbor::make_signed(
-                                   ccf::crypto::COSE_PHEADER_KEY_ISS))
+                                   ccf::cose::headers::CWT_CLAIMS_KEY_ISS))
                                  ->as_string());
           },
           fmt::format(
             "Parse iss ({}) in CWT claims in UVM endorsements",
-            ccf::crypto::COSE_PHEADER_KEY_ISS));
+            ccf::cose::headers::CWT_CLAIMS_KEY_ISS));
 
         result.feed = ccf::cbor::rethrow_with_msg(
           [&]() {
             return std::string(cwt_claims
                                  ->map_at(ccf::cbor::make_signed(
-                                   ccf::crypto::COSE_PHEADER_KEY_SUB))
+                                   ccf::cose::headers::CWT_CLAIMS_KEY_SUB))
                                  ->as_string());
           },
           fmt::format(
             "Parse sub ({}) in CWT claims in UVM endorsements",
-            ccf::crypto::COSE_PHEADER_KEY_SUB));
+            ccf::cose::headers::CWT_CLAIMS_KEY_SUB));
 
         uint64_t svn = ccf::cbor::rethrow_with_msg(
           [&]() {
             return cwt_claims
               ->map_at(
-                ccf::cbor::make_string(ccf::crypto::COSE_PHEADER_UVM_SVN))
+                ccf::cbor::make_string(ccf::cose::headers::CWT_CLAIMS_KEY_SVN))
               ->as_signed();
           },
           fmt::format(
             "Parse svn ({}) in CWT claims in UVM endorsements",
-            ccf::crypto::COSE_PHEADER_UVM_SVN));
+            ccf::cose::headers::CWT_CLAIMS_KEY_SVN));
 
         return {result, std::to_string(svn)};
       }
@@ -329,13 +330,12 @@ namespace ccf
     std::string sevsnpvm_launch_measurement{};
     if (sevsnpvm_guest_svn.empty())
     {
-      if (
-        phdr.content_type != cose::headers::CONTENT_TYPE_APPLICATION_JSON_VALUE)
+      if (phdr.content_type != cose::headers::COSE_VALUE_CONTENT_TYPE_JSON)
       {
         throw std::logic_error(fmt::format(
           "Unexpected payload content type {}, expected {}",
           phdr.content_type,
-          cose::headers::CONTENT_TYPE_APPLICATION_JSON_VALUE));
+          cose::headers::COSE_VALUE_CONTENT_TYPE_JSON));
       }
 
       auto payload = nlohmann::json::parse(raw_payload);
@@ -376,12 +376,12 @@ namespace ccf
     {
       if (
         phdr.content_type !=
-        cose::headers::CONTENT_TYPE_APPLICATION_OCTET_STREAM)
+        cose::headers::COSE_VALUE_CONTENT_TYPE_OCTET_STREAM)
       {
         throw std::logic_error(fmt::format(
           "Unexpected payload content type {}, expected {}",
           phdr.content_type,
-          cose::headers::CONTENT_TYPE_APPLICATION_OCTET_STREAM));
+          cose::headers::COSE_VALUE_CONTENT_TYPE_OCTET_STREAM));
       }
 
       sevsnpvm_launch_measurement =
