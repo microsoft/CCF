@@ -1161,7 +1161,7 @@ namespace aft
 
         // Reply false if the log doesn't contain an entry at r.prev_idx
         // whose term is r.prev_term. Rejects "future" entries.
-        if (prev_term == 0)
+        if (prev_term == ccf::VIEW_UNKNOWN)
         {
           RAFT_DEBUG_FMT(
             "Recv {} to {} from {} but our log does not yet "
@@ -1212,7 +1212,7 @@ namespace aft
           state->commit_idx);
         return;
       }
-      // Redundant with check on get_term_internal() at line 1149
+      // Redundant with check on get_term_internal() at line 1156
       // Which captures this case in every situation, except r.prev_term == 0.
       // That only happens if r.prev_idx == 0 however, see line 1033,
       // in which case this path should not be taken either.
@@ -1589,9 +1589,6 @@ namespace aft
         return;
       }
 
-      using namespace std::chrono_literals;
-      node->second.last_ack_timeout = 0ms;
-
       if (state->current_view < r.term)
       {
         // We are behind, update our state.
@@ -1652,6 +1649,11 @@ namespace aft
           std::min(this_match, node->second.sent_idx), node->second.match_idx);
         return;
       }
+
+      // reset ack timeout after successful append_entries ack
+      using namespace std::chrono_literals;
+      node->second.last_ack_timeout = 0ms;
+
       // max(...) because why would we ever want to go backwards on a success
       // response?!
       node->second.match_idx = std::max(node->second.match_idx, r.last_log_idx);
