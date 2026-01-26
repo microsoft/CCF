@@ -2244,11 +2244,6 @@ namespace aft
       restart_election_timeout();
       reset_last_ack_timeouts();
 
-      // Drop anything unsigned here, but retain all signed entries. Only do a
-      // more aggressive rollback, potentially including signatures, when
-      // receiving a conflicting AppendEntries
-      rollback(last_committable_index());
-
       state->leadership_state = ccf::kv::LeadershipState::Follower;
       RAFT_INFO_FMT(
         "Becoming follower {}: {}.{}",
