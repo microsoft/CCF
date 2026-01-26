@@ -242,7 +242,7 @@ class Network:
         if existing_network is None:
             self.consortium = None
             self.users = []
-            self.hosts = hosts
+            self.hosts = hosts or []
             self.next_node_id = next_node_id
             self.txs = txs
             self.jwt_issuer = jwt_issuer
@@ -252,12 +252,12 @@ class Network:
         else:
             self.consortium = existing_network.consortium
             self.users = existing_network.users
-            self.next_node_id = existing_network.next_node_id
-            self.txs = existing_network.txs
-            self.jwt_issuer = existing_network.jwt_issuer
             self.hosts = hosts or infra.e2e_args.nodes(
                 existing_network.args, len(existing_network.nodes)
             )
+            self.next_node_id = existing_network.next_node_id
+            self.txs = existing_network.txs
+            self.jwt_issuer = existing_network.jwt_issuer
             self.service_load = None
             if existing_network.service_load:
                 self.service_load = existing_network.service_load
