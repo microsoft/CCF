@@ -575,7 +575,7 @@ namespace asynchost
         positions.resize(idx - start_idx + 1);
       }
 
-      if (fflush(file) != 0)
+      if (fsync(fileno(file)) != 0)
       {
         throw std::logic_error(fmt::format(
           "Failed to flush ledger file: {}",
@@ -631,7 +631,7 @@ namespace asynchost
         throw std::logic_error("Failed to write positions table to ledger");
       }
 
-      if (fflush(file) != 0)
+      if (fsync(fileno(file)) != 0)
       {
         throw std::logic_error(fmt::format(
           "Failed to flush ledger file: {}",
