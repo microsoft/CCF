@@ -1291,7 +1291,6 @@ def run_initial_uvm_descriptor_checks(const_args):
             )
             recovered_network.start_in_recovery(
                 recovered_network_args,
-                common_dir=network.common_dir,
                 ledger_dir=current_ledger_dir,
                 committed_ledger_dirs=committed_ledger_dirs,
                 snapshots_dir=snapshots_dir,
@@ -1374,7 +1373,6 @@ def run_initial_tcb_version_checks(const_args):
         ) as recovered_network:
             recovered_network.start_in_recovery(
                 recovered_network_args,
-                common_dir=network.common_dir,
                 ledger_dir=current_ledger_dir,
                 committed_ledger_dirs=committed_ledger_dirs,
                 snapshots_dir=snapshots_dir,
@@ -1441,7 +1439,9 @@ def run_recovery_local_unsealing(
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.enable_local_sealing = True
-    args.label += "_unsealing"
+    args.label += (
+        f"_unsealing_{recovery_f}_rekey_{rekey}_refresh_{recovery_shares_refresh}"
+    )
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
         network.start_and_open(args)
