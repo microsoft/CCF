@@ -5,9 +5,6 @@
 
 #include "crypto/cbor.h"
 
-#include <qcbor/qcbor_decode.h>
-#include <qcbor/qcbor_encode.h>
-#include <qcbor/qcbor_spiffy_decode.h>
 #include <stdexcept>
 #include <vector>
 

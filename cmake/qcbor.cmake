@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 # Build QCBOR
-set(QCBOR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/exported/QCBOR")
+set(QCBOR_DIR "${CCF_3RD_PARTY_INTERNAL_DIR}/QCBOR")
 set(QCBOR_SRC "${QCBOR_DIR}/src")
 set(QCBOR_SRCS
     "${QCBOR_SRC}/ieee754.c" "${QCBOR_SRC}/qcbor_decode.c"
@@ -13,9 +13,9 @@ set(QCBOR_SRCS
 add_library(qcbor STATIC ${QCBOR_SRCS})
 
 target_include_directories(
-  qcbor PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/QCBOR/inc>
-               $<INSTALL_INTERFACE:include/3rdparty/QCBOR/inc>
+  qcbor PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_INTERNAL_DIR}/QCBOR/inc>
 )
+
 set_property(TARGET qcbor PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_san(qcbor)
 
