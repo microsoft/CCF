@@ -1212,10 +1212,8 @@ namespace aft
           state->commit_idx);
         return;
       }
-      // Redundant with check on get_term_internal() at line 1156
-      // Which captures this case in every situation, except r.prev_term == 0.
-      // That only happens if r.prev_idx == 0 however, see line 1033,
-      // in which case this path should not be taken either.
+// This block is redundant - the checks above cover this case, so the code inside this block should be unreachable.
+// It is retained out of paranoia, in case future rewrites of the above conditions allow a fallthrough.
       if (r.prev_idx > state->last_idx)
       {
         RAFT_FAIL_FMT(
