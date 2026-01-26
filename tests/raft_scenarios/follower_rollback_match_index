@@ -1,4 +1,6 @@
-# 
+# A repro of the failing scenario where a follower rolls back its ledger by becoming a pre-vote-candidate and then back to a follower (#7618)
+# If this follower had previously acked an append-entries, then the leader's matchIdx for it would be higher than its truncated ledger.
+# This was fixed by no longer rolling back uncommittable entries (no signature) when becoming a follower.
 
 start_node,0
 emit_signature,2
@@ -27,7 +29,7 @@ periodic_one,0,10
 dispatch_single,0,2
 dispatch_single,2,0
 
-periodic_one,0,10
+periodic_one,0,10 
 dispatch_single,0,2
 dispatch_single,2,0
 
