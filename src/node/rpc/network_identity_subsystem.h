@@ -48,7 +48,7 @@ namespace ccf
       {
         throw std::logic_error(fmt::format(
           "Cannot parse COSE endorsement header: {}",
-          ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN));
+          ccf::cose::header::custom::TX_RANGE_BEGIN));
       }
 
       const auto to_txid = ccf::TxID::from_str(to);
@@ -56,7 +56,7 @@ namespace ccf
       {
         throw std::logic_error(fmt::format(
           "Cannot parse COSE endorsement header: {}",
-          ccf::crypto::COSE_PHEADER_KEY_RANGE_END));
+          ccf::cose::header::custom::TX_RANGE_END));
       }
 
       if (!endorsement.endorsement_epoch_end.has_value())

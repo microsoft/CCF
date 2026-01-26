@@ -4,6 +4,7 @@
 #include "crypto/openssl/cose_sign.h"
 
 #include "crypto/cbor.h"
+#include "crypto/cose.h"
 #include "ds/internal_logger.h"
 
 #include <openssl/evp.h>
@@ -38,7 +39,7 @@ namespace
     try
     {
       std::ignore = protected_headers->map_at(
-        ccf::cbor::make_signed(ccf::crypto::COSE_PHEADER_KEY_ALG));
+        ccf::cbor::make_signed(ccf::cose::header::iana::ALG));
     }
     catch (const CBORDecodeError& err)
     {
@@ -62,8 +63,7 @@ namespace
     auto& items = std::get<Map>(protected_headers->value).items;
     items.insert(
       items.begin(),
-      {make_signed(ccf::crypto::COSE_PHEADER_KEY_ALG),
-       make_signed(algorithm_id)});
+      {make_signed(ccf::cose::header::iana::ALG), make_signed(algorithm_id)});
 
     EVP_PKEY* evp_key = key;
     t_cose_key signing_key = {};
@@ -186,7 +186,8 @@ namespace ccf::crypto
     }
     cose_array.push_back(make_bytes(signature));
 
-    auto envelope = make_tagged(18, make_array(std::move(cose_array)));
+    auto envelope = make_tagged(
+      ccf::cbor::tag::COSE_SIGN_1, make_array(std::move(cose_array)));
     try
     {
       return serialize(envelope);
