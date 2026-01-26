@@ -178,7 +178,7 @@ TEST_CASE("Check unprotected header")
 
         auto edited = parse(csp_set);
         const auto& uhdr =
-          edited->tag_at(ccf::cose::headers::COSE_TAG)->array_at(1);
+          edited->tag_at(ccf::cbor::tag::COSE_SIGN_1)->array_at(1);
 
         std::vector<MapItem> ref;
         if (std::holds_alternative<ccf::cose::edit::pos::InArray>(position))
@@ -209,7 +209,7 @@ TEST_CASE("Check unprotected header")
 
       auto edited = parse(csp_set_empty);
       const auto& uhdr =
-        edited->tag_at(ccf::cose::headers::COSE_TAG)->array_at(1);
+        edited->tag_at(ccf::cbor::tag::COSE_SIGN_1)->array_at(1);
 
       auto ref_map = make_map({});
 

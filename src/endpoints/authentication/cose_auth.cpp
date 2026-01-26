@@ -41,7 +41,7 @@ namespace ccf
 
       const auto& cose_envelope = rethrow_with_msg(
         [&]() -> auto& {
-          return cose_cbor->tag_at(ccf::cose::headers::COSE_TAG);
+          return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1);
         },
         "Parse COSE tag");
 
@@ -57,13 +57,13 @@ namespace ccf
 
       parsed.alg = rethrow_with_msg(
         [&]() {
-          return phdr->map_at(make_signed(headers::COSE_KEY_ALG))->as_signed();
+          return phdr->map_at(make_signed(header::iana::ALG))->as_signed();
         },
         "Parse alg in protected header");
 
       parsed.kid = buf_to_string(rethrow_with_msg(
         [&]() {
-          return phdr->map_at(make_signed(headers::COSE_KEY_ID))->as_bytes();
+          return phdr->map_at(make_signed(header::iana::KID))->as_bytes();
         },
         "Parse kid in protected header"));
 
@@ -128,7 +128,7 @@ namespace ccf
 
       const auto& cose_envelope = rethrow_with_msg(
         [&]() -> auto& {
-          return cose_cbor->tag_at(ccf::cose::headers::COSE_TAG);
+          return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1);
         },
         "Parse COSE tag");
 
@@ -144,13 +144,13 @@ namespace ccf
 
       parsed.alg = rethrow_with_msg(
         [&]() {
-          return phdr->map_at(make_signed(headers::COSE_KEY_ALG))->as_signed();
+          return phdr->map_at(make_signed(header::iana::ALG))->as_signed();
         },
         "Parse alg in protected header");
 
       parsed.kid = buf_to_string(rethrow_with_msg(
         [&]() {
-          return phdr->map_at(make_signed(headers::COSE_KEY_ID))->as_bytes();
+          return phdr->map_at(make_signed(header::iana::KID))->as_bytes();
         },
         "Parse kid in protected header"));
 

@@ -231,7 +231,7 @@ void require_match_headers(
 {
   auto decoded = ccf::cbor::parse(cose_sign);
 
-  const auto& as_cose = decoded->tag_at(ccf::cose::headers::COSE_TAG);
+  const auto& as_cose = decoded->tag_at(ccf::cbor::tag::COSE_SIGN_1);
   const auto& raw_phdr = as_cose->array_at(0)->as_bytes();
 
   auto phdr = ccf::cbor::parse(raw_phdr);

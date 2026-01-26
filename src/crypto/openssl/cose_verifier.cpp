@@ -29,9 +29,7 @@ namespace
       rethrow_with_msg([&]() { return parse(cose_msg); }, "Parse COSE CBOR");
 
     const auto& cose_envelope = rethrow_with_msg(
-      [&]() -> auto& {
-        return cose_cbor->tag_at(ccf::cose::headers::COSE_TAG);
-      },
+      [&]() -> auto& { return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1); },
       "Parse COSE tag");
 
     const auto& phdr_raw = rethrow_with_msg(
@@ -43,7 +41,7 @@ namespace
 
     const int64_t alg = rethrow_with_msg(
       [&]() {
-        return phdr->map_at(make_signed(ccf::cose::headers::COSE_KEY_ALG))
+        return phdr->map_at(make_signed(ccf::cose::header::iana::ALG))
           ->as_signed();
       },
       "Retrieve alg from protected header");
@@ -210,9 +208,7 @@ namespace ccf::crypto
       rethrow_with_msg([&]() { return parse(cose_msg); }, "Parse COSE CBOR");
 
     const auto& cose_envelope = rethrow_with_msg(
-      [&]() -> auto& {
-        return cose_cbor->tag_at(ccf::cose::headers::COSE_TAG);
-      },
+      [&]() -> auto& { return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1); },
       "Parse COSE tag");
 
     const auto& phdr_raw = rethrow_with_msg(
@@ -224,14 +220,14 @@ namespace ccf::crypto
 
     const auto& ccf_claims = rethrow_with_msg(
       [&]() -> auto& {
-        return phdr->map_at(make_string(ccf::cose::headers::COSE_KEY_CCF));
+        return phdr->map_at(make_string(ccf::cose::header::custom::CCF_V1));
       },
       "Retrieve CCF claims");
 
     auto from = rethrow_with_msg(
       [&]() {
         return ccf_claims
-          ->map_at(make_string(ccf::cose::headers::CCF_CLAIMS_KEY_RANGE_BEGIN))
+          ->map_at(make_string(ccf::cose::header::custom::TX_RANGE_BEGIN))
           ->as_string();
       },
       "Retrieve epoch range begin");
@@ -239,7 +235,7 @@ namespace ccf::crypto
     auto to = rethrow_with_msg(
       [&]() {
         return ccf_claims
-          ->map_at(make_string(ccf::cose::headers::CCF_CLAIMS_KEY_RANGE_END))
+          ->map_at(make_string(ccf::cose::header::custom::TX_RANGE_END))
           ->as_string();
       },
       "Retrieve epoch range end");
