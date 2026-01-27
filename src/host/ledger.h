@@ -575,7 +575,7 @@ namespace asynchost
         positions.resize(idx - start_idx + 1);
       }
 
-      if (fsync(fileno(file)) != 0)
+      if (fflush(file) != 0)
       {
         throw std::logic_error(fmt::format(
           "Failed to flush ledger file: {}",
@@ -631,7 +631,7 @@ namespace asynchost
         throw std::logic_error("Failed to write positions table to ledger");
       }
 
-      if (fsync(fileno(file)) != 0)
+      if (fflush(file) != 0)
       {
         throw std::logic_error(fmt::format(
           "Failed to flush ledger file: {}",
@@ -678,7 +678,11 @@ namespace asynchost
         return false;
       }
 
-      if (fflush(file) != 0)
+      // Files that are completed and committed are fsync'ed under lock
+      // (acquired in LedgerFiles::commit()) to ensure that any file returned by
+      // committed_ledger_path_with_idx() is complete and can be safely read and
+      // served to other nodes.
+      if (fsync(fileno(file)) != 0)
       {
         throw std::logic_error(fmt::format(
           "Failed to flush ledger file: {}",
