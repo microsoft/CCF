@@ -656,11 +656,14 @@ namespace ccf
       auto network_ca = std::make_shared<::tls::CA>(std::string(
         config.join.service_cert.begin(), config.join.service_cert.end()));
 
+      auto [target_host, target_port] =
+        split_net_address(config.join.target_rpc_address);
+
       auto join_client_cert = std::make_unique<::tls::Cert>(
         network_ca,
         self_signed_node_cert,
         node_sign_kp->private_key_pem(),
-        config.join.target_rpc_address);
+        target_host);
 
       // Create RPC client and connect to remote node
       // Note: For now, assume that target node accepts same application
@@ -668,9 +671,6 @@ namespace ccf
       auto join_client = rpcsessions->create_client(
         std::move(join_client_cert),
         rpcsessions->get_app_protocol_main_interface());
-
-      auto [target_host, target_port] =
-        split_net_address(config.join.target_rpc_address);
 
       join_client->connect(
         target_host,

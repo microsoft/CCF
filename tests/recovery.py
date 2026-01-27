@@ -678,7 +678,10 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
     aborted_network = infra.network.Network(
-        args.nodes, args.binary_dir, args.debug_nodes, network
+        args.nodes,
+        binary_dir=args.binary_dir,
+        dbg_nodes=args.debug_nodes,
+        existing_network=network,
     )
     aborted_network.start_in_recovery(
         args,
