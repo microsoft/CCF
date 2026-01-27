@@ -691,6 +691,10 @@ def test_split_ledger_on_stopped_network(primary, args):
 
 
 def test_ledger_chunk_access(network, args):
+    """
+    Access ledger chunks linearly, checking redirection, content-length and
+    content correctness. All nodes have all chunks locally.
+    """
     primary, backups = network.find_nodes()
 
     for node in (primary, *backups):
@@ -748,7 +752,11 @@ def test_ledger_chunk_access(network, args):
                 ), "Ledger chunk content does not match"
 
 
-def test_ledger_chunk_redirect(network, args):
+def test_ledger_chunk_redirect_recent(network, args):
+    """
+    Access ledger chunk that is missing locally on a backup, after the initial index,
+    checking redirection to the primary and content correctness.
+    """
     primary, backups = network.find_nodes()
 
     late_backup = backups[-1]
@@ -788,6 +796,102 @@ def test_ledger_chunk_redirect(network, args):
         assert (
             dled_chunk_digest == actual_chunk_digest
         ), f"Ledger chunk content for {chunks[-1]} does not match"
+
+
+def test_ledger_chunk_redirect_gap(network, args):
+    """
+    Add a new node to the network from a recent snapshot, then access a ledger chunk that
+    predates the snapshot on the new node, checking redirection to another node and content correctness.
+    """
+    primary, backups = network.find_nodes()
+
+    # Get commit index from primary
+    with primary.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
+        r = c.get("/node/commit").body.json()
+        commit_seqno = TxID.from_str(r["transaction_id"]).seqno
+
+    new_node = network.create_node()
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        # Fetch recent snapshot to speed up joining
+        fetch_recent_snapshot=True,
+    )
+    network.trust_node(new_node, args)
+
+    with new_node.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
+        r = c.get("/node/state")
+        startup_seqno = r.body.json()["startup_seqno"]
+        # The new node should have started from a snapshot taken after the commit at the start of the test
+        assert (
+            startup_seqno > commit_seqno
+        ), f"New node joined at {startup_seqno}, should be later than commit at start of test {commit_seqno}"
+
+    main_ledger_dir = new_node.get_main_ledger_dir()
+    chunks = [f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")]
+    chunks = sorted(chunks, key=lambda chunk: ccf.ledger.range_from_filename(chunk)[0])
+    init_index = ccf.ledger.range_from_filename(chunks[0])[0]
+    # And it does not have any ledger chunks predating the snapshot
+    assert (
+        init_index >= startup_seqno
+    ), f"New node has ledger chunks starting at {init_index}, should be later than startup seqno {startup_seqno}"
+
+    download_index = 1
+    LOG.info(
+        f"New node ledger chunks start at index {init_index}, downloading missing chunks"
+    )
+    # But we can download all missing chunks from other nodes
+    while download_index < init_index:
+        with new_node.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
+            r = c.head(
+                f"/node/ledger-chunk?since={download_index}", allow_redirects=False
+            )
+            assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+            # Should redirect to any existing node
+            redirect_location = urllib.parse.urlparse(r.headers["Location"])
+            redirect_host = redirect_location.hostname
+            redirect_port = redirect_location.port
+
+            redirected_node = None
+            for node in network.get_joined_nodes():
+                node_host = node.get_public_rpc_host(
+                    interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+                )
+                node_port = node.get_public_rpc_port(
+                    interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+                )
+                if node_host == redirect_host and node_port == redirect_port:
+                    redirected_node = node
+                    break
+
+            assert (
+                redirected_node is not None
+            ), f"Ledger chunk redirect location {r.headers['Location']} does not match any known node"
+
+            assert (
+                redirected_node != new_node
+            ), "Ledger chunk redirect should not point to self"
+
+            r = c.get(
+                f"/node/ledger-chunk?since={download_index}", allow_redirects=True
+            )
+            chunk_name = os.path.basename(r.headers["x-ms-ccf-ledger-chunk-name"])
+            ledger_chunk_path = os.path.join(
+                # There may have been more than one redirect
+                primary.get_main_ledger_dir(),
+                chunk_name,
+            )
+            dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
+            with open(ledger_chunk_path, "rb") as f:
+                actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
+            assert (
+                dled_chunk_digest == actual_chunk_digest
+            ), f"Ledger chunk content for {chunk_name} does not match"
+            download_index = ccf.ledger.range_from_filename(chunk_name)[1] + 1
+            assert download_index is not None, chunk_name
 
 
 def run_file_operations(args):
@@ -847,7 +951,8 @@ def run_ledger_chunk_download(args):
         # Issue enough transactions to create multiple ledger chunks
         network.txs.issue(network, number_txs=10)
         test_ledger_chunk_access(network, args)
-        test_ledger_chunk_redirect(network, args)
+        test_ledger_chunk_redirect_recent(network, args)
+        test_ledger_chunk_redirect_gap(network, args)
 
 
 def run_tls_san_checks(const_args):
