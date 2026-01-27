@@ -108,8 +108,8 @@ namespace ccf
 
       void do_task_implementation() override
       {
-        // TODO: Dedupe this with the initial fetch
-        // TODO: Really don't want this to be blocking
+        // NB: Eventually this shouldn't be blocking, but reusing the current
+        // (blocking) helper for now
         auto latest_peer_snapshot = snapshots::fetch_from_peer(
           join_config.target_rpc_address,
           join_config.service_cert,
@@ -121,8 +121,7 @@ namespace ccf
         {
           LOG_INFO_FMT(
             "Received snapshot {} from peer (size: {}) - writing this to "
-            "disk "
-            "and using for join startup",
+            "disk and using for join startup",
             latest_peer_snapshot->snapshot_name,
             latest_peer_snapshot->snapshot_data.size());
 
@@ -142,14 +141,8 @@ namespace ccf
             snapshots::get_snapshot_idx_from_file_name(
               latest_peer_snapshot->snapshot_name);
 
-          // TODO: Verify?
-
-          owner->startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
+          owner->set_startup_snapshot(
             snapshot_seqno, std::move(latest_peer_snapshot->snapshot_data));
-
-          owner->startup_seqno = snapshot_seqno;
-          owner->last_recovered_idx = snapshot_seqno;
-          owner->last_recovered_signed_idx = snapshot_seqno;
         }
       }
 
@@ -244,7 +237,7 @@ namespace ccf
 #endif
     }
 
-    void initialise_startup_snapshot(bool recovery = false)
+    void find_local_startup_snapshot()
     {
       if (start_type != StartType::Join && start_type != StartType::Recover)
       {
@@ -261,81 +254,46 @@ namespace ccf
       auto latest_local_snapshot =
         snapshots::find_latest_committed_snapshot_in_directories(directories);
 
-      if (start_type == StartType::Join && config.join.fetch_recent_snapshot)
+      if (latest_local_snapshot.has_value())
       {
-        // Try to fetch a recent snapshot from peer
-        auto latest_peer_snapshot = snapshots::fetch_from_peer(
-          config.join.target_rpc_address,
-          config.join.service_cert,
-          config.join.fetch_snapshot_max_attempts,
-          config.join.fetch_snapshot_retry_interval.count_ms(),
-          config.join.fetch_snapshot_max_size.count_bytes());
+        const auto snapshot_seqno = snapshots::get_snapshot_idx_from_file_name(
+          std::filesystem::path(latest_local_snapshot.value())
+            .filename()
+            .string());
 
-        if (latest_peer_snapshot.has_value())
-        {
-          LOG_INFO_FMT(
-            "Received snapshot {} from peer (size: {}) - writing this to "
-            "disk "
-            "and using for join startup",
-            latest_peer_snapshot->snapshot_name,
-            latest_peer_snapshot->snapshot_data.size());
+        auto snapshot_data = files::slurp(latest_local_snapshot.value());
 
-          const auto dst_path =
-            std::filesystem::path(config.snapshots.directory) /
-            std::filesystem::path(latest_peer_snapshot->snapshot_name);
-          if (files::exists(dst_path))
-          {
-            LOG_FAIL_FMT(
-              "Overwriting existing snapshot at {} with data retrieved from "
-              "peer",
-              dst_path);
-          }
-          files::dump(latest_peer_snapshot->snapshot_data, dst_path);
+        LOG_INFO_FMT(
+          "Found latest local snapshot file: {} (size: {})",
+          latest_local_snapshot,
+          snapshot_data.size());
 
-          const auto snapshot_seqno =
-            snapshots::get_snapshot_idx_from_file_name(
-              latest_peer_snapshot->snapshot_name);
-          startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
-            snapshot_seqno, std::move(latest_peer_snapshot->snapshot_data));
-        }
+        set_startup_snapshot(snapshot_seqno, std::move(snapshot_data));
       }
-
-      if (startup_snapshot_info == nullptr)
+      else
       {
-        if (latest_local_snapshot.has_value())
-        {
-          const auto snapshot_seqno =
-            snapshots::get_snapshot_idx_from_file_name(
-              std::filesystem::path(latest_local_snapshot.value())
-                .filename()
-                .string());
-
-          auto snapshot_data = files::slurp(latest_local_snapshot.value());
-
-          LOG_INFO_FMT(
-            "Found latest local snapshot file: {} (size: {})",
-            latest_local_snapshot,
-            snapshot_data.size());
-
-          startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
-            snapshot_seqno, std::move(snapshot_data));
-        }
-        else
-        {
-          LOG_INFO_FMT(
-            "No snapshot found: Node will replay all historical transactions");
-          return;
-        }
+        LOG_INFO_FMT("No local snapshot found");
+        return;
       }
+    }
+
+    void set_startup_snapshot(
+      ccf::kv::Version snapshot_seqno, std::vector<uint8_t>&& snapshot_data)
+    {
+      startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
+        snapshot_seqno, std::move(snapshot_data));
 
       const auto segments = separate_segments(startup_snapshot_info->raw);
+
+      // TODO: What if this is a peer-retrieved snapshot, signed by a different
+      // service identity?
       verify_snapshot(segments, config.recover.previous_service_identity);
 
       startup_seqno = startup_snapshot_info->seqno;
       last_recovered_idx = startup_seqno;
       last_recovered_signed_idx = last_recovered_idx;
 
-      if (recovery)
+      if (start_type == StartType::Recover)
       {
         ccf::kv::ConsensusHookPtrs hooks;
         deserialise_snapshot(
@@ -517,7 +475,7 @@ namespace ccf
         }
         case StartType::Join:
         {
-          initialise_startup_snapshot();
+          find_local_startup_snapshot();
 
           sm.advance(NodeStartupState::pending);
           start_join_timer();
@@ -527,7 +485,7 @@ namespace ccf
         {
           setup_recovery_hook();
 
-          initialise_startup_snapshot(true);
+          find_local_startup_snapshot();
 
           sm.advance(NodeStartupState::readingPublicLedger);
           start_ledger_recovery_unsafe();
