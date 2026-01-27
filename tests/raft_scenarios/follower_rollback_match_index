@@ -18,19 +18,26 @@ periodic_one,0,10
 dispatch_single,0,2
 dispatch_single,2,0
 
+# Partition 2
+disconnect_node,2
+
 emit_signature,2
 
-# time out b2
+periodic_one,0,10
+
+# b2 time out
 periodic_one,2,100
 assert_detail,2,leadership_state,PreVoteCandidate
-drop_pending_to,2,0 # Drop pre-vote request
 
+dispatch_all
+
+# Heal partition
+reconnect_node,2
+
+# leader sends append entries to b2
 periodic_one,0,10
 dispatch_single,0,2
 dispatch_single,2,0
+assert_detail,2,leadership_state,Follower
 
-periodic_one,0,10 
-dispatch_single,0,2
-dispatch_single,2,0
-
-state_all
+loop_until_sync
