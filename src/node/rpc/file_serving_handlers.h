@@ -132,11 +132,12 @@ namespace ccf::node
   }
 
   // Helper function to serve byte ranges from a file stream.
-  // IMPORTANT Note #1: this does _not_ set the response header telling
-  // the client about the snapshot/chunk/... name being served.
-  // The caller must set this on the rpc_ctx before returning.
-  // This should generally be called only once, and
-  // as the last thing before returning from the endpoint handler.
+  // This populates the response body, and range-related response headers. This
+  // may produce an error response if an invalid range was requested.
+  // This does _not_ set a response header telling the client the name of the
+  // snapshot/chunk/... being served, so the caller should set this (along
+  // with any other metadata headers) _before_ calling this function, and
+  // generally avoid modifying the response further _after_ calling this function.
   static void fill_range_response_from_file(
     ccf::endpoints::CommandEndpointContext& ctx, std::ifstream& f)
   {
