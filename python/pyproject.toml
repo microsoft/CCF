@@ -19,7 +19,7 @@ dependencies = [
     "cryptography >= 46, < 47",
     "cwt >= 3.2.0, < 4",
     "setuptools >= 74, < 81",
-    "packaging >= 25, < 26"
+    "packaging >= 25, < 27"
 ]
 
 [tool.setuptools]
