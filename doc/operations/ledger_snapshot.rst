@@ -67,11 +67,103 @@ Uncommitted snapshot files, i.e. those whose evidence has not yet been committed
 Join or Recover From Snapshot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Joining nodes will request a snapshot from the target service to accelerate their join. This behaviour is controlled by the ``command.join.fetch_recent_snapshot`` configuration option, and enabled by default. This removes the need for a shared read-only snapshot mount, and corresponding operator actions to keep it up-to-date. Instead the joiner will send a sequence of HTTP requests, potentially following redirect responses to find the current primary and request a specific snapshot, to download a recent snapshot which should allow them to join rapidly. Any suffix after a snapshot (including the entire ledger, in the rare cases where no snapshot can be found) will be replicated to that node via the consensus protocol.
+Joining nodes will request a snapshot from the target service to accelerate their join. This behaviour is controlled by the ``command.join.fetch_recent_snapshot`` configuration option, and enabled by default. This removes the need for a shared read-only snapshot mount, and corresponding operator actions to keep it up-to-date. Instead, if the joiner is told by the network that the snapshot they have locally is too old, the joiner will send a sequence of HTTP requests, potentially following redirect responses to find the current primary and request a specific snapshot, to download a recent snapshot which should allow them to join rapidly. Any suffix after a snapshot (including the entire ledger, in the rare cases where no snapshot can be found) will be replicated to that node via the consensus protocol.
 
 The legacy behaviour without ``fetch_recent_snapshot`` relies on a shared read-only directory. On start-up, the new node will search both ``snapshot.directory`` and ``read_only_directory`` to find the latest committed snapshot file. Operators are responsible for populating these with recent snapshots emitted by the service, and making this available (such as via a shared read-only mounted) on joining nodes.
 
-It is important to note that new nodes cannot join a service if the snapshot they start from is older than the snapshot the primary node started from. For example, if a new node resumes from a snapshot generated at ``seqno 50`` and joins from a (primary) node that originally resumed from a snapshot at ``seqno 100``, the new node will throw a ``StartupSeqnoIsOld`` error shortly after starting up. It is expected that operators copy the *latest* committed snapshot file to new nodes before start up.
+In particular, there is hard lower-bound on the age of the snapshot that a joining node can start from. It must be at least as recent as the snapshot that the primary node started from, otherwise the primary will return a ``StartupSeqnoIsOld`` error to the joining node.
+
+The following flowchart summarises the join procedure when ``command.join.fetch_recent_snapshot`` is enabled:
+
+.. mermaid::
+  flowchart TD
+      startup["Startup"]
+  
+      select.init_assign("startup_seqno = 0")
+      select.next_local["Choose highest local snapshot file A-B.committed"]
+      select.verify{"Validate snapshot"}
+      select.valid("startup_seqno = A")
+      select.delete("Delete invalid snapshot")
+  
+      test_mode{"mode?"}
+  
+      join.complete("Joined")
+      join.failure["Join failure"]
+      join.redirect("target_rpc_address = response.headers['Location']")
+      join.response{"Response type?"}
+      join.send("Send join request to target_rpc_address, including startup_seqno")
+      join.timeout("Timeout")
+      
+      fetch.apply("startup_seqno = A")
+      fetch.begin("peer_address = target_rpc_address")
+      fetch.redirect("peer_address = response.headers['Location']")
+      fetch.response{"Response type?"}
+      fetch.send("{peer_address} GET /snapshot?since={startup_seqno}")
+      fetch.verify{"Validate snapshot"}
+  
+      recovery.process("Complete recovery")
+      recovery.public("Deserialise snapshot public state")
+  
+      postjoin.service_open{"Service open?"}
+      postjoin.public("Deserialise snapshot public state")
+  
+      wait_for_open("Wait for service to open")
+      secrets_available("Deserialise snapshot private state")
+      done["Done"]
+  
+      startup --> select.init_assign
+      subgraph Select local snapshot
+          select.init_assign --> select.next_local
+          select.next_local --> select.verify
+          select.verify -->|Valid| select.valid
+          select.verify -->|Invalid| select.delete
+          select.delete --> select.next_local
+      end
+      select.valid --> test_mode
+      select.next_local -->|No more snapshots| test_mode
+  
+      test_mode -->|mode == Join| join.send
+      subgraph Join
+          join.timeout -.-> join.send
+          join.send -->|Response received| join.response
+          join.response -->|200 OK| join.complete
+          join.response -->|30x Redirect| join.redirect
+          join.redirect --> join.send
+  
+          join.response -->|StartupSeqnoIsOld| fetch.begin
+          subgraph FetchSnapshot
+              fetch.begin --> fetch.send
+              fetch.send -->|Response received| fetch.response
+              fetch.response -->|2xx Success| fetch.verify
+              fetch.verify -->|Valid| fetch.apply
+              fetch.response -->|30x Redirect| fetch.redirect
+              fetch.redirect --> fetch.send
+          end
+          fetch.apply --> join.timeout
+          fetch.send -.-> join.timeout
+          fetch.verify -->|Invalid| join.timeout
+          fetch.response -->|Other error| join.timeout
+  
+          join.response -.->|Timeout| join.timeout
+      end
+      join.response -->|Other error| join.failure
+  
+      join.complete --> postjoin.service_open
+  
+      subgraph PostJoin
+          postjoin.service_open -->|No| postjoin.public
+      end
+      postjoin.service_open -->|Yes| secrets_available
+      postjoin.public --> wait_for_open
+  
+      test_mode -->|mode == Recovery| recovery.public
+      subgraph Recovery
+          recovery.public -.-> recovery.process
+      end
+      recovery.process -.-> wait_for_open
+  
+      wait_for_open --> secrets_available
+      secrets_available --> done
 
 Historical Transactions
 ~~~~~~~~~~~~~~~~~~~~~~~
