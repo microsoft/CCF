@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev9]
+
+[7.0.0-dev9]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev9
+
+### Fixed
+
+- Join client now sets SNI correctly (#7622)
+- CBOR and COSE dependencies are now internal, and their headers are no longer exposed (#7616, #7617).
+
 ## [7.0.0-dev8]
 
 [7.0.0-dev8]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev8
