@@ -16,6 +16,7 @@
 #include "ccf/ds/x509_time_fmt.h"
 #include "crypto/cbor.h"
 #include "crypto/certs.h"
+#include "crypto/cose.h"
 #include "crypto/csr.h"
 #include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/cose_verifier.h"
@@ -230,7 +231,7 @@ void require_match_headers(
 {
   auto decoded = ccf::cbor::parse(cose_sign);
 
-  const auto& as_cose = decoded->tag_at(18);
+  const auto& as_cose = decoded->tag_at(ccf::cbor::tag::COSE_SIGN_1);
   const auto& raw_phdr = as_cose->array_at(0)->as_bytes();
 
   auto phdr = ccf::cbor::parse(raw_phdr);
