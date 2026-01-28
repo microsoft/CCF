@@ -918,7 +918,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "5.0.1"
+    "version": "5.0.2"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1173,7 +1173,7 @@
           {
             "in": "query",
             "name": "since",
-            "required": false,
+            "required": true,
             "schema": {
               "$ref": "#/components/schemas/uint64"
             }
@@ -1197,7 +1197,7 @@
           {
             "in": "query",
             "name": "since",
-            "required": false,
+            "required": true,
             "schema": {
               "$ref": "#/components/schemas/uint64"
             }
