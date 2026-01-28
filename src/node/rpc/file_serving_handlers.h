@@ -134,7 +134,8 @@ namespace ccf::node
   // Helper function to serve byte ranges from a file stream.
   // This populates the response body, and range-related response headers. This
   // may produce an error response if an invalid range was requested.
-  // This does _not_ set a response header telling the client the name of the
+  //
+  // This DOES NOT set a response header telling the client the name of the
   // snapshot/chunk/... being served, so the caller should set this (along
   // with any other metadata headers) _before_ calling this function, and
   // generally avoid modifying the response further _after_ calling this function.
