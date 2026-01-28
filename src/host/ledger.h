@@ -678,7 +678,11 @@ namespace asynchost
         return false;
       }
 
-      if (fflush(file) != 0)
+      // Files that are completed and committed are fsync'ed under lock
+      // (acquired in LedgerFiles::commit()) to ensure that any file returned by
+      // committed_ledger_path_with_idx() is complete and can be safely read and
+      // served to other nodes.
+      if (fsync(fileno(file)) != 0)
       {
         throw std::logic_error(fmt::format(
           "Failed to flush ledger file: {}",
@@ -721,18 +725,20 @@ namespace asynchost
     const fs::path ledger_dir;
 
     // Ledger directories (read-only)
-    std::vector<fs::path> read_ledger_dirs;
+    const std::vector<fs::path> read_ledger_dirs;
+
+    ccf::pal::Mutex state_lock;
 
     // Keep tracks of all ledger files for writing.
     // Current ledger file is always the last one
     std::list<std::shared_ptr<LedgerFile>> files;
 
     // Cache of ledger files for reading
-    size_t max_read_cache_files;
+    const size_t max_read_cache_files;
     std::list<std::shared_ptr<LedgerFile>> files_read_cache;
     ccf::pal::Mutex read_cache_lock;
 
-    std::atomic<size_t> last_idx = 0;
+    size_t last_idx = 0;
     size_t committed_idx = 0;
 
     size_t end_of_committed_files_idx = 0;
@@ -743,6 +749,9 @@ namespace asynchost
     // Used to remember the last recovered idx on init so that
     // use_existing_files can be disabled once this idx is passed
     std::optional<size_t> last_idx_on_init = std::nullopt;
+
+    // Use to remember the index from which replication started
+    size_t init_idx = 0;
 
     // Set during recovery to mark files as temporary until the recovery is
     // complete
@@ -896,6 +905,8 @@ namespace asynchost
       bool read_cache_only = false,
       std::optional<size_t> max_entries_size = std::nullopt)
     {
+      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+
       // Note: if max_entries_size is set, this returns contiguous ledger
       // entries on a best effort basis, so that the returned entries fit in
       // max_entries_size but without maximising the number of entries returned.
@@ -1026,6 +1037,7 @@ namespace asynchost
       const std::vector<std::string>& read_ledger_dirs_ = {}) :
       to_enclave(writer_factory.create_writer_to_inside()),
       ledger_dir(ledger_dir),
+      read_ledger_dirs(read_ledger_dirs_.begin(), read_ledger_dirs_.end()),
       max_read_cache_files(max_read_cache_files)
     {
       // Recover last idx from read-only ledger directories
@@ -1037,8 +1049,6 @@ namespace asynchost
           throw std::logic_error(
             fmt::format("{} read-only ledger is not a directory", read_dir));
         }
-
-        read_ledger_dirs.emplace_back(read_dir);
 
         for (auto const& f : fs::directory_iterator(read_dir))
         {
@@ -1218,6 +1228,10 @@ namespace asynchost
       TimeBoundLogger log_if_slow(
         fmt::format("Initing ledger - seqno={}", idx));
 
+      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+
+      init_idx = idx;
+
       // Used by backup nodes to initialise the ledger when starting from a
       // non-empty state, i.e. snapshot. It is assumed that idx is included in a
       // committed ledger file.
@@ -1260,7 +1274,7 @@ namespace asynchost
         }
       }
 
-      // Close all open write files as the the ledger should
+      // Close all open write files as the ledger should
       // restart cleanly, from a new chunk.
       files.clear();
 
@@ -1288,6 +1302,8 @@ namespace asynchost
       // Note: this operation cannot be rolled back.
       LOG_INFO_FMT("Ledger complete recovery");
 
+      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+
       for (auto it = files.begin(); it != files.end();)
       {
         auto& f = *it;
@@ -1311,13 +1327,17 @@ namespace asynchost
       recovery_start_idx.reset();
     }
 
-    [[nodiscard]] size_t get_last_idx() const
+    [[nodiscard]] size_t get_last_idx()
     {
+      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+
       return last_idx;
     }
 
     void set_recovery_start_idx(size_t idx)
     {
+      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+
       recovery_start_idx = idx;
     }
 
@@ -1325,6 +1345,8 @@ namespace asynchost
     {
       TimeBoundLogger log_if_slow(
         fmt::format("Reading ledger entry at {}", idx));
+
+      // Locking is done in read_entries_range
 
       return read_entries_range(idx, idx);
     }
@@ -1337,6 +1359,8 @@ namespace asynchost
       TimeBoundLogger log_if_slow(
         fmt::format("Reading ledger entries from {} to {}", from, to));
 
+      // Locking is done in read_entries_range
+
       return read_entries_range(from, to, false, max_entries_size);
     }
 
@@ -1344,6 +1368,8 @@ namespace asynchost
     {
       TimeBoundLogger log_if_slow(fmt::format(
         "Writing ledger entry - {} bytes, committable={}", size, committable));
+
+      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
 
       auto header =
         serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
@@ -1435,6 +1461,8 @@ namespace asynchost
     {
       TimeBoundLogger log_if_slow(fmt::format("Truncating ledger at {}", idx));
 
+      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+
       LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
 
       // Conservative check to avoid truncating to future indices, or dropping
@@ -1477,6 +1505,8 @@ namespace asynchost
       TimeBoundLogger log_if_slow(
         fmt::format("Committing ledger entry {}", idx));
 
+      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+
       LOG_DEBUG_FMT("Ledger commit: {}/{}", idx, last_idx);
 
       if (idx <= committed_idx || idx > last_idx)
@@ -1511,9 +1541,53 @@ namespace asynchost
       committed_idx = idx;
     }
 
-    [[nodiscard]] bool is_in_committed_file(size_t idx) const
+    [[nodiscard]] bool is_in_committed_file(size_t idx)
     {
+      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+
       return idx <= end_of_committed_files_idx;
+    }
+
+    /**
+     * Returns the path to the committed ledger file containing the given
+     * index, or nullopt if no such file exists. Only returns paths from the
+     * main ledger directory.
+     */
+    [[nodiscard]] std::optional<fs::path> committed_ledger_path_with_idx(
+      size_t idx)
+    {
+      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+
+      if (idx > end_of_committed_files_idx)
+      {
+        LOG_INFO_FMT(
+          "Index {} is beyond end of committed files at {}, cannot get "
+          "committed ledger path",
+          idx,
+          end_of_committed_files_idx);
+        return std::nullopt;
+      }
+
+      auto name = get_file_name_with_idx(
+        ledger_dir, idx, false /* do not allow recovery files */);
+
+      if (!name.has_value())
+      {
+        LOG_INFO_FMT(
+          "Could not find committed ledger file for index {} in {}",
+          idx,
+          ledger_dir);
+        return std::nullopt;
+      }
+
+      return ledger_dir / name.value();
+    }
+
+    [[nodiscard]] size_t get_init_idx()
+    {
+      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+
+      return init_idx;
     }
 
     struct AsyncLedgerGet
