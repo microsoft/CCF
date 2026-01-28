@@ -51,30 +51,31 @@ dispatch_all
 replicate,3,saluton mondo
 replicate,3,ah well nevertheless
 state_all
+assert_last_txid,1,3.10
 
 # Node 2 calls an election, advancing to term 3
 periodic_one,2,110
 
-# Node 2's RequestVote reaches Node 1, causing a soft-rollback
+# -- Node 2's RequestVote reaches Node 1, causing a soft-rollback --
+# Node 2's RequestVote reaches Node 1, causing it to advance term but not roll-back
 dispatch_one,2
 
-# Node 1 should retain the committed state!
+# Node 1 should retain the whole state 3.10 it had previously
 state_all
+assert_detail,1,current_view,4
+assert_last_txid,1,3.10
+assert_detail,2,current_view,4
+assert_last_txid,2,2.6
 
 # Node 1 should not vote for node 2!
 dispatch_one,1
 assert_!detail,2,leadership_state,Leader
 
-# Because if they did, then node 2's AEs would break persistence!
-periodic_all,10
-dispatch_all
-state_all
-
 # Now restore comms between 0 and 1, and disconnect 2
 reconnect_node,0
 disconnect_node,2
 
-# Despite not being able to _commit_ the entries it holds, node 1
+# Despite not being able to currently _commit_ the entries it holds, node 1
 # should be able to win an election by advertising them!
 periodic_one,1,110
 dispatch_all

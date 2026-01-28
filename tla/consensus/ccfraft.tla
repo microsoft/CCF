@@ -1075,9 +1075,9 @@ ReturnToFollowerState(i, m) ==
     /\ leadershipState[i] \in {PreVoteCandidate, Candidate}
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
-    \* Note that the set of messages is unchanged as m is discarded
-    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, currentTerm, votedFor, logVars, 
-        messages, membershipState, candidateVars, leaderVars>>
+    \* messages is unchanged so m can be processed further.
+    /\ UNCHANGED <<preVoteStatus, messageVars, candidateVars, leaderVars, logVars, hasJoined, retirementCompleted, membershipState, configurations>>
+    /\ UNCHANGED <<currentTerm, votedFor>>
 
 \* Follower i receives a AppendEntries from leader j for log entries it already has
 AppendEntriesAlreadyDone(i, j, index, m) ==
@@ -1222,16 +1222,9 @@ UpdateTerm(i, j, m) ==
          ![i] = IF @ \in {Leader, Candidate, PreVoteCandidate, None} THEN Follower ELSE @]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
     /\ votedFor'       = [votedFor    EXCEPT ![i] = Nil]
-    \* See rollback(last_committable_index()) in raft::become_follower
-    /\ log'            = [log         EXCEPT ![i] = SubSeq(@, 1, LastCommittableIndex(i))]
-    \* Potentially also shorten the configurations if the removed txns contained reconfigurations
-    /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(log'[i]))]
-    \* If the leader was in the RetirementOrdered state, then its retirement has
-    \* been rolled back as it was unsigned
-    /\ membershipState' = [membershipState EXCEPT ![i] = 
-        IF @ = RetirementOrdered THEN Active ELSE @]
     \* messages is unchanged so m can be processed further.
-    /\ UNCHANGED <<preVoteStatus, messageVars, candidateVars, leaderVars, commitIndex, hasJoined, retirementCompleted>>
+    /\ UNCHANGED <<preVoteStatus, messageVars, candidateVars, leaderVars, logVars, hasJoined, retirementCompleted, membershipState, configurations>>
+
 
 \* Responses with stale terms are ignored.
 DropStaleResponse(i, j, m) ==
@@ -1718,6 +1711,10 @@ NeverCommitEntryPrevTermsProp ==
         \* If the commitIndex of a leader changes, the log entry's term that the new commitIndex
         \* points to equals the leader's term.
         commitIndex'[i] > commitIndex[i] => log[i][commitIndex'[i]].term = currentTerm'[i] ]_vars
+
+MatchIndexBoundedByLogInv ==
+  \A i,j \in Servers:
+  (leadershipState[i] = Leader /\ currentTerm[i] = currentTerm[j]) => matchIndex[i][j] <= Len(log[j])
 
 ------------------------------------------------------------------------------
 \* Refinement of the more high-level specification abs.tla that abstracts the
