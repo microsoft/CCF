@@ -1212,8 +1212,10 @@ namespace aft
           state->commit_idx);
         return;
       }
-// This block is redundant - the checks above cover this case, so the code inside this block should be unreachable.
-// It is retained out of paranoia, in case future rewrites of the above conditions allow a fallthrough.
+      // This block is redundant - the checks above cover this case, so the code
+      // inside this block should be unreachable. It is retained out of
+      // paranoia, in case future rewrites of the above conditions allow a
+      // fallthrough.
       if (r.prev_idx > state->last_idx)
       {
         RAFT_FAIL_FMT(
