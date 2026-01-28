@@ -759,7 +759,7 @@ class CCFRemote(object):
     def get_logs(self):
         return self.remote.get_logs()
 
-    def get_ledger_main_dir(self):
+    def get_main_ledger_dir(self):
         """
         Get the main ledger directory
         """

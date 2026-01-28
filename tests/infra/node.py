@@ -542,7 +542,7 @@ class Node:
         """
         Get the main ledger directory
         """
-        return self.remote.get_ledger_main_dir()
+        return self.remote.get_main_ledger_dir()
 
     def get_ledger(self):
         """
