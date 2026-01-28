@@ -624,7 +624,7 @@ namespace ccf::node
         "/ledger-chunk", HTTP_HEAD, find_chunk, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
-        file_since_param_key, ccf::endpoints::OptionalParameter)
+        file_since_param_key, ccf::endpoints::RequiredParameter)
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .install();
     registry
@@ -632,7 +632,7 @@ namespace ccf::node
         "/ledger-chunk", HTTP_GET, find_chunk, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
-        file_since_param_key, ccf::endpoints::OptionalParameter)
+        file_since_param_key, ccf::endpoints::RequiredParameter)
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .install();
 
