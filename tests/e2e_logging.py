@@ -40,6 +40,7 @@ import e2e_common_endpoints
 import subprocess
 import base64
 import cbor2
+from datetime import datetime
 
 from loguru import logger as LOG
 
@@ -2269,6 +2270,82 @@ def test_cose_config(network, args):
     return network
 
 
+def test_blocking_calls(network, args):
+    primary, _ = network.find_nodes()
+
+    class CommitPoller(infra.concurrency.StoppableThread):
+        def __init__(self, node):
+            super().__init__(name="commit poller")
+            self.node = node
+            self.known_commit_times = []
+
+        def run(self):
+            with self.node.client() as c:
+                prev_txid = None
+                while not self.is_stopped():
+                    r = c.get("/node/commit", log_capture=[])
+                    assert r.status_code == http.HTTPStatus.OK, r.status_code
+                    txid = TxID.from_str(r.body.json()["transaction_id"])
+                    if txid != prev_txid:
+                        self.known_commit_times.append((datetime.now(), txid))
+                        prev_txid = txid
+
+    cp = CommitPoller(primary)
+    cp.start()
+
+    response_times = []
+
+    # Make some blocking and some non-blocking requests, in random order, and compare delta to known-commit time
+    n_requests = 5
+    request_order = [True] * n_requests + [False] * n_requests
+    random.shuffle(request_order)
+
+    with primary.client("user0") as c:
+        for blocking in request_order:
+            path = "/log/blocking/private" if blocking else "/log/private"
+            r = c.post(path, {"id": 42, "msg": "Hello world"})
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+            now = datetime.now()
+            txid = TxID.from_str(r.headers[infra.clients.CCF_TX_ID_HEADER])
+            response_times.append((now, (blocking, txid)))
+
+        # Ensure CommitPoller has waited for commit of _all_ entries
+        c.wait_for_commit(r)
+
+    cp.stop()
+    cp.join()
+
+    # Measure the delta between when we received a response, and when we knew it was committed
+    blocking_deltas = []
+    non_blocking_deltas = []
+
+    for response_time, (blocking, txid) in response_times:
+        for commit_time, commit_txid in cp.known_commit_times:
+            assert commit_txid.view == txid.view
+            if commit_txid.seqno >= txid.seqno:
+                delta = (commit_time - response_time).total_seconds()
+                if blocking:
+                    blocking_deltas.append(delta)
+                else:
+                    non_blocking_deltas.append(delta)
+                break
+        else:
+            raise AssertionError(f"No commit found for {txid}")
+
+    blocking_mean = sum(blocking_deltas) / len(blocking_deltas)
+    non_blocking_mean = sum(non_blocking_deltas) / len(non_blocking_deltas)
+
+    # Over a large-enough sample size, we'd expect:
+    # - blocking_mean to approach 0. We get a response and see commit advance at exactly the same time
+    # - non_blocking_mean to approach the signature interval. We get responses eagerly, and they're committed later at regular signature intervals
+
+    # Our actual test has far more variation, so we can only make much broader claims - the blocking_mean is (much) smaller than the non_blocking_mean
+    assert blocking_mean < non_blocking_mean
+
+    return network
+
+
 def run_main_tests(network, args):
     test_basic_constraints(network, args)
     test(network, args)
@@ -2315,6 +2392,8 @@ def run_main_tests(network, args):
     if args.package == "samples/apps/logging/logging":
         test_etags(network, args)
         test_cose_config(network, args)
+        if not args.http2:
+            test_blocking_calls(network, args)
 
 
 def run_parsing_errors(args):
