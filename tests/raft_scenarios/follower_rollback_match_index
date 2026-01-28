@@ -11,7 +11,9 @@ emit_signature,2
 
 loop_until_sync
 
+assert_last_txid,0,2.5
 replicate,2,tx1
+assert_last_txid,0,2.6
 
 # advance matchIdx
 periodic_one,0,10
@@ -22,22 +24,26 @@ dispatch_single,2,0
 disconnect_node,2
 
 emit_signature,2
+assert_last_txid,0,2.7
 
 periodic_one,0,10
 
 # b2 time out
 periodic_one,2,100
 assert_detail,2,leadership_state,PreVoteCandidate
+assert_last_txid,2,2.6
 
 dispatch_all
 
 # Heal partition
 reconnect_node,2
 
-# leader sends append entries to b2
+# leader sends append entries [2.7,2.7) to b2
+# b2 nacks but does not truncate
 periodic_one,0,10
 dispatch_single,0,2
 dispatch_single,2,0
 assert_detail,2,leadership_state,Follower
+assert_last_txid,2,2.6
 
 loop_until_sync

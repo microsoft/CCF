@@ -51,6 +51,7 @@ dispatch_all
 replicate,3,saluton mondo
 replicate,3,ah well nevertheless
 state_all
+assert_last_txid,1,3.10
 
 # Node 2 calls an election, advancing to term 3
 periodic_one,2,110
@@ -59,8 +60,12 @@ periodic_one,2,110
 # Node 2's RequestVote reaches Node 1, causing it to advance term but not roll-back
 dispatch_one,2
 
-# Node 1 should retain the whole state 4.10 it had previously
+# Node 1 should retain the whole state 3.10 it had previously
 state_all
+assert_detail,1,current_view,4
+assert_last_txid,1,3.10
+assert_detail,2,current_view,4
+assert_last_txid,2,2.6
 
 # Node 1 should not vote for node 2!
 dispatch_one,1
