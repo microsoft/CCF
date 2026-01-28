@@ -88,11 +88,11 @@ namespace ccf::node
 
     if (other_node_ids.empty())
     {
-      LOG_FAIL_FMT("Node redirection error: No nodes present in the network");
+      LOG_FAIL_FMT("Node redirection error: No other nodes present in the network");
       ctx.rpc_ctx->set_error(
         HTTP_STATUS_INTERNAL_SERVER_ERROR,
         ccf::errors::InternalError,
-        "Cannot redirect request. No nodes present in the network");
+        "Cannot redirect request. No other nodes present in the network");
       return std::nullopt;
     }
 
