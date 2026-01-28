@@ -88,7 +88,8 @@ namespace ccf::node
 
     if (other_node_ids.empty())
     {
-      LOG_FAIL_FMT("Node redirection error: No other nodes present in the network");
+      LOG_FAIL_FMT(
+        "Node redirection error: No other nodes present in the network");
       ctx.rpc_ctx->set_error(
         HTTP_STATUS_INTERNAL_SERVER_ERROR,
         ccf::errors::InternalError,
@@ -138,7 +139,8 @@ namespace ccf::node
   // This DOES NOT set a response header telling the client the name of the
   // snapshot/chunk/... being served, so the caller should set this (along
   // with any other metadata headers) _before_ calling this function, and
-  // generally avoid modifying the response further _after_ calling this function.
+  // generally avoid modifying the response further _after_ calling this
+  // function.
   static void fill_range_response_from_file(
     ccf::endpoints::CommandEndpointContext& ctx, std::ifstream& f)
   {
