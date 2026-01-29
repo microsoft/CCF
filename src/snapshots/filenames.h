@@ -2,9 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/internal_logger.h"
+
+#include <algorithm>
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace snapshots
 {
@@ -133,58 +137,83 @@ namespace snapshots
     return read_idx(file_name.substr(evidence_idx_pos + 1, end_str));
   }
 
-  inline std::optional<fs::path> find_latest_committed_snapshot_in_directory(
-    const fs::path& directory, size_t& latest_committed_snapshot_idx)
+  inline std::vector<std::pair<size_t, fs::path>>
+  find_committed_snapshots_in_directories(
+    const std::vector<fs::path>& directories,
+    std::optional<size_t> minimum_idx = std::nullopt)
   {
-    std::optional<fs::path> latest_committed_snapshot_file_name = std::nullopt;
+    std::vector<std::pair<size_t, fs::path>> committed_snapshots_with_idx;
 
-    for (const auto& f : fs::directory_iterator(directory))
+    for (const auto& dir : directories)
     {
-      auto file_name = f.path().filename();
-      if (!is_snapshot_file(file_name))
+      for (const auto& f : fs::directory_iterator(dir))
       {
-        LOG_INFO_FMT("Ignoring non-snapshot file {}", file_name);
-        continue;
-      }
 
-      if (!is_snapshot_file_committed(file_name))
-      {
-        LOG_INFO_FMT("Ignoring non-committed snapshot file {}", file_name);
-        continue;
-      }
+        auto file_name = f.path().filename();
+        if (!is_snapshot_file(file_name))
+        {
+          LOG_INFO_FMT("Ignoring non-snapshot file {}", file_name);
+          continue;
+        }
 
-      if (fs::exists(f.path()) && fs::is_empty(f.path()))
-      {
-        LOG_INFO_FMT("Ignoring empty snapshot file {}", file_name);
-        continue;
-      }
+        if (!is_snapshot_file_committed(file_name))
+        {
+          LOG_INFO_FMT("Ignoring non-committed snapshot file {}", file_name);
+          continue;
+        }
 
-      auto snapshot_idx = get_snapshot_idx_from_file_name(file_name);
-      if (snapshot_idx > latest_committed_snapshot_idx)
-      {
-        latest_committed_snapshot_file_name = file_name;
-        latest_committed_snapshot_idx = snapshot_idx;
+        if (fs::exists(f.path()) && fs::is_empty(f.path()))
+        {
+          LOG_INFO_FMT("Ignoring empty snapshot file {}", file_name);
+          continue;
+        }
+
+        const auto idx = get_snapshot_idx_from_file_name(file_name.string());
+        if (minimum_idx.has_value() && idx < minimum_idx.value())
+        {
+          LOG_INFO_FMT(
+            "Ignoring snapshot file {} below minimum idx {}",
+            file_name,
+            minimum_idx.value());
+        }
+        else
+        {
+          // Insert snapshot with index, sorted by descending snapshot index
+          auto it = std::lower_bound(
+            committed_snapshots_with_idx.begin(),
+            committed_snapshots_with_idx.end(),
+            idx,
+            [](const std::pair<size_t, fs::path>& lhs, size_t rhs) {
+              return rhs < lhs.first;
+            });
+          committed_snapshots_with_idx.insert(
+            it, std::make_pair(idx, f.path()));
+        }
       }
     }
 
-    return latest_committed_snapshot_file_name;
+    return committed_snapshots_with_idx;
   }
 
   inline std::optional<fs::path> find_latest_committed_snapshot_in_directories(
-    const std::vector<fs::path>& directories)
+    const std::vector<fs::path>& directories,
+    std::optional<size_t> minimum_idx = std::nullopt)
   {
-    size_t latest_committed_snapshot_idx = 0;
-    std::optional<fs::path> best = std::nullopt;
-    for (const auto& dir : directories)
+    const auto paths =
+      find_committed_snapshots_in_directories(directories, minimum_idx);
+    if (paths.empty())
     {
-      const auto best_in_dir = find_latest_committed_snapshot_in_directory(
-        dir, latest_committed_snapshot_idx);
-      if (best_in_dir.has_value())
-      {
-        best = dir / best_in_dir.value();
-      }
+      return std::nullopt;
     }
 
-    return best;
+    return paths.front().second;
+  }
+
+  inline std::optional<fs::path> find_latest_committed_snapshot_in_directory(
+    const fs::path& directory, std::optional<size_t> minimum_idx = std::nullopt)
+  {
+    std::vector<fs::path> directories{directory};
+    return find_latest_committed_snapshot_in_directories(
+      directories, minimum_idx);
   }
 }

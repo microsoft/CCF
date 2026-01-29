@@ -98,11 +98,11 @@ namespace ccf
       NodeState* owner;
 
       FetchSnapshot(
-        const ccf::StartupConfig::Join& join_config_,
-        const ccf::CCFConfig::Snapshots& snapshot_config_,
+        ccf::StartupConfig::Join join_config_,
+        ccf::CCFConfig::Snapshots snapshot_config_,
         NodeState* owner_) :
-        join_config(join_config_),
-        snapshot_config(snapshot_config_),
+        join_config(std::move(join_config_)),
+        snapshot_config(std::move(snapshot_config_)),
         owner(owner_)
       {}
 
@@ -251,30 +251,47 @@ namespace ccf
       {
         directories.emplace_back(read_only_dir.value());
       }
-      auto latest_local_snapshot =
-        snapshots::find_latest_committed_snapshot_in_directories(directories);
 
-      if (latest_local_snapshot.has_value())
+      const auto committed_snapshots =
+        snapshots::find_committed_snapshots_in_directories(directories);
+      for (const auto& [snapshot_seqno, snapshot_path] : committed_snapshots)
       {
-        const auto snapshot_seqno = snapshots::get_snapshot_idx_from_file_name(
-          std::filesystem::path(latest_local_snapshot.value())
-            .filename()
-            .string());
-
-        auto snapshot_data = files::slurp(latest_local_snapshot.value());
+        auto snapshot_data = files::slurp(snapshot_path);
 
         LOG_INFO_FMT(
           "Found latest local snapshot file: {} (size: {})",
-          latest_local_snapshot,
+          snapshot_path,
           snapshot_data.size());
 
+        const auto segments = separate_segments(snapshot_data);
+
+        try
+        {
+          verify_snapshot(segments, config.recover.previous_service_identity);
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT(
+            "Error while verifying {}: {}", snapshot_path.string(), e.what());
+
+          LOG_INFO_FMT(
+            "Deleting corrupt snapshot {} and looking for next",
+            snapshot_path.string());
+
+          if (!std::filesystem::remove(snapshot_path))
+          {
+            throw std::logic_error(
+              fmt::format("Could not remove file {}", snapshot_path.string()));
+          }
+
+          continue;
+        }
+
         set_startup_snapshot(snapshot_seqno, std::move(snapshot_data));
-      }
-      else
-      {
-        LOG_INFO_FMT("No local snapshot found");
         return;
       }
+
+      LOG_INFO_FMT("No local snapshot found");
     }
 
     void set_startup_snapshot(
@@ -283,18 +300,14 @@ namespace ccf
       startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
         snapshot_seqno, std::move(snapshot_data));
 
-      const auto segments = separate_segments(startup_snapshot_info->raw);
-
-      // TODO: What if this is a peer-retrieved snapshot, signed by a different
-      // service identity?
-      verify_snapshot(segments, config.recover.previous_service_identity);
-
       startup_seqno = startup_snapshot_info->seqno;
       last_recovered_idx = startup_seqno;
       last_recovered_signed_idx = last_recovered_idx;
 
       if (start_type == StartType::Recover)
       {
+        const auto segments = separate_segments(startup_snapshot_info->raw);
+
         ccf::kv::ConsensusHookPtrs hooks;
         deserialise_snapshot(
           network.tables,
@@ -812,18 +825,16 @@ namespace ccf
                 config.join, config.snapshots, this));
               return;
             }
-            else
-            {
-              auto error_msg = fmt::format(
-                "Join request to {} returned {} Bad Request: {}. Shutting "
-                "down node gracefully.",
-                target_address,
-                status,
-                std::string(data.begin(), data.end()));
-              LOG_FAIL_FMT("{}", error_msg);
-              RINGBUFFER_WRITE_MESSAGE(
-                AdminMessage::fatal_error_msg, to_host, error_msg);
-            }
+
+            auto error_msg = fmt::format(
+              "Join request to {} returned {} Bad Request: {}. Shutting "
+              "down node gracefully.",
+              target_address,
+              status,
+              std::string(data.begin(), data.end()));
+            LOG_FAIL_FMT("{}", error_msg);
+            RINGBUFFER_WRITE_MESSAGE(
+              AdminMessage::fatal_error_msg, to_host, error_msg);
           }
           else if (status != HTTP_STATUS_OK)
           {

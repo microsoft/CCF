@@ -171,7 +171,7 @@ namespace ccf::node
         return;
       }
 
-      const auto& snapshot_path = latest_committed_snapshot.value();
+      const auto& snapshot_name = latest_committed_snapshot->filename();
 
       const auto address =
         get_redirect_address_for_node(ctx, ctx.tx, node_context.get_node_id());
@@ -181,7 +181,7 @@ namespace ccf::node
       }
 
       auto redirect_url = fmt::format(
-        "https://{}/node/snapshot/{}", address.value(), snapshot_path);
+        "https://{}/node/snapshot/{}", address.value(), snapshot_name);
       LOG_DEBUG_FMT("Redirecting to snapshot: {}", redirect_url);
       ctx.rpc_ctx->set_response_header(
         ccf::http::headers::LOCATION, redirect_url);
