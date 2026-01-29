@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev10]
+
+[7.0.0-dev10]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev10
+
+### Added
+
+- `GET` and `HEAD` `/node/ledger-chunk?since={seqno}` and `/node/ledger-chunk/{chunk_name}` endpoints, gated by the `LedgerChunkDownload` RPC interface operator feature. See [documentation](https://microsoft.github.io/CCF/main/operations/ledger_snapshot.html#download-endpoints) for more detail.
+
 ## [7.0.0-dev9]
 
 [7.0.0-dev9]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev9
