@@ -148,7 +148,6 @@ namespace snapshots
     {
       for (const auto& f : fs::directory_iterator(dir))
       {
-
         auto file_name = f.path().filename();
         if (!is_snapshot_file(file_name))
         {
