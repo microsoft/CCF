@@ -358,6 +358,10 @@ namespace ccf::node
                 }
               }
 
+              // Range end in header is inclusive, but we prefer to reason about
+              // exclusive range end (ie - one past the end)
+              range_end += 1;
+
               if (range_end > total_size)
               {
                 LOG_DEBUG_FMT(
