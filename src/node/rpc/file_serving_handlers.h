@@ -449,6 +449,8 @@ namespace ccf::node
 
       // Partial Content responses describe the current response in
       // Content-Range
+      // Convert back to HTTP-style inclusive range end
+      range_end -= 1;
       ctx.rpc_ctx->set_response_header(
         ccf::http::headers::CONTENT_RANGE,
         fmt::format("bytes {}-{}/{}", range_start, range_end, total_size));
