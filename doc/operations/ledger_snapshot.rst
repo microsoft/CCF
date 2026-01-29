@@ -44,6 +44,23 @@ The listing below is an example of what a ledger directory may look like:
     - While the :doc:`/operations/recovery` procedure is in progress, new ledger files are suffixed with ``.recovery``. These files are automatically renamed (i.e. recovery suffix removed) once the recovery procedure is complete. ``.recovery`` files are automatically discarded on node startup so that a failed recovery attempt does not prevent further recoveries.
     - A new ledger chunk can also be created by the ``trigger_ledger_chunk`` governance action, which will automatically produce a new chunk at the following signature transaction.
 
+Download Endpoints
+~~~~~~~~~~~~~~~~~~
+
+In order to faciliate long term backup of the ledger, nodes can enable HTTP endpoints that allow a client to download committed ledger files.
+These endpoints are disabled by default and can be enabled by adding `LedgerChunkDownload` to `enabled_operator_features` on `rpc_interfaces` in the node configuration.
+
+:http:HEAD:`/node/ledger-chunk/<chunk-name>` and :http:GET:`/node/ledger-chunk/<chunk-name>`
+
+These endpoints allow downloading a specific ledger chunk by name, where `<chunk-name>` is of the form `ledger_<start_seqno>-<end_seqno>.committed`.
+They support the HTTP `Range` header for partial downloads, and the `HEAD` method for clients to query metadata such as the total size without downloading the full chunk.
+They also populate the `x-ms-ccf-ledger-chunk-name` response header with the name of the chunk being served.
+
+:http:HEAD:`/node/ledger-chunk?since=<seqno>` and :http:GET:`/node/ledger-chunk?since=<seqno>`
+
+These endpoints can be used by a client to download the next ledger chunk including a given sequence number `<seqno>`.
+The redirects to the appropriate chunk if it exists, using the previous set of endpoints, or returns a `404 Not Found` response if no such chunk is available.
+
 Snapshots
 ---------
 
