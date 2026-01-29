@@ -1608,7 +1608,7 @@ In order to upgrade an existing 3.x service to 4.x, CCF must be on the latest 3.
 - Add `secp256k1` support to `ccf.crypto.generateEcdsaKeyPair()` and `ccf.crypto.verifySignature()` (#4347).
 - Add `ccf.crypto.generateEddsaKeyPair()` API with `Curve25519` support in the JavaScript runtime (#4391).
 - Add new `ccf.crypto.pemToJwk`, `ccf.crypto.pubPemToJwk`, `ccf.crypto.rsaPemToJwk`, `ccf.crypto.pubRsaPemToJwk` to JavaScript/TypesScript API to convert EC/RSA keys from PEM to JWK (#4359).
-- JavaScript crypto API (e.g. `generateAesKey` and `wrapKey`) are now included as part of the `ccf.crypto` package (#4372).
+- JavaScript crypto APIs (e.g. `generateAesKey` and `wrapKey`) are now included as part of the `ccf.crypto` package (#4372).
 
 ---
 
