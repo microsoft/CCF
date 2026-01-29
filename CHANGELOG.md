@@ -1670,16 +1670,6 @@ In order to upgrade an existing 3.x service to 4.x, CCF must be on the latest 3.
 
 - The "Node Output" page has been relabelled as "Troubleshooting" in the documentation and CLI commands for troubleshooting have been added to it.
 
-## 3.0.0-dev7 (unreleased)
-
-### Added
-
-- Added new `ccf.crypto.pemToJwk`, `ccf.crypto.pubPemToJwk`, `ccf.crypto.rsaPemToJwk`, `ccf.crypto.pubRsaPemToJwk` to JavaScript/TypesScript API to convert EC/RSA keys from PEM to JWK (#4359).
-
-### Changed
-
-- JavaScript crypto API (e.g. `generateAesKey` and `wrapKey`) are now included as part of the `ccf.crypto` package (#4372).
-
 ## [3.0.0-dev6]
 
 ### Added
@@ -3058,7 +3048,7 @@ CCF now deals internally only with serialised data in its tables, mapping byte-v
 - `foreach` early-exit semantics are now consistent (#1222)
 - Third party dependency updates (#1144, #1148, #1149, #1151, #1155, #1255)
 - All logging output now goes to stdout, and can be configured to be either JSON or plain text (#1258) [doc](https://microsoft.github.io/CCF/main/operators/node_output.html#json-formatting)
-- Initial support for historical query handlers (#1207) [sample](https://github.com/microsoft/CCF/blob/main/samples/apps/logging/logging.cpp)
+- Initial support for historical query handlers (#1207) [sample](https://github.com/microsoft/CCF/blob/0.11/src/apps/logging/logging.cpp#L262)
 - Implement the equivalent of "log rolling" for the ledger (#1135) [doc](https://microsoft.github.io/CCF/main/operators/ledger.html)
 - Internal RPCs renamed to follow more traditional REST conventions (#968) [doc](https://microsoft.github.io/CCF/main/operators/operator_rpc_api.html)
 
