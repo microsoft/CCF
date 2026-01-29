@@ -47,19 +47,70 @@ The listing below is an example of what a ledger directory may look like:
 Download Endpoints
 ~~~~~~~~~~~~~~~~~~
 
-In order to faciliate long term backup of the ledger, nodes can enable HTTP endpoints that allow a client to download committed ledger files.
-These endpoints are disabled by default and can be enabled by adding `LedgerChunkDownload` to `enabled_operator_features` on `rpc_interfaces` in the node configuration.
+In order to faciliate long term backup of the ledger files (also called chunks), nodes can enable HTTP endpoints that allow a client to download committed ledger files.
+The `LedgerChunkDownload` feature must be added to `enabled_operator_features` on the relevant `rpc_interfaces` entries in the node configuration.
 
-:http:HEAD:`/node/ledger-chunk/<chunk-name>` and :http:GET:`/node/ledger-chunk/<chunk-name>`
+1. :http:GET:`/node/ledger-chunk/{chunk_name}` and :http:HEAD:`/node/ledger-chunk/{chunk_name}`
 
 These endpoints allow downloading a specific ledger chunk by name, where `<chunk-name>` is of the form `ledger_<start_seqno>-<end_seqno>.committed`.
 They support the HTTP `Range` header for partial downloads, and the `HEAD` method for clients to query metadata such as the total size without downloading the full chunk.
 They also populate the `x-ms-ccf-ledger-chunk-name` response header with the name of the chunk being served.
 
-:http:HEAD:`/node/ledger-chunk?since=<seqno>` and :http:GET:`/node/ledger-chunk?since=<seqno>`
+2. :http:GET:`/node/ledger-chunk` and :http:HEAD:`/node/ledger-chunk`, both taking a `seqno` query parameter.
 
 These endpoints can be used by a client to download the next ledger chunk including a given sequence number `<seqno>`.
 The redirects to the appropriate chunk if it exists, using the previous set of endpoints, or returns a `404 Not Found` response if no such chunk is available.
+
+In the usual case, a downloading client will first hit a Backup, and will eventually want to download files recent enough that only the primary can provide them:
+
+.. mermaid::
+
+    sequenceDiagram
+    Note over Client: Client asks for chunk starting at index
+    Client->>+Backup: GET /node/ledger-chunk?since=index
+    Backup->>-Client: 308 Location: /node/ledger-chunk/ledger_startIndex_endIndex.committed
+    Note over Backup: Backup node has that chunk
+    Client->>+Backup: GET /node/ledger-chunk/ledger_startIndex_endIndex.committed
+    Backup->>-Client: 200 <Chunk Contents>
+    Client->>+Backup: GET /node/ledger-chunk?since=endIndex+1
+    Note over Backup: Backup node does not yet have a committed chunk starting at endIndex+1
+    Backup->>-Client: 308 Location: https://primary/node/ledger-chunk?since=endIndex+1
+    Client->>+Primary: GET /node/ledger-chunk?since=endIndex+1
+    Primary->>-Client: 308 Location: /node/ledger-chunk/ledger_endIndex+1_nextEndIndex.committed
+    Client->>+Primary: GET /node/ledger-chunk/ledger_startIndex_endIndex.committed
+    Note over Primary: But the Primary node has the most recent chunk already
+    Primary->>-Client: 200 <Chunk Contents>
+
+But it is also possible for a client to first hit a node that has recently started from a snapshot, and does not have some past chunks as a result.
+If the Primary started from `snapshot_100.committed` and locally has:
+
+.. code-block:: bash
+
+    ledger_1-50.committed
+    ledger_101-150.committed
+
+and Backup has:
+
+.. code-block:: bash
+
+    ledger_1-50.committed
+    ledger_51-100.committed
+
+then the following sequence can occur:
+
+.. mermaid::
+
+    sequenceDiagram
+    Client->>+Primary: GET /node/ledger-chunk?since=51
+    Primary->>-Client: 308 Location: https://backup/node/ledger-chunk?since=51
+    Client->>+Backup: GET /node/ledger-chunk?since=51
+    Backup->>-Client: 308 Location: /node/ledger-chunk/ledger_51-100.committed
+    Client->>+Backup: GET /node/ledger-chunk/ledger_51-100.committed
+    Backup->>-Client: 200 <Chunk Contents>
+    Client->>+Backup: GET /node/ledger-chunk?since=101
+    Note over Backup: Backup node does not have 101-150
+    Backup->>-Client: 308 Location: https://primary/node/ledger-chunk?since=51
+    Client->>+Primary: GET /node/ledger-chunk?since=101
 
 Snapshots
 ---------

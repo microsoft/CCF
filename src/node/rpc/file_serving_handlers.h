@@ -630,6 +630,9 @@ namespace ccf::node
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::RequiredParameter)
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
+      .set_openapi_summary("Ledger chunk metadata")
+      .set_openapi_description(
+        "Redirect to the corresponding /node/ledger-chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.")
       .install();
     registry
       .make_read_only_endpoint(
@@ -638,6 +641,9 @@ namespace ccf::node
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::RequiredParameter)
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
+      .set_openapi_summary("Download ledger chunk")
+      .set_openapi_description(
+        "Redirect to the corresponding /node/ledger-chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.")
       .install();
 
     auto get_snapshot = [&](ccf::endpoints::CommandEndpointContext& ctx) {
@@ -759,6 +765,9 @@ namespace ccf::node
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
+      .set_openapi_summary("Ledger chunk metadata")
+      .set_openapi_description(
+        "Metadata about a specific ledger chunk (Content-Length and x-ms-ccf-ledger-chunk-name)")
       .install();
     registry
       .make_command_endpoint(
@@ -768,6 +777,9 @@ namespace ccf::node
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
+      .set_openapi_summary("Download ledger chunk")
+      .set_openapi_description(
+        "Download a specific ledger chunk by name. Supports HTTP Range header for partial downloads.")
       .install();
   }
 }
