@@ -3024,6 +3024,7 @@ The 1.0 release will require minimal changes from this release.
 - New standard endpoint `node/ids` for retrieving node ID from IP address (#1319).
 - Support for read-only transactions. Use `tx.get_read_only_view` to retrieve read-only views, and install with `make_read_only_endpoint` if all operations are read-only.
 - Support for distinct handlers on the same URI. Each installed handler/endpoint is now associated with a single HTTP method, so you can install different operations on `POST /foo` and `GET /foo`.
+- Initial websockets support (#629) [sample](https://github.com/microsoft/CCF/blob/ccf-0.11.1/tests/ws_scaffold.py#L21)
 
 ### Changed
 
@@ -3060,7 +3061,6 @@ CCF now deals internally only with serialised data in its tables, mapping byte-v
 - Application CI and runtime containers are now available (#1178)
   1. `ccfciteam/ccf-app-ci:0.11` is recommended to build CCF applications
   2. `ccfciteam/ccf-app-run:0.11` is recommended to run CCF nodes, for example in k8s
-- Initial websockets support (#629) [sample](https://github.com/microsoft/CCF/blob/0.11/tests/ws_scaffold.py#L21)
 
 ### Removed
 
