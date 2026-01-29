@@ -203,7 +203,8 @@ namespace snapshots
 
         ccf::curl::UniqueSlist headers;
         headers.append(
-          "Range", fmt::format("bytes={}-{}", range_start, range_end));
+          ccf::http::headers::RANGE,
+          fmt::format("bytes={}-{}", range_start, range_end));
 
         CURLcode curl_response = CURLE_FAILED_INIT;
         long status_code = 0;
@@ -281,7 +282,8 @@ namespace snapshots
       {
         ccf::curl::UniqueSlist headers;
         headers.append(
-          "Range", fmt::format("bytes={}-{}", range_start, range_end));
+          ccf::http::headers::RANGE,
+          fmt::format("bytes={}-{}", range_start, range_end));
 
         std::unique_ptr<ccf::curl::CurlRequest> snapshot_range_request;
         CURLcode curl_response = CURLE_OK;

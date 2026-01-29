@@ -269,7 +269,8 @@ namespace ccf::node
       size_t range_start = 0;
       size_t range_end = total_size;
       {
-        const auto range_header = ctx.rpc_ctx->get_request_header("range");
+        const auto range_header =
+          ctx.rpc_ctx->get_request_header(ccf::http::headers::RANGE);
         if (range_header.has_value())
         {
           LOG_TRACE_FMT("Parsing range header {}", range_header.value());
