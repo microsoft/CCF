@@ -78,16 +78,22 @@ namespace http
     }
 
     static std::vector<uint8_t> parse_jwt_b64url(
-      std::string_view b64url, std::string component, std::string& error_reason)
+      std::string_view b64url, std::string part, std::string& error_reason)
     {
       try
       {
-        return ccf::crypto::raw_from_b64url(b64url);
+        auto raw = ccf::crypto::raw_from_b64url(b64url);
+        if (raw.empty())
+        {
+          error_reason = fmt::format("JWT part is empty ({})", part);
+          return {};
+        }
+        return raw;
       }
       catch (const std::exception& e)
       {
         error_reason =
-          fmt::format("Failed to parse base64url in JWT ({})", component);
+          fmt::format("Failed to parse base64url in JWT ({})", part);
         return {};
       }
     }

@@ -640,23 +640,35 @@ def test_malformed_tokens(network, args):
             (
                 "abc.def",
                 "Malformed JWT: must contain exactly 3 parts",
-            ),  # only two parts
+            ),
             (
                 "abc.def.ghi.jkl",
                 "Malformed JWT: must contain exactly 3 parts",
-            ),  # four parts
+            ),
             (
                 "Zm9v.YmF6.=wwy",
                 "Failed to parse base64url in JWT (signature)",
-            ),  # invalid base64url
+            ),
             (
                 "Zm9v.=wwy.YmF6",
                 "Failed to parse base64url in JWT (payload)",
-            ),  # invalid base64url
+            ),
             (
                 "=wwy.Zm9v.YmF6",
                 "Failed to parse base64url in JWT (header)",
-            ),  # invalid base64url
+            ),
+            (
+                ".abc.abc",
+                "JWT part is empty (header)",
+            ),
+            (
+                "abc..abc",
+                "JWT part is empty (payload)",
+            ),
+            (
+                "abc.abc.",
+                "JWT part is empty (signature)",
+            ),
         ]
 
         for token, message in malformed_tokens:
