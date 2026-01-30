@@ -197,7 +197,7 @@ size_t read_entries_range_from_ledger(
 }
 
 using LedgerDirCapture =
-  std::vector<std::pair<std::string, ccf::crypto::Sha256Hash>>;
+  std::vector<std::tuple<std::string, size_t, ccf::crypto::Sha256Hash>>;
 LedgerDirCapture capture_ledger_dir()
 {
   LedgerDirCapture capture = {};
@@ -205,9 +205,22 @@ LedgerDirCapture capture_ledger_dir()
   {
     capture.emplace_back(
       f.path().filename(),
+      fs::file_size(f.path()),
       ccf::crypto::Sha256Hash(files::slurp(f.path().string())));
   }
+
   return capture;
+}
+
+std::string to_string(const LedgerDirCapture& capture)
+{
+  std::string s = "{\n";
+  for (const auto& [filename, size, hash] : capture)
+  {
+    s += fmt::format("    ({}, {}, {})\n", filename, size, hash.hex_str());
+  }
+  s += "    }";
+  return s;
 }
 
 std::vector<uint8_t> make_ledger_entry(size_t idx, uint8_t header_flags = 0)
