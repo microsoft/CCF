@@ -232,10 +232,14 @@ namespace ccf::node
 
           if (!s_range_end.empty())
           {
+            // Range end in header is inclusive, but we prefer to reason about
+            // exclusive range end (ie - one past the end)
+            size_t inclusive_range_end = 0;
+
             // Fully-specified range, like "X-Y"
             {
               const auto [p, ec] = std::from_chars(
-                s_range_end.begin(), s_range_end.end(), range_end);
+                s_range_end.begin(), s_range_end.end(), inclusive_range_end);
               if (ec != std::errc())
               {
                 ctx.rpc_ctx->set_error(
@@ -249,9 +253,7 @@ namespace ccf::node
               }
             }
 
-            // Range end in header is inclusive, but we prefer to reason about
-            // exclusive range end (ie - one past the end)
-            range_end += 1;
+            range_end = inclusive_range_end + 1;
 
             if (range_end > total_size)
             {
@@ -338,13 +340,15 @@ namespace ccf::node
       ccf::http::headervalues::contenttype::OCTET_STREAM);
     ctx.rpc_ctx->set_response_body(std::move(contents));
 
+    // Convert back to HTTP-style inclusive range end
+    const auto inclusive_range_end = range_end - 1;
+
     // Partial Content responses describe the current response in
     // Content-Range
-    // Convert back to HTTP-style inclusive range end
-    range_end -= 1;
     ctx.rpc_ctx->set_response_header(
       ccf::http::headers::CONTENT_RANGE,
-      fmt::format("bytes {}-{}/{}", range_start, range_end, total_size));
+      fmt::format(
+        "bytes {}-{}/{}", range_start, inclusive_range_end, total_size));
   }
 
   static void init_file_serving_handlers(
