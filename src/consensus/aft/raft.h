@@ -1589,6 +1589,9 @@ namespace aft
         return;
       }
 
+      using namespace std::chrono_literals;
+      node->second.last_ack_timeout = 0ms;
+
       if (state->current_view < r.term)
       {
         // We are behind, update our state.
@@ -1649,10 +1652,6 @@ namespace aft
           std::min(this_match, node->second.sent_idx), node->second.match_idx);
         return;
       }
-
-      // reset ack timeout after successful append_entries ack
-      using namespace std::chrono_literals;
-      node->second.last_ack_timeout = 0ms;
 
       // max(...) because why would we ever want to go backwards on a success
       // response?!
