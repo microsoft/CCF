@@ -158,6 +158,10 @@ namespace snapshots
               content_range.range_start));
           }
 
+          // Convert HTTP-style inclusive range end to exclusive, for idiomatic
+          // processing
+          content_range.range_end += 1;
+
           // The server may give us _less_ than we requested (since they know
           // where the file ends), but should never give us more
           if (content_range.range_end > range_end)
