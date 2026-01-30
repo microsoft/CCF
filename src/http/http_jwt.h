@@ -78,7 +78,7 @@ namespace http
     }
 
     static std::vector<uint8_t> parse_jwt_b64url(
-      std::string_view b64url, std::string part, std::string& error_reason)
+      std::string_view b64url, std::string_view part, std::string& error_reason)
     {
       try
       {
