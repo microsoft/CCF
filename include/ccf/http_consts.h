@@ -27,6 +27,8 @@ namespace ccf
 
       static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
       static constexpr auto CCF_SNAPSHOT_NAME = "x-ms-ccf-snapshot-name";
+      static constexpr auto CCF_LEDGER_CHUNK_NAME =
+        "x-ms-ccf-ledger-chunk-name";
     }
 
     namespace headervalues::contenttype

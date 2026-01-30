@@ -10,6 +10,7 @@
 #include "ds/internal_logger.h"
 #include "ds/oversized.h"
 #include "ds/work_beacon.h"
+#include "host/ledger.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
@@ -23,6 +24,7 @@
 #include "node/rpc/custom_protocol_subsystem.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/gov_effects.h"
+#include "node/rpc/ledger_subsystem.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/rpc/node_frontend.h"
@@ -81,7 +83,8 @@ namespace ccf
       size_t chunk_threshold,
       const ccf::consensus::Configuration& consensus_config,
       const ccf::crypto::CurveID& curve_id,
-      ccf::ds::WorkBeaconPtr work_beacon_) :
+      ccf::ds::WorkBeaconPtr work_beacon_,
+      asynchost::Ledger& ledger_) :
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),
@@ -134,6 +137,10 @@ namespace ccf
       auto cpss = std::make_shared<ccf::CustomProtocolSubsystem>(*node);
       context->install_subsystem(cpss);
       rpcsessions->set_custom_protocol_subsystem(cpss);
+
+      auto ledger_subsystem =
+        std::make_shared<ccf::ReadLedgerSubsystem>(ledger_);
+      context->install_subsystem(ledger_subsystem);
 
       static constexpr size_t max_interpreter_cache_size = 10;
       auto interpreter_cache =

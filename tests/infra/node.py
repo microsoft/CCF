@@ -174,6 +174,13 @@ class Node:
                     host=rpc_interface.host, port=node_port
                 )
 
+            # LedgerChunkRead operator feature is only supported from 7.0.0-dev7 onwards
+            if self.version is not None and Version(
+                strip_version(self.version)
+            ) <= Version("7.0.0-dev6"):
+                if rpc_interface.enabled_operator_features:
+                    rpc_interface.enabled_operator_features.remove("LedgerChunkRead")
+
     def __hash__(self):
         return self.local_node_id
 
@@ -530,6 +537,12 @@ class Node:
         ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
         assert ledger.last_committed_chunk_range[1] >= seqno
         return ledger.get_latest_public_state()
+
+    def get_main_ledger_dir(self):
+        """
+        Get the main ledger directory
+        """
+        return self.remote.get_main_ledger_dir()
 
     def get_ledger(self):
         """

@@ -37,5 +37,8 @@
   },
   "bin": {
     "ccf-build-bundle": "scripts/build_bundle.js"
+  },
+  "dependencies": {
+    "colors": "1.4.0"
   }
 }
