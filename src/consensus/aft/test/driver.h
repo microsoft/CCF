@@ -1177,6 +1177,7 @@ public:
       nodes[node_id] = _nodes.at(node_id);
     }
 
+    // On each iteration send all messages that are pending, but none of the newly sent ones
     auto iterations = 0;
     const size_t max_iterations = std::stoul(s_max_iters);
     while (true)
@@ -1185,9 +1186,17 @@ public:
       {
         periodic_one(node_id, ms(10));
       }
+
+      std::map<ccf::NodeId, size_t> initial_message_counts;
+      for (const auto& [node_id, driver] : nodes)
+      {
+        initial_message_counts[node_id] =
+          channel_stub_proxy(*driver.raft)->messages.size();
+      }
+
       for (const auto& [node_id, _] : nodes)
       {
-        dispatch_one(node_id);
+        dispatch_one(node_id, initial_message_counts[node_id]);
       }
 
       auto discrepancies = check_state_sync(nodes);
