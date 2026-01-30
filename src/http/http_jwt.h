@@ -77,6 +77,21 @@ namespace http
       return true;
     }
 
+    static std::vector<uint8_t> parse_jwt_b64url(
+      std::string_view b64url, std::string component, std::string& error_reason)
+    {
+      try
+      {
+        return ccf::crypto::raw_from_b64url(b64url);
+      }
+      catch (const std::exception& e)
+      {
+        error_reason =
+          fmt::format("Failed to parse base64url in JWT ({})", component);
+        return {};
+      }
+    }
+
     static std::optional<Token> parse_token(
       std::string_view& token, std::string& error_reason)
     {
@@ -105,9 +120,27 @@ namespace http
       std::string_view payload_b64url =
         token.substr(first_dot + 1, payload_size);
       std::string_view signature_b64url = token.substr(second_dot + 1);
-      auto header_raw = ccf::crypto::raw_from_b64url(header_b64url);
-      auto payload_raw = ccf::crypto::raw_from_b64url(payload_b64url);
-      auto signature_raw = ccf::crypto::raw_from_b64url(signature_b64url);
+
+      auto header_raw = parse_jwt_b64url(header_b64url, "header", error_reason);
+      if (header_raw.empty())
+      {
+        return std::nullopt;
+      }
+
+      auto payload_raw =
+        parse_jwt_b64url(payload_b64url, "payload", error_reason);
+      if (payload_raw.empty())
+      {
+        return std::nullopt;
+      }
+
+      auto signature_raw =
+        parse_jwt_b64url(signature_b64url, "signature", error_reason);
+      if (signature_raw.empty())
+      {
+        return std::nullopt;
+      }
+
       auto signed_content = token.substr(0, second_dot);
       nlohmann::json header;
       nlohmann::json payload;
