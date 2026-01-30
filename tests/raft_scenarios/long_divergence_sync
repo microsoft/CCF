@@ -1,0 +1,185 @@
+start_node,0
+emit_signature,2
+swap_nodes,2,in,1,2
+emit_signature,2
+loop_until_sync
+
+# empty message queues
+dispatch_all
+
+# Use n[2] to repeatedly elect n[0] and n[1] without n[2] receiving any entries
+
+# -- Iter 0 --
+periodic_one,1,100
+dispatch_single,1,2
+dispatch_single,2,1
+dispatch_single,1,2
+dispatch_single,2,1
+assert_detail,1,leadership_state,Leader
+emit_signature,3
+assert_last_txid,1,3.6
+
+
+# -- Iter 1 --
+# Elect 0
+periodic_one,0,100
+assert_detail,0,leadership_state,Follower
+drop_pending_to,0,2
+periodic_one,0,100
+assert_detail,0,leadership_state,PreVoteCandidate # Advance term using pre-votes to n[2]
+dispatch_single,0,2
+dispatch_single,2,0 # n[2] rejects vote request
+assert_detail,0,leadership_state,Follower 
+periodic_one,0,100
+assert_detail,0,leadership_state,PreVoteCandidate
+dispatch_single,0,2
+dispatch_single,2,0
+assert_detail,0,leadership_state,Candidate
+dispatch_single,0,2
+dispatch_single,2,0
+assert_detail,0,leadership_state,Leader
+emit_signature,4
+assert_last_txid,0,4.6
+# Elect 1
+periodic_one,1,100
+assert_detail,1,leadership_state,Follower
+drop_pending_to,1,2
+periodic_one,1,100
+assert_detail,1,leadership_state,PreVoteCandidate # Advance term using pre-votes to n[2]
+dispatch_single,1,2
+dispatch_single,2,1 # n[2] rejects vote request
+assert_detail,1,leadership_state,Follower 
+periodic_one,1,100
+assert_detail,1,leadership_state,PreVoteCandidate
+dispatch_single,1,2
+dispatch_single,2,1
+assert_detail,1,leadership_state,Candidate
+dispatch_single,1,2
+dispatch_single,2,1
+assert_detail,1,leadership_state,Leader
+emit_signature,5
+assert_last_txid,1,5.7
+
+# -- Iter 2 --
+# Elect 0
+periodic_one,0,100 # Follower
+assert_detail,0,leadership_state,Follower
+drop_pending_to,0,2
+periodic_one,0,100 # PreVoteCandidate
+dispatch_single,0,2
+dispatch_single,2,0 # Follower: n[2] rejects vote request increasing term of n[0]
+periodic_one,0,100 # PreVoteCandidate
+dispatch_single,0,2
+dispatch_single,2,0 # Candidate
+dispatch_single,0,2
+dispatch_single,2,0 # Leader
+emit_signature,6
+assert_last_txid,0,6.7
+# Elect 1
+periodic_one,1,100 # Follower
+drop_pending_to,1,2
+periodic_one,1,100 # PreVoteCandidate
+dispatch_single,1,2
+dispatch_single,2,1 # Follower: n[2] rejects vote request increasing term of n[1]
+periodic_one,1,100 # PreVoteCandidate
+dispatch_single,1,2
+dispatch_single,2,1 # Candidate
+dispatch_single,1,2
+dispatch_single,2,1 # Leader
+emit_signature,7
+assert_last_txid,1,7.8
+
+# -- Iter 3 --
+# Elect 0
+periodic_one,0,100 # Follower
+drop_pending_to,0,2
+periodic_one,0,100 # PreVoteCandidate
+dispatch_single,0,2
+dispatch_single,2,0 # Follower: n[2] rejects vote request increasing term of n[0]
+periodic_one,0,100 # PreVoteCandidate
+dispatch_single,0,2
+dispatch_single,2,0 # Candidate
+dispatch_single,0,2
+dispatch_single,2,0 # Leader
+emit_signature,8
+assert_last_txid,0,8.8
+# Elect 1
+periodic_one,1,100 # Follower
+drop_pending_to,1,2
+periodic_one,1,100 # PreVoteCandidate
+dispatch_single,1,2
+dispatch_single,2,1 # Follower: n[2] rejects vote request increasing term of n[1]
+periodic_one,1,100 # PreVoteCandidate
+dispatch_single,1,2
+dispatch_single,2,1 # Candidate
+dispatch_single,1,2
+dispatch_single,2,1 # Leader
+emit_signature,9
+assert_last_txid,1,9.9
+
+# -- Iter 4 --
+# Elect 0
+periodic_one,0,100 # Follower
+drop_pending_to,0,2
+periodic_one,0,100 # PreVoteCandidate
+dispatch_single,0,2
+dispatch_single,2,0 # Follower: n[2] rejects vote request increasing term of n[0]
+periodic_one,0,100 # PreVoteCandidate
+dispatch_single,0,2
+dispatch_single,2,0 # Candidate
+dispatch_single,0,2
+dispatch_single,2,0 # Leader
+emit_signature,10
+assert_last_txid,0,10.9
+# Elect 1
+periodic_one,1,100 # Follower
+drop_pending_to,1,2
+periodic_one,1,100 # PreVoteCandidate
+dispatch_single,1,2
+dispatch_single,2,1 # Follower: n[2] rejects vote request increasing term of n[1]
+periodic_one,1,100 # PreVoteCandidate
+dispatch_single,1,2
+dispatch_single,2,1 # Candidate
+dispatch_single,1,2
+dispatch_single,2,1 # Leader
+emit_signature,11
+assert_last_txid,1,11.10
+
+# -- Iter 5 --
+# Elect 0
+periodic_one,0,100 # Follower
+drop_pending_to,0,2
+periodic_one,0,100 # PreVoteCandidate
+dispatch_single,0,2
+dispatch_single,2,0 # Follower: n[2] rejects vote request increasing term of n[0]
+periodic_one,0,100 # PreVoteCandidate
+dispatch_single,0,2
+dispatch_single,2,0 # Candidate
+dispatch_single,0,2
+dispatch_single,2,0 # Leader
+emit_signature,12
+assert_last_txid,0,12.10
+# Elect 1
+periodic_one,1,100 # Follower
+drop_pending_to,1,2
+periodic_one,1,100 # PreVoteCandidate
+dispatch_single,1,2
+dispatch_single,2,1 # Follower: n[2] rejects vote request increasing term of n[1]
+periodic_one,1,100 # PreVoteCandidate
+dispatch_single,1,2
+dispatch_single,2,1 # Candidate
+dispatch_single,1,2
+dispatch_single,2,1 # Leader
+emit_signature,13
+assert_last_txid,1,13.11
+
+drop_pending_to,0,1
+drop_pending_to,1,0
+
+# n[0]: [..., 4, 6, 8, 10, 12]
+# n[1]: [..., 5, 7, 9, 11, 13]
+# Thus it should only take around 5 rounds of communication for them to sync
+
+# Bugged version: If we update last_ack_timeout only on acks, they will time out and be unable to sync up
+# Current state: If we always reset last_ack_timeout, they will sync up correctly
+assert_loop_sync,50,0,1

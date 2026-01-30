@@ -1167,6 +1167,44 @@ public:
     }
   }
 
+  void assert_loop_sync(std::string s_max_iters, std::vector<std::string> node_ids)
+  {
+    std::map<ccf::NodeId, NodeDriver>nodes{};
+    for (const auto& node_id_s : node_ids)
+    {
+      ccf::NodeId node_id(node_id_s);
+      nodes[node_id] = _nodes.at(node_id);
+    }
+
+    auto iterations = 0;
+    const size_t max_iterations = std::stoul(s_max_iters);
+    while (true)
+    {
+      for (const auto& [node_id, _] : nodes)
+      {
+        periodic_one(node_id, ms(10));
+      }
+      for (const auto& [node_id, _] : nodes)
+      {
+        dispatch_one(node_id);
+      }
+
+      auto discrepancies = check_state_sync(nodes);
+      if (discrepancies.empty())
+      {
+        break;
+      }
+
+      if (++iterations >= max_iterations)
+      {
+        print_discrepancies(discrepancies);
+
+        throw std::logic_error(fmt::format(
+          "Failed to reach state sync after {} loop iterations", iterations));
+      }
+    }
+  }
+
   void loop_until_sync(const size_t lineno)
   {
     std::pair<aft::Term, ccf::NodeId> term_primary;
