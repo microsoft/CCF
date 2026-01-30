@@ -1167,9 +1167,10 @@ public:
     }
   }
 
-  void assert_loop_sync(std::string s_max_iters, std::vector<std::string> node_ids)
+  void assert_loop_sync(
+    std::string s_max_iters, std::vector<std::string> node_ids)
   {
-    std::map<ccf::NodeId, NodeDriver>nodes{};
+    std::map<ccf::NodeId, NodeDriver> nodes{};
     for (const auto& node_id_s : node_ids)
     {
       ccf::NodeId node_id(node_id_s);
