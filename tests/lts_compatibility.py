@@ -731,7 +731,19 @@ def run_ledger_compatibility_since_first(
                 # between those versions (see https://github.com/microsoft/ccf/issues/3613;
                 # 1.x ledgers do not contain the header flags to synchronize ledger chunks).
                 # This can go once 2.0 is released.
-                network.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
+                # version <= 2.0.0-rc7
+                if not infra.node.version_after(version, "ccf-2.0.0-rc7"):
+                    network.stop_all_nodes(
+                        skip_verification=True,
+                        accept_ledger_diff=True,
+                        skip_verify_chunking=True,
+                    )
+                # version < 7.0.0
+                elif infra.node.version_after("ccf-7.0.0", version):
+                    network.stop_all_nodes(skip_verify_chunking=True)
+                else:
+                    network.stop_all_nodes()
+
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
                 # Check that ledger and snapshots can be parsed
