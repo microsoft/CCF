@@ -1057,11 +1057,28 @@ class Network:
                 f"Verified {len(longest_ledger_files)} ledger files consistency on all {len(self.nodes)} stopped nodes"
             )
 
+    def check_ledger_files_chunk_flags(self):
+        for node in self.nodes:
+            if node.remote is None:
+                return
+            ledger_paths = node.remote.ledger_paths()
+            for path in ledger_paths:
+                if not path.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX):
+                    continue
+                ledger = ccf.ledger.Ledger([path])
+                for chunk in ledger:
+                    last_tx = list(chunk)[-1]
+                    flags = last_tx.get_transaction_header().flags
+                    assert (
+                        flags & 0x01 == 0x01
+                    ), f"Chunk {chunk.filename()} on node {node.local_node_id} does not have committed flag set"
+
     def stop_all_nodes(
         self,
         skip_verification=False,
         verbose_verification=False,
         accept_ledger_diff=False,
+        skip_verify_chunking=False,
         **kwargs,
     ):
         if not skip_verification and self.txs is not None:
@@ -1101,6 +1118,10 @@ class Network:
         LOG.info("All nodes stopped")
         if not accept_ledger_diff:
             self.check_ledger_files_identical(**kwargs)
+
+        if not skip_verify_chunking:
+            LOG.info("Verifying ledger chunk flags before shutdown")
+            self.check_ledger_files_chunk_flags()
 
         if fatal_error_found:
             if self.ignoring_shutdown_errors:
@@ -1996,7 +2017,9 @@ def close_on_error(net, pdb=False):
             pdb.post_mortem()
 
         LOG.info("Stopping network")
-        net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
+        net.stop_all_nodes(
+            skip_verification=True, accept_ledger_diff=True, skip_verify_chunking=True
+        )
 
         raise
 
@@ -2014,6 +2037,7 @@ def network(
     version=None,
     service_load=None,
     node_data_json_file=None,
+    skip_verify_chunking=False,
     **kwargs,
 ):
     """
@@ -2047,6 +2071,10 @@ def network(
     with close_on_error(net, pdb=pdb):
         yield net
     LOG.info("Stopping network")
-    net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
+    net.stop_all_nodes(
+        skip_verification=True,
+        accept_ledger_diff=True,
+        skip_verify_chunking=skip_verify_chunking,
+    )
     if init_partitioner:
         net.partitioner.cleanup()
