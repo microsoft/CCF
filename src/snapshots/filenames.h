@@ -177,19 +177,20 @@ namespace snapshots
         }
         else
         {
-          // Insert snapshot with index, sorted by descending snapshot index
-          auto it = std::lower_bound(
-            committed_snapshots_with_idx.begin(),
-            committed_snapshots_with_idx.end(),
-            idx,
-            [](const std::pair<size_t, fs::path>& lhs, size_t rhs) {
-              return rhs < lhs.first;
-            });
-          committed_snapshots_with_idx.insert(
-            it, std::make_pair(idx, f.path()));
+          /// Collect snapshot with index; sorting is done after collection
+          committed_snapshots_with_idx.push_back(std::make_pair(idx, f.path()));
         }
       }
     }
+
+    std::sort(
+      committed_snapshots_with_idx.begin(),
+      committed_snapshots_with_idx.end(),
+      [](
+        const std::pair<size_t, fs::path>& lhs,
+        const std::pair<size_t, fs::path>& rhs) {
+        return lhs.first > rhs.first;
+      });
 
     return committed_snapshots_with_idx;
   }
