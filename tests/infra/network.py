@@ -233,6 +233,7 @@ class Network:
         service_load=None,
         node_data_json_file=None,
         next_node_id=0,
+        skip_verify_chunking=False,
     ):
         # Map of node id to dict of node arg to override value
         # for example, to set the election timeout to 2s for node 3:
@@ -249,6 +250,7 @@ class Network:
             self.service_load = service_load
             self.recovery_count = 0
             self.common_dir = None
+            self.skip_verify_chunking = skip_verify_chunking
         else:
             self.consortium = existing_network.consortium
             self.users = existing_network.users
@@ -264,6 +266,7 @@ class Network:
                 self.service_load.set_network(self)
             self.recovery_count = existing_network.recovery_count
             self.common_dir = existing_network.common_dir
+            self.skip_verify_chunking = existing_network.skip_verify_chunking
 
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []
@@ -1078,9 +1081,10 @@ class Network:
         skip_verification=False,
         verbose_verification=False,
         accept_ledger_diff=False,
-        skip_verify_chunking=False,
+        skip_verify_chunking=None,
         **kwargs,
     ):
+        skip_verify_chunking = skip_verify_chunking or self.skip_verify_chunking
         if not skip_verification and self.txs is not None:
             LOG.info("Verifying that all committed txs can be read before shutdown")
             log_capture = []
@@ -2066,6 +2070,7 @@ def network(
         version=version,
         service_load=service_load,
         node_data_json_file=node_data_json_file,
+        skip_verify_chunking=skip_verify_chunking,
         **kwargs,
     )
     with close_on_error(net, pdb=pdb):
@@ -2074,7 +2079,6 @@ def network(
     net.stop_all_nodes(
         skip_verification=True,
         accept_ledger_diff=True,
-        skip_verify_chunking=skip_verify_chunking,
     )
     if init_partitioner:
         net.partitioner.cleanup()

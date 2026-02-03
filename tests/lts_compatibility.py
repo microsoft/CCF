@@ -285,6 +285,11 @@ def run_code_upgrade_from(
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
     )
+
+    # pre 7.0.0 nodes may not always set the chunking flags in the ledger
+    fv_skip_verify_chunking = infra.node.version_after("ccf-7.0.0", from_version)
+    tv_skip_verify_chunking = infra.node.version_after("ccf-7.0.0", to_version)
+
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         with infra.network.network(
@@ -295,6 +300,7 @@ def run_code_upgrade_from(
             txs=txs,
             jwt_issuer=jwt_issuer,
             version=from_version,
+            skip_verify_chunking=fv_skip_verify_chunking or tv_skip_verify_chunking
         ) as network:
             kwargs = {}
             if not infra.node.version_after(from_version, "ccf-4.0.0-rc1"):

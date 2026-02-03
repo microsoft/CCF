@@ -97,10 +97,16 @@ def version_rc(full_version):
 
 
 def version_after(version, cmp_version):
+    if version == cmp_version:
+        return False
+
     if version is None and cmp_version is not None:
         # It is assumed that version is None for latest development
         # branch (i.e. main)
         return True
+    
+    if version is not None and cmp_version is None:
+        return False
 
     return ccf._versionifier.to_python_version(
         version
