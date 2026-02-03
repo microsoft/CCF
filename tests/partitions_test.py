@@ -931,9 +931,6 @@ def run_ledger_chunk_bytes_check(const_args):
         size_1 = unit_size * 3
         size_2 = unit_size * 9
 
-        51869
-        51893
-
         def overhead(num_transactions, num_signatures):
             # From checking a sample run, the overhead consists of:
             # - 24 bytes of header + footer
