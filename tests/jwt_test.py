@@ -632,6 +632,58 @@ def test_jwt_key_refresh_aad(network, args, ascending=True):
     with_timeout(lambda: check_kv_jwt_keys_not_empty(args, network, issuer), timeout=5)
 
 
+def test_malformed_tokens(network, args):
+    primary, _ = network.find_nodes()
+
+    with primary.client() as c:
+        malformed_tokens = [
+            (
+                "abc.def",
+                "Malformed JWT: must contain exactly 3 parts",
+            ),
+            (
+                "abc.def.ghi.jkl",
+                "Malformed JWT: must contain exactly 3 parts",
+            ),
+            (
+                "Zm9v.YmF6.=wwy",
+                "Failed to parse base64url in JWT (signature)",
+            ),
+            (
+                "Zm9v.=wwy.YmF6",
+                "Failed to parse base64url in JWT (payload)",
+            ),
+            (
+                "=wwy.Zm9v.YmF6",
+                "Failed to parse base64url in JWT (header)",
+            ),
+            (
+                ".abc.abc",
+                "JWT part is empty (header)",
+            ),
+            (
+                "abc..abc",
+                "JWT part is empty (payload)",
+            ),
+            (
+                "abc.abc.",
+                "JWT part is empty (signature)",
+            ),
+        ]
+
+        for token, message in malformed_tokens:
+            r = c.get("/app/log/public", headers={"authorization": f"Bearer {token}"})
+            assert (
+                r.status_code == 401
+            ), f"Unexpected status code for token {token}: {r}"
+            error = r.body.json().get("error")
+            assert error["code"] == "InvalidAuthenticationInfo"
+            details = {
+                detail["auth_policy"]: detail for detail in error.get("details", [])
+            }
+            assert details["jwt"]["message"] == message, r
+
+
 def with_timeout(fn, timeout):
     t0 = time.time()
     while True:
@@ -666,6 +718,8 @@ def run_auto(args):
         test_jwt_key_refresh_aad(network, args, ascending=True)
         test_jwt_key_refresh_aad(network, args, ascending=False)
         test_jwt_key_auto_refresh_entries(network, args)
+
+        test_malformed_tokens(network, args)
 
 
 def run_manual(args):
