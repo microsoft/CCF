@@ -1433,6 +1433,17 @@ namespace asynchost
         committable &&
         (force_chunk_after || file->get_current_size() >= chunk_threshold))
       {
+        if (!force_chunk_after)
+        {
+          LOG_INFO_FMT(
+            "Creating a size-based chunk at {}, due to file reaching size {} "
+            "(vs threshold {}), yet have no forced-chunk transaction header! "
+            "This should only occur temporarily, during an upgrade, while this "
+            "node is part of a mixed-network",
+            last_idx,
+            file->get_current_size(),
+            chunk_threshold);
+        }
         file->complete();
         LOG_DEBUG_FMT("Ledger chunk completed at {}", last_idx);
       }
