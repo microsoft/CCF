@@ -43,7 +43,7 @@ namespace snapshots
   struct ContentRangeHeader
   {
     size_t range_start;
-    size_t range_end;
+    size_t inclusive_range_end;
     size_t total_size;
   };
 
@@ -93,7 +93,7 @@ namespace snapshots
 
     {
       const auto [p, ec] = std::from_chars(
-        range_end.begin(), range_end.end(), parsed_values.range_end);
+        range_end.begin(), range_end.end(), parsed_values.inclusive_range_end);
       if (ec != std::errc())
       {
         throw std::runtime_error(fmt::format(
@@ -142,6 +142,7 @@ namespace snapshots
       constexpr size_t range_size = 4L * 1024 * 1024;
       size_t range_start = 0;
       size_t range_end = range_size;
+      size_t inclusive_range_end = range_end - 1;
       bool fetched_all = false;
 
       auto process_partial_response =
@@ -160,26 +161,29 @@ namespace snapshots
 
           // The server may give us _less_ than we requested (since they know
           // where the file ends), but should never give us more
-          if (content_range.range_end > range_end)
+          if (content_range.inclusive_range_end > inclusive_range_end)
           {
             throw std::runtime_error(fmt::format(
               "Unexpected range response. Requested bytes {}-{}, received "
               "range ending at {}",
               range_start,
-              range_end,
-              content_range.range_end));
+              inclusive_range_end,
+              content_range.inclusive_range_end));
           }
 
+          const auto content_range_exclusive_range_end =
+            content_range.inclusive_range_end + 1;
+
           const auto range_size =
-            content_range.range_end - content_range.range_start;
+            content_range_exclusive_range_end - content_range.range_start;
           LOG_TRACE_FMT(
             "Received {}-byte chunk from {}. Now have {}/{}",
             range_size,
             request.get_url(),
-            content_range.range_end,
+            content_range_exclusive_range_end,
             content_range.total_size);
 
-          if (content_range.range_end == content_range.total_size)
+          if (content_range_exclusive_range_end == content_range.total_size)
           {
             fetched_all = true;
           }
@@ -188,6 +192,7 @@ namespace snapshots
             // Advance range for next request
             range_start = range_end;
             range_end = range_start + range_size;
+            inclusive_range_end = range_end - 1;
           }
         };
 
@@ -203,7 +208,8 @@ namespace snapshots
 
         ccf::curl::UniqueSlist headers;
         headers.append(
-          "Range", fmt::format("bytes={}-{}", range_start, range_end));
+          ccf::http::headers::RANGE,
+          fmt::format("bytes={}-{}", range_start, inclusive_range_end));
 
         CURLcode curl_response = CURLE_FAILED_INIT;
         long status_code = 0;
@@ -281,7 +287,8 @@ namespace snapshots
       {
         ccf::curl::UniqueSlist headers;
         headers.append(
-          "Range", fmt::format("bytes={}-{}", range_start, range_end));
+          ccf::http::headers::RANGE,
+          fmt::format("bytes={}-{}", range_start, inclusive_range_end));
 
         std::unique_ptr<ccf::curl::CurlRequest> snapshot_range_request;
         CURLcode curl_response = CURLE_OK;

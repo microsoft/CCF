@@ -20,6 +20,7 @@ namespace ccf
       static constexpr auto DIGEST = "digest";
       static constexpr auto HOST = "host";
       static constexpr auto LOCATION = "location";
+      static constexpr auto RANGE = "range";
       static constexpr auto RETRY_AFTER = "retry-after";
       static constexpr auto TRAILER = "trailer";
       static constexpr auto WWW_AUTHENTICATE = "www-authenticate";
