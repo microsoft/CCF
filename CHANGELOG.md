@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `GET` and `HEAD` `/node/ledger-chunk?since={seqno}` and `/node/ledger-chunk/{chunk_name}` endpoints, gated by the `LedgerChunkDownload` RPC interface operator feature. See [documentation](https://microsoft.github.io/CCF/main/operations/ledger_snapshot.html#download-endpoints) for more detail.
 
+### Fixed
+
+- Only rollback uncommittable indices during become_leader (#7620)
+
 ## [7.0.0-dev9]
 
 [7.0.0-dev9]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev9
