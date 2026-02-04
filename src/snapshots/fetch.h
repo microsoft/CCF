@@ -18,12 +18,14 @@
 #include <string>
 #include <vector>
 
-#define EXPECT_HTTP_RESPONSE_STATUS(request, status_code, expected, response_body) \
+#define EXPECT_HTTP_RESPONSE_STATUS( \
+  request, status_code, expected, response_body) \
   do \
   { \
     if (status_code != expected) \
     { \
-      std::string response_content(response_body->buffer.begin(), response_body->buffer.end());
+      std::string response_content( \
+        response_body->buffer.begin(), response_body->buffer.end()); \
       throw std::runtime_error(fmt::format( \
         "Expected {} response from {} {}, instead received {} ({})", \
         ccf::http_status_str(expected), \
@@ -134,8 +136,8 @@ namespace snapshots
 
       // Get snapshot. This may be redirected multiple times, and we follow
       // these redirects ourself so we can extract the final URL. Once the
-      // redirects terminate, the final response is likely to be extremely large
-      // so is fetched over multiple requests for a sub-range, returning
+      // redirects terminate, the final response is likely to be extremely
+      // large so is fetched over multiple requests for a sub-range, returning
       // PARTIAL_CONTENT each time.
       std::string snapshot_url =
         fmt::format("https://{}/node/snapshot", peer_address);
@@ -330,7 +332,7 @@ namespace snapshots
           snapshot_range_request,
           snapshot_range_status_code,
           HTTP_STATUS_PARTIAL_CONTENT,
-          curl_easy_strerror(curl_response));
+          response_body);
 
         process_partial_response(*snapshot_range_request);
 
