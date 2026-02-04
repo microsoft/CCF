@@ -300,7 +300,7 @@ def run_code_upgrade_from(
             txs=txs,
             jwt_issuer=jwt_issuer,
             version=from_version,
-            skip_verify_chunking=fv_skip_verify_chunking or tv_skip_verify_chunking
+            skip_verify_chunking=fv_skip_verify_chunking or tv_skip_verify_chunking,
         ) as network:
             kwargs = {}
             if not infra.node.version_after(from_version, "ccf-4.0.0-rc1"):

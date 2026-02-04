@@ -104,7 +104,7 @@ def version_after(version, cmp_version):
         # It is assumed that version is None for latest development
         # branch (i.e. main)
         return True
-    
+
     if version is not None and cmp_version is None:
         return False
 

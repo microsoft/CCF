@@ -1066,13 +1066,16 @@ class Network:
                 return
             ledger_paths = node.remote.ledger_paths()
             for path in ledger_paths:
-                ledger = ccf.ledger.Ledger([path], read_recovery_files=True)
+                ledger = ccf.ledger.Ledger([path])
                 chunks = list(ledger)
                 for cur, nxt in zip([None] + chunks, chunks + [None]):
                     if cur is None:
                         continue
+
                     if nxt is None:
-                        flag_force_chunk_before = False
+                        # Assume that the next chunk would emit chunk_before
+                        flag_force_chunk_before = True
+
                     else:
                         nxt_tx = nxt[0]
                         flags = nxt_tx.get_transaction_header().flags
