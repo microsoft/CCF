@@ -1066,15 +1066,25 @@ class Network:
                 return
             ledger_paths = node.remote.ledger_paths()
             for path in ledger_paths:
-                if not path.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX):
-                    continue
-                ledger = ccf.ledger.Ledger([path])
-                for chunk in ledger:
-                    last_tx = list(chunk)[-1]
+                ledger = ccf.ledger.Ledger([path], read_recovery_files=True)
+                chunks = list(ledger)
+                for cur, nxt in zip([None] + chunks, chunks + [None]):
+                    if cur is None:
+                        continue
+                    if nxt is None:
+                        flag_force_chunk_before = False
+                    else:
+                        nxt_tx = nxt[0]
+                        flags = nxt_tx.get_transaction_header().flags
+                        flag_force_chunk_before = flags & 0x02 == 0x02
+
+                    last_tx = cur[-1]
                     flags = last_tx.get_transaction_header().flags
+                    flag_force_chunk_after = flags & 0x01 == 0x01
+
                     assert (
-                        flags & 0x01 == 0x01
-                    ), f"Chunk {chunk.filename()} on node {node.local_node_id} does not have committed flag set"
+                        flag_force_chunk_after or flag_force_chunk_before
+                    ), f"Node {node.local_node_id} has chunks which do not force chunking correctly: {cur.filename()} -> {nxt.filename() if nxt is not None else 'NA'}"
 
     def stop_all_nodes(
         self,
