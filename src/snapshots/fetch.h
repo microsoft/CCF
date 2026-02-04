@@ -18,18 +18,19 @@
 #include <string>
 #include <vector>
 
-#define EXPECT_HTTP_RESPONSE_STATUS(request, status_code, expected, details) \
+#define EXPECT_HTTP_RESPONSE_STATUS(request, status_code, expected, response_body) \
   do \
   { \
     if (status_code != expected) \
     { \
+      std::string response_content(response_body->buffer.begin(), response_body->buffer.end());
       throw std::runtime_error(fmt::format( \
         "Expected {} response from {} {}, instead received {} ({})", \
         ccf::http_status_str(expected), \
         request->get_method().c_str(), \
         request->get_url(), \
         status_code, \
-        details)); \
+        response_content)); \
     } \
   } while (0)
 
@@ -263,7 +264,7 @@ namespace snapshots
           request,
           status_code,
           HTTP_STATUS_PERMANENT_REDIRECT,
-          curl_easy_strerror(curl_response));
+          request->get_response_ptr());
 
         char* redirect_url = nullptr;
         CHECK_CURL_EASY_GETINFO(
