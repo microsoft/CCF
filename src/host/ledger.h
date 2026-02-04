@@ -1437,7 +1437,7 @@ namespace asynchost
         {
           LOG_INFO_FMT(
             "Creating a size-based chunk at {}, due to file reaching size {} "
-            "(vs threshold {}), yet have no forced-chunk transaction header! "
+            "(vs threshold {}), yet have no forced-chunk transaction header. "
             "This should only occur temporarily, during an upgrade, while this "
             "node is part of a mixed-network",
             last_idx,
