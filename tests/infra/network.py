@@ -1084,13 +1084,17 @@ class Network:
                             # We should only ever emit force_chunk_before if this is the genesis transaction of a recovering service
                             # Otherwise this tx could be rolled back, breaking the consistency of chunking across the network
                             tables = nxt_tx.get_public_domain().get_tables()
+                            assert "public:ccf.gov.service.info" in tables
+                            import json
+
+                            service_info = json.loads(
+                                tables["public:ccf.gov.service.info"][
+                                    b"\x00\x00\x00\x00\x00\x00\x00\x00"
+                                ]
+                            )
                             assert (
-                                "ccf.gov.service.info" in tables
-                                and "status" in tables["ccf.gov.service.info"]
-                                and (
-                                    tables["ccf.gov.service.info"]["status"]
-                                    == "Recovering"
-                                )
+                                "status" in service_info
+                                and service_info["status"] == "Recovering"
                             ), f"Node {node.local_node_id} has a chunk which forces chunking before but does not recover the service: {nxt.filename()}"
 
                     last_tx = cur[-1]
