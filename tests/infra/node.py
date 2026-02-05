@@ -306,7 +306,7 @@ class Node:
             version=self.version,
             major_version=self.major_version,
             node_data_json_file=self.initial_node_data_json_file,
-            enable_local_sealing=enable_local_sealing,
+            enable_local_sealing=self.enable_local_sealing,
             **kwargs,
         )
         self.remote.setup()
