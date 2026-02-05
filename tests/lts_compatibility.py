@@ -730,24 +730,35 @@ def run_ledger_compatibility_since_first(
                 )
 
                 network.save_service_identity(args)
+                def recovery_is_over_boundary(boundary_version):
+                    return (
+                        infra.node.CCFVersion(previous_version) < infra.node.CCFVersion(boundary_version) and
+                        infra.node.CCFVersion(boundary_version) <= infra.node.CCFVersion(version)
+                    )
+                LOG.info("Stopping network recovering from version {} to {}".format(previous_version, version))
+                stop_verify_kwargs = {}
                 # We accept ledger chunk file differences during upgrades
                 # from 1.x to 2.x post rc7 ledger. This is necessary because
                 # the ledger files may not be chunked at the same interval
                 # between those versions (see https://github.com/microsoft/ccf/issues/3613;
                 # 1.x ledgers do not contain the header flags to synchronize ledger chunks).
-                # This can go once 2.0 is released.
-                # version <= 2.0.0-rc7
-                if not infra.node.version_after(version, "ccf-2.0.0-rc7"):
-                    network.stop_all_nodes(
-                        skip_verification=True,
-                        accept_ledger_diff=True,
-                        skip_verify_chunking=True,
-                    )
-                # version < 7.0.0
-                elif infra.node.version_after("ccf-7.0.0", version):
-                    network.stop_all_nodes(skip_verify_chunking=True)
-                else:
-                    network.stop_all_nodes()
+                if recovery_is_over_boundary("ccf-2.0.0-rc7"):
+                    stop_verify_kwargs |= {
+                        "skip_verification":True,
+                        "accept_ledger_diff":True,
+                        "skip_verify_chunking":True,
+                    }
+                # Pre 7 networks may not have all of the relevant chunk flags in old portions of the ledger
+                # Hence if 7 nodes join without a snapshot, and hence replay the ledger from the start of time,
+                # They will not chunk these files and hence have different chunking to the original ledger
+                if recovery_is_over_boundary("ccf-7.0.0-dev1"):
+                    stop_verify_kwargs |= {
+                        "accept_ledger_diff":True, # due to no snapshot causing replay
+                        "skip_verify_chunking":True,
+                    }
+                if test_jwt_cleanup:
+                    stop_verify_kwargs |= {"skip_verification": True}
+                network.stop_all_nodes(**stop_verify_kwargs)
 
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
