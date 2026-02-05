@@ -357,25 +357,37 @@ def test_snapshot_access(network, args):
             assert r.headers["accept-ranges"] == "bytes", r.headers
             total_size = int(r.headers["content-length"])
 
+            # Use HTTP-style inclusive range end value
+            range_max = total_size - 1
+
             a = total_size // 3
             b = a * 2
             for start, end in [
                 (0, None),
-                (0, total_size),
+                (0, 0),
+                (0, range_max),
                 (0, a),
                 (a, a),
                 (a, b),
                 (b, b),
-                (b, total_size),
+                (b, range_max),
                 (b, None),
+                (range_max, range_max),
             ]:
                 range_header_value = f"{start}-{'' if end is None else end}"
                 r = do_request(
                     "GET", path, headers={"range": f"bytes={range_header_value}"}
                 )
                 assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
+                headers = r.headers
+                implied_end = range_max if end is None else end
+                assert int(headers["content-length"]) == implied_end - start + 1
+                assert (
+                    headers["content-range"]
+                    == f"bytes {start}-{implied_end}/{total_size}"
+                )
 
-                expected = snapshot_data[start:end]
+                expected = snapshot_data[start : (None if end is None else end + 1)]
                 actual = r.body.data()
                 assert (
                     expected == actual
