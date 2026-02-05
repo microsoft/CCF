@@ -617,6 +617,7 @@ def run_ledger_compatibility_since_first(
                     "txs": txs,
                     "jwt_issuer": jwt_issuer,
                     "version": version,
+                    "skip_verify_chunking": True, # Old ledger files will have incorrect chunking
                 }
                 kwargs = {}
                 if not infra.node.version_after(version, "ccf-4.0.0-rc1"):
@@ -736,37 +737,15 @@ def run_ledger_compatibility_since_first(
 
                 network.save_service_identity(args)
 
-                def recovery_is_over_boundary(boundary_version):
-                    ccf_prev = infra.node.CCFVersion(previous_version)
-                    ccf_boundary = infra.node.CCFVersion(boundary_version)
-                    ccf_version = infra.node.CCFVersion(version)
-                    return ccf_prev < ccf_boundary and ccf_boundary <= ccf_version
+                stop_verify_kwargs = {
+                }
 
-                stop_verify_kwargs = {}
-
-                # We accept ledger chunk file differences during upgrades
-                # from 1.x to 2.x post rc7 ledger. This is necessary because
-                # the ledger files may not be chunked at the same interval
-                # between those versions (see https://github.com/microsoft/ccf/issues/3613;
-                # 1.x ledgers do not contain the header flags to synchronize ledger chunks).
-                if recovery_is_over_boundary("ccf-2.0.0-rc7"):
+                # Ledger file chunking changed from 1.x to 2.x and if it does not join from a snapshot the eol ledger files may be re-chunked differently on the joining node
+                if not use_snapshot:
                     stop_verify_kwargs |= {
-                        "skip_verification": True,
                         "accept_ledger_diff": True,
-                        "skip_verify_chunking": True,
                     }
-                # Pre 7 networks may not have all of the relevant chunk flags in old portions of the ledger
-                # Hence if 7 nodes join without a snapshot, and hence replay the ledger from the start of time,
-                # They will not chunk these files and hence have different chunking to the original ledger
-                if recovery_is_over_boundary("ccf-7.0.0-dev1"):
-                    stop_verify_kwargs |= {
-                        "skip_verify_chunking": True,
-                    }
-                    if not use_snapshot:
-                        # Will replay from the start of time so the chunking should be different
-                        stop_verify_kwargs |= {
-                            "accept_ledger_diff": True,
-                        }
+
                 if test_jwt_cleanup:
                     stop_verify_kwargs |= {"skip_verification": True}
 
