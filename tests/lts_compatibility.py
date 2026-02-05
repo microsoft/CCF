@@ -733,23 +733,17 @@ def run_ledger_compatibility_since_first(
 
                 network.save_service_identity(args)
 
-                stop_verify_kwargs = {}
-
                 # Ledger file chunking changed from 1.x to 2.x and if it does not join from a snapshot the eol ledger files will be re-chunked differently on the joining node
-                if not use_snapshot:
-                    stop_verify_kwargs |= {
-                        "accept_ledger_diff": True,
-                    }
+                accept_ledger_diff = not use_snapshot
 
-                if test_jwt_cleanup:
-                    stop_verify_kwargs |= {"skip_verification": True}
+                skip_verification = test_jwt_cleanup
 
                 LOG.info(
                     "Stopping network recovering from version {} to {}".format(
                         previous_version, version
                     )
                 )
-                network.stop_all_nodes(**stop_verify_kwargs)
+                network.stop_all_nodes(accept_ledger_diff=accept_ledger_diff, skip_verification=skip_verification)
 
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
