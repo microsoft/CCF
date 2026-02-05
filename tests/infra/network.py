@@ -1063,7 +1063,7 @@ class Network:
     def check_ledger_files_chunk_flags(self):
         for node in self.nodes:
             if node.remote is None:
-                return
+                continue
             ledger_paths = node.remote.ledger_paths()
             for path in ledger_paths:
                 ledger = ccf.ledger.Ledger([path])
