@@ -1080,6 +1080,18 @@ class Network:
                         nxt_tx = nxt[0]
                         flags = nxt_tx.get_transaction_header().flags
                         flag_force_chunk_before = flags & 0x02 == 0x02
+                        if flag_force_chunk_before:
+                            # We should only ever emit force_chunk_before if this is the genesis transaction of a recovering service
+                            # Otherwise this tx could be rolled back, breaking the consistency of chunking across the network
+                            tables = nxt_tx.get_public_domain().get_tables()
+                            assert (
+                                "ccf.gov.service.info" in tables
+                                and "status" in tables["ccf.gov.service.info"]
+                                and (
+                                    tables["ccf.gov.service.info"]["status"]
+                                    == "Recovering"
+                                )
+                            ), f"Node {node.local_node_id} has a chunk which forces chunking before but does not recover the service: {nxt.filename()}"
 
                     last_tx = cur[-1]
                     flags = last_tx.get_transaction_header().flags
