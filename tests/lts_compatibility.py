@@ -287,9 +287,9 @@ def run_code_upgrade_from(
     )
 
     # pre 7.0.0 nodes may not always set the chunking flags in the ledger
-    ccf7dev1 = infra.node.CCFVersion("ccf-7.0.0-dev1")
-    fv_skip_verify_chunking = infra.node.CCFVersion(from_version) < ccf7dev1
-    tv_skip_verify_chunking = infra.node.CCFVersion(to_version) < ccf7dev1
+    ccf621 = infra.node.CCFVersion("ccf-6.0.21")
+    fv_skip_verify_chunking = infra.node.CCFVersion(from_version) < ccf621
+    tv_skip_verify_chunking = infra.node.CCFVersion(to_version) < ccf621
 
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
