@@ -115,6 +115,65 @@ namespace snapshots
       }
     }
 
+    {
+      // Use content-length to determine whether the sender used an exclusive or
+      // inclusive range end
+      auto length_it = headers.find(ccf::http::headers::CONTENT_LENGTH);
+      if (length_it == headers.end())
+      {
+        throw std::runtime_error(
+          "Response is missing expected content-length header");
+      }
+
+      size_t content_length = 0;
+
+      {
+        const auto& length_s = length_it->second;
+
+        const auto [p, ec] = std::from_chars(
+          length_s.data(), length_s.data() + length_s.size(), content_length);
+
+        if (ec != std::errc())
+        {
+          throw std::runtime_error(fmt::format(
+            "Could not parse length from content-length header: {}",
+            length_it->second));
+        }
+      }
+
+      const auto range_length =
+        parsed_values.inclusive_range_end - parsed_values.range_start;
+      if (range_length == content_length)
+      {
+        LOG_INFO_FMT(
+          "Server sent an exclusive-end content-range header. "
+          "content-length={}, content-range={}. Adjusting this to local "
+          "inclusive-end representation. This should be a temporary "
+          "mismatch, between 6.x and 7.x nodes in a mixed network",
+          length_it->second,
+          it->second);
+        parsed_values.inclusive_range_end -= 1;
+      }
+      else if (range_length == content_length + 1)
+      {
+        LOG_DEBUG_FMT(
+          "Server sent an inclusive-end content-range header. "
+          "content-length={}, content-range={}. This is expected for 7.x to "
+          "7.x nodes",
+          length_it->second,
+          it->second);
+      }
+      else
+      {
+        throw std::runtime_error(fmt::format(
+          "content-range ({}, {} bytes) and content-length ({}) headers do not "
+          "agree",
+          it->second,
+          range_length + 1,
+          length_it->second));
+      }
+    }
+
     return parsed_values;
   }
 
