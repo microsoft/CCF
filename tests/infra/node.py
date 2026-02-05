@@ -120,8 +120,6 @@ class CCFVersion:
             self.parsed_version = None
 
     def __eq__(self, other):
-        if self.parsed_version is None or other.parsed_version is None:
-            return self.parsed_version == other.parsed_version
         return self.parsed_version == other.parsed_version
 
     def __lt__(self, other):

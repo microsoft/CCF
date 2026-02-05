@@ -23,6 +23,8 @@ import pprint
 import functools
 import re
 import hashlib
+import json
+
 from datetime import datetime, timedelta, timezone
 from infra.consortium import slurp_file
 from collections import deque
@@ -1046,14 +1048,14 @@ class Network:
             if last_ledger_seqno > longest_ledger_seqno:
                 assert longest_ledger_files is None or longest_ledger_files.issubset(
                     ledger_files
-                ), f"Ledger files on node {longest_ledger_node.local_node_id} do not match files on node {node.local_node_id}: {longest_ledger_files}, expected subset of {ledger_files}, diff: ({longest_ledger_files - ledger_files}, {ledger_files - longest_ledger_files})"
+                ), f"Ledger files on node {longest_ledger_node.local_node_id} do not match files on node {node.local_node_id}: {longest_ledger_files}, expected subset of {ledger_files}, diff: (Only on {node.local_node_id}: {ledger_files - longest_ledger_files}, Only on {longest_ledger_node.local_node_id}: {longest_ledger_files - ledger_files})"
                 longest_ledger_files = ledger_files
                 longest_ledger_node = node
                 longest_ledger_seqno = last_ledger_seqno
             else:
                 assert ledger_files.issubset(
                     longest_ledger_files
-                ), f"Ledger files on node {node.local_node_id} do not match files on node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}, diff: ({longest_ledger_files - ledger_files}, {ledger_files - longest_ledger_files})"
+                ), f"Ledger files on node {node.local_node_id} do not match files on node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}, diff: (Only on {longest_ledger_node.local_node_id}: {longest_ledger_files - ledger_files}, Only on {node.local_node_id}: {ledger_files - longest_ledger_files})"
 
         if longest_ledger_files:
             LOG.info(
@@ -1085,8 +1087,6 @@ class Network:
                             # Otherwise this tx could be rolled back, breaking the consistency of chunking across the network
                             tables = nxt_tx.get_public_domain().get_tables()
                             assert "public:ccf.gov.service.info" in tables
-                            import json
-
                             service_info = json.loads(
                                 tables["public:ccf.gov.service.info"][
                                     b"\x00\x00\x00\x00\x00\x00\x00\x00"
