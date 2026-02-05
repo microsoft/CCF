@@ -580,14 +580,15 @@ def run_ledger_compatibility_since_first(
     # Note: dicts are ordered from Python3.7
     lts_releases[None] = None
 
+    # These variables are the previous service's info
     ledger_dir = None
     committed_ledger_dirs = None
     snapshots_dir = None
+    previous_version = None
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
     )
-    previous_version = None
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
@@ -691,8 +692,6 @@ def run_ledger_compatibility_since_first(
                         ),
                     )
 
-                previous_version = version
-
                 nodes = network.get_joined_nodes()
                 primary, _ = network.find_primary()
 
@@ -760,6 +759,9 @@ def run_ledger_compatibility_since_first(
                             os.path.join(snapshots_dir, s)
                         ) as snapshot:
                             snapshot.get_public_domain()
+
+                previous_version = version
+
 
     return lts_versions
 
