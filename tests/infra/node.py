@@ -116,6 +116,8 @@ def version_after(version, cmp_version):
 
 @functools.total_ordering
 class CCFVersion:
+    # None is assumed to be the latest development version
+    # so None < any specific version, and None == None
     def __init__(self, version_str):
         self.version_str = version_str
         if version_str is not None:
@@ -129,9 +131,9 @@ class CCFVersion:
         return self.parsed_version == other.parsed_version
 
     def __lt__(self, other):
-        if other.parsed_version is None:
-            return False
         if self.parsed_version is None:
+            return False
+        if other.parsed_version is None:
             return True
         return self.parsed_version < other.parsed_version
 
