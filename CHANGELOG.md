@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Snapshot fetching requests now handle either inclusive-end or exclusive-end `content-range` headers, for compatibility with 7.x nodes.
 - Primaries now indicate all of their chunk-ending transactions in the transaction header, for better interop with 7.x nodes. Upgrades must create a snapshot from the network after it has upgraded to this version, and provide that to joining 7.x nodes.
 
 ## [6.0.20]
