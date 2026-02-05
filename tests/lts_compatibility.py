@@ -617,7 +617,7 @@ def run_ledger_compatibility_since_first(
                     "txs": txs,
                     "jwt_issuer": jwt_issuer,
                     "version": version,
-                    "skip_verify_chunking": True, # Old ledger files will have incorrect chunking
+                    "skip_verify_chunking": True,  # Old ledger files will have incorrect chunking
                 }
                 kwargs = {}
                 if not infra.node.version_after(version, "ccf-4.0.0-rc1"):
@@ -630,10 +630,6 @@ def run_ledger_compatibility_since_first(
                     # First, recover end-of-life services from files
                     expected_recovery_count = len(
                         infra.github.END_OF_LIFE_MAJOR_VERSIONS
-                    )
-                    # Set previous_version to the last eol version
-                    previous_version = (
-                        f"ccf-{infra.github.END_OF_LIFE_MAJOR_VERSIONS[-1]}.0.0"
                     )
                     service_dir = os.path.join(
                         os.path.dirname(os.path.realpath(__file__)),
@@ -737,10 +733,9 @@ def run_ledger_compatibility_since_first(
 
                 network.save_service_identity(args)
 
-                stop_verify_kwargs = {
-                }
+                stop_verify_kwargs = {}
 
-                # Ledger file chunking changed from 1.x to 2.x and if it does not join from a snapshot the eol ledger files may be re-chunked differently on the joining node
+                # Ledger file chunking changed from 1.x to 2.x and if it does not join from a snapshot the eol ledger files will be re-chunked differently on the joining node
                 if not use_snapshot:
                     stop_verify_kwargs |= {
                         "accept_ledger_diff": True,
