@@ -7,6 +7,7 @@
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/serialized.h"
+#include "kv/ledger_chunker.h"
 #include "kv/serialised_entry_format.h"
 #define TEST_MODE_EXECUTE_SYNC_INLINE
 #include "snapshots/snapshot_manager.h"
@@ -229,15 +230,17 @@ std::vector<uint8_t> make_ledger_entry(size_t idx, uint8_t header_flags = 0)
 // Keeps track of ledger entries written to the ledger.
 // An entry submitted at index i has for value i so that it is easy to verify
 // that the ledger entry read from the ledger at a specific index is right.
-class TestEntrySubmitter
+struct TestEntrySubmitter
 {
-private:
-  Ledger& ledger;
-  size_t last_idx;
-
 public:
-  TestEntrySubmitter(Ledger& ledger, size_t initial_last_idx = 0) :
+  Ledger& ledger;
+  ccf::kv::LedgerChunker chunker;
+  size_t last_idx = 0;
+
+  TestEntrySubmitter(
+    Ledger& ledger, size_t chunk_threshold, size_t initial_last_idx = 0) :
     ledger(ledger),
+    chunker(chunk_threshold, initial_last_idx),
     last_idx(initial_last_idx)
   {}
 
@@ -248,10 +251,25 @@ public:
 
   void write(bool is_committable, uint8_t header_flags = 0)
   {
-    auto framed_entry = make_ledger_entry(++last_idx, header_flags);
+    const auto idx = ++last_idx;
+
+    chunker.append_entry_size(sizeof(TestLedgerEntry));
+
+    if (chunker.is_chunk_end_requested(idx) && is_committable)
+    {
+      fmt::print(" xxx chunker says chunk at {}\n", idx);
+      header_flags |= ccf::kv::FORCE_LEDGER_CHUNK_AFTER;
+    }
+
+    if ((header_flags & ccf::kv::FORCE_LEDGER_CHUNK_AFTER) && is_committable)
+    {
+      chunker.produced_chunk_at(idx);
+    }
+
+    auto framed_entry = make_ledger_entry(idx, header_flags);
     REQUIRE(
       ledger.write_entry(
-        framed_entry.data(), framed_entry.size(), is_committable) == last_idx);
+        framed_entry.data(), framed_entry.size(), is_committable) == idx);
   }
 
   void truncate(size_t idx)
@@ -273,6 +291,7 @@ public:
     if (idx < last_idx)
     {
       last_idx = idx;
+      chunker.rolled_back_to(last_idx);
     }
   }
 };
@@ -288,14 +307,14 @@ size_t get_entries_per_chunk(size_t chunk_threshold)
 }
 
 // Assumes that no entries have been written yet
+// Returns index of end of first chunk
 size_t initialise_ledger(
   TestEntrySubmitter& entry_submitter,
-  size_t chunk_threshold,
+  size_t entries_per_chunk,
   size_t chunk_count)
 {
   size_t end_of_first_chunk_idx = 0;
   bool is_committable = true;
-  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
 
   for (int i = 0; i < entries_per_chunk * chunk_count; i++)
   {
@@ -307,20 +326,284 @@ size_t initialise_ledger(
   return entries_per_chunk;
 }
 
+TEST_CASE("LedgerChunker")
+{
+  using namespace ccf::kv;
+
+  {
+    INFO("Cannot create a ledger with a chunk threshold of 0");
+    size_t chunk_threshold = 0;
+    REQUIRE_THROWS(LedgerChunker(chunk_threshold));
+  }
+
+  {
+    INFO("Cannot create a ledger with too large a chunk threshold");
+    size_t chunk_threshold = LedgerChunker::max_chunk_threshold_size + 1;
+    REQUIRE_THROWS(LedgerChunker(chunk_threshold));
+  }
+
+  {
+    const size_t chunk_threshold = 5;
+    size_t version = 0;
+
+    LedgerChunker chunker(chunk_threshold);
+
+    REQUIRE_FALSE(chunker.is_chunk_end_requested(version));
+
+    // Transactions look like this, with a chunk threshold of 5:
+    // ## ## # ####
+    chunker.append_entry_size(2);
+    chunker.append_entry_size(2);
+    chunker.append_entry_size(1);
+    chunker.append_entry_size(4);
+
+    {
+      INFO("As soon as the threshold is reached, a chunk is requested");
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(1));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(2));
+      REQUIRE(chunker.is_chunk_end_requested(3));
+
+      INFO("More entries may arrive, pushing further past the threshold");
+      REQUIRE(chunker.is_chunk_end_requested(4));
+    }
+
+    {
+      // Using '|' to indicate where a chunk has been produced
+      // ## ## #| ####
+      INFO(
+        "When a chunk is produced, we re-calculate whether a chunk is "
+        "requested");
+      chunker.produced_chunk_at(3);
+      REQUIRE(chunker.is_chunk_end_requested(3));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(4));
+    }
+
+    {
+      INFO(
+        "Chunks may be far larger than the threshold, if committable entries "
+        "are sparse");
+      // ## ## #| #### #### ###### ##### ##
+      chunker.append_entry_size(4);
+      chunker.append_entry_size(6);
+      chunker.append_entry_size(5);
+      chunker.append_entry_size(2);
+      REQUIRE(chunker.is_chunk_end_requested(8));
+
+      // ## ## #| #### #### ###### ##### ##|
+      chunker.produced_chunk_at(8);
+    }
+
+    {
+      INFO("Chunks can be explicitly requested");
+      // ## ## #| #### #### ###### ##### ##| #
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(9));
+      chunker.append_entry_size(1);
+
+      // ## ## #| #### #### ###### ##### ##| #?
+      chunker.force_end_of_chunk(9);
+      REQUIRE(chunker.is_chunk_end_requested(9));
+
+      // ## ## #| #### #### ###### ##### ##| #!
+      chunker.produced_chunk_at(9);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(9));
+    }
+
+    {
+      INFO("Rollbacks are accurately tracked");
+      // ## ## #| #### #### ###### ##### ##| #! ### ## #####
+      chunker.append_entry_size(3);
+      chunker.append_entry_size(2);
+      chunker.append_entry_size(5);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(10));
+      REQUIRE(chunker.is_chunk_end_requested(11));
+      REQUIRE(chunker.is_chunk_end_requested(12));
+
+      // ## ## #| #### #### ###### ##### ##| #! ### ##
+      chunker.rolled_back_to(11);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(10));
+      REQUIRE(chunker.is_chunk_end_requested(11));
+
+      // ## ## #| #### #### ###### ##### ##| #! ###
+      chunker.rolled_back_to(10);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(10));
+
+      INFO("Even when new sizes differ");
+      // ## ## #| #### #### ###### ##### ##| #! ### # #
+      chunker.append_entry_size(1);
+      chunker.append_entry_size(1);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(10));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(11));
+      REQUIRE(chunker.is_chunk_end_requested(12));
+    }
+
+    {
+      INFO("Rollbacks across known chunks are possible");
+      // ## ##
+      chunker.rolled_back_to(2);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(2));
+
+      // ## ## ###
+      chunker.append_entry_size(2);
+      REQUIRE(chunker.is_chunk_end_requested(3));
+    }
+
+    {
+      INFO(
+        "Rollbacks and compactions correctly track explicit and implict "
+        "chunks");
+      // ## ## ###|
+      chunker.produced_chunk_at(3);
+
+      // ## ## ###| #!
+      chunker.append_entry_size(1);
+      chunker.force_end_of_chunk(4);
+      chunker.produced_chunk_at(4);
+
+      // ## ## ###| #! # #!
+      chunker.append_entry_size(1);
+      chunker.append_entry_size(1);
+      chunker.force_end_of_chunk(6);
+      chunker.produced_chunk_at(6);
+
+      // ## ## ###| #! ##! #######|
+      chunker.append_entry_size(7);
+      chunker.produced_chunk_at(6);
+
+      // ## ## ###| #! ##! #######| #|
+      chunker.append_entry_size(1);
+      chunker.produced_chunk_at(7);
+
+      // ## ## ###| #! ##! #######| #| #!
+      chunker.append_entry_size(1);
+      chunker.force_end_of_chunk(8);
+      chunker.produced_chunk_at(8);
+
+      // 1  2  3    4  5   6
+      // ## ## ###| #! ##! #
+      chunker.rolled_back_to(5);
+      chunker.append_entry_size(1);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(6));
+
+      //                   6
+      //                   #
+      chunker.compacted_to(5);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(6));
+
+      // 6
+      // # #####
+      chunker.append_entry_size(5);
+      REQUIRE(chunker.is_chunk_end_requested(7));
+
+      chunker.produced_chunk_at(7);
+
+      chunker.append_entry_size(3);
+      chunker.force_end_of_chunk(8);
+      chunker.produced_chunk_at(8);
+
+      chunker.append_entry_size(3);
+      chunker.append_entry_size(1);
+      chunker.append_entry_size(1);
+      chunker.append_entry_size(1);
+      chunker.produced_chunk_at(12);
+
+      chunker.append_entry_size(2);
+      chunker.force_end_of_chunk(13);
+      chunker.produced_chunk_at(13);
+
+      chunker.append_entry_size(4);
+
+      // 6 7      8    9   10 11 12 13  14
+      // # #####| ###! ### #  #  #| ##! ####
+
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(13));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(14));
+
+      // Only compacts to the latest known chunk boundary so we can accurately
+      // count!
+      // 9   10 11 12 13  14
+      // ### #  #  #| ##! ####
+      chunker.compacted_to(10);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(13));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(14));
+
+      // 9   10
+      // ### #
+      chunker.rolled_back_to(10);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(9));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(10));
+
+      // 9   10 11
+      // ### #  ##
+      chunker.append_entry_size(2);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(9));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(10));
+      REQUIRE(chunker.is_chunk_end_requested(11));
+
+      // 9   10 11
+      // ### #  ##|
+      chunker.produced_chunk_at(11);
+    }
+
+    {
+      INFO("Explicit requests correctly affect other transactions");
+      chunker.append_entry_size(1); // 12
+      chunker.append_entry_size(1); // 13
+      chunker.append_entry_size(1); // 14
+      chunker.append_entry_size(1); // 15
+      chunker.append_entry_size(1); // 16
+      chunker.append_entry_size(1); // 17
+      chunker.append_entry_size(1); // 18
+
+      // Note this execution order shouldn't happen in-practice, but since
+      // LedgerChunker aims to be permissive we can test the behaviour here
+      chunker.force_end_of_chunk(14);
+      chunker.force_end_of_chunk(17);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(12));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(13));
+      REQUIRE(chunker.is_chunk_end_requested(14));
+      REQUIRE(chunker.is_chunk_end_requested(15));
+      REQUIRE(chunker.is_chunk_end_requested(16));
+      REQUIRE(chunker.is_chunk_end_requested(17));
+      REQUIRE(chunker.is_chunk_end_requested(18));
+
+      chunker.produced_chunk_at(15);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(12));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(13));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(14));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(15));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(16));
+      REQUIRE(chunker.is_chunk_end_requested(17));
+      REQUIRE(chunker.is_chunk_end_requested(18));
+
+      chunker.produced_chunk_at(16);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(12));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(13));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(14));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(15));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(16));
+      REQUIRE(chunker.is_chunk_end_requested(17));
+      REQUIRE(chunker.is_chunk_end_requested(18));
+
+      chunker.produced_chunk_at(17);
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(12));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(13));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(14));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(15));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(16));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(17));
+      REQUIRE_FALSE(chunker.is_chunk_end_requested(18));
+    }
+  }
+}
+
 TEST_CASE("Regular chunking")
 {
   auto dir = AutoDeleteFolder(ledger_dir);
 
-  INFO("Cannot create a ledger with a chunk threshold of 0");
-  {
-    size_t chunk_threshold = 0;
-    REQUIRE_THROWS(Ledger(ledger_dir, wf, chunk_threshold));
-  }
-
   size_t chunk_threshold = 30;
   size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
   Ledger ledger(ledger_dir, wf, chunk_threshold);
-  TestEntrySubmitter entry_submitter(ledger);
+  TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
   size_t end_of_first_chunk_idx = 0;
   bool is_committable = true;
@@ -478,31 +761,36 @@ TEST_CASE("Regular chunking")
   {
     auto last_idx = entry_submitter.get_last_idx();
 
-    // Reading entries larger than the max entries size fails
+    const size_t entry_size =
+      ccf::kv::serialised_entry_header_size + sizeof(TestLedgerEntry);
+
+    // When max_entries_size is too low, it's possible for no entries to be
+    // returned
     REQUIRE_FALSE(
       ledger.read_entries(1, 1, 0 /* max_entries_size */).has_value());
     REQUIRE_FALSE(
       ledger.read_entries(1, end_of_first_chunk_idx + 1, 0).has_value());
+    REQUIRE_FALSE(ledger.read_entries(1, 1, entry_size - 1).has_value());
 
-    // Reading entries larger than max entries size returns some entries
-    size_t max_entries_size = chunk_threshold / entries_per_chunk;
+    // When max_entries_size is large enough, some entries will always be
+    // returned
 
-    auto e = ledger.read_entries(1, end_of_first_chunk_idx, max_entries_size);
+    auto e = ledger.read_entries(1, end_of_first_chunk_idx, entry_size);
     REQUIRE(e.has_value());
     verify_framed_entries_range(e.value(), 1, 1);
 
-    e = ledger.read_entries(1, end_of_first_chunk_idx + 1, max_entries_size);
+    e = ledger.read_entries(1, end_of_first_chunk_idx + 1, entry_size);
     REQUIRE(e.has_value());
     verify_framed_entries_range(e.value(), 1, 1);
 
     // Even over chunk boundaries
     e = ledger.read_entries(
-      end_of_first_chunk_idx, end_of_first_chunk_idx + 1, max_entries_size);
+      end_of_first_chunk_idx, end_of_first_chunk_idx + 1, entry_size);
     REQUIRE(e.has_value());
     verify_framed_entries_range(
       e.value(), end_of_first_chunk_idx, end_of_first_chunk_idx + 1);
 
-    max_entries_size = 2 * chunk_threshold;
+    const auto max_entries_size = 2 * chunk_threshold;
 
     // All entries are returned
     read_entries_range_from_ledger(
@@ -533,12 +821,13 @@ TEST_CASE("Truncation")
   auto dir = AutoDeleteFolder(ledger_dir);
 
   size_t chunk_threshold = 30;
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
   Ledger ledger(ledger_dir, wf, chunk_threshold);
-  TestEntrySubmitter entry_submitter(ledger);
+  TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
   size_t chunk_count = 3;
   size_t end_of_first_chunk_idx =
-    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
 
   // Write another entry to create a new chunk
   entry_submitter.write(true);
@@ -557,7 +846,7 @@ TEST_CASE("Truncation")
     entry_submitter.truncate(last_idx - 1);
     REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far - 1);
 
-    // New file gets open when one more entry gets submitted
+    // New file gets open when two more entries get submitted
     entry_submitter.write(true);
     REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far);
     entry_submitter.write(true);
@@ -608,12 +897,13 @@ TEST_CASE("Commit")
   auto dir = AutoDeleteFolder(ledger_dir);
 
   size_t chunk_threshold = 30;
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
   Ledger ledger(ledger_dir, wf, chunk_threshold);
-  TestEntrySubmitter entry_submitter(ledger);
+  TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
   size_t chunk_count = 3;
   size_t end_of_first_chunk_idx =
-    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
 
   entry_submitter.write(true);
   size_t last_idx = entry_submitter.get_last_idx();
@@ -657,8 +947,7 @@ TEST_CASE("Commit")
 
   INFO("Complete latest chunk and commit");
   {
-    entry_submitter.write(true);
-    entry_submitter.write(true);
+    entry_submitter.write(true, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
     last_idx = entry_submitter.get_last_idx();
     ledger.commit(last_idx);
     REQUIRE(number_of_committed_files_in_ledger_dir() == 4);
@@ -695,6 +984,7 @@ TEST_CASE("Restore existing ledger")
   auto dir = AutoDeleteFolder(ledger_dir);
 
   size_t chunk_threshold = 30;
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
   size_t last_idx = 0;
   size_t end_of_first_chunk_idx = 0;
   size_t chunk_count = 3;
@@ -705,10 +995,10 @@ TEST_CASE("Restore existing ledger")
     INFO("Initialise first ledger with complete chunks");
     {
       Ledger ledger(ledger_dir, wf, chunk_threshold);
-      TestEntrySubmitter entry_submitter(ledger);
+      TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
       end_of_first_chunk_idx =
-        initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+        initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
       number_of_ledger_files = number_of_files_in_ledger_dir();
       last_idx = chunk_count * end_of_first_chunk_idx;
     }
@@ -717,7 +1007,7 @@ TEST_CASE("Restore existing ledger")
     read_entries_range_from_ledger(ledger2, 1, last_idx);
 
     // Restored ledger can be written to
-    TestEntrySubmitter entry_submitter(ledger2, last_idx);
+    TestEntrySubmitter entry_submitter(ledger2, chunk_threshold, last_idx);
     entry_submitter.write(true);
     // On restore, we write a new file as all restored chunks were complete
     REQUIRE(number_of_files_in_ledger_dir() == number_of_ledger_files + 1);
@@ -735,10 +1025,10 @@ TEST_CASE("Restore existing ledger")
     INFO("Initialise first ledger with truncation");
     {
       Ledger ledger(ledger_dir, wf, chunk_threshold);
-      TestEntrySubmitter entry_submitter(ledger);
+      TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
       end_of_first_chunk_idx =
-        initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+        initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
 
       entry_submitter.truncate(end_of_first_chunk_idx + 1);
       last_idx = entry_submitter.get_last_idx();
@@ -748,7 +1038,7 @@ TEST_CASE("Restore existing ledger")
     Ledger ledger2(ledger_dir, wf, chunk_threshold);
     read_entries_range_from_ledger(ledger2, 1, last_idx);
 
-    TestEntrySubmitter entry_submitter(ledger2, last_idx);
+    TestEntrySubmitter entry_submitter(ledger2, chunk_threshold, last_idx);
     entry_submitter.write(true);
     // On restore, we write at the end of the last file is that file is not
     // complete
@@ -762,10 +1052,10 @@ TEST_CASE("Restore existing ledger")
     INFO("Initialise first ledger with committed chunks");
     {
       Ledger ledger(ledger_dir, wf, chunk_threshold);
-      TestEntrySubmitter entry_submitter(ledger);
+      TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
       end_of_first_chunk_idx =
-        initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+        initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
 
       committed_idx = 2 * end_of_first_chunk_idx + 1;
       entry_submitter.write(true);
@@ -778,7 +1068,7 @@ TEST_CASE("Restore existing ledger")
 
     // Restored ledger cannot be truncated before last idx of last committed
     // chunk
-    TestEntrySubmitter entry_submitter(ledger2, last_idx);
+    TestEntrySubmitter entry_submitter(ledger2, chunk_threshold, last_idx);
     entry_submitter.truncate(committed_idx - 1); // Successful
 
     ledger2.truncate(committed_idx - 2); // Unsuccessful
@@ -790,10 +1080,10 @@ TEST_CASE("Restore existing ledger")
     INFO("Initialise first ledger with committed chunks");
     {
       Ledger ledger(ledger_dir, wf, chunk_threshold);
-      TestEntrySubmitter entry_submitter(ledger);
+      TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
       end_of_first_chunk_idx =
-        initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+        initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
 
       entry_submitter.write(true);
       last_idx = entry_submitter.get_last_idx();
@@ -804,7 +1094,8 @@ TEST_CASE("Restore existing ledger")
       Ledger ledger2(ledger_dir, wf, 2 * chunk_threshold);
       read_entries_range_from_ledger(ledger2, 1, last_idx);
 
-      TestEntrySubmitter entry_submitter(ledger2, last_idx);
+      TestEntrySubmitter entry_submitter(
+        ledger2, chunk_threshold * 2, last_idx);
 
       size_t orig_number_files = number_of_files_in_ledger_dir();
       while (number_of_files_in_ledger_dir() == orig_number_files)
@@ -819,7 +1110,8 @@ TEST_CASE("Restore existing ledger")
       Ledger ledger2(ledger_dir, wf, chunk_threshold / 2);
       read_entries_range_from_ledger(ledger2, 1, last_idx);
 
-      TestEntrySubmitter entry_submitter(ledger2, last_idx);
+      TestEntrySubmitter entry_submitter(
+        ledger2, chunk_threshold / 2, last_idx);
 
       size_t orig_number_files = number_of_files_in_ledger_dir();
       while (number_of_files_in_ledger_dir() == orig_number_files)
@@ -845,16 +1137,17 @@ TEST_CASE("Limit number of open files")
   auto dir = AutoDeleteFolder(ledger_dir);
 
   size_t chunk_threshold = 30;
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
   size_t chunk_count = 5;
   size_t max_read_cache_size = 2;
   Ledger ledger(ledger_dir, wf, chunk_threshold, max_read_cache_size);
-  TestEntrySubmitter entry_submitter(ledger);
+  TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
   size_t initial_number_fd = number_open_fd();
   size_t last_idx = 0;
 
   size_t end_of_first_chunk_idx =
-    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
   REQUIRE(number_open_fd() == initial_number_fd + chunk_count);
 
   INFO("Writing a new chunk opens a new file");
@@ -902,9 +1195,7 @@ TEST_CASE("Limit number of open files")
 
   INFO("Close and commit latest file");
   {
-    entry_submitter.write(true);
-    entry_submitter.write(true);
-    entry_submitter.write(true);
+    entry_submitter.write(true, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
     last_idx = entry_submitter.get_last_idx();
     ledger.commit(last_idx);
 
@@ -936,6 +1227,7 @@ TEST_CASE("Multiple ledger paths")
 
   size_t max_read_cache_size = 2;
   size_t chunk_threshold = 30;
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
   size_t chunk_count = 5;
 
   size_t last_committed_idx = 0;
@@ -944,10 +1236,10 @@ TEST_CASE("Multiple ledger paths")
   INFO("Write many entries on first ledger");
   {
     Ledger ledger(ledger_dir, wf, chunk_threshold);
-    TestEntrySubmitter entry_submitter(ledger);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
     // Writing some committed chunks...
-    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
     last_committed_idx = entry_submitter.get_last_idx();
     ledger.commit(last_committed_idx);
 
@@ -1025,19 +1317,18 @@ TEST_CASE("Recover from read-only ledger directory only")
 
   size_t max_read_cache_size = 2;
   size_t chunk_threshold = 30;
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
   size_t chunk_count = 5;
 
-  size_t entries_per_chunk = 0;
   size_t last_idx = 0;
 
   INFO("Write many entries on first ledger");
   {
     Ledger ledger(ledger_dir, wf, chunk_threshold);
-    TestEntrySubmitter entry_submitter(ledger);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
     // Writing some committed chunks
-    entries_per_chunk =
-      initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
     last_idx = entry_submitter.get_last_idx();
     ledger.commit(last_idx);
   }
@@ -1049,7 +1340,7 @@ TEST_CASE("Recover from read-only ledger directory only")
 
     read_entries_range_from_ledger(ledger, 1, last_idx);
 
-    TestEntrySubmitter entry_submitter(ledger, last_idx);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold, last_idx);
 
     for (size_t i = 0; i < entries_per_chunk; i++)
     {
@@ -1112,16 +1403,17 @@ TEST_CASE("Recovery resilience")
 
   size_t max_read_cache_size = 2;
   size_t chunk_threshold = 50;
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
   size_t chunk_count = 1;
 
   size_t last_idx = 0;
   Ledger ledger(ledger_dir, wf, chunk_threshold);
-  TestEntrySubmitter entry_submitter(ledger);
+  TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
   INFO("Write many entries on first ledger");
   {
     // Writing some committed chunks
-    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
     last_idx = entry_submitter.get_last_idx();
     ledger.commit(last_idx);
   }
@@ -1137,7 +1429,7 @@ TEST_CASE("Recovery resilience")
     // Corrupted ledger file is ignored
     Ledger new_ledger(ledger_dir, wf, chunk_threshold);
     const auto last_idx = new_ledger.get_last_idx();
-    TestEntrySubmitter entry_submitter(new_ledger, last_idx);
+    TestEntrySubmitter entry_submitter(new_ledger, chunk_threshold, last_idx);
     entry_submitter.write(true);
     REQUIRE(entry_submitter.get_last_idx() == last_idx + 1);
   }
@@ -1159,7 +1451,8 @@ TEST_CASE("Recovery resilience")
     // Uncommitted ledger file with no valid entry is deleted
     Ledger new_ledger(ledger_dir, wf, chunk_threshold);
     REQUIRE(number_of_files_in_ledger_dir() == 1);
-    TestEntrySubmitter entry_submitter(new_ledger, new_ledger.get_last_idx());
+    TestEntrySubmitter entry_submitter(
+      new_ledger, chunk_threshold, new_ledger.get_last_idx());
     entry_submitter.write(true);
   }
 
@@ -1187,7 +1480,8 @@ TEST_CASE("Recovery resilience")
     REQUIRE(new_ledger.get_last_idx() == last_idx - 1);
     REQUIRE(number_of_files_in_ledger_dir() == 2);
 
-    TestEntrySubmitter entry_submitter(new_ledger, new_ledger.get_last_idx());
+    TestEntrySubmitter entry_submitter(
+      new_ledger, chunk_threshold, new_ledger.get_last_idx());
     entry_submitter.write(true);
   }
 }
@@ -1202,6 +1496,7 @@ TEST_CASE("Delete committed file from main directory")
   auto dir3 = AutoDeleteFolder(ledger_dir_tmp);
 
   size_t chunk_threshold = 30;
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
   size_t chunk_count = 5;
 
   // Worst-case scenario: do not keep any committed file in cache
@@ -1219,11 +1514,11 @@ TEST_CASE("Delete committed file from main directory")
     chunk_threshold,
     max_read_cache_size,
     {ledger_dir_read_only});
-  TestEntrySubmitter entry_submitter(ledger);
+  TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
   INFO("Write many entries on ledger");
   {
-    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
     last_committed_idx = entry_submitter.get_last_idx();
     ledger.commit(last_committed_idx);
 
@@ -1383,7 +1678,7 @@ TEST_CASE("Chunking according to entry header flag")
   size_t chunk_threshold = 30;
   size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
   Ledger ledger(ledger_dir, wf, chunk_threshold);
-  TestEntrySubmitter entry_submitter(ledger);
+  TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
   bool is_committable = true;
 
@@ -1441,13 +1736,13 @@ TEST_CASE("Recovery")
   SUBCASE("Enable and complete recovery")
   {
     Ledger ledger(ledger_dir, wf, chunk_threshold);
-    TestEntrySubmitter entry_submitter(ledger);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
     size_t pre_recovery_last_idx = 0;
 
     INFO("Write many entries on ledger");
     {
       size_t chunk_count = 5;
-      initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+      initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
       pre_recovery_last_idx = entry_submitter.get_last_idx();
       ledger.commit(pre_recovery_last_idx);
     }
@@ -1516,14 +1811,14 @@ TEST_CASE("Recovery")
   SUBCASE("Recover ledger with recovery chunks")
   {
     Ledger ledger(ledger_dir, wf, chunk_threshold);
-    TestEntrySubmitter entry_submitter(ledger);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
     size_t pre_recovery_last_idx = 0;
     size_t last_idx = 0;
 
     INFO("Write many entries on ledger");
     {
       size_t chunk_count = 5;
-      initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+      initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
       pre_recovery_last_idx = entry_submitter.get_last_idx();
       ledger.commit(pre_recovery_last_idx);
     }
@@ -1591,9 +1886,9 @@ TEST_CASE("Recover both ledger dirs")
   INFO("Create ledger");
   {
     Ledger ledger(ledger_dir, wf, chunk_threshold);
-    TestEntrySubmitter entry_submitter(ledger);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
-    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
     last_idx = ledger.get_last_idx();
     ledger.commit(last_idx);
 
@@ -1602,13 +1897,28 @@ TEST_CASE("Recover both ledger dirs")
 
     // Delete last committed file from ledger directory so that new ledger
     // starts with main ledger directory behind read-only ledger directory
-    REQUIRE(fs::remove(fs::path(ledger_dir) / "ledger_5-6.committed"));
+    std::string last_committed_file;
+    size_t last_file_idx = 0;
+    for (auto const& f : fs::directory_iterator(ledger_dir))
+    {
+      const auto file_name = f.path().filename();
+      if (asynchost::is_ledger_file_name_committed(file_name))
+      {
+        const auto idx = asynchost::get_start_idx_from_file_name(file_name);
+        if (idx > last_file_idx)
+        {
+          last_committed_file = file_name;
+          last_file_idx = idx;
+        }
+      }
+    }
+    REQUIRE(fs::remove(fs::path(ledger_dir) / last_committed_file));
   }
 
   INFO("Recover from both ledger dirs");
   {
     Ledger ledger(ledger_dir, wf, chunk_threshold, 0, {ledger_dir_read_only});
-    TestEntrySubmitter entry_submitter(ledger, last_idx);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold, last_idx);
 
     for (int i = 0; i < entries_per_chunk * chunk_count; i++)
     {
@@ -1634,9 +1944,9 @@ TEST_CASE("Ledger init with existing files")
   INFO("Create ledger");
   {
     Ledger ledger(ledger_dir, wf, chunk_threshold);
-    TestEntrySubmitter entry_submitter(ledger);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
 
-    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
 
     // Commit some but not all chunks
     last_idx = ledger.get_last_idx();
@@ -1651,18 +1961,20 @@ TEST_CASE("Ledger init with existing files")
 
     // Initialise new ledger at end of second chunk, as if the node restarted
     // from a snapshot then
-    size_t init_idx = 2 * entries_per_chunk;
+    size_t init_idx = 8;
     ledger.init(init_idx);
-    TestEntrySubmitter entry_submitter(ledger, init_idx);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold, init_idx);
 
     while (ledger.get_last_idx() < last_idx)
     {
       entry_submitter.write(true);
-      read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
     }
+
+    read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
 
     // Entire ledger has now been replayed
     ledger.commit(commit_idx);
+
     REQUIRE(ledger_dir_capture == capture_ledger_dir());
 
     // New entries can be now written
@@ -1680,7 +1992,7 @@ TEST_CASE("Ledger init with existing files")
     // from a snapshot then
     size_t init_idx = 2 * entries_per_chunk;
     ledger.init(init_idx);
-    TestEntrySubmitter entry_submitter(ledger, init_idx);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold, init_idx);
 
     entry_submitter.write(true);
     entry_submitter.write(true);
