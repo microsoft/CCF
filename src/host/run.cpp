@@ -530,7 +530,8 @@ namespace ccf
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
     ccf::LoggerLevel log_level,
-    ringbuffer::NotifyingWriterFactory& notifying_factory)
+    ringbuffer::NotifyingWriterFactory& notifying_factory,
+    asynchost::Ledger& ledger)
   {
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
     std::atomic<bool> ecall_completed = false;
@@ -553,7 +554,8 @@ namespace ccf
       config.command.type,
       log_level,
       config.worker_threads,
-      notifying_factory.get_inbound_work_beacon());
+      notifying_factory.get_inbound_work_beacon(),
+      ledger);
     ecall_completed.store(true);
     flusher_thread.join();
 
@@ -868,7 +870,8 @@ namespace ccf
       node_cert,
       service_cert,
       log_level,
-      factories.notifying_factory);
+      factories.notifying_factory,
+      ledger);
 
     if (enclave_creation_result.has_value())
     {

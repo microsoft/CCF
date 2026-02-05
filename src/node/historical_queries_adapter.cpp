@@ -6,60 +6,56 @@
 #include "ccf/historical_queries_utils.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
+#include "crypto/cbor.h"
 #include "kv/kv_types.h"
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/tx_receipt_impl.h"
 
-#include <t_cose/t_cose_sign1_sign.h>
-
 namespace
 {
-  void encode_leaf_cbor(
-    QCBOREncodeContext& ctx, const ccf::TxReceiptImpl& receipt)
+  ccf::cbor::Value encode_leaf_cbor(const ccf::TxReceiptImpl& receipt)
   {
-    QCBOREncode_OpenArrayInMapN(
-      &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL);
+    using namespace ccf::cbor;
+    std::vector<Value> items;
 
     // 1 WSD
     if (!receipt.write_set_digest.has_value())
     {
       throw std::logic_error("Write set digest is required for COSE receipts");
     }
-    const auto& wsd = receipt.write_set_digest->h;
-    QCBOREncode_AddBytes(&ctx, {wsd.data(), wsd.size()});
+    items.push_back(make_bytes(receipt.write_set_digest->h));
 
     // 2. CE
     if (!receipt.commit_evidence.has_value())
     {
       throw std::logic_error("Commit evidence is required for COSE receipts");
     }
-    const auto& ce = receipt.commit_evidence.value();
-    QCBOREncode_AddSZString(&ctx, ce.data());
+    items.push_back(make_string(receipt.commit_evidence.value()));
 
     // 3. CD
-    const auto& cd = receipt.claims_digest.value().h;
-    QCBOREncode_AddBytes(&ctx, {cd.data(), cd.size()});
+    items.push_back(make_bytes(receipt.claims_digest.value().h));
 
-    QCBOREncode_CloseArray(&ctx);
+    return make_array(std::move(items));
   }
 
-  void encode_path_cbor(
-    QCBOREncodeContext& ctx, const ccf::HistoryTree::Path& path)
+  ccf::cbor::Value encode_path_cbor(const ccf::HistoryTree::Path& path)
   {
-    QCBOREncode_OpenArrayInMapN(
-      &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL);
+    using namespace ccf::cbor;
+    std::vector<Value> items;
+
     for (const auto& node : path)
     {
       const bool dir =
         (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT);
-      std::vector<uint8_t> hash{node.hash};
 
-      QCBOREncode_OpenArray(&ctx);
-      QCBOREncode_AddBool(&ctx, dir);
-      QCBOREncode_AddBytes(&ctx, {hash.data(), hash.size()});
-      QCBOREncode_CloseArray(&ctx);
+      std::span<const uint8_t> hash{node.hash.bytes, node.hash.size()};
+      std::vector<Value> path_element;
+      path_element.push_back(make_simple(boolean_to_simple(dir)));
+      path_element.push_back(make_bytes(hash));
+
+      items.push_back(make_array(std::move(path_element)));
     }
-    QCBOREncode_CloseArray(&ctx);
+    return make_array(std::move(items));
   }
 }
 
@@ -213,52 +209,37 @@ namespace ccf
   std::optional<std::vector<uint8_t>> describe_merkle_proof_v1(
     const TxReceiptImpl& receipt)
   {
-    constexpr size_t buf_size = 2048;
-    std::vector<uint8_t> underlying_buffer(buf_size);
-    UsefulBuf buffer{underlying_buffer.data(), underlying_buffer.size()};
-    assert(buffer.len == buf_size);
-
-    QCBOREncodeContext ctx;
-    QCBOREncode_Init(&ctx, buffer);
-
-    QCBOREncode_OpenMap(&ctx);
-
     if (!receipt.commit_evidence)
     {
       LOG_DEBUG_FMT("Merkle proof is missing commit evidence");
       return std::nullopt;
     }
+
     if (!receipt.write_set_digest)
     {
       LOG_DEBUG_FMT("Merkle proof is missing write set digest");
       return std::nullopt;
     }
-    encode_leaf_cbor(ctx, receipt);
 
     if (!receipt.path)
     {
       LOG_DEBUG_FMT("Merkle proof is missing path");
       return std::nullopt;
     }
-    encode_path_cbor(ctx, *receipt.path);
 
-    QCBOREncode_CloseMap(&ctx);
+    using namespace ccf::cbor;
+    std::vector<MapItem> proof;
 
-    UsefulBufC result;
-    auto qerr = QCBOREncode_Finish(&ctx, &result);
-    if (qerr != QCBOR_SUCCESS)
-    {
-      LOG_DEBUG_FMT("Failed to encode merkle proof: {}", qerr);
-      return std::nullopt;
-    }
+    proof.emplace_back(
+      make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL),
+      encode_leaf_cbor(receipt));
 
-    // Memory address is said to match:
-    // github.com/laurencelundblade/QCBOR/blob/v1.4.1/inc/qcbor/qcbor_encode.h#L2190-L2191
-    assert(result.ptr == underlying_buffer.data());
+    proof.emplace_back(
+      make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL),
+      encode_path_cbor(*receipt.path));
 
-    underlying_buffer.resize(result.len);
-    underlying_buffer.shrink_to_fit();
-    return underlying_buffer;
+    auto proof_map = make_map(std::move(proof));
+    return serialize(proof_map);
   }
 
   std::optional<SerialisedCoseEndorsements> describe_cose_endorsements_v1(

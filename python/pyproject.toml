@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ccf"
-version = "7.0.0-dev7"
+version = "7.0.0-dev10"
 authors = [
   { name="CCF Team", email="CCF-Sec@microsoft.com" },
 ]
@@ -19,7 +19,7 @@ dependencies = [
     "cryptography >= 46, < 47",
     "cwt >= 3.2.0, < 4",
     "setuptools >= 74, < 81",
-    "packaging >= 25, < 26"
+    "packaging >= 25, < 27"
 ]
 
 [tool.setuptools]

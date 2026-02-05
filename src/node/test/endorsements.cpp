@@ -151,14 +151,14 @@ TEST_CASE("Check Test endorsement for UVM 0.2.10")
   REQUIRE(!endorsement.empty());
 
   ccf::pal::SnpAttestationMeasurement measurement(
-    "6d6c354511d6f7c6d7504668903dc5bdc066a048b651840d8d03fb85299ebfa142fccf1d1b"
-    "0baca496841bdf243619d4");
+    "4904167aa9102a7557b97ac102469f50289d5be76036fcbb8107897ee146a6184772c4ea6e"
+    "3f050a1bac6951c285bc89");
   ccf::pal::PlatformAttestationMeasurement uvm_measurement(measurement);
 
   std::vector<ccf::pal::UVMEndorsements> custom_roots_of_trust = {
     ccf::pal::UVMEndorsements{
       "did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3."
-      "6.1.4.1.311.76.59.1.1",
+      "6.1.4.1.311.76.59.1.2",
       "Malicious-ContainerPlat-AMD-UVM",
       "104"}};
 
@@ -167,12 +167,9 @@ TEST_CASE("Check Test endorsement for UVM 0.2.10")
       endorsement, uvm_measurement, custom_roots_of_trust),
     "UVM endorsements did "
     "did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
-    "1.4.1.311.76.59.1.1, feed ContainerPlat-AMD-UVM, svn 104 do not match any "
+    "1.4.1.311.76.59.1.2, feed ContainerPlat-AMD-UVM, svn 104 do not match any "
     "of the known UVM roots of trust",
     std::logic_error);
-
-  /* Commented out awaiting on UVM endorsements with fixed EKUs (ending .2
-  instead of .1).
 
   auto endorsements = ccf::verify_uvm_endorsements_against_roots_of_trust(
     endorsement, uvm_measurement, ccf::default_uvm_roots_of_trust);
@@ -180,7 +177,6 @@ TEST_CASE("Check Test endorsement for UVM 0.2.10")
   REQUIRE(endorsements.did == ccf::default_uvm_roots_of_trust[0].did);
   REQUIRE(endorsements.feed == ccf::default_uvm_roots_of_trust[0].feed);
   REQUIRE(endorsements.svn == "104");
-  */
 }
 
 TEST_CASE("Check UVM roots of trust matching")

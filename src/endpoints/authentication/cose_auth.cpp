@@ -12,8 +12,6 @@
 #include "crypto/cbor.h"
 #include "node/cose_common.h"
 
-#include <t_cose/t_cose_sign1_verify.h>
-
 namespace
 {
   std::string buf_to_string(std::span<const uint8_t> buf)
@@ -42,7 +40,10 @@ namespace ccf
         [&]() { return parse(cose_sign1); }, "Parse COSE CBOR");
 
       const auto& cose_envelope = rethrow_with_msg(
-        [&]() -> auto& { return cose_cbor->tag_at(18); }, "Parse COSE tag");
+        [&]() -> auto& {
+          return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1);
+        },
+        "Parse COSE tag");
 
       const auto& phdr_raw = rethrow_with_msg(
         [&]() -> auto& { return cose_envelope->array_at(0); },
@@ -56,13 +57,13 @@ namespace ccf
 
       parsed.alg = rethrow_with_msg(
         [&]() {
-          return phdr->map_at(make_signed(headers::PARAM_ALG))->as_signed();
+          return phdr->map_at(make_signed(header::iana::ALG))->as_signed();
         },
         "Parse alg in protected header");
 
       parsed.kid = buf_to_string(rethrow_with_msg(
         [&]() {
-          return phdr->map_at(make_signed(headers::PARAM_KID))->as_bytes();
+          return phdr->map_at(make_signed(header::iana::KID))->as_bytes();
         },
         "Parse kid in protected header"));
 
@@ -126,7 +127,10 @@ namespace ccf
         [&]() { return parse(cose_sign1); }, "Parse COSE CBOR");
 
       const auto& cose_envelope = rethrow_with_msg(
-        [&]() -> auto& { return cose_cbor->tag_at(18); }, "Parse COSE tag");
+        [&]() -> auto& {
+          return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1);
+        },
+        "Parse COSE tag");
 
       const auto& phdr_raw = rethrow_with_msg(
         [&]() -> auto& { return cose_envelope->array_at(0); },
@@ -140,13 +144,13 @@ namespace ccf
 
       parsed.alg = rethrow_with_msg(
         [&]() {
-          return phdr->map_at(make_signed(headers::PARAM_ALG))->as_signed();
+          return phdr->map_at(make_signed(header::iana::ALG))->as_signed();
         },
         "Parse alg in protected header");
 
       parsed.kid = buf_to_string(rethrow_with_msg(
         [&]() {
-          return phdr->map_at(make_signed(headers::PARAM_KID))->as_bytes();
+          return phdr->map_at(make_signed(header::iana::KID))->as_bytes();
         },
         "Parse kid in protected header"));
 

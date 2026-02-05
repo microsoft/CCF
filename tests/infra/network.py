@@ -220,7 +220,7 @@ class Network:
 
     def __init__(
         self,
-        hosts,
+        hosts=None,
         binary_dir=".",
         dbg_nodes=None,
         existing_network=None,
@@ -241,26 +241,28 @@ class Network:
         if existing_network is None:
             self.consortium = None
             self.users = []
-            self.hosts = hosts
+            self.hosts = hosts or []
             self.next_node_id = next_node_id
             self.txs = txs
             self.jwt_issuer = jwt_issuer
             self.service_load = service_load
             self.recovery_count = 0
+            self.common_dir = None
         else:
             self.consortium = existing_network.consortium
             self.users = existing_network.users
+            self.hosts = hosts or infra.e2e_args.nodes(
+                existing_network.args, len(existing_network.nodes)
+            )
             self.next_node_id = existing_network.next_node_id
             self.txs = existing_network.txs
             self.jwt_issuer = existing_network.jwt_issuer
-            self.hosts = infra.e2e_args.nodes(
-                existing_network.args, len(existing_network.nodes)
-            )
             self.service_load = None
             if existing_network.service_load:
                 self.service_load = existing_network.service_load
                 self.service_load.set_network(self)
             self.recovery_count = existing_network.recovery_count
+            self.common_dir = existing_network.common_dir
 
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []
@@ -268,7 +270,6 @@ class Network:
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
         self.library_dir = library_dir
-        self.common_dir = None
         self.election_duration = None
         self.observed_election_duration = None
         self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
@@ -694,8 +695,10 @@ class Network:
         :param snapshots_dir: snapshot directory to recover from.
         :param common_dir: common directory containing member and user keys and certs.
         """
-        self.common_dir = common_dir or get_common_folder_name(
-            args.workspace, args.label
+        self.common_dir = (
+            common_dir
+            or self.common_dir
+            or get_common_folder_name(args.workspace, args.label)
         )
         committed_ledger_dirs = committed_ledger_dirs or []
 
@@ -783,8 +786,10 @@ class Network:
         suspend_after_start=False,
         **kwargs,
     ):
-        self.common_dir = common_dir or get_common_folder_name(
-            args.workspace, args.label
+        self.common_dir = (
+            common_dir
+            or self.common_dir
+            or get_common_folder_name(args.workspace, args.label)
         )
 
         self.per_node_args_override = self.per_node_args_override or {
@@ -937,7 +942,10 @@ class Network:
         self.consortium.set_constitution(random_node, args.constitution)
 
         prev_service_identity = None
-        if args.previous_service_identity_file:
+        if (
+            args.previous_service_identity_file is not None
+            and args.previous_service_identity_file != ""
+        ):
             prev_service_identity = slurp_file(args.previous_service_identity_file)
 
         self.consortium.transition_service_to_open(
@@ -1923,23 +1931,33 @@ class Network:
         with open(identity_filepath, "w", encoding="utf-8") as f:
             f.write(new_service_identity)
 
-    def save_service_identity(self, args):
+    def get_service_identity(self):
         n = self.find_random_node()
         with n.client() as c:
             r = c.get("/node/network")
             assert r.status_code == 200, r
             current_ident = r.body.json()["service_certificate"]
+        return current_ident
+
+    def save_service_identity_to_file(self):
+        current_ident = self.get_service_identity()
         prev_cert_count = 0
-        previous_identity = os.path.join(self.common_dir, "previous_service_cert.pem")
-        while os.path.exists(previous_identity):
+        previous_identity_file = os.path.join(
+            self.common_dir, "previous_service_cert.pem"
+        )
+        while os.path.exists(previous_identity_file):
             prev_cert_count += 1
-            previous_identity = os.path.join(
+            previous_identity_file = os.path.join(
                 self.common_dir, f"previous_service_cert_{prev_cert_count}.pem"
             )
-        with open(previous_identity, "w", encoding="utf-8") as f:
+        with open(previous_identity_file, "w", encoding="utf-8") as f:
             f.write(current_ident)
-        args.previous_service_identity_file = previous_identity
-        return current_ident
+        return previous_identity_file, current_ident
+
+    def save_service_identity(self, args):
+        path, identity = self.save_service_identity_to_file()
+        args.previous_service_identity_file = path
+        return identity
 
     def identity(self, name=None):
         if name is not None:

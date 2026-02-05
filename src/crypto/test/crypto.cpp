@@ -16,6 +16,7 @@
 #include "ccf/ds/x509_time_fmt.h"
 #include "crypto/cbor.h"
 #include "crypto/certs.h"
+#include "crypto/cose.h"
 #include "crypto/csr.h"
 #include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/cose_verifier.h"
@@ -230,7 +231,7 @@ void require_match_headers(
 {
   auto decoded = ccf::cbor::parse(cose_sign);
 
-  const auto& as_cose = decoded->tag_at(18);
+  const auto& as_cose = decoded->tag_at(ccf::cbor::tag::COSE_SIGN_1);
   const auto& raw_phdr = as_cose->array_at(0)->as_bytes();
 
   auto phdr = ccf::cbor::parse(raw_phdr);
@@ -1202,12 +1203,18 @@ TEST_CASE("COSE sign & verify")
       ccf::crypto::make_ec_key_pair(CurveID::SECP384R1));
 
   std::vector<uint8_t> payload{1, 10, 42, 43, 44, 45, 100};
-  const auto protected_headers = {
-    ccf::crypto::cose_params_int_int(35, 53),
-    ccf::crypto::cose_params_int_string(36, "thirsty six"),
-    ccf::crypto::cose_params_string_int("hungry seven", 47),
-    ccf::crypto::cose_params_string_string("string key", "string value")};
-  auto cose_sign = cose_sign1(*kp, protected_headers, payload);
+
+  using namespace ccf;
+  std::vector<cbor::MapItem> phdr;
+
+  phdr.emplace_back(cbor::make_signed(35), cbor::make_signed(53));
+  phdr.emplace_back(cbor::make_signed(36), cbor::make_string("thirsty six"));
+  phdr.emplace_back(cbor::make_string("hungry seven"), cbor::make_signed(47));
+  phdr.emplace_back(
+    cbor::make_string("string key"), cbor::make_string("string value"));
+
+  auto phdr_map = cbor::make_map(std::move(phdr));
+  auto cose_sign = cose_sign1(*kp, phdr_map, payload);
 
   if constexpr (false) // enable to see the whole cose_sign as byte string
   {
@@ -1240,7 +1247,7 @@ TEST_CASE("COSE sign & verify")
     cose_verifier->verify_detached(cose_sign, std::vector<uint8_t>{1, 2, 3}));
 
   // Empty headers and payload handled correctly
-  cose_sign = cose_sign1(*kp, {}, {});
+  cose_sign = cose_sign1(*kp, ccf::cbor::make_map({}), {});
   require_match_headers(
     {35, std::nullopt},
     {36, std::nullopt},

@@ -377,6 +377,10 @@ def test_expired_certs(network, args):
     # Restore connectivity with primary, an election may or may not happen
     network.wait_for_primary_unanimity(min_view=r.view + 1)
 
+    # Dropped partition, and even primary unanimity, do not mean node connectivity has been instantaneously restored.
+    # Sleep through potential delays in reconnection.
+    time.sleep(3)
+
     # Set valid node certs so that future clients can speak to these nodes
     set_certs(from_days_diff=-1, validity_period_days=7, nodes=(primary, backup_a))
 
@@ -926,9 +930,6 @@ def run_ledger_chunk_bytes_check(const_args):
         size_0 = unit_size
         size_1 = unit_size * 3
         size_2 = unit_size * 9
-
-        51869
-        51893
 
         def overhead(num_transactions, num_signatures):
             # From checking a sample run, the overhead consists of:
