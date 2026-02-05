@@ -754,7 +754,7 @@ class CCFRemote(object):
         paths = [os.path.join(self.remote.root, self.ledger_dir_name)]
         for read_only_ledger_dir_name in self.read_only_ledger_dirs_names:
             paths += [os.path.join(self.remote.root, read_only_ledger_dir_name)]
-        return [paths for paths in paths if os.path.exists(paths)]
+        return [path for path in paths if os.path.exists(path)]
 
     def get_logs(self):
         return self.remote.get_logs()
