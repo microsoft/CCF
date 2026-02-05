@@ -332,7 +332,7 @@ namespace snapshots
           snapshot_range_request,
           snapshot_range_status_code,
           HTTP_STATUS_PARTIAL_CONTENT,
-          response_body);
+          snapshot_range_request->get_response_ptr());
 
         process_partial_response(*snapshot_range_request);
 
