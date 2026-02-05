@@ -154,7 +154,7 @@ namespace snapshots
           it->second);
         parsed_values.inclusive_range_end -= 1;
       }
-      else if (range_length == content_length + 1)
+      else if (range_length + 1 == content_length)
       {
         LOG_DEBUG_FMT(
           "Server sent an inclusive-end content-range header. "
