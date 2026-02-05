@@ -287,8 +287,9 @@ def run_code_upgrade_from(
     )
 
     # pre 7.0.0 nodes may not always set the chunking flags in the ledger
-    fv_skip_verify_chunking = infra.node.version_after("ccf-7.0.0", from_version)
-    tv_skip_verify_chunking = infra.node.version_after("ccf-7.0.0", to_version)
+    ccf7dev1 = infra.node.CCFVersion("ccf-7.0.0-dev1")
+    fv_skip_verify_chunking = infra.node.CCFVersion(from_version) < ccf7dev1
+    tv_skip_verify_chunking = infra.node.CCFVersion(to_version) < ccf7dev1
 
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
@@ -629,6 +630,10 @@ def run_ledger_compatibility_since_first(
                     expected_recovery_count = len(
                         infra.github.END_OF_LIFE_MAJOR_VERSIONS
                     )
+                    # Set previous_version to the last eol version
+                    previous_version = (
+                        f"ccf-{infra.github.END_OF_LIFE_MAJOR_VERSIONS[-1]}.0.0"
+                    )
                     service_dir = os.path.join(
                         os.path.dirname(os.path.realpath(__file__)),
                         "testdata",
@@ -738,6 +743,7 @@ def run_ledger_compatibility_since_first(
                     return ccf_prev < ccf_boundary and ccf_boundary <= ccf_version
 
                 stop_verify_kwargs = {}
+
                 # We accept ledger chunk file differences during upgrades
                 # from 1.x to 2.x post rc7 ledger. This is necessary because
                 # the ledger files may not be chunked at the same interval
@@ -754,9 +760,13 @@ def run_ledger_compatibility_since_first(
                 # They will not chunk these files and hence have different chunking to the original ledger
                 if recovery_is_over_boundary("ccf-7.0.0-dev1"):
                     stop_verify_kwargs |= {
-                        "accept_ledger_diff": True,  # due to no snapshot causing replay
                         "skip_verify_chunking": True,
                     }
+                    if not use_snapshot:
+                        # Will replay from the start of time so the chunking should be different
+                        stop_verify_kwargs |= {
+                            "accept_ledger_diff": True,
+                        }
                 if test_jwt_cleanup:
                     stop_verify_kwargs |= {"skip_verification": True}
 
