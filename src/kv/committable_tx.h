@@ -192,12 +192,11 @@ namespace ccf::kv
 
         if (tx_flag_enabled(TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE))
         {
-          pimpl->store->set_flag(
-            AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
-          // This transaction indicates to the store that the next signature
-          // should trigger a new ledger chunk, but *this* transaction does not
-          // create a new ledger chunk
-          unset_tx_flag(TxFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+          auto chunker = pimpl->store->get_chunker();
+          if (chunker)
+          {
+            chunker->force_end_of_chunk(version);
+          }
         }
 
         if (tx_flag_enabled(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE))
@@ -440,22 +439,24 @@ namespace ccf::kv
       // This is a signature and, if the ledger chunking or snapshot flags are
       // enabled, we want the host to create a chunk when it sees this entry.
       // version_lock held by Store::commit
-      if (pimpl->store->must_force_ledger_chunk_unsafe(version))
+      if (pimpl->store->should_create_ledger_chunk_unsafe(version))
       {
         entry_flags |= EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
         LOG_DEBUG_FMT(
-          "Forcing ledger chunk for signature at {}.{}",
+          "Ending ledger chunk with signature at {}.{}",
           pimpl->commit_view,
           version);
+
+        auto chunker = pimpl->store->get_chunker();
+        if (chunker)
+        {
+          chunker->produced_chunk_at(version);
+        }
       }
 
       committed = true;
       auto claims = ccf::empty_claims();
       auto data = serialise(commit_evidence_digest, commit_evidence, claims);
-
-      // Reset ledger chunk flag in the store
-      pimpl->store->unset_flag_unsafe(
-        AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
 
       return {
         CommitResult::SUCCESS,

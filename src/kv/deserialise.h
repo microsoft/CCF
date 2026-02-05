@@ -4,6 +4,7 @@
 
 #include "apply_changes.h"
 #include "kv/committable_tx.h"
+#include "kv/ledger_chunker_interface.h"
 #include "kv_types.h"
 #include "service/tables/shares.h"
 #include "service/tables/signatures.h"
@@ -41,6 +42,7 @@ namespace ccf::kv
   private:
     ExecutionWrapperStore* store;
     std::shared_ptr<TxHistory> history;
+    std::shared_ptr<ILedgerChunker> chunker;
     const std::vector<uint8_t> data;
     bool public_only;
     ccf::kv::Version version;
@@ -57,11 +59,13 @@ namespace ccf::kv
     CFTExecutionWrapper(
       ExecutionWrapperStore* store_,
       std::shared_ptr<TxHistory> history_,
+      std::shared_ptr<ILedgerChunker> chunker_,
       const std::vector<uint8_t>& data_,
       bool public_only_,
       const std::optional<TxID>& expected_txid_) :
       store(store_),
       history(history_),
+      chunker(chunker_),
       data(data_),
       public_only(public_only_),
       expected_txid(expected_txid_)
@@ -170,6 +174,12 @@ namespace ccf::kv
         history->append_entry(
           ccf::entry_leaf(data, commit_evidence_digest, claims_digest));
       }
+
+      if (chunker)
+      {
+        chunker->append_entry_size(data.size());
+      }
+
       return success;
     }
 
