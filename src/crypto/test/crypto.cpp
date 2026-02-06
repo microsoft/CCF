@@ -781,6 +781,29 @@ TEST_CASE("Non-ASN.1 timepoint formats")
   REQUIRE(conv == "20220425195619Z");
 }
 
+TEST_CASE("Timepoint bounds")
+{
+  auto time_str = "1677-09-21 00:12:44";
+  auto tp = ccf::ds::time_point_from_string(time_str);
+  auto conv = ccf::ds::to_x509_time_string(tp);
+  REQUIRE(conv == "16770921001244Z");
+
+  time_str = "1677-09-21 00:12:43";
+  tp = ccf::ds::time_point_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(tp);
+  CHECK(conv == "16770921001243Z");
+
+  time_str = "2262-04-11 23:47:16";
+  tp = ccf::ds::time_point_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(tp);
+  REQUIRE(conv == "22620411234716Z");
+
+  time_str = "2262-04-11 23:47:17";
+  tp = ccf::ds::time_point_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(tp);
+  CHECK(conv == "22620411234717Z");
+}
+
 TEST_CASE("Create sign and verify certificates")
 {
   bool corrupt_csr = false;
