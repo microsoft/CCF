@@ -743,7 +743,10 @@ def run_ledger_compatibility_since_first(
                         previous_version, version
                     )
                 )
-                network.stop_all_nodes(accept_ledger_diff=accept_ledger_diff, skip_verification=skip_verification)
+                network.stop_all_nodes(
+                    accept_ledger_diff=accept_ledger_diff,
+                    skip_verification=skip_verification,
+                )
 
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
