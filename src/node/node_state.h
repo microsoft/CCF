@@ -2736,9 +2736,9 @@ namespace ccf
 
     void shuffle_sealed_shares(ccf::kv::Tx& tx) override
     {
-      // skip if during recovery as the ledger secrets are not yet restored
       if (!is_part_of_network())
       {
+        LOG_INFO_FMT("Skipping shuffling of sealed shares during recovery as ledger secrets are not yet available");
         return;
       }
       auto latest_ledger_secret = network.ledger_secrets->get_latest(tx);
