@@ -285,7 +285,7 @@ class Node:
         self.common_dir = common_dir
         members_info = members_info or []
         self.label = label
-        self.enable_local_sealing = enable_local_sealing
+        self.enable_local_sealing = bool(enable_local_sealing) # ensure it's a bool since it may be passed as None from args
 
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         self.remote = infra.remote.CCFRemote(
