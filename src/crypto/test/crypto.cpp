@@ -789,8 +789,12 @@ TEST_CASE("Timepoint bounds")
   REQUIRE(conv == "16770921001244Z");
 
   time_str = "1677-09-21 00:12:43";
-  tp = ccf::ds::time_point_from_string(time_str);
-  conv = ccf::ds::to_x509_time_string(tp);
+  REQUIRE_THROWS_WITH(
+    ccf::ds::time_point_from_string(time_str),
+    "'1677-09-21 00:12:43' is too far in the past to be represented as a "
+    "system_clock::time_point");
+  auto s = ccf::ds::since_epoch_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(s);
   CHECK(conv == "16770921001243Z");
 
   time_str = "2262-04-11 23:47:16";
@@ -799,9 +803,32 @@ TEST_CASE("Timepoint bounds")
   REQUIRE(conv == "22620411234716Z");
 
   time_str = "2262-04-11 23:47:17";
-  tp = ccf::ds::time_point_from_string(time_str);
-  conv = ccf::ds::to_x509_time_string(tp);
+  REQUIRE_THROWS_WITH(
+    ccf::ds::time_point_from_string(time_str),
+    "'2262-04-11 23:47:17' is too far in the future to be represented as a "
+    "system_clock::time_point");
+  s = ccf::ds::since_epoch_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(s);
   CHECK(conv == "22620411234717Z");
+}
+
+TEST_CASE("Invalid times")
+{
+  REQUIRE_THROWS_WITH(
+    ccf::ds::time_point_from_string("hello"),
+    "'hello' does not match any accepted time format");
+
+  REQUIRE_THROWS_WITH(
+    ccf::ds::time_point_from_string("Monday"),
+    "'Monday' does not match any accepted time format");
+
+  REQUIRE_THROWS_WITH(
+    ccf::ds::time_point_from_string("April 1st, 1984"),
+    "'April 1st, 1984' does not match any accepted time format");
+    
+  REQUIRE_THROWS_WITH(
+    ccf::ds::time_point_from_string("1111-1111"),
+    "'1111-1111' does not match any accepted time format");
 }
 
 TEST_CASE("Create sign and verify certificates")
