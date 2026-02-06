@@ -48,15 +48,9 @@ namespace ccf
         using namespace std::chrono;
 
         const auto valid_from_unix_time =
-          duration_cast<seconds>(
-            ccf::ds::time_point_from_string(valid_from_timestring)
-              .time_since_epoch())
-            .count();
+          ccf::ds::since_epoch_from_string(valid_from_timestring).count();
         const auto valid_to_unix_time =
-          duration_cast<seconds>(
-            ccf::ds::time_point_from_string(valid_to_timestring)
-              .time_since_epoch())
-            .count();
+          ccf::ds::since_epoch_from_string(valid_to_timestring).count();
 
         it = periods.insert(
           der, ValidityPeriod{valid_from_unix_time, valid_to_unix_time});
