@@ -2738,7 +2738,9 @@ namespace ccf
     {
       if (!is_part_of_network())
       {
-        LOG_INFO_FMT("Skipping shuffling of sealed shares during recovery as ledger secrets are not yet available");
+        LOG_INFO_FMT(
+          "Skipping shuffling of sealed shares during recovery as ledger "
+          "secrets are not yet available");
         return;
       }
       auto latest_ledger_secret = network.ledger_secrets->get_latest(tx);
