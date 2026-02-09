@@ -33,9 +33,7 @@ namespace ccf::node
       if (!pref_trimmed.empty())
       {
         const auto [p, ec] = std::from_chars(
-          pref_trimmed.data(),
-          pref_trimmed.data() + pref_trimmed.size(),
-          pref);
+          pref_trimmed.data(), pref_trimmed.data() + pref_trimmed.size(), pref);
         if (ec != std::errc() || pref < 1)
         {
           continue;
@@ -463,8 +461,7 @@ namespace ccf::node
 
       // Extract the requested range for the response body
       std::vector<uint8_t> contents(
-        full_contents.begin() + range_start,
-        full_contents.begin() + range_end);
+        full_contents.begin() + range_start, full_contents.begin() + range_end);
       ctx.rpc_ctx->set_response_body(std::move(contents));
     }
     else

@@ -452,9 +452,7 @@ def test_snapshot_repr_digest(network, args):
         }
 
         for algo_name, hash_fn in algos.items():
-            expected_b64 = base64.b64encode(
-                hash_fn(snapshot_data).digest()
-            ).decode()
+            expected_b64 = base64.b64encode(hash_fn(snapshot_data).digest()).decode()
             expected_header = f"{algo_name}=:{expected_b64}:"
 
             for verb in ("GET", "HEAD"):
@@ -471,9 +469,9 @@ def test_snapshot_repr_digest(network, args):
                 repr_digest = r.headers.get("repr-digest") or r.headers.get(
                     "Repr-Digest"
                 )
-                assert repr_digest is not None, (
-                    f"Missing Repr-Digest header on {verb} with {algo_name}"
-                )
+                assert (
+                    repr_digest is not None
+                ), f"Missing Repr-Digest header on {verb} with {algo_name}"
                 assert repr_digest == expected_header, (
                     f"Repr-Digest mismatch on {verb} with {algo_name}: "
                     f"expected {expected_header}, got {repr_digest}"
@@ -839,9 +837,7 @@ def test_ledger_chunk_repr_digest(network, args):
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
     ) as c:
         main_ledger_dir = primary.get_main_ledger_dir()
-        chunks = [
-            f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")
-        ]
+        chunks = [f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")]
         chunks = sorted(
             (*ccf.ledger.range_from_filename(chunk), chunk) for chunk in chunks
         )
@@ -877,9 +873,9 @@ def test_ledger_chunk_repr_digest(network, args):
                 repr_digest = r.headers.get("repr-digest") or r.headers.get(
                     "Repr-Digest"
                 )
-                assert repr_digest is not None, (
-                    f"Missing Repr-Digest header on {verb} with {algo_name}"
-                )
+                assert (
+                    repr_digest is not None
+                ), f"Missing Repr-Digest header on {verb} with {algo_name}"
                 assert repr_digest == expected_header, (
                     f"Repr-Digest mismatch on {verb} with {algo_name}: "
                     f"expected {expected_header}, got {repr_digest}"
@@ -901,9 +897,9 @@ def test_ledger_chunk_repr_digest(network, args):
             allow_redirects=False,
         )
         repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
-        assert repr_digest is None, (
-            f"Unexpected Repr-Digest header for unsupported algorithm: {repr_digest}"
-        )
+        assert (
+            repr_digest is None
+        ), f"Unexpected Repr-Digest header for unsupported algorithm: {repr_digest}"
 
         # Verify that the highest-priority algorithm is chosen
         r = c.get(
@@ -912,13 +908,11 @@ def test_ledger_chunk_repr_digest(network, args):
             allow_redirects=False,
         )
         repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
-        expected_b64 = base64.b64encode(
-            hashlib.sha512(chunk_data).digest()
-        ).decode()
+        expected_b64 = base64.b64encode(hashlib.sha512(chunk_data).digest()).decode()
         expected_header = f"sha-512=:{expected_b64}:"
-        assert repr_digest == expected_header, (
-            f"Expected sha-512 (highest priority) but got {repr_digest}"
-        )
+        assert (
+            repr_digest == expected_header
+        ), f"Expected sha-512 (highest priority) but got {repr_digest}"
 
 
 def test_ledger_chunk_redirect_recent(network, args):
