@@ -7,6 +7,7 @@ import infra.network
 import infra.path
 import infra.proc
 import infra.net
+from infra.node import CCFVersion
 import infra.e2e_args
 import infra.proposal
 import suite.test_requirements as reqs
@@ -508,7 +509,7 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
     self_signed_node_certs_before = {}
     for node in network.get_joined_nodes():
         # Note: GET /node/self_signed_certificate endpoint was added after 2.0.0-r6
-        if node.version_after("ccf-2.0.0-rc6"):
+        if CCFVersion(node.version) > CCFVersion("ccf-2.0.0-rc6"):
             self_signed_node_certs_before[node.local_node_id] = (
                 node.retrieve_self_signed_cert()
             )
@@ -524,7 +525,7 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
 
     for node in network.get_joined_nodes():
         node.set_certificate_validity_period(valid_from, validity_period_days)
-        if node.version_after("ccf-2.0.0-rc6"):
+        if CCFVersion(node.version) > CCFVersion("ccf-2.0.0-rc6"):
             assert (
                 self_signed_node_certs_before[node.local_node_id]
                 != node.retrieve_self_signed_cert()

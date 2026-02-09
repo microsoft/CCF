@@ -44,9 +44,9 @@ DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
 
 def update_gov_authn(version):
     rv = None
-    if not infra.node.version_after(version, "ccf-3.0.0"):
+    if not infra.node.CCFVersion(version) > infra.node.CCFVersion("ccf-3.0.0"):
         rv = False
-    if infra.node.version_after(version, "ccf-4.0.0-rc0"):
+    if infra.node.CCFVersion(version) > infra.node.CCFVersion("ccf-4.0.0-rc0"):
         rv = "COSE"
     LOG.info(f"Setting gov authn to {rv} because version is {version}")
     return rv
@@ -285,6 +285,13 @@ def run_code_upgrade_from(
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
     )
+
+    # pre 6.0.21 nodes may not always set the chunking flags in the ledger
+    # This arrived in #7640, the backport of #7097
+    ccf621 = infra.node.CCFVersion("ccf-6.0.21")
+    fv_skip_verify_chunking = infra.node.CCFVersion(from_version) < ccf621
+    tv_skip_verify_chunking = infra.node.CCFVersion(to_version) < ccf621
+
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         with infra.network.network(
@@ -295,9 +302,12 @@ def run_code_upgrade_from(
             txs=txs,
             jwt_issuer=jwt_issuer,
             version=from_version,
+            skip_verify_chunking=fv_skip_verify_chunking or tv_skip_verify_chunking,
         ) as network:
             kwargs = {}
-            if not infra.node.version_after(from_version, "ccf-4.0.0-rc1"):
+            if not infra.node.CCFVersion(from_version) > infra.node.CCFVersion(
+                "ccf-4.0.0-rc1"
+            ):
                 kwargs["reconfiguration_type"] = "OneTransaction"
 
             network.start_and_open(
@@ -396,7 +406,9 @@ def run_code_upgrade_from(
                     cert_pem.encode(), default_backend()
                 )
                 version = primary.version or args.ccf_version
-                if not infra.node.version_after(version, "ccf-5.0.0-dev14"):
+                if not infra.node.CCFVersion(version) > infra.node.CCFVersion(
+                    "ccf-5.0.0-dev14"
+                ):
                     service_subject_name = cert.subject.rfc4514_string()
                     LOG.info(
                         f"Custom subject name not supported on {version}, so falling back to default {service_subject_name}"
@@ -574,14 +586,15 @@ def run_ledger_compatibility_since_first(
     # Note: dicts are ordered from Python3.7
     lts_releases[None] = None
 
+    # These variables are the previous service's info
     ledger_dir = None
     committed_ledger_dirs = None
     snapshots_dir = None
+    previous_version = None
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
     )
-    previous_version = None
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
@@ -609,9 +622,12 @@ def run_ledger_compatibility_since_first(
                     "txs": txs,
                     "jwt_issuer": jwt_issuer,
                     "version": version,
+                    "skip_verify_chunking": True,  # Old ledger files will have incorrect chunking
                 }
                 kwargs = {}
-                if not infra.node.version_after(version, "ccf-4.0.0-rc1"):
+                if not infra.node.CCFVersion(version) > infra.node.CCFVersion(
+                    "ccf-4.0.0-rc1"
+                ):
                     kwargs["reconfiguration_type"] = "OneTransaction"
 
                 if idx == 0:
@@ -678,14 +694,11 @@ def run_ledger_compatibility_since_first(
                         args,
                         expected_recovery_count=(
                             1
-                            if not infra.node.version_after(
-                                previous_version, "ccf-2.0.3"
-                            )
+                            if not infra.node.CCFVersion(previous_version)
+                            > infra.node.CCFVersion("ccf-2.0.3")
                             else None
                         ),
                     )
-
-                previous_version = version
 
                 nodes = network.get_joined_nodes()
                 primary, _ = network.find_primary()
@@ -725,13 +738,22 @@ def run_ledger_compatibility_since_first(
                 )
 
                 network.save_service_identity(args)
-                # We accept ledger chunk file differences during upgrades
-                # from 1.x to 2.x post rc7 ledger. This is necessary because
-                # the ledger files may not be chunked at the same interval
-                # between those versions (see https://github.com/microsoft/ccf/issues/3613;
-                # 1.x ledgers do not contain the header flags to synchronize ledger chunks).
-                # This can go once 2.0 is released.
-                network.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
+
+                # Ledger file chunking changed from 1.x to 2.x and if it does not join from a snapshot the eol ledger files will be re-chunked differently on the joining node
+                accept_ledger_diff = not use_snapshot
+
+                skip_verification = test_jwt_cleanup
+
+                LOG.info(
+                    "Stopping network recovering from version {} to {}".format(
+                        previous_version, version
+                    )
+                )
+                network.stop_all_nodes(
+                    accept_ledger_diff=accept_ledger_diff,
+                    skip_verification=skip_verification,
+                )
+
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
                 # Check that ledger and snapshots can be parsed
@@ -742,6 +764,8 @@ def run_ledger_compatibility_since_first(
                             os.path.join(snapshots_dir, s)
                         ) as snapshot:
                             snapshot.get_public_domain()
+
+                previous_version = version
 
     return lts_versions
 

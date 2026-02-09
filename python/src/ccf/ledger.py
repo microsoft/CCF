@@ -3,7 +3,7 @@
 
 import struct
 import os
-from enum import Enum
+from enum import Enum, Flag, auto
 
 from typing import NamedTuple, Optional, Tuple, Dict, List
 
@@ -77,6 +77,11 @@ class EntryType(Enum):
             EntryType.WRITE_SET_WITH_CLAIMS,
             EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE,
         )
+
+
+class TransactionFlags(Flag):
+    FORCE_CHUNK_AFTER = auto()
+    FORCE_CHUNK_BEFORE = auto()
 
 
 def to_uint_64(buffer):
