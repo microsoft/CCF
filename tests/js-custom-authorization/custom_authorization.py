@@ -359,9 +359,7 @@ def test_cert_auth(network, args):
     LOG.info("Future Not-Before doesn't wraparound")
     local_user_id = "distant_future"
     # system_clock max representable time is currently 2262-04-11, so use a date after that to check for wraparound
-    valid_from = utctime(
-        year=2262, month=4, day=12
-    )
+    valid_from = utctime(year=2262, month=4, day=12)
     create_keypair(local_user_id, valid_from, 4)
     network.consortium.add_user(primary, local_user_id)
 
@@ -377,9 +375,7 @@ def test_cert_auth(network, args):
     LOG.info("Representable range")
     local_user_id = "representable"
     # Python crypto enforces minimum Not-Before of 1950-01-01
-    valid_from = utctime(
-        year=1950, month=1, day=1
-    )
+    valid_from = utctime(year=1950, month=1, day=1)
     # Probe maximum validity range
     validity_days = (utctime(year=9999, month=12, day=31) - valid_from).days
     create_keypair(local_user_id, valid_from, validity_days)
