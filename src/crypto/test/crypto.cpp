@@ -825,7 +825,7 @@ TEST_CASE("Invalid times")
   REQUIRE_THROWS_WITH(
     ccf::ds::time_point_from_string("April 1st, 1984"),
     "'April 1st, 1984' does not match any accepted time format");
-    
+
   REQUIRE_THROWS_WITH(
     ccf::ds::time_point_from_string("1111-1111"),
     "'1111-1111' does not match any accepted time format");
