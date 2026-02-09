@@ -462,10 +462,9 @@ def test_snapshot_repr_digest(network, args):
                     headers={"want-repr-digest": f"{algo_name}=10"},
                     allow_redirects=False,
                 )
-                assert r.status_code in (
-                    http.HTTPStatus.OK.value,
-                    http.HTTPStatus.PARTIAL_CONTENT.value,
-                ), f"Unexpected status {r.status_code} for {verb}"
+                assert r.status_code == http.HTTPStatus.OK.value, (
+                    f"Expected 200 OK for {verb} without Range, got {r.status_code}"
+                )
                 repr_digest = r.headers.get("repr-digest") or r.headers.get(
                     "Repr-Digest"
                 )
@@ -484,6 +483,37 @@ def test_snapshot_repr_digest(network, args):
         assert repr_digest is None, (
             f"Unexpected Repr-Digest header when Want-Repr-Digest was not sent: "
             f"{repr_digest}"
+        )
+
+        # Verify Repr-Digest still reflects the full file when a Range
+        # header is sent (body is partial, digest is full)
+        total_size = len(snapshot_data)
+        range_end = total_size // 2
+        expected_b64 = base64.b64encode(
+            hashlib.sha256(snapshot_data).digest()
+        ).decode()
+        expected_header = f"sha-256=:{expected_b64}:"
+        r = c.call(
+            path,
+            http_verb="GET",
+            headers={
+                "want-repr-digest": "sha-256=10",
+                "range": f"bytes=0-{range_end}",
+            },
+            allow_redirects=False,
+        )
+        assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, (
+            f"Expected 206 Partial Content for GET with Range, got {r.status_code}"
+        )
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        assert repr_digest is not None, "Missing Repr-Digest header on GET with Range"
+        assert repr_digest == expected_header, (
+            f"Repr-Digest should reflect full file even with Range: "
+            f"expected {expected_header}, got {repr_digest}"
+        )
+        # Verify response body is partial
+        assert len(r.body.data()) == range_end + 1, (
+            f"Expected partial body of {range_end + 1} bytes, got {len(r.body.data())}"
         )
 
 
@@ -866,10 +896,9 @@ def test_ledger_chunk_repr_digest(network, args):
                     headers={"want-repr-digest": f"{algo_name}=10"},
                     allow_redirects=False,
                 )
-                assert r.status_code in (
-                    http.HTTPStatus.OK.value,
-                    http.HTTPStatus.PARTIAL_CONTENT.value,
-                ), f"Unexpected status {r.status_code} for {verb}"
+                assert r.status_code == http.HTTPStatus.OK.value, (
+                    f"Expected 200 OK for {verb} without Range, got {r.status_code}"
+                )
                 repr_digest = r.headers.get("repr-digest") or r.headers.get(
                     "Repr-Digest"
                 )
@@ -890,16 +919,21 @@ def test_ledger_chunk_repr_digest(network, args):
             f"{repr_digest}"
         )
 
-        # Verify that unsupported algorithms are ignored
+        # Verify that unsupported algorithms are ignored (request still succeeds,
+        # but no Repr-Digest header is returned)
         r = c.get(
             chunk_url,
             headers={"want-repr-digest": "md5=10"},
             allow_redirects=False,
         )
+        assert r.status_code == http.HTTPStatus.OK.value, (
+            f"Unexpected status {r.status_code} for unsupported algorithm request"
+        )
         repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
-        assert (
-            repr_digest is None
-        ), f"Unexpected Repr-Digest header for unsupported algorithm: {repr_digest}"
+        assert repr_digest is None, (
+            "Unsupported digest algorithms are expected to be ignored: "
+            f"unexpected Repr-Digest header present ({repr_digest})"
+        )
 
         # Verify that the highest-priority algorithm is chosen
         r = c.get(
@@ -913,6 +947,37 @@ def test_ledger_chunk_repr_digest(network, args):
         assert (
             repr_digest == expected_header
         ), f"Expected sha-512 (highest priority) but got {repr_digest}"
+
+        # Verify Repr-Digest still reflects the full file when a Range
+        # header is sent (body is partial, digest is full)
+        total_size = len(chunk_data)
+        range_end = total_size // 2
+        expected_b64 = base64.b64encode(
+            hashlib.sha256(chunk_data).digest()
+        ).decode()
+        expected_header = f"sha-256=:{expected_b64}:"
+        r = c.call(
+            chunk_url,
+            http_verb="GET",
+            headers={
+                "want-repr-digest": "sha-256=10",
+                "range": f"bytes=0-{range_end}",
+            },
+            allow_redirects=False,
+        )
+        assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, (
+            f"Expected 206 Partial Content for GET with Range, got {r.status_code}"
+        )
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        assert repr_digest is not None, "Missing Repr-Digest header on GET with Range"
+        assert repr_digest == expected_header, (
+            f"Repr-Digest should reflect full file even with Range: "
+            f"expected {expected_header}, got {repr_digest}"
+        )
+        # Verify response body is partial
+        assert len(r.body.data()) == range_end + 1, (
+            f"Expected partial body of {range_end + 1} bytes, got {len(r.body.data())}"
+        )
 
 
 def test_ledger_chunk_redirect_recent(network, args):

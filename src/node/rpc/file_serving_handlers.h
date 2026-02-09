@@ -12,9 +12,10 @@
 namespace ccf::node
 {
   // Helper to parse the Want-Repr-Digest request header (RFC 9530) and
-  // return the best supported algorithm name and MDType.  Only sha-256,
-  // sha-384 and sha-512 are supported.  Returns std::nullopt when no
-  // supported algorithm is requested or the header is malformed.
+  // return the best supported algorithm name and MDType. Only sha-256,
+  // sha-384 and sha-512 are supported. Parsing is best-effort: malformed
+  // entries are ignored. Returns std::nullopt when no supported algorithm
+  // can be selected from the header.
   static std::optional<std::pair<std::string, ccf::crypto::MDType>>
   parse_want_repr_digest(const std::string& want_repr_digest)
   {
@@ -270,11 +271,13 @@ namespace ccf::node
 
     size_t range_start = 0;
     size_t range_end = total_size;
+    bool has_range_header = false;
     {
       const auto range_header =
         ctx.rpc_ctx->get_request_header(ccf::http::headers::RANGE);
       if (range_header.has_value())
       {
+        has_range_header = true;
         LOG_TRACE_FMT("Parsing range header {}", range_header.value());
 
         auto [unit, ranges] = ccf::nonstd::split_1(range_header.value(), "=");
@@ -448,7 +451,17 @@ namespace ccf::node
       f.read(reinterpret_cast<char*>(full_contents.data()), total_size);
       f.close();
 
-      if (f.gcount() == static_cast<std::streamsize>(total_size))
+      auto bytes_read = static_cast<size_t>(f.gcount());
+      if (bytes_read < range_end)
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Server was unable to read the file correctly");
+        return;
+      }
+
+      if (bytes_read == total_size)
       {
         ctx.rpc_ctx->set_response_header(
           ccf::http::headers::REPR_DIGEST,
@@ -476,20 +489,28 @@ namespace ccf::node
     }
 
     // Build successful response
-    ctx.rpc_ctx->set_response_status(HTTP_STATUS_PARTIAL_CONTENT);
     ctx.rpc_ctx->set_response_header(
       ccf::http::headers::CONTENT_TYPE,
       ccf::http::headervalues::contenttype::OCTET_STREAM);
 
-    // Convert back to HTTP-style inclusive range end
-    const auto inclusive_range_end = range_end - 1;
+    if (has_range_header)
+    {
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_PARTIAL_CONTENT);
 
-    // Partial Content responses describe the current response in
-    // Content-Range
-    ctx.rpc_ctx->set_response_header(
-      ccf::http::headers::CONTENT_RANGE,
-      fmt::format(
-        "bytes {}-{}/{}", range_start, inclusive_range_end, total_size));
+      // Convert back to HTTP-style inclusive range end
+      const auto inclusive_range_end = range_end - 1;
+
+      // Partial Content responses describe the current response in
+      // Content-Range
+      ctx.rpc_ctx->set_response_header(
+        ccf::http::headers::CONTENT_RANGE,
+        fmt::format(
+          "bytes {}-{}/{}", range_start, inclusive_range_end, total_size));
+    }
+    else
+    {
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    }
   }
 
   static void init_file_serving_handlers(
