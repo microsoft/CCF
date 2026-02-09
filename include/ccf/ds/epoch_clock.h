@@ -6,7 +6,10 @@
 
 namespace ccf::ds
 {
-  // TODO: Docs
+  // A custom clock type for handling certificate validity periods, which are
+  // defined in terms of seconds since the epoch. This avoids issues with
+  // system_clock::time_point being unable to represent times after 2262-04-11
+  // 23:47:17 UTC (due to tracking nanosecond precision).
   struct EpochClock
   {
     using duration = std::chrono::seconds;

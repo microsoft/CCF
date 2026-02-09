@@ -357,7 +357,9 @@ def test_cert_auth(network, args):
     with primary.client(local_user_id) as c:
         r = c.get("/app/cert")
         assert r.status_code == HTTPStatus.UNAUTHORIZED, r
-        expected = f"certificate's Not Before validity period {int(valid_from.timestamp())}"
+        expected = (
+            f"certificate's Not Before validity period {int(valid_from.timestamp())}"
+        )
         actual = parse_error_message(r)
         assert expected in actual, r
 
