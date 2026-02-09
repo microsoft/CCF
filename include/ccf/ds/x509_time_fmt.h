@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#define FMT_HEADER_ONLY
-#include "ccf/ds/epoch_clock.h"
+#include "ccf/ds/nonstd.h"
 
 #include <chrono>
+#define FMT_HEADER_ONLY
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <iomanip>
@@ -23,9 +23,10 @@ namespace ccf::ds
   }
 
   static inline std::string to_x509_time_string(
-    const ccf::ds::EpochClock::time_point& time)
+    const ccf::nonstd::SystemClock::time_point& time)
   {
-    return to_x509_time_string(fmt::gmtime(EpochClock::to_time_t(time)));
+    return to_x509_time_string(
+      fmt::gmtime(ccf::nonstd::SystemClock::to_time_t(time)));
   }
 
   static inline std::string to_x509_time_string(
@@ -34,7 +35,7 @@ namespace ccf::ds
     return to_x509_time_string(fmt::gmtime(time));
   }
 
-  static inline ccf::ds::EpochClock::time_point time_point_from_string(
+  static inline ccf::nonstd::SystemClock::time_point time_point_from_string(
     const std::string& time)
   {
     // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
@@ -52,7 +53,7 @@ namespace ccf::ds
       auto* sres = strptime(ts, afmt, &t);
       if (sres != nullptr && *sres == '\0')
       {
-        auto r = ccf::ds::EpochClock::from_time_t(timegm(&t));
+        auto r = ccf::nonstd::SystemClock::from_time_t(timegm(&t));
         r -= std::chrono::seconds(t.tm_gmtoff);
         return r;
       }
@@ -112,7 +113,8 @@ namespace ccf::ds
             tp -= hours(oh) + minutes(om);
           }
 
-          return ccf::ds::EpochClock::from_time_t(system_clock::to_time_t(tp));
+          return ccf::nonstd::SystemClock::from_time_t(
+            system_clock::to_time_t(tp));
         }
       }
     }

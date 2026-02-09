@@ -191,7 +191,7 @@ ccf::crypto::Pem generate_self_signed_cert(
   constexpr size_t certificate_validity_period_days = 365;
   using namespace std::literals;
   auto valid_from =
-    ccf::ds::to_x509_time_string(ccf::ds::EpochClock::now() - 24h);
+    ccf::ds::to_x509_time_string(ccf::nonstd::SystemClock::now() - 24h);
 
   return ccf::crypto::create_self_signed_cert(
     kp, name, {}, valid_from, certificate_validity_period_days);
@@ -947,7 +947,7 @@ TEST_CASE("AES-GCM convenience functions")
 
 TEST_CASE("x509 time")
 {
-  auto time = ccf::ds::EpochClock::now();
+  auto time = ccf::nonstd::SystemClock::now();
 
   auto next_minute_time = time + 1min;
   auto next_day_time = time + 24h;
@@ -959,8 +959,8 @@ TEST_CASE("x509 time")
     {
       struct Input
       {
-        ccf::ds::EpochClock::time_point from;
-        ccf::ds::EpochClock::time_point to;
+        ccf::nonstd::SystemClock::time_point from;
+        ccf::nonstd::SystemClock::time_point to;
         std::optional<uint32_t> maximum_validity_period_days = std::nullopt;
       };
       Input input;
@@ -995,7 +995,7 @@ TEST_CASE("x509 time")
 
   INFO("Adjust time");
   {
-    std::vector<ccf::ds::EpochClock::time_point> times = {
+    std::vector<ccf::nonstd::SystemClock::time_point> times = {
       time, next_day_time, next_day_time};
     size_t days_offset = 100;
 
@@ -1477,7 +1477,7 @@ TEST_CASE("Do not trust non-ca certs")
     constexpr size_t certificate_validity_period_days = 365;
     using namespace std::literals;
     auto valid_from =
-      ccf::ds::to_x509_time_string(ccf::ds::EpochClock::now() - 24h);
+      ccf::ds::to_x509_time_string(ccf::nonstd::SystemClock::now() - 24h);
     auto valid_to = compute_cert_valid_to_string(
       valid_from, certificate_validity_period_days);
     std::vector<SubjectAltName> subject_alt_names = {};
