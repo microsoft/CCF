@@ -24,8 +24,16 @@
   { \
     if (status_code != expected) \
     { \
-      std::string response_content( \
-        response_body->buffer.begin(), response_body->buffer.end()); \
+      std::string response_content; \
+      if (response_body != nullptr) \
+      { \
+        response_content.assign( \
+          response_body->buffer.begin(), response_body->buffer.end()); \
+      } \
+      else \
+      { \
+        response_content = "(no response body)"; \
+      } \
       throw std::runtime_error(fmt::format( \
         "Expected {} response from {} {}, instead received {} ({})", \
         ccf::http_status_str(expected), \
