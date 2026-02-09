@@ -363,6 +363,19 @@ def test_cert_auth(network, args):
         actual = parse_error_message(r)
         assert expected in actual, r
 
+    LOG.info("Representable range")
+    local_user_id = "representable"
+    # Python crypto enforces minimum Not-Before of 1950-01-01
+    valid_from = datetime.datetime(year=1950, month=1, day=1)
+    # Probe maximum validity range
+    validity_days = (datetime.datetime(year=9999, month=12, day=31) - valid_from).days
+    create_keypair(local_user_id, valid_from, validity_days)
+    network.consortium.add_user(primary, local_user_id)
+
+    with primary.client(local_user_id) as c:
+        r = c.get("/app/cert")
+        assert r.status_code == HTTPStatus.OK, r
+
     return network
 
 
