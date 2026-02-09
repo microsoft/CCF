@@ -256,13 +256,16 @@ namespace ccf::node
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
         f.read(reinterpret_cast<char*>(full_contents.data()), total_size);
 
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::REPR_DIGEST,
-          format_repr_digest(
-            digest_algo->first,
-            digest_algo->second,
-            full_contents.data(),
-            full_contents.size()));
+        if (f.gcount() == static_cast<std::streamsize>(total_size))
+        {
+          ctx.rpc_ctx->set_response_header(
+            ccf::http::headers::REPR_DIGEST,
+            format_repr_digest(
+              digest_algo->first,
+              digest_algo->second,
+              full_contents.data(),
+              full_contents.size()));
+        }
       }
       return;
     }
@@ -447,13 +450,16 @@ namespace ccf::node
       f.read(reinterpret_cast<char*>(full_contents.data()), total_size);
       f.close();
 
-      ctx.rpc_ctx->set_response_header(
-        ccf::http::headers::REPR_DIGEST,
-        format_repr_digest(
-          digest_algo->first,
-          digest_algo->second,
-          full_contents.data(),
-          full_contents.size()));
+      if (f.gcount() == static_cast<std::streamsize>(total_size))
+      {
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::REPR_DIGEST,
+          format_repr_digest(
+            digest_algo->first,
+            digest_algo->second,
+            full_contents.data(),
+            full_contents.size()));
+      }
 
       // Extract the requested range for the response body
       std::vector<uint8_t> contents(
