@@ -3,12 +3,79 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/crypto/base64.h"
+#include "ccf/crypto/hash_provider.h"
 #include "ccf/service/tables/nodes.h"
 #include "node/rpc/ledger_subsystem.h"
 #include "snapshots/filenames.h"
 
 namespace ccf::node
 {
+  // Helper to parse the Want-Repr-Digest request header (RFC 9530), compute
+  // the digest of @p data using the most-preferred supported algorithm, and
+  // return the formatted Repr-Digest header value.  Only sha-256, sha-384
+  // and sha-512 are supported.  Returns std::nullopt when no supported
+  // algorithm is requested or the header is malformed.
+  static std::optional<std::string> compute_repr_digest(
+    const std::string& want_repr_digest,
+    const uint8_t* data,
+    size_t size)
+  {
+    std::string best_algo;
+    ccf::crypto::MDType best_md = ccf::crypto::MDType::NONE;
+    int best_pref = 0;
+
+    for (const auto& entry : ccf::nonstd::split(want_repr_digest, ","))
+    {
+      auto [algo, pref_sv] = ccf::nonstd::split_1(
+        ccf::nonstd::trim(entry), "=");
+      auto algo_name = ccf::nonstd::trim(algo);
+
+      int pref = 0;
+      auto pref_trimmed = ccf::nonstd::trim(pref_sv);
+      if (!pref_trimmed.empty())
+      {
+        const auto [p, ec] = std::from_chars(
+          pref_trimmed.data(),
+          pref_trimmed.data() + pref_trimmed.size(),
+          pref);
+        if (ec != std::errc() || pref < 1)
+        {
+          continue;
+        }
+      }
+      else
+      {
+        pref = 1;
+      }
+
+      ccf::crypto::MDType md = ccf::crypto::MDType::NONE;
+      if (algo_name == "sha-256")
+        md = ccf::crypto::MDType::SHA256;
+      else if (algo_name == "sha-384")
+        md = ccf::crypto::MDType::SHA384;
+      else if (algo_name == "sha-512")
+        md = ccf::crypto::MDType::SHA512;
+
+      if (md != ccf::crypto::MDType::NONE && pref > best_pref)
+      {
+        best_algo = std::string(algo_name);
+        best_md = md;
+        best_pref = pref;
+      }
+    }
+
+    if (best_md == ccf::crypto::MDType::NONE)
+    {
+      return std::nullopt;
+    }
+
+    auto hp = ccf::crypto::make_hash_provider();
+    auto digest = hp->Hash(data, size, best_md);
+    auto b64 = ccf::crypto::b64_from_raw(digest.data(), digest.size());
+    return fmt::format("{}=:{}:", best_algo, b64);
+  }
+
   // Helper function to lookup redirect address based on the interface on this
   // node which received the request. Will either return an address, or
   // populate an appropriate error on the response context.
@@ -768,6 +835,27 @@ namespace ccf::node
 
       ctx.rpc_ctx->set_response_header(
         ccf::http::headers::CCF_LEDGER_CHUNK_NAME, chunk_name);
+
+      const auto want_digest = ctx.rpc_ctx->get_request_header(
+        ccf::http::headers::WANT_REPR_DIGEST);
+      if (want_digest.has_value())
+      {
+        f.seekg(0, std::ifstream::end);
+        const auto file_size = static_cast<size_t>(f.tellg());
+        f.seekg(0, std::ifstream::beg);
+        std::vector<uint8_t> full_contents(file_size);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        f.read(reinterpret_cast<char*>(full_contents.data()), file_size);
+        f.clear();
+
+        auto repr_digest = compute_repr_digest(
+          want_digest.value(), full_contents.data(), full_contents.size());
+        if (repr_digest.has_value())
+        {
+          ctx.rpc_ctx->set_response_header(
+            ccf::http::headers::REPR_DIGEST, repr_digest.value());
+        }
+      }
 
       fill_range_response_from_file(ctx, f);
       return;

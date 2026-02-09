@@ -764,6 +764,100 @@ def test_ledger_chunk_access(network, args):
                 ), "Ledger chunk content does not match"
 
 
+def test_ledger_chunk_repr_digest(network, args):
+    """
+    Verify that the Want-Repr-Digest / Repr-Digest headers work correctly
+    on the ledger-chunk endpoints for GET and HEAD, including sha-256,
+    sha-384 and sha-512 algorithms.
+    """
+    primary, _ = network.find_nodes()
+
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        main_ledger_dir = primary.get_main_ledger_dir()
+        chunks = [
+            f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")
+        ]
+        chunks = sorted(
+            (*ccf.ledger.range_from_filename(chunk), chunk) for chunk in chunks
+        )
+        assert len(chunks) > 0, "No committed chunks found"
+
+        _, _, chunk = chunks[0]
+        chunk_url = f"/node/ledger-chunk/{chunk}"
+        ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
+        with open(ledger_chunk_path, "rb") as f:
+            chunk_data = f.read()
+
+        algos = {
+            "sha-256": hashlib.sha256,
+            "sha-384": hashlib.sha384,
+            "sha-512": hashlib.sha512,
+        }
+
+        for algo_name, hash_fn in algos.items():
+            expected_b64 = base64.b64encode(hash_fn(chunk_data).digest()).decode()
+            expected_header = f"{algo_name}=:{expected_b64}:"
+
+            for verb in ("GET", "HEAD"):
+                r = c.call(
+                    chunk_url,
+                    http_verb=verb,
+                    headers={"want-repr-digest": f"{algo_name}=10"},
+                    allow_redirects=False,
+                )
+                assert r.status_code in (
+                    http.HTTPStatus.OK.value,
+                    http.HTTPStatus.PARTIAL_CONTENT.value,
+                ), f"Unexpected status {r.status_code} for {verb}"
+                repr_digest = r.headers.get("repr-digest") or r.headers.get(
+                    "Repr-Digest"
+                )
+                assert repr_digest is not None, (
+                    f"Missing Repr-Digest header on {verb} with {algo_name}"
+                )
+                assert repr_digest == expected_header, (
+                    f"Repr-Digest mismatch on {verb} with {algo_name}: "
+                    f"expected {expected_header}, got {repr_digest}"
+                )
+
+        # Verify that requests without Want-Repr-Digest do not include
+        # the Repr-Digest header
+        r = c.get(chunk_url, allow_redirects=False)
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        assert repr_digest is None, (
+            f"Unexpected Repr-Digest header when Want-Repr-Digest was not sent: "
+            f"{repr_digest}"
+        )
+
+        # Verify that unsupported algorithms are ignored
+        r = c.get(
+            chunk_url,
+            headers={"want-repr-digest": "md5=10"},
+            allow_redirects=False,
+        )
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        assert repr_digest is None, (
+            f"Unexpected Repr-Digest header for unsupported algorithm: {repr_digest}"
+        )
+
+        # Verify that the highest-priority algorithm is chosen
+        r = c.get(
+            chunk_url,
+            headers={"want-repr-digest": "sha-256=3, sha-512=10"},
+            allow_redirects=False,
+        )
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        expected_b64 = base64.b64encode(
+            hashlib.sha512(chunk_data).digest()
+        ).decode()
+        expected_header = f"sha-512=:{expected_b64}:"
+        assert repr_digest == expected_header, (
+            f"Expected sha-512 (highest priority) but got {repr_digest}"
+        )
+
+
 def test_ledger_chunk_redirect_recent(network, args):
     """
     Access ledger chunk that is missing locally on a backup, after the initial index,
@@ -963,6 +1057,7 @@ def run_ledger_chunk_download(args):
         # Issue enough transactions to create multiple ledger chunks
         network.txs.issue(network, number_txs=10)
         test_ledger_chunk_access(network, args)
+        test_ledger_chunk_repr_digest(network, args)
         test_ledger_chunk_redirect_recent(network, args)
         test_ledger_chunk_redirect_gap(network, args)
 
