@@ -44,9 +44,9 @@ DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
 
 def update_gov_authn(version):
     rv = None
-    if not infra.node.version_after(version, "ccf-3.0.0"):
+    if not infra.node.CCFVersion(version) > infra.node.CCFVersion("ccf-3.0.0"):
         rv = False
-    if infra.node.version_after(version, "ccf-4.0.0-rc0"):
+    if infra.node.CCFVersion(version) > infra.node.CCFVersion("ccf-4.0.0-rc0"):
         rv = "COSE"
     LOG.info(f"Setting gov authn to {rv} because version is {version}")
     return rv
@@ -304,7 +304,7 @@ def run_code_upgrade_from(
             skip_verify_chunking=fv_skip_verify_chunking or tv_skip_verify_chunking,
         ) as network:
             kwargs = {}
-            if not infra.node.version_after(from_version, "ccf-4.0.0-rc1"):
+            if not infra.node.CCFVersion(from_version) > infra.node.CCFVersion("ccf-4.0.0-rc1"):
                 kwargs["reconfiguration_type"] = "OneTransaction"
 
             network.start_and_open(
@@ -403,7 +403,7 @@ def run_code_upgrade_from(
                     cert_pem.encode(), default_backend()
                 )
                 version = primary.version or args.ccf_version
-                if not infra.node.version_after(version, "ccf-5.0.0-dev14"):
+                if not infra.node.CCFVersion(version) > infra.node.CCFVersion("ccf-5.0.0-dev14"):
                     service_subject_name = cert.subject.rfc4514_string()
                     LOG.info(
                         f"Custom subject name not supported on {version}, so falling back to default {service_subject_name}"
@@ -620,7 +620,7 @@ def run_ledger_compatibility_since_first(
                     "skip_verify_chunking": True,  # Old ledger files will have incorrect chunking
                 }
                 kwargs = {}
-                if not infra.node.version_after(version, "ccf-4.0.0-rc1"):
+                if not infra.node.CCFVersion(version) > infra.node.CCFVersion("ccf-4.0.0-rc1"):
                     kwargs["reconfiguration_type"] = "OneTransaction"
 
                 if idx == 0:
@@ -687,9 +687,8 @@ def run_ledger_compatibility_since_first(
                         args,
                         expected_recovery_count=(
                             1
-                            if not infra.node.version_after(
-                                previous_version, "ccf-2.0.3"
-                            )
+                            if not infra.node.CCFVersion(previous_version)
+                            > infra.node.CCFVersion("ccf-2.0.3")
                             else None
                         ),
                     )

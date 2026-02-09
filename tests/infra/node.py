@@ -846,7 +846,7 @@ class Node:
         return False
 
     def version_after(self, version):
-        return version_after(self.version, version)
+        return CCFVersion(self.version) > CCFVersion(version)
 
     def get_receipt(self, view, seqno, timeout=3):
         found = False

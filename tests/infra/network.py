@@ -11,6 +11,7 @@ import infra.path
 import infra.proc
 import infra.service_load
 import infra.node
+from infra.node import CCFVersion
 import infra.consortium
 import infra.e2e_args
 import ccf.ledger
@@ -388,7 +389,7 @@ class Network:
             current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
 
         # Note: temporary fix until second snapshot directory is ported to 2.x branch
-        if not node.version_after("ccf-2.0.3") and read_only_snapshots_dir is not None:
+        if not CCFVersion(node.version) > CCFVersion("ccf-2.0.3") and read_only_snapshots_dir is not None:
             snapshots_dir = read_only_snapshots_dir
 
         node.prepare_join(
@@ -945,7 +946,7 @@ class Network:
         self.consortium.activate(random_node)
         expected_status = (
             ServiceStatus.RECOVERING
-            if random_node.version_after("ccf-2.0.0-rc3")
+            if CCFVersion(random_node.version) > CCFVersion("ccf-2.0.0-rc3")
             else ServiceStatus.OPENING
         )
         self.consortium.check_for_service(
@@ -1312,7 +1313,7 @@ class Network:
         )
         if remote_node == node_to_retire:
             remote_node, _ = self.wait_for_new_primary(remote_node)
-        if remote_node.version_after("ccf-2.0.4") and not pending:
+        if CCFVersion(remote_node.version) > CCFVersion("ccf-2.0.4") and not pending:
             end_time = time.time() + timeout
             r = None
             while time.time() < end_time:
