@@ -750,6 +750,11 @@ TEST_CASE("Non-ASN.1 timepoint formats")
   conv = ccf::ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220405215327Z");
 
+  time_str = "2026-02-09 05:00:00 -03:30";
+  tp = ccf::ds::time_point_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(tp);
+  REQUIRE(conv == "20260209083000Z");
+
   time_str = "2022-04-07T10:37:49.567612";
   tp = ccf::ds::time_point_from_string(time_str);
   conv = ccf::ds::to_x509_time_string(tp);

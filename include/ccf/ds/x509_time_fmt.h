@@ -110,7 +110,9 @@ namespace ccf::ds
           }
           if (rs >= 8)
           {
-            tp -= hours(oh) + minutes(om);
+            auto offset = hours(oh) +
+              minutes(oh < 0 ? -static_cast<int>(om) : static_cast<int>(om));
+            tp -= offset;
           }
 
           return ccf::nonstd::SystemClock::from_time_t(
