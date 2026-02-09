@@ -3,7 +3,7 @@
 
 import struct
 import os
-from enum import Enum
+from enum import Enum, Flag, auto
 
 from typing import NamedTuple, Optional, Tuple, Dict, List
 
@@ -79,9 +79,9 @@ class EntryType(Enum):
         )
 
 
-class TransactionFlags(Enum):
-    FORCE_CHUNK_AFTER = 0x01
-    FORCE_CHUNK_BEFORE = 0x02
+class TransactionFlags(Flag):
+    FORCE_CHUNK_AFTER = auto()
+    FORCE_CHUNK_BEFORE = auto()
 
 
 def to_uint_64(buffer):
