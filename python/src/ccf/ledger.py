@@ -78,6 +78,9 @@ class EntryType(Enum):
             EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE,
         )
 
+class TransactionFlags(Enum):
+    FORCE_CHUNK_AFTER = 0x01
+    FORCE_CHUNK_BEFORE = 0x02
 
 def to_uint_64(buffer):
     return struct.unpack("@Q", buffer)[0]
