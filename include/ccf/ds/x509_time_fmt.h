@@ -65,8 +65,8 @@ namespace ccf::ds
       {"%04u-%02u-%02u %02u:%02u:%f %d:%02u", 8},
       {"%04u-%02u-%02uT%02u:%02u:%f %d:%02u", 8},
       {"%04u-%02u-%02u %02u:%02u:%f %03d %02u", 8},
-      {"%02u%02u%02u%02u%02u%02f%03d%02u", 8},
-      {"%04u%02u%02u%02u%02u%02f%03d%02u", 8},
+      {"%02u%02u%02u%02u%02u%f%03d%02u", 8},
+      {"%04u%02u%02u%02u%02u%f%03d%02u", 8},
       {"%04u-%02u-%02uT%02u:%02u:%f", 6},
       {"%04u-%02u-%02u %02u:%02u:%f", 6}};
 
@@ -85,7 +85,6 @@ namespace ccf::ds
       if (rs >= 1 && rs == n)
       {
         using namespace std::chrono;
-
         if (strncmp(fmt, "%02u", 4) == 0)
         {
           // ASN.1 two-digit year range
