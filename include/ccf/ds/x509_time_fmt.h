@@ -103,20 +103,30 @@ namespace ccf::ds
             continue;
           }
 
-          std::chrono::system_clock::time_point tp = sys_days(date);
+          // Build a struct tm and use timegm() to convert to time_t
+          // directly, avoiding system_clock::time_point which can
+          // overflow for dates outside ~1677-2262.
+          struct tm t = {};
+          t.tm_year = static_cast<int>(y) - 1900;
+          t.tm_mon = static_cast<int>(m) - 1;
+          t.tm_mday = static_cast<int>(d);
           if (rs >= 6)
           {
-            tp += hours(h) + minutes(mn) + microseconds((long)(s * 1e6));
-          }
-          if (rs >= 8)
-          {
-            auto offset = hours(oh) +
-              minutes(oh < 0 ? -static_cast<int>(om) : static_cast<int>(om));
-            tp -= offset;
+            t.tm_hour = static_cast<int>(h);
+            t.tm_min = static_cast<int>(mn);
+            t.tm_sec = static_cast<int>(s);
           }
 
-          return ccf::nonstd::SystemClock::from_time_t(
-            system_clock::to_time_t(tp));
+          auto tt = timegm(&t);
+
+          if (rs >= 8)
+          {
+            auto offset_secs = oh * 3600 +
+              (oh < 0 ? -static_cast<int>(om) : static_cast<int>(om)) * 60;
+            tt -= offset_secs;
+          }
+
+          return ccf::nonstd::SystemClock::from_time_t(tt);
         }
       }
     }
