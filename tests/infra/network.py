@@ -389,7 +389,10 @@ class Network:
             current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
 
         # Note: temporary fix until second snapshot directory is ported to 2.x branch
-        if not CCFVersion(node.version) > CCFVersion("ccf-2.0.3") and read_only_snapshots_dir is not None:
+        if (
+            not CCFVersion(node.version) > CCFVersion("ccf-2.0.3")
+            and read_only_snapshots_dir is not None
+        ):
             snapshots_dir = read_only_snapshots_dir
 
         node.prepare_join(

@@ -304,7 +304,9 @@ def run_code_upgrade_from(
             skip_verify_chunking=fv_skip_verify_chunking or tv_skip_verify_chunking,
         ) as network:
             kwargs = {}
-            if not infra.node.CCFVersion(from_version) > infra.node.CCFVersion("ccf-4.0.0-rc1"):
+            if not infra.node.CCFVersion(from_version) > infra.node.CCFVersion(
+                "ccf-4.0.0-rc1"
+            ):
                 kwargs["reconfiguration_type"] = "OneTransaction"
 
             network.start_and_open(
@@ -403,7 +405,9 @@ def run_code_upgrade_from(
                     cert_pem.encode(), default_backend()
                 )
                 version = primary.version or args.ccf_version
-                if not infra.node.CCFVersion(version) > infra.node.CCFVersion("ccf-5.0.0-dev14"):
+                if not infra.node.CCFVersion(version) > infra.node.CCFVersion(
+                    "ccf-5.0.0-dev14"
+                ):
                     service_subject_name = cert.subject.rfc4514_string()
                     LOG.info(
                         f"Custom subject name not supported on {version}, so falling back to default {service_subject_name}"
@@ -620,7 +624,9 @@ def run_ledger_compatibility_since_first(
                     "skip_verify_chunking": True,  # Old ledger files will have incorrect chunking
                 }
                 kwargs = {}
-                if not infra.node.CCFVersion(version) > infra.node.CCFVersion("ccf-4.0.0-rc1"):
+                if not infra.node.CCFVersion(version) > infra.node.CCFVersion(
+                    "ccf-4.0.0-rc1"
+                ):
                     kwargs["reconfiguration_type"] = "OneTransaction"
 
                 if idx == 0:
