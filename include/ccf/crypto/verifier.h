@@ -6,6 +6,7 @@
 #include "ccf/crypto/jwk.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/rsa_public_key.h"
+#include "ccf/ds/epoch_clock.h"
 
 #include <chrono>
 
@@ -154,11 +155,11 @@ namespace ccf::crypto
     /** The number of seconds of the validity period of the
      * certificate remaining */
     [[nodiscard]] virtual size_t remaining_seconds(
-      const std::chrono::system_clock::time_point& now) const = 0;
+      const ccf::ds::EpochClock::time_point& now) const = 0;
 
     /** The percentage of the validity period of the certificate remaining */
     [[nodiscard]] virtual double remaining_percentage(
-      const std::chrono::system_clock::time_point& now) const = 0;
+      const ccf::ds::EpochClock::time_point& now) const = 0;
 
     /** The subject name of the certificate */
     [[nodiscard]] virtual std::string subject() const = 0;

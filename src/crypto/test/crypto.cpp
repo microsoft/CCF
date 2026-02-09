@@ -191,7 +191,7 @@ ccf::crypto::Pem generate_self_signed_cert(
   constexpr size_t certificate_validity_period_days = 365;
   using namespace std::literals;
   auto valid_from =
-    ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+    ccf::ds::to_x509_time_string(ccf::ds::EpochClock::now() - 24h);
 
   return ccf::crypto::create_self_signed_cert(
     kp, name, {}, valid_from, certificate_validity_period_days);
@@ -783,33 +783,45 @@ TEST_CASE("Non-ASN.1 timepoint formats")
 
 TEST_CASE("Timepoint bounds")
 {
-  auto time_str = "1677-09-21 00:12:44";
-  auto tp = ccf::ds::time_point_from_string(time_str);
-  auto conv = ccf::ds::to_x509_time_string(tp);
-  REQUIRE(conv == "16770921001244Z");
+  // Can handle values beyond bounds of system_clock::time_point
+  {
+    INFO("Beyond system_clock::time_point min");
+    auto time_str = "1677-09-21 00:12:44";
+    auto tp = ccf::ds::time_point_from_string(time_str);
+    auto conv = ccf::ds::to_x509_time_string(tp);
+    REQUIRE(conv == "16770921001244Z");
 
-  time_str = "1677-09-21 00:12:43";
-  REQUIRE_THROWS_WITH(
-    ccf::ds::time_point_from_string(time_str),
-    "'1677-09-21 00:12:43' is too far in the past to be represented as a "
-    "system_clock::time_point");
-  auto s = ccf::ds::since_epoch_from_string(time_str);
-  conv = ccf::ds::to_x509_time_string(s);
-  CHECK(conv == "16770921001243Z");
+    time_str = "1677-09-21 00:12:43";
+    tp = ccf::ds::time_point_from_string(time_str);
+    conv = ccf::ds::to_x509_time_string(tp);
+    REQUIRE(conv == "16770921001243Z");
+  }
 
-  time_str = "2262-04-11 23:47:16";
-  tp = ccf::ds::time_point_from_string(time_str);
-  conv = ccf::ds::to_x509_time_string(tp);
-  REQUIRE(conv == "22620411234716Z");
+  {
+    INFO("Beyond system_clock::time_point max");
+    auto time_str = "2262-04-11 23:47:16";
+    auto tp = ccf::ds::time_point_from_string(time_str);
+    auto conv = ccf::ds::to_x509_time_string(tp);
+    REQUIRE(conv == "22620411234716Z");
 
-  time_str = "2262-04-11 23:47:17";
-  REQUIRE_THROWS_WITH(
-    ccf::ds::time_point_from_string(time_str),
-    "'2262-04-11 23:47:17' is too far in the future to be represented as a "
-    "system_clock::time_point");
-  s = ccf::ds::since_epoch_from_string(time_str);
-  conv = ccf::ds::to_x509_time_string(s);
-  CHECK(conv == "22620411234717Z");
+    time_str = "2262-04-11 23:47:17";
+    tp = ccf::ds::time_point_from_string(time_str);
+    conv = ccf::ds::to_x509_time_string(tp);
+    CHECK(conv == "22620411234717Z");
+  }
+
+  {
+    INFO("Approx ASN.1 format bounds");
+    auto time_str = "9999-12-31 23:59:59";
+    auto tp = ccf::ds::time_point_from_string(time_str);
+    auto conv = ccf::ds::to_x509_time_string(tp);
+    REQUIRE(conv == "99991231235959Z");
+
+    time_str = "0000-01-01 00:00:00";
+    tp = ccf::ds::time_point_from_string(time_str);
+    conv = ccf::ds::to_x509_time_string(tp);
+    CHECK(conv == "00000101000000Z");
+  }
 }
 
 TEST_CASE("Invalid times")
@@ -935,7 +947,7 @@ TEST_CASE("AES-GCM convenience functions")
 
 TEST_CASE("x509 time")
 {
-  auto time = std::chrono::system_clock::now();
+  auto time = ccf::ds::EpochClock::now();
 
   auto next_minute_time = time + 1min;
   auto next_day_time = time + 24h;
@@ -947,8 +959,8 @@ TEST_CASE("x509 time")
     {
       struct Input
       {
-        std::chrono::system_clock::time_point from;
-        std::chrono::system_clock::time_point to;
+        ccf::ds::EpochClock::time_point from;
+        ccf::ds::EpochClock::time_point to;
         std::optional<uint32_t> maximum_validity_period_days = std::nullopt;
       };
       Input input;
@@ -983,7 +995,7 @@ TEST_CASE("x509 time")
 
   INFO("Adjust time");
   {
-    std::vector<std::chrono::system_clock::time_point> times = {
+    std::vector<ccf::ds::EpochClock::time_point> times = {
       time, next_day_time, next_day_time};
     size_t days_offset = 100;
 
@@ -1465,7 +1477,7 @@ TEST_CASE("Do not trust non-ca certs")
     constexpr size_t certificate_validity_period_days = 365;
     using namespace std::literals;
     auto valid_from =
-      ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+      ccf::ds::to_x509_time_string(ccf::ds::EpochClock::now() - 24h);
     auto valid_to = compute_cert_valid_to_string(
       valid_from, certificate_validity_period_days);
     std::vector<SubjectAltName> subject_alt_names = {};

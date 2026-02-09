@@ -207,29 +207,27 @@ namespace ccf::crypto
   }
 
   size_t Verifier_OpenSSL::remaining_seconds(
-    const std::chrono::system_clock::time_point& now) const
+    const ccf::ds::EpochClock::time_point& now) const
   {
     auto [from, to] = validity_period();
-    auto s_to = ccf::ds::since_epoch_from_string(to);
-    return std::chrono::duration_cast<std::chrono::seconds>(
-             s_to - now.time_since_epoch())
+    auto tp_to = ccf::ds::time_point_from_string(to);
+    return std::chrono::duration_cast<std::chrono::seconds>(tp_to - now)
              .count() +
       1;
   }
 
   double Verifier_OpenSSL::remaining_percentage(
-    const std::chrono::system_clock::time_point& now) const
+    const ccf::ds::EpochClock::time_point& now) const
   {
     auto [from, to] = validity_period();
-    auto s_from = ccf::ds::since_epoch_from_string(from);
-    auto s_to = ccf::ds::since_epoch_from_string(to);
+    auto tp_from = ccf::ds::time_point_from_string(from);
+    auto tp_to = ccf::ds::time_point_from_string(to);
     auto total_sec =
-      std::chrono::duration_cast<std::chrono::seconds>(s_to - s_from).count() +
+      std::chrono::duration_cast<std::chrono::seconds>(tp_to - tp_from)
+        .count() +
       1;
-    auto rem_sec = std::chrono::duration_cast<std::chrono::seconds>(
-                     s_to - now.time_since_epoch())
-                     .count() +
-      1;
+    auto rem_sec =
+      std::chrono::duration_cast<std::chrono::seconds>(tp_to - now).count() + 1;
     return rem_sec / (double)total_sec;
   }
 }

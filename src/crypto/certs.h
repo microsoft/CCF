@@ -17,7 +17,7 @@ namespace ccf::crypto
     using namespace std::chrono_literals;
     // Note: As per RFC 5280, the validity period runs until "notAfter"
     // _inclusive_ so substract one second from the validity period.
-    auto valid_to = ccf::ds::since_epoch_from_string(valid_from) +
+    auto valid_to = ccf::ds::time_point_from_string(valid_from) +
       std::chrono::days(validity_period_days) - 1s;
     return ccf::ds::to_x509_time_string(valid_to);
   }

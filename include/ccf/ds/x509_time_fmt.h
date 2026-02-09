@@ -3,14 +3,16 @@
 #pragma once
 
 #define FMT_HEADER_ONLY
+#include "ccf/ds/epoch_clock.h"
+
 #include <chrono>
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <iomanip>
-#include <iostream>
 #include <sstream>
 #include <time.h>
 #include <vector>
+
 namespace ccf::ds
 {
   static inline std::string to_x509_time_string(const std::tm& time)
@@ -21,18 +23,18 @@ namespace ccf::ds
   }
 
   static inline std::string to_x509_time_string(
+    const ccf::ds::EpochClock::time_point& time)
+  {
+    return to_x509_time_string(fmt::gmtime(EpochClock::to_time_t(time)));
+  }
+
+  static inline std::string to_x509_time_string(
     const std::chrono::system_clock::time_point& time)
   {
     return to_x509_time_string(fmt::gmtime(time));
   }
 
-  static inline std::string to_x509_time_string(
-    const std::chrono::seconds& seconds_since_epoch)
-  {
-    return to_x509_time_string(fmt::gmtime(seconds_since_epoch.count()));
-  }
-
-  static inline std::chrono::seconds since_epoch_from_string(
+  static inline ccf::ds::EpochClock::time_point time_point_from_string(
     const std::string& time)
   {
     // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
@@ -50,9 +52,9 @@ namespace ccf::ds
       auto* sres = strptime(ts, afmt, &t);
       if (sres != nullptr && *sres == '\0')
       {
-        auto r = timegm(&t);
-        r -= t.tm_gmtoff;
-        return std::chrono::seconds(r);
+        auto r = ccf::ds::EpochClock::from_time_t(timegm(&t));
+        r -= std::chrono::seconds(t.tm_gmtoff);
+        return r;
       }
     }
 
@@ -100,20 +102,17 @@ namespace ccf::ds
             continue;
           }
 
-          struct tm tm = {};
-          tm.tm_year = y - 1900;
-          tm.tm_mon = m - 1;
-          tm.tm_mday = d;
-          tm.tm_hour = h;
-          tm.tm_min = mn;
-          tm.tm_sec = (int)s;
-
-          auto r = std::chrono::seconds(timegm(&tm));
+          std::chrono::system_clock::time_point tp = sys_days(date);
+          if (rs >= 6)
+          {
+            tp += hours(h) + minutes(mn) + microseconds((long)(s * 1e6));
+          }
           if (rs >= 8)
           {
-            r -= hours(oh) + minutes(om);
+            tp -= hours(oh) + minutes(om);
           }
-          return r;
+
+          return ccf::ds::EpochClock::from_time_t(system_clock::to_time_t(tp));
         }
       }
     }
@@ -121,37 +120,6 @@ namespace ccf::ds
 
     throw std::runtime_error(
       fmt::format("'{}' does not match any accepted time format", time));
-  }
-
-  static inline std::chrono::system_clock::time_point time_point_from_string(
-    const std::string& time)
-  {
-    const auto s = since_epoch_from_string(time);
-
-    static constexpr auto range_max =
-      std::chrono::duration_cast<std::chrono::seconds>(
-        std::chrono::system_clock::time_point::max().time_since_epoch());
-    static constexpr auto range_min =
-      std::chrono::duration_cast<std::chrono::seconds>(
-        std::chrono::system_clock::time_point::min().time_since_epoch());
-
-    if (s > range_max)
-    {
-      throw std::runtime_error(fmt::format(
-        "'{}' is too far in the future to be represented as a "
-        "system_clock::time_point",
-        time));
-    }
-
-    if (s < range_min)
-    {
-      throw std::runtime_error(fmt::format(
-        "'{}' is too far in the past to be represented as a "
-        "system_clock::time_point",
-        time));
-    }
-
-    return std::chrono::system_clock::time_point(s);
   }
 
   static inline std::string to_x509_time_string(const std::string& time)
