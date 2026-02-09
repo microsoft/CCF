@@ -1084,7 +1084,7 @@ class Network:
 
                     else:
                         nxt_tx = nxt[0]
-                        flags = nxt_tx.get_transaction_header().flags
+                        flags = ccf.ledger.TransactionFlags(nxt_tx.get_transaction_header().flags)
                         flag_force_chunk_before = (
                             ccf.ledger.TransactionFlags.FORCE_CHUNK_BEFORE in flags
                         )
@@ -1104,7 +1104,7 @@ class Network:
                             ), f"Node {node.local_node_id} has a chunk which forces chunking before but does not recover the service: {nxt.filename()}"
 
                     last_tx = cur[-1]
-                    flags = last_tx.get_transaction_header().flags
+                    flags = ccf.ledger.TransactionFlags(last_tx.get_transaction_header().flags)
                     flag_force_chunk_after = (
                         ccf.ledger.TransactionFlags.FORCE_CHUNK_AFTER in flags
                     )
