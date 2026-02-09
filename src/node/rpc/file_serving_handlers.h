@@ -848,12 +848,15 @@ namespace ccf::node
         f.read(reinterpret_cast<char*>(full_contents.data()), file_size);
         f.clear();
 
-        auto repr_digest = compute_repr_digest(
-          want_digest.value(), full_contents.data(), full_contents.size());
-        if (repr_digest.has_value())
+        if (f.gcount() == static_cast<std::streamsize>(file_size))
         {
-          ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::REPR_DIGEST, repr_digest.value());
+          auto repr_digest = compute_repr_digest(
+            want_digest.value(), full_contents.data(), full_contents.size());
+          if (repr_digest.has_value())
+          {
+            ctx.rpc_ctx->set_response_header(
+              ccf::http::headers::REPR_DIGEST, repr_digest.value());
+          }
         }
       }
 
