@@ -1085,8 +1085,8 @@ class Network:
                     else:
                         nxt_tx = nxt[0]
                         flags = nxt_tx.get_transaction_header().flags
-                        flag_force_chunk_before = bool(
-                            flags & ccf.ledger.TransactionFlags.FORCE_CHUNK_BEFORE
+                        flag_force_chunk_before = (
+                            ccf.ledger.TransactionFlags.FORCE_CHUNK_BEFORE in flags
                         )
                         if flag_force_chunk_before:
                             # We should only ever emit force_chunk_before if this is the genesis transaction of a recovering service
@@ -1105,8 +1105,8 @@ class Network:
 
                     last_tx = cur[-1]
                     flags = last_tx.get_transaction_header().flags
-                    flag_force_chunk_after = bool(
-                        flags & ccf.ledger.TransactionFlags.FORCE_CHUNK_AFTER
+                    flag_force_chunk_after = (
+                        ccf.ledger.TransactionFlags.FORCE_CHUNK_AFTER in flags
                     )
 
                     assert (
