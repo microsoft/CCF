@@ -21,6 +21,8 @@ namespace ccf
       static constexpr auto HOST = "host";
       static constexpr auto LOCATION = "location";
       static constexpr auto RANGE = "range";
+      static constexpr auto ETAG = "etag";
+      static constexpr auto IF_NONE_MATCH = "if-none-match";
       static constexpr auto RETRY_AFTER = "retry-after";
       static constexpr auto TRAILER = "trailer";
       static constexpr auto WWW_AUTHENTICATE = "www-authenticate";

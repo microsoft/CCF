@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - `GET` and `HEAD` `/node/ledger-chunk?since={seqno}` and `/node/ledger-chunk/{chunk_name}` endpoints, gated by the `LedgerChunkDownload` RPC interface operator feature. See [documentation](https://microsoft.github.io/CCF/main/operations/ledger_snapshot.html#download-endpoints) for more detail.
+- `ETag` and `If-None-Match` support on `GET /node/ledger-chunk/{chunk_name}`, using SHA-256 by default for the `ETag` response header. Clients can supply `If-None-Match` with `sha-256`, `sha-384`, or `sha-512` digest ETags to avoid re-downloading unchanged content (#7652).
 
 ### Fixed
 

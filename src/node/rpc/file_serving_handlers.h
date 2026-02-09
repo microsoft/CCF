@@ -3,6 +3,9 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/crypto/hash_provider.h"
+#include "ccf/ds/hex.h"
+#include "ccf/http_etag.h"
 #include "ccf/service/tables/nodes.h"
 #include "node/rpc/ledger_subsystem.h"
 #include "snapshots/filenames.h"
@@ -770,6 +773,64 @@ namespace ccf::node
         ccf::http::headers::CCF_LEDGER_CHUNK_NAME, chunk_name);
 
       fill_range_response_from_file(ctx, f);
+
+      // Add ETag and handle If-None-Match for successful GET responses
+      if (ctx.rpc_ctx->get_response_status() == HTTP_STATUS_PARTIAL_CONTENT)
+      {
+        const auto& body = ctx.rpc_ctx->get_response_body();
+        auto hash_provider = ccf::crypto::make_hash_provider();
+
+        // Always compute sha-256 for the default ETag
+        auto sha256_hash = hash_provider->Hash(
+          body.data(), body.size(), ccf::crypto::MDType::SHA256);
+        auto sha256_etag = "sha-256:" + ccf::ds::to_hex(sha256_hash);
+
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::ETAG,
+          fmt::format("\"{}\"", sha256_etag));
+
+        // Check If-None-Match header
+        const auto if_none_match = ctx.rpc_ctx->get_request_header(
+          ccf::http::headers::IF_NONE_MATCH);
+        if (if_none_match.has_value())
+        {
+          try
+          {
+            ccf::http::Matcher matcher(if_none_match.value());
+
+            bool matched =
+              matcher.is_any() || matcher.matches(sha256_etag);
+
+            if (!matched)
+            {
+              auto sha384_hash = hash_provider->Hash(
+                body.data(), body.size(), ccf::crypto::MDType::SHA384);
+              matched = matcher.matches(
+                "sha-384:" + ccf::ds::to_hex(sha384_hash));
+            }
+
+            if (!matched)
+            {
+              auto sha512_hash = hash_provider->Hash(
+                body.data(), body.size(), ccf::crypto::MDType::SHA512);
+              matched = matcher.matches(
+                "sha-512:" + ccf::ds::to_hex(sha512_hash));
+            }
+
+            if (matched)
+            {
+              ctx.rpc_ctx->set_response_status(HTTP_STATUS_NOT_MODIFIED);
+              ctx.rpc_ctx->set_response_body(std::vector<uint8_t>{});
+              return;
+            }
+          }
+          catch (const std::runtime_error&)
+          {
+            // Invalid If-None-Match header, ignore and serve normally
+          }
+        }
+      }
+
       return;
     };
     registry

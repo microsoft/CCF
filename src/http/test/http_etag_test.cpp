@@ -73,3 +73,35 @@ TEST_CASE("If-Match invalid inputs")
     std::runtime_error,
     "Invalid If-Match header");
 }
+
+TEST_CASE("If-None-Match with algorithm:digest ETag format")
+{
+  // Single sha-256 ETag
+  {
+    ccf::http::Matcher im(
+      "\"sha-256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852"
+      "b855\"");
+    REQUIRE(!im.is_any());
+    REQUIRE(im.matches(
+      "sha-256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b8"
+      "55"));
+    REQUIRE(!im.matches("sha-256:0000"));
+  }
+
+  // Multiple algorithm ETags
+  {
+    ccf::http::Matcher im(
+      "\"sha-256:aabb\", \"sha-384:ccdd\", \"sha-512:eeff\"");
+    REQUIRE(im.matches("sha-256:aabb"));
+    REQUIRE(im.matches("sha-384:ccdd"));
+    REQUIRE(im.matches("sha-512:eeff"));
+    REQUIRE(!im.matches("sha-256:0000"));
+  }
+
+  // Wildcard still works
+  {
+    ccf::http::Matcher im("*");
+    REQUIRE(im.is_any());
+    REQUIRE(im.matches("sha-256:anything"));
+  }
+}

@@ -56,6 +56,27 @@ These endpoints allow downloading a specific ledger chunk by name, where `<chunk
 They support the HTTP `Range` header for partial downloads, and the `HEAD` method for clients to query metadata such as the total size without downloading the full chunk.
 They also populate the `x-ms-ccf-ledger-chunk-name` response header with the name of the chunk being served.
 
+ETag and If-None-Match
+^^^^^^^^^^^^^^^^^^^^^^
+
+``GET /node/ledger-chunk/{chunk_name}`` supports ``ETag`` and ``If-None-Match`` headers, allowing clients to atomically check whether a chunk (or a range of a chunk) has changed and re-download it in a single request, without needing a separate metadata query first.
+
+Every successful ``GET`` response includes an ``ETag`` header of the form ``"sha-256:<hex_digest>"``, where ``<hex_digest>`` is the SHA-256 hex digest of the returned content (which may be a sub-range when the ``Range`` header is used).
+
+Clients can send an ``If-None-Match`` request header containing one or more ETags. If the content matches any of the provided ETags, the server responds with ``304 Not Modified`` instead of re-sending the body. The supported digest algorithms are ``sha-256``, ``sha-384``, and ``sha-512``. For example:
+
+.. code-block:: http
+
+    GET /node/ledger-chunk/ledger_1-100.committed HTTP/1.1
+    If-None-Match: "sha-256:e3b0c44298fc1c149afbf4c8996fb924..."
+
+If the content digest matches, the response will be:
+
+.. code-block:: http
+
+    HTTP/1.1 304 Not Modified
+    ETag: "sha-256:e3b0c44298fc1c149afbf4c8996fb924..."
+
 2. :http:GET:`/node/ledger-chunk` and :http:HEAD:`/node/ledger-chunk`, both taking a `seqno` query parameter.
 
 These endpoints can be used by a client to download the next ledger chunk including a given sequence number `<seqno>`.
