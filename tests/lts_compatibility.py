@@ -286,7 +286,8 @@ def run_code_upgrade_from(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
     )
 
-    # pre 7.0.0 nodes may not always set the chunking flags in the ledger
+    # pre 6.0.21 nodes may not always set the chunking flags in the ledger
+    # This arrived in #7640, the backport of #7097
     ccf621 = infra.node.CCFVersion("ccf-6.0.21")
     fv_skip_verify_chunking = infra.node.CCFVersion(from_version) < ccf621
     tv_skip_verify_chunking = infra.node.CCFVersion(to_version) < ccf621
