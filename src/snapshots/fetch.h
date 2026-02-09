@@ -24,23 +24,38 @@
   { \
     if (status_code != expected) \
     { \
-      std::string response_content; \
-      if (response_body != nullptr) \
+      std::string error_message; \
+      /* Only include response body for 4xx and 5xx status codes */ \
+      if (status_code >= 400 && status_code < 600) \
       { \
-        response_content.assign( \
-          response_body->buffer.begin(), response_body->buffer.end()); \
+        std::string response_content; \
+        if (response_body != nullptr) \
+        { \
+          response_content.assign( \
+            response_body->buffer.begin(), response_body->buffer.end()); \
+        } \
+        else \
+        { \
+          response_content = "(no response body)"; \
+        } \
+        error_message = fmt::format( \
+          "Expected {} response from {} {}, instead received {} ({})", \
+          ccf::http_status_str(expected), \
+          request->get_method().c_str(), \
+          request->get_url(), \
+          status_code, \
+          response_content); \
       } \
       else \
       { \
-        response_content = "(no response body)"; \
+        error_message = fmt::format( \
+          "Expected {} response from {} {}, instead received {}", \
+          ccf::http_status_str(expected), \
+          request->get_method().c_str(), \
+          request->get_url(), \
+          status_code); \
       } \
-      throw std::runtime_error(fmt::format( \
-        "Expected {} response from {} {}, instead received {} ({})", \
-        ccf::http_status_str(expected), \
-        request->get_method().c_str(), \
-        request->get_url(), \
-        status_code, \
-        response_content)); \
+      throw std::runtime_error(error_message); \
     } \
   } while (0)
 
