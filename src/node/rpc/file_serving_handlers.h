@@ -11,15 +11,12 @@
 
 namespace ccf::node
 {
-  // Helper to parse the Want-Repr-Digest request header (RFC 9530), compute
-  // the digest of @p data using the most-preferred supported algorithm, and
-  // return the formatted Repr-Digest header value.  Only sha-256, sha-384
-  // and sha-512 are supported.  Returns std::nullopt when no supported
-  // algorithm is requested or the header is malformed.
-  static std::optional<std::string> compute_repr_digest(
-    const std::string& want_repr_digest,
-    const uint8_t* data,
-    size_t size)
+  // Helper to parse the Want-Repr-Digest request header (RFC 9530) and
+  // return the best supported algorithm name and MDType.  Only sha-256,
+  // sha-384 and sha-512 are supported.  Returns std::nullopt when no
+  // supported algorithm is requested or the header is malformed.
+  static std::optional<std::pair<std::string, ccf::crypto::MDType>>
+  parse_want_repr_digest(const std::string& want_repr_digest)
   {
     std::string best_algo;
     ccf::crypto::MDType best_md = ccf::crypto::MDType::NONE;
@@ -27,8 +24,8 @@ namespace ccf::node
 
     for (const auto& entry : ccf::nonstd::split(want_repr_digest, ","))
     {
-      auto [algo, pref_sv] = ccf::nonstd::split_1(
-        ccf::nonstd::trim(entry), "=");
+      auto [algo, pref_sv] =
+        ccf::nonstd::split_1(ccf::nonstd::trim(entry), "=");
       auto algo_name = ccf::nonstd::trim(algo);
 
       int pref = 0;
@@ -51,11 +48,17 @@ namespace ccf::node
 
       ccf::crypto::MDType md = ccf::crypto::MDType::NONE;
       if (algo_name == "sha-256")
+      {
         md = ccf::crypto::MDType::SHA256;
+      }
       else if (algo_name == "sha-384")
+      {
         md = ccf::crypto::MDType::SHA384;
+      }
       else if (algo_name == "sha-512")
+      {
         md = ccf::crypto::MDType::SHA512;
+      }
 
       if (md != ccf::crypto::MDType::NONE && pref > best_pref)
       {
@@ -70,10 +73,21 @@ namespace ccf::node
       return std::nullopt;
     }
 
+    return std::make_pair(best_algo, best_md);
+  }
+
+  // Compute and format the Repr-Digest header value for the given algorithm
+  // and data.
+  static std::string format_repr_digest(
+    const std::string& algo_name,
+    ccf::crypto::MDType md,
+    const uint8_t* data,
+    size_t size)
+  {
     auto hp = ccf::crypto::make_hash_provider();
-    auto digest = hp->Hash(data, size, best_md);
+    auto digest = hp->Hash(data, size, md);
     auto b64 = ccf::crypto::b64_from_raw(digest.data(), digest.size());
-    return fmt::format("{}=:{}:", best_algo, b64);
+    return fmt::format("{}=:{}:", algo_name, b64);
   }
 
   // Helper function to lookup redirect address based on the interface on this
@@ -203,6 +217,10 @@ namespace ccf::node
   // This populates the response body, and range-related response headers. This
   // may produce an error response if an invalid range was requested.
   //
+  // If the request contains a Want-Repr-Digest header, the Repr-Digest
+  // response header is set with the digest of the full file (RFC 9530),
+  // regardless of any Range header.
+  //
   // This DOES NOT set a response header telling the client the name of the
   // snapshot/chunk/... being served, so the caller should set this (along
   // with any other metadata headers) _before_ calling this function, and
@@ -216,11 +234,36 @@ namespace ccf::node
 
     ctx.rpc_ctx->set_response_header("accept-ranges", "bytes");
 
+    // Parse Want-Repr-Digest if present
+    const auto want_digest =
+      ctx.rpc_ctx->get_request_header(ccf::http::headers::WANT_REPR_DIGEST);
+    std::optional<std::pair<std::string, ccf::crypto::MDType>> digest_algo;
+    if (want_digest.has_value())
+    {
+      digest_algo = parse_want_repr_digest(want_digest.value());
+    }
+
     if (ctx.rpc_ctx->get_request_verb() == HTTP_HEAD)
     {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       ctx.rpc_ctx->set_response_header(
         ccf::http::headers::CONTENT_LENGTH, total_size);
+
+      if (digest_algo.has_value())
+      {
+        f.seekg(0);
+        std::vector<uint8_t> full_contents(total_size);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        f.read(reinterpret_cast<char*>(full_contents.data()), total_size);
+
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::REPR_DIGEST,
+          format_repr_digest(
+            digest_algo->first,
+            digest_algo->second,
+            full_contents.data(),
+            full_contents.size()));
+      }
       return;
     }
 
@@ -393,19 +436,47 @@ namespace ccf::node
       range_start,
       range_end);
 
-    // Read requested range into buffer
-    std::vector<uint8_t> contents(range_size);
-    f.seekg(range_start);
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    f.read(reinterpret_cast<char*>(contents.data()), contents.size());
-    f.close();
+    // Read file contents, compute repr-digest if requested, and set
+    // response body to the requested range.
+    if (digest_algo.has_value())
+    {
+      // Need full file contents for the digest
+      f.seekg(0);
+      std::vector<uint8_t> full_contents(total_size);
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      f.read(reinterpret_cast<char*>(full_contents.data()), total_size);
+      f.close();
+
+      ctx.rpc_ctx->set_response_header(
+        ccf::http::headers::REPR_DIGEST,
+        format_repr_digest(
+          digest_algo->first,
+          digest_algo->second,
+          full_contents.data(),
+          full_contents.size()));
+
+      // Extract the requested range for the response body
+      std::vector<uint8_t> contents(
+        full_contents.begin() + range_start,
+        full_contents.begin() + range_end);
+      ctx.rpc_ctx->set_response_body(std::move(contents));
+    }
+    else
+    {
+      // Read only the requested range
+      std::vector<uint8_t> contents(range_size);
+      f.seekg(range_start);
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      f.read(reinterpret_cast<char*>(contents.data()), contents.size());
+      f.close();
+      ctx.rpc_ctx->set_response_body(std::move(contents));
+    }
 
     // Build successful response
     ctx.rpc_ctx->set_response_status(HTTP_STATUS_PARTIAL_CONTENT);
     ctx.rpc_ctx->set_response_header(
       ccf::http::headers::CONTENT_TYPE,
       ccf::http::headervalues::contenttype::OCTET_STREAM);
-    ctx.rpc_ctx->set_response_body(std::move(contents));
 
     // Convert back to HTTP-style inclusive range end
     const auto inclusive_range_end = range_end - 1;
@@ -835,30 +906,6 @@ namespace ccf::node
 
       ctx.rpc_ctx->set_response_header(
         ccf::http::headers::CCF_LEDGER_CHUNK_NAME, chunk_name);
-
-      const auto want_digest = ctx.rpc_ctx->get_request_header(
-        ccf::http::headers::WANT_REPR_DIGEST);
-      if (want_digest.has_value())
-      {
-        f.seekg(0, std::ifstream::end);
-        const auto file_size = static_cast<size_t>(f.tellg());
-        f.seekg(0, std::ifstream::beg);
-        std::vector<uint8_t> full_contents(file_size);
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-        f.read(reinterpret_cast<char*>(full_contents.data()), file_size);
-        f.clear();
-
-        if (f.gcount() == static_cast<std::streamsize>(file_size))
-        {
-          auto repr_digest = compute_repr_digest(
-            want_digest.value(), full_contents.data(), full_contents.size());
-          if (repr_digest.has_value())
-          {
-            ctx.rpc_ctx->set_response_header(
-              ccf::http::headers::REPR_DIGEST, repr_digest.value());
-          }
-        }
-      }
 
       fill_range_response_from_file(ctx, f);
       return;

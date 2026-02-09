@@ -426,6 +426,69 @@ def test_snapshot_access(network, args):
                 assert err_msg in r.body.json()["error"]["message"], r
 
 
+def test_snapshot_repr_digest(network, args):
+    """
+    Verify that the Want-Repr-Digest / Repr-Digest headers work correctly
+    on the snapshot endpoints for GET and HEAD, including sha-256,
+    sha-384 and sha-512 algorithms.
+    """
+    primary, _ = network.find_nodes()
+
+    snapshots_dir = network.get_committed_snapshots(primary)
+    snapshot_name = ccf.ledger.latest_snapshot(snapshots_dir)
+    snapshot_path = os.path.join(snapshots_dir, snapshot_name)
+    with open(snapshot_path, "rb") as f:
+        snapshot_data = f.read()
+
+    path = f"/node/snapshot/{snapshot_name}"
+
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        algos = {
+            "sha-256": hashlib.sha256,
+            "sha-384": hashlib.sha384,
+            "sha-512": hashlib.sha512,
+        }
+
+        for algo_name, hash_fn in algos.items():
+            expected_b64 = base64.b64encode(
+                hash_fn(snapshot_data).digest()
+            ).decode()
+            expected_header = f"{algo_name}=:{expected_b64}:"
+
+            for verb in ("GET", "HEAD"):
+                r = c.call(
+                    path,
+                    http_verb=verb,
+                    headers={"want-repr-digest": f"{algo_name}=10"},
+                    allow_redirects=False,
+                )
+                assert r.status_code in (
+                    http.HTTPStatus.OK.value,
+                    http.HTTPStatus.PARTIAL_CONTENT.value,
+                ), f"Unexpected status {r.status_code} for {verb}"
+                repr_digest = r.headers.get("repr-digest") or r.headers.get(
+                    "Repr-Digest"
+                )
+                assert repr_digest is not None, (
+                    f"Missing Repr-Digest header on {verb} with {algo_name}"
+                )
+                assert repr_digest == expected_header, (
+                    f"Repr-Digest mismatch on {verb} with {algo_name}: "
+                    f"expected {expected_header}, got {repr_digest}"
+                )
+
+        # Verify that requests without Want-Repr-Digest do not include
+        # the Repr-Digest header
+        r = c.get(path, allow_redirects=False)
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        assert repr_digest is None, (
+            f"Unexpected Repr-Digest header when Want-Repr-Digest was not sent: "
+            f"{repr_digest}"
+        )
+
+
 def test_snapshot_selection(network, args):
     inner_args = copy.deepcopy(args)
     inner_args.common_read_only_ledger_dir = (
@@ -1032,6 +1095,7 @@ def run_file_operations(args):
                 test_forced_snapshot(network, args)
                 test_large_snapshot(network, args)
                 test_snapshot_access(network, args)
+                test_snapshot_repr_digest(network, args)
                 test_snapshot_selection(network, args)
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)

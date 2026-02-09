@@ -57,10 +57,12 @@ They support the HTTP `Range` header for partial downloads, and the `HEAD` metho
 They also populate the `x-ms-ccf-ledger-chunk-name` response header with the name of the chunk being served.
 
 These endpoints also support the ``Want-Repr-Digest`` request header (`RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_).
-When set, the response will include a ``Repr-Digest`` header containing the digest of the full representation of the chunk.
+When set, the response will include a ``Repr-Digest`` header containing the digest of the full representation of the file.
 Supported algorithms are ``sha-256``, ``sha-384``, and ``sha-512``.
 For example, a client sending ``Want-Repr-Digest: sha-256=10`` will receive a ``Repr-Digest: sha-256=:base64digest:`` header in the response.
-This allows clients to verify the integrity of downloaded chunks and avoid re-downloading chunks they already hold by comparing digests.
+This allows clients to verify the integrity of downloaded files and avoid re-downloading files they already hold by comparing digests.
+
+.. note:: The ``Want-Repr-Digest`` / ``Repr-Digest`` support also applies to the snapshot download endpoints (``/node/snapshot/{snapshot_name}``).
 
 2. :http:GET:`/node/ledger-chunk` and :http:HEAD:`/node/ledger-chunk`, both taking a `seqno` query parameter.
 
