@@ -59,7 +59,7 @@ They also populate the `x-ms-ccf-ledger-chunk-name` response header with the nam
 These endpoints also support the ``Want-Repr-Digest`` request header (`RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_).
 When set, the response will include a ``Repr-Digest`` header containing the digest of the full representation of the file.
 Supported algorithms are ``sha-256``, ``sha-384``, and ``sha-512``.
-For example, a client sending ``Want-Repr-Digest: sha-256=10`` will receive a ``Repr-Digest: sha-256=:base64digest:`` header in the response.
+For example, a client sending ``Want-Repr-Digest: sha-256=1`` will receive a header such as ``Repr-Digest: sha-256=:AEGPTgUMw5e96wxZuDtpfm23RBU3nFwtgY5fw4NYORo=:`` in the response.
 This allows clients to verify the integrity of downloaded files and avoid re-downloading files they already hold by comparing digests.
 
 .. note:: The ``Want-Repr-Digest`` / ``Repr-Digest`` support also applies to the snapshot download endpoints (``/node/snapshot/{snapshot_name}``).
