@@ -9,6 +9,7 @@ import infra.network
 import infra.proc
 import infra.checker
 import infra.node
+from infra.node import CCFVersion
 import infra.crypto
 import infra.member
 from infra.proposal import ProposalState
@@ -436,7 +437,7 @@ class Consortium:
             proposal["actions"].append({"name": "set_user", "args": {"cert": cert}})
 
         args = {}
-        if remote_node.version_after("ccf-2.0.0-rc3"):
+        if CCFVersion(remote_node.version) > CCFVersion("ccf-2.0.0-rc3"):
             args = {"args": {"next_service_identity": self.get_service_identity()}}
         proposal["actions"].append({"name": "transition_service_to_open", **args})
 
@@ -664,7 +665,7 @@ class Consortium:
                 is_recovery = False
 
         args = {}
-        if remote_node.version_after("ccf-2.0.0-rc3"):
+        if CCFVersion(remote_node.version) > CCFVersion("ccf-2.0.0-rc3"):
             args = {
                 "previous_service_identity": previous_service_identity,
                 "next_service_identity": self.get_service_identity(),
@@ -955,7 +956,7 @@ class Consortium:
             r = c.get("/node/network").body.json()
             current_status = r["service_status"]
             current_cert = r["service_certificate"]
-            if remote_node.version_after("ccf-2.0.3"):
+            if CCFVersion(remote_node.version) > CCFVersion("ccf-2.0.3"):
                 current_recovery_count = r["recovery_count"]
             else:
                 assert "recovery_count" not in r
@@ -974,7 +975,7 @@ class Consortium:
             assert (
                 current_status == status.value
             ), f"Service status {current_status} (expected {status.value})"
-            if remote_node.version_after("ccf-2.0.3"):
+            if CCFVersion(remote_node.version) > CCFVersion("ccf-2.0.3"):
                 assert (
                     recovery_count is None or current_recovery_count == recovery_count
                 ), f"Current recovery count {current_recovery_count} is not expected {recovery_count}"

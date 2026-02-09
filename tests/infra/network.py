@@ -11,6 +11,7 @@ import infra.path
 import infra.proc
 import infra.service_load
 import infra.node
+from infra.node import CCFVersion
 import infra.consortium
 import infra.e2e_args
 import ccf.ledger
@@ -23,6 +24,8 @@ import pprint
 import functools
 import re
 import hashlib
+import json
+
 from datetime import datetime, timedelta, timezone
 from infra.consortium import slurp_file
 from collections import deque
@@ -232,6 +235,7 @@ class Network:
         service_load=None,
         node_data_json_file=None,
         next_node_id=0,
+        skip_verify_chunking=False,
     ):
         # Map of node id to dict of node arg to override value
         # for example, to set the election timeout to 2s for node 3:
@@ -248,6 +252,7 @@ class Network:
             self.service_load = service_load
             self.recovery_count = 0
             self.common_dir = None
+            self.skip_verify_chunking = skip_verify_chunking
         else:
             self.consortium = existing_network.consortium
             self.users = existing_network.users
@@ -263,6 +268,7 @@ class Network:
                 self.service_load.set_network(self)
             self.recovery_count = existing_network.recovery_count
             self.common_dir = existing_network.common_dir
+            self.skip_verify_chunking = existing_network.skip_verify_chunking
 
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []
@@ -382,7 +388,10 @@ class Network:
             current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
 
         # Note: temporary fix until second snapshot directory is ported to 2.x branch
-        if not node.version_after("ccf-2.0.3") and read_only_snapshots_dir is not None:
+        if (
+            not CCFVersion(node.version) > CCFVersion("ccf-2.0.3")
+            and read_only_snapshots_dir is not None
+        ):
             snapshots_dir = read_only_snapshots_dir
 
         node.prepare_join(
@@ -929,7 +938,7 @@ class Network:
         self.consortium.activate(random_node)
         expected_status = (
             ServiceStatus.RECOVERING
-            if random_node.version_after("ccf-2.0.0-rc3")
+            if CCFVersion(random_node.version) > CCFVersion("ccf-2.0.0-rc3")
             else ServiceStatus.OPENING
         )
         self.consortium.check_for_service(
@@ -1032,27 +1041,80 @@ class Network:
             if last_ledger_seqno > longest_ledger_seqno:
                 assert longest_ledger_files is None or longest_ledger_files.issubset(
                     ledger_files
-                ), f"Ledger files on node {longest_ledger_node.local_node_id} do not match files on node {node.local_node_id}: {longest_ledger_files}, expected subset of {ledger_files}, diff: {ledger_files - longest_ledger_files}"
+                ), f"Ledger files on node {longest_ledger_node.local_node_id} do not match files on node {node.local_node_id}: {longest_ledger_files}, expected subset of {ledger_files}, diff: (Only on {node.local_node_id}: {ledger_files - longest_ledger_files}, Only on {longest_ledger_node.local_node_id}: {longest_ledger_files - ledger_files})"
                 longest_ledger_files = ledger_files
                 longest_ledger_node = node
                 longest_ledger_seqno = last_ledger_seqno
             else:
                 assert ledger_files.issubset(
                     longest_ledger_files
-                ), f"Ledger files on node {node.local_node_id} do not match files on node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}, diff: {longest_ledger_files - ledger_files}"
+                ), f"Ledger files on node {node.local_node_id} do not match files on node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}, diff: (Only on {longest_ledger_node.local_node_id}: {longest_ledger_files - ledger_files}, Only on {node.local_node_id}: {ledger_files - longest_ledger_files})"
 
         if longest_ledger_files:
             LOG.info(
                 f"Verified {len(longest_ledger_files)} ledger files consistency on all {len(self.nodes)} stopped nodes"
             )
 
+    def check_ledger_files_chunk_flags(self):
+        for node in self.nodes:
+            if node.remote is None:
+                continue
+            ledger_paths = node.remote.ledger_paths()
+            for path in ledger_paths:
+                ledger = ccf.ledger.Ledger([path])
+                chunks = list(ledger)
+                for cur, nxt in zip([None] + chunks, chunks + [None]):
+                    if cur is None:
+                        continue
+
+                    if nxt is None:
+                        # Assume that the next chunk would emit chunk_before
+                        flag_force_chunk_before = True
+
+                    else:
+                        nxt_tx = nxt[0]
+                        flags = ccf.ledger.TransactionFlags(
+                            nxt_tx.get_transaction_header().flags
+                        )
+                        flag_force_chunk_before = (
+                            ccf.ledger.TransactionFlags.FORCE_CHUNK_BEFORE in flags
+                        )
+                        if flag_force_chunk_before:
+                            # We should only ever emit force_chunk_before if this is the genesis transaction of a recovering service
+                            # Otherwise this tx could be rolled back, breaking the consistency of chunking across the network
+                            tables = nxt_tx.get_public_domain().get_tables()
+                            assert "public:ccf.gov.service.info" in tables
+                            service_info = json.loads(
+                                tables["public:ccf.gov.service.info"][
+                                    b"\x00\x00\x00\x00\x00\x00\x00\x00"
+                                ]
+                            )
+                            assert (
+                                "status" in service_info
+                                and service_info["status"] == "Recovering"
+                            ), f"Node {node.local_node_id} has a chunk which forces chunking before but does not recover the service: {nxt.filename()}"
+
+                    last_tx = cur[-1]
+                    flags = ccf.ledger.TransactionFlags(
+                        last_tx.get_transaction_header().flags
+                    )
+                    flag_force_chunk_after = (
+                        ccf.ledger.TransactionFlags.FORCE_CHUNK_AFTER in flags
+                    )
+
+                    assert (
+                        flag_force_chunk_after or flag_force_chunk_before
+                    ), f"Node {node.local_node_id} has chunks which do not force chunking correctly: {cur.filename()} -> {nxt.filename() if nxt is not None else 'NA'}"
+
     def stop_all_nodes(
         self,
         skip_verification=False,
         verbose_verification=False,
         accept_ledger_diff=False,
+        skip_verify_chunking=None,
         **kwargs,
     ):
+        skip_verify_chunking = skip_verify_chunking or self.skip_verify_chunking
         if not skip_verification and self.txs is not None:
             LOG.info("Verifying that all committed txs can be read before shutdown")
             log_capture = []
@@ -1090,6 +1152,10 @@ class Network:
         LOG.info("All nodes stopped")
         if not accept_ledger_diff:
             self.check_ledger_files_identical(**kwargs)
+
+        if not skip_verify_chunking:
+            LOG.info("Verifying ledger chunk flags before shutdown")
+            self.check_ledger_files_chunk_flags()
 
         if fatal_error_found:
             if self.ignoring_shutdown_errors:
@@ -1243,7 +1309,7 @@ class Network:
         )
         if remote_node == node_to_retire:
             remote_node, _ = self.wait_for_new_primary(remote_node)
-        if remote_node.version_after("ccf-2.0.4") and not pending:
+        if CCFVersion(remote_node.version) > CCFVersion("ccf-2.0.4") and not pending:
             end_time = time.time() + timeout
             r = None
             while time.time() < end_time:
@@ -1985,7 +2051,9 @@ def close_on_error(net, pdb=False):
             pdb.post_mortem()
 
         LOG.info("Stopping network")
-        net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
+        net.stop_all_nodes(
+            skip_verification=True, accept_ledger_diff=True, skip_verify_chunking=True
+        )
 
         raise
 
@@ -2003,6 +2071,7 @@ def network(
     version=None,
     service_load=None,
     node_data_json_file=None,
+    skip_verify_chunking=False,
     **kwargs,
 ):
     """
@@ -2031,11 +2100,15 @@ def network(
         version=version,
         service_load=service_load,
         node_data_json_file=node_data_json_file,
+        skip_verify_chunking=skip_verify_chunking,
         **kwargs,
     )
     with close_on_error(net, pdb=pdb):
         yield net
     LOG.info("Stopping network")
-    net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
+    net.stop_all_nodes(
+        skip_verification=True,
+        accept_ledger_diff=True,
+    )
     if init_partitioner:
         net.partitioner.cleanup()
