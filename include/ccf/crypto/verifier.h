@@ -6,6 +6,7 @@
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/public_key.h"
+#include "ccf/ds/nonstd.h"
 
 #include <chrono>
 
@@ -208,11 +209,11 @@ namespace ccf::crypto
     /** The number of seconds of the validity period of the
      * certificate remaining */
     virtual size_t remaining_seconds(
-      const std::chrono::system_clock::time_point& now) const = 0;
+      const ccf::nonstd::SystemClock::time_point& now) const = 0;
 
     /** The percentage of the validity period of the certificate remaining */
     virtual double remaining_percentage(
-      const std::chrono::system_clock::time_point& now) const = 0;
+      const ccf::nonstd::SystemClock::time_point& now) const = 0;
 
     /** The subject name of the certificate */
     virtual std::string subject() const = 0;

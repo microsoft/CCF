@@ -200,7 +200,7 @@ namespace ccf::crypto
   }
 
   size_t Verifier_OpenSSL::remaining_seconds(
-    const std::chrono::system_clock::time_point& now) const
+    const ccf::nonstd::SystemClock::time_point& now) const
   {
     auto [from, to] = validity_period();
     auto tp_to = ccf::ds::time_point_from_string(to);
@@ -210,7 +210,7 @@ namespace ccf::crypto
   }
 
   double Verifier_OpenSSL::remaining_percentage(
-    const std::chrono::system_clock::time_point& now) const
+    const ccf::nonstd::SystemClock::time_point& now) const
   {
     auto [from, to] = validity_period();
     auto tp_from = ccf::ds::time_point_from_string(from);

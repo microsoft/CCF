@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/nonstd.h"
 #include "ccf/http_status.h"
 #include "ccf/service/acme_client_config.h"
 #include "ccf/service/tables/acme_certificates.h"
@@ -108,7 +109,7 @@ namespace ccf
       std::shared_ptr<ccf::kv::Store> tables,
       std::unique_ptr<NetworkIdentity>& identity)
     {
-      auto now = std::chrono::system_clock::now();
+      auto now = ccf::nonstd::SystemClock::now();
       bool renew = false;
       auto tx = tables->create_read_only_tx();
       auto certs = tx.ro<ACMECertificates>(Tables::ACME_CERTIFICATES);

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.22]
+
+[6.0.22]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.22
+
+### Fixed
+
+- x509 parsing now correctly handles times validity beyond 2262. To support this, some public function signatures (`ccf::ds::time_point_from_string()`, `ccf::crypto::Verifier::remaining_seconds()`) now use `time_point`s from `ccf::nonstd::SystemClock` rather than `std::chrono::system_clock` (#7648)
+
 ## [6.0.21]
 
 [6.0.21]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.21
