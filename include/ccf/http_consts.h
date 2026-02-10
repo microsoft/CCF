@@ -23,8 +23,10 @@ namespace ccf
       static constexpr auto RANGE = "range";
       static constexpr auto ETAG = "etag";
       static constexpr auto IF_NONE_MATCH = "if-none-match";
+      static constexpr auto REPR_DIGEST = "repr-digest";
       static constexpr auto RETRY_AFTER = "retry-after";
       static constexpr auto TRAILER = "trailer";
+      static constexpr auto WANT_REPR_DIGEST = "want-repr-digest";
       static constexpr auto WWW_AUTHENTICATE = "www-authenticate";
 
       static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
