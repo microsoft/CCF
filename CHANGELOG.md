@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Only rollback uncommittable indices during become_leader (#7620)
 - x509 parsing now correctly handles times validity beyond 2262. To support this, some public function signatures (`ccf::ds::time_point_from_string()`, `ccf::crypto::Verifier::remaining_seconds()`) now use `time_point`s from `ccf::nonstd::SystemClock` rather than `std::chrono::system_clock` (#7648)
 
+### Changed
+
+- `ccf::crypto::HashProvider::Hash()` has been renamed to `ccf::crypto::HashProvider::hash()` for consistency with the rest of the API (#7660).
+
 ## [7.0.0-dev9]
 
 [7.0.0-dev9]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev9
