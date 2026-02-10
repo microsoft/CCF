@@ -200,7 +200,7 @@ jobs:
           set -ex
           # Dump environment variables, extract Fabric_NodeIPOrFQDN
           # and save it to a file for reconfiguration test using THIM.
-          cat /proc/*/environ | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
+          { cat /proc/*/environ 2>/dev/null || true; } | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
           echo "::group::Disk usage"
           df -kh
           echo "::endgroup::"
@@ -281,7 +281,7 @@ jobs:
           set -ex
           # Dump environment variables, extract Fabric_NodeIPOrFQDN
           # and save it to a file for reconfiguration test using THIM.
-          cat /proc/*/environ | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
+          { cat /proc/*/environ 2>/dev/null || true; } | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
           echo "::group::Disk usage"
           df -kh
           echo "::endgroup::"

@@ -2,8 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#define FMT_HEADER_ONLY
+#include "ccf/ds/nonstd.h"
+
 #include <chrono>
+#define FMT_HEADER_ONLY
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <iomanip>
@@ -21,12 +23,19 @@ namespace ccf::ds
   }
 
   static inline std::string to_x509_time_string(
+    const ccf::nonstd::SystemClock::time_point& time)
+  {
+    return to_x509_time_string(
+      fmt::gmtime(ccf::nonstd::SystemClock::to_time_t(time)));
+  }
+
+  static inline std::string to_x509_time_string(
     const std::chrono::system_clock::time_point& time)
   {
     return to_x509_time_string(fmt::gmtime(time));
   }
 
-  static inline std::chrono::system_clock::time_point time_point_from_string(
+  static inline ccf::nonstd::SystemClock::time_point time_point_from_string(
     const std::string& time)
   {
     // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
@@ -44,7 +53,7 @@ namespace ccf::ds
       auto* sres = strptime(ts, afmt, &t);
       if (sres != nullptr && *sres == '\0')
       {
-        auto r = std::chrono::system_clock::from_time_t(timegm(&t));
+        auto r = ccf::nonstd::SystemClock::from_time_t(timegm(&t));
         r -= std::chrono::seconds(t.tm_gmtoff);
         return r;
       }
@@ -56,8 +65,8 @@ namespace ccf::ds
       {"%04u-%02u-%02u %02u:%02u:%f %d:%02u", 8},
       {"%04u-%02u-%02uT%02u:%02u:%f %d:%02u", 8},
       {"%04u-%02u-%02u %02u:%02u:%f %03d %02u", 8},
-      {"%02u%02u%02u%02u%02u%02f%03d%02u", 8},
-      {"%04u%02u%02u%02u%02u%02f%03d%02u", 8},
+      {"%02u%02u%02u%02u%02u%f%03d%02u", 8},
+      {"%04u%02u%02u%02u%02u%f%03d%02u", 8},
       {"%04u-%02u-%02uT%02u:%02u:%f", 6},
       {"%04u-%02u-%02u %02u:%02u:%f", 6}};
 
@@ -76,7 +85,6 @@ namespace ccf::ds
       if (rs >= 1 && rs == n)
       {
         using namespace std::chrono;
-
         if (strncmp(fmt, "%02u", 4) == 0)
         {
           // ASN.1 two-digit year range
@@ -94,16 +102,30 @@ namespace ccf::ds
             continue;
           }
 
-          system_clock::time_point r = (sys_days)date;
+          // Build a struct tm and use timegm() to convert to time_t
+          // directly, avoiding system_clock::time_point which can
+          // overflow for dates outside ~1677-2262.
+          struct tm t = {};
+          t.tm_year = static_cast<int>(y) - 1900;
+          t.tm_mon = static_cast<int>(m) - 1;
+          t.tm_mday = static_cast<int>(d);
           if (rs >= 6)
           {
-            r += hours(h) + minutes(mn) + microseconds((long)(s * 1e6));
+            t.tm_hour = static_cast<int>(h);
+            t.tm_min = static_cast<int>(mn);
+            t.tm_sec = static_cast<int>(s);
           }
+
+          auto tt = timegm(&t);
+
           if (rs >= 8)
           {
-            r -= hours(oh) + minutes(om);
+            auto offset_secs = oh * 3600 +
+              (oh < 0 ? -static_cast<int>(om) : static_cast<int>(om)) * 60;
+            tt -= offset_secs;
           }
-          return r;
+
+          return ccf::nonstd::SystemClock::from_time_t(tt);
         }
       }
     }

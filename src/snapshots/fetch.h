@@ -18,17 +18,44 @@
 #include <string>
 #include <vector>
 
-#define EXPECT_HTTP_RESPONSE_STATUS(request, status_code, expected) \
+#define EXPECT_HTTP_RESPONSE_STATUS( \
+  request, status_code, expected, response_body) \
   do \
   { \
     if (status_code != expected) \
     { \
-      throw std::runtime_error(fmt::format( \
-        "Expected {} response from {} {}, instead received {}", \
-        ccf::http_status_str(expected), \
-        request->get_method().c_str(), \
-        request->get_url(), \
-        status_code)); \
+      std::string error_message; \
+      /* Only include response body for 4xx and 5xx status codes */ \
+      if (status_code >= 400 && status_code < 600) \
+      { \
+        std::string response_content; \
+        if (response_body != nullptr) \
+        { \
+          response_content.assign( \
+            response_body->buffer.begin(), response_body->buffer.end()); \
+        } \
+        else \
+        { \
+          response_content = "(no response body)"; \
+        } \
+        error_message = fmt::format( \
+          "Expected {} response from {} {}, instead received {} ({})", \
+          ccf::http_status_str(expected), \
+          request->get_method().c_str(), \
+          request->get_url(), \
+          status_code, \
+          response_content); \
+      } \
+      else \
+      { \
+        error_message = fmt::format( \
+          "Expected {} response from {} {}, instead received {}", \
+          ccf::http_status_str(expected), \
+          request->get_method().c_str(), \
+          request->get_url(), \
+          status_code); \
+      } \
+      throw std::runtime_error(error_message); \
     } \
   } while (0)
 
@@ -191,8 +218,8 @@ namespace snapshots
 
       // Get snapshot. This may be redirected multiple times, and we follow
       // these redirects ourself so we can extract the final URL. Once the
-      // redirects terminate, the final response is likely to be extremely large
-      // so is fetched over multiple requests for a sub-range, returning
+      // redirects terminate, the final response is likely to be extremely
+      // large so is fetched over multiple requests for a sub-range, returning
       // PARTIAL_CONTENT each time.
       std::string snapshot_url =
         fmt::format("https://{}/node/snapshot", peer_address);
@@ -318,7 +345,10 @@ namespace snapshots
         }
 
         EXPECT_HTTP_RESPONSE_STATUS(
-          request, status_code, HTTP_STATUS_PERMANENT_REDIRECT);
+          request,
+          status_code,
+          HTTP_STATUS_PERMANENT_REDIRECT,
+          request->get_response_ptr());
 
         char* redirect_url = nullptr;
         CHECK_CURL_EASY_GETINFO(
@@ -383,7 +413,8 @@ namespace snapshots
         EXPECT_HTTP_RESPONSE_STATUS(
           snapshot_range_request,
           snapshot_range_status_code,
-          HTTP_STATUS_PARTIAL_CONTENT);
+          HTTP_STATUS_PARTIAL_CONTENT,
+          snapshot_range_request->get_response_ptr());
 
         process_partial_response(*snapshot_range_request);
 
