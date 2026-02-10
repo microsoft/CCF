@@ -846,12 +846,36 @@ def test_ledger_chunk_access(network, args):
                 ), f"Expected chunk size {actual_chunk_size}, got {chunk_size}"
 
                 r = c.get(chunk_url.path, allow_redirects=False)
+                assert r.status_code == http.HTTPStatus.OK.value, r
                 dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
                 with open(ledger_chunk_path, "rb") as f:
                     actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
                 assert (
                     dled_chunk_digest == actual_chunk_digest
                 ), "Ledger chunk content does not match"
+
+            LOG.info("Accessing an empty chunk")
+            with tempfile.NamedTemporaryFile(dir=main_ledger_dir) as temp_chunk:
+                chunk_url = f"/node/ledger-chunk/{os.path.basename(temp_chunk.name)}"
+                r = c.get(
+                    chunk_url,
+                    allow_redirects=True,
+                )
+                assert r.status_code == http.HTTPStatus.OK, r
+                chunk_size = int(r.headers["Content-Length"])
+                assert chunk_size == 0
+                assert len(r.body.data()) == 0
+
+                chunk_url = f"/node/ledger-chunk/{os.path.basename(temp_chunk.name)}"
+                for range_value in ("bytes=0-10", "bytes=0-", "bytes=0-0"):
+                    r = c.get(
+                        chunk_url,
+                        allow_redirects=True,
+                        headers={"Range": range_value},
+                    )
+                    assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT, r
+                    assert int(r.headers["Content-Length"]) == 0, r
+                    assert "Content-Range" not in r.headers, r.headers
 
 
 def test_ledger_chunk_repr_digest(network, args):
