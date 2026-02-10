@@ -49,6 +49,7 @@
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
 #include "service/internal_tables_access.h"
+#include "service/tables/local_sealing.h"
 #include "service/tables/recovery_type.h"
 #include "share_manager.h"
 #include "uvm_endorsements.h"
@@ -596,9 +597,6 @@ namespace ccf
             config.initial_service_certificate_validity_days);
 
           network.ledger_secrets->init();
-          // Safe as initiate_quote_generation has previously set the
-          // snp_tcb_version
-          seal_ledger_secret(network.ledger_secrets->get_first());
 
           history->set_service_signing_identity(
             network.identity->get_key_pair(), config.cose_signatures);
@@ -751,7 +749,6 @@ namespace ccf
 
             network.identity = std::make_unique<ccf::NetworkIdentity>(
               resp.network_info->identity);
-            seal_ledger_secret(*resp.network_info->ledger_secrets.rbegin());
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info->ledger_secrets));
 
@@ -885,6 +882,11 @@ namespace ccf
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
+      if (config.enable_local_sealing && snp_tcb_version.has_value())
+      {
+        join_params.sealed_recovery_key =
+          sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());
+      }
 
       LOG_DEBUG_FMT(
         "Sending join request to {}", config.join.target_rpc_address);
@@ -1558,13 +1560,22 @@ namespace ccf
         ShareManager::clear_submitted_recovery_shares(tx);
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
         service->put(service_info.value());
-        if (config.recover.previous_sealed_ledger_secret_location.has_value())
+        auto previous_id = config.recover.previous_local_sealing_identity;
+        if (config.enable_local_sealing && previous_id.has_value())
         {
-          tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
-            ->put(RecoveryType::LOCAL_UNSEALING);
-          auto unsealed_ls = unseal_ledger_secret();
-          LOG_INFO_FMT("Unsealed ledger secret, initiating private recovery");
-          initiate_private_recovery_unsafe(tx, unsealed_ls);
+          auto unsealed_ls = sealing::unseal_share(tx, previous_id.value());
+          if (unsealed_ls.has_value())
+          {
+            tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
+              ->put(RecoveryType::LOCAL_UNSEALING);
+            LOG_INFO_FMT("Unsealed ledger secret, initiating private recovery");
+            initiate_private_recovery_unsealing_unsafe(tx, unsealed_ls.value());
+          }
+          else
+          {
+            throw std::logic_error(
+              "Failed to unseal ledger secret for private recovery");
+          }
         }
         else
         {
@@ -1600,34 +1611,38 @@ namespace ccf
         fmt::format("Node in state {} cannot open service", sm.value()));
     }
 
+    void initiate_private_recovery(ccf::kv::Tx& tx) override
+    {
+      std::lock_guard<pal::Mutex> guard(lock);
+      sm.expect(NodeStartupState::partOfPublicNetwork);
+      LedgerSecretsMap recovered_ledger_secrets =
+        share_manager.restore_recovery_shares_info(
+          tx, recovered_encrypted_ledger_secrets);
+      initiate_private_recovery_unsafe(tx, recovered_ledger_secrets);
+    }
+
+    void initiate_private_recovery_unsealing_unsafe(
+      ccf::kv::Tx& tx, const LedgerSecretPtr& unsealed_ledger_secret)
+    {
+      sm.expect(NodeStartupState::partOfPublicNetwork);
+      LedgerSecretsMap recovered_ledger_secrets =
+        share_manager.restore_ledger_secrets_map(
+          tx, recovered_encrypted_ledger_secrets, unsealed_ledger_secret);
+      initiate_private_recovery_unsafe(tx, recovered_ledger_secrets);
+    }
+
     // Decrypts chain of ledger secrets, and writes those to the ledger
     // encrypted for each node. On a commit hook for this write, each node
     // (including this one!) will begin_private_recovery().
     void initiate_private_recovery_unsafe(
-      ccf::kv::Tx& tx,
-      const std::optional<LedgerSecretPtr>& unsealed_ledger_secret =
-        std::nullopt)
+      ccf::kv::Tx& tx, LedgerSecretsMap recovered_ledger_secrets)
     {
-      sm.expect(NodeStartupState::partOfPublicNetwork);
-      LedgerSecretsMap recovered_ledger_secrets =
-        share_manager.restore_recovery_shares_info(
-          tx, recovered_encrypted_ledger_secrets, unsealed_ledger_secret);
-
       // Broadcast decrypted ledger secrets to other nodes for them to
       // initiate private recovery too
       LedgerSecretsBroadcast::broadcast_some(
         InternalTablesAccess::get_trusted_nodes(tx),
         tx.wo(network.secrets),
         recovered_ledger_secrets);
-    }
-
-    void initiate_private_recovery(
-      ccf::kv::Tx& tx,
-      const std::optional<LedgerSecretPtr>& unsealed_ledger_secret =
-        std::nullopt) override
-    {
-      std::lock_guard<pal::Mutex> guard(lock);
-      initiate_private_recovery_unsafe(tx, unsealed_ledger_secret);
     }
 
     //
@@ -2018,6 +2033,12 @@ namespace ccf
       create_params.service_data = config.service_data;
       create_params.create_txid = {create_view, last_recovered_signed_idx + 1};
 
+      if (config.enable_local_sealing && snp_tcb_version.has_value())
+      {
+        create_params.sealed_recovery_key =
+          sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());
+      }
+
       const auto body = nlohmann::json(create_params).dump();
 
       ::http::Request request(
@@ -2161,7 +2182,6 @@ namespace ccf
                 // previous ledger secret)
                 auto ledger_secret = std::make_shared<LedgerSecret>(
                   std::move(plain_ledger_secret), hook_version);
-                seal_ledger_secret(hook_version + 1, ledger_secret);
                 network.ledger_secrets->set_secret(
                   hook_version + 1, std::move(ledger_secret));
               }
@@ -2637,57 +2657,6 @@ namespace ccf
         ::consensus::ledger_truncate, to_host, idx, recovery_mode);
     }
 
-    void seal_ledger_secret(const VersionedLedgerSecret& ledger_secret)
-    {
-      seal_ledger_secret(ledger_secret.first, ledger_secret.second);
-    }
-
-    void seal_ledger_secret(
-      const kv::Version& version, const LedgerSecretPtr& ledger_secret)
-    {
-      if (!config.sealed_ledger_secret_location.has_value())
-      {
-        return;
-      }
-
-      CCF_ASSERT(
-        snp_tcb_version.has_value(), "TCB version must be set before sealing");
-
-      if (auto loc_opt = config.sealed_ledger_secret_location;
-          loc_opt.has_value())
-      {
-        if (auto tcb_opt = snp_tcb_version; tcb_opt.has_value())
-        {
-          const auto& sealed_location = loc_opt.value();
-          const auto& tcb_version = tcb_opt.value();
-          seal_ledger_secret_to_disk(
-            sealed_location, tcb_version, version, ledger_secret);
-        }
-      }
-    }
-
-    LedgerSecretPtr unseal_ledger_secret()
-    {
-      CCF_ASSERT(
-        snp_tcb_version.has_value(),
-        "TCB version must be set when unsealing ledger secret");
-
-      CCF_ASSERT(
-        config.recover.previous_sealed_ledger_secret_location.has_value(),
-        "Previous sealed ledger secret location must be set");
-
-      if (auto path_opt = config.recover.previous_sealed_ledger_secret_location;
-          path_opt.has_value())
-      {
-        const auto& ledger_secret_path = path_opt.value();
-        auto max_version = network.tables->current_version();
-        return find_and_unseal_ledger_secret_from_disk(
-          ledger_secret_path, max_version);
-      }
-
-      return nullptr;
-    }
-
   public:
     void set_n2n_message_limit(size_t message_limit)
     {
@@ -2763,6 +2732,19 @@ namespace ccf
     SelfHealingOpenSubsystem& self_healing_open() override
     {
       return self_healing_open_impl;
+    }
+
+    void shuffle_sealed_shares(ccf::kv::Tx& tx) override
+    {
+      if (!is_part_of_network())
+      {
+        LOG_INFO_FMT(
+          "Skipping shuffling of sealed shares during recovery as ledger "
+          "secrets are not yet available");
+        return;
+      }
+      auto latest_ledger_secret = network.ledger_secrets->get_latest(tx);
+      sealing::shuffle_sealed_shares(tx, latest_ledger_secret.second);
     }
   };
 }
