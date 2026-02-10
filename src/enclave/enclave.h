@@ -16,6 +16,7 @@
 #include "interface.h"
 #include "js/interpreter_cache.h"
 #include "kv/ledger_chunker.h"
+#include "node/commit_callback_subsystem.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"
 #include "node/node_state.h"
@@ -150,6 +151,10 @@ namespace ccf
       context->install_subsystem(
         std::make_shared<ccf::AbstractCOSESignaturesConfigSubsystem>(*node));
 
+      auto commit_callbacks = std::make_shared<ccf::CommitCallbackSubsystem>();
+      context->install_subsystem(commit_callbacks);
+      rpcsessions->set_commit_callbacks_subsystem(commit_callbacks);
+
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(network, *context));
@@ -167,6 +172,7 @@ namespace ccf
         rpc_map,
         rpcsessions,
         indexer,
+        commit_callbacks,
         sig_tx_interval,
         sig_ms_interval);
     }
