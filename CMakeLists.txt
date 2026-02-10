@@ -261,6 +261,7 @@ add_ccf_static_library(
        ${CCF_DIR}/src/node/historical_queries_adapter.cpp
        ${CCF_DIR}/src/node/historical_queries_utils.cpp
        ${CCF_DIR}/src/node/receipt.cpp
+       ${CCF_DIR}/src/node/local_sealing.cpp
   LINK_LIBS http_parser ccfcrypto ccf_kv
 )
 
@@ -675,6 +676,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/receipt.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/receipt.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/local_sealing.cpp
     )
     target_link_libraries(
       historical_queries_test PRIVATE http_parser ccf_kv ccf_endpoints
