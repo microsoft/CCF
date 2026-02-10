@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Only rollback uncommittable indices during become_leader (#7620)
+- x509 parsing now correctly handles times validity beyond 2262. To support this, some public function signatures (`ccf::ds::time_point_from_string()`, `ccf::crypto::Verifier::remaining_seconds()`) now use `time_point`s from `ccf::nonstd::SystemClock` rather than `std::chrono::system_clock` (#7648)
 
 ## [7.0.0-dev9]
 
@@ -48,6 +49,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Improved `ccf::historical::verify_self_issued_receipt` - now can verify receipts signed by the past service identities if they were back-endorsed (#7546).
+- Local sealing recovery now stores sealed secrets in the ledger instead of separately on disk. (#7554)
+  - To configure this use `enable_local_sealing` (top-level) and `command.recover.previous_local_sealing_identity` in the configuration.
+  - The configuration options `output_files.sealed_ledger_secret_location` and `command.recover.previous_sealed_ledger_secret_location` have been deprecated and are ignored.
+  - Recovery keys are now stored in `public:ccf.gov.nodes.sealed_recovery_keys` and encrypted shares in `public:ccf.internal.sealed_shares`.
+  - There is an update in the constitution to reseal whenever a node is added, this ensures that as soon as a node is trusted, it can recover from that point in the ledger.
 
 ### Removed
 
