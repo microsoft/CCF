@@ -112,6 +112,13 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
     ---
 
+    :fa:`arrow-right` :doc:`migration_6_x_to_7_0`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Migrate from CCF 6.x to 7.0.
+
+    ---
+
 
 .. toctree::
     :hidden:
@@ -131,3 +138,4 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     release_policy
     fwd_to_redirect
     migration_5_x_to_6_0
+    migration_6_x_to_7_0
