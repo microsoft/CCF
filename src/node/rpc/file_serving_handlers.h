@@ -255,16 +255,22 @@ namespace ccf::node
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
         f.read(reinterpret_cast<char*>(full_contents.data()), total_size);
 
-        if (f.gcount() == static_cast<std::streamsize>(total_size))
+        if (f.gcount() != static_cast<std::streamsize>(total_size))
         {
-          ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::REPR_DIGEST,
-            format_repr_digest(
-              digest_algo->first,
-              digest_algo->second,
-              full_contents.data(),
-              full_contents.size()));
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Server was unable to read the file correctly");
+          return;
         }
+
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::REPR_DIGEST,
+          format_repr_digest(
+            digest_algo->first,
+            digest_algo->second,
+            full_contents.data(),
+            full_contents.size()));
       }
       return;
     }
