@@ -3,6 +3,7 @@
 
 from contextlib import contextmanager, closing
 from enum import Enum, auto
+import functools
 import infra.crypto
 import infra.remote
 from datetime import datetime, timedelta, timezone
@@ -105,6 +106,28 @@ def version_after(version, cmp_version):
     return ccf._versionifier.to_python_version(
         version
     ) > ccf._versionifier.to_python_version(cmp_version)
+
+
+@functools.total_ordering
+class CCFVersion:
+    # None is assumed to be the latest development version
+    # so None > any specific version, and None == None
+    def __init__(self, version_str):
+        self.version_str = version_str
+        if version_str is not None:
+            self.parsed_version = ccf._versionifier.to_python_version(version_str)
+        else:
+            self.parsed_version = None
+
+    def __eq__(self, other):
+        return self.parsed_version == other.parsed_version
+
+    def __lt__(self, other):
+        if self.parsed_version is None:
+            return False
+        if other.parsed_version is None:
+            return True
+        return self.parsed_version < other.parsed_version
 
 
 class Node:
@@ -823,7 +846,7 @@ class Node:
         return False
 
     def version_after(self, version):
-        return version_after(self.version, version)
+        return CCFVersion(self.version) > CCFVersion(version)
 
     def get_receipt(self, view, seqno, timeout=3):
         found = False

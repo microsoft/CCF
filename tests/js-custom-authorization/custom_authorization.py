@@ -20,8 +20,11 @@ import uuid
 from http import HTTPStatus
 import subprocess
 from contextlib import contextmanager
+from functools import partial
 
 from loguru import logger as LOG
+
+utctime = partial(datetime.datetime, tzinfo=datetime.UTC)
 
 
 @reqs.description("Test custom authorization")
@@ -305,7 +308,9 @@ def test_cert_auth(network, args):
     LOG.info("User with old cert cannot call user-authenticated endpoint")
     local_user_id = "in_the_past"
     create_keypair(
-        local_user_id, datetime.datetime.utcnow() - datetime.timedelta(days=50), 3
+        local_user_id,
+        datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=50),
+        3,
     )
     network.consortium.add_user(primary, local_user_id)
 
@@ -317,7 +322,9 @@ def test_cert_auth(network, args):
     LOG.info("User with future cert cannot call user-authenticated endpoint")
     local_user_id = "in_the_future"
     create_keypair(
-        local_user_id, datetime.datetime.utcnow() + datetime.timedelta(days=50), 3
+        local_user_id,
+        datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=50),
+        3,
     )
     network.consortium.add_user(primary, local_user_id)
 
@@ -328,7 +335,9 @@ def test_cert_auth(network, args):
 
     LOG.info("No leeway added to cert time evaluation")
     local_user_id = "just_expired"
-    valid_from = datetime.datetime.utcnow() - datetime.timedelta(days=1, seconds=2)
+    valid_from = datetime.datetime.now(datetime.UTC) - datetime.timedelta(
+        days=1, seconds=2
+    )
     create_keypair(local_user_id, valid_from, 1)
     network.consortium.add_user(primary, local_user_id)
 
@@ -336,6 +345,45 @@ def test_cert_auth(network, args):
         r = c.get("/app/cert")
         assert r.status_code == HTTPStatus.UNAUTHORIZED, r
         assert "Not After" in parse_error_message(r), r
+
+    LOG.info("Long-lived cert doesn't wraparound")
+    local_user_id = "long_lived"
+    valid_from = datetime.datetime.now(datetime.UTC)
+    create_keypair(local_user_id, valid_from, 1_000_000)
+    network.consortium.add_user(primary, local_user_id)
+
+    with primary.client(local_user_id) as c:
+        r = c.get("/app/cert")
+        assert r.status_code == HTTPStatus.OK, r
+
+    LOG.info("Future Not-Before doesn't wraparound")
+    local_user_id = "distant_future"
+    # system_clock max representable time is currently 2262-04-11, so use a date after that to check for wraparound
+    valid_from = utctime(year=2262, month=4, day=12)
+    create_keypair(local_user_id, valid_from, 4)
+    network.consortium.add_user(primary, local_user_id)
+
+    with primary.client(local_user_id) as c:
+        r = c.get("/app/cert")
+        assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+        expected = (
+            f"certificate's Not Before validity period {int(valid_from.timestamp())}"
+        )
+        actual = parse_error_message(r)
+        assert expected in actual, r
+
+    LOG.info("Representable range")
+    local_user_id = "representable"
+    # Python crypto enforces minimum Not-Before of 1950-01-01
+    valid_from = utctime(year=1950, month=1, day=1)
+    # Probe maximum validity range
+    validity_days = (utctime(year=9999, month=12, day=31) - valid_from).days
+    create_keypair(local_user_id, valid_from, validity_days)
+    network.consortium.add_user(primary, local_user_id)
+
+    with primary.client(local_user_id) as c:
+        r = c.get("/app/cert")
+        assert r.status_code == HTTPStatus.OK, r
 
     return network
 

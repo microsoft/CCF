@@ -782,6 +782,7 @@ def test_ledger_chunk_redirect_recent(network, args):
         f"Dropping last ledger chunk {chunks[-1]} from late backup main ledger directory {main_ledger_dir}"
     )
     os.remove(os.path.join(main_ledger_dir, chunks[-1]))
+    network.skip_verify_chunking = True
     with late_backup.client(
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
     ) as c:
@@ -1464,6 +1465,7 @@ def run_empty_ledger_dir_check(args):
             # Now write a file in the directory
             with open(os.path.join(tmp_dir, "ledger_1000_1500.committed"), "wb") as f:
                 f.write(b"bar")
+            network.skip_verify_chunking = True
 
             # Start new network, this should fail
             try:
