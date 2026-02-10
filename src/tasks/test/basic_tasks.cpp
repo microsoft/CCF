@@ -283,8 +283,7 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
   // Task that runs successfully after exceptions
   std::atomic<bool> success_task_ran = false;
   ccf::tasks::Task success_task = ccf::tasks::make_basic_task(
-    [&success_task_ran]() { success_task_ran.store(true); },
-    "SuccessTask");
+    [&success_task_ran]() { success_task_ran.store(true); }, "SuccessTask");
 
   // Queue tasks
   job_board.add_task(std::make_shared<ThrowsException>());
@@ -292,18 +291,18 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
   job_board.add_task(success_task);
 
   // Use the actual task_worker_loop which has exception handling
-  std::thread worker([&]() {
-    ccf::tasks::task_worker_loop(job_board, stop_signal);
-  });
+  std::thread worker(
+    [&]() { ccf::tasks::task_worker_loop(job_board, stop_signal); });
 
-  // Wait for all tasks to complete
-  while (job_board.get_summary().pending_tasks > 0)
+  // Wait for the success task to run, with a timeout to avoid hanging tests
+  const auto wait_step = std::chrono::milliseconds(10);
+  const auto max_wait = std::chrono::seconds(1);
+  auto waited = std::chrono::milliseconds(0);
+  while (!success_task_ran.load() && waited < max_wait)
   {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(wait_step);
+    waited += wait_step;
   }
-
-  // Give a little more time to ensure last task completes
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
   // Stop the worker
   stop_signal.store(true);

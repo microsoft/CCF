@@ -7,6 +7,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <exception>
 
 namespace ccf::tasks
 {
