@@ -373,6 +373,7 @@ def test_snapshot_access(network, args):
                 (b, range_max),
                 (b, None),
                 (range_max, range_max),
+                (range_max, None),
             ]:
                 range_header_value = f"{start}-{'' if end is None else end}"
                 r = do_request(
@@ -420,6 +421,7 @@ def test_snapshot_access(network, args):
                 ("-", "Invalid range"),
                 ("-foo", "Unable to parse end of range offset value foo"),
                 ("", "Invalid format"),
+                (f"{a}-{a-1}", "empty range"),
             ]:
                 r = do_request("GET", path, headers={"range": f"bytes={invalid_range}"})
                 assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
