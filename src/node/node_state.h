@@ -121,14 +121,32 @@ namespace ccf
         if (latest_peer_snapshot.has_value())
         {
           LOG_INFO_FMT(
-            "Received snapshot {} from peer (size: {}) - writing this to "
-            "disk and using for join startup",
+            "Received snapshot {} from peer (size: {})",
             latest_peer_snapshot->snapshot_name,
             latest_peer_snapshot->snapshot_data.size());
+
+          try
+          {
+            const auto segments =
+              separate_segments(latest_peer_snapshot->snapshot_data);
+            verify_snapshot(segments, join_config.service_cert);
+          }
+          catch (const std::exception& e)
+          {
+            LOG_FAIL_FMT(
+              "Error while verifying fetched snapshot {}: {}",
+              latest_peer_snapshot->snapshot_name,
+              e.what());
+
+            return;
+          }
 
           const auto dst_path =
             std::filesystem::path(snapshot_config.directory) /
             std::filesystem::path(latest_peer_snapshot->snapshot_name);
+          LOG_INFO_FMT(
+            "Snapshot verified - now writing to {}", dst_path.string());
+
           if (files::exists(dst_path))
           {
             LOG_FAIL_FMT(
@@ -142,6 +160,7 @@ namespace ccf
             snapshots::get_snapshot_idx_from_file_name(
               latest_peer_snapshot->snapshot_name);
 
+          std::lock_guard<pal::Mutex> guard(owner->lock);
           owner->set_startup_snapshot(
             snapshot_seqno, std::move(latest_peer_snapshot->snapshot_data));
         }
@@ -783,8 +802,6 @@ namespace ccf
             return;
           }
 
-          auto j = nlohmann::json::parse(data);
-
           if (is_http_status_client_error(status))
           {
             std::optional<ccf::ODataErrorResponse> error_response =
@@ -792,9 +809,10 @@ namespace ccf
 
             try
             {
+              auto j = nlohmann::json::parse(data);
               error_response = j.get<ccf::ODataErrorResponse>();
             }
-            catch (const nlohmann::json::parse_error& e)
+            catch (const nlohmann::json::exception& e)
             {
               // Leave error_response == nullopt
               LOG_FAIL_FMT(
@@ -833,6 +851,7 @@ namespace ccf
             LOG_FAIL_FMT("{}", error_msg);
             RINGBUFFER_WRITE_MESSAGE(
               AdminMessage::fatal_error_msg, to_host, error_msg);
+            return;
           }
           else if (status != HTTP_STATUS_OK)
           {
@@ -864,6 +883,7 @@ namespace ccf
           JoinNetworkNodeToNode::Out resp;
           try
           {
+            auto j = nlohmann::json::parse(data);
             resp = j.get<JoinNetworkNodeToNode::Out>();
           }
           catch (const std::exception& e)
@@ -871,8 +891,10 @@ namespace ccf
             LOG_FAIL_FMT(
               "An error occurred while parsing the join network response");
             LOG_DEBUG_FMT(
-              "An error occurred while parsing the join network response: {}",
-              j.dump());
+              "An error occurred while parsing the join network response: "
+              "{}\n{}",
+              e.what(),
+              std::string(data.begin(), data.end()));
             return;
           }
 
