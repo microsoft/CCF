@@ -916,8 +916,8 @@ def test_ledger_chunk_repr_digest(network, args):
             f"{repr_digest}"
         )
 
-        # Verify that unsupported algorithms are ignored (request still succeeds,
-        # but no Repr-Digest header is returned)
+        # Verify that unsupported algorithms fall back to sha-256
+        # (RFC 9530 Appendix C.2)
         r = c.get(
             chunk_url,
             headers={"want-repr-digest": "md5=10"},
@@ -927,9 +927,11 @@ def test_ledger_chunk_repr_digest(network, args):
             r.status_code == http.HTTPStatus.OK.value
         ), f"Unexpected status {r.status_code} for unsupported algorithm request"
         repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
-        assert repr_digest is None, (
-            "Unsupported digest algorithms are expected to be ignored: "
-            f"unexpected Repr-Digest header present ({repr_digest})"
+        expected_b64 = base64.b64encode(hashlib.sha256(chunk_data).digest()).decode()
+        expected_header = f"sha-256=:{expected_b64}:"
+        assert repr_digest == expected_header, (
+            "Unsupported algorithms should fall back to sha-256: "
+            f"expected {expected_header}, got {repr_digest}"
         )
 
         # Verify that the highest-priority algorithm is chosen

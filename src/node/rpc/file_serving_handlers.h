@@ -14,10 +14,10 @@ namespace ccf::node
   // Helper to parse the Want-Repr-Digest request header (RFC 9530) and
   // return the best supported algorithm name and MDType. Only sha-256,
   // sha-384 and sha-512 are supported. Parsing is best-effort: malformed
-  // entries are ignored. Returns std::nullopt when no supported algorithm
-  // can be selected from the header.
-  static std::optional<std::pair<std::string, ccf::crypto::MDType>>
-  parse_want_repr_digest(const std::string& want_repr_digest)
+  // entries are ignored. If no supported algorithm can be matched,
+  // defaults to sha-256 (permitted by RFC 9530 Appendix C.2).
+  static std::pair<std::string, ccf::crypto::MDType> parse_want_repr_digest(
+    const std::string& want_repr_digest)
   {
     std::string best_algo;
     ccf::crypto::MDType best_md = ccf::crypto::MDType::NONE;
@@ -69,7 +69,7 @@ namespace ccf::node
 
     if (best_md == ccf::crypto::MDType::NONE)
     {
-      return std::nullopt;
+      return std::make_pair("sha-256", ccf::crypto::MDType::SHA256);
     }
 
     return std::make_pair(best_algo, best_md);
