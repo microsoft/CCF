@@ -6,6 +6,7 @@ import infra.proc
 import infra.proposal
 import infra.crypto
 import infra.clients
+from infra.node import CCFVersion
 import http
 import os
 import base64
@@ -152,7 +153,7 @@ class MemberAPI:
 
         def _by_node_version(self, remote_node):
             min_version = "4.0.0"
-            if remote_node.version_after(min_version):
+            if CCFVersion(remote_node.version) > CCFVersion(min_version):
                 return self._preview_v1
             else:
                 raise ValueError(
