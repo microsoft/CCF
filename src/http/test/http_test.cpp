@@ -5,6 +5,7 @@
 #include "ccf/http_query.h"
 #include "crypto/openssl/ec_public_key.h"
 #include "http/http_builder.h"
+#include "http/http_digest.h"
 #include "http/http_parser.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -701,8 +702,6 @@ DOCTEST_TEST_CASE("Query parser getters")
     }
   }
 }
-
-#include "http/http_digest.h"
 
 DOCTEST_TEST_CASE("parse_want_repr_digest - single supported algorithm")
 {
