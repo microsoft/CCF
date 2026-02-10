@@ -511,6 +511,7 @@ namespace ccf::kv
     virtual ~AbstractSnapshotter() = default;
 
     virtual bool record_committable(ccf::kv::Version v) = 0;
+    virtual bool should_schedule_snapshot(ccf::kv::Version v) = 0;
     virtual void commit(ccf::kv::Version v, bool generate_snapshot) = 0;
     virtual void rollback(ccf::kv::Version v) = 0;
   };

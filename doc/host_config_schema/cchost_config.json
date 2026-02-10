@@ -490,6 +490,17 @@
           "description": "Number of transactions after which a snapshot is automatically generated",
           "minimum": 1
         },
+        "min_tx_count": {
+          "type": "integer",
+          "default": 0,
+          "description": "Minimum number of transactions that must have elapsed before a time-based snapshot can be triggered. Has no effect if time_interval is not set.",
+          "minimum": 0
+        },
+        "time_interval": {
+          "type": "string",
+          "default": "0s",
+          "description": "Time interval after which a snapshot should be triggered, provided at least min_tx_count transactions have elapsed. Set to 0s to disable time-based snapshotting."
+        },
         "read_only_directory": {
           "type": ["string", "null"],
           "description": "Path to read-only snapshots directory"

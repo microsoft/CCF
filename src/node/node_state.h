@@ -2916,7 +2916,11 @@ namespace ccf
         throw std::logic_error("Snapshotter already initialised");
       }
       snapshotter = std::make_shared<Snapshotter>(
-        writer_factory, network.tables, config.snapshots.tx_count);
+        writer_factory,
+        network.tables,
+        config.snapshots.tx_count,
+        config.snapshots.min_tx_count,
+        config.snapshots.time_interval);
     }
 
     void read_ledger_entries(::consensus::Index from, ::consensus::Index to)

@@ -637,7 +637,12 @@ namespace ccf
               }
               case ccf::kv::Consensus::SignatureDisposition::CAN_SIGN:
               {
-                if (this->store.committable_gap() > 0)
+                // TODO work out locking behaviour to ensure we don't deadlock between these two calls /sigh
+                // If committable_gap = 0, then that previous signature is already replicating and is immutable
+                // and if we are due a snapshot we need a new signature 
+                // we need new signature to complete the chunk as required by the snapshot
+                // => if we are due to emit a snapshot, we should emit a signature, even if committable_gap = 0
+                if (this->store.committable_gap() > 0 || this->store.should_schedule_snapshot())
                 {
                   should_emit_signature = true;
                 }
