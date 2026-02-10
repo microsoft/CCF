@@ -425,6 +425,95 @@ def test_snapshot_access(network, args):
                 assert err_msg in r.body.json()["error"]["message"], r
 
 
+def test_snapshot_repr_digest(network, args):
+    """
+    Verify that the Want-Repr-Digest / Repr-Digest headers work correctly
+    on the snapshot endpoints for GET and HEAD, including sha-256,
+    sha-384 and sha-512 algorithms.
+    """
+    primary, _ = network.find_nodes()
+
+    snapshots_dir = network.get_committed_snapshots(primary)
+    snapshot_name = ccf.ledger.latest_snapshot(snapshots_dir)
+    snapshot_path = os.path.join(snapshots_dir, snapshot_name)
+    with open(snapshot_path, "rb") as f:
+        snapshot_data = f.read()
+
+    path = f"/node/snapshot/{snapshot_name}"
+
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        algos = {
+            "sha-256": hashlib.sha256,
+            "sha-384": hashlib.sha384,
+            "sha-512": hashlib.sha512,
+        }
+
+        for algo_name, hash_fn in algos.items():
+            expected_b64 = base64.b64encode(hash_fn(snapshot_data).digest()).decode()
+            expected_header = f"{algo_name}=:{expected_b64}:"
+
+            for verb in ("GET", "HEAD"):
+                r = c.call(
+                    path,
+                    http_verb=verb,
+                    headers={"want-repr-digest": f"{algo_name}=10"},
+                    allow_redirects=False,
+                )
+                assert (
+                    r.status_code == http.HTTPStatus.OK.value
+                ), f"Expected 200 OK for {verb} without Range, got {r.status_code}"
+                repr_digest = r.headers.get("repr-digest") or r.headers.get(
+                    "Repr-Digest"
+                )
+                assert (
+                    repr_digest is not None
+                ), f"Missing Repr-Digest header on {verb} with {algo_name}"
+                assert repr_digest == expected_header, (
+                    f"Repr-Digest mismatch on {verb} with {algo_name}: "
+                    f"expected {expected_header}, got {repr_digest}"
+                )
+
+        # Verify that requests without Want-Repr-Digest do not include
+        # the Repr-Digest header
+        r = c.get(path, allow_redirects=False)
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        assert repr_digest is None, (
+            f"Unexpected Repr-Digest header when Want-Repr-Digest was not sent: "
+            f"{repr_digest}"
+        )
+
+        # Verify Repr-Digest still reflects the full file when a Range
+        # header is sent (body is partial, digest is full)
+        total_size = len(snapshot_data)
+        range_end = total_size // 2
+        expected_b64 = base64.b64encode(hashlib.sha256(snapshot_data).digest()).decode()
+        expected_header = f"sha-256=:{expected_b64}:"
+        r = c.call(
+            path,
+            http_verb="GET",
+            headers={
+                "want-repr-digest": "sha-256=10",
+                "range": f"bytes=0-{range_end}",
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 Partial Content for GET with Range, got {r.status_code}"
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        assert repr_digest is not None, "Missing Repr-Digest header on GET with Range"
+        assert repr_digest == expected_header, (
+            f"Repr-Digest should reflect full file even with Range: "
+            f"expected {expected_header}, got {repr_digest}"
+        )
+        # Verify response body is partial
+        assert (
+            len(r.body.data()) == range_end + 1
+        ), f"Expected partial body of {range_end + 1} bytes, got {len(r.body.data())}"
+
+
 def test_snapshot_selection(network, args):
     inner_args = copy.deepcopy(args)
     inner_args.common_read_only_ledger_dir = (
@@ -763,6 +852,131 @@ def test_ledger_chunk_access(network, args):
                 ), "Ledger chunk content does not match"
 
 
+def test_ledger_chunk_repr_digest(network, args):
+    """
+    Verify that the Want-Repr-Digest / Repr-Digest headers work correctly
+    on the ledger-chunk endpoints for GET and HEAD, including sha-256,
+    sha-384 and sha-512 algorithms.
+    """
+    primary, _ = network.find_nodes()
+
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        main_ledger_dir = primary.get_main_ledger_dir()
+        chunks = [f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")]
+        chunks = sorted(
+            (*ccf.ledger.range_from_filename(chunk), chunk) for chunk in chunks
+        )
+        assert len(chunks) > 0, "No committed chunks found"
+
+        _, _, chunk = chunks[0]
+        chunk_url = f"/node/ledger-chunk/{chunk}"
+        ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
+        with open(ledger_chunk_path, "rb") as f:
+            chunk_data = f.read()
+
+        algos = {
+            "sha-256": hashlib.sha256,
+            "sha-384": hashlib.sha384,
+            "sha-512": hashlib.sha512,
+        }
+
+        for algo_name, hash_fn in algos.items():
+            expected_b64 = base64.b64encode(hash_fn(chunk_data).digest()).decode()
+            expected_header = f"{algo_name}=:{expected_b64}:"
+
+            for verb in ("GET", "HEAD"):
+                r = c.call(
+                    chunk_url,
+                    http_verb=verb,
+                    headers={"want-repr-digest": f"{algo_name}=10"},
+                    allow_redirects=False,
+                )
+                assert (
+                    r.status_code == http.HTTPStatus.OK.value
+                ), f"Expected 200 OK for {verb} without Range, got {r.status_code}"
+                repr_digest = r.headers.get("repr-digest") or r.headers.get(
+                    "Repr-Digest"
+                )
+                assert (
+                    repr_digest is not None
+                ), f"Missing Repr-Digest header on {verb} with {algo_name}"
+                assert repr_digest == expected_header, (
+                    f"Repr-Digest mismatch on {verb} with {algo_name}: "
+                    f"expected {expected_header}, got {repr_digest}"
+                )
+
+        # Verify that requests without Want-Repr-Digest do not include
+        # the Repr-Digest header
+        r = c.get(chunk_url, allow_redirects=False)
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        assert repr_digest is None, (
+            f"Unexpected Repr-Digest header when Want-Repr-Digest was not sent: "
+            f"{repr_digest}"
+        )
+
+        # Verify that unsupported algorithms fall back to sha-256
+        # (RFC 9530 Appendix C.2)
+        r = c.get(
+            chunk_url,
+            headers={"want-repr-digest": "md5=10"},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.OK.value
+        ), f"Unexpected status {r.status_code} for unsupported algorithm request"
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        expected_b64 = base64.b64encode(hashlib.sha256(chunk_data).digest()).decode()
+        expected_header = f"sha-256=:{expected_b64}:"
+        assert repr_digest == expected_header, (
+            "Unsupported algorithms should fall back to sha-256: "
+            f"expected {expected_header}, got {repr_digest}"
+        )
+
+        # Verify that the highest-priority algorithm is chosen
+        r = c.get(
+            chunk_url,
+            headers={"want-repr-digest": "sha-256=3, sha-512=10"},
+            allow_redirects=False,
+        )
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        expected_b64 = base64.b64encode(hashlib.sha512(chunk_data).digest()).decode()
+        expected_header = f"sha-512=:{expected_b64}:"
+        assert (
+            repr_digest == expected_header
+        ), f"Expected sha-512 (highest priority) but got {repr_digest}"
+
+        # Verify Repr-Digest still reflects the full file when a Range
+        # header is sent (body is partial, digest is full)
+        total_size = len(chunk_data)
+        range_end = total_size // 2
+        expected_b64 = base64.b64encode(hashlib.sha256(chunk_data).digest()).decode()
+        expected_header = f"sha-256=:{expected_b64}:"
+        r = c.call(
+            chunk_url,
+            http_verb="GET",
+            headers={
+                "want-repr-digest": "sha-256=10",
+                "range": f"bytes=0-{range_end}",
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 Partial Content for GET with Range, got {r.status_code}"
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        assert repr_digest is not None, "Missing Repr-Digest header on GET with Range"
+        assert repr_digest == expected_header, (
+            f"Repr-Digest should reflect full file even with Range: "
+            f"expected {expected_header}, got {repr_digest}"
+        )
+        # Verify response body is partial
+        assert (
+            len(r.body.data()) == range_end + 1
+        ), f"Expected partial body of {range_end + 1} bytes, got {len(r.body.data())}"
+
+
 def test_ledger_chunk_redirect_recent(network, args):
     """
     Access ledger chunk that is missing locally on a backup, after the initial index,
@@ -938,6 +1152,7 @@ def run_file_operations(args):
                 test_forced_snapshot(network, args)
                 test_large_snapshot(network, args)
                 test_snapshot_access(network, args)
+                test_snapshot_repr_digest(network, args)
                 test_snapshot_selection(network, args)
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
@@ -963,6 +1178,7 @@ def run_ledger_chunk_download(args):
         # Issue enough transactions to create multiple ledger chunks
         network.txs.issue(network, number_txs=10)
         test_ledger_chunk_access(network, args)
+        test_ledger_chunk_repr_digest(network, args)
         test_ledger_chunk_redirect_recent(network, args)
         test_ledger_chunk_redirect_gap(network, args)
 
