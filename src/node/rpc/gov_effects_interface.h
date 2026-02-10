@@ -30,5 +30,6 @@ namespace ccf
     virtual void trigger_recovery_shares_refresh(ccf::kv::Tx& tx) = 0;
     virtual void trigger_ledger_chunk(ccf::kv::Tx& tx) = 0;
     virtual void trigger_snapshot(ccf::kv::Tx& tx) = 0;
+    virtual void shuffle_sealed_shares(ccf::kv::Tx& tx) = 0;
   };
 }
