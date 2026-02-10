@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/internal_logger.h"
 #include "tasks/job_board.h"
 
 #include <atomic>
@@ -21,7 +22,20 @@ namespace ccf::tasks
       {
         if (!task->is_cancelled())
         {
-          task->do_task();
+          try
+          {
+            task->do_task();
+          }
+          catch (const std::exception& e)
+          {
+            LOG_FAIL_FMT(
+              "{} task failed with exception: {}", task->get_name(), e.what());
+          }
+          catch (...)
+          {
+            LOG_FAIL_FMT(
+              "{} task failed with unknown exception", task->get_name());
+          }
         }
       }
     }

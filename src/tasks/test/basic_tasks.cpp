@@ -3,6 +3,7 @@
 
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
+#include "tasks/worker.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
@@ -242,4 +243,72 @@ TEST_CASE("Scheduling" * doctest::test_suite("basic_tasks"))
   decltype(count_with_me) target(7);
   std::iota(target.begin(), target.end(), 0);
   REQUIRE(count_with_me == target);
+}
+
+TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
+{
+  ccf::tasks::JobBoard job_board;
+  std::atomic<bool> stop_signal = false;
+
+  // Task that throws std::exception
+  struct ThrowsException : public ccf::tasks::BaseTask
+  {
+    void do_task_implementation() override
+    {
+      throw std::runtime_error("Test exception");
+    }
+
+    const std::string& get_name() const override
+    {
+      static const std::string name = "ThrowsException";
+      return name;
+    }
+  };
+
+  // Task that throws unknown exception
+  struct ThrowsUnknown : public ccf::tasks::BaseTask
+  {
+    void do_task_implementation() override
+    {
+      throw 42;
+    }
+
+    const std::string& get_name() const override
+    {
+      static const std::string name = "ThrowsUnknown";
+      return name;
+    }
+  };
+
+  // Task that runs successfully after exceptions
+  std::atomic<bool> success_task_ran = false;
+  ccf::tasks::Task success_task = ccf::tasks::make_basic_task(
+    [&success_task_ran]() { success_task_ran.store(true); },
+    "SuccessTask");
+
+  // Queue tasks
+  job_board.add_task(std::make_shared<ThrowsException>());
+  job_board.add_task(std::make_shared<ThrowsUnknown>());
+  job_board.add_task(success_task);
+
+  // Use the actual task_worker_loop which has exception handling
+  std::thread worker([&]() {
+    ccf::tasks::task_worker_loop(job_board, stop_signal);
+  });
+
+  // Wait for all tasks to complete
+  while (job_board.get_summary().pending_tasks > 0)
+  {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+
+  // Give a little more time to ensure last task completes
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  // Stop the worker
+  stop_signal.store(true);
+  worker.join();
+
+  // Verify that despite exceptions, the success task still ran
+  REQUIRE(success_task_ran.load());
 }
