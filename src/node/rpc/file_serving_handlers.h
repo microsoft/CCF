@@ -320,6 +320,20 @@ namespace ccf::node
 
     const auto range_size = range_end - range_start;
 
+    if (range_size == 0)
+    {
+      ctx.rpc_ctx->set_error(
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::InvalidHeaderValue,
+        fmt::format(
+          "Invalid range: Cannot request empty range ({}-{}), from {}-byte "
+          "file",
+          range_start,
+          range_end,
+          total_size));
+      return;
+    }
+
     LOG_TRACE_FMT(
       "Reading {}-byte range from {} to {}",
       range_size,
