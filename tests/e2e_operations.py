@@ -2261,7 +2261,7 @@ def run_propose_request_vote(const_args):
 
             original_primary.remote.remote.proc.send_signal(signal.SIGTERM)
             # Find any primary which wasn't the original one
-            # If propose_request_vote worked, the new primary will be elected immediately
+            # If propose_request_vote worked, the new primary will be elected rapidly
             # So if this times out, the propose_request_vote likely failed
             new_primary, new_term = network.wait_for_new_primary(
                 original_primary, timeout_multiplier=0.9
