@@ -333,8 +333,8 @@ class CCFRemote(object):
         historical_cache_soft_limit=None,
         cose_signatures_issuer="service.example.com",
         cose_signatures_subject="ledger.signature",
-        sealed_ledger_secret_location=None,
-        previous_sealed_ledger_secret_location=None,
+        enable_local_sealing=False,
+        previous_local_sealing_identity=None,
         self_healing_open_cluster_identities=None,
         self_healing_open_identity=None,
         **kwargs,
@@ -488,15 +488,6 @@ class CCFRemote(object):
             loader = FileSystemLoader(binary_dir)
             t_env = Environment(loader=loader, autoescape=select_autoescape())
             t = t_env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
-            auto_dr_args = {}
-            if sealed_ledger_secret_location is not None:
-                auto_dr_args["sealed_ledger_secret_location"] = (
-                    sealed_ledger_secret_location
-                )
-            if previous_sealed_ledger_secret_location is not None:
-                auto_dr_args["previous_sealed_ledger_secret_location"] = (
-                    previous_sealed_ledger_secret_location
-                )
 
             output = t.render(
                 start_type=start_type.name.title(),
@@ -536,9 +527,10 @@ class CCFRemote(object):
                 historical_cache_soft_limit=historical_cache_soft_limit,
                 cose_signatures_issuer=cose_signatures_issuer,
                 cose_signatures_subject=cose_signatures_subject,
+                enable_local_sealing=enable_local_sealing,
+                previous_local_sealing_identity=previous_local_sealing_identity,
                 self_healing_open_cluster_identities=self_healing_open_cluster_identities,
                 self_healing_open_identity=self_healing_open_identity,
-                **auto_dr_args,
                 **kwargs,
             )
 
@@ -754,10 +746,16 @@ class CCFRemote(object):
         paths = [os.path.join(self.remote.root, self.ledger_dir_name)]
         for read_only_ledger_dir_name in self.read_only_ledger_dirs_names:
             paths += [os.path.join(self.remote.root, read_only_ledger_dir_name)]
-        return paths
+        return [path for path in paths if os.path.exists(path)]
 
     def get_logs(self):
         return self.remote.get_logs()
+
+    def get_main_ledger_dir(self):
+        """
+        Get the main ledger directory
+        """
+        return os.path.join(self.remote.root, self.ledger_dir_name)
 
 
 class StartType(Enum):

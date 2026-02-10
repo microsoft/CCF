@@ -294,6 +294,11 @@ int main(int argc, char** argv)
         assert(items.size() == 3);
         driver->assert_absent_config(items[1], items[2]);
         break;
+      case shash("assert_last_txid"):
+        assert(items.size() == 3);
+        skip_invariants = true;
+        driver->assert_last_txid(items[1], items[2]);
+        break;
       case shash("replicate_new_configuration"):
         assert(items.size() >= 3);
         items.erase(items.begin());

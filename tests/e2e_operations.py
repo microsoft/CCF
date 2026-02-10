@@ -4,6 +4,7 @@ import tempfile
 import os
 import signal
 import shutil
+import urllib.parse
 
 import infra.logging_app as app
 import infra.e2e_args
@@ -29,11 +30,11 @@ import infra.snp as snp
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 import cbor2
-import sys
 import pathlib
 import infra.concurrency
 import ccf.read_ledger
 import re
+import hashlib
 
 from loguru import logger as LOG
 
@@ -355,25 +356,37 @@ def test_snapshot_access(network, args):
             assert r.headers["accept-ranges"] == "bytes", r.headers
             total_size = int(r.headers["content-length"])
 
+            # Use HTTP-style inclusive range end value
+            range_max = total_size - 1
+
             a = total_size // 3
             b = a * 2
             for start, end in [
                 (0, None),
-                (0, total_size),
+                (0, 0),
+                (0, range_max),
                 (0, a),
                 (a, a),
                 (a, b),
                 (b, b),
-                (b, total_size),
+                (b, range_max),
                 (b, None),
+                (range_max, range_max),
             ]:
                 range_header_value = f"{start}-{'' if end is None else end}"
                 r = do_request(
                     "GET", path, headers={"range": f"bytes={range_header_value}"}
                 )
                 assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
+                headers = r.headers
+                implied_end = range_max if end is None else end
+                assert int(headers["content-length"]) == implied_end - start + 1
+                assert (
+                    headers["content-range"]
+                    == f"bytes {start}-{implied_end}/{total_size}"
+                )
 
-                expected = snapshot_data[start:end]
+                expected = snapshot_data[start : (None if end is None else end + 1)]
                 actual = r.body.data()
                 assert (
                     expected == actual
@@ -688,6 +701,211 @@ def test_split_ledger_on_stopped_network(primary, args):
     )
 
 
+def test_ledger_chunk_access(network, args):
+    """
+    Access ledger chunks linearly, checking redirection, content-length and
+    content correctness. All nodes have all chunks locally.
+    """
+    primary, backups = network.find_nodes()
+
+    for node in (primary, *backups):
+        with node.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
+            main_ledger_dir = node.get_main_ledger_dir()
+            chunks = [
+                f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")
+            ]
+            chunks = sorted(
+                (*ccf.ledger.range_from_filename(chunk), chunk) for chunk in chunks
+            )
+            assert len(chunks) > 10, f"Unexpectedly small number of chunks {chunks}"
+
+            for start_index, end_index, chunk in chunks:
+                chunk_url = None
+                # Asking about any index in the chunk should redirect to the chunk
+                for index in (start_index, end_index, (start_index + end_index) // 2):
+                    r = c.head(
+                        f"/node/ledger-chunk?since={index}", allow_redirects=False
+                    )
+                    assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+                    assert r.headers["Location"].endswith(
+                        f"/node/ledger-chunk/{chunk}"
+                    ), r
+                    r = c.get(
+                        f"/node/ledger-chunk?since={index}", allow_redirects=False
+                    )
+                    assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+                    assert r.headers["Location"].endswith(
+                        f"/node/ledger-chunk/{chunk}"
+                    ), r
+
+                    chunk_url = urllib.parse.urlparse(r.headers["Location"])
+
+                assert chunk_url is not None
+
+                r = c.head(chunk_url.path, allow_redirects=False)
+                chunk_size = int(r.headers["Content-Length"])
+
+                main_ledger_dir = node.get_main_ledger_dir()
+                ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
+                actual_chunk_size = os.stat(ledger_chunk_path).st_size
+                assert (
+                    chunk_size == actual_chunk_size
+                ), f"Expected chunk size {actual_chunk_size}, got {chunk_size}"
+
+                r = c.get(chunk_url.path, allow_redirects=False)
+                dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
+                with open(ledger_chunk_path, "rb") as f:
+                    actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
+                assert (
+                    dled_chunk_digest == actual_chunk_digest
+                ), "Ledger chunk content does not match"
+
+
+def test_ledger_chunk_redirect_recent(network, args):
+    """
+    Access ledger chunk that is missing locally on a backup, after the initial index,
+    checking redirection to the primary and content correctness.
+    """
+    primary, backups = network.find_nodes()
+
+    late_backup = backups[-1]
+    main_ledger_dir = late_backup.get_main_ledger_dir()
+    LOG.info(f"Late backup main ledger directory: {main_ledger_dir}")
+    chunks = [f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")]
+    chunks = sorted(chunks, key=lambda chunk: ccf.ledger.range_from_filename(chunk)[0])
+    start_of_last_chunk = ccf.ledger.range_from_filename(chunks[-1])[0]
+    # Drop last chunk from the backup to force redirect
+    LOG.info(
+        f"Dropping last ledger chunk {chunks[-1]} from late backup main ledger directory {main_ledger_dir}"
+    )
+    os.remove(os.path.join(main_ledger_dir, chunks[-1]))
+    network.skip_verify_chunking = True
+    with late_backup.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        r = c.head(
+            f"/node/ledger-chunk?since={start_of_last_chunk}", allow_redirects=False
+        )
+        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+        expected_host = primary.get_public_rpc_host(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        )
+        expected_port = primary.get_public_rpc_port(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        )
+        expected_location = f"https://{expected_host}:{expected_port}/node/ledger-chunk?since={start_of_last_chunk}"
+        assert r.headers["Location"] == expected_location, r
+        r = c.get(
+            f"/node/ledger-chunk?since={start_of_last_chunk}", allow_redirects=True
+        )
+        primary_main_ledger_dir = primary.get_main_ledger_dir()
+        ledger_chunk_path = os.path.join(primary_main_ledger_dir, chunks[-1])
+        dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
+        with open(ledger_chunk_path, "rb") as f:
+            actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
+        assert (
+            dled_chunk_digest == actual_chunk_digest
+        ), f"Ledger chunk content for {chunks[-1]} does not match"
+
+
+def test_ledger_chunk_redirect_gap(network, args):
+    """
+    Add a new node to the network from a recent snapshot, then access a ledger chunk that
+    predates the snapshot on the new node, checking redirection to another node and content correctness.
+    """
+    primary, backups = network.find_nodes()
+
+    # Get commit index from primary
+    with primary.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
+        r = c.get("/node/commit").body.json()
+        commit_seqno = TxID.from_str(r["transaction_id"]).seqno
+
+    new_node = network.create_node()
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        # Fetch recent snapshot to speed up joining
+        fetch_recent_snapshot=True,
+    )
+    network.trust_node(new_node, args)
+
+    with new_node.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
+        r = c.get("/node/state")
+        startup_seqno = r.body.json()["startup_seqno"]
+        # The new node should have started from a snapshot taken after the commit at the start of the test
+        assert (
+            startup_seqno > commit_seqno
+        ), f"New node joined at {startup_seqno}, should be later than commit at start of test {commit_seqno}"
+
+    main_ledger_dir = new_node.get_main_ledger_dir()
+    chunks = [f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")]
+    chunks = sorted(chunks, key=lambda chunk: ccf.ledger.range_from_filename(chunk)[0])
+    init_index = ccf.ledger.range_from_filename(chunks[0])[0]
+    # And it does not have any ledger chunks predating the snapshot
+    assert (
+        init_index >= startup_seqno
+    ), f"New node has ledger chunks starting at {init_index}, should be later than startup seqno {startup_seqno}"
+
+    download_index = 1
+    LOG.info(
+        f"New node ledger chunks start at index {init_index}, downloading missing chunks"
+    )
+    # But we can download all missing chunks from other nodes
+    while download_index < init_index:
+        with new_node.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
+            r = c.head(
+                f"/node/ledger-chunk?since={download_index}", allow_redirects=False
+            )
+            assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+            # Should redirect to any existing node
+            redirect_location = urllib.parse.urlparse(r.headers["Location"])
+            redirect_host = redirect_location.hostname
+            redirect_port = redirect_location.port
+
+            redirected_node = None
+            for node in network.get_joined_nodes():
+                node_host = node.get_public_rpc_host(
+                    interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+                )
+                node_port = node.get_public_rpc_port(
+                    interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+                )
+                if node_host == redirect_host and node_port == redirect_port:
+                    redirected_node = node
+                    break
+
+            assert (
+                redirected_node is not None
+            ), f"Ledger chunk redirect location {r.headers['Location']} does not match any known node"
+
+            assert (
+                redirected_node != new_node
+            ), "Ledger chunk redirect should not point to self"
+
+            r = c.get(
+                f"/node/ledger-chunk?since={download_index}", allow_redirects=True
+            )
+            chunk_name = os.path.basename(r.headers["x-ms-ccf-ledger-chunk-name"])
+            ledger_chunk_path = os.path.join(
+                # There may have been more than one redirect
+                primary.get_main_ledger_dir(),
+                chunk_name,
+            )
+            dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
+            with open(ledger_chunk_path, "rb") as f:
+                actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
+            assert (
+                dled_chunk_digest == actual_chunk_digest
+            ), f"Ledger chunk content for {chunk_name} does not match"
+            download_index = ccf.ledger.range_from_filename(chunk_name)[1] + 1
+            assert download_index is not None, chunk_name
+
+
 def run_file_operations(args):
     with tempfile.NamedTemporaryFile(mode="w+") as ntf:
         service_data = {"the owls": "are not", "what": "they seem"}
@@ -731,6 +949,22 @@ def run_file_operations(args):
 
                 test_split_ledger_on_stopped_network(primary, args)
                 args.common_read_only_ledger_dir = None  # Reset for future tests
+
+
+def run_ledger_chunk_download(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args)
+        # Issue enough transactions to create multiple ledger chunks
+        network.txs.issue(network, number_txs=10)
+        test_ledger_chunk_access(network, args)
+        test_ledger_chunk_redirect_recent(network, args)
+        test_ledger_chunk_redirect_gap(network, args)
 
 
 def run_tls_san_checks(const_args):
@@ -1230,6 +1464,7 @@ def run_empty_ledger_dir_check(args):
             # Now write a file in the directory
             with open(os.path.join(tmp_dir, "ledger_1000_1500.committed"), "wb") as f:
                 f.write(b"bar")
+            network.skip_verify_chunking = True
 
             # Start new network, this should fail
             try:
@@ -1409,29 +1644,6 @@ def run_initial_tcb_version_checks(const_args):
             assert False, "No TCB_version found in recovery ledger"
 
 
-def wait_for_sealed_secrets(node, min_seqno=0, timeout=10):
-    out, _ = node.remote.get_logs()
-    start = time.time()
-    while time.time() < start + timeout:
-        with open(out, "r") as outf:
-            for line in outf.readlines():
-                if "Sealing complete of ledger secret to" in line:
-                    try:
-                        path = line.split()[-1]
-                        filename = os.path.basename(path)
-                        seqno = int(filename.split(".")[0])
-                        if seqno >= min_seqno:
-                            return
-                    except (IndexError, ValueError):
-                        continue
-
-        time.sleep(0.1)
-
-    raise TimeoutError(
-        f"Could not find sealed secrets for seqno {min_seqno} after {timeout}s in logs"
-    )
-
-
 def run_recovery_local_unsealing(
     const_args, recovery_f=0, rekey=False, recovery_shares_refresh=False
 ):
@@ -1447,36 +1659,22 @@ def run_recovery_local_unsealing(
         network.start_and_open(args)
 
         network.save_service_identity(args)
+        network.wait_for_node_commit_sync()
 
         primary, _ = network.find_primary()
         if rekey:
-            network.wait_for_node_commit_sync()
-            with primary.client() as c:
-                r = c.get("/node/commit").body.json()
-                min_seqno = TxID.from_str(r["transaction_id"]).seqno
             network.consortium.trigger_ledger_rekey(primary)
-        else:
-            min_seqno = 0
         if recovery_shares_refresh:
             network.consortium.trigger_recovery_shares_refresh(primary)
 
-        for node in network.nodes:
-            wait_for_sealed_secrets(node, min_seqno=min_seqno)
-
-        node_secret_map = {
-            node.local_node_id: node.save_sealed_ledger_secret()
-            for node in network.nodes
-        }
-
+        # Wait for commit sync to ensure that the rekey reaches all nodes
+        network.wait_for_node_commit_sync()
         network.stop_all_nodes()
 
         prev_network = network
         for node in network.nodes:
             recovery_network_args = copy.deepcopy(args)
             recovery_network_args.nodes = infra.e2e_args.min_nodes(args, f=recovery_f)
-            recovery_network_args.previous_sealed_ledger_secret_location = (
-                node_secret_map[node.local_node_id]
-            )
             recovery_network_args.label += f"_recovery_from_node_{node.local_node_id}"
 
             with infra.network.network(
@@ -1484,6 +1682,10 @@ def run_recovery_local_unsealing(
                 recovery_network_args.binary_dir,
                 next_node_id=prev_network.next_node_id,
             ) as recovery_network:
+
+                recovery_network.per_node_args_override = {
+                    0: {"previous_local_sealing_identity": node.node_id}
+                }
 
                 # Reset consortium and users to prevent issues with hosts from existing_network
                 recovery_network.consortium = prev_network.consortium
@@ -1516,15 +1718,17 @@ def run_recovery_unsealing_validate_audit(const_args):
         network.start_and_open(args)
 
         network.save_service_identity(args)
-        for node in network.nodes:
-            wait_for_sealed_secrets(node)
-        node0_secrets = network.nodes[0].save_sealed_ledger_secret()
+        network.wait_for_node_commit_sync()
 
         latest_public_tables, _ = network.get_latest_ledger_public_state()
-        node_info = latest_public_tables["public:ccf.gov.nodes.info"]
-        for info in node_info.values():
-            node_info = json.loads(info.decode("utf-8"))
-            assert node_info["will_locally_seal_ledger_secrets"]
+        sealed_recovery_keys = latest_public_tables[
+            "public:ccf.gov.nodes.sealed_recovery_keys"
+        ]
+        for node in network.nodes:
+            node_id_bytes = node.node_id.encode("utf-8")
+            assert (
+                node_id_bytes in sealed_recovery_keys
+            ), f"Node {node.node_id} does not have sealed recovery key"
         assert (
             "public:ccf.internal.last_recovery_type" not in latest_public_tables
         ), "last_recovery_type was set when no recovery was performed."
@@ -1540,15 +1744,15 @@ def run_recovery_unsealing_validate_audit(const_args):
             else:
                 recovery_network_args.label += "_via_recovery_shares"
 
-            if via_local_unsealing:
-                recovery_network_args.previous_sealed_ledger_secret_location = (
-                    node0_secrets
-                )
             with infra.network.network(
                 recovery_network_args.nodes,
                 recovery_network_args.binary_dir,
                 next_node_id=prev_network.next_node_id,
             ) as recovery_network:
+                if via_local_unsealing:
+                    recovery_network.per_node_args_override = {
+                        0: {"previous_local_sealing_identity": network.nodes[0].node_id}
+                    }
 
                 # Reset consortium and users to prevent issues with hosts from existing_network
                 recovery_network.consortium = prev_network.consortium
@@ -1588,157 +1792,6 @@ def run_recovery_unsealing_validate_audit(const_args):
                 prev_network = recovery_network
 
 
-def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
-    LOG.info("Running recovery local unsealing corrupted secret")
-    args = copy.deepcopy(const_args)
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.enable_local_sealing = True
-    args.label += "_recovery_unsealing_corrupt"
-
-    with infra.network.network(args.nodes, args.binary_dir) as network:
-        network.start_and_open(args)
-
-        network.save_service_identity(args)
-        for node in network.nodes:
-            wait_for_sealed_secrets(node)
-
-        node_secret_map = {
-            node.local_node_id: node.save_sealed_ledger_secret()
-            for node in network.nodes
-        }
-
-        network.stop_all_nodes()
-
-        class Corruption:
-            def __init__(self, tag, lamb, expected_exception):
-                self.tag = tag
-                self.lamb = lamb
-                self.expected_exception = expected_exception
-
-            def run(self, src_dir, dst_dir):
-                secrets = {}
-                for file in os.listdir(src_dir):
-                    version = file.split(".")[0]
-                    try:
-                        data = json.loads(
-                            open(os.path.join(src_dir, file), "rb").read()
-                        )
-                    except json.JSONDecodeError:
-                        continue
-
-                    secrets[int(version)] = data
-
-                corrupted_secrets = self.lamb(secrets)
-
-                pathlib.Path(dst_dir).mkdir(parents=True, exist_ok=True)
-                for version, data in corrupted_secrets.items():
-                    secret_path = os.path.join(dst_dir, f"{version}.sealed.json")
-                    with open(secret_path, "wb") as w:
-                        w.write(json.dumps(data).encode("utf-8"))
-
-        corruptions = [Corruption("delete_everything", lambda _: {}, True)]
-
-        corruptions.append(
-            Corruption(
-                "max_version_ignored",
-                lambda s: s
-                | {
-                    int(sys.maxsize): {
-                        "ciphertext": "some data",
-                        "aad_text": "some aad",
-                    }
-                },
-                False,
-            )
-        )
-
-        corruptions.append(
-            Corruption(
-                "invalid_file",
-                lambda s: s
-                | {"asdf": {"ciphertext": "some data", "aad_text": "some aad"}},
-                False,
-            )
-        )
-
-        corruptions.append(
-            Corruption(
-                "xor_ciphertext",
-                lambda s: {
-                    v: {
-                        "ciphertext": base64.b64encode(
-                            bytes(
-                                [b ^ 0xFF for b in base64.b64decode(s[v]["ciphertext"])]
-                            )
-                        ).decode("utf-8"),
-                        "aad_text": s[v]["aad_text"],
-                    }
-                    for v in s.keys()
-                },
-                True,
-            )
-        )
-
-        # corrupt one of the ledgers
-        node = network.nodes[0]
-        ledger_secret = list(node_secret_map.values())[0]
-
-        prev_network = network
-        for corruption in corruptions:
-            LOG.info("Corruption: " + corruption.tag)
-            corrupt_ledger_secret = ledger_secret + f"{corruption.tag}.corrupt"
-            corruption.run(ledger_secret, corrupt_ledger_secret)
-
-            recovery_network_args = copy.deepcopy(args)
-            recovery_network_args.nodes = infra.e2e_args.min_nodes(
-                recovery_network_args, f=recovery_f
-            )
-            recovery_network_args.previous_sealed_ledger_secret_location = (
-                corrupt_ledger_secret
-            )
-            recovery_network_args.label += f"_{corruption.tag}"
-            with infra.network.network(
-                recovery_network_args.nodes,
-                recovery_network_args.binary_dir,
-                next_node_id=prev_network.next_node_id,
-            ) as recovery_network:
-
-                # Reset consortium and users to prevent issues with hosts from existing_network
-                recovery_network.consortium = prev_network.consortium
-                recovery_network.users = prev_network.users
-                recovery_network.txs = prev_network.txs
-                recovery_network.jwt_issuer = prev_network.jwt_issuer
-
-                current_ledger_dir, committed_ledger_dirs = node.get_ledger()
-                exception_thrown = None
-                try:
-                    recovery_network.start_in_recovery(
-                        recovery_network_args,
-                        common_dir=prev_network.common_dir,
-                        ledger_dir=current_ledger_dir,
-                        committed_ledger_dirs=committed_ledger_dirs,
-                    )
-
-                    recovery_network.recover(
-                        recovery_network_args, via_local_sealing=True
-                    )
-                except Exception as e:
-                    exception_thrown = e
-                    pass
-
-                if corruption.expected_exception:
-                    assert (
-                        exception_thrown is not None
-                    ), f"Expected exception to be thrown for {corruption.tag} corruption"
-                else:
-                    assert (
-                        exception_thrown is None
-                    ), f"Expected no exception to be thrown for {corruption.tag} corruption"
-
-                recovery_network.stop_all_nodes()
-                prev_network = recovery_network
-
-
 def run_self_healing_open(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
@@ -1753,7 +1806,6 @@ def run_self_healing_open(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         network.save_service_identity(args)
-        node_secrets = [node.save_sealed_ledger_secret() for node in network.nodes]
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
@@ -1772,11 +1824,14 @@ def run_self_healing_open(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
+            recovered_network.per_node_args_override = {
+                i: {"previous_local_sealing_identity": node.node_id}
+                for i, node in enumerate(network.nodes)
+            }
             recovered_network.start_in_self_healing_open(
                 recovery_args,
                 ledger_dirs=ledger_dirs,
                 committed_ledger_dirs=committed_ledger_dirs,
-                sealed_ledger_secrets=node_secrets,
             )
             recovered_network.wait_for_self_healing_open_finish()
 
@@ -1815,7 +1870,6 @@ def run_self_healing_open_timeout_path(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         network.save_service_identity(args)
-        node_secrets = [node.save_sealed_ledger_secret() for node in network.nodes]
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
@@ -1834,11 +1888,14 @@ def run_self_healing_open_timeout_path(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
+            recovered_network.per_node_args_override = {
+                i: {"previous_local_sealing_identity": node.node_id}
+                for i, node in enumerate(network.nodes)
+            }
             recovered_network.start_in_self_healing_open(
                 recovery_args,
                 ledger_dirs=ledger_dirs,
                 committed_ledger_dirs=committed_ledger_dirs,
-                sealed_ledger_secrets=node_secrets,
                 starting_nodes=0,  # Force timeout path by starting only one node
             )
             recovered_network.wait_for_self_healing_open_finish()
@@ -1877,7 +1934,6 @@ def run_self_healing_open_multiple_timeout(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         network.save_service_identity(args)
-        node_secrets = [node.save_sealed_ledger_secret() for node in network.nodes]
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
@@ -1896,11 +1952,14 @@ def run_self_healing_open_multiple_timeout(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
+            recovered_network.per_node_args_override = {
+                i: {"previous_local_sealing_identity": node.node_id}
+                for i, node in enumerate(network.nodes)
+            }
             recovered_network.start_in_self_healing_open(
                 recovery_args,
                 ledger_dirs=ledger_dirs,
                 committed_ledger_dirs=committed_ledger_dirs,
-                sealed_ledger_secrets=node_secrets,
                 suspend_after_start=True,  # suspend each node after starting to ensure they don't progress
             )
             # for each node: start it and wait until it finishes the self-healing-open on the timeout path
@@ -2232,7 +2291,6 @@ def run_snp_tests(args):
     run_recovery_local_unsealing(args, rekey=True)
     run_recovery_local_unsealing(args, recovery_shares_refresh=True)
     run_recovery_local_unsealing(args, recovery_f=1)
-    run_recovery_unsealing_corrupt(args)
     run_recovery_unsealing_validate_audit(args)
     test_error_message_on_failure_to_read_aci_sec_context(args)
     run_self_healing_open(args)

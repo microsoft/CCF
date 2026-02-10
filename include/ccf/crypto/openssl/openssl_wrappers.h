@@ -359,7 +359,7 @@ namespace ccf::crypto::OpenSSL
     Unique_X509_TIME(ASN1_TIME* t) :
       Unique_SSL_OBJECT(t, ASN1_TIME_free, /*check_null=*/false)
     {}
-    Unique_X509_TIME(const std::chrono::system_clock::time_point& t) :
+    Unique_X509_TIME(const ccf::nonstd::SystemClock::time_point& t) :
       Unique_X509_TIME(ccf::ds::to_x509_time_string(t))
     {}
   };

@@ -135,9 +135,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     StartupConfig::Recover, previous_service_identity);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    StartupConfig::Recover,
-    previous_sealed_ledger_secret_location,
-    self_healing_open);
+    StartupConfig::Recover, previous_local_sealing_identity, self_healing_open);
 
   DECLARE_JSON_TYPE_WITH_BASE(StartupConfig, CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -152,5 +150,5 @@ namespace ccf
     start,
     join,
     recover,
-    sealed_ledger_secret_location);
+    enable_local_sealing);
 }

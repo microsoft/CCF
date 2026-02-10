@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/curve.h"
 #include "ccf/ds/unit_strings.h"
+#include "ccf/entity_id.h"
 #include "ccf/node/cose_signatures_config.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/service/consensus_config.h"
@@ -125,7 +126,7 @@ namespace ccf
     std::string service_subject_name = "CN=CCF Service";
     ccf::COSESignaturesConfig cose_signatures;
 
-    std::optional<std::string> sealed_ledger_secret_location;
+    bool enable_local_sealing = false;
 
     nlohmann::json service_data = nullptr;
 
@@ -158,8 +159,7 @@ namespace ccf
     {
       std::optional<std::vector<uint8_t>> previous_service_identity =
         std::nullopt;
-      std::optional<std::string> previous_sealed_ledger_secret_location =
-        std::nullopt;
+      std::optional<NodeId> previous_local_sealing_identity = std::nullopt;
       std::optional<SelfHealingOpenConfig> self_healing_open = std::nullopt;
     };
     Recover recover = {};
