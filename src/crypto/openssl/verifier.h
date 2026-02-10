@@ -39,10 +39,10 @@ namespace ccf::crypto
       const override;
 
     virtual size_t remaining_seconds(
-      const std::chrono::system_clock::time_point& now) const override;
+      const ccf::nonstd::SystemClock::time_point& now) const override;
 
     virtual double remaining_percentage(
-      const std::chrono::system_clock::time_point& now) const override;
+      const ccf::nonstd::SystemClock::time_point& now) const override;
 
     virtual std::string subject() const override;
   };
