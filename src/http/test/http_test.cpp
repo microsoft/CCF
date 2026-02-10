@@ -725,7 +725,8 @@ DOCTEST_TEST_CASE("parse_want_repr_digest - single supported algorithm")
   }
 }
 
-DOCTEST_TEST_CASE("parse_want_repr_digest - multiple algorithms with priorities")
+DOCTEST_TEST_CASE(
+  "parse_want_repr_digest - multiple algorithms with priorities")
 {
   {
     auto [algo, md] =
@@ -753,8 +754,7 @@ DOCTEST_TEST_CASE("parse_want_repr_digest - multiple algorithms with priorities"
 DOCTEST_TEST_CASE("parse_want_repr_digest - unknown algorithms are ignored")
 {
   {
-    auto [algo, md] =
-      ccf::http::parse_want_repr_digest("md5=10, sha-256=1");
+    auto [algo, md] = ccf::http::parse_want_repr_digest("md5=10, sha-256=1");
     DOCTEST_CHECK(algo == "sha-256");
     DOCTEST_CHECK(md == ccf::crypto::MDType::SHA256);
   }
@@ -767,8 +767,7 @@ DOCTEST_TEST_CASE("parse_want_repr_digest - unknown algorithms are ignored")
   }
 }
 
-DOCTEST_TEST_CASE(
-  "parse_want_repr_digest - defaults to sha-256 when no match")
+DOCTEST_TEST_CASE("parse_want_repr_digest - defaults to sha-256 when no match")
 {
   {
     auto [algo, md] = ccf::http::parse_want_repr_digest("md5=10");
