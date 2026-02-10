@@ -377,20 +377,6 @@ namespace ccf::node
 
     const auto range_size = range_end - range_start;
 
-    if (range_size == 0)
-    {
-      ctx.rpc_ctx->set_error(
-        HTTP_STATUS_BAD_REQUEST,
-        ccf::errors::InvalidHeaderValue,
-        fmt::format(
-          "Invalid range: Cannot request empty range ({}-{}), from {}-byte "
-          "file",
-          range_start,
-          range_end,
-          total_size));
-      return;
-    }
-
     LOG_TRACE_FMT(
       "Reading {}-byte range from {} to {}",
       range_size,
@@ -454,15 +440,20 @@ namespace ccf::node
     {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_PARTIAL_CONTENT);
 
-      // Convert back to HTTP-style inclusive range end
-      const auto inclusive_range_end = range_end - 1;
+      // Avoid setting any Content-Range header if the range was empty, there's
+      // no way to spell this with an inclusive range end
+      if (range_end > range_start)
+      {
+        // Convert back to HTTP-style inclusive range end
+        const auto inclusive_range_end = range_end - 1;
 
-      // Partial Content responses describe the current response in
-      // Content-Range
-      ctx.rpc_ctx->set_response_header(
-        ccf::http::headers::CONTENT_RANGE,
-        fmt::format(
-          "bytes {}-{}/{}", range_start, inclusive_range_end, total_size));
+        // Partial Content responses describe the current response in
+        // Content-Range
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CONTENT_RANGE,
+          fmt::format(
+            "bytes {}-{}/{}", range_start, inclusive_range_end, total_size));
+      }
     }
     else
     {
