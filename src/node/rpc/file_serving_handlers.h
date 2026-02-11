@@ -168,6 +168,18 @@ namespace ccf::node
     f.seekg(0, std::ifstream::end);
     const auto total_size = (size_t)f.tellg();
 
+    if (total_size == 0)
+    {
+      // Refuse to return an empty file - it's not going to be a valid snapshot
+      // or ledger chunk, and cannot be described in a Content-Range response
+      // header
+      ctx.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::EmptyFile,
+        "Found empty file");
+      return;
+    }
+
     ctx.rpc_ctx->set_response_header("accept-ranges", "bytes");
 
     // Parse Want-Repr-Digest if present
@@ -438,34 +450,17 @@ namespace ccf::node
 
     if (has_range_header)
     {
-      if (range_end > range_start)
-      {
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_PARTIAL_CONTENT);
-        // Convert back to HTTP-style inclusive range end
-        const auto inclusive_range_end = range_end - 1;
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_PARTIAL_CONTENT);
 
-        // Partial Content responses describe the current response in
-        // Content-Range
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CONTENT_RANGE,
-          fmt::format(
-            "bytes {}-{}/{}", range_start, inclusive_range_end, total_size));
-      }
-      else
-      {
-        // Return an error if the range was empty, because inclusive-end
-        // Content-Range header cannot represent this.
-        ctx.rpc_ctx->set_error(
-          HTTP_STATUS_RANGE_NOT_SATISFIABLE,
-          ccf::errors::InvalidHeaderValue,
-          "Invalid range: Cannot return empty range");
+      // Convert back to HTTP-style inclusive range end
+      const auto inclusive_range_end = range_end - 1;
 
-        // Standard says an unsatisfiable range is "byte */N"
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CONTENT_RANGE,
-          fmt::format("bytes */{}", total_size));
-        return;
-      }
+      // Partial Content responses describe the current response in
+      // Content-Range
+      ctx.rpc_ctx->set_response_header(
+        ccf::http::headers::CONTENT_RANGE,
+        fmt::format(
+          "bytes {}-{}/{}", range_start, inclusive_range_end, total_size));
     }
     else
     {
