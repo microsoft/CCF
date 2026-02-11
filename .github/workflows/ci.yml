@@ -14,97 +14,97 @@ concurrency:
 permissions: read-all
 
 jobs:
-  # vmss-virtual-a:
-  #   name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, Partitions tests
-  #   runs-on:
-  #     [
-  #       self-hosted,
-  #       1ES.Pool=gha-vmss-d16av5-ci,
-  #       "JobId=ci_build_tidy-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-  #     ]
-  #   container:
-  #     image: mcr.microsoft.com/azurelinux/base/core:3.0
-  #     options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+  vmss-virtual-a:
+    name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, Partitions tests
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-vmss-d16av5-ci,
+        "JobId=ci_build_tidy-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
-  #   steps:
-  #     - name: "Checkout dependencies"
-  #       shell: bash
-  #       run: |
-  #         set -ex
-  #         gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-  #         tdnf -y update
-  #         tdnf -y install ca-certificates git
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          set -ex
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
 
-  #     - uses: actions/checkout@v6
-  #       with:
-  #         fetch-depth: 0
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
-  #     - name: "Install dependencies"
-  #       shell: bash
-  #       run: |
-  #         set -ex
-  #         ./scripts/setup-ci.sh
-  #         ./scripts/setup-dev.sh
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
+          ./scripts/setup-dev.sh
 
-  #     - name: "Run Checks and Build Debug with clang-tidy"
-  #       run: |
-  #         set -ex
-  #         git config --global --add safe.directory /__w/CCF/CCF
-  #         ./scripts/ci-checks.sh
-  #         mkdir build
-  #         cd build
-  #         cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
-  #         ninja
-  #       shell: bash
+      - name: "Run Checks and Build Debug with clang-tidy"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          ./scripts/ci-checks.sh
+          mkdir build
+          cd build
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
+          ninja
+        shell: bash
 
-  #     - name: "Run tests for Python package"
-  #       run: |
-  #         set -ex
-  #         python3 -m venv env
-  #         source env/bin/activate
-  #         pip install -U -q pip pytest
-  #         pip install -q -U -e python
-  #         cd python
-  #         pytest
+      - name: "Run tests for Python package"
+        run: |
+          set -ex
+          python3 -m venv env
+          source env/bin/activate
+          pip install -U -q pip pytest
+          pip install -q -U -e python
+          cd python
+          pytest
 
-  #     - name: "Check doc builds with no warnings"
-  #       run: |
-  #         set -ex
-  #         python3 -m venv env
-  #         source env/bin/activate
-  #         pip install -U pip
-  #         pip install -U -e ./python
-  #         pip install -U -r doc/requirements.txt
-  #         pip install -U -r doc/historical_ccf_requirements.txt
-  #         sphinx-build --fail-on-warning -b html doc doc/html
+      - name: "Check doc builds with no warnings"
+        run: |
+          set -ex
+          python3 -m venv env
+          source env/bin/activate
+          pip install -U pip
+          pip install -U -e ./python
+          pip install -U -r doc/requirements.txt
+          pip install -U -r doc/historical_ccf_requirements.txt
+          sphinx-build --fail-on-warning -b html doc doc/html
 
-  #     - name: "Run Unit tests"
-  #       run: |
-  #         set -ex
-  #         cd build
-  #         ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+      - name: "Run Unit tests"
+        run: |
+          set -ex
+          cd build
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
 
-  #       # Note that those are only run on the virtual CI, as they require enough
-  #       # privileges to configure iptables. ACI-based pools run unprivileged
-  #       # containers, and so cannot run these tests unfortunately.
-  #     - name: "Run partitions tests"
-  #       run: |
-  #         set -ex
-  #         cd build
-  #         ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+        # Note that those are only run on the virtual CI, as they require enough
+        # privileges to configure iptables. ACI-based pools run unprivileged
+        # containers, and so cannot run these tests unfortunately.
+      - name: "Run partitions tests"
+        run: |
+          set -ex
+          cd build
+          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
 
-  #     - name: "Upload logs for virtual A"
-  #       uses: actions/upload-artifact@v6
-  #       with:
-  #         name: logs-azurelinux-virtual-a
-  #         path: |
-  #           build/workspace/*/*.config.json
-  #           build/workspace/*/out
-  #           build/workspace/*/err
-  #           build/workspace/*/*.ledger/*
-  #           build/workspace/*/stack_trace
-  #         if-no-files-found: ignore
-  #       if: success() || failure()
+      - name: "Upload logs for virtual A"
+        uses: actions/upload-artifact@v6
+        with:
+          name: logs-azurelinux-virtual-a
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
+          if-no-files-found: ignore
+        if: success() || failure()
 
   vmss-virtual-b:
     name: "VMSS Virtual B" # End-to-end tests, except for partitions
@@ -181,164 +181,164 @@ jobs:
           if-no-files-found: ignore
         if: success() || failure()
 
-  # aci_snp_milan:
-  #   name: "ACI SNP Milan"
-  #   runs-on:
-  #     [
-  #       self-hosted,
-  #       1ES.Pool=gha-c-aci-ci,
-  #       "JobId=aci_snp_milan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-  #     ]
+  aci_snp_milan:
+    name: "ACI SNP Milan"
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-c-aci-ci,
+        "JobId=aci_snp_milan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
 
-  #   steps:
-  #     - uses: actions/checkout@v6
-  #       with:
-  #         fetch-depth: 0
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
-  #     - name: "Dump environment"
-  #       run: |
-  #         set -ex
-  #         # Dump environment variables, extract Fabric_NodeIPOrFQDN
-  #         # and save it to a file for reconfiguration test using THIM.
-  #         { cat /proc/*/environ 2>/dev/null || true; } | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
-  #         echo "::group::Disk usage"
-  #         df -kh
-  #         echo "::endgroup::"
-  #         echo "::group::Mounts"
-  #         mount
-  #         echo "::endgroup::"
-  #         echo "::group::CPU Info"
-  #         cat /proc/cpuinfo
-  #         echo "::endgroup::"
-  #       shell: bash
+      - name: "Dump environment"
+        run: |
+          set -ex
+          # Dump environment variables, extract Fabric_NodeIPOrFQDN
+          # and save it to a file for reconfiguration test using THIM.
+          { cat /proc/*/environ 2>/dev/null || true; } | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
+          echo "::group::Disk usage"
+          df -kh
+          echo "::endgroup::"
+          echo "::group::Mounts"
+          mount
+          echo "::endgroup::"
+          echo "::group::CPU Info"
+          cat /proc/cpuinfo
+          echo "::endgroup::"
+        shell: bash
 
-  #     - name: "Confirm running on SEV-SNP Milan"
-  #       run: |
-  #         set -ex
-  #         python3 tests/infra/platform_detection.py snp milan
-  #       shell: bash
+      - name: "Confirm running on SEV-SNP Milan"
+        run: |
+          set -ex
+          python3 tests/infra/platform_detection.py snp milan
+        shell: bash
 
-  #     - name: "Build Debug"
-  #       run: |
-  #         set -ex
-  #         git config --global --add safe.directory /__w/CCF/CCF
-  #         mkdir build
-  #         cd build
-  #         cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
-  #         ninja
-  #       shell: bash
+      - name: "Build Debug"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          ninja
+        shell: bash
 
-  #     - name: "Tests"
-  #       run: |
-  #         set -ex
-  #         cd build
-  #         rm -rf /github/home/.cache
-  #         mkdir -p /github/home/.cache
-  #         ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
-  #         ./tests.sh --timeout 360 --output-on-failure -R code_update
-  #       shell: bash
+      - name: "Tests"
+        run: |
+          set -ex
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+          ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
+          ./tests.sh --timeout 360 --output-on-failure -R code_update
+        shell: bash
 
-  #     - name: "Capture dmesg"
-  #       run: |
-  #         set -ex
-  #         echo "::group::Disk usage"
-  #         df -kh
-  #         echo "::endgroup::"
-  #         dmesg > dmesg.log
-  #       shell: bash
-  #       if: success() || failure()
+      - name: "Capture dmesg"
+        run: |
+          set -ex
+          echo "::group::Disk usage"
+          df -kh
+          echo "::endgroup::"
+          dmesg > dmesg.log
+        shell: bash
+        if: success() || failure()
 
-  #     - name: "Upload logs"
-  #       uses: actions/upload-artifact@v6
-  #       with:
-  #         name: logs-aci-snp-milan
-  #         path: |
-  #           dmesg.log
-  #           build/workspace/*/*.config.json
-  #           build/workspace/*/out
-  #           build/workspace/*/err
-  #           build/workspace/*/*.ledger/*
-  #           build/workspace/*/stack_trace
-  #         if-no-files-found: ignore
-  #       if: success() || failure()
+      - name: "Upload logs"
+        uses: actions/upload-artifact@v6
+        with:
+          name: logs-aci-snp-milan
+          path: |
+            dmesg.log
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
+          if-no-files-found: ignore
+        if: success() || failure()
 
-  # aci_snp_genoa:
-  #   name: "ACI SNP Genoa"
-  #   runs-on:
-  #     [
-  #       self-hosted,
-  #       1ES.Pool=gha-aci-genoa,
-  #       "JobId=aci_snp_genoa-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-  #     ]
+  aci_snp_genoa:
+    name: "ACI SNP Genoa"
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-aci-genoa,
+        "JobId=aci_snp_genoa-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
 
-  #   steps:
-  #     - uses: actions/checkout@v6
-  #       with:
-  #         fetch-depth: 0
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
-  #     - name: "Dump environment"
-  #       run: |
-  #         set -ex
-  #         # Dump environment variables, extract Fabric_NodeIPOrFQDN
-  #         # and save it to a file for reconfiguration test using THIM.
-  #         { cat /proc/*/environ 2>/dev/null || true; } | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
-  #         echo "::group::Disk usage"
-  #         df -kh
-  #         echo "::endgroup::"
-  #         echo "::group::Mounts"
-  #         mount
-  #         echo "::endgroup::"
-  #         echo "::group::CPU Info"
-  #         cat /proc/cpuinfo
-  #         echo "::endgroup::"
-  #       shell: bash
+      - name: "Dump environment"
+        run: |
+          set -ex
+          # Dump environment variables, extract Fabric_NodeIPOrFQDN
+          # and save it to a file for reconfiguration test using THIM.
+          { cat /proc/*/environ 2>/dev/null || true; } | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
+          echo "::group::Disk usage"
+          df -kh
+          echo "::endgroup::"
+          echo "::group::Mounts"
+          mount
+          echo "::endgroup::"
+          echo "::group::CPU Info"
+          cat /proc/cpuinfo
+          echo "::endgroup::"
+        shell: bash
 
-  #     - name: "Confirm running on SEV-SNP Genoa"
-  #       run: |
-  #         set -ex
-  #         python3 tests/infra/platform_detection.py snp genoa
-  #       shell: bash
+      - name: "Confirm running on SEV-SNP Genoa"
+        run: |
+          set -ex
+          python3 tests/infra/platform_detection.py snp genoa
+        shell: bash
 
-  #     - name: "Build Debug"
-  #       run: |
-  #         set -ex
-  #         git config --global --add safe.directory /__w/CCF/CCF
-  #         mkdir build
-  #         cd build
-  #         cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
-  #         ninja
-  #       shell: bash
+      - name: "Build Debug"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          ninja
+        shell: bash
 
-  #     - name: "Tests"
-  #       run: |
-  #         set -ex
-  #         cd build
-  #         rm -rf /github/home/.cache
-  #         mkdir -p /github/home/.cache
-  #         ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
-  #         ./tests.sh --timeout 360 --output-on-failure -R code_update
-  #       shell: bash
+      - name: "Tests"
+        run: |
+          set -ex
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+          ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
+          ./tests.sh --timeout 360 --output-on-failure -R code_update
+        shell: bash
 
-  #     - name: "Capture dmesg"
-  #       run: |
-  #         set -ex
-  #         echo "::group::Disk usage"
-  #         df -kh
-  #         echo "::endgroup::"
-  #         dmesg > dmesg.log
-  #       shell: bash
-  #       if: success() || failure()
+      - name: "Capture dmesg"
+        run: |
+          set -ex
+          echo "::group::Disk usage"
+          df -kh
+          echo "::endgroup::"
+          dmesg > dmesg.log
+        shell: bash
+        if: success() || failure()
 
-  #     - name: "Upload logs"
-  #       uses: actions/upload-artifact@v6
-  #       with:
-  #         name: logs-caci-snp-genoa
-  #         path: |
-  #           dmesg.log
-  #           build/workspace/*/*.config.json
-  #           build/workspace/*/out
-  #           build/workspace/*/err
-  #           build/workspace/*/*.ledger/*
-  #           build/workspace/*/stack_trace
-  #         if-no-files-found: ignore
-  #       if: success() || failure()
+      - name: "Upload logs"
+        uses: actions/upload-artifact@v6
+        with:
+          name: logs-caci-snp-genoa
+          path: |
+            dmesg.log
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*/*.ledger/*
+            build/workspace/*/stack_trace
+          if-no-files-found: ignore
+        if: success() || failure()
