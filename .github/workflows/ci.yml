@@ -165,7 +165,7 @@ jobs:
           mkdir -p /github/home/.cache
 
           # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit" -R modules_test
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
         shell: bash
 
       - name: "Upload logs for virtual B"
