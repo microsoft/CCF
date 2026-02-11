@@ -219,7 +219,7 @@ namespace ccf::crypto
     constexpr size_t MAX_SIG_SIZE = 2048;
 
     std::vector<uint8_t> r(MAX_SIG_SIZE);
-    auto hash = OpenSSLHashProvider().Hash(d.data(), d.size(), md_type);
+    auto hash = OpenSSLHashProvider().hash(d.data(), d.size(), md_type);
     Unique_EVP_PKEY_CTX pctx(key);
     CHECK1(EVP_PKEY_sign_init(pctx));
     CHECK1(EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PSS_PADDING));
