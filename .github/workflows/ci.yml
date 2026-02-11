@@ -123,10 +123,8 @@ jobs:
         shell: bash
         run: |
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf list npm
           tdnf -y update
           tdnf -y install ca-certificates git
-          tdnf list npm
 
       - uses: actions/checkout@v6
         with:
@@ -134,7 +132,6 @@ jobs:
 
       - name: "cpuinfo"
         run: |
-          tdnf list npm
           cat /proc/cpuinfo
         shell: bash
 
@@ -142,9 +139,7 @@ jobs:
         shell: bash
         run: |
           set -ex
-          tdnf list npm
           ./scripts/setup-ci.sh
-          tdnf list npm
 
       - name: "Confirm running on Virtual"
         run: |
