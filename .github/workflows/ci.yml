@@ -122,8 +122,8 @@ jobs:
       - name: "Checkout dependencies"
         shell: bash
         run: |
-          tdnf list npm
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf list npm
           tdnf -y update
           tdnf -y install ca-certificates git
           tdnf list npm
