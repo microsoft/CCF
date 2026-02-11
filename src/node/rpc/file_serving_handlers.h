@@ -438,12 +438,9 @@ namespace ccf::node
 
     if (has_range_header)
     {
-      ctx.rpc_ctx->set_response_status(HTTP_STATUS_PARTIAL_CONTENT);
-
-      // Avoid setting any Content-Range header if the range was empty, there's
-      // no way to spell this with an inclusive range end
       if (range_end > range_start)
       {
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_PARTIAL_CONTENT);
         // Convert back to HTTP-style inclusive range end
         const auto inclusive_range_end = range_end - 1;
 
@@ -453,6 +450,21 @@ namespace ccf::node
           ccf::http::headers::CONTENT_RANGE,
           fmt::format(
             "bytes {}-{}/{}", range_start, inclusive_range_end, total_size));
+      }
+      else
+      {
+        // Return an error if the range was empty, because inclusive-end
+        // Content-Range header cannot represent this.
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_RANGE_NOT_SATISFIABLE,
+          ccf::errors::InvalidHeaderValue,
+          "Invalid range: Cannot return empty range");
+
+        // Standard says an unsatisfiable range is "byte */N"
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CONTENT_RANGE,
+          fmt::format("bytes */{}", total_size));
+        return;
       }
     }
     else
