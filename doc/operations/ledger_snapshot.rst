@@ -168,4 +168,4 @@ Invariants
 
 3. Snapshots are always generated for the ``seqno`` of a signature transaction (but not all signature transactions trigger the generation of snapshot).
 
-4. A snapshot must be generated for the end of a ledger file. Since a node can join using solely a snapshot, the first ledger file on that node will start just after the ``seqno`` of the snapshot. By 2., all nodes must have the same ledger files, so the generation of that snapshot on the primary must trigger the creation of a new ledger file starting at the next ``seqno`` to ensure the primary's ledger files are consistent with the joining node's files.
+4. When a snapshot is generated, it must coincide with the end of a ledger file. Since a node can join using solely a snapshot, the first ledger file on that node will start just after the ``seqno`` of the snapshot. By 2., all nodes must have the same ledger files, so the generation of that snapshot on the primary must trigger the creation of a new ledger file starting at the next ``seqno`` to ensure the primary's ledger files are consistent with the joining node's files.
