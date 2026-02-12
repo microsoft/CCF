@@ -12,6 +12,7 @@
 #include "node/network_state.h"
 #include "node/snapshot_serdes.h"
 #include "service/tables/snapshot_evidence.h"
+#include "service/tables/snapshot_status.h"
 #include "tasks/task_system.h"
 
 #include <chrono>
@@ -47,6 +48,8 @@ namespace ccf
     std::chrono::microseconds snapshot_time_interval =
       std::chrono::microseconds(0);
 
+    using TimePoint = std::chrono::system_clock::time_point;
+
     struct SnapshotInfo
     {
       ccf::kv::Version version = 0;
@@ -60,6 +63,8 @@ namespace ccf
       bool is_stored = false;
 
       std::optional<::consensus::Index> evidence_idx = std::nullopt;
+
+      TimePoint timestamp = TimePoint::min();
 
       std::optional<NodeId> node_id = std::nullopt;
       std::optional<ccf::crypto::Pem> node_cert = std::nullopt;
@@ -75,11 +80,11 @@ namespace ccf
     // Initial snapshot index
     static constexpr ::consensus::Index initial_snapshot_idx = 0;
 
-    using TimePoint = std::chrono::system_clock::time_point;
-
     // Index at which the latest snapshot was generated
     ::consensus::Index last_snapshot_idx = 0;
-    TimePoint last_snapshot_time = TimePoint::min();
+
+    TimePoint last_committed_snapshot_time = TimePoint::min();
+    std::map<::consensus::Index, TimePoint> scheduled_snapshot_times;
 
     // Used to suspend snapshot generation during public recovery
     bool snapshot_generation_enabled = true;
@@ -89,7 +94,6 @@ namespace ccf
     struct SnapshotEntry
     {
       ::consensus::Index idx{};
-      TimePoint timestamp;
       bool forced{};
       bool done{};
     };
@@ -99,6 +103,12 @@ namespace ccf
       ::consensus::Index snapshot_idx,
       const std::vector<uint8_t>& serialised_receipt)
     {
+      // once we've committed a snapshot remove all snapshot times below that as
+      // it cannot be rolled back
+      std::erase_if(
+        scheduled_snapshot_times, [snapshot_idx](const auto& entry) {
+          return entry.first < snapshot_idx;
+        });
       // The snapshot_idx is used to retrieve the correct snapshot file
       // previously generated.
       auto to_host = writer_factory.create_writer_to_outside();
@@ -114,23 +124,26 @@ namespace ccf
       std::shared_ptr<Snapshotter> self;
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot;
       uint32_t generation_count;
+      TimePoint timestamp;
 
       const std::string name;
 
       SnapshotTask(
         std::shared_ptr<Snapshotter> _self,
         std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot>&& _snapshot,
-        uint32_t _generation_count) :
+        uint32_t _generation_count,
+        TimePoint _timestamp) :
         self(std::move(_self)),
         snapshot(std::move(_snapshot)),
         generation_count(_generation_count),
+        timestamp(_timestamp),
         name(fmt::format(
           "snapshot@{}[{}]", snapshot->get_version(), generation_count))
       {}
 
       void do_task_implementation() override
       {
-        self->snapshot_(std::move(snapshot), generation_count);
+        self->snapshot_(std::move(snapshot), generation_count, timestamp);
       }
 
       [[nodiscard]] const std::string& get_name() const override
@@ -141,7 +154,8 @@ namespace ccf
 
     void snapshot_(
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot,
-      uint32_t generation_count)
+      uint32_t generation_count,
+      TimePoint timestamp)
     {
       auto snapshot_version = snapshot->get_version();
 
@@ -161,8 +175,8 @@ namespace ccf
         // transaction is committed. To allow for such scenario, the evidence
         // seqno is recorded via `record_snapshot_evidence_idx()` on a hook
         // rather than here.
-        pending_snapshots[generation_count] = {};
         pending_snapshots[generation_count].version = snapshot_version;
+        pending_snapshots[generation_count].timestamp = timestamp;
       }
 
       auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
@@ -172,6 +186,13 @@ namespace ccf
       auto* evidence = tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
       auto snapshot_hash = ccf::crypto::Sha256Hash(serialised_snapshot);
       evidence->put({snapshot_hash, snapshot_version});
+
+      auto* status = tx.rw<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS);
+      auto epoch_s =
+        static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(
+                                timestamp.time_since_epoch())
+                                .count());
+      status->put({snapshot_version, epoch_s});
 
       ccf::ClaimsDigest cd;
       // NOLINTNEXTLINE(performance-move-const-arg)
@@ -281,7 +302,9 @@ namespace ccf
       min_snapshot_tx_interval(min_snapshot_tx_interval_),
       snapshot_time_interval(snapshot_time_interval_)
     {
-      next_snapshot_indices.push_back({initial_snapshot_idx, std::chrono::system_clock::now(), false, true});
+      next_snapshot_indices.push_back({initial_snapshot_idx, false, true});
+      scheduled_snapshot_times[initial_snapshot_idx] =
+        std::chrono::system_clock::now();
     }
 
     void init_after_public_recovery()
@@ -292,6 +315,8 @@ namespace ccf
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
       last_snapshot_idx = next_snapshot_indices.back().idx;
+      scheduled_snapshot_times[last_snapshot_idx] =
+        std::chrono::system_clock::now();
     }
 
     void set_snapshot_generation(bool enabled)
@@ -302,7 +327,8 @@ namespace ccf
 
     void set_last_snapshot_idx(::consensus::Index idx)
     {
-      // Should only be called once, after the startup (recovery or join) snapshot has been applied
+      // Should only be called once, after the startup (recovery or join)
+      // snapshot has been applied
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
       if (last_snapshot_idx != 0)
@@ -315,7 +341,9 @@ namespace ccf
       last_snapshot_idx = idx;
 
       next_snapshot_indices.clear();
-      next_snapshot_indices.push_back({last_snapshot_idx, std::chrono::system_clock::now(), false, true});
+      next_snapshot_indices.push_back({last_snapshot_idx, false, true});
+      scheduled_snapshot_times[last_snapshot_idx] =
+        std::chrono::system_clock::now();
     }
 
     bool write_snapshot(
@@ -365,41 +393,46 @@ namespace ccf
     bool should_schedule_snapshot_unsafe(::consensus::Index threshold_idx)
     {
       ::consensus::Index last_unforced_idx = last_snapshot_idx;
-      TimePoint last_unforced_time = last_snapshot_time;
       for (const auto& next_snapshot_indice :
            std::ranges::reverse_view(next_snapshot_indices))
       {
         if (!next_snapshot_indice.forced)
         {
           last_unforced_idx = next_snapshot_indice.idx;
-          last_unforced_time = next_snapshot_indice.timestamp;
           break;
         }
       }
-
       // Trigger if count exceeds the full interval, OR if the minimum tx
       // threshold is met and the time interval has elapsed.
       auto count = threshold_idx - last_unforced_idx;
-
       auto count_overdue = count >= snapshot_tx_interval;
 
+      TimePoint last_snapshot_time = last_committed_snapshot_time;
+      for (const auto& [idx, time] : scheduled_snapshot_times)
+      {
+        if (idx <= last_unforced_idx)
+        {
+          last_snapshot_time = time;
+        }
+      }
       auto time_enabled = snapshot_time_interval.count() > 0;
       auto min_count_met = count >= min_snapshot_tx_interval;
       auto time_overdue = time_enabled && min_count_met &&
-        (std::chrono::system_clock::now() - last_unforced_time >=
+        (std::chrono::system_clock::now() - last_snapshot_time >=
          snapshot_time_interval);
 
       if (count_overdue || time_overdue)
       {
         LOG_DEBUG_FMT(
-          "Snapshot at seqno {} is due (c{},t{}): count since last unforced snapshot "
+          "Snapshot at seqno {} is due (c{},t{}): count since last unforced "
+          "snapshot "
           "is {}, time since last unforced snapshot is {}s",
           threshold_idx,
           count_overdue ? "overdue" : "not overdue",
           time_overdue ? "overdue" : "not overdue",
           count,
           std::chrono::duration_cast<std::chrono::seconds>(
-            std::chrono::system_clock::now() - last_unforced_time)
+            std::chrono::system_clock::now() - last_snapshot_time)
             .count());
       }
 
@@ -431,8 +464,7 @@ namespace ccf
 
       if (due || forced)
       {
-        next_snapshot_indices.push_back(
-          {idx, std::chrono::system_clock::now(), forced, false});
+        next_snapshot_indices.push_back({idx, forced, false});
         LOG_TRACE_FMT(
           "{} {} as snapshot index", forced ? "Forced" : "Recorded", idx);
         store->unset_flag_unsafe(
@@ -514,14 +546,15 @@ namespace ccf
       }
     }
 
-    void schedule_snapshot(::consensus::Index idx)
+    void schedule_snapshot(::consensus::Index idx, TimePoint timestamp)
     {
       static uint32_t generation_count = 0;
 
       auto task = std::make_shared<SnapshotTask>(
         shared_from_this(),
         store->snapshot_unsafe_maps(idx),
-        generation_count++);
+        generation_count++,
+        timestamp);
 
       ccf::tasks::add_task(task);
     }
@@ -561,7 +594,7 @@ namespace ccf
         if (
           snapshot_generation_enabled && generate_snapshot && (next.idx != 0u))
         {
-          schedule_snapshot(next.idx);
+          schedule_snapshot(next.idx, next.timestamp);
           next.done = true;
         }
 
@@ -584,14 +617,21 @@ namespace ccf
       while (!next_snapshot_indices.empty() &&
              (next_snapshot_indices.back().idx > idx))
       {
+        auto idx = next_snapshot_indices.back().idx;
+        scheduled_snapshot_times.erase(idx);
         next_snapshot_indices.pop_back();
       }
 
       if (next_snapshot_indices.empty())
       {
-        // TODO do something more sane here...
-        next_snapshot_indices.push_back({last_snapshot_idx, std::chrono::system_clock::now(), false, true});
+        next_snapshot_indices.push_back(
+          {last_snapshot_idx, false, true});
       }
+
+      CCF_ASSERT(
+        !scheduled_snapshot_times.empty(),
+        "There must always be a scheduled snapshot time for comparison"
+      );
 
       LOG_TRACE_FMT(
         "Rolled back snapshotter: last snapshottable idx is now {}",
