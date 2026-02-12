@@ -3,12 +3,29 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/crypto/base64.h"
+#include "ccf/crypto/hash_provider.h"
 #include "ccf/service/tables/nodes.h"
+#include "http/http_digest.h"
 #include "node/rpc/ledger_subsystem.h"
 #include "snapshots/filenames.h"
 
 namespace ccf::node
 {
+  // Compute and format the Repr-Digest header value for the given algorithm
+  // and data.
+  static std::string format_repr_digest(
+    const std::string& algo_name,
+    ccf::crypto::MDType md,
+    const uint8_t* data,
+    size_t size)
+  {
+    auto hp = ccf::crypto::make_hash_provider();
+    auto digest = hp->hash(data, size, md);
+    auto b64 = ccf::crypto::b64_from_raw(digest.data(), digest.size());
+    return fmt::format("{}=:{}:", algo_name, b64);
+  }
+
   // Helper function to lookup redirect address based on the interface on this
   // node which received the request. Will either return an address, or
   // populate an appropriate error on the response context.
@@ -136,6 +153,10 @@ namespace ccf::node
   // This populates the response body, and range-related response headers. This
   // may produce an error response if an invalid range was requested.
   //
+  // If the request contains a Want-Repr-Digest header, the Repr-Digest
+  // response header is set with the digest of the full file (RFC 9530),
+  // regardless of any Range header.
+  //
   // This DOES NOT set a response header telling the client the name of the
   // snapshot/chunk/... being served, so the caller should set this (along
   // with any other metadata headers) _before_ calling this function, and
@@ -149,21 +170,57 @@ namespace ccf::node
 
     ctx.rpc_ctx->set_response_header("accept-ranges", "bytes");
 
+    // Parse Want-Repr-Digest if present
+    const auto want_digest =
+      ctx.rpc_ctx->get_request_header(ccf::http::headers::WANT_REPR_DIGEST);
+    std::optional<std::pair<std::string, ccf::crypto::MDType>> digest_algo;
+    if (want_digest.has_value())
+    {
+      digest_algo = ccf::http::parse_want_repr_digest(want_digest.value());
+    }
+
     if (ctx.rpc_ctx->get_request_verb() == HTTP_HEAD)
     {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       ctx.rpc_ctx->set_response_header(
         ccf::http::headers::CONTENT_LENGTH, total_size);
+
+      if (digest_algo.has_value())
+      {
+        f.seekg(0);
+        std::vector<uint8_t> full_contents(total_size);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        f.read(reinterpret_cast<char*>(full_contents.data()), total_size);
+
+        if (f.gcount() != static_cast<std::streamsize>(total_size))
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Server was unable to read the file correctly");
+          return;
+        }
+
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::REPR_DIGEST,
+          format_repr_digest(
+            digest_algo->first,
+            digest_algo->second,
+            full_contents.data(),
+            full_contents.size()));
+      }
       return;
     }
 
     size_t range_start = 0;
     size_t range_end = total_size;
+    bool has_range_header = false;
     {
       const auto range_header =
         ctx.rpc_ctx->get_request_header(ccf::http::headers::RANGE);
       if (range_header.has_value())
       {
+        has_range_header = true;
         LOG_TRACE_FMT("Parsing range header {}", range_header.value());
 
         auto [unit, ranges] = ccf::nonstd::split_1(range_header.value(), "=");
@@ -326,29 +383,77 @@ namespace ccf::node
       range_start,
       range_end);
 
-    // Read requested range into buffer
-    std::vector<uint8_t> contents(range_size);
-    f.seekg(range_start);
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    f.read(reinterpret_cast<char*>(contents.data()), contents.size());
-    f.close();
+    // Read file contents, compute repr-digest if requested, and set
+    // response body to the requested range.
+    if (digest_algo.has_value())
+    {
+      // Need full file contents for the digest
+      f.seekg(0);
+      std::vector<uint8_t> full_contents(total_size);
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      f.read(reinterpret_cast<char*>(full_contents.data()), total_size);
+      f.close();
+
+      auto bytes_read = static_cast<size_t>(f.gcount());
+      if (bytes_read < range_end)
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Server was unable to read the file correctly");
+        return;
+      }
+
+      if (bytes_read == total_size)
+      {
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::REPR_DIGEST,
+          format_repr_digest(
+            digest_algo->first,
+            digest_algo->second,
+            full_contents.data(),
+            full_contents.size()));
+      }
+
+      // Extract the requested range for the response body
+      std::vector<uint8_t> contents(
+        full_contents.begin() + range_start, full_contents.begin() + range_end);
+      ctx.rpc_ctx->set_response_body(std::move(contents));
+    }
+    else
+    {
+      // Read only the requested range
+      std::vector<uint8_t> contents(range_size);
+      f.seekg(range_start);
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      f.read(reinterpret_cast<char*>(contents.data()), contents.size());
+      f.close();
+      ctx.rpc_ctx->set_response_body(std::move(contents));
+    }
 
     // Build successful response
-    ctx.rpc_ctx->set_response_status(HTTP_STATUS_PARTIAL_CONTENT);
     ctx.rpc_ctx->set_response_header(
       ccf::http::headers::CONTENT_TYPE,
       ccf::http::headervalues::contenttype::OCTET_STREAM);
-    ctx.rpc_ctx->set_response_body(std::move(contents));
 
-    // Convert back to HTTP-style inclusive range end
-    const auto inclusive_range_end = range_end - 1;
+    if (has_range_header)
+    {
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_PARTIAL_CONTENT);
 
-    // Partial Content responses describe the current response in
-    // Content-Range
-    ctx.rpc_ctx->set_response_header(
-      ccf::http::headers::CONTENT_RANGE,
-      fmt::format(
-        "bytes {}-{}/{}", range_start, inclusive_range_end, total_size));
+      // Convert back to HTTP-style inclusive range end
+      const auto inclusive_range_end = range_end - 1;
+
+      // Partial Content responses describe the current response in
+      // Content-Range
+      ctx.rpc_ctx->set_response_header(
+        ccf::http::headers::CONTENT_RANGE,
+        fmt::format(
+          "bytes {}-{}/{}", range_start, inclusive_range_end, total_size));
+    }
+    else
+    {
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    }
   }
 
   static void init_file_serving_handlers(

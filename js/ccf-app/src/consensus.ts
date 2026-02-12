@@ -31,4 +31,4 @@ export const getViewForSeqno = ccf.consensus.getViewForSeqno.bind(
   ccf.consensus,
 );
 
-export { TransactionStatus } from "./global";
+export type { TransactionStatus } from "./global";

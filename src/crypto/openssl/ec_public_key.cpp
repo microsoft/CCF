@@ -184,7 +184,7 @@ namespace ccf::crypto
       md_type = get_md_for_ec(get_curve_id());
     }
     OpenSSLHashProvider hp;
-    bytes = hp.Hash(contents, contents_size, md_type);
+    bytes = hp.hash(contents, contents_size, md_type);
     return verify_hash(bytes.data(), bytes.size(), sig, sig_size, md_type);
   }
 
