@@ -733,6 +733,204 @@ def test_nulled_snapshot(network, args):
         assert failed, "Node should not have joined successfully"
 
 
+def test_corrupt_snapshot_handling(network, args):
+    """
+    Test that corrupt snapshots in writable and read-only directories are
+    handled correctly:
+    - In the writable directory, corrupt files are renamed to .ignored.
+    - In a read-only (config) directory, log messages about unrenamable files
+      are emitted.
+    - When the writable directory's permissions prevent renaming, a log message
+      about failure to mark the snapshot as ignored is emitted.
+    """
+
+    # Craft corrupt snapshot data that passes separate_segments() (valid header
+    # with non-zero body size and non-empty receipt area) but fails
+    # verify_snapshot() because the receipt is not valid JSON.
+    # SerialisedEntryHeader is 8 bytes: version(1) + flags(1) + size(48-bit LE)
+    body_size = 16
+    header = bytes([1, 0]) + body_size.to_bytes(6, "little")
+    assert len(header) == 8
+    body = b"\x00" * body_size
+    receipt = b"this is not valid json!!"
+    corrupt_data = header + body + receipt
+
+    # Use a higher seqno for the writable dir so it is tried first (snapshots
+    # are iterated in descending seqno order).
+    writable_snapshot_name = "snapshot_2000_2500.committed"
+    read_only_snapshot_name = "snapshot_1000_1500.committed"
+
+    # ---- Part 1: writable dir (rename succeeds) + read-only config dir ----
+    LOG.info(
+        "Part 1: corrupt snapshots in both writable and read-only directories"
+    )
+
+    with tempfile.TemporaryDirectory() as writable_dir, tempfile.TemporaryDirectory() as read_only_dir:
+        # Place corrupt snapshots
+        with open(os.path.join(writable_dir, writable_snapshot_name), "wb") as f:
+            f.write(corrupt_data)
+        with open(
+            os.path.join(read_only_dir, read_only_snapshot_name), "wb"
+        ) as f:
+            f.write(corrupt_data)
+
+        new_node = network.create_node()
+
+        # Set up the join with the writable snapshot directory only; we will
+        # inject the read-only directory into the config afterwards.
+        network.setup_join_node(
+            new_node,
+            args.package,
+            args,
+            snapshots_dir=writable_dir,
+            fetch_recent_snapshot=False,
+        )
+
+        # The node's workspace root and config file
+        node_root = new_node.remote.remote.root
+        config_file_name = (
+            f"{new_node.remote.local_node_id}.config.json"
+        )
+        config_path = os.path.join(node_root, config_file_name)
+
+        # Copy the read-only snapshot directory into the node's workspace
+        ro_dir_basename = os.path.basename(read_only_dir)
+        shutil.copytree(
+            read_only_dir, os.path.join(node_root, ro_dir_basename)
+        )
+
+        # Patch the config to include the read-only snapshot directory.
+        # If the config file is a symlink, replace it with a copy so we
+        # don't mutate the shared original.
+        if os.path.islink(config_path):
+            target = os.path.realpath(config_path)
+            os.unlink(config_path)
+            shutil.copy2(target, config_path)
+
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        config["snapshots"]["read_only_directory"] = ro_dir_basename
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+
+        # Start the node – it should fall back to ledger replay after
+        # discarding both corrupt snapshots.  If the node fails to join
+        # (e.g. timeout), that is acceptable – the snapshot selection
+        # behaviour we care about happens during startup before the join
+        # protocol completes.
+        try:
+            network.run_join_node(new_node)
+            new_node.stop()
+        except Exception as e:
+            LOG.warning(
+                f"Node failed to join (expected if ledger replay is slow): {e}"
+            )
+            # run_join_node already stopped and removed the node on failure,
+            # but we still need to ensure the process is down.
+            try:
+                new_node.stop()
+            except Exception:
+                pass
+
+        # -- Verify writable directory: file must be renamed to .ignored --
+        writable_in_ws = os.path.join(
+            node_root, os.path.basename(writable_dir)
+        )
+        ws_files = os.listdir(writable_in_ws)
+        assert writable_snapshot_name not in ws_files, (
+            f"Corrupt snapshot {writable_snapshot_name} should have been "
+            f"renamed in writable dir, but found: {ws_files}"
+        )
+        assert f"{writable_snapshot_name}.ignored" in ws_files, (
+            f"Expected {writable_snapshot_name}.ignored in writable dir, "
+            f"but found: {ws_files}"
+        )
+
+        # -- Verify read-only directory: file must still be present --
+        ro_in_ws = os.path.join(node_root, ro_dir_basename)
+        ro_files = os.listdir(ro_in_ws)
+        assert read_only_snapshot_name in ro_files, (
+            f"Corrupt snapshot {read_only_snapshot_name} in read-only dir "
+            f"should not have been renamed, but found: {ro_files}"
+        )
+
+        # -- Verify node logs --
+        assert new_node.check_log_for_error_message(
+            "Error while verifying"
+        ), "Expected 'Error while verifying' in node logs"
+
+        assert new_node.check_log_for_error_message(
+            "Ignoring corrupt snapshot"
+        ), "Expected 'Ignoring corrupt snapshot' in node logs"
+
+        assert new_node.check_log_for_error_message(
+            "is in a read-only directory"
+        ), "Expected read-only directory message in node logs"
+
+    # ---- Part 2: writable dir with restricted permissions (rename fails) ----
+    LOG.info(
+        "Part 2: corrupt snapshot in writable dir that cannot be renamed"
+    )
+
+    unrenamable_snapshot_name = "snapshot_3000_3500.committed"
+
+    with tempfile.TemporaryDirectory() as restricted_dir:
+        snapshot_path = os.path.join(restricted_dir, unrenamable_snapshot_name)
+        with open(snapshot_path, "wb") as f:
+            f.write(corrupt_data)
+
+        new_node2 = network.create_node()
+        network.setup_join_node(
+            new_node2,
+            args.package,
+            args,
+            snapshots_dir=restricted_dir,
+            fetch_recent_snapshot=False,
+        )
+
+        # To make the rename to .ignored fail, create a *directory* with the
+        # target name (<snapshot>.ignored).  On Linux, rename() returns EISDIR
+        # when the source is a file and the destination is a directory,
+        # regardless of user privileges (chmod is ineffective under root).
+        node_root2 = new_node2.remote.remote.root
+        restricted_in_ws = os.path.join(
+            node_root2, os.path.basename(restricted_dir)
+        )
+        blocker_dir = os.path.join(
+            restricted_in_ws, f"{unrenamable_snapshot_name}.ignored"
+        )
+        os.makedirs(blocker_dir)
+        # Place a file inside so the directory is non-empty (extra safety)
+        with open(os.path.join(blocker_dir, "placeholder"), "w") as f:
+            f.write("")
+
+        try:
+            network.run_join_node(new_node2)
+        except Exception:
+            # The node may fail to join if it cannot write to the snapshots
+            # directory at all; that is acceptable for this sub-test.
+            pass
+
+        try:
+            new_node2.stop()
+        except Exception:
+            pass
+
+        # The corrupt file should still be present (rename failed)
+        ws_files2 = os.listdir(restricted_in_ws)
+        assert unrenamable_snapshot_name in ws_files2, (
+            f"Corrupt snapshot {unrenamable_snapshot_name} should still exist "
+            f"after failed rename, but found: {ws_files2}"
+        )
+
+        # Check that the failure-to-rename message appears in the logs
+        assert new_node2.check_log_for_error_message(
+            "Unable to mark snapshot as ignored"
+        ), "Expected 'Unable to mark snapshot as ignored' in node logs"
+
+    return network
+
+
 def split_all_ledger_files_in_dir(input_dir, output_dir):
     # A ledger file can only be split at a seqno that contains a signature
     # (so that all files end on a signature that verifies their integrity).
@@ -1156,6 +1354,7 @@ def run_file_operations(args):
                 test_snapshot_selection(network, args)
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
+                test_corrupt_snapshot_handling(network, args)
 
                 # Ensure that the network is still live
                 primary, _ = network.find_primary()
