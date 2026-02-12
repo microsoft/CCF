@@ -940,9 +940,13 @@ namespace ccf::node
                 return;
               }
             }
-            catch (const ccf::http::MatcherError&)
+            catch (const ccf::http::MatcherError& e)
             {
-              // Invalid If-None-Match header, ignore and serve normally
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidHeaderValue,
+                e.what());
+              return;
             }
           }
         }
