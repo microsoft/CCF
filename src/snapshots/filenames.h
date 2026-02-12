@@ -170,26 +170,26 @@ namespace snapshots
         auto file_name = f.path().filename();
         if (!is_snapshot_file(file_name))
         {
-          LOG_INFO_FMT("Ignoring non-snapshot file {}", file_name);
+          LOG_DEBUG_FMT("Ignoring non-snapshot file {}", file_name);
           continue;
         }
 
         if (!is_snapshot_file_committed(file_name))
         {
-          LOG_INFO_FMT("Ignoring non-committed snapshot file {}", file_name);
+          LOG_DEBUG_FMT("Ignoring non-committed snapshot file {}", file_name);
           continue;
         }
 
         if (fs::exists(f.path()) && fs::is_empty(f.path()))
         {
-          LOG_INFO_FMT("Ignoring empty snapshot file {}", file_name);
+          LOG_DEBUG_FMT("Ignoring empty snapshot file {}", file_name);
           continue;
         }
 
         const auto idx = get_snapshot_idx_from_file_name(file_name.string());
-        if (minimum_idx.has_value() && idx < minimum_idx.value())
+        if (minimum_idx.has_value() && idx <= minimum_idx.value())
         {
-          LOG_INFO_FMT(
+          LOG_DEBUG_FMT(
             "Ignoring snapshot file {} below minimum idx {}",
             file_name,
             minimum_idx.value());

@@ -309,8 +309,8 @@ namespace ccf
           LOG_FAIL_FMT(
             "Error while verifying {}: {}", snapshot_path.string(), e.what());
 
-          const dir = snapshot_path.parent_path();
-          const file_name = snapshot_path.filename();
+          const auto dir = snapshot_path.parent_path();
+          const auto file_name = snapshot_path.filename();
 
           if (dir == config.snapshots.directory)
           {
