@@ -200,7 +200,7 @@ namespace ccf::crypto
     RSAPadding padding,
     size_t salt_length)
   {
-    auto hash = OpenSSLHashProvider().Hash(contents, contents_size, md_type);
+    auto hash = OpenSSLHashProvider().hash(contents, contents_size, md_type);
     return verify_hash(
       hash.data(),
       hash.size(),
