@@ -21,7 +21,7 @@ namespace ccf::crypto
      * @param size The size of @p data
      * @param type The type of hash to compute
      */
-    virtual HashBytes Hash(
+    virtual HashBytes hash(
       const uint8_t* data, size_t size, MDType type) const = 0;
 
     virtual ~HashProvider() = default;
