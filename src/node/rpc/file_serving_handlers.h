@@ -23,7 +23,7 @@ namespace ccf::node
     size_t size)
   {
     auto hp = ccf::crypto::make_hash_provider();
-    auto digest = hp->Hash(data, size, md);
+    auto digest = hp->hash(data, size, md);
     auto b64 = ccf::crypto::b64_from_raw(digest.data(), digest.size());
     return fmt::format("{}=:{}:", algo_name, b64);
   }

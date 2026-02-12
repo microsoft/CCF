@@ -182,4 +182,4 @@ export function typedKvSet<K, V>(
  */
 export const rawKv = ccf.kv;
 
-export { KvMap, KvSet, KvMaps } from "./global";
+export type { KvMap, KvSet, KvMaps } from "./global";

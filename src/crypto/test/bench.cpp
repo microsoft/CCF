@@ -122,7 +122,7 @@ static void benchmark_hash(picobench::state& s)
   {
     (void)_;
     P hp;
-    HashBytes hash = hp.Hash(contents.data(), contents.size(), M);
+    HashBytes hash = hp.hash(contents.data(), contents.size(), M);
     do_not_optimize(hash);
     clobber_memory();
   }
