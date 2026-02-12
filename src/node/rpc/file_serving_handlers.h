@@ -881,9 +881,7 @@ namespace ccf::node
       // Add ETag and handle If-None-Match for successful GET responses
       {
         const auto status = ctx.rpc_ctx->get_response_status();
-        if (
-          status == HTTP_STATUS_OK ||
-          status == HTTP_STATUS_PARTIAL_CONTENT)
+        if (status == HTTP_STATUS_OK || status == HTTP_STATUS_PARTIAL_CONTENT)
         {
           const auto& body = ctx.rpc_ctx->get_response_body();
           auto hash_provider = ccf::crypto::make_hash_provider();
@@ -894,35 +892,33 @@ namespace ccf::node
           auto sha256_etag = "sha-256:" + ccf::ds::to_hex(sha256_hash);
 
           ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::ETAG,
-            fmt::format("\"{}\"", sha256_etag));
+            ccf::http::headers::ETAG, fmt::format("\"{}\"", sha256_etag));
 
           // Check If-None-Match header
-          const auto if_none_match = ctx.rpc_ctx->get_request_header(
-            ccf::http::headers::IF_NONE_MATCH);
+          const auto if_none_match =
+            ctx.rpc_ctx->get_request_header(ccf::http::headers::IF_NONE_MATCH);
           if (if_none_match.has_value())
           {
             try
             {
               ccf::http::Matcher matcher(if_none_match.value());
 
-              bool matched =
-                matcher.is_any() || matcher.matches(sha256_etag);
+              bool matched = matcher.is_any() || matcher.matches(sha256_etag);
 
               if (!matched)
               {
                 auto sha384_hash = hash_provider->Hash(
                   body.data(), body.size(), ccf::crypto::MDType::SHA384);
-                matched = matcher.matches(
-                  "sha-384:" + ccf::ds::to_hex(sha384_hash));
+                matched =
+                  matcher.matches("sha-384:" + ccf::ds::to_hex(sha384_hash));
               }
 
               if (!matched)
               {
                 auto sha512_hash = hash_provider->Hash(
                   body.data(), body.size(), ccf::crypto::MDType::SHA512);
-                matched = matcher.matches(
-                  "sha-512:" + ccf::ds::to_hex(sha512_hash));
+                matched =
+                  matcher.matches("sha-512:" + ccf::ds::to_hex(sha512_hash));
               }
 
               if (matched)
