@@ -372,6 +372,7 @@ def test_snapshot_access(network, args):
                 (b, range_max),
                 (b, None),
                 (range_max, range_max),
+                (range_max, None),
             ]:
                 range_header_value = f"{start}-{'' if end is None else end}"
                 r = do_request(
@@ -844,12 +845,31 @@ def test_ledger_chunk_access(network, args):
                 ), f"Expected chunk size {actual_chunk_size}, got {chunk_size}"
 
                 r = c.get(chunk_url.path, allow_redirects=False)
+                assert r.status_code == http.HTTPStatus.OK.value, r
                 dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
                 with open(ledger_chunk_path, "rb") as f:
                     actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
                 assert (
                     dled_chunk_digest == actual_chunk_digest
                 ), "Ledger chunk content does not match"
+
+            LOG.info("Accessing an empty chunk always returns an error")
+            with tempfile.NamedTemporaryFile(dir=main_ledger_dir) as temp_chunk:
+                chunk_url = f"/node/ledger-chunk/{os.path.basename(temp_chunk.name)}"
+                r = c.get(
+                    chunk_url,
+                    allow_redirects=True,
+                )
+                assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+
+                chunk_url = f"/node/ledger-chunk/{os.path.basename(temp_chunk.name)}"
+                for range_value in ("bytes=0-10", "bytes=0-", "bytes=0-0"):
+                    r = c.get(
+                        chunk_url,
+                        allow_redirects=True,
+                        headers={"Range": range_value},
+                    )
+                    assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
 
 
 def test_ledger_chunk_repr_digest(network, args):
@@ -2463,7 +2483,7 @@ def run_propose_request_vote(const_args):
     args.nodes = infra.e2e_args.nodes(args, 3)
     # use a high timeout to hedge against flaky nodes which pause for seconds
     # In most cases this should not matter as the propose_request_vote will cause the election quickly
-    args.election_timeout = 20000
+    args.election_timeout_ms = 20000
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -2472,32 +2492,29 @@ def run_propose_request_vote(const_args):
     ) as network:
         LOG.info("Start a network")
         network.start_and_open(args, ignore_first_sigterm=True)
-        original_primary, original_term = network.find_primary()
-        backups = [
-            n
-            for n in network.get_joined_nodes()
-            if n.node_id != original_primary.node_id
-        ]
+        try:
+            original_primary, original_term = network.find_primary()
 
-        original_primary.remote.remote.proc.send_signal(signal.SIGTERM)
-        # Find any primary which wasn't the original one
-        # If propose_request_vote worked, the new primary will be elected immediately
-        # So if this times out, the propose_request_vote likely failed
-        new_primary, new_term = network.find_primary(
-            nodes=backups, timeout=(0.9 * args.election_timeout)
-        )
-        assert (
-            new_primary.node_id != original_primary.node_id
-        ), "A new primary should have been elected"
-        assert (
-            new_term > original_term
-        ), "The new primary should be in a higher term than the original primary"
+            original_primary.remote.remote.proc.send_signal(signal.SIGTERM)
+            # Find any primary which wasn't the original one
+            # If propose_request_vote worked, the new primary will be elected rapidly
+            # So if this times out, the propose_request_vote likely failed
+            new_primary, new_term = network.wait_for_new_primary(
+                original_primary, timeout_multiplier=0.9
+            )
+            assert (
+                new_primary.node_id != original_primary.node_id
+            ), "A new primary should have been elected"
+            assert (
+                new_term > original_term
+            ), "The new primary should be in a higher term than the original primary"
 
-        LOG.info(f"New primary is node {new_primary.node_id}")
+            LOG.info(f"New primary is node {new_primary.node_id}")
 
-        # send a sigterm to ensure they shutdown correctly
-        for node in backups:
-            node.remote.remote.proc.send_signal(signal.SIGTERM)
+        finally:
+            # send an additional sigterm to balance the ignore_first_sigterm above, and ensure all nodes are cleaned up
+            for node in network.nodes:
+                node.remote.remote.proc.send_signal(signal.SIGTERM)
 
 
 def run_snp_tests(args):
