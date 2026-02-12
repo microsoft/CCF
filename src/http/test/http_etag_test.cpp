@@ -39,7 +39,9 @@ TEST_CASE("If-Match: \"abc\", \"def\"")
 TEST_CASE("If-Match invalid inputs")
 {
   REQUIRE_THROWS_AS_MESSAGE(
-    ccf::http::Matcher im(""), ccf::http::MatcherError, "Invalid If-Match header");
+    ccf::http::Matcher im(""),
+    ccf::http::MatcherError,
+    "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im("not etags"),
     ccf::http::MatcherError,
