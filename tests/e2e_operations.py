@@ -2483,7 +2483,7 @@ def run_propose_request_vote(const_args):
     args.nodes = infra.e2e_args.nodes(args, 3)
     # use a high timeout to hedge against flaky nodes which pause for seconds
     # In most cases this should not matter as the propose_request_vote will cause the election quickly
-    args.election_timeout = 20000
+    args.election_timeout_ms = 20000
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -2492,32 +2492,29 @@ def run_propose_request_vote(const_args):
     ) as network:
         LOG.info("Start a network")
         network.start_and_open(args, ignore_first_sigterm=True)
-        original_primary, original_term = network.find_primary()
-        backups = [
-            n
-            for n in network.get_joined_nodes()
-            if n.node_id != original_primary.node_id
-        ]
+        try:
+            original_primary, original_term = network.find_primary()
 
-        original_primary.remote.remote.proc.send_signal(signal.SIGTERM)
-        # Find any primary which wasn't the original one
-        # If propose_request_vote worked, the new primary will be elected immediately
-        # So if this times out, the propose_request_vote likely failed
-        new_primary, new_term = network.find_primary(
-            nodes=backups, timeout=(0.9 * args.election_timeout)
-        )
-        assert (
-            new_primary.node_id != original_primary.node_id
-        ), "A new primary should have been elected"
-        assert (
-            new_term > original_term
-        ), "The new primary should be in a higher term than the original primary"
+            original_primary.remote.remote.proc.send_signal(signal.SIGTERM)
+            # Find any primary which wasn't the original one
+            # If propose_request_vote worked, the new primary will be elected rapidly
+            # So if this times out, the propose_request_vote likely failed
+            new_primary, new_term = network.wait_for_new_primary(
+                original_primary, timeout_multiplier=0.9
+            )
+            assert (
+                new_primary.node_id != original_primary.node_id
+            ), "A new primary should have been elected"
+            assert (
+                new_term > original_term
+            ), "The new primary should be in a higher term than the original primary"
 
-        LOG.info(f"New primary is node {new_primary.node_id}")
+            LOG.info(f"New primary is node {new_primary.node_id}")
 
-        # send a sigterm to ensure they shutdown correctly
-        for node in backups:
-            node.remote.remote.proc.send_signal(signal.SIGTERM)
+        finally:
+            # send an additional sigterm to balance the ignore_first_sigterm above, and ensure all nodes are cleaned up
+            for node in network.nodes:
+                node.remote.remote.proc.send_signal(signal.SIGTERM)
 
 
 def run_snp_tests(args):
