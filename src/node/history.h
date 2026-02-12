@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "bose.h"
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
@@ -398,7 +399,39 @@ namespace ccf
         cbor::make_map(std::move(ccf_headers)));
 
       auto phdr_map = cbor::make_map(std::move(phdr));
-      auto cose_sign = crypto::cose_sign1(service_kp, phdr_map, root_hash);
+      auto phdr_serialised = cbor::serialize(phdr_map);
+      auto uhdr_map = cbor::make_map({});
+      auto uhdr_serialised = cbor::serialize(uhdr_map);
+      auto key_der = service_kp.private_key_der();
+
+      uint8_t* out_ptr = nullptr;
+      size_t out_len = 0;
+      auto rc = bose_sign_detached(
+        phdr_serialised.data(),
+        phdr_serialised.size(),
+        uhdr_serialised.data(),
+        uhdr_serialised.size(),
+        root_hash.data(),
+        root_hash.size(),
+        key_der.data(),
+        key_der.size(),
+        &out_ptr,
+        &out_len);
+      std::cout << "HEHEHE sign rc " << rc << std::endl;
+      if (rc != 0)
+      {
+        throw std::runtime_error("bose_sign failed");
+      }
+      std::vector<uint8_t> cose_sign(out_ptr, out_ptr + out_len);
+      bose_free(out_ptr, out_len);
+
+      // std::span<uint8_t> authed;
+      // auto hehe =
+      //   ccf::crypto::make_cose_verifier_from_key(service_kp.public_key_der());
+      // std::cout << "HEHEHE verify after sign: "
+      //           << hehe->verify(cose_sign, authed) << std::endl;
+      // std::cout << "HEHEHE verify detached after sign: "
+      //           << hehe->verify_detached(cose_sign, authed) << std::endl;
 
       signatures->put(sig_value);
       cose_signatures->put(cose_sign);

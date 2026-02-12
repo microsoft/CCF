@@ -3,6 +3,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/cose.h"
 
+#include "bose.h"
 #include "ccf/ds/hex.h"
 #include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/cose_verifier.h"
@@ -253,4 +254,74 @@ TEST_CASE("Decode CCF COSE receipt")
   REQUIRE(
     ccf::ds::to_hex(receipt.merkle_root) ==
     "209f5aefb0f45d7647c917337044c44a1b848fe833fa2869d016bea797d79a9e");
+}
+
+TEST_CASE("hehehe")
+{
+  using namespace ccf::cbor;
+
+  auto phdr_map = make_map({});
+  auto phdr = serialize(phdr_map);
+
+  auto uhdr_map = make_map({});
+  auto uhdr = serialize(uhdr_map);
+
+  std::vector<uint8_t> payload = {0xde, 0xad, 0xbe, 0xef};
+
+  ccf::crypto::ECKeyPair_OpenSSL kp(ccf::crypto::CurveID::SECP256R1);
+  auto key_der = kp.private_key_der();
+
+  uint8_t* out_ptr = nullptr;
+  size_t out_len = 0;
+  auto rc = bose_sign_detached(
+    phdr.data(),
+    phdr.size(),
+    uhdr.data(),
+    uhdr.size(),
+    payload.data(),
+    payload.size(),
+    key_der.data(),
+    key_der.size(),
+    &out_ptr,
+    &out_len);
+  REQUIRE(rc == 0);
+  REQUIRE(out_ptr != nullptr);
+  REQUIRE(out_len > 0);
+
+  std::vector<uint8_t> cose_sign1(out_ptr, out_ptr + out_len);
+  bose_free(out_ptr, out_len);
+
+  std::cout << "Signed COSE_Sign1: " << ccf::ds::to_hex(cose_sign1)
+            << std::endl;
+
+  auto verifier = ccf::crypto::make_cose_verifier_from_key(kp.public_key_der());
+
+  std::cout << "Size: " << cose_sign1.size()
+            << ", verify: " << verifier->verify_detached(cose_sign1, payload)
+            << std::endl;
+
+  auto key_der_pub = kp.public_key_der();
+  // auto vc = bose_verify(
+  //   cose_sign1.data(),
+  //   cose_sign1.size(),
+  //   key_der_pub.data(),
+  //   key_der_pub.size());
+
+  auto vcd = bose_verify_detached(
+    cose_sign1.data(),
+    cose_sign1.size(),
+    payload.data(),
+    payload.size(),
+    key_der_pub.data(),
+    key_der_pub.size());
+
+  // std::cout << "VC: " << vc << std::endl;
+  std::cout << "VCD: " << vcd << std::endl;
+
+  // std::cout << "Payload: " << ccf::ds::to_hex(payload) << std::endl;
+  // std::cout << "Authed Payload: " << ccf::ds::to_hex(authed_payload)
+  //           << std::endl;
+  // std::cout << "Key pem: " << kp.public_key_pem().str() << std::endl;
+
+  REQUIRE(!cose_sign1.empty());
 }
