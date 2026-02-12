@@ -17,6 +17,7 @@ namespace snapshots
   static constexpr auto snapshot_file_prefix = "snapshot";
   static constexpr auto snapshot_idx_delimiter = "_";
   static constexpr auto snapshot_committed_suffix = ".committed";
+  static constexpr auto snapshot_ignored_file_suffix = "ignored";
 
   static bool is_snapshot_file(const std::string& file_name)
   {
@@ -25,7 +26,25 @@ namespace snapshots
 
   static bool is_snapshot_file_committed(const std::string& file_name)
   {
-    return file_name.find(snapshot_committed_suffix) != std::string::npos;
+    return file_name.ends_with(snapshot_committed_suffix);
+  }
+
+  static bool is_snapshot_file_ignored(const std::string& file_name)
+  {
+    return file_name.ends_with(snapshot_ignored_file_suffix);
+  }
+
+  static void ignore_snapshot_file(
+    const fs::path& dir, const std::string& file_name)
+  {
+    if (is_snapshot_file_ignored(file_name))
+    {
+      return;
+    }
+
+    auto ignored_file_name =
+      fmt::format("{}.{}", file_name, snapshot_ignored_file_suffix);
+    files::rename(dir / file_name, dir / ignored_file_name);
   }
 
   static size_t read_idx(const std::string& str)

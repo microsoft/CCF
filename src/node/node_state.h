@@ -141,9 +141,24 @@ namespace ccf
             return;
           }
 
-          const auto dst_path =
-            std::filesystem::path(snapshot_config.directory) /
+          const auto snapshot_path =
             std::filesystem::path(latest_peer_snapshot->snapshot_name);
+
+          // Ensure snapshot name is a simple filename (no directories, no "..",
+          // not absolute) before using it as a filesystem path.
+          if (
+            snapshot_path.empty() || snapshot_path.is_absolute() ||
+            snapshot_path.has_parent_path() ||
+            snapshot_path.filename() != snapshot_path)
+          {
+            LOG_FAIL_FMT(
+              "Rejecting snapshot with invalid name '{}' from peer",
+              latest_peer_snapshot->snapshot_name);
+            return;
+          }
+          const auto dst_path =
+            std::filesystem::path(snapshot_config.directory) / snapshot_path;
+
           LOG_INFO_FMT(
             "Snapshot verified - now writing to {}", dst_path.string());
 
@@ -294,14 +309,32 @@ namespace ccf
           LOG_FAIL_FMT(
             "Error while verifying {}: {}", snapshot_path.string(), e.what());
 
-          LOG_INFO_FMT(
-            "Deleting corrupt snapshot {} and looking for next",
-            snapshot_path.string());
+          const dir = snapshot_path.parent_path();
+          const file_name = snapshot_path.filename();
 
-          if (!std::filesystem::remove(snapshot_path))
+          if (dir == config.snapshots.directory)
           {
-            throw std::logic_error(
-              fmt::format("Could not remove file {}", snapshot_path.string()));
+            LOG_INFO_FMT(
+              "Ignoring corrupt snapshot {} in directory {} and looking for "
+              "next",
+              dir.string(),
+              snapshot_path.string());
+            try
+            {
+              snapshots::ignore_snapshot_file(dir, file_name.string());
+            }
+            catch (std::logic_error& e)
+            {
+              LOG_FAIL_FMT("Unable to mark snapshot as ignored: {}", e.what());
+            }
+          }
+          else
+          {
+            LOG_FAIL_FMT(
+              "Snapshot {} is in a read-only directory {}, so will not be "
+              "modified. Ignoring and looking for next",
+              snapshot_path.string(),
+              dir.string());
           }
 
           continue;
