@@ -39,38 +39,38 @@ TEST_CASE("If-Match: \"abc\", \"def\"")
 TEST_CASE("If-Match invalid inputs")
 {
   REQUIRE_THROWS_AS_MESSAGE(
-    ccf::http::Matcher im(""), std::runtime_error, "Invalid If-Match header");
+    ccf::http::Matcher im(""), ccf::http::MatcherError, "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im("not etags"),
-    std::runtime_error,
+    ccf::http::MatcherError,
     "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im("\"abc\", not etags"),
-    std::runtime_error,
+    ccf::http::MatcherError,
     "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im("not etags, \"abc\""),
-    std::runtime_error,
+    ccf::http::MatcherError,
     "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im("W/\"abc\""),
-    std::runtime_error,
+    ccf::http::MatcherError,
     "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im("W/\"abc\", \"def\""),
-    std::runtime_error,
+    ccf::http::MatcherError,
     "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im("\"abc\", \"def"),
-    std::runtime_error,
+    ccf::http::MatcherError,
     "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im("\"abc\",, \"def\""),
-    std::runtime_error,
+    ccf::http::MatcherError,
     "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im(",\"abc\""),
-    std::runtime_error,
+    ccf::http::MatcherError,
     "Invalid If-Match header");
 }
 

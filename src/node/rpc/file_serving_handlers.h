@@ -940,7 +940,7 @@ namespace ccf::node
                 return;
               }
             }
-            catch (const std::runtime_error&)
+            catch (const ccf::http::MatcherError&)
             {
               // Invalid If-None-Match header, ignore and serve normally
             }
