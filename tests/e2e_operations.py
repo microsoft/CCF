@@ -372,6 +372,7 @@ def test_snapshot_access(network, args):
                 (b, range_max),
                 (b, None),
                 (range_max, range_max),
+                (range_max, None),
             ]:
                 range_header_value = f"{start}-{'' if end is None else end}"
                 r = do_request(
@@ -1042,12 +1043,31 @@ def test_ledger_chunk_access(network, args):
                 ), f"Expected chunk size {actual_chunk_size}, got {chunk_size}"
 
                 r = c.get(chunk_url.path, allow_redirects=False)
+                assert r.status_code == http.HTTPStatus.OK.value, r
                 dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
                 with open(ledger_chunk_path, "rb") as f:
                     actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
                 assert (
                     dled_chunk_digest == actual_chunk_digest
                 ), "Ledger chunk content does not match"
+
+            LOG.info("Accessing an empty chunk always returns an error")
+            with tempfile.NamedTemporaryFile(dir=main_ledger_dir) as temp_chunk:
+                chunk_url = f"/node/ledger-chunk/{os.path.basename(temp_chunk.name)}"
+                r = c.get(
+                    chunk_url,
+                    allow_redirects=True,
+                )
+                assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+
+                chunk_url = f"/node/ledger-chunk/{os.path.basename(temp_chunk.name)}"
+                for range_value in ("bytes=0-10", "bytes=0-", "bytes=0-0"):
+                    r = c.get(
+                        chunk_url,
+                        allow_redirects=True,
+                        headers={"Range": range_value},
+                    )
+                    assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
 
 
 def test_ledger_chunk_repr_digest(network, args):

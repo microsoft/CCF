@@ -168,6 +168,18 @@ namespace ccf::node
     f.seekg(0, std::ifstream::end);
     const auto total_size = (size_t)f.tellg();
 
+    if (total_size == 0)
+    {
+      // Refuse to return an empty file - it's not going to be a valid snapshot
+      // or ledger chunk, and cannot be described in a Content-Range response
+      // header
+      ctx.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::EmptyFile,
+        "Found empty file");
+      return;
+    }
+
     ctx.rpc_ctx->set_response_header("accept-ranges", "bytes");
 
     // Parse Want-Repr-Digest if present
