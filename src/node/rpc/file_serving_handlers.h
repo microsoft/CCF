@@ -887,7 +887,7 @@ namespace ccf::node
           auto hash_provider = ccf::crypto::make_hash_provider();
 
           // Always compute sha-256 for the default ETag
-          auto sha256_hash = hash_provider->Hash(
+          auto sha256_hash = hash_provider->hash(
             body.data(), body.size(), ccf::crypto::MDType::SHA256);
           auto sha256_etag = "sha-256:" + ccf::ds::to_hex(sha256_hash);
 
@@ -907,7 +907,7 @@ namespace ccf::node
 
               if (!matched)
               {
-                auto sha384_hash = hash_provider->Hash(
+                auto sha384_hash = hash_provider->hash(
                   body.data(), body.size(), ccf::crypto::MDType::SHA384);
                 matched =
                   matcher.matches("sha-384:" + ccf::ds::to_hex(sha384_hash));
@@ -915,7 +915,7 @@ namespace ccf::node
 
               if (!matched)
               {
-                auto sha512_hash = hash_provider->Hash(
+                auto sha512_hash = hash_provider->hash(
                   body.data(), body.size(), ccf::crypto::MDType::SHA512);
                 matched =
                   matcher.matches("sha-512:" + ccf::ds::to_hex(sha512_hash));
