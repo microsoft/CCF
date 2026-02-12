@@ -164,7 +164,7 @@ namespace ccf::crypto
       md_type = get_md_for_ec(get_curve_id());
     }
     OpenSSLHashProvider hp;
-    HashBytes hash = hp.Hash(d.data(), d.size(), md_type);
+    HashBytes hash = hp.hash(d.data(), d.size(), md_type);
     return sign_hash(hash.data(), hash.size());
   }
 
@@ -179,7 +179,7 @@ namespace ccf::crypto
       md_type = get_md_for_ec(get_curve_id());
     }
     OpenSSLHashProvider hp;
-    HashBytes hash = hp.Hash(d.data(), d.size(), md_type);
+    HashBytes hash = hp.hash(d.data(), d.size(), md_type);
     return sign_hash(hash.data(), hash.size(), sig_size, sig);
   }
 
