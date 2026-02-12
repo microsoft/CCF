@@ -876,9 +876,7 @@ def test_ledger_chunk_access(network, args):
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
     ) as c:
         main_ledger_dir = primary.get_main_ledger_dir()
-        chunks = [
-            f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")
-        ]
+        chunks = [f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")]
         chunks = sorted(
             (*ccf.ledger.range_from_filename(chunk), chunk) for chunk in chunks
         )
@@ -895,13 +893,13 @@ def test_ledger_chunk_access(network, args):
         etag = r.headers.get("etag") or r.headers.get("ETag")
         assert etag is not None, "Missing ETag header on GET"
         # ETag must be of the form "sha-256:<hex_digest>"
-        assert etag.startswith('"sha-256:') and etag.endswith('"'), (
-            f"ETag has unexpected format: {etag}"
-        )
+        assert etag.startswith('"sha-256:') and etag.endswith(
+            '"'
+        ), f"ETag has unexpected format: {etag}"
         expected_hex = hashlib.sha256(chunk_data).hexdigest()
-        assert etag == f'"sha-256:{expected_hex}"', (
-            f"ETag digest mismatch: expected sha-256:{expected_hex}, got {etag}"
-        )
+        assert (
+            etag == f'"sha-256:{expected_hex}"'
+        ), f"ETag digest mismatch: expected sha-256:{expected_hex}, got {etag}"
 
         # 2. GET with If-None-Match that does NOT match returns a fresh download
         r = c.get(
@@ -909,12 +907,12 @@ def test_ledger_chunk_access(network, args):
             headers={"if-none-match": '"sha-256:0000000000000000"'},
             allow_redirects=False,
         )
-        assert r.status_code == http.HTTPStatus.OK.value, (
-            f"Expected 200 for non-matching If-None-Match, got {r.status_code}"
-        )
-        assert len(r.body.data()) == len(chunk_data), (
-            "Body should be returned for non-matching If-None-Match"
-        )
+        assert (
+            r.status_code == http.HTTPStatus.OK.value
+        ), f"Expected 200 for non-matching If-None-Match, got {r.status_code}"
+        assert len(r.body.data()) == len(
+            chunk_data
+        ), "Body should be returned for non-matching If-None-Match"
 
         # 3. GET with If-None-Match matching the ETag returns 304 Not Modified
         r = c.get(
@@ -922,9 +920,9 @@ def test_ledger_chunk_access(network, args):
             headers={"if-none-match": etag},
             allow_redirects=False,
         )
-        assert r.status_code == http.HTTPStatus.NOT_MODIFIED.value, (
-            f"Expected 304 for matching If-None-Match, got {r.status_code}"
-        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match, got {r.status_code}"
 
         # 4. Same checks on a sub-Range of the file
         total_size = len(chunk_data)
@@ -936,15 +934,15 @@ def test_ledger_chunk_access(network, args):
             headers={"range": f"bytes=0-{range_end}"},
             allow_redirects=False,
         )
-        assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, (
-            f"Expected 206 for Range GET, got {r.status_code}"
-        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 for Range GET, got {r.status_code}"
         range_etag = r.headers.get("etag") or r.headers.get("ETag")
         assert range_etag is not None, "Missing ETag header on Range GET"
         range_expected_hex = hashlib.sha256(partial_data).hexdigest()
-        assert range_etag == f'"sha-256:{range_expected_hex}"', (
-            f"Range ETag mismatch: expected sha-256:{range_expected_hex}, got {range_etag}"
-        )
+        assert (
+            range_etag == f'"sha-256:{range_expected_hex}"'
+        ), f"Range ETag mismatch: expected sha-256:{range_expected_hex}, got {range_etag}"
 
         # Non-matching If-None-Match on range → fresh partial download
         r = c.call(
@@ -956,9 +954,9 @@ def test_ledger_chunk_access(network, args):
             },
             allow_redirects=False,
         )
-        assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, (
-            f"Expected 206 for non-matching If-None-Match with Range, got {r.status_code}"
-        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 for non-matching If-None-Match with Range, got {r.status_code}"
 
         # Matching If-None-Match on range → 304 Not Modified
         r = c.call(
@@ -970,9 +968,9 @@ def test_ledger_chunk_access(network, args):
             },
             allow_redirects=False,
         )
-        assert r.status_code == http.HTTPStatus.NOT_MODIFIED.value, (
-            f"Expected 304 for matching If-None-Match with Range, got {r.status_code}"
-        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match with Range, got {r.status_code}"
 
 
 def test_ledger_chunk_repr_digest(network, args):
