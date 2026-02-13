@@ -6,6 +6,7 @@
 #include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
+#include "cose_openssl_ffi.h"
 #include "crypto/cose.h"
 #include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/ec_key_pair.h"
@@ -398,7 +399,40 @@ namespace ccf
         cbor::make_map(std::move(ccf_headers)));
 
       auto phdr_map = cbor::make_map(std::move(phdr));
-      auto cose_sign = crypto::cose_sign1(service_kp, phdr_map, root_hash);
+
+      std::vector<uint8_t> cose_sign;
+      if (rand() % 2)
+      {
+        std::cout << "HEHEHE t_cose" << std::endl;
+        cose_sign = crypto::cose_sign1(service_kp, phdr_map, root_hash);
+      }
+      else
+      {
+        std::cout << "HEHEHE new cose" << std::endl;
+        auto phdr_bytes = cbor::serialize(phdr_map);
+        auto uhdr_bytes = cbor::serialize(cbor::make_map({}));
+        auto key_der = service_kp.private_key_der();
+
+        uint8_t* out_ptr = nullptr;
+        size_t out_len = 0;
+        auto rc = cose_sign_detached(
+          phdr_bytes.data(),
+          phdr_bytes.size(),
+          uhdr_bytes.data(),
+          uhdr_bytes.size(),
+          root_hash.data(),
+          root_hash.size(),
+          key_der.data(),
+          key_der.size(),
+          &out_ptr,
+          &out_len);
+        if (rc != 0 || out_ptr == nullptr)
+        {
+          throw crypto::COSESignError("cose_sign_detached failed");
+        }
+        cose_sign.assign(out_ptr, out_ptr + out_len);
+        cose_free(out_ptr, out_len);
+      }
 
       signatures->put(sig_value);
       cose_signatures->put(cose_sign);
@@ -785,8 +819,26 @@ namespace ccf
       std::vector<uint8_t> root_hash{
         root.h.data(), root.h.data() + root.h.size()};
 
-      return cose_verifier_cached(raw_cert)->verify_detached(
-        cose_sig.value(), root_hash);
+      if (rand() % 2)
+      {
+        std::cout << "HEHEHE t_cose verify" << std::endl;
+        return cose_verifier_cached(raw_cert)->verify_detached(
+          cose_sig.value(), root_hash);
+      }
+      else
+      {
+        std::cout << "HEHEHE new cose verify" << std::endl;
+        auto pub_key_der =
+          ccf::crypto::make_verifier(raw_cert)->public_key_der();
+        auto rc = cose_verify_detached(
+          cose_sig.value().data(),
+          cose_sig.value().size(),
+          root_hash.data(),
+          root_hash.size(),
+          pub_key_der.data(),
+          pub_key_der.size());
+        return rc == 1;
+      }
     }
 
     std::vector<uint8_t> serialise_tree(size_t to) override
