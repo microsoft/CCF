@@ -5,7 +5,6 @@
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/crypto/base64.h"
 #include "ccf/crypto/hash_provider.h"
-#include "ccf/ds/hex.h"
 #include "ccf/http_etag.h"
 #include "ccf/service/tables/nodes.h"
 #include "http/http_digest.h"
@@ -898,10 +897,12 @@ namespace ccf::node
           const auto& body = ctx.rpc_ctx->get_response_body();
           auto hash_provider = ccf::crypto::make_hash_provider();
 
-          // Always compute sha-256 for the default ETag
+          // Always compute sha-256 for the default ETag (RFC 9530 format)
           auto sha256_hash = hash_provider->hash(
             body.data(), body.size(), ccf::crypto::MDType::SHA256);
-          auto sha256_etag = "sha-256:" + ccf::ds::to_hex(sha256_hash);
+          auto sha256_b64 =
+            ccf::crypto::b64_from_raw(sha256_hash.data(), sha256_hash.size());
+          auto sha256_etag = fmt::format("sha-256=:{}:", sha256_b64);
 
           ctx.rpc_ctx->set_response_header(
             ccf::http::headers::ETAG, fmt::format("\"{}\"", sha256_etag));
@@ -921,16 +922,20 @@ namespace ccf::node
               {
                 auto sha384_hash = hash_provider->hash(
                   body.data(), body.size(), ccf::crypto::MDType::SHA384);
+                auto sha384_b64 = ccf::crypto::b64_from_raw(
+                  sha384_hash.data(), sha384_hash.size());
                 matched =
-                  matcher.matches("sha-384:" + ccf::ds::to_hex(sha384_hash));
+                  matcher.matches(fmt::format("sha-384=:{}:", sha384_b64));
               }
 
               if (!matched)
               {
                 auto sha512_hash = hash_provider->hash(
                   body.data(), body.size(), ccf::crypto::MDType::SHA512);
+                auto sha512_b64 = ccf::crypto::b64_from_raw(
+                  sha512_hash.data(), sha512_hash.size());
                 matched =
-                  matcher.matches("sha-512:" + ccf::ds::to_hex(sha512_hash));
+                  matcher.matches(fmt::format("sha-512=:{}:", sha512_b64));
               }
 
               if (matched)

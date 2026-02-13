@@ -892,19 +892,19 @@ def test_ledger_chunk_access(network, args):
         assert r.status_code == http.HTTPStatus.OK.value, r
         etag = r.headers.get("etag") or r.headers.get("ETag")
         assert etag is not None, "Missing ETag header on GET"
-        # ETag must be of the form "sha-256:<hex_digest>"
-        assert etag.startswith('"sha-256:') and etag.endswith(
-            '"'
+        # ETag must be in RFC 9530 format: "sha-256=:<base64>:"
+        assert etag.startswith('"sha-256=:') and etag.endswith(
+            ':"'
         ), f"ETag has unexpected format: {etag}"
-        expected_hex = hashlib.sha256(chunk_data).hexdigest()
+        expected_b64 = base64.b64encode(hashlib.sha256(chunk_data).digest()).decode()
         assert (
-            etag == f'"sha-256:{expected_hex}"'
-        ), f"ETag digest mismatch: expected sha-256:{expected_hex}, got {etag}"
+            etag == f'"sha-256=:{expected_b64}:"'
+        ), f"ETag digest mismatch: expected sha-256=:{expected_b64}:, got {etag}"
 
         # 2. GET with If-None-Match that does NOT match returns a fresh download
         r = c.get(
             chunk_url,
-            headers={"if-none-match": '"sha-256:0000000000000000"'},
+            headers={"if-none-match": '"sha-256=:AAAA:"'},
             allow_redirects=False,
         )
         assert (
@@ -939,10 +939,12 @@ def test_ledger_chunk_access(network, args):
         ), f"Expected 206 for Range GET, got {r.status_code}"
         range_etag = r.headers.get("etag") or r.headers.get("ETag")
         assert range_etag is not None, "Missing ETag header on Range GET"
-        range_expected_hex = hashlib.sha256(partial_data).hexdigest()
+        range_expected_b64 = base64.b64encode(
+            hashlib.sha256(partial_data).digest()
+        ).decode()
         assert (
-            range_etag == f'"sha-256:{range_expected_hex}"'
-        ), f"Range ETag mismatch: expected sha-256:{range_expected_hex}, got {range_etag}"
+            range_etag == f'"sha-256=:{range_expected_b64}:"'
+        ), f"Range ETag mismatch: expected sha-256=:{range_expected_b64}:, got {range_etag}"
 
         # Non-matching If-None-Match on range → fresh partial download
         r = c.call(
@@ -950,7 +952,7 @@ def test_ledger_chunk_access(network, args):
             http_verb="GET",
             headers={
                 "range": f"bytes=0-{range_end}",
-                "if-none-match": '"sha-256:0000000000000000"',
+                "if-none-match": '"sha-256=:AAAA:"',
             },
             allow_redirects=False,
         )

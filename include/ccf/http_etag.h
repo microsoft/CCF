@@ -49,7 +49,7 @@ namespace ccf::http
         return;
       }
 
-      std::regex etag_rx(R"(\"([0-9a-z:-]+)\",?\s*)");
+      std::regex etag_rx(R"(\"([^\"]+)\",?\s*)");
       auto etags_begin =
         std::sregex_iterator(match_header.begin(), match_header.end(), etag_rx);
       auto etags_end = std::sregex_iterator();

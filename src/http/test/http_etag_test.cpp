@@ -76,34 +76,32 @@ TEST_CASE("If-Match invalid inputs")
     "Invalid If-Match header");
 }
 
-TEST_CASE("If-None-Match with algorithm:digest ETag format")
+TEST_CASE("If-None-Match with RFC 9530 digest ETag format")
 {
-  // Single sha-256 ETag
+  // Single sha-256 ETag in RFC 9530 structured field format
   {
     ccf::http::Matcher im(
-      "\"sha-256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852"
-      "b855\"");
+      "\"sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:\"");
     REQUIRE(!im.is_any());
-    REQUIRE(im.matches(
-      "sha-256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b8"
-      "55"));
-    REQUIRE(!im.matches("sha-256:0000"));
+    REQUIRE(
+      im.matches("sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:"));
+    REQUIRE(!im.matches("sha-256=:AAAA:"));
   }
 
   // Multiple algorithm ETags
   {
     ccf::http::Matcher im(
-      "\"sha-256:aabb\", \"sha-384:ccdd\", \"sha-512:eeff\"");
-    REQUIRE(im.matches("sha-256:aabb"));
-    REQUIRE(im.matches("sha-384:ccdd"));
-    REQUIRE(im.matches("sha-512:eeff"));
-    REQUIRE(!im.matches("sha-256:0000"));
+      "\"sha-256=:abc=:\", \"sha-384=:def=:\", \"sha-512=:ghi=:\"");
+    REQUIRE(im.matches("sha-256=:abc=:"));
+    REQUIRE(im.matches("sha-384=:def=:"));
+    REQUIRE(im.matches("sha-512=:ghi=:"));
+    REQUIRE(!im.matches("sha-256=:000=:"));
   }
 
   // Wildcard still works
   {
     ccf::http::Matcher im("*");
     REQUIRE(im.is_any());
-    REQUIRE(im.matches("sha-256:anything"));
+    REQUIRE(im.matches("sha-256=:anything:"));
   }
 }
