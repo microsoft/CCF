@@ -2371,6 +2371,13 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
+    cr.add(
+        "common_ipv6",
+        e2e_common_endpoints.run_ipv6,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
     # Run illegal traffic tests in separate runners, to reduce total serial runtime
     cr.add(
         "js_illegal",

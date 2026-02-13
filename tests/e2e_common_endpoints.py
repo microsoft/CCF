@@ -338,3 +338,28 @@ def run(args):
         test_memory(network, args)
         test_large_messages(network, args)
         test_readiness(network, args)
+
+
+def run_ipv6(args):
+    # Set each RPC interface host to the IPv6 loopback address directly,
+    # so the setting is isolated to this test (no environment variable).
+    # Ports are dynamically assigned, so sharing ::1 across nodes is fine.
+    for host_spec in args.nodes:
+        for rpc_interface in host_spec.rpc_interfaces.values():
+            rpc_interface.host = "::1"
+
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+
+        primary, _ = network.find_primary()
+        primary_interface = primary.host.rpc_interfaces[
+            infra.interfaces.PRIMARY_RPC_INTERFACE
+        ]
+        assert (
+            ":" in primary_interface.host
+        ), f"Expected IPv6 address, got {primary_interface.host}"
+        LOG.info(f"Confirmed primary is using IPv6 address: {primary_interface.host}")
+
+        test_primary(network, args)
