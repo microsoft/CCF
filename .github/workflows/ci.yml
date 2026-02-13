@@ -218,6 +218,12 @@ jobs:
           python3 tests/infra/platform_detection.py snp milan
         shell: bash
 
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
+
       - name: "Build Debug"
         run: |
           set -ex
@@ -298,6 +304,12 @@ jobs:
           set -ex
           python3 tests/infra/platform_detection.py snp genoa
         shell: bash
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
 
       - name: "Build Debug"
         run: |

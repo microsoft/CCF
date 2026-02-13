@@ -39,7 +39,13 @@ target_compile_options(ccfcrypto PUBLIC ${COMPILE_LIBCXX})
 target_link_options(ccfcrypto PUBLIC ${LINK_LIBCXX})
 
 target_link_libraries(ccfcrypto PUBLIC crypto ssl evercbor)
-target_link_libraries(ccfcrypto PRIVATE t_cose)
+target_link_libraries(
+  ccfcrypto PRIVATE t_cose ${CMAKE_BINARY_DIR}/libcose_openssl_ffi.a
+)
+add_dependencies(ccfcrypto cargo-build_cose_openssl_ffi)
+target_include_directories(
+  ccfcrypto PUBLIC $<BUILD_INTERFACE:${cose_openssl_SOURCE_DIR}/cpp>
+)
 set_property(TARGET ccfcrypto PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 install(

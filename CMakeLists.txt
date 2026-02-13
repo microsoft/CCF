@@ -167,6 +167,7 @@ set(HTTP_PARSER_SOURCES
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
 )
 
+include(${CCF_DIR}/cmake/cose_openssl.cmake)
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)

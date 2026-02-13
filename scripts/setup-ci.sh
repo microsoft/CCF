@@ -58,3 +58,6 @@ tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install strace
 
 # For packaging
 tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install rpm-build
+
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --component rustfmt
+export PATH="$HOME/.cargo/bin:$PATH"
