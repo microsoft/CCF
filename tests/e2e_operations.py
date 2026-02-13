@@ -890,7 +890,7 @@ def test_ledger_chunk_access(network, args):
         # 1. Normal GET returns a correctly formed ETag
         r = c.get(chunk_url, allow_redirects=False)
         assert r.status_code == http.HTTPStatus.OK.value, r
-        etag = r.headers.get("etag") or r.headers.get("ETag")
+        etag = r.headers.get("etag")
         assert etag is not None, "Missing ETag header on GET"
         # ETag must be in RFC 9530 format: "sha-256=:<base64>:"
         assert etag.startswith('"sha-256=:') and etag.endswith(
@@ -910,9 +910,9 @@ def test_ledger_chunk_access(network, args):
         assert (
             r.status_code == http.HTTPStatus.OK.value
         ), f"Expected 200 for non-matching If-None-Match, got {r.status_code}"
-        assert len(r.body.data()) == len(
-            chunk_data
-        ), "Body should be returned for non-matching If-None-Match"
+        assert (
+            r.body.data() == chunk_data
+        ), "Body content should match for non-matching If-None-Match"
 
         # 3.a. GET with If-None-Match matching the ETag returns 304 Not Modified
         r = c.get(
@@ -938,10 +938,22 @@ def test_ledger_chunk_access(network, args):
             r.status_code == http.HTTPStatus.NOT_MODIFIED.value
         ), f"Expected 304 for matching sha-384 If-None-Match, got {r.status_code}"
 
+        # 3.b2. sha-512 variant
+        sha512_b64 = base64.b64encode(hashlib.sha512(chunk_data).digest()).decode()
+        sha512_etag = f'"sha-512=:{sha512_b64}:"'
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": sha512_etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching sha-512 If-None-Match, got {r.status_code}"
+
         # 3.c. HEAD returns the same ETag as GET
         r = c.head(chunk_url, allow_redirects=False)
         assert r.status_code == http.HTTPStatus.OK.value, r
-        head_etag = r.headers.get("etag") or r.headers.get("ETag")
+        head_etag = r.headers.get("etag")
         assert (
             head_etag == etag
         ), f"HEAD ETag mismatch: expected {etag}, got {head_etag}"
@@ -970,7 +982,7 @@ def test_ledger_chunk_access(network, args):
         assert (
             r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
         ), f"Expected 206 for Range GET, got {r.status_code}"
-        range_etag = r.headers.get("etag") or r.headers.get("ETag")
+        range_etag = r.headers.get("etag")
         assert range_etag is not None, "Missing ETag header on Range GET"
         range_expected_b64 = base64.b64encode(
             hashlib.sha256(partial_data).digest()
@@ -992,6 +1004,9 @@ def test_ledger_chunk_access(network, args):
         assert (
             r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
         ), f"Expected 206 for non-matching If-None-Match with Range, got {r.status_code}"
+        assert (
+            r.body.data() == partial_data
+        ), "Body content should match partial data for non-matching If-None-Match with Range"
 
         # Matching If-None-Match on range → 304 Not Modified
         r = c.call(
