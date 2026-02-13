@@ -158,6 +158,12 @@ namespace ccf::node
   // response header is set with the digest of the full file (RFC 9530),
   // regardless of any Range header.
   //
+  // An ETag header is always set on successful responses, containing a
+  // SHA-256 digest of the response content in RFC 9530 structured field
+  // format. If an If-None-Match request header is present and matches
+  // the ETag, a 304 Not Modified response is returned instead. This
+  // applies to both GET and HEAD requests.
+  //
   // This DOES NOT set a response header telling the client the name of the
   // snapshot/chunk/... being served, so the caller should set this (along
   // with any other metadata headers) _before_ calling this function, and
@@ -181,6 +187,8 @@ namespace ccf::node
       return;
     }
 
+    const bool is_head = ctx.rpc_ctx->get_request_verb() == HTTP_HEAD;
+
     ctx.rpc_ctx->set_response_header("accept-ranges", "bytes");
 
     // Parse Want-Repr-Digest if present
@@ -190,39 +198,6 @@ namespace ccf::node
     if (want_digest.has_value())
     {
       digest_algo = ccf::http::parse_want_repr_digest(want_digest.value());
-    }
-
-    if (ctx.rpc_ctx->get_request_verb() == HTTP_HEAD)
-    {
-      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-      ctx.rpc_ctx->set_response_header(
-        ccf::http::headers::CONTENT_LENGTH, total_size);
-
-      if (digest_algo.has_value())
-      {
-        f.seekg(0);
-        std::vector<uint8_t> full_contents(total_size);
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-        f.read(reinterpret_cast<char*>(full_contents.data()), total_size);
-
-        if (f.gcount() != static_cast<std::streamsize>(total_size))
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Server was unable to read the file correctly");
-          return;
-        }
-
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::REPR_DIGEST,
-          format_repr_digest(
-            digest_algo->first,
-            digest_algo->second,
-            full_contents.data(),
-            full_contents.size()));
-      }
-      return;
     }
 
     size_t range_start = 0;
@@ -396,8 +371,11 @@ namespace ccf::node
       range_start,
       range_end);
 
-    // Read file contents, compute repr-digest if requested, and set
-    // response body to the requested range.
+    // Read file contents. We need the range content for the response body
+    // (GET) or to compute ETag/Repr-Digest (both GET and HEAD).
+    // If Repr-Digest is requested, read the full file; otherwise read
+    // only the requested range.
+    std::vector<uint8_t> contents;
     if (digest_algo.has_value())
     {
       // Need full file contents for the digest
@@ -428,20 +406,79 @@ namespace ccf::node
             full_contents.size()));
       }
 
-      // Extract the requested range for the response body
-      std::vector<uint8_t> contents(
-        full_contents.begin() + range_start, full_contents.begin() + range_end);
-      ctx.rpc_ctx->set_response_body(std::move(contents));
+      // Extract the requested range
+      contents.assign(
+        full_contents.begin() + range_start,
+        full_contents.begin() + range_end);
     }
     else
     {
       // Read only the requested range
-      std::vector<uint8_t> contents(range_size);
+      contents.resize(range_size);
       f.seekg(range_start);
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
       f.read(reinterpret_cast<char*>(contents.data()), contents.size());
       f.close();
-      ctx.rpc_ctx->set_response_body(std::move(contents));
+    }
+
+    // Compute ETag over the response content (RFC 9530 structured field
+    // format)
+    auto hash_provider = ccf::crypto::make_hash_provider();
+    auto sha256_hash = hash_provider->hash(
+      contents.data(), contents.size(), ccf::crypto::MDType::SHA256);
+    auto sha256_b64 =
+      ccf::crypto::b64_from_raw(sha256_hash.data(), sha256_hash.size());
+    auto sha256_etag = fmt::format("sha-256=:{}:", sha256_b64);
+
+    ctx.rpc_ctx->set_response_header(
+      ccf::http::headers::ETAG, fmt::format("\"{}\"", sha256_etag));
+
+    // Check If-None-Match header
+    const auto if_none_match =
+      ctx.rpc_ctx->get_request_header(ccf::http::headers::IF_NONE_MATCH);
+    if (if_none_match.has_value())
+    {
+      try
+      {
+        ccf::http::Matcher matcher(if_none_match.value());
+
+        bool matched = matcher.is_any() || matcher.matches(sha256_etag);
+
+        if (!matched)
+        {
+          auto sha384_hash = hash_provider->hash(
+            contents.data(), contents.size(), ccf::crypto::MDType::SHA384);
+          auto sha384_b64 = ccf::crypto::b64_from_raw(
+            sha384_hash.data(), sha384_hash.size());
+          matched =
+            matcher.matches(fmt::format("sha-384=:{}:", sha384_b64));
+        }
+
+        if (!matched)
+        {
+          auto sha512_hash = hash_provider->hash(
+            contents.data(), contents.size(), ccf::crypto::MDType::SHA512);
+          auto sha512_b64 = ccf::crypto::b64_from_raw(
+            sha512_hash.data(), sha512_hash.size());
+          matched =
+            matcher.matches(fmt::format("sha-512=:{}:", sha512_b64));
+        }
+
+        if (matched)
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_NOT_MODIFIED);
+          ctx.rpc_ctx->set_response_body(std::vector<uint8_t>{});
+          return;
+        }
+      }
+      catch (const ccf::http::MatcherError& e)
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidHeaderValue,
+          e.what());
+        return;
+      }
     }
 
     // Build successful response
@@ -466,6 +503,19 @@ namespace ccf::node
     else
     {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    }
+
+    if (is_head)
+    {
+      // HEAD responses should not include a body, but should include
+      // Content-Length indicating the size of the resource
+      ctx.rpc_ctx->set_response_header(
+        ccf::http::headers::CONTENT_LENGTH,
+        has_range_header ? range_size : total_size);
+    }
+    else
+    {
+      ctx.rpc_ctx->set_response_body(std::move(contents));
     }
   }
 
@@ -888,74 +938,6 @@ namespace ccf::node
         ccf::http::headers::CCF_LEDGER_CHUNK_NAME, chunk_name);
 
       fill_range_response_from_file(ctx, f);
-
-      // Add ETag and handle If-None-Match for successful GET responses
-      {
-        const auto status = ctx.rpc_ctx->get_response_status();
-        if (status == HTTP_STATUS_OK || status == HTTP_STATUS_PARTIAL_CONTENT)
-        {
-          const auto& body = ctx.rpc_ctx->get_response_body();
-          auto hash_provider = ccf::crypto::make_hash_provider();
-
-          // Always compute sha-256 for the default ETag (RFC 9530 format)
-          auto sha256_hash = hash_provider->hash(
-            body.data(), body.size(), ccf::crypto::MDType::SHA256);
-          auto sha256_b64 =
-            ccf::crypto::b64_from_raw(sha256_hash.data(), sha256_hash.size());
-          auto sha256_etag = fmt::format("sha-256=:{}:", sha256_b64);
-
-          ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::ETAG, fmt::format("\"{}\"", sha256_etag));
-
-          // Check If-None-Match header
-          const auto if_none_match =
-            ctx.rpc_ctx->get_request_header(ccf::http::headers::IF_NONE_MATCH);
-          if (if_none_match.has_value())
-          {
-            try
-            {
-              ccf::http::Matcher matcher(if_none_match.value());
-
-              bool matched = matcher.is_any() || matcher.matches(sha256_etag);
-
-              if (!matched)
-              {
-                auto sha384_hash = hash_provider->hash(
-                  body.data(), body.size(), ccf::crypto::MDType::SHA384);
-                auto sha384_b64 = ccf::crypto::b64_from_raw(
-                  sha384_hash.data(), sha384_hash.size());
-                matched =
-                  matcher.matches(fmt::format("sha-384=:{}:", sha384_b64));
-              }
-
-              if (!matched)
-              {
-                auto sha512_hash = hash_provider->hash(
-                  body.data(), body.size(), ccf::crypto::MDType::SHA512);
-                auto sha512_b64 = ccf::crypto::b64_from_raw(
-                  sha512_hash.data(), sha512_hash.size());
-                matched =
-                  matcher.matches(fmt::format("sha-512=:{}:", sha512_b64));
-              }
-
-              if (matched)
-              {
-                ctx.rpc_ctx->set_response_status(HTTP_STATUS_NOT_MODIFIED);
-                ctx.rpc_ctx->set_response_body(std::vector<uint8_t>{});
-                return;
-              }
-            }
-            catch (const ccf::http::MatcherError& e)
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidHeaderValue,
-                e.what());
-              return;
-            }
-          }
-        }
-      }
 
       return;
     };

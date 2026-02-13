@@ -938,6 +938,25 @@ def test_ledger_chunk_access(network, args):
             r.status_code == http.HTTPStatus.NOT_MODIFIED.value
         ), f"Expected 304 for matching sha-384 If-None-Match, got {r.status_code}"
 
+        # 3.c. HEAD returns the same ETag as GET
+        r = c.head(chunk_url, allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.OK.value, r
+        head_etag = r.headers.get("etag") or r.headers.get("ETag")
+        assert (
+            head_etag == etag
+        ), f"HEAD ETag mismatch: expected {etag}, got {head_etag}"
+
+        # 3.d. HEAD with matching If-None-Match returns 304
+        r = c.call(
+            chunk_url,
+            http_verb="HEAD",
+            headers={"if-none-match": etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match with HEAD, got {r.status_code}"
+
         # 4. Same checks on a sub-Range of the file
         total_size = len(chunk_data)
         range_end = total_size // 2
