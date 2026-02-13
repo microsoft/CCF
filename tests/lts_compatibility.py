@@ -19,7 +19,7 @@ import json
 import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
-from distutils.dir_util import copy_tree
+import shutil
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
@@ -646,14 +646,26 @@ def run_ledger_compatibility_since_first(
                     new_common = infra.network.get_common_folder_name(
                         args.workspace, args.label
                     )
-                    copy_tree(os.path.join(service_dir, "common"), new_common)
+                    shutil.copytree(
+                        os.path.join(service_dir, "common"),
+                        new_common,
+                        dirs_exist_ok=True,
+                    )
 
                     new_ledger = os.path.join(new_common, "ledger")
-                    copy_tree(os.path.join(service_dir, "ledger"), new_ledger)
+                    shutil.copytree(
+                        os.path.join(service_dir, "ledger"),
+                        new_ledger,
+                        dirs_exist_ok=True,
+                    )
 
                     if use_snapshot:
                         new_snapshots = os.path.join(new_common, "snapshots")
-                        copy_tree(os.path.join(service_dir, "snapshots"), new_snapshots)
+                        shutil.copytree(
+                            os.path.join(service_dir, "snapshots"),
+                            new_snapshots,
+                            dirs_exist_ok=True,
+                        )
 
                     network = infra.network.Network(**network_args)
 
