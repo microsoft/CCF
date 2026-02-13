@@ -1000,8 +1000,6 @@ def test_npm_app(network, args):
                 },
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
-            LOG.info(primary_quote_info)
-            assert False
 
         validate_openapi(c)
         generate_and_verify_jwk(c)
