@@ -129,7 +129,7 @@ ETag and If-None-Match
 ``GET /node/ledger-chunk/{chunk_name}`` supports ``ETag`` and ``If-None-Match`` headers, allowing clients to atomically check whether a chunk (or a range of a chunk) has changed and re-download it in a single request, without needing a separate metadata query first.
 Every successful ``GET`` response includes an ``ETag`` header whose value uses the `RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_ digest format: ``"sha-256=:<base64_digest>:"``, where ``<base64_digest>`` is the base64-encoded SHA-256 digest of the returned content (which may be a sub-range when the ``Range`` header is used).
 
-.. note:: ETag values must surrounded by double quotes, as per `RFC 7232 <https://www.rfc-editor.org/rfc/rfc7232#section-2.3>`_.
+.. note:: ETag values must be surrounded by double quotes, as per `RFC 7232 <https://www.rfc-editor.org/rfc/rfc7232#section-2.3>`_.
 
 Clients can send an ``If-None-Match`` request header containing one or more ETags. If the content matches any of the provided ETags, the server responds with ``304 Not Modified`` instead of re-sending the body. The supported digest algorithms are ``sha-256``, ``sha-384``, and ``sha-512``.
 When the client already holds a chunk and wants to check if it has changed, it sends the previously received ETag in ``If-None-Match``. If the content has not changed, the server responds with ``304 Not Modified``, saving bandwidth:

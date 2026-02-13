@@ -988,7 +988,36 @@ def test_ledger_chunk_access(network, args):
             r.status_code == http.HTTPStatus.NOT_MODIFIED.value
         ), f"Expected 304 for matching If-None-Match with Range, got {r.status_code}"
 
+        # HEAD with Range should return the same ETag as the corresponding GET range
+        r = c.call(
+            chunk_url,
+            http_verb="HEAD",
+            headers={
+                "range": f"bytes=0-{range_end}",
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 for HEAD with Range, got {r.status_code}"
+        head_range_etag = r.headers.get("etag")
+        assert (
+            head_range_etag == range_etag
+        ), f"HEAD Range ETag mismatch: expected {range_etag}, got {head_range_etag}"
 
+        # Matching If-None-Match on HEAD + Range → 304 Not Modified
+        r = c.call(
+            chunk_url,
+            http_verb="HEAD",
+            headers={
+                "range": f"bytes=0-{range_end}",
+                "if-none-match": range_etag,
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match with HEAD Range, got {r.status_code}"
 def test_ledger_chunk_repr_digest(network, args):
     """
     Verify that the Want-Repr-Digest / Repr-Digest headers work correctly
