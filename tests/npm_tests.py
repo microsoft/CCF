@@ -987,8 +987,6 @@ def test_npm_app(network, args):
             for key, value in r.body.json().items():
                 LOG.info(f"{key} : {value}")
 
-            LOG.info(primary_quote_info)
-            assert False
             # Test with endorsed_tcb
             r = c.post(
                 "/app/verifySnpAttestation",
