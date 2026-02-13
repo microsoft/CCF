@@ -71,19 +71,29 @@ ETag and If-None-Match
 
 Every successful ``GET`` response includes an ``ETag`` header of the form ``"sha-256:<hex_digest>"``, where ``<hex_digest>`` is the SHA-256 hex digest of the returned content (which may be a sub-range when the ``Range`` header is used).
 
-Clients can send an ``If-None-Match`` request header containing one or more ETags. If the content matches any of the provided ETags, the server responds with ``304 Not Modified`` instead of re-sending the body. The supported digest algorithms are ``sha-256``, ``sha-384``, and ``sha-512``. For example:
+Clients can send an ``If-None-Match`` request header containing one or more ETags. If the content matches any of the provided ETags, the server responds with ``304 Not Modified`` instead of re-sending the body. The supported digest algorithms are ``sha-256``, ``sha-384``, and ``sha-512``.
 
-.. code-block:: http
+When the client already holds a chunk and wants to check if it has changed, it sends the previously received ETag in ``If-None-Match``. If the content has not changed, the server responds with ``304 Not Modified``, saving bandwidth:
 
-    GET /node/ledger-chunk/ledger_1-100.committed HTTP/1.1
-    If-None-Match: "sha-256:e3b0c44298fc1c149afbf4c8996fb924..."
+.. mermaid::
 
-If the content digest matches, the response will be:
+    sequenceDiagram
+        Note over Client: Client already has chunk with known ETag
+        Client->>+Node: GET /node/ledger-chunk/ledger_1-100.committed<br/>If-None-Match: "sha-256:e3b0c44..."
+        Note over Node: Computes digest, matches If-None-Match
+        Node->>-Client: 304 Not Modified<br/>ETag: "sha-256:e3b0c44..."
+        Note over Client: No body transferred, client keeps existing copy
 
-.. code-block:: http
+If the ``If-None-Match`` ETag does not match the current content (e.g. the client has an outdated copy, or is checking a different chunk), the server returns the full content as a fresh download:
 
-    HTTP/1.1 304 Not Modified
-    ETag: "sha-256:e3b0c44298fc1c149afbf4c8996fb924..."
+.. mermaid::
+
+    sequenceDiagram
+        Note over Client: Client sends an ETag that does not match
+        Client->>+Node: GET /node/ledger-chunk/ledger_1-100.committed<br/>If-None-Match: "sha-256:0000000..."
+        Note over Node: Computes digest, does not match If-None-Match
+        Node->>-Client: 200 OK<br/>ETag: "sha-256:e3b0c44..."<br/><Chunk Contents>
+        Note over Client: Client stores chunk and new ETag for future requests
 
 2. :http:GET:`/node/ledger-chunk` and :http:HEAD:`/node/ledger-chunk`, both taking a `seqno` query parameter.
 
