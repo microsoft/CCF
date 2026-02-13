@@ -646,14 +646,26 @@ def run_ledger_compatibility_since_first(
                     new_common = infra.network.get_common_folder_name(
                         args.workspace, args.label
                     )
-                    shutil.copytree(os.path.join(service_dir, "common"), new_common, dirs_exist_ok=True)
+                    shutil.copytree(
+                        os.path.join(service_dir, "common"),
+                        new_common,
+                        dirs_exist_ok=True,
+                    )
 
                     new_ledger = os.path.join(new_common, "ledger")
-                    shutil.copytree(os.path.join(service_dir, "ledger"), new_ledger, dirs_exist_ok=True)
+                    shutil.copytree(
+                        os.path.join(service_dir, "ledger"),
+                        new_ledger,
+                        dirs_exist_ok=True,
+                    )
 
                     if use_snapshot:
                         new_snapshots = os.path.join(new_common, "snapshots")
-                        shutil.copytree(os.path.join(service_dir, "snapshots"), new_snapshots, dirs_exist_ok=True)
+                        shutil.copytree(
+                            os.path.join(service_dir, "snapshots"),
+                            new_snapshots,
+                            dirs_exist_ok=True,
+                        )
 
                     network = infra.network.Network(**network_args)
 
