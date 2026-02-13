@@ -1050,6 +1050,7 @@ if(BUILD_TESTS)
     NAME programmability_and_jwt
     CONSTITUTION ${RBAC_CONSTITUTION_ARGS}
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
+    LABEL snp
   )
 
   # This test uses large requests (so too slow for SAN)
