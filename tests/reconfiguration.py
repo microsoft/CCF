@@ -173,11 +173,7 @@ def test_add_node_with_corrupted_ledger(network, args):
         ]
     )
 
-    if not ledger_files:
-        LOG.warning("No uncommitted ledger files found, skipping corruption test")
-        new_node.stop()
-        network.nodes.remove(new_node)
-        return network
+    assert ledger_files, "Expected uncommitted ledger files to corrupt"
 
     # Corrupt the latest uncommitted ledger file by truncating it in the middle
     # of a transaction, so the transaction size does not match the number of
@@ -191,11 +187,7 @@ def test_add_node_with_corrupted_ledger(network, args):
             chunk_filename = chunk.filename()
             truncate_offset = offset + (next_offset - offset) // 2
 
-    if truncate_offset is None:
-        LOG.warning("Could not find a transaction to corrupt, skipping")
-        new_node.stop()
-        network.nodes.remove(new_node)
-        return network
+    assert truncate_offset is not None, "Should always find a transaction to corrupt"
 
     LOG.info(
         f"Corrupting ledger file {chunk_filename} by truncating at offset {truncate_offset}"
