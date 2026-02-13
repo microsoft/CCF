@@ -914,7 +914,7 @@ def test_ledger_chunk_access(network, args):
             chunk_data
         ), "Body should be returned for non-matching If-None-Match"
 
-        # 3. GET with If-None-Match matching the ETag returns 304 Not Modified
+        # 3.a. GET with If-None-Match matching the ETag returns 304 Not Modified
         r = c.get(
             chunk_url,
             headers={"if-none-match": etag},
@@ -923,6 +923,20 @@ def test_ledger_chunk_access(network, args):
         assert (
             r.status_code == http.HTTPStatus.NOT_MODIFIED.value
         ), f"Expected 304 for matching If-None-Match, got {r.status_code}"
+
+        # 3.b. Compute a sha-384 version of the same ETag, and confirm that it works too
+        # RFC 9530 allows multiple algorithms in the ETag, and If-None-Match should match if any of them match
+        # GET with If-None-Match matching the ETag returns 304 Not Modified
+        sha384_b64 = base64.b64encode(hashlib.sha384(chunk_data).digest()).decode()
+        sha384_etag = f'"sha-384=:{sha384_b64}:"'
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": sha384_etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching sha-384 If-None-Match, got {r.status_code}"
 
         # 4. Same checks on a sub-Range of the file
         total_size = len(chunk_data)
