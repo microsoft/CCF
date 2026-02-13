@@ -408,8 +408,7 @@ namespace ccf::node
 
       // Extract the requested range
       contents.assign(
-        full_contents.begin() + range_start,
-        full_contents.begin() + range_end);
+        full_contents.begin() + range_start, full_contents.begin() + range_end);
     }
     else
     {
@@ -448,20 +447,18 @@ namespace ccf::node
         {
           auto sha384_hash = hash_provider->hash(
             contents.data(), contents.size(), ccf::crypto::MDType::SHA384);
-          auto sha384_b64 = ccf::crypto::b64_from_raw(
-            sha384_hash.data(), sha384_hash.size());
-          matched =
-            matcher.matches(fmt::format("sha-384=:{}:", sha384_b64));
+          auto sha384_b64 =
+            ccf::crypto::b64_from_raw(sha384_hash.data(), sha384_hash.size());
+          matched = matcher.matches(fmt::format("sha-384=:{}:", sha384_b64));
         }
 
         if (!matched)
         {
           auto sha512_hash = hash_provider->hash(
             contents.data(), contents.size(), ccf::crypto::MDType::SHA512);
-          auto sha512_b64 = ccf::crypto::b64_from_raw(
-            sha512_hash.data(), sha512_hash.size());
-          matched =
-            matcher.matches(fmt::format("sha-512=:{}:", sha512_b64));
+          auto sha512_b64 =
+            ccf::crypto::b64_from_raw(sha512_hash.data(), sha512_hash.size());
+          matched = matcher.matches(fmt::format("sha-512=:{}:", sha512_b64));
         }
 
         if (matched)
@@ -474,9 +471,7 @@ namespace ccf::node
       catch (const ccf::http::MatcherError& e)
       {
         ctx.rpc_ctx->set_error(
-          HTTP_STATUS_BAD_REQUEST,
-          ccf::errors::InvalidHeaderValue,
-          e.what());
+          HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidHeaderValue, e.what());
         return;
       }
     }
