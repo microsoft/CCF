@@ -513,11 +513,11 @@ class LedgerValidator(BaseValidator):
     """
 
     accept_deprecated_entry_types: bool = True
-    node_certificates: dict[str, str] = {}
-    node_activity_status: dict[str, tuple[str, int, bool]] = {}
     signature_count: int = 0
 
     def __init__(self, accept_deprecated_entry_types: bool = True):
+        self.node_certificates: dict[str, str] = {}
+        self.node_activity_status: dict[str, tuple[str, int, bool]] = {}
         self.accept_deprecated_entry_types = accept_deprecated_entry_types
 
         # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of its merkle tree.
