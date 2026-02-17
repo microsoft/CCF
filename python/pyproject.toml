@@ -1,9 +1,5 @@
 [build-system]
-<<<<<<< modernise_python_code
 requires = ["setuptools >= 77.0, < 83"]
-=======
-requires = ["setuptools >= 71.0, < 83"]
->>>>>>> main
 build-backend = "setuptools.build_meta"
 
 [project]
