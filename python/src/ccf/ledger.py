@@ -536,6 +536,7 @@ class LedgerValidator(BaseValidator):
     signature_count: int = 0
     transaction_count: int = 0
     verification_level: VerificationLevel
+    first_signature_seen: bool = False
 
     def __init__(
         self,
@@ -556,6 +557,7 @@ class LedgerValidator(BaseValidator):
 
         self.service_status = None
         self.service_cert = None
+        self.first_signature_seen = False
 
     def last_verified_txid(self) -> TxID:
         return TxID(self.last_verified_view, self.last_verified_seqno)
@@ -756,8 +758,16 @@ class LedgerValidator(BaseValidator):
                         # throws if ledger validation failed.
                         self._verify_tx_bundle(tx_info)
                     else:
-                        # MERKLE level: only verify merkle root, not signatures
-                        BaseValidator._verify_merkle_root(self.merkle, existing_root)
+                        # MERKLE level: trust first signature, verify subsequent ones
+                        if not self.first_signature_seen:
+                            # Trust the first signature: reinitialize merkle tree from this root
+                            # This allows verifying isolated chunks without the full ledger history
+                            self.merkle = MerkleTree()
+                            self.merkle.add_leaf(existing_root, do_hash=False)
+                            self.first_signature_seen = True
+                        else:
+                            # Verify subsequent signatures against computed merkle root
+                            BaseValidator._verify_merkle_root(self.merkle, existing_root)
 
                     self.last_verified_seqno = current_seqno
                     self.last_verified_view = current_view
@@ -800,7 +810,13 @@ class LedgerValidator(BaseValidator):
 
         # Checks complete, add this transaction to tree (for MERKLE and above)
         if self.verification_level >= VerificationLevel.MERKLE:
-            self.merkle.add_leaf(transaction.get_tx_digest(), False)
+            # For MERKLE level on isolated chunks: only add leaves after first signature
+            # For FULL level: always add leaves (we have full context)
+            if self.verification_level == VerificationLevel.MERKLE:
+                if self.first_signature_seen:
+                    self.merkle.add_leaf(transaction.get_tx_digest(), False)
+            else:
+                self.merkle.add_leaf(transaction.get_tx_digest(), False)
 
 
 @dataclass
