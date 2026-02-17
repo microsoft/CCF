@@ -230,7 +230,11 @@ def run(
             if not validator:
                 print("Skipped ledger integrity verification")
             else:
-                verification_level_name = verification_level.name if isinstance(verification_level, ccf.ledger.VerificationLevel) else str(verification_level)
+                verification_level_name = (
+                    verification_level.name
+                    if isinstance(verification_level, ccf.ledger.VerificationLevel)
+                    else str(verification_level)
+                )
                 print(
                     f"Verification level: {verification_level_name}"
                 )
@@ -316,10 +320,14 @@ def main():
     # Parse verification level
     verification_level = None
     if args.verification_level:
-        verification_level = ccf.ledger.VerificationLevel[args.verification_level]
-    
+        verification_level = ccf.ledger.VerificationLevel[
+            args.verification_level
+        ]
+
     # Handle deprecated flag
-    insecure_skip_verification = args.insecure_skip_verification if not args.verification_level else None
+    insecure_skip_verification = (
+        args.insecure_skip_verification if not args.verification_level else None
+    )
 
     print_mode = PrintMode.Contents
     if args.quiet:

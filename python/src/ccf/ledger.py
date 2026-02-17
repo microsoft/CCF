@@ -567,7 +567,7 @@ class LedgerValidator(BaseValidator):
         """
         if not positions:
             return  # Empty positions list is valid for empty chunks
-        
+
         # Check positions are sorted and within file bounds
         for i, pos in enumerate(positions):
             if pos < LEDGER_HEADER_SIZE:
@@ -754,7 +754,7 @@ class LedgerValidator(BaseValidator):
                         self._verify_tx_bundle(tx_info)
                     else:
                         # MERKLE level: only verify merkle root, not signatures
-                        self._verify_merkle_root(self.merkle, existing_root)
+                        BaseValidator._verify_merkle_root(self.merkle, existing_root)
 
                     self.last_verified_seqno = current_seqno
                     self.last_verified_view = current_view
