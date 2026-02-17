@@ -843,25 +843,45 @@ namespace loggingapp
             // side-effect.
             if (match_headers.if_match.has_value())
             {
-              ccf::http::Matcher matcher(match_headers.if_match.value());
-              if (!matcher.matches(etag))
+              try
+              {
+                ccf::http::Matcher matcher(match_headers.if_match.value());
+                if (!matcher.matches(etag))
+                {
+                  return ccf::make_error(
+                    HTTP_STATUS_PRECONDITION_FAILED,
+                    ccf::errors::PreconditionFailed,
+                    "Resource has changed.");
+                }
+              }
+              catch (const ccf::http::MatcherError& e)
               {
                 return ccf::make_error(
-                  HTTP_STATUS_PRECONDITION_FAILED,
-                  ccf::errors::PreconditionFailed,
-                  "Resource has changed.");
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidHeaderValue,
+                  e.what());
               }
             }
 
             if (match_headers.if_none_match.has_value())
             {
-              ccf::http::Matcher matcher(match_headers.if_none_match.value());
-              if (matcher.matches(etag))
+              try
+              {
+                ccf::http::Matcher matcher(match_headers.if_none_match.value());
+                if (matcher.matches(etag))
+                {
+                  return ccf::make_error(
+                    HTTP_STATUS_PRECONDITION_FAILED,
+                    ccf::errors::PreconditionFailed,
+                    "Resource has changed.");
+                }
+              }
+              catch (const ccf::http::MatcherError& e)
               {
                 return ccf::make_error(
-                  HTTP_STATUS_PRECONDITION_FAILED,
-                  ccf::errors::PreconditionFailed,
-                  "Resource has changed.");
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidHeaderValue,
+                  e.what());
               }
             }
           }
@@ -935,23 +955,43 @@ namespace loggingapp
 
           if (match_headers.if_match.has_value())
           {
-            ccf::http::Matcher matcher(match_headers.if_match.value());
-            if (!matcher.matches(etag))
+            try
+            {
+              ccf::http::Matcher matcher(match_headers.if_match.value());
+              if (!matcher.matches(etag))
+              {
+                return ccf::make_error(
+                  HTTP_STATUS_PRECONDITION_FAILED,
+                  ccf::errors::PreconditionFailed,
+                  "Resource has changed.");
+              }
+            }
+            catch (const ccf::http::MatcherError& e)
             {
               return ccf::make_error(
-                HTTP_STATUS_PRECONDITION_FAILED,
-                ccf::errors::PreconditionFailed,
-                "Resource has changed.");
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidHeaderValue,
+                e.what());
             }
           }
 
           // On a GET, If-None-Match passing returns 304 Not Modified
           if (match_headers.if_none_match.has_value())
           {
-            ccf::http::Matcher matcher(match_headers.if_none_match.value());
-            if (matcher.matches(etag))
+            try
             {
-              return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
+              ccf::http::Matcher matcher(match_headers.if_none_match.value());
+              if (matcher.matches(etag))
+              {
+                return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
+              }
+            }
+            catch (const ccf::http::MatcherError& e)
+            {
+              return ccf::make_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidHeaderValue,
+                e.what());
             }
           }
 
@@ -1030,22 +1070,42 @@ namespace loggingapp
 
             if (match_headers.if_match.has_value())
             {
-              ccf::http::Matcher matcher(match_headers.if_match.value());
-              if (!matcher.matches(etag))
+              try
+              {
+                ccf::http::Matcher matcher(match_headers.if_match.value());
+                if (!matcher.matches(etag))
+                {
+                  return ccf::make_error(
+                    HTTP_STATUS_PRECONDITION_FAILED,
+                    ccf::errors::PreconditionFailed,
+                    "Resource has changed.");
+                }
+              }
+              catch (const ccf::http::MatcherError& e)
               {
                 return ccf::make_error(
-                  HTTP_STATUS_PRECONDITION_FAILED,
-                  ccf::errors::PreconditionFailed,
-                  "Resource has changed.");
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidHeaderValue,
+                  e.what());
               }
             }
 
             if (match_headers.if_none_match.has_value())
             {
-              ccf::http::Matcher matcher(match_headers.if_none_match.value());
-              if (matcher.matches(etag))
+              try
               {
-                return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
+                ccf::http::Matcher matcher(match_headers.if_none_match.value());
+                if (matcher.matches(etag))
+                {
+                  return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
+                }
+              }
+              catch (const ccf::http::MatcherError& e)
+              {
+                return ccf::make_error(
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidHeaderValue,
+                  e.what());
               }
             }
           }

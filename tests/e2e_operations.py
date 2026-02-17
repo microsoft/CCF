@@ -871,6 +871,188 @@ def test_ledger_chunk_access(network, args):
                     )
                     assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
 
+    # ETag / If-None-Match tests on a single chunk
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        main_ledger_dir = primary.get_main_ledger_dir()
+        chunks = [f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")]
+        chunks = sorted(
+            (*ccf.ledger.range_from_filename(chunk), chunk) for chunk in chunks
+        )
+        assert len(chunks) > 0, "No committed chunks found"
+        _, _, chunk = chunks[0]
+        chunk_url = f"/node/ledger-chunk/{chunk}"
+        ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
+        with open(ledger_chunk_path, "rb") as f:
+            chunk_data = f.read()
+
+        # 1. Normal GET returns a correctly formed ETag
+        r = c.get(chunk_url, allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.OK.value, r
+        etag = r.headers.get("etag")
+        assert etag is not None, "Missing ETag header on GET"
+        # ETag must be in RFC 9530 format: "sha-256=:<base64>:"
+        assert etag.startswith('"sha-256=:') and etag.endswith(
+            ':"'
+        ), f"ETag has unexpected format: {etag}"
+        expected_b64 = base64.b64encode(hashlib.sha256(chunk_data).digest()).decode()
+        assert (
+            etag == f'"sha-256=:{expected_b64}:"'
+        ), f"ETag digest mismatch: expected sha-256=:{expected_b64}:, got {etag}"
+
+        # 2. GET with If-None-Match that does NOT match returns a fresh download
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": '"sha-256=:AAAA:"'},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.OK.value
+        ), f"Expected 200 for non-matching If-None-Match, got {r.status_code}"
+        assert (
+            r.body.data() == chunk_data
+        ), "Body content should match for non-matching If-None-Match"
+
+        # 3.a. GET with If-None-Match matching the ETag returns 304 Not Modified
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match, got {r.status_code}"
+
+        # 3.b. Compute a sha-384 version of the same ETag, and confirm that it works too
+        # RFC 9530 allows multiple algorithms in the ETag, and If-None-Match should match if any of them match
+        # GET with If-None-Match matching the ETag returns 304 Not Modified
+        sha384_b64 = base64.b64encode(hashlib.sha384(chunk_data).digest()).decode()
+        sha384_etag = f'"sha-384=:{sha384_b64}:"'
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": sha384_etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching sha-384 If-None-Match, got {r.status_code}"
+
+        # 3.b2. sha-512 variant
+        sha512_b64 = base64.b64encode(hashlib.sha512(chunk_data).digest()).decode()
+        sha512_etag = f'"sha-512=:{sha512_b64}:"'
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": sha512_etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching sha-512 If-None-Match, got {r.status_code}"
+
+        # 3.c. HEAD returns the same ETag as GET
+        r = c.head(chunk_url, allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.OK.value, r
+        head_etag = r.headers.get("etag")
+        assert (
+            head_etag == etag
+        ), f"HEAD ETag mismatch: expected {etag}, got {head_etag}"
+
+        # 3.d. HEAD with matching If-None-Match returns 304
+        r = c.call(
+            chunk_url,
+            http_verb="HEAD",
+            headers={"if-none-match": etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match with HEAD, got {r.status_code}"
+
+        # 4. Same checks on a sub-Range of the file
+        total_size = len(chunk_data)
+        range_end = total_size // 2
+        partial_data = chunk_data[: range_end + 1]
+        r = c.call(
+            chunk_url,
+            http_verb="GET",
+            headers={"range": f"bytes=0-{range_end}"},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 for Range GET, got {r.status_code}"
+        range_etag = r.headers.get("etag")
+        assert range_etag is not None, "Missing ETag header on Range GET"
+        range_expected_b64 = base64.b64encode(
+            hashlib.sha256(partial_data).digest()
+        ).decode()
+        assert (
+            range_etag == f'"sha-256=:{range_expected_b64}:"'
+        ), f"Range ETag mismatch: expected sha-256=:{range_expected_b64}:, got {range_etag}"
+
+        # Non-matching If-None-Match on range → fresh partial download
+        r = c.call(
+            chunk_url,
+            http_verb="GET",
+            headers={
+                "range": f"bytes=0-{range_end}",
+                "if-none-match": '"sha-256=:AAAA:"',
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 for non-matching If-None-Match with Range, got {r.status_code}"
+        assert (
+            r.body.data() == partial_data
+        ), "Body content should match partial data for non-matching If-None-Match with Range"
+
+        # Matching If-None-Match on range → 304 Not Modified
+        r = c.call(
+            chunk_url,
+            http_verb="GET",
+            headers={
+                "range": f"bytes=0-{range_end}",
+                "if-none-match": range_etag,
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match with Range, got {r.status_code}"
+
+        # HEAD with Range should return the same ETag as the corresponding GET range
+        r = c.call(
+            chunk_url,
+            http_verb="HEAD",
+            headers={
+                "range": f"bytes=0-{range_end}",
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 for HEAD with Range, got {r.status_code}"
+        head_range_etag = r.headers.get("etag")
+        assert (
+            head_range_etag == range_etag
+        ), f"HEAD Range ETag mismatch: expected {range_etag}, got {head_range_etag}"
+
+        # Matching If-None-Match on HEAD + Range → 304 Not Modified
+        r = c.call(
+            chunk_url,
+            http_verb="HEAD",
+            headers={
+                "range": f"bytes=0-{range_end}",
+                "if-none-match": range_etag,
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match with HEAD Range, got {r.status_code}"
+
 
 def test_ledger_chunk_repr_digest(network, args):
     """
