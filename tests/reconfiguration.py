@@ -856,6 +856,7 @@ def run_all(args):
         test_add_node_invalid_service_cert(network, args)
         test_add_node(network, args, from_snapshot=False)
         test_add_node_with_read_only_ledger(network, args)
+        test_add_node_with_corrupted_ledger(network, args)
         test_join_straddling_primary_replacement(network, args)
         test_node_replacement(network, args)
         test_add_node_from_backup(network, args)
