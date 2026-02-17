@@ -3,6 +3,7 @@
 
 from hashlib import sha256
 import math
+import struct
 
 
 class MerkleTree(object):
@@ -41,7 +42,8 @@ class MerkleTree(object):
             assert (
                 self._levels is not None
             ), "Unexpected error while getting root. MerkleTree has no levels."
-            self._root = self._levels[-1][0]
+            if self._levels and self._levels[-1]:
+                self._root = self._levels[-1][0]
 
         return self._root
 
@@ -88,3 +90,92 @@ class MerkleTree(object):
             num_levels = 1 + math.ceil(math.log(self.get_leaf_count(), 2))
             for level in range(1, num_levels):
                 self._recalculate_level(level)
+
+    def deserialise(self, buffer: bytes, position: int = 0) -> int:
+        """
+        Deserialise a compact merkle tree representation.
+        
+        Format (big-endian):
+          [uint64_t] num_leaf_nodes - Total leaf nodes count
+          [uint64_t] num_flushed - Bitmask indicating flushed nodes
+          [hash...] leaf_hashes - Hash data for all leaf nodes (32 bytes each)
+          [extra_hashes...] - Extra nodes on the left edge of tree (32 bytes each)
+        
+        Args:
+            buffer: The byte buffer containing the serialised tree
+            position: Starting position in the buffer (default: 0)
+            
+        Returns:
+            The new position in the buffer after deserialisation
+        """
+        HASH_SIZE = 32  # SHA-256 hash size
+        
+        # Reset the tree
+        self.reset_tree()
+        
+        # Parse header - big-endian uint64_t values
+        if len(buffer) < position + 16:
+            raise ValueError("Buffer too small for tree header")
+        
+        num_leaf_nodes = struct.unpack('>Q', buffer[position:position + 8])[0]
+        position += 8
+        num_flushed = struct.unpack('>Q', buffer[position:position + 8])[0]
+        position += 8
+        
+        # Read leaf hashes
+        if len(buffer) < position + num_leaf_nodes * HASH_SIZE:
+            raise ValueError("Buffer too small for leaf hashes")
+        
+        leaf_nodes = []
+        for i in range(num_leaf_nodes):
+            leaf_hash = buffer[position:position + HASH_SIZE]
+            position += HASH_SIZE
+            leaf_nodes.append(leaf_hash)
+        
+        # Build tree levels bottom-up, similar to C++ implementation
+        # Start with leaf nodes as the first level
+        level = leaf_nodes[:]
+        next_level = []
+        it = num_flushed
+        level_no = 0
+        
+        while it != 0 or len(level) > 1:
+            # Restore extra hashes on the left edge of the tree
+            if it & 0x01:
+                if len(buffer) < position + HASH_SIZE:
+                    raise ValueError("Buffer too small for extra hash")
+                extra_hash = buffer[position:position + HASH_SIZE]
+                position += HASH_SIZE
+                # Insert at the beginning of the level
+                level.insert(0, extra_hash)
+            
+            # Rebuild the level by pairing nodes
+            next_level = []
+            for i in range(0, len(level), 2):
+                if i + 1 >= len(level):
+                    # Odd node - propagate to next level
+                    next_level.append(level[i])
+                else:
+                    # Pair of nodes - hash them together
+                    combined_hash = sha256(level[i] + level[i + 1]).digest()
+                    next_level.append(combined_hash)
+            
+            level = next_level
+            it >>= 1
+            level_no += 1
+        
+        # Store the reconstructed tree structure
+        # The tree should end with 0 or 1 node (the root)
+        if len(level) == 1:
+            self._root = level[0]
+            # Reconstruct _levels for compatibility with the rest of the class
+            # Start with the original leaves
+            self._levels = [leaf_nodes[:]]
+        elif len(level) == 0 and num_leaf_nodes == 0:
+            # Empty tree
+            self._levels = [[]]
+            self._root = None
+        else:
+            raise ValueError(f"Invalid tree state: {len(level)} nodes at root level")
+        
+        return position
