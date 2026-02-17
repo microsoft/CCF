@@ -87,7 +87,7 @@ class TransactionFlags(Flag):
 class VerificationLevel(Enum):
     """
     Ledger verification levels, ordered from least to most verification.
-    
+
     - NONE: No verification, just parse the ledger structure
     - OFFSETS: Validate offset table consistency
     - HEADERS: Validate transaction headers (size, version, flags)
@@ -582,14 +582,14 @@ class LedgerValidator(BaseValidator):
                 raise ValueError(
                     f"Invalid offset at index {i}: {pos} is not greater than previous offset {positions[i - 1]}"
                 )
-        
+
         # Validate each offset points to a valid transaction header
         for i, pos in enumerate(positions):
             try:
                 file.seek(pos)
                 buffer = _byte_read_safe(file, TransactionHeader.get_size())
                 header = TransactionHeader(buffer)
-                
+
                 # Check if this transaction would extend beyond file bounds
                 tx_end = pos + TransactionHeader.get_size() + header.size
                 if tx_end > file_size:
@@ -597,7 +597,7 @@ class LedgerValidator(BaseValidator):
                         f"Transaction at offset {pos} (index {i}) extends beyond file size: "
                         f"ends at {tx_end} but file is {file_size} bytes"
                     )
-                
+
                 # Check if next position (if exists) aligns with end of this transaction
                 if i + 1 < len(positions):
                     expected_next_pos = tx_end
@@ -626,7 +626,7 @@ class LedgerValidator(BaseValidator):
                 f"Invalid transaction version: {header.version}. "
                 f"Valid versions are: {[e.value for e in EntryType]}"
             )
-        
+
         # Check flags are valid (only known flags bits should be set)
         valid_flags_mask = 0
         for flag in TransactionFlags:
@@ -636,7 +636,7 @@ class LedgerValidator(BaseValidator):
                 f"Invalid transaction flags: {header.flags:#x}. "
                 f"Unknown flag bits set."
             )
-        
+
         # Check size is reasonable (not zero, not too large)
         if header.size == 0:
             raise ValueError("Invalid transaction header: size is 0")
@@ -659,7 +659,7 @@ class LedgerValidator(BaseValidator):
         # Validate transaction header for HEADERS level and above
         if self.verification_level >= VerificationLevel.HEADERS:
             self.validate_transaction_header(transaction.get_transaction_header())
-        
+
         transaction_public_domain = transaction.get_public_domain()
         if not self.accept_deprecated_entry_types:
             assert not transaction_public_domain.is_deprecated()
@@ -714,7 +714,7 @@ class LedgerValidator(BaseValidator):
         # This is a merkle root/signature tx if the table exists
         if SIGNATURE_TX_TABLE_NAME in tables:
             self.signature_count += 1
-            
+
             if self.verification_level >= VerificationLevel.MERKLE:
                 signature_table = tables[SIGNATURE_TX_TABLE_NAME]
 
@@ -726,7 +726,7 @@ class LedgerValidator(BaseValidator):
 
                     # Get binary representations for the cert, existing root, and signature
                     existing_root = bytes.fromhex(signature["root"])
-                    
+
                     if self.verification_level >= VerificationLevel.FULL:
                         # Full verification includes signature validation
                         cert = self.node_certificates[signing_node]

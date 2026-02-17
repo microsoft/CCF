@@ -94,10 +94,10 @@ The ``read_ledger.py`` utility supports multiple verification levels via the ``-
 
     # Parse a single ledger chunk without verification
     $ read_ledger.py /path/to/ledger/chunk --verification-level=NONE
-    
+
     # Validate structure but skip expensive cryptographic operations
     $ read_ledger.py /path/to/ledger/dir --verification-level=HEADERS
-    
+
     # Full verification (default)
     $ read_ledger.py /path/to/ledger/dir --verification-level=FULL
 
