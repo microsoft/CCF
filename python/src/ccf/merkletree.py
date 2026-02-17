@@ -173,7 +173,9 @@ class MerkleTree(object):
             raise ValueError(f"Invalid tree state: {len(level)} nodes at root level")
         
         # Store only the leaf level - other levels will be reconstructed on demand
-        # This is consistent with how add_leaf() works
+        # by methods like get_merkle_root() via _make_tree().
+        # This is consistent with how add_leaf() works - it only appends to _levels[0]
+        # and sets _root to None, deferring tree construction until needed.
         self._levels = [leaf_nodes[:]]
         
         return position

@@ -5,6 +5,7 @@ import pytest
 import struct
 import sys
 import os
+from hashlib import sha256
 
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
@@ -42,7 +43,6 @@ def test_deserialise_simple_tree():
     assert tree.get_leaf(1) == leaf2
     
     # Check the root is the hash of the two leaves
-    from hashlib import sha256
     expected_root = sha256(leaf1 + leaf2).digest()
     assert tree.get_merkle_root() == expected_root
 
