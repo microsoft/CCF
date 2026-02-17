@@ -137,7 +137,6 @@ class MerkleTree(object):
         level = leaf_nodes[:]
         next_level = []
         it = num_flushed
-        level_no = 0
         
         while it != 0 or len(level) > 1:
             # Restore extra hashes on the left edge of the tree
@@ -162,20 +161,19 @@ class MerkleTree(object):
             
             level = next_level
             it >>= 1
-            level_no += 1
         
         # Store the reconstructed tree structure
         # The tree should end with 0 or 1 node (the root)
         if len(level) == 1:
             self._root = level[0]
-            # Reconstruct _levels for compatibility with the rest of the class
-            # Start with the original leaves
-            self._levels = [leaf_nodes[:]]
         elif len(level) == 0 and num_leaf_nodes == 0:
             # Empty tree
-            self._levels = [[]]
             self._root = None
         else:
             raise ValueError(f"Invalid tree state: {len(level)} nodes at root level")
+        
+        # Store only the leaf level - other levels will be reconstructed on demand
+        # This is consistent with how add_leaf() works
+        self._levels = [leaf_nodes[:]]
         
         return position

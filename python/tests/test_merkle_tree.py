@@ -3,7 +3,6 @@
 
 import pytest
 import struct
-from hashlib import sha256
 import sys
 import os
 
@@ -43,6 +42,7 @@ def test_deserialise_simple_tree():
     assert tree.get_leaf(1) == leaf2
     
     # Check the root is the hash of the two leaves
+    from hashlib import sha256
     expected_root = sha256(leaf1 + leaf2).digest()
     assert tree.get_merkle_root() == expected_root
 
