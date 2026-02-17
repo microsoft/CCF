@@ -230,17 +230,18 @@ def run(
             if not validator:
                 print("Skipped ledger integrity verification")
             else:
-                verification_level_name = (
-                    verification_level.name
-                    if isinstance(verification_level, ccf.ledger.VerificationLevel)
-                    else str(verification_level)
-                )
-                print(
-                    f"Verification level: {verification_level_name}"
-                )
-                print(
-                    f"Found {validator.signature_count} signatures, and verified until {validator.last_verified_txid()}"
-                )
+                # Build appropriate message based on verification level
+                if verification_level >= ccf.ledger.VerificationLevel.MERKLE:
+                    # For MERKLE and FULL, report signature verification
+                    print(
+                        f"Verified {verification_level.name} - {validator.transaction_count} transactions, "
+                        f"{validator.signature_count} signatures, until {validator.last_verified_txid()}"
+                    )
+                else:
+                    # For OFFSETS and HEADERS, just report transaction count
+                    print(
+                        f"Verified {verification_level.name} - {validator.transaction_count} transactions"
+                    )
         return not has_error
 
 

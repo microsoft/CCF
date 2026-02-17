@@ -534,6 +534,7 @@ class LedgerValidator(BaseValidator):
     node_certificates: Dict[str, str] = {}
     node_activity_status: Dict[str, Tuple[str, int, bool]] = {}
     signature_count: int = 0
+    transaction_count: int = 0
     verification_level: VerificationLevel
 
     def __init__(
@@ -656,6 +657,8 @@ class LedgerValidator(BaseValidator):
         Further, it validates all service status transitions.
         If any of the above checks fail, this method throws.
         """
+        self.transaction_count += 1
+
         # Validate transaction header for HEADERS level and above
         if self.verification_level >= VerificationLevel.HEADERS:
             self.validate_transaction_header(transaction.get_transaction_header())
