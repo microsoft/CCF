@@ -3,7 +3,7 @@
 
 import struct
 import os
-from enum import Enum, Flag, auto
+from enum import Enum, IntEnum, Flag, auto
 
 from typing import NamedTuple, Optional, Tuple, Dict, List
 
@@ -84,7 +84,7 @@ class TransactionFlags(Flag):
     FORCE_CHUNK_BEFORE = auto()
 
 
-class VerificationLevel(Enum):
+class VerificationLevel(IntEnum):
     """
     Ledger verification levels, ordered from least to most verification.
 
