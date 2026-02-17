@@ -50,26 +50,12 @@ Download Endpoints
 In order to faciliate long term backup of the ledger files (also called chunks), nodes can enable HTTP endpoints that allow a client to download committed ledger files.
 The `LedgerChunkDownload` feature must be added to `enabled_operator_features` on the relevant `rpc_interfaces` entries in the node configuration.
 
-1. :http:GET:`/node/ledger-chunk/{chunk_name}` and :http:HEAD:`/node/ledger-chunk/{chunk_name}`
-
-These endpoints allow downloading a specific ledger chunk by name, where `<chunk-name>` is of the form `ledger_<start_seqno>-<end_seqno>.committed`.
-They support the HTTP `Range` header for partial downloads, and the `HEAD` method for clients to query metadata such as the total size without downloading the full chunk.
-They also populate the `x-ms-ccf-ledger-chunk-name` response header with the name of the chunk being served.
-
-These endpoints also support the ``Want-Repr-Digest`` request header (`RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_).
-When set, the response will include a ``Repr-Digest`` header containing the digest of the full representation of the file.
-Supported algorithms are ``sha-256``, ``sha-384``, and ``sha-512``. If the header contains only unsupported or invalid algorithms, the server defaults to ``sha-256`` (as permitted by `RFC 9530 Appendix C.2 <https://www.rfc-editor.org/rfc/rfc9530#appendix-C.2>`_).
-For example, a client sending ``Want-Repr-Digest: sha-256=1`` will receive a header such as ``Repr-Digest: sha-256=:AEGPTgUMw5e96wxZuDtpfm23RBU3nFwtgY5fw4NYORo=:`` in the response.
-This allows clients to verify the integrity of downloaded files and avoid re-downloading files they already hold by comparing digests.
-
-.. note:: The ``Want-Repr-Digest`` / ``Repr-Digest`` support also applies to the snapshot download endpoints (``/node/snapshot/{snapshot_name}``).
-
-2. :http:GET:`/node/ledger-chunk` and :http:HEAD:`/node/ledger-chunk`, both taking a `seqno` query parameter.
+1. :http:GET:`/node/ledger-chunk` and :http:HEAD:`/node/ledger-chunk`, both taking a `seqno` query parameter.
 
 These endpoints can be used by a client to download the next ledger chunk including a given sequence number `<seqno>`.
-The redirects to the appropriate chunk if it exists, using the previous set of endpoints, or returns a `404 Not Found` response if no such chunk is available.
+They redirect to the appropriate chunk if it exists, using the endpoints described below, or return a `404 Not Found` response if no such chunk is available.
 
-In the usual case, a downloading client will first hit a Backup, and will eventually want to download files recent enough that only the primary can provide them:
+In the typical case, a requesting client will first hit a Backup, and will eventually work its way to chunks recent enough that only the primary can provide them:
 
 .. mermaid::
 
@@ -119,6 +105,56 @@ then the following sequence can occur:
         Note over Backup: Backup node does not have 101-150
         Backup->>-Client: 308 Location: https://primary/node/ledger-chunk?since=51
         Client->>+Primary: GET /node/ledger-chunk?since=101
+
+2. :http:GET:`/node/ledger-chunk/{chunk_name}` and :http:HEAD:`/node/ledger-chunk/{chunk_name}`
+
+These endpoints allow downloading a specific ledger chunk by name, where `<chunk-name>` is of the form `ledger_<start_seqno>-<end_seqno>.committed`.
+They support the HTTP `Range` header for partial downloads, and the `HEAD` method for clients to query metadata such as the total size without downloading the full chunk.
+They also populate the `x-ms-ccf-ledger-chunk-name` response header with the name of the chunk being served.
+
+Want-Repr-Digest and Repr-Digest
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+These endpoints also support the ``Want-Repr-Digest`` request header (`RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_).
+When set, the response will include a ``Repr-Digest`` header containing the digest of the full representation of the file.
+Supported algorithms are ``sha-256``, ``sha-384``, and ``sha-512``. If the header contains only unsupported or invalid algorithms, the server defaults to ``sha-256`` (as permitted by `RFC 9530 Appendix C.2 <https://www.rfc-editor.org/rfc/rfc9530#appendix-C.2>`_).
+For example, a client sending ``Want-Repr-Digest: sha-256=1`` will receive a header such as ``Repr-Digest: sha-256=:AEGPTgUMw5e96wxZuDtpfm23RBU3nFwtgY5fw4NYORo=:`` in the response.
+This allows clients to verify the integrity of downloaded files and avoid re-downloading files they already hold by comparing digests.
+
+.. note:: The ``Want-Repr-Digest`` / ``Repr-Digest`` support also applies to the snapshot download endpoints (:http:GET:`/node/snapshot/{snapshot_name}` and :http:HEAD:`/node/snapshot/{snapshot_name}`).
+
+ETag and If-None-Match
+^^^^^^^^^^^^^^^^^^^^^^
+
+``GET /node/ledger-chunk/{chunk_name}`` supports ``ETag`` and ``If-None-Match`` headers, allowing clients to atomically check whether a chunk (or a range of a chunk) has changed and re-download it in a single request, without needing a separate metadata query first.
+Every successful ``GET`` response includes an ``ETag`` header whose value uses the `RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_ digest format: ``"sha-256=:<base64_digest>:"``, where ``<base64_digest>`` is the base64-encoded SHA-256 digest of the returned content (which may be a sub-range when the ``Range`` header is used).
+
+.. note:: ETag values must be surrounded by double quotes, as per `RFC 7232 <https://www.rfc-editor.org/rfc/rfc7232#section-2.3>`_.
+
+Clients can send an ``If-None-Match`` request header containing one or more ETags. If the content matches any of the provided ETags, the server responds with ``304 Not Modified`` instead of re-sending the body. The supported digest algorithms are ``sha-256``, ``sha-384``, and ``sha-512``.
+When the client already holds a chunk and wants to check if it has changed, it sends the previously received ETag in ``If-None-Match``. If the content has not changed, the server responds with ``304 Not Modified``, saving bandwidth:
+
+.. note:: The node currently defaults to ``sha-256`` for ETags, but clients can also send other supported digest algorithms in the ``If-None-Match`` header, and the server will use the first supported one it finds. For example, if the client sends ``If-None-Match: "sha-384=:AAAA...=:", "sha-256=:47DEQpj8HBSa+/TImW...=:"``, the server will use the ``sha-384`` digest if it supports it, and fall back to ``sha-256`` otherwise.
+
+.. mermaid::
+
+    sequenceDiagram
+        Note over Client: Client already has chunk with known ETag
+        Client->>+Node: GET /node/ledger-chunk/ledger_1-100.committed<br/>If-None-Match: "sha-256=:47DEQpj8HBSa+/TImW...=:"
+        Note over Node: Computes digest, matches If-None-Match
+        Node->>-Client: 304 Not Modified<br/>ETag: "sha-256=:47DEQpj8HBSa+/TImW...=:"
+        Note over Client: No body transferred, client keeps existing copy
+
+If the ``If-None-Match`` ETag does not match the current content (e.g. the client has an outdated copy, or is checking a different chunk), the server returns the full content as a fresh download:
+
+.. mermaid::
+
+    sequenceDiagram
+        Note over Client: Client sends an ETag that does not match
+        Client->>+Node: GET /node/ledger-chunk/ledger_1-100.committed<br/>If-None-Match: "sha-256=:AAAA...=:"
+        Note over Node: Computes digest, does not match If-None-Match
+        Node->>-Client: 200 OK<br/>ETag: "sha-256=:47DEQpj8HBSa+/TImW...=:"<br/><Chunk Contents>
+        Note over Client: Client stores chunk and new ETag for future requests
 
 Snapshots
 ---------
@@ -258,4 +294,4 @@ Invariants
 
 3. Snapshots are always generated for the ``seqno`` of a signature transaction (but not all signature transactions trigger the generation of snapshot).
 
-4. The generation of a snapshot triggers the creation of a new ledger file. This is a corollary of 2. and 3., since new nodes should be able to join from a snapshot only and generate further ledger files that are the same as on the other nodes.
+4. When a snapshot is generated, it must coincide with the end of a ledger file. Since a node can join using solely a snapshot, the first ledger file on that node will start just after the ``seqno`` of the snapshot. By 2., all nodes must have the same ledger files, so the generation of that snapshot on the primary must trigger the creation of a new ledger file starting at the next ``seqno`` to ensure the primary's ledger files are consistent with the joining node's files.

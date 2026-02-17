@@ -3,12 +3,28 @@
 #pragma once
 
 #define FMT_HEADER_ONLY
+#include <exception>
 #include <regex>
 #include <set>
 #include <string>
 
 namespace ccf::http
 {
+  /** Exception thrown when the Matcher encounters an invalid ETag header. */
+  class MatcherError : public std::exception
+  {
+  private:
+    std::string msg;
+
+  public:
+    MatcherError(std::string msg_) : msg(std::move(msg_)) {}
+
+    [[nodiscard]] const char* what() const noexcept override
+    {
+      return msg.c_str();
+    }
+  };
+
   /** Utility class to resolve If-Match and If-None-Match as described
    * in https://www.rfc-editor.org/rfc/rfc9110#field.if-match
    */
@@ -33,7 +49,7 @@ namespace ccf::http
         return;
       }
 
-      std::regex etag_rx(R"(\"([0-9a-f]+)\",?\s*)");
+      std::regex etag_rx(R"(\"([^\"]+)\",?\s*)");
       auto etags_begin =
         std::sregex_iterator(match_header.begin(), match_header.end(), etag_rx);
       auto etags_end = std::sregex_iterator();
@@ -43,7 +59,7 @@ namespace ccf::http
       {
         if (i->position() != last_matched)
         {
-          throw std::runtime_error("Invalid If-Match header");
+          throw MatcherError("Invalid If-Match header");
         }
         const std::smatch& match = *i;
         if_etags.insert(match[1].str());
@@ -54,7 +70,7 @@ namespace ccf::http
 
       if (last_matched != last_index_in_header || if_etags.empty())
       {
-        throw std::runtime_error("Invalid If-Match header");
+        throw MatcherError("Invalid If-Match header");
       }
     }
 
