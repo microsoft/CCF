@@ -304,7 +304,7 @@ def main():
             "FULL: Full cryptographic verification including signatures (default)"
         ),
         type=str,
-        choices=["NONE", "OFFSETS", "HEADERS", "MERKLE", "FULL"],
+        choices=[level.name for level in ccf.ledger.VerificationLevel],
         default=None,
     )
 
