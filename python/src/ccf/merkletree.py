@@ -110,26 +110,27 @@ class MerkleTree(object):
         """
         HASH_SIZE = 32  # SHA-256 hash size
         
+        # Helper function to read bytes and advance position
+        def read_bytes(pos: int, size: int) -> tuple[bytes, int]:
+            """Read size bytes from buffer at pos, return (data, new_pos)"""
+            if len(buffer) < pos + size:
+                raise ValueError(f"Buffer too small: need {pos + size} bytes, have {len(buffer)}")
+            return buffer[pos:pos + size], pos + size
+        
         # Reset the tree
         self.reset_tree()
         
         # Parse header - big-endian uint64_t values
-        if len(buffer) < position + 16:
-            raise ValueError("Buffer too small for tree header")
+        uint64_data, position = read_bytes(position, 8)
+        num_leaf_nodes = struct.unpack('>Q', uint64_data)[0]
         
-        num_leaf_nodes = struct.unpack('>Q', buffer[position:position + 8])[0]
-        position += 8
-        num_flushed = struct.unpack('>Q', buffer[position:position + 8])[0]
-        position += 8
+        uint64_data, position = read_bytes(position, 8)
+        num_flushed = struct.unpack('>Q', uint64_data)[0]
         
         # Read leaf hashes
-        if len(buffer) < position + num_leaf_nodes * HASH_SIZE:
-            raise ValueError("Buffer too small for leaf hashes")
-        
         leaf_nodes = []
         for i in range(num_leaf_nodes):
-            leaf_hash = buffer[position:position + HASH_SIZE]
-            position += HASH_SIZE
+            leaf_hash, position = read_bytes(position, HASH_SIZE)
             leaf_nodes.append(leaf_hash)
         
         # Build tree levels bottom-up, similar to C++ implementation
@@ -141,10 +142,7 @@ class MerkleTree(object):
         while it != 0 or len(level) > 1:
             # Restore extra hashes on the left edge of the tree
             if it & 0x01:
-                if len(buffer) < position + HASH_SIZE:
-                    raise ValueError("Buffer too small for extra hash")
-                extra_hash = buffer[position:position + HASH_SIZE]
-                position += HASH_SIZE
+                extra_hash, position = read_bytes(position, HASH_SIZE)
                 # Insert at the beginning of the level
                 level.insert(0, extra_hash)
             
