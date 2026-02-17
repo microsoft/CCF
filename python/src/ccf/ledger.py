@@ -84,6 +84,23 @@ class TransactionFlags(Flag):
     FORCE_CHUNK_BEFORE = auto()
 
 
+class VerificationLevel(Enum):
+    """
+    Ledger verification levels, ordered from least to most verification.
+    
+    - NONE: No verification, just parse the ledger structure
+    - OFFSETS: Validate offset table consistency
+    - HEADERS: Validate transaction headers (size, version, flags)
+    - MERKLE: Validate merkle tree consistency (trust first signature)
+    - FULL: Full cryptographic verification including signatures
+    """
+    NONE = 0
+    OFFSETS = 1
+    HEADERS = 2
+    MERKLE = 3
+    FULL = 4
+
+
 def to_uint_64(buffer):
     return struct.unpack("@Q", buffer)[0]
 
@@ -517,9 +534,15 @@ class LedgerValidator(BaseValidator):
     node_certificates: Dict[str, str] = {}
     node_activity_status: Dict[str, Tuple[str, int, bool]] = {}
     signature_count: int = 0
+    verification_level: VerificationLevel
 
-    def __init__(self, accept_deprecated_entry_types: bool = True):
+    def __init__(
+        self,
+        accept_deprecated_entry_types: bool = True,
+        verification_level: VerificationLevel = VerificationLevel.FULL,
+    ):
         self.accept_deprecated_entry_types = accept_deprecated_entry_types
+        self.verification_level = verification_level
 
         # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of its merkle tree.
         # Don't hash empty bytes array.
@@ -536,6 +559,94 @@ class LedgerValidator(BaseValidator):
     def last_verified_txid(self) -> TxID:
         return TxID(self.last_verified_view, self.last_verified_seqno)
 
+    @staticmethod
+    def validate_offsets(positions: List[int], file_size: int, file: "SimpleBuffer"):
+        """
+        Validate that offset table entries point to valid transaction boundaries.
+        Raises ValueError if offsets are invalid.
+        """
+        if not positions:
+            return  # Empty positions list is valid for empty chunks
+        
+        # Check positions are sorted and within file bounds
+        for i, pos in enumerate(positions):
+            if pos < LEDGER_HEADER_SIZE:
+                raise ValueError(
+                    f"Invalid offset at index {i}: {pos} is before end of header"
+                )
+            if pos >= file_size:
+                raise ValueError(
+                    f"Invalid offset at index {i}: {pos} exceeds file size {file_size}"
+                )
+            if i > 0 and pos <= positions[i - 1]:
+                raise ValueError(
+                    f"Invalid offset at index {i}: {pos} is not greater than previous offset {positions[i - 1]}"
+                )
+        
+        # Validate each offset points to a valid transaction header
+        for i, pos in enumerate(positions):
+            try:
+                file.seek(pos)
+                buffer = _byte_read_safe(file, TransactionHeader.get_size())
+                header = TransactionHeader(buffer)
+                
+                # Check if this transaction would extend beyond file bounds
+                tx_end = pos + TransactionHeader.get_size() + header.size
+                if tx_end > file_size:
+                    raise ValueError(
+                        f"Transaction at offset {pos} (index {i}) extends beyond file size: "
+                        f"ends at {tx_end} but file is {file_size} bytes"
+                    )
+                
+                # Check if next position (if exists) aligns with end of this transaction
+                if i + 1 < len(positions):
+                    expected_next_pos = tx_end
+                    actual_next_pos = positions[i + 1]
+                    if actual_next_pos != expected_next_pos:
+                        raise ValueError(
+                            f"Offset mismatch: transaction at {pos} ends at {expected_next_pos} "
+                            f"but next offset is {actual_next_pos}"
+                        )
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to validate transaction at offset {pos} (index {i}): {e}"
+                ) from e
+
+    @staticmethod
+    def validate_transaction_header(header: "TransactionHeader"):
+        """
+        Validate transaction header has valid version and flags.
+        Raises ValueError if header is invalid.
+        """
+        # Check version is a known EntryType
+        try:
+            entry_type = EntryType(header.version)
+        except ValueError:
+            raise ValueError(
+                f"Invalid transaction version: {header.version}. "
+                f"Valid versions are: {[e.value for e in EntryType]}"
+            )
+        
+        # Check flags are valid (only known flags bits should be set)
+        valid_flags_mask = 0
+        for flag in TransactionFlags:
+            valid_flags_mask |= flag.value
+        if header.flags & ~valid_flags_mask:
+            raise ValueError(
+                f"Invalid transaction flags: {header.flags:#x}. "
+                f"Unknown flag bits set."
+            )
+        
+        # Check size is reasonable (not zero, not too large)
+        if header.size == 0:
+            raise ValueError("Invalid transaction header: size is 0")
+        # Max size check - 1GB seems like a reasonable maximum
+        MAX_TX_SIZE = 1024 * 1024 * 1024
+        if header.size > MAX_TX_SIZE:
+            raise ValueError(
+                f"Invalid transaction header: size {header.size} exceeds maximum {MAX_TX_SIZE}"
+            )
+
     def add_transaction(self, transaction):
         """
         To validate the ledger, ledger transactions need to be added via this method.
@@ -545,14 +656,19 @@ class LedgerValidator(BaseValidator):
         Further, it validates all service status transitions.
         If any of the above checks fail, this method throws.
         """
+        # Validate transaction header for HEADERS level and above
+        if self.verification_level >= VerificationLevel.HEADERS:
+            self.validate_transaction_header(transaction.get_transaction_header())
+        
         transaction_public_domain = transaction.get_public_domain()
         if not self.accept_deprecated_entry_types:
             assert not transaction_public_domain.is_deprecated()
         tables = transaction_public_domain.get_tables()
 
         # Add contributing nodes certs and update nodes network trust status for verification
+        # Only needed for FULL verification
         node_certs = {}
-        if NODES_TABLE_NAME in tables:
+        if self.verification_level >= VerificationLevel.FULL and NODES_TABLE_NAME in tables:
             node_table = tables[NODES_TABLE_NAME]
             for node_id, node_info in node_table.items():
                 node_id = node_id.decode()
@@ -576,7 +692,7 @@ class LedgerValidator(BaseValidator):
                     node_info.get("retired_committed", False),
                 )
 
-        if ENDORSED_NODE_CERTIFICATES_TABLE_NAME in tables:
+        if self.verification_level >= VerificationLevel.FULL and ENDORSED_NODE_CERTIFICATES_TABLE_NAME in tables:
             node_endorsed_certificates_tables = tables[
                 ENDORSED_NODE_CERTIFICATES_TABLE_NAME
             ]
@@ -598,45 +714,53 @@ class LedgerValidator(BaseValidator):
         # This is a merkle root/signature tx if the table exists
         if SIGNATURE_TX_TABLE_NAME in tables:
             self.signature_count += 1
-            signature_table = tables[SIGNATURE_TX_TABLE_NAME]
+            
+            if self.verification_level >= VerificationLevel.MERKLE:
+                signature_table = tables[SIGNATURE_TX_TABLE_NAME]
 
-            for _, signature in signature_table.items():
-                signature = json.loads(signature)
-                current_seqno = signature["seqno"]
-                current_view = signature["view"]
-                signing_node = signature["node"]
+                for _, signature in signature_table.items():
+                    signature = json.loads(signature)
+                    current_seqno = signature["seqno"]
+                    current_view = signature["view"]
+                    signing_node = signature["node"]
 
-                # Get binary representations for the cert, existing root, and signature
-                cert = self.node_certificates[signing_node]
-                existing_root = bytes.fromhex(signature["root"])
-                sig = base64.b64decode(signature["sig"])
+                    # Get binary representations for the cert, existing root, and signature
+                    existing_root = bytes.fromhex(signature["root"])
+                    
+                    if self.verification_level >= VerificationLevel.FULL:
+                        # Full verification includes signature validation
+                        cert = self.node_certificates[signing_node]
+                        sig = base64.b64decode(signature["sig"])
 
-                # Check that key in cert matches that in node table
-                # when present
-                if "cert" in signature:
-                    sig_cert = signature["cert"].encode("utf-8")
-                    assert spki_from_cert(cert) == spki_from_cert(
-                        sig_cert
-                    ), f"Mismatch in public key for node {signing_node}"
+                        # Check that key in cert matches that in node table
+                        # when present
+                        if "cert" in signature:
+                            sig_cert = signature["cert"].encode("utf-8")
+                            assert spki_from_cert(cert) == spki_from_cert(
+                                sig_cert
+                            ), f"Mismatch in public key for node {signing_node}"
 
-                tx_info = TxBundleInfo(
-                    self.merkle,
-                    existing_root,
-                    cert,
-                    sig,
-                    self.node_activity_status,
-                    signing_node,
-                )
+                        tx_info = TxBundleInfo(
+                            self.merkle,
+                            existing_root,
+                            cert,
+                            sig,
+                            self.node_activity_status,
+                            signing_node,
+                        )
 
-                # validations for 1, 2 and 3
-                # throws if ledger validation failed.
-                self._verify_tx_bundle(tx_info)
+                        # validations for 1, 2 and 3
+                        # throws if ledger validation failed.
+                        self._verify_tx_bundle(tx_info)
+                    else:
+                        # MERKLE level: only verify merkle root, not signatures
+                        self._verify_merkle_root(self.merkle, existing_root)
 
-                self.last_verified_seqno = current_seqno
-                self.last_verified_view = current_view
+                    self.last_verified_seqno = current_seqno
+                    self.last_verified_view = current_view
 
-        # Check service status transitions
-        if SERVICE_INFO_TABLE_NAME in tables:
+        # Check service status transitions (only for FULL verification)
+        if self.verification_level >= VerificationLevel.FULL and SERVICE_INFO_TABLE_NAME in tables:
             service_table = tables[SERVICE_INFO_TABLE_NAME]
             updated_service = service_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
             updated_service_json = json.loads(updated_service)
@@ -662,7 +786,7 @@ class LedgerValidator(BaseValidator):
             self.service_status = updated_status
             self.service_cert = updated_service_json["cert"]
 
-        if COSE_SIGNATURE_TX_TABLE_NAME in tables:
+        if self.verification_level >= VerificationLevel.FULL and COSE_SIGNATURE_TX_TABLE_NAME in tables:
             cose_signature_table = tables[COSE_SIGNATURE_TX_TABLE_NAME]
             cose_signature = cose_signature_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
             signature = json.loads(cose_signature)
@@ -671,8 +795,9 @@ class LedgerValidator(BaseValidator):
                 self.service_cert, self.merkle.get_merkle_root(), cose_sign1
             )
 
-        # Checks complete, add this transaction to tree
-        self.merkle.add_leaf(transaction.get_tx_digest(), False)
+        # Checks complete, add this transaction to tree (for MERKLE and above)
+        if self.verification_level >= VerificationLevel.MERKLE:
+            self.merkle.add_leaf(transaction.get_tx_digest(), False)
 
 
 @dataclass
@@ -951,9 +1076,10 @@ class LedgerChunk:
     _filename: str
     _file: SimpleBuffer
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, verification_level: VerificationLevel = VerificationLevel.NONE):
         self._filename = name
         self._file = SimpleBuffer.from_file(name)
+        self._verification_level = verification_level
 
         self._pos_offset = int.from_bytes(
             _byte_read_safe(self._file, LEDGER_HEADER_SIZE), byteorder="little"
@@ -986,6 +1112,10 @@ class LedgerChunk:
         else:
             self._file_size = os.path.getsize(name)
             self._positions = find_tx_positions(self._file, self._file_size)
+
+        # Validate offsets if verification level is OFFSETS or higher
+        if self._verification_level >= VerificationLevel.OFFSETS:
+            LedgerValidator.validate_offsets(self._positions, self._file_size, self._file)
 
         self.start_seqno, self.end_seqno = range_from_filename(name)
 
@@ -1036,14 +1166,23 @@ class ChunkIterator:
     _filenames: list
     _fileindex: int = -1
     _current_chunk: LedgerChunk
+    _verification_level: VerificationLevel
 
-    def __init__(self, filenames: list, validator: Optional[LedgerValidator] = None):
+    def __init__(
+        self,
+        filenames: list,
+        validator: Optional[LedgerValidator] = None,
+        verification_level: VerificationLevel = VerificationLevel.NONE,
+    ):
         self._filenames = filenames
+        self._verification_level = verification_level
 
     def __next__(self) -> LedgerChunk:
         self._fileindex += 1
         if len(self._filenames) > self._fileindex:
-            self._current_chunk = LedgerChunk(self._filenames[self._fileindex])
+            self._current_chunk = LedgerChunk(
+                self._filenames[self._fileindex], self._verification_level
+            )
             return self._current_chunk
         else:
             raise StopIteration
@@ -1057,14 +1196,17 @@ class Ledger:
     """
 
     _filenames: list
+    _verification_level: VerificationLevel
 
     def __init__(
         self,
         paths: List[str],
         committed_only: bool = True,
         read_recovery_files: bool = False,
+        verification_level: VerificationLevel = VerificationLevel.NONE,
     ):
         self._filenames = []
+        self._verification_level = verification_level
 
         ledger_files: List[str] = []
 
@@ -1128,15 +1270,15 @@ class Ledger:
 
     def __getitem__(self, key):
         if isinstance(key, int):
-            return LedgerChunk(self._filenames[key])
+            return LedgerChunk(self._filenames[key], self._verification_level)
         elif isinstance(key, slice):
             files = self._filenames[key]
-            return [LedgerChunk(file) for file in files]
+            return [LedgerChunk(file, self._verification_level) for file in files]
         else:
             raise KeyError(f"Unsupported type ({type(key)}) passed to Ledger[]")
 
     def __iter__(self):
-        return ChunkIterator(self._filenames)
+        return ChunkIterator(self._filenames, verification_level=self._verification_level)
 
     def transactions(self):
         for chunk in self:
