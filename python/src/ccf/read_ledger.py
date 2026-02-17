@@ -253,7 +253,8 @@ def main():
     parser.add_argument(
         "paths",
         help="Path to ledger directories, ledger chunks, or snapshot file. "
-        "Note that parsing individual ledger chunks requires --verification-level=NONE or lower",
+        "Note that parsing individual ledger chunks requires --verification-level=MERKLE or lower "
+        "(FULL verification requires context from the complete ledger)",
         nargs="+",
     )
     parser.add_argument(
