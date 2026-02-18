@@ -52,11 +52,11 @@ class MerkleTree(object):
         """
         Compute the next level of hashes from the previous level.
         Reuses already-computed hashes where possible.
-        
+
         Args:
             prev_level: List of hashes from the previous (lower) level
             current_level: List of already-computed hashes at this level
-            
+
         Returns:
             Updated list of computed hashes for this level
         """
