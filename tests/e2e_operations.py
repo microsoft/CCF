@@ -2456,7 +2456,7 @@ def run_read_ledger_on_testdata(args):
                         trees_validated += 1
 
                 # Add transaction to accumulated tree
-                # Transaction leafs are the transaction digest
+                # Transaction leaves are the transaction digest
                 accumulated_tree.add_leaf(tx.get_tx_digest(), do_hash=False)
 
         LOG.info(f"Read {tx_count} transactions from {testdata_path}")
