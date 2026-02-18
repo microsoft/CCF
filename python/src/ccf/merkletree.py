@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 from hashlib import sha256
-import math
 import struct
 
 
@@ -17,6 +16,7 @@ class MerkleTree(object):
     def reset_tree(self):
         self._levels = [[]]
         self._root = None
+        self._num_flushed = 0
 
     def add_leaf(self, values: bytes, do_hash=True):
         digest = values
@@ -42,63 +42,100 @@ class MerkleTree(object):
             assert (
                 self._levels is not None
             ), "Unexpected error while getting root. MerkleTree has no levels."
-            self._root = self._levels[-1][0]
+            # Root is always the last entry in the top level. When a level has
+            # a flushed subtree hash at [0], computed hashes follow after it.
+            self._root = self._levels[-1][-1]
 
         return self._root
 
-    def _recalculate_level(self, level):
-        assert len(self._levels) > level - 1
-        prev_level = self._levels[level - 1]
+    def _recalculate_level(self, prev_level, current_level):
+        """
+        Compute the next level of hashes from the previous level.
+        Reuses already-computed hashes where possible.
+        
+        Args:
+            prev_level: List of hashes from the previous (lower) level
+            current_level: List of already-computed hashes at this level
+            
+        Returns:
+            Updated list of computed hashes for this level
+        """
+        # Handle solo leaf: if last entry was a promoted solo, pop it for recalc
+        if current_level:
+            current_level.pop(-1)
+
+        # Determine how many pairs are already computed
+        done = len(current_level)
+
+        # Handle odd count on input level
         number_of_leaves_on_prev_level = len(prev_level)
-
-        assert (
-            number_of_leaves_on_prev_level > 1
-        ), "Merkle Tree should have more than one leaf at every level"
-
         solo_leaf = None
-
-        if (
-            number_of_leaves_on_prev_level % 2 == 1
-        ):  # if odd number of leaves on the level
-            # Get the solo leaf (last leaf in-case the leaves are odd numbered)
+        if number_of_leaves_on_prev_level % 2 == 1:
             solo_leaf = prev_level[-1]
             number_of_leaves_on_prev_level -= 1
 
-        if not len(self._levels) > level:
-            self._levels.append([])
-
-        # Reuse existing level as much as possible
-        current_level = self._levels[level]
-
-        # Since we may have copied a solo-leaf to the rightmost node last time, pop and re-calculate it
-        if len(current_level):
-            current_level.pop(-1)
-
-        done = len(current_level)
-
+        # Compute new pairs starting after 'done' existing pairs
         for left_node, right_node in zip(
             prev_level[done * 2 : number_of_leaves_on_prev_level : 2],
             prev_level[done * 2 + 1 : number_of_leaves_on_prev_level : 2],
         ):
             current_level.append(sha256(left_node + right_node).digest())
+
         if solo_leaf is not None:
             current_level.append(solo_leaf)
 
+        return current_level
+
     def _make_tree(self):
-        if self.get_leaf_count() > 0:
-            num_levels = 1 + math.ceil(math.log(self.get_leaf_count(), 2))
-            for level in range(1, num_levels):
-                self._recalculate_level(level)
+        if self.get_leaf_count() == 0:
+            return
+
+        # Build tree from leaves, incorporating flushed subtree hashes at appropriate
+        # positions based on bits of num_flushed. When num_flushed is 0,
+        # no flushed hashes are prepended and this reduces to standard tree building.
+        # _levels[0] contains leaf hashes, _levels[i] for i > 0 contains
+        # computed hashes. When bit (i-1) of num_flushed is set, _levels[i][0]
+        # holds the flushed subtree root, with computed hashes following after.
+        level = self._levels[0][:]
+        it = self._num_flushed
+        level_idx = 0
+
+        while it != 0 or len(level) > 1:
+            has_flushed = (it & 0x01) == 1
+
+            if has_flushed:
+                # Prepend the flushed subtree hash stored at this level
+                level.insert(0, self._levels[level_idx + 1][0])
+
+            # Ensure next level exists
+            if level_idx + 1 >= len(self._levels):
+                self._levels.append([])
+
+            current_level = self._levels[level_idx + 1]
+            skip = 1 if has_flushed else 0  # flushed hash preserved at [0]
+
+            # Compute next level, reusing existing computed hashes
+            computed = self._recalculate_level(level, current_level[skip:])
+
+            # Store result, preserving flushed hash at [0] if present
+            if has_flushed:
+                self._levels[level_idx + 1] = [current_level[0]] + computed
+            else:
+                self._levels[level_idx + 1] = computed
+
+            level = computed
+            it >>= 1
+            level_idx += 1
 
     def deserialise(self, buffer: bytes, position: int = 0) -> int:
         """
         Deserialise a compact merkle tree representation.
 
         Format (big-endian):
-          [uint64_t] num_leaf_nodes - Total leaf nodes count
-          [uint64_t] num_flushed - Bitmask indicating flushed nodes
-          [hash...] leaf_hashes - Hash data for all leaf nodes (32 bytes each)
-          [extra_hashes...] - Extra nodes on the left edge of tree (32 bytes each)
+          [uint64_t] num_leaf_nodes - Count of leaf nodes in this serialisation
+          [uint64_t] num_flushed - Count of flushed (pruned) leaves
+          [hash...] leaf_hashes - Hash data for leaf nodes (32 bytes each)
+          [hash...] flushed_hashes - Roots of flushed subtrees on the left edge
 
         Args:
             buffer: The byte buffer containing the serialised tree
@@ -126,55 +163,27 @@ class MerkleTree(object):
         num_leaf_nodes = struct.unpack(">Q", uint64_data)[0]
 
         uint64_data, position = read_bytes(position, 8)
-        num_flushed = struct.unpack(">Q", uint64_data)[0]
+        self._num_flushed = struct.unpack(">Q", uint64_data)[0]
 
-        # Read leaf hashes
-        leaf_nodes = []
-        for i in range(num_leaf_nodes):
+        # Read leaf hashes into _levels[0]
+        for _ in range(num_leaf_nodes):
             leaf_hash, position = read_bytes(position, HASH_SIZE)
-            leaf_nodes.append(leaf_hash)
+            self._levels[0].append(leaf_hash)
 
-        # Build tree levels bottom-up, similar to C++ implementation
-        # Start with leaf nodes as the first level
-        level = leaf_nodes[:]
-        next_level = []
-        it = num_flushed
+        # Build _levels structure with flushed subtree hashes at position [0]
+        # for levels where bit (i-1) of num_flushed is set. These represent
+        # roots of flushed subtrees on the left edge of the tree.
+        it = self._num_flushed
+        level_size = num_leaf_nodes
 
-        while it != 0 or len(level) > 1:
-            # Restore extra hashes on the left edge of the tree
+        while it != 0 or level_size > 1:
             if it & 0x01:
-                extra_hash, position = read_bytes(position, HASH_SIZE)
-                # Insert at the beginning of the level
-                level.insert(0, extra_hash)
-
-            # Rebuild the level by pairing nodes
-            next_level = []
-            for i in range(0, len(level), 2):
-                if i + 1 >= len(level):
-                    # Odd node - propagate to next level
-                    next_level.append(level[i])
-                else:
-                    # Pair of nodes - hash them together
-                    combined_hash = sha256(level[i] + level[i + 1]).digest()
-                    next_level.append(combined_hash)
-
-            level = next_level
+                flushed_hash, position = read_bytes(position, HASH_SIZE)
+                self._levels.append([flushed_hash])
+                level_size += 1
+            else:
+                self._levels.append([])
+            level_size = (level_size + 1) // 2
             it >>= 1
-
-        # Store the reconstructed tree structure
-        # The tree should end with 0 or 1 node (the root)
-        if len(level) == 1:
-            self._root = level[0]
-        elif len(level) == 0 and num_leaf_nodes == 0:
-            # Empty tree
-            self._root = None
-        else:
-            raise ValueError(f"Invalid tree state: {len(level)} nodes at root level")
-
-        # Store only the leaf level - other levels will be reconstructed on demand
-        # by methods like get_merkle_root() via _make_tree().
-        # This is consistent with how add_leaf() works - it only appends to _levels[0]
-        # and sets _root to None, deferring tree construction until needed.
-        self._levels = [leaf_nodes[:]]
 
         return position
