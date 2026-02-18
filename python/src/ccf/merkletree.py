@@ -42,8 +42,7 @@ class MerkleTree(object):
             assert (
                 self._levels is not None
             ), "Unexpected error while getting root. MerkleTree has no levels."
-            if self._levels and self._levels[-1]:
-                self._root = self._levels[-1][0]
+            self._root = self._levels[-1][0]
 
         return self._root
 
