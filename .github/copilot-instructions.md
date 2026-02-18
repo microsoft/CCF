@@ -39,7 +39,7 @@
   ./tests.sh -R pattern   # Run tests matching pattern
   ```
 - Most changes should be accompanied by new or updated tests. End-to-end tests are required for any changes that affect the user-visible behaviour.
-- Use C++17 features where appropriate, but be wary of newer features that may not be fully supported.
+- Use modern features where appropriate, but be wary of newer features that may not be fully supported.
 
 ### Python
 
