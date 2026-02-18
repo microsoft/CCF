@@ -94,58 +94,60 @@ class MerkleTree(object):
     def deserialise(self, buffer: bytes, position: int = 0) -> int:
         """
         Deserialise a compact merkle tree representation.
-        
+
         Format (big-endian):
           [uint64_t] num_leaf_nodes - Total leaf nodes count
           [uint64_t] num_flushed - Bitmask indicating flushed nodes
           [hash...] leaf_hashes - Hash data for all leaf nodes (32 bytes each)
           [extra_hashes...] - Extra nodes on the left edge of tree (32 bytes each)
-        
+
         Args:
             buffer: The byte buffer containing the serialised tree
             position: Starting position in the buffer (default: 0)
-            
+
         Returns:
             The new position in the buffer after deserialisation
         """
         HASH_SIZE = 32  # SHA-256 hash size
-        
+
         # Helper function to read bytes and advance position
         def read_bytes(pos: int, size: int) -> tuple[bytes, int]:
             """Read size bytes from buffer at pos, return (data, new_pos)"""
             if len(buffer) < pos + size:
-                raise ValueError(f"Buffer too small: need {pos + size} bytes, have {len(buffer)}")
-            return buffer[pos:pos + size], pos + size
-        
+                raise ValueError(
+                    f"Buffer too small: need {pos + size} bytes, have {len(buffer)}"
+                )
+            return buffer[pos : pos + size], pos + size
+
         # Reset the tree
         self.reset_tree()
-        
+
         # Parse header - big-endian uint64_t values
         uint64_data, position = read_bytes(position, 8)
-        num_leaf_nodes = struct.unpack('>Q', uint64_data)[0]
-        
+        num_leaf_nodes = struct.unpack(">Q", uint64_data)[0]
+
         uint64_data, position = read_bytes(position, 8)
-        num_flushed = struct.unpack('>Q', uint64_data)[0]
-        
+        num_flushed = struct.unpack(">Q", uint64_data)[0]
+
         # Read leaf hashes
         leaf_nodes = []
         for i in range(num_leaf_nodes):
             leaf_hash, position = read_bytes(position, HASH_SIZE)
             leaf_nodes.append(leaf_hash)
-        
+
         # Build tree levels bottom-up, similar to C++ implementation
         # Start with leaf nodes as the first level
         level = leaf_nodes[:]
         next_level = []
         it = num_flushed
-        
+
         while it != 0 or len(level) > 1:
             # Restore extra hashes on the left edge of the tree
             if it & 0x01:
                 extra_hash, position = read_bytes(position, HASH_SIZE)
                 # Insert at the beginning of the level
                 level.insert(0, extra_hash)
-            
+
             # Rebuild the level by pairing nodes
             next_level = []
             for i in range(0, len(level), 2):
@@ -156,10 +158,10 @@ class MerkleTree(object):
                     # Pair of nodes - hash them together
                     combined_hash = sha256(level[i] + level[i + 1]).digest()
                     next_level.append(combined_hash)
-            
+
             level = next_level
             it >>= 1
-        
+
         # Store the reconstructed tree structure
         # The tree should end with 0 or 1 node (the root)
         if len(level) == 1:
@@ -169,11 +171,11 @@ class MerkleTree(object):
             self._root = None
         else:
             raise ValueError(f"Invalid tree state: {len(level)} nodes at root level")
-        
+
         # Store only the leaf level - other levels will be reconstructed on demand
         # by methods like get_merkle_root() via _make_tree().
         # This is consistent with how add_leaf() works - it only appends to _levels[0]
         # and sets _root to None, deferring tree construction until needed.
         self._levels = [leaf_nodes[:]]
-        
+
         return position
