@@ -42,9 +42,7 @@ class MerkleTree(object):
             assert (
                 self._levels is not None
             ), "Unexpected error while getting root. MerkleTree has no levels."
-            # Root is always the last entry in the top level. When a level has
-            # a flushed subtree hash at [0], computed hashes follow after it.
-            self._root = self._levels[-1][-1]
+            self._root = self._levels[-1][0]
 
         return self._root
 
@@ -90,40 +88,34 @@ class MerkleTree(object):
         if self.get_leaf_count() == 0:
             return
 
-        # Build tree from leaves, incorporating flushed subtree hashes at appropriate
-        # positions based on bits of num_flushed. When num_flushed is 0,
-        # no flushed hashes are prepended and this reduces to standard tree building.
-        # _levels[0] contains leaf hashes, _levels[i] for i > 0 contains
-        # computed hashes. When bit (i-1) of num_flushed is set, _levels[i][0]
-        # holds the flushed subtree root, with computed hashes following after.
-        level = self._levels[0][:]
+        # Build tree from leaves. After deserialize, _levels[i] contains:
+        # - Flushed hash at [0] if bit i of num_flushed is set
+        # - Followed by any previously computed hashes
+        # We read from _levels[level_idx] and write computed hashes to _levels[level_idx+1].
         it = self._num_flushed
         level_idx = 0
 
-        while it != 0 or len(level) > 1:
-            has_flushed = (it & 0x01) == 1
-
-            if has_flushed:
-                # Prepend the flushed subtree hash stored at this level
-                level.insert(0, self._levels[level_idx + 1][0])
+        while len(self._levels[level_idx]) > 1 or it != 0:
+            prev_level = self._levels[level_idx]
 
             # Ensure next level exists
             if level_idx + 1 >= len(self._levels):
                 self._levels.append([])
 
-            current_level = self._levels[level_idx + 1]
-            skip = 1 if has_flushed else 0  # flushed hash preserved at [0]
+            # Check if next level has a flushed hash at [0] that we must preserve
+            next_level = self._levels[level_idx + 1]
+            next_has_flushed = (it >> 1) & 0x01 and next_level
 
-            # Compute next level, reusing existing computed hashes
-            computed = self._recalculate_level(level, current_level[skip:])
+            # Compute next level, reusing hashes after the flushed one
+            skip = 1 if next_has_flushed else 0
+            computed = self._recalculate_level(prev_level, next_level[skip:])
 
             # Store result, preserving flushed hash at [0] if present
-            if has_flushed:
-                self._levels[level_idx + 1] = [current_level[0]] + computed
+            if next_has_flushed:
+                self._levels[level_idx + 1] = [next_level[0]] + computed
             else:
                 self._levels[level_idx + 1] = computed
 
-            level = computed
             it >>= 1
             level_idx += 1
 
@@ -170,20 +162,25 @@ class MerkleTree(object):
             leaf_hash, position = read_bytes(position, HASH_SIZE)
             self._levels[0].append(leaf_hash)
 
-        # Build _levels structure with flushed subtree hashes at position [0]
-        # for levels where bit (i-1) of num_flushed is set. These represent
-        # roots of flushed subtrees on the left edge of the tree.
+        # Read flushed subtree hashes into their conceptual levels.
+        # Bit i of num_flushed indicates a flushed subtree of size 2^i,
+        # whose root is at level i (for i>0) or a single leaf at level 0 (i=0).
         it = self._num_flushed
-        level_size = num_leaf_nodes
+        level = 0
 
-        while it != 0 or level_size > 1:
+        while it != 0:
             if it & 0x01:
                 flushed_hash, position = read_bytes(position, HASH_SIZE)
-                self._levels.append([flushed_hash])
-                level_size += 1
-            else:
-                self._levels.append([])
-            level_size = (level_size + 1) // 2
+                if level == 0:
+                    # Flushed leaf - insert at beginning of level 0
+                    self._levels[0].insert(0, flushed_hash)
+                else:
+                    # Ensure level exists
+                    while len(self._levels) <= level:
+                        self._levels.append([])
+                    # Store flushed hash at its conceptual level
+                    self._levels[level] = [flushed_hash]
+            level += 1
             it >>= 1
 
         return position
