@@ -2421,6 +2421,10 @@ def run_read_ledger_on_testdata(args):
         accumulated_tree = MerkleTree()
         trees_validated = 0
 
+        # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of its merkle tree.
+        empty_bytes_array = bytearray(ccf.ledger.SHA256_DIGEST_SIZE)
+        accumulated_tree.add_leaf(empty_bytes_array, do_hash=False)
+
         for chunk in ledger:
             for tx in chunk:
                 tables = tx.get_public_domain().get_tables()
