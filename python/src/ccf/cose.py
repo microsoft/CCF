@@ -4,7 +4,7 @@
 import argparse
 import sys
 
-from typing import Optional, Any
+from typing import Any
 
 import base64
 import cwt
@@ -20,7 +20,6 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePrivateKey,
     EllipticCurvePublicKey,
 )
-from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization import (
@@ -74,19 +73,19 @@ def default_algorithm_for_key(key) -> int:
 
 
 def get_priv_key_type(priv_pem: Pem) -> str:
-    key = load_pem_private_key(priv_pem.encode("ascii"), None, default_backend())
+    key = load_pem_private_key(priv_pem.encode("ascii"), None)
     if isinstance(key, EllipticCurvePrivateKey):
         return "ec"
     raise NotImplementedError("unsupported key type")
 
 
 def cert_fingerprint(cert_pem: Pem):
-    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
+    cert = load_pem_x509_certificate(cert_pem.encode("ascii"))
     return cert.fingerprint(hashes.SHA256()).hex().encode("utf-8")
 
 
 def key_fingerprint_from_cert(cert_pem: Pem):
-    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
+    cert = load_pem_x509_certificate(cert_pem.encode("ascii"))
     pub_key = cert.public_key().public_bytes(
         Encoding.DER, PublicFormat.SubjectPublicKeyInfo
     )
@@ -94,7 +93,7 @@ def key_fingerprint_from_cert(cert_pem: Pem):
 
 
 def key_fingerprint_from_key(key_pem: Pem):
-    key = load_pem_public_key(key_pem.encode("ascii"), default_backend())
+    key = load_pem_public_key(key_pem.encode("ascii"))
     pub_key = key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
     return hashlib.sha256(pub_key).hexdigest()
 
@@ -103,7 +102,7 @@ def create_cose_sign1(
     payload: bytes,
     key_priv_pem: Pem,
     cert_pem: Pem,
-    additional_protected_header: Optional[dict] = None,
+    additional_protected_header: dict | None = None,
 ) -> bytes:
     cose_ctx = cwt.COSE.new(alg_auto_inclusion=True, deterministic_header=True)
     cose_key = cwt.COSEKey.from_pem(key_priv_pem, kid=cert_fingerprint(cert_pem))
@@ -120,9 +119,9 @@ def create_cose_sign1(
 def create_cose_sign1_prepare(
     payload: bytes,
     cert_pem: Pem,
-    additional_protected_header: Optional[dict] = None,
+    additional_protected_header: dict | None = None,
 ) -> dict:
-    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
+    cert = load_pem_x509_certificate(cert_pem.encode("ascii"))
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
 
@@ -146,9 +145,9 @@ def create_cose_sign1_finish(
     payload: bytes,
     cert_pem: Pem,
     signature: str,
-    additional_protected_header: Optional[dict] = None,
+    additional_protected_header: dict | None = None,
 ) -> bytes:
-    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
+    cert = load_pem_x509_certificate(cert_pem.encode("ascii"))
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
 
