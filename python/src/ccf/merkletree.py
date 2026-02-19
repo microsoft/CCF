@@ -5,7 +5,7 @@ from hashlib import sha256
 import math
 
 
-class MerkleTree(object):
+class MerkleTree:
     """
     Basic Merkle Tree implementation where leaves comprise of hashed transactions.
     """
