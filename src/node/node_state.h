@@ -118,6 +118,19 @@ namespace ccf
           join_config.fetch_snapshot_retry_interval.count_ms(),
           join_config.fetch_snapshot_max_size.count_bytes());
 
+        // Ensure the in-flight task reference is cleared when this
+        // task completes, regardless of outcome, so that a subsequent
+        // join-retry can schedule a new fetch if needed.
+        struct ClearOnExit
+        {
+          NodeState* owner;
+          ~ClearOnExit()
+          {
+            std::lock_guard<pal::Mutex> guard(owner->lock);
+            owner->snapshot_fetch_task = nullptr;
+          }
+        } clear_on_exit{owner};
+
         if (latest_peer_snapshot.has_value())
         {
           LOG_INFO_FMT(
@@ -262,6 +275,7 @@ namespace ccf
     ccf::kv::Version startup_seqno = 0;
 
     ccf::tasks::Task join_periodic_task;
+    ccf::tasks::Task snapshot_fetch_task;
 
     std::shared_ptr<ccf::kv::AbstractTxEncryptor> make_encryptor()
     {
@@ -870,8 +884,19 @@ namespace ccf
               // that it proceeds in the background, updating state when it
               // completes, and the join timer separately re-attempts join after
               // this succeeds
-              ccf::tasks::add_task(std::make_shared<FetchSnapshot>(
-                config.join, config.snapshots, this));
+              if (
+                snapshot_fetch_task != nullptr &&
+                !snapshot_fetch_task->is_cancelled())
+              {
+                LOG_INFO_FMT(
+                  "Snapshot fetch already in progress, skipping");
+              }
+              else
+              {
+                snapshot_fetch_task = std::make_shared<FetchSnapshot>(
+                  config.join, config.snapshots, this);
+                ccf::tasks::add_task(snapshot_fetch_task);
+              }
               return;
             }
 
