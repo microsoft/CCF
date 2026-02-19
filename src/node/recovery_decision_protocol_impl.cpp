@@ -377,7 +377,6 @@ namespace ccf
 
     failover_task = ccf::tasks::make_basic_task(
       [this]() {
-        auto& config = get_config();
         auto& identity = get_identity();
 
         LOG_TRACE_FMT(
