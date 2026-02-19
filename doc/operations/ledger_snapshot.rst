@@ -188,6 +188,7 @@ In particular, there is hard lower-bound on the age of the snapshot that a joini
 The following flowchart summarises the join procedure when ``command.join.fetch_recent_snapshot`` is enabled:
 
 .. mermaid::
+
   flowchart TD
         startup["Startup"]
     
@@ -275,6 +276,8 @@ The following flowchart summarises the join procedure when ``command.join.fetch_
     
         wait_for_open --> secrets_available
         secrets_available --> done
+
+
 Historical Transactions
 ~~~~~~~~~~~~~~~~~~~~~~~
 
