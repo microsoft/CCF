@@ -564,7 +564,7 @@ class LedgerValidator(BaseValidator):
         return TxID(self.last_verified_view, self.last_verified_seqno)
 
     @staticmethod
-    def validate_offsets(positions: List[int], file_size: int, file: "SimpleBuffer"):
+    def validate_offsets(positions: list[int], file_size: int, file: "SimpleBuffer"):
         """
         Validate that offset table entries point to valid transaction boundaries.
         Raises ValueError if offsets are invalid.
@@ -624,7 +624,7 @@ class LedgerValidator(BaseValidator):
         """
         # Check version is a known EntryType
         try:
-            entry_type = EntryType(header.version)
+            _ = EntryType(header.version)
         except ValueError:
             raise ValueError(
                 f"Invalid transaction version: {header.version}. "

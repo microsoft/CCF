@@ -24,7 +24,7 @@ namespace ccf::js::extensions
     std::optional<ccf::kv::CompactedVersionConflict>
       compacted_version_conflict = std::nullopt;
 
-    Impl(ccf::kv::Tx* t) : tx(t){};
+    Impl(ccf::kv::Tx* t) : tx(t) {};
   };
 
   namespace
