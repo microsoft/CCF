@@ -277,7 +277,6 @@ The following flowchart summarises the join procedure when ``command.join.fetch_
         wait_for_open --> secrets_available
         secrets_available --> done
 
-
 Historical Transactions
 ~~~~~~~~~~~~~~~~~~~~~~~
 
