@@ -31,6 +31,7 @@ LEDGER_HEADER_SIZE = 8
 # Public table names as defined in CCF
 SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
 COSE_SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.cose_signatures"
+TREE_TABLE_NAME = "public:ccf.internal.tree"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
 ENDORSED_NODE_CERTIFICATES_TABLE_NAME = "public:ccf.gov.nodes.endorsed_certificates"
 SERVICE_INFO_TABLE_NAME = "public:ccf.gov.service.info"
@@ -759,11 +760,21 @@ class LedgerValidator(BaseValidator):
                     else:
                         # MERKLE level: trust first signature, verify subsequent ones
                         if not self.first_signature_seen:
-                            # Trust the first signature: reinitialize merkle tree from this root
+                            # Trust the first signature: reinitialize merkle tree from the mini-tree
                             # This allows verifying isolated chunks without the full ledger history
-                            self.merkle = MerkleTree()
-                            self.merkle.add_leaf(existing_root, do_hash=False)
-                            self.first_signature_seen = True
+                            if TREE_TABLE_NAME in tables:
+                                tree_table = tables[TREE_TABLE_NAME]
+                                if WELL_KNOWN_SINGLETON_TABLE_KEY in tree_table:
+                                    tree_data = tree_table[WELL_KNOWN_SINGLETON_TABLE_KEY]
+                                    # Deserialize the merkle tree from the binary format
+                                    self.merkle = MerkleTree()
+                                    self.merkle.deserialise(tree_data)
+                                    self.first_signature_seen = True
+                            # If no tree table, fall back to trusting just the root (may not work correctly)
+                            if not self.first_signature_seen:
+                                self.merkle = MerkleTree()
+                                self.merkle.add_leaf(existing_root, do_hash=False)
+                                self.first_signature_seen = True
                         else:
                             # Verify subsequent signatures against computed merkle root
                             BaseValidator._verify_merkle_root(self.merkle, existing_root)

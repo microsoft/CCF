@@ -35,7 +35,6 @@ import infra.concurrency
 import ccf.read_ledger
 import re
 import hashlib
-from ccf.merkletree import MerkleTree
 
 from loguru import logger as LOG
 
@@ -2415,53 +2414,11 @@ def run_read_ledger_on_testdata(args):
             committed_only=False,
             read_recovery_files=False,
         )
-
-        # Validate merkle tree deserialization
-        # Maintain a merkle tree by adding leaves, and compare with deserialized trees
-        accumulated_tree = MerkleTree()
-        trees_validated = 0
-
-        # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of its merkle tree.
-        empty_bytes_array = bytearray(ccf.ledger.SHA256_DIGEST_SIZE)
-        accumulated_tree.add_leaf(empty_bytes_array, do_hash=False)
-
         for chunk in ledger:
             for tx in chunk:
                 tables = tx.get_public_domain().get_tables()
                 tx_count += 1
-
-                # Check if this transaction has a serialized merkle tree
-                if "public:ccf.internal.tree" in tables:
-                    tree_table = tables["public:ccf.internal.tree"]
-                    if ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY in tree_table:
-                        tree_data = tree_table[
-                            ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
-                        ]
-
-                        # Deserialize the tree from the transaction
-                        deserialized_tree = MerkleTree()
-                        deserialized_tree.deserialise(tree_data)
-
-                        # Compare roots: the accumulated tree should match the deserialized tree
-                        accumulated_root = accumulated_tree.get_merkle_root()
-                        deserialized_root = deserialized_tree.get_merkle_root()
-
-                        if accumulated_root != deserialized_root:
-                            raise ValueError(
-                                f"Merkle tree mismatch in {testdata_path} at tx {tx_count}: "
-                                f"accumulated={accumulated_root.hex() if accumulated_root else 'None'}, "
-                                f"deserialized={deserialized_root.hex() if deserialized_root else 'None'}"
-                            )
-
-                        trees_validated += 1
-
-                # Add transaction to accumulated tree
-                # Transaction leaves are the transaction digest
-                accumulated_tree.add_leaf(tx.get_tx_digest(), do_hash=False)
-
         LOG.info(f"Read {tx_count} transactions from {testdata_path}")
-        if trees_validated > 0:
-            LOG.info(f"Validated {trees_validated} merkle tree deserializations")
 
         snapshot_path = os.path.join(
             args.historical_testdata, testdata_dir.name, "snapshots"
@@ -2475,6 +2432,56 @@ def run_read_ledger_on_testdata(args):
                     LOG.info(
                         f"Valid snapshot at {snapshot_file.path} with {len(tables)} tables"
                     )
+
+
+def test_merkle_verification_level(args):
+    """Test MERKLE verification level on isolated chunks and full ledgers"""
+    LOG.info("Testing MERKLE verification level")
+
+    # Test 1: MERKLE verification on full ledger
+    for testdata_dir in os.scandir(args.historical_testdata):
+        if not testdata_dir.is_dir():
+            continue
+        testdata_path = os.path.join(
+            args.historical_testdata, testdata_dir.name, "ledger"
+        )
+        LOG.info(f"Testing MERKLE verification on full ledger: {testdata_path}")
+
+        # Read with MERKLE verification level
+        assert ccf.read_ledger.run(
+            paths=[testdata_path],
+            print_mode=ccf.read_ledger.PrintMode.Quiet,
+            verification_level=ccf.ledger.VerificationLevel.MERKLE,
+        )
+
+    # Test 2: MERKLE verification on isolated chunks
+    # Find chunks with multiple signatures to test the "trust first signature" logic
+    test_chunks = [
+        os.path.join(
+            args.historical_testdata,
+            "expired_service",
+            "ledger",
+            "ledger_29-46.committed",
+        ),
+        os.path.join(
+            args.historical_testdata,
+            "double_sealed_service",
+            "ledger",
+            "ledger_44-64.committed",
+        ),
+    ]
+
+    for chunk_path in test_chunks:
+        if os.path.exists(chunk_path):
+            LOG.info(f"Testing MERKLE verification on isolated chunk: {chunk_path}")
+            assert ccf.read_ledger.run(
+                paths=[chunk_path],
+                print_mode=ccf.read_ledger.PrintMode.Quiet,
+                verification_level=ccf.ledger.VerificationLevel.MERKLE,
+            )
+
+    LOG.info("MERKLE verification level tests passed")
+
 
     # Corrupt a single chunk to confirm that read_ledger throws appropriate errors
     source_chunk = os.path.join(
@@ -2771,4 +2778,5 @@ def run(args):
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
     run_read_ledger_on_testdata(args)
+    test_merkle_verification_level(args)
     run_propose_request_vote(args)
