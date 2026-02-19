@@ -779,11 +779,9 @@ class LedgerValidator(BaseValidator):
                                     self.merkle = MerkleTree()
                                     self.merkle.deserialise(tree_data)
                                     self.first_signature_seen = True
-                            # If no tree table, fall back to trusting just the root (may not work correctly)
-                            if not self.first_signature_seen:
-                                self.merkle = MerkleTree()
-                                self.merkle.add_leaf(existing_root, do_hash=False)
-                                self.first_signature_seen = True
+                            # If no tree table (old ledger format), we cannot do partial
+                            # Merkle verification - first_signature_seen stays False and
+                            # subsequent signatures won't be verified
                         else:
                             # Verify subsequent signatures against computed merkle root
                             BaseValidator._verify_merkle_root(
