@@ -815,14 +815,10 @@ class Network:
         source_nodes = existing_network.nodes[: len(self.nodes)]
         ledger_dirs = {}
         committed_ledger_dirs = {}
-        recovery_decision_protocol_cluster_identities = []
         for i, source_node in enumerate(source_nodes):
             current_ledger_dir, current_committed_ledger_dirs = source_node.get_ledger()
             ledger_dirs[i] = current_ledger_dir
             committed_ledger_dirs[i] = current_committed_ledger_dirs
-            recovery_decision_protocol_cluster_identities.append(
-                source_node.get_sealing_recovery_identity()
-            )
 
         # separate out all starting nodes' directories such that they recover independently
         self.per_node_args_override = {
@@ -842,6 +838,15 @@ class Network:
             port = 1000 + random.randint(0, 64534)
             node.host.get_primary_interface().port = port
             node.host.get_primary_interface().public_port = port
+
+        # Build cluster identities AFTER port randomization so that
+        # published_address reflects the actual listening address.
+        # intrinsic_id comes from the source node (old network identity).
+        recovery_decision_protocol_cluster_identities = []
+        for i, source_node in enumerate(source_nodes):
+            identity = source_node.get_sealing_recovery_identity()
+            identity["published_address"] = self.nodes[i].get_public_rpc_address()
+            recovery_decision_protocol_cluster_identities.append(identity)
 
         self.status = ServiceStatus.RECOVERING
         LOG.debug(f"Opening CCF service on {self.hosts}")
