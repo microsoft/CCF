@@ -12,15 +12,15 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/recovery_decision_protocol.h"
 #include "node/node_configuration_subsystem.h"
-#include "node/rpc/node_frontend_utils.h"
 #include "node/recovery_decision_protocol_impl.h"
+#include "node/rpc/node_frontend_utils.h"
 
 namespace ccf::node
 {
   template <typename Input>
   using RecoveryDecisionProtocolHandler =
     std::function<std::optional<ErrorDetails>(
-    endpoints::EndpointContext& args, Input& in)>;
+      endpoints::EndpointContext& args, Input& in)>;
 
   template <typename Input>
   static HandlerJsonParamsAndForward wrap_recovery_decision_protocol(
@@ -40,10 +40,10 @@ namespace ccf::node
       }
 
       if (
+        !config->get().node_config.sealing_recovery.has_value() ||
         !config->get()
-           .node_config.sealing_recovery.has_value() ||
-        !config->get()
-           .node_config.sealing_recovery->recovery_decision_protocol.has_value())
+           .node_config.sealing_recovery->recovery_decision_protocol
+           .has_value())
       {
         return make_error(
           HTTP_STATUS_BAD_REQUEST,
@@ -66,7 +66,8 @@ namespace ccf::node
       {
         const auto [code, message] = quote_verification_error(verify_result);
         LOG_FAIL_FMT(
-          "Recovery-decision-protocol message from {} has an invalid quote: {} ({})",
+          "Recovery-decision-protocol message from {} has an invalid quote: {} "
+          "({})",
           info.identity.intrinsic_id,
           code,
           message);
@@ -74,15 +75,17 @@ namespace ccf::node
       }
 
       LOG_TRACE_FMT(
-        "Recovery-decision-protocol message from intrinsic id {} has a valid quote",
+        "Recovery-decision-protocol message from intrinsic id {} has a valid "
+        "quote",
         info.identity.intrinsic_id);
 
       // ---- The sender now has trusted code ----
 
       // Validating that we haven't heard from this node before, of if we have
       // that the cert hasn't changed
-      auto* node_info_handle = args.tx.rw<recovery_decision_protocol::NodeInfoMap>(
-        Tables::RECOVERY_DECISION_PROTOCOL_NODES);
+      auto* node_info_handle =
+        args.tx.rw<recovery_decision_protocol::NodeInfoMap>(
+          Tables::RECOVERY_DECISION_PROTOCOL_NODES);
       auto existing_node_info =
         node_info_handle->get(info.identity.intrinsic_id);
 
@@ -92,7 +95,8 @@ namespace ccf::node
         if (existing_node_info->node_cert_der != cert_der)
         {
           auto message = fmt::format(
-            "Recovery-decision-protocol message from intrinsic id {} is invalid: "
+            "Recovery-decision-protocol message from intrinsic id {} is "
+            "invalid: "
             "certificate public key has changed",
             info.identity.intrinsic_id);
           LOG_FAIL_FMT("{}", message);
@@ -145,9 +149,7 @@ namespace ccf::node
     ccf::AbstractNodeContext& node_context)
   {
     auto recovery_decision_protocol_gossip =
-      [](
-        auto& args,
-        recovery_decision_protocol::GossipRequest in)
+      [](auto& args, recovery_decision_protocol::GossipRequest in)
       -> std::optional<ErrorDetails> {
       LOG_TRACE_FMT(
         "Recovery-decision-protocol: receive gossip from {}",
@@ -167,8 +169,9 @@ namespace ccf::node
             chosen_replica->get().value())};
       }
 
-      auto gossip_handle = args.tx.template rw<recovery_decision_protocol::Gossips>(
-        Tables::RECOVERY_DECISION_PROTOCOL_GOSSIPS);
+      auto gossip_handle =
+        args.tx.template rw<recovery_decision_protocol::Gossips>(
+          Tables::RECOVERY_DECISION_PROTOCOL_GOSSIPS);
       if (gossip_handle->get(in.info.identity.intrinsic_id).has_value())
       {
         LOG_INFO_FMT(
@@ -184,8 +187,7 @@ namespace ccf::node
         HTTP_PUT,
         json_adapter(wrap_recovery_decision_protocol<
                      recovery_decision_protocol::GossipRequest>(
-          recovery_decision_protocol_gossip,
-          node_context)),
+          recovery_decision_protocol_gossip, node_context)),
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
@@ -209,20 +211,16 @@ namespace ccf::node
       .make_endpoint(
         "/recovery_decision_protocol/vote",
         HTTP_PUT,
-        json_adapter(
-          wrap_recovery_decision_protocol<
-            recovery_decision_protocol::TaggedWithNodeInfo>(
-            recovery_decision_protocol_vote,
-            node_context)),
+        json_adapter(wrap_recovery_decision_protocol<
+                     recovery_decision_protocol::TaggedWithNodeInfo>(
+          recovery_decision_protocol_vote, node_context)),
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
       .install();
 
     auto recovery_decision_protocol_iamopen =
-      [&node_context](
-        auto& args,
-        recovery_decision_protocol::IAmOpenRequest in)
+      [&node_context](auto& args, recovery_decision_protocol::IAmOpenRequest in)
       -> std::optional<ErrorDetails> {
       auto sm_state = args.tx
                         .template ro<recovery_decision_protocol::SMState>(
@@ -287,82 +285,81 @@ namespace ccf::node
         HTTP_PUT,
         json_adapter(wrap_recovery_decision_protocol<
                      recovery_decision_protocol::IAmOpenRequest>(
-          recovery_decision_protocol_iamopen,
-          node_context)),
+          recovery_decision_protocol_iamopen, node_context)),
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
       .install();
 
-    auto recovery_decision_protocol_timeout =
-      [&](auto& args, const nlohmann::json& params) {
-        (void)params;
-        auto config = node_context.get_subsystem<NodeConfigurationSubsystem>();
-        auto node_operation =
-          node_context.get_subsystem<AbstractNodeOperation>();
-        if (config == nullptr || node_operation == nullptr)
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidNodeState,
-            "Unable to open recovery-decision-protocol subsystems");
-        }
+    auto recovery_decision_protocol_timeout = [&](
+                                                auto& args,
+                                                const nlohmann::json& params) {
+      (void)params;
+      auto config = node_context.get_subsystem<NodeConfigurationSubsystem>();
+      auto node_operation = node_context.get_subsystem<AbstractNodeOperation>();
+      if (config == nullptr || node_operation == nullptr)
+      {
+        return make_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidNodeState,
+          "Unable to open recovery-decision-protocol subsystems");
+      }
 
-        auto sealing_recovery_config = config->get().node_config.sealing_recovery;
+      auto sealing_recovery_config = config->get().node_config.sealing_recovery;
 
-        if (
-          !sealing_recovery_config.has_value() ||
-          !sealing_recovery_config->recovery_decision_protocol.has_value())
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidNodeState,
-            "This node cannot do recovery-decision-protocol");
-        }
+      if (
+        !sealing_recovery_config.has_value() ||
+        !sealing_recovery_config->recovery_decision_protocol.has_value())
+      {
+        return make_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidNodeState,
+          "This node cannot do recovery-decision-protocol");
+      }
 
-        LOG_TRACE_FMT("Recovery-decision-protocol timeout received");
+      LOG_TRACE_FMT("Recovery-decision-protocol timeout received");
 
-        // Must ensure that the request originates from the primary
-        auto primary_id = node_operation->get_primary();
-        if (!primary_id.has_value())
-        {
-          LOG_FAIL_FMT("recovery-decision-protocol timeout: primary unknown");
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Primary is unknown");
-        }
-        const auto& sig_auth_ident =
-          args.template get_caller<ccf::NodeCertAuthnIdentity>();
-        if (primary_id.value() != sig_auth_ident.node_id)
-        {
-          LOG_FAIL_FMT(
-            "recovery-decision-protocol timeout: request does not originate from "
-            "primary");
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Request does not originate from primary.");
-        }
+      // Must ensure that the request originates from the primary
+      auto primary_id = node_operation->get_primary();
+      if (!primary_id.has_value())
+      {
+        LOG_FAIL_FMT("recovery-decision-protocol timeout: primary unknown");
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Primary is unknown");
+      }
+      const auto& sig_auth_ident =
+        args.template get_caller<ccf::NodeCertAuthnIdentity>();
+      if (primary_id.value() != sig_auth_ident.node_id)
+      {
+        LOG_FAIL_FMT(
+          "recovery-decision-protocol timeout: request does not originate from "
+          "primary");
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Request does not originate from primary.");
+      }
 
-        try
-        {
-          node_operation->recovery_decision_protocol().advance(args.tx, true);
-        }
-        catch (const std::logic_error& e)
-        {
-          LOG_FAIL_FMT(
-            "Recovery-decision-protocol failed to advance state: {}", e.what());
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format(
-              "Failed to advance recovery-decision-protocol state: {}",
-              e.what()));
-        }
-        return make_success(
-          "Recovery-decision-protocol timeout processed successfully");
-      };
+      try
+      {
+        node_operation->recovery_decision_protocol().advance(args.tx, true);
+      }
+      catch (const std::logic_error& e)
+      {
+        LOG_FAIL_FMT(
+          "Recovery-decision-protocol failed to advance state: {}", e.what());
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          fmt::format(
+            "Failed to advance recovery-decision-protocol state: {}",
+            e.what()));
+      }
+      return make_success(
+        "Recovery-decision-protocol timeout processed successfully");
+    };
     registry
       .make_endpoint(
         "/recovery_decision_protocol/timeout",

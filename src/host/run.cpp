@@ -792,8 +792,7 @@ namespace ccf
     {
       CCF_ASSERT_FMT(
         ccf::pal::platform == ccf::pal::Platform::SNP,
-        "Sealing ledger secrets is only supported on SEV-SNP platforms"
-      );
+        "Sealing ledger secrets is only supported on SEV-SNP platforms");
     }
 
     // Configure startup based on command type

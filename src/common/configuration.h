@@ -122,8 +122,7 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SealingRecoveryConfig);
   DECLARE_JSON_REQUIRED_FIELDS(SealingRecoveryConfig, identity);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    SealingRecoveryConfig,
-    recovery_decision_protocol);
+    SealingRecoveryConfig, recovery_decision_protocol);
 
   DECLARE_JSON_TYPE(StartupConfig::Start);
   DECLARE_JSON_REQUIRED_FIELDS(

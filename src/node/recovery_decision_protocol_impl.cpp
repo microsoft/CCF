@@ -59,7 +59,8 @@ namespace ccf
       LOG_INFO_FMT("Recovery-decision-protocol not configured, skipping");
       return;
     }
-    auto& config = node_state->config.sealing_recovery->recovery_decision_protocol;
+    auto& config =
+      node_state->config.sealing_recovery->recovery_decision_protocol;
     if (!recovering || !config.has_value())
     {
       LOG_INFO_FMT("Skipping recovery-decision-protocol");
@@ -92,14 +93,12 @@ namespace ccf
         }));
   }
 
-  void RecoveryDecisionProtocolSubsystem::advance(
-    ccf::kv::Tx& tx, bool timeout)
+  void RecoveryDecisionProtocolSubsystem::advance(ccf::kv::Tx& tx, bool timeout)
   {
     auto& config = get_config();
 
-    auto* sm_state_handle =
-      tx.rw<recovery_decision_protocol::SMState>(
-        Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE);
+    auto* sm_state_handle = tx.rw<recovery_decision_protocol::SMState>(
+      Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE);
     auto* timeout_state_handle =
       tx.rw<recovery_decision_protocol::TimeoutSMState>(
         Tables::RECOVERY_DECISION_PROTOCOL_TIMEOUT_SM_STATE);
@@ -151,7 +150,8 @@ namespace ccf
               Tables::RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE)
             ->put(std::get<2>(maximum.value()));
 
-          sm_state_handle->put(recovery_decision_protocol::StateMachine::VOTING);
+          sm_state_handle->put(
+            recovery_decision_protocol::StateMachine::VOTING);
         }
         break;
       }
@@ -170,7 +170,8 @@ namespace ccf
             // than ourselves to begin operating
             // So we do not attempt to open the service ourselves
             LOG_FAIL_FMT(
-              "Recovery-decision-protocol timeout without any votes for ourselves, "
+              "Recovery-decision-protocol timeout without any votes for "
+              "ourselves, "
               "skipping opening network");
             return;
           }
@@ -207,7 +208,8 @@ namespace ccf
           AbstractGovernanceEffects::ServiceIdentities identities{
             .previous = prev_ident, .next = service_info->cert};
 
-          sm_state_handle->put(recovery_decision_protocol::StateMachine::OPENING);
+          sm_state_handle->put(
+            recovery_decision_protocol::StateMachine::OPENING);
 
           node_state->transition_service_to_open(tx, identities);
         }
@@ -215,9 +217,10 @@ namespace ccf
       }
       case recovery_decision_protocol::StateMachine::JOINING:
       {
-        auto chosen_replica = tx.ro<recovery_decision_protocol::ChosenNode>(
-                                  Tables::RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE)
-                                ->get();
+        auto chosen_replica =
+          tx.ro<recovery_decision_protocol::ChosenNode>(
+              Tables::RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE)
+            ->get();
         if (!chosen_replica.has_value())
         {
           throw std::logic_error(
@@ -271,7 +274,8 @@ namespace ccf
       {
         case recovery_decision_protocol::StateMachine::GOSSIPING:
           LOG_TRACE_FMT("Advancing timeout SM to VOTING");
-          timeout_state_handle->put(recovery_decision_protocol::StateMachine::VOTING);
+          timeout_state_handle->put(
+            recovery_decision_protocol::StateMachine::VOTING);
           break;
         case recovery_decision_protocol::StateMachine::VOTING:
           LOG_TRACE_FMT("Advancing timeout SM to OPENING");
@@ -297,19 +301,20 @@ namespace ccf
       [this]() {
         if (!node_state->config.sealing_recovery.has_value())
         {
-          LOG_INFO_FMT("Recovery-decision-protocol not configured, skipping retry timers");
+          LOG_INFO_FMT(
+            "Recovery-decision-protocol not configured, skipping retry timers");
           return;
         }
-        auto& config = node_state->config.sealing_recovery->recovery_decision_protocol;
+        auto& config =
+          node_state->config.sealing_recovery->recovery_decision_protocol;
         if (!config.has_value())
         {
           throw std::logic_error("Recovery-decision-protocol not configured");
         }
 
         auto tx = node_state->network.tables->create_read_only_tx();
-        auto* sm_state_handle =
-          tx.ro<recovery_decision_protocol::SMState>(
-            Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE);
+        auto* sm_state_handle = tx.ro<recovery_decision_protocol::SMState>(
+          Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE);
 
         auto sm_state_opt = sm_state_handle->get();
         if (!sm_state_opt.has_value())
@@ -390,13 +395,14 @@ namespace ccf
         auto& identity = get_identity();
 
         LOG_TRACE_FMT(
-          "Recovery-decision-protocol timeout, sending timeout to internal handlers");
+          "Recovery-decision-protocol timeout, sending timeout to internal "
+          "handlers");
 
-        // Stop the timer if the node has completed its recovery-decision-protocol
+        // Stop the timer if the node has completed its
+        // recovery-decision-protocol
         auto tx = node_state->network.tables->create_read_only_tx();
-        auto* sm_state_handle =
-          tx.ro<recovery_decision_protocol::SMState>(
-            Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE);
+        auto* sm_state_handle = tx.ro<recovery_decision_protocol::SMState>(
+          Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE);
         if (!sm_state_handle->get().has_value())
         {
           throw std::logic_error(
@@ -543,8 +549,7 @@ namespace ccf
   }
 
   recovery_decision_protocol::RequestNodeInfo&
-    RecoveryDecisionProtocolSubsystem::get_node_info(
-    kv::ReadOnlyTx& tx)
+  RecoveryDecisionProtocolSubsystem::get_node_info(kv::ReadOnlyTx& tx)
   {
     std::lock_guard<pal::Mutex> guard(recovery_decision_protocol_lock);
 
@@ -596,16 +601,15 @@ namespace ccf
   }
 
   void RecoveryDecisionProtocolSubsystem::send_vote_unsafe(
-    kv::ReadOnlyTx& tx,
-    const recovery_decision_protocol::NodeInfo& node_info)
+    kv::ReadOnlyTx& tx, const recovery_decision_protocol::NodeInfo& node_info)
   {
     LOG_TRACE_FMT(
       "Sending recovery-decision-protocol vote to {} at {}",
       node_info.identity.intrinsic_id,
       node_info.identity.published_address);
 
-    recovery_decision_protocol::TaggedWithNodeInfo request{.info =
-                                                             get_node_info(tx)};
+    recovery_decision_protocol::TaggedWithNodeInfo request{
+      .info = get_node_info(tx)};
 
     nlohmann::json request_json = request;
 
@@ -617,8 +621,8 @@ namespace ccf
       node_state->node_sign_kp->private_key_pem());
   }
 
-  recovery_decision_protocol::IAmOpenRequest& RecoveryDecisionProtocolSubsystem::
-    get_iamopen_request(kv::ReadOnlyTx& tx)
+  recovery_decision_protocol::IAmOpenRequest&
+  RecoveryDecisionProtocolSubsystem::get_iamopen_request(kv::ReadOnlyTx& tx)
   {
     {
       std::lock_guard<pal::Mutex> guard(recovery_decision_protocol_lock);
@@ -680,14 +684,15 @@ namespace ccf
     }
   }
 
-  RecoveryDecisionProtocolConfig&
-    RecoveryDecisionProtocolSubsystem::get_config()
+  RecoveryDecisionProtocolConfig& RecoveryDecisionProtocolSubsystem::
+    get_config()
   {
     if (!node_state->config.sealing_recovery.has_value())
     {
       throw std::logic_error("Sealing recovery not configured");
     }
-    auto& config = node_state->config.sealing_recovery->recovery_decision_protocol;
+    auto& config =
+      node_state->config.sealing_recovery->recovery_decision_protocol;
     if (!config.has_value())
     {
       throw std::logic_error("Recovery-decision-protocol not configured");
@@ -695,8 +700,8 @@ namespace ccf
     return config.value();
   }
 
-  recovery_decision_protocol::Identity&
-    RecoveryDecisionProtocolSubsystem::get_identity()
+  recovery_decision_protocol::Identity& RecoveryDecisionProtocolSubsystem::
+    get_identity()
   {
     if (!node_state->config.sealing_recovery.has_value())
     {

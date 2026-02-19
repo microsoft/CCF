@@ -4,10 +4,10 @@
 
 #include "ccf/historical_queries_interface.h"
 #include "kv/test/stub_consensus.h"
+#include "node/recovery_decision_protocol_impl.h"
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/node_interface.h"
 #include "node/rpc/node_operation_interface.h"
-#include "node/recovery_decision_protocol_impl.h"
 
 #include <stdexcept>
 

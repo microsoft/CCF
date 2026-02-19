@@ -63,8 +63,7 @@ namespace ccf
 
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
 
-    virtual RecoveryDecisionProtocolSubsystem& recovery_decision_protocol() =
-      0;
+    virtual RecoveryDecisionProtocolSubsystem& recovery_decision_protocol() = 0;
 
     virtual void shuffle_sealed_shares(ccf::kv::Tx& tx) = 0;
   };

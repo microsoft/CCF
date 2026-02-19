@@ -882,9 +882,7 @@ namespace ccf
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
-      if (
-        config.sealing_recovery.has_value() &&
-        snp_tcb_version.has_value())
+      if (config.sealing_recovery.has_value() && snp_tcb_version.has_value())
       {
         join_params.sealed_recovery_key =
           sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());
@@ -2037,9 +2035,7 @@ namespace ccf
       create_params.service_data = config.service_data;
       create_params.create_txid = {create_view, last_recovered_signed_idx + 1};
 
-      if (
-        config.sealing_recovery.has_value() &&
-        snp_tcb_version.has_value())
+      if (config.sealing_recovery.has_value() && snp_tcb_version.has_value())
       {
         create_params.sealed_recovery_key =
           sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());

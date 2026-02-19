@@ -81,13 +81,13 @@ namespace ccf
       OpenKinds,
       {{OpenKinds::QUORUM, "Quorum"}, {OpenKinds::FAILOVER, "Failover"}});
 
-    using NodeInfoMap =
-      ServiceMap<IntrinsicIdentifier, ccf::recovery_decision_protocol::NodeInfo>;
+    using NodeInfoMap = ServiceMap<
+      IntrinsicIdentifier,
+      ccf::recovery_decision_protocol::NodeInfo>;
     using Gossips = ServiceMap<IntrinsicIdentifier, ccf::TxID>;
     using ChosenNode = ServiceValue<IntrinsicIdentifier>;
     using Votes = ServiceSet<IntrinsicIdentifier>;
-    using SMState =
-      ServiceValue<ccf::recovery_decision_protocol::StateMachine>;
+    using SMState = ServiceValue<ccf::recovery_decision_protocol::StateMachine>;
     using TimeoutSMState =
       ServiceValue<ccf::recovery_decision_protocol::StateMachine>;
     using OpenKind = ServiceValue<ccf::recovery_decision_protocol::OpenKinds>;

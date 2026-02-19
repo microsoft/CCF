@@ -631,7 +631,9 @@ class Node:
         if self.sealing_recovery_identity is not None:
             return dict(self.sealing_recovery_identity)
 
-        intrinsic_id = self.node_id if self.node_id is not None else str(self.local_node_id)
+        intrinsic_id = (
+            self.node_id if self.node_id is not None else str(self.local_node_id)
+        )
         self.sealing_recovery_identity = {
             "intrinsic_id": intrinsic_id,
             "published_address": self.get_public_rpc_address(),

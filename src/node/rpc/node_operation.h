@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "node/recovery_decision_protocol_impl.h"
 #include "node/rpc/node_interface.h"
 #include "node/rpc/node_operation_interface.h"
-#include "node/recovery_decision_protocol_impl.h"
 
 namespace ccf
 {
