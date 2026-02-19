@@ -5,7 +5,7 @@ import struct
 import os
 from enum import Enum, IntEnum, Flag, auto
 
-from typing import NamedTuple, Optional, Tuple, Dict, List
+from typing import NamedTuple
 
 import json
 import base64
@@ -13,7 +13,6 @@ from dataclasses import dataclass
 import functools
 
 from cryptography.x509 import load_pem_x509_certificate
-from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import utils, ec
@@ -138,14 +137,14 @@ def unpack_array(buf, fmt):
 
 @functools.lru_cache(maxsize=64)
 def spki_from_cert(cert: bytes) -> bytes:
-    cert_obj = load_pem_x509_certificate(cert, default_backend())
+    cert_obj = load_pem_x509_certificate(cert)
     return cert_obj.public_key().public_bytes(
         encoding=serialization.Encoding.DER,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
     )
 
 
-def range_from_filename(filename: str) -> Tuple[int, Optional[int]]:
+def range_from_filename(filename: str) -> tuple[int, int | None]:
     elements = (
         os.path.basename(filename)
         .replace(COMMITTED_FILE_SUFFIX, "")
@@ -161,7 +160,7 @@ def range_from_filename(filename: str) -> Tuple[int, Optional[int]]:
         raise ValueError(f"Could not read seqno range from ledger file {filename}")
 
 
-def snapshot_index_from_filename(filename: str) -> Tuple[int, int]:
+def snapshot_index_from_filename(filename: str) -> tuple[int, int]:
     elements = (
         os.path.basename(filename)
         .replace(COMMITTED_FILE_SUFFIX, "")
@@ -348,13 +347,13 @@ class PublicDomain:
         """
         return self._version
 
-    def get_claims_digest(self) -> Optional[bytes]:
+    def get_claims_digest(self) -> bytes | None:
         """
         Return the claims digest when there is one
         """
         return self._claims_digest if self._entry_type.has_claims() else None
 
-    def get_commit_evidence_digest(self) -> Optional[bytes]:
+    def get_commit_evidence_digest(self) -> bytes | None:
         """
         Return the commit evidence digest when there is one
         """
@@ -378,7 +377,7 @@ class SimpleBuffer:
     def tell(self):
         return self._loc
 
-    def read(self, size: Optional[int] = None):
+    def read(self, size: int | None = None):
         start = self._loc
         end = self._len
         if size is not None:
@@ -475,7 +474,7 @@ class BaseValidator:
     def _verify_root_signature(node_cert: bytes, root: bytes, signature: bytes):
         """Verify item 2, that the Merkle root signature validates against the node certificate"""
         try:
-            cert = load_pem_x509_certificate(node_cert, default_backend())
+            cert = load_pem_x509_certificate(node_cert)
             pub_key = cert.public_key()
 
             assert isinstance(pub_key, ec.EllipticCurvePublicKey)
@@ -531,8 +530,6 @@ class LedgerValidator(BaseValidator):
     """
 
     accept_deprecated_entry_types: bool = True
-    node_certificates: Dict[str, str] = {}
-    node_activity_status: Dict[str, Tuple[str, int, bool]] = {}
     signature_count: int = 0
     transaction_count: int = 0
     verification_level: VerificationLevel
@@ -543,6 +540,8 @@ class LedgerValidator(BaseValidator):
         accept_deprecated_entry_types: bool = True,
         verification_level: VerificationLevel = VerificationLevel.FULL,
     ):
+        self.node_certificates: dict[str, str] = {}
+        self.node_activity_status: dict[str, tuple[str, int, bool]] = {}
         self.accept_deprecated_entry_types = accept_deprecated_entry_types
         self.verification_level = verification_level
 
@@ -863,9 +862,9 @@ class Entry:
     _file: SimpleBuffer
     _header: TransactionHeader
     _public_domain_size: int = 0
-    _public_domain: Optional[PublicDomain] = None
+    _public_domain: PublicDomain | None = None
     _file_size: int = 0
-    gcm_header: Optional[GcmHeader] = None
+    gcm_header: GcmHeader | None = None
 
     def __init__(self, file: SimpleBuffer):
         if type(self) is Entry:
@@ -953,7 +952,7 @@ class Transaction(Entry):
     def get_len(self) -> int:
         return len(self.get_raw_tx())
 
-    def get_offsets(self) -> Tuple[int, int]:
+    def get_offsets(self) -> tuple[int, int]:
         return (self._tx_offset, TransactionHeader.get_size() + self._header.size)
 
     def get_write_set_digest(self) -> bytes:
@@ -1022,9 +1021,7 @@ class Snapshot(Entry):
                 .hex()
             )
             root = ccf.receipt.root(leaf, receipt["proof"])
-            node_cert = load_pem_x509_certificate(
-                receipt["cert"].encode(), default_backend()
-            )
+            node_cert = load_pem_x509_certificate(receipt["cert"].encode())
             ccf.receipt.verify(root, receipt["signature"], node_cert)
 
     def is_committed(self):
@@ -1041,13 +1038,13 @@ class Snapshot(Entry):
 
 
 class TransactionIterator:
-    _positions: List[int]
+    _positions: list[int]
     _buffer: SimpleBuffer
     _idx: int = -1
 
     def __init__(
         self,
-        positions: List[int],
+        positions: list[int],
         buffer: SimpleBuffer,
     ):
         self._positions = positions
@@ -1062,7 +1059,7 @@ class TransactionIterator:
             raise StopIteration
 
 
-def find_tx_positions(file: SimpleBuffer, file_size: int) -> List[int]:
+def find_tx_positions(file: SimpleBuffer, file_size: int) -> list[int]:
     pos = LEDGER_HEADER_SIZE
     ps = []
     while pos < file_size:
@@ -1190,7 +1187,7 @@ class ChunkIterator:
     def __init__(
         self,
         filenames: list,
-        validator: Optional[LedgerValidator] = None,
+        validator: LedgerValidator | None = None,
         verification_level: VerificationLevel = VerificationLevel.NONE,
     ):
         self._filenames = filenames
@@ -1219,7 +1216,7 @@ class Ledger:
 
     def __init__(
         self,
-        paths: List[str],
+        paths: list[str],
         committed_only: bool = True,
         read_recovery_files: bool = False,
         verification_level: VerificationLevel = VerificationLevel.NONE,
@@ -1227,7 +1224,7 @@ class Ledger:
         self._filenames = []
         self._verification_level = verification_level
 
-        ledger_files: List[str] = []
+        ledger_files: list[str] = []
 
         def try_add_chunk(path):
             sanitised_path = path
@@ -1280,7 +1277,7 @@ class Ledger:
                 )
 
     @property
-    def last_committed_chunk_range(self) -> Tuple[int, Optional[int]]:
+    def last_committed_chunk_range(self) -> tuple[int, int | None]:
         last_chunk_name = self._filenames[-1]
         return range_from_filename(last_chunk_name)
 
@@ -1328,17 +1325,17 @@ class Ledger:
             f"Transaction at seqno {seqno} does not exist in ledger"
         )
 
-    def get_latest_public_state(self) -> Tuple[dict, int]:
+    def get_latest_public_state(self) -> tuple[dict, int]:
         """
         Return the current public state of the service.
 
         Note that the public state returned may not yet be verified by a
         signature transaction nor committed by the service.
 
-        :return: Tuple[Dict, int]: Tuple containing a dictionary of public tables and their values and the seqno of the state read from the ledger.
+        :return: tuple[dict, int]: Tuple containing a dictionary of public tables and their values and the seqno of the state read from the ledger.
         """
 
-        public_tables: Dict[str, Dict] = {}
+        public_tables: dict[str, dict] = {}
         latest_seqno = 0
         # If a transaction cannot be read (e.g. because it was only partially written to disk
         # before a crash), return public state so far. This is consistent with CCF's behaviour
