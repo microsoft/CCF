@@ -2482,7 +2482,6 @@ def test_merkle_verification_level(args):
 
     LOG.info("MERKLE verification level tests passed")
 
-
     # Corrupt a single chunk to confirm that read_ledger throws appropriate errors
     source_chunk = os.path.join(
         args.historical_testdata,

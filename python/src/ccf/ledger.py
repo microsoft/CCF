@@ -94,6 +94,7 @@ class VerificationLevel(IntEnum):
     - MERKLE: Validate merkle tree consistency (trust first signature)
     - FULL: Full cryptographic verification including signatures
     """
+
     NONE = 0
     OFFSETS = 1
     HEADERS = 2
@@ -673,7 +674,10 @@ class LedgerValidator(BaseValidator):
         # Add contributing nodes certs and update nodes network trust status for verification
         # Only needed for FULL verification
         node_certs = {}
-        if self.verification_level >= VerificationLevel.FULL and NODES_TABLE_NAME in tables:
+        if (
+            self.verification_level >= VerificationLevel.FULL
+            and NODES_TABLE_NAME in tables
+        ):
             node_table = tables[NODES_TABLE_NAME]
             for node_id, node_info in node_table.items():
                 node_id = node_id.decode()
@@ -697,7 +701,10 @@ class LedgerValidator(BaseValidator):
                     node_info.get("retired_committed", False),
                 )
 
-        if self.verification_level >= VerificationLevel.FULL and ENDORSED_NODE_CERTIFICATES_TABLE_NAME in tables:
+        if (
+            self.verification_level >= VerificationLevel.FULL
+            and ENDORSED_NODE_CERTIFICATES_TABLE_NAME in tables
+        ):
             node_endorsed_certificates_tables = tables[
                 ENDORSED_NODE_CERTIFICATES_TABLE_NAME
             ]
@@ -765,7 +772,9 @@ class LedgerValidator(BaseValidator):
                             if TREE_TABLE_NAME in tables:
                                 tree_table = tables[TREE_TABLE_NAME]
                                 if WELL_KNOWN_SINGLETON_TABLE_KEY in tree_table:
-                                    tree_data = tree_table[WELL_KNOWN_SINGLETON_TABLE_KEY]
+                                    tree_data = tree_table[
+                                        WELL_KNOWN_SINGLETON_TABLE_KEY
+                                    ]
                                     # Deserialize the merkle tree from the binary format
                                     self.merkle = MerkleTree()
                                     self.merkle.deserialise(tree_data)
@@ -777,13 +786,18 @@ class LedgerValidator(BaseValidator):
                                 self.first_signature_seen = True
                         else:
                             # Verify subsequent signatures against computed merkle root
-                            BaseValidator._verify_merkle_root(self.merkle, existing_root)
+                            BaseValidator._verify_merkle_root(
+                                self.merkle, existing_root
+                            )
 
                     self.last_verified_seqno = current_seqno
                     self.last_verified_view = current_view
 
         # Check service status transitions (only for FULL verification)
-        if self.verification_level >= VerificationLevel.FULL and SERVICE_INFO_TABLE_NAME in tables:
+        if (
+            self.verification_level >= VerificationLevel.FULL
+            and SERVICE_INFO_TABLE_NAME in tables
+        ):
             service_table = tables[SERVICE_INFO_TABLE_NAME]
             updated_service = service_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
             updated_service_json = json.loads(updated_service)
@@ -809,7 +823,10 @@ class LedgerValidator(BaseValidator):
             self.service_status = updated_status
             self.service_cert = updated_service_json["cert"]
 
-        if self.verification_level >= VerificationLevel.FULL and COSE_SIGNATURE_TX_TABLE_NAME in tables:
+        if (
+            self.verification_level >= VerificationLevel.FULL
+            and COSE_SIGNATURE_TX_TABLE_NAME in tables
+        ):
             cose_signature_table = tables[COSE_SIGNATURE_TX_TABLE_NAME]
             cose_signature = cose_signature_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
             signature = json.loads(cose_signature)
@@ -1103,7 +1120,9 @@ class LedgerChunk:
     _filename: str
     _file: SimpleBuffer
 
-    def __init__(self, name: str, verification_level: VerificationLevel = VerificationLevel.NONE):
+    def __init__(
+        self, name: str, verification_level: VerificationLevel = VerificationLevel.NONE
+    ):
         self._filename = name
         self._file = SimpleBuffer.from_file(name)
         self._verification_level = verification_level
@@ -1142,7 +1161,9 @@ class LedgerChunk:
 
         # Validate offsets if verification level is OFFSETS or higher
         if self._verification_level >= VerificationLevel.OFFSETS:
-            LedgerValidator.validate_offsets(self._positions, self._file_size, self._file)
+            LedgerValidator.validate_offsets(
+                self._positions, self._file_size, self._file
+            )
 
         self.start_seqno, self.end_seqno = range_from_filename(name)
 
@@ -1305,7 +1326,9 @@ class Ledger:
             raise KeyError(f"Unsupported type ({type(key)}) passed to Ledger[]")
 
     def __iter__(self):
-        return ChunkIterator(self._filenames, verification_level=self._verification_level)
+        return ChunkIterator(
+            self._filenames, verification_level=self._verification_level
+        )
 
     def transactions(self):
         for chunk in self:

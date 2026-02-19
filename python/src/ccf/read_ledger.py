@@ -322,9 +322,7 @@ def main():
     # Parse verification level
     verification_level = None
     if args.verification_level:
-        verification_level = ccf.ledger.VerificationLevel[
-            args.verification_level
-        ]
+        verification_level = ccf.ledger.VerificationLevel[args.verification_level]
 
     # Handle deprecated flag
     insecure_skip_verification = (
