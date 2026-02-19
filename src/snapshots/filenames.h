@@ -197,7 +197,7 @@ namespace snapshots
         else
         {
           /// Collect snapshot with index; sorting is done after collection
-          committed_snapshots_with_idx.push_back(std::make_pair(idx, f.path()));
+          committed_snapshots_with_idx.emplace_back(idx, f.path());
         }
       }
     }

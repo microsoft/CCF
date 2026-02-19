@@ -888,8 +888,7 @@ namespace ccf
                 snapshot_fetch_task != nullptr &&
                 !snapshot_fetch_task->is_cancelled())
               {
-                LOG_INFO_FMT(
-                  "Snapshot fetch already in progress, skipping");
+                LOG_INFO_FMT("Snapshot fetch already in progress, skipping");
               }
               else
               {
@@ -911,7 +910,8 @@ namespace ccf
               AdminMessage::fatal_error_msg, to_host, error_msg);
             return;
           }
-          else if (status != HTTP_STATUS_OK)
+
+          if (status != HTTP_STATUS_OK)
           {
             const auto& location = headers.find(http::headers::LOCATION);
             if (

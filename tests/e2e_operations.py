@@ -762,17 +762,13 @@ def test_corrupt_snapshot_handling(network, args):
     read_only_snapshot_name = "snapshot_1000_1500.committed"
 
     # ---- Part 1: writable dir (rename succeeds) + read-only config dir ----
-    LOG.info(
-        "Part 1: corrupt snapshots in both writable and read-only directories"
-    )
+    LOG.info("Part 1: corrupt snapshots in both writable and read-only directories")
 
     with tempfile.TemporaryDirectory() as writable_dir, tempfile.TemporaryDirectory() as read_only_dir:
         # Place corrupt snapshots
         with open(os.path.join(writable_dir, writable_snapshot_name), "wb") as f:
             f.write(corrupt_data)
-        with open(
-            os.path.join(read_only_dir, read_only_snapshot_name), "wb"
-        ) as f:
+        with open(os.path.join(read_only_dir, read_only_snapshot_name), "wb") as f:
             f.write(corrupt_data)
 
         new_node = network.create_node()
@@ -789,16 +785,12 @@ def test_corrupt_snapshot_handling(network, args):
 
         # The node's workspace root and config file
         node_root = new_node.remote.remote.root
-        config_file_name = (
-            f"{new_node.remote.local_node_id}.config.json"
-        )
+        config_file_name = f"{new_node.remote.local_node_id}.config.json"
         config_path = os.path.join(node_root, config_file_name)
 
         # Copy the read-only snapshot directory into the node's workspace
         ro_dir_basename = os.path.basename(read_only_dir)
-        shutil.copytree(
-            read_only_dir, os.path.join(node_root, ro_dir_basename)
-        )
+        shutil.copytree(read_only_dir, os.path.join(node_root, ro_dir_basename))
 
         # Patch the config to include the read-only snapshot directory.
         # If the config file is a symlink, replace it with a copy so we
@@ -823,9 +815,7 @@ def test_corrupt_snapshot_handling(network, args):
             network.run_join_node(new_node)
             new_node.stop()
         except Exception as e:
-            LOG.warning(
-                f"Node failed to join (expected if ledger replay is slow): {e}"
-            )
+            LOG.warning(f"Node failed to join (expected if ledger replay is slow): {e}")
             # run_join_node already stopped and removed the node on failure,
             # but we still need to ensure the process is down.
             try:
@@ -834,9 +824,7 @@ def test_corrupt_snapshot_handling(network, args):
                 pass
 
         # -- Verify writable directory: file must be renamed to .ignored --
-        writable_in_ws = os.path.join(
-            node_root, os.path.basename(writable_dir)
-        )
+        writable_in_ws = os.path.join(node_root, os.path.basename(writable_dir))
         ws_files = os.listdir(writable_in_ws)
         assert writable_snapshot_name not in ws_files, (
             f"Corrupt snapshot {writable_snapshot_name} should have been "
@@ -869,9 +857,7 @@ def test_corrupt_snapshot_handling(network, args):
         ), "Expected read-only directory message in node logs"
 
     # ---- Part 2: writable dir with restricted permissions (rename fails) ----
-    LOG.info(
-        "Part 2: corrupt snapshot in writable dir that cannot be renamed"
-    )
+    LOG.info("Part 2: corrupt snapshot in writable dir that cannot be renamed")
 
     unrenamable_snapshot_name = "snapshot_3000_3500.committed"
 
@@ -894,9 +880,7 @@ def test_corrupt_snapshot_handling(network, args):
         # when the source is a file and the destination is a directory,
         # regardless of user privileges (chmod is ineffective under root).
         node_root2 = new_node2.remote.remote.root
-        restricted_in_ws = os.path.join(
-            node_root2, os.path.basename(restricted_dir)
-        )
+        restricted_in_ws = os.path.join(node_root2, os.path.basename(restricted_dir))
         blocker_dir = os.path.join(
             restricted_in_ws, f"{unrenamable_snapshot_name}.ignored"
         )
