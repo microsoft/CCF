@@ -215,7 +215,6 @@ class Network:
         "snp_endorsements_file",
         "subject_name",
         "idle_connection_timeout_s",
-        "enable_local_sealing",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -787,8 +786,7 @@ class Network:
     def start_in_recovery_decision_protocol(
         self,
         args,
-        ledger_dirs,
-        committed_ledger_dirs=None,
+        existing_network,
         snapshot_dirs=None,
         common_dir=None,
         starting_nodes=None,
@@ -804,10 +802,27 @@ class Network:
         self.per_node_args_override = self.per_node_args_override or {
             i: {} for i in range(len(self.nodes))
         }
-        committed_ledger_dirs = committed_ledger_dirs or {
-            i: None for i in range(len(self.nodes))
-        }
         snapshot_dirs = snapshot_dirs or {i: None for i in range(len(self.nodes))}
+
+        if existing_network is None:
+            raise ValueError("existing_network is required")
+
+        if len(existing_network.nodes) < len(self.nodes):
+            raise ValueError(
+                "existing_network does not contain enough nodes to recover from"
+            )
+
+        source_nodes = existing_network.nodes[: len(self.nodes)]
+        ledger_dirs = {}
+        committed_ledger_dirs = {}
+        recovery_decision_protocol_cluster_identities = []
+        for i, source_node in enumerate(source_nodes):
+            current_ledger_dir, current_committed_ledger_dirs = source_node.get_ledger()
+            ledger_dirs[i] = current_ledger_dir
+            committed_ledger_dirs[i] = current_committed_ledger_dirs
+            recovery_decision_protocol_cluster_identities.append(
+                source_node.get_sealing_recovery_identity()
+            )
 
         # separate out all starting nodes' directories such that they recover independently
         self.per_node_args_override = {
@@ -835,13 +850,6 @@ class Network:
             arg: getattr(args, arg, None)
             for arg in infra.network.Network.node_args_to_forward
         }
-        recovery_decision_protocol_cluster_identities = [
-            {
-                "intrinsic_id": node.node_id,
-                "published_address": node.get_public_rpc_address(),
-            }
-            for node in self.nodes
-        ]
 
         for i, node in enumerate(self.nodes):
             if starting_nodes is not None and i > starting_nodes:
@@ -858,17 +866,16 @@ class Network:
                 }
                 recovery_decision_protocol_kwargs = {
                     "recovery_decision_protocol_cluster_identities": recovery_decision_protocol_cluster_identities,
-                    "sealing_recovery_identity": {
-                        "intrinsic_id": node.node_id,
-                        "published_address": node.get_public_rpc_address(),
-                    },
+                    "sealing_recovery_identity": recovery_decision_protocol_cluster_identities[
+                        i
+                    ],
                 }
                 # If a kwarg is passed in override automatically set variants
                 node_kwargs = (
                     node_kwargs
-                    | recovery_decision_protocol_kwargs
                     | forwarded_args_with_overrides
                     | kwargs
+                    | recovery_decision_protocol_kwargs
                 )
                 node.recover(**node_kwargs)
                 if suspend_after_start:

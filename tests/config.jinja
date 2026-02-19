@@ -101,7 +101,7 @@
     "max_msg_size": "{{ max_msg_size_bytes }}",
     "max_fragment_size": "256KB"
   },
-  "ignore_first_sigterm": {{ ignore_first_sigterm|tojson }}{% if enable_local_sealing or recovery_decision_protocol_cluster_identities %},
+  "ignore_first_sigterm": {{ ignore_first_sigterm|tojson }}{% if sealing_recovery_identity %},
   "sealing_recovery": {
     "identity": {
       "intrinsic_id": "{{ sealing_recovery_identity.intrinsic_id }}",

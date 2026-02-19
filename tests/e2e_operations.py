@@ -1886,12 +1886,20 @@ def run_recovery_local_unsealing(
     LOG.info("Running recovery local unsealing")
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.enable_local_sealing = True
     args.label += (
         f"_unsealing_{recovery_f}_rekey_{rekey}_refresh_{recovery_shares_refresh}"
     )
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
+        network.per_node_args_override = {
+            i: {
+                "sealing_recovery_identity": {
+                    "intrinsic_id": str(node.local_node_id),
+                    "published_address": node.get_public_rpc_address(),
+                }
+            }
+            for i, node in enumerate(network.nodes)
+        }
         network.start_and_open(args)
 
         network.save_service_identity(args)
@@ -1952,10 +1960,18 @@ def run_recovery_unsealing_validate_audit(const_args):
     LOG.info("Running recovery local unsealing")
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.enable_local_sealing = True
     args.label += "_unsealing_audit"
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
+        network.per_node_args_override = {
+            i: {
+                "sealing_recovery_identity": {
+                    "intrinsic_id": str(node.local_node_id),
+                    "published_address": node.get_public_rpc_address(),
+                }
+            }
+            for i, node in enumerate(network.nodes)
+        }
         network.start_and_open(args)
 
         network.save_service_identity(args)
@@ -2044,26 +2060,27 @@ def run_recovery_decision_protocol(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.label += "_recovery_decision_protocol"
-    args.enable_local_sealing = True
 
     with infra.network.network(
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
     ) as network:
+        network.per_node_args_override = {
+            i: {
+                "sealing_recovery_identity": {
+                    "intrinsic_id": str(node.local_node_id),
+                    "published_address": node.get_public_rpc_address(),
+                }
+            }
+            for i, node in enumerate(network.nodes)
+        }
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         network.save_service_identity(args)
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
-
-        ledger_dirs = {}
-        committed_ledger_dirs = {}
-        for i, node in enumerate(network.nodes):
-            l_dir, c = node.get_ledger()
-            ledger_dirs[i] = l_dir
-            committed_ledger_dirs[i] = c
 
         LOG.info("Start recovery network")
         with infra.network.network(
@@ -2072,19 +2089,9 @@ def run_recovery_decision_protocol(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
-            recovered_network.per_node_args_override = {
-                i: {
-                    "sealing_recovery_identity": {
-                        "intrinsic_id": node.node_id,
-                        "published_address": node.get_public_rpc_address(),
-                    }
-                }
-                for i, node in enumerate(network.nodes)
-            }
             recovered_network.start_in_recovery_decision_protocol(
                 recovery_args,
-                ledger_dirs=ledger_dirs,
-                committed_ledger_dirs=committed_ledger_dirs,
+                existing_network=network,
             )
             recovered_network.wait_for_recovery_decision_protocol_finish()
 
@@ -2113,26 +2120,27 @@ def run_recovery_decision_protocol_timeout_path(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.label += "_recovery_decision_protocol_timeout"
-    args.enable_local_sealing = True
 
     with infra.network.network(
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
     ) as network:
+        network.per_node_args_override = {
+            i: {
+                "sealing_recovery_identity": {
+                    "intrinsic_id": str(node.local_node_id),
+                    "published_address": node.get_public_rpc_address(),
+                }
+            }
+            for i, node in enumerate(network.nodes)
+        }
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         network.save_service_identity(args)
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
-
-        ledger_dirs = {}
-        committed_ledger_dirs = {}
-        for i, node in enumerate(network.nodes):
-            l_dir, c = node.get_ledger()
-            ledger_dirs[i] = l_dir
-            committed_ledger_dirs[i] = c
 
         LOG.info("Start a recovery network and stop it")
         with infra.network.network(
@@ -2141,19 +2149,9 @@ def run_recovery_decision_protocol_timeout_path(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
-            recovered_network.per_node_args_override = {
-                i: {
-                    "sealing_recovery_identity": {
-                        "intrinsic_id": node.node_id,
-                        "published_address": node.get_public_rpc_address(),
-                    }
-                }
-                for i, node in enumerate(network.nodes)
-            }
             recovered_network.start_in_recovery_decision_protocol(
                 recovery_args,
-                ledger_dirs=ledger_dirs,
-                committed_ledger_dirs=committed_ledger_dirs,
+                existing_network=network,
                 starting_nodes=0,  # Force timeout path by starting only one node
             )
             recovered_network.wait_for_recovery_decision_protocol_finish()
@@ -2182,26 +2180,27 @@ def run_recovery_decision_protocol_multiple_timeout(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.label += "_recovery_decision_protocol_multiple_timeout"
-    args.enable_local_sealing = True
 
     with infra.network.network(
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
     ) as network:
+        network.per_node_args_override = {
+            i: {
+                "sealing_recovery_identity": {
+                    "intrinsic_id": str(node.local_node_id),
+                    "published_address": node.get_public_rpc_address(),
+                }
+            }
+            for i, node in enumerate(network.nodes)
+        }
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         network.save_service_identity(args)
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
-
-        ledger_dirs = {}
-        committed_ledger_dirs = {}
-        for i, node in enumerate(network.nodes):
-            l_dir, c = node.get_ledger()
-            ledger_dirs[i] = l_dir
-            committed_ledger_dirs[i] = c
 
         LOG.info("Start a recovery network")
         with infra.network.network(
@@ -2210,19 +2209,9 @@ def run_recovery_decision_protocol_multiple_timeout(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
-            recovered_network.per_node_args_override = {
-                i: {
-                    "sealing_recovery_identity": {
-                        "intrinsic_id": node.node_id,
-                        "published_address": node.get_public_rpc_address(),
-                    }
-                }
-                for i, node in enumerate(network.nodes)
-            }
             recovered_network.start_in_recovery_decision_protocol(
                 recovery_args,
-                ledger_dirs=ledger_dirs,
-                committed_ledger_dirs=committed_ledger_dirs,
+                existing_network=network,
                 suspend_after_start=True,  # suspend each node after starting to ensure they don't progress
             )
             # for each node: start it and wait until it finishes the recovery-decision-protocol on the timeout path
