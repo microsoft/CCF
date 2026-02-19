@@ -551,7 +551,6 @@ namespace ccf
       throw std::logic_error(fmt::format(
         "Node {} not found in nodes table", node_state->get_node_id()));
     }
-    auto& config = get_config();
     {
       std::lock_guard<pal::Mutex> ns_guard(node_state->lock);
       node_info_cache = recovery_decision_protocol::RequestNodeInfo{
