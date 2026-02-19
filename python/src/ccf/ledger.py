@@ -558,7 +558,6 @@ class LedgerValidator(BaseValidator):
 
         self.service_status = None
         self.service_cert = None
-        self.first_signature_seen = False
 
     def last_verified_txid(self) -> TxID:
         return TxID(self.last_verified_view, self.last_verified_seqno)
