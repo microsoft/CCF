@@ -113,119 +113,19 @@ Summary Diagram
 
 Once operators have established a recovered crash-fault tolerant public network, the existing members of the consortium :ref:`must vote to accept the recovery of the network and submit their recovery shares <governance/accept_recovery:Accepting Recovery and Submitting Shares>`.
 
-Local Sealing Recovery (Experimental)
+Sealing-based Recovery (Experimental)
 -------------------------------------
 
-SNP provides the ``DERIVED_KEY`` guest message which derives a key from the CPU's VCEK (or VLEK), TCB version and the guest's measurement and host_data (policy), thus any change to the CPU, measurement or policy, or a rolled-back TCB version, will prevent the key from being reconstructed.
-If configured, the node will unseal the secrets it previously sealed instead of waiting for recovery shares from members after ``transition_to_open`` is triggered.
+Sealing-based recovery aims to minimise operator intervention during disaster recovery, by first automating the Recovery-Decision-Protocol (deciding which node has the best ledger to recover) and then allowing the chosen node to automatically recover the ledger secrets using previously Locally Sealed secrets.
 
-Overview
-~~~~~~~~
-
-When local sealing is enabled, each node generates an RSA key pair (the "recovery key pair") during join. The private key is encrypted (sealed) using an AES-GCM key derived from the SNP ``DERIVED_KEY``, and the public key along with the sealed private key is stored in the ``public:ccf.gov.nodes.sealed_recovery_keys`` table.
-
-During normal operation, whenever the ledger secret changes, or a node joins the network, the system also shuffles "sealed shares". 
-The primary generates a fresh ledger secret wrapping key, encrypts the ledger secret with that key, and stores a sealed copy of the wrapping key for each trusted node with a sealed recovery public key. 
-
-During recovery, if the node was previously part of the network and has the same CPU, measurement, and policy, it can bypass the need for member recovery shares by re-deriving the sealing key, unsealing its recovery private key, decrypting the sealed wrapping key, and using that to unwrap the ledger secret. 
-
-The following diagram illustrates the key hierarchy and encryption relationships:
-
-.. mermaid::
-
-    flowchart TB
-        subgraph SNP["SNP PSP"]
-            DK["DERIVED_KEY"]
-            VCEK
-            Measurement
-            Policy["UserData (Policy)"]
-            TCB
-
-            VCEK --> DK
-            Measurement --> DK
-            Policy --> DK            
-            TCB --> DK
-        end
-
-        subgraph KG["Key Generation"]
-            subgraph Sealing Key
-                SK["Sealing Key<br/>(HKDF)"]
-                Label["Label: <br/>CCF AMD Local Sealing Key"]
-                DK -->|ikm| SK
-                Label -->|info| SK
-            end
-            
-            RSA["Recovery Key<br/>(RSA Key Pair)"]
-            PubKey["Public Key"]
-            PrivKey["Private Key"]
-            RSA --> PubKey
-            RSA --> PrivKey
-
-            LS["Ledger secret"]
-            LSWK["Ledger secret wrapping key"]
-        end
-
-        subgraph Sealed["Store: nodes.sealed_recovery_keys"]
-            SPK["Sealed Private Key<br/>(AES-GCM encrypted)"]
-            SK -->|key| SPK
-            PrivKey --> SPK
-
-            StoredPubKey["Public Key (plaintext)"]
-            PubKey --> StoredPubKey
-        end
+Together these features allow a network to automatically recover from a crash without requiring operators to manually inspect the ledgers and intervene in the recovery process, while still ensuring that the recovered ledger is the most up-to-date one available.
 
 
-        subgraph Shares["Store: internal.sealed_shares table"]
-            WLS["Wrapped Ledger Secret<br/>(AES-GCM encrypted)"]
-            LSWK -->|key| WLS
-            LS --> WLS
+Recovery Decision Protocol
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-            EWK["Encrypted Wrapping Key<br/>(per-node, RSA-OAEP encrypted)"]
-            StoredPubKey -->|key| EWK
-            LSWK --> EWK
-        end
-
-        subgraph Recovery["Recovery Process"]
-            UPK["Unsealed Private Key"]
-            SK -->|key| UPK
-            SPK --> UPK
-
-            UWK["Unsealed Wrapping Key"]
-            UPK -->|key| UWK
-            EWK --> UWK
-
-            ULS["Unsealed Ledger Secret"]
-            UWK -->|key| ULS
-            WLS --> ULS            
-        end
-
-Configuration
-~~~~~~~~~~~~~
-
-To enable local sealing, set the ``sealing_recovery`` section in the node configuration. The presence of this section enables sealing of ledger secrets. During recovery, set ``sealing_recovery.identity.intrinsic_id`` to the previous node ID so the node can look up its sealed share.
-The same ``sealing_recovery.identity`` is shared with the recovery decision protocol.
-
-.. code-block:: json
-
-    {
-      "sealing_recovery": {
-        "identity": {
-          "intrinsic_id": "<previous-node-id>",
-          "published_address": "<node-host:port>"
-        }
-      },
-      "command": {
-        "type": "Recover"
-      }
-    }
-
-Recovery decision protocol (Experimental)
------------------------------------------
-
-In environments with limited orchestration or limited operator access, it is desirable to allow an automated disaster recovery without operator intervention.
 At a high level, the recovery decision protocol allows recovering replicas to discover which node has the most up-to-date ledger and automatically recover the network using that ledger.
-The protocol completes with a node choosing to `transition-to-open`, and so requires another mechanism to recover the private ledger.
-If it is likely that the nodes will restart on the same hardware, local sealing recovery (see above) can be used to recover the private ledger automatically, and bring the service fully online.
+The protocol completes with a node choosing to `transition-to-open`, and so requires another mechanism to unseal and recover the private ledger.
 
 There are two paths, an election path, and a very-high-availability failover path.
 The election path ensures that if all nodes restart and have full network connectivity, a majority of nodes' on-disk ledger contains every committed transaction, and no timeouts trigger, then there will be only one recovered network and all committed transactions will be persisted.
@@ -308,6 +208,106 @@ This failover path is illustrated below.
 
 
 If the network fails during reconfiguration, each node will use its latest known configuration to recover. Since reconfiguration requires votes from a majority of nodes, the latest configuration should recover using the election path, however nodes in the previous configuration may recover using the election path.
+
+Local Sealing
+~~~~~~~~
+
+When sealing-based recovery is enabled, each node generates an RSA key pair (the "recovery key pair") during join. The private key is encrypted (sealed) using an AES-GCM key derived from the SNP ``DERIVED_KEY``, and the public key along with the sealed private key is stored in the ``public:ccf.gov.nodes.sealed_recovery_keys`` table.
+
+During normal operation, whenever the ledger secret changes, or a node joins the network, the system also shuffles "sealed shares". 
+The primary generates a fresh ledger secret wrapping key, encrypts the ledger secret with that key, and stores a sealed copy of the wrapping key for each trusted node with a sealed recovery public key. 
+
+During recovery, if the node was previously part of the network and has the same CPU, measurement, and policy, it can bypass the need for member recovery shares by re-deriving the sealing key, unsealing its recovery private key, decrypting the sealed wrapping key, and using that to unwrap the ledger secret. 
+
+The following diagram illustrates the key hierarchy and encryption relationships:
+
+.. mermaid::
+
+    flowchart TB
+        subgraph SNP["SNP PSP"]
+            DK["DERIVED_KEY"]
+            VCEK
+            Measurement
+            Policy["UserData (Policy)"]
+            TCB
+
+            VCEK --> DK
+            Measurement --> DK
+            Policy --> DK            
+            TCB --> DK
+        end
+
+        subgraph KG["Key Generation"]
+            subgraph Sealing Key
+                SK["Sealing Key<br/>(HKDF)"]
+                Label["Label: <br/>CCF AMD Local Sealing Key"]
+                DK -->|ikm| SK
+                Label -->|info| SK
+            end
+            
+            RSA["Recovery Key<br/>(RSA Key Pair)"]
+            PubKey["Public Key"]
+            PrivKey["Private Key"]
+            RSA --> PubKey
+            RSA --> PrivKey
+
+            LS["Ledger secret"]
+            LSWK["Ledger secret wrapping key"]
+        end
+
+        subgraph Sealed["Store: nodes.sealed_recovery_keys"]
+            SPK["Sealed Private Key<br/>(AES-GCM encrypted)"]
+            SK -->|key| SPK
+            PrivKey --> SPK
+
+            StoredPubKey["Public Key (plaintext)"]
+            PubKey --> StoredPubKey
+        end
+
+
+        subgraph Shares["Store: internal.sealed_shares table"]
+            WLS["Wrapped Ledger Secret<br/>(AES-GCM encrypted)"]
+            LSWK -->|key| WLS
+            LS --> WLS
+
+            EWK["Encrypted Wrapping Key<br/>(per-node, RSA-OAEP encrypted)"]
+            StoredPubKey -->|key| EWK
+            LSWK --> EWK
+        end
+
+        subgraph Recovery["Recovery Process"]
+            UPK["Unsealed Private Key"]
+            SK -->|key| UPK
+            SPK --> UPK
+
+            UWK["Unsealed Wrapping Key"]
+            UPK -->|key| UWK
+            EWK --> UWK
+
+            ULS["Unsealed Ledger Secret"]
+            UWK -->|key| ULS
+            WLS --> ULS            
+        end
+
+Configuration
+~~~~~~~~~~~~~
+
+To enable sealing-based recovery, set the ``sealing_recovery`` section in the node configuration. The presence of this section enables sealing of ledger secrets. During recovery, set ``sealing_recovery.identity.intrinsic_id`` to the previous node ID so the node can look up its sealed share.
+The same ``sealing_recovery.identity`` is shared with the recovery decision protocol.
+
+.. code-block:: json
+
+    {
+      "sealing_recovery": {
+        "identity": {
+          "intrinsic_id": "<previous-node-id>",
+          "published_address": "<node-host:port>"
+        }
+      },
+      "command": {
+        "type": "Recover"
+      }
+    }
 
 Notes
 -----
