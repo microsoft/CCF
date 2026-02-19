@@ -202,14 +202,13 @@ The following diagram illustrates the key hierarchy and encryption relationships
 Configuration
 ~~~~~~~~~~~~~
 
-To enable local sealing, set ``sealing_recovery.enable_local_sealing`` to ``true`` in the node configuration. During recovery, set ``sealing_recovery.identity.intrinsic_id`` to the previous node ID so the node can look up its sealed share.
+To enable local sealing, set the ``sealing_recovery`` section in the node configuration. The presence of this section enables sealing of ledger secrets. During recovery, set ``sealing_recovery.identity.intrinsic_id`` to the previous node ID so the node can look up its sealed share.
 The same ``sealing_recovery.identity`` is shared with the recovery decision protocol.
 
 .. code-block:: json
 
     {
       "sealing_recovery": {
-        "enable_local_sealing": true,
         "identity": {
           "intrinsic_id": "<previous-node-id>",
           "published_address": "<node-host:port>"

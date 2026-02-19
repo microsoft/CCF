@@ -123,7 +123,6 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(SealingRecoveryConfig, identity);
   DECLARE_JSON_OPTIONAL_FIELDS(
     SealingRecoveryConfig,
-    enable_local_sealing,
     recovery_decision_protocol);
 
   DECLARE_JSON_TYPE(StartupConfig::Start);

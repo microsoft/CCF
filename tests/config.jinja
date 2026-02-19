@@ -101,25 +101,24 @@
     "max_msg_size": "{{ max_msg_size_bytes }}",
     "max_fragment_size": "256KB"
   },
-  "ignore_first_sigterm": {{ ignore_first_sigterm|tojson }},
+  "ignore_first_sigterm": {{ ignore_first_sigterm|tojson }}{% if enable_local_sealing or recovery_decision_protocol_cluster_identities %},
   "sealing_recovery": {
-    "enable_local_sealing": {{ enable_local_sealing|tojson }},
     "identity": {
-      "intrinsic_id": "{{ sealing_recovery_identity.intrinsic_id if sealing_recovery_identity else '' }}",
-      "published_address": "{{ sealing_recovery_identity.published_address if sealing_recovery_identity else '' }}"
-    } {% if recovery_decision_protocol_cluster_identities and sealing_recovery_identity %},
+      "intrinsic_id": "{{ sealing_recovery_identity.intrinsic_id }}",
+      "published_address": "{{ sealing_recovery_identity.published_address }}"
+    }{% if recovery_decision_protocol_cluster_identities %},
     "recovery_decision_protocol": {
       "cluster_identities" : [
         {% for identity in recovery_decision_protocol_cluster_identities %}
           {
             "intrinsic_id": "{{identity.intrinsic_id}}",
             "published_address": "{{identity.published_address}}"
-          } {% if not loop.last %},{% endif %}
+          }{% if not loop.last %},{% endif %}
         {% endfor %}
       ]
     }
     {% endif %}
-  }{% if node_to_node_message_limit %},
+  }{% endif %}{% if node_to_node_message_limit %},
   "node_to_node_message_limit": {{ node_to_node_message_limit|tojson }}{% endif %}{% if historical_cache_soft_limit %},
   "historical_cache_soft_limit": {{ historical_cache_soft_limit|tojson }}{% endif %}
 }

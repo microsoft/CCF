@@ -49,7 +49,7 @@ namespace host
     std::optional<std::string> node_data_json_file = std::nullopt;
     std::optional<std::string> service_data_json_file = std::nullopt;
     bool ignore_first_sigterm = false;
-    ccf::SealingRecoveryConfig sealing_recovery = {};
+    std::optional<ccf::SealingRecoveryConfig> sealing_recovery = std::nullopt;
 
     struct OutputFiles
     {

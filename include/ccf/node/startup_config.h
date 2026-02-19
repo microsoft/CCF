@@ -114,7 +114,6 @@ namespace ccf
 
   struct SealingRecoveryConfig
   {
-    bool enable_local_sealing = false;
     recovery_decision_protocol::Identity identity;
     std::optional<RecoveryDecisionProtocolConfig> recovery_decision_protocol =
       std::nullopt;
@@ -134,7 +133,7 @@ namespace ccf
     std::string service_subject_name = "CN=CCF Service";
     ccf::COSESignaturesConfig cose_signatures;
 
-    SealingRecoveryConfig sealing_recovery = {};
+    std::optional<SealingRecoveryConfig> sealing_recovery = std::nullopt;
 
     nlohmann::json service_data = nullptr;
 

@@ -788,13 +788,12 @@ namespace ccf
       ccf::ds::to_x509_time_string(startup_host_time);
 
     startup_config.sealing_recovery = config.sealing_recovery;
-
-    if (config.sealing_recovery.enable_local_sealing)
+    if (config.sealing_recovery.has_value())
     {
       CCF_ASSERT_FMT(
         ccf::pal::platform == ccf::pal::Platform::SNP,
-        "Sealing ledger secrets is only supported on SEV-SNP platforms");
-      startup_config.network.will_locally_seal_ledger_secrets = true;
+        "Sealing ledger secrets is only supported on SEV-SNP platforms"
+      );
     }
 
     // Configure startup based on command type

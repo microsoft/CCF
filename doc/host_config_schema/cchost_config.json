@@ -663,12 +663,8 @@
     },
     "sealing_recovery": {
       "type": "object",
+      "description": "Optional. If set, enables sealing of ledger secrets using platform derived key capabilities (e.g. AMD SEV-SNP derived keys). This allows the node to unilaterally recover its ledger secrets on restart without needing to reconstruct them from recovery shares.",
       "properties": {
-        "enable_local_sealing": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable sealing of ledger secrets using platform derived key capabilities (e.g. AMD SEV-SNP derived keys). This allows the node to unilaterally recover its ledger secrets on restart without needing to reconstruct them from recovery shares."
-        },
         "identity": {
           "type": "object",
           "properties": {
