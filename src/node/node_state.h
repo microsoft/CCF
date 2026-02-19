@@ -883,7 +883,7 @@ namespace ccf
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
       if (
-        config.sealing_recovery.enable_local_sealing &&
+        config.sealing_recovery.has_value() &&
         snp_tcb_version.has_value())
       {
         join_params.sealed_recovery_key =
@@ -1562,11 +1562,11 @@ namespace ccf
         ShareManager::clear_submitted_recovery_shares(tx);
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
         service->put(service_info.value());
-        const auto& identity = config.sealing_recovery.identity;
         if (
-          config.sealing_recovery.enable_local_sealing &&
-          !identity.intrinsic_id.empty())
+          config.sealing_recovery.has_value() &&
+          !config.sealing_recovery->identity.intrinsic_id.empty())
         {
+          const auto& identity = config.sealing_recovery->identity;
           auto unsealed_ls = sealing::unseal_share(tx, identity.intrinsic_id);
           if (unsealed_ls.has_value())
           {
@@ -2038,7 +2038,7 @@ namespace ccf
       create_params.create_txid = {create_view, last_recovered_signed_idx + 1};
 
       if (
-        config.sealing_recovery.enable_local_sealing &&
+        config.sealing_recovery.has_value() &&
         snp_tcb_version.has_value())
       {
         create_params.sealed_recovery_key =

@@ -41,7 +41,9 @@ namespace ccf::node
 
       if (
         !config->get()
-           .node_config.sealing_recovery.recovery_decision_protocol.has_value())
+           .node_config.sealing_recovery.has_value() ||
+        !config->get()
+           .node_config.sealing_recovery->recovery_decision_protocol.has_value())
       {
         return make_error(
           HTTP_STATUS_BAD_REQUEST,
@@ -306,10 +308,11 @@ namespace ccf::node
             "Unable to open recovery-decision-protocol subsystems");
         }
 
+        auto sealing_recovery_config = config->get().node_config.sealing_recovery;
+
         if (
-          !config->get()
-             .node_config.sealing_recovery.recovery_decision_protocol
-             .has_value())
+          !sealing_recovery_config.has_value() ||
+          !sealing_recovery_config->recovery_decision_protocol.has_value())
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,

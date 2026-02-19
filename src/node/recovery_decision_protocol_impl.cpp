@@ -54,7 +54,12 @@ namespace ccf
   void RecoveryDecisionProtocolSubsystem::try_start(
     ccf::kv::Tx& tx, bool recovering)
   {
-    auto& config = node_state->config.sealing_recovery.recovery_decision_protocol;
+    if (!node_state->config.sealing_recovery.has_value())
+    {
+      LOG_INFO_FMT("Recovery-decision-protocol not configured, skipping");
+      return;
+    }
+    auto& config = node_state->config.sealing_recovery->recovery_decision_protocol;
     if (!recovering || !config.has_value())
     {
       LOG_INFO_FMT("Skipping recovery-decision-protocol");
@@ -290,7 +295,12 @@ namespace ccf
 
     retry_task = ccf::tasks::make_basic_task(
       [this]() {
-        auto& config = node_state->config.sealing_recovery.recovery_decision_protocol;
+        if (!node_state->config.sealing_recovery.has_value())
+        {
+          LOG_INFO_FMT("Recovery-decision-protocol not configured, skipping retry timers");
+          return;
+        }
+        auto& config = node_state->config.sealing_recovery->recovery_decision_protocol;
         if (!config.has_value())
         {
           throw std::logic_error("Recovery-decision-protocol not configured");
@@ -673,7 +683,11 @@ namespace ccf
   RecoveryDecisionProtocolConfig&
     RecoveryDecisionProtocolSubsystem::get_config()
   {
-    auto& config = node_state->config.sealing_recovery.recovery_decision_protocol;
+    if (!node_state->config.sealing_recovery.has_value())
+    {
+      throw std::logic_error("Sealing recovery not configured");
+    }
+    auto& config = node_state->config.sealing_recovery->recovery_decision_protocol;
     if (!config.has_value())
     {
       throw std::logic_error("Recovery-decision-protocol not configured");
@@ -684,7 +698,11 @@ namespace ccf
   recovery_decision_protocol::Identity&
     RecoveryDecisionProtocolSubsystem::get_identity()
   {
-    return node_state->config.sealing_recovery.identity;
+    if (!node_state->config.sealing_recovery.has_value())
+    {
+      throw std::logic_error("Sealing recovery not configured");
+    }
+    return node_state->config.sealing_recovery->identity;
   }
 
   ccf::TxID RecoveryDecisionProtocolSubsystem::get_last_recovered_signed_txid()
