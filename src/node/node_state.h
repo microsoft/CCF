@@ -16,7 +16,7 @@
 #include "ccf/pal/uvm_endorsements.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/reconfiguration_type.h"
-#include "ccf/service/tables/self_healing_open.h"
+#include "ccf/service/tables/recovery_decision_protocol.h"
 #include "ccf/service/tables/service.h"
 #include "ccf/tx.h"
 #include "consensus/aft/raft.h"
@@ -40,7 +40,7 @@
 #include "node/ledger_secrets.h"
 #include "node/local_sealing.h"
 #include "node/node_to_node_channel_manager.h"
-#include "node/self_healing_open_impl.h"
+#include "node/recovery_decision_protocol_impl.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
 #include "pal/quote_generation.h"
@@ -88,7 +88,7 @@ namespace ccf
 
   class NodeState : public AbstractNodeState
   {
-    friend class SelfHealingOpenSubsystem;
+    friend class RecoveryDecisionProtocolSubsystem;
 
   private:
     //
@@ -215,7 +215,7 @@ namespace ccf
       last_recovered_signed_idx = last_recovered_idx;
     }
 
-    SelfHealingOpenSubsystem self_healing_open_impl;
+    RecoveryDecisionProtocolSubsystem recovery_decision_protocol_impl;
 
   public:
     NodeState(
@@ -233,7 +233,7 @@ namespace ccf
       network(network),
       rpcsessions(std::move(rpcsessions)),
       share_manager(network.ledger_secrets),
-      self_healing_open_impl(this)
+      recovery_decision_protocol_impl(this)
     {}
 
     QuoteVerificationResult verify_quote(
@@ -882,7 +882,9 @@ namespace ccf
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
-      if (config.enable_local_sealing && snp_tcb_version.has_value())
+      if (
+        config.sealing_recovery.enable_local_sealing &&
+        snp_tcb_version.has_value())
       {
         join_params.sealed_recovery_key =
           sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());
@@ -1560,10 +1562,12 @@ namespace ccf
         ShareManager::clear_submitted_recovery_shares(tx);
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
         service->put(service_info.value());
-        auto previous_id = config.recover.previous_local_sealing_identity;
-        if (config.enable_local_sealing && previous_id.has_value())
+        const auto& identity = config.sealing_recovery.identity;
+        if (
+          config.sealing_recovery.enable_local_sealing &&
+          !identity.intrinsic_id.empty())
         {
-          auto unsealed_ls = sealing::unseal_share(tx, previous_id.value());
+          auto unsealed_ls = sealing::unseal_share(tx, identity.intrinsic_id);
           if (unsealed_ls.has_value())
           {
             tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
@@ -2033,7 +2037,9 @@ namespace ccf
       create_params.service_data = config.service_data;
       create_params.create_txid = {create_view, last_recovered_signed_idx + 1};
 
-      if (config.enable_local_sealing && snp_tcb_version.has_value())
+      if (
+        config.sealing_recovery.enable_local_sealing &&
+        snp_tcb_version.has_value())
       {
         create_params.sealed_recovery_key =
           sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());
@@ -2729,9 +2735,9 @@ namespace ccf
       return writer_factory;
     }
 
-    SelfHealingOpenSubsystem& self_healing_open() override
+    RecoveryDecisionProtocolSubsystem& recovery_decision_protocol() override
     {
-      return self_healing_open_impl;
+      return recovery_decision_protocol_impl;
     }
 
     void shuffle_sealed_shares(ccf::kv::Tx& tx) override

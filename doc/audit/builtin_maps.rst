@@ -588,57 +588,57 @@ While the contents themselves are encrypted, the table is public so as to be acc
 .. doxygenenum:: ccf::RecoveryType
    :project: CCF
 
-``self_healing_open.nodes``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``recovery_decision_protocol.nodes``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Key** Intrinsic node ID: A string which is unique to a particular node role within a cluster.
 
 **Value** 
 
-.. doxygenstruct:: ccf::self_healing_open::NodeInfo
+.. doxygenstruct:: ccf::recovery_decision_protocol::NodeInfo
    :project: CCF
    :members:
 
-``self_healing_open.gossip``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``recovery_decision_protocol.gossip``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Key** Intrinsic node ID of the source of the gossip message.
 
 **Value**
 
-.. doxygenstruct:: ccf::self_healing_open::GossipRequest
+.. doxygenstruct:: ccf::recovery_decision_protocol::GossipRequest
    :project: CCF
    :members:
 
-``self_healing_open.chosen_node``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``recovery_decision_protocol.chosen_node``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Value** The intrinsic node ID of the chosen node. This will either be the node this node voted for, or the node that is has received an `IAmOpen` message from.
 
-``self_healing_open.votes``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``recovery_decision_protocol.votes``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Key** Intrinsic node ID of the node which has voted for this node to be opened.
 
-``self_healing_open.sm_state``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``recovery_decision_protocol.sm_state``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Value** State machine state of the self-healing open protocol.
+**Value** State machine state of the recovery decision protocol.
 
-.. doxygenenum:: ccf::self_healing_open::StateMachine
+.. doxygenenum:: ccf::recovery_decision_protocol::StateMachine
    :project: CCF
 
-``self_healing_open.timeout_sm_state``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``recovery_decision_protocol.timeout_sm_state``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Value** Timeout state machine state of the self-healing open protocol. Ticks based on `failover_timeout` and advances `self_healing_open.sm_state` if it falls behind.
+**Value** Timeout state machine state of the recovery decision protocol. Ticks based on `failover_timeout` and advances `recovery_decision_protocol.sm_state` if it falls behind.
 
-See :cpp:enum:`ccf::self_healing_open::StateMachine` above.
+See :cpp:enum:`ccf::recovery_decision_protocol::StateMachine` above.
 
-``self_healing_open.open_kind``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``recovery_decision_protocol.open_kind``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Value** The kind of recovery that was performed, either `Quorum`-based which guarantees that there is at most one recovered service using this path, or `Failover`-based which could allow multiple services to recover.
 
-.. doxygenenum:: ccf::self_healing_open::OpenKinds
+.. doxygenenum:: ccf::recovery_decision_protocol::OpenKinds
    :project: CCF

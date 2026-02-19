@@ -334,9 +334,8 @@ class CCFRemote(object):
         cose_signatures_issuer="service.example.com",
         cose_signatures_subject="ledger.signature",
         enable_local_sealing=False,
-        previous_local_sealing_identity=None,
-        self_healing_open_cluster_identities=None,
-        self_healing_open_identity=None,
+        sealing_recovery_identity=None,
+        recovery_decision_protocol_cluster_identities=None,
         **kwargs,
     ):
         """
@@ -528,9 +527,8 @@ class CCFRemote(object):
                 cose_signatures_issuer=cose_signatures_issuer,
                 cose_signatures_subject=cose_signatures_subject,
                 enable_local_sealing=enable_local_sealing,
-                previous_local_sealing_identity=previous_local_sealing_identity,
-                self_healing_open_cluster_identities=self_healing_open_cluster_identities,
-                self_healing_open_identity=self_healing_open_identity,
+                sealing_recovery_identity=sealing_recovery_identity,
+                recovery_decision_protocol_cluster_identities=recovery_decision_protocol_cluster_identities,
                 **kwargs,
             )
 

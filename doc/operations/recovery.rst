@@ -202,26 +202,29 @@ The following diagram illustrates the key hierarchy and encryption relationships
 Configuration
 ~~~~~~~~~~~~~
 
-To enable local sealing, set ``enable_local_sealing`` to ``true`` in the node configuration. During recovery, the node's previous identity (node ID) must be specified via ``command.recover.previous_local_sealing_identity`` so the node can look up its sealed share.
-In the future this will be a single shared identifier for both self-healing-open and local sealing recovery, but for now it is simply the previous node ID.
+To enable local sealing, set ``sealing_recovery.enable_local_sealing`` to ``true`` in the node configuration. During recovery, set ``sealing_recovery.identity.intrinsic_id`` to the previous node ID so the node can look up its sealed share.
+The same ``sealing_recovery.identity`` is shared with the recovery decision protocol.
 
 .. code-block:: json
 
     {
-      "enable_local_sealing": true,
-      "command": {
-        "type": "Recover",
-        "recover": {
-          "previous_local_sealing_identity": "<previous-node-id>"
+      "sealing_recovery": {
+        "enable_local_sealing": true,
+        "identity": {
+          "intrinsic_id": "<previous-node-id>",
+          "published_address": "<node-host:port>"
         }
+      },
+      "command": {
+        "type": "Recover"
       }
     }
 
-Self-Healing-Open recovery (Experimental)
+Recovery decision protocol (Experimental)
 -----------------------------------------
 
 In environments with limited orchestration or limited operator access, it is desirable to allow an automated disaster recovery without operator intervention.
-At a high level, Self-Healing-Open recovery allows recovering replicas to discover which node has the most up-to-date ledger and automatically recover the network using that ledger.
+At a high level, the recovery decision protocol allows recovering replicas to discover which node has the most up-to-date ledger and automatically recover the network using that ledger.
 The protocol completes with a node choosing to `transition-to-open`, and so requires another mechanism to recover the private ledger.
 If it is likely that the nodes will restart on the same hardware, local sealing recovery (see above) can be used to recover the private ledger automatically, and bring the service fully online.
 
@@ -274,7 +277,7 @@ In this case, after a timeout, nodes will advance to the vote phase regardless o
 
 Unfortunately, this can lead to multiple forks of the service if different nodes cannot communicate with each other and timeout.
 Hence, we recommend setting the timeout substantially higher than the highest expected recovery time, to minimise the chance of this happening.
-To audit if timeouts were used to open the service, the `public:ccf.gov.selfhealingopen.failover_open` table tracks this.
+To audit if timeouts were used to open the service, the `public:ccf.gov.recovery_decision_protocol.open_kind` table tracks this.
 
 This failover path is illustrated below.
 

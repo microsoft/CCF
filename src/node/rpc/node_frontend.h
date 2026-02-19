@@ -24,7 +24,7 @@
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/no_create_tx_claims_digest.cpp" // NOLINT(bugprone-suspicious-include)
 #include "node/rpc/node_frontend_utils.h"
-#include "node/rpc/self_healing_open_handlers.h"
+#include "node/rpc/recovery_decision_protocol_handlers.h"
 #include "node/rpc/serialization.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
@@ -1604,8 +1604,9 @@ namespace ccf
           ctx.rpc_ctx->set_claims_digest(std::move(digest_value));
         }
 
-        this->node_operation.self_healing_open().reset_state(ctx.tx);
-        this->node_operation.self_healing_open().try_start(ctx.tx, recovering);
+        this->node_operation.recovery_decision_protocol().reset_state(ctx.tx);
+        this->node_operation.recovery_decision_protocol().try_start(
+          ctx.tx, recovering);
 
         LOG_INFO_FMT("Created service");
         return make_success(true);
@@ -1810,7 +1811,7 @@ namespace ccf
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
-      ccf::node::init_self_healing_open_handlers(*this, context);
+      ccf::node::init_recovery_decision_protocol_handlers(*this, context);
 
       ccf::node::init_file_serving_handlers(*this, context);
     }

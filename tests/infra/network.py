@@ -784,7 +784,7 @@ class Network:
         self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
 
-    def start_in_self_healing_open(
+    def start_in_recovery_decision_protocol(
         self,
         args,
         ledger_dirs,
@@ -835,9 +835,9 @@ class Network:
             arg: getattr(args, arg, None)
             for arg in infra.network.Network.node_args_to_forward
         }
-        self_healing_open_cluster_identities = [
+        recovery_decision_protocol_cluster_identities = [
             {
-                "intrinsic_id": node.local_node_id,
+                "intrinsic_id": node.node_id,
                 "published_address": node.get_public_rpc_address(),
             }
             for node in self.nodes
@@ -856,17 +856,17 @@ class Network:
                     "label": args.label,
                     "common_dir": self.common_dir,
                 }
-                self_healing_open_kwargs = {
-                    "self_healing_open_cluster_identities": self_healing_open_cluster_identities,
-                    "self_healing_open_identity": {
-                        "intrinsic_id": node.local_node_id,
+                recovery_decision_protocol_kwargs = {
+                    "recovery_decision_protocol_cluster_identities": recovery_decision_protocol_cluster_identities,
+                    "sealing_recovery_identity": {
+                        "intrinsic_id": node.node_id,
                         "published_address": node.get_public_rpc_address(),
                     },
                 }
                 # If a kwarg is passed in override automatically set variants
                 node_kwargs = (
                     node_kwargs
-                    | self_healing_open_kwargs
+                    | recovery_decision_protocol_kwargs
                     | forwarded_args_with_overrides
                     | kwargs
                 )
@@ -880,7 +880,7 @@ class Network:
         self.election_duration = args.election_timeout_ms / 1000
         self.observed_election_duration = self.election_duration + 1
 
-    def wait_for_self_healing_open_finish(self, timeout=10):
+    def wait_for_recovery_decision_protocol_finish(self, timeout=10):
         def cycle(items):
             while True:
                 for item in items:

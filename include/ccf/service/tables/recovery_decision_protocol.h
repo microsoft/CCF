@@ -14,7 +14,7 @@
 
 namespace ccf
 {
-  namespace self_healing_open
+  namespace recovery_decision_protocol
   {
     using IntrinsicIdentifier = std::string;
     using NetAddress = std::string;
@@ -82,30 +82,32 @@ namespace ccf
       {{OpenKinds::QUORUM, "Quorum"}, {OpenKinds::FAILOVER, "Failover"}});
 
     using NodeInfoMap =
-      ServiceMap<IntrinsicIdentifier, ccf::self_healing_open::NodeInfo>;
+      ServiceMap<IntrinsicIdentifier, ccf::recovery_decision_protocol::NodeInfo>;
     using Gossips = ServiceMap<IntrinsicIdentifier, ccf::TxID>;
     using ChosenNode = ServiceValue<IntrinsicIdentifier>;
     using Votes = ServiceSet<IntrinsicIdentifier>;
-    using SMState = ServiceValue<ccf::self_healing_open::StateMachine>;
-    using TimeoutSMState = ServiceValue<ccf::self_healing_open::StateMachine>;
-    using OpenKind = ServiceValue<ccf::self_healing_open::OpenKinds>;
+    using SMState =
+      ServiceValue<ccf::recovery_decision_protocol::StateMachine>;
+    using TimeoutSMState =
+      ServiceValue<ccf::recovery_decision_protocol::StateMachine>;
+    using OpenKind = ServiceValue<ccf::recovery_decision_protocol::OpenKinds>;
   }
 
   namespace Tables
   {
-    static constexpr auto SELF_HEALING_OPEN_NODES =
-      "public:ccf.gov.self_healing_open.nodes";
-    static constexpr auto SELF_HEALING_OPEN_GOSSIPS =
-      "public:ccf.gov.self_healing_open.gossip";
-    static constexpr auto SELF_HEALING_OPEN_CHOSEN_NODE =
-      "public:ccf.gov.self_healing_open.chosen_node";
-    static constexpr auto SELF_HEALING_OPEN_VOTES =
-      "public:ccf.gov.self_healing_open.votes";
-    static constexpr auto SELF_HEALING_OPEN_SM_STATE =
-      "public:ccf.gov.self_healing_open.sm_state";
-    static constexpr auto SELF_HEALING_OPEN_TIMEOUT_SM_STATE =
-      "public:ccf.gov.self_healing_open.timeout_sm_state";
-    static constexpr auto SELF_HEALING_OPEN_OPEN_KIND =
-      "public:ccf.gov.self_healing_open.open_kind";
+    static constexpr auto RECOVERY_DECISION_PROTOCOL_NODES =
+      "public:ccf.gov.recovery_decision_protocol.nodes";
+    static constexpr auto RECOVERY_DECISION_PROTOCOL_GOSSIPS =
+      "public:ccf.gov.recovery_decision_protocol.gossip";
+    static constexpr auto RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE =
+      "public:ccf.gov.recovery_decision_protocol.chosen_node";
+    static constexpr auto RECOVERY_DECISION_PROTOCOL_VOTES =
+      "public:ccf.gov.recovery_decision_protocol.votes";
+    static constexpr auto RECOVERY_DECISION_PROTOCOL_SM_STATE =
+      "public:ccf.gov.recovery_decision_protocol.sm_state";
+    static constexpr auto RECOVERY_DECISION_PROTOCOL_TIMEOUT_SM_STATE =
+      "public:ccf.gov.recovery_decision_protocol.timeout_sm_state";
+    static constexpr auto RECOVERY_DECISION_PROTOCOL_OPEN_KIND =
+      "public:ccf.gov.recovery_decision_protocol.open_kind";
   }
 }

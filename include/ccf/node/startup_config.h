@@ -12,7 +12,7 @@
 #include "ccf/service/service_config.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
-#include "ccf/service/tables/self_healing_open.h"
+#include "ccf/service/tables/recovery_decision_protocol.h"
 
 #include <optional>
 #include <string>
@@ -104,13 +104,21 @@ namespace ccf
     Snapshots snapshots = {};
   };
 
-  struct SelfHealingOpenConfig
+  struct RecoveryDecisionProtocolConfig
   {
-    self_healing_open::Identity identity;
-    std::vector<self_healing_open::Identity> cluster_identities;
+    std::vector<recovery_decision_protocol::Identity> cluster_identities;
     ccf::ds::TimeString retry_timeout = {"100ms"};
     ccf::ds::TimeString failover_timeout = {"2000ms"};
-    bool operator==(const SelfHealingOpenConfig&) const = default;
+    bool operator==(const RecoveryDecisionProtocolConfig&) const = default;
+  };
+
+  struct SealingRecoveryConfig
+  {
+    bool enable_local_sealing = false;
+    recovery_decision_protocol::Identity identity;
+    std::optional<RecoveryDecisionProtocolConfig> recovery_decision_protocol =
+      std::nullopt;
+    bool operator==(const SealingRecoveryConfig&) const = default;
   };
 
   struct StartupConfig : CCFConfig
@@ -126,7 +134,7 @@ namespace ccf
     std::string service_subject_name = "CN=CCF Service";
     ccf::COSESignaturesConfig cose_signatures;
 
-    bool enable_local_sealing = false;
+    SealingRecoveryConfig sealing_recovery = {};
 
     nlohmann::json service_data = nullptr;
 
@@ -155,8 +163,6 @@ namespace ccf
     {
       std::optional<std::vector<uint8_t>> previous_service_identity =
         std::nullopt;
-      std::optional<NodeId> previous_local_sealing_identity = std::nullopt;
-      std::optional<SelfHealingOpenConfig> self_healing_open = std::nullopt;
     };
     Recover recover = {};
   };

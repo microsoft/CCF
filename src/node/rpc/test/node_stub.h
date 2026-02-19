@@ -7,7 +7,7 @@
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/node_interface.h"
 #include "node/rpc/node_operation_interface.h"
-#include "node/self_healing_open_impl.h"
+#include "node/recovery_decision_protocol_impl.h"
 
 #include <stdexcept>
 
@@ -118,7 +118,7 @@ namespace ccf
       return cose_signatures_config;
     }
 
-    SelfHealingOpenSubsystem& self_healing_open() override
+    RecoveryDecisionProtocolSubsystem& recovery_decision_protocol() override
     {
       throw std::logic_error("Unimplemented");
     }

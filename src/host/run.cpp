@@ -438,18 +438,6 @@ namespace ccf
     }
     LOG_INFO_FMT("Reading previous service identity from {}", idf);
     startup_config.recover.previous_service_identity = files::slurp(idf);
-    if (
-      config.command.recover.previous_local_sealing_identity.has_value() &&
-      !config.enable_local_sealing)
-    {
-      throw std::logic_error(
-        "Previous local sealing identity provided but local sealing is not "
-        "enabled");
-    }
-    startup_config.recover.previous_local_sealing_identity =
-      config.command.recover.previous_local_sealing_identity;
-    startup_config.recover.self_healing_open =
-      config.command.recover.self_healing_open;
   }
 
   std::vector<uint8_t> load_startup_snapshot(
@@ -799,13 +787,14 @@ namespace ccf
     startup_config.startup_host_time =
       ccf::ds::to_x509_time_string(startup_host_time);
 
-    if (config.enable_local_sealing)
+    startup_config.sealing_recovery = config.sealing_recovery;
+
+    if (config.sealing_recovery.enable_local_sealing)
     {
       CCF_ASSERT_FMT(
         ccf::pal::platform == ccf::pal::Platform::SNP,
         "Sealing ledger secrets is only supported on SEV-SNP platforms");
       startup_config.network.will_locally_seal_ledger_secrets = true;
-      startup_config.enable_local_sealing = true;
     }
 
     // Configure startup based on command type
