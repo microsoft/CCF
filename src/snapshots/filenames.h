@@ -182,7 +182,7 @@ namespace snapshots
 
         if (fs::exists(f.path()) && fs::is_empty(f.path()))
         {
-          LOG_DEBUG_FMT("Ignoring empty snapshot file {}", file_name);
+          LOG_INFO_FMT("Ignoring empty snapshot file {}", file_name);
           continue;
         }
 
