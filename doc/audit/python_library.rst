@@ -79,6 +79,31 @@ The ``read_ledger.py`` command line utility can be used to parse, verify the int
 
 By default, non-committed ledger files are ignored, unless the ``--uncommitted`` command line argument is specified.
 
+Verification Levels
+~~~~~~~~~~~~~~~~~~~
+
+The ``read_ledger.py`` utility supports multiple verification levels via the ``--verification-level`` option, allowing you to trade off between computation cost and security guarantees:
+
+- ``NONE``: No verification, just parse the ledger structure. Use this for quickly reading individual ledger chunks or when integrity is not a concern.
+- ``OFFSETS``: Validate that the offset table is consistent and points to valid transaction boundaries.
+- ``HEADERS``: Validate transaction headers (size, version, and flags are valid values).
+- ``MERKLE``: Validate merkle tree consistency by checking that each signature's merkle root matches the computed tree (trusts the first signature).
+- ``FULL`` (default): Full cryptographic verification including signature validation and node certificate checks.
+
+.. code-block:: bash
+
+    # Parse a single ledger chunk without verification
+    $ read_ledger.py /path/to/ledger/chunk --verification-level=NONE
+
+    # Validate structure but skip expensive cryptographic operations
+    $ read_ledger.py /path/to/ledger/dir --verification-level=HEADERS
+
+    # Full verification (default)
+    $ read_ledger.py /path/to/ledger/dir --verification-level=FULL
+
+.. note::
+    The ``--insecure-skip-verification`` flag is deprecated. Use ``--verification-level=NONE`` instead.
+
 Alternatively, ``read_ledger.py`` can parse the content of a snapshot file:
 
 .. code-block:: bash
@@ -140,6 +165,10 @@ As with ``read_ledger.py``, non-committed ledger files are ignored, unless the `
 
 API
 ---
+
+.. autoclass:: ccf.ledger.VerificationLevel
+    :members:
+    :undoc-members:
 
 .. autoclass:: ccf.ledger.Ledger
     :members:
