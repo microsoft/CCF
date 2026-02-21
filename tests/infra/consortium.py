@@ -731,7 +731,7 @@ class Consortium:
 
     def add_measurement(self, remote_node, platform, measurement):
         if platform == "sgx":
-            return self.add_new_code(remote_node, measurement)
+            return self.add_sgx_measurement(remote_node, measurement)
         elif platform == "virtual":
             return self.add_virtual_measurement(remote_node, measurement)
         elif platform == "snp":
@@ -739,9 +739,9 @@ class Consortium:
         else:
             raise ValueError(f"Unsupported platform {platform}")
 
-    def add_new_code(self, remote_node, new_code_id):
+    def add_sgx_measurement(self, remote_node, measurement):
         proposal_body, careful_vote = self.make_proposal(
-            "add_node_code", code_id=new_code_id
+            "add_node_code", code_id=measurement
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
@@ -769,7 +769,7 @@ class Consortium:
 
     def remove_measurement(self, remote_node, platform, measurement):
         if platform == "sgx":
-            return self.retire_code(remote_node, measurement)
+            return self.remove_sgx_measurement(remote_node, measurement)
         elif platform == "virtual":
             return self.remove_virtual_measurement(remote_node, measurement)
         elif platform == "snp":
@@ -777,9 +777,9 @@ class Consortium:
         else:
             raise ValueError(f"Unsupported platform {platform}")
 
-    def retire_code(self, remote_node, code_id):
+    def remove_sgx_measurement(self, remote_node, measurement):
         proposal_body, careful_vote = self.make_proposal(
-            "remove_node_code", code_id=code_id
+            "remove_node_code", code_id=measurement
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
