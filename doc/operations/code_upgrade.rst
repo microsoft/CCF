@@ -177,7 +177,7 @@ Procedure
 - Members should use the ``set_constitution`` proposal action to update the constitution scripts.
 - See :ref:`bundle deployment procedure <build_apps/js_app_bundle:Deployment>` to update the JavaScript/TypeScript application.
 
-6. Finally, once the code upgrade process has been successful, the old code version (i.e. the code version run by nodes 0, 1 and 2) can be removed using the ``remove_node_code`` or ``remove_snp_host_data`` proposal actions.
+6. Finally, once the code upgrade process has been successful, the old code version (i.e. the code version run by nodes 0, 1 and 2) can be removed using the ``remove_snp_measurement``, ``remove_virtual_measurement``, or ``remove_snp_host_data`` proposal actions.
 
 Notes
 -----
