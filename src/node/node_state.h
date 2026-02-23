@@ -948,11 +948,12 @@ namespace ccf
           {
             LOG_FAIL_FMT(
               "An error occurred while parsing the join network response");
+
+            LOG_DEBUG_FMT("Join network response error: {}", e.what());
             LOG_DEBUG_FMT(
-              "An error occurred while parsing the join network response: "
-              "{}\n{}",
-              e.what(),
+              "Join network response body: {}",
               std::string(data.begin(), data.end()));
+
             return;
           }
 
