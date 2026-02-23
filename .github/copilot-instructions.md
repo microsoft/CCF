@@ -22,6 +22,7 @@
 - All tests in `ci.yml` must pass before a PR can be merged. Consider which are likely to be affected by your changes and run those locally before pushing.
 - Take particular care with any changes that may affect compatibility with older releases, and ensure these are tested, via the `lts_compatibility` test with `LONG_TESTS=1` enabled.
 - Take particular care with changes to the consensus and crypto code, as these are critical for security and correctness. Ensure you have a thorough understanding of the existing code and the implications of your changes before proceeding.
+- Any changes to user-facing APIs or behaviour must be documented in `CHANGELOG.md`. When adding a new version to `CHANGELOG.md`, be sure to update `pyproject.toml` to match.
 
 ### C++
 
