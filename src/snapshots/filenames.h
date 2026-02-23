@@ -2,9 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/internal_logger.h"
+
+#include <algorithm>
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace snapshots
 {
@@ -13,6 +17,7 @@ namespace snapshots
   static constexpr auto snapshot_file_prefix = "snapshot";
   static constexpr auto snapshot_idx_delimiter = "_";
   static constexpr auto snapshot_committed_suffix = ".committed";
+  static constexpr auto snapshot_ignored_file_suffix = "ignored";
 
   static bool is_snapshot_file(const std::string& file_name)
   {
@@ -21,7 +26,25 @@ namespace snapshots
 
   static bool is_snapshot_file_committed(const std::string& file_name)
   {
-    return file_name.find(snapshot_committed_suffix) != std::string::npos;
+    return file_name.ends_with(snapshot_committed_suffix);
+  }
+
+  static bool is_snapshot_file_ignored(const std::string& file_name)
+  {
+    return file_name.ends_with(snapshot_ignored_file_suffix);
+  }
+
+  static void ignore_snapshot_file(
+    const fs::path& dir, const std::string& file_name)
+  {
+    if (is_snapshot_file_ignored(file_name))
+    {
+      return;
+    }
+
+    auto ignored_file_name =
+      fmt::format("{}.{}", file_name, snapshot_ignored_file_suffix);
+    files::rename(dir / file_name, dir / ignored_file_name);
   }
 
   static size_t read_idx(const std::string& str)
@@ -133,40 +156,83 @@ namespace snapshots
     return read_idx(file_name.substr(evidence_idx_pos + 1, end_str));
   }
 
-  inline std::optional<fs::path> find_latest_committed_snapshot_in_directory(
-    const fs::path& directory, size_t& latest_committed_snapshot_idx)
+  inline std::vector<std::pair<size_t, fs::path>>
+  find_committed_snapshots_in_directories(
+    const std::vector<fs::path>& directories,
+    std::optional<size_t> minimum_idx = std::nullopt)
   {
-    std::optional<fs::path> latest_committed_snapshot_file_name = std::nullopt;
+    std::vector<std::pair<size_t, fs::path>> committed_snapshots_with_idx;
 
-    for (const auto& f : fs::directory_iterator(directory))
+    for (const auto& dir : directories)
     {
-      auto file_name = f.path().filename();
-      if (!is_snapshot_file(file_name))
+      for (const auto& f : fs::directory_iterator(dir))
       {
-        LOG_INFO_FMT("Ignoring non-snapshot file {}", file_name);
-        continue;
-      }
+        auto file_name = f.path().filename();
+        if (!is_snapshot_file(file_name))
+        {
+          LOG_DEBUG_FMT("Ignoring non-snapshot file {}", file_name);
+          continue;
+        }
 
-      if (!is_snapshot_file_committed(file_name))
-      {
-        LOG_INFO_FMT("Ignoring non-committed snapshot file {}", file_name);
-        continue;
-      }
+        if (!is_snapshot_file_committed(file_name))
+        {
+          LOG_DEBUG_FMT("Ignoring non-committed snapshot file {}", file_name);
+          continue;
+        }
 
-      if (fs::exists(f.path()) && fs::is_empty(f.path()))
-      {
-        LOG_INFO_FMT("Ignoring empty snapshot file {}", file_name);
-        continue;
-      }
+        if (fs::exists(f.path()) && fs::is_empty(f.path()))
+        {
+          LOG_INFO_FMT("Ignoring empty snapshot file {}", file_name);
+          continue;
+        }
 
-      auto snapshot_idx = get_snapshot_idx_from_file_name(file_name);
-      if (snapshot_idx > latest_committed_snapshot_idx)
-      {
-        latest_committed_snapshot_file_name = file_name;
-        latest_committed_snapshot_idx = snapshot_idx;
+        const auto idx = get_snapshot_idx_from_file_name(file_name.string());
+        if (minimum_idx.has_value() && idx <= minimum_idx.value())
+        {
+          LOG_DEBUG_FMT(
+            "Ignoring snapshot file {} below minimum idx {}",
+            file_name,
+            minimum_idx.value());
+        }
+        else
+        {
+          /// Collect snapshot with index; sorting is done after collection
+          committed_snapshots_with_idx.emplace_back(idx, f.path());
+        }
       }
     }
 
-    return latest_committed_snapshot_file_name;
+    std::sort(
+      committed_snapshots_with_idx.begin(),
+      committed_snapshots_with_idx.end(),
+      [](
+        const std::pair<size_t, fs::path>& lhs,
+        const std::pair<size_t, fs::path>& rhs) {
+        return lhs.first > rhs.first;
+      });
+
+    return committed_snapshots_with_idx;
+  }
+
+  inline std::optional<fs::path> find_latest_committed_snapshot_in_directories(
+    const std::vector<fs::path>& directories,
+    std::optional<size_t> minimum_idx = std::nullopt)
+  {
+    const auto paths =
+      find_committed_snapshots_in_directories(directories, minimum_idx);
+    if (paths.empty())
+    {
+      return std::nullopt;
+    }
+
+    return paths.front().second;
+  }
+
+  inline std::optional<fs::path> find_latest_committed_snapshot_in_directory(
+    const fs::path& directory, std::optional<size_t> minimum_idx = std::nullopt)
+  {
+    std::vector<fs::path> directories{directory};
+    return find_latest_committed_snapshot_in_directories(
+      directories, minimum_idx);
   }
 }
