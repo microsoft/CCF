@@ -9,7 +9,7 @@ import infra.logging_app as app
 from infra.tx_status import TxStatus
 import suite.test_requirements as reqs
 import tempfile
-from shutil import copy
+from shutil import copy, rmtree
 from copy import deepcopy
 import os
 import time
@@ -22,6 +22,7 @@ from governance_history import check_signatures
 from infra.snp import SNP_SUPPORT
 import http
 import random
+import pathlib
 
 from loguru import logger as LOG
 
@@ -855,6 +856,7 @@ def run_join_old_snapshot(const_args):
 
             # Kill primary and wait for a new one: new primary is
             # guaranteed to have started from the new snapshot
+            network.retire_node(remote_node=new_node, node_to_retire=primary)
             primary.stop()
             network.wait_for_new_primary(primary)
 
@@ -905,12 +907,24 @@ def run_join_old_snapshot(const_args):
                     f"Node {new_node.local_node_id} started without snapshot unexpectedly joined the service successfully"
                 )
 
+            # Find latest primary
+            primary, backups = network.find_nodes()
+            backup = backups[0]
+
+            # Remove backup's snapshots, so that they need to redirect during snapshot-discovery
+            snapshot_dir = os.path.join(
+                backup.remote.remote.root, backup.remote.snapshots_dir_name
+            )
+            rmtree(snapshot_dir)
+            pathlib.Path(snapshot_dir).mkdir(parents=True, exist_ok=True)
+
             # Start new node with no snapshot dir, but fetching recent snapshot on startup - this should only pass if snapshot fetch works correctly
             new_node = network.create_node()
             network.join_node(
                 new_node,
                 args.package,
                 args,
+                target_node=backup,
                 from_snapshot=False,
                 fetch_recent_snapshot=True,
                 timeout=3,

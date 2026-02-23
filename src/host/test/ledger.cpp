@@ -1635,7 +1635,8 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
       auto latest_committed_snapshot =
         snapshots.find_latest_committed_snapshot();
       REQUIRE(latest_committed_snapshot.has_value());
-      const auto& snapshot = latest_committed_snapshot->second;
+      REQUIRE(latest_committed_snapshot->parent_path() == snapshot_dir);
+      const auto& snapshot = latest_committed_snapshot->filename();
       REQUIRE(get_snapshot_idx_from_file_name(snapshot) == i);
       last_snapshot_idx = i;
       REQUIRE(get_snapshot_evidence_idx_from_file_name(snapshot) == i + 1);
@@ -1654,7 +1655,8 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
 
     auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
     REQUIRE(latest_committed_snapshot.has_value());
-    const auto& snapshot = latest_committed_snapshot->second;
+    REQUIRE(latest_committed_snapshot->parent_path() == snapshot_dir_read_only);
+    const auto& snapshot = latest_committed_snapshot->filename();
     REQUIRE(get_snapshot_idx_from_file_name(snapshot) == last_snapshot_idx);
   }
 
@@ -1668,7 +1670,8 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
 
     auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
     REQUIRE(latest_committed_snapshot.has_value());
-    const auto& snapshot = latest_committed_snapshot->second;
+    REQUIRE(latest_committed_snapshot->parent_path() == snapshot_dir);
+    const auto& snapshot = latest_committed_snapshot->filename();
     REQUIRE(get_snapshot_idx_from_file_name(snapshot) == new_snapshot_idx);
   }
 }

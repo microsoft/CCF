@@ -253,38 +253,15 @@ namespace snapshots
     }
 #undef THROW_ON_ERROR
 
-    std::optional<std::pair<fs::path, fs::path>>
-    find_latest_committed_snapshot()
+    std::optional<fs::path> find_latest_committed_snapshot()
     {
-      // Keep track of latest snapshot file in both directories
-      size_t latest_idx = 0;
-
-      std::optional<fs::path> read_only_latest_committed_snapshot =
-        std::nullopt;
+      std::vector<fs::path> directories;
+      directories.push_back(snapshot_dir);
       if (read_snapshot_dir.has_value())
       {
-        read_only_latest_committed_snapshot =
-          find_latest_committed_snapshot_in_directory(
-            read_snapshot_dir.value(), latest_idx);
+        directories.push_back(read_snapshot_dir.value());
       }
-
-      auto main_latest_committed_snapshot =
-        find_latest_committed_snapshot_in_directory(snapshot_dir, latest_idx);
-
-      if (main_latest_committed_snapshot.has_value())
-      {
-        return std::make_pair(
-          snapshot_dir, main_latest_committed_snapshot.value());
-      }
-
-      if (read_only_latest_committed_snapshot.has_value())
-      {
-        return std::make_pair(
-          read_snapshot_dir.value(),
-          read_only_latest_committed_snapshot.value());
-      }
-
-      return std::nullopt;
+      return find_latest_committed_snapshot_in_directories(directories);
     }
 
     void register_message_handlers(
