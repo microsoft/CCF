@@ -74,11 +74,11 @@ The flushed hashes are serialised in order of ascending level (bit 0 first, then
 Example
 ~~~~~~~
 
-Using the compacted tree from the diagram above, where transactions at ``seqno`` 1--5 have been flushed (``num_flushed = 5 = 0b101``), and ``seqno`` 6--11 remain as leaves:
+Using the compacted tree from the diagram above, where transactions at ``seqno`` 1--5 have been flushed (``num_flushed = 5 = 0b101``), and ``seqno`` 6--10 remain as leaves:
 
-- ``num_leaf_nodes = 6`` (H6, H7, H8, H9, H10, H11)
+- ``num_leaf_nodes = 5`` (H6, H7, H8, H9, H10)
 - ``num_flushed = 5``
-- Leaf hashes: H6, H7, H8, H9, H10, H11
+- Leaf hashes: H6, H7, H8, H9, H10
 - Bit 0 of ``num_flushed`` is set → flushed hash for 1 leaf: H5
 - Bit 1 is not set → no hash
 - Bit 2 is set → flushed hash for a subtree of 4 leaves: H1234
