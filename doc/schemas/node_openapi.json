@@ -918,7 +918,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "4.16.0"
+    "version": "5.0.3"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1165,6 +1165,104 @@
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
+    },
+    "/node/ledger-chunk": {
+      "get": {
+        "description": "Redirect to the corresponding /node/ledger-chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.",
+        "operationId": "GetNodeLedgerChunk",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Download ledger chunk",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      },
+      "head": {
+        "description": "Redirect to the corresponding /node/ledger-chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.",
+        "operationId": "HeadNodeLedgerChunk",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Ledger chunk metadata",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
+    },
+    "/node/ledger-chunk/{chunk_name}": {
+      "get": {
+        "description": "Download a specific ledger chunk by name. Supports HTTP Range header for partial downloads.",
+        "operationId": "GetNodeLedgerChunkChunkName",
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Download ledger chunk",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      },
+      "head": {
+        "description": "Metadata about a specific ledger chunk (Content-Length and x-ms-ccf-ledger-chunk-name)",
+        "operationId": "HeadNodeLedgerChunkChunkName",
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Ledger chunk metadata",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "chunk_name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
     },
     "/node/memory": {
       "get": {

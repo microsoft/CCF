@@ -12,8 +12,8 @@ from packaging import version
 from infra.runner import ConcurrentRunner
 import nobuiltins
 import packaging.version
-import e2e_tutorial
 import e2e_operations
+import e2e_tutorial
 
 from loguru import logger as LOG
 
@@ -231,6 +231,15 @@ if __name__ == "__main__":
         e2e_operations.run,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        initial_user_count=1,
+        ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction
+    )
+
+    cr.add(
+        "download",
+        e2e_operations.run_ledger_chunk_download,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=1,
         ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction
     )

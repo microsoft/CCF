@@ -54,6 +54,8 @@ def run(args):
                     ),
                 )
 
+            interface.enabled_operator_features = ["SnapshotRead", "LedgerChunkRead"]
+
             hosts.append(
                 infra.interfaces.HostSpec(
                     rpc_interfaces={infra.interfaces.PRIMARY_RPC_INTERFACE: interface}

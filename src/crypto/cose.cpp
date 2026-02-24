@@ -4,10 +4,8 @@
 #include "ccf/crypto/cose.h"
 
 #include "crypto/cbor.h"
+#include "crypto/cose.h"
 
-#include <qcbor/qcbor_decode.h>
-#include <qcbor/qcbor_encode.h>
-#include <qcbor/qcbor_spiffy_decode.h>
 #include <stdexcept>
 #include <vector>
 
@@ -22,7 +20,7 @@ namespace ccf::cose::edit
       [&]() { return parse(cose_input); }, "Failed to parse COSE_Sign1");
 
     const auto& cose_envelope = rethrow_with_msg(
-      [&]() -> auto& { return cose_cbor->tag_at(18); },
+      [&]() -> auto& { return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1); },
       "Failed to parse COSE_Sign1 tag");
 
     const auto& phdr = rethrow_with_msg(
@@ -79,7 +77,8 @@ namespace ccf::cose::edit
     edited.push_back(payload);
     edited.push_back(signature);
 
-    auto edited_envelope = make_tagged(18, make_array(std::move(edited)));
+    auto edited_envelope =
+      make_tagged(ccf::cbor::tag::COSE_SIGN_1, make_array(std::move(edited)));
     return serialize(edited_envelope);
   }
 }

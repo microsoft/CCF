@@ -261,8 +261,11 @@ add_ccf_static_library(
        ${CCF_DIR}/src/node/historical_queries_adapter.cpp
        ${CCF_DIR}/src/node/historical_queries_utils.cpp
        ${CCF_DIR}/src/node/receipt.cpp
-  LINK_LIBS qcbor evercbor t_cose http_parser ccfcrypto ccf_kv
+       ${CCF_DIR}/src/node/local_sealing.cpp
+  LINK_LIBS http_parser ccfcrypto ccf_kv
 )
+
+target_link_libraries(ccf_endpoints PRIVATE t_cose) # For cose_auth only
 
 # CCF task system library
 add_ccf_static_library(
@@ -616,7 +619,7 @@ if(BUILD_TESTS)
       crypto_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp
     )
     target_include_directories(crypto_test PRIVATE ${CCFCRYPTO_INC})
-    target_link_libraries(crypto_test PRIVATE ccfcrypto)
+    target_link_libraries(crypto_test PRIVATE ccfcrypto t_cose)
 
     add_unit_test(
       cbor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cbor.cpp
@@ -673,6 +676,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/receipt.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/receipt.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/local_sealing.cpp
     )
     target_link_libraries(
       historical_queries_test PRIVATE http_parser ccf_kv ccf_endpoints
@@ -714,7 +718,7 @@ if(BUILD_TESTS)
       cose_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cose.cpp
     )
     target_link_libraries(
-      cose_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto qcbor
+      cose_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto t_cose
     )
 
     add_unit_test(pem_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/pem.cpp)

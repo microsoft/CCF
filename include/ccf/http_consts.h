@@ -20,12 +20,19 @@ namespace ccf
       static constexpr auto DIGEST = "digest";
       static constexpr auto HOST = "host";
       static constexpr auto LOCATION = "location";
+      static constexpr auto RANGE = "range";
+      static constexpr auto ETAG = "etag";
+      static constexpr auto IF_NONE_MATCH = "if-none-match";
+      static constexpr auto REPR_DIGEST = "repr-digest";
       static constexpr auto RETRY_AFTER = "retry-after";
       static constexpr auto TRAILER = "trailer";
+      static constexpr auto WANT_REPR_DIGEST = "want-repr-digest";
       static constexpr auto WWW_AUTHENTICATE = "www-authenticate";
 
       static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
       static constexpr auto CCF_SNAPSHOT_NAME = "x-ms-ccf-snapshot-name";
+      static constexpr auto CCF_LEDGER_CHUNK_NAME =
+        "x-ms-ccf-ledger-chunk-name";
     }
 
     namespace headervalues::contenttype

@@ -1443,4 +1443,20 @@ public:
       }
     }
   }
+
+  void assert_last_txid(
+    const std::string& node_id, const std::string& last_txid_s)
+  {
+    auto idx = _nodes.at(node_id).raft->get_last_idx();
+    auto view = _nodes.at(node_id).raft->get_view(idx);
+    auto last_txid = fmt::format("{}.{}", view, idx);
+    if (last_txid != last_txid_s)
+    {
+      throw std::runtime_error(fmt::format(
+        "Node {} lastTxID is not as expected: {} != {}",
+        node_id,
+        last_txid,
+        last_txid_s));
+    }
+  }
 };

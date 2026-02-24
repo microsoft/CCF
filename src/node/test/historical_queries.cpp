@@ -71,6 +71,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     ccf::NodeInfo ni;
     ni.cert = ts.node_kp->self_sign("CN=Test node", valid_from, valid_to);
     ni.status = ccf::NodeStatus::TRUSTED;
+    ni.encryption_pub_key = ts.node_kp->public_key_pem();
     nodes->put(node_id, ni);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }

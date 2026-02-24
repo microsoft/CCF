@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(order=True)
@@ -21,7 +20,7 @@ class TxID:
         return TxID(*TxID.parse(s))
 
     @staticmethod
-    def parse(s: Optional[str]):
+    def parse(s: str | None):
         try:
             if s is not None:
                 view_s, seqno_s = s.split(".")

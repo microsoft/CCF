@@ -50,8 +50,11 @@
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
 #include "service/internal_tables_access.h"
+#include "service/tables/local_sealing.h"
 #include "service/tables/recovery_type.h"
 #include "share_manager.h"
+#include "snapshots/fetch.h"
+#include "snapshots/filenames.h"
 #include "uvm_endorsements.h"
 
 #include <optional>
@@ -90,6 +93,115 @@ namespace ccf
   {
     friend class SelfHealingOpenSubsystem;
 
+    struct FetchSnapshot : public ccf::tasks::BaseTask
+    {
+      const ccf::StartupConfig::Join join_config;
+      const ccf::CCFConfig::Snapshots snapshot_config;
+      NodeState* owner;
+
+      FetchSnapshot(
+        ccf::StartupConfig::Join join_config_,
+        ccf::CCFConfig::Snapshots snapshot_config_,
+        NodeState* owner_) :
+        join_config(std::move(join_config_)),
+        snapshot_config(std::move(snapshot_config_)),
+        owner(owner_)
+      {}
+
+      void do_task_implementation() override
+      {
+        // NB: Eventually this shouldn't be blocking, but reusing the current
+        // (blocking) helper for now
+        auto latest_peer_snapshot = snapshots::fetch_from_peer(
+          join_config.target_rpc_address,
+          join_config.service_cert,
+          join_config.fetch_snapshot_max_attempts,
+          join_config.fetch_snapshot_retry_interval.count_ms(),
+          join_config.fetch_snapshot_max_size.count_bytes());
+
+        // Ensure the in-flight task reference is cleared when this
+        // task completes, regardless of outcome, so that a subsequent
+        // join-retry can schedule a new fetch if needed.
+        struct ClearOnExit
+        {
+          NodeState* owner;
+          ~ClearOnExit()
+          {
+            std::lock_guard<pal::Mutex> guard(owner->lock);
+            owner->snapshot_fetch_task = nullptr;
+          }
+        } clear_on_exit{owner};
+
+        if (latest_peer_snapshot.has_value())
+        {
+          LOG_INFO_FMT(
+            "Received snapshot {} from peer (size: {})",
+            latest_peer_snapshot->snapshot_name,
+            latest_peer_snapshot->snapshot_data.size());
+
+          try
+          {
+            const auto segments =
+              separate_segments(latest_peer_snapshot->snapshot_data);
+            verify_snapshot(segments, join_config.service_cert);
+          }
+          catch (const std::exception& e)
+          {
+            LOG_FAIL_FMT(
+              "Error while verifying fetched snapshot {}: {}",
+              latest_peer_snapshot->snapshot_name,
+              e.what());
+
+            return;
+          }
+
+          const auto snapshot_path =
+            std::filesystem::path(latest_peer_snapshot->snapshot_name);
+
+          // Ensure snapshot name is a simple filename (no directories, no "..",
+          // not absolute) before using it as a filesystem path.
+          if (
+            snapshot_path.empty() || snapshot_path.is_absolute() ||
+            snapshot_path.has_parent_path() ||
+            snapshot_path.filename() != snapshot_path)
+          {
+            LOG_FAIL_FMT(
+              "Rejecting snapshot with invalid name '{}' from peer",
+              latest_peer_snapshot->snapshot_name);
+            return;
+          }
+          const auto dst_path =
+            std::filesystem::path(snapshot_config.directory) / snapshot_path;
+
+          LOG_INFO_FMT(
+            "Snapshot verified - now writing to {}", dst_path.string());
+
+          if (files::exists(dst_path))
+          {
+            LOG_FAIL_FMT(
+              "Overwriting existing snapshot at {} with data retrieved from "
+              "peer",
+              dst_path);
+          }
+          files::dump(latest_peer_snapshot->snapshot_data, dst_path);
+
+          const auto snapshot_seqno =
+            snapshots::get_snapshot_idx_from_file_name(
+              latest_peer_snapshot->snapshot_name);
+
+          std::lock_guard<pal::Mutex> guard(owner->lock);
+          owner->set_startup_snapshot(
+            snapshot_seqno, std::move(latest_peer_snapshot->snapshot_data));
+        }
+      }
+
+      [[nodiscard]] const std::string& get_name() const override
+      {
+        static const std::string name = "FetchSnapshot";
+        return name;
+      }
+    };
+
   private:
     //
     // this node's core state
@@ -111,7 +223,6 @@ namespace ccf
     std::optional<pal::snp::TcbVersionRaw> snp_tcb_version = std::nullopt;
     ccf::StartupConfig config;
     std::optional<pal::UVMEndorsements> snp_uvm_endorsements = std::nullopt;
-    std::vector<uint8_t> startup_snapshot;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
       nullptr;
 
@@ -166,6 +277,7 @@ namespace ccf
     ccf::kv::Version startup_seqno = 0;
 
     ccf::tasks::Task join_periodic_task;
+    ccf::tasks::Task snapshot_fetch_task;
 
     std::shared_ptr<ccf::kv::AbstractTxEncryptor> make_encryptor()
     {
@@ -176,44 +288,105 @@ namespace ccf
 #endif
     }
 
-    // Returns true if the snapshot is already verified (via embedded receipt)
-    void initialise_startup_snapshot(bool recovery = false)
+    void find_local_startup_snapshot()
     {
-      std::shared_ptr<ccf::kv::Store> snapshot_store;
-      if (!recovery)
+      if (start_type != StartType::Join && start_type != StartType::Recover)
       {
-        // Create a new store to verify the snapshot only
-        snapshot_store = make_store();
-        auto snapshot_history = std::make_shared<MerkleTxHistory>(
-          *snapshot_store,
-          self,
-          *node_sign_kp,
-          sig_tx_interval,
-          sig_ms_interval,
-          false /* No signature timer on snapshot_history */);
-
-        auto snapshot_encryptor = make_encryptor();
-
-        snapshot_store->set_history(snapshot_history);
-        snapshot_store->set_encryptor(snapshot_encryptor);
-      }
-      else
-      {
-        snapshot_store = network.tables;
+        return;
       }
 
-      ccf::kv::ConsensusHookPtrs hooks;
-      startup_snapshot_info = initialise_from_snapshot(
-        snapshot_store,
-        std::move(startup_snapshot),
-        hooks,
-        &view_history,
-        true,
-        config.recover.previous_service_identity);
+      std::vector<std::filesystem::path> directories;
+      directories.emplace_back(config.snapshots.directory);
+      const auto& read_only_dir = config.snapshots.read_only_directory;
+      if (read_only_dir.has_value())
+      {
+        directories.emplace_back(read_only_dir.value());
+      }
+
+      const auto committed_snapshots =
+        snapshots::find_committed_snapshots_in_directories(directories);
+      for (const auto& [snapshot_seqno, snapshot_path] : committed_snapshots)
+      {
+        auto snapshot_data = files::slurp(snapshot_path);
+
+        LOG_INFO_FMT(
+          "Found latest local snapshot file: {} (size: {})",
+          snapshot_path,
+          snapshot_data.size());
+
+        const auto segments = separate_segments(snapshot_data);
+
+        try
+        {
+          verify_snapshot(segments, config.recover.previous_service_identity);
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT(
+            "Error while verifying {}: {}", snapshot_path.string(), e.what());
+
+          const auto dir = snapshot_path.parent_path();
+          const auto file_name = snapshot_path.filename();
+
+          if (dir == config.snapshots.directory)
+          {
+            LOG_INFO_FMT(
+              "Ignoring corrupt snapshot {} in directory {} and looking for "
+              "next",
+              dir.string(),
+              snapshot_path.string());
+            try
+            {
+              snapshots::ignore_snapshot_file(dir, file_name.string());
+            }
+            catch (std::logic_error& e)
+            {
+              LOG_FAIL_FMT("Unable to mark snapshot as ignored: {}", e.what());
+            }
+          }
+          else
+          {
+            LOG_FAIL_FMT(
+              "Snapshot {} is in a read-only directory {}, so will not be "
+              "modified. Ignoring and looking for next",
+              snapshot_path.string(),
+              dir.string());
+          }
+
+          continue;
+        }
+
+        set_startup_snapshot(snapshot_seqno, std::move(snapshot_data));
+        return;
+      }
+
+      LOG_INFO_FMT("No local snapshot found");
+    }
+
+    void set_startup_snapshot(
+      ccf::kv::Version snapshot_seqno, std::vector<uint8_t>&& snapshot_data)
+    {
+      startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
+        snapshot_seqno, std::move(snapshot_data));
 
       startup_seqno = startup_snapshot_info->seqno;
       last_recovered_idx = startup_seqno;
       last_recovered_signed_idx = last_recovered_idx;
+
+      if (start_type == StartType::Recover)
+      {
+        const auto segments = separate_segments(startup_snapshot_info->raw);
+
+        ccf::kv::ConsensusHookPtrs hooks;
+        deserialise_snapshot(
+          network.tables,
+          segments,
+          hooks,
+          &view_history,
+          true /* public_only */);
+
+        snapshotter->set_last_snapshot_idx(last_recovered_idx);
+      }
     }
 
     SelfHealingOpenSubsystem self_healing_open_impl;
@@ -388,10 +561,7 @@ namespace ccf
         }
         case StartType::Join:
         {
-          if (!startup_snapshot.empty())
-          {
-            initialise_startup_snapshot();
-          }
+          find_local_startup_snapshot();
 
           sm.advance(NodeStartupState::pending);
           start_join_timer();
@@ -400,11 +570,8 @@ namespace ccf
         case StartType::Recover:
         {
           setup_recovery_hook();
-          if (!startup_snapshot.empty())
-          {
-            initialise_startup_snapshot(true);
-            snapshotter->set_last_snapshot_idx(last_recovered_idx);
-          }
+
+          find_local_startup_snapshot();
 
           sm.advance(NodeStartupState::readingPublicLedger);
           start_ledger_recovery_unsafe();
@@ -560,16 +727,13 @@ namespace ccf
     }
 
     NodeCreateInfo create(
-      StartType start_type_,
-      const ccf::StartupConfig& config_,
-      std::vector<uint8_t>&& startup_snapshot_)
+      StartType start_type_, const ccf::StartupConfig& config_)
     {
       std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
       start_type = start_type_;
 
       config = config_;
-      startup_snapshot = std::move(startup_snapshot_);
       subject_alt_names = get_subject_alternative_names();
 
       js::register_class_ids();
@@ -602,9 +766,6 @@ namespace ccf
             config.initial_service_certificate_validity_days);
 
           network.ledger_secrets->init();
-          // Safe as initiate_quote_generation has previously set the
-          // snp_tcb_version
-          seal_ledger_secret(network.ledger_secrets->get_first());
 
           history->set_service_signing_identity(
             network.identity->get_key_pair(), config.cose_signatures);
@@ -662,11 +823,14 @@ namespace ccf
       auto network_ca = std::make_shared<::tls::CA>(std::string(
         config.join.service_cert.begin(), config.join.service_cert.end()));
 
+      auto [target_host, target_port] =
+        split_net_address(config.join.target_rpc_address);
+
       auto join_client_cert = std::make_unique<::tls::Cert>(
         network_ca,
         self_signed_node_cert,
         node_sign_kp->private_key_pem(),
-        config.join.target_rpc_address);
+        target_host);
 
       // Create RPC client and connect to remote node
       // Note: For now, assume that target node accepts same application
@@ -675,13 +839,13 @@ namespace ccf
         std::move(join_client_cert),
         rpcsessions->get_app_protocol_main_interface());
 
-      auto [target_host, target_port] =
-        split_net_address(config.join.target_rpc_address);
-
       join_client->connect(
         target_host,
         target_port,
-        [this](
+        // Capture target_address by value, and use them when
+        // logging about this response. Do not use config target address, which
+        // may have updated in the interim.
+        [this, target_address = config.join.target_rpc_address](
           ccf::http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
@@ -693,17 +857,67 @@ namespace ccf
 
           if (is_http_status_client_error(status))
           {
+            std::optional<ccf::ODataErrorResponse> error_response =
+              std::nullopt;
+
+            try
+            {
+              auto j = nlohmann::json::parse(data);
+              error_response = j.get<ccf::ODataErrorResponse>();
+            }
+            catch (const nlohmann::json::exception& e)
+            {
+              // Leave error_response == nullopt
+              LOG_FAIL_FMT(
+                "Join request returned {}, body is not ODataErrorResponse: {}",
+                status,
+                std::string(data.begin(), data.end()));
+            }
+
+            if (
+              error_response.has_value() &&
+              error_response->error.code == ccf::errors::StartupSeqnoIsOld &&
+              config.join.fetch_recent_snapshot)
+            {
+              LOG_INFO_FMT(
+                "Join request to {} returned {} error. Attempting to fetch "
+                "fresher snapshot",
+                target_address,
+                ccf::errors::StartupSeqnoIsOld);
+
+              // If we've followed a redirect, it will have been updated in
+              // config.join. Note that this is fire-and-forget, it is assumed
+              // that it proceeds in the background, updating state when it
+              // completes, and the join timer separately re-attempts join after
+              // this succeeds
+              if (
+                snapshot_fetch_task != nullptr &&
+                !snapshot_fetch_task->is_cancelled())
+              {
+                LOG_INFO_FMT("Snapshot fetch already in progress, skipping");
+              }
+              else
+              {
+                snapshot_fetch_task = std::make_shared<FetchSnapshot>(
+                  config.join, config.snapshots, this);
+                ccf::tasks::add_task(snapshot_fetch_task);
+              }
+              return;
+            }
+
             auto error_msg = fmt::format(
               "Join request to {} returned {} Bad Request: {}. Shutting "
               "down node gracefully.",
-              config.join.target_rpc_address,
+              target_address,
               status,
               std::string(data.begin(), data.end()));
             LOG_FAIL_FMT("{}", error_msg);
             RINGBUFFER_WRITE_MESSAGE(
               AdminMessage::fatal_error_msg, to_host, error_msg);
+            return;
           }
-          else if (status != HTTP_STATUS_OK)
+
+          if (status != HTTP_STATUS_OK)
           {
             const auto& location = headers.find(http::headers::LOCATION);
             if (
@@ -730,20 +944,22 @@ namespace ccf
             return;
           }
 
-          auto j = nlohmann::json::parse(data);
-
           JoinNetworkNodeToNode::Out resp;
           try
           {
+            auto j = nlohmann::json::parse(data);
             resp = j.get<JoinNetworkNodeToNode::Out>();
           }
           catch (const std::exception& e)
           {
             LOG_FAIL_FMT(
               "An error occurred while parsing the join network response");
+
+            LOG_DEBUG_FMT("Join network response error: {}", e.what());
             LOG_DEBUG_FMT(
-              "An error occurred while parsing the join network response: {}",
-              j.dump());
+              "Join network response body: {}",
+              std::string(data.begin(), data.end()));
+
             return;
           }
 
@@ -757,7 +973,6 @@ namespace ccf
 
             network.identity = std::make_unique<ccf::NetworkIdentity>(
               resp.network_info->identity);
-            seal_ledger_secret(*resp.network_info->ledger_secrets.rbegin());
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info->ledger_secrets));
 
@@ -790,7 +1005,7 @@ namespace ccf
             std::vector<ccf::kv::Version> view_history_ = {};
             if (startup_snapshot_info)
             {
-              // It is only possible to deserialise the entire snapshot then,
+              // It is only possible to deserialise the entire snapshot now,
               // once the ledger secrets have been passed in by the network
               ccf::kv::ConsensusHookPtrs hooks;
               deserialise_snapshot(
@@ -798,8 +1013,7 @@ namespace ccf
                 startup_snapshot_info->raw,
                 hooks,
                 &view_history_,
-                resp.network_info->public_only,
-                config.recover.previous_service_identity);
+                resp.network_info->public_only);
 
               for (auto& hook : hooks)
               {
@@ -891,6 +1105,11 @@ namespace ccf
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
+      if (config.enable_local_sealing && snp_tcb_version.has_value())
+      {
+        join_params.sealed_recovery_key =
+          sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());
+      }
 
       LOG_DEBUG_FMT(
         "Sending join request to {}", config.join.target_rpc_address);
@@ -1457,8 +1676,7 @@ namespace ccf
           startup_snapshot_info->raw,
           hooks,
           &view_history_,
-          false,
-          config.recover.previous_service_identity);
+          false);
         startup_snapshot_info.reset();
       }
 
@@ -1564,13 +1782,22 @@ namespace ccf
         ShareManager::clear_submitted_recovery_shares(tx);
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
         service->put(service_info.value());
-        if (config.recover.previous_sealed_ledger_secret_location.has_value())
+        auto previous_id = config.recover.previous_local_sealing_identity;
+        if (config.enable_local_sealing && previous_id.has_value())
         {
-          tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
-            ->put(RecoveryType::LOCAL_UNSEALING);
-          auto unsealed_ls = unseal_ledger_secret();
-          LOG_INFO_FMT("Unsealed ledger secret, initiating private recovery");
-          initiate_private_recovery_unsafe(tx, unsealed_ls);
+          auto unsealed_ls = sealing::unseal_share(tx, previous_id.value());
+          if (unsealed_ls.has_value())
+          {
+            tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
+              ->put(RecoveryType::LOCAL_UNSEALING);
+            LOG_INFO_FMT("Unsealed ledger secret, initiating private recovery");
+            initiate_private_recovery_unsealing_unsafe(tx, unsealed_ls.value());
+          }
+          else
+          {
+            throw std::logic_error(
+              "Failed to unseal ledger secret for private recovery");
+          }
         }
         else
         {
@@ -1606,34 +1833,38 @@ namespace ccf
         fmt::format("Node in state {} cannot open service", sm.value()));
     }
 
+    void initiate_private_recovery(ccf::kv::Tx& tx) override
+    {
+      std::lock_guard<pal::Mutex> guard(lock);
+      sm.expect(NodeStartupState::partOfPublicNetwork);
+      LedgerSecretsMap recovered_ledger_secrets =
+        share_manager.restore_recovery_shares_info(
+          tx, recovered_encrypted_ledger_secrets);
+      initiate_private_recovery_unsafe(tx, recovered_ledger_secrets);
+    }
+
+    void initiate_private_recovery_unsealing_unsafe(
+      ccf::kv::Tx& tx, const LedgerSecretPtr& unsealed_ledger_secret)
+    {
+      sm.expect(NodeStartupState::partOfPublicNetwork);
+      LedgerSecretsMap recovered_ledger_secrets =
+        share_manager.restore_ledger_secrets_map(
+          tx, recovered_encrypted_ledger_secrets, unsealed_ledger_secret);
+      initiate_private_recovery_unsafe(tx, recovered_ledger_secrets);
+    }
+
     // Decrypts chain of ledger secrets, and writes those to the ledger
     // encrypted for each node. On a commit hook for this write, each node
     // (including this one!) will begin_private_recovery().
     void initiate_private_recovery_unsafe(
-      ccf::kv::Tx& tx,
-      const std::optional<LedgerSecretPtr>& unsealed_ledger_secret =
-        std::nullopt)
+      ccf::kv::Tx& tx, LedgerSecretsMap recovered_ledger_secrets)
     {
-      sm.expect(NodeStartupState::partOfPublicNetwork);
-      LedgerSecretsMap recovered_ledger_secrets =
-        share_manager.restore_recovery_shares_info(
-          tx, recovered_encrypted_ledger_secrets, unsealed_ledger_secret);
-
       // Broadcast decrypted ledger secrets to other nodes for them to
       // initiate private recovery too
       LedgerSecretsBroadcast::broadcast_some(
         InternalTablesAccess::get_trusted_nodes(tx),
         tx.wo(network.secrets),
         recovered_ledger_secrets);
-    }
-
-    void initiate_private_recovery(
-      ccf::kv::Tx& tx,
-      const std::optional<LedgerSecretPtr>& unsealed_ledger_secret =
-        std::nullopt) override
-    {
-      std::lock_guard<pal::Mutex> guard(lock);
-      initiate_private_recovery_unsafe(tx, unsealed_ledger_secret);
     }
 
     //
@@ -2024,6 +2255,12 @@ namespace ccf
       create_params.service_data = config.service_data;
       create_params.create_txid = {create_view, last_recovered_signed_idx + 1};
 
+      if (config.enable_local_sealing && snp_tcb_version.has_value())
+      {
+        create_params.sealed_recovery_key =
+          sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());
+      }
+
       const auto body = nlohmann::json(create_params).dump();
 
       ::http::Request request(
@@ -2167,7 +2404,6 @@ namespace ccf
                 // previous ledger secret)
                 auto ledger_secret = std::make_shared<LedgerSecret>(
                   std::move(plain_ledger_secret), hook_version);
-                seal_ledger_secret(hook_version + 1, ledger_secret);
                 network.ledger_secrets->set_secret(
                   hook_version + 1, std::move(ledger_secret));
               }
@@ -2181,7 +2417,7 @@ namespace ccf
         Secrets::wrap_commit_hook([this](
                                     ccf::kv::Version hook_version,
                                     const Secrets::Write& w) {
-          // Used on recovery to initiate private recovery on backup nodes.
+          // Used on recovery to initiate private recovery on all nodes.
           if (!is_part_of_public_network())
           {
             return;
@@ -2644,57 +2880,6 @@ namespace ccf
         ::consensus::ledger_truncate, to_host, idx, recovery_mode);
     }
 
-    void seal_ledger_secret(const VersionedLedgerSecret& ledger_secret)
-    {
-      seal_ledger_secret(ledger_secret.first, ledger_secret.second);
-    }
-
-    void seal_ledger_secret(
-      const kv::Version& version, const LedgerSecretPtr& ledger_secret)
-    {
-      if (!config.sealed_ledger_secret_location.has_value())
-      {
-        return;
-      }
-
-      CCF_ASSERT(
-        snp_tcb_version.has_value(), "TCB version must be set before sealing");
-
-      if (auto loc_opt = config.sealed_ledger_secret_location;
-          loc_opt.has_value())
-      {
-        if (auto tcb_opt = snp_tcb_version; tcb_opt.has_value())
-        {
-          const auto& sealed_location = loc_opt.value();
-          const auto& tcb_version = tcb_opt.value();
-          seal_ledger_secret_to_disk(
-            sealed_location, tcb_version, version, ledger_secret);
-        }
-      }
-    }
-
-    LedgerSecretPtr unseal_ledger_secret()
-    {
-      CCF_ASSERT(
-        snp_tcb_version.has_value(),
-        "TCB version must be set when unsealing ledger secret");
-
-      CCF_ASSERT(
-        config.recover.previous_sealed_ledger_secret_location.has_value(),
-        "Previous sealed ledger secret location must be set");
-
-      if (auto path_opt = config.recover.previous_sealed_ledger_secret_location;
-          path_opt.has_value())
-      {
-        const auto& ledger_secret_path = path_opt.value();
-        auto max_version = network.tables->current_version();
-        return find_and_unseal_ledger_secret_from_disk(
-          ledger_secret_path, max_version);
-      }
-
-      return nullptr;
-    }
-
   public:
     void set_n2n_message_limit(size_t message_limit)
     {
@@ -2770,6 +2955,19 @@ namespace ccf
     SelfHealingOpenSubsystem& self_healing_open() override
     {
       return self_healing_open_impl;
+    }
+
+    void shuffle_sealed_shares(ccf::kv::Tx& tx) override
+    {
+      if (!is_part_of_network())
+      {
+        LOG_INFO_FMT(
+          "Skipping shuffling of sealed shares during recovery as ledger "
+          "secrets are not yet available");
+        return;
+      }
+      auto latest_ledger_secret = network.ledger_secrets->get_latest(tx);
+      sealing::shuffle_sealed_shares(tx, latest_ledger_secret.second);
     }
   };
 }

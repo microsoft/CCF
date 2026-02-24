@@ -3,6 +3,7 @@
 
 from contextlib import contextmanager, closing
 from enum import Enum, auto
+import functools
 import infra.crypto
 import infra.remote
 from datetime import datetime, timedelta, timezone
@@ -20,7 +21,6 @@ import copy
 import json
 import time
 import http
-from shutil import copytree
 
 import ccf._versionifier
 
@@ -107,6 +107,28 @@ def version_after(version, cmp_version):
     ) > ccf._versionifier.to_python_version(cmp_version)
 
 
+@functools.total_ordering
+class CCFVersion:
+    # None is assumed to be the latest development version
+    # so None > any specific version, and None == None
+    def __init__(self, version_str):
+        self.version_str = version_str
+        if version_str is not None:
+            self.parsed_version = ccf._versionifier.to_python_version(version_str)
+        else:
+            self.parsed_version = None
+
+    def __eq__(self, other):
+        return self.parsed_version == other.parsed_version
+
+    def __lt__(self, other):
+        if self.parsed_version is None:
+            return False
+        if other.parsed_version is None:
+            return True
+        return self.parsed_version < other.parsed_version
+
+
 class Node:
     def __init__(
         self,
@@ -174,6 +196,13 @@ class Node:
                     host=rpc_interface.host, port=node_port
                 )
 
+            # LedgerChunkRead operator feature is only supported from 7.0.0-dev7 onwards
+            if self.version is not None and Version(
+                strip_version(self.version)
+            ) <= Version("7.0.0-dev6"):
+                if rpc_interface.enabled_operator_features:
+                    rpc_interface.enabled_operator_features.remove("LedgerChunkRead")
+
     def __hash__(self):
         return self.local_node_id
 
@@ -200,31 +229,6 @@ class Node:
         )
         self._start()
         self.network_state = NodeNetworkState.joined
-
-    def save_sealed_ledger_secret(self, destination=None):
-        if self.sealed_ledger_secret_location is None:
-            raise RuntimeError(
-                "Sealed secret location was not set so no secrets were sealed."
-            )
-        sealed_ledger_secret_location = self.sealed_ledger_secret_location
-        if not os.path.isabs(sealed_ledger_secret_location):
-            sealed_ledger_secret_location = os.path.join(
-                self.remote.remote.root, sealed_ledger_secret_location
-            )
-
-        if not os.path.exists(sealed_ledger_secret_location):
-            raise RuntimeError(
-                f"Sealed ledger secret file {sealed_ledger_secret_location} does not exist"
-            )
-
-        if destination is None:
-            destination = os.path.join(
-                self.common_dir, f"{self.local_node_id}.sealed_ledger_secret"
-            )
-
-        copytree(sealed_ledger_secret_location, destination)
-
-        return destination
 
     def join(
         self,
@@ -285,7 +289,6 @@ class Node:
         common_dir,
         members_info=None,
         enable_local_sealing=False,
-        previous_sealed_ledger_secret_location=None,
         **kwargs,
     ):
         """
@@ -305,14 +308,9 @@ class Node:
         self.common_dir = common_dir
         members_info = members_info or []
         self.label = label
-        self.enable_local_sealing = enable_local_sealing
-        if enable_local_sealing:
-            self.sealed_ledger_secret_location = "sealed_ledger_secret"
-        else:
-            self.sealed_ledger_secret_location = None
-        self.previous_sealed_ledger_secret_location = (
-            previous_sealed_ledger_secret_location
-        )
+        self.enable_local_sealing = bool(
+            enable_local_sealing
+        )  # ensure it's a bool since it may be passed as None from args
 
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         self.remote = infra.remote.CCFRemote(
@@ -333,9 +331,7 @@ class Node:
             version=self.version,
             major_version=self.major_version,
             node_data_json_file=self.initial_node_data_json_file,
-            enable_local_sealing=enable_local_sealing,
-            sealed_ledger_secret_location=self.sealed_ledger_secret_location,
-            previous_sealed_ledger_secret_location=previous_sealed_ledger_secret_location,
+            enable_local_sealing=self.enable_local_sealing,
             **kwargs,
         )
         self.remote.setup()
@@ -530,6 +526,12 @@ class Node:
         ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
         assert ledger.last_committed_chunk_range[1] >= seqno
         return ledger.get_latest_public_state()
+
+    def get_main_ledger_dir(self):
+        """
+        Get the main ledger directory
+        """
+        return self.remote.get_main_ledger_dir()
 
     def get_ledger(self):
         """
@@ -810,7 +812,7 @@ class Node:
         return False
 
     def version_after(self, version):
-        return version_after(self.version, version)
+        return CCFVersion(self.version) > CCFVersion(version)
 
     def get_receipt(self, view, seqno, timeout=3):
         found = False

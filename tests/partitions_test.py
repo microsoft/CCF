@@ -980,6 +980,8 @@ def run_ledger_chunk_bytes_check(const_args):
     LOG.info("Confirm that ledger chunks are determined by the primary")
     args = copy.deepcopy(const_args)
 
+    args.label += "_ledger_chunks"
+
     # Don't emit snapshots
     args.snapshot_tx_interval = 10000000
 
@@ -996,9 +998,6 @@ def run_ledger_chunk_bytes_check(const_args):
         size_0 = unit_size
         size_1 = unit_size * 3
         size_2 = unit_size * 9
-
-        51869
-        51893
 
         def overhead(num_transactions, num_signatures):
             # From checking a sample run, the overhead consists of:

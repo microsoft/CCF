@@ -36,8 +36,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/CLIUtils/CLI11.git",
-          "commitHash": "4160d259d961cd393fd8d67590a8c7d210207348",
-          "tag": "v2.5.0"
+          "commitHash": "bfffd37e1f804ca4fae1caae106935791696b6a9",
+          "tag": "v2.6.1"
         }
       }
     },
@@ -46,8 +46,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "40626af88bd7df9a5fb80be7b25ac85b122d6c21",
-          "tag": "11.2.0"
+          "commitHash": "407c905e45ad75fc29bf0f9bb7c5c2fd3475976f",
+          "tag": "12.1.0"
         }
       }
     },

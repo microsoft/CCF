@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev11]
+
+[7.0.0-dev11]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev11
+
+### Changed
+
+- When `fetch_recent_snapshot` is enabled, snapshot fetching now occurs in response to a `StartupSeqnoIsOld` error during join, rather than eagerly at startup. Fetched snapshots are verified before use, and corrupt local snapshots are skipped. See [documentation](https://microsoft.github.io/CCF/main/operations/ledger_snapshot.html#join-or-recover-from-snapshot) (#7630).
+
+## [7.0.0-dev10]
+
+[7.0.0-dev10]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev10
+
+### Added
+
+- `GET` and `HEAD` `/node/ledger-chunk?since={seqno}` and `/node/ledger-chunk/{chunk_name}` endpoints, gated by the `LedgerChunkDownload` RPC interface operator feature. See [documentation](https://microsoft.github.io/CCF/main/operations/ledger_snapshot.html#download-endpoints) for more detail.
+- `GET` and `HEAD` `/node/ledger-chunk/{chunk_name}` and `/node/snapshot/{snapshot_name}` now support the `Want-Repr-Digest` request header and return the `Repr-Digest` response header accordingly (RFC 9530). Supported algorithms are `sha-256`, `sha-384`, and `sha-512`. If no supported algorithm is requested, the server defaults to `sha-256` (#7650).
+- `ETag` and `If-None-Match` support on `GET /node/ledger-chunk/{chunk_name}`, using SHA-256 by default for the `ETag` response header. Clients can supply `If-None-Match` with `sha-256`, `sha-384`, or `sha-512` digest ETags to avoid re-downloading unchanged content (#7652).
+- `read_ledger.py` now supports multiple verification levels via the `--verification-level` option (NONE, OFFSETS, HEADERS, MERKLE, FULL), allowing users to trade off between computation cost and security guarantees. The default remains FULL verification for backward compatibility. The `--insecure-skip-verification` flag is deprecated in favor of `--verification-level=NONE`.
+
+### Changed
+
+- `ccf::crypto::HashProvider::Hash()` has been renamed to `ccf::crypto::HashProvider::hash()` for consistency with the rest of the API (#7660).
+
+### Fixed
+
+- Only rollback uncommittable indices during become_leader (#7620)
+- x509 parsing now correctly handles times validity beyond 2262. To support this, some public function signatures (`ccf::ds::time_point_from_string()`, `ccf::crypto::Verifier::remaining_seconds()`) now use `time_point`s from `ccf::nonstd::SystemClock` rather than `std::chrono::system_clock` (#7648)
+
+## [7.0.0-dev9]
+
+[7.0.0-dev9]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev9
+
+### Fixed
+
+- Join client now sets SNI correctly (#7622)
+- CBOR and COSE dependencies are now internal, and their headers are no longer exposed (#7616, #7617).
+
 ## [7.0.0-dev8]
 
 [7.0.0-dev8]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev8
@@ -27,6 +64,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Improved `ccf::historical::verify_self_issued_receipt` - now can verify receipts signed by the past service identities if they were back-endorsed (#7546).
+- Local sealing recovery now stores sealed secrets in the ledger instead of separately on disk. (#7554)
+  - To configure this use `enable_local_sealing` (top-level) and `command.recover.previous_local_sealing_identity` in the configuration.
+  - The configuration options `output_files.sealed_ledger_secret_location` and `command.recover.previous_sealed_ledger_secret_location` have been deprecated and are ignored.
+  - Recovery keys are now stored in `public:ccf.gov.nodes.sealed_recovery_keys` and encrypted shares in `public:ccf.internal.sealed_shares`.
+  - There is an update in the constitution to reseal whenever a node is added, this ensures that as soon as a node is trusted, it can recover from that point in the ledger.
 
 ### Removed
 
@@ -417,7 +459,7 @@ It also adds COSE_Sign1 ledger signatures, to support the generation of COSE rec
 
 ## [6.0.0-rc2]
 
-[6.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/6.0.0-rc2
+[6.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-rc2
 
 ### Removed
 
@@ -437,7 +479,7 @@ It also adds COSE_Sign1 ledger signatures, to support the generation of COSE rec
 
 ## [6.0.0-rc1]
 
-[6.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/6.0.0-rc1
+[6.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-rc1
 
 ### Changed
 
@@ -452,7 +494,7 @@ It also adds COSE_Sign1 ledger signatures, to support the generation of COSE rec
 
 ## [6.0.0-rc0]
 
-[6.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/6.0.0-rc0
+[6.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-rc0
 
 Note: this release candidate still includes `.deb` packages targeting Ubuntu 20.04, but 6.0.0 final is intended to contain only rpm files targeting Azure Linux 3.0.
 
@@ -527,7 +569,7 @@ Note: this release candidate still includes `.deb` packages targeting Ubuntu 20.
 
 ## [6.0.0-dev20]
 
-[6.0.0-dev20]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev20
+[6.0.0-dev20]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev20
 
 ### Added
 
@@ -542,7 +584,7 @@ Note: this release candidate still includes `.deb` packages targeting Ubuntu 20.
 
 ## [6.0.0-dev19]
 
-[6.0.0-dev19]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev19
+[6.0.0-dev19]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev19
 
 ### Fixed
 
@@ -550,7 +592,7 @@ Container dependencies.
 
 ## [6.0.0-dev18]
 
-[6.0.0-dev18]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev18
+[6.0.0-dev18]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev18
 
 ### Fixed
 
@@ -558,7 +600,7 @@ Container dependencies.
 
 ## [6.0.0-dev17]
 
-[6.0.0-dev17]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev17
+[6.0.0-dev17]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev17
 
 ### Fixed
 
@@ -566,7 +608,7 @@ Container dependencies.
 
 ## [6.0.0-dev16]
 
-[6.0.0-dev16]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev16
+[6.0.0-dev16]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev16
 
 ### Added
 
@@ -574,7 +616,7 @@ Container dependencies.
 
 ## [6.0.0-dev15]
 
-[6.0.0-dev15]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev15
+[6.0.0-dev15]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev15
 
 ### Fixed
 
@@ -583,11 +625,11 @@ Container dependencies.
 
 ## [6.0.0-dev14]
 
-[6.0.0-dev14]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev14
+[6.0.0-dev14]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev14
 
 ## [6.0.0-dev13]
 
-[6.0.0-dev13]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev13
+[6.0.0-dev13]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev13
 
 ### Added
 
@@ -599,7 +641,7 @@ Container dependencies.
 
 ## [6.0.0-dev12]
 
-[6.0.0-dev12]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev12
+[6.0.0-dev12]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev12
 
 ### Dependencies
 
@@ -608,7 +650,7 @@ Container dependencies.
 
 ## [6.0.0-dev11]
 
-[6.0.0-dev11]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev11
+[6.0.0-dev11]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev11
 
 ### Added
 
@@ -629,7 +671,7 @@ Container dependencies.
 
 ## [6.0.0-dev10]
 
-[6.0.0-dev10]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev10
+[6.0.0-dev10]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev10
 
 ### Added
 
@@ -639,7 +681,7 @@ Container dependencies.
 
 ## [6.0.0-dev9]
 
-[6.0.0-dev9]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev9
+[6.0.0-dev9]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev9
 
 ### Changed
 
@@ -648,7 +690,7 @@ Container dependencies.
 
 ## [6.0.0-dev8]
 
-[6.0.0-dev8]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev8
+[6.0.0-dev8]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev8
 
 ### Changed
 
@@ -666,7 +708,7 @@ Container dependencies.
 
 ## [6.0.0-dev7]
 
-[6.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev7
+[6.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev7
 
 ### Changed
 
@@ -679,7 +721,7 @@ Container dependencies.
 
 ## [6.0.0-dev6]
 
-[6.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev6
+[6.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev6
 
 ### Added
 
@@ -689,7 +731,7 @@ Container dependencies.
 
 ## [6.0.0-dev5]
 
-[6.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev5
+[6.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev5
 
 ### Added
 
@@ -698,7 +740,7 @@ Container dependencies.
 
 ## [6.0.0-dev4]
 
-[6.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev4
+[6.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev4
 
 ### Added
 
@@ -710,7 +752,7 @@ Container dependencies.
 
 ## [6.0.0-dev3]
 
-[6.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev3
+[6.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev3
 
 ### Changed
 
@@ -719,7 +761,7 @@ Container dependencies.
 
 ## [6.0.0-dev2]
 
-[6.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev2
+[6.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev2
 
 ### Added
 
@@ -728,7 +770,7 @@ Container dependencies.
 
 ## [6.0.0-dev1]
 
-[6.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev1
+[6.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev1
 
 ### Changed
 
@@ -737,7 +779,7 @@ Container dependencies.
 
 ## [6.0.0-dev0]
 
-[6.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev0
+[6.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-dev0
 
 ### Changed
 
@@ -1600,6 +1642,7 @@ In order to upgrade an existing 3.x service to 4.x, CCF must be on the latest 3.
 - Add `secp256k1` support to `ccf.crypto.generateEcdsaKeyPair()` and `ccf.crypto.verifySignature()` (#4347).
 - Add `ccf.crypto.generateEddsaKeyPair()` API with `Curve25519` support in the JavaScript runtime (#4391).
 - Add new `ccf.crypto.pemToJwk`, `ccf.crypto.pubPemToJwk`, `ccf.crypto.rsaPemToJwk`, `ccf.crypto.pubRsaPemToJwk` to JavaScript/TypesScript API to convert EC/RSA keys from PEM to JWK (#4359).
+- JavaScript crypto APIs (e.g. `generateAesKey` and `wrapKey`) are now included as part of the `ccf.crypto` package (#4372).
 
 ---
 
@@ -1661,16 +1704,6 @@ In order to upgrade an existing 3.x service to 4.x, CCF must be on the latest 3.
 ### Documentation
 
 - The "Node Output" page has been relabelled as "Troubleshooting" in the documentation and CLI commands for troubleshooting have been added to it.
-
-## [3.0.0-dev7]
-
-### Added
-
-- Added new `ccf.crypto.pemToJwk`, `ccf.crypto.pubPemToJwk`, `ccf.crypto.rsaPemToJwk`, `ccf.crypto.pubRsaPemToJwk` to JavaScript/TypesScript API to convert EC/RSA keys from PEM to JWK (#4359).
-
-### Changed
-
-- JavaScript crypto API (e.g. `generateAesKey` and `wrapKey`) are now included as part of the `ccf.crypto` package (#4372).
 
 ## [3.0.0-dev6]
 
@@ -2484,7 +2517,7 @@ Browse our [documentation](https://microsoft.github.io/CCF/main/index.html) to g
 
 ### Changed
 
-- The default constitution no longer contains `set_service_principal` or `remove_service_principal` since they are not used by the core framework. Instead any apps which wish to use these tables should add them to their own constitution. A [sample implementation](https://github.com/microsoft/CCF/tree/main/samples/constitutions/test/service_principals/actions.js) is available, and used in the CI tests.
+- The default constitution no longer contains `set_service_principal` or `remove_service_principal` since they are not used by the core framework. Instead any apps which wish to use these tables should add them to their own constitution. A [sample implementation](https://github.com/microsoft/CCF/blob/ccf-0.99.2/src/runtime_config/test/service_principals_actions.js) is available, and used in the CI tests.
 - Proposal status now includes a `final_votes` and `vote_failures` map, recording the outcome of each vote per member. `failure_reason` and `failure_trace` have been consolidated into a single `failure` object, which is also used for `vote_failures`.
 
 ## [0.99.1]
@@ -3025,6 +3058,7 @@ The 1.0 release will require minimal changes from this release.
 - New standard endpoint `node/ids` for retrieving node ID from IP address (#1319).
 - Support for read-only transactions. Use `tx.get_read_only_view` to retrieve read-only views, and install with `make_read_only_endpoint` if all operations are read-only.
 - Support for distinct handlers on the same URI. Each installed handler/endpoint is now associated with a single HTTP method, so you can install different operations on `POST /foo` and `GET /foo`.
+- Initial websockets support (#629) [sample](https://github.com/microsoft/CCF/blob/ccf-0.11.1/tests/ws_scaffold.py#L21)
 
 ### Changed
 
@@ -3050,7 +3084,7 @@ CCF now deals internally only with serialised data in its tables, mapping byte-v
 - `foreach` early-exit semantics are now consistent (#1222)
 - Third party dependency updates (#1144, #1148, #1149, #1151, #1155, #1255)
 - All logging output now goes to stdout, and can be configured to be either JSON or plain text (#1258) [doc](https://microsoft.github.io/CCF/main/operators/node_output.html#json-formatting)
-- Initial support for historical query handlers (#1207) [sample](https://github.com/microsoft/CCF/blob/main/src/apps/logging/logging.cpp#L262)
+- Initial support for historical query handlers (#1207) [sample](https://github.com/microsoft/CCF/blob/0.11/src/apps/logging/logging.cpp#L262)
 - Implement the equivalent of "log rolling" for the ledger (#1135) [doc](https://microsoft.github.io/CCF/main/operators/ledger.html)
 - Internal RPCs renamed to follow more traditional REST conventions (#968) [doc](https://microsoft.github.io/CCF/main/operators/operator_rpc_api.html)
 
@@ -3061,7 +3095,6 @@ CCF now deals internally only with serialised data in its tables, mapping byte-v
 - Application CI and runtime containers are now available (#1178)
   1. `ccfciteam/ccf-app-ci:0.11` is recommended to build CCF applications
   2. `ccfciteam/ccf-app-run:0.11` is recommended to run CCF nodes, for example in k8s
-- Initial websockets support (#629) [sample](https://github.com/microsoft/CCF/blob/main/tests/ws_scaffold.py#L21)
 
 ### Removed
 
@@ -3373,10 +3406,8 @@ Initial pre-release
 [0.4]: https://github.com/microsoft/CCF/releases/tag/v0.4
 [0.3]: https://github.com/microsoft/CCF/releases/tag/v0.3
 [2.0.0-rc8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc8
-[unreleased]: https://github.com/microsoft/CCF/releases/tag/ccf-Unreleased
 [3.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev4
 [3.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev6
-[3.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-dev7
 [3.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc0
 [3.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc2
 [5.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0

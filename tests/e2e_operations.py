@@ -4,6 +4,7 @@ import tempfile
 import os
 import signal
 import shutil
+import urllib.parse
 
 import infra.logging_app as app
 import infra.e2e_args
@@ -29,11 +30,11 @@ import infra.snp as snp
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 import cbor2
-import sys
 import pathlib
 import infra.concurrency
 import ccf.read_ledger
 import re
+import hashlib
 
 from loguru import logger as LOG
 
@@ -355,25 +356,38 @@ def test_snapshot_access(network, args):
             assert r.headers["accept-ranges"] == "bytes", r.headers
             total_size = int(r.headers["content-length"])
 
+            # Use HTTP-style inclusive range end value
+            range_max = total_size - 1
+
             a = total_size // 3
             b = a * 2
             for start, end in [
                 (0, None),
-                (0, total_size),
+                (0, 0),
+                (0, range_max),
                 (0, a),
                 (a, a),
                 (a, b),
                 (b, b),
-                (b, total_size),
+                (b, range_max),
                 (b, None),
+                (range_max, range_max),
+                (range_max, None),
             ]:
                 range_header_value = f"{start}-{'' if end is None else end}"
                 r = do_request(
                     "GET", path, headers={"range": f"bytes={range_header_value}"}
                 )
                 assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
+                headers = r.headers
+                implied_end = range_max if end is None else end
+                assert int(headers["content-length"]) == implied_end - start + 1
+                assert (
+                    headers["content-range"]
+                    == f"bytes {start}-{implied_end}/{total_size}"
+                )
 
-                expected = snapshot_data[start:end]
+                expected = snapshot_data[start : (None if end is None else end + 1)]
                 actual = r.body.data()
                 assert (
                     expected == actual
@@ -410,6 +424,95 @@ def test_snapshot_access(network, args):
                 r = do_request("GET", path, headers={"range": f"bytes={invalid_range}"})
                 assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
                 assert err_msg in r.body.json()["error"]["message"], r
+
+
+def test_snapshot_repr_digest(network, args):
+    """
+    Verify that the Want-Repr-Digest / Repr-Digest headers work correctly
+    on the snapshot endpoints for GET and HEAD, including sha-256,
+    sha-384 and sha-512 algorithms.
+    """
+    primary, _ = network.find_nodes()
+
+    snapshots_dir = network.get_committed_snapshots(primary)
+    snapshot_name = ccf.ledger.latest_snapshot(snapshots_dir)
+    snapshot_path = os.path.join(snapshots_dir, snapshot_name)
+    with open(snapshot_path, "rb") as f:
+        snapshot_data = f.read()
+
+    path = f"/node/snapshot/{snapshot_name}"
+
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        algos = {
+            "sha-256": hashlib.sha256,
+            "sha-384": hashlib.sha384,
+            "sha-512": hashlib.sha512,
+        }
+
+        for algo_name, hash_fn in algos.items():
+            expected_b64 = base64.b64encode(hash_fn(snapshot_data).digest()).decode()
+            expected_header = f"{algo_name}=:{expected_b64}:"
+
+            for verb in ("GET", "HEAD"):
+                r = c.call(
+                    path,
+                    http_verb=verb,
+                    headers={"want-repr-digest": f"{algo_name}=10"},
+                    allow_redirects=False,
+                )
+                assert (
+                    r.status_code == http.HTTPStatus.OK.value
+                ), f"Expected 200 OK for {verb} without Range, got {r.status_code}"
+                repr_digest = r.headers.get("repr-digest") or r.headers.get(
+                    "Repr-Digest"
+                )
+                assert (
+                    repr_digest is not None
+                ), f"Missing Repr-Digest header on {verb} with {algo_name}"
+                assert repr_digest == expected_header, (
+                    f"Repr-Digest mismatch on {verb} with {algo_name}: "
+                    f"expected {expected_header}, got {repr_digest}"
+                )
+
+        # Verify that requests without Want-Repr-Digest do not include
+        # the Repr-Digest header
+        r = c.get(path, allow_redirects=False)
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        assert repr_digest is None, (
+            f"Unexpected Repr-Digest header when Want-Repr-Digest was not sent: "
+            f"{repr_digest}"
+        )
+
+        # Verify Repr-Digest still reflects the full file when a Range
+        # header is sent (body is partial, digest is full)
+        total_size = len(snapshot_data)
+        range_end = total_size // 2
+        expected_b64 = base64.b64encode(hashlib.sha256(snapshot_data).digest()).decode()
+        expected_header = f"sha-256=:{expected_b64}:"
+        r = c.call(
+            path,
+            http_verb="GET",
+            headers={
+                "want-repr-digest": "sha-256=10",
+                "range": f"bytes=0-{range_end}",
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 Partial Content for GET with Range, got {r.status_code}"
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        assert repr_digest is not None, "Missing Repr-Digest header on GET with Range"
+        assert repr_digest == expected_header, (
+            f"Repr-Digest should reflect full file even with Range: "
+            f"expected {expected_header}, got {repr_digest}"
+        )
+        # Verify response body is partial
+        assert (
+            len(r.body.data()) == range_end + 1
+        ), f"Expected partial body of {range_end + 1} bytes, got {len(r.body.data())}"
 
 
 def test_snapshot_selection(network, args):
@@ -631,6 +734,188 @@ def test_nulled_snapshot(network, args):
         assert failed, "Node should not have joined successfully"
 
 
+def test_corrupt_snapshot_handling(network, args):
+    """
+    Test that corrupt snapshots in writable and read-only directories are
+    handled correctly:
+    - In the writable directory, corrupt files are renamed to .ignored.
+    - In a read-only (config) directory, log messages about unrenamable files
+      are emitted.
+    - When the writable directory's permissions prevent renaming, a log message
+      about failure to mark the snapshot as ignored is emitted.
+    """
+
+    # Craft corrupt snapshot data that passes separate_segments() (valid header
+    # with non-zero body size and non-empty receipt area) but fails
+    # verify_snapshot() because the receipt is not valid JSON.
+    # SerialisedEntryHeader is 8 bytes: version(1) + flags(1) + size(48-bit LE)
+    body_size = 16
+    header = bytes([1, 0]) + body_size.to_bytes(6, "little")
+    assert len(header) == 8
+    body = b"\x00" * body_size
+    receipt = b"this is not valid json!!"
+    corrupt_data = header + body + receipt
+
+    # Use a higher seqno for the writable dir so it is tried first (snapshots
+    # are iterated in descending seqno order).
+    writable_snapshot_name = "snapshot_2000_2500.committed"
+    read_only_snapshot_name = "snapshot_1000_1500.committed"
+
+    # ---- Part 1: writable dir (rename succeeds) + read-only config dir ----
+    LOG.info("Part 1: corrupt snapshots in both writable and read-only directories")
+
+    with tempfile.TemporaryDirectory() as writable_dir, tempfile.TemporaryDirectory() as read_only_dir:
+        # Place corrupt snapshots
+        with open(os.path.join(writable_dir, writable_snapshot_name), "wb") as f:
+            f.write(corrupt_data)
+        with open(os.path.join(read_only_dir, read_only_snapshot_name), "wb") as f:
+            f.write(corrupt_data)
+
+        new_node = network.create_node()
+
+        # Set up the join with the writable snapshot directory only; we will
+        # inject the read-only directory into the config afterwards.
+        network.setup_join_node(
+            new_node,
+            args.package,
+            args,
+            snapshots_dir=writable_dir,
+            fetch_recent_snapshot=False,
+        )
+
+        # The node's workspace root and config file
+        node_root = new_node.remote.remote.root
+        config_file_name = f"{new_node.remote.local_node_id}.config.json"
+        config_path = os.path.join(node_root, config_file_name)
+
+        # Copy the read-only snapshot directory into the node's workspace
+        ro_dir_basename = os.path.basename(read_only_dir)
+        shutil.copytree(read_only_dir, os.path.join(node_root, ro_dir_basename))
+
+        # Patch the config to include the read-only snapshot directory.
+        # If the config file is a symlink, replace it with a copy so we
+        # don't mutate the shared original.
+        if os.path.islink(config_path):
+            target = os.path.realpath(config_path)
+            os.unlink(config_path)
+            shutil.copy2(target, config_path)
+
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        config["snapshots"]["read_only_directory"] = ro_dir_basename
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+
+        # Start the node – it should fall back to ledger replay after
+        # discarding both corrupt snapshots.  If the node fails to join
+        # (e.g. timeout), that is acceptable – the snapshot selection
+        # behaviour we care about happens during startup before the join
+        # protocol completes.
+        try:
+            network.run_join_node(new_node)
+            new_node.stop()
+        except Exception as e:
+            LOG.warning(f"Node failed to join (expected if ledger replay is slow): {e}")
+            # run_join_node already stopped and removed the node on failure,
+            # but we still need to ensure the process is down.
+            try:
+                new_node.stop()
+            except Exception:
+                pass
+
+        # -- Verify writable directory: file must be renamed to .ignored --
+        writable_in_ws = os.path.join(node_root, os.path.basename(writable_dir))
+        ws_files = os.listdir(writable_in_ws)
+        assert writable_snapshot_name not in ws_files, (
+            f"Corrupt snapshot {writable_snapshot_name} should have been "
+            f"renamed in writable dir, but found: {ws_files}"
+        )
+        assert f"{writable_snapshot_name}.ignored" in ws_files, (
+            f"Expected {writable_snapshot_name}.ignored in writable dir, "
+            f"but found: {ws_files}"
+        )
+
+        # -- Verify read-only directory: file must still be present --
+        ro_in_ws = os.path.join(node_root, ro_dir_basename)
+        ro_files = os.listdir(ro_in_ws)
+        assert read_only_snapshot_name in ro_files, (
+            f"Corrupt snapshot {read_only_snapshot_name} in read-only dir "
+            f"should not have been renamed, but found: {ro_files}"
+        )
+
+        # -- Verify node logs --
+        assert new_node.check_log_for_error_message(
+            "Error while verifying"
+        ), "Expected 'Error while verifying' in node logs"
+
+        assert new_node.check_log_for_error_message(
+            "Ignoring corrupt snapshot"
+        ), "Expected 'Ignoring corrupt snapshot' in node logs"
+
+        assert new_node.check_log_for_error_message(
+            "is in a read-only directory"
+        ), "Expected read-only directory message in node logs"
+
+    # ---- Part 2: writable dir with restricted permissions (rename fails) ----
+    LOG.info("Part 2: corrupt snapshot in writable dir that cannot be renamed")
+
+    unrenamable_snapshot_name = "snapshot_3000_3500.committed"
+
+    with tempfile.TemporaryDirectory() as restricted_dir:
+        snapshot_path = os.path.join(restricted_dir, unrenamable_snapshot_name)
+        with open(snapshot_path, "wb") as f:
+            f.write(corrupt_data)
+
+        new_node2 = network.create_node()
+        network.setup_join_node(
+            new_node2,
+            args.package,
+            args,
+            snapshots_dir=restricted_dir,
+            fetch_recent_snapshot=False,
+        )
+
+        # To make the rename to .ignored fail, create a *directory* with the
+        # target name (<snapshot>.ignored).  On Linux, rename() returns EISDIR
+        # when the source is a file and the destination is a directory,
+        # regardless of user privileges (chmod is ineffective under root).
+        node_root2 = new_node2.remote.remote.root
+        restricted_in_ws = os.path.join(node_root2, os.path.basename(restricted_dir))
+        blocker_dir = os.path.join(
+            restricted_in_ws, f"{unrenamable_snapshot_name}.ignored"
+        )
+        os.makedirs(blocker_dir)
+        # Place a file inside so the directory is non-empty (extra safety)
+        with open(os.path.join(blocker_dir, "placeholder"), "w") as f:
+            f.write("")
+
+        try:
+            network.run_join_node(new_node2)
+        except Exception:
+            # The node may fail to join if it cannot write to the snapshots
+            # directory at all; that is acceptable for this sub-test.
+            pass
+
+        try:
+            new_node2.stop()
+        except Exception:
+            pass
+
+        # The corrupt file should still be present (rename failed)
+        ws_files2 = os.listdir(restricted_in_ws)
+        assert unrenamable_snapshot_name in ws_files2, (
+            f"Corrupt snapshot {unrenamable_snapshot_name} should still exist "
+            f"after failed rename, but found: {ws_files2}"
+        )
+
+        # Check that the failure-to-rename message appears in the logs
+        assert new_node2.check_log_for_error_message(
+            "Unable to mark snapshot as ignored"
+        ), "Expected 'Unable to mark snapshot as ignored' in node logs"
+
+    return network
+
+
 def split_all_ledger_files_in_dir(input_dir, output_dir):
     # A ledger file can only be split at a seqno that contains a signature
     # (so that all files end on a signature that verifies their integrity).
@@ -688,6 +973,537 @@ def test_split_ledger_on_stopped_network(primary, args):
     )
 
 
+def test_ledger_chunk_access(network, args):
+    """
+    Access ledger chunks linearly, checking redirection, content-length and
+    content correctness. All nodes have all chunks locally.
+    """
+    primary, backups = network.find_nodes()
+
+    for node in (primary, *backups):
+        with node.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
+            main_ledger_dir = node.get_main_ledger_dir()
+            chunks = [
+                f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")
+            ]
+            chunks = sorted(
+                (*ccf.ledger.range_from_filename(chunk), chunk) for chunk in chunks
+            )
+            assert len(chunks) > 10, f"Unexpectedly small number of chunks {chunks}"
+
+            for start_index, end_index, chunk in chunks:
+                chunk_url = None
+                # Asking about any index in the chunk should redirect to the chunk
+                for index in (start_index, end_index, (start_index + end_index) // 2):
+                    r = c.head(
+                        f"/node/ledger-chunk?since={index}", allow_redirects=False
+                    )
+                    assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+                    assert r.headers["Location"].endswith(
+                        f"/node/ledger-chunk/{chunk}"
+                    ), r
+                    r = c.get(
+                        f"/node/ledger-chunk?since={index}", allow_redirects=False
+                    )
+                    assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+                    assert r.headers["Location"].endswith(
+                        f"/node/ledger-chunk/{chunk}"
+                    ), r
+
+                    chunk_url = urllib.parse.urlparse(r.headers["Location"])
+
+                assert chunk_url is not None
+
+                r = c.head(chunk_url.path, allow_redirects=False)
+                chunk_size = int(r.headers["Content-Length"])
+
+                main_ledger_dir = node.get_main_ledger_dir()
+                ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
+                actual_chunk_size = os.stat(ledger_chunk_path).st_size
+                assert (
+                    chunk_size == actual_chunk_size
+                ), f"Expected chunk size {actual_chunk_size}, got {chunk_size}"
+
+                r = c.get(chunk_url.path, allow_redirects=False)
+                assert r.status_code == http.HTTPStatus.OK.value, r
+                dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
+                with open(ledger_chunk_path, "rb") as f:
+                    actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
+                assert (
+                    dled_chunk_digest == actual_chunk_digest
+                ), "Ledger chunk content does not match"
+
+            LOG.info("Accessing an empty chunk always returns an error")
+            with tempfile.NamedTemporaryFile(dir=main_ledger_dir) as temp_chunk:
+                chunk_url = f"/node/ledger-chunk/{os.path.basename(temp_chunk.name)}"
+                r = c.get(
+                    chunk_url,
+                    allow_redirects=True,
+                )
+                assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+
+                chunk_url = f"/node/ledger-chunk/{os.path.basename(temp_chunk.name)}"
+                for range_value in ("bytes=0-10", "bytes=0-", "bytes=0-0"):
+                    r = c.get(
+                        chunk_url,
+                        allow_redirects=True,
+                        headers={"Range": range_value},
+                    )
+                    assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+
+    # ETag / If-None-Match tests on a single chunk
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        main_ledger_dir = primary.get_main_ledger_dir()
+        chunks = [f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")]
+        chunks = sorted(
+            (*ccf.ledger.range_from_filename(chunk), chunk) for chunk in chunks
+        )
+        assert len(chunks) > 0, "No committed chunks found"
+        _, _, chunk = chunks[0]
+        chunk_url = f"/node/ledger-chunk/{chunk}"
+        ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
+        with open(ledger_chunk_path, "rb") as f:
+            chunk_data = f.read()
+
+        # 1. Normal GET returns a correctly formed ETag
+        r = c.get(chunk_url, allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.OK.value, r
+        etag = r.headers.get("etag")
+        assert etag is not None, "Missing ETag header on GET"
+        # ETag must be in RFC 9530 format: "sha-256=:<base64>:"
+        assert etag.startswith('"sha-256=:') and etag.endswith(
+            ':"'
+        ), f"ETag has unexpected format: {etag}"
+        expected_b64 = base64.b64encode(hashlib.sha256(chunk_data).digest()).decode()
+        assert (
+            etag == f'"sha-256=:{expected_b64}:"'
+        ), f"ETag digest mismatch: expected sha-256=:{expected_b64}:, got {etag}"
+
+        # 2. GET with If-None-Match that does NOT match returns a fresh download
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": '"sha-256=:AAAA:"'},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.OK.value
+        ), f"Expected 200 for non-matching If-None-Match, got {r.status_code}"
+        assert (
+            r.body.data() == chunk_data
+        ), "Body content should match for non-matching If-None-Match"
+
+        # 3.a. GET with If-None-Match matching the ETag returns 304 Not Modified
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match, got {r.status_code}"
+
+        # 3.b. Compute a sha-384 version of the same ETag, and confirm that it works too
+        # RFC 9530 allows multiple algorithms in the ETag, and If-None-Match should match if any of them match
+        # GET with If-None-Match matching the ETag returns 304 Not Modified
+        sha384_b64 = base64.b64encode(hashlib.sha384(chunk_data).digest()).decode()
+        sha384_etag = f'"sha-384=:{sha384_b64}:"'
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": sha384_etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching sha-384 If-None-Match, got {r.status_code}"
+
+        # 3.b2. sha-512 variant
+        sha512_b64 = base64.b64encode(hashlib.sha512(chunk_data).digest()).decode()
+        sha512_etag = f'"sha-512=:{sha512_b64}:"'
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": sha512_etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching sha-512 If-None-Match, got {r.status_code}"
+
+        # 3.c. HEAD returns the same ETag as GET
+        r = c.head(chunk_url, allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.OK.value, r
+        head_etag = r.headers.get("etag")
+        assert (
+            head_etag == etag
+        ), f"HEAD ETag mismatch: expected {etag}, got {head_etag}"
+
+        # 3.d. HEAD with matching If-None-Match returns 304
+        r = c.call(
+            chunk_url,
+            http_verb="HEAD",
+            headers={"if-none-match": etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match with HEAD, got {r.status_code}"
+
+        # 4. Same checks on a sub-Range of the file
+        total_size = len(chunk_data)
+        range_end = total_size // 2
+        partial_data = chunk_data[: range_end + 1]
+        r = c.call(
+            chunk_url,
+            http_verb="GET",
+            headers={"range": f"bytes=0-{range_end}"},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 for Range GET, got {r.status_code}"
+        range_etag = r.headers.get("etag")
+        assert range_etag is not None, "Missing ETag header on Range GET"
+        range_expected_b64 = base64.b64encode(
+            hashlib.sha256(partial_data).digest()
+        ).decode()
+        assert (
+            range_etag == f'"sha-256=:{range_expected_b64}:"'
+        ), f"Range ETag mismatch: expected sha-256=:{range_expected_b64}:, got {range_etag}"
+
+        # Non-matching If-None-Match on range → fresh partial download
+        r = c.call(
+            chunk_url,
+            http_verb="GET",
+            headers={
+                "range": f"bytes=0-{range_end}",
+                "if-none-match": '"sha-256=:AAAA:"',
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 for non-matching If-None-Match with Range, got {r.status_code}"
+        assert (
+            r.body.data() == partial_data
+        ), "Body content should match partial data for non-matching If-None-Match with Range"
+
+        # Matching If-None-Match on range → 304 Not Modified
+        r = c.call(
+            chunk_url,
+            http_verb="GET",
+            headers={
+                "range": f"bytes=0-{range_end}",
+                "if-none-match": range_etag,
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match with Range, got {r.status_code}"
+
+        # HEAD with Range should return the same ETag as the corresponding GET range
+        r = c.call(
+            chunk_url,
+            http_verb="HEAD",
+            headers={
+                "range": f"bytes=0-{range_end}",
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 for HEAD with Range, got {r.status_code}"
+        head_range_etag = r.headers.get("etag")
+        assert (
+            head_range_etag == range_etag
+        ), f"HEAD Range ETag mismatch: expected {range_etag}, got {head_range_etag}"
+
+        # Matching If-None-Match on HEAD + Range → 304 Not Modified
+        r = c.call(
+            chunk_url,
+            http_verb="HEAD",
+            headers={
+                "range": f"bytes=0-{range_end}",
+                "if-none-match": range_etag,
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match with HEAD Range, got {r.status_code}"
+
+
+def test_ledger_chunk_repr_digest(network, args):
+    """
+    Verify that the Want-Repr-Digest / Repr-Digest headers work correctly
+    on the ledger-chunk endpoints for GET and HEAD, including sha-256,
+    sha-384 and sha-512 algorithms.
+    """
+    primary, _ = network.find_nodes()
+
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        main_ledger_dir = primary.get_main_ledger_dir()
+        chunks = [f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")]
+        chunks = sorted(
+            (*ccf.ledger.range_from_filename(chunk), chunk) for chunk in chunks
+        )
+        assert len(chunks) > 0, "No committed chunks found"
+
+        _, _, chunk = chunks[0]
+        chunk_url = f"/node/ledger-chunk/{chunk}"
+        ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
+        with open(ledger_chunk_path, "rb") as f:
+            chunk_data = f.read()
+
+        algos = {
+            "sha-256": hashlib.sha256,
+            "sha-384": hashlib.sha384,
+            "sha-512": hashlib.sha512,
+        }
+
+        for algo_name, hash_fn in algos.items():
+            expected_b64 = base64.b64encode(hash_fn(chunk_data).digest()).decode()
+            expected_header = f"{algo_name}=:{expected_b64}:"
+
+            for verb in ("GET", "HEAD"):
+                r = c.call(
+                    chunk_url,
+                    http_verb=verb,
+                    headers={"want-repr-digest": f"{algo_name}=10"},
+                    allow_redirects=False,
+                )
+                assert (
+                    r.status_code == http.HTTPStatus.OK.value
+                ), f"Expected 200 OK for {verb} without Range, got {r.status_code}"
+                repr_digest = r.headers.get("repr-digest") or r.headers.get(
+                    "Repr-Digest"
+                )
+                assert (
+                    repr_digest is not None
+                ), f"Missing Repr-Digest header on {verb} with {algo_name}"
+                assert repr_digest == expected_header, (
+                    f"Repr-Digest mismatch on {verb} with {algo_name}: "
+                    f"expected {expected_header}, got {repr_digest}"
+                )
+
+        # Verify that requests without Want-Repr-Digest do not include
+        # the Repr-Digest header
+        r = c.get(chunk_url, allow_redirects=False)
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        assert repr_digest is None, (
+            f"Unexpected Repr-Digest header when Want-Repr-Digest was not sent: "
+            f"{repr_digest}"
+        )
+
+        # Verify that unsupported algorithms fall back to sha-256
+        # (RFC 9530 Appendix C.2)
+        r = c.get(
+            chunk_url,
+            headers={"want-repr-digest": "md5=10"},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.OK.value
+        ), f"Unexpected status {r.status_code} for unsupported algorithm request"
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        expected_b64 = base64.b64encode(hashlib.sha256(chunk_data).digest()).decode()
+        expected_header = f"sha-256=:{expected_b64}:"
+        assert repr_digest == expected_header, (
+            "Unsupported algorithms should fall back to sha-256: "
+            f"expected {expected_header}, got {repr_digest}"
+        )
+
+        # Verify that the highest-priority algorithm is chosen
+        r = c.get(
+            chunk_url,
+            headers={"want-repr-digest": "sha-256=3, sha-512=10"},
+            allow_redirects=False,
+        )
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        expected_b64 = base64.b64encode(hashlib.sha512(chunk_data).digest()).decode()
+        expected_header = f"sha-512=:{expected_b64}:"
+        assert (
+            repr_digest == expected_header
+        ), f"Expected sha-512 (highest priority) but got {repr_digest}"
+
+        # Verify Repr-Digest still reflects the full file when a Range
+        # header is sent (body is partial, digest is full)
+        total_size = len(chunk_data)
+        range_end = total_size // 2
+        expected_b64 = base64.b64encode(hashlib.sha256(chunk_data).digest()).decode()
+        expected_header = f"sha-256=:{expected_b64}:"
+        r = c.call(
+            chunk_url,
+            http_verb="GET",
+            headers={
+                "want-repr-digest": "sha-256=10",
+                "range": f"bytes=0-{range_end}",
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 Partial Content for GET with Range, got {r.status_code}"
+        repr_digest = r.headers.get("repr-digest") or r.headers.get("Repr-Digest")
+        assert repr_digest is not None, "Missing Repr-Digest header on GET with Range"
+        assert repr_digest == expected_header, (
+            f"Repr-Digest should reflect full file even with Range: "
+            f"expected {expected_header}, got {repr_digest}"
+        )
+        # Verify response body is partial
+        assert (
+            len(r.body.data()) == range_end + 1
+        ), f"Expected partial body of {range_end + 1} bytes, got {len(r.body.data())}"
+
+
+def test_ledger_chunk_redirect_recent(network, args):
+    """
+    Access ledger chunk that is missing locally on a backup, after the initial index,
+    checking redirection to the primary and content correctness.
+    """
+    primary, backups = network.find_nodes()
+
+    late_backup = backups[-1]
+    main_ledger_dir = late_backup.get_main_ledger_dir()
+    LOG.info(f"Late backup main ledger directory: {main_ledger_dir}")
+    chunks = [f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")]
+    chunks = sorted(chunks, key=lambda chunk: ccf.ledger.range_from_filename(chunk)[0])
+    start_of_last_chunk = ccf.ledger.range_from_filename(chunks[-1])[0]
+    # Drop last chunk from the backup to force redirect
+    LOG.info(
+        f"Dropping last ledger chunk {chunks[-1]} from late backup main ledger directory {main_ledger_dir}"
+    )
+    os.remove(os.path.join(main_ledger_dir, chunks[-1]))
+    network.skip_verify_chunking = True
+    with late_backup.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        r = c.head(
+            f"/node/ledger-chunk?since={start_of_last_chunk}", allow_redirects=False
+        )
+        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+        expected_host = primary.get_public_rpc_host(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        )
+        expected_port = primary.get_public_rpc_port(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        )
+        expected_location = f"https://{expected_host}:{expected_port}/node/ledger-chunk?since={start_of_last_chunk}"
+        assert r.headers["Location"] == expected_location, r
+        r = c.get(
+            f"/node/ledger-chunk?since={start_of_last_chunk}", allow_redirects=True
+        )
+        primary_main_ledger_dir = primary.get_main_ledger_dir()
+        ledger_chunk_path = os.path.join(primary_main_ledger_dir, chunks[-1])
+        dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
+        with open(ledger_chunk_path, "rb") as f:
+            actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
+        assert (
+            dled_chunk_digest == actual_chunk_digest
+        ), f"Ledger chunk content for {chunks[-1]} does not match"
+
+
+def test_ledger_chunk_redirect_gap(network, args):
+    """
+    Add a new node to the network from a recent snapshot, then access a ledger chunk that
+    predates the snapshot on the new node, checking redirection to another node and content correctness.
+    """
+    primary, backups = network.find_nodes()
+
+    # Get commit index from primary
+    with primary.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
+        r = c.get("/node/commit").body.json()
+        commit_seqno = TxID.from_str(r["transaction_id"]).seqno
+
+    new_node = network.create_node()
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        # Fetch recent snapshot to speed up joining
+        fetch_recent_snapshot=True,
+    )
+    network.trust_node(new_node, args)
+
+    with new_node.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
+        r = c.get("/node/state")
+        startup_seqno = r.body.json()["startup_seqno"]
+        # The new node should have started from a snapshot taken after the commit at the start of the test
+        assert (
+            startup_seqno > commit_seqno
+        ), f"New node joined at {startup_seqno}, should be later than commit at start of test {commit_seqno}"
+
+    main_ledger_dir = new_node.get_main_ledger_dir()
+    chunks = [f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")]
+    chunks = sorted(chunks, key=lambda chunk: ccf.ledger.range_from_filename(chunk)[0])
+    init_index = ccf.ledger.range_from_filename(chunks[0])[0]
+    # And it does not have any ledger chunks predating the snapshot
+    assert (
+        init_index >= startup_seqno
+    ), f"New node has ledger chunks starting at {init_index}, should be later than startup seqno {startup_seqno}"
+
+    download_index = 1
+    LOG.info(
+        f"New node ledger chunks start at index {init_index}, downloading missing chunks"
+    )
+    # But we can download all missing chunks from other nodes
+    while download_index < init_index:
+        with new_node.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
+            r = c.head(
+                f"/node/ledger-chunk?since={download_index}", allow_redirects=False
+            )
+            assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+            # Should redirect to any existing node
+            redirect_location = urllib.parse.urlparse(r.headers["Location"])
+            redirect_host = redirect_location.hostname
+            redirect_port = redirect_location.port
+
+            redirected_node = None
+            for node in network.get_joined_nodes():
+                node_host = node.get_public_rpc_host(
+                    interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+                )
+                node_port = node.get_public_rpc_port(
+                    interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+                )
+                if node_host == redirect_host and node_port == redirect_port:
+                    redirected_node = node
+                    break
+
+            assert (
+                redirected_node is not None
+            ), f"Ledger chunk redirect location {r.headers['Location']} does not match any known node"
+
+            assert (
+                redirected_node != new_node
+            ), "Ledger chunk redirect should not point to self"
+
+            r = c.get(
+                f"/node/ledger-chunk?since={download_index}", allow_redirects=True
+            )
+            chunk_name = os.path.basename(r.headers["x-ms-ccf-ledger-chunk-name"])
+            ledger_chunk_path = os.path.join(
+                # There may have been more than one redirect
+                primary.get_main_ledger_dir(),
+                chunk_name,
+            )
+            dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
+            with open(ledger_chunk_path, "rb") as f:
+                actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
+            assert (
+                dled_chunk_digest == actual_chunk_digest
+            ), f"Ledger chunk content for {chunk_name} does not match"
+            download_index = ccf.ledger.range_from_filename(chunk_name)[1] + 1
+            assert download_index is not None, chunk_name
+
+
 def run_file_operations(args):
     with tempfile.NamedTemporaryFile(mode="w+") as ntf:
         service_data = {"the owls": "are not", "what": "they seem"}
@@ -720,9 +1536,11 @@ def run_file_operations(args):
                 test_forced_snapshot(network, args)
                 test_large_snapshot(network, args)
                 test_snapshot_access(network, args)
+                test_snapshot_repr_digest(network, args)
                 test_snapshot_selection(network, args)
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
+                test_corrupt_snapshot_handling(network, args)
 
                 # Ensure that the network is still live
                 primary, _ = network.find_primary()
@@ -731,6 +1549,23 @@ def run_file_operations(args):
 
                 test_split_ledger_on_stopped_network(primary, args)
                 args.common_read_only_ledger_dir = None  # Reset for future tests
+
+
+def run_ledger_chunk_download(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args)
+        # Issue enough transactions to create multiple ledger chunks
+        network.txs.issue(network, number_txs=10)
+        test_ledger_chunk_access(network, args)
+        test_ledger_chunk_repr_digest(network, args)
+        test_ledger_chunk_redirect_recent(network, args)
+        test_ledger_chunk_redirect_gap(network, args)
 
 
 def run_tls_san_checks(const_args):
@@ -1230,6 +2065,7 @@ def run_empty_ledger_dir_check(args):
             # Now write a file in the directory
             with open(os.path.join(tmp_dir, "ledger_1000_1500.committed"), "wb") as f:
                 f.write(b"bar")
+            network.skip_verify_chunking = True
 
             # Start new network, this should fail
             try:
@@ -1258,7 +2094,7 @@ def run_initial_uvm_descriptor_checks(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         primary, _ = network.find_primary()
-        old_common = infra.network.get_common_folder_name(args.workspace, args.label)
+        network_service_identity_file, _ = network.save_service_identity_to_file()
         snapshots_dir = network.get_committed_snapshots(primary)
         network.stop_all_nodes()
         LOG.info("Check that the a UVM descriptor is present")
@@ -1286,12 +2122,11 @@ def run_initial_uvm_descriptor_checks(const_args):
             existing_network=network,
         ) as recovered_network:
 
-            recovered_network_args.previous_service_identity_file = os.path.join(
-                old_common, "service_cert.pem"
+            recovered_network_args.previous_service_identity_file = (
+                network_service_identity_file
             )
             recovered_network.start_in_recovery(
                 recovered_network_args,
-                common_dir=old_common,
                 ledger_dir=current_ledger_dir,
                 committed_ledger_dirs=committed_ledger_dirs,
                 snapshots_dir=snapshots_dir,
@@ -1344,7 +2179,7 @@ def run_initial_tcb_version_checks(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         primary, _ = network.find_primary()
-        old_common = infra.network.get_common_folder_name(args.workspace, args.label)
+        network_service_identity_file, _ = network.save_service_identity_to_file()
         snapshots_dir = network.get_committed_snapshots(primary)
         network.stop_all_nodes()
 
@@ -1362,8 +2197,8 @@ def run_initial_tcb_version_checks(const_args):
         current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
         recovered_network_args = copy.deepcopy(args)
-        recovered_network_args.previous_service_identity_file = os.path.join(
-            old_common, "service_cert.pem"
+        recovered_network_args.previous_service_identity_file = (
+            network_service_identity_file
         )
         recovered_network_args.label += "_recovery"
         with infra.network.network(
@@ -1374,7 +2209,6 @@ def run_initial_tcb_version_checks(const_args):
         ) as recovered_network:
             recovered_network.start_in_recovery(
                 recovered_network_args,
-                common_dir=old_common,
                 ledger_dir=current_ledger_dir,
                 committed_ledger_dirs=committed_ledger_dirs,
                 snapshots_dir=snapshots_dir,
@@ -1411,29 +2245,6 @@ def run_initial_tcb_version_checks(const_args):
             assert False, "No TCB_version found in recovery ledger"
 
 
-def wait_for_sealed_secrets(node, min_seqno=0, timeout=10):
-    out, _ = node.remote.get_logs()
-    start = time.time()
-    while time.time() < start + timeout:
-        with open(out, "r") as outf:
-            for line in outf.readlines():
-                if "Sealing complete of ledger secret to" in line:
-                    try:
-                        path = line.split()[-1]
-                        filename = os.path.basename(path)
-                        seqno = int(filename.split(".")[0])
-                        if seqno >= min_seqno:
-                            return
-                    except (IndexError, ValueError):
-                        continue
-
-        time.sleep(0.1)
-
-    raise TimeoutError(
-        f"Could not find sealed secrets for seqno {min_seqno} after {timeout}s in logs"
-    )
-
-
 def run_recovery_local_unsealing(
     const_args, recovery_f=0, rekey=False, recovery_shares_refresh=False
 ):
@@ -1441,42 +2252,30 @@ def run_recovery_local_unsealing(
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.enable_local_sealing = True
-    args.label += "_unsealing"
+    args.label += (
+        f"_unsealing_{recovery_f}_rekey_{rekey}_refresh_{recovery_shares_refresh}"
+    )
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
         network.start_and_open(args)
 
         network.save_service_identity(args)
+        network.wait_for_node_commit_sync()
 
         primary, _ = network.find_primary()
         if rekey:
-            network.wait_for_node_commit_sync()
-            with primary.client() as c:
-                r = c.get("/node/commit").body.json()
-                min_seqno = TxID.from_str(r["transaction_id"]).seqno
             network.consortium.trigger_ledger_rekey(primary)
-        else:
-            min_seqno = 0
         if recovery_shares_refresh:
             network.consortium.trigger_recovery_shares_refresh(primary)
 
-        for node in network.nodes:
-            wait_for_sealed_secrets(node, min_seqno=min_seqno)
-
-        node_secret_map = {
-            node.local_node_id: node.save_sealed_ledger_secret()
-            for node in network.nodes
-        }
-
+        # Wait for commit sync to ensure that the rekey reaches all nodes
+        network.wait_for_node_commit_sync()
         network.stop_all_nodes()
 
         prev_network = network
         for node in network.nodes:
             recovery_network_args = copy.deepcopy(args)
             recovery_network_args.nodes = infra.e2e_args.min_nodes(args, f=recovery_f)
-            recovery_network_args.previous_sealed_ledger_secret_location = (
-                node_secret_map[node.local_node_id]
-            )
             recovery_network_args.label += f"_recovery_from_node_{node.local_node_id}"
 
             with infra.network.network(
@@ -1484,6 +2283,10 @@ def run_recovery_local_unsealing(
                 recovery_network_args.binary_dir,
                 next_node_id=prev_network.next_node_id,
             ) as recovery_network:
+
+                recovery_network.per_node_args_override = {
+                    0: {"previous_local_sealing_identity": node.node_id}
+                }
 
                 # Reset consortium and users to prevent issues with hosts from existing_network
                 recovery_network.consortium = prev_network.consortium
@@ -1494,9 +2297,7 @@ def run_recovery_local_unsealing(
                 current_ledger_dir, committed_ledger_dirs = node.get_ledger()
                 recovery_network.start_in_recovery(
                     recovery_network_args,
-                    common_dir=infra.network.get_common_folder_name(
-                        args.workspace, args.label
-                    ),
+                    common_dir=network.common_dir,
                     ledger_dir=current_ledger_dir,
                     committed_ledger_dirs=committed_ledger_dirs,
                 )
@@ -1518,15 +2319,17 @@ def run_recovery_unsealing_validate_audit(const_args):
         network.start_and_open(args)
 
         network.save_service_identity(args)
-        for node in network.nodes:
-            wait_for_sealed_secrets(node)
-        node0_secrets = network.nodes[0].save_sealed_ledger_secret()
+        network.wait_for_node_commit_sync()
 
         latest_public_tables, _ = network.get_latest_ledger_public_state()
-        node_info = latest_public_tables["public:ccf.gov.nodes.info"]
-        for info in node_info.values():
-            node_info = json.loads(info.decode("utf-8"))
-            assert node_info["will_locally_seal_ledger_secrets"]
+        sealed_recovery_keys = latest_public_tables[
+            "public:ccf.gov.nodes.sealed_recovery_keys"
+        ]
+        for node in network.nodes:
+            node_id_bytes = node.node_id.encode("utf-8")
+            assert (
+                node_id_bytes in sealed_recovery_keys
+            ), f"Node {node.node_id} does not have sealed recovery key"
         assert (
             "public:ccf.internal.last_recovery_type" not in latest_public_tables
         ), "last_recovery_type was set when no recovery was performed."
@@ -1542,15 +2345,15 @@ def run_recovery_unsealing_validate_audit(const_args):
             else:
                 recovery_network_args.label += "_via_recovery_shares"
 
-            if via_local_unsealing:
-                recovery_network_args.previous_sealed_ledger_secret_location = (
-                    node0_secrets
-                )
             with infra.network.network(
                 recovery_network_args.nodes,
                 recovery_network_args.binary_dir,
                 next_node_id=prev_network.next_node_id,
             ) as recovery_network:
+                if via_local_unsealing:
+                    recovery_network.per_node_args_override = {
+                        0: {"previous_local_sealing_identity": network.nodes[0].node_id}
+                    }
 
                 # Reset consortium and users to prevent issues with hosts from existing_network
                 recovery_network.consortium = prev_network.consortium
@@ -1563,9 +2366,7 @@ def run_recovery_unsealing_validate_audit(const_args):
                 ].get_ledger()
                 recovery_network.start_in_recovery(
                     recovery_network_args,
-                    common_dir=infra.network.get_common_folder_name(
-                        args.workspace, args.label
-                    ),
+                    common_dir=network.common_dir,
                     ledger_dir=current_ledger_dir,
                     committed_ledger_dirs=committed_ledger_dirs,
                 )
@@ -1592,159 +2393,6 @@ def run_recovery_unsealing_validate_audit(const_args):
                 prev_network = recovery_network
 
 
-def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
-    LOG.info("Running recovery local unsealing corrupted secret")
-    args = copy.deepcopy(const_args)
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.enable_local_sealing = True
-    args.label += "_recovery_unsealing_corrupt"
-
-    with infra.network.network(args.nodes, args.binary_dir) as network:
-        network.start_and_open(args)
-
-        network.save_service_identity(args)
-        for node in network.nodes:
-            wait_for_sealed_secrets(node)
-
-        node_secret_map = {
-            node.local_node_id: node.save_sealed_ledger_secret()
-            for node in network.nodes
-        }
-
-        network.stop_all_nodes()
-
-        class Corruption:
-            def __init__(self, tag, lamb, expected_exception):
-                self.tag = tag
-                self.lamb = lamb
-                self.expected_exception = expected_exception
-
-            def run(self, src_dir, dst_dir):
-                secrets = {}
-                for file in os.listdir(src_dir):
-                    version = file.split(".")[0]
-                    try:
-                        data = json.loads(
-                            open(os.path.join(src_dir, file), "rb").read()
-                        )
-                    except json.JSONDecodeError:
-                        continue
-
-                    secrets[int(version)] = data
-
-                corrupted_secrets = self.lamb(secrets)
-
-                pathlib.Path(dst_dir).mkdir(parents=True, exist_ok=True)
-                for version, data in corrupted_secrets.items():
-                    secret_path = os.path.join(dst_dir, f"{version}.sealed.json")
-                    with open(secret_path, "wb") as w:
-                        w.write(json.dumps(data).encode("utf-8"))
-
-        corruptions = [Corruption("delete_everything", lambda _: {}, True)]
-
-        corruptions.append(
-            Corruption(
-                "max_version_ignored",
-                lambda s: s
-                | {
-                    int(sys.maxsize): {
-                        "ciphertext": "some data",
-                        "aad_text": "some aad",
-                    }
-                },
-                False,
-            )
-        )
-
-        corruptions.append(
-            Corruption(
-                "invalid_file",
-                lambda s: s
-                | {"asdf": {"ciphertext": "some data", "aad_text": "some aad"}},
-                False,
-            )
-        )
-
-        corruptions.append(
-            Corruption(
-                "xor_ciphertext",
-                lambda s: {
-                    v: {
-                        "ciphertext": base64.b64encode(
-                            bytes(
-                                [b ^ 0xFF for b in base64.b64decode(s[v]["ciphertext"])]
-                            )
-                        ).decode("utf-8"),
-                        "aad_text": s[v]["aad_text"],
-                    }
-                    for v in s.keys()
-                },
-                True,
-            )
-        )
-
-        # corrupt one of the ledgers
-        node = network.nodes[0]
-        ledger_secret = list(node_secret_map.values())[0]
-
-        prev_network = network
-        for corruption in corruptions:
-            LOG.info("Corruption: " + corruption.tag)
-            corrupt_ledger_secret = ledger_secret + f"{corruption.tag}.corrupt"
-            corruption.run(ledger_secret, corrupt_ledger_secret)
-
-            recovery_network_args = copy.deepcopy(args)
-            recovery_network_args.nodes = infra.e2e_args.min_nodes(
-                recovery_network_args, f=recovery_f
-            )
-            recovery_network_args.previous_sealed_ledger_secret_location = (
-                corrupt_ledger_secret
-            )
-            recovery_network_args.label += f"_{corruption.tag}"
-            with infra.network.network(
-                recovery_network_args.nodes,
-                recovery_network_args.binary_dir,
-                next_node_id=prev_network.next_node_id,
-            ) as recovery_network:
-
-                # Reset consortium and users to prevent issues with hosts from existing_network
-                recovery_network.consortium = prev_network.consortium
-                recovery_network.users = prev_network.users
-                recovery_network.txs = prev_network.txs
-                recovery_network.jwt_issuer = prev_network.jwt_issuer
-
-                current_ledger_dir, committed_ledger_dirs = node.get_ledger()
-                exception_thrown = None
-                try:
-                    recovery_network.start_in_recovery(
-                        recovery_network_args,
-                        common_dir=infra.network.get_common_folder_name(
-                            args.workspace, args.label
-                        ),
-                        ledger_dir=current_ledger_dir,
-                        committed_ledger_dirs=committed_ledger_dirs,
-                    )
-
-                    recovery_network.recover(
-                        recovery_network_args, via_local_sealing=True
-                    )
-                except Exception as e:
-                    exception_thrown = e
-                    pass
-
-                if corruption.expected_exception:
-                    assert (
-                        exception_thrown is not None
-                    ), f"Expected exception to be thrown for {corruption.tag} corruption"
-                else:
-                    assert (
-                        exception_thrown is None
-                    ), f"Expected no exception to be thrown for {corruption.tag} corruption"
-
-                recovery_network.stop_all_nodes()
-                prev_network = recovery_network
-
-
 def run_self_healing_open(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
@@ -1759,7 +2407,6 @@ def run_self_healing_open(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         network.save_service_identity(args)
-        node_secrets = [node.save_sealed_ledger_secret() for node in network.nodes]
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
@@ -1778,11 +2425,14 @@ def run_self_healing_open(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
+            recovered_network.per_node_args_override = {
+                i: {"previous_local_sealing_identity": node.node_id}
+                for i, node in enumerate(network.nodes)
+            }
             recovered_network.start_in_self_healing_open(
                 recovery_args,
                 ledger_dirs=ledger_dirs,
                 committed_ledger_dirs=committed_ledger_dirs,
-                sealed_ledger_secrets=node_secrets,
             )
             recovered_network.wait_for_self_healing_open_finish()
 
@@ -1821,7 +2471,6 @@ def run_self_healing_open_timeout_path(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         network.save_service_identity(args)
-        node_secrets = [node.save_sealed_ledger_secret() for node in network.nodes]
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
@@ -1840,11 +2489,14 @@ def run_self_healing_open_timeout_path(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
+            recovered_network.per_node_args_override = {
+                i: {"previous_local_sealing_identity": node.node_id}
+                for i, node in enumerate(network.nodes)
+            }
             recovered_network.start_in_self_healing_open(
                 recovery_args,
                 ledger_dirs=ledger_dirs,
                 committed_ledger_dirs=committed_ledger_dirs,
-                sealed_ledger_secrets=node_secrets,
                 starting_nodes=0,  # Force timeout path by starting only one node
             )
             recovered_network.wait_for_self_healing_open_finish()
@@ -1883,7 +2535,6 @@ def run_self_healing_open_multiple_timeout(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         network.save_service_identity(args)
-        node_secrets = [node.save_sealed_ledger_secret() for node in network.nodes]
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
@@ -1902,11 +2553,14 @@ def run_self_healing_open_multiple_timeout(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
+            recovered_network.per_node_args_override = {
+                i: {"previous_local_sealing_identity": node.node_id}
+                for i, node in enumerate(network.nodes)
+            }
             recovered_network.start_in_self_healing_open(
                 recovery_args,
                 ledger_dirs=ledger_dirs,
                 committed_ledger_dirs=committed_ledger_dirs,
-                sealed_ledger_secrets=node_secrets,
                 suspend_after_start=True,  # suspend each node after starting to ensure they don't progress
             )
             # for each node: start it and wait until it finishes the self-healing-open on the timeout path
@@ -1948,6 +2602,7 @@ def run_read_ledger_on_testdata(args):
                 tables = tx.get_public_domain().get_tables()
                 tx_count += 1
         LOG.info(f"Read {tx_count} transactions from {testdata_path}")
+
         snapshot_path = os.path.join(
             args.historical_testdata, testdata_dir.name, "snapshots"
         )
@@ -1960,6 +2615,55 @@ def run_read_ledger_on_testdata(args):
                     LOG.info(
                         f"Valid snapshot at {snapshot_file.path} with {len(tables)} tables"
                     )
+
+
+def test_merkle_verification_level(args):
+    """Test MERKLE verification level on isolated chunks and full ledgers"""
+    LOG.info("Testing MERKLE verification level")
+
+    # Test 1: MERKLE verification on full ledger
+    for testdata_dir in os.scandir(args.historical_testdata):
+        if not testdata_dir.is_dir():
+            continue
+        testdata_path = os.path.join(
+            args.historical_testdata, testdata_dir.name, "ledger"
+        )
+        LOG.info(f"Testing MERKLE verification on full ledger: {testdata_path}")
+
+        # Read with MERKLE verification level
+        assert ccf.read_ledger.run(
+            paths=[testdata_path],
+            print_mode=ccf.read_ledger.PrintMode.Quiet,
+            verification_level=ccf.ledger.VerificationLevel.MERKLE,
+        )
+
+    # Test 2: MERKLE verification on isolated chunks
+    # Find chunks with multiple signatures to test the "trust first signature" logic
+    test_chunks = [
+        os.path.join(
+            args.historical_testdata,
+            "expired_service",
+            "ledger",
+            "ledger_29-46.committed",
+        ),
+        os.path.join(
+            args.historical_testdata,
+            "double_sealed_service",
+            "ledger",
+            "ledger_44-64.committed",
+        ),
+    ]
+
+    for chunk_path in test_chunks:
+        if os.path.exists(chunk_path):
+            LOG.info(f"Testing MERKLE verification on isolated chunk: {chunk_path}")
+            assert ccf.read_ledger.run(
+                paths=[chunk_path],
+                print_mode=ccf.read_ledger.PrintMode.Quiet,
+                verification_level=ccf.ledger.VerificationLevel.MERKLE,
+            )
+
+    LOG.info("MERKLE verification level tests passed")
 
     # Corrupt a single chunk to confirm that read_ledger throws appropriate errors
     source_chunk = os.path.join(
@@ -2194,7 +2898,7 @@ def run_propose_request_vote(const_args):
     args.nodes = infra.e2e_args.nodes(args, 3)
     # use a high timeout to hedge against flaky nodes which pause for seconds
     # In most cases this should not matter as the propose_request_vote will cause the election quickly
-    args.election_timeout = 20000
+    args.election_timeout_ms = 20000
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -2203,32 +2907,29 @@ def run_propose_request_vote(const_args):
     ) as network:
         LOG.info("Start a network")
         network.start_and_open(args, ignore_first_sigterm=True)
-        original_primary, original_term = network.find_primary()
-        backups = [
-            n
-            for n in network.get_joined_nodes()
-            if n.node_id != original_primary.node_id
-        ]
+        try:
+            original_primary, original_term = network.find_primary()
 
-        original_primary.remote.remote.proc.send_signal(signal.SIGTERM)
-        # Find any primary which wasn't the original one
-        # If propose_request_vote worked, the new primary will be elected immediately
-        # So if this times out, the propose_request_vote likely failed
-        new_primary, new_term = network.find_primary(
-            nodes=backups, timeout=(0.9 * args.election_timeout)
-        )
-        assert (
-            new_primary.node_id != original_primary.node_id
-        ), "A new primary should have been elected"
-        assert (
-            new_term > original_term
-        ), "The new primary should be in a higher term than the original primary"
+            original_primary.remote.remote.proc.send_signal(signal.SIGTERM)
+            # Find any primary which wasn't the original one
+            # If propose_request_vote worked, the new primary will be elected rapidly
+            # So if this times out, the propose_request_vote likely failed
+            new_primary, new_term = network.wait_for_new_primary(
+                original_primary, timeout_multiplier=0.9
+            )
+            assert (
+                new_primary.node_id != original_primary.node_id
+            ), "A new primary should have been elected"
+            assert (
+                new_term > original_term
+            ), "The new primary should be in a higher term than the original primary"
 
-        LOG.info(f"New primary is node {new_primary.node_id}")
+            LOG.info(f"New primary is node {new_primary.node_id}")
 
-        # send a sigterm to ensure they shutdown correctly
-        for node in backups:
-            node.remote.remote.proc.send_signal(signal.SIGTERM)
+        finally:
+            # send an additional sigterm to balance the ignore_first_sigterm above, and ensure all nodes are cleaned up
+            for node in network.nodes:
+                node.remote.remote.proc.send_signal(signal.SIGTERM)
 
 
 def run_snp_tests(args):
@@ -2238,7 +2939,6 @@ def run_snp_tests(args):
     run_recovery_local_unsealing(args, rekey=True)
     run_recovery_local_unsealing(args, recovery_shares_refresh=True)
     run_recovery_local_unsealing(args, recovery_f=1)
-    run_recovery_unsealing_corrupt(args)
     run_recovery_unsealing_validate_audit(args)
     test_error_message_on_failure_to_read_aci_sec_context(args)
     run_self_healing_open(args)
@@ -2260,4 +2960,5 @@ def run(args):
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
     run_read_ledger_on_testdata(args)
+    test_merkle_verification_level(args)
     run_propose_request_vote(args)

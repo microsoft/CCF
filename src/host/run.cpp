@@ -37,8 +37,6 @@
 #include "pal/quote_generation.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
-#include "snapshots/fetch.h"
-#include "snapshots/filenames.h"
 #include "snapshots/snapshot_manager.h"
 #include "tcp.h"
 #include "ticker.h"
@@ -420,6 +418,14 @@ namespace ccf
     startup_config.join.service_cert =
       files::slurp(config.command.service_certificate_file);
     startup_config.join.follow_redirect = config.command.join.follow_redirect;
+    startup_config.join.fetch_recent_snapshot =
+      config.command.join.fetch_recent_snapshot;
+    startup_config.join.fetch_snapshot_max_attempts =
+      config.command.join.fetch_snapshot_max_attempts;
+    startup_config.join.fetch_snapshot_retry_interval =
+      config.command.join.fetch_snapshot_retry_interval;
+    startup_config.join.fetch_snapshot_max_size =
+      config.command.join.fetch_snapshot_max_size;
   }
 
   void populate_config_for_recover(
@@ -438,86 +444,18 @@ namespace ccf
     }
     LOG_INFO_FMT("Reading previous service identity from {}", idf);
     startup_config.recover.previous_service_identity = files::slurp(idf);
-
-    if (config.command.recover.previous_sealed_ledger_secret_location
-          .has_value())
+    if (
+      config.command.recover.previous_local_sealing_identity.has_value() &&
+      !config.enable_local_sealing)
     {
-      CCF_ASSERT_FMT(
-        ccf::pal::platform == ccf::pal::Platform::SNP,
-        "Local unsealing is only supported on SEV-SNP platforms");
-      startup_config.recover.previous_sealed_ledger_secret_location =
-        config.command.recover.previous_sealed_ledger_secret_location;
+      throw std::logic_error(
+        "Previous local sealing identity provided but local sealing is not "
+        "enabled");
     }
+    startup_config.recover.previous_local_sealing_identity =
+      config.command.recover.previous_local_sealing_identity;
     startup_config.recover.self_healing_open =
       config.command.recover.self_healing_open;
-  }
-
-  std::vector<uint8_t> load_startup_snapshot(
-    const host::CCHostConfig& config, snapshots::SnapshotManager& snapshots)
-  {
-    std::vector<uint8_t> startup_snapshot = {};
-
-    if (
-      config.command.type != StartType::Join &&
-      config.command.type != StartType::Recover)
-    {
-      return startup_snapshot;
-    }
-
-    auto latest_local_snapshot = snapshots.find_latest_committed_snapshot();
-
-    if (
-      config.command.type == StartType::Join &&
-      config.command.join.fetch_recent_snapshot)
-    {
-      // Try to fetch a recent snapshot from peer
-      auto latest_peer_snapshot = snapshots::fetch_from_peer(
-        config.command.join.target_rpc_address,
-        config.command.service_certificate_file,
-        config.command.join.fetch_snapshot_max_attempts,
-        config.command.join.fetch_snapshot_retry_interval.count_ms(),
-        config.command.join.fetch_snapshot_max_size.count_bytes());
-
-      if (latest_peer_snapshot.has_value())
-      {
-        LOG_INFO_FMT(
-          "Received snapshot {} from peer (size: {}) - writing this to "
-          "disk "
-          "and using for join startup",
-          latest_peer_snapshot->snapshot_name,
-          latest_peer_snapshot->snapshot_data.size());
-
-        const auto dst_path = fs::path(config.snapshots.directory) /
-          fs::path(latest_peer_snapshot->snapshot_name);
-        if (files::exists(dst_path))
-        {
-          LOG_FAIL_FMT(
-            "Overwriting existing snapshot at {} with data retrieved from "
-            "peer",
-            dst_path);
-        }
-        files::dump(latest_peer_snapshot->snapshot_data, dst_path);
-        startup_snapshot = latest_peer_snapshot->snapshot_data;
-      }
-    }
-
-    if (startup_snapshot.empty() && latest_local_snapshot.has_value())
-    {
-      auto& [snapshot_dir, snapshot_file] = latest_local_snapshot.value();
-      startup_snapshot = files::slurp(snapshot_dir / snapshot_file);
-
-      LOG_INFO_FMT(
-        "Found latest local snapshot file: {} (size: {})",
-        snapshot_dir / snapshot_file,
-        startup_snapshot.size());
-    }
-    else if (startup_snapshot.empty())
-    {
-      LOG_INFO_FMT(
-        "No snapshot found: Node will replay all historical transactions");
-    }
-
-    return startup_snapshot;
   }
 
   std::optional<size_t> create_enclave_node(
@@ -526,11 +464,11 @@ namespace ccf
     ringbuffer::Circuit& circuit,
     EnclaveConfig& enclave_config,
     ccf::StartupConfig& startup_config,
-    std::vector<uint8_t> startup_snapshot,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
     ccf::LoggerLevel log_level,
-    ringbuffer::NotifyingWriterFactory& notifying_factory)
+    ringbuffer::NotifyingWriterFactory& notifying_factory,
+    asynchost::Ledger& ledger)
   {
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
     std::atomic<bool> ecall_completed = false;
@@ -547,13 +485,13 @@ namespace ccf
     auto create_status = enclave_create_node(
       enclave_config,
       startup_config,
-      std::move(startup_snapshot),
       node_cert,
       service_cert,
       config.command.type,
       log_level,
       config.worker_threads,
-      notifying_factory.get_inbound_work_beacon());
+      notifying_factory.get_inbound_work_beacon(),
+      ledger);
     ecall_completed.store(true);
     flusher_thread.join();
 
@@ -797,14 +735,13 @@ namespace ccf
     startup_config.startup_host_time =
       ccf::ds::to_x509_time_string(startup_host_time);
 
-    if (config.output_files.sealed_ledger_secret_location.has_value())
+    if (config.enable_local_sealing)
     {
       CCF_ASSERT_FMT(
         ccf::pal::platform == ccf::pal::Platform::SNP,
-        "Local sealing is only supported on SEV-SNP platforms");
+        "Sealing ledger secrets is only supported on SEV-SNP platforms");
       startup_config.network.will_locally_seal_ledger_secrets = true;
-      startup_config.sealed_ledger_secret_location =
-        config.output_files.sealed_ledger_secret_location;
+      startup_config.enable_local_sealing = true;
     }
 
     // Configure startup based on command type
@@ -851,9 +788,6 @@ namespace ccf
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
 
-    // Load startup snapshot if needed
-    auto startup_snapshot = load_startup_snapshot(config, snapshots);
-
     // Used by GET /node/network/nodes/self to return rpc interfaces
     // prior to the KV being updated
     startup_config.network.rpc_interfaces = config.network.rpc_interfaces;
@@ -865,11 +799,11 @@ namespace ccf
       circuit,
       enclave_config,
       startup_config,
-      std::move(startup_snapshot),
       node_cert,
       service_cert,
       log_level,
-      factories.notifying_factory);
+      factories.notifying_factory,
+      ledger);
 
     if (enclave_creation_result.has_value())
     {

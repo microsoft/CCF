@@ -1,13 +1,13 @@
 import { assert } from "chai";
 import * as crypto from "crypto";
 import "../src/polyfill.js";
-import {
+import type {
   AesKwpParams,
-  ccf,
   DigestAlgorithm,
   RsaOaepAesKwpParams,
   RsaOaepParams,
 } from "../src/global.js";
+import { ccf } from "../src/global.js";
 import * as textcodec from "../src/textcodec.js";
 import { generateSelfSignedCert, generateCertChain } from "./crypto.js";
 import { toArrayBuffer } from "../src/utils.js";

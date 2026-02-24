@@ -16,6 +16,7 @@
 #include "ccf/ds/x509_time_fmt.h"
 #include "crypto/cbor.h"
 #include "crypto/certs.h"
+#include "crypto/cose.h"
 #include "crypto/csr.h"
 #include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/cose_verifier.h"
@@ -190,7 +191,7 @@ ccf::crypto::Pem generate_self_signed_cert(
   constexpr size_t certificate_validity_period_days = 365;
   using namespace std::literals;
   auto valid_from =
-    ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+    ccf::ds::to_x509_time_string(ccf::nonstd::SystemClock::now() - 24h);
 
   return ccf::crypto::create_self_signed_cert(
     kp, name, {}, valid_from, certificate_validity_period_days);
@@ -230,7 +231,7 @@ void require_match_headers(
 {
   auto decoded = ccf::cbor::parse(cose_sign);
 
-  const auto& as_cose = decoded->tag_at(18);
+  const auto& as_cose = decoded->tag_at(ccf::cbor::tag::COSE_SIGN_1);
   const auto& raw_phdr = as_cose->array_at(0)->as_bytes();
 
   auto phdr = ccf::cbor::parse(raw_phdr);
@@ -749,6 +750,11 @@ TEST_CASE("Non-ASN.1 timepoint formats")
   conv = ccf::ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220405215327Z");
 
+  time_str = "2026-02-09 05:00:00 -03:30";
+  tp = ccf::ds::time_point_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(tp);
+  REQUIRE(conv == "20260209083000Z");
+
   time_str = "2022-04-07T10:37:49.567612";
   tp = ccf::ds::time_point_from_string(time_str);
   conv = ccf::ds::to_x509_time_string(tp);
@@ -778,6 +784,91 @@ TEST_CASE("Non-ASN.1 timepoint formats")
   tp = ccf::ds::time_point_from_string(time_str);
   conv = ccf::ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220425195619Z");
+}
+
+TEST_CASE("Timepoint bounds")
+{
+  // Can handle values beyond bounds of system_clock::time_point
+  {
+    INFO("Beyond system_clock::time_point min");
+    auto time_str = "1677-09-21 00:12:44";
+    auto tp = ccf::ds::time_point_from_string(time_str);
+    auto conv = ccf::ds::to_x509_time_string(tp);
+    REQUIRE(conv == "16770921001244Z");
+
+    time_str = "1677-09-21 00:12:43";
+    tp = ccf::ds::time_point_from_string(time_str);
+    conv = ccf::ds::to_x509_time_string(tp);
+    REQUIRE(conv == "16770921001243Z");
+  }
+
+  {
+    INFO("Beyond system_clock::time_point max");
+    auto time_str = "2262-04-11 23:47:16";
+    auto tp = ccf::ds::time_point_from_string(time_str);
+    auto conv = ccf::ds::to_x509_time_string(tp);
+    REQUIRE(conv == "22620411234716Z");
+
+    time_str = "2262-04-11 23:47:17";
+    tp = ccf::ds::time_point_from_string(time_str);
+    conv = ccf::ds::to_x509_time_string(tp);
+    CHECK(conv == "22620411234717Z");
+  }
+
+  {
+    INFO("Approx ASN.1 format bounds");
+    auto time_str = "9999-12-31 23:59:59";
+    auto tp = ccf::ds::time_point_from_string(time_str);
+    auto conv = ccf::ds::to_x509_time_string(tp);
+    REQUIRE(conv == "99991231235959Z");
+
+    INFO("sscanf variants of near-min value");
+    for (auto time_str : {
+           "0001-02-03 04:05:06",
+           "0001-02-03 04:05:06.700000 +0:00",
+           "0001-02-03 12:14:06.700000 +8:09",
+           "0001-02-02 19:56:06.700000 -8:09",
+
+           "0001-02-03T04:05:06.700000 +0:00",
+           "0001-02-03T12:14:06.700000 +8:09",
+           "0001-02-02T19:56:06.700000 -8:09",
+
+           "0001-02-03 04:05:06.700000 +00 00",
+           "0001-02-03 12:14:06.700000 +08:09",
+           "0001-02-02 19:56:06.700000 -08:09",
+
+           "00010203040506.700000+0000",
+           "00010203121406.700000+0809",
+           "00010202195606.700000-0809",
+
+           "0001-02-03T04:05:06.700000",
+           "0001-02-03 04:05:06.700000",
+         })
+    {
+      tp = ccf::ds::time_point_from_string(time_str);
+      conv = ccf::ds::to_x509_time_string(tp);
+      CHECK(conv == "00010203040506Z");
+    }
+  }
+}
+
+TEST_CASE("Invalid times")
+{
+  REQUIRE_THROWS_WITH(
+    ccf::ds::time_point_from_string("hello"),
+    "'hello' does not match any accepted time format");
+
+  REQUIRE_THROWS_WITH(
+    ccf::ds::time_point_from_string("Monday"),
+    "'Monday' does not match any accepted time format");
+
+  REQUIRE_THROWS_WITH(
+    ccf::ds::time_point_from_string("April 1st, 1984"),
+    "'April 1st, 1984' does not match any accepted time format");
+
+  REQUIRE_THROWS_WITH(
+    ccf::ds::time_point_from_string("1111-1111"),
+    "'1111-1111' does not match any accepted time format");
 }
 
 TEST_CASE("Create sign and verify certificates")
@@ -884,7 +975,7 @@ TEST_CASE("AES-GCM convenience functions")
 
 TEST_CASE("x509 time")
 {
-  auto time = std::chrono::system_clock::now();
+  auto time = ccf::nonstd::SystemClock::now();
 
   auto next_minute_time = time + 1min;
   auto next_day_time = time + 24h;
@@ -896,8 +987,8 @@ TEST_CASE("x509 time")
     {
       struct Input
       {
-        std::chrono::system_clock::time_point from;
-        std::chrono::system_clock::time_point to;
+        ccf::nonstd::SystemClock::time_point from;
+        ccf::nonstd::SystemClock::time_point to;
         std::optional<uint32_t> maximum_validity_period_days = std::nullopt;
       };
       Input input;
@@ -932,7 +1023,7 @@ TEST_CASE("x509 time")
 
   INFO("Adjust time");
   {
-    std::vector<std::chrono::system_clock::time_point> times = {
+    std::vector<ccf::nonstd::SystemClock::time_point> times = {
       time, next_day_time, next_day_time};
     size_t days_offset = 100;
 
@@ -1414,7 +1505,7 @@ TEST_CASE("Do not trust non-ca certs")
     constexpr size_t certificate_validity_period_days = 365;
     using namespace std::literals;
     auto valid_from =
-      ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+      ccf::ds::to_x509_time_string(ccf::nonstd::SystemClock::now() - 24h);
     auto valid_to = compute_cert_valid_to_string(
       valid_from, certificate_validity_period_days);
     std::vector<SubjectAltName> subject_alt_names = {};

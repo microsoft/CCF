@@ -4,6 +4,7 @@
 
 #include "common/enclave_interface_types.h"
 #include "ds/work_beacon.h"
+#include "host/ledger.h"
 
 #include <cstdint>
 
@@ -12,13 +13,13 @@ namespace ccf
   CreateNodeStatus enclave_create_node(
     const EnclaveConfig& enclave_config,
     const ccf::StartupConfig& ccf_config,
-    std::vector<uint8_t>&& startup_snapshot,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
     StartType start_type,
     ccf::LoggerLevel log_level,
     size_t num_worker_thread,
-    const ccf::ds::WorkBeaconPtr& work_beacon);
+    const ccf::ds::WorkBeaconPtr& work_beacon,
+    asynchost::Ledger& ledger);
 
   bool enclave_run();
 }

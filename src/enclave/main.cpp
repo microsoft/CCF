@@ -7,6 +7,7 @@
 #include "common/enclave_interface_types.h"
 #include "ds/internal_logger.h"
 #include "enclave.h"
+#include "host/ledger.h"
 
 #include <chrono>
 #include <cstdint>
@@ -27,13 +28,13 @@ namespace ccf
   CreateNodeStatus enclave_create_node(
     const EnclaveConfig& enclave_config,
     const ccf::StartupConfig& ccf_config,
-    std::vector<uint8_t>&& startup_snapshot,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
     StartType start_type,
     ccf::LoggerLevel log_level,
     size_t num_worker_threads,
-    const ccf::ds::WorkBeaconPtr& work_beacon)
+    const ccf::ds::WorkBeaconPtr& work_beacon,
+    asynchost::Ledger& ledger)
   {
     std::lock_guard<ccf::pal::Mutex> guard(create_lock);
 
@@ -107,7 +108,8 @@ namespace ccf
         ccf_config.ledger.chunk_size,
         ccf_config.consensus,
         ccf_config.node_certificate.curve_id,
-        work_beacon);
+        work_beacon,
+        ledger);
       // NOLINTEND(cppcoreguidelines-owning-memory)
     }
     catch (const std::exception& exc)
@@ -130,11 +132,7 @@ namespace ccf
     try
     {
       status = enclave->create_new_node(
-        start_type,
-        ccf_config,
-        std::move(startup_snapshot),
-        node_cert,
-        service_cert);
+        start_type, ccf_config, node_cert, service_cert);
     }
     catch (...)
     {

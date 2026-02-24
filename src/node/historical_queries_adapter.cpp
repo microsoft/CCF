@@ -11,8 +11,6 @@
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/tx_receipt_impl.h"
 
-#include <t_cose/t_cose_sign1_sign.h>
-
 namespace
 {
   ccf::cbor::Value encode_leaf_cbor(const ccf::TxReceiptImpl& receipt)

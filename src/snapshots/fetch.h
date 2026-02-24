@@ -18,17 +18,44 @@
 #include <string>
 #include <vector>
 
-#define EXPECT_HTTP_RESPONSE_STATUS(request, status_code, expected) \
+#define EXPECT_HTTP_RESPONSE_STATUS( \
+  request, status_code, expected, response_body) \
   do \
   { \
     if (status_code != expected) \
     { \
-      throw std::runtime_error(fmt::format( \
-        "Expected {} response from {} {}, instead received {}", \
-        ccf::http_status_str(expected), \
-        request->get_method().c_str(), \
-        request->get_url(), \
-        status_code)); \
+      std::string error_message; \
+      /* Only include response body for 4xx and 5xx status codes */ \
+      if (status_code >= 400 && status_code < 600) \
+      { \
+        std::string response_content; \
+        if (response_body != nullptr) \
+        { \
+          response_content.assign( \
+            response_body->buffer.begin(), response_body->buffer.end()); \
+        } \
+        else \
+        { \
+          response_content = "(no response body)"; \
+        } \
+        error_message = fmt::format( \
+          "Expected {} response from {} {}, instead received {} ({})", \
+          ccf::http_status_str(expected), \
+          request->get_method().c_str(), \
+          request->get_url(), \
+          status_code, \
+          response_content); \
+      } \
+      else \
+      { \
+        error_message = fmt::format( \
+          "Expected {} response from {} {}, instead received {}", \
+          ccf::http_status_str(expected), \
+          request->get_method().c_str(), \
+          request->get_url(), \
+          status_code); \
+      } \
+      throw std::runtime_error(error_message); \
     } \
   } while (0)
 
@@ -43,7 +70,7 @@ namespace snapshots
   struct ContentRangeHeader
   {
     size_t range_start;
-    size_t range_end;
+    size_t inclusive_range_end;
     size_t total_size;
   };
 
@@ -93,7 +120,7 @@ namespace snapshots
 
     {
       const auto [p, ec] = std::from_chars(
-        range_end.begin(), range_end.end(), parsed_values.range_end);
+        range_end.begin(), range_end.end(), parsed_values.inclusive_range_end);
       if (ec != std::errc())
       {
         throw std::runtime_error(fmt::format(
@@ -115,25 +142,85 @@ namespace snapshots
       }
     }
 
+    {
+      // Use content-length to determine whether the sender used an exclusive or
+      // inclusive range end
+      auto length_it = headers.find(ccf::http::headers::CONTENT_LENGTH);
+      if (length_it == headers.end())
+      {
+        throw std::runtime_error(
+          "Response is missing expected content-length header");
+      }
+
+      size_t content_length = 0;
+
+      {
+        const auto& length_s = length_it->second;
+
+        const auto [p, ec] = std::from_chars(
+          length_s.data(), length_s.data() + length_s.size(), content_length);
+
+        if (ec != std::errc())
+        {
+          throw std::runtime_error(fmt::format(
+            "Could not parse length from content-length header: {}",
+            length_it->second));
+        }
+      }
+
+      const auto range_length =
+        parsed_values.inclusive_range_end - parsed_values.range_start;
+      if (range_length == content_length)
+      {
+        LOG_INFO_FMT(
+          "Server sent an exclusive-end content-range header. "
+          "content-length={}, content-range={}. Adjusting this to local "
+          "inclusive-end representation. This should be a temporary "
+          "mismatch, between 6.x and 7.x nodes in a mixed network",
+          length_it->second,
+          it->second);
+        parsed_values.inclusive_range_end -= 1;
+      }
+      else if (range_length + 1 == content_length)
+      {
+        LOG_DEBUG_FMT(
+          "Server sent an inclusive-end content-range header. "
+          "content-length={}, content-range={}. This is expected for 7.x to "
+          "7.x nodes",
+          length_it->second,
+          it->second);
+      }
+      else
+      {
+        throw std::runtime_error(fmt::format(
+          "content-range ({}, {} bytes) and content-length ({}) headers do not "
+          "agree",
+          it->second,
+          range_length + 1,
+          length_it->second));
+      }
+    }
+
     return parsed_values;
   }
 
   static std::optional<SnapshotResponse> try_fetch_from_peer(
     const std::string& peer_address,
-    const std::string& path_to_peer_ca,
+    const std::vector<uint8_t>& peer_ca,
     size_t max_size)
   {
     try
     {
       ccf::curl::UniqueCURL curl_easy;
-      curl_easy.set_opt(CURLOPT_CAINFO, path_to_peer_ca.c_str());
+      curl_easy.set_blob_opt(
+        CURLOPT_CAINFO_BLOB, peer_ca.data(), peer_ca.size());
 
       auto response_body = std::make_unique<ccf::curl::ResponseBody>(max_size);
 
       // Get snapshot. This may be redirected multiple times, and we follow
       // these redirects ourself so we can extract the final URL. Once the
-      // redirects terminate, the final response is likely to be extremely large
-      // so is fetched over multiple requests for a sub-range, returning
+      // redirects terminate, the final response is likely to be extremely
+      // large so is fetched over multiple requests for a sub-range, returning
       // PARTIAL_CONTENT each time.
       std::string snapshot_url =
         fmt::format("https://{}/node/snapshot", peer_address);
@@ -142,6 +229,7 @@ namespace snapshots
       constexpr size_t range_size = 4L * 1024 * 1024;
       size_t range_start = 0;
       size_t range_end = range_size;
+      size_t inclusive_range_end = range_end - 1;
       bool fetched_all = false;
 
       auto process_partial_response =
@@ -160,26 +248,29 @@ namespace snapshots
 
           // The server may give us _less_ than we requested (since they know
           // where the file ends), but should never give us more
-          if (content_range.range_end > range_end)
+          if (content_range.inclusive_range_end > inclusive_range_end)
           {
             throw std::runtime_error(fmt::format(
               "Unexpected range response. Requested bytes {}-{}, received "
               "range ending at {}",
               range_start,
-              range_end,
-              content_range.range_end));
+              inclusive_range_end,
+              content_range.inclusive_range_end));
           }
 
+          const auto content_range_exclusive_range_end =
+            content_range.inclusive_range_end + 1;
+
           const auto range_size =
-            content_range.range_end - content_range.range_start;
+            content_range_exclusive_range_end - content_range.range_start;
           LOG_TRACE_FMT(
             "Received {}-byte chunk from {}. Now have {}/{}",
             range_size,
             request.get_url(),
-            content_range.range_end,
+            content_range_exclusive_range_end,
             content_range.total_size);
 
-          if (content_range.range_end == content_range.total_size)
+          if (content_range_exclusive_range_end == content_range.total_size)
           {
             fetched_all = true;
           }
@@ -188,6 +279,7 @@ namespace snapshots
             // Advance range for next request
             range_start = range_end;
             range_end = range_start + range_size;
+            inclusive_range_end = range_end - 1;
           }
         };
 
@@ -203,7 +295,8 @@ namespace snapshots
 
         ccf::curl::UniqueSlist headers;
         headers.append(
-          "Range", fmt::format("bytes={}-{}", range_start, range_end));
+          ccf::http::headers::RANGE,
+          fmt::format("bytes={}-{}", range_start, inclusive_range_end));
 
         CURLcode curl_response = CURLE_FAILED_INIT;
         long status_code = 0;
@@ -253,7 +346,10 @@ namespace snapshots
         }
 
         EXPECT_HTTP_RESPONSE_STATUS(
-          request, status_code, HTTP_STATUS_PERMANENT_REDIRECT);
+          request,
+          status_code,
+          HTTP_STATUS_PERMANENT_REDIRECT,
+          request->get_response_ptr());
 
         char* redirect_url = nullptr;
         CHECK_CURL_EASY_GETINFO(
@@ -281,7 +377,8 @@ namespace snapshots
       {
         ccf::curl::UniqueSlist headers;
         headers.append(
-          "Range", fmt::format("bytes={}-{}", range_start, range_end));
+          ccf::http::headers::RANGE,
+          fmt::format("bytes={}-{}", range_start, inclusive_range_end));
 
         std::unique_ptr<ccf::curl::CurlRequest> snapshot_range_request;
         CURLcode curl_response = CURLE_OK;
@@ -317,7 +414,8 @@ namespace snapshots
         EXPECT_HTTP_RESPONSE_STATUS(
           snapshot_range_request,
           snapshot_range_status_code,
-          HTTP_STATUS_PARTIAL_CONTENT);
+          HTTP_STATUS_PARTIAL_CONTENT,
+          snapshot_range_request->get_response_ptr());
 
         process_partial_response(*snapshot_range_request);
 
@@ -339,7 +437,7 @@ namespace snapshots
 
   static std::optional<SnapshotResponse> fetch_from_peer(
     const std::string& peer_address,
-    const std::string& path_to_peer_ca,
+    const std::vector<uint8_t>& peer_ca,
     size_t max_attempts,
     size_t retry_delay_ms,
     size_t max_size)
@@ -357,8 +455,7 @@ namespace snapshots
         std::this_thread::sleep_for(std::chrono::milliseconds(retry_delay_ms));
       }
 
-      auto response =
-        try_fetch_from_peer(peer_address, path_to_peer_ca, max_size);
+      auto response = try_fetch_from_peer(peer_address, peer_ca, max_size);
       if (response.has_value())
       {
         return response;
