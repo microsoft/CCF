@@ -40,7 +40,7 @@
 #include "node/ledger_secrets.h"
 #include "node/local_sealing.h"
 #include "node/node_to_node_channel_manager.h"
-#include "node/recovery_decision_protocol_impl.h"
+#include "node/recovery_decision_protocol.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
 #include "pal/quote_generation.h"
@@ -215,7 +215,7 @@ namespace ccf
       last_recovered_signed_idx = last_recovered_idx;
     }
 
-    RecoveryDecisionProtocolSubsystem recovery_decision_protocol_impl;
+    RecoveryDecisionProtocolSubsystem recovery_decision_protocol;
 
   public:
     NodeState(
@@ -233,7 +233,7 @@ namespace ccf
       network(network),
       rpcsessions(std::move(rpcsessions)),
       share_manager(network.ledger_secrets),
-      recovery_decision_protocol_impl(this)
+      recovery_decision_protocol(this)
     {}
 
     QuoteVerificationResult verify_quote(
@@ -2731,9 +2731,9 @@ namespace ccf
       return writer_factory;
     }
 
-    RecoveryDecisionProtocolSubsystem& recovery_decision_protocol() override
+    RecoveryDecisionProtocolSubsystem& get_recovery_decision_protocol() override
     {
-      return recovery_decision_protocol_impl;
+      return recovery_decision_protocol;
     }
 
     void shuffle_sealed_shares(ccf::kv::Tx& tx) override

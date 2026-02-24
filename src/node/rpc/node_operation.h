@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "node/recovery_decision_protocol_impl.h"
+#include "node/recovery_decision_protocol.h"
 #include "node/rpc/node_interface.h"
 #include "node/rpc/node_operation_interface.h"
 
@@ -118,7 +118,7 @@ namespace ccf
 
     RecoveryDecisionProtocolSubsystem& recovery_decision_protocol() override
     {
-      return impl.recovery_decision_protocol();
+      return impl.get_recovery_decision_protocol();
     }
 
     void shuffle_sealed_shares(ccf::kv::Tx& tx) override

@@ -10,7 +10,7 @@
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/tx.h"
-#include "node/recovery_decision_protocol_impl.h"
+#include "node/recovery_decision_protocol.h"
 #include "node/session_metrics.h"
 
 namespace ccf

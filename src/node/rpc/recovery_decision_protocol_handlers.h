@@ -12,7 +12,7 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/recovery_decision_protocol.h"
 #include "node/node_configuration_subsystem.h"
-#include "node/recovery_decision_protocol_impl.h"
+#include "node/recovery_decision_protocol.h"
 #include "node/rpc/node_frontend_utils.h"
 
 namespace ccf::node
