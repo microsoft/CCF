@@ -2246,7 +2246,7 @@ def run_initial_tcb_version_checks(const_args):
 
 
 def run_recovery_local_unsealing(
-    const_args, recovery_f=0, rekey=False, recovery_shares_refresh=False, suffix=""
+    const_args, suffix, recovery_f=0, rekey=False, recovery_shares_refresh=False
 ):
     LOG.info("Running recovery local unsealing")
     args = copy.deepcopy(const_args)
@@ -2933,12 +2933,14 @@ def run_propose_request_vote(const_args):
 def run_snp_tests(args):
     run_initial_uvm_descriptor_checks(args)
     run_initial_tcb_version_checks(args)
-    run_recovery_local_unsealing(args)
-    run_recovery_local_unsealing(args, rekey=True, suffix="_with_rekey")
+    run_recovery_local_unsealing(args, suffix="_unsealing")
+    run_recovery_local_unsealing(args, rekey=True, suffix="_unsealing_with_rekey")
     run_recovery_local_unsealing(
-        args, recovery_shares_refresh=True, suffix="_with_recovery_shares_refresh"
+        args,
+        recovery_shares_refresh=True,
+        suffix="_unsealing_with_recovery_shares_refresh",
     )
-    run_recovery_local_unsealing(args, recovery_f=1, suffix="_with_f_equal_1")
+    run_recovery_local_unsealing(args, recovery_f=1, suffix="_unsealing_with_f_equal_1")
     run_recovery_unsealing_validate_audit(args)
     test_error_message_on_failure_to_read_aci_sec_context(args)
     run_self_healing_open(args)
