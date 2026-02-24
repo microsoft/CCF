@@ -229,6 +229,15 @@ The minimum trusted TCB version for new nodes allowed to join the network (:doc`
     :project: CCF
     :members:
 
+``nodes.node_id_to_intrinsic_id``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Mapping from node IDs to intrinsic IDs for nodes that support local sealing. This table is used alongside ``nodes.sealed_recovery_keys`` to track which intrinsic ID corresponds to each node. When a node is retired, this mapping is used to look up and clean up the associated sealed recovery key entry.
+
+**Key** Node ID: SHA-256 digest of the node public key, represented as a hex-encoded string.
+
+**Value** Intrinsic ID of the node, represented as a string.
+
 ``service.info``
 ~~~~~~~~~~~~~~~~
 
