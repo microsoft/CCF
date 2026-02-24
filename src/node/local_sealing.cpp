@@ -131,7 +131,7 @@ namespace ccf::sealing
                                 ->get(node_id);
         if (intrinsic_id_opt.has_value())
         {
-          auto sealed_recovery_key = sealed_recovery_keys->get(node_id);
+          auto sealed_recovery_key = sealed_recovery_keys->get(intrinsic_id_opt.value());
           if (sealed_recovery_key.has_value())
           {
             auto node_enc_pubk =
