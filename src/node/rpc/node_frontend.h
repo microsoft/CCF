@@ -335,7 +335,8 @@ namespace ccf
         auto& sealing_recovery_data = in.sealing_recovery_data.value();
         auto* sealed_recovery_keys =
           tx.rw<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
-        sealed_recovery_keys->put(joining_node_id, sealing_recovery_data.first);
+        sealed_recovery_keys->put(
+          sealing_recovery_data.second, sealing_recovery_data.first);
         auto* node_id_to_intrinsic_id =
           tx.rw<NodeIdToIntrinsicId>(Tables::NODE_ID_TO_INTRINSIC_ID);
         node_id_to_intrinsic_id->put(
@@ -1556,7 +1557,8 @@ namespace ccf
           auto& sealing_recovery_data = in.sealing_recovery_data.value();
           auto* sealed_recovery_keys = ctx.tx.template rw<SealedRecoveryKeys>(
             Tables::SEALED_RECOVERY_KEYS);
-          sealed_recovery_keys->put(in.node_id, sealing_recovery_data.first);
+          sealed_recovery_keys->put(
+            sealing_recovery_data.second, sealing_recovery_data.first);
 
           auto* node_id_to_intrinsic_id =
             ctx.tx.template rw<NodeIdToIntrinsicId>(
