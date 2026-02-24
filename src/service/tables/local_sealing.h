@@ -41,10 +41,14 @@ namespace ccf
   // sealing
   using SealedRecoveryKeys = ServiceMap<NodeId, ccf::SealedRecoveryKey>;
 
+  using NodeIdToIntrinsicId = ServiceMap<NodeId, std::string>;
+
   namespace Tables
   {
     static constexpr auto SEALED_SHARES = "public:ccf.internal.sealed_shares";
     static constexpr auto SEALED_RECOVERY_KEYS =
       "public:ccf.gov.nodes.sealed_recovery_keys";
+    static constexpr auto NODE_ID_TO_INTRINSIC_ID =
+      "public:ccf.gov.nodes.node_id_to_intrinsic_id";
   }
 }

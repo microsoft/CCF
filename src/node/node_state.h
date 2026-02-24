@@ -884,8 +884,9 @@ namespace ccf
       join_params.node_data = config.node_data;
       if (config.sealing_recovery.has_value() && snp_tcb_version.has_value())
       {
-        join_params.sealed_recovery_key =
-          sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());
+        join_params.sealing_recovery_data = std::make_pair(
+          sealing::get_snp_sealed_recovery_key(snp_tcb_version.value()),
+          config.sealing_recovery->identity.intrinsic_id);
       }
 
       LOG_DEBUG_FMT(
@@ -2037,8 +2038,9 @@ namespace ccf
 
       if (config.sealing_recovery.has_value() && snp_tcb_version.has_value())
       {
-        create_params.sealed_recovery_key =
-          sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());
+        create_params.sealing_recovery_data = std::make_pair(
+          sealing::get_snp_sealed_recovery_key(snp_tcb_version.value()),
+          config.sealing_recovery->identity.intrinsic_id);
       }
 
       const auto body = nlohmann::json(create_params).dump();
