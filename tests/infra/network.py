@@ -813,24 +813,16 @@ class Network:
             )
 
         source_nodes = existing_network.nodes[: len(self.nodes)]
-        ledger_dirs = {}
-        committed_ledger_dirs = {}
-        for i, source_node in enumerate(source_nodes):
-            current_ledger_dir, current_committed_ledger_dirs = source_node.get_ledger()
-            ledger_dirs[i] = current_ledger_dir
-            committed_ledger_dirs[i] = current_committed_ledger_dirs
+        source_ledgers = [source_node.get_ledger() for source_node in source_nodes]
 
         # separate out all starting nodes' directories such that they recover independently
-        self.per_node_args_override = {
-            node_id: (
-                current_options
-                | {
-                    "ledger_dir": ledger_dirs[node_id],
-                    "read_only_ledger_dirs": committed_ledger_dirs[node_id] or [],
-                    "snapshots_dir": snapshot_dirs[node_id] or None,
-                }
-            )
-            for node_id, current_options in self.per_node_args_override.items()
+        ledger_arg_overrides = {
+            i: {
+                "ledger_dir": current,
+                "read_only_ledger_dirs": current_committed or [],
+                "snapshots_dir": snapshot_dirs[i] or None,
+            }
+            for i, (current, current_committed) in enumerate(source_ledgers)
         }
 
         # Fix the port numbers to make all nodes _well known_
@@ -880,6 +872,7 @@ class Network:
                     node_kwargs
                     | forwarded_args_with_overrides
                     | kwargs
+                    | ledger_arg_overrides.get(i, {})
                     | recovery_decision_protocol_kwargs
                 )
                 node.recover(**node_kwargs)
