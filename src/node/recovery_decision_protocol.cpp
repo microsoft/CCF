@@ -388,7 +388,8 @@ namespace ccf
   {
     auto& config = get_config();
 
-    if (config.failover_timeout.count_ms() == 0) {
+    if (config.failover_timeout.count_ms() == 0)
+    {
       LOG_DEBUG_FMT(
         "Recovery-decision-protocol failover timeout disabled, skipping "
         "failover timers");

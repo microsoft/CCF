@@ -2101,7 +2101,9 @@ def run_recovery_local_unsealing(
                 recovery_network_args.binary_dir,
                 next_node_id=prev_network.next_node_id,
             ) as recovery_network:
-                recovery_network.set_sealing_recovery_identitites(prev_nodes = network.nodes)
+                recovery_network.set_sealing_recovery_identitites(
+                    prev_nodes=network.nodes
+                )
 
                 # Reset consortium and users to prevent issues with hosts from existing_network
                 recovery_network.consortium = prev_network.consortium
@@ -2166,7 +2168,9 @@ def run_recovery_unsealing_validate_audit(const_args):
                 next_node_id=prev_network.next_node_id,
             ) as recovery_network:
                 if via_local_unsealing:
-                    recovery_network.set_sealing_recovery_identitites(prev_nodes = network.nodes)
+                    recovery_network.set_sealing_recovery_identitites(
+                        prev_nodes=network.nodes
+                    )
 
                 # Reset consortium and users to prevent issues with hosts from existing_network
                 recovery_network.consortium = prev_network.consortium
