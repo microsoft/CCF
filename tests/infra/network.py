@@ -875,7 +875,7 @@ class Network:
                         i
                     ],
                 }
-                # If a kwarg is passed in override automatically set variants
+                # Override kwargs based on scope specificity (args < node_args_override < method kwargs < method args)
                 node_kwargs = (
                     node_kwargs
                     | forwarded_args_with_overrides
