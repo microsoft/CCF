@@ -2045,6 +2045,24 @@ class Network:
                 name,
             )
 
+    def set_sealing_recovery_identitites(self, prev_nodes=None):
+        if prev_nodes is None:
+            nodes = self.nodes
+        else:
+            nodes = prev_nodes
+
+        # i is relative to the nodes in the current network, so the overrides will apply to the current nodes
+        # even if prev_nodes is a different set of nodes
+        self.per_node_args_override |= {
+            i: {
+                "sealing_recovery_identity": {
+                    "intrinsic_id": str(node.local_node_id),
+                    "published_address": node.get_public_rpc_address(),
+                }
+            }
+            for i, node in enumerate(nodes)
+        }
+
 
 # Closes the network on error, logging stack traces and optionally dropping into pdb
 @contextmanager
