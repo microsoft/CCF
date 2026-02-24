@@ -127,9 +127,12 @@ Recovery Decision Protocol
 At a high level, the recovery decision protocol allows recovering replicas to discover which node has the most up-to-date ledger and automatically recover the network using that ledger.
 The protocol completes with a node choosing to `transition-to-open`, and so requires another mechanism to unseal and recover the private ledger.
 
-There are two paths, an election path, and a very-high-availability failover path.
-The election path ensures that if all nodes restart and have full network connectivity, a majority of nodes' on-disk ledger contains every committed transaction, and no timeouts trigger, then there will be only one recovered network and all committed transactions will be persisted.
-However, the election path can become stuck, in which case the failover path is designed to ensure progress.
+The protocol uses three phases to ensure that so long as the hosts and network between them is sufficiently healthy, forks are prevented and the most up-to-date ledger is recovered.
+Specifically, the protocol ensures this so long as: all nodes restart, have full network connectivity and a majority of nodes' on-disk ledger contains every committed transaction.
+This is a strong, but reasonable requirement, and greatly simplifies the protocol.
+To ensure progress even when these requirements are not met, the protocol also includes a fallback path that advances through the phases after a timeout.
+This fallback cannot prevent forks or data loss, but allows the service to recover and make progress even in unhealthy conditions.
+We refer to the healthy case as the "election path" and the other as the "failover path".
 
 In the election path, nodes first gossip with each other, learning of the ledgers of other nodes.
 Once they have heard from every node they vote for the node with the best ledger.
@@ -169,7 +172,7 @@ This path is illustrated below, and is guaranteed to succeed if all nodes can co
       N1 ->> N3: Join
       N2 ->> N3: Join
 
-In the failover path, each phase has a timeout to skip to the next phase if a failure has occurred.
+If failover is enabled, each phase has a timeout, after which the node will advance to the next phase regardless of whether it meets the requirements to do so. 
 For example, the election path requires all nodes to communicate to advance from the gossip phase to the vote phase.
 However, if any node fails to recover, the election path is stuck.
 In this case, after a timeout, nodes will advance to the vote phase regardless of whether they have heard from all nodes, and vote for the best ledger they have heard of at that point.
@@ -292,21 +295,31 @@ The following diagram illustrates the key hierarchy and encryption relationships
 Configuration
 ~~~~~~~~~~~~~
 
-To enable sealing-based recovery, set the ``sealing_recovery`` section in the node configuration. The presence of this section enables sealing of ledger secrets. During recovery, set ``sealing_recovery.identity.intrinsic_id`` to the previous node ID so the node can look up its sealed share.
-The same ``sealing_recovery.identity`` is shared with the recovery decision protocol.
+If the ``sealing_recovery`` field is set in the configuration, this will enable local sealing, and the node will seal ledger secrets and a recovering node will attempt to unseal these secrets using the provided ``sealing_recovery.identity``.
+Additionally, the ``sealing_recovery.recovery_decision_protocol`` field can be set to enable the recovery decision protocol, and configure its parameters.
 
 .. code-block:: json
 
     {
       "sealing_recovery": {
         "identity": {
-          "intrinsic_id": "<previous-node-id>",
+          "intrinsic_id": "<persistent-node-id>",
           "published_address": "<node-host:port>"
+        },
+        "recovery_decision_protocol": {
+          "cluster_identities": [
+            {
+              "intrinsic_id": "<persistent-node-id-0>",
+              "published_address": "<node-0-host:port>"
+            },
+            {
+              "intrinsic_id": "<persistent-node-id-1>",
+              "published_address": "<node-1-host:port>"
+            }
+          ],
+          "failover_timeout": "2000ms"
         }
       },
-      "command": {
-        "type": "Recover"
-      }
     }
 
 Notes
