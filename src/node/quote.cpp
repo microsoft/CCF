@@ -3,16 +3,31 @@
 
 #include "ccf/node/quote.h"
 
+#include "ccf/crypto/cose.h"
+#include "ccf/crypto/cose_verifier.h"
+#include "ccf/crypto/verifier.h"
+#include "ccf/ds/hex.h"
+#include "ccf/historical_queries_utils.h"
+#include "ccf/js/common_context.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/sev_snp_cpuid.h"
 #include "ccf/service/tables/code_id.h"
+#include "ccf/service/tables/code_update_policy.h"
+#include "ccf/service/tables/jsengine.h"
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/tcb_verification.h"
 #include "ccf/service/tables/uvm_endorsements.h"
 #include "ccf/service/tables/virtual_measurements.h"
+#include "crypto/cbor.h"
+#include "crypto/cose.h"
+#include "crypto/cose_utils.h"
 #include "ds/internal_logger.h"
+#include "node/cose_common.h"
+#include "node/js_policy.h"
 #include "node/uvm_endorsements.h"
+
+#include <didx509cpp/didx509cpp.h>
 
 namespace ccf
 {
@@ -308,11 +323,213 @@ namespace ccf
     return QuoteVerificationResult::FailedInvalidTcbVersion;
   }
 
+  namespace
+  {
+    ccf::crypto::Pem resolve_pubkey_from_x5chain_and_issuer(
+      const std::vector<std::vector<uint8_t>>& x5chain,
+      const std::string& issuer_did)
+    {
+      std::vector<std::string> pem_chain;
+      pem_chain.reserve(x5chain.size());
+      for (const auto& c : x5chain)
+      {
+        pem_chain.emplace_back(ccf::crypto::cert_der_to_pem(c).str());
+      }
+
+      auto jwk = nlohmann::json::parse(
+        didx509::resolve_jwk(pem_chain, issuer_did, true));
+      auto generic_jwk = jwk.get<ccf::crypto::JsonWebKey>();
+
+      if (generic_jwk.kty != ccf::crypto::JsonWebKeyType::EC)
+      {
+        throw std::logic_error(fmt::format(
+          "Unsupported key type ({}) for DID {}", generic_jwk.kty, issuer_did));
+      }
+
+      auto ec_jwk = jwk.get<ccf::crypto::JsonWebKeyECPublic>();
+      return ccf::crypto::make_ec_public_key(ec_jwk)->public_key_pem();
+    }
+  }
+
+  QuoteVerificationResult verify_code_transparent_statement(
+    ccf::kv::ReadOnlyTx& tx,
+    const std::vector<uint8_t>& ts_raw,
+    const HostData& host_data,
+    std::shared_ptr<NetworkIdentitySubsystemInterface>
+      network_identity_subsystem)
+  {
+    try
+    {
+      // Parse COSE_Sign1 envelope
+      auto parsed = ccf::cbor::rethrow_with_msg(
+        [&]() { return ccf::cbor::parse(ts_raw); },
+        "Transparent statement COSE envelope");
+
+      const auto& cose_array = ccf::cbor::rethrow_with_msg(
+        [&]() -> const ccf::cbor::Value& {
+          return parsed->tag_at(ccf::cbor::tag::COSE_SIGN_1);
+        },
+        "COSE_Sign1 tag");
+
+      // Parse protected header bytes, then decode into structured form
+      const auto& phdr_raw = ccf::cbor::rethrow_with_msg(
+        [&]() -> const ccf::cbor::Value& { return cose_array->array_at(0); },
+        "COSE_Sign1 protected header");
+      auto phdr_cbor = ccf::cbor::rethrow_with_msg(
+        [&]() { return ccf::cbor::parse(phdr_raw->as_bytes()); },
+        "Parse protected header");
+
+      auto phdr = cose::decode_sign1_protected_header(phdr_cbor);
+
+      // Validate x5chain is present
+      if (phdr.x5chain.empty())
+      {
+        LOG_FAIL_FMT("No certificates in transparent statement x5chain");
+        return QuoteVerificationResult::FailedInvalidHostData;
+      }
+
+      // Validate issuer is present
+      if (phdr.cwt.iss.empty())
+      {
+        LOG_FAIL_FMT("No CWT issuer in transparent statement");
+        return QuoteVerificationResult::FailedInvalidHostData;
+      }
+
+      auto pubk =
+        resolve_pubkey_from_x5chain_and_issuer(phdr.x5chain, phdr.cwt.iss);
+
+      // Verify COSE_Sign1 signature
+      auto verifier = ccf::crypto::make_cose_verifier_from_key(pubk);
+      std::span<uint8_t> payload;
+      if (!verifier->verify(ts_raw, payload))
+      {
+        LOG_FAIL_FMT("Transparent statement signature verification failed");
+        return QuoteVerificationResult::FailedInvalidHostData;
+      }
+
+      // Verify payload matches host_data
+      if (
+        payload.size() != HostData::SIZE ||
+        std::memcmp(payload.data(), host_data.h.data(), HostData::SIZE) != 0)
+      {
+        LOG_FAIL_FMT(
+          "Transparent statement payload ({}) does not match host_data ({})",
+          ccf::ds::to_hex(payload),
+          host_data.hex_str());
+        return QuoteVerificationResult::FailedInvalidHostData;
+      }
+
+      // Verify against code update policy (if one is set)
+      auto* policy_table =
+        tx.ro<CodeUpdatePolicy>(Tables::NODE_CODE_UPDATE_POLICY);
+      if (policy_table != nullptr)
+      {
+        auto policy_script = policy_table->get();
+        if (policy_script.has_value())
+        {
+          auto violation =
+            ccf::policy::apply_code_update_policy(policy_script.value(), phdr);
+          if (violation.has_value())
+          {
+            LOG_FAIL_FMT(
+              "Code update policy rejected transparent statement: {}",
+              violation.value());
+            return QuoteVerificationResult::FailedInvalidHostData;
+          }
+        }
+      }
+
+      // Extract the COSE receipt from the transparent statement's
+      // unprotected header at VDP (396), and verify it against the
+      // service identity (current or from a previous epoch).
+      const auto& uhdr = ccf::cbor::rethrow_with_msg(
+        [&]() -> const ccf::cbor::Value& { return cose_array->array_at(1); },
+        "Parse transparent statement unprotected header");
+
+      const auto& receipts_array = ccf::cbor::rethrow_with_msg(
+        [&]() -> const ccf::cbor::Value& {
+          return uhdr->map_at(
+            ccf::cbor::make_signed(ccf::cose::header::iana::VDP));
+        },
+        "Parse receipts array from unprotected header");
+
+      const auto& receipt_bytes = ccf::cbor::rethrow_with_msg(
+        [&]() { return receipts_array->array_at(0)->as_bytes(); },
+        "Extract first receipt from array");
+
+      std::vector<uint8_t> receipt_raw(
+        receipt_bytes.begin(), receipt_bytes.end());
+
+      if (!network_identity_subsystem)
+      {
+        LOG_FAIL_FMT(
+          "Network identity subsystem not available for receipt "
+          "verification");
+        return QuoteVerificationResult::FailedInvalidHostData;
+      }
+
+      // Verify that the receipt's claims_digest matches the hash of the
+      // signed statement (the COSE_Sign1 with its unprotected header
+      // stripped). This binds the receipt to the specific signed content.
+      auto signed_statement = ccf::cose::edit::set_unprotected_header(
+        ts_raw, ccf::cose::edit::desc::Empty{});
+      auto expected_claims_digest = ccf::crypto::Sha256Hash(signed_statement);
+
+      auto receipt_cbor = ccf::cbor::rethrow_with_msg(
+        [&]() { return ccf::cbor::parse(receipt_raw); },
+        "Parse receipt COSE envelope");
+
+      const auto& receipt_envelope = ccf::cbor::rethrow_with_msg(
+        [&]() -> const ccf::cbor::Value& {
+          return receipt_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1);
+        },
+        "Parse receipt COSE_Sign1 tag");
+
+      auto proofs = cose::decode_merkle_proofs(receipt_envelope);
+      if (proofs.empty())
+      {
+        LOG_FAIL_FMT("No Merkle proofs found in receipt");
+        return QuoteVerificationResult::FailedInvalidHostData;
+      }
+
+      for (const auto& proof : proofs)
+      {
+        if (
+          proof.leaf.claims_digest.size() != ccf::crypto::Sha256Hash::SIZE ||
+          std::memcmp(
+            proof.leaf.claims_digest.data(),
+            expected_claims_digest.h.data(),
+            ccf::crypto::Sha256Hash::SIZE) != 0)
+        {
+          LOG_FAIL_FMT(
+            "Receipt claims_digest ({}) does not match signed statement hash "
+            "({})",
+            ccf::ds::to_hex(proof.leaf.claims_digest),
+            expected_claims_digest.hex_str());
+          return QuoteVerificationResult::FailedInvalidHostData;
+        }
+      }
+
+      ccf::historical::verify_self_issued_receipt(
+        receipt_raw, network_identity_subsystem);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Failed to verify code transparent statement: {}", e.what());
+      return QuoteVerificationResult::FailedInvalidHostData;
+    }
+
+    return QuoteVerificationResult::Verified;
+  }
+
   QuoteVerificationResult AttestationProvider::verify_quote_against_store(
     ccf::kv::ReadOnlyTx& tx,
     const QuoteInfo& quote_info,
     const std::vector<uint8_t>& expected_node_public_key_der,
-    pal::PlatformAttestationMeasurement& measurement)
+    pal::PlatformAttestationMeasurement& measurement,
+    const std::optional<std::vector<uint8_t>>& code_transparent_statement,
+    std::shared_ptr<NetworkIdentitySubsystemInterface>
+      network_identity_subsystem)
   {
     ccf::crypto::Sha256Hash quoted_hash;
     pal::PlatformAttestationReportData report_data;
@@ -328,6 +545,23 @@ namespace ccf
     }
 
     auto rc = verify_host_data_against_store(tx, quote_info);
+    if (rc == QuoteVerificationResult::FailedInvalidHostData)
+    {
+      if (code_transparent_statement.has_value())
+      {
+        auto host_data = AttestationProvider::get_host_data(quote_info);
+        if (!host_data.has_value())
+        {
+          return QuoteVerificationResult::FailedHostDataDigestNotFound;
+        }
+        rc = verify_code_transparent_statement(
+          tx,
+          code_transparent_statement.value(),
+          host_data.value(),
+          network_identity_subsystem);
+      }
+    }
+
     if (rc != QuoteVerificationResult::Verified)
     {
       return rc;

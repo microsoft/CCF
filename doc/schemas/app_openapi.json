@@ -1473,6 +1473,38 @@
         }
       }
     },
+    "/app/log/signed_statement": {
+      "post": {
+        "operationId": "PostAppLogSignedStatement",
+        "responses": {
+          "204": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      }
+    },
+    "/app/log/transparent_statement": {
+      "get": {
+        "operationId": "GetAppLogTransparentStatement",
+        "responses": {
+          "204": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
+    },
     "/app/multi_auth": {
       "post": {
         "operationId": "PostAppMultiAuth",

@@ -45,7 +45,8 @@
       "retry_timeout": "{{ join_timer }}",
       "target_rpc_address": "{{ target_rpc_address }}",
       "follow_redirect": {{ follow_redirect|tojson }},
-      "fetch_recent_snapshot": {{ fetch_recent_snapshot|tojson }}
+      "fetch_recent_snapshot": {{ fetch_recent_snapshot|tojson }}{% if code_transparent_statement_path %},
+      "code_transparent_statement_path": {{ code_transparent_statement_path|tojson }}{% endif %}
     },
     "recover": {
       "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }},

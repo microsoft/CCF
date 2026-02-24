@@ -123,13 +123,15 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     StartupConfig::Start, members, constitution, service_configuration);
 
-  DECLARE_JSON_TYPE(StartupConfig::Join);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(StartupConfig::Join);
   DECLARE_JSON_REQUIRED_FIELDS(
     StartupConfig::Join,
     target_rpc_address,
     retry_timeout,
     service_cert,
     follow_redirect);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    StartupConfig::Join, code_transparent_statement_path);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(StartupConfig::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(

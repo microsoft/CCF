@@ -91,6 +91,8 @@ namespace ccf
         std::nullopt;
       nlohmann::json node_data = nullptr;
       std::optional<SealedRecoveryKey> sealed_recovery_key = std::nullopt;
+      std::optional<std::vector<uint8_t>> code_transparent_statement =
+        std::nullopt;
     };
 
     struct Out

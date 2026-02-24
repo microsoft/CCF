@@ -426,6 +426,8 @@ namespace ccf
       config.command.join.fetch_snapshot_retry_interval;
     startup_config.join.fetch_snapshot_max_size =
       config.command.join.fetch_snapshot_max_size;
+    startup_config.join.code_transparent_statement_path =
+      config.command.join.code_transparent_statement_path;
   }
 
   void populate_config_for_recover(

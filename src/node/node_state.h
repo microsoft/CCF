@@ -412,10 +412,18 @@ namespace ccf
       ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info_,
       const std::vector<uint8_t>& expected_node_public_key_der,
-      pal::PlatformAttestationMeasurement& measurement) override
+      pal::PlatformAttestationMeasurement& measurement,
+      const std::optional<std::vector<uint8_t>>& code_transparent_statement,
+      std::shared_ptr<NetworkIdentitySubsystemInterface>
+        network_identity_subsystem) override
     {
       return AttestationProvider::verify_quote_against_store(
-        tx, quote_info_, expected_node_public_key_der, measurement);
+        tx,
+        quote_info_,
+        expected_node_public_key_der,
+        measurement,
+        code_transparent_statement,
+        network_identity_subsystem);
     }
 
     //
@@ -1103,6 +1111,16 @@ namespace ccf
       {
         join_params.sealed_recovery_key =
           sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());
+      }
+
+      if (config.join.code_transparent_statement_path.has_value())
+      {
+        LOG_INFO_FMT(
+          "Reading code_transparent_statement from file: {}",
+          config.join.code_transparent_statement_path.value());
+        auto ts =
+          files::slurp(config.join.code_transparent_statement_path.value());
+        join_params.code_transparent_statement = std::move(ts);
       }
 
       LOG_DEBUG_FMT(

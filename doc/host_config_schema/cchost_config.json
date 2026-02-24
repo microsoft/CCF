@@ -325,6 +325,11 @@
                     "type": "string",
                     "default": "10GB",
                     "description": "Maximum size of snapshot this node is willing to fetch"
+                  },
+                  "code_transparent_statement_path": {
+                    "type": "string",
+                    "default": null,
+                    "description": "Path to the transparent statement over the code. Only takes effect if node is a joinee"
                   }
                 },
                 "required": ["target_rpc_address"],

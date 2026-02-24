@@ -216,6 +216,7 @@ class Network:
         "subject_name",
         "idle_connection_timeout_s",
         "enable_local_sealing",
+        "code_transparent_statement_path",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups

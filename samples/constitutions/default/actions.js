@@ -1577,4 +1577,31 @@ const actions = new Map([
       },
     ),
   ],
+  [
+    "set_code_update_policy",
+    new Action(
+      function (args) {
+        checkType(args.policy, "string", "policy");
+      },
+      function (args, proposalId) {
+        const codeUpdatePolicyTable =
+          ccf.kv["public:ccf.gov.nodes.code_update_policy"];
+        codeUpdatePolicyTable.set(
+          getSingletonKvKey(),
+          ccf.strToBuf(args.policy),
+        );
+      },
+    ),
+  ],
+  [
+    "remove_code_update_policy",
+    new Action(
+      function (args) {},
+      function (args, proposalId) {
+        const codeUpdatePolicyTable =
+          ccf.kv["public:ccf.gov.nodes.code_update_policy"];
+        codeUpdatePolicyTable.delete(getSingletonKvKey());
+      },
+    ),
+  ],
 ]);

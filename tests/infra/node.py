@@ -289,6 +289,7 @@ class Node:
         common_dir,
         members_info=None,
         enable_local_sealing=False,
+        code_transparent_statement_path=None,
         **kwargs,
     ):
         """
@@ -312,6 +313,7 @@ class Node:
             enable_local_sealing
         )  # ensure it's a bool since it may be passed as None from args
 
+        self.code_transparent_statement_path = code_transparent_statement_path or None
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         self.remote = infra.remote.CCFRemote(
             start_type,
@@ -332,6 +334,7 @@ class Node:
             major_version=self.major_version,
             node_data_json_file=self.initial_node_data_json_file,
             enable_local_sealing=self.enable_local_sealing,
+            code_transparent_statement_path=self.code_transparent_statement_path,
             **kwargs,
         )
         self.remote.setup()

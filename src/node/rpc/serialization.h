@@ -36,7 +36,8 @@ namespace ccf
     JoinNetworkNodeToNode::In,
     certificate_signing_request,
     node_data,
-    sealed_recovery_key);
+    sealed_recovery_key,
+    code_transparent_statement);
 
   DECLARE_JSON_TYPE(NetworkIdentity);
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key);

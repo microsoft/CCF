@@ -8,6 +8,8 @@ import infra.proc
 import infra.utils
 import infra.crypto
 import infra.platform_detection
+import infra.clients
+import infra.commit
 import suite.test_requirements as reqs
 import os
 from infra.checker import check_can_progress
@@ -17,6 +19,28 @@ import shutil
 import http
 import json
 from hashlib import sha256
+import copy
+import base64
+import uuid
+import datetime
+import time
+
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.x509 import (
+    CertificateBuilder,
+    Name,
+    NameAttribute,
+    BasicConstraints,
+    KeyUsage,
+    ExtendedKeyUsage,
+    SubjectKeyIdentifier,
+    AuthorityKeyIdentifier,
+    ObjectIdentifier,
+)
+from cryptography.x509.oid import NameOID
+import cwt
+import cwt.utils
 
 
 from loguru import logger as LOG
@@ -527,6 +551,289 @@ def test_add_node_with_untrusted_measurement(network, args):
     return network
 
 
+def create_signed_statement(
+    payload: bytes, sub: str, svn: int, eku: str, ca_identity=None
+) -> tuple:
+    """
+    Create a COSE_Sign1 signed statement with x5chain and CWT claims.
+    Returns (encoded_bytes, issuer_string, ca_identity_tuple).
+
+    If ca_identity is provided as (ca_key, ca_name, ca_cert), the same CA
+    will be reused so that the issuer DID is stable across calls.
+    """
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    validity = datetime.timedelta(days=10)
+
+    # Generate or reuse CA key and self-signed cert
+
+    if ca_identity is not None:
+        ca_key, ca_name, ca_cert = ca_identity
+    else:
+        ca_key = ec.generate_private_key(ec.SECP256R1())
+        ca_name = Name([NameAttribute(NameOID.COMMON_NAME, str(uuid.uuid4()))])
+        ca_cert = (
+            CertificateBuilder()
+            .subject_name(ca_name)
+            .issuer_name(ca_name)
+            .public_key(ca_key.public_key())
+            .serial_number(int(uuid.uuid4()))
+            .not_valid_before(now)
+            .not_valid_after(now + validity)
+            .add_extension(BasicConstraints(ca=True, path_length=None), critical=True)
+            .add_extension(
+                KeyUsage(
+                    key_cert_sign=True,
+                    digital_signature=False,
+                    content_commitment=False,
+                    key_encipherment=False,
+                    data_encipherment=False,
+                    key_agreement=False,
+                    crl_sign=False,
+                    encipher_only=False,
+                    decipher_only=False,
+                ),
+                critical=True,
+            )
+            .add_extension(
+                SubjectKeyIdentifier.from_public_key(ca_key.public_key()),
+                critical=False,
+            )
+            .add_extension(
+                AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
+                critical=False,
+            )
+            .sign(ca_key, hashes.SHA256())
+        )
+
+    # Generate leaf key and cert with EKU, signed by CA
+
+    leaf_key = ec.generate_private_key(ec.SECP256R1())
+    leaf_name = Name([NameAttribute(NameOID.COMMON_NAME, str(uuid.uuid4()))])
+    leaf_cert = (
+        CertificateBuilder()
+        .subject_name(leaf_name)
+        .issuer_name(ca_name)
+        .public_key(leaf_key.public_key())
+        .serial_number(int(uuid.uuid4()))
+        .not_valid_before(now)
+        .not_valid_after(now + validity)
+        .add_extension(BasicConstraints(ca=False, path_length=None), critical=True)
+        .add_extension(
+            KeyUsage(
+                digital_signature=True,
+                key_cert_sign=False,
+                content_commitment=False,
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                crl_sign=False,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .add_extension(
+            ExtendedKeyUsage([ObjectIdentifier(eku)]),
+            critical=False,
+        )
+        .add_extension(
+            SubjectKeyIdentifier.from_public_key(leaf_key.public_key()),
+            critical=False,
+        )
+        .add_extension(
+            AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
+            critical=False,
+        )
+        .sign(ca_key, hashes.SHA256())
+    )
+
+    # Build did:x509 issuer
+
+    ca_fingerprint = (
+        base64.urlsafe_b64encode(ca_cert.fingerprint(hashes.SHA256()))
+        .decode("ascii")
+        .rstrip("=")
+    )
+    issuer = f"did:x509:0:sha256:{ca_fingerprint}::eku:{eku}"
+
+    # x5chain: [leaf_der, ca_der]
+
+    leaf_der = leaf_cert.public_bytes(serialization.Encoding.DER)
+    ca_der = ca_cert.public_bytes(serialization.Encoding.DER)
+
+    # Build COSE_Sign1 protected headers
+
+    phdr = {
+        1: -7,  # alg: ES256
+        3: "application/octet-stream",  # content_type
+        33: [leaf_der, ca_der],  # x5chain
+        15: {1: issuer, 2: sub, "svn": svn},  # CWT claims
+    }
+
+    leaf_key_pem = leaf_key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )
+    cose_ctx = cwt.COSE.new(alg_auto_inclusion=False, deterministic_header=True)
+    cose_key = cwt.COSEKey.from_pem(leaf_key_pem.decode("ascii"))
+    encoded = cose_ctx.encode_and_sign(
+        payload, cose_key, protected=cwt.utils.ResolvedHeader(phdr)
+    )
+    return encoded, issuer, (ca_key, ca_name, ca_cert)
+
+
+def register_signed_statement(node, signed_statement):
+    with node.client("user0") as client:
+        r = client.post(
+            "/log/signed_statement",
+            body=signed_statement,
+            headers={"Content-Type": "application/cose"},
+        )
+        assert (
+            r.status_code == http.HTTPStatus.OK
+        ), f"Failed to register signed statement: {r.status_code} {r.body.text()}"
+        txid = r.headers["x-ms-ccf-transaction-id"]
+        LOG.info(f"Registered signed statement at txid {txid}")
+
+        infra.commit.wait_for_commit(
+            client,
+            seqno=int(txid.split(".")[1]),
+            view=int(txid.split(".")[0]),
+            timeout=10,
+        )
+
+        max_retries = 30
+        transparent_statement = None
+
+        for attempt in range(max_retries):
+            r = client.get(
+                "/log/transparent_statement",
+                headers={infra.clients.CCF_TX_ID_HEADER: txid},
+                log_capture=[],
+            )
+            if r.status_code == http.HTTPStatus.OK:
+                transparent_statement = r.body.data()
+                LOG.info(
+                    f"Got transparent statement of {len(transparent_statement)} bytes"
+                )
+                break
+            elif r.status_code == http.HTTPStatus.ACCEPTED:
+                LOG.debug(
+                    f"Historical state not yet available, retrying ({attempt + 1}/{max_retries})"
+                )
+                time.sleep(0.1)
+            else:
+                raise AssertionError(
+                    f"Unexpected response {r.status_code}: {r.body.text()}"
+                )
+        assert (
+            transparent_statement is not None
+        ), f"Failed to get transparent statement for txid {txid} after {max_retries} retries"
+        return transparent_statement
+
+
+def assert_node_join_fails(network, args):
+    """Create a node and assert that joining the network raises HostDataNotFound."""
+    new_node = network.create_node()
+    try:
+        network.join_node(new_node, args.package, args, timeout=3)
+    except infra.network.HostDataNotFound as e:
+        LOG.info(f"As expected, node join failed: {e.error_line}")
+        assert (
+            "host data is not authorised" in e.error_line
+        ), f"Expected 'host data is not authorised' in error, got: {e.error_line}"
+    else:
+        raise AssertionError("Node join unexpectedly succeeded")
+
+
+def make_code_update_policy(issuer, min_svn):
+    """Return a JS code-update policy that requires the given issuer and minimum SVN."""
+    return f"""export function apply(phdr) {{
+  if (phdr.cwt.iss !== "{issuer}") {{ return "Invalid issuer"; }}
+  if (phdr.cwt.svn === undefined || phdr.cwt.svn < {min_svn}) {{ return "SVN too low"; }}
+  return true;
+}}"""
+
+
+def prepare_joiner_with_statement(args, network, transparent_statement):
+    """Write a transparent statement to disk and return deep-copied args pointing to it."""
+    statement_path = os.path.join(network.common_dir, "transparent_statement.cose")
+    with open(statement_path, "wb") as f:
+        f.write(transparent_statement)
+    joiner_args = copy.deepcopy(args)
+    joiner_args.code_transparent_statement_path = statement_path
+    return joiner_args
+
+
+def update_joiner_statement(joiner_args, transparent_statement):
+    """Overwrite the transparent statement file referenced by joiner_args."""
+    with open(joiner_args.code_transparent_statement_path, "wb") as f:
+        f.write(transparent_statement)
+
+
+@reqs.description("Node with untrusted host data fails to join")
+def test_add_node_via_code_policy(network, args):
+    primary, _ = network.find_nodes()
+
+    host_data, security_policy = infra.utils.get_host_data_and_security_policy(
+        infra.platform_detection.get_platform(), args.package
+    )
+
+    # Make sure host_data isn't explicitly allowed.
+    network.consortium.remove_host_data(
+        primary, infra.platform_detection.get_platform(), host_data
+    )
+
+    # Join must fail without trusted host_data or code update policy.
+    assert_node_join_fails(network, args)
+
+    # Register a signed statement with SVN below the policy threshold.
+    signed_statement, issuer, ca_identity = create_signed_statement(
+        payload=bytes.fromhex(host_data), sub="Some feed", svn=499, eku="2.999"
+    )
+    transparent_statement = register_signed_statement(primary, signed_statement)
+
+    # Set a code update policy that requires SVN >= 500.
+    network.consortium.set_code_update_policy(
+        primary, make_code_update_policy(issuer, min_svn=500)
+    )
+
+    # Prepare joiner args with the transparent statement (svn=499).
+    joiner_args = prepare_joiner_with_statement(args, network, transparent_statement)
+
+    # Join should still fail because SVN is below the policy minimum.
+    assert_node_join_fails(network, joiner_args)
+
+    # Create a new statement with acceptable SVN, using the same CA.
+    signed_statement, _, _ = create_signed_statement(
+        payload=bytes.fromhex(host_data),
+        sub="Some feed",
+        svn=500,
+        eku="2.999",
+        ca_identity=ca_identity,
+    )
+    transparent_statement = register_signed_statement(primary, signed_statement)
+    update_joiner_statement(joiner_args, transparent_statement)
+
+    # Join should now succeed with SVN=500.
+    new_node = network.create_node()
+    network.join_node(new_node, joiner_args.package, joiner_args, timeout=3)
+    network.trust_node(new_node, joiner_args)
+
+    # Cleanup: restore host data and remove code update policy.
+    network.consortium.add_host_data(
+        primary,
+        infra.platform_detection.get_platform(),
+        host_data,
+        security_policy,
+    )
+    network.consortium.remove_code_update_policy(primary)
+
+    return network
+
+
 @reqs.description("Node with untrusted host data fails to join")
 def test_add_node_with_untrusted_host_data(network, args):
     primary, _ = network.find_nodes()
@@ -915,6 +1222,8 @@ def run(args):
 
         if infra.platform_detection.is_snp():
             test_add_node_with_no_uvm_endorsements_in_kv(network, args)
+
+        test_add_node_via_code_policy(network, args)
 
 
 if __name__ == "__main__":
