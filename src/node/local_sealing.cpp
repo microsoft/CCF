@@ -136,7 +136,7 @@ namespace ccf::sealing
           {
             auto node_enc_pubk =
               ccf::crypto::make_rsa_public_key(sealed_recovery_key->pubkey);
-            encrypted_sealed_shares[node_id] =
+            encrypted_sealed_shares[intrinsic_id_opt.value()] =
               node_enc_pubk->rsa_oaep_wrap(sealed_share_serialised);
           }
         }
