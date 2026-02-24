@@ -381,12 +381,19 @@ namespace ccf
     ccf::tasks::add_periodic_task(
       retry_task,
       std::chrono::milliseconds(0),
-      std::chrono::milliseconds(config.retry_timeout));
+      std::chrono::milliseconds(config.message_retry_timeout));
   }
 
   void RecoveryDecisionProtocolSubsystem::start_failover_timers()
   {
     auto& config = get_config();
+
+    if (config.failover_timeout.count_ms() == 0) {
+      LOG_DEBUG_FMT(
+        "Recovery-decision-protocol failover timeout disabled, skipping "
+        "failover timers");
+      return;
+    }
 
     LOG_TRACE_FMT("Recovery-decision-protocol: Setting up failover timers");
 

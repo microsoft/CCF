@@ -322,6 +322,8 @@ Additionally, the ``sealing_recovery.recovery_decision_protocol`` field can be s
       },
     }
 
+Setting ``sealing_recovery.recovery_decision_protocol.failover_timeout`` to ``0ms`` disables failover timers.
+
 Notes
 -----
 
