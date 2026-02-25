@@ -199,8 +199,7 @@ namespace ccf::sealing
     }
     catch (const std::runtime_error& e)
     {
-      LOG_FAIL_FMT(
-        "Failed to unseal recovery key: {}", e.what());
+      LOG_FAIL_FMT("Failed to unseal recovery key: {}", e.what());
       return std::nullopt;
     }
     OPENSSL_cleanse(derived_key.data(), derived_key.size());
@@ -209,13 +208,11 @@ namespace ccf::sealing
     std::vector<uint8_t> decrypted_share;
     try
     {
-      decrypted_share =
-        recovery_key_pair->rsa_oaep_unwrap(sealed_wrapping_key);
+      decrypted_share = recovery_key_pair->rsa_oaep_unwrap(sealed_wrapping_key);
     }
     catch (const std::runtime_error& e)
     {
-      LOG_FAIL_FMT(
-        "Failed to unseal recovery share for: {}", e.what());
+      LOG_FAIL_FMT("Failed to unseal recovery share for: {}", e.what());
       return std::nullopt;
     }
     ccf::crypto::sharing::Share share(decrypted_share);

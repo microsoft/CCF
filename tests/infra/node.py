@@ -631,9 +631,7 @@ class Node:
         if self.sealing_recovery_location is not None:
             return dict(self.sealing_recovery_location)
 
-        name = (
-            self.node_id if self.node_id is not None else str(self.local_node_id)
-        )
+        name = self.node_id if self.node_id is not None else str(self.local_node_id)
         self.sealing_recovery_location = {
             "name": name,
             "address": self.get_public_rpc_address(),

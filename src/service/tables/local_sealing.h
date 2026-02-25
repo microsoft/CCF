@@ -49,6 +49,7 @@ namespace ccf
     static constexpr auto SEALED_SHARES = "public:ccf.internal.sealed_shares";
     static constexpr auto SEALED_RECOVERY_KEYS =
       "public:ccf.gov.nodes.sealed_recovery_keys";
-    static constexpr auto LOCAL_SEALING_NODE_ID_MAP = "public:ccf.gov.nodes.local_sealing_node_id_map";
+    static constexpr auto LOCAL_SEALING_NODE_ID_MAP =
+      "public:ccf.gov.nodes.local_sealing_node_id_map";
   }
 }

@@ -86,8 +86,7 @@ namespace ccf::node
       auto* node_info_handle =
         args.tx.rw<recovery_decision_protocol::NodeInfoMap>(
           Tables::RECOVERY_DECISION_PROTOCOL_NODES);
-      auto existing_node_info =
-        node_info_handle->get(info.location.name);
+      auto existing_node_info = node_info_handle->get(info.location.name);
 
       if (existing_node_info.has_value())
       {
