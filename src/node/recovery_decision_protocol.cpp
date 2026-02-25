@@ -122,7 +122,7 @@ namespace ccf
       {
         auto* gossip_handle = tx.ro<recovery_decision_protocol::Gossips>(
           Tables::RECOVERY_DECISION_PROTOCOL_GOSSIPS);
-        auto quorum_size = config.cluster_locations.size();
+        auto quorum_size = config.expected_locations.size();
         if (gossip_handle->size() >= quorum_size || valid_timeout)
         {
           if (gossip_handle->size() == 0)
@@ -161,7 +161,7 @@ namespace ccf
           Tables::RECOVERY_DECISION_PROTOCOL_VOTES);
 
         auto sufficient_quorum =
-          votes->size() >= config.cluster_locations.size() / 2 + 1;
+          votes->size() >= config.expected_locations.size() / 2 + 1;
         if (sufficient_quorum || valid_timeout)
         {
           if (valid_timeout && votes->size() == 0)
@@ -596,7 +596,7 @@ namespace ccf
     request.txid = get_last_recovered_signed_txid();
     nlohmann::json request_json = request;
 
-    for (auto& target : config.cluster_locations)
+    for (auto& target : config.expected_locations)
     {
       auto target_address = target.address;
       dispatch_authenticated_message(
@@ -676,7 +676,7 @@ namespace ccf
 
     nlohmann::json request_json = get_iamopen_request(tx);
 
-    for (auto& target : config.cluster_locations)
+    for (auto& target : config.expected_locations)
     {
       if (target.name == location.name)
       {

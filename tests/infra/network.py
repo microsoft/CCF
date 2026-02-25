@@ -832,14 +832,14 @@ class Network:
             node.host.get_primary_interface().port = port
             node.host.get_primary_interface().public_port = port
 
-        # Build cluster locations AFTER port randomization so that
+        # Build expected locations AFTER port randomization so that
         # address reflects the actual listening address.
         # name comes from the source node (old network identity).
-        recovery_decision_protocol_cluster_locations = []
+        recovery_decision_protocol_expected_locations = []
         for i, source_node in enumerate(source_nodes):
             location = source_node.get_sealing_recovery_location()
             location["address"] = self.nodes[i].get_public_rpc_address()
-            recovery_decision_protocol_cluster_locations.append(location)
+            recovery_decision_protocol_expected_locations.append(location)
 
         self.status = ServiceStatus.RECOVERING
         LOG.debug(f"Opening CCF service on {self.hosts}")
@@ -863,8 +863,8 @@ class Network:
                     "common_dir": self.common_dir,
                 }
                 recovery_decision_protocol_kwargs = {
-                    "recovery_decision_protocol_cluster_locations": recovery_decision_protocol_cluster_locations,
-                    "sealing_recovery_location": recovery_decision_protocol_cluster_locations[
+                    "recovery_decision_protocol_expected_locations": recovery_decision_protocol_expected_locations,
+                    "sealing_recovery_location": recovery_decision_protocol_expected_locations[
                         i
                     ],
                 }
@@ -896,7 +896,7 @@ class Network:
         end_time = time.time() + timeout
         for node in cycle(self.nodes):
             if time.time() > end_time:
-                raise TimeoutError("Timed out waiting for cluster to open")
+                raise TimeoutError("Timed out waiting for network to open")
             if len(waiting_nodes) == 0:
                 break
             if node not in waiting_nodes:

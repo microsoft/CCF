@@ -2525,7 +2525,7 @@ def run_recovery_decision_protocol_timeout_path_disabled(const_args):
             recovered_network.start_in_recovery_decision_protocol(
                 recovery_args,
                 existing_network=network,
-                starting_nodes=0,  # Start only one node from an expected 3-node cluster
+                starting_nodes=0,  # Start only one node from an expected 3-node network
             )
 
             started_node = recovered_network.nodes[0]

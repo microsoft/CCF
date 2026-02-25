@@ -681,7 +681,7 @@
         "recovery_decision_protocol": {
           "type": "object",
           "properties": {
-            "cluster_locations": {
+            "expected_locations": {
               "type": "array",
               "description": "List of locations that the recovery_decision_protocol expects to be part of the previous network.",
               "items": {
@@ -708,7 +708,7 @@
               "description": "Timeout duration before failover forcibly advances the recovery_decision_protocol, allowing recovery to proceed even in the presence of unresponsive nodes. Set to 0 to disable failover."
             }
           },
-          "required": ["cluster_locations"],
+          "required": ["expected_locations"],
           "additionalProperties": false
         }
       },

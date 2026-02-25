@@ -307,7 +307,7 @@ Additionally, the ``sealing_recovery.recovery_decision_protocol`` field can be s
           "address": "<node-host:port>"
         },
         "recovery_decision_protocol": {
-          "cluster_locations": [
+          "expected_locations": [
             {
               "name": "<persistent-node-id-0>",
               "address": "<node-0-host:port>"

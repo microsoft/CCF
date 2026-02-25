@@ -106,10 +106,10 @@
     "location": {
       "name": "{{ sealing_recovery_location.name }}",
       "address": "{{ sealing_recovery_location.address }}"
-    }{% if recovery_decision_protocol_cluster_locations %},
+    }{% if recovery_decision_protocol_expected_locations %},
     "recovery_decision_protocol": {
-      "cluster_locations" : [
-        {% for location in recovery_decision_protocol_cluster_locations %}
+      "expected_locations" : [
+        {% for location in recovery_decision_protocol_expected_locations %}
           {
             "name": "{{location.name}}",
             "address": "{{location.address}}"
