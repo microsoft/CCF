@@ -152,9 +152,13 @@ namespace ccf
     struct Join
     {
       ccf::NodeInfoNetwork::NetAddress target_rpc_address;
-      ccf::ds::TimeString retry_timeout = {"1000ms"};
+      ccf::ds::TimeString retry_timeout;
       std::vector<uint8_t> service_cert;
-      bool follow_redirect = true;
+      bool follow_redirect{};
+      bool fetch_recent_snapshot{};
+      size_t fetch_snapshot_max_attempts{};
+      ccf::ds::TimeString fetch_snapshot_retry_interval;
+      ccf::ds::SizeString fetch_snapshot_max_size;
     };
     Join join = {};
 

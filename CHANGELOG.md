@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev11]
+
+[7.0.0-dev11]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev11
+
+### Changed
+
+- When `fetch_recent_snapshot` is enabled, snapshot fetching now occurs in response to a `StartupSeqnoIsOld` error during join, rather than eagerly at startup. Fetched snapshots are verified before use, and corrupt local snapshots are skipped. See [documentation](https://microsoft.github.io/CCF/main/operations/ledger_snapshot.html#join-or-recover-from-snapshot) (#7630).
+
 ## [7.0.0-dev10]
 
 [7.0.0-dev10]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev10
@@ -14,6 +22,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `GET` and `HEAD` `/node/ledger-chunk?since={seqno}` and `/node/ledger-chunk/{chunk_name}` endpoints, gated by the `LedgerChunkDownload` RPC interface operator feature. See [documentation](https://microsoft.github.io/CCF/main/operations/ledger_snapshot.html#download-endpoints) for more detail.
 - `GET` and `HEAD` `/node/ledger-chunk/{chunk_name}` and `/node/snapshot/{snapshot_name}` now support the `Want-Repr-Digest` request header and return the `Repr-Digest` response header accordingly (RFC 9530). Supported algorithms are `sha-256`, `sha-384`, and `sha-512`. If no supported algorithm is requested, the server defaults to `sha-256` (#7650).
 - `ETag` and `If-None-Match` support on `GET /node/ledger-chunk/{chunk_name}`, using SHA-256 by default for the `ETag` response header. Clients can supply `If-None-Match` with `sha-256`, `sha-384`, or `sha-512` digest ETags to avoid re-downloading unchanged content (#7652).
+- `read_ledger.py` now supports multiple verification levels via the `--verification-level` option (NONE, OFFSETS, HEADERS, MERKLE, FULL), allowing users to trade off between computation cost and security guarantees. The default remains FULL verification for backward compatibility. The `--insecure-skip-verification` flag is deprecated in favor of `--verification-level=NONE`.
 
 ### Changed
 

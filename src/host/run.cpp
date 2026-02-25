@@ -37,8 +37,6 @@
 #include "pal/quote_generation.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
-#include "snapshots/fetch.h"
-#include "snapshots/filenames.h"
 #include "snapshots/snapshot_manager.h"
 #include "tcp.h"
 #include "ticker.h"
@@ -420,6 +418,14 @@ namespace ccf
     startup_config.join.service_cert =
       files::slurp(config.command.service_certificate_file);
     startup_config.join.follow_redirect = config.command.join.follow_redirect;
+    startup_config.join.fetch_recent_snapshot =
+      config.command.join.fetch_recent_snapshot;
+    startup_config.join.fetch_snapshot_max_attempts =
+      config.command.join.fetch_snapshot_max_attempts;
+    startup_config.join.fetch_snapshot_retry_interval =
+      config.command.join.fetch_snapshot_retry_interval;
+    startup_config.join.fetch_snapshot_max_size =
+      config.command.join.fetch_snapshot_max_size;
   }
 
   void populate_config_for_recover(
@@ -440,81 +446,12 @@ namespace ccf
     startup_config.recover.previous_service_identity = files::slurp(idf);
   }
 
-  std::vector<uint8_t> load_startup_snapshot(
-    const host::CCHostConfig& config, snapshots::SnapshotManager& snapshots)
-  {
-    std::vector<uint8_t> startup_snapshot = {};
-
-    if (
-      config.command.type != StartType::Join &&
-      config.command.type != StartType::Recover)
-    {
-      return startup_snapshot;
-    }
-
-    auto latest_local_snapshot = snapshots.find_latest_committed_snapshot();
-
-    if (
-      config.command.type == StartType::Join &&
-      config.command.join.fetch_recent_snapshot)
-    {
-      // Try to fetch a recent snapshot from peer
-      auto latest_peer_snapshot = snapshots::fetch_from_peer(
-        config.command.join.target_rpc_address,
-        config.command.service_certificate_file,
-        config.command.join.fetch_snapshot_max_attempts,
-        config.command.join.fetch_snapshot_retry_interval.count_ms(),
-        config.command.join.fetch_snapshot_max_size.count_bytes());
-
-      if (latest_peer_snapshot.has_value())
-      {
-        LOG_INFO_FMT(
-          "Received snapshot {} from peer (size: {}) - writing this to "
-          "disk "
-          "and using for join startup",
-          latest_peer_snapshot->snapshot_name,
-          latest_peer_snapshot->snapshot_data.size());
-
-        const auto dst_path = fs::path(config.snapshots.directory) /
-          fs::path(latest_peer_snapshot->snapshot_name);
-        if (files::exists(dst_path))
-        {
-          LOG_FAIL_FMT(
-            "Overwriting existing snapshot at {} with data retrieved from "
-            "peer",
-            dst_path);
-        }
-        files::dump(latest_peer_snapshot->snapshot_data, dst_path);
-        startup_snapshot = latest_peer_snapshot->snapshot_data;
-      }
-    }
-
-    if (startup_snapshot.empty() && latest_local_snapshot.has_value())
-    {
-      auto& [snapshot_dir, snapshot_file] = latest_local_snapshot.value();
-      startup_snapshot = files::slurp(snapshot_dir / snapshot_file);
-
-      LOG_INFO_FMT(
-        "Found latest local snapshot file: {} (size: {})",
-        snapshot_dir / snapshot_file,
-        startup_snapshot.size());
-    }
-    else if (startup_snapshot.empty())
-    {
-      LOG_INFO_FMT(
-        "No snapshot found: Node will replay all historical transactions");
-    }
-
-    return startup_snapshot;
-  }
-
   std::optional<size_t> create_enclave_node(
     const host::CCHostConfig& config,
     messaging::BufferProcessor& buffer_processor,
     ringbuffer::Circuit& circuit,
     EnclaveConfig& enclave_config,
     ccf::StartupConfig& startup_config,
-    std::vector<uint8_t> startup_snapshot,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
     ccf::LoggerLevel log_level,
@@ -536,7 +473,6 @@ namespace ccf
     auto create_status = enclave_create_node(
       enclave_config,
       startup_config,
-      std::move(startup_snapshot),
       node_cert,
       service_cert,
       config.command.type,
@@ -839,9 +775,6 @@ namespace ccf
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
 
-    // Load startup snapshot if needed
-    auto startup_snapshot = load_startup_snapshot(config, snapshots);
-
     // Used by GET /node/network/nodes/self to return rpc interfaces
     // prior to the KV being updated
     startup_config.network.rpc_interfaces = config.network.rpc_interfaces;
@@ -853,7 +786,6 @@ namespace ccf
       circuit,
       enclave_config,
       startup_config,
-      std::move(startup_snapshot),
       node_cert,
       service_cert,
       log_level,
