@@ -115,12 +115,12 @@ namespace ccf
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoveryDecisionProtocolConfig);
   DECLARE_JSON_REQUIRED_FIELDS(
-    RecoveryDecisionProtocolConfig, cluster_identities);
+    RecoveryDecisionProtocolConfig, cluster_locations);
   DECLARE_JSON_OPTIONAL_FIELDS(
     RecoveryDecisionProtocolConfig, message_retry_timeout, failover_timeout);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SealingRecoveryConfig);
-  DECLARE_JSON_REQUIRED_FIELDS(SealingRecoveryConfig, identity);
+  DECLARE_JSON_REQUIRED_FIELDS(SealingRecoveryConfig, location);
   DECLARE_JSON_OPTIONAL_FIELDS(
     SealingRecoveryConfig, recovery_decision_protocol);
 

@@ -122,7 +122,7 @@ namespace ccf
       {
         auto* gossip_handle = tx.ro<recovery_decision_protocol::Gossips>(
           Tables::RECOVERY_DECISION_PROTOCOL_GOSSIPS);
-        auto quorum_size = config.cluster_identities.size();
+        auto quorum_size = config.cluster_locations.size();
         if (gossip_handle->size() >= quorum_size || valid_timeout)
         {
           if (gossip_handle->size() == 0)
@@ -130,7 +130,7 @@ namespace ccf
             throw std::logic_error("No gossip addresses provided yet");
           }
 
-          // Find the lexographical maximum by <view, seqno, intrinsic_id>
+          // Find the lexographical maximum by <view, seqno, name>
           std::optional<std::tuple<ccf::View, ccf::SeqNo, std::string>> maximum;
           gossip_handle->foreach([&maximum](const auto& iid, const auto& txid) {
             if (
@@ -161,7 +161,7 @@ namespace ccf
           Tables::RECOVERY_DECISION_PROTOCOL_VOTES);
 
         auto sufficient_quorum =
-          votes->size() >= config.cluster_identities.size() / 2 + 1;
+          votes->size() >= config.cluster_locations.size() / 2 + 1;
         if (sufficient_quorum || valid_timeout)
         {
           if (valid_timeout && votes->size() == 0)
@@ -238,8 +238,8 @@ namespace ccf
 
         LOG_INFO_FMT(
           "Recovery-decision-protocol joining {} at {} with fingerprint {}",
-          node_config->identity.intrinsic_id,
-          node_config->identity.published_address,
+          node_config->location.name,
+          node_config->location.address,
           recovery_decision_protocol::service_fingerprint_from_pem(
             ccf::crypto::cert_der_to_pem(node_config->service_cert_der)));
         auto service_cert =
@@ -400,7 +400,7 @@ namespace ccf
 
     failover_task = ccf::tasks::make_basic_task(
       [this]() {
-        auto& identity = get_identity();
+        auto& location = get_location();
 
         LOG_TRACE_FMT(
           "Recovery-decision-protocol timeout, sending timeout to internal "
@@ -450,7 +450,7 @@ namespace ccf
 
         auto url = fmt::format(
           "https://{}/{}/recovery_decision_protocol/timeout",
-          identity.published_address,
+          location.address,
           get_actor_prefix(ActorsType::nodes));
 
         curl::UniqueSlist headers;
@@ -577,7 +577,7 @@ namespace ccf
       std::lock_guard<pal::Mutex> ns_guard(node_state->lock);
       node_info_cache = recovery_decision_protocol::RequestNodeInfo{
         .quote_info = node_info_opt->quote_info,
-        .identity = get_identity(),
+        .location = get_location(),
         .service_cert_der =
           ccf::crypto::cert_pem_to_der(node_state->network.identity->cert),
       };
@@ -596,9 +596,9 @@ namespace ccf
     request.txid = get_last_recovered_signed_txid();
     nlohmann::json request_json = request;
 
-    for (auto& target : config.cluster_identities)
+    for (auto& target : config.cluster_locations)
     {
-      auto target_address = target.published_address;
+      auto target_address = target.address;
       dispatch_authenticated_message(
         request_json,
         target_address,
@@ -613,8 +613,8 @@ namespace ccf
   {
     LOG_TRACE_FMT(
       "Sending recovery-decision-protocol vote to {} at {}",
-      node_info.identity.intrinsic_id,
-      node_info.identity.published_address);
+      node_info.location.name,
+      node_info.location.address);
 
     recovery_decision_protocol::TaggedWithNodeInfo request{
       .info = get_node_info(tx)};
@@ -623,7 +623,7 @@ namespace ccf
 
     dispatch_authenticated_message(
       request_json,
-      node_info.identity.published_address,
+      node_info.location.address,
       "vote",
       node_state->self_signed_node_cert,
       node_state->node_sign_kp->private_key_pem());
@@ -670,22 +670,22 @@ namespace ccf
     ccf::kv::ReadOnlyTx& tx)
   {
     auto& config = get_config();
-    auto& identity = get_identity();
+    auto& location = get_location();
 
     LOG_TRACE_FMT("Sending recovery-decision-protocol iamopen");
 
     nlohmann::json request_json = get_iamopen_request(tx);
 
-    for (auto& target : config.cluster_identities)
+    for (auto& target : config.cluster_locations)
     {
-      if (target.intrinsic_id == identity.intrinsic_id)
+      if (target.name == location.name)
       {
         // Don't send to self
         continue;
       }
       dispatch_authenticated_message(
         request_json,
-        target.published_address,
+        target.address,
         "iamopen",
         node_state->self_signed_node_cert,
         node_state->node_sign_kp->private_key_pem());
@@ -708,14 +708,14 @@ namespace ccf
     return config.value();
   }
 
-  recovery_decision_protocol::Identity& RecoveryDecisionProtocolSubsystem::
-    get_identity()
+  recovery_decision_protocol::Location& RecoveryDecisionProtocolSubsystem::
+    get_location()
   {
     if (!node_state->config.sealing_recovery.has_value())
     {
       throw std::logic_error("Sealing recovery not configured");
     }
-    return node_state->config.sealing_recovery->identity;
+    return node_state->config.sealing_recovery->location;
   }
 
   ccf::TxID RecoveryDecisionProtocolSubsystem::get_last_recovered_signed_txid()

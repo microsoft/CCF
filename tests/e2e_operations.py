@@ -2074,7 +2074,7 @@ def run_recovery_local_unsealing(
     )
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
-        network.set_sealing_recovery_identitites()
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
 
         network.save_service_identity(args)
@@ -2101,7 +2101,7 @@ def run_recovery_local_unsealing(
                 recovery_network_args.binary_dir,
                 next_node_id=prev_network.next_node_id,
             ) as recovery_network:
-                recovery_network.set_sealing_recovery_identitites(
+                recovery_network.set_sealing_recovery_locations(
                     prev_nodes=network.nodes
                 )
 
@@ -2132,7 +2132,7 @@ def run_recovery_unsealing_validate_audit(const_args):
     args.label += "_unsealing_audit"
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
-        network.set_sealing_recovery_identitites()
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
 
         network.save_service_identity(args)
@@ -2168,7 +2168,7 @@ def run_recovery_unsealing_validate_audit(const_args):
                 next_node_id=prev_network.next_node_id,
             ) as recovery_network:
                 if via_local_unsealing:
-                    recovery_network.set_sealing_recovery_identitites(
+                    recovery_network.set_sealing_recovery_locations(
                         prev_nodes=network.nodes
                     )
 
@@ -2221,7 +2221,7 @@ def run_recovery_decision_protocol(const_args):
         args.debug_nodes,
     ) as network:
         LOG.info("Start a network and stop it")
-        network.set_sealing_recovery_identitites()
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
         network.save_service_identity(args)
         network.stop_all_nodes()
@@ -2273,7 +2273,7 @@ def run_recovery_decision_protocol_timeout_path(const_args):
         args.debug_nodes,
     ) as network:
         LOG.info("Start a network and stop it")
-        network.set_sealing_recovery_identitites()
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
         network.save_service_identity(args)
         network.stop_all_nodes()
@@ -2325,7 +2325,7 @@ def run_recovery_decision_protocol_multiple_timeout(const_args):
         args.debug_nodes,
     ) as network:
         LOG.info("Start a network and stop it")
-        network.set_sealing_recovery_identitites()
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
         network.save_service_identity(args)
         network.stop_all_nodes()

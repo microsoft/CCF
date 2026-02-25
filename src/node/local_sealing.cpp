@@ -127,16 +127,17 @@ namespace ccf::sealing
 
       for (const auto& [node_id, node_info] : trusted_nodes_info)
       {
-        auto intrinsic_id_opt = tx.ro<NodeIdToIntrinsicId>(Tables::NODE_ID_TO_INTRINSIC_ID)
-                                ->get(node_id);
-        if (intrinsic_id_opt.has_value())
+        auto name_opt = tx.ro<NodeIdToSealingRecoveryName>(
+                           Tables::NODE_ID_TO_SEALING_RECOVERY_NAME)
+                          ->get(node_id);
+        if (name_opt.has_value())
         {
-          auto sealed_recovery_key = sealed_recovery_keys->get(intrinsic_id_opt.value());
+          auto sealed_recovery_key = sealed_recovery_keys->get(name_opt.value());
           if (sealed_recovery_key.has_value())
           {
             auto node_enc_pubk =
               ccf::crypto::make_rsa_public_key(sealed_recovery_key->pubkey);
-            encrypted_sealed_shares[intrinsic_id_opt.value()] =
+            encrypted_sealed_shares[name_opt.value()] =
               node_enc_pubk->rsa_oaep_wrap(sealed_share_serialised);
           }
         }

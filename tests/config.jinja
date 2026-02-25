@@ -101,18 +101,18 @@
     "max_msg_size": "{{ max_msg_size_bytes }}",
     "max_fragment_size": "256KB"
   },
-  "ignore_first_sigterm": {{ ignore_first_sigterm|tojson }}{% if sealing_recovery_identity %},
+  "ignore_first_sigterm": {{ ignore_first_sigterm|tojson }}{% if sealing_recovery_location %},
   "sealing_recovery": {
-    "identity": {
-      "intrinsic_id": "{{ sealing_recovery_identity.intrinsic_id }}",
-      "published_address": "{{ sealing_recovery_identity.published_address }}"
-    }{% if recovery_decision_protocol_cluster_identities %},
+    "location": {
+      "name": "{{ sealing_recovery_location.name }}",
+      "address": "{{ sealing_recovery_location.address }}"
+    }{% if recovery_decision_protocol_cluster_locations %},
     "recovery_decision_protocol": {
-      "cluster_identities" : [
-        {% for identity in recovery_decision_protocol_cluster_identities %}
+      "cluster_locations" : [
+        {% for location in recovery_decision_protocol_cluster_locations %}
           {
-            "intrinsic_id": "{{identity.intrinsic_id}}",
-            "published_address": "{{identity.published_address}}"
+            "name": "{{location.name}}",
+            "address": "{{location.address}}"
           }{% if not loop.last %},{% endif %}
         {% endfor %}
       ]

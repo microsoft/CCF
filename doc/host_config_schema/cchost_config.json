@@ -665,36 +665,36 @@
       "type": "object",
       "description": "Optional. Controls the behaviour of sealing-based recovery. If set, enables sealing of ledger secrets using platform derived key capabilities (e.g. AMD SEV-SNP derived keys). This allows a future recovering node to unilaterally recover its ledger secrets on restart without needing to reconstruct them from recovery shares.",
       "properties": {
-        "identity": {
+        "location": {
           "type": "object",
           "properties": {
-            "intrinsic_id": {
+            "name": {
               "type": "string"
             },
-            "published_address": {
+            "address": {
               "type": "string"
             }
           },
-          "required": ["intrinsic_id", "published_address"],
+          "required": ["name", "address"],
           "additionalProperties": false
         },
         "recovery_decision_protocol": {
           "type": "object",
           "properties": {
-            "cluster_identities": {
+            "cluster_locations": {
               "type": "array",
-              "description": "List of identities that the recovery_decision_protocol expects to be part of the previous network.",
+              "description": "List of locations that the recovery_decision_protocol expects to be part of the previous network.",
               "items": {
                 "type": "object",
                 "properties": {
-                  "intrinsic_id": {
+                  "name": {
                     "type": "string"
                   },
-                  "published_address": {
+                  "address": {
                     "type": "string"
                   }
                 },
-                "required": ["intrinsic_id", "published_address"],
+                "required": ["name", "address"],
                 "additionalProperties": false
               }
             },
@@ -708,11 +708,11 @@
               "description": "Timeout duration before failover forcibly advances the recovery_decision_protocol, allowing recovery to proceed even in the presence of unresponsive nodes. Set to 0 to disable failover."
             }
           },
-          "required": ["cluster_identities"],
+          "required": ["cluster_locations"],
           "additionalProperties": false
         }
       },
-      "required": ["identity"],
+      "required": ["location"],
       "additionalProperties": false
     }
   },

@@ -337,9 +337,10 @@ namespace ccf
           tx.rw<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
         sealed_recovery_keys->put(
           sealing_recovery_data.second, sealing_recovery_data.first);
-        auto* node_id_to_intrinsic_id =
-          tx.rw<NodeIdToIntrinsicId>(Tables::NODE_ID_TO_INTRINSIC_ID);
-        node_id_to_intrinsic_id->put(
+        auto* node_id_to_sealing_recovery_name =
+          tx.rw<NodeIdToSealingRecoveryName>(
+            Tables::NODE_ID_TO_SEALING_RECOVERY_NAME);
+        node_id_to_sealing_recovery_name->put(
           joining_node_id, sealing_recovery_data.second);
       }
 
@@ -1062,19 +1063,20 @@ namespace ccf
             nodes->remove(node_id);
             node_endorsed_certificates->remove(node_id);
 
-            auto* node_id_to_intrinsic_id =
-              args.tx.template rw<NodeIdToIntrinsicId>(
-                Tables::NODE_ID_TO_INTRINSIC_ID);
-            auto intrinsic_id = node_id_to_intrinsic_id->get(node_id);
-            if (intrinsic_id.has_value())
+            auto* node_id_to_sealing_recovery_name =
+              args.tx.template rw<NodeIdToSealingRecoveryName>(
+                Tables::NODE_ID_TO_SEALING_RECOVERY_NAME);
+            auto sealing_recovery_name =
+              node_id_to_sealing_recovery_name->get(node_id);
+            if (sealing_recovery_name.has_value())
             {
-              auto& intrinsic_id_value = intrinsic_id.value();
+              auto& sealing_recovery_name_value = sealing_recovery_name.value();
               auto* sealed_recovery_keys =
                 args.tx.template rw<SealedRecoveryKeys>(
                   Tables::SEALED_RECOVERY_KEYS);
-              sealed_recovery_keys->remove(intrinsic_id_value);
+              sealed_recovery_keys->remove(sealing_recovery_name_value);
             }
-            node_id_to_intrinsic_id->remove(node_id);
+            node_id_to_sealing_recovery_name->remove(node_id);
           }
           else
           {
@@ -1560,10 +1562,10 @@ namespace ccf
           sealed_recovery_keys->put(
             sealing_recovery_data.second, sealing_recovery_data.first);
 
-          auto* node_id_to_intrinsic_id =
-            ctx.tx.template rw<NodeIdToIntrinsicId>(
-              Tables::NODE_ID_TO_INTRINSIC_ID);
-          node_id_to_intrinsic_id->put(
+          auto* node_id_to_sealing_recovery_name =
+            ctx.tx.template rw<NodeIdToSealingRecoveryName>(
+              Tables::NODE_ID_TO_SEALING_RECOVERY_NAME);
+          node_id_to_sealing_recovery_name->put(
             in.node_id, sealing_recovery_data.second);
         }
 

@@ -106,7 +106,7 @@ namespace ccf
 
   struct RecoveryDecisionProtocolConfig
   {
-    std::vector<recovery_decision_protocol::Identity> cluster_identities;
+    std::vector<recovery_decision_protocol::Location> cluster_locations;
     ccf::ds::TimeString message_retry_timeout = {"100ms"};
     ccf::ds::TimeString failover_timeout = {"2000ms"};
     bool operator==(const RecoveryDecisionProtocolConfig&) const = default;
@@ -114,7 +114,7 @@ namespace ccf
 
   struct SealingRecoveryConfig
   {
-    recovery_decision_protocol::Identity identity;
+    recovery_decision_protocol::Location location;
     std::optional<RecoveryDecisionProtocolConfig> recovery_decision_protocol =
       std::nullopt;
     bool operator==(const SealingRecoveryConfig&) const = default;

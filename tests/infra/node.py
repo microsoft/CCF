@@ -152,7 +152,7 @@ class Node:
         self.common_dir = None
         self.suspended = False
         self.node_id = None
-        self.sealing_recovery_identity = None
+        self.sealing_recovery_location = None
         self.node_client_host = None
         # Note: Do not modify host argument as it may be passed to multiple
         # nodes or networks
@@ -395,7 +395,7 @@ class Node:
 
         self._read_ports()
 
-        self.sealing_recovery_identity = self.get_sealing_recovery_identity()
+        self.sealing_recovery_location = self.get_sealing_recovery_location()
 
         start_msg = f"Node {self.local_node_id} started: {self.node_id}"
         if self.version is not None:
@@ -627,18 +627,18 @@ class Node:
             interface.public_host, interface.public_port
         )
 
-    def get_sealing_recovery_identity(self):
-        if self.sealing_recovery_identity is not None:
-            return dict(self.sealing_recovery_identity)
+    def get_sealing_recovery_location(self):
+        if self.sealing_recovery_location is not None:
+            return dict(self.sealing_recovery_location)
 
-        intrinsic_id = (
+        name = (
             self.node_id if self.node_id is not None else str(self.local_node_id)
         )
-        self.sealing_recovery_identity = {
-            "intrinsic_id": intrinsic_id,
-            "published_address": self.get_public_rpc_address(),
+        self.sealing_recovery_location = {
+            "name": name,
+            "address": self.get_public_rpc_address(),
         }
-        return dict(self.sealing_recovery_identity)
+        return dict(self.sealing_recovery_location)
 
     def retrieve_self_signed_cert(self, *args, **kwargs):
         # Retrieve and overwrite node self-signed certificate in common directory

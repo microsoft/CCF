@@ -886,7 +886,7 @@ namespace ccf
       {
         join_params.sealing_recovery_data = std::make_pair(
           sealing::get_snp_sealed_recovery_key(snp_tcb_version.value()),
-          config.sealing_recovery->identity.intrinsic_id);
+          config.sealing_recovery->location.name);
       }
 
       LOG_DEBUG_FMT(
@@ -1563,10 +1563,10 @@ namespace ccf
         service->put(service_info.value());
         if (
           config.sealing_recovery.has_value() &&
-          !config.sealing_recovery->identity.intrinsic_id.empty())
+          !config.sealing_recovery->location.name.empty())
         {
-          const auto& identity = config.sealing_recovery->identity;
-          auto unsealed_ls = sealing::unseal_share(tx, identity.intrinsic_id);
+          const auto& location = config.sealing_recovery->location;
+          auto unsealed_ls = sealing::unseal_share(tx, location.name);
           if (unsealed_ls.has_value())
           {
             tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
@@ -2040,7 +2040,7 @@ namespace ccf
       {
         create_params.sealing_recovery_data = std::make_pair(
           sealing::get_snp_sealed_recovery_key(snp_tcb_version.value()),
-          config.sealing_recovery->identity.intrinsic_id);
+          config.sealing_recovery->location.name);
       }
 
       const auto body = nlohmann::json(create_params).dump();

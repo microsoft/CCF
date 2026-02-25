@@ -295,26 +295,26 @@ The following diagram illustrates the key hierarchy and encryption relationships
 Configuration
 ~~~~~~~~~~~~~
 
-If the ``sealing_recovery`` field is set in the configuration, this will enable local sealing, and the node will seal ledger secrets and a recovering node will attempt to unseal these secrets using the provided ``sealing_recovery.identity``.
+If the ``sealing_recovery`` field is set in the configuration, this will enable local sealing, and the node will seal ledger secrets and a recovering node will attempt to unseal these secrets using the provided ``sealing_recovery.location``.
 Additionally, the ``sealing_recovery.recovery_decision_protocol`` field can be set to enable the recovery decision protocol, and configure its parameters.
 
 .. code-block:: json
 
     {
       "sealing_recovery": {
-        "identity": {
-          "intrinsic_id": "<persistent-node-id>",
-          "published_address": "<node-host:port>"
+        "location": {
+          "name": "<persistent-node-id>",
+          "address": "<node-host:port>"
         },
         "recovery_decision_protocol": {
-          "cluster_identities": [
+          "cluster_locations": [
             {
-              "intrinsic_id": "<persistent-node-id-0>",
-              "published_address": "<node-0-host:port>"
+              "name": "<persistent-node-id-0>",
+              "address": "<node-0-host:port>"
             },
             {
-              "intrinsic_id": "<persistent-node-id-1>",
-              "published_address": "<node-1-host:port>"
+              "name": "<persistent-node-id-1>",
+              "address": "<node-1-host:port>"
             }
           ],
           "failover_timeout": "2000ms"

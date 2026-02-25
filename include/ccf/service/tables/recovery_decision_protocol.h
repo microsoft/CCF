@@ -16,19 +16,19 @@ namespace ccf
 {
   namespace recovery_decision_protocol
   {
-    using IntrinsicIdentifier = std::string;
+    using Name = std::string;
     using NetAddress = std::string;
 
-    struct Identity
+    struct Location
     {
-      IntrinsicIdentifier intrinsic_id;
-      NetAddress published_address;
+      Name name;
+      NetAddress address;
 
-      bool operator==(const Identity&) const = default;
+      bool operator==(const Location&) const = default;
     };
 
-    DECLARE_JSON_TYPE(Identity);
-    DECLARE_JSON_REQUIRED_FIELDS(Identity, intrinsic_id, published_address);
+    DECLARE_JSON_TYPE(Location);
+    DECLARE_JSON_REQUIRED_FIELDS(Location, name, address);
 
     inline std::string service_fingerprint_from_pem(const ccf::crypto::Pem& pem)
     {
@@ -40,12 +40,12 @@ namespace ccf
     struct RequestNodeInfo
     {
       QuoteInfo quote_info;
-      Identity identity;
+      Location location;
       std::vector<uint8_t> service_cert_der;
     };
     DECLARE_JSON_TYPE(RequestNodeInfo);
     DECLARE_JSON_REQUIRED_FIELDS(
-      RequestNodeInfo, quote_info, identity, service_cert_der);
+      RequestNodeInfo, quote_info, location, service_cert_der);
 
     struct NodeInfo : RequestNodeInfo
     {
@@ -82,11 +82,11 @@ namespace ccf
       {{OpenKinds::QUORUM, "Quorum"}, {OpenKinds::FAILOVER, "Failover"}});
 
     using NodeInfoMap = ServiceMap<
-      IntrinsicIdentifier,
+      Name,
       ccf::recovery_decision_protocol::NodeInfo>;
-    using Gossips = ServiceMap<IntrinsicIdentifier, ccf::TxID>;
-    using ChosenNode = ServiceValue<IntrinsicIdentifier>;
-    using Votes = ServiceSet<IntrinsicIdentifier>;
+    using Gossips = ServiceMap<Name, ccf::TxID>;
+    using ChosenNode = ServiceValue<Name>;
+    using Votes = ServiceSet<Name>;
     using SMState = ServiceValue<ccf::recovery_decision_protocol::StateMachine>;
     using TimeoutSMState =
       ServiceValue<ccf::recovery_decision_protocol::StateMachine>;

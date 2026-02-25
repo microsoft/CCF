@@ -831,14 +831,14 @@ class Network:
             node.host.get_primary_interface().port = port
             node.host.get_primary_interface().public_port = port
 
-        # Build cluster identities AFTER port randomization so that
-        # published_address reflects the actual listening address.
-        # intrinsic_id comes from the source node (old network identity).
-        recovery_decision_protocol_cluster_identities = []
+        # Build cluster locations AFTER port randomization so that
+        # address reflects the actual listening address.
+        # name comes from the source node (old network identity).
+        recovery_decision_protocol_cluster_locations = []
         for i, source_node in enumerate(source_nodes):
-            identity = source_node.get_sealing_recovery_identity()
-            identity["published_address"] = self.nodes[i].get_public_rpc_address()
-            recovery_decision_protocol_cluster_identities.append(identity)
+            location = source_node.get_sealing_recovery_location()
+            location["address"] = self.nodes[i].get_public_rpc_address()
+            recovery_decision_protocol_cluster_locations.append(location)
 
         self.status = ServiceStatus.RECOVERING
         LOG.debug(f"Opening CCF service on {self.hosts}")
@@ -862,8 +862,8 @@ class Network:
                     "common_dir": self.common_dir,
                 }
                 recovery_decision_protocol_kwargs = {
-                    "recovery_decision_protocol_cluster_identities": recovery_decision_protocol_cluster_identities,
-                    "sealing_recovery_identity": recovery_decision_protocol_cluster_identities[
+                    "recovery_decision_protocol_cluster_locations": recovery_decision_protocol_cluster_locations,
+                    "sealing_recovery_location": recovery_decision_protocol_cluster_locations[
                         i
                     ],
                 }
@@ -2038,7 +2038,7 @@ class Network:
                 name,
             )
 
-    def set_sealing_recovery_identitites(self, prev_nodes=None):
+    def set_sealing_recovery_locations(self, prev_nodes=None):
         if prev_nodes is None:
             nodes = self.nodes
         else:
@@ -2048,9 +2048,9 @@ class Network:
         # even if prev_nodes is a different set of nodes
         self.per_node_args_override |= {
             i: {
-                "sealing_recovery_identity": {
-                    "intrinsic_id": str(node.local_node_id),
-                    "published_address": node.get_public_rpc_address(),
+                "sealing_recovery_location": {
+                    "name": str(node.local_node_id),
+                    "address": node.get_public_rpc_address(),
                 }
             }
             for i, node in enumerate(nodes)

@@ -68,16 +68,16 @@ namespace ccf::node
         LOG_FAIL_FMT(
           "Recovery-decision-protocol message from {} has an invalid quote: {} "
           "({})",
-          info.identity.intrinsic_id,
+          info.location.name,
           code,
           message);
         return make_error(code, ccf::errors::InvalidQuote, message);
       }
 
       LOG_TRACE_FMT(
-        "Recovery-decision-protocol message from intrinsic id {} has a valid "
+        "Recovery-decision-protocol message from location name {} has a valid "
         "quote",
-        info.identity.intrinsic_id);
+        info.location.name);
 
       // ---- The sender now has trusted code ----
 
@@ -87,7 +87,7 @@ namespace ccf::node
         args.tx.rw<recovery_decision_protocol::NodeInfoMap>(
           Tables::RECOVERY_DECISION_PROTOCOL_NODES);
       auto existing_node_info =
-        node_info_handle->get(info.identity.intrinsic_id);
+        node_info_handle->get(info.location.name);
 
       if (existing_node_info.has_value())
       {
@@ -98,7 +98,7 @@ namespace ccf::node
             "Recovery-decision-protocol message from intrinsic id {} is "
             "invalid: "
             "certificate public key has changed",
-            info.identity.intrinsic_id);
+            info.location.name);
           LOG_FAIL_FMT("{}", message);
           return make_error(
             HTTP_STATUS_BAD_REQUEST, ccf::errors::NodeAlreadyExists, message);
@@ -110,7 +110,7 @@ namespace ccf::node
           info,
           cert_der,
         };
-        node_info_handle->put(info.identity.intrinsic_id, src_info);
+        node_info_handle->put(info.location.name, src_info);
       }
 
       // ---- Run callback ----
@@ -153,7 +153,7 @@ namespace ccf::node
       -> std::optional<ErrorDetails> {
       LOG_TRACE_FMT(
         "Recovery-decision-protocol: receive gossip from {}",
-        in.info.identity.intrinsic_id);
+        in.info.location.name);
 
       // Stop accepting gossips once a node has voted
       auto chosen_replica =
@@ -172,13 +172,13 @@ namespace ccf::node
       auto gossip_handle =
         args.tx.template rw<recovery_decision_protocol::Gossips>(
           Tables::RECOVERY_DECISION_PROTOCOL_GOSSIPS);
-      if (gossip_handle->get(in.info.identity.intrinsic_id).has_value())
+      if (gossip_handle->get(in.info.location.name).has_value())
       {
         LOG_INFO_FMT(
-          "Node {} already gossiped, skipping", in.info.identity.intrinsic_id);
+          "Node {} already gossiped, skipping", in.info.location.name);
         return std::nullopt;
       }
-      gossip_handle->put(in.info.identity.intrinsic_id, in.txid);
+      gossip_handle->put(in.info.location.name, in.txid);
       return std::nullopt;
     };
     registry
@@ -198,12 +198,12 @@ namespace ccf::node
       -> std::optional<ErrorDetails> {
       LOG_TRACE_FMT(
         "Recovery-decision-protocol: receive vote from {}",
-        in.info.identity.intrinsic_id);
+        in.info.location.name);
 
       args.tx
         .template rw<recovery_decision_protocol::Votes>(
           Tables::RECOVERY_DECISION_PROTOCOL_VOTES)
-        ->insert(in.info.identity.intrinsic_id);
+        ->insert(in.info.location.name);
 
       return std::nullopt;
     };
@@ -244,7 +244,7 @@ namespace ccf::node
 
         auto myid = fmt::format(
           "{}:{} previously {}@{}",
-          self_iamopen_request.info.identity.intrinsic_id,
+          self_iamopen_request.info.location.name,
           recovery_decision_protocol::service_fingerprint_from_pem(
             crypto::cert_der_to_pem(
               self_iamopen_request.info.service_cert_der)),
@@ -252,7 +252,7 @@ namespace ccf::node
           self_iamopen_request.txid.to_str());
         auto inid = fmt::format(
           "{}:{} previously {}@{}",
-          in.info.identity.intrinsic_id,
+          in.info.location.name,
           recovery_decision_protocol::service_fingerprint_from_pem(
             crypto::cert_der_to_pem(in.info.service_cert_der)),
           in.prev_service_fingerprint,
@@ -268,7 +268,7 @@ namespace ccf::node
 
       LOG_TRACE_FMT(
         "Recovery-decision-protocol: receive IAmOpen from {}",
-        in.info.identity.intrinsic_id);
+        in.info.location.name);
       args.tx
         .template rw<recovery_decision_protocol::SMState>(
           Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
@@ -276,7 +276,7 @@ namespace ccf::node
       args.tx
         .template rw<recovery_decision_protocol::ChosenNode>(
           Tables::RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE)
-        ->put(in.info.identity.intrinsic_id);
+        ->put(in.info.location.name);
       return std::nullopt;
     };
     registry
