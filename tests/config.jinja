@@ -115,7 +115,9 @@
             "address": "{{location.address}}"
           }{% if not loop.last %},{% endif %}
         {% endfor %}
-      ]
+      ]{% if recovery_decision_protocol_failover_timeout %},
+      "failover_timeout": "{{ recovery_decision_protocol_failover_timeout }}"
+      {% endif %}
     }
     {% endif %}
   }{% endif %}{% if node_to_node_message_limit %},

@@ -335,6 +335,7 @@ class CCFRemote(object):
         cose_signatures_subject="ledger.signature",
         sealing_recovery_location=None,
         recovery_decision_protocol_cluster_locations=None,
+        recovery_decision_protocol_failover_timeout_ms=2000,
         **kwargs,
     ):
         """
@@ -527,6 +528,11 @@ class CCFRemote(object):
                 cose_signatures_subject=cose_signatures_subject,
                 sealing_recovery_location=sealing_recovery_location,
                 recovery_decision_protocol_cluster_locations=recovery_decision_protocol_cluster_locations,
+                recovery_decision_protocol_failover_timeout=(
+                    f"{recovery_decision_protocol_failover_timeout_ms}ms"
+                    if recovery_decision_protocol_failover_timeout_ms is not None
+                    else None
+                ),
                 **kwargs,
             )
 

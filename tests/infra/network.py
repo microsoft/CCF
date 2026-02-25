@@ -215,6 +215,7 @@ class Network:
         "snp_endorsements_file",
         "subject_name",
         "idle_connection_timeout_s",
+        "recovery_decision_protocol_failover_timeout_ms",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups

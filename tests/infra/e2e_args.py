@@ -245,6 +245,12 @@ def cli_args(
         default=30,
     )
     parser.add_argument(
+        "--recovery-decision-protocol-failover-timeout-ms",
+        help="On recovery decision protocol, timeout (ms) before failover path is enabled. Set to 0 to disable failover path.",
+        type=int,
+        default=2000,
+    )
+    parser.add_argument(
         "--ledger-chunk-bytes",
         help="Size (bytes) at which a new ledger chunk is created",
         type=str,
