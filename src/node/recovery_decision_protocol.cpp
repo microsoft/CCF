@@ -708,7 +708,7 @@ namespace ccf
     return config.value();
   }
 
-  recovery_decision_protocol::Location& RecoveryDecisionProtocolSubsystem::
+  sealing_recovery::Location& RecoveryDecisionProtocolSubsystem::
     get_location()
   {
     if (!node_state->config.sealing_recovery.has_value())

@@ -31,6 +31,7 @@
 #include <openssl/crypto.h>
 #include <optional>
 #include <ranges>
+#include <stdexcept>
 
 namespace ccf::sealing
 {
@@ -127,19 +128,13 @@ namespace ccf::sealing
 
       for (const auto& [node_id, node_info] : trusted_nodes_info)
       {
-        auto name_opt = tx.ro<NodeIdToSealingRecoveryName>(
-                           Tables::NODE_ID_TO_SEALING_RECOVERY_NAME)
-                          ->get(node_id);
-        if (name_opt.has_value())
+        auto sealed_recovery_key = sealed_recovery_keys->get(node_id);
+        if (sealed_recovery_key.has_value())
         {
-          auto sealed_recovery_key = sealed_recovery_keys->get(name_opt.value());
-          if (sealed_recovery_key.has_value())
-          {
-            auto node_enc_pubk =
-              ccf::crypto::make_rsa_public_key(sealed_recovery_key->pubkey);
-            encrypted_sealed_shares[name_opt.value()] =
-              node_enc_pubk->rsa_oaep_wrap(sealed_share_serialised);
-          }
+          auto node_enc_pubk =
+            ccf::crypto::make_rsa_public_key(sealed_recovery_key->pubkey);
+          encrypted_sealed_shares[node_id] =
+            node_enc_pubk->rsa_oaep_wrap(sealed_share_serialised);
         }
       }
       OPENSSL_cleanse(
@@ -173,8 +168,19 @@ namespace ccf::sealing
   }
 
   std::optional<LedgerSecretPtr> unseal_share(
-    ccf::kv::ReadOnlyTx& tx, const NodeId& node_id)
+    ccf::kv::ReadOnlyTx& tx, const sealing_recovery::Name& name)
   {
+    auto* local_sealing_node_info =
+      tx.ro<LocalSealingNodeIdMap>(Tables::LOCAL_SEALING_NODE_ID_MAP);
+    auto local_sealing_node_id = local_sealing_node_info->get(name);
+    if (!local_sealing_node_id.has_value())
+    {
+      LOG_DEBUG_FMT(
+        "Node {} has no local sealing node info to unseal recovery share",
+        name);
+      return std::nullopt;
+    }
+    auto node_id = local_sealing_node_id.value();
     // Retrieve the node's sealed recovery key
     auto* sealed_recovery_keys =
       tx.ro<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
@@ -218,13 +224,33 @@ namespace ccf::sealing
       default:
         throw std::logic_error("Unknown derived sealing key algorithm");
     }
-    auto recovery_key_pair =
-      unseal_recovery_key(derived_key, sealed_recovery_key);
+
+    crypto::RSAKeyPairPtr recovery_key_pair;
+    try
+    {
+      recovery_key_pair = unseal_recovery_key(derived_key, sealed_recovery_key);
+    }
+    catch (const std::runtime_error& e)
+    {
+      LOG_FAIL_FMT(
+        "Failed to unseal recovery key for node {}: {}", node_id, e.what());
+      return std::nullopt;
+    }
     OPENSSL_cleanse(derived_key.data(), derived_key.size());
 
     // Decrypt the share
-    auto decrypted_share =
-      recovery_key_pair->rsa_oaep_unwrap(encrypted_full_share);
+    std::vector<uint8_t> decrypted_share;
+    try
+    {
+      decrypted_share =
+        recovery_key_pair->rsa_oaep_unwrap(encrypted_full_share);
+    }
+    catch (const std::runtime_error& e)
+    {
+      LOG_FAIL_FMT(
+        "Failed to unseal recovery share for node {}: {}", node_id, e.what());
+      return std::nullopt;
+    }
     ccf::crypto::sharing::Share share(decrypted_share);
     CCF_ASSERT_FMT(share.x == 0, "Expected full share when unsealing");
     ReconstructedLedgerSecretWrappingKey wrapping_key = {share};

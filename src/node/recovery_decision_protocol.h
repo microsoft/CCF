@@ -83,7 +83,7 @@ namespace ccf
     void send_iamopen_unsafe(kv::ReadOnlyTx& tx);
 
     RecoveryDecisionProtocolConfig& get_config();
-    recovery_decision_protocol::Location& get_location();
+    sealing_recovery::Location& get_location();
     ccf::TxID get_last_recovered_signed_txid();
   };
 }

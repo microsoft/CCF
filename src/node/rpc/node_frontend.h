@@ -332,16 +332,14 @@ namespace ccf
 
       if (in.sealing_recovery_data.has_value())
       {
-        auto& sealing_recovery_data = in.sealing_recovery_data.value();
+        const auto& [sealing_keys, sealing_recovery_name] =
+          in.sealing_recovery_data.value();
         auto* sealed_recovery_keys =
           tx.rw<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
-        sealed_recovery_keys->put(
-          sealing_recovery_data.second, sealing_recovery_data.first);
-        auto* node_id_to_sealing_recovery_name =
-          tx.rw<NodeIdToSealingRecoveryName>(
-            Tables::NODE_ID_TO_SEALING_RECOVERY_NAME);
-        node_id_to_sealing_recovery_name->put(
-          joining_node_id, sealing_recovery_data.second);
+        sealed_recovery_keys->put(joining_node_id, sealing_keys);
+        auto* local_sealing_node_id_map =
+          tx.rw<LocalSealingNodeIdMap>(Tables::LOCAL_SEALING_NODE_ID_MAP);
+        local_sealing_node_id_map->put(sealing_recovery_name, joining_node_id);
       }
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
@@ -1016,78 +1014,81 @@ namespace ccf
         .set_auto_schema<void, GetNodes::Out>()
         .install();
 
-      auto delete_retired_committed_node =
-        [this](auto& args, nlohmann::json&&) {
-          GetNodes::Out out;
+      auto delete_retired_committed_node = [this](
+                                             auto& args, nlohmann::json&&) {
+        GetNodes::Out out;
 
-          std::string node_id;
-          std::string error;
-          if (!get_path_param(
-                args.rpc_ctx->get_request_path_params(),
-                "node_id",
-                node_id,
-                error))
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
-          }
+        std::string node_id;
+        std::string error;
+        if (!get_path_param(
+              args.rpc_ctx->get_request_path_params(),
+              "node_id",
+              node_id,
+              error))
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+        }
 
-          auto nodes = args.tx.rw(this->network.nodes);
-          if (!nodes->has(node_id))
-          {
-            return make_error(
-              HTTP_STATUS_NOT_FOUND,
-              ccf::errors::ResourceNotFound,
-              "No such node");
-          }
+        auto nodes = args.tx.rw(this->network.nodes);
+        if (!nodes->has(node_id))
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "No such node");
+        }
 
-          auto node_endorsed_certificates =
-            args.tx.rw(network.node_endorsed_certificates);
+        auto node_endorsed_certificates =
+          args.tx.rw(network.node_endorsed_certificates);
 
-          // A node's retirement is only complete when the
-          // transition of retired_committed is itself committed,
-          // i.e. when the next eligible primary is guaranteed to
-          // be aware the retirement is committed.
-          // As a result, the handler must check node info at the
-          // current committed level, rather than at the end of the
-          // local suffix.
-          // While this transaction does execute a write, it specifically
-          // deletes the value it reads from. It is therefore safe to
-          // execute on the basis of a potentially stale read-set,
-          // which get_globally_committed() typically produces.
-          auto node = nodes->get_globally_committed(node_id);
-          if (
-            node.has_value() && node->status == ccf::NodeStatus::RETIRED &&
-            node->retired_committed)
-          {
-            nodes->remove(node_id);
-            node_endorsed_certificates->remove(node_id);
+        // A node's retirement is only complete when the
+        // transition of retired_committed is itself committed,
+        // i.e. when the next eligible primary is guaranteed to
+        // be aware the retirement is committed.
+        // As a result, the handler must check node info at the
+        // current committed level, rather than at the end of the
+        // local suffix.
+        // While this transaction does execute a write, it specifically
+        // deletes the value it reads from. It is therefore safe to
+        // execute on the basis of a potentially stale read-set,
+        // which get_globally_committed() typically produces.
+        auto node = nodes->get_globally_committed(node_id);
+        if (
+          node.has_value() && node->status == ccf::NodeStatus::RETIRED &&
+          node->retired_committed)
+        {
+          nodes->remove(node_id);
+          node_endorsed_certificates->remove(node_id);
 
-            auto* node_id_to_sealing_recovery_name =
-              args.tx.template rw<NodeIdToSealingRecoveryName>(
-                Tables::NODE_ID_TO_SEALING_RECOVERY_NAME);
-            auto sealing_recovery_name =
-              node_id_to_sealing_recovery_name->get(node_id);
-            if (sealing_recovery_name.has_value())
-            {
-              auto& sealing_recovery_name_value = sealing_recovery_name.value();
-              auto* sealed_recovery_keys =
-                args.tx.template rw<SealedRecoveryKeys>(
-                  Tables::SEALED_RECOVERY_KEYS);
-              sealed_recovery_keys->remove(sealing_recovery_name_value);
-            }
-            node_id_to_sealing_recovery_name->remove(node_id);
-          }
-          else
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::NodeNotRetiredCommitted,
-              "Node is not completely retired");
-          }
+          // clean up sealing tables
+          auto* local_sealing_node_id_map =
+            args.tx.template rw<LocalSealingNodeIdMap>(
+              Tables::LOCAL_SEALING_NODE_ID_MAP);
+          local_sealing_node_id_map->foreach(
+            [&](
+              const auto& sealing_recovery_name, const auto& sealing_node_id) {
+              if (sealing_node_id == node_id)
+              {
+                local_sealing_node_id_map->remove(sealing_recovery_name);
+                return false;
+              }
+              return true;
+            });
+          auto* sealed_recovery_keys = args.tx.template rw<SealedRecoveryKeys>(
+            Tables::SEALED_RECOVERY_KEYS);
+          sealed_recovery_keys->remove(node_id);
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::NodeNotRetiredCommitted,
+            "Node is not completely retired");
+        }
 
-          return make_success(true);
-        };
+        return make_success(true);
+      };
 
       make_endpoint(
         "/network/nodes/{node_id}",
@@ -1556,17 +1557,16 @@ namespace ccf
 
         if (in.sealing_recovery_data.has_value())
         {
-          auto& sealing_recovery_data = in.sealing_recovery_data.value();
+          const auto& [sealing_keys, sealing_recovery_name] =
+            in.sealing_recovery_data.value();
           auto* sealed_recovery_keys = ctx.tx.template rw<SealedRecoveryKeys>(
             Tables::SEALED_RECOVERY_KEYS);
-          sealed_recovery_keys->put(
-            sealing_recovery_data.second, sealing_recovery_data.first);
+          sealed_recovery_keys->put(in.node_id, sealing_keys);
 
-          auto* node_id_to_sealing_recovery_name =
-            ctx.tx.template rw<NodeIdToSealingRecoveryName>(
-              Tables::NODE_ID_TO_SEALING_RECOVERY_NAME);
-          node_id_to_sealing_recovery_name->put(
-            in.node_id, sealing_recovery_data.second);
+          auto* local_sealing_node_id_map =
+            ctx.tx.template rw<LocalSealingNodeIdMap>(
+              Tables::LOCAL_SEALING_NODE_ID_MAP);
+          local_sealing_node_id_map->put(sealing_recovery_name, in.node_id);
         }
 
         node_operation.shuffle_sealed_shares(ctx.tx);

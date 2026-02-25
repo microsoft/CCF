@@ -14,7 +14,7 @@
 
 namespace ccf
 {
-  namespace recovery_decision_protocol
+  namespace sealing_recovery
   {
     using Name = std::string;
     using NetAddress = std::string;
@@ -30,6 +30,9 @@ namespace ccf
     DECLARE_JSON_TYPE(Location);
     DECLARE_JSON_REQUIRED_FIELDS(Location, name, address);
 
+  }
+  namespace recovery_decision_protocol
+  {
     inline std::string service_fingerprint_from_pem(const ccf::crypto::Pem& pem)
     {
       return ccf::crypto::Sha256Hash(
@@ -40,7 +43,7 @@ namespace ccf
     struct RequestNodeInfo
     {
       QuoteInfo quote_info;
-      Location location;
+      sealing_recovery::Location location;
       std::vector<uint8_t> service_cert_der;
     };
     DECLARE_JSON_TYPE(RequestNodeInfo);
@@ -82,11 +85,11 @@ namespace ccf
       {{OpenKinds::QUORUM, "Quorum"}, {OpenKinds::FAILOVER, "Failover"}});
 
     using NodeInfoMap = ServiceMap<
-      Name,
+      sealing_recovery::Name,
       ccf::recovery_decision_protocol::NodeInfo>;
-    using Gossips = ServiceMap<Name, ccf::TxID>;
-    using ChosenNode = ServiceValue<Name>;
-    using Votes = ServiceSet<Name>;
+    using Gossips = ServiceMap<sealing_recovery::Name, ccf::TxID>;
+    using ChosenNode = ServiceValue<sealing_recovery::Name>;
+    using Votes = ServiceSet<sealing_recovery::Name>;
     using SMState = ServiceValue<ccf::recovery_decision_protocol::StateMachine>;
     using TimeoutSMState =
       ServiceValue<ccf::recovery_decision_protocol::StateMachine>;

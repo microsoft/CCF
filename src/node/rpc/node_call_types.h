@@ -75,7 +75,7 @@ namespace ccf
       ccf::TxID create_txid;
       std::optional<std::pair<
         SealedRecoveryKey,
-        recovery_decision_protocol::IntrinsicIdentifier>>
+        sealing_recovery::Name>>
         sealing_recovery_data = std::nullopt;
 
       // Only set on genesis transaction, but not on recovery
@@ -96,7 +96,7 @@ namespace ccf
       nlohmann::json node_data = nullptr;
       std::optional<std::pair<
         SealedRecoveryKey,
-        recovery_decision_protocol::IntrinsicIdentifier>>
+        sealing_recovery::Name>>
         sealing_recovery_data = std::nullopt;
     };
 
