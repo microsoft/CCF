@@ -21,5 +21,7 @@ namespace ccf::sealing
     ccf::kv::Tx& tx, const LedgerSecretPtr& latest_ledger_secret);
 
   std::optional<LedgerSecretPtr> unseal_share(
-    ccf::kv::ReadOnlyTx& tx, const sealing_recovery::Name& name);
+    ccf::kv::ReadOnlyTx& tx,
+    const std::vector<uint8_t>& sealed_wrapping_key,
+    const SealedRecoveryKey& sealed_recovery_key);
 }

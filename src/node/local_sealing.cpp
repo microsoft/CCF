@@ -168,31 +168,10 @@ namespace ccf::sealing
   }
 
   std::optional<LedgerSecretPtr> unseal_share(
-    ccf::kv::ReadOnlyTx& tx, const sealing_recovery::Name& name)
+    ccf::kv::ReadOnlyTx& tx,
+    const std::vector<uint8_t>& sealed_wrapping_key,
+    const SealedRecoveryKey& sealed_recovery_key)
   {
-    auto* local_sealing_node_info =
-      tx.ro<LocalSealingNodeIdMap>(Tables::LOCAL_SEALING_NODE_ID_MAP);
-    auto local_sealing_node_id = local_sealing_node_info->get(name);
-    if (!local_sealing_node_id.has_value())
-    {
-      LOG_DEBUG_FMT(
-        "Node {} has no local sealing node info to unseal recovery share",
-        name);
-      return std::nullopt;
-    }
-    auto node_id = local_sealing_node_id.value();
-    // Retrieve the node's sealed recovery key
-    auto* sealed_recovery_keys =
-      tx.ro<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
-    auto sealed_recovery_key_opt = sealed_recovery_keys->get(node_id);
-    if (!sealed_recovery_key_opt.has_value())
-    {
-      LOG_INFO_FMT(
-        "Node {} has no sealed recovery key to unseal recovery share", node_id);
-      return std::nullopt;
-    }
-    auto& sealed_recovery_key = sealed_recovery_key_opt.value();
-
     // Retrieve the encrypted sealed share
     auto sealed_shares = tx.ro<SealedShares>(Tables::SEALED_SHARES)->get();
     if (!sealed_shares.has_value())
@@ -201,18 +180,6 @@ namespace ccf::sealing
       return std::nullopt;
     }
     auto sealed_share_info = sealed_shares.value();
-    auto encrypted_full_share_it =
-      sealed_share_info.encrypted_wrapping_keys.find(node_id);
-    if (
-      encrypted_full_share_it ==
-      sealed_share_info.encrypted_wrapping_keys.end())
-    {
-      LOG_INFO_FMT(
-        "Node {} has no encrypted sealed share to unseal recovery share",
-        node_id);
-      return std::nullopt;
-    }
-    auto encrypted_full_share = encrypted_full_share_it->second;
 
     // Unseal the recovery key pair
     std::vector<uint8_t> derived_key;
@@ -233,7 +200,7 @@ namespace ccf::sealing
     catch (const std::runtime_error& e)
     {
       LOG_FAIL_FMT(
-        "Failed to unseal recovery key for node {}: {}", node_id, e.what());
+        "Failed to unseal recovery key: {}", e.what());
       return std::nullopt;
     }
     OPENSSL_cleanse(derived_key.data(), derived_key.size());
@@ -243,12 +210,12 @@ namespace ccf::sealing
     try
     {
       decrypted_share =
-        recovery_key_pair->rsa_oaep_unwrap(encrypted_full_share);
+        recovery_key_pair->rsa_oaep_unwrap(sealed_wrapping_key);
     }
     catch (const std::runtime_error& e)
     {
       LOG_FAIL_FMT(
-        "Failed to unseal recovery share for node {}: {}", node_id, e.what());
+        "Failed to unseal recovery share for: {}", e.what());
       return std::nullopt;
     }
     ccf::crypto::sharing::Share share(decrypted_share);

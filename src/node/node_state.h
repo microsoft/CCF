@@ -7,6 +7,7 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
+#include "ccf/entity_id.h"
 #include "ccf/js/core/context.h"
 #include "ccf/node/cose_signatures_config.h"
 #include "ccf/pal/attestation_sev_snp.h"
@@ -151,6 +152,9 @@ namespace ccf
     std::vector<ccf::kv::Version> view_history;
     ::consensus::Index last_recovered_signed_idx = 0;
     RecoveredEncryptedLedgerSecrets recovered_encrypted_ledger_secrets;
+    std::optional<
+      std::tuple<ccf::NodeId, std::vector<uint8_t>, SealedRecoveryKey>>
+      cached_sealed_recovery_data = std::nullopt;
     ::consensus::Index last_recovered_idx = 0;
     static const size_t recovery_batch_size = 100;
 
@@ -1177,6 +1181,52 @@ namespace ccf
         h->set_node_id(self);
       }
 
+      // cache the previous sealed_recovery_key
+      if (config.sealing_recovery.has_value())
+      {
+        auto& name = config.sealing_recovery->location.name;
+        auto* node_id_lookup =
+          tx.ro<LocalSealingNodeIdMap>(Tables::LOCAL_SEALING_NODE_ID_MAP);
+        auto local_sealing_node_id_opt = node_id_lookup->get(name);
+        if (local_sealing_node_id_opt.has_value())
+        {
+          auto& local_sealing_node_id = local_sealing_node_id_opt.value();
+          auto sealed_recovery_shares_opt =
+            tx.ro<SealedShares>(Tables::SEALED_SHARES)->get();
+          if (sealed_recovery_shares_opt.has_value())
+          {
+            auto sealed_recovery_shares = sealed_recovery_shares_opt.value();
+            auto sealed_share_it =
+              sealed_recovery_shares.encrypted_wrapping_keys.find(
+                local_sealing_node_id);
+
+            auto sealed_recovery_key =
+              tx.ro<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS)
+                ->get(local_sealing_node_id.value());
+
+            if (
+              sealed_share_it !=
+                sealed_recovery_shares.encrypted_wrapping_keys.end() &&
+              sealed_recovery_key.has_value())
+            {
+              cached_sealed_recovery_data = std::make_tuple(
+                local_sealing_node_id.value(),
+                sealed_share_it->second,
+                sealed_recovery_key.value());
+            }
+          }
+        }
+
+        if (!cached_sealed_recovery_data.has_value())
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to find sealed recovery data for location ({}) in ledger "
+            "at {}",
+            name,
+            last_recovered_signed_idx));
+        }
+      }
+
       setup_consensus(true);
       auto_refresh_jwt_keys();
 
@@ -1565,8 +1615,16 @@ namespace ccf
           config.sealing_recovery.has_value() &&
           !config.sealing_recovery->location.name.empty())
         {
-          const auto& location = config.sealing_recovery->location;
-          auto unsealed_ls = sealing::unseal_share(tx, location.name);
+          if (!cached_sealed_recovery_data.has_value())
+          {
+            throw std::logic_error(
+              "Missing cached sealed recovery key for private recovery");
+          }
+
+          auto& [last_sealed_node_id, last_sealed_wrapping_key, last_sealed_recovery_key] =
+            cached_sealed_recovery_data.value();
+          auto unsealed_ls = sealing::unseal_share(
+            tx, last_sealed_wrapping_key, last_sealed_recovery_key);
           if (unsealed_ls.has_value())
           {
             tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
