@@ -2048,10 +2048,7 @@ class Network:
         # even if prev_nodes is a different set of nodes
         self.per_node_args_override |= {
             i: {
-                "sealing_recovery_location": {
-                    "name": str(node.local_node_id),
-                    "address": node.get_public_rpc_address(),
-                }
+                "sealing_recovery_location": node.get_sealing_recovery_location(),
             }
             for i, node in enumerate(nodes)
         }
