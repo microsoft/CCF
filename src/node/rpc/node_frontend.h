@@ -24,7 +24,7 @@
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/no_create_tx_claims_digest.cpp" // NOLINT(bugprone-suspicious-include)
 #include "node/rpc/node_frontend_utils.h"
-#include "node/rpc/recovery_decision_protocol_handlers.h"
+#include "node/rpc/self_healing_open_handlers.h"
 #include "node/rpc/serialization.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"

@@ -10,7 +10,7 @@
 #include "ccf/odata_error.h"
 #include "ccf/service/operator_feature.h"
 #include "ccf/service/tables/nodes.h"
-#include "ccf/service/tables/recovery_decision_protocol.h"
+#include "ccf/service/tables/self_healing_open.h"
 #include "node/node_configuration_subsystem.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/rpc/node_frontend_utils.h"

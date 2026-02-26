@@ -11,7 +11,7 @@
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
-#include "ccf/service/tables/recovery_decision_protocol.h"
+#include "ccf/service/tables/self_healing_open.h"
 #include "ccf/service/tables/service.h"
 #include "common/configuration.h"
 #include "enclave/interface.h"

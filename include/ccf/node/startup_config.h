@@ -12,7 +12,7 @@
 #include "ccf/service/service_config.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
-#include "ccf/service/tables/recovery_decision_protocol.h"
+#include "ccf/service/tables/self_healing_open.h"
 
 #include <optional>
 #include <string>

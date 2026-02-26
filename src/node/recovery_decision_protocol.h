@@ -5,7 +5,7 @@
 #include "ccf/ds/json.h"
 #include "ccf/node/startup_config.h"
 #include "ccf/pal/locking.h"
-#include "ccf/service/tables/recovery_decision_protocol.h"
+#include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
 #include "ccf/tx_id.h"
 #include "tasks/task.h"

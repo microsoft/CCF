@@ -6,7 +6,7 @@
 #include "ccf/entity_id.h"
 #include "ccf/service/local_sealing.h"
 #include "ccf/service/map.h"
-#include "ccf/service/tables/recovery_decision_protocol.h"
+#include "ccf/service/tables/self_healing_open.h"
 #include "shares.h"
 
 #include <cstdint>

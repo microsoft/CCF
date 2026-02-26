@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/service/local_sealing.h"
-#include "ccf/service/tables/recovery_decision_protocol.h"
+#include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
 #include "node/ledger_secret.h"
 

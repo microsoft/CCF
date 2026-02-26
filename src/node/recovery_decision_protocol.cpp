@@ -6,7 +6,7 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
-#include "ccf/service/tables/recovery_decision_protocol.h"
+#include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
 #include "ccf/tx_id.h"
 #include "http/curl.h"
