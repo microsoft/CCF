@@ -192,29 +192,13 @@ namespace ccf::sealing
         throw std::logic_error("Unknown derived sealing key algorithm");
     }
 
-    crypto::RSAKeyPairPtr recovery_key_pair;
-    try
-    {
-      recovery_key_pair = unseal_recovery_key(derived_key, sealed_recovery_key);
-    }
-    catch (const std::runtime_error& e)
-    {
-      LOG_FAIL_FMT("Failed to unseal recovery key: {}", e.what());
-      return std::nullopt;
-    }
+    auto recovery_key_pair =
+      unseal_recovery_key(derived_key, sealed_recovery_key);
     OPENSSL_cleanse(derived_key.data(), derived_key.size());
 
     // Decrypt the share
-    std::vector<uint8_t> decrypted_share;
-    try
-    {
-      decrypted_share = recovery_key_pair->rsa_oaep_unwrap(sealed_wrapping_key);
-    }
-    catch (const std::runtime_error& e)
-    {
-      LOG_FAIL_FMT("Failed to unseal recovery share for: {}", e.what());
-      return std::nullopt;
-    }
+    std::vector<uint8_t> decrypted_share =
+      recovery_key_pair->rsa_oaep_unwrap(sealed_wrapping_key);
     ccf::crypto::sharing::Share share(decrypted_share);
     CCF_ASSERT_FMT(share.x == 0, "Expected full share when unsealing");
     ReconstructedLedgerSecretWrappingKey wrapping_key = {share};
