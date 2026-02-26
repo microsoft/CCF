@@ -124,7 +124,7 @@ Together these features allow a network to automatically recover from a crash wi
 Recovery Decision Protocol
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-At a high level, the recovery decision protocol allows recovering replicas to discover which node has the most up-to-date ledger and automatically recover the network using that ledger.
+At a high level, the recovery decision protocol allows recovering nodes to discover which node has the most up-to-date ledger and automatically recover the network using that ledger.
 The protocol completes with a node choosing to `transition-to-open`, and so requires another mechanism to unseal and recover the private ledger.
 
 The protocol uses three phases to ensure that so long as the hosts and network between them is sufficiently healthy, forks are prevented and the most up-to-date ledger is recovered.
@@ -295,7 +295,7 @@ The following diagram illustrates the key hierarchy and encryption relationships
 Configuration
 ~~~~~~~~~~~~~
 
-If the ``sealing_recovery`` field is set in the configuration, this will enable local sealing, and the node will seal ledger secrets and a recovering node will attempt to unseal these secrets using the provided ``sealing_recovery.location``.
+If the ``sealing_recovery`` field is set in the configuration, this will enable local sealing, where the current node will seal ledger secrets into the ledger and a future recovering node will attempt to unseal these secrets using the supplied ``sealing_recovery.location.name``.
 Additionally, the ``sealing_recovery.recovery_decision_protocol`` field can be set to enable the recovery decision protocol, and configure its parameters.
 
 .. code-block:: json
