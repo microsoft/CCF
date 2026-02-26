@@ -623,7 +623,7 @@ Mapping from sealing recovery names to node IDs for nodes that support local sea
 ``recovery_decision_protocol.votes``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Key** Intrinsic node ID of the node which has voted for this node to be opened.
+**Key** Location name of the node which has voted for this node to be opened.
 
 ``recovery_decision_protocol.sm_state``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

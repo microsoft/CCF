@@ -94,7 +94,7 @@ namespace ccf::node
         if (existing_node_info->node_cert_der != cert_der)
         {
           auto message = fmt::format(
-            "Recovery-decision-protocol message from intrinsic id {} is "
+            "Recovery-decision-protocol message from location {} is "
             "invalid: "
             "certificate public key has changed",
             info.location.name);
