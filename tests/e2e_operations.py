@@ -2530,7 +2530,9 @@ def run_recovery_decision_protocol_timeout_path_disabled(const_args):
 
             started_node = recovered_network.nodes[0]
 
-            LOG.info("Wait 10s and verify recovery-decision protocol is still gossiping")
+            LOG.info(
+                "Wait 10s and verify recovery-decision protocol is still gossiping"
+            )
             time.sleep(10)
 
             assert (

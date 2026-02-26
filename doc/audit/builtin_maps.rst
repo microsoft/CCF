@@ -229,14 +229,14 @@ The minimum trusted TCB version for new nodes allowed to join the network (:doc`
     :project: CCF
     :members:
 
-``nodes.node_id_to_sealing_recovery_name``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``nodes.local_sealing_node_id_map``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Mapping from node IDs to sealing recovery names for nodes that support local sealing. This table is used alongside ``nodes.sealed_recovery_keys`` to track which name corresponds to each node. When a node is retired, this mapping is used to look up and clean up the associated sealed recovery key entry.
+Mapping from sealing recovery names to node IDs for nodes that support local sealing. This table is used alongside ``nodes.sealed_recovery_keys`` to fetch the sealed recovery key when a node is recovering.
 
-**Key** Node ID: SHA-256 digest of the node public key, represented as a hex-encoded string.
+**Key** Sealing recovery name of the node, represented as a string.
 
-**Value** Sealing recovery name of the node, represented as a string.
+**Value** Node ID: SHA-256 digest of the node public key, represented as a hex-encoded string.
 
 ``service.info``
 ~~~~~~~~~~~~~~~~
@@ -600,7 +600,7 @@ While the contents themselves are encrypted, the table is public so as to be acc
 ``recovery_decision_protocol.nodes``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Key** Intrinsic node ID: A string which is unique to a particular node role within a cluster.
+**Key** Location name: A string which is unique to the location of a particular node within a network.
 
 **Value** 
 
@@ -611,13 +611,9 @@ While the contents themselves are encrypted, the table is public so as to be acc
 ``recovery_decision_protocol.gossip``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Key** Intrinsic node ID of the source of the gossip message.
+**Key** Location name of the source of the gossip message.
 
-**Value**
-
-.. doxygenstruct:: ccf::recovery_decision_protocol::GossipRequest
-   :project: CCF
-   :members:
+**Value** The TxID of the last recovered signed transaction known by the source node.
 
 ``recovery_decision_protocol.chosen_node``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
