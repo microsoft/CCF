@@ -618,7 +618,7 @@ Mapping from sealing recovery names to node IDs for nodes that support local sea
 ``recovery_decision_protocol.chosen_node``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Value** The intrinsic node ID of the chosen node. This will either be the node this node voted for, or the node that is has received an `IAmOpen` message from.
+**Value** The location name of the chosen node. This will either be the node this node voted for, or the node that it has received an `IAmOpen` message from.
 
 ``recovery_decision_protocol.votes``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
