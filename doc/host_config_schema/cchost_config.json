@@ -329,7 +329,7 @@
                   "code_transparent_statement_path": {
                     "type": "string",
                     "default": null,
-                    "description": "Path to the transparent statement over the code. Only takes effect if node is a joinee"
+                    "description": "Path to a SCITT Transparent Statement over the attested host_data of the node"
                   }
                 },
                 "required": ["target_rpc_address"],
