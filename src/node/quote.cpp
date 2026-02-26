@@ -13,8 +13,8 @@
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/sev_snp_cpuid.h"
 #include "ccf/service/tables/code_id.h"
-#include "ccf/service/tables/code_update_policy.h"
 #include "ccf/service/tables/jsengine.h"
+#include "ccf/service/tables/node_join_policy.h"
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/tcb_verification.h"
 #include "ccf/service/tables/uvm_endorsements.h"
@@ -235,7 +235,9 @@ namespace ccf
   }
 
   QuoteVerificationResult verify_host_data_against_store(
-    ccf::kv::ReadOnlyTx& tx, const QuoteInfo& quote_info)
+    ccf::kv::ReadOnlyTx& tx,
+    const QuoteInfo& quote_info,
+    std::optional<HostData>& host_data)
   {
     if (
       quote_info.format != QuoteFormat::amd_sev_snp_v1 &&
@@ -245,7 +247,7 @@ namespace ccf
         "Attempted to verify host data for an unsupported platform");
     }
 
-    auto host_data = AttestationProvider::get_host_data(quote_info);
+    host_data = AttestationProvider::get_host_data(quote_info);
     if (!host_data.has_value())
     {
       return QuoteVerificationResult::FailedHostDataDigestNotFound;
@@ -420,15 +422,14 @@ namespace ccf
       }
 
       // Verify against code update policy (if one is set)
-      auto* policy_table =
-        tx.ro<CodeUpdatePolicy>(Tables::NODE_CODE_UPDATE_POLICY);
+      auto* policy_table = tx.ro<CodeUpdatePolicy>(Tables::NODE_JOIN_POLICY);
       if (policy_table != nullptr)
       {
         auto policy_script = policy_table->get();
         if (policy_script.has_value())
         {
           auto violation =
-            ccf::policy::apply_code_update_policy(policy_script.value(), phdr);
+            ccf::policy::apply_node_join_policy(policy_script.value(), phdr);
           if (violation.has_value())
           {
             LOG_FAIL_FMT(
@@ -544,16 +545,19 @@ namespace ccf
       return QuoteVerificationResult::Failed;
     }
 
-    auto rc = verify_host_data_against_store(tx, quote_info);
+    std::optional<HostData> host_data{std::nullopt};
+    auto rc = verify_host_data_against_store(tx, quote_info, host_data);
     if (rc == QuoteVerificationResult::FailedInvalidHostData)
     {
       if (code_transparent_statement.has_value())
       {
-        auto host_data = AttestationProvider::get_host_data(quote_info);
         if (!host_data.has_value())
         {
+          // It must not happen after verify_host_data_against_store returns
+          // FailedInvalidHostData, but let's handle gracefully.
           return QuoteVerificationResult::FailedHostDataDigestNotFound;
         }
+
         rc = verify_code_transparent_statement(
           tx,
           code_transparent_statement.value(),

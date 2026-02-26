@@ -1578,14 +1578,14 @@ const actions = new Map([
     ),
   ],
   [
-    "set_code_update_policy",
+    "set_node_join_policy",
     new Action(
       function (args) {
         checkType(args.policy, "string", "policy");
       },
       function (args, proposalId) {
         const codeUpdatePolicyTable =
-          ccf.kv["public:ccf.gov.nodes.code_update_policy"];
+          ccf.kv["public:ccf.gov.nodes.node_join_policy"];
         codeUpdatePolicyTable.set(
           getSingletonKvKey(),
           ccf.strToBuf(args.policy),
@@ -1594,12 +1594,12 @@ const actions = new Map([
     ),
   ],
   [
-    "remove_code_update_policy",
+    "remove_node_join_policy",
     new Action(
       function (args) {},
       function (args, proposalId) {
         const codeUpdatePolicyTable =
-          ccf.kv["public:ccf.gov.nodes.code_update_policy"];
+          ccf.kv["public:ccf.gov.nodes.node_join_policy"];
         codeUpdatePolicyTable.delete(getSingletonKvKey());
       },
     ),

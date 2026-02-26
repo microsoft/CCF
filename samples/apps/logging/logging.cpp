@@ -37,7 +37,7 @@ namespace loggingapp
   static constexpr auto PUBLIC_RECORDS = "public:records";
   static constexpr auto PRIVATE_RECORDS = "records";
 
-  using CoseSignedStatementMap =
+  using ScittTransparentStatementMap =
     ccf::kv::RawCopySerialisedValue<std::vector<uint8_t>>;
   static constexpr auto COSE_SIGNED_STATEMENTS =
     "public:cose_transparent_statements";
@@ -2281,8 +2281,8 @@ namespace loggingapp
           ctx.rpc_ctx->set_claims_digest(
             ccf::ClaimsDigest::Digest(signed_statement));
 
-          auto* entry_table =
-            ctx.tx.template rw<CoseSignedStatementMap>(COSE_SIGNED_STATEMENTS);
+          auto* entry_table = ctx.tx.template rw<ScittTransparentStatementMap>(
+            COSE_SIGNED_STATEMENTS);
           entry_table->put(signed_statement);
 
           CCF_APP_INFO(
@@ -2309,8 +2309,9 @@ namespace loggingapp
           ccf::historical::StatePtr historical_state) {
           auto historical_tx = historical_state->store->create_read_only_tx();
 
-          auto* entries = historical_tx.template ro<CoseSignedStatementMap>(
-            COSE_SIGNED_STATEMENTS);
+          auto* entries =
+            historical_tx.template ro<ScittTransparentStatementMap>(
+              COSE_SIGNED_STATEMENTS);
           auto entry = entries->get();
           if (!entry.has_value())
           {

@@ -871,17 +871,17 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def set_code_update_policy(self, remote_node, policy):
+    def set_node_join_policy(self, remote_node, policy):
         proposal_body, careful_vote = self.make_proposal(
-            "set_code_update_policy",
+            "set_node_join_policy",
             policy=policy,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def remove_code_update_policy(self, remote_node):
+    def remove_node_join_policy(self, remote_node):
         proposal_body, careful_vote = self.make_proposal(
-            "remove_code_update_policy",
+            "remove_node_join_policy",
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)

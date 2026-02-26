@@ -65,7 +65,7 @@ namespace ccf::policy
     return obj;
   }
 
-  static std::optional<std::string> apply_code_update_policy(
+  static std::optional<std::string> apply_node_join_policy(
     const std::string& policy_script, const cose::Sign1ProtectedHeader& phdr)
   {
     ccf::js::CommonContext interpreter(ccf::js::TxAccess::GOV_RO);
@@ -74,7 +74,7 @@ namespace ccf::policy
     try
     {
       apply_func = interpreter.get_exported_function(
-        policy_script, "apply", "code_update_policy");
+        policy_script, "apply", "node_join_policy");
     }
     catch (const std::exception& e)
     {

@@ -10,7 +10,7 @@ namespace ccf
 
   namespace Tables
   {
-    static constexpr auto NODE_CODE_UPDATE_POLICY =
-      "public:ccf.gov.nodes.code_update_policy";
+    static constexpr auto NODE_JOIN_POLICY =
+      "public:ccf.gov.nodes.node_join_policy";
   }
 }

@@ -748,7 +748,7 @@ def assert_node_join_fails(network, args):
         raise AssertionError("Node join unexpectedly succeeded")
 
 
-def make_code_update_policy(issuer, min_svn):
+def make_node_join_policy(issuer, min_svn):
     """Return a JS code-update policy that requires the given issuer and minimum SVN."""
     return f"""export function apply(phdr) {{
   if (phdr.cwt.iss !== "{issuer}") {{ return "Invalid issuer"; }}
@@ -796,8 +796,8 @@ def test_add_node_via_code_policy(network, args):
     transparent_statement = register_signed_statement(primary, signed_statement)
 
     # Set a code update policy that requires SVN >= 500.
-    network.consortium.set_code_update_policy(
-        primary, make_code_update_policy(issuer, min_svn=500)
+    network.consortium.set_node_join_policy(
+        primary, make_node_join_policy(issuer, min_svn=500)
     )
 
     # Prepare joiner args with the transparent statement (svn=499).
@@ -829,7 +829,7 @@ def test_add_node_via_code_policy(network, args):
         host_data,
         security_policy,
     )
-    network.consortium.remove_code_update_policy(primary)
+    network.consortium.remove_node_join_policy(primary)
 
     return network
 
