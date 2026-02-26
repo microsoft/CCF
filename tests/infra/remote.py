@@ -526,7 +526,7 @@ class CCFRemote(object):
                 cose_signatures_issuer=cose_signatures_issuer,
                 cose_signatures_subject=cose_signatures_subject,
                 sealing_recovery_location=sealing_recovery_location,
-                recovery_decision_protocol_cluster_locations=recovery_decision_protocol_expected_locations,
+                recovery_decision_protocol_expected_locations=recovery_decision_protocol_expected_locations,
                 **kwargs,
             )
 
