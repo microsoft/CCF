@@ -343,39 +343,9 @@ def test_recover_service_with_wrong_identity(network, args):
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
     # Attempt a recovery with the wrong previous service certificate
+    # The mismatch results in all snapshots being ignored
 
     args.previous_service_identity_file = network.consortium.user_cert_path("user0")
-
-    broken_network = infra.network.Network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        existing_network=network,
-    )
-
-    exception = None
-    try:
-        broken_network.start_in_recovery(
-            args,
-            ledger_dir=current_ledger_dir,
-            committed_ledger_dirs=committed_ledger_dirs,
-            snapshots_dir=snapshots_dir,
-        )
-    except Exception as ex:
-        exception = ex
-
-    broken_network.ignoring_shutdown_errors = True
-    broken_network.stop_all_nodes(skip_verification=True)
-
-    if exception is None:
-        raise ValueError("Recovery should have failed")
-    if not broken_network.nodes[0].check_log_for_error_message(
-        "Previous service identity does not endorse the node identity that signed the snapshot"
-    ):
-        raise ValueError("Node log does not contain the expected error message")
-
-    # Attempt a second recovery with the broken cert but no snapshot
-    # Now the mismatch is only noticed when the transition proposal is submitted
 
     broken_network = infra.network.Network(
         args.nodes,
@@ -388,8 +358,10 @@ def test_recover_service_with_wrong_identity(network, args):
         args,
         ledger_dir=current_ledger_dir,
         committed_ledger_dirs=committed_ledger_dirs,
+        snapshots_dir=snapshots_dir,
     )
 
+    # The mismatch is only fatal when used in a transition proposal
     exception = None
     try:
         broken_network.recover(args)
@@ -401,6 +373,12 @@ def test_recover_service_with_wrong_identity(network, args):
 
     if exception is None:
         raise ValueError("Recovery should have failed")
+
+    if not broken_network.nodes[0].check_log_for_error_message(
+        "Previous service identity does not endorse the node identity that signed the snapshot"
+    ):
+        raise ValueError("Node log does not contain the expected error message")
+
     if not broken_network.nodes[0].check_log_for_error_message(
         "Unable to open service: Previous service identity does not match."
     ):

@@ -4,13 +4,6 @@
 
 set -e
 
-if [ ! -f "python/version.py" ]; then
-    echo "Generate version.py if it doesn't already exist"
-    mkdir -p tmp_build && cd tmp_build
-    cmake -L -GNinja ..
-    cd .. && rm -rf tmp_build
-fi
-
 echo "Setting up Python environment..."
 if [ ! -f "env/bin/activate" ]
     then

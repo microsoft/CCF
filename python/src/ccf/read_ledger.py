@@ -150,11 +150,24 @@ def run(
     print_mode: PrintMode,
     is_snapshot=False,
     tables_regex=None,
-    insecure_skip_verification=False,
+    verification_level=None,
     uncommitted=False,
     read_recovery_files=False,
     tables_format_rules=None,
+    # Deprecated parameter, kept for backward compatibility
+    insecure_skip_verification=None,
 ):
+    # Handle backward compatibility
+    if insecure_skip_verification is not None and verification_level is None:
+        verification_level = (
+            ccf.ledger.VerificationLevel.NONE
+            if insecure_skip_verification
+            else ccf.ledger.VerificationLevel.FULL
+        )
+    elif verification_level is None:
+        # Default to FULL if neither is specified
+        verification_level = ccf.ledger.VerificationLevel.FULL
+
     table_filter = re.compile(tables_regex) if tables_regex is not None else None
 
     # Extend and compile rules
@@ -173,14 +186,18 @@ def run(
             dump_entry(snapshot, table_filter, tables_format_rules)
         return True
     else:
+        # Create validator if verification level is not NONE
         validator = (
-            ccf.ledger.LedgerValidator() if not insecure_skip_verification else None
+            ccf.ledger.LedgerValidator(verification_level=verification_level)
+            if verification_level != ccf.ledger.VerificationLevel.NONE
+            else None
         )
         ledger_paths = paths
         ledger = ccf.ledger.Ledger(
             ledger_paths,
             committed_only=not uncommitted,
             read_recovery_files=read_recovery_files,
+            verification_level=verification_level,
         )
 
         print(f"Reading ledger from {ledger_paths}")
@@ -213,9 +230,18 @@ def run(
             if not validator:
                 print("Skipped ledger integrity verification")
             else:
-                print(
-                    f"Found {validator.signature_count} signatures, and verified until {validator.last_verified_txid()}"
-                )
+                # Build appropriate message based on verification level
+                if verification_level >= ccf.ledger.VerificationLevel.MERKLE:
+                    # For MERKLE and FULL, report signature verification
+                    print(
+                        f"Verified {verification_level.name} - {validator.transaction_count} transactions, "
+                        f"{validator.signature_count} signatures, until {validator.last_verified_txid()}"
+                    )
+                else:
+                    # For OFFSETS and HEADERS, just report transaction count
+                    print(
+                        f"Verified {verification_level.name} - {validator.transaction_count} transactions"
+                    )
         return not has_error
 
 
@@ -227,7 +253,8 @@ def main():
     parser.add_argument(
         "paths",
         help="Path to ledger directories, ledger chunks, or snapshot file. "
-        "Note that parsing individual ledger chunks requires the additional --insecure-skip-verification option",
+        "Note that parsing individual ledger chunks requires --verification-level=MERKLE or lower "
+        "(FULL verification requires context from the complete ledger)",
         nargs="+",
     )
     parser.add_argument(
@@ -269,13 +296,38 @@ def main():
     )
 
     parser.add_argument(
+        "--verification-level",
+        help=(
+            "Ledger verification level (ordered by increasing computation cost). "
+            "NONE: No verification, just parse; "
+            "OFFSETS: Validate offset table consistency; "
+            "HEADERS: Validate transaction headers (size, version, flags); "
+            "MERKLE: Validate merkle tree (trust first signature); "
+            "FULL: Full cryptographic verification including signatures (default)"
+        ),
+        type=str,
+        choices=[level.name for level in ccf.ledger.VerificationLevel],
+        default=None,
+    )
+
+    parser.add_argument(
         "--insecure-skip-verification",
-        help="INSECURE: skip ledger Merkle tree integrity verification",
+        help="DEPRECATED: Use --verification-level=NONE instead. INSECURE: skip all ledger verification",
         action="store_true",
         default=False,
     )
 
     args = parser.parse_args()
+
+    # Parse verification level
+    verification_level = None
+    if args.verification_level:
+        verification_level = ccf.ledger.VerificationLevel[args.verification_level]
+
+    # Handle deprecated flag
+    insecure_skip_verification = (
+        args.insecure_skip_verification if not args.verification_level else None
+    )
 
     print_mode = PrintMode.Contents
     if args.quiet:
@@ -288,7 +340,8 @@ def main():
         print_mode,
         is_snapshot=args.snapshot,
         tables_regex=args.tables,
-        insecure_skip_verification=args.insecure_skip_verification,
+        verification_level=verification_level,
+        insecure_skip_verification=insecure_skip_verification,
         uncommitted=args.uncommitted,
         read_recovery_files=args.recovery,
     ):

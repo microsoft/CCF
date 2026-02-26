@@ -3,14 +3,13 @@
 
 import base64
 from hashlib import sha256
-from typing import List
 from cryptography.x509 import Certificate
 from cryptography.x509.verification import PolicyBuilder, Store
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, utils
 
 
-def root(leaf: str, proof: List[dict]):
+def root(leaf: str, proof: list[dict]):
     """
     Recompute root of Merkle tree from a leaf and a proof of the form:
     [{"left": digest}, {"right": digest}, ...]
@@ -57,7 +56,7 @@ def check_endorsement(endorsee: Certificate, endorser: Certificate):
 def check_endorsements(
     node_cert: Certificate,
     service_cert: Certificate,
-    endorsements: List[Certificate],
+    endorsements: list[Certificate],
 ):
     """
     Check a node certificate is endorsed by a service certificate, transitively through a list of endorsements.
@@ -72,7 +71,7 @@ def check_endorsements(
 def check_cert_chain(
     node_cert: Certificate,
     service_cert: Certificate,
-    endorsements: List[Certificate],
+    endorsements: list[Certificate],
 ):
     """
     Use default cryptography policy to verify CCF cert chain

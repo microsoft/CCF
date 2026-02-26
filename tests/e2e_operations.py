@@ -734,6 +734,188 @@ def test_nulled_snapshot(network, args):
         assert failed, "Node should not have joined successfully"
 
 
+def test_corrupt_snapshot_handling(network, args):
+    """
+    Test that corrupt snapshots in writable and read-only directories are
+    handled correctly:
+    - In the writable directory, corrupt files are renamed to .ignored.
+    - In a read-only (config) directory, log messages about unrenamable files
+      are emitted.
+    - When the writable directory's permissions prevent renaming, a log message
+      about failure to mark the snapshot as ignored is emitted.
+    """
+
+    # Craft corrupt snapshot data that passes separate_segments() (valid header
+    # with non-zero body size and non-empty receipt area) but fails
+    # verify_snapshot() because the receipt is not valid JSON.
+    # SerialisedEntryHeader is 8 bytes: version(1) + flags(1) + size(48-bit LE)
+    body_size = 16
+    header = bytes([1, 0]) + body_size.to_bytes(6, "little")
+    assert len(header) == 8
+    body = b"\x00" * body_size
+    receipt = b"this is not valid json!!"
+    corrupt_data = header + body + receipt
+
+    # Use a higher seqno for the writable dir so it is tried first (snapshots
+    # are iterated in descending seqno order).
+    writable_snapshot_name = "snapshot_2000_2500.committed"
+    read_only_snapshot_name = "snapshot_1000_1500.committed"
+
+    # ---- Part 1: writable dir (rename succeeds) + read-only config dir ----
+    LOG.info("Part 1: corrupt snapshots in both writable and read-only directories")
+
+    with tempfile.TemporaryDirectory() as writable_dir, tempfile.TemporaryDirectory() as read_only_dir:
+        # Place corrupt snapshots
+        with open(os.path.join(writable_dir, writable_snapshot_name), "wb") as f:
+            f.write(corrupt_data)
+        with open(os.path.join(read_only_dir, read_only_snapshot_name), "wb") as f:
+            f.write(corrupt_data)
+
+        new_node = network.create_node()
+
+        # Set up the join with the writable snapshot directory only; we will
+        # inject the read-only directory into the config afterwards.
+        network.setup_join_node(
+            new_node,
+            args.package,
+            args,
+            snapshots_dir=writable_dir,
+            fetch_recent_snapshot=False,
+        )
+
+        # The node's workspace root and config file
+        node_root = new_node.remote.remote.root
+        config_file_name = f"{new_node.remote.local_node_id}.config.json"
+        config_path = os.path.join(node_root, config_file_name)
+
+        # Copy the read-only snapshot directory into the node's workspace
+        ro_dir_basename = os.path.basename(read_only_dir)
+        shutil.copytree(read_only_dir, os.path.join(node_root, ro_dir_basename))
+
+        # Patch the config to include the read-only snapshot directory.
+        # If the config file is a symlink, replace it with a copy so we
+        # don't mutate the shared original.
+        if os.path.islink(config_path):
+            target = os.path.realpath(config_path)
+            os.unlink(config_path)
+            shutil.copy2(target, config_path)
+
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        config["snapshots"]["read_only_directory"] = ro_dir_basename
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+
+        # Start the node – it should fall back to ledger replay after
+        # discarding both corrupt snapshots.  If the node fails to join
+        # (e.g. timeout), that is acceptable – the snapshot selection
+        # behaviour we care about happens during startup before the join
+        # protocol completes.
+        try:
+            network.run_join_node(new_node)
+            new_node.stop()
+        except Exception as e:
+            LOG.warning(f"Node failed to join (expected if ledger replay is slow): {e}")
+            # run_join_node already stopped and removed the node on failure,
+            # but we still need to ensure the process is down.
+            try:
+                new_node.stop()
+            except Exception:
+                pass
+
+        # -- Verify writable directory: file must be renamed to .ignored --
+        writable_in_ws = os.path.join(node_root, os.path.basename(writable_dir))
+        ws_files = os.listdir(writable_in_ws)
+        assert writable_snapshot_name not in ws_files, (
+            f"Corrupt snapshot {writable_snapshot_name} should have been "
+            f"renamed in writable dir, but found: {ws_files}"
+        )
+        assert f"{writable_snapshot_name}.ignored" in ws_files, (
+            f"Expected {writable_snapshot_name}.ignored in writable dir, "
+            f"but found: {ws_files}"
+        )
+
+        # -- Verify read-only directory: file must still be present --
+        ro_in_ws = os.path.join(node_root, ro_dir_basename)
+        ro_files = os.listdir(ro_in_ws)
+        assert read_only_snapshot_name in ro_files, (
+            f"Corrupt snapshot {read_only_snapshot_name} in read-only dir "
+            f"should not have been renamed, but found: {ro_files}"
+        )
+
+        # -- Verify node logs --
+        assert new_node.check_log_for_error_message(
+            "Error while verifying"
+        ), "Expected 'Error while verifying' in node logs"
+
+        assert new_node.check_log_for_error_message(
+            "Ignoring corrupt snapshot"
+        ), "Expected 'Ignoring corrupt snapshot' in node logs"
+
+        assert new_node.check_log_for_error_message(
+            "is in a read-only directory"
+        ), "Expected read-only directory message in node logs"
+
+    # ---- Part 2: writable dir with restricted permissions (rename fails) ----
+    LOG.info("Part 2: corrupt snapshot in writable dir that cannot be renamed")
+
+    unrenamable_snapshot_name = "snapshot_3000_3500.committed"
+
+    with tempfile.TemporaryDirectory() as restricted_dir:
+        snapshot_path = os.path.join(restricted_dir, unrenamable_snapshot_name)
+        with open(snapshot_path, "wb") as f:
+            f.write(corrupt_data)
+
+        new_node2 = network.create_node()
+        network.setup_join_node(
+            new_node2,
+            args.package,
+            args,
+            snapshots_dir=restricted_dir,
+            fetch_recent_snapshot=False,
+        )
+
+        # To make the rename to .ignored fail, create a *directory* with the
+        # target name (<snapshot>.ignored).  On Linux, rename() returns EISDIR
+        # when the source is a file and the destination is a directory,
+        # regardless of user privileges (chmod is ineffective under root).
+        node_root2 = new_node2.remote.remote.root
+        restricted_in_ws = os.path.join(node_root2, os.path.basename(restricted_dir))
+        blocker_dir = os.path.join(
+            restricted_in_ws, f"{unrenamable_snapshot_name}.ignored"
+        )
+        os.makedirs(blocker_dir)
+        # Place a file inside so the directory is non-empty (extra safety)
+        with open(os.path.join(blocker_dir, "placeholder"), "w") as f:
+            f.write("")
+
+        try:
+            network.run_join_node(new_node2)
+        except Exception:
+            # The node may fail to join if it cannot write to the snapshots
+            # directory at all; that is acceptable for this sub-test.
+            pass
+
+        try:
+            new_node2.stop()
+        except Exception:
+            pass
+
+        # The corrupt file should still be present (rename failed)
+        ws_files2 = os.listdir(restricted_in_ws)
+        assert unrenamable_snapshot_name in ws_files2, (
+            f"Corrupt snapshot {unrenamable_snapshot_name} should still exist "
+            f"after failed rename, but found: {ws_files2}"
+        )
+
+        # Check that the failure-to-rename message appears in the logs
+        assert new_node2.check_log_for_error_message(
+            "Unable to mark snapshot as ignored"
+        ), "Expected 'Unable to mark snapshot as ignored' in node logs"
+
+    return network
+
+
 def split_all_ledger_files_in_dir(input_dir, output_dir):
     # A ledger file can only be split at a seqno that contains a signature
     # (so that all files end on a signature that verifies their integrity).
@@ -870,6 +1052,188 @@ def test_ledger_chunk_access(network, args):
                         headers={"Range": range_value},
                     )
                     assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+
+    # ETag / If-None-Match tests on a single chunk
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        main_ledger_dir = primary.get_main_ledger_dir()
+        chunks = [f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")]
+        chunks = sorted(
+            (*ccf.ledger.range_from_filename(chunk), chunk) for chunk in chunks
+        )
+        assert len(chunks) > 0, "No committed chunks found"
+        _, _, chunk = chunks[0]
+        chunk_url = f"/node/ledger-chunk/{chunk}"
+        ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
+        with open(ledger_chunk_path, "rb") as f:
+            chunk_data = f.read()
+
+        # 1. Normal GET returns a correctly formed ETag
+        r = c.get(chunk_url, allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.OK.value, r
+        etag = r.headers.get("etag")
+        assert etag is not None, "Missing ETag header on GET"
+        # ETag must be in RFC 9530 format: "sha-256=:<base64>:"
+        assert etag.startswith('"sha-256=:') and etag.endswith(
+            ':"'
+        ), f"ETag has unexpected format: {etag}"
+        expected_b64 = base64.b64encode(hashlib.sha256(chunk_data).digest()).decode()
+        assert (
+            etag == f'"sha-256=:{expected_b64}:"'
+        ), f"ETag digest mismatch: expected sha-256=:{expected_b64}:, got {etag}"
+
+        # 2. GET with If-None-Match that does NOT match returns a fresh download
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": '"sha-256=:AAAA:"'},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.OK.value
+        ), f"Expected 200 for non-matching If-None-Match, got {r.status_code}"
+        assert (
+            r.body.data() == chunk_data
+        ), "Body content should match for non-matching If-None-Match"
+
+        # 3.a. GET with If-None-Match matching the ETag returns 304 Not Modified
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match, got {r.status_code}"
+
+        # 3.b. Compute a sha-384 version of the same ETag, and confirm that it works too
+        # RFC 9530 allows multiple algorithms in the ETag, and If-None-Match should match if any of them match
+        # GET with If-None-Match matching the ETag returns 304 Not Modified
+        sha384_b64 = base64.b64encode(hashlib.sha384(chunk_data).digest()).decode()
+        sha384_etag = f'"sha-384=:{sha384_b64}:"'
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": sha384_etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching sha-384 If-None-Match, got {r.status_code}"
+
+        # 3.b2. sha-512 variant
+        sha512_b64 = base64.b64encode(hashlib.sha512(chunk_data).digest()).decode()
+        sha512_etag = f'"sha-512=:{sha512_b64}:"'
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": sha512_etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching sha-512 If-None-Match, got {r.status_code}"
+
+        # 3.c. HEAD returns the same ETag as GET
+        r = c.head(chunk_url, allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.OK.value, r
+        head_etag = r.headers.get("etag")
+        assert (
+            head_etag == etag
+        ), f"HEAD ETag mismatch: expected {etag}, got {head_etag}"
+
+        # 3.d. HEAD with matching If-None-Match returns 304
+        r = c.call(
+            chunk_url,
+            http_verb="HEAD",
+            headers={"if-none-match": etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match with HEAD, got {r.status_code}"
+
+        # 4. Same checks on a sub-Range of the file
+        total_size = len(chunk_data)
+        range_end = total_size // 2
+        partial_data = chunk_data[: range_end + 1]
+        r = c.call(
+            chunk_url,
+            http_verb="GET",
+            headers={"range": f"bytes=0-{range_end}"},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 for Range GET, got {r.status_code}"
+        range_etag = r.headers.get("etag")
+        assert range_etag is not None, "Missing ETag header on Range GET"
+        range_expected_b64 = base64.b64encode(
+            hashlib.sha256(partial_data).digest()
+        ).decode()
+        assert (
+            range_etag == f'"sha-256=:{range_expected_b64}:"'
+        ), f"Range ETag mismatch: expected sha-256=:{range_expected_b64}:, got {range_etag}"
+
+        # Non-matching If-None-Match on range → fresh partial download
+        r = c.call(
+            chunk_url,
+            http_verb="GET",
+            headers={
+                "range": f"bytes=0-{range_end}",
+                "if-none-match": '"sha-256=:AAAA:"',
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 for non-matching If-None-Match with Range, got {r.status_code}"
+        assert (
+            r.body.data() == partial_data
+        ), "Body content should match partial data for non-matching If-None-Match with Range"
+
+        # Matching If-None-Match on range → 304 Not Modified
+        r = c.call(
+            chunk_url,
+            http_verb="GET",
+            headers={
+                "range": f"bytes=0-{range_end}",
+                "if-none-match": range_etag,
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match with Range, got {r.status_code}"
+
+        # HEAD with Range should return the same ETag as the corresponding GET range
+        r = c.call(
+            chunk_url,
+            http_verb="HEAD",
+            headers={
+                "range": f"bytes=0-{range_end}",
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 for HEAD with Range, got {r.status_code}"
+        head_range_etag = r.headers.get("etag")
+        assert (
+            head_range_etag == range_etag
+        ), f"HEAD Range ETag mismatch: expected {range_etag}, got {head_range_etag}"
+
+        # Matching If-None-Match on HEAD + Range → 304 Not Modified
+        r = c.call(
+            chunk_url,
+            http_verb="HEAD",
+            headers={
+                "range": f"bytes=0-{range_end}",
+                "if-none-match": range_etag,
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match with HEAD Range, got {r.status_code}"
 
 
 def test_ledger_chunk_repr_digest(network, args):
@@ -1176,6 +1540,7 @@ def run_file_operations(args):
                 test_snapshot_selection(network, args)
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
+                test_corrupt_snapshot_handling(network, args)
 
                 # Ensure that the network is still live
                 primary, _ = network.find_primary()
@@ -2237,6 +2602,7 @@ def run_read_ledger_on_testdata(args):
                 tables = tx.get_public_domain().get_tables()
                 tx_count += 1
         LOG.info(f"Read {tx_count} transactions from {testdata_path}")
+
         snapshot_path = os.path.join(
             args.historical_testdata, testdata_dir.name, "snapshots"
         )
@@ -2249,6 +2615,55 @@ def run_read_ledger_on_testdata(args):
                     LOG.info(
                         f"Valid snapshot at {snapshot_file.path} with {len(tables)} tables"
                     )
+
+
+def test_merkle_verification_level(args):
+    """Test MERKLE verification level on isolated chunks and full ledgers"""
+    LOG.info("Testing MERKLE verification level")
+
+    # Test 1: MERKLE verification on full ledger
+    for testdata_dir in os.scandir(args.historical_testdata):
+        if not testdata_dir.is_dir():
+            continue
+        testdata_path = os.path.join(
+            args.historical_testdata, testdata_dir.name, "ledger"
+        )
+        LOG.info(f"Testing MERKLE verification on full ledger: {testdata_path}")
+
+        # Read with MERKLE verification level
+        assert ccf.read_ledger.run(
+            paths=[testdata_path],
+            print_mode=ccf.read_ledger.PrintMode.Quiet,
+            verification_level=ccf.ledger.VerificationLevel.MERKLE,
+        )
+
+    # Test 2: MERKLE verification on isolated chunks
+    # Find chunks with multiple signatures to test the "trust first signature" logic
+    test_chunks = [
+        os.path.join(
+            args.historical_testdata,
+            "expired_service",
+            "ledger",
+            "ledger_29-46.committed",
+        ),
+        os.path.join(
+            args.historical_testdata,
+            "double_sealed_service",
+            "ledger",
+            "ledger_44-64.committed",
+        ),
+    ]
+
+    for chunk_path in test_chunks:
+        if os.path.exists(chunk_path):
+            LOG.info(f"Testing MERKLE verification on isolated chunk: {chunk_path}")
+            assert ccf.read_ledger.run(
+                paths=[chunk_path],
+                print_mode=ccf.read_ledger.PrintMode.Quiet,
+                verification_level=ccf.ledger.VerificationLevel.MERKLE,
+            )
+
+    LOG.info("MERKLE verification level tests passed")
 
     # Corrupt a single chunk to confirm that read_ledger throws appropriate errors
     source_chunk = os.path.join(
@@ -2545,4 +2960,5 @@ def run(args):
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
     run_read_ledger_on_testdata(args)
+    test_merkle_verification_level(args)
     run_propose_request_vote(args)
