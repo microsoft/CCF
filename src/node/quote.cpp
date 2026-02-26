@@ -4,11 +4,7 @@
 #include "ccf/node/quote.h"
 
 #include "ccf/crypto/cose.h"
-#include "ccf/crypto/cose_verifier.h"
-#include "ccf/crypto/verifier.h"
-#include "ccf/ds/hex.h"
 #include "ccf/historical_queries_utils.h"
-#include "ccf/js/common_context.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/sev_snp_cpuid.h"
@@ -19,15 +15,10 @@
 #include "ccf/service/tables/tcb_verification.h"
 #include "ccf/service/tables/uvm_endorsements.h"
 #include "ccf/service/tables/virtual_measurements.h"
-#include "crypto/cbor.h"
-#include "crypto/cose.h"
 #include "crypto/cose_utils.h"
 #include "ds/internal_logger.h"
-#include "node/cose_common.h"
 #include "node/js_policy.h"
 #include "node/uvm_endorsements.h"
-
-#include <didx509cpp/didx509cpp.h>
 
 namespace ccf
 {
@@ -454,12 +445,12 @@ namespace ccf
         },
         "Parse receipts array from unprotected header");
 
-      const auto& receipt_bytes = ccf::cbor::rethrow_with_msg(
-        [&]() { return receipts_array->array_at(0)->as_bytes(); },
-        "Extract first receipt from array");
-
-      std::vector<uint8_t> receipt_raw(
-        receipt_bytes.begin(), receipt_bytes.end());
+      const auto num_receipts = receipts_array->size();
+      if (num_receipts == 0)
+      {
+        LOG_FAIL_FMT("No receipts in transparent statement");
+        return QuoteVerificationResult::FailedInvalidHostData;
+      }
 
       if (!network_identity_subsystem)
       {
@@ -469,50 +460,61 @@ namespace ccf
         return QuoteVerificationResult::FailedInvalidHostData;
       }
 
-      // Verify that the receipt's claims_digest matches the hash of the
+      // Verify that every receipt's claims_digest matches the hash of the
       // signed statement (the COSE_Sign1 with its unprotected header
       // stripped). This binds the receipt to the specific signed content.
       auto signed_statement = ccf::cose::edit::set_unprotected_header(
         ts_raw, ccf::cose::edit::desc::Empty{});
       auto expected_claims_digest = ccf::crypto::Sha256Hash(signed_statement);
 
-      auto receipt_cbor = ccf::cbor::rethrow_with_msg(
-        [&]() { return ccf::cbor::parse(receipt_raw); },
-        "Parse receipt COSE envelope");
-
-      const auto& receipt_envelope = ccf::cbor::rethrow_with_msg(
-        [&]() -> const ccf::cbor::Value& {
-          return receipt_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1);
-        },
-        "Parse receipt COSE_Sign1 tag");
-
-      auto proofs = cose::decode_merkle_proofs(receipt_envelope);
-      if (proofs.empty())
+      for (size_t i = 0; i < num_receipts; ++i)
       {
-        LOG_FAIL_FMT("No Merkle proofs found in receipt");
-        return QuoteVerificationResult::FailedInvalidHostData;
-      }
+        const auto& receipt_bytes = ccf::cbor::rethrow_with_msg(
+          [&]() { return receipts_array->array_at(i)->as_bytes(); },
+          fmt::format("Extract receipt {} from array", i));
 
-      for (const auto& proof : proofs)
-      {
-        if (
-          proof.leaf.claims_digest.size() != ccf::crypto::Sha256Hash::SIZE ||
-          std::memcmp(
-            proof.leaf.claims_digest.data(),
-            expected_claims_digest.h.data(),
-            ccf::crypto::Sha256Hash::SIZE) != 0)
+        std::vector<uint8_t> receipt_raw(
+          receipt_bytes.begin(), receipt_bytes.end());
+
+        auto receipt_cbor = ccf::cbor::rethrow_with_msg(
+          [&]() { return ccf::cbor::parse(receipt_raw); },
+          fmt::format("Parse receipt {} COSE envelope", i));
+
+        const auto& receipt_envelope = ccf::cbor::rethrow_with_msg(
+          [&]() -> const ccf::cbor::Value& {
+            return receipt_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1);
+          },
+          fmt::format("Parse receipt {} COSE_Sign1 tag", i));
+
+        auto proofs = cose::decode_merkle_proofs(receipt_envelope);
+        if (proofs.empty())
         {
-          LOG_FAIL_FMT(
-            "Receipt claims_digest ({}) does not match signed statement hash "
-            "({})",
-            ccf::ds::to_hex(proof.leaf.claims_digest),
-            expected_claims_digest.hex_str());
+          LOG_FAIL_FMT("No Merkle proofs found in receipt {}", i);
           return QuoteVerificationResult::FailedInvalidHostData;
         }
-      }
 
-      ccf::historical::verify_self_issued_receipt(
-        receipt_raw, network_identity_subsystem);
+        for (const auto& proof : proofs)
+        {
+          if (
+            proof.leaf.claims_digest.size() != ccf::crypto::Sha256Hash::SIZE ||
+            std::memcmp(
+              proof.leaf.claims_digest.data(),
+              expected_claims_digest.h.data(),
+              ccf::crypto::Sha256Hash::SIZE) != 0)
+          {
+            LOG_FAIL_FMT(
+              "Receipt {} claims_digest ({}) does not match signed statement "
+              "hash ({})",
+              i,
+              ccf::ds::to_hex(proof.leaf.claims_digest),
+              expected_claims_digest.hex_str());
+            return QuoteVerificationResult::FailedInvalidHostData;
+          }
+        }
+
+        ccf::historical::verify_self_issued_receipt(
+          receipt_raw, network_identity_subsystem);
+      }
     }
     catch (const std::exception& e)
     {

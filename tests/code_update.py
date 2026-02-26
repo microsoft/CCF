@@ -13,6 +13,7 @@ import infra.commit
 import suite.test_requirements as reqs
 import os
 from infra.checker import check_can_progress
+from infra.crypto import create_signed_statement
 import infra.snp as snp
 import tempfile
 import shutil
@@ -20,27 +21,7 @@ import http
 import json
 from hashlib import sha256
 import copy
-import base64
-import uuid
-import datetime
 import time
-
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.x509 import (
-    CertificateBuilder,
-    Name,
-    NameAttribute,
-    BasicConstraints,
-    KeyUsage,
-    ExtendedKeyUsage,
-    SubjectKeyIdentifier,
-    AuthorityKeyIdentifier,
-    ObjectIdentifier,
-)
-from cryptography.x509.oid import NameOID
-import cwt
-import cwt.utils
 
 
 from loguru import logger as LOG
@@ -551,143 +532,10 @@ def test_add_node_with_untrusted_measurement(network, args):
     return network
 
 
-def create_signed_statement(
-    payload: bytes, sub: str, svn: int, eku: str, ca_identity=None
-) -> tuple:
-    """
-    Create a COSE_Sign1 signed statement with x5chain and CWT claims.
-    Returns (encoded_bytes, issuer_string, ca_identity_tuple).
-
-    If ca_identity is provided as (ca_key, ca_name, ca_cert), the same CA
-    will be reused so that the issuer DID is stable across calls.
-    """
-
-    now = datetime.datetime.now(datetime.timezone.utc)
-    validity = datetime.timedelta(days=10)
-
-    # Generate or reuse CA key and self-signed cert
-
-    if ca_identity is not None:
-        ca_key, ca_name, ca_cert = ca_identity
-    else:
-        ca_key = ec.generate_private_key(ec.SECP256R1())
-        ca_name = Name([NameAttribute(NameOID.COMMON_NAME, str(uuid.uuid4()))])
-        ca_cert = (
-            CertificateBuilder()
-            .subject_name(ca_name)
-            .issuer_name(ca_name)
-            .public_key(ca_key.public_key())
-            .serial_number(int(uuid.uuid4()))
-            .not_valid_before(now)
-            .not_valid_after(now + validity)
-            .add_extension(BasicConstraints(ca=True, path_length=None), critical=True)
-            .add_extension(
-                KeyUsage(
-                    key_cert_sign=True,
-                    digital_signature=False,
-                    content_commitment=False,
-                    key_encipherment=False,
-                    data_encipherment=False,
-                    key_agreement=False,
-                    crl_sign=False,
-                    encipher_only=False,
-                    decipher_only=False,
-                ),
-                critical=True,
-            )
-            .add_extension(
-                SubjectKeyIdentifier.from_public_key(ca_key.public_key()),
-                critical=False,
-            )
-            .add_extension(
-                AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
-                critical=False,
-            )
-            .sign(ca_key, hashes.SHA256())
-        )
-
-    # Generate leaf key and cert with EKU, signed by CA
-
-    leaf_key = ec.generate_private_key(ec.SECP256R1())
-    leaf_name = Name([NameAttribute(NameOID.COMMON_NAME, str(uuid.uuid4()))])
-    leaf_cert = (
-        CertificateBuilder()
-        .subject_name(leaf_name)
-        .issuer_name(ca_name)
-        .public_key(leaf_key.public_key())
-        .serial_number(int(uuid.uuid4()))
-        .not_valid_before(now)
-        .not_valid_after(now + validity)
-        .add_extension(BasicConstraints(ca=False, path_length=None), critical=True)
-        .add_extension(
-            KeyUsage(
-                digital_signature=True,
-                key_cert_sign=False,
-                content_commitment=False,
-                key_encipherment=False,
-                data_encipherment=False,
-                key_agreement=False,
-                crl_sign=False,
-                encipher_only=False,
-                decipher_only=False,
-            ),
-            critical=True,
-        )
-        .add_extension(
-            ExtendedKeyUsage([ObjectIdentifier(eku)]),
-            critical=False,
-        )
-        .add_extension(
-            SubjectKeyIdentifier.from_public_key(leaf_key.public_key()),
-            critical=False,
-        )
-        .add_extension(
-            AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
-            critical=False,
-        )
-        .sign(ca_key, hashes.SHA256())
-    )
-
-    # Build did:x509 issuer
-
-    ca_fingerprint = (
-        base64.urlsafe_b64encode(ca_cert.fingerprint(hashes.SHA256()))
-        .decode("ascii")
-        .rstrip("=")
-    )
-    issuer = f"did:x509:0:sha256:{ca_fingerprint}::eku:{eku}"
-
-    # x5chain: [leaf_der, ca_der]
-
-    leaf_der = leaf_cert.public_bytes(serialization.Encoding.DER)
-    ca_der = ca_cert.public_bytes(serialization.Encoding.DER)
-
-    # Build COSE_Sign1 protected headers
-
-    phdr = {
-        1: -7,  # alg: ES256
-        3: "application/octet-stream",  # content_type
-        33: [leaf_der, ca_der],  # x5chain
-        15: {1: issuer, 2: sub, "svn": svn},  # CWT claims
-    }
-
-    leaf_key_pem = leaf_key.private_bytes(
-        serialization.Encoding.PEM,
-        serialization.PrivateFormat.PKCS8,
-        serialization.NoEncryption(),
-    )
-    cose_ctx = cwt.COSE.new(alg_auto_inclusion=False, deterministic_header=True)
-    cose_key = cwt.COSEKey.from_pem(leaf_key_pem.decode("ascii"))
-    encoded = cose_ctx.encode_and_sign(
-        payload, cose_key, protected=cwt.utils.ResolvedHeader(phdr)
-    )
-    return encoded, issuer, (ca_key, ca_name, ca_cert)
-
-
 def register_signed_statement(node, signed_statement):
     with node.client("user0") as client:
         r = client.post(
-            "/log/signed_statement",
+            "/app/log/signed_statement",
             body=signed_statement,
             headers={"Content-Type": "application/cose"},
         )
@@ -709,7 +557,7 @@ def register_signed_statement(node, signed_statement):
 
         for attempt in range(max_retries):
             r = client.get(
-                "/log/transparent_statement",
+                "/app/log/transparent_statement",
                 headers={infra.clients.CCF_TX_ID_HEADER: txid},
                 log_capture=[],
             )
@@ -789,7 +637,7 @@ def test_add_node_via_code_policy(network, args):
     # Join must fail without trusted host_data or code update policy.
     assert_node_join_fails(network, args)
 
-    # Register a signed statement with SVN below the policy threshold.
+    # Register a signed statement with SVN=499 (below future policy threshold).
     signed_statement, issuer, ca_identity = create_signed_statement(
         payload=bytes.fromhex(host_data), sub="Some feed", svn=499, eku="2.999"
     )
@@ -1195,6 +1043,7 @@ def run(args):
         # Host data/security policy
         test_host_data_tables(network, args)
         test_add_node_with_untrusted_host_data(network, args)
+        test_add_node_via_code_policy(network, args)
 
         if infra.platform_detection.is_snp():
             # Virtual has no security policy, _only_ host data (unassociated with anything)
@@ -1222,8 +1071,6 @@ def run(args):
 
         if infra.platform_detection.is_snp():
             test_add_node_with_no_uvm_endorsements_in_kv(network, args)
-
-        test_add_node_via_code_policy(network, args)
 
 
 if __name__ == "__main__":

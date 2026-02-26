@@ -34,6 +34,10 @@ from cryptography.hazmat.primitives import hashes, keywrap
 from cryptography.hazmat.backends import default_backend
 
 import jwt
+import uuid
+
+import cwt
+import cwt.utils
 
 RECOMMENDED_RSA_PUBLIC_EXPONENT = 65537
 
@@ -370,3 +374,140 @@ def get_validity_period_from_pem_cert(pem: str):
 
 def datetime_to_X509time(datetime: datetime):
     return UTCTime.fromDateTime(datetime)
+
+
+def create_signed_statement(
+    payload: bytes, sub: str, svn: int, eku: str, ca_identity=None
+) -> tuple:
+    """
+    Create a COSE_Sign1 signed statement with x5chain and CWT claims.
+    Returns (encoded_bytes, issuer_string, ca_identity_tuple).
+
+    If ca_identity is provided as (ca_key, ca_name, ca_cert), the same CA
+    will be reused so that the issuer DID is stable across calls.
+    """
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    validity = datetime.timedelta(days=10)
+
+    # Generate or reuse CA key and self-signed cert
+
+    if ca_identity is not None:
+        ca_key, ca_name, ca_cert = ca_identity
+    else:
+        ca_key = ec.generate_private_key(ec.SECP256R1())
+        ca_name = x509.Name(
+            [x509.NameAttribute(NameOID.COMMON_NAME, str(uuid.uuid4()))]
+        )
+        ca_cert = (
+            x509.CertificateBuilder()
+            .subject_name(ca_name)
+            .issuer_name(ca_name)
+            .public_key(ca_key.public_key())
+            .serial_number(int(uuid.uuid4()))
+            .not_valid_before(now)
+            .not_valid_after(now + validity)
+            .add_extension(
+                x509.BasicConstraints(ca=True, path_length=None), critical=True
+            )
+            .add_extension(
+                x509.KeyUsage(
+                    key_cert_sign=True,
+                    digital_signature=False,
+                    content_commitment=False,
+                    key_encipherment=False,
+                    data_encipherment=False,
+                    key_agreement=False,
+                    crl_sign=False,
+                    encipher_only=False,
+                    decipher_only=False,
+                ),
+                critical=True,
+            )
+            .add_extension(
+                x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key()),
+                critical=False,
+            )
+            .add_extension(
+                x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
+                critical=False,
+            )
+            .sign(ca_key, hashes.SHA256())
+        )
+
+    # Generate leaf key and cert with EKU, signed by CA
+
+    leaf_key = ec.generate_private_key(ec.SECP256R1())
+    leaf_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, str(uuid.uuid4()))])
+    leaf_cert = (
+        x509.CertificateBuilder()
+        .subject_name(leaf_name)
+        .issuer_name(ca_name)
+        .public_key(leaf_key.public_key())
+        .serial_number(int(uuid.uuid4()))
+        .not_valid_before(now)
+        .not_valid_after(now + validity)
+        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                key_cert_sign=False,
+                content_commitment=False,
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                crl_sign=False,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .add_extension(
+            x509.ExtendedKeyUsage([x509.ObjectIdentifier(eku)]),
+            critical=False,
+        )
+        .add_extension(
+            x509.SubjectKeyIdentifier.from_public_key(leaf_key.public_key()),
+            critical=False,
+        )
+        .add_extension(
+            x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
+            critical=False,
+        )
+        .sign(ca_key, hashes.SHA256())
+    )
+
+    # Build did:x509 issuer
+
+    ca_fingerprint = (
+        base64.urlsafe_b64encode(ca_cert.fingerprint(hashes.SHA256()))
+        .decode("ascii")
+        .rstrip("=")
+    )
+    issuer = f"did:x509:0:sha256:{ca_fingerprint}::eku:{eku}"
+
+    # x5chain: [leaf_der, ca_der]
+
+    leaf_der = leaf_cert.public_bytes(Encoding.DER)
+    ca_der = ca_cert.public_bytes(Encoding.DER)
+
+    # Build COSE_Sign1 protected headers
+
+    phdr = {
+        1: -7,  # alg: ES256
+        3: "application/octet-stream",  # content_type
+        33: [leaf_der, ca_der],  # x5chain
+        15: {1: issuer, 2: sub, "svn": svn},  # CWT claims
+    }
+
+    leaf_key_pem = leaf_key.private_bytes(
+        Encoding.PEM,
+        PrivateFormat.PKCS8,
+        NoEncryption(),
+    )
+    cose_ctx = cwt.COSE.new(alg_auto_inclusion=False, deterministic_header=True)
+    cose_key = cwt.COSEKey.from_pem(leaf_key_pem.decode("ascii"))
+    encoded = cose_ctx.encode_and_sign(
+        payload, cose_key, protected=cwt.utils.ResolvedHeader(phdr)
+    )
+    return encoded, issuer, (ca_key, ca_name, ca_cert)
