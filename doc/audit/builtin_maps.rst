@@ -229,15 +229,6 @@ The minimum trusted TCB version for new nodes allowed to join the network (:doc`
     :project: CCF
     :members:
 
-``nodes.local_sealing_node_id_map``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Mapping from sealing recovery names to node IDs for nodes that support local sealing. This table is used alongside ``nodes.sealed_recovery_keys`` to fetch the sealed recovery key when a node is recovering.
-
-**Key** Sealing recovery name of the node, represented as a string.
-
-**Value** Node ID: SHA-256 digest of the node public key, represented as a hex-encoded string.
-
 ``service.info``
 ~~~~~~~~~~~~~~~~
 
@@ -589,6 +580,15 @@ While the contents themselves are encrypted, the table is public so as to be acc
 .. doxygenstruct:: ccf::SealedSharesInfo
     :project: CCF
     :members:
+
+``sealing_recovery_names``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Mapping from sealing recovery names to node IDs for nodes that support local sealing. This table is used alongside ``nodes.sealed_recovery_keys`` to fetch the sealed recovery key when a node is recovering.
+
+**Key** Sealing recovery name of the node, represented as a string.
+
+**Value** Node ID: SHA-256 digest of the node public key, represented as a hex-encoded string.
 
 ``last_recovery_type``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

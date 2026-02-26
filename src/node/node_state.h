@@ -1403,7 +1403,7 @@ namespace ccf
       {
         auto& name = config.sealing_recovery->location.name;
         auto* node_id_lookup =
-          tx.ro<LocalSealingNodeIdMap>(Tables::LOCAL_SEALING_NODE_ID_MAP);
+          tx.ro<LocalSealingNodeIdMap>(Tables::SEALING_RECOVERY_NAMES);
         auto local_sealing_node_id_opt = node_id_lookup->get(name);
         if (local_sealing_node_id_opt.has_value())
         {

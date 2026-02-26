@@ -338,7 +338,7 @@ namespace ccf
           tx.rw<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
         sealed_recovery_keys->put(joining_node_id, sealing_keys);
         auto* local_sealing_node_id_map =
-          tx.rw<LocalSealingNodeIdMap>(Tables::LOCAL_SEALING_NODE_ID_MAP);
+          tx.rw<LocalSealingNodeIdMap>(Tables::SEALING_RECOVERY_NAMES);
         local_sealing_node_id_map->put(sealing_recovery_name, joining_node_id);
       }
 
@@ -1064,7 +1064,7 @@ namespace ccf
           // clean up sealing tables
           auto* local_sealing_node_id_map =
             args.tx.template rw<LocalSealingNodeIdMap>(
-              Tables::LOCAL_SEALING_NODE_ID_MAP);
+              Tables::SEALING_RECOVERY_NAMES);
           local_sealing_node_id_map->foreach(
             [&](
               const auto& sealing_recovery_name, const auto& sealing_node_id) {
@@ -1565,7 +1565,7 @@ namespace ccf
 
           auto* local_sealing_node_id_map =
             ctx.tx.template rw<LocalSealingNodeIdMap>(
-              Tables::LOCAL_SEALING_NODE_ID_MAP);
+              Tables::SEALING_RECOVERY_NAMES);
           local_sealing_node_id_map->put(sealing_recovery_name, in.node_id);
         }
 

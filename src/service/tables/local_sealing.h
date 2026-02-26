@@ -47,9 +47,9 @@ namespace ccf
   namespace Tables
   {
     static constexpr auto SEALED_SHARES = "public:ccf.internal.sealed_shares";
+    static constexpr auto SEALING_RECOVERY_NAMES =
+      "public:ccf.internal.sealing_recovery_names";
     static constexpr auto SEALED_RECOVERY_KEYS =
       "public:ccf.gov.nodes.sealed_recovery_keys";
-    static constexpr auto LOCAL_SEALING_NODE_ID_MAP =
-      "public:ccf.gov.nodes.local_sealing_node_id_map";
   }
 }
