@@ -59,6 +59,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Experimental self-healing-open protocol for automatically transitioning-to-open during a disaster recovery without operator intervention. (#7189)
+- Added support for endpoints which only respond once their content is committed by the consensus protocol (#7562).
 
 ### Changed
 

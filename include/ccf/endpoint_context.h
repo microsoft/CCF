@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/endpoints/authentication/authentication_types.h"
+#include "ccf/tx_status.h"
 
 #include <functional>
 #include <memory>
@@ -64,6 +65,11 @@ namespace ccf::endpoints
 
   using LocallyCommittedEndpointFunction =
     std::function<void(CommandEndpointContext& ctx, const ccf::TxID& txid)>;
+
+  using ConsensusCommittedEndpointFunction = std::function<void(
+    std::shared_ptr<ccf::RpcContext> rpc_ctx,
+    const ccf::TxID& txid,
+    ccf::FinalTxStatus status)>;
 
   // Read-only endpoints can only get values from the kv, they cannot write
   struct ReadOnlyEndpointContext : public CommandEndpointContext

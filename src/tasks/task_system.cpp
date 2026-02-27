@@ -103,7 +103,7 @@ namespace ccf::tasks
     return handle;
   }
 
-  void resume_task(Resumable&& resumable)
+  void resume_task(Resumable resumable)
   {
     resumable->resume();
   }

@@ -26,6 +26,7 @@ namespace http
     std::shared_ptr<ccf::RpcHandler> handler;
     std::shared_ptr<ccf::SessionContext> session_ctx;
     std::shared_ptr<ErrorReporter> error_reporter;
+    std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks;
     ccf::ListenInterfaceID interface_id;
 
   public:
@@ -36,11 +37,13 @@ namespace http
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<ccf::tls::Context> ctx,
       const ccf::http::ParserConfiguration& configuration,
-      const std::shared_ptr<ErrorReporter>& error_reporter_ = nullptr) :
+      const std::shared_ptr<ErrorReporter>& error_reporter_,
+      const std::shared_ptr<ccf::CommitCallbackSubsystem>& commit_callbacks_) :
       HTTPSession(session_id_, writer_factory, std::move(ctx)),
       request_parser(*this, configuration),
       rpc_map(std::move(rpc_map_)),
       error_reporter(error_reporter_),
+      commit_callbacks(commit_callbacks_),
       interface_id(std::move(interface_id_))
     {}
 
@@ -158,6 +161,7 @@ namespace http
             ccf::errors::InternalError,
             fmt::format("Error constructing RpcContext: {}", e.what())});
           close_session();
+          return;
         }
 
         std::shared_ptr<ccf::RpcHandler> search =
@@ -172,15 +176,67 @@ namespace http
           return;
         }
 
-        send_response(
-          rpc_ctx->get_response_http_status(),
-          rpc_ctx->get_response_headers(),
-          rpc_ctx->get_response_trailers(),
-          std::move(rpc_ctx->take_response_body()));
-
-        if (rpc_ctx->terminate_session)
+        const auto& respond_on_commit = rpc_ctx->respond_on_commit;
+        if (respond_on_commit.has_value())
         {
-          close_session();
+          auto [tx_id, committed_func] = respond_on_commit.value();
+
+          // Block any future work from happening on this session, to
+          // maintain session consistency
+          ccf::tasks::Resumable paused_task = ccf::tasks::pause_current_task();
+
+          // shared_from_this returns a base session type
+          std::shared_ptr<ccf::ThreadedSession> self = shared_from_this();
+
+          // Register for a callback when this TxID is committed (or
+          // invalidated)
+          commit_callbacks->add_callback(
+            tx_id,
+            [self, rpc_ctx, paused_task, committed_func](
+              ccf::TxID transaction_id, ccf::FinalTxStatus status) {
+              try
+              {
+                // Let the handler modify the response
+                committed_func(rpc_ctx, transaction_id, status);
+
+                // Write the response
+                send_response_impl(
+                  *self,
+                  rpc_ctx->get_response_http_status(),
+                  rpc_ctx->get_response_headers(),
+                  rpc_ctx->get_response_trailers(),
+                  std::move(rpc_ctx->take_response_body()));
+              }
+              catch (const std::exception& e)
+              {
+                LOG_FAIL_FMT(
+                  "Exception thrown while executing commit callback for {}: {}",
+                  transaction_id.to_str(),
+                  e.what());
+                rpc_ctx->terminate_session = true;
+              }
+
+              if (rpc_ctx->terminate_session)
+              {
+                self->close_session();
+              }
+
+              // Resume processing work for this session
+              ccf::tasks::resume_task(paused_task);
+            });
+        }
+        else
+        {
+          send_response(
+            rpc_ctx->get_response_http_status(),
+            rpc_ctx->get_response_headers(),
+            rpc_ctx->get_response_trailers(),
+            std::move(rpc_ctx->take_response_body()));
+
+          if (rpc_ctx->terminate_session)
+          {
+            close_session();
+          }
         }
       }
       catch (const std::exception& e)
@@ -198,11 +254,12 @@ namespace http
       }
     }
 
-    bool send_response(
+    static bool send_response_impl(
+      ccf::ThreadedSession& session,
       ccf::http_status status_code,
       ccf::http::HeaderMap&& headers,
       ccf::http::HeaderMap&& trailers,
-      std::vector<uint8_t>&& body) override
+      std::vector<uint8_t>&& body)
     {
       if (!trailers.empty())
       {
@@ -221,8 +278,22 @@ namespace http
         false /* Don't overwrite any existing content-length header */
       );
 
-      send_data(response.build_response());
+      session.send_data(response.build_response());
       return true;
+    }
+
+    bool send_response(
+      ccf::http_status status_code,
+      ccf::http::HeaderMap&& headers,
+      ccf::http::HeaderMap&& trailers,
+      std::vector<uint8_t>&& body) override
+    {
+      return send_response_impl(
+        *this,
+        status_code,
+        std::move(headers),
+        std::move(trailers),
+        std::move(body));
     }
   };
 

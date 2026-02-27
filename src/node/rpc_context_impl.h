@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
+#include "ccf/endpoint_context.h"
 #include "ccf/rpc_context.h"
 
 namespace ccf
@@ -108,6 +109,10 @@ namespace ccf
 
     bool response_is_pending = false;
     bool terminate_session = false;
+
+    std::optional<
+      std::pair<ccf::TxID, ccf::endpoints::ConsensusCommittedEndpointFunction>>
+      respond_on_commit = std::nullopt;
 
     [[nodiscard]] virtual bool should_apply_writes() const = 0;
     virtual void reset_response() = 0;

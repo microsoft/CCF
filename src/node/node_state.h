@@ -33,6 +33,7 @@
 #include "indexing/indexer.h"
 #include "js/global_class_ids.h"
 #include "network_state.h"
+#include "node/commit_callback_subsystem.h"
 #include "node/hooks.h"
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
@@ -243,6 +244,7 @@ namespace ccf
     std::shared_ptr<indexing::Indexer> indexer;
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
+    std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks = nullptr;
     std::shared_ptr<RPCSessions> rpcsessions;
 
     std::shared_ptr<ccf::kv::TxHistory> history;
@@ -426,6 +428,7 @@ namespace ccf
       std::shared_ptr<RPCMap> rpc_map_,
       std::shared_ptr<AbstractRPCResponder> rpc_sessions_,
       std::shared_ptr<indexing::Indexer> indexer_,
+      std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks_,
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
     {
@@ -434,7 +437,10 @@ namespace ccf
 
       consensus_config = consensus_config_;
       rpc_map = rpc_map_;
+
       indexer = indexer_;
+      commit_callbacks = commit_callbacks_;
+
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
 
@@ -2787,6 +2793,7 @@ namespace ccf
         n2n_channels,
         shared_state,
         node_client,
+        commit_callbacks,
         public_only);
 
       network.tables->set_consensus(consensus);

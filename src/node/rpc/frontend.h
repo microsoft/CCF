@@ -16,6 +16,7 @@
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
+#include "http/http_rpc_context.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/store.h"
 #include "node/endpoint_context_impl.h"
@@ -818,9 +819,11 @@ namespace ccf
           {
             case ccf::kv::CommitResult::SUCCESS:
             {
-              auto tx_id = tx.get_txid();
-              if (tx_id.has_value() && consensus != nullptr)
+              auto tx_id_opt = tx.get_txid();
+              if (tx_id_opt.has_value() && consensus != nullptr)
               {
+                ccf::TxID tx_id = tx_id_opt.value();
+
                 try
                 {
                   // Only transactions that acquired one or more map handles
@@ -828,14 +831,13 @@ namespace ccf
                   // don't. Also, only report a TxID if the consensus is set, as
                   // the consensus is required to verify that a TxID is valid.
                   endpoints.execute_endpoint_locally_committed(
-                    endpoint, args, tx_id.value());
+                    endpoint, args, tx_id);
                 }
                 catch (const std::exception& e)
                 {
                   // run default handler to set transaction id in header
                   ctx->clear_response_headers();
-                  ccf::endpoints::default_locally_committed_func(
-                    args, tx_id.value());
+                  ccf::endpoints::default_locally_committed_func(args, tx_id);
                   ctx->set_error(
                     HTTP_STATUS_INTERNAL_SERVER_ERROR,
                     ccf::errors::InternalError,
@@ -847,12 +849,23 @@ namespace ccf
                 {
                   // run default handler to set transaction id in header
                   ctx->clear_response_headers();
-                  ccf::endpoints::default_locally_committed_func(
-                    args, tx_id.value());
+                  ccf::endpoints::default_locally_committed_func(args, tx_id);
                   ctx->set_error(
                     HTTP_STATUS_INTERNAL_SERVER_ERROR,
                     ccf::errors::InternalError,
                     "Failed to execute local commit handler func");
+                }
+
+                {
+                  const auto* concrete_endpoint =
+                    dynamic_cast<const endpoints::Endpoint*>(endpoint.get());
+                  if (
+                    concrete_endpoint != nullptr &&
+                    concrete_endpoint->consensus_committed_func != nullptr)
+                  {
+                    ctx->respond_on_commit = std::make_pair(
+                      tx_id, concrete_endpoint->consensus_committed_func);
+                  }
                 }
               }
 

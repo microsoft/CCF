@@ -12,6 +12,7 @@
 #include "ds/serialized.h"
 #include "impl/state.h"
 #include "kv/kv_types.h"
+#include "node/commit_callback_subsystem.h"
 #include "node/node_client.h"
 #include "node/node_to_node.h"
 #include "node/node_types.h"
@@ -183,6 +184,8 @@ namespace aft
     // Used to remove retired nodes from store
     std::unique_ptr<ccf::RetiredNodeCleanup> retired_node_cleanup;
 
+    std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks;
+
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
     Index entries_batch_size = 20;
@@ -214,6 +217,8 @@ namespace aft
       std::shared_ptr<ccf::NodeToNode> channels_,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
+      std::shared_ptr<ccf::CommitCallbackSubsystem>
+        commit_callbacks_subsystem_ = nullptr,
       bool public_only_ = false) :
       store(std::move(store_)),
 
@@ -228,6 +233,7 @@ namespace aft
       node_client(std::move(rpc_request_context_)),
       retired_node_cleanup(
         std::make_unique<ccf::RetiredNodeCleanup>(node_client)),
+      commit_callbacks(std::move(commit_callbacks_subsystem_)),
 
       public_only(public_only_),
 
@@ -236,7 +242,12 @@ namespace aft
 
       ledger(std::move(ledger_)),
       channels(std::move(channels_))
-    {}
+    {
+      if (commit_callbacks != nullptr)
+      {
+        commit_callbacks->set_consensus(this);
+      }
+    }
 
     ~Aft() override = default;
 
@@ -2593,6 +2604,12 @@ namespace aft
       RAFT_DEBUG_FMT("Compacting...");
       store->compact(idx);
       ledger->commit(idx);
+
+      if (commit_callbacks != nullptr)
+      {
+        const auto term = get_term_internal(idx);
+        commit_callbacks->trigger_callbacks({term, idx}, state->view_history);
+      }
 
       RAFT_DEBUG_FMT("Commit on {}: {}", state->node_id, idx);
 

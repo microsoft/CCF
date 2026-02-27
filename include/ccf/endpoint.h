@@ -259,8 +259,15 @@ namespace ccf::endpoints
   {
     // Functor which is invoked to process requests for this Endpoint
     EndpointFunction func;
-    // Functor which is invoked to modify the response post commit.
+
+    // Functor which is invoked to modify the response after it is locally
+    // committed (ie - assigned a transaction ID)
     LocallyCommittedEndpointFunction locally_committed_func;
+
+    // Functor which is invoked to modify the response after it reaches a
+    // terminal consensus state (ie - it is either globally committed, or
+    // invalidated)
+    ConsensusCommittedEndpointFunction consensus_committed_func;
 
     struct Installer
     {
@@ -487,6 +494,9 @@ namespace ccf::endpoints
 
     Endpoint& set_locally_committed_function(
       const LocallyCommittedEndpointFunction& lcf);
+
+    Endpoint& set_consensus_committed_function(
+      const ConsensusCommittedEndpointFunction& ccf_);
 
     void install();
   };
