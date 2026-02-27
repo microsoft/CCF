@@ -987,6 +987,18 @@ def test_npm_app(network, args):
             for key, value in r.body.json().items():
                 LOG.info(f"{key} : {value}")
 
+            # Test with endorsed_tcb
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                    "endorsed_tcb": "db18000000000004",
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+
         validate_openapi(c)
         generate_and_verify_jwk(c)
 
