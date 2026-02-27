@@ -12,9 +12,9 @@
 #include "http/http_parser.h"
 #include "kv/store.h"
 #include "node/ledger_secret.h"
+#include "node/recovery_decision_protocol.h"
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/node_operation_interface.h"
-#include "node/self_healing_open_impl.h"
 #include "node/session_metrics.h"
 
 namespace ccf
@@ -52,7 +52,8 @@ namespace ccf
     virtual size_t get_jwt_attempts() = 0;
     virtual ccf::crypto::Pem get_self_signed_certificate() = 0;
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
-    virtual SelfHealingOpenSubsystem& self_healing_open() = 0;
+    virtual RecoveryDecisionProtocolSubsystem&
+    get_recovery_decision_protocol() = 0;
     virtual void shuffle_sealed_shares(ccf::kv::Tx& tx) = 0;
     [[nodiscard]] virtual const ccf::StartupConfig& get_node_config() const = 0;
     virtual ccf::crypto::Pem get_network_cert() = 0;

@@ -356,55 +356,6 @@
                   "previous_service_identity_file": {
                     "type": "string",
                     "description": "Path to the previous service certificate (PEM) file"
-                  },
-                  "previous_local_sealing_identity": {
-                    "type": ["string", "null"],
-                    "description": "The identity of the previous node which sealed the ledger secrets. Required if local sealing is enabled"
-                  },
-                  "self_healing_open": {
-                    "type": "object",
-                    "properties": {
-                      "identity": {
-                        "type": "object",
-                        "properties": {
-                          "intrinsic_id": {
-                            "type": "string",
-                            "description": "Intrinsic identifier of this node, used to identify it in the self-healing-open protocol"
-                          },
-                          "published_address": {
-                            "type": "string",
-                            "description": "Published address (host:port) of this node, used to identify it in the self-healing-open protocol"
-                          }
-                        }
-                      },
-                      "cluster_identities": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "intrinsic_id": {
-                              "type": "string",
-                              "description": "Intrinsic identifier of the node, used to identify it in the self-healing-open protocol"
-                            },
-                            "published_address": {
-                              "type": "string",
-                              "description": "Published address (host:port) of the node, used for communication during the self-healing-open protocol"
-                            }
-                          }
-                        },
-                        "description": "List of identities for all nodes in the cluster"
-                      },
-                      "retry_timeout": {
-                        "type": "string",
-                        "default": "100ms",
-                        "description": "Interval (time string) at which the node re-sends self-healing-open messages. This should be significantly less than 'failover_timeout'"
-                      },
-                      "failover_timeout": {
-                        "type": "string",
-                        "default": "2000ms",
-                        "description": "Interval (time string) after which the node forcibly advances to the next phase of the self-healing-open protocol"
-                      }
-                    }
                   }
                 },
                 "required": ["previous_service_identity_file"],
@@ -710,10 +661,59 @@
       "default": "512MB",
       "description": "Historical queries cache soft limit (as size string)"
     },
-    "enable_local_sealing": {
-      "type": "boolean",
-      "default": false,
-      "description": "Enable sealing of ledger secrets using platform derived key capabilities (e.g. AMD SEV-SNP derived keys). This allows the node to unilaterally recover its ledger secrets on restart without needing to reconstruct them from recovery shares."
+    "sealing_recovery": {
+      "type": "object",
+      "description": "Optional. Controls the behaviour of sealing-based recovery. If set, enables sealing of ledger secrets using platform derived key capabilities (e.g. AMD SEV-SNP derived keys). This allows a future recovering node to unilaterally recover its ledger secrets on restart without needing to reconstruct them from recovery shares.",
+      "properties": {
+        "location": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "address": {
+              "type": "string"
+            }
+          },
+          "required": ["name", "address"],
+          "additionalProperties": false
+        },
+        "recovery_decision_protocol": {
+          "type": "object",
+          "properties": {
+            "expected_locations": {
+              "type": "array",
+              "description": "List of locations that the recovery_decision_protocol expects to be part of the previous network.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name", "address"],
+                "additionalProperties": false
+              }
+            },
+            "message_retry_timeout": {
+              "type": "string",
+              "default": "100ms"
+            },
+            "failover_timeout": {
+              "type": "string",
+              "default": "2000ms",
+              "description": "Timeout duration before failover forcibly advances the recovery_decision_protocol, allowing recovery to proceed even in the presence of unresponsive nodes. Set to 0 to disable failover."
+            }
+          },
+          "required": ["expected_locations"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["location"],
+      "additionalProperties": false
     }
   },
   "required": ["network", "command"],

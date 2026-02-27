@@ -333,10 +333,8 @@ class CCFRemote(object):
         historical_cache_soft_limit=None,
         cose_signatures_issuer="service.example.com",
         cose_signatures_subject="ledger.signature",
-        enable_local_sealing=False,
-        previous_local_sealing_identity=None,
-        self_healing_open_cluster_identities=None,
-        self_healing_open_identity=None,
+        sealing_recovery_location=None,
+        recovery_decision_protocol_expected_locations=None,
         **kwargs,
     ):
         """
@@ -527,10 +525,8 @@ class CCFRemote(object):
                 historical_cache_soft_limit=historical_cache_soft_limit,
                 cose_signatures_issuer=cose_signatures_issuer,
                 cose_signatures_subject=cose_signatures_subject,
-                enable_local_sealing=enable_local_sealing,
-                previous_local_sealing_identity=previous_local_sealing_identity,
-                self_healing_open_cluster_identities=self_healing_open_cluster_identities,
-                self_healing_open_identity=self_healing_open_identity,
+                sealing_recovery_location=sealing_recovery_location,
+                recovery_decision_protocol_expected_locations=recovery_decision_protocol_expected_locations,
                 **kwargs,
             )
 

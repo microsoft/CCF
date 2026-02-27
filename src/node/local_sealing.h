@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/service/local_sealing.h"
+#include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
 #include "node/ledger_secret.h"
 
@@ -20,5 +21,7 @@ namespace ccf::sealing
     ccf::kv::Tx& tx, const LedgerSecretPtr& latest_ledger_secret);
 
   std::optional<LedgerSecretPtr> unseal_share(
-    ccf::kv::ReadOnlyTx& tx, const NodeId& node_id);
+    ccf::kv::ReadOnlyTx& tx,
+    const std::vector<uint8_t>& sealed_wrapping_key,
+    const SealedRecoveryKey& sealed_recovery_key);
 }

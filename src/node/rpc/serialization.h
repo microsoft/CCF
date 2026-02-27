@@ -36,7 +36,7 @@ namespace ccf
     JoinNetworkNodeToNode::In,
     certificate_signing_request,
     node_data,
-    sealed_recovery_key);
+    sealing_recovery_data);
 
   DECLARE_JSON_TYPE(NetworkIdentity);
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key);
@@ -80,7 +80,7 @@ namespace ccf
     service_data,
     snp_security_policy,
     snp_uvm_endorsements,
-    sealed_recovery_key);
+    sealing_recovery_data);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetCommit::Out);
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, transaction_id);

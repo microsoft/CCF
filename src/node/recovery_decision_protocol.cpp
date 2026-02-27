@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/self_healing_open_impl.h"
+#include "node/recovery_decision_protocol.h"
 
 #include "ccf/crypto/verifier.h"
 #include "ccf/pal/locking.h"
@@ -20,56 +20,72 @@
 namespace ccf
 {
 
-  SelfHealingOpenSubsystem::SelfHealingOpenSubsystem(NodeState* node_state_) :
+  RecoveryDecisionProtocolSubsystem::RecoveryDecisionProtocolSubsystem(
+    NodeState* node_state_) :
     node_state(node_state_)
   {}
 
-  void SelfHealingOpenSubsystem::reset_state(ccf::kv::Tx& tx)
+  void RecoveryDecisionProtocolSubsystem::reset_state(ccf::kv::Tx& tx)
   {
     // Clear any previous state
-    tx.rw<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE)
+    tx.rw<recovery_decision_protocol::SMState>(
+        Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
       ->clear();
-    tx.rw<self_healing_open::TimeoutSMState>(
-        Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE)
+    tx.rw<recovery_decision_protocol::TimeoutSMState>(
+        Tables::RECOVERY_DECISION_PROTOCOL_TIMEOUT_SM_STATE)
       ->clear();
-    tx.rw<self_healing_open::NodeInfoMap>(Tables::SELF_HEALING_OPEN_NODES)
+    tx.rw<recovery_decision_protocol::NodeInfoMap>(
+        Tables::RECOVERY_DECISION_PROTOCOL_NODES)
       ->clear();
-    tx.rw<self_healing_open::Gossips>(Tables::SELF_HEALING_OPEN_GOSSIPS)
+    tx.rw<recovery_decision_protocol::Gossips>(
+        Tables::RECOVERY_DECISION_PROTOCOL_GOSSIPS)
       ->clear();
-    tx.rw<self_healing_open::ChosenNode>(Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
+    tx.rw<recovery_decision_protocol::ChosenNode>(
+        Tables::RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE)
       ->clear();
-    tx.rw<self_healing_open::Votes>(Tables::SELF_HEALING_OPEN_VOTES)->clear();
-    tx.rw<self_healing_open::OpenKind>(Tables::SELF_HEALING_OPEN_OPEN_KIND)
+    tx.rw<recovery_decision_protocol::Votes>(
+        Tables::RECOVERY_DECISION_PROTOCOL_VOTES)
+      ->clear();
+    tx.rw<recovery_decision_protocol::OpenKind>(
+        Tables::RECOVERY_DECISION_PROTOCOL_OPEN_KIND)
       ->clear();
   }
 
-  void SelfHealingOpenSubsystem::try_start(ccf::kv::Tx& tx, bool recovering)
+  void RecoveryDecisionProtocolSubsystem::try_start(
+    ccf::kv::Tx& tx, bool recovering)
   {
-    auto& config = node_state->config.recover.self_healing_open;
+    if (!node_state->config.sealing_recovery.has_value())
+    {
+      LOG_INFO_FMT("Recovery-decision-protocol not configured, skipping");
+      return;
+    }
+    auto& config =
+      node_state->config.sealing_recovery->recovery_decision_protocol;
     if (!recovering || !config.has_value())
     {
-      LOG_INFO_FMT("Skipping self-healing-open");
+      LOG_INFO_FMT("Skipping recovery-decision-protocol");
       return;
     }
 
-    LOG_INFO_FMT("Starting self-healing-open");
+    LOG_INFO_FMT("Starting recovery-decision-protocol");
 
-    tx.rw<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE)
-      ->put(self_healing_open::StateMachine::GOSSIPING);
-    tx.rw<self_healing_open::TimeoutSMState>(
-        Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE)
-      ->put(self_healing_open::StateMachine::GOSSIPING);
+    tx.rw<recovery_decision_protocol::SMState>(
+        Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
+      ->put(recovery_decision_protocol::StateMachine::GOSSIPING);
+    tx.rw<recovery_decision_protocol::TimeoutSMState>(
+        Tables::RECOVERY_DECISION_PROTOCOL_TIMEOUT_SM_STATE)
+      ->put(recovery_decision_protocol::StateMachine::GOSSIPING);
 
     // Delay start of message retry and failover timers until after commit
     node_state->network.tables->set_global_hook(
-      Tables::SELF_HEALING_OPEN_SM_STATE,
-      self_healing_open::SMState::wrap_commit_hook(
+      Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE,
+      recovery_decision_protocol::SMState::wrap_commit_hook(
         [this](
           ccf::kv::Version /*hook_version*/,
-          const self_healing_open::SMState::Write& w) {
+          const recovery_decision_protocol::SMState::Write& w) {
           if (
             w.has_value() &&
-            w.value() == self_healing_open::StateMachine::GOSSIPING)
+            w.value() == recovery_decision_protocol::StateMachine::GOSSIPING)
           {
             start_message_retry_timers();
             start_failover_timers();
@@ -77,35 +93,36 @@ namespace ccf
         }));
   }
 
-  void SelfHealingOpenSubsystem::advance(ccf::kv::Tx& tx, bool timeout)
+  void RecoveryDecisionProtocolSubsystem::advance(ccf::kv::Tx& tx, bool timeout)
   {
     auto& config = get_config();
 
-    auto* sm_state_handle =
-      tx.rw<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE);
-    auto* timeout_state_handle = tx.rw<self_healing_open::TimeoutSMState>(
-      Tables::SELF_HEALING_OPEN_TIMEOUT_SM_STATE);
+    auto* sm_state_handle = tx.rw<recovery_decision_protocol::SMState>(
+      Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE);
+    auto* timeout_state_handle =
+      tx.rw<recovery_decision_protocol::TimeoutSMState>(
+        Tables::RECOVERY_DECISION_PROTOCOL_TIMEOUT_SM_STATE);
 
     auto sm_state_opt = sm_state_handle->get();
     auto timeout_state_opt = timeout_state_handle->get();
     if ((!sm_state_opt.has_value()) || (!timeout_state_opt.has_value()))
     {
       throw std::logic_error(
-        "Self-healing-open state not set, cannot advance self-healing-open");
+        "Recovery-decision-protocol state not set, cannot advance protocol");
     }
     auto& sm_state = sm_state_opt.value();
     auto& timeout_state = timeout_state_opt.value();
 
     bool valid_timeout = timeout && sm_state == timeout_state;
 
-    // Advance self-healing-open SM
+    // Advance recovery-decision-protocol SM
     switch (sm_state)
     {
-      case self_healing_open::StateMachine::GOSSIPING:
+      case recovery_decision_protocol::StateMachine::GOSSIPING:
       {
-        auto* gossip_handle =
-          tx.ro<self_healing_open::Gossips>(Tables::SELF_HEALING_OPEN_GOSSIPS);
-        auto quorum_size = config.cluster_identities.size();
+        auto* gossip_handle = tx.ro<recovery_decision_protocol::Gossips>(
+          Tables::RECOVERY_DECISION_PROTOCOL_GOSSIPS);
+        auto quorum_size = config.expected_locations.size();
         if (gossip_handle->size() >= quorum_size || valid_timeout)
         {
           if (gossip_handle->size() == 0)
@@ -113,7 +130,7 @@ namespace ccf
             throw std::logic_error("No gossip addresses provided yet");
           }
 
-          // Find the lexographical maximum by <view, seqno, intrinsic_id>
+          // Find the lexographical maximum by <view, seqno, name>
           std::optional<std::tuple<ccf::View, ccf::SeqNo, std::string>> maximum;
           gossip_handle->foreach([&maximum](const auto& iid, const auto& txid) {
             if (
@@ -129,21 +146,22 @@ namespace ccf
           {
             throw std::logic_error("No valid gossip addresses provided");
           }
-          tx.rw<self_healing_open::ChosenNode>(
-              Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
+          tx.rw<recovery_decision_protocol::ChosenNode>(
+              Tables::RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE)
             ->put(std::get<2>(maximum.value()));
 
-          sm_state_handle->put(self_healing_open::StateMachine::VOTING);
+          sm_state_handle->put(
+            recovery_decision_protocol::StateMachine::VOTING);
         }
         break;
       }
-      case self_healing_open::StateMachine::VOTING:
+      case recovery_decision_protocol::StateMachine::VOTING:
       {
-        auto* votes =
-          tx.rw<self_healing_open::Votes>(Tables::SELF_HEALING_OPEN_VOTES);
+        auto* votes = tx.rw<recovery_decision_protocol::Votes>(
+          Tables::RECOVERY_DECISION_PROTOCOL_VOTES);
 
         auto sufficient_quorum =
-          votes->size() >= config.cluster_identities.size() / 2 + 1;
+          votes->size() >= config.expected_locations.size() / 2 + 1;
         if (sufficient_quorum || valid_timeout)
         {
           if (valid_timeout && votes->size() == 0)
@@ -152,7 +170,8 @@ namespace ccf
             // than ourselves to begin operating
             // So we do not attempt to open the service ourselves
             LOG_FAIL_FMT(
-              "Self-healing-open timeout without any votes for ourselves, "
+              "Recovery-decision-protocol timeout without any votes for "
+              "ourselves, "
               "skipping opening network");
             return;
           }
@@ -160,17 +179,19 @@ namespace ccf
           auto timeout_used = valid_timeout && !sufficient_quorum;
           if (timeout_used)
           {
-            tx.rw<self_healing_open::OpenKind>(
-                Tables::SELF_HEALING_OPEN_OPEN_KIND)
-              ->put(self_healing_open::OpenKinds::FAILOVER);
-            LOG_INFO_FMT("Self-healing-open succeeded on the failover path");
+            tx.rw<recovery_decision_protocol::OpenKind>(
+                Tables::RECOVERY_DECISION_PROTOCOL_OPEN_KIND)
+              ->put(recovery_decision_protocol::OpenKinds::FAILOVER);
+            LOG_INFO_FMT(
+              "Recovery-decision-protocol succeeded on the failover path");
           }
           else
           {
-            tx.rw<self_healing_open::OpenKind>(
-                Tables::SELF_HEALING_OPEN_OPEN_KIND)
-              ->put(self_healing_open::OpenKinds::QUORUM);
-            LOG_INFO_FMT("Self-healing-open succeeded on the quorum path");
+            tx.rw<recovery_decision_protocol::OpenKind>(
+                Tables::RECOVERY_DECISION_PROTOCOL_OPEN_KIND)
+              ->put(recovery_decision_protocol::OpenKinds::QUORUM);
+            LOG_INFO_FMT(
+              "Recovery-decision-protocol succeeded on the quorum path");
           }
 
           auto* service = tx.ro<Service>(Tables::SERVICE);
@@ -187,37 +208,39 @@ namespace ccf
           AbstractGovernanceEffects::ServiceIdentities identities{
             .previous = prev_ident, .next = service_info->cert};
 
-          sm_state_handle->put(self_healing_open::StateMachine::OPENING);
+          sm_state_handle->put(
+            recovery_decision_protocol::StateMachine::OPENING);
 
           node_state->transition_service_to_open(tx, identities);
         }
         break;
       }
-      case self_healing_open::StateMachine::JOINING:
+      case recovery_decision_protocol::StateMachine::JOINING:
       {
-        auto chosen_replica = tx.ro<self_healing_open::ChosenNode>(
-                                  Tables::SELF_HEALING_OPEN_CHOSEN_NODE)
-                                ->get();
+        auto chosen_replica =
+          tx.ro<recovery_decision_protocol::ChosenNode>(
+              Tables::RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE)
+            ->get();
         if (!chosen_replica.has_value())
         {
           throw std::logic_error(
-            "Self-healing-open chosen node not set, cannot join");
+            "Recovery-decision-protocol chosen node not set, cannot join");
         }
-        auto node_config =
-          tx.ro<self_healing_open::NodeInfoMap>(Tables::SELF_HEALING_OPEN_NODES)
-            ->get(chosen_replica.value());
+        auto node_config = tx.ro<recovery_decision_protocol::NodeInfoMap>(
+                               Tables::RECOVERY_DECISION_PROTOCOL_NODES)
+                             ->get(chosen_replica.value());
         if (!node_config.has_value())
         {
           throw std::logic_error(fmt::format(
-            "Self-healing-open chosen node {} not found",
+            "Recovery-decision-protocol chosen node {} not found",
             chosen_replica.value()));
         }
 
         LOG_INFO_FMT(
-          "Self-healing-open joining {} at {} with fingerprint {}",
-          node_config->identity.intrinsic_id,
-          node_config->identity.published_address,
-          self_healing_open::service_fingerprint_from_pem(
+          "Recovery-decision-protocol joining {} at {} with fingerprint {}",
+          node_config->location.name,
+          node_config->location.address,
+          recovery_decision_protocol::service_fingerprint_from_pem(
             ccf::crypto::cert_der_to_pem(node_config->service_cert_der)));
         auto service_cert =
           ccf::crypto::cert_der_to_pem(node_config->service_cert_der);
@@ -225,22 +248,23 @@ namespace ccf
 
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::restart, node_state->to_host);
       }
-      case self_healing_open::StateMachine::OPENING:
+      case recovery_decision_protocol::StateMachine::OPENING:
       {
         if (valid_timeout)
         {
-          sm_state_handle->put(self_healing_open::StateMachine::OPEN);
+          sm_state_handle->put(recovery_decision_protocol::StateMachine::OPEN);
         }
         break;
       }
-      case self_healing_open::StateMachine::OPEN:
+      case recovery_decision_protocol::StateMachine::OPEN:
       {
         // Nothing to do here, we are already opening or open or joining
         break;
       }
       default:
         throw std::logic_error(fmt::format(
-          "Unknown self-healing-open state: {}", static_cast<int>(sm_state)));
+          "Unknown recovery-decision-protocol state: {}",
+          static_cast<int>(sm_state)));
     }
 
     // Advance timeout SM
@@ -248,79 +272,91 @@ namespace ccf
     {
       switch (timeout_state)
       {
-        case self_healing_open::StateMachine::GOSSIPING:
+        case recovery_decision_protocol::StateMachine::GOSSIPING:
           LOG_TRACE_FMT("Advancing timeout SM to VOTING");
-          timeout_state_handle->put(self_healing_open::StateMachine::VOTING);
+          timeout_state_handle->put(
+            recovery_decision_protocol::StateMachine::VOTING);
           break;
-        case self_healing_open::StateMachine::VOTING:
+        case recovery_decision_protocol::StateMachine::VOTING:
           LOG_TRACE_FMT("Advancing timeout SM to OPENING");
-          timeout_state_handle->put(self_healing_open::StateMachine::OPENING);
+          timeout_state_handle->put(
+            recovery_decision_protocol::StateMachine::OPENING);
           break;
-        case self_healing_open::StateMachine::OPENING:
-        case self_healing_open::StateMachine::JOINING:
-        case self_healing_open::StateMachine::OPEN:
+        case recovery_decision_protocol::StateMachine::OPENING:
+        case recovery_decision_protocol::StateMachine::JOINING:
+        case recovery_decision_protocol::StateMachine::OPEN:
         default:
           LOG_TRACE_FMT("Timeout SM complete");
       }
     }
   }
 
-  void SelfHealingOpenSubsystem::start_message_retry_timers()
+  void RecoveryDecisionProtocolSubsystem::start_message_retry_timers()
   {
-    LOG_TRACE_FMT("Self-healing-open: Setting up retry timers");
+    LOG_TRACE_FMT("Recovery-decision-protocol: Setting up retry timers");
 
     auto& config = get_config();
 
     retry_task = ccf::tasks::make_basic_task(
       [this]() {
-        auto& config = node_state->config.recover.self_healing_open;
+        if (!node_state->config.sealing_recovery.has_value())
+        {
+          LOG_INFO_FMT(
+            "Recovery-decision-protocol not configured, skipping retry timers");
+          return;
+        }
+        auto& config =
+          node_state->config.sealing_recovery->recovery_decision_protocol;
         if (!config.has_value())
         {
-          throw std::logic_error("Self-healing-open not configured");
+          throw std::logic_error("Recovery-decision-protocol not configured");
         }
 
         auto tx = node_state->network.tables->create_read_only_tx();
-        auto* sm_state_handle =
-          tx.ro<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE);
+        auto* sm_state_handle = tx.ro<recovery_decision_protocol::SMState>(
+          Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE);
 
         auto sm_state_opt = sm_state_handle->get();
         if (!sm_state_opt.has_value())
         {
           throw std::logic_error(
-            "Self-healing-open state not set, cannot retry self-healing-open");
+            "Recovery-decision-protocol state not set, cannot retry protocol");
         }
         auto& sm_state = sm_state_opt.value();
 
-        // Stop if self-healing-open is complete
-        if (sm_state == self_healing_open::StateMachine::OPEN)
+        // Stop if recovery-decision-protocol is complete
+        if (sm_state == recovery_decision_protocol::StateMachine::OPEN)
         {
-          LOG_INFO_FMT("Self-healing-open complete, stopping retry timers.");
+          LOG_INFO_FMT(
+            "Recovery-decision-protocol complete, stopping retry timers.");
           stop_timers();
           return;
         }
 
         switch (sm_state)
         {
-          case self_healing_open::StateMachine::GOSSIPING:
+          case recovery_decision_protocol::StateMachine::GOSSIPING:
             send_gossip_unsafe(tx);
             break;
-          case self_healing_open::StateMachine::VOTING:
+          case recovery_decision_protocol::StateMachine::VOTING:
           {
-            auto* node_info_handle = tx.ro<self_healing_open::NodeInfoMap>(
-              Tables::SELF_HEALING_OPEN_NODES);
-            auto* chosen_replica_handle = tx.ro<self_healing_open::ChosenNode>(
-              Tables::SELF_HEALING_OPEN_CHOSEN_NODE);
+            auto* node_info_handle =
+              tx.ro<recovery_decision_protocol::NodeInfoMap>(
+                Tables::RECOVERY_DECISION_PROTOCOL_NODES);
+            auto* chosen_replica_handle =
+              tx.ro<recovery_decision_protocol::ChosenNode>(
+                Tables::RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE);
             if (!chosen_replica_handle->get().has_value())
             {
               throw std::logic_error(
-                "Self-healing-open chosen node not set, cannot vote");
+                "Recovery-decision-protocol chosen node not set, cannot vote");
             }
             auto chosen_node_info =
               node_info_handle->get(chosen_replica_handle->get().value());
             if (!chosen_node_info.has_value())
             {
               throw std::logic_error(fmt::format(
-                "Self-healing-open chosen node {} not found",
+                "Recovery-decision-protocol chosen node {} not found",
                 chosen_replica_handle->get().value()));
             }
             send_vote_unsafe(tx, chosen_node_info.value());
@@ -328,52 +364,63 @@ namespace ccf
             send_gossip_unsafe(tx);
             break;
           }
-          case self_healing_open::StateMachine::OPENING:
+          case recovery_decision_protocol::StateMachine::OPENING:
             send_iamopen_unsafe(tx);
             break;
-          case self_healing_open::StateMachine::JOINING:
+          case recovery_decision_protocol::StateMachine::JOINING:
             stop_timers();
             return;
           default:
             throw std::logic_error(fmt::format(
-              "Unknown self-healing-open state: {}",
+              "Unknown recovery-decision-protocol state: {}",
               static_cast<int>(sm_state)));
         }
       },
-      "SelfHealingOpenRetry");
+      "RecoveryDecisionProtocolRetry");
 
     ccf::tasks::add_periodic_task(
       retry_task,
       std::chrono::milliseconds(0),
-      std::chrono::milliseconds(config.retry_timeout));
+      std::chrono::milliseconds(config.message_retry_timeout));
   }
 
-  void SelfHealingOpenSubsystem::start_failover_timers()
+  void RecoveryDecisionProtocolSubsystem::start_failover_timers()
   {
     auto& config = get_config();
 
-    LOG_TRACE_FMT("Self-healing-open: Setting up failover timers");
+    if (config.failover_timeout.count_ms() == 0)
+    {
+      LOG_DEBUG_FMT(
+        "Recovery-decision-protocol failover timeout disabled, skipping "
+        "failover timers");
+      return;
+    }
+
+    LOG_TRACE_FMT("Recovery-decision-protocol: Setting up failover timers");
 
     failover_task = ccf::tasks::make_basic_task(
       [this]() {
-        auto& config = get_config();
+        auto& location = get_location();
 
         LOG_TRACE_FMT(
-          "Self-healing-open timeout, sending timeout to internal handlers");
+          "Recovery-decision-protocol timeout, sending timeout to internal "
+          "handlers");
 
-        // Stop the timer if the node has completed its self-healing-open
+        // Stop the timer if the node has completed its
+        // recovery-decision-protocol
         auto tx = node_state->network.tables->create_read_only_tx();
-        auto* sm_state_handle =
-          tx.ro<self_healing_open::SMState>(Tables::SELF_HEALING_OPEN_SM_STATE);
+        auto* sm_state_handle = tx.ro<recovery_decision_protocol::SMState>(
+          Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE);
         if (!sm_state_handle->get().has_value())
         {
           throw std::logic_error(
-            "Self-healing-open state not set, cannot retry self-healing-open");
+            "Recovery-decision-protocol state not set, cannot retry protocol");
         }
         auto sm_state = sm_state_handle->get().value();
-        if (sm_state == self_healing_open::StateMachine::OPEN)
+        if (sm_state == recovery_decision_protocol::StateMachine::OPEN)
         {
-          LOG_INFO_FMT("Self-healing-open complete, stopping failover timers.");
+          LOG_INFO_FMT(
+            "Recovery-decision-protocol complete, stopping failover timers.");
           stop_timers();
           return;
         }
@@ -402,8 +449,8 @@ namespace ccf
         curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
 
         auto url = fmt::format(
-          "https://{}/{}/self_healing_open/timeout",
-          config.identity.published_address,
+          "https://{}/{}/recovery_decision_protocol/timeout",
+          location.address,
           get_actor_prefix(ActorsType::nodes));
 
         curl::UniqueSlist headers;
@@ -420,7 +467,7 @@ namespace ccf
         curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
           std::move(curl_request));
       },
-      "SelfHealingOpenFailover");
+      "RecoveryDecisionProtocolFailover");
 
     ccf::tasks::add_periodic_task(
       failover_task,
@@ -428,7 +475,7 @@ namespace ccf
       std::chrono::milliseconds(config.failover_timeout));
   }
 
-  void SelfHealingOpenSubsystem::stop_timers()
+  void RecoveryDecisionProtocolSubsystem::stop_timers()
   {
     if (retry_task)
     {
@@ -467,7 +514,7 @@ namespace ccf
     curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
 
     auto url = fmt::format(
-      "https://{}/{}/self_healing_open/{}",
+      "https://{}/{}/recovery_decision_protocol/{}",
       target_address,
       get_actor_prefix(ActorsType::nodes),
       endpoint);
@@ -509,10 +556,10 @@ namespace ccf
       std::move(curl_request));
   }
 
-  self_healing_open::RequestNodeInfo& SelfHealingOpenSubsystem::get_node_info(
-    kv::ReadOnlyTx& tx)
+  recovery_decision_protocol::RequestNodeInfo&
+  RecoveryDecisionProtocolSubsystem::get_node_info(kv::ReadOnlyTx& tx)
   {
-    std::lock_guard<pal::Mutex> guard(self_healing_open_lock);
+    std::lock_guard<pal::Mutex> guard(recovery_decision_protocol_lock);
 
     if (node_info_cache.has_value())
     {
@@ -526,12 +573,11 @@ namespace ccf
       throw std::logic_error(fmt::format(
         "Node {} not found in nodes table", node_state->get_node_id()));
     }
-    auto& config = get_config();
     {
       std::lock_guard<pal::Mutex> ns_guard(node_state->lock);
-      node_info_cache = self_healing_open::RequestNodeInfo{
+      node_info_cache = recovery_decision_protocol::RequestNodeInfo{
         .quote_info = node_info_opt->quote_info,
-        .identity = config.identity,
+        .location = get_location(),
         .service_cert_der =
           ccf::crypto::cert_pem_to_der(node_state->network.identity->cert),
       };
@@ -539,20 +585,20 @@ namespace ccf
     return node_info_cache.value();
   }
 
-  void SelfHealingOpenSubsystem::send_gossip_unsafe(kv::ReadOnlyTx& tx)
+  void RecoveryDecisionProtocolSubsystem::send_gossip_unsafe(kv::ReadOnlyTx& tx)
   {
     auto& config = get_config();
 
-    LOG_TRACE_FMT("Broadcasting self-healing-open gossip");
+    LOG_TRACE_FMT("Broadcasting recovery-decision-protocol gossip");
 
-    self_healing_open::GossipRequest request;
+    recovery_decision_protocol::GossipRequest request;
     request.info = get_node_info(tx);
     request.txid = get_last_recovered_signed_txid();
     nlohmann::json request_json = request;
 
-    for (auto& target : config.cluster_identities)
+    for (auto& target : config.expected_locations)
     {
-      auto target_address = target.published_address;
+      auto target_address = target.address;
       dispatch_authenticated_message(
         request_json,
         target_address,
@@ -562,31 +608,32 @@ namespace ccf
     }
   }
 
-  void SelfHealingOpenSubsystem::send_vote_unsafe(
-    kv::ReadOnlyTx& tx, const self_healing_open::NodeInfo& node_info)
+  void RecoveryDecisionProtocolSubsystem::send_vote_unsafe(
+    kv::ReadOnlyTx& tx, const recovery_decision_protocol::NodeInfo& node_info)
   {
     LOG_TRACE_FMT(
-      "Sending self-healing-open vote to {} at {}",
-      node_info.identity.intrinsic_id,
-      node_info.identity.published_address);
+      "Sending recovery-decision-protocol vote to {} at {}",
+      node_info.location.name,
+      node_info.location.address);
 
-    self_healing_open::TaggedWithNodeInfo request{.info = get_node_info(tx)};
+    recovery_decision_protocol::TaggedWithNodeInfo request{
+      .info = get_node_info(tx)};
 
     nlohmann::json request_json = request;
 
     dispatch_authenticated_message(
       request_json,
-      node_info.identity.published_address,
+      node_info.location.address,
       "vote",
       node_state->self_signed_node_cert,
       node_state->node_sign_kp->private_key_pem());
   }
 
-  self_healing_open::IAmOpenRequest& SelfHealingOpenSubsystem::
-    get_iamopen_request(kv::ReadOnlyTx& tx)
+  recovery_decision_protocol::IAmOpenRequest&
+  RecoveryDecisionProtocolSubsystem::get_iamopen_request(kv::ReadOnlyTx& tx)
   {
     {
-      std::lock_guard<pal::Mutex> guard(self_healing_open_lock);
+      std::lock_guard<pal::Mutex> guard(recovery_decision_protocol_lock);
       if (iamopen_request_cache.has_value())
       {
         return iamopen_request_cache.value();
@@ -602,14 +649,14 @@ namespace ccf
         "recovering");
     }
     auto previous_service_identity_fingerprint =
-      self_healing_open::service_fingerprint_from_pem(
+      recovery_decision_protocol::service_fingerprint_from_pem(
         previous_service_cert.value());
 
     auto& node_info = get_node_info(tx);
 
     {
-      std::lock_guard<pal::Mutex> guard(self_healing_open_lock);
-      iamopen_request_cache = self_healing_open::IAmOpenRequest{};
+      std::lock_guard<pal::Mutex> guard(recovery_decision_protocol_lock);
+      iamopen_request_cache = recovery_decision_protocol::IAmOpenRequest{};
       iamopen_request_cache->info = node_info;
       iamopen_request_cache->prev_service_fingerprint =
         previous_service_identity_fingerprint;
@@ -619,41 +666,58 @@ namespace ccf
     return iamopen_request_cache.value();
   }
 
-  void SelfHealingOpenSubsystem::send_iamopen_unsafe(ccf::kv::ReadOnlyTx& tx)
+  void RecoveryDecisionProtocolSubsystem::send_iamopen_unsafe(
+    ccf::kv::ReadOnlyTx& tx)
   {
-    auto config = get_config();
+    auto& config = get_config();
+    auto& location = get_location();
 
-    LOG_TRACE_FMT("Sending self-healing-open iamopen");
+    LOG_TRACE_FMT("Sending recovery-decision-protocol iamopen");
 
     nlohmann::json request_json = get_iamopen_request(tx);
 
-    for (auto& target : config.cluster_identities)
+    for (auto& target : config.expected_locations)
     {
-      if (target.intrinsic_id == config.identity.intrinsic_id)
+      if (target.name == location.name)
       {
         // Don't send to self
         continue;
       }
       dispatch_authenticated_message(
         request_json,
-        target.published_address,
+        target.address,
         "iamopen",
         node_state->self_signed_node_cert,
         node_state->node_sign_kp->private_key_pem());
     }
   }
 
-  SelfHealingOpenConfig& SelfHealingOpenSubsystem::get_config()
+  RecoveryDecisionProtocolConfig& RecoveryDecisionProtocolSubsystem::
+    get_config()
   {
-    auto& config = node_state->config.recover.self_healing_open;
+    if (!node_state->config.sealing_recovery.has_value())
+    {
+      throw std::logic_error("Sealing recovery not configured");
+    }
+    auto& config =
+      node_state->config.sealing_recovery->recovery_decision_protocol;
     if (!config.has_value())
     {
-      throw std::logic_error("Self-healing-open not configured");
+      throw std::logic_error("Recovery-decision-protocol not configured");
     }
     return config.value();
   }
 
-  ccf::TxID SelfHealingOpenSubsystem::get_last_recovered_signed_txid()
+  sealing_recovery::Location& RecoveryDecisionProtocolSubsystem::get_location()
+  {
+    if (!node_state->config.sealing_recovery.has_value())
+    {
+      throw std::logic_error("Sealing recovery not configured");
+    }
+    return node_state->config.sealing_recovery->location;
+  }
+
+  ccf::TxID RecoveryDecisionProtocolSubsystem::get_last_recovered_signed_txid()
   {
     auto recovery_seqno = node_state->last_recovered_signed_idx;
     auto recovery_view = node_state->consensus->get_view(recovery_seqno);

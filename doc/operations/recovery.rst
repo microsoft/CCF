@@ -113,16 +113,109 @@ Summary Diagram
 
 Once operators have established a recovered crash-fault tolerant public network, the existing members of the consortium :ref:`must vote to accept the recovery of the network and submit their recovery shares <governance/accept_recovery:Accepting Recovery and Submitting Shares>`.
 
-Local Sealing Recovery (Experimental)
+Sealing-based Recovery (Experimental)
 -------------------------------------
 
-SNP provides the ``DERIVED_KEY`` guest message which derives a key from the CPU's VCEK (or VLEK), TCB version and the guest's measurement and host_data (policy), thus any change to the CPU, measurement or policy, or a rolled-back TCB version, will prevent the key from being reconstructed.
-If configured, the node will unseal the secrets it previously sealed instead of waiting for recovery shares from members after ``transition_to_open`` is triggered.
+Sealing-based recovery aims to minimise operator intervention during disaster recovery, by first automating the Recovery-Decision-Protocol (deciding which node has the best ledger to recover) and then allowing the chosen node to automatically recover the ledger secrets using previously Locally Sealed secrets.
 
-Overview
-~~~~~~~~
+Together these features allow a network to automatically recover from a crash without requiring operators to manually inspect the ledgers and intervene in the recovery process, while still ensuring that the recovered ledger is the most up-to-date one available.
 
-When local sealing is enabled, each node generates an RSA key pair (the "recovery key pair") during join. The private key is encrypted (sealed) using an AES-GCM key derived from the SNP ``DERIVED_KEY``, and the public key along with the sealed private key is stored in the ``public:ccf.gov.nodes.sealed_recovery_keys`` table.
+
+Recovery Decision Protocol
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+At a high level, the recovery decision protocol allows recovering nodes to discover which node has the most up-to-date ledger and automatically recover the network using that ledger.
+The protocol completes with a node choosing to `transition-to-open`, and so requires another mechanism to unseal and recover the private ledger.
+
+The protocol uses three phases to ensure that so long as the hosts and network between them is sufficiently healthy, forks are prevented and the most up-to-date ledger is recovered.
+Specifically, the protocol ensures this so long as: all nodes restart, have full network connectivity and a majority of nodes' on-disk ledger contains every committed transaction.
+This is a strong, but reasonable requirement, and greatly simplifies the protocol.
+To ensure progress even when these requirements are not met, the protocol also includes a fallback path that advances through the phases after a timeout.
+This fallback cannot prevent forks or data loss, but allows the service to recover and make progress even in unhealthy conditions.
+We refer to the healthy case as the "election path" and the other as the "failover path".
+
+In the election path, nodes first gossip with each other, learning of the ledgers of other nodes.
+Once they have heard from every node they vote for the node with the best ledger.
+If a node receives votes from a majority of nodes, it invokes `transition-to-open` and notifies the other nodes to restart and join it.
+This path is illustrated below, and is guaranteed to succeed if all nodes can communicate and no timeouts trigger.
+
+.. mermaid::
+
+    sequenceDiagram
+      participant N1
+      participant N2
+      participant N3
+      
+      Note over N1, N3: Gossip
+
+      N1 ->> N2: Gossip(Tx=1)
+      N1 ->> N3: Gossip(Tx=1)
+      N2 ->> N3: Gossip(Tx=2)
+      N3 ->> N2: Gossip(Tx=3)
+
+      Note over N1, N3: Vote
+      N2 ->> N3: Vote
+      N3 ->> N3: Vote
+
+      Note over N1, N3: Open/Join
+      N3 ->> N1: IAmOpen
+      N3 ->> N2: IAmOpen
+
+      Note over N1, N2: Restart
+
+      Note over N3: Transition-to-open
+
+      Note over N3: Local unsealing
+
+      Note over N3: Open
+
+      N1 ->> N3: Join
+      N2 ->> N3: Join
+
+If failover is enabled, each phase has a timeout, after which the node will advance to the next phase regardless of whether it meets the requirements to do so. 
+For example, the election path requires all nodes to communicate to advance from the gossip phase to the vote phase.
+However, if any node fails to recover, the election path is stuck.
+In this case, after a timeout, nodes will advance to the vote phase regardless of whether they have heard from all nodes, and vote for the best ledger they have heard of at that point.
+
+Unfortunately, this can lead to multiple forks of the service if different nodes cannot communicate with each other and timeout.
+Hence, we recommend setting the timeout substantially higher than the highest expected recovery time, to minimise the chance of this happening.
+To audit if timeouts were used to open the service, the `public:ccf.gov.recovery_decision_protocol.open_kind` table tracks this.
+
+This failover path is illustrated below.
+
+.. mermaid::
+
+    sequenceDiagram
+      participant N1
+      participant N2
+      participant N3
+
+      Note over N1, N3: Gossip
+
+      N2 ->> N3: Gossip(Tx=2)
+      N3 ->> N2: Gossip(Tx=3)
+
+      Note over N1: Timeout
+      Note over N3: Timeout
+
+      Note over N1, N3: Vote
+
+      N1 ->> N1: Vote
+      N3 ->> N3: Vote
+      N2 ->> N3: Vote
+
+      Note over N1, N3: Open/Join
+      
+      Note over N1: Transition-to-open
+      Note over N3: Transition-to-open
+
+
+If the network fails during reconfiguration, each node will use its latest known configuration to recover. Since reconfiguration requires votes from a majority of nodes, the latest configuration should recover using the election path, however nodes in the previous configuration may recover using the election path.
+
+Local Sealing
+~~~~~~~~~~~~~
+
+When sealing-based recovery is enabled, each node generates an RSA key pair (the "recovery key pair") during join. The private key is encrypted (sealed) using an AES-GCM key derived from the SNP ``DERIVED_KEY``, and the public key along with the sealed private key is stored in the ``public:ccf.gov.nodes.sealed_recovery_keys`` table.
 
 During normal operation, whenever the ledger secret changes, or a node joins the network, the system also shuffles "sealed shares". 
 The primary generates a fresh ledger secret wrapping key, encrypts the ledger secret with that key, and stores a sealed copy of the wrapping key for each trusted node with a sealed recovery public key. 
@@ -202,110 +295,34 @@ The following diagram illustrates the key hierarchy and encryption relationships
 Configuration
 ~~~~~~~~~~~~~
 
-To enable local sealing, set ``enable_local_sealing`` to ``true`` in the node configuration. During recovery, the node's previous identity (node ID) must be specified via ``command.recover.previous_local_sealing_identity`` so the node can look up its sealed share.
-In the future this will be a single shared identifier for both self-healing-open and local sealing recovery, but for now it is simply the previous node ID.
+If the ``sealing_recovery`` field is set in the configuration, this will enable local sealing, where the current node will seal ledger secrets into the ledger and a future recovering node will attempt to unseal these secrets using the supplied ``sealing_recovery.location.name``.
+Additionally, the ``sealing_recovery.recovery_decision_protocol`` field can be set to enable the recovery decision protocol, and configure its parameters.
 
 .. code-block:: json
 
     {
-      "enable_local_sealing": true,
-      "command": {
-        "type": "Recover",
-        "recover": {
-          "previous_local_sealing_identity": "<previous-node-id>"
+      "sealing_recovery": {
+        "location": {
+          "name": "<persistent-node-id>",
+          "address": "<node-host:port>"
+        },
+        "recovery_decision_protocol": {
+          "expected_locations": [
+            {
+              "name": "<persistent-node-id-0>",
+              "address": "<node-0-host:port>"
+            },
+            {
+              "name": "<persistent-node-id-1>",
+              "address": "<node-1-host:port>"
+            }
+          ],
+          "failover_timeout": "2000ms"
         }
-      }
+      },
     }
 
-Self-Healing-Open recovery (Experimental)
------------------------------------------
-
-In environments with limited orchestration or limited operator access, it is desirable to allow an automated disaster recovery without operator intervention.
-At a high level, Self-Healing-Open recovery allows recovering replicas to discover which node has the most up-to-date ledger and automatically recover the network using that ledger.
-The protocol completes with a node choosing to `transition-to-open`, and so requires another mechanism to recover the private ledger.
-If it is likely that the nodes will restart on the same hardware, local sealing recovery (see above) can be used to recover the private ledger automatically, and bring the service fully online.
-
-There are two paths, an election path, and a very-high-availability failover path.
-The election path ensures that if all nodes restart and have full network connectivity, a majority of nodes' on-disk ledger contains every committed transaction, and no timeouts trigger, then there will be only one recovered network and all committed transactions will be persisted.
-However, the election path can become stuck, in which case the failover path is designed to ensure progress.
-
-In the election path, nodes first gossip with each other, learning of the ledgers of other nodes.
-Once they have heard from every node they vote for the node with the best ledger.
-If a node receives votes from a majority of nodes, it invokes `transition-to-open` and notifies the other nodes to restart and join it.
-This path is illustrated below, and is guaranteed to succeed if all nodes can communicate and no timeouts trigger.
-
-.. mermaid::
-
-    sequenceDiagram
-      participant N1
-      participant N2
-      participant N3
-      
-      Note over N1, N3: Gossip
-
-      N1 ->> N2: Gossip(Tx=1)
-      N1 ->> N3: Gossip(Tx=1)
-      N2 ->> N3: Gossip(Tx=2)
-      N3 ->> N2: Gossip(Tx=3)
-
-      Note over N1, N3: Vote
-      N2 ->> N3: Vote
-      N3 ->> N3: Vote
-
-      Note over N1, N3: Open/Join
-      N3 ->> N1: IAmOpen
-      N3 ->> N2: IAmOpen
-
-      Note over N1, N2: Restart
-
-      Note over N3: Transition-to-open
-
-      Note over N3: Local unsealing
-
-      Note over N3: Open
-
-      N1 ->> N3: Join
-      N2 ->> N3: Join
-
-In the failover path, each phase has a timeout to skip to the next phase if a failure has occurred.
-For example, the election path requires all nodes to communicate to advance from the gossip phase to the vote phase.
-However, if any node fails to recover, the election path is stuck.
-In this case, after a timeout, nodes will advance to the vote phase regardless of whether they have heard from all nodes, and vote for the best ledger they have heard of at that point.
-
-Unfortunately, this can lead to multiple forks of the service if different nodes cannot communicate with each other and timeout.
-Hence, we recommend setting the timeout substantially higher than the highest expected recovery time, to minimise the chance of this happening.
-To audit if timeouts were used to open the service, the `public:ccf.gov.selfhealingopen.failover_open` table tracks this.
-
-This failover path is illustrated below.
-
-.. mermaid::
-
-    sequenceDiagram
-      participant N1
-      participant N2
-      participant N3
-
-      Note over N1, N3: Gossip
-
-      N2 ->> N3: Gossip(Tx=2)
-      N3 ->> N2: Gossip(Tx=3)
-
-      Note over N1: Timeout
-      Note over N3: Timeout
-
-      Note over N1, N3: Vote
-
-      N1 ->> N1: Vote
-      N3 ->> N3: Vote
-      N2 ->> N3: Vote
-
-      Note over N1, N3: Open/Join
-      
-      Note over N1: Transition-to-open
-      Note over N3: Transition-to-open
-
-
-If the network fails during reconfiguration, each node will use its latest known configuration to recover. Since reconfiguration requires votes from a majority of nodes, the latest configuration should recover using the election path, however nodes in the previous configuration may recover using the election path.
+Setting ``sealing_recovery.recovery_decision_protocol.failover_timeout`` to ``0ms`` disables failover timers.
 
 Notes
 -----
