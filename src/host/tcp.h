@@ -393,37 +393,8 @@ namespace asynchost
         return false;
       }
 
-      if (is_client)
-      {
-        uv_os_sock_t sock = 0;
-        if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
-        {
-          LOG_FAIL_FMT(
-            "socket creation failed: {}",
-            std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
-          return false;
-        }
-
-        if (connection_timeout.has_value())
-        {
-          const unsigned int ms = connection_timeout->count();
-          const auto ret =
-            setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &ms, sizeof(ms));
-          if (ret != 0)
-          {
-            LOG_FAIL_FMT(
-              "Failed to set socket option (TCP_USER_TIMEOUT): {}",
-              std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
-            return false;
-          }
-        }
-
-        if ((rc = uv_tcp_open(&uv_handle, sock)) < 0)
-        {
-          LOG_FAIL_FMT("uv_tcp_open failed: {}", uv_strerror(rc));
-          return false;
-        }
-      }
+      // Client socket creation is deferred to connect_resolved(), where
+      // the resolved address family (AF_INET or AF_INET6) is known.
 
       if ((rc = uv_tcp_keepalive(&uv_handle, 1, 30)) < 0)
       {
@@ -526,6 +497,42 @@ namespace asynchost
 
     bool connect_resolved()
     {
+      // Create the client socket with the correct address family, but only
+      // if client_bind() hasn't already created one via uv_tcp_bind().
+      if (is_client && !client_host.has_value() && addr_current != nullptr)
+      {
+        int rc = 0;
+        const int family = addr_current->ai_family;
+        uv_os_sock_t sock = 0;
+        if ((sock = socket(family, SOCK_STREAM, IPPROTO_TCP)) == -1)
+        {
+          LOG_FAIL_FMT(
+            "socket creation failed: {}",
+            std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
+          return false;
+        }
+
+        if (connection_timeout.has_value())
+        {
+          const unsigned int ms = connection_timeout->count();
+          const auto ret =
+            setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &ms, sizeof(ms));
+          if (ret != 0)
+          {
+            LOG_FAIL_FMT(
+              "Failed to set socket option (TCP_USER_TIMEOUT): {}",
+              std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
+            return false;
+          }
+        }
+
+        if ((rc = uv_tcp_open(&uv_handle, sock)) < 0)
+        {
+          LOG_FAIL_FMT("uv_tcp_open failed: {}", uv_strerror(rc));
+          return false;
+        }
+      }
+
       auto* req = new uv_connect_t; // NOLINT(cppcoreguidelines-owning-memory)
       int rc = 0;
 

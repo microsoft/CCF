@@ -176,10 +176,17 @@ class Node:
             if interface_name == infra.interfaces.PRIMARY_RPC_INTERFACE:
                 if rpc_interface.protocol == "local":
                     if not self.major_version or self.major_version > 1:
-                        self.node_client_host = str(
-                            ipaddress.ip_address(BASE_NODE_CLIENT_HOST)
-                            + self.local_node_id
-                        )
+                        if ":" in rpc_interface.host:
+                            # Pure IPv6 addresses (e.g. ::1) are not
+                            # compatible with the IPv4-based client
+                            # interface used for partition simulation.
+                            # Skip client interface binding for IPv6.
+                            self.node_client_host = None
+                        else:
+                            self.node_client_host = str(
+                                ipaddress.ip_address(BASE_NODE_CLIENT_HOST)
+                                + self.local_node_id
+                            )
                 else:
                     assert False, f"{rpc_interface.protocol} is not 'local://'"
 
