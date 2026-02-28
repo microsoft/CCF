@@ -327,7 +327,7 @@
                     "description": "Maximum size of snapshot this node is willing to fetch"
                   },
                   "code_transparent_statement_path": {
-                    "type": "string",
+                    "type": ["string", "null"],
                     "default": null,
                     "description": "Path to a SCITT Transparent Statement over the attested host_data of the node"
                   }
