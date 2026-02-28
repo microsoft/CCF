@@ -7,6 +7,7 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
+#include "ccf/entity_id.h"
 #include "ccf/js/core/context.h"
 #include "ccf/node/cose_signatures_config.h"
 #include "ccf/pal/attestation_sev_snp.h"
@@ -40,7 +41,7 @@
 #include "node/ledger_secrets.h"
 #include "node/local_sealing.h"
 #include "node/node_to_node_channel_manager.h"
-#include "node/self_healing_open_impl.h"
+#include "node/recovery_decision_protocol.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
 #include "pal/quote_generation.h"
@@ -90,7 +91,7 @@ namespace ccf
 
   class NodeState : public AbstractNodeState
   {
-    friend class SelfHealingOpenSubsystem;
+    friend class RecoveryDecisionProtocolSubsystem;
 
     struct FetchSnapshot : public ccf::tasks::BaseTask
     {
@@ -261,6 +262,9 @@ namespace ccf
     std::vector<ccf::kv::Version> view_history;
     ::consensus::Index last_recovered_signed_idx = 0;
     RecoveredEncryptedLedgerSecrets recovered_encrypted_ledger_secrets;
+    std::optional<
+      std::tuple<ccf::NodeId, std::vector<uint8_t>, SealedRecoveryKey>>
+      cached_sealed_recovery_data = std::nullopt;
     ::consensus::Index last_recovered_idx = 0;
     static const size_t recovery_batch_size = 100;
 
@@ -387,7 +391,7 @@ namespace ccf
       }
     }
 
-    SelfHealingOpenSubsystem self_healing_open_impl;
+    RecoveryDecisionProtocolSubsystem recovery_decision_protocol;
 
   public:
     NodeState(
@@ -405,7 +409,7 @@ namespace ccf
       network(network),
       rpcsessions(std::move(rpcsessions)),
       share_manager(network.ledger_secrets),
-      self_healing_open_impl(this)
+      recovery_decision_protocol(this)
     {}
 
     QuoteVerificationResult verify_quote(
@@ -1107,10 +1111,11 @@ namespace ccf
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
-      if (config.enable_local_sealing && snp_tcb_version.has_value())
+      if (config.sealing_recovery.has_value() && snp_tcb_version.has_value())
       {
-        join_params.sealed_recovery_key =
-          sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());
+        join_params.sealing_recovery_data = std::make_pair(
+          sealing::get_snp_sealed_recovery_key(snp_tcb_version.value()),
+          config.sealing_recovery->location.name);
       }
 
       if (config.join.code_transparent_statement_path.has_value())
@@ -1409,6 +1414,52 @@ namespace ccf
       if (h != nullptr)
       {
         h->set_node_id(self);
+      }
+
+      // cache the previous sealed_recovery_key
+      if (config.sealing_recovery.has_value())
+      {
+        auto& name = config.sealing_recovery->location.name;
+        auto* node_id_lookup =
+          tx.ro<LocalSealingNodeIdMap>(Tables::SEALING_RECOVERY_NAMES);
+        auto local_sealing_node_id_opt = node_id_lookup->get(name);
+        if (local_sealing_node_id_opt.has_value())
+        {
+          auto& local_sealing_node_id = local_sealing_node_id_opt.value();
+          auto sealed_recovery_shares_opt =
+            tx.ro<SealedShares>(Tables::SEALED_SHARES)->get();
+          if (sealed_recovery_shares_opt.has_value())
+          {
+            auto sealed_recovery_shares = sealed_recovery_shares_opt.value();
+            auto sealed_share_it =
+              sealed_recovery_shares.encrypted_wrapping_keys.find(
+                local_sealing_node_id);
+
+            auto sealed_recovery_key =
+              tx.ro<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS)
+                ->get(local_sealing_node_id.value());
+
+            if (
+              sealed_share_it !=
+                sealed_recovery_shares.encrypted_wrapping_keys.end() &&
+              sealed_recovery_key.has_value())
+            {
+              cached_sealed_recovery_data = std::make_tuple(
+                local_sealing_node_id.value(),
+                sealed_share_it->second,
+                sealed_recovery_key.value());
+            }
+          }
+        }
+
+        if (!cached_sealed_recovery_data.has_value())
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to find sealed recovery data for location ({}) in ledger "
+            "at {}",
+            name,
+            last_recovered_signed_idx));
+        }
       }
 
       setup_consensus(true);
@@ -1794,10 +1845,20 @@ namespace ccf
         ShareManager::clear_submitted_recovery_shares(tx);
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
         service->put(service_info.value());
-        auto previous_id = config.recover.previous_local_sealing_identity;
-        if (config.enable_local_sealing && previous_id.has_value())
+        if (
+          config.sealing_recovery.has_value() &&
+          !config.sealing_recovery->location.name.empty())
         {
-          auto unsealed_ls = sealing::unseal_share(tx, previous_id.value());
+          if (!cached_sealed_recovery_data.has_value())
+          {
+            throw std::logic_error(
+              "Missing cached sealed recovery key for private recovery");
+          }
+
+          auto& [last_sealed_node_id, last_sealed_wrapping_key, last_sealed_recovery_key] =
+            cached_sealed_recovery_data.value();
+          auto unsealed_ls = sealing::unseal_share(
+            tx, last_sealed_wrapping_key, last_sealed_recovery_key);
           if (unsealed_ls.has_value())
           {
             tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
@@ -2267,10 +2328,11 @@ namespace ccf
       create_params.service_data = config.service_data;
       create_params.create_txid = {create_view, last_recovered_signed_idx + 1};
 
-      if (config.enable_local_sealing && snp_tcb_version.has_value())
+      if (config.sealing_recovery.has_value() && snp_tcb_version.has_value())
       {
-        create_params.sealed_recovery_key =
-          sealing::get_snp_sealed_recovery_key(snp_tcb_version.value());
+        create_params.sealing_recovery_data = std::make_pair(
+          sealing::get_snp_sealed_recovery_key(snp_tcb_version.value()),
+          config.sealing_recovery->location.name);
       }
 
       const auto body = nlohmann::json(create_params).dump();
@@ -2963,9 +3025,9 @@ namespace ccf
       return writer_factory;
     }
 
-    SelfHealingOpenSubsystem& self_healing_open() override
+    RecoveryDecisionProtocolSubsystem& get_recovery_decision_protocol() override
     {
-      return self_healing_open_impl;
+      return recovery_decision_protocol;
     }
 
     void shuffle_sealed_shares(ccf::kv::Tx& tx) override

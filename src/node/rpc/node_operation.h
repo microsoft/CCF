@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "node/recovery_decision_protocol.h"
 #include "node/rpc/node_interface.h"
 #include "node/rpc/node_operation_interface.h"
-#include "node/self_healing_open_impl.h"
 
 namespace ccf
 {
@@ -124,9 +124,9 @@ namespace ccf
       return impl.get_cose_signatures_config();
     }
 
-    SelfHealingOpenSubsystem& self_healing_open() override
+    RecoveryDecisionProtocolSubsystem& recovery_decision_protocol() override
     {
-      return impl.self_healing_open();
+      return impl.get_recovery_decision_protocol();
     }
 
     void shuffle_sealed_shares(ccf::kv::Tx& tx) override

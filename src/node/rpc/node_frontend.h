@@ -339,12 +339,16 @@ namespace ccf
 
       nodes->put(joining_node_id, node_info);
 
-      if (in.sealed_recovery_key.has_value())
+      if (in.sealing_recovery_data.has_value())
       {
+        const auto& [sealing_keys, sealing_recovery_name] =
+          in.sealing_recovery_data.value();
         auto* sealed_recovery_keys =
           tx.rw<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
-        sealed_recovery_keys->put(
-          joining_node_id, in.sealed_recovery_key.value());
+        sealed_recovery_keys->put(joining_node_id, sealing_keys);
+        auto* local_sealing_node_id_map =
+          tx.rw<LocalSealingNodeIdMap>(Tables::SEALING_RECOVERY_NAMES);
+        local_sealing_node_id_map->put(sealing_recovery_name, joining_node_id);
       }
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
@@ -1066,6 +1070,20 @@ namespace ccf
           nodes->remove(node_id);
           node_endorsed_certificates->remove(node_id);
 
+          // clean up sealing tables
+          auto* local_sealing_node_id_map =
+            args.tx.template rw<LocalSealingNodeIdMap>(
+              Tables::SEALING_RECOVERY_NAMES);
+          local_sealing_node_id_map->foreach(
+            [&](
+              const auto& sealing_recovery_name, const auto& sealing_node_id) {
+              if (sealing_node_id == node_id)
+              {
+                local_sealing_node_id_map->remove(sealing_recovery_name);
+                return false;
+              }
+              return true;
+            });
           auto* sealed_recovery_keys = args.tx.template rw<SealedRecoveryKeys>(
             Tables::SEALED_RECOVERY_KEYS);
           sealed_recovery_keys->remove(node_id);
@@ -1546,11 +1564,18 @@ namespace ccf
           in.node_data};
         InternalTablesAccess::add_node(ctx.tx, in.node_id, node_info);
 
-        if (in.sealed_recovery_key.has_value())
+        if (in.sealing_recovery_data.has_value())
         {
+          const auto& [sealing_keys, sealing_recovery_name] =
+            in.sealing_recovery_data.value();
           auto* sealed_recovery_keys = ctx.tx.template rw<SealedRecoveryKeys>(
             Tables::SEALED_RECOVERY_KEYS);
-          sealed_recovery_keys->put(in.node_id, in.sealed_recovery_key.value());
+          sealed_recovery_keys->put(in.node_id, sealing_keys);
+
+          auto* local_sealing_node_id_map =
+            ctx.tx.template rw<LocalSealingNodeIdMap>(
+              Tables::SEALING_RECOVERY_NAMES);
+          local_sealing_node_id_map->put(sealing_recovery_name, in.node_id);
         }
 
         node_operation.shuffle_sealed_shares(ctx.tx);
@@ -1613,8 +1638,9 @@ namespace ccf
           ctx.rpc_ctx->set_claims_digest(std::move(digest_value));
         }
 
-        this->node_operation.self_healing_open().reset_state(ctx.tx);
-        this->node_operation.self_healing_open().try_start(ctx.tx, recovering);
+        this->node_operation.recovery_decision_protocol().reset_state(ctx.tx);
+        this->node_operation.recovery_decision_protocol().try_start(
+          ctx.tx, recovering);
 
         LOG_INFO_FMT("Created service");
         return make_success(true);
@@ -1819,7 +1845,7 @@ namespace ccf
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
-      ccf::node::init_self_healing_open_handlers(*this, context);
+      ccf::node::init_recovery_decision_protocol_handlers(*this, context);
 
       ccf::node::init_file_serving_handlers(*this, context);
     }

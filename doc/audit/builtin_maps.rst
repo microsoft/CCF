@@ -581,6 +581,15 @@ While the contents themselves are encrypted, the table is public so as to be acc
     :project: CCF
     :members:
 
+``sealing_recovery_names``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Mapping from sealing recovery names to node IDs for nodes that support local sealing. This table is used alongside ``nodes.sealed_recovery_keys`` to fetch the sealed recovery key when a node is recovering.
+
+**Key** Sealing recovery name of the node, represented as a string.
+
+**Value** Node ID: SHA-256 digest of the node public key, represented as a hex-encoded string.
+
 ``last_recovery_type``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 **Value** The mechanism by which the ledger secret was recovered.
@@ -588,57 +597,53 @@ While the contents themselves are encrypted, the table is public so as to be acc
 .. doxygenenum:: ccf::RecoveryType
    :project: CCF
 
-``self_healing_open.nodes``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``recovery_decision_protocol.nodes``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Key** Intrinsic node ID: A string which is unique to a particular node role within a cluster.
+**Key** Location name: A string which is unique to the location of a particular node within a network.
 
 **Value** 
 
-.. doxygenstruct:: ccf::self_healing_open::NodeInfo
+.. doxygenstruct:: ccf::recovery_decision_protocol::NodeInfo
    :project: CCF
    :members:
 
-``self_healing_open.gossip``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``recovery_decision_protocol.gossip``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Key** Intrinsic node ID of the source of the gossip message.
+**Key** Location name of the source of the gossip message.
 
-**Value**
+**Value** The TxID of the last recovered signed transaction known by the source node.
 
-.. doxygenstruct:: ccf::self_healing_open::GossipRequest
-   :project: CCF
-   :members:
+``recovery_decision_protocol.chosen_node``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``self_healing_open.chosen_node``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Value** The location name of the chosen node. This will either be the node this node voted for, or the node that it has received an `IAmOpen` message from.
 
-**Value** The intrinsic node ID of the chosen node. This will either be the node this node voted for, or the node that is has received an `IAmOpen` message from.
+``recovery_decision_protocol.votes``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``self_healing_open.votes``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Key** Location name of the node which has voted for this node to be opened.
 
-**Key** Intrinsic node ID of the node which has voted for this node to be opened.
+``recovery_decision_protocol.sm_state``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``self_healing_open.sm_state``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Value** State machine state of the recovery decision protocol.
 
-**Value** State machine state of the self-healing open protocol.
-
-.. doxygenenum:: ccf::self_healing_open::StateMachine
+.. doxygenenum:: ccf::recovery_decision_protocol::StateMachine
    :project: CCF
 
-``self_healing_open.timeout_sm_state``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``recovery_decision_protocol.timeout_sm_state``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Value** Timeout state machine state of the self-healing open protocol. Ticks based on `failover_timeout` and advances `self_healing_open.sm_state` if it falls behind.
+**Value** Timeout state machine state of the recovery decision protocol. Ticks based on `failover_timeout` and advances `recovery_decision_protocol.sm_state` if it falls behind.
 
-See :cpp:enum:`ccf::self_healing_open::StateMachine` above.
+See :cpp:enum:`ccf::recovery_decision_protocol::StateMachine` above.
 
-``self_healing_open.open_kind``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``recovery_decision_protocol.open_kind``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Value** The kind of recovery that was performed, either `Quorum`-based which guarantees that there is at most one recovered service using this path, or `Failover`-based which could allow multiple services to recover.
 
-.. doxygenenum:: ccf::self_healing_open::OpenKinds
+.. doxygenenum:: ccf::recovery_decision_protocol::OpenKinds
    :project: CCF

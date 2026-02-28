@@ -2246,17 +2246,15 @@ def run_initial_tcb_version_checks(const_args):
 
 
 def run_recovery_local_unsealing(
-    const_args, recovery_f=0, rekey=False, recovery_shares_refresh=False
+    const_args, suffix, recovery_f=0, rekey=False, recovery_shares_refresh=False
 ):
     LOG.info("Running recovery local unsealing")
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.enable_local_sealing = True
-    args.label += (
-        f"_unsealing_{recovery_f}_rekey_{rekey}_refresh_{recovery_shares_refresh}"
-    )
+    args.label += suffix
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
 
         network.save_service_identity(args)
@@ -2283,10 +2281,9 @@ def run_recovery_local_unsealing(
                 recovery_network_args.binary_dir,
                 next_node_id=prev_network.next_node_id,
             ) as recovery_network:
-
-                recovery_network.per_node_args_override = {
-                    0: {"previous_local_sealing_identity": node.node_id}
-                }
+                recovery_network.set_sealing_recovery_locations(
+                    prev_nodes=network.nodes
+                )
 
                 # Reset consortium and users to prevent issues with hosts from existing_network
                 recovery_network.consortium = prev_network.consortium
@@ -2312,10 +2309,10 @@ def run_recovery_unsealing_validate_audit(const_args):
     LOG.info("Running recovery local unsealing")
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.enable_local_sealing = True
     args.label += "_unsealing_audit"
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
 
         network.save_service_identity(args)
@@ -2351,9 +2348,9 @@ def run_recovery_unsealing_validate_audit(const_args):
                 next_node_id=prev_network.next_node_id,
             ) as recovery_network:
                 if via_local_unsealing:
-                    recovery_network.per_node_args_override = {
-                        0: {"previous_local_sealing_identity": network.nodes[0].node_id}
-                    }
+                    recovery_network.set_sealing_recovery_locations(
+                        prev_nodes=network.nodes
+                    )
 
                 # Reset consortium and users to prevent issues with hosts from existing_network
                 recovery_network.consortium = prev_network.consortium
@@ -2393,11 +2390,10 @@ def run_recovery_unsealing_validate_audit(const_args):
                 prev_network = recovery_network
 
 
-def run_self_healing_open(const_args):
+def run_recovery_decision_protocol(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.label += "_self_healing_open"
-    args.enable_local_sealing = True
+    args.label += "_recovery_decision_protocol"
 
     with infra.network.network(
         args.nodes,
@@ -2405,18 +2401,12 @@ def run_self_healing_open(const_args):
         args.debug_nodes,
     ) as network:
         LOG.info("Start a network and stop it")
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
         network.save_service_identity(args)
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
-
-        ledger_dirs = {}
-        committed_ledger_dirs = {}
-        for i, node in enumerate(network.nodes):
-            l_dir, c = node.get_ledger()
-            ledger_dirs[i] = l_dir
-            committed_ledger_dirs[i] = c
 
         LOG.info("Start recovery network")
         with infra.network.network(
@@ -2425,16 +2415,11 @@ def run_self_healing_open(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
-            recovered_network.per_node_args_override = {
-                i: {"previous_local_sealing_identity": node.node_id}
-                for i, node in enumerate(network.nodes)
-            }
-            recovered_network.start_in_self_healing_open(
+            recovered_network.start_in_recovery_decision_protocol(
                 recovery_args,
-                ledger_dirs=ledger_dirs,
-                committed_ledger_dirs=committed_ledger_dirs,
+                existing_network=network,
             )
-            recovered_network.wait_for_self_healing_open_finish()
+            recovered_network.wait_for_recovery_decision_protocol_finish()
 
             # Refresh the declared state of nodes which have shut themselves down to join.
             for node in recovered_network.nodes:
@@ -2450,18 +2435,17 @@ def run_self_healing_open(const_args):
 
             latest_public_tables, _ = recovered_network.get_latest_ledger_public_state()
             recovery_type = latest_public_tables[
-                "public:ccf.gov.self_healing_open.open_kind"
+                "public:ccf.gov.recovery_decision_protocol.open_kind"
             ][b"\x00\x00\x00\x00\x00\x00\x00\x00"].decode("utf-8")
             assert (
                 recovery_type == '"Quorum"'
             ), f"Network self-healing open type was {recovery_type} instead of Quorum"
 
 
-def run_self_healing_open_timeout_path(const_args):
+def run_recovery_decision_protocol_timeout_path(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.label += "_self_healing_open_timeout"
-    args.enable_local_sealing = True
+    args.label += "_recovery_decision_protocol_timeout"
 
     with infra.network.network(
         args.nodes,
@@ -2469,18 +2453,12 @@ def run_self_healing_open_timeout_path(const_args):
         args.debug_nodes,
     ) as network:
         LOG.info("Start a network and stop it")
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
         network.save_service_identity(args)
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
-
-        ledger_dirs = {}
-        committed_ledger_dirs = {}
-        for i, node in enumerate(network.nodes):
-            l_dir, c = node.get_ledger()
-            ledger_dirs[i] = l_dir
-            committed_ledger_dirs[i] = c
 
         LOG.info("Start a recovery network and stop it")
         with infra.network.network(
@@ -2489,17 +2467,12 @@ def run_self_healing_open_timeout_path(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
-            recovered_network.per_node_args_override = {
-                i: {"previous_local_sealing_identity": node.node_id}
-                for i, node in enumerate(network.nodes)
-            }
-            recovered_network.start_in_self_healing_open(
+            recovered_network.start_in_recovery_decision_protocol(
                 recovery_args,
-                ledger_dirs=ledger_dirs,
-                committed_ledger_dirs=committed_ledger_dirs,
+                existing_network=network,
                 starting_nodes=0,  # Force timeout path by starting only one node
             )
-            recovered_network.wait_for_self_healing_open_finish()
+            recovered_network.wait_for_recovery_decision_protocol_finish()
 
             # Refresh the declared state of nodes which have shut themselves down to join.
             for node in recovered_network.nodes:
@@ -2514,18 +2487,17 @@ def run_self_healing_open_timeout_path(const_args):
 
             latest_public_tables, _ = recovered_network.get_latest_ledger_public_state()
             recovery_type = latest_public_tables[
-                "public:ccf.gov.self_healing_open.open_kind"
+                "public:ccf.gov.recovery_decision_protocol.open_kind"
             ][b"\x00\x00\x00\x00\x00\x00\x00\x00"].decode("utf-8")
             assert (
                 recovery_type == '"Failover"'
             ), f"Network self-healing open type was {recovery_type} instead of Failover"
 
 
-def run_self_healing_open_multiple_timeout(const_args):
+def run_recovery_decision_protocol_multiple_timeout(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.label += "_self_healing_open_multiple_timeout"
-    args.enable_local_sealing = True
+    args.label += "_recovery_decision_protocol_multiple_timeout"
 
     with infra.network.network(
         args.nodes,
@@ -2533,18 +2505,12 @@ def run_self_healing_open_multiple_timeout(const_args):
         args.debug_nodes,
     ) as network:
         LOG.info("Start a network and stop it")
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
         network.save_service_identity(args)
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
-
-        ledger_dirs = {}
-        committed_ledger_dirs = {}
-        for i, node in enumerate(network.nodes):
-            l_dir, c = node.get_ledger()
-            ledger_dirs[i] = l_dir
-            committed_ledger_dirs[i] = c
 
         LOG.info("Start a recovery network")
         with infra.network.network(
@@ -2553,17 +2519,12 @@ def run_self_healing_open_multiple_timeout(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
-            recovered_network.per_node_args_override = {
-                i: {"previous_local_sealing_identity": node.node_id}
-                for i, node in enumerate(network.nodes)
-            }
-            recovered_network.start_in_self_healing_open(
+            recovered_network.start_in_recovery_decision_protocol(
                 recovery_args,
-                ledger_dirs=ledger_dirs,
-                committed_ledger_dirs=committed_ledger_dirs,
+                existing_network=network,
                 suspend_after_start=True,  # suspend each node after starting to ensure they don't progress
             )
-            # for each node: start it and wait until it finishes the self-healing-open on the timeout path
+            # for each node: start it and wait until it finishes the recovery-decision-protocol on the timeout path
             for node in recovered_network.nodes:
                 node.resume()
                 recovered_network.wait_for_statuses(
@@ -2935,15 +2896,19 @@ def run_propose_request_vote(const_args):
 def run_snp_tests(args):
     run_initial_uvm_descriptor_checks(args)
     run_initial_tcb_version_checks(args)
-    run_recovery_local_unsealing(args)
-    run_recovery_local_unsealing(args, rekey=True)
-    run_recovery_local_unsealing(args, recovery_shares_refresh=True)
-    run_recovery_local_unsealing(args, recovery_f=1)
+    run_recovery_local_unsealing(args, suffix="_unsealing")
+    run_recovery_local_unsealing(args, rekey=True, suffix="_unsealing_with_rekey")
+    run_recovery_local_unsealing(
+        args,
+        recovery_shares_refresh=True,
+        suffix="_unsealing_with_recovery_shares_refresh",
+    )
+    run_recovery_local_unsealing(args, recovery_f=1, suffix="_unsealing_with_f_equal_1")
     run_recovery_unsealing_validate_audit(args)
     test_error_message_on_failure_to_read_aci_sec_context(args)
-    run_self_healing_open(args)
-    run_self_healing_open_timeout_path(args)
-    run_self_healing_open_multiple_timeout(args)
+    run_recovery_decision_protocol(args)
+    run_recovery_decision_protocol_timeout_path(args)
+    run_recovery_decision_protocol_multiple_timeout(args)
 
 
 def run(args):

@@ -113,11 +113,16 @@ namespace ccf
     node_to_node_message_limit,
     historical_cache_soft_limit);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SelfHealingOpenConfig);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoveryDecisionProtocolConfig);
   DECLARE_JSON_REQUIRED_FIELDS(
-    SelfHealingOpenConfig, identity, cluster_identities);
+    RecoveryDecisionProtocolConfig, expected_locations);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    SelfHealingOpenConfig, retry_timeout, failover_timeout);
+    RecoveryDecisionProtocolConfig, message_retry_timeout, failover_timeout);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SealingRecoveryConfig);
+  DECLARE_JSON_REQUIRED_FIELDS(SealingRecoveryConfig, location);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    SealingRecoveryConfig, recovery_decision_protocol);
 
   DECLARE_JSON_TYPE(StartupConfig::Start);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -133,11 +138,9 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     StartupConfig::Join, code_transparent_statement_path);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(StartupConfig::Recover);
+  DECLARE_JSON_TYPE(StartupConfig::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(
     StartupConfig::Recover, previous_service_identity);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    StartupConfig::Recover, previous_local_sealing_identity, self_healing_open);
 
   DECLARE_JSON_TYPE_WITH_BASE(StartupConfig, CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -152,5 +155,5 @@ namespace ccf
     start,
     join,
     recover,
-    enable_local_sealing);
+    sealing_recovery);
 }

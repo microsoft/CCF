@@ -31,6 +31,7 @@
 #include <openssl/crypto.h>
 #include <optional>
 #include <ranges>
+#include <stdexcept>
 
 namespace ccf::sealing
 {
@@ -167,20 +168,10 @@ namespace ccf::sealing
   }
 
   std::optional<LedgerSecretPtr> unseal_share(
-    ccf::kv::ReadOnlyTx& tx, const NodeId& node_id)
+    ccf::kv::ReadOnlyTx& tx,
+    const std::vector<uint8_t>& sealed_wrapping_key,
+    const SealedRecoveryKey& sealed_recovery_key)
   {
-    // Retrieve the node's sealed recovery key
-    auto* sealed_recovery_keys =
-      tx.ro<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
-    auto sealed_recovery_key_opt = sealed_recovery_keys->get(node_id);
-    if (!sealed_recovery_key_opt.has_value())
-    {
-      LOG_INFO_FMT(
-        "Node {} has no sealed recovery key to unseal recovery share", node_id);
-      return std::nullopt;
-    }
-    auto& sealed_recovery_key = sealed_recovery_key_opt.value();
-
     // Retrieve the encrypted sealed share
     auto sealed_shares = tx.ro<SealedShares>(Tables::SEALED_SHARES)->get();
     if (!sealed_shares.has_value())
@@ -189,18 +180,6 @@ namespace ccf::sealing
       return std::nullopt;
     }
     auto sealed_share_info = sealed_shares.value();
-    auto encrypted_full_share_it =
-      sealed_share_info.encrypted_wrapping_keys.find(node_id);
-    if (
-      encrypted_full_share_it ==
-      sealed_share_info.encrypted_wrapping_keys.end())
-    {
-      LOG_INFO_FMT(
-        "Node {} has no encrypted sealed share to unseal recovery share",
-        node_id);
-      return std::nullopt;
-    }
-    auto encrypted_full_share = encrypted_full_share_it->second;
 
     // Unseal the recovery key pair
     std::vector<uint8_t> derived_key;
@@ -212,13 +191,14 @@ namespace ccf::sealing
       default:
         throw std::logic_error("Unknown derived sealing key algorithm");
     }
+
     auto recovery_key_pair =
       unseal_recovery_key(derived_key, sealed_recovery_key);
     OPENSSL_cleanse(derived_key.data(), derived_key.size());
 
     // Decrypt the share
-    auto decrypted_share =
-      recovery_key_pair->rsa_oaep_unwrap(encrypted_full_share);
+    std::vector<uint8_t> decrypted_share =
+      recovery_key_pair->rsa_oaep_unwrap(sealed_wrapping_key);
     ccf::crypto::sharing::Share share(decrypted_share);
     CCF_ASSERT_FMT(share.x == 0, "Expected full share when unsealing");
     ReconstructedLedgerSecretWrappingKey wrapping_key = {share};
