@@ -289,6 +289,7 @@ class Node:
         label,
         common_dir,
         members_info=None,
+        code_transparent_statement_path=None,
         **kwargs,
     ):
         """
@@ -309,6 +310,7 @@ class Node:
         members_info = members_info or []
         self.label = label
 
+        self.code_transparent_statement_path = code_transparent_statement_path
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         self.remote = infra.remote.CCFRemote(
             start_type,
@@ -328,6 +330,7 @@ class Node:
             version=self.version,
             major_version=self.major_version,
             node_data_json_file=self.initial_node_data_json_file,
+            code_transparent_statement_path=self.code_transparent_statement_path,
             **kwargs,
         )
         self.remote.setup()

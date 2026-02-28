@@ -159,6 +159,7 @@ namespace ccf
       size_t fetch_snapshot_max_attempts{};
       ccf::ds::TimeString fetch_snapshot_retry_interval;
       ccf::ds::SizeString fetch_snapshot_max_size;
+      std::optional<std::string> code_transparent_statement_path = std::nullopt;
     };
     Join join = {};
 

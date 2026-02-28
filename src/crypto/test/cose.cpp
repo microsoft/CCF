@@ -244,7 +244,7 @@ TEST_CASE("Decode CCF COSE receipt")
     ccf::ds::to_hex(receipt.phdr.kid) ==
     "34643932306535316463393036363733366534333337386361313432386365616530643534"
     "333532663430653531623230656463386336623763353631643035");
-  REQUIRE(receipt.phdr.cwt.iat == 1764259187);
+  REQUIRE(receipt.phdr.cwt.iat.value() == 1764259187);
   REQUIRE(receipt.phdr.cwt.iss == "service.example.com");
   REQUIRE(receipt.phdr.cwt.sub == "ledger.signature");
   REQUIRE(receipt.phdr.ccf.txid == "2.17");

@@ -23,6 +23,7 @@
 #include "ccf/version.h"
 
 #include <charconv>
+#include <crypto/cose.h>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
@@ -35,6 +36,11 @@ namespace loggingapp
   using RecordsMap = ccf::kv::Map<size_t, string>;
   static constexpr auto PUBLIC_RECORDS = "public:records";
   static constexpr auto PRIVATE_RECORDS = "records";
+
+  using ScittTransparentStatementMap =
+    ccf::kv::RawCopySerialisedValue<std::vector<uint8_t>>;
+  static constexpr auto COSE_SIGNED_STATEMENTS =
+    "public:cose_transparent_statements";
 
   // SNIPPET_START: indexing_strategy_definition
   using RecordsIndexingStrategy = ccf::indexing::LazyStrategy<
@@ -231,6 +237,39 @@ namespace loggingapp
 
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
     std::shared_ptr<CommittedRecords> committed_records = nullptr;
+
+    // Build a COSE receipt (signature + Merkle inclusion proof) from a
+    // historical receipt. Returns nullopt and sets an error on ctx if the
+    // receipt cannot be constructed.
+    static std::optional<std::vector<uint8_t>> build_cose_receipt(
+      ccf::endpoints::ReadOnlyEndpointContext& ctx,
+      const ccf::TxReceiptImplPtr& receipt)
+    {
+      auto signature = describe_cose_signature_v1(*receipt);
+      if (!signature.has_value())
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          "No COSE signature available for this transaction");
+        return std::nullopt;
+      }
+      auto proof = describe_merkle_proof_v1(*receipt);
+      if (!proof.has_value())
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          "No Merkle proof available for this transaction");
+        return std::nullopt;
+      }
+
+      auto inclusion_proof =
+        ccf::cose::edit::pos::AtKey{ccf::cose::header::iana::INCLUSION_PROOFS};
+      ccf::cose::edit::desc::Value desc{
+        inclusion_proof, ccf::cose::header::iana::VDP, *proof};
+      return ccf::cose::edit::set_unprotected_header(*signature, desc);
+    }
 
     std::string describe_identity(
       ccf::endpoints::EndpointContext& ctx,
@@ -2143,41 +2182,18 @@ namespace loggingapp
       auto get_cose_receipt = [](
                                 ccf::endpoints::ReadOnlyEndpointContext& ctx,
                                 ccf::historical::StatePtr historical_state) {
-        auto historical_tx = historical_state->store->create_read_only_tx();
-
         assert(historical_state->receipt);
-        auto signature = describe_cose_signature_v1(*historical_state->receipt);
-        if (!signature.has_value())
+        auto cose_receipt = build_cose_receipt(ctx, historical_state->receipt);
+        if (!cose_receipt.has_value())
         {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "No COSE signature available for this transaction");
           return;
         }
-        auto proof = describe_merkle_proof_v1(*historical_state->receipt);
-        if (!proof.has_value())
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "No merkle proof available for this transaction");
-          return;
-        }
-
-        constexpr int64_t vdp = 396;
-        auto inclusion_proof = ccf::cose::edit::pos::AtKey{-1};
-
-        ccf::cose::edit::desc::Value desc{inclusion_proof, vdp, *proof};
-
-        auto cose_receipt =
-          ccf::cose::edit::set_unprotected_header(*signature, desc);
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
           ccf::http::headers::CONTENT_TYPE,
           ccf::http::headervalues::contenttype::COSE);
-        ctx.rpc_ctx->set_response_body(cose_receipt);
+        ctx.rpc_ctx->set_response_body(*cose_receipt);
       };
       make_read_only_endpoint(
         "/log/public/cose_receipt",
@@ -2240,6 +2256,108 @@ namespace loggingapp
         "/log/public/verify_cose_receipt",
         HTTP_GET,
         verify_cose_receipt,
+        ccf::no_auth_required)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
+      // Endpoint to register a signed statement (raw COSE_Sign1),
+      // binding its digest as a claims_digest in the Merkle tree.
+      auto register_signed_statement =
+        [](ccf::endpoints::EndpointContext& ctx) {
+          const auto& body = ctx.rpc_ctx->get_request_body();
+          if (body.empty())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidInput,
+              "Body must not be empty");
+            return;
+          }
+
+          const auto signed_statement = ccf::cose::edit::set_unprotected_header(
+            body, ccf::cose::edit::desc::Empty{});
+
+          ctx.rpc_ctx->set_claims_digest(
+            ccf::ClaimsDigest::Digest(signed_statement));
+
+          auto* entry_table = ctx.tx.template rw<ScittTransparentStatementMap>(
+            COSE_SIGNED_STATEMENTS);
+          entry_table->put(signed_statement);
+
+          CCF_APP_INFO(
+            "Registered signed statement of size {} bytes", body.size());
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        };
+
+      make_endpoint(
+        "/log/signed_statement",
+        HTTP_POST,
+        register_signed_statement,
+        ccf::no_auth_required)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Always)
+        .set_locally_committed_function(
+          ccf::endpoints::default_locally_committed_func)
+        .install();
+
+      // Endpoint to retrieve a transparent statement: the stored signed
+      // statement with a COSE receipt (including Merkle proof) embedded in
+      // its unprotected header.
+      auto get_transparent_statement =
+        [](
+          ccf::endpoints::ReadOnlyEndpointContext& ctx,
+          ccf::historical::StatePtr historical_state) {
+          auto historical_tx = historical_state->store->create_read_only_tx();
+
+          auto* entries =
+            historical_tx.template ro<ScittTransparentStatementMap>(
+              COSE_SIGNED_STATEMENTS);
+          auto entry = entries->get();
+          if (!entry.has_value())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              fmt::format(
+                "Transaction ID {} does not correspond to a COSE entry.",
+                historical_state->transaction_id.to_str()));
+            return;
+          }
+
+          assert(historical_state->receipt);
+          auto cose_receipt =
+            build_cose_receipt(ctx, historical_state->receipt);
+          if (!cose_receipt.has_value())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Failed to build COSE receipt for this transaction");
+            return;
+          }
+
+          // Build "transparent statement".
+          ccf::cose::edit::desc::Value receipts_desc{
+            ccf::cose::edit::pos::InArray{},
+            ccf::cose::header::iana::VDP,
+            *cose_receipt};
+          auto transparent_statement =
+            ccf::cose::edit::set_unprotected_header(*entry, receipts_desc);
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_header(
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::COSE);
+          ctx.rpc_ctx->set_response_body(transparent_statement);
+        };
+
+      make_read_only_endpoint(
+        "/log/transparent_statement",
+        HTTP_GET,
+        ccf::historical::read_only_adapter_v4(
+          get_transparent_statement, context, is_tx_committed),
         ccf::no_auth_required)
         .set_auto_schema<void, void>()
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)

@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/node_subsystem_interface.h"
+#include "ccf/tx_id.h"
 
 #include <optional>
 #include <string>

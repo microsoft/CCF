@@ -335,6 +335,7 @@ class CCFRemote(object):
         cose_signatures_subject="ledger.signature",
         sealing_recovery_location=None,
         recovery_decision_protocol_expected_locations=None,
+        code_transparent_statement_path=None,
         **kwargs,
     ):
         """
@@ -527,6 +528,7 @@ class CCFRemote(object):
                 cose_signatures_subject=cose_signatures_subject,
                 sealing_recovery_location=sealing_recovery_location,
                 recovery_decision_protocol_expected_locations=recovery_decision_protocol_expected_locations,
+                code_transparent_statement_path=code_transparent_statement_path,
                 **kwargs,
             )
 

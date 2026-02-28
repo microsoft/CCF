@@ -61,7 +61,7 @@ namespace ccf::node
 
       pal::PlatformAttestationMeasurement measurement;
       QuoteVerificationResult verify_result = node_operation->verify_quote(
-        args.tx, info.quote_info, cert_der, measurement);
+        args.tx, info.quote_info, cert_der, measurement, std::nullopt, nullptr);
       if (verify_result != QuoteVerificationResult::Verified)
       {
         const auto [code, message] = quote_verification_error(verify_result);

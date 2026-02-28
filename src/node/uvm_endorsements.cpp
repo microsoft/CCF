@@ -4,6 +4,7 @@
 #include "node/uvm_endorsements.h"
 
 #include "crypto/cbor.h"
+#include "crypto/cose_utils.h"
 #include "ds/internal_logger.h"
 
 namespace ccf
@@ -47,32 +48,6 @@ namespace ccf
   {
     namespace
     {
-      std::vector<std::vector<uint8_t>> parse_x5chain(
-        const ccf::cbor::Value& x5chain_value)
-      {
-        std::vector<std::vector<uint8_t>> chain;
-        // x5chain can be either an array of byte strings or a single byte
-        // string
-        try
-        {
-          for (size_t i = 0; i < x5chain_value->size(); ++i)
-          {
-            const auto x5chain_ctx = "x5chain[" + std::to_string(i) + "]";
-            const auto& bytes = ccf::cbor::rethrow_with_msg(
-              [&]() { return x5chain_value->array_at(i)->as_bytes(); },
-              x5chain_ctx);
-            chain.emplace_back(bytes.begin(), bytes.end());
-          }
-        }
-        catch (const ccf::cbor::CBORDecodeError&)
-        {
-          auto bytes = ccf::cbor::rethrow_with_msg(
-            [&]() { return x5chain_value->as_bytes(); }, "x5chain");
-          chain.emplace_back(bytes.begin(), bytes.end());
-        }
-        return chain;
-      }
-
       UvmEndorsementsProtectedHeader decode_protected_header(
         std::span<const uint8_t> raw_endorsements)
       {
@@ -119,7 +94,7 @@ namespace ccf
 
         result.x5_chain = ccf::cbor::rethrow_with_msg(
           [&]() {
-            return parse_x5chain(parsed_phdr->map_at(
+            return utils::parse_x5chain(parsed_phdr->map_at(
               ccf::cbor::make_signed(header::iana::X5CHAIN)));
           },
           fmt::format(
@@ -192,7 +167,7 @@ namespace ccf
 
         result.x5_chain = ccf::cbor::rethrow_with_msg(
           [&]() {
-            return parse_x5chain(parsed_phdr->map_at(
+            return utils::parse_x5chain(parsed_phdr->map_at(
               ccf::cbor::make_signed(header::iana::X5CHAIN)));
           },
           fmt::format(

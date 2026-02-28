@@ -8,15 +8,20 @@ import infra.proc
 import infra.utils
 import infra.crypto
 import infra.platform_detection
+import infra.clients
+import infra.commit
 import suite.test_requirements as reqs
 import os
 from infra.checker import check_can_progress
+from infra.crypto import create_signed_statement
 import infra.snp as snp
 import tempfile
 import shutil
 import http
 import json
 from hashlib import sha256
+import copy
+import time
 
 
 from loguru import logger as LOG
@@ -527,6 +532,213 @@ def test_add_node_with_untrusted_measurement(network, args):
     return network
 
 
+def register_signed_statement(node, signed_statement):
+    with node.client("user0") as client:
+        r = client.post(
+            "/app/log/signed_statement",
+            body=signed_statement,
+            headers={"Content-Type": "application/cose"},
+        )
+        assert (
+            r.status_code == http.HTTPStatus.OK
+        ), f"Failed to register signed statement: {r.status_code} {r.body.text()}"
+        txid = r.headers["x-ms-ccf-transaction-id"]
+        LOG.info(f"Registered signed statement at txid {txid}")
+
+        infra.commit.wait_for_commit(
+            client,
+            seqno=int(txid.split(".")[1]),
+            view=int(txid.split(".")[0]),
+            timeout=10,
+        )
+
+        max_retries = 30
+        transparent_statement = None
+
+        for attempt in range(max_retries):
+            r = client.get(
+                "/app/log/transparent_statement",
+                headers={infra.clients.CCF_TX_ID_HEADER: txid},
+                log_capture=[],
+            )
+            if r.status_code == http.HTTPStatus.OK:
+                transparent_statement = r.body.data()
+                LOG.info(
+                    f"Got transparent statement of {len(transparent_statement)} bytes"
+                )
+                break
+            elif r.status_code == http.HTTPStatus.ACCEPTED:
+                LOG.debug(
+                    f"Historical state not yet available, retrying ({attempt + 1}/{max_retries})"
+                )
+                time.sleep(0.1)
+            else:
+                raise AssertionError(
+                    f"Unexpected response {r.status_code}: {r.body.text()}"
+                )
+        assert (
+            transparent_statement is not None
+        ), f"Failed to get transparent statement for txid {txid} after {max_retries} retries"
+        return transparent_statement
+
+
+def assert_node_join_fails(network, args):
+    """Create a node and assert that joining the network raises HostDataNotFound."""
+    new_node = network.create_node()
+    try:
+        network.join_node(new_node, args.package, args, timeout=3)
+    except infra.network.HostDataNotFound as e:
+        LOG.info(f"As expected, node join failed: {e.error_line}")
+        assert (
+            "host data is not authorised" in e.error_line
+        ), f"Expected 'host data is not authorised' in error, got: {e.error_line}"
+    else:
+        raise AssertionError("Node join unexpectedly succeeded")
+
+
+def get_cose_signatures_config(node):
+    """Read the COSE signatures issuer and subject from a node's config file."""
+    config_path = os.path.join(node.common_dir, f"{node.local_node_id}.config.json")
+    with open(config_path, encoding="utf-8") as f:
+        config = json.load(f)
+    cose_sigs = config["command"]["start"]["cose_signatures"]
+    return cose_sigs["issuer"], cose_sigs["subject"]
+
+
+def make_node_join_policy(issuer, min_svn, receipt_issuer, receipt_subject):
+    """Return a JS code-update policy that validates statement issuer, SVN,
+    and CCF receipt issuer/subject"""
+
+    return f"""export function apply(transparent_statements) {{
+  for (const ts of transparent_statements) {{
+    if (ts.phdr.cwt.iss !== "{issuer}") {{
+      return "Invalid issuer";
+    }}
+    if (ts.phdr.cwt.svn < {min_svn}) {{
+      return "SVN too low";
+    }}
+    for (const r of ts.receipts) {{
+      if (r.cwt.iss !== "{receipt_issuer}") {{
+        return "Invalid receipt issuer";
+      }}
+      if (r.cwt.sub !== "{receipt_subject}") {{
+        return "Invalid receipt subject";
+      }}
+    }}
+  }}
+  return true;
+}}"""
+
+
+def prepare_joiner_with_statement(args, network, transparent_statement):
+    """Write a transparent statement to disk and return deep-copied args pointing to it."""
+    statement_path = os.path.join(network.common_dir, "transparent_statement.cose")
+    with open(statement_path, "wb") as f:
+        f.write(transparent_statement)
+    joiner_args = copy.deepcopy(args)
+    joiner_args.code_transparent_statement_path = statement_path
+    return joiner_args
+
+
+@reqs.description("Node with untrusted host data fails to join")
+def test_add_node_via_code_policy(network, args):
+    primary, _ = network.find_nodes()
+
+    host_data, security_policy = infra.utils.get_host_data_and_security_policy(
+        infra.platform_detection.get_platform(), args.package
+    )
+
+    # Make sure host_data isn't explicitly allowed.
+    network.consortium.remove_host_data(
+        primary, infra.platform_detection.get_platform(), host_data
+    )
+
+    # Join must fail without trusted host_data or code update policy.
+    assert_node_join_fails(network, args)
+
+    receipt_issuer, receipt_subject = get_cose_signatures_config(primary)
+
+    # Register a signed statement with SVN=500 and remember the issuer.
+    signed_statement, issuer = create_signed_statement(
+        payload=bytes.fromhex(host_data), sub="Some feed", svn=500, eku="2.999"
+    )
+    transparent_statement = register_signed_statement(primary, signed_statement)
+    joiner_args = prepare_joiner_with_statement(args, network, transparent_statement)
+
+    # --- Policy 1: SVN too low (requires >= 501, statement has 500) ---
+    network.consortium.set_node_join_policy(
+        primary,
+        make_node_join_policy(
+            issuer,
+            min_svn=501,
+            receipt_issuer=receipt_issuer,
+            receipt_subject=receipt_subject,
+        ),
+    )
+    assert_node_join_fails(network, joiner_args)
+
+    # --- Policy 2: wrong transparent statement issuer ---
+    network.consortium.set_node_join_policy(
+        primary,
+        make_node_join_policy(
+            "did:x509:different-issuer",
+            min_svn=500,
+            receipt_issuer=receipt_issuer,
+            receipt_subject=receipt_subject,
+        ),
+    )
+    assert_node_join_fails(network, joiner_args)
+
+    # --- Policy 3: wrong CCF receipt issuer ---
+    network.consortium.set_node_join_policy(
+        primary,
+        make_node_join_policy(
+            issuer,
+            min_svn=500,
+            receipt_issuer="different.issuer.com",
+            receipt_subject=receipt_subject,
+        ),
+    )
+    assert_node_join_fails(network, joiner_args)
+
+    # --- Policy 4: wrong CCF receipt subject ---
+    network.consortium.set_node_join_policy(
+        primary,
+        make_node_join_policy(
+            issuer,
+            min_svn=500,
+            receipt_issuer=receipt_issuer,
+            receipt_subject="different.subject",
+        ),
+    )
+    assert_node_join_fails(network, joiner_args)
+
+    # --- Policy 5: correct policy, join succeeds ---
+    network.consortium.set_node_join_policy(
+        primary,
+        make_node_join_policy(
+            issuer,
+            min_svn=500,
+            receipt_issuer=receipt_issuer,
+            receipt_subject=receipt_subject,
+        ),
+    )
+    new_node = network.create_node()
+    network.join_node(new_node, joiner_args.package, joiner_args, timeout=3)
+    network.trust_node(new_node, joiner_args)
+
+    # Cleanup: restore host data and remove code update policy.
+    network.consortium.add_host_data(
+        primary,
+        infra.platform_detection.get_platform(),
+        host_data,
+        security_policy,
+    )
+    network.consortium.remove_node_join_policy(primary)
+
+    return network
+
+
 @reqs.description("Node with untrusted host data fails to join")
 def test_add_node_with_untrusted_host_data(network, args):
     primary, _ = network.find_nodes()
@@ -888,6 +1100,7 @@ def run(args):
         # Host data/security policy
         test_host_data_tables(network, args)
         test_add_node_with_untrusted_host_data(network, args)
+        test_add_node_via_code_policy(network, args)
 
         if infra.platform_detection.is_snp():
             # Virtual has no security policy, _only_ host data (unassociated with anything)
