@@ -596,11 +596,36 @@ def assert_node_join_fails(network, args):
         raise AssertionError("Node join unexpectedly succeeded")
 
 
-def make_node_join_policy(issuer, min_svn):
-    """Return a JS code-update policy that requires the given issuer and minimum SVN."""
-    return f"""export function apply(phdr) {{
-  if (phdr.cwt.iss !== "{issuer}") {{ return "Invalid issuer"; }}
-  if (phdr.cwt.svn === undefined || phdr.cwt.svn < {min_svn}) {{ return "SVN too low"; }}
+def get_cose_signatures_config(node):
+    """Read the COSE signatures issuer and subject from a node's config file."""
+    config_path = os.path.join(node.common_dir, f"{node.local_node_id}.config.json")
+    with open(config_path, encoding="utf-8") as f:
+        config = json.load(f)
+    cose_sigs = config["command"]["start"]["cose_signatures"]
+    return cose_sigs["issuer"], cose_sigs["subject"]
+
+
+def make_node_join_policy(issuer, min_svn, receipt_issuer, receipt_subject):
+    """Return a JS code-update policy that validates statement issuer, SVN,
+    and CCF receipt issuer/subject"""
+
+    return f"""export function apply(transparent_statements) {{
+  for (const ts of transparent_statements) {{
+    if (ts.phdr.cwt.iss !== "{issuer}") {{
+      return "Invalid issuer";
+    }}
+    if (ts.phdr.cwt.svn < {min_svn}) {{
+      return "SVN too low";
+    }}
+    for (const r of ts.receipts) {{
+      if (r.cwt.iss !== "{receipt_issuer}") {{
+        return "Invalid receipt issuer";
+      }}
+      if (r.cwt.sub !== "{receipt_subject}") {{
+        return "Invalid receipt subject";
+      }}
+    }}
+  }}
   return true;
 }}"""
 
@@ -613,12 +638,6 @@ def prepare_joiner_with_statement(args, network, transparent_statement):
     joiner_args = copy.deepcopy(args)
     joiner_args.code_transparent_statement_path = statement_path
     return joiner_args
-
-
-def update_joiner_statement(joiner_args, transparent_statement):
-    """Overwrite the transparent statement file referenced by joiner_args."""
-    with open(joiner_args.code_transparent_statement_path, "wb") as f:
-        f.write(transparent_statement)
 
 
 @reqs.description("Node with untrusted host data fails to join")
@@ -637,35 +656,73 @@ def test_add_node_via_code_policy(network, args):
     # Join must fail without trusted host_data or code update policy.
     assert_node_join_fails(network, args)
 
-    # Register a signed statement with SVN=499 (below future policy threshold).
-    signed_statement, issuer, ca_identity = create_signed_statement(
-        payload=bytes.fromhex(host_data), sub="Some feed", svn=499, eku="2.999"
+    receipt_issuer, receipt_subject = get_cose_signatures_config(primary)
+
+    # Register a signed statement with SVN=500 and remember the issuer.
+    signed_statement, issuer = create_signed_statement(
+        payload=bytes.fromhex(host_data), sub="Some feed", svn=500, eku="2.999"
     )
     transparent_statement = register_signed_statement(primary, signed_statement)
-
-    # Set a code update policy that requires SVN >= 500.
-    network.consortium.set_node_join_policy(
-        primary, make_node_join_policy(issuer, min_svn=500)
-    )
-
-    # Prepare joiner args with the transparent statement (svn=499).
     joiner_args = prepare_joiner_with_statement(args, network, transparent_statement)
 
-    # Join should still fail because SVN is below the policy minimum.
+    # --- Policy 1: SVN too low (requires >= 501, statement has 500) ---
+    network.consortium.set_node_join_policy(
+        primary,
+        make_node_join_policy(
+            issuer,
+            min_svn=501,
+            receipt_issuer=receipt_issuer,
+            receipt_subject=receipt_subject,
+        ),
+    )
     assert_node_join_fails(network, joiner_args)
 
-    # Create a new statement with acceptable SVN, using the same CA.
-    signed_statement, _, _ = create_signed_statement(
-        payload=bytes.fromhex(host_data),
-        sub="Some feed",
-        svn=500,
-        eku="2.999",
-        ca_identity=ca_identity,
+    # --- Policy 2: wrong transparent statement issuer ---
+    network.consortium.set_node_join_policy(
+        primary,
+        make_node_join_policy(
+            "did:x509:different-issuer",
+            min_svn=500,
+            receipt_issuer=receipt_issuer,
+            receipt_subject=receipt_subject,
+        ),
     )
-    transparent_statement = register_signed_statement(primary, signed_statement)
-    update_joiner_statement(joiner_args, transparent_statement)
+    assert_node_join_fails(network, joiner_args)
 
-    # Join should now succeed with SVN=500.
+    # --- Policy 3: wrong CCF receipt issuer ---
+    network.consortium.set_node_join_policy(
+        primary,
+        make_node_join_policy(
+            issuer,
+            min_svn=500,
+            receipt_issuer="different.issuer.com",
+            receipt_subject=receipt_subject,
+        ),
+    )
+    assert_node_join_fails(network, joiner_args)
+
+    # --- Policy 4: wrong CCF receipt subject ---
+    network.consortium.set_node_join_policy(
+        primary,
+        make_node_join_policy(
+            issuer,
+            min_svn=500,
+            receipt_issuer=receipt_issuer,
+            receipt_subject="different.subject",
+        ),
+    )
+    assert_node_join_fails(network, joiner_args)
+
+    # --- Policy 5: correct policy, join succeeds ---
+    network.consortium.set_node_join_policy(
+        primary,
+        make_node_join_policy(
+            issuer,
+            min_svn=500,
+            receipt_issuer=receipt_issuer,
+            receipt_subject=receipt_subject,
+        ),
+    )
     new_node = network.create_node()
     network.join_node(new_node, joiner_args.package, joiner_args, timeout=3)
     network.trust_node(new_node, joiner_args)

@@ -510,4 +510,4 @@ def create_signed_statement(
     encoded = cose_ctx.encode_and_sign(
         payload, cose_key, protected=cwt.utils.ResolvedHeader(phdr)
     )
-    return encoded, issuer, (ca_key, ca_name, ca_cert)
+    return encoded, issuer

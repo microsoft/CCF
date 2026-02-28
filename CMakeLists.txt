@@ -658,6 +658,13 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      js_policy_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/js_policy.cpp
+    )
+    target_link_libraries(
+      js_policy_test PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto
+    )
+
+    add_unit_test(
       endorsements_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/endorsements.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/uvm_endorsements.cpp

@@ -342,29 +342,14 @@ namespace ccf
       auto ec_jwk = jwk.get<ccf::crypto::JsonWebKeyECPublic>();
       return ccf::crypto::make_ec_public_key(ec_jwk)->public_key_pem();
     }
-  }
 
-  QuoteVerificationResult verify_code_transparent_statement(
-    ccf::kv::ReadOnlyTx& tx,
-    const std::vector<uint8_t>& ts_raw,
-    const HostData& host_data,
-    std::shared_ptr<NetworkIdentitySubsystemInterface>
-      network_identity_subsystem)
-  {
-    try
+    // Verify the COSE_Sign1 signature and that the payload matches the
+    // expected host_data.  Returns the decoded protected header on success.
+    cose::Sign1ProtectedHeader verify_ts_signature_and_payload(
+      const std::vector<uint8_t>& ts_raw,
+      const ccf::cbor::Value& cose_array,
+      const HostData& host_data)
     {
-      // Parse COSE_Sign1 envelope
-      auto parsed = ccf::cbor::rethrow_with_msg(
-        [&]() { return ccf::cbor::parse(ts_raw); },
-        "Transparent statement COSE envelope");
-
-      const auto& cose_array = ccf::cbor::rethrow_with_msg(
-        [&]() -> const ccf::cbor::Value& {
-          return parsed->tag_at(ccf::cbor::tag::COSE_SIGN_1);
-        },
-        "COSE_Sign1 tag");
-
-      // Parse protected header bytes, then decode into structured form
       const auto& phdr_raw = ccf::cbor::rethrow_with_msg(
         [&]() -> const ccf::cbor::Value& { return cose_array->array_at(0); },
         "COSE_Sign1 protected header");
@@ -372,68 +357,48 @@ namespace ccf
         [&]() { return ccf::cbor::parse(phdr_raw->as_bytes()); },
         "Parse protected header");
 
-      auto phdr = cose::decode_sign1_protected_header(phdr_cbor);
+      auto h = cose::decode_sign1_protected_header(phdr_cbor);
 
-      // Validate x5chain is present
-      if (phdr.x5chain.empty())
+      if (h.x5chain.empty())
       {
-        LOG_FAIL_FMT("No certificates in transparent statement x5chain");
-        return QuoteVerificationResult::FailedInvalidHostData;
+        throw std::logic_error(
+          "No certificates in transparent statement x5chain");
+      }
+      if (h.cwt.iss.empty())
+      {
+        throw std::logic_error("No CWT issuer in transparent statement");
       }
 
-      // Validate issuer is present
-      if (phdr.cwt.iss.empty())
-      {
-        LOG_FAIL_FMT("No CWT issuer in transparent statement");
-        return QuoteVerificationResult::FailedInvalidHostData;
-      }
-
-      auto pubk =
-        resolve_pubkey_from_x5chain_and_issuer(phdr.x5chain, phdr.cwt.iss);
-
-      // Verify COSE_Sign1 signature
+      auto pubk = resolve_pubkey_from_x5chain_and_issuer(h.x5chain, h.cwt.iss);
       auto verifier = ccf::crypto::make_cose_verifier_from_key(pubk);
       std::span<uint8_t> payload;
       if (!verifier->verify(ts_raw, payload))
       {
-        LOG_FAIL_FMT("Transparent statement signature verification failed");
-        return QuoteVerificationResult::FailedInvalidHostData;
+        throw std::logic_error(
+          "Transparent statement signature verification failed");
       }
 
-      // Verify payload matches host_data
       if (
         payload.size() != HostData::SIZE ||
         std::memcmp(payload.data(), host_data.h.data(), HostData::SIZE) != 0)
       {
-        LOG_FAIL_FMT(
+        throw std::logic_error(fmt::format(
           "Transparent statement payload ({}) does not match host_data ({})",
           ccf::ds::to_hex(payload),
-          host_data.hex_str());
-        return QuoteVerificationResult::FailedInvalidHostData;
+          host_data.hex_str()));
       }
 
-      // Verify against code update policy (if one is set)
-      auto* policy_table = tx.ro<CodeUpdatePolicy>(Tables::NODE_JOIN_POLICY);
-      if (policy_table != nullptr)
-      {
-        auto policy_script = policy_table->get();
-        if (policy_script.has_value())
-        {
-          auto violation =
-            ccf::policy::apply_node_join_policy(policy_script.value(), phdr);
-          if (violation.has_value())
-          {
-            LOG_FAIL_FMT(
-              "Code update policy rejected transparent statement: {}",
-              violation.value());
-            return QuoteVerificationResult::FailedInvalidHostData;
-          }
-        }
-      }
+      return h;
+    }
 
-      // Extract the COSE receipt from the transparent statement's
-      // unprotected header at VDP (396), and verify it against the
-      // service identity (current or from a previous epoch).
+    // Parse and verify all receipts attached to the transparent statement.
+    // Returns the collected policy inputs for each receipt.
+    std::vector<ccf::policy::ReceiptPolicyInput> verify_ts_receipts(
+      const std::vector<uint8_t>& ts_raw,
+      const ccf::cbor::Value& cose_array,
+      std::shared_ptr<NetworkIdentitySubsystemInterface>
+        network_identity_subsystem)
+    {
       const auto& uhdr = ccf::cbor::rethrow_with_msg(
         [&]() -> const ccf::cbor::Value& { return cose_array->array_at(1); },
         "Parse transparent statement unprotected header");
@@ -448,24 +413,21 @@ namespace ccf
       const auto num_receipts = receipts_array->size();
       if (num_receipts == 0)
       {
-        LOG_FAIL_FMT("No receipts in transparent statement");
-        return QuoteVerificationResult::FailedInvalidHostData;
+        throw std::logic_error("No receipts in transparent statement");
       }
 
       if (!network_identity_subsystem)
       {
-        LOG_FAIL_FMT(
+        throw std::logic_error(
           "Network identity subsystem not available for receipt "
           "verification");
-        return QuoteVerificationResult::FailedInvalidHostData;
       }
 
-      // Verify that every receipt's claims_digest matches the hash of the
-      // signed statement (the COSE_Sign1 with its unprotected header
-      // stripped). This binds the receipt to the specific signed content.
       auto signed_statement = ccf::cose::edit::set_unprotected_header(
         ts_raw, ccf::cose::edit::desc::Empty{});
       auto expected_claims_digest = ccf::crypto::Sha256Hash(signed_statement);
+
+      std::vector<ccf::policy::ReceiptPolicyInput> inputs;
 
       for (size_t i = 0; i < num_receipts; ++i)
       {
@@ -486,11 +448,22 @@ namespace ccf
           },
           fmt::format("Parse receipt {} COSE_Sign1 tag", i));
 
+        auto receipt_phdr_raw = ccf::cbor::rethrow_with_msg(
+          [&]() -> const ccf::cbor::Value& {
+            return receipt_envelope->array_at(0);
+          },
+          fmt::format("Parse receipt {} protected header bytes", i));
+        auto receipt_phdr_cbor = ccf::cbor::rethrow_with_msg(
+          [&]() { return ccf::cbor::parse(receipt_phdr_raw->as_bytes()); },
+          fmt::format("Decode receipt {} protected header", i));
+        auto decoded_receipt_phdr =
+          cose::decode_ccf_receipt_phdr(receipt_phdr_cbor);
+
         auto proofs = cose::decode_merkle_proofs(receipt_envelope);
         if (proofs.empty())
         {
-          LOG_FAIL_FMT("No Merkle proofs found in receipt {}", i);
-          return QuoteVerificationResult::FailedInvalidHostData;
+          throw std::logic_error(
+            fmt::format("No Merkle proofs found in receipt {}", i));
         }
 
         for (const auto& proof : proofs)
@@ -502,19 +475,99 @@ namespace ccf
               expected_claims_digest.h.data(),
               ccf::crypto::Sha256Hash::SIZE) != 0)
           {
-            LOG_FAIL_FMT(
-              "Receipt {} claims_digest ({}) does not match signed statement "
-              "hash ({})",
+            throw std::logic_error(fmt::format(
+              "Receipt {} claims_digest ({}) does not match signed "
+              "statement hash ({})",
               i,
               ccf::ds::to_hex(proof.leaf.claims_digest),
-              expected_claims_digest.hex_str());
-            return QuoteVerificationResult::FailedInvalidHostData;
+              expected_claims_digest.hex_str()));
           }
         }
+
+        std::vector<cose::Leaf> receipt_leaves;
+        receipt_leaves.reserve(proofs.size());
+        for (const auto& proof : proofs)
+        {
+          receipt_leaves.push_back(proof.leaf);
+        }
+        inputs.push_back(
+          {std::move(decoded_receipt_phdr), std::move(receipt_leaves)});
 
         ccf::historical::verify_self_issued_receipt(
           receipt_raw, network_identity_subsystem);
       }
+
+      return inputs;
+    }
+
+    // Look up the code update policy from the KV store and evaluate it
+    // against the transparent statement inputs.
+    void apply_code_update_policy(
+      ccf::kv::ReadOnlyTx& tx,
+      const cose::Sign1ProtectedHeader& phdr,
+      std::vector<ccf::policy::ReceiptPolicyInput> receipt_inputs)
+    {
+      auto* policy_table = tx.ro<CodeUpdatePolicy>(Tables::NODE_JOIN_POLICY);
+      if (policy_table == nullptr)
+      {
+        throw std::logic_error("No code update policy table available");
+      }
+
+      auto policy_script = policy_table->get();
+      if (!policy_script.has_value())
+      {
+        throw std::logic_error("No code update policy set");
+      }
+
+      std::vector<ccf::policy::TransparentStatementPolicyInput> inputs;
+      inputs.push_back({phdr, std::move(receipt_inputs)});
+
+      std::optional<std::string> violation;
+      try
+      {
+        violation =
+          ccf::policy::apply_node_join_policy(policy_script.value(), inputs);
+      }
+      catch (const std::runtime_error& e)
+      {
+        throw std::logic_error(
+          fmt::format("Failed to populate JS policy inputs: {}", e.what()));
+      }
+      if (violation.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Code update policy rejected transparent statement: {}",
+          violation.value()));
+      }
+    }
+  }
+
+  QuoteVerificationResult verify_code_transparent_statement(
+    ccf::kv::ReadOnlyTx& tx,
+    const std::vector<uint8_t>& ts_raw,
+    const HostData& host_data,
+    std::shared_ptr<NetworkIdentitySubsystemInterface>
+      network_identity_subsystem)
+  {
+    try
+    {
+      auto parsed = ccf::cbor::rethrow_with_msg(
+        [&]() { return ccf::cbor::parse(ts_raw); },
+        "Transparent statement COSE envelope");
+
+      const auto& cose_array = ccf::cbor::rethrow_with_msg(
+        [&]() -> const ccf::cbor::Value& {
+          return parsed->tag_at(ccf::cbor::tag::COSE_SIGN_1);
+        },
+        "COSE_Sign1 tag");
+
+      auto phdr =
+        verify_ts_signature_and_payload(ts_raw, cose_array, host_data);
+
+      auto receipt_inputs =
+        verify_ts_receipts(ts_raw, cose_array, network_identity_subsystem);
+
+      apply_code_update_policy(tx, phdr, std::move(receipt_inputs));
     }
     catch (const std::exception& e)
     {

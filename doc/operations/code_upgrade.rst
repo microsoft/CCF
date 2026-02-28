@@ -184,3 +184,112 @@ Notes
 
 - The :http:GET:`/node/version` endpoint can be used by operators to check which version of CCF a specific node is running.
 - A code upgrade procedure provides very little service downtime compared to a disaster recovery. The service is only unavailable to process write transactions while the primary-ship changes (typically a few seconds) but can still process read-only transactions throughout the whole procedure. Note that this is true during any primary-ship change, and not just during the code upgrade procedure.
+
+Code Update Policy
+------------------
+
+Instead of explicitly trusting host data values, members can set a **code update policy** — a JavaScript function that evaluates transparent statements presented by joining nodes. A transparent statement is a COSE_Sign1 envelope carrying a signed statement about the node's code, countersigned with a CCF receipt that proves the statement was registered on the ledger.
+
+The policy receives an array of transparent statements and must return ``true`` to accept or a string describing the rejection reason. Any other return value is treated as an error. Structural validation (non-empty fields, receipt signature verification, claims digest binding) is performed by CCF before the policy runs; the policy only needs to compare values.
+
+Policy Input Schema
+~~~~~~~~~~~~~~~~~~~
+
+The ``apply(transparent_statements)`` function receives an array where each element has the following shape:
+
+.. code-block:: javascript
+
+    {
+      phdr: {                           // COSE_Sign1 protected header
+        alg: <int>,                     // REQUIRED - COSE algorithm (e.g. -7 for ES256)
+        cty: <int|string|undefined>,    // OPTIONAL - content type
+        x5chain: [<string>, ...],       // REQUIRED - certificate chain (PEM)
+        cwt: {                          // CWT claims
+          iss: <string>,                // REQUIRED - issuer DID (did:x509:...)
+          sub: <string>,                // REQUIRED - subject / feed
+          iat: <int|undefined>,         // OPTIONAL - issued-at (Unix timestamp)
+          svn: <int|undefined>,         // OPTIONAL - security version number
+        },
+      },
+      receipts: [                       // at least one CCF receipt
+        {
+          alg: <int>,                   // REQUIRED - signature algorithm
+          vds: <int>,                   // REQUIRED - verifiable data structure (1 = CCF_LEDGER_SHA256)
+          kid: <string|undefined>,      // OPTIONAL - key identifier
+          cwt: {                        // receipt CWT claims
+            iss: <string>,              // REQUIRED - receipt issuer (e.g. "service.example.com")
+            sub: <string>,              // REQUIRED - receipt subject
+            iat: <int|undefined>,       // OPTIONAL - receipt issued-at
+          },
+          ccf: {                        // CCF-specific claims
+            txid: <string|undefined>,   // OPTIONAL - transaction ID (e.g. "2.42")
+          },
+          leaves: [                     // at least one Merkle tree leaf
+            {
+              claims_digest: <string>,      // hex-encoded SHA-256
+              commit_evidence: <string>,    // commit evidence string
+              write_set_digest: <string>,   // hex-encoded SHA-256
+            },
+            ...
+          ],
+        },
+        ...
+      ],
+    }
+
+Example Policy
+~~~~~~~~~~~~~~
+
+The following policy demonstrates checking every available field:
+
+.. code-block:: javascript
+
+    export function apply(transparent_statements) {
+      for (const ts of transparent_statements) {
+        if (ts.phdr.alg !== -7) {
+          return "Unexpected algorithm: " + ts.phdr.alg;
+        }
+        if (ts.phdr.cwt.iss !== "did:x509:abc::eku:1.2.3") {
+          return "Invalid issuer: " + ts.phdr.cwt.iss;
+        }
+        if (ts.phdr.cwt.sub !== "my-application") {
+          return "Invalid subject: " + ts.phdr.cwt.sub;
+        }
+        if (ts.phdr.cwt.svn < 100) {
+          return "SVN too low: " + ts.phdr.cwt.svn;
+        }
+
+        for (const r of ts.receipts) {
+          if (r.alg !== -7) {
+            return "Unexpected receipt algorithm: " + r.alg;
+          }
+          if (r.vds !== 1) {
+            return "Unexpected VDS: " + r.vds;
+          }
+          if (r.cwt.iss !== "service.example.com") {
+            return "Invalid receipt issuer: " + r.cwt.iss;
+          }
+          if (r.cwt.sub !== "ledger.signature") {
+            return "Invalid receipt subject: " + r.cwt.sub;
+          }
+
+          for (const leaf of r.leaves) {
+            if (leaf.claims_digest !== "abcdef...") {
+              return "Unexpected claims_digest: " + leaf.claims_digest;
+            }
+            if (leaf.commit_evidence !== "ce:2.42:deadbeef") {
+              return "Unexpected commit_evidence: " + leaf.commit_evidence;
+            }
+            if (leaf.write_set_digest !== "012345...") {
+              return "Unexpected write_set_digest: " + leaf.write_set_digest;
+            }
+          }
+        }
+      }
+      return true;
+    }
+
+Setting the Policy
+~~~~~~~~~~~~~~~~~~
+
+Use the ``set_node_join_policy`` governance action to register the policy and ``remove_node_join_policy`` to remove it. A node presenting a transparent statement can only join if a code update policy is set and returns ``true``.
