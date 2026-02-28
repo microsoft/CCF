@@ -190,6 +190,10 @@ Code Update Policy
 
 Instead of explicitly trusting host data values, members can set a **code update policy** — a JavaScript function that evaluates transparent statements presented by joining nodes. A transparent statement is a COSE_Sign1 envelope carrying a signed statement about the node's code, countersigned with a CCF receipt that proves the statement was registered on the ledger.
 
+.. note::
+
+    CCF currently supports the **self-issuance** edge case: the CCF service itself acts as both the transparency service and the relying party. Signed statements are registered on the service's own ledger, and the receipts that countersign them are issued by the same service. This means the receipt issuer in the transparent statement will be the service's own identity. External SCITT transparency services are not supported at this time.
+
 The policy receives an array of transparent statements and must return ``true`` to accept or a string describing the rejection reason. Any other return value is treated as an error. Structural validation (non-empty fields, receipt signature verification, claims digest binding) is performed by CCF before the policy runs; the policy only needs to compare values.
 
 Policy Input Schema
@@ -293,3 +297,21 @@ Setting the Policy
 ~~~~~~~~~~~~~~~~~~
 
 Use the ``set_node_join_policy`` governance action to register the policy and ``remove_node_join_policy`` to remove it. A node presenting a transparent statement can only join if a code update policy is set and returns ``true``.
+
+Joining with a Transparent Statement
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When a node joins the network, it can present a transparent statement by setting the ``code_transparent_statement_path`` field in the ``join`` section of its configuration file. This must point to a COSE Sign1 file (the transparent statement) that attests to the node's host data:
+
+.. code-block:: json
+
+    {
+      "command": {
+        "join": {
+          "target_rpc_address": "primary.example.com:8080",
+          "code_transparent_statement_path": "/path/to/transparent_statement.cose"
+        }
+      }
+    }
+
+If the joining node's host data is not in the trusted list (i.e. not registered via ``add_snp_host_data``), CCF falls back to evaluating the transparent statement against the code update policy. If no transparent statement is provided, or the policy rejects it, the node will not be allowed to join. If the host data is already explicitly trusted, the node joins without evaluating the policy, regardless of whether a transparent statement is provided.
