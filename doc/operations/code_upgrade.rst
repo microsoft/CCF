@@ -192,54 +192,57 @@ Instead of explicitly trusting host data values, members can set a **code update
 
 .. note::
 
-    CCF currently supports the **self-issuance** edge case: the CCF service itself acts as both the transparency service and the relying party. Signed statements are registered on the service's own ledger, and the receipts that countersign them are issued by the same service. This means the receipt issuer in the transparent statement will be the service's own identity. External SCITT transparency services are not supported at this time.
+    CCF currently only supports **self-issued** transparent statements: the service itself acts as the transparency service, issuing receipts over signed statements registered on its own ledger.
 
 The policy receives an array of transparent statements and must return ``true`` to accept or a string describing the rejection reason. Any other return value is treated as an error. Structural validation (non-empty fields, receipt signature verification, claims digest binding) is performed by CCF before the policy runs; the policy only needs to compare values.
 
 Policy Input Schema
 ~~~~~~~~~~~~~~~~~~~
 
-The ``apply(transparent_statements)`` function receives an array where each element has the following shape:
+The ``apply(transparent_statements)`` function receives an array of transparent statement objects. Each element has the following shape:
 
 .. code-block:: javascript
 
-    {
-      phdr: {                           // COSE_Sign1 protected header
-        alg: <int>,                     // REQUIRED - COSE algorithm (e.g. -7 for ES256)
-        cty: <int|string|undefined>,    // OPTIONAL - content type
-        x5chain: [<string>, ...],       // REQUIRED - certificate chain (PEM)
-        cwt: {                          // CWT claims
-          iss: <string>,                // REQUIRED - issuer DID (did:x509:...)
-          sub: <string>,                // REQUIRED - subject / feed
-          iat: <int|undefined>,         // OPTIONAL - issued-at (Unix timestamp)
-          svn: <int|undefined>,         // OPTIONAL - security version number
+    [
+      {
+        phdr: {                           // COSE_Sign1 protected header
+          alg: <int>,                     // REQUIRED - COSE algorithm (e.g. -7 for ES256)
+          cty: <int|string|undefined>,    // OPTIONAL - content type
+          x5chain: [<string>, ...],       // REQUIRED - certificate chain (PEM)
+          cwt: {                          // CWT claims
+            iss: <string>,                // REQUIRED - issuer DID (did:x509:...)
+            sub: <string>,                // REQUIRED - subject / feed
+            iat: <int|undefined>,         // OPTIONAL - issued-at (Unix timestamp)
+            svn: <int|undefined>,         // OPTIONAL - security version number
+          },
         },
-      },
-      receipts: [                       // at least one CCF receipt
-        {
-          alg: <int>,                   // REQUIRED - signature algorithm
-          vds: <int>,                   // REQUIRED - verifiable data structure (1 = CCF_LEDGER_SHA256)
-          kid: <string|undefined>,      // OPTIONAL - key identifier
-          cwt: {                        // receipt CWT claims
-            iss: <string>,              // REQUIRED - receipt issuer (e.g. "service.example.com")
-            sub: <string>,              // REQUIRED - receipt subject
-            iat: <int|undefined>,       // OPTIONAL - receipt issued-at
-          },
-          ccf: {                        // CCF-specific claims
-            txid: <string|undefined>,   // OPTIONAL - transaction ID (e.g. "2.42")
-          },
-          leaves: [                     // at least one Merkle tree leaf
-            {
-              claims_digest: <string>,      // hex-encoded SHA-256
-              commit_evidence: <string>,    // commit evidence string
-              write_set_digest: <string>,   // hex-encoded SHA-256
+        receipts: [                       // at least one CCF receipt
+          {
+            alg: <int>,                   // REQUIRED - signature algorithm
+            vds: <int>,                   // REQUIRED - verifiable data structure (1 = CCF_LEDGER_SHA256)
+            kid: <string|undefined>,      // OPTIONAL - key identifier
+            cwt: {                        // receipt CWT claims
+              iss: <string>,              // REQUIRED - receipt issuer (e.g. "service.example.com")
+              sub: <string>,              // REQUIRED - receipt subject
+              iat: <int|undefined>,       // OPTIONAL - receipt issued-at
             },
-            ...
-          ],
-        },
-        ...
-      ],
-    }
+            ccf: {                        // CCF-specific claims
+              txid: <string|undefined>,   // OPTIONAL - transaction ID (e.g. "2.42")
+            },
+            leaves: [                     // at least one Merkle tree leaf
+              {
+                claims_digest: <string>,      // hex-encoded SHA-256
+                commit_evidence: <string>,    // commit evidence string
+                write_set_digest: <string>,   // hex-encoded SHA-256
+              },
+              ...
+            ],
+          },
+          ...
+        ],
+      },
+      ...
+    ]
 
 Example Policy
 ~~~~~~~~~~~~~~
