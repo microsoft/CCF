@@ -381,7 +381,7 @@ def create_signed_statement(
 ) -> tuple:
     """
     Create a COSE_Sign1 signed statement with x5chain and CWT claims.
-    Returns (encoded_bytes, issuer_string, ca_identity_tuple).
+    Returns (encoded_bytes, issuer_string).
 
     If ca_identity is provided as (ca_key, ca_name, ca_cert), the same CA
     will be reused so that the issuer DID is stable across calls.

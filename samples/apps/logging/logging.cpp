@@ -2287,6 +2287,8 @@ namespace loggingapp
 
           CCF_APP_INFO(
             "Registered signed statement of size {} bytes", body.size());
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         };
 
       make_endpoint(
