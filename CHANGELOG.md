@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.0-dev12]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev12
 
+### Added
+
+- `NetworkIdentitySubsystemInterface` now exposes `get_trusted_keys()`, returning all trusted network identity keys as a `TrustedKeys` map (`std::map<SeqNo, ECPublicKeyPtr>`).
+- The logging sample app exposes a new `GET /log/public/trusted_keys` endpoint that returns all trusted network identity keys in JWKS format.
+
 ### Changed
 
 - Refactored the user facing surface of self-healing-open and local sealing. The whole feature is now `sealing-recovery` with `self-healing-open` now referred to as the `recovery-decision-protocol`. (#7679)
