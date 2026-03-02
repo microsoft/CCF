@@ -311,8 +311,9 @@ When a node joins the network, it can present a transparent statement by setting
     {
       "command": {
         "join": {
-          "target_rpc_address": "primary.example.com:8080",
+          ...
           "code_transparent_statement_path": "/path/to/transparent_statement.cose"
+          ...
         }
       }
     }
