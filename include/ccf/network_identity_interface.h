@@ -5,6 +5,7 @@
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/node_subsystem_interface.h"
 
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -42,5 +43,9 @@ namespace ccf
 
     [[nodiscard]] virtual ccf::crypto::ECPublicKeyPtr get_trusted_identity_for(
       ccf::SeqNo seqno) const = 0;
+
+    using TrustedKeys = std::map<ccf::SeqNo, ccf::crypto::ECPublicKeyPtr>;
+
+    [[nodiscard]] virtual TrustedKeys get_trusted_keys() const = 0;
   };
 }

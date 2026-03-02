@@ -212,6 +212,11 @@ namespace ccf
       return key_ptr;
     }
 
+    [[nodiscard]] TrustedKeys get_trusted_keys() const override
+    {
+      return trusted_keys;
+    }
+
   private:
     void retry_first_fetch()
     {

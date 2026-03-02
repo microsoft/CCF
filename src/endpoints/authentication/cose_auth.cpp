@@ -204,7 +204,7 @@ namespace ccf
 
   MemberCOSESign1AuthnPolicy::MemberCOSESign1AuthnPolicy(
     std::optional<std::string> gov_msg_type_) :
-    gov_msg_type(std::move(gov_msg_type_)) {};
+    gov_msg_type(std::move(gov_msg_type_)){};
   MemberCOSESign1AuthnPolicy::~MemberCOSESign1AuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> MemberCOSESign1AuthnPolicy::authenticate(

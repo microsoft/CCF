@@ -527,6 +527,20 @@ def test_recover_service_with_wrong_identity(network, args):
             response = query_endorsements_chain(primary, tx)
             assert response.status_code == http.HTTPStatus.NOT_FOUND, response
 
+        # Verify trusted keys from the endpoint match endorsement keys
+        with primary.client() as cli:
+            r = cli.get("/log/public/trusted_keys")
+            assert r.status_code == http.HTTPStatus.OK, r
+            jwks = r.body.json()
+            assert "keys" in jwks, jwks
+            # There should be at least 3 trusted keys (original + 2 recoveries)
+            assert (
+                len(jwks["keys"]) >= 3
+            ), f"Expected at least 3 trusted keys, got {len(jwks['keys'])}"
+            for key in jwks["keys"]:
+                assert "kty" in key, key
+                assert "kid" in key, key
+
         return recovered_network
 
 

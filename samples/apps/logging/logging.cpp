@@ -2109,6 +2109,39 @@ namespace loggingapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
+      auto get_trusted_keys = [&](
+                                ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+        auto network_identity_subsystem =
+          context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
+        if (network_identity_subsystem == nullptr)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Network identity subsystem not available");
+          return;
+        }
+
+        auto keys = network_identity_subsystem->get_trusted_keys();
+        nlohmann::json jwks = nlohmann::json::object();
+        auto keys_array = nlohmann::json::array();
+        for (const auto& [seqno, key_ptr] : keys)
+        {
+          keys_array.push_back(key_ptr->public_key_jwk(std::to_string(seqno)));
+        }
+        jwks["keys"] = keys_array;
+
+        ctx.rpc_ctx->set_response_json(jwks, HTTP_STATUS_OK);
+      };
+      make_read_only_endpoint(
+        "/log/public/trusted_keys",
+        HTTP_GET,
+        get_trusted_keys,
+        ccf::no_auth_required)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
       auto get_cose_signature = [](
                                   ccf::endpoints::ReadOnlyEndpointContext& ctx,
                                   ccf::historical::StatePtr historical_state) {
