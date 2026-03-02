@@ -24,8 +24,11 @@ namespace ccf
     ccf::crypto::HashBytes commit_secret;
 
     static ccf::crypto::HashBytes derive_commit_secret(
-      std::span<const uint8_t> raw_key)
+      const std::vector<uint8_t>& raw_key)
     {
+      const std::vector<uint8_t> commit_secret_label(
+        commit_secret_label_,
+        commit_secret_label_ + strlen(commit_secret_label_));
       return ccf::crypto::hmac(
         ccf::crypto::MDType::SHA256, raw_key, commit_secret_label);
     }
