@@ -25,7 +25,7 @@ namespace ccf::js::extensions
     };
     std::unordered_map<ccf::SeqNo, HistoricalHandle> historical_handles;
 
-    Impl(ccf::historical::AbstractStateCache* hs) : historical_state(hs){};
+    Impl(ccf::historical::AbstractStateCache* hs) : historical_state(hs) {};
   };
 
   namespace
