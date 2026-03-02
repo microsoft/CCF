@@ -11,8 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- `NetworkIdentitySubsystemInterface` now exposes `get_trusted_keys()`, returning all trusted network identity keys as a `TrustedKeys` map (`std::map<SeqNo, ECPublicKeyPtr>`).
-- The logging sample app exposes a new `GET /log/public/trusted_keys` endpoint that returns all trusted network identity keys in JWKS format.
+- `NetworkIdentitySubsystemInterface` now exposes `get_trusted_keys()`, returning all trusted network identity keys as a `TrustedKeys` map (#7690).
 
 ### Changed
 
