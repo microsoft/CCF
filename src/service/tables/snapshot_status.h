@@ -12,7 +12,7 @@ namespace ccf
   {
     /// Sequence number of the latest snapshot
     ccf::kv::Version version = 0;
-    /// Timestamp at which the snapshot was scheduled (Unix epoch seconds)
+    /// Timestamp at which the snapshot was scheduled (nanoseconds since Unix epoch)
     uint64_t timestamp = 0;
   };
 

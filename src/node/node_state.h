@@ -2906,6 +2906,19 @@ namespace ccf
             return {nullptr};
           }));
 
+      // Keep time and tx count in sync between primary and backups for bounded
+      // snapshotting
+      network.tables->set_map_hook(
+        Tables::SNAPSHOT_STATUS,
+        SnapshotStatusValue::wrap_map_hook(
+          [s = this->snapshotter](
+            ccf::kv::Version,
+            const SnapshotStatusValue::Write& w) -> ccf::kv::ConsensusHookPtr {
+            assert(w.has_value());
+            s->record_snapshot_status(w.value());
+            return {nullptr};
+          }));
+
       setup_basic_hooks();
     }
 
