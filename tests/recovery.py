@@ -26,6 +26,11 @@ import shutil
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ec import (
+    EllipticCurvePublicNumbers,
+    SECP256R1,
+    SECP384R1,
+)
 from ccf.cose import verify_cose_sign1_with_key  # type: ignore
 import random
 from loguru import logger as LOG
@@ -527,19 +532,61 @@ def test_recover_service_with_wrong_identity(network, args):
             response = query_endorsements_chain(primary, tx)
             assert response.status_code == http.HTTPStatus.NOT_FOUND, response
 
+        # Collect expected keys: current service key + all previous from endorsement chain
+        expected_keys_der = set()
+        expected_keys_der.add(
+            bytes(
+                cert.public_key().public_bytes(
+                    serialization.Encoding.DER,
+                    serialization.PublicFormat.SubjectPublicKeyInfo,
+                )
+            )
+        )
+        chain_pubkey = cert.public_key().public_bytes(
+            serialization.Encoding.PEM,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        response = query_endorsements_chain(primary, txids[0])
+        chain_endorsements = [
+            base64.b64decode(x) for x in response.body.json()["endorsements"]
+        ]
+        for endorsement in chain_endorsements:
+            _, _, payload = verify_cose_sign1_with_key(chain_pubkey, endorsement)
+            expected_keys_der.add(bytes(payload))
+            chain_pubkey = infra.crypto.pub_key_der_to_pem(payload).encode("ascii")
+
         # Verify trusted keys from the endpoint match endorsement keys
         with primary.client() as cli:
             r = cli.get("/log/public/trusted_keys")
             assert r.status_code == http.HTTPStatus.OK, r
             jwks = r.body.json()
             assert "keys" in jwks, jwks
-            # There should be at least 3 trusted keys (original + 2 recoveries)
-            assert (
-                len(jwks["keys"]) >= 3
-            ), f"Expected at least 3 trusted keys, got {len(jwks['keys'])}"
+
+            def decode_b64url(s):
+                return base64.urlsafe_b64decode(s + "=" * (4 - len(s) % 4))
+
+            crv_map = {"P-256": SECP256R1(), "P-384": SECP384R1()}
+            endpoint_keys_der = set()
             for key in jwks["keys"]:
-                assert "kty" in key, key
+                assert "kty" in key and key["kty"] == "EC", key
                 assert "kid" in key, key
+                pub_key = EllipticCurvePublicNumbers(
+                    int.from_bytes(decode_b64url(key["x"]), "big"),
+                    int.from_bytes(decode_b64url(key["y"]), "big"),
+                    crv_map[key["crv"]],
+                ).public_key(default_backend())
+                endpoint_keys_der.add(
+                    bytes(
+                        pub_key.public_bytes(
+                            serialization.Encoding.DER,
+                            serialization.PublicFormat.SubjectPublicKeyInfo,
+                        )
+                    )
+                )
+            assert endpoint_keys_der == expected_keys_der, (
+                f"Keys from trusted_keys endpoint do not match endorsement keys. "
+                f"Expected {len(expected_keys_der)}, got {len(endpoint_keys_der)}"
+            )
 
         return recovered_network
 
