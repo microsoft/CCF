@@ -370,3 +370,24 @@ def get_validity_period_from_pem_cert(pem: str):
 
 def datetime_to_X509time(datetime: datetime):
     return UTCTime.fromDateTime(datetime)
+
+
+def pub_key_der_from_jwk(jwk: dict) -> bytes:
+    """Convert a JWK (EC public key) to DER-encoded SubjectPublicKeyInfo bytes."""
+    crv_map = {
+        "P-256": ec.SECP256R1(),
+        "P-384": ec.SECP384R1(),
+        "P-521": ec.SECP521R1(),
+    }
+
+    def _decode_b64url(s):
+        return base64.urlsafe_b64decode(s + "=" * (4 - len(s) % 4))
+
+    assert jwk.get("kty") == "EC", f"Expected EC key, got: {jwk.get('kty')}"
+    curve = crv_map[jwk["crv"]]
+    pub_key = ec.EllipticCurvePublicNumbers(
+        x=int.from_bytes(_decode_b64url(jwk["x"]), "big"),
+        y=int.from_bytes(_decode_b64url(jwk["y"]), "big"),
+        curve=curve,
+    ).public_key(default_backend())
+    return pub_key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)

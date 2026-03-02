@@ -26,11 +26,6 @@ import shutil
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ec import (
-    EllipticCurvePublicNumbers,
-    SECP256R1,
-    SECP384R1,
-)
 from ccf.cose import verify_cose_sign1_with_key  # type: ignore
 import random
 from loguru import logger as LOG
@@ -562,27 +557,10 @@ def test_recover_service_with_wrong_identity(network, args):
             jwks = r.body.json()
             assert "keys" in jwks, jwks
 
-            def decode_b64url(s):
-                return base64.urlsafe_b64decode(s + "=" * (4 - len(s) % 4))
-
-            crv_map = {"P-256": SECP256R1(), "P-384": SECP384R1()}
             endpoint_keys_der = set()
             for key in jwks["keys"]:
-                assert "kty" in key and key["kty"] == "EC", key
                 assert "kid" in key, key
-                pub_key = EllipticCurvePublicNumbers(
-                    int.from_bytes(decode_b64url(key["x"]), "big"),
-                    int.from_bytes(decode_b64url(key["y"]), "big"),
-                    crv_map[key["crv"]],
-                ).public_key(default_backend())
-                endpoint_keys_der.add(
-                    bytes(
-                        pub_key.public_bytes(
-                            serialization.Encoding.DER,
-                            serialization.PublicFormat.SubjectPublicKeyInfo,
-                        )
-                    )
-                )
+                endpoint_keys_der.add(bytes(infra.crypto.pub_key_der_from_jwk(key)))
             assert endpoint_keys_der == expected_keys_der, (
                 f"Keys from trusted_keys endpoint do not match endorsement keys. "
                 f"Expected {len(expected_keys_der)}, got {len(endpoint_keys_der)}"
