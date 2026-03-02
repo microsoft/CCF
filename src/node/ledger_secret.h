@@ -53,6 +53,7 @@ namespace ccf
     ~LedgerSecret()
     {
       OPENSSL_cleanse(raw_key.data(), raw_key.size());
+      OPENSSL_cleanse(commit_secret.data(), commit_secret.size());
     }
 
     // The copy constructor is used for serialising a LedgerSecret. However,
