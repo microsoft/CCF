@@ -311,9 +311,7 @@ When a node joins the network, it can present a transparent statement by setting
     {
       "command": {
         "join": {
-          ...
           "code_transparent_statement_path": "/path/to/transparent_statement.cose"
-          ...
         }
       }
     }
