@@ -24,6 +24,8 @@ namespace ccf
     Failed
   };
 
+  using TrustedKeys = std::map<ccf::SeqNo, ccf::crypto::ECPublicKeyPtr>;
+
   class NetworkIdentitySubsystemInterface : public ccf::AbstractNodeSubSystem
   {
   public:
@@ -43,8 +45,6 @@ namespace ccf
 
     [[nodiscard]] virtual ccf::crypto::ECPublicKeyPtr get_trusted_identity_for(
       ccf::SeqNo seqno) const = 0;
-
-    using TrustedKeys = std::map<ccf::SeqNo, ccf::crypto::ECPublicKeyPtr>;
 
     [[nodiscard]] virtual TrustedKeys get_trusted_keys() const = 0;
   };
