@@ -30,6 +30,13 @@ namespace ccf
       std::nullopt;
     ccf::crypto::HashBytes commit_secret;
 
+    static ccf::crypto::HashBytes derive_commit_secret(
+      std::vector<uint8_t> raw_key)
+    {
+      return ccf::crypto::hmac(
+        ccf::crypto::MDType::SHA256, raw_key, commit_secret_label);
+    }
+
     [[nodiscard]] const ccf::crypto::HashBytes& get_commit_secret() const
     {
       return commit_secret;
@@ -41,10 +48,7 @@ namespace ccf
         previous_secret_stored_version == other.previous_secret_stored_version;
     }
 
-    LedgerSecret() :
-      commit_secret(ccf::crypto::hmac(
-        ccf::crypto::MDType::SHA256, raw_key, commit_secret_label))
-    {}
+    LedgerSecret() : commit_secret(derive_commit_secret(raw_key)) {}
 
     ~LedgerSecret()
     {
@@ -58,8 +62,7 @@ namespace ccf
       raw_key(other.raw_key),
       key(ccf::crypto::make_key_aes_gcm(other.raw_key)),
       previous_secret_stored_version(other.previous_secret_stored_version),
-      commit_secret(ccf::crypto::hmac(
-        ccf::crypto::MDType::SHA256, raw_key, commit_secret_label))
+      commit_secret(derive_commit_secret(raw_key))
     {}
 
     LedgerSecret(
@@ -69,8 +72,7 @@ namespace ccf
       raw_key(raw_key_),
       key(ccf::crypto::make_key_aes_gcm(std::move(raw_key_))),
       previous_secret_stored_version(previous_secret_stored_version_),
-      commit_secret(ccf::crypto::hmac(
-        ccf::crypto::MDType::SHA256, raw_key, commit_secret_label))
+      commit_secret(derive_commit_secret(raw_key))
     {}
   };
 
