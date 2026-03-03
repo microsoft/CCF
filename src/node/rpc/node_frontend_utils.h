@@ -33,6 +33,12 @@ namespace ccf
       case ccf::QuoteVerificationResult::FailedUVMEndorsementsNotFound:
         return std::make_pair(
           HTTP_STATUS_UNAUTHORIZED, "UVM endorsements are not authorised");
+      case ccf::QuoteVerificationResult::FailedInvalidCPUID:
+        return std::make_pair(
+          HTTP_STATUS_UNAUTHORIZED, "Quote CPUID is unknown");
+      case ccf::QuoteVerificationResult::FailedInvalidTcbVersion:
+        return std::make_pair(
+          HTTP_STATUS_UNAUTHORIZED, "Quote TCB version is too low");
       default:
         return std::make_pair(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
