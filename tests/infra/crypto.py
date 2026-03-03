@@ -381,7 +381,8 @@ def pub_key_der_from_jwk(jwk: dict) -> bytes:
     }
 
     def _decode_b64url(s):
-        return base64.urlsafe_b64decode(s + "=" * (4 - len(s) % 4))
+        pad_len = (-len(s)) % 4
+        return base64.urlsafe_b64decode(s + ("=" * pad_len))
 
     assert jwk.get("kty") == "EC", f"Expected EC key, got: {jwk.get('kty')}"
     curve = crv_map[jwk["crv"]]
