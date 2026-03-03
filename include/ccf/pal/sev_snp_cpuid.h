@@ -100,9 +100,9 @@ namespace ccf::pal::snp
         return "Genoa";
       case ProductName::Turin:
         return "Turin";
-      default:
-        throw std::logic_error("Unknown SEV-SNP product");
     }
+
+    throw std::logic_error("Unknown SEV-SNP product");
   }
 
   DECLARE_JSON_ENUM(
@@ -155,9 +155,9 @@ namespace ccf::pal::snp
         return "00a10f11";
       case ProductName::Turin:
         return "00b00f11";
-      default:
-        throw std::logic_error(fmt::format(
-          "SEV-SNP: Unsupported product for CPUID: {}", to_string(product)));
     }
+
+    throw std::logic_error(fmt::format(
+      "SEV-SNP: Unsupported product for CPUID: {}", to_string(product)));
   }
 }

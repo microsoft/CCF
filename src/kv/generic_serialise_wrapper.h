@@ -7,6 +7,7 @@
 #include "kv_types.h"
 #include "node/rpc/claims.h"
 #include "serialised_entry_format.h"
+#include "ds/serialized.h"
 
 #include <optional>
 
@@ -47,14 +48,18 @@ namespace ccf::kv
         case SecurityDomain::PRIVATE:
           current_writer = &private_writer;
           current_domain = SecurityDomain::PRIVATE;
-          break;
+          return;
         case SecurityDomain::PUBLIC:
           current_writer = &public_writer;
           current_domain = SecurityDomain::PUBLIC;
-          break;
-        default:
-          break;
+          return;
+        case SecurityDomain::SECURITY_DOMAIN_MAX:
+        {
+          //TODO wat
+          return;
+        }
       }
+      throw std::logic_error("Invalid security domain");
     }
 
   public:

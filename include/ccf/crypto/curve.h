@@ -43,14 +43,16 @@ namespace ccf::crypto
   {
     switch (ec)
     {
+      case CurveID::NONE:
+      case CurveID::CURVE25519:
+      case CurveID::X25519:
+      {
+        throw std::logic_error(fmt::format("Unhandled CurveID: {}", ec));
+      }
       case CurveID::SECP384R1:
         return MDType::SHA384;
       case CurveID::SECP256R1:
         return MDType::SHA256;
-      default:
-      {
-        throw std::logic_error(fmt::format("Unhandled CurveID: {}", ec));
-      }
     }
   }
 }

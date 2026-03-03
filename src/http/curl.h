@@ -418,6 +418,11 @@ namespace ccf::curl
           fmt::format("Unsupported HTTP method: {}", method.c_str()));
       }
 
+      // We intentionally support a strict subset of llhttp methods here.
+    #ifdef __clang__
+    #  pragma clang diagnostic push
+    #  pragma clang diagnostic ignored "-Wswitch-enum"
+    #endif
       switch (http_method.value())
       {
         case HTTP_GET:
@@ -447,6 +452,9 @@ namespace ccf::curl
           throw std::logic_error(
             fmt::format("Unsupported HTTP method: {}", method.c_str()));
       }
+#ifdef __clang__
+#  pragma clang diagnostic pop
+#endif
 
       if (request_body != nullptr)
       {

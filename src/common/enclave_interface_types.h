@@ -81,11 +81,9 @@ constexpr char const* create_node_result_to_str(CreateNodeStatus result)
     {
       return "UnalignedArguments";
     }
-    default:
-    {
-      return "Unknown CreateNodeStatus";
-    }
   }
+
+  return "Unknown CreateNodeStatus";
 }
 
 enum StartType : std::uint8_t
@@ -105,7 +103,7 @@ constexpr char const* start_type_to_str(StartType type)
       return "Join";
     case StartType::Recover:
       return "Recover";
-    default:
-      return "Unknown StartType";
   }
+
+  return "Unknown StartType";
 }

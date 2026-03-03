@@ -121,21 +121,22 @@ namespace ccf::pal
       case (ccf::pal::Platform::SNP):
       {
         generate_snp_quote(report_data, endorsement_cb, endorsements_servers);
-        break;
+        return;
       }
 
       case (ccf::pal::Platform::Virtual):
       {
         generate_virtual_quote(
           report_data, endorsement_cb, endorsements_servers);
+        return;
+      }
+      case (ccf::pal::Platform::SGX):
+      case (ccf::pal::Platform::Unknown):
+      {
         break;
       }
-
-      default:
-      {
-        throw std::logic_error(fmt::format(
-          "Unsupported platform for quote generation: {}", ccf::pal::platform));
-      }
     }
+    throw std::logic_error(fmt::format(
+      "Unsupported platform for quote generation: {}", ccf::pal::platform));
   }
 }

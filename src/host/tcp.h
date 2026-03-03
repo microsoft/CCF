@@ -276,6 +276,20 @@ namespace asynchost
     {
       switch (status)
       {
+        case FRESH:
+        case BINDING:
+        case LISTENING_RESOLVING:
+        case LISTENING:
+        case CONNECTING_RESOLVING:
+        case CONNECTING:
+        case CONNECTED:
+        case LISTENING_FAILED:
+        case RECONNECTING:
+        {
+          LOG_DEBUG_FMT(
+            "Unexpected status during reconnect, ignoring: {}", status);
+          break;
+        }
         case BINDING_FAILED:
         {
           // Try again, from the start.
@@ -306,12 +320,6 @@ namespace asynchost
           }
           return true;
         }
-
-        default:
-        {
-          LOG_DEBUG_FMT(
-            "Unexpected status during reconnect, ignoring: {}", status);
-        }
       }
 
       return false;
@@ -340,6 +348,10 @@ namespace asynchost
 
       switch (status)
       {
+        case FRESH:
+        case LISTENING_RESOLVING:
+        case LISTENING:
+        case LISTENING_FAILED:
         case BINDING:
         case BINDING_FAILED:
         case CONNECTING_RESOLVING:
@@ -362,13 +374,6 @@ namespace asynchost
           LOG_DEBUG_FMT("Disconnected: Ignoring write of size {}", len);
           free_write(req);
           break;
-        }
-
-        default:
-        {
-          free_write(req);
-          throw std::logic_error(
-            fmt::format("Unexpected status during write: {}", status));
         }
       }
 
@@ -637,6 +642,21 @@ namespace asynchost
 
         switch (status)
         {
+          case FRESH:
+          case LISTENING:
+          case BINDING:
+          case BINDING_FAILED:
+          case CONNECTING:
+          case CONNECTED:
+          case DISCONNECTED:
+          case RESOLVING_FAILED:
+          case LISTENING_FAILED:
+          case CONNECTING_FAILED:
+          case RECONNECTING:
+          {
+            throw std::logic_error(
+              fmt::format("Unexpected status during on_resolved: {}", status));
+          }
           case CONNECTING_RESOLVING:
           {
             connect_resolved();
@@ -647,12 +667,6 @@ namespace asynchost
           {
             listen_resolved();
             break;
-          }
-
-          default:
-          {
-            throw std::logic_error(
-              fmt::format("Unexpected status during on_resolved: {}", status));
           }
         }
       }

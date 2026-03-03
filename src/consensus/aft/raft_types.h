@@ -301,10 +301,10 @@ struct formatter<aft::RaftMsgType>
       {
         return fmt::format_to(ctx.out(), "request_pre_vote_response");
       }
-      default:
-        throw std::runtime_error(
-          fmt::format("Unhandled RaftMsgType: {}", uint64_t(msg_type)));
     }
+
+    throw std::runtime_error(
+      fmt::format("Unhandled RaftMsgType: {}", uint64_t(msg_type)));
   }
 };
 FMT_END_NAMESPACE

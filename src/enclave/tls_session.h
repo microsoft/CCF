@@ -279,8 +279,11 @@ namespace ccf
           break;
         }
 
-        default:
+        case closed:
+        case authfail:
+        case error:
         {
+          break;
         }
       }
     }
@@ -435,8 +438,11 @@ namespace ccf
         case error:
           return;
 
-        default:
+        case handshake:
+        case ready:
+        case closing:
         {
+          break;
         }
       }
 
@@ -444,6 +450,11 @@ namespace ccf
 
       switch (status)
       {
+        case handshake:
+        case ready:
+        {
+          break;
+        }
         case closing:
         case closed:
         {
@@ -468,10 +479,6 @@ namespace ccf
           RINGBUFFER_WRITE_MESSAGE(
             ::tcp::tcp_stop, to_host, session_id, std::string("Error"));
           break;
-        }
-
-        default:
-        {
         }
       }
     }
