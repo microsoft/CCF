@@ -48,7 +48,7 @@ jobs:
       - run: cd tla && ./tlc.py --trace-name 2C2N mc --term-count 2 --request-count 0 --raft-configs 2C2N --disable-check-quorum consensus/MCccfraft.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: ${{ failure() }}
         with:
           name: tlc-model-checking-with-atomic-reconfig-consensus
@@ -86,7 +86,7 @@ jobs:
       - run: cd tla && ./tlc.py --trace-name 3C2N mc --term-count 2 --request-count 0 --raft-configs 3C2N --disable-check-quorum consensus/MCccfraft.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: ${{ failure() }}
         with:
           name: tlc-model-checking-with-reconfig-consensus
@@ -112,7 +112,7 @@ jobs:
       - run: ./tlc.py sim --max-seconds 3000 --depth 500 consensus/SIMccfraft.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: ${{ failure() }}
         with:
           name: tlc-simulation-consensus
