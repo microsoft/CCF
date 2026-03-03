@@ -508,30 +508,22 @@ struct formatter<ccf::endpoints::ForwardingRequired>
   auto format(
     const ccf::endpoints::ForwardingRequired& v, FormatContext& ctx) const
   {
-    char const* s = nullptr;
     switch (v)
     {
       case ccf::endpoints::ForwardingRequired::Sometimes:
       {
-        s = "sometimes";
-        break;
+        return format_to(ctx.out(), "sometimes");
       }
       case ccf::endpoints::ForwardingRequired::Always:
       {
-        s = "always";
-        break;
+        return format_to(ctx.out(), "always");
       }
       case ccf::endpoints::ForwardingRequired::Never:
       {
-        s = "never";
-        break;
-      }
-      default:
-      {
-        throw std::logic_error("Unhandled value for ForwardingRequired");
+        return format_to(ctx.out(), "never");
       }
     }
-    return format_to(ctx.out(), "{}", s);
+    throw std::logic_error("Unhandled value for ForwardingRequired");
   }
 };
 FMT_END_NAMESPACE

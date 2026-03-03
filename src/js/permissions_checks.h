@@ -79,9 +79,9 @@ namespace ccf::js
               {
                 return KVAccessPermissions::WRITE_ONLY;
               }
-              default:
+              case (TxAccess::GOV_RO):
               {
-                return KVAccessPermissions::ILLEGAL;
+                return KVAccessPermissions::READ_ONLY;
               }
             }
           }
@@ -124,11 +124,6 @@ namespace ccf::js
       case (TxAccess::GOV_RW):
       {
         exec_context = "read-write governance";
-        break;
-      }
-      default:
-      {
-        exec_context = "unknown";
         break;
       }
     }

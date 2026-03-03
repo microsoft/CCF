@@ -72,15 +72,17 @@ struct formatter<ccf::ProposalState>
       {
         return format_to(ctx.out(), "rejected");
       }
+      case (ccf::ProposalState::FAILED):
+      {
+        return format_to(ctx.out(), "failed");
+      }
       case (ccf::ProposalState::DROPPED):
       {
         return format_to(ctx.out(), "dropped");
       }
-      default:
-      {
-        return format_to(ctx.out(), "UNKNOWN");
-      }
     }
+
+    return format_to(ctx.out(), "UNKNOWN");
   }
 };
 FMT_END_NAMESPACE

@@ -575,12 +575,10 @@ namespace ccf
           start_ledger_recovery_unsafe();
           return;
         }
-        default:
-        {
-          throw std::logic_error(
-            fmt::format("Node was launched in unknown mode {}", start_type));
-        }
       }
+
+      throw std::logic_error(
+        fmt::format("Node was launched in unknown mode {}", start_type));
     }
 
     void initiate_quote_generation()
@@ -802,12 +800,10 @@ namespace ccf
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
         }
-        default:
-        {
-          throw std::logic_error(
-            fmt::format("Node was started in unknown mode {}", start_type));
-        }
       }
+
+      throw std::logic_error(
+        fmt::format("Node was started in unknown mode {}", start_type));
     }
 
     //
@@ -1998,25 +1994,26 @@ namespace ccf
 
         switch (msg_type)
         {
+          case forwarded_msg:
+          {
+            LOG_FAIL_FMT("Unexpected forwarded_msg in recv_node_inbound");
+            return;
+          }
           case channel_msg:
           {
             n2n_channels->recv_channel_message(
               from, payload_data, payload_size);
-            break;
+            return;
           }
 
           case consensus_msg:
           {
             consensus->recv_message(from, payload_data, payload_size);
-            break;
-          }
-
-          default:
-          {
-            LOG_FAIL_FMT("Unknown node message type: {}", msg_type);
             return;
           }
         }
+        throw std::logic_error(fmt::format(
+          "Unknown node message type: {}", static_cast<uint32_t>(msg_type)));
       }
     }
 
