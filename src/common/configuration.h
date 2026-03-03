@@ -99,8 +99,7 @@ namespace ccf
     CCFConfig::Snapshots::BackupFetch,
     enabled,
     max_attempts,
-    retry_interval,
-    max_size);
+    retry_interval);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Snapshots);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Snapshots);

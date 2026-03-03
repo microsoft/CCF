@@ -104,7 +104,6 @@ namespace ccf
         bool enabled = false;
         size_t max_attempts = 3;
         ccf::ds::TimeString retry_interval = {"1000ms"};
-        ccf::ds::SizeString max_size = {"200MB"};
 
         bool operator==(const BackupFetch&) const = default;
       };

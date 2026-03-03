@@ -512,11 +512,6 @@
               "type": "string",
               "default": "1000ms",
               "description": "Delay between retry attempts"
-            },
-            "max_size": {
-              "type": "string",
-              "default": "200MB",
-              "description": "Maximum size of a snapshot to fetch"
             }
           },
           "description": "Configuration for automatic snapshot fetching by backup nodes",

@@ -66,6 +66,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <limits>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
@@ -271,7 +272,7 @@ namespace ccf
           service_cert,
           bf.max_attempts,
           bf.retry_interval.count_ms(),
-          bf.max_size.count_bytes());
+          std::numeric_limits<size_t>::max());
 
         if (latest_peer_snapshot.has_value())
         {
