@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev12]
+
+[7.0.0-dev12]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev12
+
+### Changed
+
+- Refactored the user facing surface of self-healing-open and local sealing. The whole feature is now `sealing-recovery` with `self-healing-open` now referred to as the `recovery-decision-protocol`. (#7679)
+  - Local sealing is enabled by setting the `sealing-recovery` config field (for both the sealing node, and the unsealing recovery node)
+  - The local sealing identity is under `sealing-recovery.location.name`
+  - The recovery-decision-protocol is configured via `sealing-recovery.recovery_decision_protocol`
+
 ## [7.0.0-dev11]
 
 [7.0.0-dev11]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev11
