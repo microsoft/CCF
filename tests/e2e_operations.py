@@ -2896,13 +2896,14 @@ def test_backup_snapshot_fetch(const_args):
             while time.time() < end_time:
                 out_path, _ = backup.get_logs()
                 remaining = list(expected_messages)
-                for line in open(out_path, "r", encoding="utf-8").readlines():
-                    for expected in remaining[:]:
-                        if re.search(expected, line):
-                            remaining.remove(expected)
-                            LOG.info(
-                                f"Found expected log message on backup {backup.local_node_id}: {line.strip()}"
-                            )
+                with open(out_path, "r", encoding="utf-8") as f:
+                    for line in f.readlines():
+                        for expected in remaining[:]:
+                            if re.search(expected, line):
+                                remaining.remove(expected)
+                                LOG.info(
+                                    f"Found expected log message on backup {backup.local_node_id}: {line.strip()}"
+                                )
                 if len(remaining) == 0:
                     break
                 time.sleep(1)
