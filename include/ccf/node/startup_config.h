@@ -99,6 +99,17 @@ namespace ccf
       size_t tx_count = 10'000;
       std::optional<std::string> read_only_directory = std::nullopt;
 
+      struct BackupFetch
+      {
+        bool enabled = false;
+        size_t max_attempts = 3;
+        ccf::ds::TimeString retry_interval = {"1000ms"};
+        ccf::ds::SizeString max_size = {"200MB"};
+
+        bool operator==(const BackupFetch&) const = default;
+      };
+      BackupFetch backup_fetch = {};
+
       bool operator==(const Snapshots&) const = default;
     };
     Snapshots snapshots = {};

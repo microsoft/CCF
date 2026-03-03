@@ -93,10 +93,19 @@ namespace ccf
     snp_uvm_endorsements_file,
     snp_endorsements_file);
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Snapshots::BackupFetch);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Snapshots::BackupFetch);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::Snapshots::BackupFetch,
+    enabled,
+    max_attempts,
+    retry_interval,
+    max_size);
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Snapshots);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Snapshots);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCFConfig::Snapshots, directory, tx_count, read_only_directory);
+    CCFConfig::Snapshots, directory, tx_count, read_only_directory, backup_fetch);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);

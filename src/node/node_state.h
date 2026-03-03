@@ -202,6 +202,131 @@ namespace ccf
       }
     };
 
+    struct BackupSnapshotFetch : public ccf::tasks::BaseTask
+    {
+      const ccf::CCFConfig::Snapshots snapshot_config;
+      NodeState* owner;
+
+      BackupSnapshotFetch(
+        ccf::CCFConfig::Snapshots snapshot_config_, NodeState* owner_) :
+        snapshot_config(std::move(snapshot_config_)),
+        owner(owner_)
+      {}
+
+      void do_task_implementation() override
+      {
+        struct ClearOnExit
+        {
+          NodeState* owner;
+          ~ClearOnExit()
+          {
+            std::lock_guard<pal::Mutex> guard(owner->lock);
+            owner->backup_snapshot_fetch_task = nullptr;
+          }
+        } clear_on_exit{owner};
+
+        // Resolve the primary's RPC address
+        std::string primary_address;
+        std::vector<uint8_t> service_cert;
+        {
+          auto primary_id = owner->consensus->primary();
+          if (!primary_id.has_value())
+          {
+            LOG_INFO_FMT(
+              "BackupSnapshotFetch: No known primary, skipping fetch");
+            return;
+          }
+
+          auto tx = owner->network.tables->create_read_only_tx();
+          auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
+          auto node_info = nodes->get(primary_id.value());
+          if (!node_info.has_value())
+          {
+            LOG_INFO_FMT(
+              "BackupSnapshotFetch: Could not find primary node {} in nodes "
+              "table",
+              primary_id.value());
+            return;
+          }
+
+          // Use the first available RPC interface's published address
+          if (node_info->rpc_interfaces.empty())
+          {
+            LOG_INFO_FMT(
+              "BackupSnapshotFetch: Primary node {} has no RPC interfaces",
+              primary_id.value());
+            return;
+          }
+          primary_address =
+            node_info->rpc_interfaces.begin()->second.published_address;
+
+          service_cert = {
+            owner->network.identity->cert.raw().begin(),
+            owner->network.identity->cert.raw().end()};
+        }
+
+        const auto& bf = snapshot_config.backup_fetch;
+        auto latest_peer_snapshot = snapshots::fetch_from_peer(
+          primary_address,
+          service_cert,
+          bf.max_attempts,
+          bf.retry_interval.count_ms(),
+          bf.max_size.count_bytes());
+
+        if (latest_peer_snapshot.has_value())
+        {
+          LOG_INFO_FMT(
+            "BackupSnapshotFetch: Received snapshot {} from primary (size: "
+            "{})",
+            latest_peer_snapshot->snapshot_name,
+            latest_peer_snapshot->snapshot_data.size());
+
+          const auto snapshot_path =
+            std::filesystem::path(latest_peer_snapshot->snapshot_name);
+
+          if (
+            snapshot_path.empty() || snapshot_path.is_absolute() ||
+            snapshot_path.has_parent_path() ||
+            snapshot_path.filename() != snapshot_path)
+          {
+            LOG_FAIL_FMT(
+              "BackupSnapshotFetch: Rejecting snapshot with invalid name "
+              "'{}' from primary",
+              latest_peer_snapshot->snapshot_name);
+            return;
+          }
+
+          const auto dst_path =
+            std::filesystem::path(snapshot_config.directory) / snapshot_path;
+
+          if (files::exists(dst_path))
+          {
+            LOG_INFO_FMT(
+              "BackupSnapshotFetch: Snapshot {} already exists locally, "
+              "skipping write",
+              dst_path.string());
+            return;
+          }
+
+          LOG_INFO_FMT(
+            "BackupSnapshotFetch: Writing snapshot to {}",
+            dst_path.string());
+          files::dump(latest_peer_snapshot->snapshot_data, dst_path);
+        }
+        else
+        {
+          LOG_INFO_FMT(
+            "BackupSnapshotFetch: No snapshot available from primary");
+        }
+      }
+
+      [[nodiscard]] const std::string& get_name() const override
+      {
+        static const std::string name = "BackupSnapshotFetch";
+        return name;
+      }
+    };
+
   private:
     //
     // this node's core state
@@ -280,6 +405,7 @@ namespace ccf
 
     ccf::tasks::Task join_periodic_task;
     ccf::tasks::Task snapshot_fetch_task;
+    ccf::tasks::Task backup_snapshot_fetch_task;
 
     std::shared_ptr<ccf::kv::AbstractTxEncryptor> make_encryptor()
     {
@@ -2897,12 +3023,39 @@ namespace ccf
       network.tables->set_map_hook(
         network.snapshot_evidence.get_name(),
         SnapshotEvidence::wrap_map_hook(
-          [s = this->snapshotter](
+          [this, s = this->snapshotter](
             ccf::kv::Version version,
             const SnapshotEvidence::Write& w) -> ccf::kv::ConsensusHookPtr {
             assert(w.has_value());
             auto snapshot_evidence = w.value();
             s->record_snapshot_evidence_idx(version, snapshot_evidence);
+
+            // If backup snapshot fetching is enabled and this node is a
+            // backup, schedule a fetch task
+            if (
+              config.snapshots.backup_fetch.enabled && consensus != nullptr &&
+              !consensus->is_primary())
+            {
+              std::lock_guard<pal::Mutex> guard(lock);
+              if (
+                backup_snapshot_fetch_task != nullptr &&
+                !backup_snapshot_fetch_task->is_cancelled())
+              {
+                LOG_DEBUG_FMT(
+                  "Backup snapshot fetch already in progress, skipping");
+              }
+              else
+              {
+                LOG_INFO_FMT(
+                  "Snapshot evidence detected on backup - scheduling "
+                  "snapshot fetch from primary");
+                backup_snapshot_fetch_task =
+                  std::make_shared<BackupSnapshotFetch>(
+                    config.snapshots, this);
+                ccf::tasks::add_task(backup_snapshot_fetch_task);
+              }
+            }
+
             return {nullptr};
           }));
 

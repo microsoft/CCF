@@ -2853,6 +2853,68 @@ def test_error_message_on_failure_to_fetch_snapshot(const_args):
         ), f"Did not find expected log messages: {expected_log_messages}"
 
 
+def test_backup_snapshot_fetch(const_args):
+    args = copy.deepcopy(const_args)
+    args.label += "_backup_snapshot_fetch"
+    # Use a small snapshot interval to trigger snapshots quickly
+    args.snapshot_tx_interval = 30
+    args.nodes = infra.e2e_args.nodes(args, 3)
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args, backup_snapshot_fetch_enabled=True)
+
+        primary, _ = network.find_primary()
+        backups = network.find_backups()
+        assert len(backups) > 0, "Expected at least one backup node"
+
+        # Issue enough transactions to trigger snapshot generation
+        # The primary will create a snapshot after snapshot_tx_interval txs
+        LOG.info("Issuing transactions to trigger snapshot generation")
+        network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
+
+        # Wait for a committed snapshot on the primary
+        LOG.info("Waiting for committed snapshot on primary")
+        network.get_committed_snapshots(primary)
+
+        # Now check that backups have downloaded the snapshot
+        # Look for log messages indicating the backup fetched a snapshot
+        for backup in backups:
+            LOG.info(f"Checking backup {backup.local_node_id} for snapshot fetch")
+            expected_messages = [
+                re.compile(
+                    r"Snapshot evidence detected on backup - scheduling snapshot fetch from primary"
+                ),
+                re.compile(r"BackupSnapshotFetch: Writing snapshot to "),
+            ]
+
+            timeout = 30
+            end_time = time.time() + timeout
+            while time.time() < end_time:
+                out_path, _ = backup.get_logs()
+                remaining = list(expected_messages)
+                for line in open(out_path, "r", encoding="utf-8").readlines():
+                    for expected in remaining[:]:
+                        if re.search(expected, line):
+                            remaining.remove(expected)
+                            LOG.info(
+                                f"Found expected log message on backup {backup.local_node_id}: {line.strip()}"
+                            )
+                if len(remaining) == 0:
+                    break
+                time.sleep(1)
+
+            assert len(remaining) == 0, (
+                f"Backup {backup.local_node_id} did not produce expected log messages "
+                f"within {timeout}s. Missing: {[p.pattern for p in remaining]}"
+            )
+
+        LOG.success("All backups successfully fetched snapshots from primary")
+
+
 def run_propose_request_vote(const_args):
     args = copy.deepcopy(const_args)
     args.label += "_propose_vote"
@@ -2926,4 +2988,5 @@ def run(args):
     run_empty_ledger_dir_check(args)
     run_read_ledger_on_testdata(args)
     test_merkle_verification_level(args)
+    test_backup_snapshot_fetch(args)
     run_propose_request_vote(args)

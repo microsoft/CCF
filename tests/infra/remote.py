@@ -335,6 +335,9 @@ class CCFRemote(object):
         cose_signatures_subject="ledger.signature",
         sealing_recovery_location=None,
         recovery_decision_protocol_expected_locations=None,
+        backup_snapshot_fetch_enabled=False,
+        backup_snapshot_fetch_max_attempts=None,
+        backup_snapshot_fetch_retry_interval=None,
         **kwargs,
     ):
         """
@@ -527,6 +530,9 @@ class CCFRemote(object):
                 cose_signatures_subject=cose_signatures_subject,
                 sealing_recovery_location=sealing_recovery_location,
                 recovery_decision_protocol_expected_locations=recovery_decision_protocol_expected_locations,
+                backup_snapshot_fetch_enabled=backup_snapshot_fetch_enabled,
+                backup_snapshot_fetch_max_attempts=backup_snapshot_fetch_max_attempts,
+                backup_snapshot_fetch_retry_interval=backup_snapshot_fetch_retry_interval,
                 **kwargs,
             )
 
