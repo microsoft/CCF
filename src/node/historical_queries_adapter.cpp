@@ -303,7 +303,7 @@ namespace ccf::historical
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::TransactionPendingOrUnknown,
           std::move(reason));
-        break;
+        return;
       }
       case HistoricalQueryErrorCode::TransactionPending:
       {
@@ -313,7 +313,7 @@ namespace ccf::historical
           HTTP_STATUS_NOT_FOUND,
           ccf::errors::TransactionPendingOrUnknown,
           std::move(reason));
-        break;
+        return;
       }
       case HistoricalQueryErrorCode::TransactionInvalid:
       case HistoricalQueryErrorCode::TransactionIdMissing:
@@ -322,7 +322,7 @@ namespace ccf::historical
           HTTP_STATUS_NOT_FOUND,
           ccf::errors::TransactionInvalid,
           std::move(reason));
-        break;
+        return;
       }
       case HistoricalQueryErrorCode::TransactionPartiallyReady:
       {
@@ -333,13 +333,10 @@ namespace ccf::historical
         args.rpc_ctx->set_response_header(
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
         args.rpc_ctx->set_response_body(std::move(reason));
-        break;
-      }
-      default:
-      {
-        LOG_FAIL_FMT("Unexpected historical query error {}", err);
+        return;
       }
     }
+    LOG_FAIL_FMT("Unexpected historical query error {}", err);
   }
 
   HistoricalTxStatus is_tx_committed_v2(

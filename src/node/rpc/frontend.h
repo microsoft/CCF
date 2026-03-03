@@ -382,13 +382,10 @@ namespace ccf
           }
           return false;
         }
-
-        default:
-        {
-          LOG_FAIL_FMT("Unhandled redirection strategy: {}", rs);
-          return false;
-        }
       }
+
+      LOG_FAIL_FMT("Unhandled redirection strategy: {}", rs);
+      return false;
     }
 
     std::optional<ccf::NodeInfoNetwork_v2::NetInterface::Redirections>

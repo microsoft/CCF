@@ -17,7 +17,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           // Extract transaction ID from path parameter
           std::string tx_id_str;
@@ -92,7 +91,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           // Lookup committed
           ccf::View view = 0;

@@ -458,12 +458,6 @@ namespace ccf
 
             break;
           }
-
-          default:
-          {
-            LOG_FAIL_FMT("Unknown frontend msg type: {}", forwarded_msg);
-            break;
-          }
         }
       }
       catch (const std::exception& e)

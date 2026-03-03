@@ -20,7 +20,6 @@ namespace ccf::gov::endpoints
         {
           case ApiVersion::preview_v1:
           case ApiVersion::v1:
-          default:
           {
             ccf::MemberId member_id;
             if (!detail::try_parse_member_id(ctx.rpc_ctx, member_id))
@@ -66,7 +65,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           if (
             InternalTablesAccess::get_service_status(ctx.tx) !=

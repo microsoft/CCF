@@ -261,10 +261,6 @@ namespace ccf
         // Nothing to do here, we are already opening or open or joining
         break;
       }
-      default:
-        throw std::logic_error(fmt::format(
-          "Unknown recovery-decision-protocol state: {}",
-          static_cast<int>(sm_state)));
     }
 
     // Advance timeout SM
@@ -285,7 +281,6 @@ namespace ccf
         case recovery_decision_protocol::StateMachine::OPENING:
         case recovery_decision_protocol::StateMachine::JOINING:
         case recovery_decision_protocol::StateMachine::OPEN:
-        default:
           LOG_TRACE_FMT("Timeout SM complete");
       }
     }
@@ -368,12 +363,9 @@ namespace ccf
             send_iamopen_unsafe(tx);
             break;
           case recovery_decision_protocol::StateMachine::JOINING:
+          case recovery_decision_protocol::StateMachine::OPEN:
             stop_timers();
             return;
-          default:
-            throw std::logic_error(fmt::format(
-              "Unknown recovery-decision-protocol state: {}",
-              static_cast<int>(sm_state)));
         }
       },
       "RecoveryDecisionProtocolRetry");

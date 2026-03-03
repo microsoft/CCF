@@ -309,7 +309,9 @@ namespace quic
           break;
         }
 
-        default:
+        case closed:
+        case authfail:
+        case error:
         {
         }
       }
@@ -339,7 +341,8 @@ namespace quic
         case error:
           return;
 
-        default:
+        case handshake:
+        case ready:
         {
         }
       }

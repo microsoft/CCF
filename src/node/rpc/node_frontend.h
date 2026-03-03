@@ -1614,8 +1614,7 @@ namespace ccf
               ctx.tx, attestation);
             break;
           }
-
-          default:
+          case QuoteFormat::oe_sgx_v1:
           {
             break;
           }

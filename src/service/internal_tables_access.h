@@ -801,7 +801,7 @@ namespace ccf
               pal::VirtualAttestationMeasurement(
                 node_measurement.data.begin(), node_measurement.data.end()),
               CodeStatus::ALLOWED_TO_JOIN);
-          break;
+          return;
         }
         case QuoteFormat::oe_sgx_v1:
         {
@@ -809,7 +809,7 @@ namespace ccf
             ->put(
               pal::SgxAttestationMeasurement(node_measurement),
               CodeStatus::ALLOWED_TO_JOIN);
-          break;
+          return;
         }
         case QuoteFormat::amd_sev_snp_v1:
         {
@@ -817,14 +817,11 @@ namespace ccf
             ->put(
               pal::SnpAttestationMeasurement(node_measurement),
               CodeStatus::ALLOWED_TO_JOIN);
-          break;
-        }
-        default:
-        {
-          throw std::logic_error(fmt::format(
-            "Unexpected quote format {} when trusting node code id", platform));
+          return;
         }
       }
+      throw std::logic_error(fmt::format(
+        "Unexpected quote format {} when trusting node code id", platform));
     }
 
     static void trust_node_virtual_host_data(

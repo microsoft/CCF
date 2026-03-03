@@ -168,7 +168,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           auto constitution_handle =
             ctx.tx.template ro<ccf::Constitution>(ccf::Tables::CONSTITUTION);
@@ -208,7 +207,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           auto response_body = nlohmann::json::object();
 
@@ -300,7 +298,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           auto response_body = nlohmann::json::object();
 
@@ -412,7 +409,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           auto response_body = nlohmann::json::object();
 
@@ -453,7 +449,6 @@ namespace ccf::gov::endpoints
         {
           case ApiVersion::preview_v1:
           case ApiVersion::v1:
-          default:
           {
             std::string module_name;
             {
@@ -513,7 +508,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           auto response_body = nlohmann::json::object();
 
@@ -651,7 +645,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           auto response_body = nlohmann::json::object();
 
@@ -752,7 +745,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           auto response_body = nlohmann::json::object();
 
@@ -801,7 +793,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           ccf::MemberId member_id;
           if (!detail::try_parse_member_id(ctx.rpc_ctx, member_id))
@@ -853,7 +844,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           auto response_body = nlohmann::json::object();
 
@@ -895,7 +885,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           ccf::UserId user_id;
           if (!detail::try_parse_user_id(ctx.rpc_ctx, user_id))
@@ -942,7 +931,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           auto response_body = nlohmann::json::object();
 
@@ -985,7 +973,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           ccf::NodeId node_id;
           if (!detail::try_parse_node_id(ctx.rpc_ctx, node_id))

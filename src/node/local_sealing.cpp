@@ -85,6 +85,16 @@ namespace ccf::sealing
     return sealing_key;
   }
 
+  std::vector<uint8_t> re_derive_sealing_key(const SealedRecoveryKey& sealed_recovery_key)
+  {
+    switch (sealed_recovery_key.version)
+    {
+      case DerivedSealingKeyAlgorithm::SNP_v1:
+        return derive_snp_sealing_key(sealed_recovery_key.tcb_version);
+    }
+    throw std::logic_error("Unknown derived sealing key algorithm");
+  }
+
   SealedRecoveryKey get_snp_sealed_recovery_key(
     const pal::snp::TcbVersionRaw& tcb_version)
   {
@@ -182,15 +192,7 @@ namespace ccf::sealing
     auto sealed_share_info = sealed_shares.value();
 
     // Unseal the recovery key pair
-    std::vector<uint8_t> derived_key;
-    switch (sealed_recovery_key.version)
-    {
-      case DerivedSealingKeyAlgorithm::SNP_v1:
-        derived_key = derive_snp_sealing_key(sealed_recovery_key.tcb_version);
-        break;
-      default:
-        throw std::logic_error("Unknown derived sealing key algorithm");
-    }
+    std::vector<uint8_t> derived_key = re_derive_sealing_key(sealed_recovery_key);
 
     auto recovery_key_pair =
       unseal_recovery_key(derived_key, sealed_recovery_key);

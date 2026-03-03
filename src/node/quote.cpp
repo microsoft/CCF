@@ -102,13 +102,11 @@ namespace ccf
         }
         break;
       }
-      default:
-      {
-        throw std::logic_error(fmt::format(
-          "Unexpected quote format {} when verifying quote against store",
-          quote_format));
-      }
     }
+
+    throw std::logic_error(fmt::format(
+      "Unexpected quote format {} when verifying quote against store",
+      quote_format));
 
     return QuoteVerificationResult::Verified;
   }
@@ -211,8 +209,7 @@ namespace ccf
 
         return HostData::from_representation(rep);
       }
-
-      default:
+      case QuoteFormat::oe_sgx_v1:
       {
         return std::nullopt;
       }

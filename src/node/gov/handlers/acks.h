@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/common_auth_policies.h"
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 #include "node/share_manager.h"
@@ -20,7 +21,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           // Get memberId from path parameter
           std::string error;
@@ -76,7 +76,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           // Get memberId from path parameter
           std::string error;
@@ -164,7 +163,6 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
         {
           // Get memberId from path parameter
           std::string error;

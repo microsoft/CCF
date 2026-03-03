@@ -315,7 +315,7 @@ namespace ccf
         pubk = ccf::crypto::make_ec_public_key(ec_jwk)->public_key_pem();
         break;
       }
-      default:
+      case ccf::crypto::JsonWebKeyType::OKP:
       {
         throw std::logic_error(fmt::format(
           "Unsupported public key type ({}) for DID {}", generic_jwk.kty, did));

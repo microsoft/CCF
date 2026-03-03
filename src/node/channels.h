@@ -898,12 +898,11 @@ namespace ccf
               outgoing_forwarding_queue_size);
             return false;
           }
-
-          default:
+        
+          case (NodeMsgType::channel_msg):
           {
             CHANNEL_SEND_FAIL(
-              "Unhandled message type {} on unestablished channel - ignoring",
-              type);
+              "Cannot send channel message on unestablished channel");
             return false;
           }
         }
@@ -1133,16 +1132,13 @@ namespace ccf
           {
             return recv_key_exchange_final(data, size);
           }
-
-          default:
-          {
-            throw std::runtime_error(fmt::format(
-              "Received message with initial bytes {} from {} - not recognised "
-              "as a key exchange message",
-              chmsg,
-              peer_id));
-          }
         }
+
+        throw std::runtime_error(fmt::format(
+          "Received message with initial bytes {} from {} - not recognised "
+          "as a key exchange message",
+          chmsg,
+          peer_id));
       }
       catch (const std::exception& e)
       {
