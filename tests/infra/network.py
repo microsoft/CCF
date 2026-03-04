@@ -1782,13 +1782,14 @@ class Network:
 
     def wait_for_new_primary_in(
         self,
-        expected_node_ids,
+        expected_nodes,
         nodes=None,
         timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER,
     ):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
         timeout = self.observed_election_duration * timeout_multiplier
+        expected_node_ids = [n.node_id for n in expected_nodes]
         LOG.info(
             f"Waiting up to {timeout}s for a new primary in {expected_node_ids} to be elected..."
         )
