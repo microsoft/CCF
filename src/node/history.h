@@ -356,8 +356,7 @@ namespace ccf
         primary_sig,
         endorsed_cert);
 
-      const auto& service_key_der = service_kp.public_key_der();
-      auto kid = ccf::crypto::Sha256Hash(service_key_der).hex_str();
+      auto kid = ccf::crypto::kid_from_key(service_kp);
       std::span<const uint8_t> kid_span{
         reinterpret_cast<const uint8_t*>(kid.data()), kid.size()};
 

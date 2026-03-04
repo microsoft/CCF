@@ -7,6 +7,7 @@
 #include "ccf/crypto/jwk.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/san.h"
+#include "ccf/crypto/sha256_hash.h"
 
 #include <cstdint>
 #include <optional>
@@ -188,4 +189,17 @@ namespace ccf::crypto
    * @return Public key
    */
   ECPublicKeyPtr make_ec_public_key(const JsonWebKeyECPublic& jwk);
+
+  /**
+   * Compute the key identifier (kid) for an EC public key, as used in COSE
+   * receipts. The kid is the hex-encoded SHA-256 hash of the DER-encoded
+   * public key.
+   *
+   * @param key EC public key
+   * @return Key identifier string
+   */
+  inline std::string kid_from_key(const ECPublicKey& key)
+  {
+    return Sha256Hash(key.public_key_der()).hex_str();
+  }
 }
