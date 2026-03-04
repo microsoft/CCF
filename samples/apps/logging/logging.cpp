@@ -9,8 +9,8 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/cose_signatures_config_interface.h"
 #include "ccf/crypto/cose.h"
-#include "ccf/crypto/sha256_hash.h"
 #include "ccf/crypto/verifier.h"
+#include "crypto/public_key.h"
 #include "ccf/ds/hash.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
 #include "ccf/historical_queries_adapter.h"
@@ -2129,7 +2129,7 @@ namespace loggingapp
         for (const auto& [seqno, key_ptr] : keys)
         {
           const auto kid =
-            ccf::crypto::Sha256Hash(key_ptr->public_key_der()).hex_str();
+            ccf::crypto::kid_from_key(key_ptr->public_key_der());
           keys_array.push_back(key_ptr->public_key_jwk(kid));
         }
         jwks["keys"] = keys_array;
