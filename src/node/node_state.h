@@ -250,16 +250,20 @@ namespace ccf
             return;
           }
 
-          // Use the first available RPC interface's published address
-          if (node_info->rpc_interfaces.empty())
+          // Use the configured RPC interface to find the primary's address
+          const auto& target_interface =
+            snapshot_config.backup_fetch.target_rpc_interface;
+          auto iface_it = node_info->rpc_interfaces.find(target_interface);
+          if (iface_it == node_info->rpc_interfaces.end())
           {
             LOG_INFO_FMT(
-              "BackupSnapshotFetch: Primary node {} has no RPC interfaces",
-              primary_id.value());
+              "BackupSnapshotFetch: Primary node {} does not have RPC "
+              "interface '{}' configured",
+              primary_id.value(),
+              target_interface);
             return;
           }
-          primary_address =
-            node_info->rpc_interfaces.begin()->second.published_address;
+          primary_address = iface_it->second.published_address;
 
           service_cert = {
             owner->network.identity->cert.raw().begin(),

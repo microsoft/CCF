@@ -512,6 +512,11 @@
               "type": "string",
               "default": "1000ms",
               "description": "Delay between retry attempts"
+            },
+            "target_rpc_interface": {
+              "type": "string",
+              "default": "primary_rpc_interface",
+              "description": "Name of the RPC interface on the primary node to use for downloading snapshots. Must have the SnapshotRead feature enabled."
             }
           },
           "description": "Configuration for automatic snapshot fetching by backup nodes",

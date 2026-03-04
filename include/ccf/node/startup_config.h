@@ -104,6 +104,7 @@ namespace ccf
         bool enabled = false;
         size_t max_attempts = 3;
         ccf::ds::TimeString retry_interval = {"1000ms"};
+        std::string target_rpc_interface = "primary_rpc_interface";
 
         bool operator==(const BackupFetch&) const = default;
       };
