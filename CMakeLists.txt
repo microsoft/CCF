@@ -44,6 +44,12 @@ include(GNUInstallDirs)
 # Use fixed name instead of absolute path for reproducible builds
 add_compile_options("-ffile-prefix-map=${CCF_DIR}=CCF")
 
+# In Debug builds, export symbols to the dynamic symbol table so that
+# backtrace_symbols can resolve function names in stacktraces, and preserve
+# frame pointers so that backtrace() can walk the full call stack.
+add_link_options($<$<CONFIG:Debug>:-rdynamic>)
+add_compile_options($<$<CONFIG:Debug>:-fno-omit-frame-pointer>)
+
 set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -275,7 +281,9 @@ add_ccf_static_library(
        ${CCF_DIR}/src/tasks/ordered_tasks.cpp
        ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
        ${CCF_DIR}/src/tasks/thread_manager.cpp
+       ${CCF_DIR}/src/tasks/worker.cpp
 )
+target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
 
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS
