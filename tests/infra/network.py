@@ -215,7 +215,6 @@ class Network:
         "snp_endorsements_file",
         "subject_name",
         "idle_connection_timeout_s",
-        "enable_local_sealing",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -784,11 +783,10 @@ class Network:
         self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
 
-    def start_in_self_healing_open(
+    def start_in_recovery_decision_protocol(
         self,
         args,
-        ledger_dirs,
-        committed_ledger_dirs=None,
+        existing_network,
         snapshot_dirs=None,
         common_dir=None,
         starting_nodes=None,
@@ -804,22 +802,27 @@ class Network:
         self.per_node_args_override = self.per_node_args_override or {
             i: {} for i in range(len(self.nodes))
         }
-        committed_ledger_dirs = committed_ledger_dirs or {
-            i: None for i in range(len(self.nodes))
-        }
         snapshot_dirs = snapshot_dirs or {i: None for i in range(len(self.nodes))}
 
-        # separate out all starting nodes' directories such that they recover independently
-        self.per_node_args_override = {
-            node_id: (
-                current_options
-                | {
-                    "ledger_dir": ledger_dirs[node_id],
-                    "read_only_ledger_dirs": committed_ledger_dirs[node_id] or [],
-                    "snapshots_dir": snapshot_dirs[node_id] or None,
-                }
+        if existing_network is None:
+            raise ValueError("existing_network is required")
+
+        if len(existing_network.nodes) < len(self.nodes):
+            raise ValueError(
+                "existing_network does not contain enough nodes to recover from"
             )
-            for node_id, current_options in self.per_node_args_override.items()
+
+        source_nodes = existing_network.nodes[: len(self.nodes)]
+        source_ledgers = [source_node.get_ledger() for source_node in source_nodes]
+
+        # separate out all starting nodes' directories such that they recover independently
+        ledger_arg_overrides = {
+            i: {
+                "ledger_dir": current,
+                "read_only_ledger_dirs": current_committed or [],
+                "snapshots_dir": snapshot_dirs[i] or None,
+            }
+            for i, (current, current_committed) in enumerate(source_ledgers)
         }
 
         # Fix the port numbers to make all nodes _well known_
@@ -828,6 +831,15 @@ class Network:
             node.host.get_primary_interface().port = port
             node.host.get_primary_interface().public_port = port
 
+        # Build expected locations AFTER port randomization so that
+        # address reflects the actual listening address.
+        # name comes from the source node (old network identity).
+        recovery_decision_protocol_expected_locations = []
+        for i, source_node in enumerate(source_nodes):
+            location = source_node.get_sealing_recovery_location()
+            location["address"] = self.nodes[i].get_public_rpc_address()
+            recovery_decision_protocol_expected_locations.append(location)
+
         self.status = ServiceStatus.RECOVERING
         LOG.debug(f"Opening CCF service on {self.hosts}")
 
@@ -835,13 +847,6 @@ class Network:
             arg: getattr(args, arg, None)
             for arg in infra.network.Network.node_args_to_forward
         }
-        self_healing_open_cluster_identities = [
-            {
-                "intrinsic_id": node.local_node_id,
-                "published_address": node.get_public_rpc_address(),
-            }
-            for node in self.nodes
-        ]
 
         for i, node in enumerate(self.nodes):
             if starting_nodes is not None and i > starting_nodes:
@@ -856,19 +861,19 @@ class Network:
                     "label": args.label,
                     "common_dir": self.common_dir,
                 }
-                self_healing_open_kwargs = {
-                    "self_healing_open_cluster_identities": self_healing_open_cluster_identities,
-                    "self_healing_open_identity": {
-                        "intrinsic_id": node.local_node_id,
-                        "published_address": node.get_public_rpc_address(),
-                    },
+                recovery_decision_protocol_kwargs = {
+                    "recovery_decision_protocol_expected_locations": recovery_decision_protocol_expected_locations,
+                    "sealing_recovery_location": recovery_decision_protocol_expected_locations[
+                        i
+                    ],
                 }
-                # If a kwarg is passed in override automatically set variants
+                # Override kwargs based on scope specificity (args < node_args_override < method kwargs < method args)
                 node_kwargs = (
                     node_kwargs
-                    | self_healing_open_kwargs
                     | forwarded_args_with_overrides
                     | kwargs
+                    | ledger_arg_overrides.get(i, {})
+                    | recovery_decision_protocol_kwargs
                 )
                 node.recover(**node_kwargs)
                 if suspend_after_start:
@@ -880,7 +885,7 @@ class Network:
         self.election_duration = args.election_timeout_ms / 1000
         self.observed_election_duration = self.election_duration + 1
 
-    def wait_for_self_healing_open_finish(self, timeout=10):
+    def wait_for_recovery_decision_protocol_finish(self, timeout=10):
         def cycle(items):
             while True:
                 for item in items:
@@ -890,7 +895,7 @@ class Network:
         end_time = time.time() + timeout
         for node in cycle(self.nodes):
             if time.time() > end_time:
-                raise TimeoutError("Timed out waiting for cluster to open")
+                raise TimeoutError("Timed out waiting for network to open")
             if len(waiting_nodes) == 0:
                 break
             if node not in waiting_nodes:
@@ -2032,6 +2037,21 @@ class Network:
                 os.path.join(self.common_dir, f"{name}_cert.pem"),
                 name,
             )
+
+    def set_sealing_recovery_locations(self, prev_nodes=None):
+        if prev_nodes is None:
+            nodes = self.nodes
+        else:
+            nodes = prev_nodes
+
+        # i is relative to the nodes in the current network, so the overrides will apply to the current nodes
+        # even if prev_nodes is a different set of nodes
+        self.per_node_args_override |= {
+            i: {
+                "sealing_recovery_location": node.get_sealing_recovery_location(),
+            }
+            for i, node in enumerate(nodes)
+        }
 
 
 # Closes the network on error, logging stack traces and optionally dropping into pdb
