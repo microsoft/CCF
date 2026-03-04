@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Fix race condition when initialising a ledger secret's commit secret (#7689)
+- Add missing cases for `FailedInvalidCPUID` and `FailedInvalidTcbVersion` in quote verification error handling (#7696).
 
 ## [6.0.23]
 
