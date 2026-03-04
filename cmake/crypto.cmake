@@ -5,6 +5,7 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/base64.cpp
     ${CCF_DIR}/src/crypto/entropy.cpp
     ${CCF_DIR}/src/crypto/hash.cpp
+    ${CCF_DIR}/src/crypto/public_key.cpp
     ${CCF_DIR}/src/crypto/sha256_hash.cpp
     ${CCF_DIR}/src/crypto/symmetric_key.cpp
     ${CCF_DIR}/src/crypto/eddsa_key_pair.cpp
