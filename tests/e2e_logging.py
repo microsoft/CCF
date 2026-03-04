@@ -910,10 +910,17 @@ def test_cbor_receipts(network, args):
                     log_capture=[],  # Do not emit raw binary to stdout
                 )
                 if r.status_code == http.HTTPStatus.OK:
-                    found_receipt = True
                     cose_receipt = r.body.data()
                     uhdr = cbor2.loads(cose_receipt).value[1]
-                    proofs = uhdr[396][-1]
+                    VDP_KEY = 396  # ccf::cose::header::iana::VDP
+                    if VDP_KEY not in uhdr:
+                        # Signature TX: valid receipt with empty UHDR, skip to next seqno
+                        LOG.debug(
+                            f"Transaction {txid} is a signature TX (empty UHDR), skipping"
+                        )
+                        break
+                    found_receipt = True
+                    proofs = uhdr[VDP_KEY][-1]
                     assert len(proofs) > 0, "No Merkle proofs found in receipt"
 
                     r = client.get(
