@@ -9,6 +9,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/cose_signatures_config_interface.h"
 #include "ccf/crypto/cose.h"
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hash.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
@@ -2127,8 +2128,9 @@ namespace loggingapp
         auto keys_array = nlohmann::json::array();
         for (const auto& [seqno, key_ptr] : keys)
         {
-          keys_array.push_back(key_ptr->public_key_jwk(
-            ccf::crypto::kid_from_key(*key_ptr)));
+          const auto kid =
+            ccf::crypto::Sha256Hash(key_ptr->public_key_der()).hex_str();
+          keys_array.push_back(key_ptr->public_key_jwk(kid));
         }
         jwks["keys"] = keys_array;
 
