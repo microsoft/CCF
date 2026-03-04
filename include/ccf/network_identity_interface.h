@@ -50,17 +50,26 @@ namespace ccf
     [[nodiscard]] virtual FetchStatus endorsements_fetching_status() const = 0;
 
     /// Returns the COSE endorsements chain for the given sequence number,
-    /// or std::nullopt if not available.
+    /// or std::nullopt if endorsement fetching has not completed or the
+    /// chain is not available for the given sequence number.
     [[nodiscard]] virtual std::optional<CoseEndorsementsChain>
     get_cose_endorsements_chain(ccf::SeqNo seqno) const = 0;
 
     /// Returns the trusted EC public key that was active at the given
-    /// sequence number.
+    /// sequence number, or nullptr if the sequence number precedes the
+    /// earliest known trusted key.
+    ///
+    /// @throws std::logic_error if endorsement fetching has not completed
+    /// (i.e. endorsements_fetching_status() != FetchStatus::Done), or if
+    /// no trusted keys have been fetched.
     [[nodiscard]] virtual ccf::crypto::ECPublicKeyPtr get_trusted_identity_for(
       ccf::SeqNo seqno) const = 0;
 
     /// Returns all trusted network identity keys as a map from sequence
     /// number to EC public key.
+    ///
+    /// @throws std::logic_error if endorsement fetching has not completed
+    /// (i.e. endorsements_fetching_status() != FetchStatus::Done).
     [[nodiscard]] virtual TrustedKeys get_trusted_keys() const = 0;
   };
 }
