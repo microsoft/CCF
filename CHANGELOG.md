@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Added `ccf::describe_cose_receipt(receipt)` - includes Merkle proof in UHDR for non-signature TXs, empty UHDR for signature TXs (#7700).
+- Added `ccf::describe_cose_receipt(receipt)` to obtain COSE receipts with Merkle proof in unprotected header for non-signature TXs, and empty unprotected header for signature TXs (#7700).
 
 ### Changed
 
