@@ -343,6 +343,11 @@ def compute_public_key_der_hash_hex_from_pem(pem: str):
     return hashlib.sha256(pub_key).hexdigest()
 
 
+def compute_public_key_der_hash_hex(der: bytes) -> str:
+    """Compute SHA-256 hex digest of DER-encoded public key bytes (matches CCF's kid)."""
+    return hashlib.sha256(der).hexdigest()
+
+
 def compute_cert_der_hash_hex_from_pem(pem: str):
     cert = load_pem_x509_certificate(pem.encode(), default_backend())
     return cert.fingerprint(hashes.SHA256()).hex()

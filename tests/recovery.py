@@ -560,7 +560,12 @@ def test_recover_service_with_wrong_identity(network, args):
             endpoint_keys_der = set()
             for key in jwks["keys"]:
                 assert "kid" in key, key
-                endpoint_keys_der.add(bytes(infra.crypto.pub_key_der_from_jwk(key)))
+                der = bytes(infra.crypto.pub_key_der_from_jwk(key))
+                expected_kid = infra.crypto.compute_public_key_der_hash_hex(der)
+                assert (
+                    key["kid"] == expected_kid
+                ), f"kid mismatch: got {key['kid']}, expected {expected_kid}"
+                endpoint_keys_der.add(der)
             assert endpoint_keys_der == expected_keys_der, (
                 f"Keys from trusted_keys endpoint do not match endorsement keys. "
                 f"Expected {len(expected_keys_der)}, got {len(endpoint_keys_der)}"

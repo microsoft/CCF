@@ -2127,7 +2127,9 @@ namespace loggingapp
         auto keys_array = nlohmann::json::array();
         for (const auto& [seqno, key_ptr] : keys)
         {
-          keys_array.push_back(key_ptr->public_key_jwk(std::to_string(seqno)));
+          auto kid =
+            ccf::crypto::Sha256Hash(key_ptr->public_key_der()).hex_str();
+          keys_array.push_back(key_ptr->public_key_jwk(kid));
         }
         jwks["keys"] = keys_array;
 
