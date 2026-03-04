@@ -178,7 +178,7 @@ def test_isolate_primary_from_one_backup(network, args):
     rules.drop()
 
     # primary should now observe partitioned backup as primary
-    network.wait_for_new_primary_in({b_0.node_id}, nodes=[p])
+    network.wait_for_new_primary_in({b_0}, nodes=[p])
 
     LOG.info(f"Check that new primary {b_0.local_node_id} reports stable acks")
     last_ack = 0
@@ -884,7 +884,7 @@ def force_become_primary(network, args, target_node):
         network.wait_for_node_commit_sync(nodes=backups)
         rules.drop()
         # Wait for the old primary to observe the new one
-        network.wait_for_new_primary_in({target_node.node_id}, nodes=[primary])
+        network.wait_for_new_primary_in({target_node}, nodes=[primary])
         primary = target_node
 
     # Ensure a signature has been produced in the new term
