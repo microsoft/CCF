@@ -987,14 +987,17 @@ def test_npm_app(network, args):
             for key, value in r.body.json().items():
                 LOG.info(f"{key} : {value}")
 
-            # Test with endorsed_tcb
+            # Test with endorsed_tcb derived from the reported_tcb of the
+            # first call, which also captures the architecture (Milan/Genoa/Turin)
+            endorsed_tcb = report_json["reported_tcb"]
+            LOG.info(f"Testing with endorsed_tcb: {endorsed_tcb}")
             r = c.post(
                 "/app/verifySnpAttestation",
                 {
                     "evidence": primary_quote_info["raw"],
                     "endorsements": primary_quote_info["endorsements"],
                     "uvm_endorsements": primary_quote_info["uvm_endorsements"],
-                    "endorsed_tcb": "541700000000000a",
+                    "endorsed_tcb": endorsed_tcb,
                 },
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
