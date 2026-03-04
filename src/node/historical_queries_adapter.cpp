@@ -8,6 +8,7 @@
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
 #include "crypto/cbor.h"
+#include "crypto/cose.h"
 #include "kv/kv_types.h"
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/tx_receipt_impl.h"
@@ -270,9 +271,10 @@ namespace ccf
       return std::nullopt;
     }
 
-    constexpr int64_t vdp = 396; // inclusion-proofs label (draft-ietf-cose-merkle-tree-proofs)
-    auto inclusion_proof = ccf::cose::edit::pos::AtKey{-1};
-    ccf::cose::edit::desc::Value desc{inclusion_proof, vdp, *proof};
+    auto inclusion_proof =
+      ccf::cose::edit::pos::AtKey{ccf::cose::header::iana::INCLUSION_PROOFS};
+    ccf::cose::edit::desc::Value desc{
+      inclusion_proof, ccf::cose::header::iana::VDP, *proof};
 
     return ccf::cose::edit::set_unprotected_header(*signature, desc);
   }
