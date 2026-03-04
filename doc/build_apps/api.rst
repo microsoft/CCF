@@ -187,3 +187,16 @@ COSE
 
 .. doxygenfunction:: ccf::cose::edit::set_unprotected_header
    :project: CCF
+
+Network Identity
+----------------
+
+.. doxygenenum:: ccf::FetchStatus
+   :project: CCF
+
+.. doxygentypedef:: ccf::TrustedKeys
+   :project: CCF
+
+.. doxygenclass:: ccf::NetworkIdentitySubsystemInterface
+   :project: CCF
+   :members:

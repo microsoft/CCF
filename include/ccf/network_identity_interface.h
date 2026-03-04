@@ -17,15 +17,20 @@ namespace ccf
   using RawCoseEndorsement = std::vector<uint8_t>;
   using CoseEndorsementsChain = std::vector<RawCoseEndorsement>;
 
+  /// Status of the network identity endorsement fetching process.
   enum class FetchStatus : uint8_t
   {
-    Retry,
-    Done,
-    Failed
+    Retry, ///< Fetching should be retried
+    Done, ///< Fetching completed successfully
+    Failed ///< Fetching failed
   };
 
+  /// Map from sequence number to EC public key, representing the trusted
+  /// network identity keys over the history of the service.
   using TrustedKeys = std::map<ccf::SeqNo, ccf::crypto::ECPublicKeyPtr>;
 
+  /// Interface for accessing the network identity subsystem, which manages
+  /// the service's cryptographic identity and its historical trusted keys.
   class NetworkIdentitySubsystemInterface : public ccf::AbstractNodeSubSystem
   {
   public:
