@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.0-dev12]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev12
 
+### Added
+
+- Added `ccf::describe_cose_receipt(receipt)` to produce a complete COSE receipt from a `TxReceiptImpl`, combining signature and merkle proof.
+
 ### Changed
 
 - Refactored the user facing surface of self-healing-open and local sealing. The whole feature is now `sealing-recovery` with `self-healing-open` now referred to as the `recovery-decision-protocol`. (#7679)

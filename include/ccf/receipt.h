@@ -161,6 +161,10 @@ namespace ccf
   std::optional<SerialisedCoseSignature> describe_cose_signature_v1(
     const TxReceiptImpl& receipt);
 
+  using SerialisedCoseReceipt = std::vector<uint8_t>;
+  std::optional<SerialisedCoseReceipt> describe_cose_receipt(
+    const TxReceiptImpl& receipt);
+
   // Manual JSON serializers are specified for these types as they are not
   // trivial POD structs
 
