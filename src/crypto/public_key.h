@@ -8,8 +8,7 @@
 
 namespace ccf::crypto
 {
-  // Compute the key identifier (kid) for a public key given its DER encoding,
-  // as used in COSE receipts. The kid is the hex-encoded SHA-256 hash of the
-  // DER-encoded public key.
+  // Returns a hex-encoded SHA-256 hash of the DER-encoded public key,
+  // suitable for use as a key identifier (kid).
   std::string kid_from_key(const std::vector<uint8_t>& public_key_der);
 }
