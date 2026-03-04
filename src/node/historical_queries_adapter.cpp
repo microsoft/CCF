@@ -268,7 +268,8 @@ namespace ccf
     auto proof = describe_merkle_proof_v1(receipt);
     if (!proof.has_value())
     {
-      return std::nullopt;
+      // Signature TX: return COSE signature as-is, with empty UHDR
+      return *signature;
     }
 
     auto inclusion_proof =
