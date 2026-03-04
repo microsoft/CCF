@@ -10,7 +10,6 @@
 #include "ccf/cose_signatures_config_interface.h"
 #include "ccf/crypto/cose.h"
 #include "ccf/crypto/verifier.h"
-#include "crypto/public_key.h"
 #include "ccf/ds/hash.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
 #include "ccf/historical_queries_adapter.h"
@@ -22,6 +21,7 @@
 #include "ccf/json_handler.h"
 #include "ccf/network_identity_interface.h"
 #include "ccf/version.h"
+#include "crypto/public_key.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -2128,8 +2128,7 @@ namespace loggingapp
         auto keys_array = nlohmann::json::array();
         for (const auto& [seqno, key_ptr] : keys)
         {
-          const auto kid =
-            ccf::crypto::kid_from_key(key_ptr->public_key_der());
+          const auto kid = ccf::crypto::kid_from_key(key_ptr->public_key_der());
           keys_array.push_back(key_ptr->public_key_jwk(kid));
         }
         jwks["keys"] = keys_array;
