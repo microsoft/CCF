@@ -54,7 +54,7 @@ namespace ccf
     /// number.
     ///
     /// @throws std::logic_error if endorsement fetching has not completed
-    /// (i.e. endorsements_fetching_status() != FetchStatus::Done).
+    /// (endorsements_fetching_status() != FetchStatus::Done).
     [[nodiscard]] virtual std::optional<CoseEndorsementsChain>
     get_cose_endorsements_chain(ccf::SeqNo seqno) const = 0;
 
