@@ -210,6 +210,7 @@ def test_forced_snapshot(network, args):
                 LOG.info(
                     f"Found a snapshot at {snapshot_seqno} which is after the pre-proposal-high-water-mark {hwm_pre_proposal}"
                 )
+                return
 
     raise RuntimeError("Could not find matching snapshot file")
 
@@ -508,6 +509,7 @@ def run_manual_snapshot_tests(const_args):
         args.binary_dir,
         args.debug_nodes,
         pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
     ) as network:
         network.start_and_open(args)
 
@@ -634,6 +636,10 @@ def test_snapshot_selection(network, args):
 
     for node in suspended:
         node.resume()
+
+    # Heal after all the suspensions, before running further tests
+    network.wait_for_new_primary_in((primary, *backups))
+    network.wait_for_node_commit_sync()
 
 
 def test_empty_snapshot(network, args):
@@ -1512,7 +1518,6 @@ def run_file_operations(args):
                 test_save_committed_ledger_files(network, args)
                 test_parse_snapshot_file(network, args)
                 test_forced_ledger_chunk(network, args)
-                test_forced_snapshot(network, args)
                 test_large_snapshot(network, args)
                 test_snapshot_access(network, args)
                 test_snapshot_repr_digest(network, args)
