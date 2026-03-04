@@ -191,6 +191,12 @@ COSE
 Network Identity
 ----------------
 
+.. doxygentypedef:: ccf::RawCoseEndorsement
+   :project: CCF
+
+.. doxygentypedef:: ccf::CoseEndorsementsChain
+   :project: CCF
+
 .. doxygenenum:: ccf::FetchStatus
    :project: CCF
 
