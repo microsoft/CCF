@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Added `ccf::describe_cose_receipt(receipt)` to produce a complete COSE receipt from a `TxReceiptImpl`, combining signature and merkle proof.
+- Added `ccf::describe_cose_receipt(receipt)` to produce a complete COSE receipt from a `TxReceiptImpl` (#7700).
 
 ### Changed
 
