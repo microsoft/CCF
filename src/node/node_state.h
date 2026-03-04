@@ -1118,13 +1118,13 @@ namespace ccf
           config.sealing_recovery->location.name);
       }
 
-      if (config.join.code_transparent_statement_path.has_value())
+      if (config.join.host_data_transparent_statement_path.has_value())
       {
         LOG_INFO_FMT(
           "Reading code_transparent_statement from file: {}",
-          config.join.code_transparent_statement_path.value());
-        auto ts =
-          files::slurp(config.join.code_transparent_statement_path.value());
+          config.join.host_data_transparent_statement_path.value());
+        auto ts = files::slurp(
+          config.join.host_data_transparent_statement_path.value());
         join_params.code_transparent_statement = std::move(ts);
       }
 

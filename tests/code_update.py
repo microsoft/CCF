@@ -636,7 +636,7 @@ def prepare_joiner_with_statement(args, network, transparent_statement):
     with open(statement_path, "wb") as f:
         f.write(transparent_statement)
     joiner_args = copy.deepcopy(args)
-    joiner_args.code_transparent_statement_path = statement_path
+    joiner_args.host_data_transparent_statement_path = statement_path
     return joiner_args
 
 

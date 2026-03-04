@@ -136,7 +136,7 @@ namespace ccf
     service_cert,
     follow_redirect);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    StartupConfig::Join, code_transparent_statement_path);
+    StartupConfig::Join, host_data_transparent_statement_path);
 
   DECLARE_JSON_TYPE(StartupConfig::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(

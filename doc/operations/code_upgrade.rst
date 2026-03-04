@@ -304,14 +304,14 @@ Use the ``set_node_join_policy`` governance action to register the policy and ``
 Joining with a Transparent Statement
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When a node joins the network, it can present a transparent statement by setting the ``code_transparent_statement_path`` field in the ``join`` section of its configuration file. This must point to a COSE Sign1 file (the transparent statement) that attests to the node's host data:
+When a node joins the network, it can present a transparent statement by setting the ``host_data_transparent_statement_path`` field in the ``join`` section of its configuration file. This must point to a COSE Sign1 file (the transparent statement) that attests to the node's host data:
 
 .. code-block:: json
 
     {
       "command": {
         "join": {
-          "code_transparent_statement_path": "/path/to/transparent_statement.cose"
+          "host_data_transparent_statement_path": "/path/to/transparent_statement.cose"
         }
       }
     }
