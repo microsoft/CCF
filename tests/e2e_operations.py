@@ -173,69 +173,45 @@ def test_forced_ledger_chunk(network, args):
 @reqs.description("Forced snapshot")
 @app.scoped_txs()
 def test_forced_snapshot(network, args):
-    inner_args = copy.deepcopy(args)
-    inner_args.common_read_only_ledger_dir = (
-        None  # Side-effect setting which would break the starting node
+    primary, _ = network.find_primary()
+
+    # Submit some dummy transactions
+    network.txs.issue(network, number_txs=3)
+
+    with primary.client() as c:
+        r = c.get("/node/commit").body.json()
+        hwm_pre_proposal = TxID.from_str(r["transaction_id"]).seqno
+
+    # Ensure there is at least one signature greater than the hwm
+    network.txs.issue(network, number_txs=1, wait_for_sync=True)
+
+    # Submit a proposal to force a snapshot
+    proposal_body, careful_vote = network.consortium.make_proposal("trigger_snapshot")
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
     )
-    inner_args.label = f"{inner_args.label}_forced_snapshot"
-    inner_args.snapshot_tx_interval = (
-        10000  # Large interval to avoid interference from regular snapshots
+    proposal = network.consortium.vote_using_majority(
+        primary,
+        proposal,
+        careful_vote,
     )
 
-    # Use a separate network to ensure unforced snapshots do not happen
-    with infra.network.network(
-        inner_args.nodes,
-        inner_args.binary_dir,
-        inner_args.debug_nodes,
-        pdb=inner_args.pdb,
-        txs=app.LoggingTxs("user0"),
-    ) as inner_network:
-        inner_network.start_and_open(inner_args)
+    # Issue some more transactions
+    network.txs.issue(network, number_txs=5)
 
-        primary, _ = inner_network.find_primary()
+    snapshots_dir = network.get_committed_snapshots(
+        primary, target_seqno=hwm_pre_proposal + 1
+    )
 
-        # Submit some dummy transactions
-        inner_network.txs.issue(inner_network, number_txs=3)
+    for s in os.listdir(snapshots_dir):
+        with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
+            snapshot_seqno = snapshot.get_public_domain().get_seqno()
+            if snapshot_seqno > hwm_pre_proposal:
+                LOG.info(
+                    f"Found a snapshot at {snapshot_seqno} which is after the pre-proposal-high-water-mark {hwm_pre_proposal}"
+                )
 
-        with primary.client() as c:
-            r = c.get("/node/commit").body.json()
-            hwm_pre_proposal = TxID.from_str(r["transaction_id"]).seqno
-
-        # Ensure there is at least one signature greater than the hwm
-        inner_network.txs.issue(inner_network, number_txs=1, wait_for_sync=True)
-
-        # Submit a proposal to force a snapshot
-        proposal_body, careful_vote = inner_network.consortium.make_proposal(
-            "trigger_snapshot"
-        )
-        proposal = inner_network.consortium.get_any_active_member().propose(
-            primary, proposal_body
-        )
-        proposal = inner_network.consortium.vote_using_majority(
-            primary,
-            proposal,
-            careful_vote,
-        )
-
-        # Issue some more transactions
-        inner_network.txs.issue(inner_network, number_txs=5)
-
-        snapshots_dir = inner_network.get_committed_snapshots(
-            primary, target_seqno=hwm_pre_proposal + 1
-        )
-
-        for s in os.listdir(snapshots_dir):
-            with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
-                snapshot_seqno = snapshot.get_public_domain().get_seqno()
-                if snapshot_seqno > hwm_pre_proposal:
-                    LOG.info(
-                        f"Found a snapshot at {snapshot_seqno} which is after the pre-proposal-high-water-mark {hwm_pre_proposal}"
-                    )
-                    return network
-
-        raise RuntimeError("Could not find matching snapshot file")
-
-    return network
+    raise RuntimeError("Could not find matching snapshot file")
 
 
 # https://github.com/microsoft/CCF/issues/1858
@@ -515,28 +491,31 @@ def test_snapshot_repr_digest(network, args):
         ), f"Expected partial body of {range_end + 1} bytes, got {len(r.body.data())}"
 
 
-def test_snapshot_selection(network, args):
-    inner_args = copy.deepcopy(args)
-    inner_args.common_read_only_ledger_dir = (
+def run_manual_snapshot_tests(const_args):
+    # Use a separate network with explicit args to ensure unforced snapshots do not happen
+
+    args = copy.deepcopy(const_args)
+    args.common_read_only_ledger_dir = (
         None  # Side-effect setting which would break the starting node
     )
-    inner_args.label = f"{inner_args.label}_snapshot_selection"
-    inner_args.snapshot_tx_interval = (
+    args.label = f"{args.label}_manual_snapshots"
+    args.snapshot_tx_interval = (
         10000  # Large interval to avoid interference from regular snapshots
     )
 
-    # Use a separate network to ensure unforced snapshots do not happen
     with infra.network.network(
-        inner_args.nodes,
-        inner_args.binary_dir,
-        inner_args.debug_nodes,
-        pdb=inner_args.pdb,
-    ) as inner_network:
-        inner_network.start_and_open(inner_args)
-        _test_snapshot_selection(inner_network, inner_args)
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args)
+
+        test_snapshot_selection(network, args)
+        test_forced_snapshot(network, args)
 
 
-def _test_snapshot_selection(network, args):
+def test_snapshot_selection(network, args):
     # Add nodes so we have at least 3
     while len(network.get_joined_nodes()) < 3:
         new_node = network.create_node()
@@ -1537,7 +1516,6 @@ def run_file_operations(args):
                 test_large_snapshot(network, args)
                 test_snapshot_access(network, args)
                 test_snapshot_repr_digest(network, args)
-                test_snapshot_selection(network, args)
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
                 test_corrupt_snapshot_handling(network, args)
@@ -2949,6 +2927,7 @@ def run_snp_tests(args):
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
+    run_manual_snapshot_tests(args)
     run_tls_san_checks(args)
     run_config_timeout_check(args)
     run_configuration_file_checks(args)
