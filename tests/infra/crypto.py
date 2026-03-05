@@ -343,6 +343,11 @@ def compute_public_key_der_hash_hex_from_pem(pem: str):
     return hashlib.sha256(pub_key).hexdigest()
 
 
+def compute_public_key_der_hash_hex(der: bytes) -> str:
+    """Compute SHA-256 hex digest of DER-encoded public key bytes (matches CCF's kid)."""
+    return hashlib.sha256(der).hexdigest()
+
+
 def compute_cert_der_hash_hex_from_pem(pem: str):
     cert = load_pem_x509_certificate(pem.encode(), default_backend())
     return cert.fingerprint(hashes.SHA256()).hex()
@@ -370,3 +375,25 @@ def get_validity_period_from_pem_cert(pem: str):
 
 def datetime_to_X509time(datetime: datetime):
     return UTCTime.fromDateTime(datetime)
+
+
+def pub_key_der_from_jwk(jwk: dict) -> bytes:
+    """Convert a JWK (EC public key) to DER-encoded SubjectPublicKeyInfo bytes."""
+    crv_map = {
+        "P-256": ec.SECP256R1(),
+        "P-384": ec.SECP384R1(),
+        "P-521": ec.SECP521R1(),
+    }
+
+    def _decode_b64url(s):
+        pad_len = (-len(s)) % 4
+        return base64.urlsafe_b64decode(s + ("=" * pad_len))
+
+    assert jwk.get("kty") == "EC", f"Expected EC key, got: {jwk.get('kty')}"
+    curve = crv_map[jwk["crv"]]
+    pub_key = ec.EllipticCurvePublicNumbers(
+        x=int.from_bytes(_decode_b64url(jwk["x"]), "big"),
+        y=int.from_bytes(_decode_b64url(jwk["y"]), "big"),
+        curve=curve,
+    ).public_key(default_backend())
+    return pub_key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
