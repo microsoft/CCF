@@ -30,9 +30,15 @@ namespace ccf
       case QuoteVerificationResult::FailedInvalidHostData:
         return std::make_pair(
           HTTP_STATUS_UNAUTHORIZED, "Quote host data is not authorised");
-      case ccf::QuoteVerificationResult::FailedUVMEndorsementsNotFound:
+      case QuoteVerificationResult::FailedUVMEndorsementsNotFound:
         return std::make_pair(
           HTTP_STATUS_UNAUTHORIZED, "UVM endorsements are not authorised");
+      case QuoteVerificationResult::FailedInvalidCPUID:
+        return std::make_pair(
+          HTTP_STATUS_UNAUTHORIZED, "Quote CPUID is unknown");
+      case QuoteVerificationResult::FailedInvalidTcbVersion:
+        return std::make_pair(
+          HTTP_STATUS_UNAUTHORIZED, "Quote TCB version is too low");
       default:
         return std::make_pair(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,

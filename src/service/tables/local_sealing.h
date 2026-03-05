@@ -6,6 +6,7 @@
 #include "ccf/entity_id.h"
 #include "ccf/service/local_sealing.h"
 #include "ccf/service/map.h"
+#include "ccf/service/tables/self_healing_open.h"
 #include "shares.h"
 
 #include <cstdint>
@@ -41,9 +42,13 @@ namespace ccf
   // sealing
   using SealedRecoveryKeys = ServiceMap<NodeId, ccf::SealedRecoveryKey>;
 
+  using LocalSealingNodeIdMap = ServiceMap<sealing_recovery::Name, NodeId>;
+
   namespace Tables
   {
     static constexpr auto SEALED_SHARES = "public:ccf.internal.sealed_shares";
+    static constexpr auto SEALING_RECOVERY_NAMES =
+      "public:ccf.internal.sealing_recovery_names";
     static constexpr auto SEALED_RECOVERY_KEYS =
       "public:ccf.gov.nodes.sealed_recovery_keys";
   }

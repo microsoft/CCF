@@ -343,39 +343,9 @@ def test_recover_service_with_wrong_identity(network, args):
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
     # Attempt a recovery with the wrong previous service certificate
+    # The mismatch results in all snapshots being ignored
 
     args.previous_service_identity_file = network.consortium.user_cert_path("user0")
-
-    broken_network = infra.network.Network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        existing_network=network,
-    )
-
-    exception = None
-    try:
-        broken_network.start_in_recovery(
-            args,
-            ledger_dir=current_ledger_dir,
-            committed_ledger_dirs=committed_ledger_dirs,
-            snapshots_dir=snapshots_dir,
-        )
-    except Exception as ex:
-        exception = ex
-
-    broken_network.ignoring_shutdown_errors = True
-    broken_network.stop_all_nodes(skip_verification=True)
-
-    if exception is None:
-        raise ValueError("Recovery should have failed")
-    if not broken_network.nodes[0].check_log_for_error_message(
-        "Previous service identity does not endorse the node identity that signed the snapshot"
-    ):
-        raise ValueError("Node log does not contain the expected error message")
-
-    # Attempt a second recovery with the broken cert but no snapshot
-    # Now the mismatch is only noticed when the transition proposal is submitted
 
     broken_network = infra.network.Network(
         args.nodes,
@@ -388,8 +358,10 @@ def test_recover_service_with_wrong_identity(network, args):
         args,
         ledger_dir=current_ledger_dir,
         committed_ledger_dirs=committed_ledger_dirs,
+        snapshots_dir=snapshots_dir,
     )
 
+    # The mismatch is only fatal when used in a transition proposal
     exception = None
     try:
         broken_network.recover(args)
@@ -401,6 +373,12 @@ def test_recover_service_with_wrong_identity(network, args):
 
     if exception is None:
         raise ValueError("Recovery should have failed")
+
+    if not broken_network.nodes[0].check_log_for_error_message(
+        "Previous service identity does not endorse the node identity that signed the snapshot"
+    ):
+        raise ValueError("Node log does not contain the expected error message")
+
     if not broken_network.nodes[0].check_log_for_error_message(
         "Unable to open service: Previous service identity does not match."
     ):
@@ -548,6 +526,50 @@ def test_recover_service_with_wrong_identity(network, args):
         for tx in txids[4:]:
             response = query_endorsements_chain(primary, tx)
             assert response.status_code == http.HTTPStatus.NOT_FOUND, response
+
+        # Collect expected keys: current service key + all previous from endorsement chain
+        expected_keys_der = set()
+        expected_keys_der.add(
+            bytes(
+                cert.public_key().public_bytes(
+                    serialization.Encoding.DER,
+                    serialization.PublicFormat.SubjectPublicKeyInfo,
+                )
+            )
+        )
+        chain_pubkey = cert.public_key().public_bytes(
+            serialization.Encoding.PEM,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        response = query_endorsements_chain(primary, txids[0])
+        chain_endorsements = [
+            base64.b64decode(x) for x in response.body.json()["endorsements"]
+        ]
+        for endorsement in chain_endorsements:
+            _, _, payload = verify_cose_sign1_with_key(chain_pubkey, endorsement)
+            expected_keys_der.add(bytes(payload))
+            chain_pubkey = infra.crypto.pub_key_der_to_pem(payload).encode("ascii")
+
+        # Verify trusted keys from the endpoint match endorsement keys
+        with primary.client() as cli:
+            r = cli.get("/log/public/trusted_keys")
+            assert r.status_code == http.HTTPStatus.OK, r
+            jwks = r.body.json()
+            assert "keys" in jwks, jwks
+
+            endpoint_keys_der = set()
+            for key in jwks["keys"]:
+                assert "kid" in key, key
+                der = bytes(infra.crypto.pub_key_der_from_jwk(key))
+                expected_kid = infra.crypto.compute_public_key_der_hash_hex(der)
+                assert (
+                    key["kid"] == expected_kid
+                ), f"kid mismatch: got {key['kid']}, expected {expected_kid}"
+                endpoint_keys_der.add(der)
+            assert endpoint_keys_der == expected_keys_der, (
+                f"Keys from trusted_keys endpoint do not match endorsement keys. "
+                f"Expected {len(expected_keys_der)}, got {len(endpoint_keys_der)}"
+            )
 
         return recovered_network
 

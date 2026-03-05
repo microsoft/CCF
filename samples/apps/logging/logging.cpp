@@ -21,6 +21,7 @@
 #include "ccf/json_handler.h"
 #include "ccf/network_identity_interface.h"
 #include "ccf/version.h"
+#include "crypto/public_key.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -843,25 +844,45 @@ namespace loggingapp
             // side-effect.
             if (match_headers.if_match.has_value())
             {
-              ccf::http::Matcher matcher(match_headers.if_match.value());
-              if (!matcher.matches(etag))
+              try
+              {
+                ccf::http::Matcher matcher(match_headers.if_match.value());
+                if (!matcher.matches(etag))
+                {
+                  return ccf::make_error(
+                    HTTP_STATUS_PRECONDITION_FAILED,
+                    ccf::errors::PreconditionFailed,
+                    "Resource has changed.");
+                }
+              }
+              catch (const ccf::http::MatcherError& e)
               {
                 return ccf::make_error(
-                  HTTP_STATUS_PRECONDITION_FAILED,
-                  ccf::errors::PreconditionFailed,
-                  "Resource has changed.");
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidHeaderValue,
+                  e.what());
               }
             }
 
             if (match_headers.if_none_match.has_value())
             {
-              ccf::http::Matcher matcher(match_headers.if_none_match.value());
-              if (matcher.matches(etag))
+              try
+              {
+                ccf::http::Matcher matcher(match_headers.if_none_match.value());
+                if (matcher.matches(etag))
+                {
+                  return ccf::make_error(
+                    HTTP_STATUS_PRECONDITION_FAILED,
+                    ccf::errors::PreconditionFailed,
+                    "Resource has changed.");
+                }
+              }
+              catch (const ccf::http::MatcherError& e)
               {
                 return ccf::make_error(
-                  HTTP_STATUS_PRECONDITION_FAILED,
-                  ccf::errors::PreconditionFailed,
-                  "Resource has changed.");
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidHeaderValue,
+                  e.what());
               }
             }
           }
@@ -935,23 +956,43 @@ namespace loggingapp
 
           if (match_headers.if_match.has_value())
           {
-            ccf::http::Matcher matcher(match_headers.if_match.value());
-            if (!matcher.matches(etag))
+            try
+            {
+              ccf::http::Matcher matcher(match_headers.if_match.value());
+              if (!matcher.matches(etag))
+              {
+                return ccf::make_error(
+                  HTTP_STATUS_PRECONDITION_FAILED,
+                  ccf::errors::PreconditionFailed,
+                  "Resource has changed.");
+              }
+            }
+            catch (const ccf::http::MatcherError& e)
             {
               return ccf::make_error(
-                HTTP_STATUS_PRECONDITION_FAILED,
-                ccf::errors::PreconditionFailed,
-                "Resource has changed.");
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidHeaderValue,
+                e.what());
             }
           }
 
           // On a GET, If-None-Match passing returns 304 Not Modified
           if (match_headers.if_none_match.has_value())
           {
-            ccf::http::Matcher matcher(match_headers.if_none_match.value());
-            if (matcher.matches(etag))
+            try
             {
-              return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
+              ccf::http::Matcher matcher(match_headers.if_none_match.value());
+              if (matcher.matches(etag))
+              {
+                return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
+              }
+            }
+            catch (const ccf::http::MatcherError& e)
+            {
+              return ccf::make_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidHeaderValue,
+                e.what());
             }
           }
 
@@ -1030,22 +1071,42 @@ namespace loggingapp
 
             if (match_headers.if_match.has_value())
             {
-              ccf::http::Matcher matcher(match_headers.if_match.value());
-              if (!matcher.matches(etag))
+              try
+              {
+                ccf::http::Matcher matcher(match_headers.if_match.value());
+                if (!matcher.matches(etag))
+                {
+                  return ccf::make_error(
+                    HTTP_STATUS_PRECONDITION_FAILED,
+                    ccf::errors::PreconditionFailed,
+                    "Resource has changed.");
+                }
+              }
+              catch (const ccf::http::MatcherError& e)
               {
                 return ccf::make_error(
-                  HTTP_STATUS_PRECONDITION_FAILED,
-                  ccf::errors::PreconditionFailed,
-                  "Resource has changed.");
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidHeaderValue,
+                  e.what());
               }
             }
 
             if (match_headers.if_none_match.has_value())
             {
-              ccf::http::Matcher matcher(match_headers.if_none_match.value());
-              if (matcher.matches(etag))
+              try
               {
-                return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
+                ccf::http::Matcher matcher(match_headers.if_none_match.value());
+                if (matcher.matches(etag))
+                {
+                  return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
+                }
+              }
+              catch (const ccf::http::MatcherError& e)
+              {
+                return ccf::make_error(
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidHeaderValue,
+                  e.what());
               }
             }
           }
@@ -2049,6 +2110,40 @@ namespace loggingapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
+      auto get_trusted_keys = [&](
+                                ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+        auto network_identity_subsystem =
+          context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
+        if (network_identity_subsystem == nullptr)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Network identity subsystem not available");
+          return;
+        }
+
+        auto keys = network_identity_subsystem->get_trusted_keys();
+        nlohmann::json jwks = nlohmann::json::object();
+        auto keys_array = nlohmann::json::array();
+        for (const auto& [seqno, key_ptr] : keys)
+        {
+          const auto kid = ccf::crypto::kid_from_key(key_ptr->public_key_der());
+          keys_array.push_back(key_ptr->public_key_jwk(kid));
+        }
+        jwks["keys"] = keys_array;
+
+        ctx.rpc_ctx->set_response_json(jwks, HTTP_STATUS_OK);
+      };
+      make_read_only_endpoint(
+        "/log/public/trusted_keys",
+        HTTP_GET,
+        get_trusted_keys,
+        ccf::no_auth_required)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
       auto get_cose_signature = [](
                                   ccf::endpoints::ReadOnlyEndpointContext& ctx,
                                   ccf::historical::StatePtr historical_state) {
@@ -2083,41 +2178,23 @@ namespace loggingapp
       auto get_cose_receipt = [](
                                 ccf::endpoints::ReadOnlyEndpointContext& ctx,
                                 ccf::historical::StatePtr historical_state) {
-        auto historical_tx = historical_state->store->create_read_only_tx();
-
         assert(historical_state->receipt);
-        auto signature = describe_cose_signature_v1(*historical_state->receipt);
-        if (!signature.has_value())
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "No COSE signature available for this transaction");
-          return;
-        }
-        auto proof = describe_merkle_proof_v1(*historical_state->receipt);
-        if (!proof.has_value())
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "No merkle proof available for this transaction");
-          return;
-        }
-
-        constexpr int64_t vdp = 396;
-        auto inclusion_proof = ccf::cose::edit::pos::AtKey{-1};
-
-        ccf::cose::edit::desc::Value desc{inclusion_proof, vdp, *proof};
-
         auto cose_receipt =
-          ccf::cose::edit::set_unprotected_header(*signature, desc);
+          describe_cose_receipt_v1(*historical_state->receipt);
+        if (!cose_receipt.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "No COSE receipt available for this transaction");
+          return;
+        }
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
           ccf::http::headers::CONTENT_TYPE,
           ccf::http::headervalues::contenttype::COSE);
-        ctx.rpc_ctx->set_response_body(cose_receipt);
+        ctx.rpc_ctx->set_response_body(*cose_receipt);
       };
       make_read_only_endpoint(
         "/log/public/cose_receipt",

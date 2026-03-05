@@ -50,26 +50,12 @@ Download Endpoints
 In order to faciliate long term backup of the ledger files (also called chunks), nodes can enable HTTP endpoints that allow a client to download committed ledger files.
 The `LedgerChunkDownload` feature must be added to `enabled_operator_features` on the relevant `rpc_interfaces` entries in the node configuration.
 
-1. :http:GET:`/node/ledger-chunk/{chunk_name}` and :http:HEAD:`/node/ledger-chunk/{chunk_name}`
-
-These endpoints allow downloading a specific ledger chunk by name, where `<chunk-name>` is of the form `ledger_<start_seqno>-<end_seqno>.committed`.
-They support the HTTP `Range` header for partial downloads, and the `HEAD` method for clients to query metadata such as the total size without downloading the full chunk.
-They also populate the `x-ms-ccf-ledger-chunk-name` response header with the name of the chunk being served.
-
-These endpoints also support the ``Want-Repr-Digest`` request header (`RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_).
-When set, the response will include a ``Repr-Digest`` header containing the digest of the full representation of the file.
-Supported algorithms are ``sha-256``, ``sha-384``, and ``sha-512``. If the header contains only unsupported or invalid algorithms, the server defaults to ``sha-256`` (as permitted by `RFC 9530 Appendix C.2 <https://www.rfc-editor.org/rfc/rfc9530#appendix-C.2>`_).
-For example, a client sending ``Want-Repr-Digest: sha-256=1`` will receive a header such as ``Repr-Digest: sha-256=:AEGPTgUMw5e96wxZuDtpfm23RBU3nFwtgY5fw4NYORo=:`` in the response.
-This allows clients to verify the integrity of downloaded files and avoid re-downloading files they already hold by comparing digests.
-
-.. note:: The ``Want-Repr-Digest`` / ``Repr-Digest`` support also applies to the snapshot download endpoints (``/node/snapshot/{snapshot_name}``).
-
-2. :http:GET:`/node/ledger-chunk` and :http:HEAD:`/node/ledger-chunk`, both taking a `seqno` query parameter.
+1. :http:GET:`/node/ledger-chunk` and :http:HEAD:`/node/ledger-chunk`, both taking a `seqno` query parameter.
 
 These endpoints can be used by a client to download the next ledger chunk including a given sequence number `<seqno>`.
-The redirects to the appropriate chunk if it exists, using the previous set of endpoints, or returns a `404 Not Found` response if no such chunk is available.
+They redirect to the appropriate chunk if it exists, using the endpoints described below, or return a `404 Not Found` response if no such chunk is available.
 
-In the usual case, a downloading client will first hit a Backup, and will eventually want to download files recent enough that only the primary can provide them:
+In the typical case, a requesting client will first hit a Backup, and will eventually work its way to chunks recent enough that only the primary can provide them:
 
 .. mermaid::
 
@@ -120,6 +106,56 @@ then the following sequence can occur:
         Backup->>-Client: 308 Location: https://primary/node/ledger-chunk?since=51
         Client->>+Primary: GET /node/ledger-chunk?since=101
 
+2. :http:GET:`/node/ledger-chunk/{chunk_name}` and :http:HEAD:`/node/ledger-chunk/{chunk_name}`
+
+These endpoints allow downloading a specific ledger chunk by name, where `<chunk-name>` is of the form `ledger_<start_seqno>-<end_seqno>.committed`.
+They support the HTTP `Range` header for partial downloads, and the `HEAD` method for clients to query metadata such as the total size without downloading the full chunk.
+They also populate the `x-ms-ccf-ledger-chunk-name` response header with the name of the chunk being served.
+
+Want-Repr-Digest and Repr-Digest
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+These endpoints also support the ``Want-Repr-Digest`` request header (`RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_).
+When set, the response will include a ``Repr-Digest`` header containing the digest of the full representation of the file.
+Supported algorithms are ``sha-256``, ``sha-384``, and ``sha-512``. If the header contains only unsupported or invalid algorithms, the server defaults to ``sha-256`` (as permitted by `RFC 9530 Appendix C.2 <https://www.rfc-editor.org/rfc/rfc9530#appendix-C.2>`_).
+For example, a client sending ``Want-Repr-Digest: sha-256=1`` will receive a header such as ``Repr-Digest: sha-256=:AEGPTgUMw5e96wxZuDtpfm23RBU3nFwtgY5fw4NYORo=:`` in the response.
+This allows clients to verify the integrity of downloaded files and avoid re-downloading files they already hold by comparing digests.
+
+.. note:: The ``Want-Repr-Digest`` / ``Repr-Digest`` support also applies to the snapshot download endpoints (:http:GET:`/node/snapshot/{snapshot_name}` and :http:HEAD:`/node/snapshot/{snapshot_name}`).
+
+ETag and If-None-Match
+^^^^^^^^^^^^^^^^^^^^^^
+
+``GET /node/ledger-chunk/{chunk_name}`` supports ``ETag`` and ``If-None-Match`` headers, allowing clients to atomically check whether a chunk (or a range of a chunk) has changed and re-download it in a single request, without needing a separate metadata query first.
+Every successful ``GET`` response includes an ``ETag`` header whose value uses the `RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_ digest format: ``"sha-256=:<base64_digest>:"``, where ``<base64_digest>`` is the base64-encoded SHA-256 digest of the returned content (which may be a sub-range when the ``Range`` header is used).
+
+.. note:: ETag values must be surrounded by double quotes, as per `RFC 7232 <https://www.rfc-editor.org/rfc/rfc7232#section-2.3>`_.
+
+Clients can send an ``If-None-Match`` request header containing one or more ETags. If the content matches any of the provided ETags, the server responds with ``304 Not Modified`` instead of re-sending the body. The supported digest algorithms are ``sha-256``, ``sha-384``, and ``sha-512``.
+When the client already holds a chunk and wants to check if it has changed, it sends the previously received ETag in ``If-None-Match``. If the content has not changed, the server responds with ``304 Not Modified``, saving bandwidth:
+
+.. note:: The node currently defaults to ``sha-256`` for ETags, but clients can also send other supported digest algorithms in the ``If-None-Match`` header, and the server will use the first supported one it finds. For example, if the client sends ``If-None-Match: "sha-384=:AAAA...=:", "sha-256=:47DEQpj8HBSa+/TImW...=:"``, the server will use the ``sha-384`` digest if it supports it, and fall back to ``sha-256`` otherwise.
+
+.. mermaid::
+
+    sequenceDiagram
+        Note over Client: Client already has chunk with known ETag
+        Client->>+Node: GET /node/ledger-chunk/ledger_1-100.committed<br/>If-None-Match: "sha-256=:47DEQpj8HBSa+/TImW...=:"
+        Note over Node: Computes digest, matches If-None-Match
+        Node->>-Client: 304 Not Modified<br/>ETag: "sha-256=:47DEQpj8HBSa+/TImW...=:"
+        Note over Client: No body transferred, client keeps existing copy
+
+If the ``If-None-Match`` ETag does not match the current content (e.g. the client has an outdated copy, or is checking a different chunk), the server returns the full content as a fresh download:
+
+.. mermaid::
+
+    sequenceDiagram
+        Note over Client: Client sends an ETag that does not match
+        Client->>+Node: GET /node/ledger-chunk/ledger_1-100.committed<br/>If-None-Match: "sha-256=:AAAA...=:"
+        Note over Node: Computes digest, does not match If-None-Match
+        Node->>-Client: 200 OK<br/>ETag: "sha-256=:47DEQpj8HBSa+/TImW...=:"<br/><Chunk Contents>
+        Note over Client: Client stores chunk and new ETag for future requests
+
 Snapshots
 ---------
 
@@ -143,11 +179,103 @@ Uncommitted snapshot files, i.e. those whose evidence has not yet been committed
 Join or Recover From Snapshot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Joining nodes will request a snapshot from the target service to accelerate their join. This behaviour is controlled by the ``command.join.fetch_recent_snapshot`` configuration option, and enabled by default. This removes the need for a shared read-only snapshot mount, and corresponding operator actions to keep it up-to-date. Instead the joiner will send a sequence of HTTP requests, potentially following redirect responses to find the current primary and request a specific snapshot, to download a recent snapshot which should allow them to join rapidly. Any suffix after a snapshot (including the entire ledger, in the rare cases where no snapshot can be found) will be replicated to that node via the consensus protocol.
+Joining nodes will request a snapshot from the target service to accelerate their join. This behaviour is controlled by the ``command.join.fetch_recent_snapshot`` configuration option, and enabled by default. This removes the need for a shared read-only snapshot mount, and corresponding operator actions to keep it up-to-date. Instead, if the joiner is told by the network that the snapshot they have locally is too old, the joiner will send a sequence of HTTP requests, potentially following redirect responses to find the current primary and request a specific snapshot, to download a recent snapshot which should allow them to join rapidly. Any suffix after a snapshot (including the entire ledger, in the rare cases where no snapshot can be found) will be replicated to that node via the consensus protocol.
 
 The legacy behaviour without ``fetch_recent_snapshot`` relies on a shared read-only directory. On start-up, the new node will search both ``snapshot.directory`` and ``read_only_directory`` to find the latest committed snapshot file. Operators are responsible for populating these with recent snapshots emitted by the service, and making this available (such as via a shared read-only mounted) on joining nodes.
 
-It is important to note that new nodes cannot join a service if the snapshot they start from is older than the snapshot the primary node started from. For example, if a new node resumes from a snapshot generated at ``seqno 50`` and joins from a (primary) node that originally resumed from a snapshot at ``seqno 100``, the new node will throw a ``StartupSeqnoIsOld`` error shortly after starting up. It is expected that operators copy the *latest* committed snapshot file to new nodes before start up.
+In particular, there is hard lower-bound on the age of the snapshot that a joining node can start from. It must be at least as recent as the snapshot that the primary node started from, otherwise the primary will return a ``StartupSeqnoIsOld`` error to the joining node.
+
+The following flowchart summarises the join procedure when ``command.join.fetch_recent_snapshot`` is enabled:
+
+.. mermaid::
+
+  flowchart TD
+        startup["Startup"]
+    
+        select.init_assign("startup_seqno = 0")
+        select.next_local["Choose highest local snapshot file A-B.committed"]
+        select.verify{"Validate snapshot"}
+        select.valid("startup_seqno = A")
+        select.delete("Delete invalid snapshot")
+    
+        test_mode{"mode?"}
+    
+        join.complete("Joined")
+        join.failure["Join failure"]
+        join.redirect("target_rpc_address = response.headers['Location']")
+        join.response{"Response type?"}
+        join.send("Send join request to target_rpc_address, including startup_seqno")
+        join.timeout("Timeout")
+        
+        fetch.apply("startup_seqno = A")
+        fetch.begin("peer_address = target_rpc_address")
+        fetch.redirect("peer_address = response.headers['Location']")
+        fetch.response{"Response type?"}
+        fetch.send("{peer_address} GET /snapshot?since={startup_seqno}")
+        fetch.fetch("{peer_address} GET /snapshot/{snapshot_name}")
+    
+        recovery.process("Complete recovery")
+        recovery.public("Deserialise snapshot public state")
+    
+        postjoin.service_open{"Service open?"}
+        postjoin.public("Deserialise snapshot public state")
+    
+        wait_for_open("Wait for service to open")
+        secrets_available("Deserialise snapshot private state")
+        done["Done"]
+    
+        startup --> select.init_assign
+        subgraph Select local snapshot
+            select.init_assign --> select.next_local
+            select.next_local --> select.verify
+            select.verify -->|Valid| select.valid
+            select.verify -->|Invalid| select.delete
+            select.delete --> select.next_local
+        end
+        select.valid --> test_mode
+        select.next_local -->|No more snapshots| test_mode
+    
+        test_mode -->|mode == Join| join.send
+        subgraph Join
+            join.timeout -.-> join.send
+            join.send -->|Response received| join.response
+            join.response -->|200 OK| join.complete
+            join.response -->|30x Redirect| join.redirect
+            join.redirect --> join.send
+    
+            join.response -->|StartupSeqnoIsOld| fetch.begin
+            subgraph FetchSnapshot
+                fetch.begin --> fetch.send
+                fetch.send -->|Response received| fetch.response
+                fetch.response -->|2xx Success| fetch.fetch
+                fetch.fetch --> fetch.apply
+                fetch.response -->|30x Redirect| fetch.redirect
+                fetch.redirect --> fetch.send
+            end
+            fetch.apply --> join.timeout
+            fetch.send -.-> join.timeout
+            fetch.response -->|Other error| join.timeout
+    
+            join.response -.->|Timeout| join.timeout
+        end
+        join.response -->|Other error| join.failure
+    
+        join.complete --> postjoin.service_open
+    
+        subgraph PostJoin
+            postjoin.service_open -->|No| postjoin.public
+        end
+        postjoin.service_open -->|Yes| secrets_available
+        postjoin.public --> wait_for_open
+    
+        test_mode -->|mode == Recovery| recovery.public
+        subgraph Recovery
+            recovery.public -.-> recovery.process
+        end
+        recovery.process -.-> wait_for_open
+    
+        wait_for_open --> secrets_available
+        secrets_available --> done
 
 Historical Transactions
 ~~~~~~~~~~~~~~~~~~~~~~~

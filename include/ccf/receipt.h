@@ -156,9 +156,12 @@ namespace ccf
   using SerialisedCoseEndorsement = std::vector<uint8_t>;
   using SerialisedCoseSignature = std::vector<uint8_t>;
   using SerialisedCoseEndorsements = std::vector<SerialisedCoseEndorsement>;
+  using SerialisedCoseReceipt = std::vector<uint8_t>;
   std::optional<SerialisedCoseEndorsements> describe_cose_endorsements_v1(
     const TxReceiptImpl& receipt);
   std::optional<SerialisedCoseSignature> describe_cose_signature_v1(
+    const TxReceiptImpl& receipt);
+  std::optional<SerialisedCoseReceipt> describe_cose_receipt_v1(
     const TxReceiptImpl& receipt);
 
   // Manual JSON serializers are specified for these types as they are not
