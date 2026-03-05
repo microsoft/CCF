@@ -1729,6 +1729,9 @@ def run_read_ledger_on_testdata(args):
             args.historical_testdata, testdata_dir.name, "snapshots"
         )
         for snapshot_file in os.scandir(snapshot_path):
+            if "cose_receipt" in snapshot_path:
+                # COSE receipts in snapshots are not backported to 6.x infra.
+                continue
             if snapshot_file.is_file() and snapshot_file.name.endswith(".committed"):
                 snapshot_path = os.path.join(snapshot_path, snapshot_file.name)
                 LOG.info(f"Reading and validating snapshot {snapshot_path}")
