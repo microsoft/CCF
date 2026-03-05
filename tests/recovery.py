@@ -575,7 +575,7 @@ def test_recover_service_with_wrong_identity(network, args):
 
 
 @reqs.description("Recover a service from local files")
-def test_recover_service_from_files(
+def run_recover_service_from_files(
     args,
     directory,
     expected_recovery_count,
@@ -1185,7 +1185,7 @@ def run(args):
 
 
 def run_recovery_from_files(args):
-    test_recover_service_from_files(
+    run_recover_service_from_files(
         args,
         directory=args.directory,
         expected_recovery_count=args.expected_recovery_count,
