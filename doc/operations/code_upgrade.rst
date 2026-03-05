@@ -188,7 +188,7 @@ Notes
 Code Update Policy
 ------------------
 
-Instead of explicitly trusting host data values, members can set a **code update policy** — a JavaScript function that evaluates transparent statements presented by joining nodes. A transparent statement is a COSE_Sign1 envelope carrying a signed statement about the node's code, countersigned with a CCF receipt that proves the statement was registered on the ledger.
+Instead of explicitly trusting host data values, members can set a **code update policy** — a JavaScript function that evaluates transparent statements presented by joining nodes. A transparent statement is a COSE_Sign1 envelope carrying a signed statement about the node's code, countersigned with a CCF receipt that proves the statement was registered on a ledger.
 
 .. note::
 
