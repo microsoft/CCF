@@ -72,7 +72,7 @@ namespace ccf
     /// earliest known trusted key.
     ///
     /// @throws IdentityHistoryNotFetched if identity history fetching has not
-    /// completed (i.e. endorsements_fetching_status() != FetchStatus::Done).
+    /// completed.
     /// @throws std::logic_error if no trusted keys have been fetched, or if
     /// internal key resolution is inconsistent.
     [[nodiscard]] virtual ccf::crypto::ECPublicKeyPtr get_trusted_identity_for(
@@ -82,7 +82,7 @@ namespace ccf
     /// number to EC public key.
     ///
     /// @throws IdentityHistoryNotFetched if identity history fetching has not
-    /// completed (i.e. endorsements_fetching_status() != FetchStatus::Done).
+    /// completed.
     [[nodiscard]] virtual TrustedKeys get_trusted_keys() const = 0;
   };
 }
