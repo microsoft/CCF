@@ -5,6 +5,7 @@
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/node_subsystem_interface.h"
 
+#include <exception>
 #include <map>
 #include <optional>
 #include <string>
@@ -33,9 +34,16 @@ namespace ccf
 
   /// Exception thrown when identity data is requested before the
   /// asynchronous identity-history-fetching process has completed.
-  struct IdentityHistoryNotFetched : public std::logic_error
+  struct IdentityHistoryNotFetched : public std::exception
   {
-    IdentityHistoryNotFetched(const std::string& msg) : std::logic_error(msg) {}
+    std::string msg;
+
+    IdentityHistoryNotFetched(const std::string& msg) : msg(msg) {}
+
+    const char* what() const noexcept override
+    {
+      return msg.c_str();
+    }
   };
 
   /// Interface for accessing the network identity subsystem, which manages
