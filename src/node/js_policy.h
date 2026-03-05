@@ -90,14 +90,10 @@ namespace ccf::policy
     }
 
     auto cwt = ctx.new_obj();
-    if (!receipt.phdr.cwt.iss.empty())
-    {
-      JS_CHECK_OR_THROW(cwt.set("iss", ctx.new_string(receipt.phdr.cwt.iss)));
-    }
-    if (!receipt.phdr.cwt.sub.empty())
-    {
-      JS_CHECK_OR_THROW(cwt.set("sub", ctx.new_string(receipt.phdr.cwt.sub)));
-    }
+
+    JS_CHECK_OR_THROW(cwt.set("iss", ctx.new_string(receipt.phdr.cwt.iss)));
+    JS_CHECK_OR_THROW(cwt.set("sub", ctx.new_string(receipt.phdr.cwt.sub)));
+
     if (receipt.phdr.cwt.iat.has_value())
     {
       JS_CHECK_OR_THROW(cwt.set_int64("iat", receipt.phdr.cwt.iat.value()));
