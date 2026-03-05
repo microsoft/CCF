@@ -269,7 +269,7 @@ namespace ccf
     if (!proof.has_value())
     {
       // Signature TX: return COSE signature as-is, with empty UHDR
-      return *signature;
+      return signature;
     }
 
     auto inclusion_proof =
