@@ -76,13 +76,11 @@ namespace ccf::tasks
   {
     LOG_FATAL_FMT("{}", msg);
 
-    // Prefer the throw-point backtrace captured by our __cxa_throw
-    // interposition. Fall back to a backtrace from the current location.
     auto& throw_trace = current_throw_trace;
     if (throw_trace.num_frames > 0)
     {
       LOG_FATAL_FMT(
-        "Stack trace (from throw-point):\n{}",
+        "Stack trace:\n{}",
         format_stacktrace(throw_trace.frames, throw_trace.num_frames));
 
       // Reset so that a subsequent dump does not re-use a stale trace
@@ -92,12 +90,7 @@ namespace ccf::tasks
     }
     else
     {
-      static constexpr int max_frames = 128;
-      void* buffer[max_frames];
-      auto nptrs = backtrace(buffer, max_frames);
-      LOG_FATAL_FMT(
-        "Stack trace (from catch-point):\n{}",
-        format_stacktrace(buffer, nptrs));
+      LOG_FATAL_FMT("No throw-point stack trace available");
     }
   }
 }

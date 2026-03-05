@@ -39,9 +39,7 @@ namespace ccf::tasks
           catch (const std::exception& e)
           {
             dump_stacktrace(fmt::format(
-              "{} task failed with exception: {}",
-              task->get_name(),
-              e.what()));
+              "{} task failed with exception: {}", task->get_name(), e.what()));
             if (abort_on_throw)
             {
               std::abort();
