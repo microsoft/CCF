@@ -3,10 +3,12 @@
 
 #include "ccf/historical_queries_adapter.h"
 
+#include "ccf/crypto/cose.h"
 #include "ccf/historical_queries_utils.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
 #include "crypto/cbor.h"
+#include "crypto/cose.h"
 #include "kv/kv_types.h"
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/tx_receipt_impl.h"
@@ -252,6 +254,30 @@ namespace ccf
     const TxReceiptImpl& receipt)
   {
     return receipt.cose_signature;
+  }
+
+  std::optional<SerialisedCoseReceipt> describe_cose_receipt_v1(
+    const TxReceiptImpl& receipt)
+  {
+    auto signature = describe_cose_signature_v1(receipt);
+    if (!signature.has_value())
+    {
+      return std::nullopt;
+    }
+
+    auto proof = describe_merkle_proof_v1(receipt);
+    if (!proof.has_value())
+    {
+      // Signature TX: return COSE signature as-is, with empty UHDR
+      return signature;
+    }
+
+    auto inclusion_proof =
+      ccf::cose::edit::pos::AtKey{ccf::cose::header::iana::INCLUSION_PROOFS};
+    ccf::cose::edit::desc::Value desc{
+      inclusion_proof, ccf::cose::header::iana::VDP, *proof};
+
+    return ccf::cose::edit::set_unprotected_header(*signature, desc);
   }
 }
 

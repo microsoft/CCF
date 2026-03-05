@@ -2218,9 +2218,16 @@ namespace loggingapp
                                 ccf::endpoints::ReadOnlyEndpointContext& ctx,
                                 ccf::historical::StatePtr historical_state) {
         assert(historical_state->receipt);
-        auto cose_receipt = build_cose_receipt(ctx, historical_state->receipt);
+
+        auto cose_receipt =
+          describe_cose_receipt_v1(*historical_state->receipt);
         if (!cose_receipt.has_value())
         {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "No COSE receipt available for this transaction");
+
           return;
         }
 
