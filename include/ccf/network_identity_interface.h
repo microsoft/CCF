@@ -38,7 +38,7 @@ namespace ccf
   {
     std::string msg;
 
-    IdentityHistoryNotFetched(const std::string& msg) : msg(msg) {}
+    IdentityHistoryNotFetched(std::string msg) : msg(std::move(msg)) {}
 
     [[nodiscard]] const char* what() const noexcept override
     {
