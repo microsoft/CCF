@@ -314,8 +314,7 @@ namespace ccf
           }
 
           LOG_INFO_FMT(
-            "BackupSnapshotFetch: Writing snapshot to {}",
-            dst_path.string());
+            "BackupSnapshotFetch: Writing snapshot to {}", dst_path.string());
           files::dump(latest_peer_snapshot->snapshot_data, dst_path);
         }
         else
@@ -3055,8 +3054,7 @@ namespace ccf
                   "Snapshot evidence detected on backup - scheduling "
                   "snapshot fetch from primary");
                 backup_snapshot_fetch_task =
-                  std::make_shared<BackupSnapshotFetch>(
-                    config.snapshots, this);
+                  std::make_shared<BackupSnapshotFetch>(config.snapshots, this);
                 ccf::tasks::add_task(backup_snapshot_fetch_task);
               }
             }
