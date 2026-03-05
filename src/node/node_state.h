@@ -270,13 +270,17 @@ namespace ccf
             owner->network.identity->cert.raw().end()};
         }
 
+        LOG_INFO_FMT(
+          "BackupSnapshotFetch: Attempting to fetch snapshot from primary at {}",
+          primary_address);
+
         const auto& bf = snapshot_config.backup_fetch;
         auto latest_peer_snapshot = snapshots::fetch_from_peer(
           primary_address,
           service_cert,
           bf.max_attempts,
           bf.retry_interval.count_ms(),
-          std::numeric_limits<size_t>::max());
+          bf.max_size.count_bytes());
 
         if (latest_peer_snapshot.has_value())
         {
