@@ -16,7 +16,7 @@
 
 - Coding style is enforced by the `ci-checks.sh` script, which runs clang-format for C++ and black for Python.
 - Linters and static analysis tools are also run as part of CI, clang-tidy for C++ and ruff for Python.
-- Run `ci-checks.sh -f` to automatically apply formatting fixes.
+- Run `ci-checks.sh -f` to automatically apply fixes (formatting and supported lint fixes).
 - `ci-checks.sh` must run successfully before any commit is pushed.
 - Match the existing coding style for naming and casing conventions. This is not automatically enforced, so pay attention to surrounding code for guidance.
 - All tests in `ci.yml` must pass before a PR can be merged. Consider which are likely to be affected by your changes and run those locally before pushing.
