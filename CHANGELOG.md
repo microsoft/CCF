@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Added `ccf::EndorsementsNotFetchedError` exception type (inheriting from `std::logic_error`) in `NetworkIdentitySubsystemInterface` for cases where endorsements have not been fetched yet. The `get_cose_endorsements_chain()`, `get_trusted_identity_for()`, and `get_trusted_keys()` methods now throw this specific exception instead of a generic `std::logic_error` when endorsement fetching has not completed.
 - Added `ccf::describe_cose_receipt_v1(receipt)` to obtain COSE receipts with Merkle proof in unprotected header for non-signature TXs, and empty unprotected header for signature TXs (#7700).
 - `NetworkIdentitySubsystemInterface` now exposes `get_trusted_keys()`, returning all trusted network identity keys as a `TrustedKeys` map (#7690).
 

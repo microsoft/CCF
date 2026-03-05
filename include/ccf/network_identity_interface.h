@@ -31,6 +31,15 @@ namespace ccf
   /// network identity keys over the history of the service.
   using TrustedKeys = std::map<ccf::SeqNo, ccf::crypto::ECPublicKeyPtr>;
 
+  /// Exception thrown when endorsement data is requested before the
+  /// asynchronous endorsement-fetching process has completed.
+  struct EndorsementsNotFetchedError : public std::logic_error
+  {
+    EndorsementsNotFetchedError(const std::string& msg) :
+      std::logic_error(msg)
+    {}
+  };
+
   /// Interface for accessing the network identity subsystem, which manages
   /// the service's cryptographic identity and its historical trusted keys.
   class NetworkIdentitySubsystemInterface : public ccf::AbstractNodeSubSystem
@@ -53,7 +62,8 @@ namespace ccf
     /// or std::nullopt if the chain is not available for the given sequence
     /// number.
     ///
-    /// @throws std::logic_error if endorsement fetching has not completed.
+    /// @throws EndorsementsNotFetchedError if endorsement fetching has not
+    /// completed.
     [[nodiscard]] virtual std::optional<CoseEndorsementsChain>
     get_cose_endorsements_chain(ccf::SeqNo seqno) const = 0;
 
@@ -61,17 +71,18 @@ namespace ccf
     /// sequence number, or nullptr if the sequence number precedes the
     /// earliest known trusted key.
     ///
-    /// @throws std::logic_error if endorsement fetching has not completed
-    /// (i.e. endorsements_fetching_status() != FetchStatus::Done), or if
-    /// no trusted keys have been fetched.
+    /// @throws EndorsementsNotFetchedError if endorsement fetching has not
+    /// completed (i.e. endorsements_fetching_status() != FetchStatus::Done).
+    /// @throws std::logic_error if no trusted keys have been fetched, or if
+    /// internal key resolution is inconsistent.
     [[nodiscard]] virtual ccf::crypto::ECPublicKeyPtr get_trusted_identity_for(
       ccf::SeqNo seqno) const = 0;
 
     /// Returns all trusted network identity keys as a map from sequence
     /// number to EC public key.
     ///
-    /// @throws std::logic_error if endorsement fetching has not completed
-    /// (i.e. endorsements_fetching_status() != FetchStatus::Done).
+    /// @throws EndorsementsNotFetchedError if endorsement fetching has not
+    /// completed (i.e. endorsements_fetching_status() != FetchStatus::Done).
     [[nodiscard]] virtual TrustedKeys get_trusted_keys() const = 0;
   };
 }
