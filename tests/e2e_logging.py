@@ -912,7 +912,7 @@ def test_cbor_receipts(network, args):
                 if r.status_code == http.HTTPStatus.OK:
                     cose_receipt = r.body.data()
                     uhdr = cbor2.loads(cose_receipt).value[1]
-                    VDP_KEY = 396  # ccf::cose::header::iana::VDP
+                    VDP_KEY = 396
                     if VDP_KEY not in uhdr:
                         # Signature TX: valid receipt with empty UHDR, skip to next seqno
                         LOG.debug(
