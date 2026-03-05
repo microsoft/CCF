@@ -3,11 +3,11 @@
 
 #include "tasks/worker.h"
 
-#include <cstdio>
 #include <cstdlib>
 #include <cxxabi.h>
 #include <dlfcn.h>
 #include <execinfo.h>
+#include <sstream>
 
 namespace ccf::tasks
 {
@@ -21,11 +21,6 @@ namespace ccf::tasks
   };
 
   static thread_local ThrowTrace current_throw_trace = {};
-
-  static const ThrowTrace& get_throw_trace()
-  {
-    return current_throw_trace;
-  }
 
   static std::string demangle_symbol(const char* raw)
   {
@@ -60,37 +55,49 @@ namespace ccf::tasks
     return entry;
   }
 
-  static void print_stacktrace(void** frames, int num_frames)
+  // Format a demangled stack trace as a string. Note: backtrace_symbols only
+  // resolves symbols exported to the dynamic symbol table (e.g. via
+  // -rdynamic). Static/internal functions will appear as raw addresses. For
+  // broader coverage, consider integrating libbacktrace (reads DWARF directly)
+  // or invoking addr2line at runtime.
+  static std::string format_stacktrace(void** frames, int num_frames)
   {
+    std::ostringstream oss;
     char** symbols = backtrace_symbols(frames, num_frames);
     for (int i = 0; i < num_frames; ++i)
     {
-      fprintf(stderr, "  #%d: %s\n", i, demangle_symbol(symbols[i]).c_str());
+      oss << "  #" << i << ": " << demangle_symbol(symbols[i]) << "\n";
     }
     free(symbols);
+    return oss.str();
   }
 
   void dump_stacktrace(const std::string& msg)
   {
     LOG_FATAL_FMT("{}", msg);
-    fprintf(stderr, "Fatal: %s\n", msg.c_str());
 
     // Prefer the throw-point backtrace captured by our __cxa_throw
     // interposition. Fall back to a backtrace from the current location.
-    const auto& throw_trace = get_throw_trace();
+    auto& throw_trace = current_throw_trace;
     if (throw_trace.num_frames > 0)
     {
-      fprintf(stderr, "Stack trace (from throw-point):\n");
-      print_stacktrace(
-        const_cast<void**>(throw_trace.frames), throw_trace.num_frames);
+      LOG_FATAL_FMT(
+        "Stack trace (from throw-point):\n{}",
+        format_stacktrace(throw_trace.frames, throw_trace.num_frames));
+
+      // Reset so that a subsequent dump does not re-use a stale trace
+      // (e.g. if an earlier throw was caught internally and a later
+      // throw; / re-throw escapes without calling __cxa_throw).
+      throw_trace.num_frames = 0;
     }
     else
     {
-      fprintf(stderr, "Stack trace (from catch-point):\n");
       static constexpr int max_frames = 128;
       void* buffer[max_frames];
       auto nptrs = backtrace(buffer, max_frames);
-      print_stacktrace(buffer, nptrs);
+      LOG_FATAL_FMT(
+        "Stack trace (from catch-point):\n{}",
+        format_stacktrace(buffer, nptrs));
     }
   }
 }

@@ -389,6 +389,22 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
   REQUIRE(
     logger_ptr->contains("ThrowsUnknown task failed with unknown exception"));
 
+  // Verify that stack traces contain demangled function names from the
+  // known call chains. These functions have external linkage and are
+  // exported to the dynamic symbol table via -rdynamic in Debug builds.
+  // Note: very small leaf functions (e.g. level_3_throws_int, which is
+  // just `throw 42;`) may be inlined by the compiler, so we only assert
+  // on the caller frames that reliably appear.
+
+  // ThrowsException call chain
+  REQUIRE(logger_ptr->contains("level_3_throws_runtime_error"));
+  REQUIRE(logger_ptr->contains("level_2_calls_level_3()"));
+  REQUIRE(logger_ptr->contains("level_1_calls_level_2()"));
+
+  // ThrowsUnknown call chain
+  REQUIRE(logger_ptr->contains("level_2_calls_level_3_int"));
+  REQUIRE(logger_ptr->contains("level_1_calls_level_2_int"));
+
   // Clean up: remove the capturing logger
   auto& loggers = ccf::logger::config::loggers();
   loggers.erase(
