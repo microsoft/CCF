@@ -32,10 +32,10 @@ namespace ccf
   using TrustedKeys = std::map<ccf::SeqNo, ccf::crypto::ECPublicKeyPtr>;
 
   /// Exception thrown when identity data is requested before the
-  /// asynchronous endorsement-fetching process has completed.
-  struct EndorsementsNotFetchedError : public std::logic_error
+  /// asynchronous identity-history-fetching process has completed.
+  struct IdentityHistoryNotFetched : public std::logic_error
   {
-    EndorsementsNotFetchedError(const std::string& msg) :
+    IdentityHistoryNotFetched(const std::string& msg) :
       std::logic_error(msg)
     {}
   };
@@ -62,7 +62,7 @@ namespace ccf
     /// or std::nullopt if the chain is not available for the given sequence
     /// number.
     ///
-    /// @throws EndorsementsNotFetchedError if endorsement fetching has not
+    /// @throws IdentityHistoryNotFetched if identity history fetching has not
     /// completed.
     [[nodiscard]] virtual std::optional<CoseEndorsementsChain>
     get_cose_endorsements_chain(ccf::SeqNo seqno) const = 0;
@@ -71,7 +71,7 @@ namespace ccf
     /// sequence number, or nullptr if the sequence number precedes the
     /// earliest known trusted key.
     ///
-    /// @throws EndorsementsNotFetchedError if endorsement fetching has not
+    /// @throws IdentityHistoryNotFetched if identity history fetching has not
     /// completed (i.e. endorsements_fetching_status() != FetchStatus::Done).
     /// @throws std::logic_error if no trusted keys have been fetched, or if
     /// internal key resolution is inconsistent.
@@ -81,7 +81,7 @@ namespace ccf
     /// Returns all trusted network identity keys as a map from sequence
     /// number to EC public key.
     ///
-    /// @throws EndorsementsNotFetchedError if endorsement fetching has not
+    /// @throws IdentityHistoryNotFetched if identity history fetching has not
     /// completed (i.e. endorsements_fetching_status() != FetchStatus::Done).
     [[nodiscard]] virtual TrustedKeys get_trusted_keys() const = 0;
   };
