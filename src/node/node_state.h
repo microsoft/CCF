@@ -239,7 +239,7 @@ namespace ccf
           }
 
           auto tx = owner->network.tables->create_read_only_tx();
-          auto * nodes = tx.ro<ccf::Nodes>(Tables::NODES);
+          auto* nodes = tx.ro<ccf::Nodes>(Tables::NODES);
           auto node_info = nodes->get(primary_id.value());
           if (!node_info.has_value())
           {
