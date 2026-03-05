@@ -1009,7 +1009,7 @@ def test_npm_app(network, args):
                     "evidence": primary_quote_info["raw"],
                     "endorsements": primary_quote_info["endorsements"],
                     "uvm_endorsements": primary_quote_info["uvm_endorsements"],
-                    "endorsed_tcb": "0" * 16,
+                    "endorsed_tcb": "0" * len(endorsed_tcb),
                 },
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
