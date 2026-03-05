@@ -35,9 +35,7 @@ namespace ccf
   /// asynchronous identity-history-fetching process has completed.
   struct IdentityHistoryNotFetched : public std::logic_error
   {
-    IdentityHistoryNotFetched(const std::string& msg) :
-      std::logic_error(msg)
-    {}
+    IdentityHistoryNotFetched(const std::string& msg) : std::logic_error(msg) {}
   };
 
   /// Interface for accessing the network identity subsystem, which manages
