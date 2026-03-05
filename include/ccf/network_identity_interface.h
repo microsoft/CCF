@@ -31,7 +31,7 @@ namespace ccf
   /// network identity keys over the history of the service.
   using TrustedKeys = std::map<ccf::SeqNo, ccf::crypto::ECPublicKeyPtr>;
 
-  /// Exception thrown when endorsement data is requested before the
+  /// Exception thrown when identity data is requested before the
   /// asynchronous endorsement-fetching process has completed.
   struct EndorsementsNotFetchedError : public std::logic_error
   {
