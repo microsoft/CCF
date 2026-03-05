@@ -161,7 +161,7 @@ namespace ccf
     const TxReceiptImpl& receipt);
   std::optional<SerialisedCoseSignature> describe_cose_signature_v1(
     const TxReceiptImpl& receipt);
-  std::optional<SerialisedCoseReceipt> describe_cose_receipt(
+  std::optional<SerialisedCoseReceipt> describe_cose_receipt_v1(
     const TxReceiptImpl& receipt);
 
   // Manual JSON serializers are specified for these types as they are not

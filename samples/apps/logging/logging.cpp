@@ -2180,7 +2180,7 @@ namespace loggingapp
                                 ccf::historical::StatePtr historical_state) {
         assert(historical_state->receipt);
         auto cose_receipt =
-          describe_cose_receipt(*historical_state->receipt);
+          describe_cose_receipt_v1(*historical_state->receipt);
         if (!cose_receipt.has_value())
         {
           ctx.rpc_ctx->set_error(

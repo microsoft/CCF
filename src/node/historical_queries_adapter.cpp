@@ -256,7 +256,7 @@ namespace ccf
     return receipt.cose_signature;
   }
 
-  std::optional<SerialisedCoseReceipt> describe_cose_receipt(
+  std::optional<SerialisedCoseReceipt> describe_cose_receipt_v1(
     const TxReceiptImpl& receipt)
   {
     auto signature = describe_cose_signature_v1(receipt);
