@@ -247,8 +247,6 @@ The ``apply(transparent_statements)`` function receives an array of transparent 
 Example Policy
 ~~~~~~~~~~~~~~
 
-The following policy demonstrates checking every available field:
-
 .. code-block:: javascript
 
     export function apply(transparent_statements) {
@@ -299,7 +297,7 @@ The following policy demonstrates checking every available field:
 Setting the Policy
 ~~~~~~~~~~~~~~~~~~
 
-Use the ``set_node_join_policy`` governance action to register the policy and ``remove_node_join_policy`` to remove it. A node presenting a transparent statement can only join if a code update policy is set and returns ``true``.
+Use the ``set_node_join_policy`` governance action to register the policy and ``remove_node_join_policy`` to remove it.
 
 Joining with a Transparent Statement
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
