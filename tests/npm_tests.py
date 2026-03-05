@@ -1002,6 +1002,18 @@ def test_npm_app(network, args):
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
 
+            # Test with endorsed_tcb of correct size but all zeroes, should be rejected
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                    "endorsed_tcb": "0" * len(endorsed_tcb),
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+
         validate_openapi(c)
         generate_and_verify_jwk(c)
 
