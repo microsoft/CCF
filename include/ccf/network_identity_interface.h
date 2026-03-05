@@ -51,8 +51,10 @@ namespace ccf
     [[nodiscard]] virtual FetchStatus endorsements_fetching_status() const = 0;
 
     /// Returns the COSE endorsements chain for the given sequence number,
-    /// or std::nullopt if endorsement fetching has not completed or the
-    /// chain is not available for the given sequence number.
+    /// or std::nullopt if the chain is not available for the given sequence
+    /// number.
+    ///
+    /// @throws std::logic_error if endorsement fetching has not completed.
     [[nodiscard]] virtual std::optional<CoseEndorsementsChain>
     get_cose_endorsements_chain(ccf::SeqNo seqno) const = 0;
 
