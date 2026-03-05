@@ -66,7 +66,7 @@ def cli_args(
         "-b",
         "--binary-dir",
         help="Path to CCF binaries (cchost, scurl, keygenerator)",
-        default=".",
+        default="../build",
     )
     parser.add_argument(
         "--library-dir",
