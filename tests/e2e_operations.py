@@ -638,7 +638,7 @@ def test_snapshot_selection(network, args):
         node.resume()
 
     # Heal after all the suspensions, before running further tests
-    network.wait_for_new_primary_in((primary, *backups))
+    network.wait_for_primary_unanimity()
     network.wait_for_node_commit_sync()
 
 

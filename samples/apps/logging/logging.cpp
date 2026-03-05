@@ -2178,41 +2178,23 @@ namespace loggingapp
       auto get_cose_receipt = [](
                                 ccf::endpoints::ReadOnlyEndpointContext& ctx,
                                 ccf::historical::StatePtr historical_state) {
-        auto historical_tx = historical_state->store->create_read_only_tx();
-
         assert(historical_state->receipt);
-        auto signature = describe_cose_signature_v1(*historical_state->receipt);
-        if (!signature.has_value())
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "No COSE signature available for this transaction");
-          return;
-        }
-        auto proof = describe_merkle_proof_v1(*historical_state->receipt);
-        if (!proof.has_value())
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "No merkle proof available for this transaction");
-          return;
-        }
-
-        constexpr int64_t vdp = 396;
-        auto inclusion_proof = ccf::cose::edit::pos::AtKey{-1};
-
-        ccf::cose::edit::desc::Value desc{inclusion_proof, vdp, *proof};
-
         auto cose_receipt =
-          ccf::cose::edit::set_unprotected_header(*signature, desc);
+          describe_cose_receipt_v1(*historical_state->receipt);
+        if (!cose_receipt.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "No COSE receipt available for this transaction");
+          return;
+        }
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
           ccf::http::headers::CONTENT_TYPE,
           ccf::http::headervalues::contenttype::COSE);
-        ctx.rpc_ctx->set_response_body(cose_receipt);
+        ctx.rpc_ctx->set_response_body(*cose_receipt);
       };
       make_read_only_endpoint(
         "/log/public/cose_receipt",
