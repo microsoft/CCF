@@ -4,7 +4,7 @@ import ccf.ledger
 import sys
 import argparse
 import os
-from typing import BinaryIO, List
+from typing import BinaryIO
 
 DEFAULT_OUTPUT_DIR_NAME = "split_ledger"
 TEMPORARY_LEDGER_FILE_NAME = "ledger.tmp"
@@ -37,7 +37,7 @@ def make_final_ledger_file_name(
 
 
 def close_ledger_file(
-    ledger_file, entry_positions: List[int], final_file_name: str, complete_file=True
+    ledger_file, entry_positions: list[int], final_file_name: str, complete_file=True
 ):
     if complete_file:
         positions_offset = ledger_file.tell()

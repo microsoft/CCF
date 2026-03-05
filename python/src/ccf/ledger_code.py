@@ -75,7 +75,7 @@ def main():
         return {code_id for code_id, nodes in code_to_nodes.items() if nodes}
 
     validator = (
-        (ccf.ledger.LedgerValidator() if not args.insecure_skip_verification else None),
+        ccf.ledger.LedgerValidator() if not args.insecure_skip_verification else None
     )
     for chunk in ledger:
         for tx in chunk:

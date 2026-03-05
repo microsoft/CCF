@@ -5,7 +5,6 @@ import ccf.ledger
 import argparse
 import os
 import json
-from typing import Optional
 
 COLORS = {
     "Black": 40,
@@ -20,7 +19,7 @@ COLORS = {
 }
 
 
-def cs(s: str, background_colour: Optional[str] = None) -> str:
+def cs(s: str, background_colour: str | None = None) -> str:
     if background_colour is not None and background_colour in COLORS:
         return f"\033[{COLORS[background_colour]}m{s}\033[0m"
     return s
@@ -36,7 +35,7 @@ class Liner:
         self._line = ""
         self._len = 0
 
-    def append(self, s: str, background_colour: Optional[str] = None):
+    def append(self, s: str, background_colour: str | None = None):
         self._line += cs(s, background_colour)
         self._len += len(s)
         if self._len >= self.MAX_LENGTH:

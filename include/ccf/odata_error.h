@@ -119,6 +119,7 @@ namespace ccf
     ERROR(TooManyPendingTransactions)
     ERROR(MissingApiVersionParameter)
     ERROR(UnsupportedApiVersionValue)
+    ERROR(EmptyFile)
 
     // node-to-node (/join and /create):
     ERROR(ConsensusTypeMismatch)

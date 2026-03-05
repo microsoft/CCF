@@ -17,31 +17,23 @@ namespace ccf
 {
   struct StartupSnapshotInfo
   {
-    std::vector<uint8_t> raw;
     ccf::kv::Version seqno;
+    std::vector<uint8_t> raw;
 
-    // Store used to verify a snapshot (either created fresh when a node joins
-    // from a snapshot or points to the main store when recovering from a
-    // snapshot)
-    std::shared_ptr<ccf::kv::Store> store = nullptr;
-
-    StartupSnapshotInfo(
-      const std::shared_ptr<ccf::kv::Store>& store_,
-      std::vector<uint8_t>&& raw_,
-      ccf::kv::Version seqno_) :
-      raw(std::move(raw_)),
-      seqno(seqno_),
-      store(store_)
+    StartupSnapshotInfo(ccf::kv::Version s, std::vector<uint8_t>&& r) :
+      seqno(s),
+      raw(std::move(r))
     {}
   };
 
-  static void deserialise_snapshot(
-    const std::shared_ptr<ccf::kv::Store>& store,
-    const std::vector<uint8_t>& snapshot,
-    ccf::kv::ConsensusHookPtrs& hooks,
-    std::vector<ccf::kv::Version>* view_history = nullptr,
-    bool public_only = false,
-    std::optional<std::vector<uint8_t>> prev_service_identity = std::nullopt)
+  struct SnapshotSegments
+  {
+    std::span<const uint8_t> header_and_body;
+    std::span<const uint8_t> receipt;
+  };
+
+  static SnapshotSegments separate_segments(
+    const std::vector<uint8_t>& snapshot)
   {
     const auto* data = snapshot.data();
     auto size = snapshot.size();
@@ -63,31 +55,47 @@ namespace ccf
       throw std::logic_error("No receipt included in snapshot");
     }
 
-    LOG_INFO_FMT("Deserialising snapshot receipt (size: {}).", receipt_size);
+    std::span<const uint8_t> header_and_body{data, store_snapshot_size};
+    std::span<const uint8_t> receipt{receipt_data, receipt_size};
+
+    return SnapshotSegments{header_and_body, receipt};
+  }
+
+  static void verify_snapshot(
+    const SnapshotSegments& segments,
+    std::optional<std::vector<uint8_t>> prev_service_identity = std::nullopt)
+  {
+    LOG_INFO_FMT(
+      "Deserialising snapshot receipt (size: {}).", segments.receipt.size());
     constexpr size_t max_printed_size = 1024;
-    if (receipt_size > max_printed_size)
+    if (segments.receipt.size() > max_printed_size)
     {
       LOG_INFO_FMT(
         "Receipt size ({}) exceeds max printed size ({}), only printing "
         "first {} bytes",
-        receipt_size,
+        segments.receipt.size(),
         max_printed_size,
         max_printed_size);
     }
-    auto printed_size = std::min<size_t>(receipt_size, max_printed_size);
-    LOG_INFO_FMT("{}", ds::to_hex(receipt_data, receipt_data + printed_size));
+    auto printed_size =
+      std::min<size_t>(segments.receipt.size(), max_printed_size);
+    LOG_INFO_FMT(
+      "{}",
+      ds::to_hex(
+        segments.receipt.data(), segments.receipt.data() + printed_size));
 
-    auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
+    auto j =
+      nlohmann::json::parse(segments.receipt.begin(), segments.receipt.end());
     auto receipt_p = j.get<ReceiptPtr>();
     auto receipt = std::dynamic_pointer_cast<ccf::ProofReceipt>(receipt_p);
     if (receipt == nullptr)
     {
       throw std::logic_error(
-        fmt::format("Unexpected receipt type: missing expanded claims"));
+        "Unexpected receipt type: missing expanded claims");
     }
 
-    auto snapshot_digest =
-      ccf::crypto::Sha256Hash({snapshot.data(), store_snapshot_size});
+    auto snapshot_digest = ccf::crypto::Sha256Hash(
+      segments.header_and_body.data(), segments.header_and_body.size());
     auto snapshot_digest_claim = receipt->leaf_components.claims_digest.value();
     if (snapshot_digest != snapshot_digest_claim)
     {
@@ -116,24 +124,36 @@ namespace ccf
     {
       ccf::crypto::Pem prev_pem(*prev_service_identity);
       if (!v->verify_certificate(
-            {&prev_pem},
-            {}, /* ignore_time */
-            true))
+            {&prev_pem}, {}, true /* ignore_time */
+            ))
       {
         throw std::logic_error(
-          "Previous service identity does not endorse the node identity that "
-          "signed the snapshot");
+          "Previous service identity does not endorse the node identity "
+          "that signed the snapshot");
       }
       LOG_DEBUG_FMT("Previous service identity endorses snapshot signer");
     }
+  }
 
+  static void deserialise_snapshot(
+    const std::shared_ptr<ccf::kv::Store>& store,
+    const SnapshotSegments& segments,
+    ccf::kv::ConsensusHookPtrs& hooks,
+    std::vector<ccf::kv::Version>* view_history = nullptr,
+    bool public_only = false)
+  {
+    const auto* data = segments.header_and_body.data();
+    const auto size = segments.header_and_body.size();
+
+    // Log full size as this snapshot appears in file, but after that ignore the
+    // receipt segment
     LOG_INFO_FMT(
       "Deserialising snapshot (size: {}, public only: {})",
-      snapshot.size(),
+      size + segments.receipt.size(),
       public_only);
 
-    auto rc = store->deserialise_snapshot(
-      snapshot.data(), store_snapshot_size, hooks, view_history, public_only);
+    auto rc =
+      store->deserialise_snapshot(data, size, hooks, view_history, public_only);
     if (rc != ccf::kv::ApplyResult::PASS)
     {
       throw std::logic_error(fmt::format("Failed to apply snapshot: {}", rc));
@@ -144,24 +164,15 @@ namespace ccf
       store->current_version());
   };
 
-  static std::unique_ptr<StartupSnapshotInfo> initialise_from_snapshot(
+  static void deserialise_snapshot(
     const std::shared_ptr<ccf::kv::Store>& store,
-    std::vector<uint8_t>&& snapshot,
+    const std::vector<uint8_t>& snapshot,
     ccf::kv::ConsensusHookPtrs& hooks,
     std::vector<ccf::kv::Version>* view_history = nullptr,
-    bool public_only = false,
-    std::optional<std::vector<uint8_t>> previous_service_identity =
-      std::nullopt)
+    bool public_only = false)
   {
-    deserialise_snapshot(
-      store,
-      snapshot,
-      hooks,
-      view_history,
-      public_only,
-      previous_service_identity);
-    return std::make_unique<StartupSnapshotInfo>(
-      store, std::move(snapshot), store->current_version());
+    const auto segments = separate_segments(snapshot);
+    deserialise_snapshot(store, segments, hooks, view_history, public_only);
   }
 
   static std::vector<uint8_t> build_and_serialise_receipt(

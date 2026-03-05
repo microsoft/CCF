@@ -4,7 +4,6 @@
 import base64
 import datetime
 from typing import Tuple
-from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
@@ -21,7 +20,7 @@ import pytest
 
 
 def make_private_key(curve: ec.EllipticCurve):
-    return ec.generate_private_key(curve=curve, backend=default_backend())
+    return ec.generate_private_key(curve=curve)
 
 
 def make_pem_pair(priv) -> Tuple[str, str]:
@@ -70,7 +69,7 @@ def make_self_signed_cert(priv, subject_name: str):
         .serial_number(x509.random_serial_number())
         .not_valid_before(datetime.datetime.now())
         .not_valid_after(datetime.datetime.now() + datetime.timedelta(days=30))
-        .sign(priv, hash_algo(priv), default_backend())
+        .sign(priv, hash_algo(priv))
     )
     return cert.public_bytes(Encoding.PEM).decode("ascii")
 

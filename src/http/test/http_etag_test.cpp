@@ -39,37 +39,69 @@ TEST_CASE("If-Match: \"abc\", \"def\"")
 TEST_CASE("If-Match invalid inputs")
 {
   REQUIRE_THROWS_AS_MESSAGE(
-    ccf::http::Matcher im(""), std::runtime_error, "Invalid If-Match header");
+    ccf::http::Matcher im(""),
+    ccf::http::MatcherError,
+    "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im("not etags"),
-    std::runtime_error,
+    ccf::http::MatcherError,
     "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im("\"abc\", not etags"),
-    std::runtime_error,
+    ccf::http::MatcherError,
     "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im("not etags, \"abc\""),
-    std::runtime_error,
+    ccf::http::MatcherError,
     "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im("W/\"abc\""),
-    std::runtime_error,
+    ccf::http::MatcherError,
     "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im("W/\"abc\", \"def\""),
-    std::runtime_error,
+    ccf::http::MatcherError,
     "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im("\"abc\", \"def"),
-    std::runtime_error,
+    ccf::http::MatcherError,
     "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im("\"abc\",, \"def\""),
-    std::runtime_error,
+    ccf::http::MatcherError,
     "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im(",\"abc\""),
-    std::runtime_error,
+    ccf::http::MatcherError,
     "Invalid If-Match header");
+}
+
+TEST_CASE("If-None-Match with RFC 9530 digest ETag format")
+{
+  // Single sha-256 ETag in RFC 9530 structured field format
+  {
+    ccf::http::Matcher im(
+      "\"sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:\"");
+    REQUIRE(!im.is_any());
+    REQUIRE(
+      im.matches("sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:"));
+    REQUIRE(!im.matches("sha-256=:AAAA:"));
+  }
+
+  // Multiple algorithm ETags
+  {
+    ccf::http::Matcher im(
+      "\"sha-256=:abc=:\", \"sha-384=:def=:\", \"sha-512=:ghi=:\"");
+    REQUIRE(im.matches("sha-256=:abc=:"));
+    REQUIRE(im.matches("sha-384=:def=:"));
+    REQUIRE(im.matches("sha-512=:ghi=:"));
+    REQUIRE(!im.matches("sha-256=:000=:"));
+  }
+
+  // Wildcard still works
+  {
+    ccf::http::Matcher im("*");
+    REQUIRE(im.is_any());
+    REQUIRE(im.matches("sha-256=:anything:"));
+  }
 }

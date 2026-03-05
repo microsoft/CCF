@@ -173,69 +173,46 @@ def test_forced_ledger_chunk(network, args):
 @reqs.description("Forced snapshot")
 @app.scoped_txs()
 def test_forced_snapshot(network, args):
-    inner_args = copy.deepcopy(args)
-    inner_args.common_read_only_ledger_dir = (
-        None  # Side-effect setting which would break the starting node
+    primary, _ = network.find_primary()
+
+    # Submit some dummy transactions
+    network.txs.issue(network, number_txs=3)
+
+    with primary.client() as c:
+        r = c.get("/node/commit").body.json()
+        hwm_pre_proposal = TxID.from_str(r["transaction_id"]).seqno
+
+    # Ensure there is at least one signature greater than the hwm
+    network.txs.issue(network, number_txs=1, wait_for_sync=True)
+
+    # Submit a proposal to force a snapshot
+    proposal_body, careful_vote = network.consortium.make_proposal("trigger_snapshot")
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
     )
-    inner_args.label = f"{inner_args.label}_forced_snapshot"
-    inner_args.snapshot_tx_interval = (
-        10000  # Large interval to avoid interference from regular snapshots
+    proposal = network.consortium.vote_using_majority(
+        primary,
+        proposal,
+        careful_vote,
     )
 
-    # Use a separate network to ensure unforced snapshots do not happen
-    with infra.network.network(
-        inner_args.nodes,
-        inner_args.binary_dir,
-        inner_args.debug_nodes,
-        pdb=inner_args.pdb,
-        txs=app.LoggingTxs("user0"),
-    ) as inner_network:
-        inner_network.start_and_open(inner_args)
+    # Issue some more transactions
+    network.txs.issue(network, number_txs=5)
 
-        primary, _ = inner_network.find_primary()
+    snapshots_dir = network.get_committed_snapshots(
+        primary, target_seqno=hwm_pre_proposal + 1
+    )
 
-        # Submit some dummy transactions
-        inner_network.txs.issue(inner_network, number_txs=3)
+    for s in os.listdir(snapshots_dir):
+        with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
+            snapshot_seqno = snapshot.get_public_domain().get_seqno()
+            if snapshot_seqno > hwm_pre_proposal:
+                LOG.info(
+                    f"Found a snapshot at {snapshot_seqno} which is after the pre-proposal-high-water-mark {hwm_pre_proposal}"
+                )
+                return
 
-        with primary.client() as c:
-            r = c.get("/node/commit").body.json()
-            hwm_pre_proposal = TxID.from_str(r["transaction_id"]).seqno
-
-        # Ensure there is at least one signature greater than the hwm
-        inner_network.txs.issue(inner_network, number_txs=1, wait_for_sync=True)
-
-        # Submit a proposal to force a snapshot
-        proposal_body, careful_vote = inner_network.consortium.make_proposal(
-            "trigger_snapshot"
-        )
-        proposal = inner_network.consortium.get_any_active_member().propose(
-            primary, proposal_body
-        )
-        proposal = inner_network.consortium.vote_using_majority(
-            primary,
-            proposal,
-            careful_vote,
-        )
-
-        # Issue some more transactions
-        inner_network.txs.issue(inner_network, number_txs=5)
-
-        snapshots_dir = inner_network.get_committed_snapshots(
-            primary, target_seqno=hwm_pre_proposal + 1
-        )
-
-        for s in os.listdir(snapshots_dir):
-            with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
-                snapshot_seqno = snapshot.get_public_domain().get_seqno()
-                if snapshot_seqno > hwm_pre_proposal:
-                    LOG.info(
-                        f"Found a snapshot at {snapshot_seqno} which is after the pre-proposal-high-water-mark {hwm_pre_proposal}"
-                    )
-                    return network
-
-        raise RuntimeError("Could not find matching snapshot file")
-
-    return network
+    raise RuntimeError("Could not find matching snapshot file")
 
 
 # https://github.com/microsoft/CCF/issues/1858
@@ -372,6 +349,7 @@ def test_snapshot_access(network, args):
                 (b, range_max),
                 (b, None),
                 (range_max, range_max),
+                (range_max, None),
             ]:
                 range_header_value = f"{start}-{'' if end is None else end}"
                 r = do_request(
@@ -514,28 +492,32 @@ def test_snapshot_repr_digest(network, args):
         ), f"Expected partial body of {range_end + 1} bytes, got {len(r.body.data())}"
 
 
-def test_snapshot_selection(network, args):
-    inner_args = copy.deepcopy(args)
-    inner_args.common_read_only_ledger_dir = (
+def run_manual_snapshot_tests(const_args):
+    # Use a separate network with explicit args to ensure unforced snapshots do not happen
+
+    args = copy.deepcopy(const_args)
+    args.common_read_only_ledger_dir = (
         None  # Side-effect setting which would break the starting node
     )
-    inner_args.label = f"{inner_args.label}_snapshot_selection"
-    inner_args.snapshot_tx_interval = (
+    args.label = f"{args.label}_manual_snapshots"
+    args.snapshot_tx_interval = (
         10000  # Large interval to avoid interference from regular snapshots
     )
 
-    # Use a separate network to ensure unforced snapshots do not happen
     with infra.network.network(
-        inner_args.nodes,
-        inner_args.binary_dir,
-        inner_args.debug_nodes,
-        pdb=inner_args.pdb,
-    ) as inner_network:
-        inner_network.start_and_open(inner_args)
-        _test_snapshot_selection(inner_network, inner_args)
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args)
+
+        test_snapshot_selection(network, args)
+        test_forced_snapshot(network, args)
 
 
-def _test_snapshot_selection(network, args):
+def test_snapshot_selection(network, args):
     # Add nodes so we have at least 3
     while len(network.get_joined_nodes()) < 3:
         new_node = network.create_node()
@@ -655,6 +637,10 @@ def _test_snapshot_selection(network, args):
     for node in suspended:
         node.resume()
 
+    # Heal after all the suspensions, before running further tests
+    network.wait_for_new_primary_in((primary, *backups))
+    network.wait_for_node_commit_sync()
+
 
 def test_empty_snapshot(network, args):
 
@@ -731,6 +717,188 @@ def test_nulled_snapshot(network, args):
 
         # (Existing assertion logic retained)
         assert failed, "Node should not have joined successfully"
+
+
+def test_corrupt_snapshot_handling(network, args):
+    """
+    Test that corrupt snapshots in writable and read-only directories are
+    handled correctly:
+    - In the writable directory, corrupt files are renamed to .ignored.
+    - In a read-only (config) directory, log messages about unrenamable files
+      are emitted.
+    - When the writable directory's permissions prevent renaming, a log message
+      about failure to mark the snapshot as ignored is emitted.
+    """
+
+    # Craft corrupt snapshot data that passes separate_segments() (valid header
+    # with non-zero body size and non-empty receipt area) but fails
+    # verify_snapshot() because the receipt is not valid JSON.
+    # SerialisedEntryHeader is 8 bytes: version(1) + flags(1) + size(48-bit LE)
+    body_size = 16
+    header = bytes([1, 0]) + body_size.to_bytes(6, "little")
+    assert len(header) == 8
+    body = b"\x00" * body_size
+    receipt = b"this is not valid json!!"
+    corrupt_data = header + body + receipt
+
+    # Use a higher seqno for the writable dir so it is tried first (snapshots
+    # are iterated in descending seqno order).
+    writable_snapshot_name = "snapshot_2000_2500.committed"
+    read_only_snapshot_name = "snapshot_1000_1500.committed"
+
+    # ---- Part 1: writable dir (rename succeeds) + read-only config dir ----
+    LOG.info("Part 1: corrupt snapshots in both writable and read-only directories")
+
+    with tempfile.TemporaryDirectory() as writable_dir, tempfile.TemporaryDirectory() as read_only_dir:
+        # Place corrupt snapshots
+        with open(os.path.join(writable_dir, writable_snapshot_name), "wb") as f:
+            f.write(corrupt_data)
+        with open(os.path.join(read_only_dir, read_only_snapshot_name), "wb") as f:
+            f.write(corrupt_data)
+
+        new_node = network.create_node()
+
+        # Set up the join with the writable snapshot directory only; we will
+        # inject the read-only directory into the config afterwards.
+        network.setup_join_node(
+            new_node,
+            args.package,
+            args,
+            snapshots_dir=writable_dir,
+            fetch_recent_snapshot=False,
+        )
+
+        # The node's workspace root and config file
+        node_root = new_node.remote.remote.root
+        config_file_name = f"{new_node.remote.local_node_id}.config.json"
+        config_path = os.path.join(node_root, config_file_name)
+
+        # Copy the read-only snapshot directory into the node's workspace
+        ro_dir_basename = os.path.basename(read_only_dir)
+        shutil.copytree(read_only_dir, os.path.join(node_root, ro_dir_basename))
+
+        # Patch the config to include the read-only snapshot directory.
+        # If the config file is a symlink, replace it with a copy so we
+        # don't mutate the shared original.
+        if os.path.islink(config_path):
+            target = os.path.realpath(config_path)
+            os.unlink(config_path)
+            shutil.copy2(target, config_path)
+
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        config["snapshots"]["read_only_directory"] = ro_dir_basename
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+
+        # Start the node – it should fall back to ledger replay after
+        # discarding both corrupt snapshots.  If the node fails to join
+        # (e.g. timeout), that is acceptable – the snapshot selection
+        # behaviour we care about happens during startup before the join
+        # protocol completes.
+        try:
+            network.run_join_node(new_node)
+            new_node.stop()
+        except Exception as e:
+            LOG.warning(f"Node failed to join (expected if ledger replay is slow): {e}")
+            # run_join_node already stopped and removed the node on failure,
+            # but we still need to ensure the process is down.
+            try:
+                new_node.stop()
+            except Exception:
+                pass
+
+        # -- Verify writable directory: file must be renamed to .ignored --
+        writable_in_ws = os.path.join(node_root, os.path.basename(writable_dir))
+        ws_files = os.listdir(writable_in_ws)
+        assert writable_snapshot_name not in ws_files, (
+            f"Corrupt snapshot {writable_snapshot_name} should have been "
+            f"renamed in writable dir, but found: {ws_files}"
+        )
+        assert f"{writable_snapshot_name}.ignored" in ws_files, (
+            f"Expected {writable_snapshot_name}.ignored in writable dir, "
+            f"but found: {ws_files}"
+        )
+
+        # -- Verify read-only directory: file must still be present --
+        ro_in_ws = os.path.join(node_root, ro_dir_basename)
+        ro_files = os.listdir(ro_in_ws)
+        assert read_only_snapshot_name in ro_files, (
+            f"Corrupt snapshot {read_only_snapshot_name} in read-only dir "
+            f"should not have been renamed, but found: {ro_files}"
+        )
+
+        # -- Verify node logs --
+        assert new_node.check_log_for_error_message(
+            "Error while verifying"
+        ), "Expected 'Error while verifying' in node logs"
+
+        assert new_node.check_log_for_error_message(
+            "Ignoring corrupt snapshot"
+        ), "Expected 'Ignoring corrupt snapshot' in node logs"
+
+        assert new_node.check_log_for_error_message(
+            "is in a read-only directory"
+        ), "Expected read-only directory message in node logs"
+
+    # ---- Part 2: writable dir with restricted permissions (rename fails) ----
+    LOG.info("Part 2: corrupt snapshot in writable dir that cannot be renamed")
+
+    unrenamable_snapshot_name = "snapshot_3000_3500.committed"
+
+    with tempfile.TemporaryDirectory() as restricted_dir:
+        snapshot_path = os.path.join(restricted_dir, unrenamable_snapshot_name)
+        with open(snapshot_path, "wb") as f:
+            f.write(corrupt_data)
+
+        new_node2 = network.create_node()
+        network.setup_join_node(
+            new_node2,
+            args.package,
+            args,
+            snapshots_dir=restricted_dir,
+            fetch_recent_snapshot=False,
+        )
+
+        # To make the rename to .ignored fail, create a *directory* with the
+        # target name (<snapshot>.ignored).  On Linux, rename() returns EISDIR
+        # when the source is a file and the destination is a directory,
+        # regardless of user privileges (chmod is ineffective under root).
+        node_root2 = new_node2.remote.remote.root
+        restricted_in_ws = os.path.join(node_root2, os.path.basename(restricted_dir))
+        blocker_dir = os.path.join(
+            restricted_in_ws, f"{unrenamable_snapshot_name}.ignored"
+        )
+        os.makedirs(blocker_dir)
+        # Place a file inside so the directory is non-empty (extra safety)
+        with open(os.path.join(blocker_dir, "placeholder"), "w") as f:
+            f.write("")
+
+        try:
+            network.run_join_node(new_node2)
+        except Exception:
+            # The node may fail to join if it cannot write to the snapshots
+            # directory at all; that is acceptable for this sub-test.
+            pass
+
+        try:
+            new_node2.stop()
+        except Exception:
+            pass
+
+        # The corrupt file should still be present (rename failed)
+        ws_files2 = os.listdir(restricted_in_ws)
+        assert unrenamable_snapshot_name in ws_files2, (
+            f"Corrupt snapshot {unrenamable_snapshot_name} should still exist "
+            f"after failed rename, but found: {ws_files2}"
+        )
+
+        # Check that the failure-to-rename message appears in the logs
+        assert new_node2.check_log_for_error_message(
+            "Unable to mark snapshot as ignored"
+        ), "Expected 'Unable to mark snapshot as ignored' in node logs"
+
+    return network
 
 
 def split_all_ledger_files_in_dir(input_dir, output_dir):
@@ -844,12 +1012,213 @@ def test_ledger_chunk_access(network, args):
                 ), f"Expected chunk size {actual_chunk_size}, got {chunk_size}"
 
                 r = c.get(chunk_url.path, allow_redirects=False)
+                assert r.status_code == http.HTTPStatus.OK.value, r
                 dled_chunk_digest = hashlib.sha256(r.body.data()).hexdigest()
                 with open(ledger_chunk_path, "rb") as f:
                     actual_chunk_digest = hashlib.sha256(f.read()).hexdigest()
                 assert (
                     dled_chunk_digest == actual_chunk_digest
                 ), "Ledger chunk content does not match"
+
+            LOG.info("Accessing an empty chunk always returns an error")
+            with tempfile.NamedTemporaryFile(dir=main_ledger_dir) as temp_chunk:
+                chunk_url = f"/node/ledger-chunk/{os.path.basename(temp_chunk.name)}"
+                r = c.get(
+                    chunk_url,
+                    allow_redirects=True,
+                )
+                assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+
+                chunk_url = f"/node/ledger-chunk/{os.path.basename(temp_chunk.name)}"
+                for range_value in ("bytes=0-10", "bytes=0-", "bytes=0-0"):
+                    r = c.get(
+                        chunk_url,
+                        allow_redirects=True,
+                        headers={"Range": range_value},
+                    )
+                    assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+
+    # ETag / If-None-Match tests on a single chunk
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        main_ledger_dir = primary.get_main_ledger_dir()
+        chunks = [f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")]
+        chunks = sorted(
+            (*ccf.ledger.range_from_filename(chunk), chunk) for chunk in chunks
+        )
+        assert len(chunks) > 0, "No committed chunks found"
+        _, _, chunk = chunks[0]
+        chunk_url = f"/node/ledger-chunk/{chunk}"
+        ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
+        with open(ledger_chunk_path, "rb") as f:
+            chunk_data = f.read()
+
+        # 1. Normal GET returns a correctly formed ETag
+        r = c.get(chunk_url, allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.OK.value, r
+        etag = r.headers.get("etag")
+        assert etag is not None, "Missing ETag header on GET"
+        # ETag must be in RFC 9530 format: "sha-256=:<base64>:"
+        assert etag.startswith('"sha-256=:') and etag.endswith(
+            ':"'
+        ), f"ETag has unexpected format: {etag}"
+        expected_b64 = base64.b64encode(hashlib.sha256(chunk_data).digest()).decode()
+        assert (
+            etag == f'"sha-256=:{expected_b64}:"'
+        ), f"ETag digest mismatch: expected sha-256=:{expected_b64}:, got {etag}"
+
+        # 2. GET with If-None-Match that does NOT match returns a fresh download
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": '"sha-256=:AAAA:"'},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.OK.value
+        ), f"Expected 200 for non-matching If-None-Match, got {r.status_code}"
+        assert (
+            r.body.data() == chunk_data
+        ), "Body content should match for non-matching If-None-Match"
+
+        # 3.a. GET with If-None-Match matching the ETag returns 304 Not Modified
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match, got {r.status_code}"
+
+        # 3.b. Compute a sha-384 version of the same ETag, and confirm that it works too
+        # RFC 9530 allows multiple algorithms in the ETag, and If-None-Match should match if any of them match
+        # GET with If-None-Match matching the ETag returns 304 Not Modified
+        sha384_b64 = base64.b64encode(hashlib.sha384(chunk_data).digest()).decode()
+        sha384_etag = f'"sha-384=:{sha384_b64}:"'
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": sha384_etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching sha-384 If-None-Match, got {r.status_code}"
+
+        # 3.b2. sha-512 variant
+        sha512_b64 = base64.b64encode(hashlib.sha512(chunk_data).digest()).decode()
+        sha512_etag = f'"sha-512=:{sha512_b64}:"'
+        r = c.get(
+            chunk_url,
+            headers={"if-none-match": sha512_etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching sha-512 If-None-Match, got {r.status_code}"
+
+        # 3.c. HEAD returns the same ETag as GET
+        r = c.head(chunk_url, allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.OK.value, r
+        head_etag = r.headers.get("etag")
+        assert (
+            head_etag == etag
+        ), f"HEAD ETag mismatch: expected {etag}, got {head_etag}"
+
+        # 3.d. HEAD with matching If-None-Match returns 304
+        r = c.call(
+            chunk_url,
+            http_verb="HEAD",
+            headers={"if-none-match": etag},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match with HEAD, got {r.status_code}"
+
+        # 4. Same checks on a sub-Range of the file
+        total_size = len(chunk_data)
+        range_end = total_size // 2
+        partial_data = chunk_data[: range_end + 1]
+        r = c.call(
+            chunk_url,
+            http_verb="GET",
+            headers={"range": f"bytes=0-{range_end}"},
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 for Range GET, got {r.status_code}"
+        range_etag = r.headers.get("etag")
+        assert range_etag is not None, "Missing ETag header on Range GET"
+        range_expected_b64 = base64.b64encode(
+            hashlib.sha256(partial_data).digest()
+        ).decode()
+        assert (
+            range_etag == f'"sha-256=:{range_expected_b64}:"'
+        ), f"Range ETag mismatch: expected sha-256=:{range_expected_b64}:, got {range_etag}"
+
+        # Non-matching If-None-Match on range → fresh partial download
+        r = c.call(
+            chunk_url,
+            http_verb="GET",
+            headers={
+                "range": f"bytes=0-{range_end}",
+                "if-none-match": '"sha-256=:AAAA:"',
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 for non-matching If-None-Match with Range, got {r.status_code}"
+        assert (
+            r.body.data() == partial_data
+        ), "Body content should match partial data for non-matching If-None-Match with Range"
+
+        # Matching If-None-Match on range → 304 Not Modified
+        r = c.call(
+            chunk_url,
+            http_verb="GET",
+            headers={
+                "range": f"bytes=0-{range_end}",
+                "if-none-match": range_etag,
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match with Range, got {r.status_code}"
+
+        # HEAD with Range should return the same ETag as the corresponding GET range
+        r = c.call(
+            chunk_url,
+            http_verb="HEAD",
+            headers={
+                "range": f"bytes=0-{range_end}",
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value
+        ), f"Expected 206 for HEAD with Range, got {r.status_code}"
+        head_range_etag = r.headers.get("etag")
+        assert (
+            head_range_etag == range_etag
+        ), f"HEAD Range ETag mismatch: expected {range_etag}, got {head_range_etag}"
+
+        # Matching If-None-Match on HEAD + Range → 304 Not Modified
+        r = c.call(
+            chunk_url,
+            http_verb="HEAD",
+            headers={
+                "range": f"bytes=0-{range_end}",
+                "if-none-match": range_etag,
+            },
+            allow_redirects=False,
+        )
+        assert (
+            r.status_code == http.HTTPStatus.NOT_MODIFIED.value
+        ), f"Expected 304 for matching If-None-Match with HEAD Range, got {r.status_code}"
 
 
 def test_ledger_chunk_repr_digest(network, args):
@@ -1149,13 +1518,12 @@ def run_file_operations(args):
                 test_save_committed_ledger_files(network, args)
                 test_parse_snapshot_file(network, args)
                 test_forced_ledger_chunk(network, args)
-                test_forced_snapshot(network, args)
                 test_large_snapshot(network, args)
                 test_snapshot_access(network, args)
                 test_snapshot_repr_digest(network, args)
-                test_snapshot_selection(network, args)
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
+                test_corrupt_snapshot_handling(network, args)
 
                 # Ensure that the network is still live
                 primary, _ = network.find_primary()
@@ -1861,17 +2229,15 @@ def run_initial_tcb_version_checks(const_args):
 
 
 def run_recovery_local_unsealing(
-    const_args, recovery_f=0, rekey=False, recovery_shares_refresh=False
+    const_args, suffix, recovery_f=0, rekey=False, recovery_shares_refresh=False
 ):
     LOG.info("Running recovery local unsealing")
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.enable_local_sealing = True
-    args.label += (
-        f"_unsealing_{recovery_f}_rekey_{rekey}_refresh_{recovery_shares_refresh}"
-    )
+    args.label += suffix
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
 
         network.save_service_identity(args)
@@ -1898,10 +2264,9 @@ def run_recovery_local_unsealing(
                 recovery_network_args.binary_dir,
                 next_node_id=prev_network.next_node_id,
             ) as recovery_network:
-
-                recovery_network.per_node_args_override = {
-                    0: {"previous_local_sealing_identity": node.node_id}
-                }
+                recovery_network.set_sealing_recovery_locations(
+                    prev_nodes=network.nodes
+                )
 
                 # Reset consortium and users to prevent issues with hosts from existing_network
                 recovery_network.consortium = prev_network.consortium
@@ -1927,10 +2292,10 @@ def run_recovery_unsealing_validate_audit(const_args):
     LOG.info("Running recovery local unsealing")
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.enable_local_sealing = True
     args.label += "_unsealing_audit"
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
 
         network.save_service_identity(args)
@@ -1966,9 +2331,9 @@ def run_recovery_unsealing_validate_audit(const_args):
                 next_node_id=prev_network.next_node_id,
             ) as recovery_network:
                 if via_local_unsealing:
-                    recovery_network.per_node_args_override = {
-                        0: {"previous_local_sealing_identity": network.nodes[0].node_id}
-                    }
+                    recovery_network.set_sealing_recovery_locations(
+                        prev_nodes=network.nodes
+                    )
 
                 # Reset consortium and users to prevent issues with hosts from existing_network
                 recovery_network.consortium = prev_network.consortium
@@ -2008,11 +2373,10 @@ def run_recovery_unsealing_validate_audit(const_args):
                 prev_network = recovery_network
 
 
-def run_self_healing_open(const_args):
+def run_recovery_decision_protocol(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.label += "_self_healing_open"
-    args.enable_local_sealing = True
+    args.label += "_recovery_decision_protocol"
 
     with infra.network.network(
         args.nodes,
@@ -2020,18 +2384,12 @@ def run_self_healing_open(const_args):
         args.debug_nodes,
     ) as network:
         LOG.info("Start a network and stop it")
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
         network.save_service_identity(args)
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
-
-        ledger_dirs = {}
-        committed_ledger_dirs = {}
-        for i, node in enumerate(network.nodes):
-            l_dir, c = node.get_ledger()
-            ledger_dirs[i] = l_dir
-            committed_ledger_dirs[i] = c
 
         LOG.info("Start recovery network")
         with infra.network.network(
@@ -2040,16 +2398,11 @@ def run_self_healing_open(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
-            recovered_network.per_node_args_override = {
-                i: {"previous_local_sealing_identity": node.node_id}
-                for i, node in enumerate(network.nodes)
-            }
-            recovered_network.start_in_self_healing_open(
+            recovered_network.start_in_recovery_decision_protocol(
                 recovery_args,
-                ledger_dirs=ledger_dirs,
-                committed_ledger_dirs=committed_ledger_dirs,
+                existing_network=network,
             )
-            recovered_network.wait_for_self_healing_open_finish()
+            recovered_network.wait_for_recovery_decision_protocol_finish()
 
             # Refresh the declared state of nodes which have shut themselves down to join.
             for node in recovered_network.nodes:
@@ -2065,18 +2418,17 @@ def run_self_healing_open(const_args):
 
             latest_public_tables, _ = recovered_network.get_latest_ledger_public_state()
             recovery_type = latest_public_tables[
-                "public:ccf.gov.self_healing_open.open_kind"
+                "public:ccf.gov.recovery_decision_protocol.open_kind"
             ][b"\x00\x00\x00\x00\x00\x00\x00\x00"].decode("utf-8")
             assert (
                 recovery_type == '"Quorum"'
             ), f"Network self-healing open type was {recovery_type} instead of Quorum"
 
 
-def run_self_healing_open_timeout_path(const_args):
+def run_recovery_decision_protocol_timeout_path(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.label += "_self_healing_open_timeout"
-    args.enable_local_sealing = True
+    args.label += "_recovery_decision_protocol_timeout"
 
     with infra.network.network(
         args.nodes,
@@ -2084,18 +2436,12 @@ def run_self_healing_open_timeout_path(const_args):
         args.debug_nodes,
     ) as network:
         LOG.info("Start a network and stop it")
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
         network.save_service_identity(args)
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
-
-        ledger_dirs = {}
-        committed_ledger_dirs = {}
-        for i, node in enumerate(network.nodes):
-            l_dir, c = node.get_ledger()
-            ledger_dirs[i] = l_dir
-            committed_ledger_dirs[i] = c
 
         LOG.info("Start a recovery network and stop it")
         with infra.network.network(
@@ -2104,17 +2450,12 @@ def run_self_healing_open_timeout_path(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
-            recovered_network.per_node_args_override = {
-                i: {"previous_local_sealing_identity": node.node_id}
-                for i, node in enumerate(network.nodes)
-            }
-            recovered_network.start_in_self_healing_open(
+            recovered_network.start_in_recovery_decision_protocol(
                 recovery_args,
-                ledger_dirs=ledger_dirs,
-                committed_ledger_dirs=committed_ledger_dirs,
+                existing_network=network,
                 starting_nodes=0,  # Force timeout path by starting only one node
             )
-            recovered_network.wait_for_self_healing_open_finish()
+            recovered_network.wait_for_recovery_decision_protocol_finish()
 
             # Refresh the declared state of nodes which have shut themselves down to join.
             for node in recovered_network.nodes:
@@ -2129,18 +2470,17 @@ def run_self_healing_open_timeout_path(const_args):
 
             latest_public_tables, _ = recovered_network.get_latest_ledger_public_state()
             recovery_type = latest_public_tables[
-                "public:ccf.gov.self_healing_open.open_kind"
+                "public:ccf.gov.recovery_decision_protocol.open_kind"
             ][b"\x00\x00\x00\x00\x00\x00\x00\x00"].decode("utf-8")
             assert (
                 recovery_type == '"Failover"'
             ), f"Network self-healing open type was {recovery_type} instead of Failover"
 
 
-def run_self_healing_open_multiple_timeout(const_args):
+def run_recovery_decision_protocol_multiple_timeout(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.label += "_self_healing_open_multiple_timeout"
-    args.enable_local_sealing = True
+    args.label += "_recovery_decision_protocol_multiple_timeout"
 
     with infra.network.network(
         args.nodes,
@@ -2148,18 +2488,12 @@ def run_self_healing_open_multiple_timeout(const_args):
         args.debug_nodes,
     ) as network:
         LOG.info("Start a network and stop it")
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
         network.save_service_identity(args)
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
-
-        ledger_dirs = {}
-        committed_ledger_dirs = {}
-        for i, node in enumerate(network.nodes):
-            l_dir, c = node.get_ledger()
-            ledger_dirs[i] = l_dir
-            committed_ledger_dirs[i] = c
 
         LOG.info("Start a recovery network")
         with infra.network.network(
@@ -2168,17 +2502,12 @@ def run_self_healing_open_multiple_timeout(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
-            recovered_network.per_node_args_override = {
-                i: {"previous_local_sealing_identity": node.node_id}
-                for i, node in enumerate(network.nodes)
-            }
-            recovered_network.start_in_self_healing_open(
+            recovered_network.start_in_recovery_decision_protocol(
                 recovery_args,
-                ledger_dirs=ledger_dirs,
-                committed_ledger_dirs=committed_ledger_dirs,
+                existing_network=network,
                 suspend_after_start=True,  # suspend each node after starting to ensure they don't progress
             )
-            # for each node: start it and wait until it finishes the self-healing-open on the timeout path
+            # for each node: start it and wait until it finishes the recovery-decision-protocol on the timeout path
             for node in recovered_network.nodes:
                 node.resume()
                 recovered_network.wait_for_statuses(
@@ -2217,6 +2546,7 @@ def run_read_ledger_on_testdata(args):
                 tables = tx.get_public_domain().get_tables()
                 tx_count += 1
         LOG.info(f"Read {tx_count} transactions from {testdata_path}")
+
         snapshot_path = os.path.join(
             args.historical_testdata, testdata_dir.name, "snapshots"
         )
@@ -2229,6 +2559,55 @@ def run_read_ledger_on_testdata(args):
                     LOG.info(
                         f"Valid snapshot at {snapshot_file.path} with {len(tables)} tables"
                     )
+
+
+def test_merkle_verification_level(args):
+    """Test MERKLE verification level on isolated chunks and full ledgers"""
+    LOG.info("Testing MERKLE verification level")
+
+    # Test 1: MERKLE verification on full ledger
+    for testdata_dir in os.scandir(args.historical_testdata):
+        if not testdata_dir.is_dir():
+            continue
+        testdata_path = os.path.join(
+            args.historical_testdata, testdata_dir.name, "ledger"
+        )
+        LOG.info(f"Testing MERKLE verification on full ledger: {testdata_path}")
+
+        # Read with MERKLE verification level
+        assert ccf.read_ledger.run(
+            paths=[testdata_path],
+            print_mode=ccf.read_ledger.PrintMode.Quiet,
+            verification_level=ccf.ledger.VerificationLevel.MERKLE,
+        )
+
+    # Test 2: MERKLE verification on isolated chunks
+    # Find chunks with multiple signatures to test the "trust first signature" logic
+    test_chunks = [
+        os.path.join(
+            args.historical_testdata,
+            "expired_service",
+            "ledger",
+            "ledger_29-46.committed",
+        ),
+        os.path.join(
+            args.historical_testdata,
+            "double_sealed_service",
+            "ledger",
+            "ledger_44-64.committed",
+        ),
+    ]
+
+    for chunk_path in test_chunks:
+        if os.path.exists(chunk_path):
+            LOG.info(f"Testing MERKLE verification on isolated chunk: {chunk_path}")
+            assert ccf.read_ledger.run(
+                paths=[chunk_path],
+                print_mode=ccf.read_ledger.PrintMode.Quiet,
+                verification_level=ccf.ledger.VerificationLevel.MERKLE,
+            )
+
+    LOG.info("MERKLE verification level tests passed")
 
     # Corrupt a single chunk to confirm that read_ledger throws appropriate errors
     source_chunk = os.path.join(
@@ -2463,7 +2842,7 @@ def run_propose_request_vote(const_args):
     args.nodes = infra.e2e_args.nodes(args, 3)
     # use a high timeout to hedge against flaky nodes which pause for seconds
     # In most cases this should not matter as the propose_request_vote will cause the election quickly
-    args.election_timeout = 20000
+    args.election_timeout_ms = 20000
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -2472,51 +2851,53 @@ def run_propose_request_vote(const_args):
     ) as network:
         LOG.info("Start a network")
         network.start_and_open(args, ignore_first_sigterm=True)
-        original_primary, original_term = network.find_primary()
-        backups = [
-            n
-            for n in network.get_joined_nodes()
-            if n.node_id != original_primary.node_id
-        ]
+        try:
+            original_primary, original_term = network.find_primary()
 
-        original_primary.remote.remote.proc.send_signal(signal.SIGTERM)
-        # Find any primary which wasn't the original one
-        # If propose_request_vote worked, the new primary will be elected immediately
-        # So if this times out, the propose_request_vote likely failed
-        new_primary, new_term = network.find_primary(
-            nodes=backups, timeout=(0.9 * args.election_timeout)
-        )
-        assert (
-            new_primary.node_id != original_primary.node_id
-        ), "A new primary should have been elected"
-        assert (
-            new_term > original_term
-        ), "The new primary should be in a higher term than the original primary"
+            original_primary.remote.remote.proc.send_signal(signal.SIGTERM)
+            # Find any primary which wasn't the original one
+            # If propose_request_vote worked, the new primary will be elected rapidly
+            # So if this times out, the propose_request_vote likely failed
+            new_primary, new_term = network.wait_for_new_primary(
+                original_primary, timeout_multiplier=0.9
+            )
+            assert (
+                new_primary.node_id != original_primary.node_id
+            ), "A new primary should have been elected"
+            assert (
+                new_term > original_term
+            ), "The new primary should be in a higher term than the original primary"
 
-        LOG.info(f"New primary is node {new_primary.node_id}")
+            LOG.info(f"New primary is node {new_primary.node_id}")
 
-        # send a sigterm to ensure they shutdown correctly
-        for node in backups:
-            node.remote.remote.proc.send_signal(signal.SIGTERM)
+        finally:
+            # send an additional sigterm to balance the ignore_first_sigterm above, and ensure all nodes are cleaned up
+            for node in network.nodes:
+                node.remote.remote.proc.send_signal(signal.SIGTERM)
 
 
 def run_snp_tests(args):
     run_initial_uvm_descriptor_checks(args)
     run_initial_tcb_version_checks(args)
-    run_recovery_local_unsealing(args)
-    run_recovery_local_unsealing(args, rekey=True)
-    run_recovery_local_unsealing(args, recovery_shares_refresh=True)
-    run_recovery_local_unsealing(args, recovery_f=1)
+    run_recovery_local_unsealing(args, suffix="_unsealing")
+    run_recovery_local_unsealing(args, rekey=True, suffix="_unsealing_with_rekey")
+    run_recovery_local_unsealing(
+        args,
+        recovery_shares_refresh=True,
+        suffix="_unsealing_with_recovery_shares_refresh",
+    )
+    run_recovery_local_unsealing(args, recovery_f=1, suffix="_unsealing_with_f_equal_1")
     run_recovery_unsealing_validate_audit(args)
     test_error_message_on_failure_to_read_aci_sec_context(args)
-    run_self_healing_open(args)
-    run_self_healing_open_timeout_path(args)
-    run_self_healing_open_multiple_timeout(args)
+    run_recovery_decision_protocol(args)
+    run_recovery_decision_protocol_timeout_path(args)
+    run_recovery_decision_protocol_multiple_timeout(args)
 
 
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
+    run_manual_snapshot_tests(args)
     run_tls_san_checks(args)
     run_config_timeout_check(args)
     run_configuration_file_checks(args)
@@ -2528,4 +2909,5 @@ def run(args):
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
     run_read_ledger_on_testdata(args)
+    test_merkle_verification_level(args)
     run_propose_request_vote(args)

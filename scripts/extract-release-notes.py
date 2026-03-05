@@ -9,6 +9,13 @@ import subprocess
 import tomllib
 
 
+# Utility function that can convert a git/CCF version
+# (e.g. 7.0.0-dev10) into a Python version (e.g. 7.0.0.dev10) for comparison with the version in pyproject.toml.
+def git_to_python_version(git_version):
+    python_version = git_version.replace("-", ".", 1)
+    return python_version
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Parses a CHANGELOG file and checks it meets some formatting expectations. "
@@ -70,7 +77,7 @@ def main():
                 current_release_notes = []
                 if not release_notes:
                     assert (
-                        log_version == version_in_pyproject
+                        git_to_python_version(log_version) == version_in_pyproject
                     ), f"First version in CHANGELOG ({log_version}) must match version in pyproject.toml ({version_in_pyproject})"
                 release_notes[log_version] = current_release_notes
             elif match := link_definition.match(line):

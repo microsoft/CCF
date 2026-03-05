@@ -212,6 +212,17 @@ namespace ccf
       return key_ptr;
     }
 
+    [[nodiscard]] TrustedKeys get_trusted_keys() const override
+    {
+      if (fetch_status.load() != FetchStatus::Done)
+      {
+        throw std::logic_error(
+          "Trusted keys requested but endorsements/key fetching has not "
+          "completed yet");
+      }
+      return trusted_keys;
+    }
+
   private:
     void retry_first_fetch()
     {

@@ -11,6 +11,7 @@
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
+#include "ccf/service/tables/self_healing_open.h"
 #include "ccf/service/tables/service.h"
 #include "common/configuration.h"
 #include "enclave/interface.h"
@@ -72,7 +73,8 @@ namespace ccf
       nlohmann::json node_data;
       nlohmann::json service_data;
       ccf::TxID create_txid;
-      std::optional<SealedRecoveryKey> sealed_recovery_key = std::nullopt;
+      std::optional<std::pair<SealedRecoveryKey, sealing_recovery::Name>>
+        sealing_recovery_data = std::nullopt;
 
       // Only set on genesis transaction, but not on recovery
       std::optional<ccf::StartupConfig::Start> genesis_info = std::nullopt;
@@ -90,7 +92,8 @@ namespace ccf
       std::optional<ccf::crypto::Pem> certificate_signing_request =
         std::nullopt;
       nlohmann::json node_data = nullptr;
-      std::optional<SealedRecoveryKey> sealed_recovery_key = std::nullopt;
+      std::optional<std::pair<SealedRecoveryKey, sealing_recovery::Name>>
+        sealing_recovery_data = std::nullopt;
     };
 
     struct Out

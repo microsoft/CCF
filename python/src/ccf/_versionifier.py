@@ -7,18 +7,12 @@ from packaging.version import (  # type: ignore
 )
 
 
-def remove_prefix(s, prefix):
-    if s.startswith(prefix):
-        return s[len(prefix) :]
-    return s
-
-
-def replace_char(s, n, c):
+def _replace_char(s, n, c):
     return s[:n] + str(c) + s[n + 1 :]
 
 
 def to_python_version(original):
-    unprefixed = remove_prefix(original, "ccf-")
+    unprefixed = original.removeprefix("ccf-")
 
     # Try to parse this as a Version (with automatic normalisation).
     # If it fails, try making part of the suffix a local version specifier (+foo).
@@ -35,7 +29,7 @@ def to_python_version(original):
             if next_replace == -1:
                 break
             # Remove any existing +s, and convert one - to a +
-            next_attempt = replace_char(
+            next_attempt = _replace_char(
                 unprefixed.translate(plus_remover), next_replace, "+"
             )
 

@@ -21,7 +21,7 @@ import { TextEncoder, TextDecoder } from "util";
 
 // Note: It is important that only types are imported here to prevent executing
 // the module at this point (which would query the ccf global before we polyfilled it).
-import {
+import type {
   CCF,
   KvMaps,
   KvMap,
