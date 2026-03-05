@@ -1514,6 +1514,22 @@
         }
       }
     },
+    "/app/log/public/trusted_keys": {
+      "get": {
+        "operationId": "GetAppLogPublicTrustedKeys",
+        "responses": {
+          "204": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
+    },
     "/app/log/public/verify_cose_receipt": {
       "get": {
         "operationId": "GetAppLogPublicVerifyCoseReceipt",

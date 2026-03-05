@@ -152,6 +152,7 @@ class Node:
         self.common_dir = None
         self.suspended = False
         self.node_id = None
+        self.sealing_recovery_location = None
         self.node_client_host = None
         # Note: Do not modify host argument as it may be passed to multiple
         # nodes or networks
@@ -288,7 +289,6 @@ class Node:
         label,
         common_dir,
         members_info=None,
-        enable_local_sealing=False,
         **kwargs,
     ):
         """
@@ -308,9 +308,6 @@ class Node:
         self.common_dir = common_dir
         members_info = members_info or []
         self.label = label
-        self.enable_local_sealing = bool(
-            enable_local_sealing
-        )  # ensure it's a bool since it may be passed as None from args
 
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         self.remote = infra.remote.CCFRemote(
@@ -331,7 +328,6 @@ class Node:
             version=self.version,
             major_version=self.major_version,
             node_data_json_file=self.initial_node_data_json_file,
-            enable_local_sealing=self.enable_local_sealing,
             **kwargs,
         )
         self.remote.setup()
@@ -398,6 +394,8 @@ class Node:
             time.sleep(0.1)
 
         self._read_ports()
+
+        self.sealing_recovery_location = self.get_sealing_recovery_location()
 
         start_msg = f"Node {self.local_node_id} started: {self.node_id}"
         if self.version is not None:
@@ -628,6 +626,16 @@ class Node:
         return infra.interfaces.make_address(
             interface.public_host, interface.public_port
         )
+
+    def get_sealing_recovery_location(self):
+        if self.sealing_recovery_location is not None:
+            return dict(self.sealing_recovery_location)
+
+        self.sealing_recovery_location = {
+            "name": self.local_node_id,
+            "address": self.get_public_rpc_address(),
+        }
+        return dict(self.sealing_recovery_location)
 
     def retrieve_self_signed_cert(self, *args, **kwargs):
         # Retrieve and overwrite node self-signed certificate in common directory
