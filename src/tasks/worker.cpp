@@ -86,10 +86,13 @@ namespace ccf::tasks
       const char* function)
     {
       auto* result = static_cast<PcinfoResult*>(data);
-      result->resolved = true;
-      result->function = demangle(function);
-      result->filename = (filename != nullptr) ? filename : "";
-      result->lineno = lineno;
+      if (function != nullptr)
+      {
+        result->resolved = true;
+        result->function = demangle(function);
+        result->filename = (filename != nullptr) ? filename : "";
+        result->lineno = lineno;
+      }
       return 0; // continue
     }
 
@@ -112,8 +115,7 @@ namespace ccf::tasks
 
     // Silently ignore libbacktrace errors in individual frame resolution —
     // we fall back to printing the raw PC address.
-    void error_callback(void* /*data*/, const char* /*msg*/, int /*errnum*/)
-    {}
+    void error_callback(void* /*data*/, const char* /*msg*/, int /*errnum*/) {}
 
     // Format a stack trace using libbacktrace for DWARF-aware symbol,
     // file and line resolution. This works in all build configurations
@@ -131,8 +133,7 @@ namespace ccf::tasks
         if (state != nullptr)
         {
           // Try DWARF-based resolution first (gives file + line + function)
-          backtrace_pcinfo(
-            state, pc, pcinfo_callback, error_callback, &result);
+          backtrace_pcinfo(state, pc, pcinfo_callback, error_callback, &result);
 
           // If DWARF info wasn't available, try the symbol table
           if (!result.resolved)
@@ -209,8 +210,7 @@ extern "C"
           auto* t = static_cast<ccf::tasks::ThrowTrace*>(data);
           if (t->num_frames < ccf::tasks::throw_trace_max_frames)
           {
-            t->frames[t->num_frames++] =
-              reinterpret_cast<void*>(pc); // NOLINT
+            t->frames[t->num_frames++] = reinterpret_cast<void*>(pc); // NOLINT
           }
           return 0;
         },
