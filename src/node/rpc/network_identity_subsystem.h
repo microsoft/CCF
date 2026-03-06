@@ -142,11 +142,12 @@ namespace ccf
     [[nodiscard]] std::optional<CoseEndorsementsChain>
     get_cose_endorsements_chain(ccf::SeqNo seqno) const override
     {
-      // All other cases must be handled after recovery has been completed and
-      // identities have been successfully fetched.
       if (fetch_status.load() != FetchStatus::Done)
       {
-        return std::nullopt;
+        throw IdentityHistoryNotFetched(fmt::format(
+          "COSE endorsements chain requested for seqno {} but identity "
+          "history fetching has not been completed yet",
+          seqno));
       }
 
       if (!current_service_from.has_value())
@@ -185,9 +186,9 @@ namespace ccf
     {
       if (fetch_status.load() != FetchStatus::Done)
       {
-        throw std::logic_error(fmt::format(
-          "Trusted key requested for seqno {} but the fetching has "
-          "not been completed yet",
+        throw IdentityHistoryNotFetched(fmt::format(
+          "Trusted key requested for seqno {} but identity history "
+          "fetching has not been completed yet",
           seqno));
       }
       if (trusted_keys.empty())
@@ -216,8 +217,8 @@ namespace ccf
     {
       if (fetch_status.load() != FetchStatus::Done)
       {
-        throw std::logic_error(
-          "Trusted keys requested but endorsements/key fetching has not "
+        throw IdentityHistoryNotFetched(
+          "Trusted keys requested but identity history fetching has not "
           "completed yet");
       }
       return trusted_keys;

@@ -885,6 +885,7 @@ def force_become_primary(network, args, target_node):
         rules.drop()
         # Wait for the old primary to observe the new one
         network.wait_for_new_primary_in({target_node}, nodes=[primary])
+        network.wait_for_primary_unanimity()
         primary = target_node
 
     # Ensure a signature has been produced in the new term
