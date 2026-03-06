@@ -3,11 +3,13 @@
 #pragma once
 
 #include "ccf/ds/quote_info.h"
+#include "ccf/network_identity_interface.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/tx.h"
 
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -44,7 +46,10 @@ namespace ccf
       ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
-      pal::PlatformAttestationMeasurement& measurement);
+      pal::PlatformAttestationMeasurement& measurement,
+      const std::optional<std::vector<uint8_t>>& code_transparent_statement,
+      std::shared_ptr<NetworkIdentitySubsystemInterface>
+        network_identity_subsystem = nullptr);
   };
   QuoteVerificationResult verify_tcb_version_against_store(
     ccf::kv::ReadOnlyTx& tx, const QuoteInfo& quote_info);
