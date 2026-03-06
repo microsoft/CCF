@@ -869,35 +869,33 @@ namespace ccf
       auto* uvme =
         tx.rw<ccf::SNPUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
 
+      auto updated_map =
+        uvme->get(uvm_endorsements->did).value_or(FeedToEndorsementsDataMap{});
+
       std::string svn_to_write = uvm_endorsements->svn;
 
       if (recovering)
       {
-        auto existing = uvme->get(uvm_endorsements->did);
-        if (existing.has_value())
+        auto feed_it = updated_map.find(uvm_endorsements->feed);
+        if (feed_it != updated_map.end())
         {
-          auto feed_it = existing->find(uvm_endorsements->feed);
-          if (feed_it != existing->end())
-          {
-            auto existing_svn = parse_svn(feed_it->second.svn);
-            auto new_svn = parse_svn(uvm_endorsements->svn);
+          auto existing_svn = parse_svn(feed_it->second.svn);
+          auto new_svn = parse_svn(uvm_endorsements->svn);
 
-            svn_to_write = std::to_string(std::min(existing_svn, new_svn));
-            LOG_INFO_FMT(
-              "Recovery: UVM endorsements SVN for DID {} feed {} set to "
-              "minimum of existing ({}) and new ({}): {}",
-              uvm_endorsements->did,
-              uvm_endorsements->feed,
-              feed_it->second.svn,
-              uvm_endorsements->svn,
-              svn_to_write);
-          }
+          svn_to_write = std::to_string(std::min(existing_svn, new_svn));
+          LOG_INFO_FMT(
+            "Recovery: UVM endorsements SVN for DID {} feed {} set to "
+            "minimum of existing ({}) and new ({}): {}",
+            uvm_endorsements->did,
+            uvm_endorsements->feed,
+            feed_it->second.svn,
+            uvm_endorsements->svn,
+            svn_to_write);
         }
       }
 
-      uvme->put(
-        uvm_endorsements->did,
-        {{uvm_endorsements->feed, {svn_to_write}}});
+      updated_map[uvm_endorsements->feed] = {svn_to_write};
+      uvme->put(uvm_endorsements->did, updated_map);
     }
 
     static void trust_node_snp_tcb_version(
