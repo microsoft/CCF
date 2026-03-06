@@ -210,7 +210,7 @@ def test_forced_snapshot(network, args):
                 LOG.info(
                     f"Found a snapshot at {snapshot_seqno} which is after the pre-proposal-high-water-mark {hwm_pre_proposal}"
                 )
-                return
+                return network
 
     raise RuntimeError("Could not find matching snapshot file")
 
