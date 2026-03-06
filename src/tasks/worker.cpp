@@ -18,7 +18,7 @@ namespace ccf::tasks
   struct ThrowTrace
   {
     void* frames[throw_trace_max_frames] = {};
-    int num_frames = 0;
+    size_t num_frames = 0;
   };
 
   namespace
