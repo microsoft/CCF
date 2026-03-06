@@ -4,6 +4,7 @@ import os
 import time
 from enum import Enum, auto
 import subprocess
+import infra.interfaces
 import infra.path
 import signal
 import re
@@ -534,7 +535,7 @@ class CCFRemote(object):
                 backup_snapshot_fetch_enabled=backup_snapshot_fetch_enabled,
                 backup_snapshot_fetch_max_attempts=backup_snapshot_fetch_max_attempts,
                 backup_snapshot_fetch_retry_interval=backup_snapshot_fetch_retry_interval,
-                backup_snapshot_fetch_target_rpc_interface=backup_snapshot_fetch_target_rpc_interface,
+                backup_snapshot_fetch_target_rpc_interface=infra.interfaces.FILE_SERVING_RPC_INTERFACE,
                 **kwargs,
             )
 
