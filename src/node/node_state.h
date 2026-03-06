@@ -206,11 +206,15 @@ namespace ccf
     struct BackupSnapshotFetch : public ccf::tasks::BaseTask
     {
       const ccf::CCFConfig::Snapshots snapshot_config;
+      ccf::kv::Version since_seqno;
       NodeState* owner;
 
       BackupSnapshotFetch(
-        ccf::CCFConfig::Snapshots snapshot_config_, NodeState* owner_) :
+        ccf::CCFConfig::Snapshots snapshot_config_,
+        ccf::kv::Version since_seqno_,
+        NodeState* owner_) :
         snapshot_config(std::move(snapshot_config_)),
+        since_seqno(since_seqno_),
         owner(owner_)
       {}
 
@@ -282,18 +286,23 @@ namespace ccf
             return;
           }
 
-          service_cert = {
-            owner->network.identity->cert.raw().begin(),
-            owner->network.identity->cert.raw().end()};
+          LOG_INFO_FMT(
+            "BackupSnapshotFetch: Service identity certificate available and "
+            "is {} bytes",
+            owner->network.identity->cert.raw().size());
+
+          service_cert = owner->network.identity->cert.raw();
         }
 
         LOG_INFO_FMT(
-          "BackupSnapshotFetch: Attempting to fetch snapshot from primary at {}",
+          "BackupSnapshotFetch: Attempting to fetch snapshot from primary at "
+          "{}",
           primary_address);
 
         const auto& bf = snapshot_config.backup_fetch;
         LOG_INFO_FMT(
-          "BackupSnapshotFetch: Fetch settings (max_attempts: {}, retry_interval_ms: {}, max_size_bytes: {})",
+          "BackupSnapshotFetch: Fetch settings (max_attempts: {}, "
+          "retry_interval_ms: {}, max_size_bytes: {})",
           bf.max_attempts,
           bf.retry_interval.count_ms(),
           bf.max_size.count_bytes());
@@ -302,7 +311,8 @@ namespace ccf
           service_cert,
           bf.max_attempts,
           bf.retry_interval.count_ms(),
-          bf.max_size.count_bytes());
+          bf.max_size.count_bytes(),
+          since_seqno);
 
         if (latest_peer_snapshot.has_value())
         {
@@ -3083,12 +3093,27 @@ namespace ccf
       network.tables->set_map_hook(
         network.snapshot_evidence.get_name(),
         SnapshotEvidence::wrap_map_hook(
-          [this, s = this->snapshotter](
+          [s = this->snapshotter](
             ccf::kv::Version version,
             const SnapshotEvidence::Write& w) -> ccf::kv::ConsensusHookPtr {
             assert(w.has_value());
             auto snapshot_evidence = w.value();
             s->record_snapshot_evidence_idx(version, snapshot_evidence);
+            return {nullptr};
+          }));
+
+      network.tables->set_global_hook(
+        network.snapshot_evidence.get_name(),
+        SnapshotEvidence::wrap_commit_hook(
+          [this](
+            [[maybe_unused]] ccf::kv::Version version,
+            const SnapshotEvidence::Write& w) {
+            if (!w.has_value())
+            {
+              return;
+            }
+
+            auto snapshot_evidence = w.value();
 
             // If backup snapshot fetching is enabled and this node is a
             // backup, schedule a fetch task
@@ -3108,14 +3133,16 @@ namespace ccf
               {
                 LOG_INFO_FMT(
                   "Snapshot evidence detected on backup - scheduling "
-                  "snapshot fetch from primary");
+                  "snapshot fetch from primary (since seqno: {})",
+                  snapshot_evidence.version);
                 backup_snapshot_fetch_task =
-                  std::make_shared<BackupSnapshotFetch>(config.snapshots, this);
+                  std::make_shared<BackupSnapshotFetch>(
+                    config.snapshots,
+                    snapshot_evidence.version - 1 /* YIKES */,
+                    this);
                 ccf::tasks::add_task(backup_snapshot_fetch_task);
               }
             }
-
-            return {nullptr};
           }));
 
       setup_basic_hooks();

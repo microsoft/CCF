@@ -2846,45 +2846,61 @@ def test_backup_snapshot_fetch(network, args):
     LOG.info("Issuing transactions to trigger snapshot generation")
     network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
 
-    # Wait for a committed snapshot on the primary
+    # Wait for committed snapshots on the primary, and use those as expected
+    # snapshot files on backups.
     LOG.info("Waiting for committed snapshot on primary")
-    network.get_committed_snapshots(primary)
+    primary_snapshots_dir = network.get_committed_snapshots(primary)
+    expected_snapshot_sizes = {
+        snapshot_name: os.path.getsize(
+            os.path.join(primary_snapshots_dir, snapshot_name)
+        )
+        for snapshot_name in os.listdir(primary_snapshots_dir)
+        if ccf.ledger.is_snapshot_file_committed(snapshot_name)
+    }
 
-    # Now check that backups have downloaded the snapshot
-    # Look for log messages indicating the backup fetched a snapshot
+    assert (
+        len(expected_snapshot_sizes) > 0
+    ), f"No committed snapshots found in {primary_snapshots_dir}"
+
     for backup in backups:
-        LOG.info(f"Checking backup {backup.local_node_id} for snapshot fetch")
-        expected_messages = [
-            re.compile(
-                r"Snapshot evidence detected on backup - scheduling snapshot fetch from primary"
-            ),
-            re.compile(r"BackupSnapshotFetch: Writing snapshot to "),
-        ]
-
-        timeout = 30
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            out_path, _ = backup.get_logs()
-            remaining = list(expected_messages)
-            with open(out_path, "r", encoding="utf-8") as f:
-                for line in f.readlines():
-                    for expected in remaining[:]:
-                        if re.search(expected, line):
-                            remaining.remove(expected)
-                            LOG.info(
-                                f"Found expected log message on backup {backup.local_node_id}: {line.strip()}"
-                            )
-            if len(remaining) == 0:
-                break
-            time.sleep(1)
-
-        assert len(remaining) == 0, (
-            f"Backup {backup.local_node_id} did not produce expected log messages "
-            f"within {timeout}s. Missing: {[p.pattern for p in remaining]}"
+        backup_snapshots_dir = os.path.join(
+            backup.remote.remote.root, backup.remote.snapshots_dir_name
+        )
+        LOG.info(
+            f"Checking backup {backup.local_node_id} snapshots in {backup_snapshots_dir}"
         )
 
-    LOG.success("All backups successfully fetched snapshots from primary")
+        for snapshot_name, expected_size in expected_snapshot_sizes.items():
+            snapshot_path = os.path.join(backup_snapshots_dir, snapshot_name)
+            timeout_s = 10
+            end_time = time.time() + timeout_s
+            while time.time() < end_time:
+                if os.path.exists(snapshot_path):
+                    actual_size = os.path.getsize(snapshot_path)
+                    if actual_size == expected_size:
+                        LOG.info(
+                            f"Backup {backup.local_node_id}: found {snapshot_name} with expected size {expected_size} bytes"
+                        )
+                        break
 
+                    LOG.info(
+                        f"Backup {backup.local_node_id}: snapshot {snapshot_name} present with size {actual_size}, expected {expected_size}; retrying"
+                    )
+
+                time.sleep(0.1)
+            else:
+                actual_size = (
+                    os.path.getsize(snapshot_path)
+                    if os.path.exists(snapshot_path)
+                    else None
+                )
+                raise AssertionError(
+                    f"Backup {backup.local_node_id} missing snapshot {snapshot_name} "
+                    f"with expected size {expected_size} in {backup_snapshots_dir} "
+                    f"after {timeout_s}s (actual size: {actual_size})"
+                )
+
+    LOG.success("All backups successfully fetched snapshots from primary")
 
 
 def run_backup_snapshot_download(const_args):
