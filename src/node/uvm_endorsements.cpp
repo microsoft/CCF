@@ -12,8 +12,8 @@ namespace ccf
   size_t parse_svn(const std::string& svn_str)
   {
     size_t svn = 0;
-    auto result = std::from_chars(
-      svn_str.data(), svn_str.data() + svn_str.size(), svn);
+    auto result =
+      std::from_chars(svn_str.data(), svn_str.data() + svn_str.size(), svn);
     if (result.ec != std::errc())
     {
       throw std::runtime_error(
