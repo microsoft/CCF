@@ -2,14 +2,15 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/app_interface.h"
-#include "ccf/kv/map.h"
+#include "ccf/service/tables/host_data.h"
+#include "ccf/service/tables/service.h"
+#include "service/tables/config.h"
+#include "service/tables/signatures.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
-#include "crypto/openssl/hash.h"
-#include "ds/internal_logger.h"
+#include "kv/store.h"
 #include "kv/test/null_encryptor.h"
-#include "node/network_state.h"
 #include "service/internal_tables_access.h"
 
 #include <doctest/doctest.h>

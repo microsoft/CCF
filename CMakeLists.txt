@@ -822,21 +822,10 @@ if(BUILD_TESTS)
     add_unit_test(
       internal_tables_access_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/internal_tables_access_test.cpp
-      ${CCF_DIR}/src/node/quote.cpp
       ${CCF_DIR}/src/node/uvm_endorsements.cpp
-      ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
     )
     target_link_libraries(
-      internal_tables_access_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
-              http_parser
-              ccf_js
-              ccf_endpoints
-              ccfcrypto
-              ccf_kv
-              ccf_tasks
-              curl
-              uv
+      internal_tables_access_test PRIVATE ccfcrypto ccf_kv
     )
 
     add_unit_test(
