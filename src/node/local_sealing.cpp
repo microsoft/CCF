@@ -85,7 +85,8 @@ namespace ccf::sealing
     return sealing_key;
   }
 
-  std::vector<uint8_t> re_derive_sealing_key(const SealedRecoveryKey& sealed_recovery_key)
+  std::vector<uint8_t> re_derive_sealing_key(
+    const SealedRecoveryKey& sealed_recovery_key)
   {
     switch (sealed_recovery_key.version)
     {
@@ -192,7 +193,8 @@ namespace ccf::sealing
     auto sealed_share_info = sealed_shares.value();
 
     // Unseal the recovery key pair
-    std::vector<uint8_t> derived_key = re_derive_sealing_key(sealed_recovery_key);
+    std::vector<uint8_t> derived_key =
+      re_derive_sealing_key(sealed_recovery_key);
 
     auto recovery_key_pair =
       unseal_recovery_key(derived_key, sealed_recovery_key);

@@ -898,7 +898,7 @@ namespace ccf
               outgoing_forwarding_queue_size);
             return false;
           }
-        
+
           case (NodeMsgType::channel_msg):
           {
             CHANNEL_SEND_FAIL(

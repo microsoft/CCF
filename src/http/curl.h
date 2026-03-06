@@ -419,10 +419,10 @@ namespace ccf::curl
       }
 
       // We intentionally support a strict subset of llhttp methods here.
-    #ifdef __clang__
-    #  pragma clang diagnostic push
-    #  pragma clang diagnostic ignored "-Wswitch-enum"
-    #endif
+#ifdef __clang__
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wswitch-enum"
+#endif
       switch (http_method.value())
       {
         case HTTP_GET:

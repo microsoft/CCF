@@ -279,7 +279,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         }
       }
 
-      throw std::logic_error("Unsupported SEV-SNP product for TCB version policy");
+      throw std::logic_error(
+        "Unsupported SEV-SNP product for TCB version policy");
     }
 
     [[nodiscard]] TcbVersionMilanGenoa* as_milan_genoa()

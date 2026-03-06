@@ -4,6 +4,7 @@
 
 #include "ccf/http_status.h"
 #include "ccf/node/quote.h"
+
 #include <stdexcept>
 
 namespace ccf
@@ -14,7 +15,8 @@ namespace ccf
     switch (result)
     {
       case QuoteVerificationResult::Verified:
-        throw std::invalid_argument("quote_verification_error should not be called with Verified result");
+        throw std::invalid_argument(
+          "quote_verification_error should not be called with Verified result");
       case QuoteVerificationResult::Failed:
         return std::make_pair(
           HTTP_STATUS_UNAUTHORIZED, "Quote could not be verified");
@@ -38,11 +40,10 @@ namespace ccf
           HTTP_STATUS_UNAUTHORIZED, "UVM endorsements are not authorised");
       case QuoteVerificationResult::FailedInvalidCPUID:
         return std::make_pair(
-          HTTP_STATUS_UNAUTHORIZED, "Quote contains unknown CPUID");
+          HTTP_STATUS_UNAUTHORIZED, "Quote CPUID is unknown");
       case QuoteVerificationResult::FailedInvalidTcbVersion:
         return std::make_pair(
-          HTTP_STATUS_UNAUTHORIZED,
-          "Quote TCB version is too low");
+          HTTP_STATUS_UNAUTHORIZED, "Quote TCB version is too low");
     }
 
     return std::make_pair(
