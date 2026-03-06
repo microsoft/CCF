@@ -173,69 +173,46 @@ def test_forced_ledger_chunk(network, args):
 @reqs.description("Forced snapshot")
 @app.scoped_txs()
 def test_forced_snapshot(network, args):
-    inner_args = copy.deepcopy(args)
-    inner_args.common_read_only_ledger_dir = (
-        None  # Side-effect setting which would break the starting node
+    primary, _ = network.find_primary()
+
+    # Submit some dummy transactions
+    network.txs.issue(network, number_txs=3)
+
+    with primary.client() as c:
+        r = c.get("/node/commit").body.json()
+        hwm_pre_proposal = TxID.from_str(r["transaction_id"]).seqno
+
+    # Ensure there is at least one signature greater than the hwm
+    network.txs.issue(network, number_txs=1, wait_for_sync=True)
+
+    # Submit a proposal to force a snapshot
+    proposal_body, careful_vote = network.consortium.make_proposal("trigger_snapshot")
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
     )
-    inner_args.label = f"{inner_args.label}_forced_snapshot"
-    inner_args.snapshot_tx_interval = (
-        10000  # Large interval to avoid interference from regular snapshots
+    proposal = network.consortium.vote_using_majority(
+        primary,
+        proposal,
+        careful_vote,
     )
 
-    # Use a separate network to ensure unforced snapshots do not happen
-    with infra.network.network(
-        inner_args.nodes,
-        inner_args.binary_dir,
-        inner_args.debug_nodes,
-        pdb=inner_args.pdb,
-        txs=app.LoggingTxs("user0"),
-    ) as inner_network:
-        inner_network.start_and_open(inner_args)
+    # Issue some more transactions
+    network.txs.issue(network, number_txs=5)
 
-        primary, _ = inner_network.find_primary()
+    snapshots_dir = network.get_committed_snapshots(
+        primary, target_seqno=hwm_pre_proposal + 1
+    )
 
-        # Submit some dummy transactions
-        inner_network.txs.issue(inner_network, number_txs=3)
+    for s in os.listdir(snapshots_dir):
+        with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
+            snapshot_seqno = snapshot.get_public_domain().get_seqno()
+            if snapshot_seqno > hwm_pre_proposal:
+                LOG.info(
+                    f"Found a snapshot at {snapshot_seqno} which is after the pre-proposal-high-water-mark {hwm_pre_proposal}"
+                )
+                return
 
-        with primary.client() as c:
-            r = c.get("/node/commit").body.json()
-            hwm_pre_proposal = TxID.from_str(r["transaction_id"]).seqno
-
-        # Ensure there is at least one signature greater than the hwm
-        inner_network.txs.issue(inner_network, number_txs=1, wait_for_sync=True)
-
-        # Submit a proposal to force a snapshot
-        proposal_body, careful_vote = inner_network.consortium.make_proposal(
-            "trigger_snapshot"
-        )
-        proposal = inner_network.consortium.get_any_active_member().propose(
-            primary, proposal_body
-        )
-        proposal = inner_network.consortium.vote_using_majority(
-            primary,
-            proposal,
-            careful_vote,
-        )
-
-        # Issue some more transactions
-        inner_network.txs.issue(inner_network, number_txs=5)
-
-        snapshots_dir = inner_network.get_committed_snapshots(
-            primary, target_seqno=hwm_pre_proposal + 1
-        )
-
-        for s in os.listdir(snapshots_dir):
-            with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
-                snapshot_seqno = snapshot.get_public_domain().get_seqno()
-                if snapshot_seqno > hwm_pre_proposal:
-                    LOG.info(
-                        f"Found a snapshot at {snapshot_seqno} which is after the pre-proposal-high-water-mark {hwm_pre_proposal}"
-                    )
-                    return network
-
-        raise RuntimeError("Could not find matching snapshot file")
-
-    return network
+    raise RuntimeError("Could not find matching snapshot file")
 
 
 # https://github.com/microsoft/CCF/issues/1858
@@ -515,28 +492,32 @@ def test_snapshot_repr_digest(network, args):
         ), f"Expected partial body of {range_end + 1} bytes, got {len(r.body.data())}"
 
 
-def test_snapshot_selection(network, args):
-    inner_args = copy.deepcopy(args)
-    inner_args.common_read_only_ledger_dir = (
+def run_manual_snapshot_tests(const_args):
+    # Use a separate network with explicit args to ensure unforced snapshots do not happen
+
+    args = copy.deepcopy(const_args)
+    args.common_read_only_ledger_dir = (
         None  # Side-effect setting which would break the starting node
     )
-    inner_args.label = f"{inner_args.label}_snapshot_selection"
-    inner_args.snapshot_tx_interval = (
+    args.label = f"{args.label}_manual_snapshots"
+    args.snapshot_tx_interval = (
         10000  # Large interval to avoid interference from regular snapshots
     )
 
-    # Use a separate network to ensure unforced snapshots do not happen
     with infra.network.network(
-        inner_args.nodes,
-        inner_args.binary_dir,
-        inner_args.debug_nodes,
-        pdb=inner_args.pdb,
-    ) as inner_network:
-        inner_network.start_and_open(inner_args)
-        _test_snapshot_selection(inner_network, inner_args)
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args)
+
+        test_snapshot_selection(network, args)
+        test_forced_snapshot(network, args)
 
 
-def _test_snapshot_selection(network, args):
+def test_snapshot_selection(network, args):
     # Add nodes so we have at least 3
     while len(network.get_joined_nodes()) < 3:
         new_node = network.create_node()
@@ -656,6 +637,10 @@ def _test_snapshot_selection(network, args):
     for node in suspended:
         node.resume()
 
+    # Heal after all the suspensions, before running further tests
+    network.wait_for_primary_unanimity()
+    network.wait_for_node_commit_sync()
+
 
 def test_empty_snapshot(network, args):
 
@@ -732,6 +717,188 @@ def test_nulled_snapshot(network, args):
 
         # (Existing assertion logic retained)
         assert failed, "Node should not have joined successfully"
+
+
+def test_corrupt_snapshot_handling(network, args):
+    """
+    Test that corrupt snapshots in writable and read-only directories are
+    handled correctly:
+    - In the writable directory, corrupt files are renamed to .ignored.
+    - In a read-only (config) directory, log messages about unrenamable files
+      are emitted.
+    - When the writable directory's permissions prevent renaming, a log message
+      about failure to mark the snapshot as ignored is emitted.
+    """
+
+    # Craft corrupt snapshot data that passes separate_segments() (valid header
+    # with non-zero body size and non-empty receipt area) but fails
+    # verify_snapshot() because the receipt is not valid JSON.
+    # SerialisedEntryHeader is 8 bytes: version(1) + flags(1) + size(48-bit LE)
+    body_size = 16
+    header = bytes([1, 0]) + body_size.to_bytes(6, "little")
+    assert len(header) == 8
+    body = b"\x00" * body_size
+    receipt = b"this is not valid json!!"
+    corrupt_data = header + body + receipt
+
+    # Use a higher seqno for the writable dir so it is tried first (snapshots
+    # are iterated in descending seqno order).
+    writable_snapshot_name = "snapshot_2000_2500.committed"
+    read_only_snapshot_name = "snapshot_1000_1500.committed"
+
+    # ---- Part 1: writable dir (rename succeeds) + read-only config dir ----
+    LOG.info("Part 1: corrupt snapshots in both writable and read-only directories")
+
+    with tempfile.TemporaryDirectory() as writable_dir, tempfile.TemporaryDirectory() as read_only_dir:
+        # Place corrupt snapshots
+        with open(os.path.join(writable_dir, writable_snapshot_name), "wb") as f:
+            f.write(corrupt_data)
+        with open(os.path.join(read_only_dir, read_only_snapshot_name), "wb") as f:
+            f.write(corrupt_data)
+
+        new_node = network.create_node()
+
+        # Set up the join with the writable snapshot directory only; we will
+        # inject the read-only directory into the config afterwards.
+        network.setup_join_node(
+            new_node,
+            args.package,
+            args,
+            snapshots_dir=writable_dir,
+            fetch_recent_snapshot=False,
+        )
+
+        # The node's workspace root and config file
+        node_root = new_node.remote.remote.root
+        config_file_name = f"{new_node.remote.local_node_id}.config.json"
+        config_path = os.path.join(node_root, config_file_name)
+
+        # Copy the read-only snapshot directory into the node's workspace
+        ro_dir_basename = os.path.basename(read_only_dir)
+        shutil.copytree(read_only_dir, os.path.join(node_root, ro_dir_basename))
+
+        # Patch the config to include the read-only snapshot directory.
+        # If the config file is a symlink, replace it with a copy so we
+        # don't mutate the shared original.
+        if os.path.islink(config_path):
+            target = os.path.realpath(config_path)
+            os.unlink(config_path)
+            shutil.copy2(target, config_path)
+
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        config["snapshots"]["read_only_directory"] = ro_dir_basename
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+
+        # Start the node – it should fall back to ledger replay after
+        # discarding both corrupt snapshots.  If the node fails to join
+        # (e.g. timeout), that is acceptable – the snapshot selection
+        # behaviour we care about happens during startup before the join
+        # protocol completes.
+        try:
+            network.run_join_node(new_node)
+            new_node.stop()
+        except Exception as e:
+            LOG.warning(f"Node failed to join (expected if ledger replay is slow): {e}")
+            # run_join_node already stopped and removed the node on failure,
+            # but we still need to ensure the process is down.
+            try:
+                new_node.stop()
+            except Exception:
+                pass
+
+        # -- Verify writable directory: file must be renamed to .ignored --
+        writable_in_ws = os.path.join(node_root, os.path.basename(writable_dir))
+        ws_files = os.listdir(writable_in_ws)
+        assert writable_snapshot_name not in ws_files, (
+            f"Corrupt snapshot {writable_snapshot_name} should have been "
+            f"renamed in writable dir, but found: {ws_files}"
+        )
+        assert f"{writable_snapshot_name}.ignored" in ws_files, (
+            f"Expected {writable_snapshot_name}.ignored in writable dir, "
+            f"but found: {ws_files}"
+        )
+
+        # -- Verify read-only directory: file must still be present --
+        ro_in_ws = os.path.join(node_root, ro_dir_basename)
+        ro_files = os.listdir(ro_in_ws)
+        assert read_only_snapshot_name in ro_files, (
+            f"Corrupt snapshot {read_only_snapshot_name} in read-only dir "
+            f"should not have been renamed, but found: {ro_files}"
+        )
+
+        # -- Verify node logs --
+        assert new_node.check_log_for_error_message(
+            "Error while verifying"
+        ), "Expected 'Error while verifying' in node logs"
+
+        assert new_node.check_log_for_error_message(
+            "Ignoring corrupt snapshot"
+        ), "Expected 'Ignoring corrupt snapshot' in node logs"
+
+        assert new_node.check_log_for_error_message(
+            "is in a read-only directory"
+        ), "Expected read-only directory message in node logs"
+
+    # ---- Part 2: writable dir with restricted permissions (rename fails) ----
+    LOG.info("Part 2: corrupt snapshot in writable dir that cannot be renamed")
+
+    unrenamable_snapshot_name = "snapshot_3000_3500.committed"
+
+    with tempfile.TemporaryDirectory() as restricted_dir:
+        snapshot_path = os.path.join(restricted_dir, unrenamable_snapshot_name)
+        with open(snapshot_path, "wb") as f:
+            f.write(corrupt_data)
+
+        new_node2 = network.create_node()
+        network.setup_join_node(
+            new_node2,
+            args.package,
+            args,
+            snapshots_dir=restricted_dir,
+            fetch_recent_snapshot=False,
+        )
+
+        # To make the rename to .ignored fail, create a *directory* with the
+        # target name (<snapshot>.ignored).  On Linux, rename() returns EISDIR
+        # when the source is a file and the destination is a directory,
+        # regardless of user privileges (chmod is ineffective under root).
+        node_root2 = new_node2.remote.remote.root
+        restricted_in_ws = os.path.join(node_root2, os.path.basename(restricted_dir))
+        blocker_dir = os.path.join(
+            restricted_in_ws, f"{unrenamable_snapshot_name}.ignored"
+        )
+        os.makedirs(blocker_dir)
+        # Place a file inside so the directory is non-empty (extra safety)
+        with open(os.path.join(blocker_dir, "placeholder"), "w") as f:
+            f.write("")
+
+        try:
+            network.run_join_node(new_node2)
+        except Exception:
+            # The node may fail to join if it cannot write to the snapshots
+            # directory at all; that is acceptable for this sub-test.
+            pass
+
+        try:
+            new_node2.stop()
+        except Exception:
+            pass
+
+        # The corrupt file should still be present (rename failed)
+        ws_files2 = os.listdir(restricted_in_ws)
+        assert unrenamable_snapshot_name in ws_files2, (
+            f"Corrupt snapshot {unrenamable_snapshot_name} should still exist "
+            f"after failed rename, but found: {ws_files2}"
+        )
+
+        # Check that the failure-to-rename message appears in the logs
+        assert new_node2.check_log_for_error_message(
+            "Unable to mark snapshot as ignored"
+        ), "Expected 'Unable to mark snapshot as ignored' in node logs"
+
+    return network
 
 
 def split_all_ledger_files_in_dir(input_dir, output_dir):
@@ -1351,13 +1518,12 @@ def run_file_operations(args):
                 test_save_committed_ledger_files(network, args)
                 test_parse_snapshot_file(network, args)
                 test_forced_ledger_chunk(network, args)
-                test_forced_snapshot(network, args)
                 test_large_snapshot(network, args)
                 test_snapshot_access(network, args)
                 test_snapshot_repr_digest(network, args)
-                test_snapshot_selection(network, args)
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
+                test_corrupt_snapshot_handling(network, args)
 
                 # Ensure that the network is still live
                 primary, _ = network.find_primary()
@@ -2063,17 +2229,15 @@ def run_initial_tcb_version_checks(const_args):
 
 
 def run_recovery_local_unsealing(
-    const_args, recovery_f=0, rekey=False, recovery_shares_refresh=False
+    const_args, suffix, recovery_f=0, rekey=False, recovery_shares_refresh=False
 ):
     LOG.info("Running recovery local unsealing")
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.enable_local_sealing = True
-    args.label += (
-        f"_unsealing_{recovery_f}_rekey_{rekey}_refresh_{recovery_shares_refresh}"
-    )
+    args.label += suffix
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
 
         network.save_service_identity(args)
@@ -2100,10 +2264,9 @@ def run_recovery_local_unsealing(
                 recovery_network_args.binary_dir,
                 next_node_id=prev_network.next_node_id,
             ) as recovery_network:
-
-                recovery_network.per_node_args_override = {
-                    0: {"previous_local_sealing_identity": node.node_id}
-                }
+                recovery_network.set_sealing_recovery_locations(
+                    prev_nodes=network.nodes
+                )
 
                 # Reset consortium and users to prevent issues with hosts from existing_network
                 recovery_network.consortium = prev_network.consortium
@@ -2129,10 +2292,10 @@ def run_recovery_unsealing_validate_audit(const_args):
     LOG.info("Running recovery local unsealing")
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.enable_local_sealing = True
     args.label += "_unsealing_audit"
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
 
         network.save_service_identity(args)
@@ -2168,9 +2331,9 @@ def run_recovery_unsealing_validate_audit(const_args):
                 next_node_id=prev_network.next_node_id,
             ) as recovery_network:
                 if via_local_unsealing:
-                    recovery_network.per_node_args_override = {
-                        0: {"previous_local_sealing_identity": network.nodes[0].node_id}
-                    }
+                    recovery_network.set_sealing_recovery_locations(
+                        prev_nodes=network.nodes
+                    )
 
                 # Reset consortium and users to prevent issues with hosts from existing_network
                 recovery_network.consortium = prev_network.consortium
@@ -2210,11 +2373,10 @@ def run_recovery_unsealing_validate_audit(const_args):
                 prev_network = recovery_network
 
 
-def run_self_healing_open(const_args):
+def run_recovery_decision_protocol(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.label += "_self_healing_open"
-    args.enable_local_sealing = True
+    args.label += "_recovery_decision_protocol"
 
     with infra.network.network(
         args.nodes,
@@ -2222,18 +2384,12 @@ def run_self_healing_open(const_args):
         args.debug_nodes,
     ) as network:
         LOG.info("Start a network and stop it")
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
         network.save_service_identity(args)
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
-
-        ledger_dirs = {}
-        committed_ledger_dirs = {}
-        for i, node in enumerate(network.nodes):
-            l_dir, c = node.get_ledger()
-            ledger_dirs[i] = l_dir
-            committed_ledger_dirs[i] = c
 
         LOG.info("Start recovery network")
         with infra.network.network(
@@ -2242,16 +2398,11 @@ def run_self_healing_open(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
-            recovered_network.per_node_args_override = {
-                i: {"previous_local_sealing_identity": node.node_id}
-                for i, node in enumerate(network.nodes)
-            }
-            recovered_network.start_in_self_healing_open(
+            recovered_network.start_in_recovery_decision_protocol(
                 recovery_args,
-                ledger_dirs=ledger_dirs,
-                committed_ledger_dirs=committed_ledger_dirs,
+                existing_network=network,
             )
-            recovered_network.wait_for_self_healing_open_finish()
+            recovered_network.wait_for_recovery_decision_protocol_finish()
 
             # Refresh the declared state of nodes which have shut themselves down to join.
             for node in recovered_network.nodes:
@@ -2267,18 +2418,17 @@ def run_self_healing_open(const_args):
 
             latest_public_tables, _ = recovered_network.get_latest_ledger_public_state()
             recovery_type = latest_public_tables[
-                "public:ccf.gov.self_healing_open.open_kind"
+                "public:ccf.gov.recovery_decision_protocol.open_kind"
             ][b"\x00\x00\x00\x00\x00\x00\x00\x00"].decode("utf-8")
             assert (
                 recovery_type == '"Quorum"'
             ), f"Network self-healing open type was {recovery_type} instead of Quorum"
 
 
-def run_self_healing_open_timeout_path(const_args):
+def run_recovery_decision_protocol_timeout_path(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.label += "_self_healing_open_timeout"
-    args.enable_local_sealing = True
+    args.label += "_recovery_decision_protocol_timeout"
 
     with infra.network.network(
         args.nodes,
@@ -2286,18 +2436,12 @@ def run_self_healing_open_timeout_path(const_args):
         args.debug_nodes,
     ) as network:
         LOG.info("Start a network and stop it")
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
         network.save_service_identity(args)
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
-
-        ledger_dirs = {}
-        committed_ledger_dirs = {}
-        for i, node in enumerate(network.nodes):
-            l_dir, c = node.get_ledger()
-            ledger_dirs[i] = l_dir
-            committed_ledger_dirs[i] = c
 
         LOG.info("Start a recovery network and stop it")
         with infra.network.network(
@@ -2306,17 +2450,12 @@ def run_self_healing_open_timeout_path(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
-            recovered_network.per_node_args_override = {
-                i: {"previous_local_sealing_identity": node.node_id}
-                for i, node in enumerate(network.nodes)
-            }
-            recovered_network.start_in_self_healing_open(
+            recovered_network.start_in_recovery_decision_protocol(
                 recovery_args,
-                ledger_dirs=ledger_dirs,
-                committed_ledger_dirs=committed_ledger_dirs,
+                existing_network=network,
                 starting_nodes=0,  # Force timeout path by starting only one node
             )
-            recovered_network.wait_for_self_healing_open_finish()
+            recovered_network.wait_for_recovery_decision_protocol_finish()
 
             # Refresh the declared state of nodes which have shut themselves down to join.
             for node in recovered_network.nodes:
@@ -2331,18 +2470,17 @@ def run_self_healing_open_timeout_path(const_args):
 
             latest_public_tables, _ = recovered_network.get_latest_ledger_public_state()
             recovery_type = latest_public_tables[
-                "public:ccf.gov.self_healing_open.open_kind"
+                "public:ccf.gov.recovery_decision_protocol.open_kind"
             ][b"\x00\x00\x00\x00\x00\x00\x00\x00"].decode("utf-8")
             assert (
                 recovery_type == '"Failover"'
             ), f"Network self-healing open type was {recovery_type} instead of Failover"
 
 
-def run_self_healing_open_multiple_timeout(const_args):
+def run_recovery_decision_protocol_multiple_timeout(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.label += "_self_healing_open_multiple_timeout"
-    args.enable_local_sealing = True
+    args.label += "_recovery_decision_protocol_multiple_timeout"
 
     with infra.network.network(
         args.nodes,
@@ -2350,18 +2488,12 @@ def run_self_healing_open_multiple_timeout(const_args):
         args.debug_nodes,
     ) as network:
         LOG.info("Start a network and stop it")
+        network.set_sealing_recovery_locations()
         network.start_and_open(args)
         network.save_service_identity(args)
         network.stop_all_nodes()
 
         recovery_args = copy.deepcopy(args)
-
-        ledger_dirs = {}
-        committed_ledger_dirs = {}
-        for i, node in enumerate(network.nodes):
-            l_dir, c = node.get_ledger()
-            ledger_dirs[i] = l_dir
-            committed_ledger_dirs[i] = c
 
         LOG.info("Start a recovery network")
         with infra.network.network(
@@ -2370,17 +2502,12 @@ def run_self_healing_open_multiple_timeout(const_args):
             recovery_args.debug_nodes,
             existing_network=network,
         ) as recovered_network:
-            recovered_network.per_node_args_override = {
-                i: {"previous_local_sealing_identity": node.node_id}
-                for i, node in enumerate(network.nodes)
-            }
-            recovered_network.start_in_self_healing_open(
+            recovered_network.start_in_recovery_decision_protocol(
                 recovery_args,
-                ledger_dirs=ledger_dirs,
-                committed_ledger_dirs=committed_ledger_dirs,
+                existing_network=network,
                 suspend_after_start=True,  # suspend each node after starting to ensure they don't progress
             )
-            # for each node: start it and wait until it finishes the self-healing-open on the timeout path
+            # for each node: start it and wait until it finishes the recovery-decision-protocol on the timeout path
             for node in recovered_network.nodes:
                 node.resume()
                 recovered_network.wait_for_statuses(
@@ -2419,6 +2546,7 @@ def run_read_ledger_on_testdata(args):
                 tables = tx.get_public_domain().get_tables()
                 tx_count += 1
         LOG.info(f"Read {tx_count} transactions from {testdata_path}")
+
         snapshot_path = os.path.join(
             args.historical_testdata, testdata_dir.name, "snapshots"
         )
@@ -2431,6 +2559,55 @@ def run_read_ledger_on_testdata(args):
                     LOG.info(
                         f"Valid snapshot at {snapshot_file.path} with {len(tables)} tables"
                     )
+
+
+def test_merkle_verification_level(args):
+    """Test MERKLE verification level on isolated chunks and full ledgers"""
+    LOG.info("Testing MERKLE verification level")
+
+    # Test 1: MERKLE verification on full ledger
+    for testdata_dir in os.scandir(args.historical_testdata):
+        if not testdata_dir.is_dir():
+            continue
+        testdata_path = os.path.join(
+            args.historical_testdata, testdata_dir.name, "ledger"
+        )
+        LOG.info(f"Testing MERKLE verification on full ledger: {testdata_path}")
+
+        # Read with MERKLE verification level
+        assert ccf.read_ledger.run(
+            paths=[testdata_path],
+            print_mode=ccf.read_ledger.PrintMode.Quiet,
+            verification_level=ccf.ledger.VerificationLevel.MERKLE,
+        )
+
+    # Test 2: MERKLE verification on isolated chunks
+    # Find chunks with multiple signatures to test the "trust first signature" logic
+    test_chunks = [
+        os.path.join(
+            args.historical_testdata,
+            "expired_service",
+            "ledger",
+            "ledger_29-46.committed",
+        ),
+        os.path.join(
+            args.historical_testdata,
+            "double_sealed_service",
+            "ledger",
+            "ledger_44-64.committed",
+        ),
+    ]
+
+    for chunk_path in test_chunks:
+        if os.path.exists(chunk_path):
+            LOG.info(f"Testing MERKLE verification on isolated chunk: {chunk_path}")
+            assert ccf.read_ledger.run(
+                paths=[chunk_path],
+                print_mode=ccf.read_ledger.PrintMode.Quiet,
+                verification_level=ccf.ledger.VerificationLevel.MERKLE,
+            )
+
+    LOG.info("MERKLE verification level tests passed")
 
     # Corrupt a single chunk to confirm that read_ledger throws appropriate errors
     source_chunk = os.path.join(
@@ -2702,20 +2879,25 @@ def run_propose_request_vote(const_args):
 def run_snp_tests(args):
     run_initial_uvm_descriptor_checks(args)
     run_initial_tcb_version_checks(args)
-    run_recovery_local_unsealing(args)
-    run_recovery_local_unsealing(args, rekey=True)
-    run_recovery_local_unsealing(args, recovery_shares_refresh=True)
-    run_recovery_local_unsealing(args, recovery_f=1)
+    run_recovery_local_unsealing(args, suffix="_unsealing")
+    run_recovery_local_unsealing(args, rekey=True, suffix="_unsealing_with_rekey")
+    run_recovery_local_unsealing(
+        args,
+        recovery_shares_refresh=True,
+        suffix="_unsealing_with_recovery_shares_refresh",
+    )
+    run_recovery_local_unsealing(args, recovery_f=1, suffix="_unsealing_with_f_equal_1")
     run_recovery_unsealing_validate_audit(args)
     test_error_message_on_failure_to_read_aci_sec_context(args)
-    run_self_healing_open(args)
-    run_self_healing_open_timeout_path(args)
-    run_self_healing_open_multiple_timeout(args)
+    run_recovery_decision_protocol(args)
+    run_recovery_decision_protocol_timeout_path(args)
+    run_recovery_decision_protocol_multiple_timeout(args)
 
 
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
+    run_manual_snapshot_tests(args)
     run_tls_san_checks(args)
     run_config_timeout_check(args)
     run_configuration_file_checks(args)
@@ -2727,4 +2909,5 @@ def run(args):
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
     run_read_ledger_on_testdata(args)
+    test_merkle_verification_level(args)
     run_propose_request_vote(args)

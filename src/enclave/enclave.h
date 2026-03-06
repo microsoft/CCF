@@ -179,7 +179,6 @@ namespace ccf
     CreateNodeStatus create_new_node(
       StartType start_type_,
       const ccf::StartupConfig& ccf_config_,
-      std::vector<uint8_t>&& startup_snapshot,
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& service_cert)
     {
@@ -203,8 +202,7 @@ namespace ccf
       {
         LOG_TRACE_FMT(
           "Creating node with start_type {}", start_type_to_str(start_type));
-        create_info =
-          node->create(start_type, ccf_config_, std::move(startup_snapshot));
+        create_info = node->create(start_type, ccf_config_);
       }
       catch (const std::exception& e)
       {

@@ -10,7 +10,7 @@
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/tx.h"
-#include "node/self_healing_open_impl.h"
+#include "node/recovery_decision_protocol.h"
 #include "node/session_metrics.h"
 
 namespace ccf
@@ -63,7 +63,7 @@ namespace ccf
 
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
 
-    virtual SelfHealingOpenSubsystem& self_healing_open() = 0;
+    virtual RecoveryDecisionProtocolSubsystem& recovery_decision_protocol() = 0;
 
     virtual void shuffle_sealed_shares(ccf::kv::Tx& tx) = 0;
   };

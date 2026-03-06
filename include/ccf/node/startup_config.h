@@ -104,13 +104,20 @@ namespace ccf
     Snapshots snapshots = {};
   };
 
-  struct SelfHealingOpenConfig
+  struct RecoveryDecisionProtocolConfig
   {
-    self_healing_open::Identity identity;
-    std::vector<self_healing_open::Identity> cluster_identities;
-    ccf::ds::TimeString retry_timeout = {"100ms"};
+    std::vector<sealing_recovery::Location> expected_locations;
+    ccf::ds::TimeString message_retry_timeout = {"100ms"};
     ccf::ds::TimeString failover_timeout = {"2000ms"};
-    bool operator==(const SelfHealingOpenConfig&) const = default;
+    bool operator==(const RecoveryDecisionProtocolConfig&) const = default;
+  };
+
+  struct SealingRecoveryConfig
+  {
+    sealing_recovery::Location location;
+    std::optional<RecoveryDecisionProtocolConfig> recovery_decision_protocol =
+      std::nullopt;
+    bool operator==(const SealingRecoveryConfig&) const = default;
   };
 
   struct StartupConfig : CCFConfig
@@ -126,7 +133,7 @@ namespace ccf
     std::string service_subject_name = "CN=CCF Service";
     ccf::COSESignaturesConfig cose_signatures;
 
-    bool enable_local_sealing = false;
+    std::optional<SealingRecoveryConfig> sealing_recovery = std::nullopt;
 
     nlohmann::json service_data = nullptr;
 
@@ -145,9 +152,13 @@ namespace ccf
     struct Join
     {
       ccf::NodeInfoNetwork::NetAddress target_rpc_address;
-      ccf::ds::TimeString retry_timeout = {"1000ms"};
+      ccf::ds::TimeString retry_timeout;
       std::vector<uint8_t> service_cert;
-      bool follow_redirect = true;
+      bool follow_redirect{};
+      bool fetch_recent_snapshot{};
+      size_t fetch_snapshot_max_attempts{};
+      ccf::ds::TimeString fetch_snapshot_retry_interval;
+      ccf::ds::SizeString fetch_snapshot_max_size;
     };
     Join join = {};
 
@@ -155,8 +166,6 @@ namespace ccf
     {
       std::optional<std::vector<uint8_t>> previous_service_identity =
         std::nullopt;
-      std::optional<NodeId> previous_local_sealing_identity = std::nullopt;
-      std::optional<SelfHealingOpenConfig> self_healing_open = std::nullopt;
     };
     Recover recover = {};
   };

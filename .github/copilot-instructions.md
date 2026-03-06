@@ -5,7 +5,7 @@
 
 **Key directories**:
 
-- `src/` - Core CCF implementation in C++ (consensus, crypto, kv store, HTTP, TLS, JavaScript runtime), including unit tests in subdirs
+- `src/` - Core CCF implementation in C++ (consensus, crypto, KV store, HTTP, TLS, JavaScript runtime), including unit tests in subdirs
 - `include/ccf/` - Public C++ API headers
 - `tests/` - Python-based end-to-end test suite
 - `python/` - CCF Python SDK and client libraries
@@ -16,12 +16,13 @@
 
 - Coding style is enforced by the `ci-checks.sh` script, which runs clang-format for C++ and black for Python.
 - Linters and static analysis tools are also run as part of CI, clang-tidy for C++ and ruff for Python.
-- Run `ci-checks.sh -f` to automatically run these tools.
-- This tool must run successfully before creating a PR.
+- Run `ci-checks.sh -f` to automatically apply fixes (formatting and supported lint fixes).
+- `ci-checks.sh` must run successfully before any commit is pushed.
 - Match the existing coding style for naming and casing conventions. This is not automatically enforced, so pay attention to surrounding code for guidance.
 - All tests in `ci.yml` must pass before a PR can be merged. Consider which are likely to be affected by your changes and run those locally before pushing.
 - Take particular care with any changes that may affect compatibility with older releases, and ensure these are tested, via the `lts_compatibility` test with `LONG_TESTS=1` enabled.
 - Take particular care with changes to the consensus and crypto code, as these are critical for security and correctness. Ensure you have a thorough understanding of the existing code and the implications of your changes before proceeding.
+- Any changes to user-facing APIs or behaviour must be documented in `CHANGELOG.md`. When adding a new version to `CHANGELOG.md`, be sure to update `pyproject.toml` to match.
 
 ### C++
 
