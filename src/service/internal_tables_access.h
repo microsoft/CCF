@@ -888,8 +888,11 @@ namespace ccf
             if (result.ec != std::errc())
             {
               throw std::runtime_error(fmt::format(
-                "Unable to parse existing SVN value {} in UVM endorsements",
-                feed_it->second.svn));
+                "Unable to parse existing SVN value {} for DID {}, feed {} "
+                "in UVM endorsements",
+                feed_it->second.svn,
+                uvm_endorsements->did,
+                uvm_endorsements->feed));
             }
 
             size_t new_svn = 0;
@@ -900,8 +903,11 @@ namespace ccf
             if (result.ec != std::errc())
             {
               throw std::runtime_error(fmt::format(
-                "Unable to parse new SVN value {} in UVM endorsements",
-                uvm_endorsements->svn));
+                "Unable to parse new SVN value {} for DID {}, feed {} "
+                "in UVM endorsements",
+                uvm_endorsements->svn,
+                uvm_endorsements->did,
+                uvm_endorsements->feed));
             }
 
             svn_to_write = std::to_string(std::min(existing_svn, new_svn));
