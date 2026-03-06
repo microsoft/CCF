@@ -55,11 +55,9 @@ namespace ccf::kv
           return;
         case SecurityDomain::SECURITY_DOMAIN_MAX:
         {
-          // TODO wat
-          return;
+          throw std::logic_error("Invalid security domain");
         }
       }
-      throw std::logic_error("Invalid security domain");
     }
 
   public:
