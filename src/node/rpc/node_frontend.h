@@ -285,8 +285,17 @@ namespace ccf
 
       pal::PlatformAttestationMeasurement measurement;
 
+      auto network_identity_subsystem =
+        context
+          .template get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
+
       QuoteVerificationResult verify_result = this->node_operation.verify_quote(
-        tx, in.quote_info, pubk_der, measurement);
+        tx,
+        in.quote_info,
+        pubk_der,
+        measurement,
+        in.code_transparent_statement,
+        network_identity_subsystem);
       if (verify_result != QuoteVerificationResult::Verified)
       {
         const auto [code, message] = quote_verification_error(verify_result);
