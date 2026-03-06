@@ -522,6 +522,11 @@
               "type": "string",
               "default": "primary_rpc_interface",
               "description": "Name of the RPC interface on the primary node to use for downloading snapshots. Must have the SnapshotRead feature enabled."
+            },
+            "max_size": {
+              "type": "string",
+              "default": "200MB",
+              "description": "Maximum size of snapshot this node is willing to fetch"
             }
           },
           "description": "Configuration for automatic snapshot fetching by backup nodes",

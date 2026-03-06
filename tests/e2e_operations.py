@@ -2903,6 +2903,65 @@ def test_backup_snapshot_fetch(network, args):
     LOG.success("All backups successfully fetched snapshots from primary")
 
 
+def test_backup_snapshot_fetch_max_size(network, args):
+    # Add a new node to the network with a very small max backup snapshot fetch size,
+    # and confirm that it although it can join the network successfully,
+    # it cannot fetch snapshots from the primary,
+    # and that it logs appropriate error messages
+    primary, _ = network.find_primary()
+    new_node = network.create_node()
+    args.bac = 1024
+    args.snapshot_fetch_retry_interval = 1
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        target_node=primary,
+        timeout=5,
+        backup_snapshot_fetch_enabled=True,
+        backup_snapshot_fetch_max_attempts=1,
+        backup_snapshot_fetch_max_size="1KB",
+    )
+    network.trust_node(new_node, args)
+    new_node.wait_for_node_to_join(timeout=5)
+    # Check the snapshot directory for the new node only contains a single file
+    snapshot_dir = os.path.join(
+        new_node.remote.remote.root, new_node.remote.snapshots_dir_name
+    )
+
+    def assert_no_snapshot_present():
+        timeout_s = 10
+        end_time = time.time() + timeout_s
+        while time.time() < end_time:
+            if os.path.exists(snapshot_dir):
+                files = os.listdir(snapshot_dir)
+                if len(files) > 0:
+                    LOG.info(
+                        f"New node {new_node.local_node_id}: found snapshot file {files[0]} in {snapshot_dir}"
+                    )
+                    break
+
+                LOG.info(
+                    f"New node {new_node.local_node_id}: expected to find a single snapshot file in {snapshot_dir}, but found {files}; retrying"
+                )
+
+            time.sleep(0.1)
+
+    assert_no_snapshot_present()
+    network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
+    assert_no_snapshot_present()
+    expected_log_message = "Failed writing received data to disk/application"
+    out_path, _ = new_node.get_logs()
+    for line in open(out_path, "r", encoding="utf-8").readlines():
+        if expected_log_message in line:
+            LOG.info(f"Found expected log message: {line}")
+            break
+    else:
+        raise AssertionError(
+            f"Did not find expected log message about snapshot exceeding max size: {expected_log_message}"
+        )
+
+
 def run_backup_snapshot_download(const_args):
     args = copy.deepcopy(const_args)
     args.label += "_backup_snapshot_download"
@@ -2918,6 +2977,7 @@ def run_backup_snapshot_download(const_args):
     ) as network:
         network.start_and_open(args, backup_snapshot_fetch_enabled=True)
         test_backup_snapshot_fetch(network, args)
+        test_backup_snapshot_fetch_max_size(network, args)
 
 
 def run_propose_request_vote(const_args):

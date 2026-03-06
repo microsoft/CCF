@@ -68,7 +68,8 @@
       "enabled": true{% if backup_snapshot_fetch_max_attempts %},
       "max_attempts": {{ backup_snapshot_fetch_max_attempts }}{% endif %}{% if backup_snapshot_fetch_retry_interval %},
       "retry_interval": "{{ backup_snapshot_fetch_retry_interval }}"{% endif %}{% if backup_snapshot_fetch_target_rpc_interface %},
-      "target_rpc_interface": "{{ backup_snapshot_fetch_target_rpc_interface }}"{% endif %}
+      "target_rpc_interface": "{{ backup_snapshot_fetch_target_rpc_interface }}"{% endif %}{% if backup_snapshot_fetch_max_size %},
+      "max_size": "{{ backup_snapshot_fetch_max_size }}"{% endif %}
     }{% endif %}
   },
   "logging":

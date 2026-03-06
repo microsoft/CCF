@@ -242,10 +242,6 @@ namespace ccf
             return;
           }
 
-          LOG_INFO_FMT(
-            "BackupSnapshotFetch: Resolved primary node ID: {}",
-            primary_id.value());
-
           auto tx = owner->network.tables->create_read_only_tx();
           auto* nodes = tx.ro<ccf::Nodes>(Tables::NODES);
           auto node_info = nodes->get(primary_id.value());
@@ -273,11 +269,6 @@ namespace ccf
           }
           primary_address = iface_it->second.published_address;
 
-          LOG_INFO_FMT(
-            "BackupSnapshotFetch: Using RPC interface '{}' with address {}",
-            target_interface,
-            primary_address);
-
           if (owner->network.identity == nullptr)
           {
             LOG_INFO_FMT(
@@ -285,11 +276,6 @@ namespace ccf
               "construct TLS credentials for fetching snapshot");
             return;
           }
-
-          LOG_INFO_FMT(
-            "BackupSnapshotFetch: Service identity certificate available and "
-            "is {} bytes",
-            owner->network.identity->cert.raw().size());
 
           service_cert = owner->network.identity->cert.raw();
         }
@@ -300,12 +286,7 @@ namespace ccf
           primary_address);
 
         const auto& bf = snapshot_config.backup_fetch;
-        LOG_INFO_FMT(
-          "BackupSnapshotFetch: Fetch settings (max_attempts: {}, "
-          "retry_interval_ms: {}, max_size_bytes: {})",
-          bf.max_attempts,
-          bf.retry_interval.count_ms(),
-          bf.max_size.count_bytes());
+
         auto latest_peer_snapshot = snapshots::fetch_from_peer(
           primary_address,
           service_cert,
@@ -340,10 +321,6 @@ namespace ccf
           const auto dst_path =
             std::filesystem::path(snapshot_config.directory) / snapshot_path;
 
-          LOG_INFO_FMT(
-            "BackupSnapshotFetch: Snapshot name validated, destination {}",
-            dst_path.string());
-
           if (files::exists(dst_path))
           {
             LOG_INFO_FMT(
@@ -353,17 +330,11 @@ namespace ccf
             return;
           }
 
-          LOG_INFO_FMT(
-            "BackupSnapshotFetch: Writing snapshot to {}", dst_path.string());
           files::dump(latest_peer_snapshot->snapshot_data, dst_path);
           LOG_INFO_FMT(
             "BackupSnapshotFetch: Wrote snapshot {} ({} bytes)",
             dst_path.string(),
             latest_peer_snapshot->snapshot_data.size());
-
-          LOG_INFO_FMT(
-            "BackupSnapshotFetch: Snapshot fetch from primary completed "
-            "successfully");
         }
         else
         {
