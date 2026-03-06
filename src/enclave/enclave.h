@@ -8,6 +8,7 @@
 #include "ccf/pal/mem.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
+#include "tasks/worker.h"
 #include "ds/oversized.h"
 #include "ds/work_beacon.h"
 #include "host/ledger.h"
@@ -390,7 +391,7 @@ namespace ccf
           size_t tasks_done = 0;
           while (task != nullptr)
           {
-            task->do_task();
+            ccf::tasks::try_do_task(*task);
             ++tasks_done;
             if (tasks_done >= max_messages)
             {
@@ -427,7 +428,7 @@ namespace ccf
           auto task = job_board.wait_for_task(timeout);
           if (task != nullptr)
           {
-            task->do_task();
+            ccf::tasks::try_do_task(*task);
           }
         }
       }
