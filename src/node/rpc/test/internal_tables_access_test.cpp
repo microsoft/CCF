@@ -96,8 +96,7 @@ TEST_CASE("trust_node_uvm_endorsements - recovering, new DID not in map")
   }
 }
 
-TEST_CASE(
-  "trust_node_uvm_endorsements - recovering, existing DID, new feed")
+TEST_CASE("trust_node_uvm_endorsements - recovering, existing DID, new feed")
 {
   ccf::kv::Store kv_store;
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
