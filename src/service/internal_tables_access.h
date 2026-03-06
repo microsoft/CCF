@@ -23,7 +23,6 @@
 #include "service/tables/previous_service_identity.h"
 
 #include <algorithm>
-#include <charconv>
 #include <ostream>
 #include <stdexcept>
 
@@ -880,35 +879,8 @@ namespace ccf
           auto feed_it = existing->find(uvm_endorsements->feed);
           if (feed_it != existing->end())
           {
-            size_t existing_svn = 0;
-            auto result = std::from_chars(
-              feed_it->second.svn.data(),
-              feed_it->second.svn.data() + feed_it->second.svn.size(),
-              existing_svn);
-            if (result.ec != std::errc())
-            {
-              throw std::runtime_error(fmt::format(
-                "Unable to parse existing SVN value {} for DID {}, feed {} "
-                "in UVM endorsements",
-                feed_it->second.svn,
-                uvm_endorsements->did,
-                uvm_endorsements->feed));
-            }
-
-            size_t new_svn = 0;
-            result = std::from_chars(
-              uvm_endorsements->svn.data(),
-              uvm_endorsements->svn.data() + uvm_endorsements->svn.size(),
-              new_svn);
-            if (result.ec != std::errc())
-            {
-              throw std::runtime_error(fmt::format(
-                "Unable to parse new SVN value {} for DID {}, feed {} "
-                "in UVM endorsements",
-                uvm_endorsements->svn,
-                uvm_endorsements->did,
-                uvm_endorsements->feed));
-            }
+            auto existing_svn = parse_svn(feed_it->second.svn);
+            auto new_svn = parse_svn(uvm_endorsements->svn);
 
             svn_to_write = std::to_string(std::min(existing_svn, new_svn));
             LOG_INFO_FMT(
