@@ -884,8 +884,10 @@ namespace ccf
 
             svn_to_write = std::to_string(std::min(existing_svn, new_svn));
             LOG_INFO_FMT(
-              "Recovery: UVM endorsements SVN set to minimum of existing "
-              "({}) and new ({}): {}",
+              "Recovery: UVM endorsements SVN for DID {} feed {} set to "
+              "minimum of existing ({}) and new ({}): {}",
+              uvm_endorsements->did,
+              uvm_endorsements->feed,
               feed_it->second.svn,
               uvm_endorsements->svn,
               svn_to_write);
