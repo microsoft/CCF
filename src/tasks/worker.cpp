@@ -83,17 +83,17 @@ namespace ccf::tasks
     std::string format_stacktrace(void** frames, int num_frames)
     {
       std::ostringstream oss;
-      char** symbols = backtrace_symbols(frames, num_frames);
+      // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory,bugprone-multi-level-implicit-pointer-conversion)
+      std::unique_ptr<char*, FreePtrArrayDeleter> symbols(
+        backtrace_symbols(frames, num_frames));
       if (symbols == nullptr)
       {
         // If memory allocation fails, return a message indicating the issue
         return "  (failed to allocate memory for backtrace symbols)\n";
       }
-      // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory,bugprone-multi-level-implicit-pointer-conversion)
-      std::unique_ptr<char*, FreePtrArrayDeleter> symbols_deleter(symbols);
       for (int i = 0; i < num_frames; ++i)
       {
-        oss << "  #" << i << ": " << demangle_symbol(symbols[i]) << "\n";
+        oss << "  #" << i << ": " << demangle_symbol(symbols.get()[i]) << "\n";
       }
       return oss.str();
     }
