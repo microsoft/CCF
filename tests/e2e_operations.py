@@ -2910,4 +2910,5 @@ def run(args):
     run_empty_ledger_dir_check(args)
     run_read_ledger_on_testdata(args)
     run_merkle_verification_level(args)
+    run_error_message_on_failure_to_fetch_snapshot(args)
     run_propose_request_vote(args)
