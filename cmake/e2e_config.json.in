@@ -1,0 +1,7 @@
+{
+    "binary_dir": "@CMAKE_BINARY_DIR@",
+    "log_level": "@TEST_LOGGING_LEVEL@",
+    "worker_threads": @WORKER_THREADS@,
+    "tick_ms": @NODE_TICK_MS@,
+    "default_constitution": @DEFAULT_CONSTITUTION_JSON@
+}

@@ -66,10 +66,6 @@ function(add_e2e_test)
     "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
 
-  if(NOT PARSED_ARGS_CONSTITUTION)
-    set(PARSED_ARGS_CONSTITUTION ${CCF_NETWORK_TEST_DEFAULT_CONSTITUTION})
-  endif()
-
   if(BUILD_END_TO_END_TESTS)
     if(PROFILE_TESTS)
       set(PYTHON_WRAPPER
@@ -86,24 +82,32 @@ function(add_e2e_test)
       set(PYTHON_WRAPPER ${PYTHON})
     endif()
 
-    # For fast e2e runs, tick node faster than default value (except for
-    # instrumented builds which may process ticks slower).
-    if(SAN)
-      set(NODE_TICK_MS 10)
-    else()
-      set(NODE_TICK_MS 1)
-    endif()
-
     if(NOT PARSED_ARGS_PERF_LABEL)
       set(PARSED_ARGS_PERF_LABEL ${PARSED_ARGS_NAME})
     endif()
 
+    # Build the command line. Global defaults (binary_dir, log_level,
+    # worker_threads, tick_ms, default_constitution) are now provided by the
+    # e2e_config.json generated at configure time and consumed by e2e_args.py.
+    # Only test-specific args remain here.
+    set(E2E_CMD
+        ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} --label
+        ${PARSED_ARGS_NAME}
+    )
+
+    # Constitution: only pass on CLI when explicitly overridden for this test.
+    # Otherwise e2e_args.py falls back to default_constitution from config.
+    if(PARSED_ARGS_CONSTITUTION)
+      list(APPEND E2E_CMD ${PARSED_ARGS_CONSTITUTION})
+    endif()
+
+    if(PARSED_ARGS_ADDITIONAL_ARGS)
+      list(APPEND E2E_CMD ${PARSED_ARGS_ADDITIONAL_ARGS})
+    endif()
+
     add_test(
       NAME ${PARSED_ARGS_NAME}
-      COMMAND
-        ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
-        ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
-        ${PARSED_ARGS_ADDITIONAL_ARGS} --tick-ms ${NODE_TICK_MS}
+      COMMAND ${E2E_CMD}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 
