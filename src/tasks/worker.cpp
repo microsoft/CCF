@@ -78,8 +78,8 @@ namespace ccf::tasks
     // Format a demangled stack trace as a string. Note: backtrace_symbols only
     // resolves symbols exported to the dynamic symbol table (e.g. via
     // -rdynamic). Static/internal functions will appear as raw addresses. For
-    // broader coverage, consider integrating libbacktrace (reads DWARF directly)
-    // or invoking addr2line at runtime.
+    // broader coverage, consider integrating libbacktrace (reads DWARF
+    // directly) or invoking addr2line at runtime.
     std::string format_stacktrace(void** frames, int num_frames)
     {
       std::ostringstream oss;
@@ -146,7 +146,8 @@ extern "C"
     }
     else
     {
-      // If dlsym failed, we cannot safely proceed. Abort to prevent undefined behavior.
+      // If dlsym failed, we cannot safely proceed. Abort to prevent undefined
+      // behavior.
       std::abort();
     }
     // Both real_cxa_throw and std::abort() are [[noreturn]], but the compiler
