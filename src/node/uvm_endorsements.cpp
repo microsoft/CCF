@@ -9,34 +9,27 @@
 
 namespace ccf
 {
+  size_t parse_svn(const std::string& svn_str)
+  {
+    size_t svn = 0;
+    auto result =
+      std::from_chars(svn_str.data(), svn_str.data() + svn_str.size(), svn);
+    if (result.ec != std::errc())
+    {
+      throw std::runtime_error(
+        fmt::format("Unable to parse svn value {} to unsigned", svn_str));
+    }
+    return svn;
+  }
+
   bool matches_uvm_roots_of_trust(
     const pal::UVMEndorsements& endorsements,
     const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust)
   {
     return std::ranges::any_of(
       uvm_roots_of_trust, [&](const auto& uvm_root_of_trust) {
-        size_t root_of_trust_svn = 0;
-        auto result = std::from_chars(
-          uvm_root_of_trust.svn.data(),
-          uvm_root_of_trust.svn.data() + uvm_root_of_trust.svn.size(),
-          root_of_trust_svn);
-        if (result.ec != std::errc())
-        {
-          throw std::runtime_error(fmt::format(
-            "Unable to parse svn value {} to unsigned in UVM root of trust",
-            uvm_root_of_trust.svn));
-        }
-        size_t endorsement_svn = 0;
-        result = std::from_chars(
-          endorsements.svn.data(),
-          endorsements.svn.data() + endorsements.svn.size(),
-          endorsement_svn);
-        if (result.ec != std::errc())
-        {
-          throw std::runtime_error(fmt::format(
-            "Unable to parse svn value {} to unsigned in UVM endorsements",
-            endorsements.svn));
-        }
+        auto root_of_trust_svn = parse_svn(uvm_root_of_trust.svn);
+        auto endorsement_svn = parse_svn(endorsements.svn);
 
         return uvm_root_of_trust.did == endorsements.did &&
           uvm_root_of_trust.feed == endorsements.feed &&
