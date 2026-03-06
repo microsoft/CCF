@@ -285,9 +285,9 @@ add_ccf_static_library(
 )
 target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
 if(USE_LIBCXX)
-  # worker.cpp uses backtrace() which, under libc++, resolves through
-  # libunwind. On systems where libunwind is built with LZMA support
-  # (e.g. Azure Linux), this creates a transitive dependency on liblzma.
+  # worker.cpp uses backtrace() which, under libc++, resolves through libunwind.
+  # On systems where libunwind is built with LZMA support (e.g. Azure Linux),
+  # this creates a transitive dependency on liblzma.
   target_link_libraries(ccf_tasks PRIVATE lzma)
 endif()
 
