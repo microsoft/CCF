@@ -7,6 +7,7 @@
 #include <cxxabi.h>
 #include <dlfcn.h>
 #include <execinfo.h>
+#include <memory>
 #include <sstream>
 
 namespace ccf::tasks
@@ -20,56 +21,82 @@ namespace ccf::tasks
     int num_frames = 0;
   };
 
-  static thread_local ThrowTrace current_throw_trace = {};
-
-  static std::string demangle_symbol(const char* raw)
+  namespace
   {
-    // backtrace_symbols format: "binary(mangled+0xoffset) [0xaddr]"
-    // Try to extract and demangle the symbol name between '(' and '+'/')'
-    std::string entry(raw);
-    auto open = entry.find('(');
-    auto plus = entry.find('+', open != std::string::npos ? open : 0);
-    auto close = entry.find(')', open != std::string::npos ? open : 0);
+    thread_local ThrowTrace current_throw_trace = {};
 
-    if (
-      open != std::string::npos && close != std::string::npos &&
-      close > open + 1)
+    struct FreeDeleter
     {
-      auto end = (plus != std::string::npos && plus < close) ? plus : close;
-      std::string mangled = entry.substr(open + 1, end - open - 1);
-
-      if (!mangled.empty())
+      void operator()(char* p) const
       {
-        int status = 0;
-        char* demangled =
-          abi::__cxa_demangle(mangled.c_str(), nullptr, nullptr, &status);
-        if (status == 0 && demangled != nullptr)
-        {
-          std::string rest = entry.substr(end);
-          entry = entry.substr(0, open + 1) + demangled + rest;
-        }
-        free(demangled);
+        // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+        free(p);
       }
-    }
+    };
 
-    return entry;
-  }
-
-  // Format a demangled stack trace as a string. Note: backtrace_symbols only
-  // resolves symbols exported to the dynamic symbol table (e.g. via
-  // -rdynamic). Static/internal functions will appear as raw addresses. For
-  // broader coverage, consider integrating libbacktrace (reads DWARF directly)
-  // or invoking addr2line at runtime.
-  static std::string format_stacktrace(void** frames, int num_frames)
-  {
-    std::ostringstream oss;
-    char** symbols = backtrace_symbols(frames, num_frames);
-    for (int i = 0; i < num_frames; ++i)
+    struct FreePtrArrayDeleter
     {
-      oss << "  #" << i << ": " << demangle_symbol(symbols[i]) << "\n";
+      void operator()(char** p) const
+      {
+        // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory,bugprone-multi-level-implicit-pointer-conversion)
+        free(p);
+      }
+    };
+
+    std::string demangle_symbol(const char* raw)
+    {
+      // backtrace_symbols format: "binary(mangled+0xoffset) [0xaddr]"
+      // Try to extract and demangle the symbol name between '(' and '+'/')'
+      std::string entry(raw);
+      auto open = entry.find('(');
+      auto plus = entry.find('+', open != std::string::npos ? open : 0);
+      auto close = entry.find(')', open != std::string::npos ? open : 0);
+
+      if (
+        open != std::string::npos && close != std::string::npos &&
+        close > open + 1)
+      {
+        auto end = (plus != std::string::npos && plus < close) ? plus : close;
+        std::string mangled = entry.substr(open + 1, end - open - 1);
+
+        if (!mangled.empty())
+        {
+          int status = 0;
+          std::unique_ptr<char, FreeDeleter> demangled(
+            abi::__cxa_demangle(mangled.c_str(), nullptr, nullptr, &status));
+          if (status == 0 && demangled != nullptr)
+          {
+            std::string rest = entry.substr(end);
+            entry = entry.substr(0, open + 1) + demangled.get() + rest;
+          }
+        }
+      }
+
+      return entry;
     }
-    free(symbols);
-    return oss.str();
+
+    // Format a demangled stack trace as a string. Note: backtrace_symbols only
+    // resolves symbols exported to the dynamic symbol table (e.g. via
+    // -rdynamic). Static/internal functions will appear as raw addresses. For
+    // broader coverage, consider integrating libbacktrace (reads DWARF directly)
+    // or invoking addr2line at runtime.
+    std::string format_stacktrace(void** frames, int num_frames)
+    {
+      std::ostringstream oss;
+      char** symbols = backtrace_symbols(frames, num_frames);
+      if (symbols == nullptr)
+      {
+        // If memory allocation fails, return a message indicating the issue
+        return "  (failed to allocate memory for backtrace symbols)\n";
+      }
+      // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory,bugprone-multi-level-implicit-pointer-conversion)
+      std::unique_ptr<char*, FreePtrArrayDeleter> symbols_deleter(symbols);
+      for (int i = 0; i < num_frames; ++i)
+      {
+        oss << "  #" << i << ": " << demangle_symbol(symbols[i]) << "\n";
+      }
+      return oss.str();
+    }
   }
 
   void dump_stacktrace(const std::string& msg)
@@ -110,12 +137,21 @@ extern "C"
       backtrace(trace.frames, ccf::tasks::throw_trace_max_frames);
 
     // Forward to the real __cxa_throw
-    static CxaThrowFn real_cxa_throw =
+    static auto real_cxa_throw =
       reinterpret_cast<CxaThrowFn>(dlsym(RTLD_NEXT, "__cxa_throw"));
-    real_cxa_throw(thrown_exception, tinfo, dest);
-
-    // __cxa_throw is [[noreturn]], but the compiler may not know that about the
-    // function pointer call. This satisfies the compiler.
+    if (real_cxa_throw != nullptr)
+    {
+      real_cxa_throw(thrown_exception, tinfo, dest);
+      // real_cxa_throw is [[noreturn]], so we never reach here
+    }
+    else
+    {
+      // If dlsym failed, we cannot safely proceed. Abort to prevent undefined behavior.
+      std::abort();
+    }
+    // Both real_cxa_throw and std::abort() are [[noreturn]], but the compiler
+    // may not recognize that for function pointers. This satisfies the compiler
+    // that we never return from this function.
     __builtin_unreachable();
   }
 }
