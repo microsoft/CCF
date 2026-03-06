@@ -8,7 +8,6 @@
 #include "ccf/pal/mem.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
-#include "tasks/worker.h"
 #include "ds/oversized.h"
 #include "ds/work_beacon.h"
 #include "host/ledger.h"
@@ -33,6 +32,7 @@
 #include "node/rpc/user_frontend.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
+#include "tasks/worker.h"
 
 #include <openssl/engine.h>
 

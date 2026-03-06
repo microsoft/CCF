@@ -13,9 +13,8 @@
 
 namespace ccf::tasks
 {
-  // Logs the error message and prints a demangled stacktrace to stderr.
-  // Prefers the throw-point backtrace (captured via __cxa_throw interposition)
-  // when available, otherwise falls back to a catch-point backtrace.
+  // Logs the error message and a demangled throw-point stacktrace when
+  // available.
   void dump_stacktrace(const std::string& msg);
 
   // Executes a task with exception handling. On any exception, logs a
@@ -42,8 +41,8 @@ namespace ccf::tasks
     }
     catch (...)
     {
-      dump_stacktrace(fmt::format(
-        "{} task failed with unknown exception", task.get_name()));
+      dump_stacktrace(
+        fmt::format("{} task failed with unknown exception", task.get_name()));
       if (abort_on_throw)
       {
         std::abort();
