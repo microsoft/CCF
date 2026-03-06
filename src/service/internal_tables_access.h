@@ -873,16 +873,22 @@ namespace ccf
         uvme->get(uvm_endorsements->did).value_or(FeedToEndorsementsDataMap{});
 
       std::string svn_to_write = uvm_endorsements->svn;
+      bool changed = false;
 
-      if (recovering)
+      auto feed_it = updated_map.find(uvm_endorsements->feed);
+      if (feed_it == updated_map.end())
       {
-        auto feed_it = updated_map.find(uvm_endorsements->feed);
-        if (feed_it != updated_map.end())
-        {
-          auto existing_svn = parse_svn(feed_it->second.svn);
-          auto new_svn = parse_svn(uvm_endorsements->svn);
+        changed = true;
+      }
+      else if (recovering)
+      {
+        auto existing_svn = parse_svn(feed_it->second.svn);
+        auto new_svn = parse_svn(uvm_endorsements->svn);
 
-          svn_to_write = std::to_string(std::min(existing_svn, new_svn));
+        svn_to_write = std::to_string(std::min(existing_svn, new_svn));
+        changed = svn_to_write != feed_it->second.svn;
+        if (changed)
+        {
           LOG_INFO_FMT(
             "Recovery: UVM endorsements SVN for DID {} feed {} set to "
             "minimum of existing ({}) and new ({}): {}",
@@ -893,9 +899,16 @@ namespace ccf
             svn_to_write);
         }
       }
+      else
+      {
+        changed = svn_to_write != feed_it->second.svn;
+      }
 
-      updated_map[uvm_endorsements->feed] = {svn_to_write};
-      uvme->put(uvm_endorsements->did, updated_map);
+      if (changed)
+      {
+        updated_map[uvm_endorsements->feed] = {svn_to_write};
+        uvme->put(uvm_endorsements->did, updated_map);
+      }
     }
 
     static void trust_node_snp_tcb_version(
