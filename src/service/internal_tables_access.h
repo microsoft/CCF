@@ -23,6 +23,7 @@
 #include "service/tables/previous_service_identity.h"
 
 #include <algorithm>
+#include <charconv>
 #include <ostream>
 #include <stdexcept>
 
@@ -857,7 +858,8 @@ namespace ccf
 
     static void trust_node_uvm_endorsements(
       ccf::kv::Tx& tx,
-      const std::optional<pal::UVMEndorsements>& uvm_endorsements)
+      const std::optional<pal::UVMEndorsements>& uvm_endorsements,
+      bool recovering = false)
     {
       if (!uvm_endorsements.has_value())
       {
@@ -867,9 +869,55 @@ namespace ccf
 
       auto* uvme =
         tx.rw<ccf::SNPUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
+
+      std::string svn_to_write = uvm_endorsements->svn;
+
+      if (recovering)
+      {
+        auto existing = uvme->get(uvm_endorsements->did);
+        if (existing.has_value())
+        {
+          auto feed_it = existing->find(uvm_endorsements->feed);
+          if (feed_it != existing->end())
+          {
+            size_t existing_svn = 0;
+            auto result = std::from_chars(
+              feed_it->second.svn.data(),
+              feed_it->second.svn.data() + feed_it->second.svn.size(),
+              existing_svn);
+            if (result.ec != std::errc())
+            {
+              throw std::runtime_error(fmt::format(
+                "Unable to parse existing SVN value {} in UVM endorsements",
+                feed_it->second.svn));
+            }
+
+            size_t new_svn = 0;
+            result = std::from_chars(
+              uvm_endorsements->svn.data(),
+              uvm_endorsements->svn.data() + uvm_endorsements->svn.size(),
+              new_svn);
+            if (result.ec != std::errc())
+            {
+              throw std::runtime_error(fmt::format(
+                "Unable to parse new SVN value {} in UVM endorsements",
+                uvm_endorsements->svn));
+            }
+
+            svn_to_write = std::to_string(std::min(existing_svn, new_svn));
+            LOG_INFO_FMT(
+              "Recovery: UVM endorsements SVN set to minimum of existing "
+              "({}) and new ({}): {}",
+              feed_it->second.svn,
+              uvm_endorsements->svn,
+              svn_to_write);
+          }
+        }
+      }
+
       uvme->put(
         uvm_endorsements->did,
-        {{uvm_endorsements->feed, {uvm_endorsements->svn}}});
+        {{uvm_endorsements->feed, {svn_to_write}}});
     }
 
     static void trust_node_snp_tcb_version(
