@@ -413,8 +413,8 @@ TEST_CASE("Optional fields are undefined when absent")
 
       const r = s.receipts[0];
       if (r.kid !== undefined) return "kid should be absent";
-      if (r.cwt.iss !== undefined) return "iss should be absent";
-      if (r.cwt.sub !== undefined) return "sub should be absent";
+      if (r.cwt.iss !== "") return "iss should be empty";
+      if (r.cwt.sub !== "") return "sub should be empty";
       if (r.cwt.iat !== undefined) return "iat should be absent";
       if (r.ccf.txid !== undefined) return "txid should be absent";
 
