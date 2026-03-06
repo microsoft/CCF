@@ -284,6 +284,12 @@ add_ccf_static_library(
        ${CCF_DIR}/src/tasks/worker.cpp
 )
 target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
+if(USE_LIBCXX)
+  # worker.cpp uses backtrace() which, under libc++, resolves through
+  # libunwind. On systems where libunwind is built with LZMA support
+  # (e.g. Azure Linux), this creates a transitive dependency on liblzma.
+  target_link_libraries(ccf_tasks PRIVATE lzma)
+endif()
 
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS
