@@ -2931,8 +2931,6 @@ def test_backup_snapshot_fetch_max_size(network, args):
     # and that it logs appropriate error messages
     primary, _ = network.find_primary()
     new_node = network.create_node()
-    args.bac = 1024
-    args.snapshot_fetch_retry_interval = 1
     network.join_node(
         new_node,
         args.package,
