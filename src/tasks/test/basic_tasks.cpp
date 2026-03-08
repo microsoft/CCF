@@ -3,6 +3,7 @@
 
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
+#include "tasks/worker.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
@@ -242,4 +243,174 @@ TEST_CASE("Scheduling" * doctest::test_suite("basic_tasks"))
   decltype(count_with_me) target(7);
   std::iota(target.begin(), target.end(), 0);
   REQUIRE(count_with_me == target);
+}
+
+// Helper functions at namespace scope to ensure external linkage, so that
+// backtrace_symbols can resolve their names with -rdynamic.
+namespace exception_handling_test
+{
+  void level_3_throws_runtime_error()
+  {
+    throw std::runtime_error("Test exception");
+  }
+
+  void level_2_calls_level_3()
+  {
+    level_3_throws_runtime_error();
+  }
+
+  void level_1_calls_level_2()
+  {
+    level_2_calls_level_3();
+  }
+
+  void level_3_throws_int()
+  {
+    throw 42;
+  }
+
+  void level_2_calls_level_3_int()
+  {
+    level_3_throws_int();
+  }
+
+  void level_1_calls_level_2_int()
+  {
+    level_2_calls_level_3_int();
+  }
+
+  struct ThrowsException : public ccf::tasks::BaseTask
+  {
+    void do_task_implementation() override
+    {
+      level_1_calls_level_2();
+    }
+
+    const std::string& get_name() const override
+    {
+      static const std::string name = "ThrowsException";
+      return name;
+    }
+  };
+
+  struct ThrowsUnknown : public ccf::tasks::BaseTask
+  {
+    void do_task_implementation() override
+    {
+      level_1_calls_level_2_int();
+    }
+
+    const std::string& get_name() const override
+    {
+      static const std::string name = "ThrowsUnknown";
+      return name;
+    }
+  };
+}
+
+TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
+{
+  // Custom logger that captures log messages for assertion
+  struct CapturingLogger : public ccf::logger::AbstractLogger
+  {
+    std::mutex mutex;
+    std::vector<std::string> messages;
+
+    void write(const ccf::logger::LogLine& ll) override
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      messages.push_back(ll.msg);
+    }
+
+    bool contains(const std::string& substring)
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      for (const auto& m : messages)
+      {
+        if (m.find(substring) != std::string::npos)
+        {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    void clear()
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      messages.clear();
+    }
+  };
+
+  auto capturing_logger = std::make_unique<CapturingLogger>();
+  auto* logger_ptr = capturing_logger.get();
+  ccf::logger::config::loggers().push_back(std::move(capturing_logger));
+
+  // Task that runs successfully after exceptions
+  std::atomic<bool> success_task_ran = false;
+  ccf::tasks::Task success_task = ccf::tasks::make_basic_task(
+    [&success_task_ran]() { success_task_ran.store(true); }, "SuccessTask");
+
+  ccf::tasks::JobBoard job_board;
+  std::atomic<bool> stop_signal = false;
+
+  // Queue tasks: two that throw, then one that should still run
+  job_board.add_task(
+    std::make_shared<exception_handling_test::ThrowsException>());
+  job_board.add_task(
+    std::make_shared<exception_handling_test::ThrowsUnknown>());
+  job_board.add_task(success_task);
+
+  std::thread worker([&]() {
+    ccf::tasks::task_worker_loop(
+      job_board, stop_signal, /*abort_on_throw=*/false);
+  });
+
+  // Wait for the success task to run
+  const auto wait_step = std::chrono::milliseconds(10);
+  const auto max_wait = std::chrono::seconds(5);
+  auto waited = std::chrono::milliseconds(0);
+  while (!success_task_ran.load() && waited < max_wait)
+  {
+    std::this_thread::sleep_for(wait_step);
+    waited += wait_step;
+  }
+
+  stop_signal.store(true);
+  worker.join();
+
+  // With CCF_TASK_EXCEPTION_NO_ABORT, the worker loop continues after
+  // exceptions, so the success task should have run
+  REQUIRE(success_task_ran.load());
+
+  // Verify that fatal messages were logged for both exception types
+  REQUIRE(logger_ptr->contains(
+    "ThrowsException task failed with exception: Test exception"));
+  REQUIRE(
+    logger_ptr->contains("ThrowsUnknown task failed with unknown exception"));
+
+  // Verify that stack traces contain demangled function names from the
+  // known call chains. These functions have external linkage and are
+  // exported to the dynamic symbol table via -rdynamic in Debug builds.
+  // Note: very small leaf functions (e.g. level_3_throws_int, which is
+  // just `throw 42;`) may be inlined by the compiler, so we only assert
+  // on the caller frames that reliably appear.
+
+  // ThrowsException call chain
+  REQUIRE(logger_ptr->contains("level_3_throws_runtime_error"));
+  REQUIRE(logger_ptr->contains("level_2_calls_level_3()"));
+  REQUIRE(logger_ptr->contains("level_1_calls_level_2()"));
+
+  // ThrowsUnknown call chain
+  REQUIRE(logger_ptr->contains("level_2_calls_level_3_int"));
+  REQUIRE(logger_ptr->contains("level_1_calls_level_2_int"));
+
+  // Clean up: remove the capturing logger
+  auto& loggers = ccf::logger::config::loggers();
+  loggers.erase(
+    std::remove_if(
+      loggers.begin(),
+      loggers.end(),
+      [logger_ptr](const auto& l) { return l.get() == logger_ptr; }),
+    loggers.end());
 }

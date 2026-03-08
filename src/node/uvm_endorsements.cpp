@@ -4,38 +4,32 @@
 #include "node/uvm_endorsements.h"
 
 #include "crypto/cbor.h"
+#include "crypto/cose_utils.h"
 #include "ds/internal_logger.h"
 
 namespace ccf
 {
+  size_t parse_svn(const std::string& svn_str)
+  {
+    size_t svn = 0;
+    auto result =
+      std::from_chars(svn_str.data(), svn_str.data() + svn_str.size(), svn);
+    if (result.ec != std::errc())
+    {
+      throw std::runtime_error(
+        fmt::format("Unable to parse svn value {} to unsigned", svn_str));
+    }
+    return svn;
+  }
+
   bool matches_uvm_roots_of_trust(
     const pal::UVMEndorsements& endorsements,
     const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust)
   {
     return std::ranges::any_of(
       uvm_roots_of_trust, [&](const auto& uvm_root_of_trust) {
-        size_t root_of_trust_svn = 0;
-        auto result = std::from_chars(
-          uvm_root_of_trust.svn.data(),
-          uvm_root_of_trust.svn.data() + uvm_root_of_trust.svn.size(),
-          root_of_trust_svn);
-        if (result.ec != std::errc())
-        {
-          throw std::runtime_error(fmt::format(
-            "Unable to parse svn value {} to unsigned in UVM root of trust",
-            uvm_root_of_trust.svn));
-        }
-        size_t endorsement_svn = 0;
-        result = std::from_chars(
-          endorsements.svn.data(),
-          endorsements.svn.data() + endorsements.svn.size(),
-          endorsement_svn);
-        if (result.ec != std::errc())
-        {
-          throw std::runtime_error(fmt::format(
-            "Unable to parse svn value {} to unsigned in UVM endorsements",
-            endorsements.svn));
-        }
+        auto root_of_trust_svn = parse_svn(uvm_root_of_trust.svn);
+        auto endorsement_svn = parse_svn(endorsements.svn);
 
         return uvm_root_of_trust.did == endorsements.did &&
           uvm_root_of_trust.feed == endorsements.feed &&
@@ -47,32 +41,6 @@ namespace ccf
   {
     namespace
     {
-      std::vector<std::vector<uint8_t>> parse_x5chain(
-        const ccf::cbor::Value& x5chain_value)
-      {
-        std::vector<std::vector<uint8_t>> chain;
-        // x5chain can be either an array of byte strings or a single byte
-        // string
-        try
-        {
-          for (size_t i = 0; i < x5chain_value->size(); ++i)
-          {
-            const auto x5chain_ctx = "x5chain[" + std::to_string(i) + "]";
-            const auto& bytes = ccf::cbor::rethrow_with_msg(
-              [&]() { return x5chain_value->array_at(i)->as_bytes(); },
-              x5chain_ctx);
-            chain.emplace_back(bytes.begin(), bytes.end());
-          }
-        }
-        catch (const ccf::cbor::CBORDecodeError&)
-        {
-          auto bytes = ccf::cbor::rethrow_with_msg(
-            [&]() { return x5chain_value->as_bytes(); }, "x5chain");
-          chain.emplace_back(bytes.begin(), bytes.end());
-        }
-        return chain;
-      }
-
       UvmEndorsementsProtectedHeader decode_protected_header(
         std::span<const uint8_t> raw_endorsements)
       {
@@ -119,7 +87,7 @@ namespace ccf
 
         result.x5_chain = ccf::cbor::rethrow_with_msg(
           [&]() {
-            return parse_x5chain(parsed_phdr->map_at(
+            return utils::parse_x5chain(parsed_phdr->map_at(
               ccf::cbor::make_signed(header::iana::X5CHAIN)));
           },
           fmt::format(
@@ -192,7 +160,7 @@ namespace ccf
 
         result.x5_chain = ccf::cbor::rethrow_with_msg(
           [&]() {
-            return parse_x5chain(parsed_phdr->map_at(
+            return utils::parse_x5chain(parsed_phdr->map_at(
               ccf::cbor::make_signed(header::iana::X5CHAIN)));
           },
           fmt::format(

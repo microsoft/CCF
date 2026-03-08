@@ -90,7 +90,10 @@ namespace ccf::tasks
           auto& stop_signal = stop_signals[i].value;
           stop_signal.store(false);
           workers[i] = std::thread(
-            task_worker_loop, std::ref(job_board), std::ref(stop_signal));
+            task_worker_loop,
+            std::ref(job_board),
+            std::ref(stop_signal),
+            /*abort_on_throw=*/true);
         }
       }
 
