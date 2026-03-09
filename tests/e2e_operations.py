@@ -1315,6 +1315,8 @@ def run_initial_uvm_descriptor_checks(args):
         LOG.info(
             f"Proposing UVM endorsement with bumped SVN: did={did} feed={feed} svn={bumped_svn}"
         )
+        # Bump SVN by 10 so that recovery will encounter a higher stored SVN
+        # and must correctly use the minimum of the two values
         network.consortium.add_snp_uvm_endorsement(primary, did, feed, bumped_svn)
 
         snapshots_dir = network.get_committed_snapshots(primary)
