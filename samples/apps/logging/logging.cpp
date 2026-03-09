@@ -9,7 +9,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/cose_signatures_config_interface.h"
 #include "ccf/crypto/cose.h"
-#include "ccf/crypto/key_id.h"
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hash.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
@@ -2152,31 +2152,32 @@ namespace loggingapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
-      auto get_trusted_keys = [&](
-                                ccf::endpoints::ReadOnlyEndpointContext& ctx) {
-        auto network_identity_subsystem =
-          context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
-        if (network_identity_subsystem == nullptr)
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Network identity subsystem not available");
-          return;
-        }
+      auto get_trusted_keys =
+        [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+          auto network_identity_subsystem =
+            context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
+          if (network_identity_subsystem == nullptr)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Network identity subsystem not available");
+            return;
+          }
 
-        auto keys = network_identity_subsystem->get_trusted_keys();
-        nlohmann::json jwks = nlohmann::json::object();
-        auto keys_array = nlohmann::json::array();
-        for (const auto& [seqno, key_ptr] : keys)
-        {
-          const auto kid = ccf::crypto::kid_from_key(key_ptr->public_key_der());
-          keys_array.push_back(key_ptr->public_key_jwk(kid));
-        }
-        jwks["keys"] = keys_array;
+          auto keys = network_identity_subsystem->get_trusted_keys();
+          nlohmann::json jwks = nlohmann::json::object();
+          auto keys_array = nlohmann::json::array();
+          for (const auto& [seqno, key_ptr] : keys)
+          {
+            const auto kid =
+              ccf::crypto::Sha256Hash(key_ptr->public_key_der()).hex_str();
+            keys_array.push_back(key_ptr->public_key_jwk(kid));
+          }
+          jwks["keys"] = keys_array;
 
-        ctx.rpc_ctx->set_response_json(jwks, HTTP_STATUS_OK);
-      };
+          ctx.rpc_ctx->set_response_json(jwks, HTTP_STATUS_OK);
+        };
       make_read_only_endpoint(
         "/log/public/trusted_keys",
         HTTP_GET,
