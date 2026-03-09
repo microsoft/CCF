@@ -42,6 +42,11 @@ namespace loggingapp
   static constexpr auto COSE_SIGNED_STATEMENTS =
     "public:cose_transparent_statements";
 
+  // IANA COSE header labels
+  // https://www.iana.org/assignments/cose/cose.xhtml
+  static constexpr int64_t COSE_HEADER_PARAM_INCLUSION_PROOFS = -1;
+  static constexpr int64_t COSE_HEADER_PARAM_VDP = 396;
+
   // SNIPPET_START: indexing_strategy_definition
   using RecordsIndexingStrategy = ccf::indexing::LazyStrategy<
     ccf::indexing::strategies::SeqnosByKey_Bucketed<RecordsMap>>;
@@ -263,10 +268,6 @@ namespace loggingapp
           "No Merkle proof available for this transaction");
         return std::nullopt;
       }
-
-      // IANA COSE header labels
-      static constexpr int64_t COSE_HEADER_PARAM_INCLUSION_PROOFS = -1;
-      static constexpr int64_t COSE_HEADER_PARAM_VDP = 396;
 
       auto inclusion_proof =
         ccf::cose::edit::pos::AtKey{COSE_HEADER_PARAM_INCLUSION_PROOFS};
@@ -2385,9 +2386,6 @@ namespace loggingapp
           }
 
           // Build "transparent statement".
-          // IANA COSE header label for Verifiable Data Proofs
-          static constexpr int64_t COSE_HEADER_PARAM_VDP = 396;
-
           ccf::cose::edit::desc::Value receipts_desc{
             ccf::cose::edit::pos::InArray{},
             COSE_HEADER_PARAM_VDP,
