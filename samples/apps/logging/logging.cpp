@@ -9,6 +9,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/cose_signatures_config_interface.h"
 #include "ccf/crypto/cose.h"
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hash.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
@@ -21,10 +22,8 @@
 #include "ccf/json_handler.h"
 #include "ccf/network_identity_interface.h"
 #include "ccf/version.h"
-#include "crypto/public_key.h"
 
 #include <charconv>
-#include <crypto/cose.h>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
@@ -42,6 +41,11 @@ namespace loggingapp
     ccf::kv::RawCopySerialisedValue<std::vector<uint8_t>>;
   static constexpr auto COSE_SIGNED_STATEMENTS =
     "public:cose_transparent_statements";
+
+  // IANA COSE header labels
+  // https://www.iana.org/assignments/cose/cose.xhtml
+  static constexpr int64_t COSE_HEADER_PARAM_INCLUSION_PROOFS = -1;
+  static constexpr int64_t COSE_HEADER_PARAM_VDP = 396;
 
   // SNIPPET_START: indexing_strategy_definition
   using RecordsIndexingStrategy = ccf::indexing::LazyStrategy<
@@ -266,9 +270,9 @@ namespace loggingapp
       }
 
       auto inclusion_proof =
-        ccf::cose::edit::pos::AtKey{ccf::cose::header::iana::INCLUSION_PROOFS};
+        ccf::cose::edit::pos::AtKey{COSE_HEADER_PARAM_INCLUSION_PROOFS};
       ccf::cose::edit::desc::Value desc{
-        inclusion_proof, ccf::cose::header::iana::VDP, *proof};
+        inclusion_proof, COSE_HEADER_PARAM_VDP, *proof};
       return ccf::cose::edit::set_unprotected_header(*signature, desc);
     }
 
@@ -2149,31 +2153,32 @@ namespace loggingapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
-      auto get_trusted_keys = [&](
-                                ccf::endpoints::ReadOnlyEndpointContext& ctx) {
-        auto network_identity_subsystem =
-          context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
-        if (network_identity_subsystem == nullptr)
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Network identity subsystem not available");
-          return;
-        }
+      auto get_trusted_keys =
+        [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+          auto network_identity_subsystem =
+            context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
+          if (network_identity_subsystem == nullptr)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Network identity subsystem not available");
+            return;
+          }
 
-        auto keys = network_identity_subsystem->get_trusted_keys();
-        nlohmann::json jwks = nlohmann::json::object();
-        auto keys_array = nlohmann::json::array();
-        for (const auto& [seqno, key_ptr] : keys)
-        {
-          const auto kid = ccf::crypto::kid_from_key(key_ptr->public_key_der());
-          keys_array.push_back(key_ptr->public_key_jwk(kid));
-        }
-        jwks["keys"] = keys_array;
+          auto keys = network_identity_subsystem->get_trusted_keys();
+          nlohmann::json jwks = nlohmann::json::object();
+          auto keys_array = nlohmann::json::array();
+          for (const auto& [seqno, key_ptr] : keys)
+          {
+            const auto kid =
+              ccf::crypto::Sha256Hash(key_ptr->public_key_der()).hex_str();
+            keys_array.push_back(key_ptr->public_key_jwk(kid));
+          }
+          jwks["keys"] = keys_array;
 
-        ctx.rpc_ctx->set_response_json(jwks, HTTP_STATUS_OK);
-      };
+          ctx.rpc_ctx->set_response_json(jwks, HTTP_STATUS_OK);
+        };
       make_read_only_endpoint(
         "/log/public/trusted_keys",
         HTTP_GET,
@@ -2383,7 +2388,7 @@ namespace loggingapp
           // Build "transparent statement".
           ccf::cose::edit::desc::Value receipts_desc{
             ccf::cose::edit::pos::InArray{},
-            ccf::cose::header::iana::VDP,
+            COSE_HEADER_PARAM_VDP,
             *cose_receipt};
           auto transparent_statement =
             ccf::cose::edit::set_unprotected_header(*entry, receipts_desc);
