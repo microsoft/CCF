@@ -24,7 +24,6 @@
 #include "ccf/version.h"
 
 #include <charconv>
-#include <crypto/cose.h>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
@@ -265,10 +264,14 @@ namespace loggingapp
         return std::nullopt;
       }
 
+      // IANA COSE header labels
+      static constexpr int64_t COSE_HEADER_PARAM_INCLUSION_PROOFS = -1;
+      static constexpr int64_t COSE_HEADER_PARAM_VDP = 396;
+
       auto inclusion_proof =
-        ccf::cose::edit::pos::AtKey{ccf::cose::header::iana::INCLUSION_PROOFS};
+        ccf::cose::edit::pos::AtKey{COSE_HEADER_PARAM_INCLUSION_PROOFS};
       ccf::cose::edit::desc::Value desc{
-        inclusion_proof, ccf::cose::header::iana::VDP, *proof};
+        inclusion_proof, COSE_HEADER_PARAM_VDP, *proof};
       return ccf::cose::edit::set_unprotected_header(*signature, desc);
     }
 
@@ -2381,9 +2384,12 @@ namespace loggingapp
           }
 
           // Build "transparent statement".
+          // IANA COSE header label for Verifiable Data Proofs
+          static constexpr int64_t COSE_HEADER_PARAM_VDP = 396;
+
           ccf::cose::edit::desc::Value receipts_desc{
             ccf::cose::edit::pos::InArray{},
-            ccf::cose::header::iana::VDP,
+            COSE_HEADER_PARAM_VDP,
             *cose_receipt};
           auto transparent_statement =
             ccf::cose::edit::set_unprotected_header(*entry, receipts_desc);
