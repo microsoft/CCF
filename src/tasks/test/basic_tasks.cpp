@@ -392,6 +392,9 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
   // Verify that stack traces contain demangled function names from the
   // known call chains. These functions have external linkage and are
   // exported to the dynamic symbol table via -rdynamic in Debug builds.
+  // In Release builds, -rdynamic is not set and functions may be inlined,
+  // so we skip name-based assertions there.
+#ifndef NDEBUG
   // Note: very small leaf functions (e.g. level_3_throws_int, which is
   // just `throw 42;`) may be inlined by the compiler, so we only assert
   // on the caller frames that reliably appear.
@@ -404,6 +407,7 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
   // ThrowsUnknown call chain
   REQUIRE(logger_ptr->contains("level_2_calls_level_3_int"));
   REQUIRE(logger_ptr->contains("level_1_calls_level_2_int"));
+#endif
 
   // Clean up: remove the capturing logger
   auto& loggers = ccf::logger::config::loggers();
