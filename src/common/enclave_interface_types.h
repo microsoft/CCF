@@ -4,7 +4,7 @@
 
 #include "ccf/ds/logger_level.h"
 
-enum CreateNodeStatus : std::uint8_t
+enum CreateNodeStatus
 {
   /** Call was successful and the node was successfully created */
   OK = 0,
@@ -32,6 +32,9 @@ enum CreateNodeStatus : std::uint8_t
 
   /** The reconfiguration method is not supported */
   ReconfigurationMethodNotSupported = 8,
+
+  /** Host and enclave versions must match */
+  VersionMismatch = 9,
 
   /** When reading from host memory, the source must be 8-byte aligned **/
   UnalignedArguments = 10,
@@ -77,6 +80,10 @@ constexpr char const* create_node_result_to_str(CreateNodeStatus result)
     {
       return "ReconfigurationMethodNotSupported";
     }
+    case CreateNodeStatus::VersionMismatch:
+    {
+      return "VersionMismatch";
+    }
     case CreateNodeStatus::UnalignedArguments:
     {
       return "UnalignedArguments";
@@ -88,7 +95,7 @@ constexpr char const* create_node_result_to_str(CreateNodeStatus result)
   }
 }
 
-enum StartType : std::uint8_t
+enum StartType
 {
   Start = 1,
   Join = 2,

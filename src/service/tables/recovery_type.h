@@ -8,7 +8,7 @@
 
 namespace ccf
 {
-  enum RecoveryType : std::uint8_t
+  enum RecoveryType
   {
     NONE = 0,
     RECOVERY_SHARES = 1,

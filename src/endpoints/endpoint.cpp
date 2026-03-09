@@ -3,7 +3,7 @@
 
 #include "ccf/endpoint.h"
 
-#include "ds/internal_logger.h"
+#include "ccf/ds/logger.h"
 
 namespace ccf::endpoints
 {
@@ -96,13 +96,6 @@ namespace ccf::endpoints
     return *this;
   }
 
-  Endpoint& Endpoint::set_locally_committed_function(
-    const LocallyCommittedEndpointFunction& lcf)
-  {
-    locally_committed_func = lcf;
-    return *this;
-  }
-
   Endpoint& Endpoint::set_openapi_description(const std::string& description)
   {
     openapi_description = description;
@@ -150,7 +143,7 @@ namespace ccf::endpoints
   {
     switch (grp.kind)
     {
-      case InterpreterReusePolicy::Kind::KeyBased:
+      case InterpreterReusePolicy::KeyBased:
       {
         j = nlohmann::json::object();
         j["key"] = grp.key;
@@ -165,7 +158,7 @@ namespace ccf::endpoints
       const auto key_it = j.find("key");
       if (key_it != j.end())
       {
-        grp.kind = InterpreterReusePolicy::Kind::KeyBased;
+        grp.kind = InterpreterReusePolicy::KeyBased;
         grp.key = key_it->get<std::string>();
       }
     }

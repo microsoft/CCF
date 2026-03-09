@@ -4,7 +4,6 @@
 #include "ccf/js/extensions/ccf/gov.h"
 
 #include "ccf/js/core/context.h"
-#include "js/checks.h"
 
 #include <iostream>
 #include <quickjs/quickjs.h>
@@ -134,13 +133,18 @@ namespace ccf::js::extensions
 
   void GovExtension::install(js::core::Context& ctx)
   {
-    auto gov = ctx.new_obj();
+    auto gov = JS_NewObject(ctx);
 
-    JS_CHECK_OR_THROW(gov.set(
+    JS_SetPropertyStr(
+      ctx,
+      gov,
       "validateConstitution",
-      ctx.new_c_function(js_validate_constitution, "validateConstitution", 1)));
+      JS_NewCFunction(
+        ctx, js_validate_constitution, "validateConstitution", 1));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    JS_CHECK_OR_THROW(ccf.set("gov", std::move(gov)));
+    // NOLINTBEGIN(performance-move-const-arg)
+    ccf.set("gov", std::move(gov));
+    // NOLINTEND(performance-move-const-arg)
   }
 }

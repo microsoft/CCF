@@ -28,47 +28,47 @@ namespace ccf::crypto
     explicit Pem(std::span<const uint8_t> s) : Pem(s.data(), s.size()) {}
     explicit Pem(const std::vector<uint8_t>& v) : Pem(v.data(), v.size()) {}
 
-    bool operator==(const Pem& rhs) const
+    inline bool operator==(const Pem& rhs) const
     {
       return s == rhs.s;
     }
 
-    bool operator!=(const Pem& rhs) const
+    inline bool operator!=(const Pem& rhs) const
     {
       return !(*this == rhs);
     }
 
-    bool operator<(const Pem& rhs) const
+    inline bool operator<(const Pem& rhs) const
     {
       return s < rhs.s;
     }
 
-    [[nodiscard]] const std::string& str() const
+    inline const std::string& str() const
     {
       return s;
     }
 
-    uint8_t* data()
+    inline uint8_t* data()
     {
       return reinterpret_cast<uint8_t*>(s.data());
     }
 
-    [[nodiscard]] const uint8_t* data() const
+    inline const uint8_t* data() const
     {
       return reinterpret_cast<const uint8_t*>(s.data());
     }
 
-    [[nodiscard]] size_t size() const
+    inline size_t size() const
     {
       return s.size();
     }
 
-    [[nodiscard]] bool empty() const
+    inline bool empty() const
     {
       return s.empty();
     }
 
-    [[nodiscard]] std::vector<uint8_t> raw() const
+    inline std::vector<uint8_t> raw() const
     {
       return {data(), data() + size()};
     }
@@ -96,7 +96,7 @@ namespace ccf::crypto
     }
   }
 
-  inline std::string schema_name([[maybe_unused]] const Pem* pem)
+  inline std::string schema_name(const Pem*)
   {
     return "Pem";
   }
@@ -104,8 +104,7 @@ namespace ccf::crypto
   std::vector<ccf::crypto::Pem> split_x509_cert_bundle(
     const std::string_view& pem);
 
-  inline void fill_json_schema(
-    nlohmann::json& schema, [[maybe_unused]] const Pem* pem)
+  inline void fill_json_schema(nlohmann::json& schema, const Pem*)
   {
     schema["type"] = "string";
   }

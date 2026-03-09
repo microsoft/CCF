@@ -7,18 +7,25 @@
 
 namespace ccf
 {
-  enum class ActorsType : uint8_t
+  enum class ActorsType : uint64_t
   {
     members = 0,
     users,
     nodes,
+    acme_challenge,
     // not to be used
     unknown
   };
 
   inline bool is_valid_actor(const std::string& actor)
   {
-    return actor == "gov" || actor == "app" || actor == "node";
+    if (
+      actor != "gov" && actor != "app" && actor != "node" &&
+      actor != ".well-known/acme-challenge")
+    {
+      return false;
+    }
+    return true;
   }
 
   constexpr auto get_actor_prefix(ActorsType at)
@@ -36,6 +43,10 @@ namespace ccf
       case ActorsType::nodes:
       {
         return "node";
+      }
+      case ActorsType::acme_challenge:
+      {
+        return ".well-known/acme-challenge";
       }
       default:
       {

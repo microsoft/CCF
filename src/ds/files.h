@@ -51,20 +51,23 @@ namespace files
       {
         return {};
       }
-      std::cerr << "Could not open file " << file << std::endl;
-      exit(-1); // NOLINT(concurrency-mt-unsafe)
+      else
+      {
+        std::cerr << "Could not open file " << file << std::endl;
+        exit(-1);
+      }
     }
 
     auto size = f.tellg();
     f.seekg(0, std::ios::beg);
 
     std::vector<uint8_t> data(size);
-    f.read(reinterpret_cast<char*>(data.data()), size);
+    f.read((char*)data.data(), size);
 
     if (!optional && !f)
     {
       std::cerr << "Could not read file " << file << std::endl;
-      exit(-1); // NOLINT(concurrency-mt-unsafe)
+      exit(-1);
     }
     return data;
   }
@@ -106,10 +109,8 @@ namespace files
     const std::string& file, bool optional = false)
   {
     auto v = slurp(file, optional);
-    if (v.empty())
-    {
-      return {};
-    }
+    if (v.size() == 0)
+      return nlohmann::json();
 
     return nlohmann::json::parse(v.begin(), v.end());
   }
@@ -124,11 +125,9 @@ namespace files
   {
     using namespace std;
     ofstream f(file, ios::binary | ios::trunc);
-    f.write(reinterpret_cast<const char*>(data.data()), data.size());
+    f.write((char*)data.data(), data.size());
     if (!f)
-    {
       throw logic_error("Failed to write to file: " + file);
-    }
   }
 
   /**
@@ -139,7 +138,7 @@ namespace files
    */
   static void dump(const std::string& data, const std::string& file)
   {
-    dump(std::vector<uint8_t>(data.begin(), data.end()), file);
+    return dump(std::vector<uint8_t>(data.begin(), data.end()), file);
   }
 
   static void rename(const fs::path& src, const fs::path& dst)

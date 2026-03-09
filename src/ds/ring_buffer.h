@@ -41,7 +41,7 @@ namespace ringbuffer
 
     static constexpr bool is_power_of_2(size_t n)
     {
-      return (n != 0u) && ((n & (~n + 1)) == n);
+      return n && ((n & (~n + 1)) == n);
     }
 
     static bool is_aligned(uint8_t const* data, size_t align)
@@ -94,7 +94,7 @@ namespace ringbuffer
       void* data = reinterpret_cast<void*>(data_);
       size_t size = size_;
 
-      auto* ret = std::align(8, sizeof(size_t), data, size);
+      auto ret = std::align(8, sizeof(size_t), data, size);
       if (ret == nullptr)
       {
         return false;
@@ -136,12 +136,12 @@ namespace ringbuffer
     }
   };
 
-  namespace detail
+  namespace
   {
-    inline uint64_t read64_impl(const BufferDef& bd, size_t index)
+    static inline uint64_t read64_impl(const BufferDef& bd, size_t index)
     {
-      auto* src = bd.data + index;
-      auto* src_64 = reinterpret_cast<uint64_t*>(src);
+      auto src = bd.data + index;
+      auto src_64 = reinterpret_cast<uint64_t*>(src);
 
 #ifdef __cpp_lib_atomic_ref
       if (Const::is_aligned(src, 8))
@@ -160,16 +160,16 @@ namespace ringbuffer
       return r;
     }
 
-    inline Message message(uint64_t header)
+    static inline Message message(uint64_t header)
     {
       return (Message)(header >> 32);
     }
 
-    inline uint32_t length(uint64_t header)
+    static inline uint32_t length(uint64_t header)
     {
       return header & std::numeric_limits<uint32_t>::max();
     }
-  } // namespace detail
+  }
 
   class Reader
   {
@@ -180,7 +180,7 @@ namespace ringbuffer
     virtual uint64_t read64(size_t index)
     {
       bd.check_access(index, sizeof(uint64_t));
-      return detail::read64_impl(bd, index);
+      return read64_impl(bd, index);
     }
 
     virtual void clear_mem(size_t index, size_t advance)
@@ -203,8 +203,6 @@ namespace ringbuffer
       }
     }
 
-    virtual ~Reader() = default;
-
     size_t read(size_t limit, Handler f)
     {
       auto mask = bd.size - 1;
@@ -218,23 +216,20 @@ namespace ringbuffer
       {
         auto msg_index = hd_index + advance;
         auto header = read64(msg_index);
-        auto size = detail::length(header);
+        auto size = length(header);
 
         // If we see a pending write, we're done.
         if ((size & pending_write_flag) != 0u)
-        {
           break;
-        }
 
-        auto m = detail::message(header);
+        auto m = message(header);
 
         if (m == Const::msg_none)
         {
           // There is no message here, we're done.
           break;
         }
-
-        if (m == Const::msg_pad)
+        else if (m == Const::msg_pad)
         {
           // If we see padding, skip it.
           // NB: Padding messages are potentially unaligned, where other
@@ -290,9 +285,9 @@ namespace ringbuffer
 
     Writer(const Writer& that) : bd(that.bd), rmax(that.rmax) {}
 
-    ~Writer() override = default;
+    virtual ~Writer() {}
 
-    std::optional<size_t> prepare(
+    virtual std::optional<size_t> prepare(
       Message m,
       size_t size,
       bool wait = true,
@@ -355,34 +350,32 @@ namespace ringbuffer
       write64(r.value().index, Const::make_header(m, size));
 
       if (identifier != nullptr)
-      {
         *identifier = r.value().identifier;
-      }
 
       return {r.value().index + Const::header_size()};
     }
 
-    void finish(const WriteMarker& marker) override
+    virtual void finish(const WriteMarker& marker) override
     {
       if (marker.has_value())
       {
         // Fix up the size to indicate we're done writing - unset pending bit.
         const auto index = marker.value() - Const::header_size();
         const auto header = read64(index);
-        const auto size = detail::length(header);
-        const auto m = detail::message(header);
+        const auto size = length(header);
+        const auto m = message(header);
         const auto finished_header = Const::make_header(m, size, false);
         write64(index, finished_header);
       }
     }
 
-    size_t get_max_message_size() override
+    virtual size_t get_max_message_size() override
     {
       return Const::max_size();
     }
 
   protected:
-    WriteMarker write_bytes(
+    virtual WriteMarker write_bytes(
       const WriteMarker& marker, const uint8_t* bytes, size_t size) override
     {
       if (!marker.has_value())
@@ -419,7 +412,7 @@ namespace ringbuffer
     virtual uint64_t read64(size_t index)
     {
       bd.check_access(index, sizeof(uint64_t));
-      return detail::read64_impl(bd, index);
+      return read64_impl(bd, index);
     }
 
     virtual void write64(size_t index, uint64_t value)
@@ -475,9 +468,7 @@ namespace ringbuffer
 
           // If it still doesn't fit, fail.
           if (size > avail)
-          {
             return {};
-          }
 
           // This may move the head cache backwards, but if so, that is safe and
           // will be corrected later.
@@ -502,9 +493,7 @@ namespace ringbuffer
             // If it still doesn't fit, fail - there is not a contiguous region
             // large enough for this reservation
             if (size > hd_index)
-            {
               return {};
-            }
 
             // This may move the head cache backwards, but if so, that is safe
             // and will be corrected later.
@@ -558,12 +547,12 @@ namespace ringbuffer
 
     ringbuffer::Writer write_to_outside()
     {
-      return {from_inside};
+      return ringbuffer::Writer(from_inside);
     }
 
     ringbuffer::Writer write_to_inside()
     {
-      return {from_outside};
+      return ringbuffer::Writer(from_outside);
     }
   };
 
@@ -590,11 +579,12 @@ namespace ringbuffer
   // This struct wraps buffer management to simplify testing
   struct TestBuffer
   {
-    Offsets offsets;
     std::vector<uint8_t> storage;
-    BufferDef bd{};
+    Offsets offsets;
 
-    TestBuffer(size_t size) : offsets(), storage(size, 0)
+    BufferDef bd;
+
+    TestBuffer(size_t size) : storage(size, 0), offsets()
     {
       bd.data = storage.data();
       bd.size = storage.size();

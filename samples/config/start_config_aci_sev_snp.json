@@ -1,4 +1,9 @@
 {
+  "enclave": {
+    "file": "libjs_generic.snp.so",
+    "platform": "SNP",
+    "type": "Release"
+  },
   "network": {
     "node_to_node_interface": {
       "bind_address": "127.0.0.1:8081"

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/internal_logger.h"
+#include "ccf/ds/logger.h"
 #include "ds/serialized.h"
 #include "enclave/rpc_handler.h"
 #include "node_types.h"
@@ -22,7 +22,7 @@ namespace ccf
     {
     public:
       NodeId from;
-      DroppedMessageException(NodeId from_) : from(std::move(from_)) {}
+      DroppedMessageException(const NodeId& from) : from(from) {}
     };
 
     virtual void associate_node_address(
@@ -99,7 +99,7 @@ namespace ccf
     virtual void initialize(
       const NodeId& self_id,
       const ccf::crypto::Pem& service_cert,
-      ccf::crypto::ECKeyPairPtr node_kp,
+      ccf::crypto::KeyPairPtr node_kp,
       const std::optional<ccf::crypto::Pem>& node_cert = std::nullopt) = 0;
 
     virtual void set_endorsed_node_cert(

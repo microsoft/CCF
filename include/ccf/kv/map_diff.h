@@ -16,9 +16,7 @@ namespace ccf::kv
     using KeyType = K;
     using ValueType = V;
 
-    MapDiff(ccf::kv::untyped::MapDiff map_diff_) :
-      map_diff(std::move(map_diff_))
-    {}
+    MapDiff(ccf::kv::untyped::MapDiff map_diff_) : map_diff(map_diff_) {}
 
     MapDiff(ccf::kv::untyped::ChangeSet& changes, const std::string& map_name) :
       map_diff(changes, map_name)
@@ -84,7 +82,7 @@ namespace ccf::kv
      * should continue (true) or stop (false)
      */
     template <class F>
-    void foreach(F&& f) // NOLINT(cppcoreguidelines-missing-std-forward)
+    void foreach(F&& f)
     {
       const auto& g =
         [&](
@@ -98,8 +96,11 @@ namespace ccf::kv
             VSerialiser::from_serialised(v_rep.value());
           return f(k, v);
         }
-        const std::optional<V> v = std::nullopt;
-        return f(k, v);
+        else
+        {
+          const std::optional<V> v = std::nullopt;
+          return f(k, v);
+        }
       };
       map_diff.foreach(g);
     }
@@ -112,7 +113,7 @@ namespace ccf::kv
      * (true) or stop (false)
      */
     template <class F>
-    void foreach_key(F&& f) // NOLINT(cppcoreguidelines-missing-std-forward)
+    void foreach_key(F&& f)
     {
       auto g = [&](
                  const ccf::kv::serialisers::SerialisedEntry& k_rep,
@@ -130,7 +131,7 @@ namespace ccf::kv
      * continue (true) or stop (false)
      */
     template <class F>
-    void foreach_value(F&& f) // NOLINT(cppcoreguidelines-missing-std-forward)
+    void foreach_value(F&& f)
     {
       auto g =
         [&](
@@ -140,7 +141,10 @@ namespace ccf::kv
           {
             return f(VSerialiser::from_serialised(v_rep));
           }
-          return f(std::nullopt);
+          else
+          {
+            return f(std::nullopt);
+          }
         };
       map_diff.foreach(g);
     }

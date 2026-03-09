@@ -6,12 +6,12 @@
 
 namespace ccf
 {
-  enum ConsensusType : uint8_t
+  enum ConsensusType
   {
     CFT = 0,
     BFT = 1
   };
 
   DECLARE_JSON_ENUM(
-    ConsensusType, {{ConsensusType::CFT, "CFT"}, {ConsensusType::BFT, "BFT"}});
+    ConsensusType, {{ConsensusType::CFT, "CFT"}, {ConsensusType::BFT, "BFT"}})
 }

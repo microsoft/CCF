@@ -21,7 +21,7 @@ namespace ccf::kv
     VersionV(Version ver, Version read_ver, V val) :
       version(ver),
       read_version(read_ver),
-      value(std::move(val))
+      value(val)
     {}
   };
 }

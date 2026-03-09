@@ -47,7 +47,7 @@ namespace ccf::kv::untyped
   public:
     MapHandle(ccf::kv::untyped::ChangeSet& cs, std::string map_name);
 
-    [[nodiscard]] std::string get_name_of_map() const;
+    std::string get_name_of_map() const;
 
     std::optional<ValueType> get(const KeyType& key);
 

@@ -4,7 +4,6 @@
 #include "js/extensions/ccf/network.h"
 
 #include "ccf/js/core/context.h"
-#include "js/checks.h"
 #include "node/network_state.h"
 
 #include <quickjs/quickjs.h>
@@ -15,12 +14,11 @@ namespace ccf::js::extensions
   {
     JSValue js_network_latest_ledger_secret_seqno(
       JSContext* ctx,
-      [[maybe_unused]] JSValueConst this_val,
+      JSValueConst this_val,
       int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 0)
       {
@@ -28,15 +26,15 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected none", argc);
       }
 
-      auto* extension = jsctx.get_extension<NetworkExtension>();
+      auto extension = jsctx.get_extension<NetworkExtension>();
 
-      auto* network = extension->network_state;
+      auto network = extension->network_state;
       if (network == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Network state is not set");
       }
 
-      auto* tx_ptr = extension->tx;
+      auto tx_ptr = extension->tx;
 
       if (tx_ptr == nullptr)
       {
@@ -62,12 +60,11 @@ namespace ccf::js::extensions
 
     JSValue js_network_generate_endorsed_certificate(
       JSContext* ctx,
-      [[maybe_unused]] JSValueConst this_val,
+      JSValueConst this_val,
       int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 3)
       {
@@ -75,9 +72,9 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected 3", argc);
       }
 
-      auto* extension = jsctx.get_extension<NetworkExtension>();
+      auto extension = jsctx.get_extension<NetworkExtension>();
 
-      auto* network = extension->network_state;
+      auto network = extension->network_state;
       if (network == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Network state is not set");
@@ -131,12 +128,11 @@ namespace ccf::js::extensions
 
     JSValue js_network_generate_certificate(
       JSContext* ctx,
-      [[maybe_unused]] JSValueConst this_val,
+      JSValueConst this_val,
       int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 2)
       {
@@ -144,9 +140,9 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected 2", argc);
       }
 
-      auto* extension = jsctx.get_extension<NetworkExtension>();
+      auto extension = jsctx.get_extension<NetworkExtension>();
 
-      auto* network = extension->network_state;
+      auto network = extension->network_state;
       if (network == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Network state is not set");
@@ -181,26 +177,34 @@ namespace ccf::js::extensions
 
   void NetworkExtension::install(js::core::Context& ctx)
   {
-    auto network = ctx.new_obj();
+    auto network = JS_NewObject(ctx);
 
-    JS_CHECK_OR_THROW(network.set(
+    JS_SetPropertyStr(
+      ctx,
+      network,
       "getLatestLedgerSecretSeqno",
-      ctx.new_c_function(
+      JS_NewCFunction(
+        ctx,
         js_network_latest_ledger_secret_seqno,
         "getLatestLedgerSecretSeqno",
-        0)));
-    JS_CHECK_OR_THROW(network.set(
+        0));
+    JS_SetPropertyStr(
+      ctx,
+      network,
       "generateEndorsedCertificate",
-      ctx.new_c_function(
+      JS_NewCFunction(
+        ctx,
         js_network_generate_endorsed_certificate,
         "generateEndorsedCertificate",
-        0)));
-    JS_CHECK_OR_THROW(network.set(
+        0));
+    JS_SetPropertyStr(
+      ctx,
+      network,
       "generateNetworkCertificate",
-      ctx.new_c_function(
-        js_network_generate_certificate, "generateNetworkCertificate", 0)));
+      JS_NewCFunction(
+        ctx, js_network_generate_certificate, "generateNetworkCertificate", 0));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    JS_CHECK_OR_THROW(ccf.set("network", std::move(network)));
+    ccf.set("network", std::move(network));
   }
 }

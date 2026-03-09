@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "consensus/aft/raft.h"
 #include "consensus/aft/raft_types.h"
-#include "ds/internal_logger.h"
 #include "logging_stub.h"
 
 #include <chrono>
@@ -79,14 +79,14 @@ struct LoggingStubStore_Mermaid : public aft::LoggingStubStoreConfig
     aft::LoggingStubStoreConfig::compact(idx);
   }
 
-  void rollback(const ccf::TxID& tx_id, aft::Term t) override
+  void rollback(const ccf::kv::TxID& tx_id, aft::Term t) override
   {
     RAFT_DRIVER_PRINT(
       "{}->>{}: [KV] rolling back to {}.{}, in term {}",
       _id,
       _id,
-      tx_id.view,
-      tx_id.seqno,
+      tx_id.term,
+      tx_id.version,
       t);
     aft::LoggingStubStoreConfig::rollback(tx_id, t);
   }
@@ -117,7 +117,7 @@ private:
     std::shared_ptr<TRaft> raft;
   };
 
-  bool pre_vote_enabled = true;
+  bool pre_vote_enabled = false;
   std::map<ccf::NodeId, NodeDriver> _nodes;
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
 
@@ -260,21 +260,6 @@ public:
       "Note over {}: Node {} created",
       ccf::NodeId(start_node_id),
       start_node_id);
-  }
-
-  void nominate_successor(std::string node_id_s, const size_t lineno)
-  {
-    ccf::NodeId node_id(node_id_s);
-    if (_nodes.find(node_id) == _nodes.end())
-    {
-      throw std::runtime_error(fmt::format(
-        "Attempted to nominate unknown node {} on line {}", node_id, lineno));
-    }
-
-    RAFT_DRIVER_PRINT(
-      "Note over {}: Node {} nominates a successor", node_id, node_id_s);
-
-    _nodes.at(node_id).raft->nominate_successor();
   }
 
   void cleanup_nodes(
@@ -1441,22 +1426,6 @@ public:
           node_id,
           config_idx));
       }
-    }
-  }
-
-  void assert_last_txid(
-    const std::string& node_id, const std::string& last_txid_s)
-  {
-    auto idx = _nodes.at(node_id).raft->get_last_idx();
-    auto view = _nodes.at(node_id).raft->get_view(idx);
-    auto last_txid = fmt::format("{}.{}", view, idx);
-    if (last_txid != last_txid_s)
-    {
-      throw std::runtime_error(fmt::format(
-        "Node {} lastTxID is not as expected: {} != {}",
-        node_id,
-        last_txid,
-        last_txid_s));
     }
   }
 };

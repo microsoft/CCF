@@ -21,14 +21,14 @@ namespace ccf
       node_config_state({node_state_.get_node_config(), {}, false})
     {}
 
-    ~NodeConfigurationSubsystem() override = default;
+    virtual ~NodeConfigurationSubsystem() = default;
 
     static char const* get_subsystem_name()
     {
       return "NodeConfiguration";
     }
 
-    const NodeConfigurationState& get() override
+    virtual const NodeConfigurationState& get() override
     {
       if (!node_config_state.initialized)
       {

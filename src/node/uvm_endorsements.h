@@ -12,13 +12,16 @@
 
 #include <didx509cpp/didx509cpp.h>
 #include <nlohmann/json.hpp>
+#include <qcbor/qcbor.h>
+#include <qcbor/qcbor_spiffy_decode.h>
 #include <span>
+#include <t_cose/t_cose_sign1_verify.h>
 
 namespace ccf
 {
   struct UvmEndorsementsProtectedHeader
   {
-    int64_t alg{};
+    int64_t alg;
     std::string content_type;
     std::vector<std::vector<uint8_t>> x5_chain;
     std::string iss;
@@ -27,14 +30,12 @@ namespace ccf
 
   // Roots of trust for UVM endorsements/measurement in AMD SEV-SNP attestations
   static std::vector<pal::UVMEndorsements> default_uvm_roots_of_trust = {
-    {"did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
-     "1.4.1.311.76.59.1.2",
-     "ContainerPlat-AMD-UVM",
-     "104"},
+    // Confidential Azure Kubertnetes Service (AKS)
     {"did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
      "1.4.1.311.76.59.1.2",
      "ContainerPlat-AMD-UVM",
      "100"},
+    // Confidential Azure Container Instances (ACI)
     {"did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
      "1.4.1.311.76.59.1.5",
      "ConfAKS-AMD-UVM",

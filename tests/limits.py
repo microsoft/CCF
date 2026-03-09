@@ -51,14 +51,16 @@ def test_forward_larger_than_default_requests(network, args):
 
 def run_parser_limits_checks(args):
     new_args = copy.copy(args)
-    # Deliberately large because some builds take
+    # Deliberately large because some builds (eg. SGX Debug) take
     # a long time to process large requests
     new_args.election_timeout_ms = 10000
-    new_args.log_level = "info"
+    new_args.host_log_level = "info"
+    new_args.enclave_log_level = "info"
     with infra.network.network(
         new_args.nodes,
         new_args.binary_dir,
         new_args.debug_nodes,
+        new_args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start_and_open(new_args)
@@ -74,7 +76,7 @@ if __name__ == "__main__":
         cr.add(
             "parser_limits",
             run_parser_limits_checks,
-            package="samples/apps/logging/logging",
+            package="samples/apps/logging/liblogging",
             nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         )
 

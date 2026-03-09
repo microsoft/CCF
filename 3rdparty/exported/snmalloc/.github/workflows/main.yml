@@ -1,0 +1,301 @@
+name: snmalloc CI
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the master branch
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main, snmalloc1 ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  unixlike:
+    strategy:
+      matrix:
+        # Build each combination of OS and release/debug variants
+        os: [ "ubuntu-latest", "ubuntu-18.04", "macos-11", "macos-10.15", "freebsd-12.2", "freebsd-13.0" ]
+        build-type: [ Release, Debug ]
+        # Extra cmake flags.  GitHub Actions matrix overloads `include` to mean
+        # 'add extra things to a job' and 'add jobs'.  You can add extra things
+        # to a job by specifying things that exist in a job created from the
+        # matrix definition and adding things.  You can specify extra jobs by
+        # specifying properties that don't match existing jobs.  We use
+        # `cmake-flags` to add cmake flags to all jobs matching a pattern and
+        # `extra-cmake-flags` to specify a new job with custom CMake flags.
+        extra-cmake-flags: [ "" ]
+        # Modify the complete matrix
+        include:
+          # Provide the dependency installation for each platform
+          - os: "ubuntu-18.04"
+            dependencies: "sudo apt install ninja-build"
+            cmake-flags: "-DSNMALLOC_USE_CXX17=ON"
+          - os: "ubuntu-latest"
+            dependencies: "sudo apt install ninja-build"
+          - os: "macos-11"
+            # The homebrew packages are broken at the moment and error out
+            # after trying to install Python as a dependency of ninja because
+            # 2to3 exists.  As a quick hack, delete it first.  This should be
+            # removed once the homebrew install is fixed.
+            dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
+          - os: "macos-10.15"
+            dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
+          # Skip the tests for the FreeBSD release builds
+          # Also build-test the checked memcpy implementation while doing these.
+          # It is run-tested on Linux and should be the same everywhere.
+          - os: "freebsd-13.0"
+            build-type: Release
+            build-only: yes
+            cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
+          - os: "freebsd-12.2"
+            build-type: Debug
+            build-only: yes
+            cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
+          # Add the self-host build, using the bounds-checked memcpy in
+          # maximally paranoid mode (checking loads and stores)
+          - os: "ubuntu-latest"
+            build-type: Debug
+            self-host: true
+            extra-cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
+            dependencies: "sudo apt install ninja-build"
+          # Extra build to check using pthread library for destructing local state.
+          - os: "ubuntu-latest"
+            variant: "Ubuntu (with pthread destructors)."
+            dependencies: "sudo apt install ninja-build"
+            build-type: Debug
+            self-host: true
+            extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On -DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10"
+          # Add an extra element to the matrix that does a build with clang 12
+          # but doesn't run tests.
+          - os: "freebsd-13.0"
+            variant: Clang 12 (Build only)
+            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++12"
+            build-only: yes
+          - os: "ubuntu-latest"
+            variant: Clang 10 libstdc++ (Build only)
+            dependencies: "sudo apt install ninja-build"
+            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10 -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
+            build-only: yes
+      # Don't abort runners if a single one fails
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.variant }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install build dependencies
+      run: ${{ matrix.dependencies }}
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja ${{ matrix.cmake-flags }} ${{ matrix.extra-cmake-flags }}
+      # Build with a nice ninja status line
+    - name: Build
+      working-directory: ${{github.workspace}}/build
+      run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
+    - name: Test file size of binaries is sane
+      working-directory: ${{github.workspace}}/build
+      run: "ls -l func-first_operation-fast ; [ $(ls -l func-first_operation-fast | awk '{ print $5}') -lt 10000000 ]"
+      # If the tests are enabled for this job, run them
+    - name: Test
+      if: ${{ matrix.build-only != 'yes' }}
+      working-directory: ${{github.workspace}}/build
+      run: ctest --output-on-failure -j 4 -C ${{ matrix.build-type }} --timeout 400
+    - name: Selfhost
+      if: ${{ matrix.self-host }}
+      working-directory: ${{github.workspace}}/build
+      run: |
+        sudo cp libsnmallocshim.so libsnmallocshim-checks.so /usr/local/lib/
+        ninja clean
+        LD_PRELOAD=/usr/local/lib/libsnmallocshim.so ninja
+        ninja clean
+        LD_PRELOAD=/usr/local/lib/libsnmallocshim-checks.so ninja
+
+  sanitizer:
+    strategy:
+      matrix:
+        # Build each combination of OS and release/debug variants
+        os: [ "ubuntu-latest"]
+        build-type: [ Release, Debug ]
+        include:
+          - os: "ubuntu-latest"
+            continue-on-error: # Don't class as an error if this fails, until we have a more reliablity.
+            variant: Clang 10 libc++ (TSan + UBSan)
+            dependencies: "sudo apt install ninja-build"
+            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_CXX_FLAGS=-stdlib=\"libc++ -g\" -DSNMALLOC_SANITIZER=undefined,thread"
+      # Don't abort runners if a single one fails
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.variant }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install build dependencies
+      run: ${{ matrix.dependencies }}
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja ${{ matrix.cmake-flags }} ${{ matrix.extra-cmake-flags }}
+      # Build with a nice ninja status line
+    - name: Build
+      working-directory: ${{github.workspace}}/build
+      run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
+    - name: Test
+      working-directory: ${{github.workspace}}/build
+      run: ctest --output-on-failure -j 4 -C ${{ matrix.build-type }} --timeout 400 -E "memcpy|external_pointer" --repeat-until-fail 2
+
+  qemu-crossbuild:
+    strategy:
+      matrix:
+        build-type: [ Release, Debug ]
+        arch:
+          - name: armhf
+            system-processor: arm
+            triple: arm-linux-gnueabihf
+            rtld: ld-linux-armhf.so.3
+            ld-flavour: lld
+          - name: arm64
+            system-processor: aarch64
+            triple: aarch64-linux-gnu
+            rtld: ld-linux-aarch64.so.1
+            ld-flavour: lld
+          - name: ppc64el
+            system-processor: powerpc64le
+            triple: powerpc64le-linux-gnu
+            rtld: ld64.so.2
+            ld-flavour: lld
+          - name: riscv64
+            system-processor: riscv64
+            triple: riscv64-linux-gnu
+            rtld: ld-linux-riscv64-lp64d.so.1
+            extra-packages: binutils-riscv64-linux-gnu
+            ld-flavour: bfd
+            ld: /usr/bin/riscv64-linux-gnu-ld.bfd
+      # Don't abort runners if a single one fails
+      fail-fast: false
+    runs-on: ubuntu-latest
+    name: ${{matrix.build-type}} cross-build for ${{ matrix.arch.triple }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install cross-compile toolchain and QEMU
+      # Install the dependencies and clang 13.  Earlier versions of clang don't
+      # find the multilib things for this week's Ubuntu filesystem layout.
+      run: |
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        sudo add-apt-repository "deb http://apt.llvm.org/focal/     llvm-toolchain-focal-13  main"
+        sudo apt update
+        sudo apt install libstdc++-9-dev-${{ matrix.arch.name }}-cross qemu-user ninja-build clang-13 lld-13
+        sudo apt install ${{matrix.arch.extra-packages}}
+        # The default PowerPC qemu configuration uses the wrong page size.
+        # Wrap it in a script that fixes this.
+        sudo update-binfmts --disable qemu-ppc64le
+        sudo sh -c 'echo ":qemu-ppc64le:M:0:\x7f\x45\x4c\x46\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x15\x00:\xff\xff\xff\xff\xff\xff\xff\xfc\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\x00:`pwd`/ppc64.sh:" > /proc/sys/fs/binfmt_misc/register'
+        echo '#!/bin/sh' > ppc64.sh
+        echo '/usr/bin/qemu-ppc64le -p 65536 $@' >> ppc64.sh
+        chmod +x ppc64.sh
+    - name: Configure
+      run: >
+        RTLD_NAME=${{ matrix.arch.rtld }}
+        ARCH=${{ matrix.arch.system-processor }}
+        TRIPLE=${{ matrix.arch.triple}}
+        cmake
+        -B ${{github.workspace}}/build
+        -DCMAKE_BUILD_TYPE=${{matrix.build-type}}
+        -G Ninja
+        -DSNMALLOC_CI_BUILD=ON
+        -DSNMALLOC_QEMU_WORKAROUND=ON
+        -DSNMALLOC_STATIC_LIBRARY=OFF
+        -DCMAKE_TOOLCHAIN_FILE=ci/Toolchain.cmake
+        -DSNMALLOC_LINKER=${{matrix.arch.ld}}
+        -DSNMALLOC_LINKER_FLAVOUR=${{matrix.arch.ld-flavour}}
+    - name: Build
+      working-directory: ${{github.workspace}}/build
+      run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
+    # Run the tests, skipping the -malloc and perf- tests (perf doesn't make
+    # sense in an emulator and the pass-through malloc is slightly flaky in
+    # QEMU)
+    - name: Test
+      working-directory: ${{github.workspace}}/build
+      run: ctest --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+      timeout-minutes: 30
+
+  windows:
+    strategy:
+      matrix:
+        # Build each combination of OS and release/debug variants
+        os: [ windows-2019 ]
+        build-type: [ Release, Debug ]
+        arch: [ Win32, x64 ]
+        toolchain: [ "", "-T ClangCL" ]
+        extra-cmake-flags: [ "" ]
+        # Add an extra check for the Windows 8 compatible PAL
+        include:
+          - os: windows-2019
+            build-type: Release
+            arch: x64
+            toolchain: ""
+            extra-cmake-flags: -DWIN8COMPAT=TRUE
+            variant: Windows 8 compatible
+          - os: windows-2022
+            build-type: Release
+            arch: Win32
+            toolchain: ""
+          - os: windows-2022
+            build-type: Debug
+            arch: Win32
+            toolchain: ""
+          - os: windows-2022
+            build-type: Release
+            arch: x64
+            toolchain: ""
+          - os: windows-2022
+            build-type: Debug
+            arch: x64
+            toolchain: ""
+        
+      # Don't abort runners if a single one fails
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }} ${{ matrix.arch }} ${{ matrix.build-type }} ${{ matrix.toolchain }} ${{ matrix.variant }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Configure CMake
+      run: |
+        cmake -B ${{github.workspace}}/build -A ${{ matrix.arch }} ${{ matrix.toolchain }} ${{ matrix.extra-cmake-flags }} -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On
+      # Build with whatever version of msbuild was configured, for a single build configuration.
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build -- /m /p:Configuration=${{ matrix.build-type }}
+      # Run the tests.
+    - name: Test
+      working-directory: ${{ github.workspace }}/build
+      run: ctest -j 2 --interactive-debug-mode 0 --output-on-failure -C ${{ matrix.build-type }} --timeout 400
+      timeout-minutes: 20
+
+
+  # Job to run clang-format and report errors
+  format:
+    runs-on: ubuntu-18.04
+    # We don't need to do the build for this job, but we need to configure it to get the clang-format target
+    steps:
+    - uses: actions/checkout@v2
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DSNMALLOC_USE_CXX17=ON
+    - name: Install clang-tidy
+      run: sudo apt install clang-tidy-9
+    # Run the clang-format check and error if it generates a diff
+    - name: Run clang-format
+      working-directory: ${{github.workspace}}/build
+      run: |
+        set -eo pipefail
+        make clangformat
+        git diff --exit-code
+    - name: Run clang-tidy
+      run: |
+        clang-tidy-9  src/snmalloc/override/malloc.cc  -header-filter="`pwd`/*" -warnings-as-errors='*' -export-fixes=tidy.fail -- -std=c++17 -mcx16 -DSNMALLOC_PLATFORM_HAS_GETENTROPY=0
+        if [ -f tidy.fail ] ; then
+          cat tidy.fail
+          exit 1
+        fi
+
+  all-checks:
+    needs: [unixlike, qemu-crossbuild, windows, format]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Dummy step
+      run: true

@@ -2,13 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/ccf_exception.h"
 #include "enclave/forwarder_types.h"
 #include "enclave/rpc_map.h"
 #include "http/http_rpc_context.h"
 #include "kv/kv_types.h"
 #include "node/node_to_node.h"
-#include "tasks/basic_task.h"
-#include "tasks/task_system.h"
 
 namespace ccf
 {
@@ -17,7 +16,7 @@ namespace ccf
   class ForwardedRpcHandler
   {
   public:
-    virtual ~ForwardedRpcHandler() = default;
+    virtual ~ForwardedRpcHandler() {}
 
     virtual void process_forwarded(
       std::shared_ptr<ccf::RpcContextImpl> fwd_ctx) = 0;
@@ -35,10 +34,57 @@ namespace ccf
     using ForwardedCommandId = ForwardedHeader_v2::ForwardedCommandId;
     ForwardedCommandId next_command_id = 0;
 
-    std::unordered_map<ForwardedCommandId, ccf::tasks::Task> timeout_tasks;
+    struct TimeoutTask
+    {
+      ::threading::TaskQueue::TimerEntry timer_entry;
+      uint16_t thread_id;
+    };
+
+    std::unordered_map<ForwardedCommandId, TimeoutTask> timeout_tasks;
     ccf::pal::Mutex timeout_tasks_lock;
 
     using IsCallerCertForwarded = bool;
+
+    struct SendTimeoutErrorMsg
+    {
+      SendTimeoutErrorMsg(
+        Forwarder<ChannelProxy>* forwarder_,
+        const ccf::NodeId& to_,
+        size_t client_session_id_,
+        const std::chrono::milliseconds& timeout_) :
+        forwarder(forwarder_),
+        to(to_),
+        client_session_id(client_session_id_),
+        timeout(timeout_)
+      {}
+
+      Forwarder<ChannelProxy>* forwarder;
+      ccf::NodeId to;
+      size_t client_session_id;
+      std::chrono::milliseconds timeout;
+    };
+
+    struct CancelTimerMsg
+    {
+      ::threading::TaskQueue::TimerEntry timer_entry;
+    };
+
+    std::unique_ptr<::threading::Tmsg<SendTimeoutErrorMsg>>
+    create_timeout_error_task(
+      const ccf::NodeId& to,
+      size_t client_session_id,
+      const std::chrono::milliseconds& timeout)
+    {
+      return std::make_unique<::threading::Tmsg<SendTimeoutErrorMsg>>(
+        [](std::unique_ptr<::threading::Tmsg<SendTimeoutErrorMsg>> msg) {
+          msg->data.forwarder->send_timeout_error_response(
+            msg->data.to, msg->data.client_session_id, msg->data.timeout);
+        },
+        this,
+        to,
+        client_session_id,
+        timeout);
+    }
 
     void send_timeout_error_response(
       NodeId to,
@@ -62,14 +108,26 @@ namespace ccf
       }
     }
 
+    static void cancel_forwarding_task_cb(
+      std::unique_ptr<::threading::Tmsg<CancelTimerMsg>> msg)
+    {
+      cancel_forwarding_task(msg->data.timer_entry);
+    }
+
+    static void cancel_forwarding_task(
+      ::threading::TaskQueue::TimerEntry timer_entry)
+    {
+      ::threading::ThreadMessaging::instance().cancel_timer_task(timer_entry);
+    }
+
   public:
     Forwarder(
       std::weak_ptr<ccf::AbstractRPCResponder> rpcresponder,
       std::shared_ptr<ChannelProxy> n2n_channels,
       std::weak_ptr<ccf::RPCMap> rpc_map_) :
-      rpcresponder(std::move(rpcresponder)),
-      n2n_channels(std::move(n2n_channels)),
-      rpc_map(std::move(rpc_map_))
+      rpcresponder(rpcresponder),
+      n2n_channels(n2n_channels),
+      rpc_map(rpc_map_)
     {}
 
     void initialize(const NodeId& self_)
@@ -86,6 +144,7 @@ namespace ccf
       auto session_ctx = rpc_ctx->get_session_context();
 
       IsCallerCertForwarded include_caller = false;
+      const auto method = rpc_ctx->get_method();
       const auto& raw_request = rpc_ctx->get_serialised_request();
       auto client_session_id = session_ctx->client_session_id;
       size_t size = sizeof(client_session_id) + sizeof(IsCallerCertForwarded) +
@@ -97,7 +156,7 @@ namespace ccf
       }
 
       std::vector<uint8_t> plain(size);
-      auto* data_ = plain.data();
+      auto data_ = plain.data();
       auto size_ = plain.size();
       serialized::write(data_, size_, client_session_id);
       serialized::write(data_, size_, include_caller);
@@ -108,16 +167,14 @@ namespace ccf
       }
       serialized::write(data_, size_, raw_request.data(), raw_request.size());
 
-      ForwardedCommandId command_id = 0;
+      ForwardedCommandId command_id;
       {
         std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
         command_id = next_command_id++;
-        auto task =
-          ccf::tasks::make_basic_task([this, to, client_session_id, timeout]() {
-            this->send_timeout_error_response(to, client_session_id, timeout);
-          });
-        timeout_tasks[command_id] = task;
-        ccf::tasks::add_delayed_task(task, timeout);
+        timeout_tasks[command_id] = {
+          ::threading::ThreadMessaging::instance().add_task_after(
+            create_timeout_error_task(to, client_session_id, timeout), timeout),
+          ccf::threading::get_current_thread_id()};
       }
 
       const auto view_opt = session_ctx->active_view;
@@ -161,7 +218,6 @@ namespace ccf
       if (includes_caller)
       {
         auto caller_size = serialized::read<size_t>(data_, size_);
-        // NOLINTNEXTLINE(readability-suspicious-call-argument)
         caller_cert = serialized::read(data_, size_, caller_size);
       }
       std::vector<uint8_t> raw_request = serialized::read(data_, size_, size_);
@@ -202,7 +258,7 @@ namespace ccf
       const std::vector<uint8_t>& data)
     {
       std::vector<uint8_t> plain(sizeof(client_session_id) + data.size());
-      auto* data_ = plain.data();
+      auto data_ = plain.data();
       auto size_ = plain.size();
       serialized::write(data_, size_, client_session_id);
       serialized::write(data_, size_, data.data(), data.size());
@@ -216,7 +272,7 @@ namespace ccf
 
     struct ForwardedResponseResult
     {
-      size_t client_session_id{};
+      size_t client_session_id;
       std::vector<uint8_t> response_body;
       bool should_terminate_session = false;
     };
@@ -403,7 +459,20 @@ namespace ccf
             auto it = timeout_tasks.find(cmd_id);
             if (it != timeout_tasks.end())
             {
-              it->second->cancel_task();
+              if (
+                ccf::threading::get_current_thread_id() != it->second.thread_id)
+              {
+                auto msg = std::make_unique<::threading::Tmsg<CancelTimerMsg>>(
+                  &cancel_forwarding_task_cb);
+                msg->data.timer_entry = it->second.timer_entry;
+
+                ::threading::ThreadMessaging::instance().add_task(
+                  it->second.thread_id, std::move(msg));
+              }
+              else
+              {
+                cancel_forwarding_task(it->second.timer_entry);
+              }
               it = timeout_tasks.erase(it);
             }
             else

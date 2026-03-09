@@ -123,26 +123,18 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
     INFO("Load entries");
 
     auto result_a = enclave_lfs.fetch(key_a);
-    REQUIRE(
-      result_a->fetch_result ==
-      ccf::indexing::FetchResult::FetchResultType::Fetching);
+    REQUIRE(result_a->fetch_result == ccf::indexing::FetchResult::Fetching);
 
     auto result_b = enclave_lfs.fetch(key_b);
-    REQUIRE(
-      result_b->fetch_result ==
-      ccf::indexing::FetchResult::FetchResultType::Fetching);
+    REQUIRE(result_b->fetch_result == ccf::indexing::FetchResult::Fetching);
 
     host_bp.read_all(outbound_reader);
     enclave_bp.read_all(inbound_reader);
 
-    REQUIRE(
-      result_a->fetch_result ==
-      ccf::indexing::FetchResult::FetchResultType::Loaded);
+    REQUIRE(result_a->fetch_result == ccf::indexing::FetchResult::Loaded);
     REQUIRE(result_a->contents == blob_a);
 
-    REQUIRE(
-      result_b->fetch_result ==
-      ccf::indexing::FetchResult::FetchResultType::Loaded);
+    REQUIRE(result_b->fetch_result == ccf::indexing::FetchResult::Loaded);
     REQUIRE(result_b->contents == blob_b);
   }
 
@@ -160,9 +152,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
     host_bp.read_all(outbound_reader);
     enclave_bp.read_all(inbound_reader);
 
-    REQUIRE(
-      result->fetch_result ==
-      ccf::indexing::FetchResult::FetchResultType::Corrupt);
+    REQUIRE(result->fetch_result == ccf::indexing::FetchResult::Corrupt);
     REQUIRE(result->contents != blob_a);
   }
 
@@ -182,9 +172,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
       host_bp.read_all(outbound_reader);
       enclave_bp.read_all(inbound_reader);
 
-      REQUIRE(
-        result->fetch_result ==
-        ccf::indexing::FetchResult::FetchResultType::Corrupt);
+      REQUIRE(result->fetch_result == ccf::indexing::FetchResult::Corrupt);
       REQUIRE(result->contents != blob_b);
     }
   }
@@ -406,7 +394,8 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
   auto index_b = std::make_shared<StratB>(map_b, node_context, 100, 4);
   REQUIRE(indexer.install_strategy(index_b));
 
-  ccf::TxID current = kv_store.current_txid();
+  ccf::kv::TxID current_ = kv_store.current_txid();
+  ccf::TxID current{current_.term, current_.version};
   REQUIRE(index_a->get_indexed_watermark() == current);
   REQUIRE(index_b->get_indexed_watermark() == ccf::TxID());
 
@@ -422,7 +411,8 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
     INFO("Both indexes continue to be updated with new entries");
     REQUIRE(create_transactions(kv_store, actions));
 
-    current = kv_store.current_txid();
+    current_ = kv_store.current_txid();
+    current = {current_.term, current_.version};
     current_seqno = current.seqno;
 
     tick_until_caught_up();
@@ -576,7 +566,7 @@ void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
         handle_b->put(k, k);
       }
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-      const auto seqno = tx.get_txid()->seqno;
+      const auto seqno = tx.get_txid()->version;
       for (const auto& k : keys)
       {
         all_writes[k].push_back(seqno);
@@ -639,7 +629,7 @@ void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
 
   auto fetch_write_seqnos = [&](size_t key) {
     const auto max_range = index->max_requestable_range();
-    const auto end_seqno = kv_store.current_txid().seqno;
+    const auto end_seqno = kv_store.get_txid().seqno;
 
     auto range_start = 0;
 

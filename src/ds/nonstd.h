@@ -22,7 +22,6 @@ namespace ccf::nonstd
       return TMapIterator::operator->()->first;
     }
 
-    // NOLINTNEXTLINE(readability-const-return-type)
     Key operator*()
     {
       return TMapIterator::operator*().first;

@@ -3,10 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/hash_provider.h"
-#include "ccf/ds/quote_info.h"
-#include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp.h"
-#include "ccf/pal/platform.h"
 #include "ccf/pal/snp_ioctl.h"
 #include "ds/files.h"
 
@@ -20,9 +17,8 @@ namespace ccf::pal
     return fmt::format("ccf_virtual_attestation.{}.{}", ::getpid(), suffix);
   };
 
-  static void emit_virtual_measurement()
+  static void emit_virtual_measurement(const std::string& package_path)
   {
-    const auto package_path = std::filesystem::canonical("/proc/self/exe");
     auto hasher = ccf::crypto::make_incremental_sha256();
     std::ifstream f(package_path, std::ios::binary | std::ios::ate);
     if (!f)
@@ -43,9 +39,7 @@ namespace ccf::pal
       const auto this_read = std::min(size - handled, buf_size);
       f.read(buf, this_read);
 
-      hasher->update_hash(
-        {static_cast<const uint8_t*>(static_cast<const void*>(buf)),
-         this_read});
+      hasher->update_hash({(const uint8_t*)buf, this_read});
 
       handled += this_read;
     }
@@ -60,10 +54,12 @@ namespace ccf::pal
     files::dump(j.dump(2), virtual_attestation_path("measurement"));
   }
 
-  static void generate_virtual_quote(
+#if defined(PLATFORM_VIRTUAL)
+
+  static void generate_quote(
     PlatformAttestationReportData& report_data,
     RetrieveEndorsementCallback endorsement_cb,
-    [[maybe_unused]] const snp::EndorsementsServers& endorsements_servers = {})
+    const snp::EndorsementsServers& endorsements_servers = {})
   {
     auto quote = files::slurp_json(virtual_attestation_path("measurement"));
     quote["report_data"] = ccf::crypto::b64_from_raw(report_data.data);
@@ -82,7 +78,9 @@ namespace ccf::pal
       {});
   }
 
-  static void generate_snp_quote(
+#elif defined(PLATFORM_SNP)
+
+  static void generate_quote(
     PlatformAttestationReportData& report_data,
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
@@ -110,32 +108,5 @@ namespace ccf::pal
           attestation->get(), endorsements_servers));
     }
   }
-
-  static void generate_quote(
-    PlatformAttestationReportData& report_data,
-    RetrieveEndorsementCallback endorsement_cb,
-    const snp::EndorsementsServers& endorsements_servers = {})
-  {
-    switch (ccf::pal::platform)
-    {
-      case (ccf::pal::Platform::SNP):
-      {
-        generate_snp_quote(report_data, endorsement_cb, endorsements_servers);
-        break;
-      }
-
-      case (ccf::pal::Platform::Virtual):
-      {
-        generate_virtual_quote(
-          report_data, endorsement_cb, endorsements_servers);
-        break;
-      }
-
-      default:
-      {
-        throw std::logic_error(fmt::format(
-          "Unsupported platform for quote generation: {}", ccf::pal::platform));
-      }
-    }
-  }
+#endif
 }

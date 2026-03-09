@@ -1,9 +1,5 @@
 {
   "name": "@microsoft/ccf-app",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/microsoft/ccf"
-  },
   "version": "0.0.0",
   "description": "CCF app support package",
   "main": "index.js",
@@ -24,10 +20,11 @@
   "devDependencies": {
     "@types/chai": "^5.0.0",
     "@types/mocha": "^10.0.0",
-    "@types/node": "^25.0.2",
+    "@types/node": "^24.2.0",
     "@types/node-forge": "^1.0.0",
-    "chai": "^6.0.1",
-    "cross-env": "^10.0.0",
+    "chai": "^5.0.0",
+    "colors": "1.4.0",
+    "cross-env": "^7.0.3",
     "get-func-name": "3.0.0",
     "mocha": "^11.7.5",
     "node-forge": "^1.2.0",
@@ -37,8 +34,5 @@
   },
   "bin": {
     "ccf-build-bundle": "scripts/build_bundle.js"
-  },
-  "dependencies": {
-    "colors": "1.4.0"
   }
 }

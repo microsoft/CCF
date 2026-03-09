@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "enclave.h"
 #include "signal.h"
 
 #include <chrono>
@@ -30,14 +31,13 @@ namespace asynchost
       if (ignore_first_signal && signal_count <= 1)
       {
         LOG_INFO_FMT(
-          "SIG{}: Notifying enclave, but not shutting down.",
-          sigabbrev_np(signal));
+          "{}: Notifying enclave, but not shutting down.", strsignal(signal));
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::stop_notice, to_enclave);
       }
       else
       {
         LOG_INFO_FMT(
-          "SIG{}: Shutting down enclave gracefully...", sigabbrev_np(signal));
+          "{}: Shutting down enclave gracefully...", strsignal(signal));
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::stop, to_enclave);
       }
     }

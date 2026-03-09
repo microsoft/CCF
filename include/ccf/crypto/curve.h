@@ -14,7 +14,7 @@
 namespace ccf::crypto
 {
   // SNIPPET_START: supported_curves
-  enum class CurveID : uint8_t
+  enum class CurveID
   {
     /// No curve
     NONE = 0,

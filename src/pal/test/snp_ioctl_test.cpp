@@ -82,15 +82,10 @@ TEST_CASE("SNP derived keys with different TCBs should be different")
 
 int main(int argc, char** argv)
 {
-  if (!ccf::pal::snp::supports_sev_snp())
-  {
-    std::cout << "Skipping all tests as this is not running in SEV-SNP"
-              << std::endl;
-    return 0;
-  }
-
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+  ccf::crypto::openssl_sha256_shutdown();
   return res;
 }

@@ -20,14 +20,14 @@ namespace ccf::ds
     static size_t convert(
       const std::string_view& input,
       std::map<std::string_view, T>& mapping,
-      F&& f) // NOLINT(cppcoreguidelines-missing-std-forward)
+      F&& f)
     {
       if (input.empty())
       {
         throw std::logic_error("Cannot convert empty unit string");
       }
 
-      const auto* unit_begin = input.end();
+      auto unit_begin = input.end();
       while (unit_begin > input.begin() && std::isalpha(*(unit_begin - 1)))
       {
         unit_begin--;
@@ -120,7 +120,7 @@ namespace ccf::ds
 
   struct SizeString : UnitString
   {
-    size_t value = 0;
+    size_t value;
 
     SizeString() = default;
     SizeString(const std::string_view& str_) :
@@ -133,12 +133,12 @@ namespace ccf::ds
       value(convert_size_string(str_))
     {}
 
-    operator size_t() const
+    inline operator size_t() const
     {
       return value;
     }
 
-    [[nodiscard]] size_t count_bytes() const
+    size_t count_bytes() const
     {
       return value;
     }
@@ -149,14 +149,12 @@ namespace ccf::ds
     s = j.get<std::string_view>();
   }
 
-  inline std::string schema_name(
-    [[maybe_unused]] const SizeString* size_string_type)
+  inline std::string schema_name(const SizeString*)
   {
     return "TimeString";
   }
 
-  inline void fill_json_schema(
-    nlohmann::json& schema, [[maybe_unused]] const SizeString* size_string_type)
+  inline void fill_json_schema(nlohmann::json& schema, const SizeString*)
   {
     schema["type"] = "string";
     schema["pattern"] = "^[0-9]+(B|KB|MB|GB|TB|PB)?$";
@@ -164,7 +162,7 @@ namespace ccf::ds
 
   struct TimeString : UnitString
   {
-    std::chrono::microseconds value = {};
+    std::chrono::microseconds value;
 
     TimeString() = default;
     TimeString(const std::string_view& str_) :
@@ -172,29 +170,29 @@ namespace ccf::ds
       value(convert_time_string(str_))
     {}
 
-    operator std::chrono::microseconds() const
+    inline operator std::chrono::microseconds() const
     {
       return value;
     }
 
-    operator std::chrono::milliseconds() const
+    inline operator std::chrono::milliseconds() const
     {
       return std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::microseconds(*this));
     }
 
-    operator std::chrono::seconds() const
+    inline operator std::chrono::seconds() const
     {
       return std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::microseconds(*this));
     }
 
-    [[nodiscard]] size_t count_ms() const
+    size_t count_ms() const
     {
       return std::chrono::milliseconds(*this).count();
     }
 
-    [[nodiscard]] size_t count_s() const
+    size_t count_s() const
     {
       return std::chrono::seconds(*this).count();
     }
@@ -205,14 +203,12 @@ namespace ccf::ds
     s = j.get<std::string_view>();
   }
 
-  inline std::string schema_name(
-    [[maybe_unused]] const TimeString* time_string_type)
+  inline std::string schema_name(const TimeString*)
   {
     return "TimeString";
   }
 
-  inline void fill_json_schema(
-    nlohmann::json& schema, [[maybe_unused]] const TimeString* time_string_type)
+  inline void fill_json_schema(nlohmann::json& schema, const TimeString*)
   {
     schema["type"] = "string";
     schema["pattern"] = "^[0-9]+(us|ms|s|min|h)?$";

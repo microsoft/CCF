@@ -21,28 +21,29 @@ namespace ccf::crypto
     Verifier_OpenSSL(const std::vector<uint8_t>& c);
     Verifier_OpenSSL(Verifier_OpenSSL&& v) = default;
     Verifier_OpenSSL(const Verifier_OpenSSL&) = delete;
-    ~Verifier_OpenSSL() override;
+    virtual ~Verifier_OpenSSL();
 
-    std::vector<uint8_t> cert_der() override;
-    Pem cert_pem() override;
+    virtual std::vector<uint8_t> cert_der() override;
+    virtual Pem cert_pem() override;
 
-    bool verify_certificate(
+    virtual bool verify_certificate(
       const std::vector<const Pem*>& trusted_certs,
       const std::vector<const Pem*>& chain = {},
       bool ignore_time = false) override;
 
-    bool is_self_signed() const override;
+    virtual bool is_self_signed() const override;
 
-    std::string serial_number() const override;
+    virtual std::string serial_number() const override;
 
-    std::pair<std::string, std::string> validity_period() const override;
+    virtual std::pair<std::string, std::string> validity_period()
+      const override;
 
-    size_t remaining_seconds(
+    virtual size_t remaining_seconds(
       const ccf::nonstd::SystemClock::time_point& now) const override;
 
-    double remaining_percentage(
+    virtual double remaining_percentage(
       const ccf::nonstd::SystemClock::time_point& now) const override;
 
-    std::string subject() const override;
+    virtual std::string subject() const override;
   };
 }

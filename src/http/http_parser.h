@@ -48,9 +48,7 @@ namespace http
     while (src < end)
     {
       char const c = *src++;
-      if (
-        c == '%' && (src + 1) < end && (isxdigit(src[0]) != 0) &&
-        (isxdigit(src[1]) != 0))
+      if (c == '%' && (src + 1) < end && isxdigit(src[0]) && isxdigit(src[1]))
       {
         const auto a = ccf::ds::hex_char_to_int(*src++);
         const auto b = ccf::ds::hex_char_to_int(*src++);
@@ -78,8 +76,6 @@ namespace http
   struct SimpleRequestProcessor : public http::RequestProcessor
   {
   public:
-    ~SimpleRequestProcessor() override = default;
-
     struct Request
     {
       llhttp_method method;
@@ -90,12 +86,12 @@ namespace http
 
     std::queue<Request> received;
 
-    void handle_request(
+    virtual void handle_request(
       llhttp_method method,
       const std::string_view& url,
       ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body,
-      int32_t /*stream_id*/) override
+      int32_t) override
     {
       received.emplace(Request{method, std::string(url), headers, body});
     }
@@ -104,8 +100,6 @@ namespace http
   struct SimpleResponseProcessor : public ::http::ResponseProcessor
   {
   public:
-    ~SimpleResponseProcessor() override = default;
-
     struct Response
     {
       ccf::http_status status;
@@ -115,7 +109,7 @@ namespace http
 
     std::queue<Response> received;
 
-    void handle_response(
+    virtual void handle_response(
       ccf::http_status status,
       ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
@@ -124,7 +118,7 @@ namespace http
     }
   };
 
-  enum State : uint8_t
+  enum State
   {
     DONE,
     IN_MESSAGE
@@ -186,9 +180,6 @@ namespace http
 
   class Parser
   {
-  public:
-    virtual ~Parser() = default;
-
   protected:
     llhttp_t parser;
     llhttp_settings_t settings;
@@ -198,7 +189,7 @@ namespace http
     std::vector<uint8_t> body_buf;
     ccf::http::HeaderMap headers;
 
-    std::pair<std::string, std::string> partial_parsed_header;
+    std::pair<std::string, std::string> partial_parsed_header = {};
 
     void complete_header()
     {
@@ -209,11 +200,9 @@ namespace http
 
     Parser(
       llhttp_type_t type,
-      ccf::http::ParserConfiguration config =
+      const ccf::http::ParserConfiguration& config =
         ccf::http::ParserConfiguration{}) :
-      parser{},
-      settings{},
-      configuration(std::move(config))
+      configuration(config)
     {
       llhttp_settings_init(&settings);
 
@@ -231,8 +220,7 @@ namespace http
   public:
     void execute(const uint8_t* data, size_t size)
     {
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-      const auto* const data_char = reinterpret_cast<const char*>(data);
+      const auto data_char = (const char*)data;
       auto err_no = llhttp_execute(&parser, data_char, size);
 
       if (err_no == HPE_PAUSED_UPGRADE)
@@ -361,42 +349,42 @@ namespace http
 
   static int on_msg_begin(llhttp_t* parser)
   {
-    auto* p = reinterpret_cast<Parser*>(parser->data);
+    Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->new_message();
     return HPE_OK;
   }
 
   static int on_header_field(llhttp_t* parser, const char* at, size_t length)
   {
-    auto* p = reinterpret_cast<Parser*>(parser->data);
+    Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->header_field(at, length);
     return HPE_OK;
   }
 
   static int on_header_value(llhttp_t* parser, const char* at, size_t length)
   {
-    auto* p = reinterpret_cast<Parser*>(parser->data);
+    Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->header_value(at, length);
     return HPE_OK;
   }
 
   static int on_headers_complete(llhttp_t* parser)
   {
-    auto* p = reinterpret_cast<Parser*>(parser->data);
+    Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->headers_complete();
     return HPE_OK;
   }
 
   static int on_body(llhttp_t* parser, const char* at, size_t length)
   {
-    auto* p = reinterpret_cast<Parser*>(parser->data);
+    Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->append_body(at, length);
     return HPE_OK;
   }
 
   static int on_msg_end(llhttp_t* parser)
   {
-    auto* p = reinterpret_cast<Parser*>(parser->data);
+    Parser* p = reinterpret_cast<Parser*>(parser->data);
     p->end_message();
     return HPE_OK;
   }
@@ -407,11 +395,9 @@ namespace http
   private:
     RequestProcessor& proc;
 
-    std::string url;
+    std::string url = "";
 
   public:
-    ~RequestParser() override = default;
-
     RequestParser(
       RequestProcessor& proc_,
       const ccf::http::ParserConfiguration& config =
@@ -456,7 +442,7 @@ namespace http
 
   static int on_url(llhttp_t* parser, const char* at, size_t length)
   {
-    auto* p = reinterpret_cast<RequestParser*>(parser->data);
+    RequestParser* p = reinterpret_cast<RequestParser*>(parser->data);
     p->append_url(at, length);
     return HPE_OK;
   }
@@ -468,8 +454,6 @@ namespace http
     ResponseProcessor& proc;
 
   public:
-    ~ResponseParser() override = default;
-
     ResponseParser(ResponseProcessor& proc_) :
       Parser(HTTP_RESPONSE, ccf::http::ParserConfiguration{}),
       proc(proc_)

@@ -86,7 +86,7 @@ def run(get_command, args):
     LOG.info("Starting nodes on {}".format(hosts))
 
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 
@@ -106,7 +106,7 @@ def run(get_command, args):
         for i in range(args.repetitions):
             body = {
                 "id": i % 100,
-                "msg": f"Unique message: {hashlib.sha256(str(i).encode()).hexdigest()}",
+                "msg": f"Unique message: {hashlib.md5(str(i).encode()).hexdigest()}",
             }
             msgs.append(
                 "/app/log/private",
@@ -191,8 +191,6 @@ def run(get_command, args):
 
                     time.sleep(5)
 
-                perf_label = args.perf_label
-
                 for remote_client in clients:
                     analysis = analyzer.Analyze()
 
@@ -212,7 +210,7 @@ def run(get_command, args):
                     # see basicperf.py for a better, cross-client approach.
                     bf = infra.bencher.Bencher()
                     bf.set(
-                        perf_label,
+                        args.perf_label,
                         infra.bencher.Throughput(perf_result),
                     )
 
@@ -226,7 +224,7 @@ def run(get_command, args):
 
                     bf = infra.bencher.Bencher()
                     bf.set(
-                        perf_label,
+                        args.perf_label,
                         infra.bencher.Memory(current_value, high_value=peak_value),
                     )
 
@@ -294,6 +292,11 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         help="Number of requests to send",
         type=int,
         default=100,
+    )
+    parser.add_argument(
+        "--write-tx-times",
+        help="Unused, swallowed for compatibility with old args",
+        action="store_true",
     )
     parser.add_argument("--config", help="Path to config for client binary", default="")
 

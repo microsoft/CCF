@@ -3,87 +3,99 @@
 
 #include "crypto/openssl/cose_verifier.h"
 
-#include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "ccf/crypto/public_key.h"
+#include "ccf/ds/logger.h"
 #include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/rsa_key_pair.h"
-#include "ds/internal_logger.h"
 #include "x509_time.h"
 
-#include <crypto/cbor.h>
-#include <crypto/cose.h>
 #include <openssl/evp.h>
 #include <openssl/ossl_typ.h>
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
+#include <qcbor/qcbor_spiffy_decode.h>
 #include <t_cose/t_cose_sign1_verify.h>
 
 namespace
 {
+  std::string qcbor_buf_to_string(const UsefulBufC& buf)
+  {
+    return {reinterpret_cast<const char*>(buf.ptr), buf.len};
+  }
+
   std::optional<int> extract_algorithm_from_header(
     std::span<const uint8_t> cose_msg)
   {
-    using namespace ccf::cbor;
+    UsefulBufC msg{cose_msg.data(), cose_msg.size()};
+    QCBORError qcbor_result = QCBOR_SUCCESS;
 
-    auto cose_cbor =
-      rethrow_with_msg([&]() { return parse(cose_msg); }, "Parse COSE CBOR");
+    QCBORDecodeContext ctx;
+    QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
 
-    const auto& cose_envelope = rethrow_with_msg(
-      [&]() -> auto& { return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1); },
-      "Parse COSE tag");
+    QCBORDecode_EnterArray(&ctx, nullptr);
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      LOG_DEBUG_FMT("Failed to parse COSE_Sign1 outer array");
+      return std::nullopt;
+    }
 
-    const auto& phdr_raw = rethrow_with_msg(
-      [&]() -> auto& { return cose_envelope->array_at(0); },
-      "Parse raw protected header");
+    const uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
+    if (tag != CBOR_TAG_COSE_SIGN1)
+    {
+      LOG_DEBUG_FMT("Failed to parse COSE_Sign1 tag");
+      return std::nullopt;
+    }
 
-    auto phdr = rethrow_with_msg(
-      [&]() { return parse(phdr_raw->as_bytes()); }, "Decode protected header");
+    q_useful_buf_c protected_parameters = {};
+    QCBORDecode_EnterBstrWrapped(
+      &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
+    QCBORDecode_EnterMap(&ctx, nullptr);
 
-    const int64_t alg = rethrow_with_msg(
-      [&]() {
-        return phdr->map_at(make_signed(ccf::cose::header::iana::ALG))
-          ->as_signed();
-      },
-      "Retrieve alg from protected header");
+    enum
+    {
+      ALG_INDEX,
+      END_INDEX
+    };
+    QCBORItem header_items[END_INDEX + 1];
+
+    header_items[ALG_INDEX].label.int64 = ccf::crypto::COSE_PHEADER_KEY_ALG;
+    header_items[ALG_INDEX].uLabelType = QCBOR_TYPE_INT64;
+    header_items[ALG_INDEX].uDataType = QCBOR_TYPE_INT64;
+
+    header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
+
+    QCBORDecode_GetItemsInMap(&ctx, static_cast<QCBORItem*>(header_items));
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      LOG_DEBUG_FMT("Failed to decode protected header");
+      return std::nullopt;
+    }
+
+    if (header_items[ALG_INDEX].uDataType == QCBOR_TYPE_NONE)
+    {
+      LOG_DEBUG_FMT("Failed to retrieve (missing) 'alg' parameter");
+      return std::nullopt;
+    }
+
+    const int alg = header_items[ALG_INDEX].val.int64;
+
+    // Complete decode to ensure well-formed CBOR.
+
+    QCBORDecode_ExitMap(&ctx);
+    QCBORDecode_ExitBstrWrapped(&ctx);
+
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      LOG_DEBUG_FMT("Failed to decode protected header: {}", qcbor_result);
+      return std::nullopt;
+    }
 
     return alg;
   }
-
-  q_useful_buf_c buf_from_span(const std::span<const uint8_t> span)
-  {
-    return {.ptr = span.data(), .len = span.size()};
-  }
-
-  class TCOSEVerify
-  {
-  private:
-    EVP_PKEY* pkey = nullptr;
-    t_cose_key cose_key = {};
-
-  public:
-    t_cose_sign1_verify_ctx ctx = {};
-
-    TCOSEVerify(
-      std::shared_ptr<ccf::crypto::PublicKey_OpenSSL> pkey_,
-      const std::span<const uint8_t> envelope) :
-      pkey(*pkey_)
-    {
-      const auto alg_header = extract_algorithm_from_header(envelope);
-      if (!alg_header.has_value())
-      {
-        throw std::domain_error("COSE header is missing 'alg' parameter");
-      }
-
-      pkey_->check_is_cose_compatible(alg_header.value());
-
-      cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
-      cose_key.k.key_ptr = pkey;
-
-      t_cose_sign1_verify_init(&ctx, T_COSE_OPT_TAG_REQUIRED);
-      t_cose_sign1_set_verification_key(&ctx, cose_key);
-    }
-  };
-
 }
 
 namespace ccf::crypto
@@ -104,9 +116,22 @@ namespace ccf::crypto
           "OpenSSL error: {}", OpenSSL::error_string(ERR_get_error())));
       }
     }
+
+    int mdnid = 0;
+    int pknid = 0;
+    int secbits = 0;
+    X509_get_signature_info(cert, &mdnid, &pknid, &secbits, nullptr);
+
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
-    public_key = std::make_shared<PublicKey_OpenSSL>(pk);
+    if (EVP_PKEY_get_base_id(pk) == EVP_PKEY_EC)
+    {
+      public_key = std::make_shared<PublicKey_OpenSSL>(pk);
+    }
+    else
+    {
+      throw std::logic_error("unsupported public key type");
+    }
   }
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const Pem& public_key_)
@@ -114,71 +139,82 @@ namespace ccf::crypto
     public_key = std::make_shared<PublicKey_OpenSSL>(public_key_);
   }
 
-  COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(
-    std::span<const uint8_t> public_key_der_)
-  {
-    public_key = std::make_shared<PublicKey_OpenSSL>(public_key_der_);
-  }
-
   COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;
 
   bool COSEVerifier_OpenSSL::verify(
-    const std::span<const uint8_t>& envelope,
+    const std::span<const uint8_t>& buf,
     std::span<uint8_t>& authned_content) const
   {
-    try
+    EVP_PKEY* evp_key = *public_key;
+
+    t_cose_key cose_key = {};
+    cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
+    cose_key.k.key_ptr = evp_key;
+
+    t_cose_sign1_verify_ctx verify_ctx = {};
+    t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_TAG_REQUIRED);
+    t_cose_sign1_set_verification_key(&verify_ctx, cose_key);
+
+    q_useful_buf_c buf_ = {};
+    buf_.ptr = buf.data();
+    buf_.len = buf.size();
+
+    q_useful_buf_c authned_content_ = {};
+
+    t_cose_err_t error =
+      t_cose_sign1_verify(&verify_ctx, buf_, &authned_content_, nullptr);
+    if (error == T_COSE_SUCCESS)
     {
-      TCOSEVerify cose_verify(public_key, envelope);
-      q_useful_buf_c envelope_ = buf_from_span(envelope);
-
-      q_useful_buf_c authned_content_ = {};
-
-      t_cose_err_t error = t_cose_sign1_verify(
-        &cose_verify.ctx, envelope_, &authned_content_, nullptr);
-      if (error == T_COSE_SUCCESS)
-      {
-        authned_content = {
-          reinterpret_cast<uint8_t*>(const_cast<void*>(authned_content_.ptr)),
-          authned_content_.len};
-        return true;
-      }
-
-      LOG_DEBUG_FMT("COSE Sign1 verification failed: {}", error);
+      authned_content = {
+        reinterpret_cast<uint8_t*>(const_cast<void*>(authned_content_.ptr)),
+        authned_content_.len};
+      return true;
     }
-    catch (const std::exception& e)
-    {
-      LOG_DEBUG_FMT("COSE Sign1 verification failed: {}", e.what());
-    }
+    LOG_DEBUG_FMT("COSE Sign1 verification failed with error {}", error);
     return false;
   }
 
   bool COSEVerifier_OpenSSL::verify_detached(
-    std::span<const uint8_t> envelope, std::span<const uint8_t> payload) const
+    std::span<const uint8_t> buf, std::span<const uint8_t> payload) const
   {
-    try
+    EVP_PKEY* evp_key = *public_key;
+
+    const auto alg_header = extract_algorithm_from_header(buf);
+    const auto alg_key = ccf::crypto::key_to_cose_alg_id(*public_key);
+    if (!alg_header || !alg_key || alg_key != alg_header)
     {
-      TCOSEVerify cose_verify(public_key, envelope);
-
-      q_useful_buf_c envelope_ = buf_from_span(envelope);
-
-      q_useful_buf_c payload_ = {};
-      payload_.ptr = payload.data();
-      payload_.len = payload.size();
-
-      t_cose_err_t error = t_cose_sign1_verify_detached(
-        &cose_verify.ctx, envelope_, NULL_Q_USEFUL_BUF_C, payload_, nullptr);
-
-      if (error == T_COSE_SUCCESS)
-      {
-        return true;
-      }
-
-      LOG_DEBUG_FMT("COSE Sign1 verification failed: {}", error);
+      LOG_DEBUG_FMT(
+        "COSE Sign1 verification: incompatible key IDS ({} vs {})",
+        alg_header,
+        alg_key);
+      return false;
     }
-    catch (const std::exception& e)
+
+    t_cose_key cose_key = {};
+    cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
+    cose_key.k.key_ptr = evp_key;
+
+    t_cose_sign1_verify_ctx verify_ctx = {};
+    t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_TAG_REQUIRED);
+    t_cose_sign1_set_verification_key(&verify_ctx, cose_key);
+
+    q_useful_buf_c buf_ = {};
+    buf_.ptr = buf.data();
+    buf_.len = buf.size();
+
+    q_useful_buf_c payload_ = {};
+    payload_.ptr = payload.data();
+    payload_.len = payload.size();
+
+    t_cose_err_t error = t_cose_sign1_verify_detached(
+      &verify_ctx, buf_, NULL_Q_USEFUL_BUF_C, payload_, nullptr);
+
+    if (error == T_COSE_SUCCESS)
     {
-      LOG_DEBUG_FMT("COSE Sign1 verification failed: {}", e.what());
+      return true;
     }
+
+    LOG_DEBUG_FMT("COSE Sign1 verification failed with error {}", error);
     return false;
   }
 
@@ -193,54 +229,107 @@ namespace ccf::crypto
     return std::make_unique<COSEKeyVerifier_OpenSSL>(public_key);
   }
 
-  COSEVerifierUniquePtr make_cose_verifier_from_key(
-    std::span<const uint8_t> public_key)
-  {
-    return std::make_unique<COSEKeyVerifier_OpenSSL>(public_key);
-  }
-
   COSEEndorsementValidity extract_cose_endorsement_validity(
     std::span<const uint8_t> cose_msg)
   {
-    using namespace ccf::cbor;
+    UsefulBufC msg{cose_msg.data(), cose_msg.size()};
+    QCBORError qcbor_result = QCBOR_SUCCESS;
 
-    auto cose_cbor =
-      rethrow_with_msg([&]() { return parse(cose_msg); }, "Parse COSE CBOR");
+    QCBORDecodeContext ctx;
+    QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
 
-    const auto& cose_envelope = rethrow_with_msg(
-      [&]() -> auto& { return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1); },
-      "Parse COSE tag");
+    QCBORDecode_EnterArray(&ctx, nullptr);
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      throw std::logic_error("Failed to parse COSE_Sign1 outer array");
+    }
 
-    const auto& phdr_raw = rethrow_with_msg(
-      [&]() -> auto& { return cose_envelope->array_at(0); },
-      "Parse raw protected header");
+    const uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
+    if (tag != CBOR_TAG_COSE_SIGN1)
+    {
+      throw std::logic_error("Failed to parse COSE_Sign1 tag");
+    }
 
-    auto phdr = rethrow_with_msg(
-      [&]() { return parse(phdr_raw->as_bytes()); }, "Decode protected header");
+    q_useful_buf_c protected_parameters = {};
 
-    const auto& ccf_claims = rethrow_with_msg(
-      [&]() -> auto& {
-        return phdr->map_at(make_string(ccf::cose::header::custom::CCF_V1));
-      },
-      "Retrieve CCF claims");
+    QCBORDecode_EnterBstrWrapped(
+      &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
 
-    auto from = rethrow_with_msg(
-      [&]() {
-        return ccf_claims
-          ->map_at(make_string(ccf::cose::header::custom::TX_RANGE_BEGIN))
-          ->as_string();
-      },
-      "Retrieve epoch range begin");
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      throw std::logic_error("Failed to parse COSE_Sign1 as bstr");
+    }
 
-    auto to = rethrow_with_msg(
-      [&]() {
-        return ccf_claims
-          ->map_at(make_string(ccf::cose::header::custom::TX_RANGE_END))
-          ->as_string();
-      },
-      "Retrieve epoch range end");
+    QCBORDecode_EnterMap(&ctx, nullptr); // phdr
+    QCBORDecode_EnterMapFromMapSZ(&ctx, "ccf.v1"); // phdr["ccf.v1"]
 
-    return COSEEndorsementValidity{
-      .from_txid = std::string(from), .to_txid = std::string(to)};
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      throw std::logic_error("Failed to parse COSE_Sign1 wrapped map");
+    }
+
+    enum
+    {
+      FROM_INDEX,
+      TO_INDEX,
+      END_INDEX
+    };
+    QCBORItem header_items[END_INDEX + 1];
+
+    header_items[FROM_INDEX].label.string = UsefulBufC{
+      ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN.data(),
+      ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN.size()};
+    header_items[FROM_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
+    header_items[FROM_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+    header_items[TO_INDEX].label.string = UsefulBufC{
+      ccf::crypto::COSE_PHEADER_KEY_RANGE_END.data(),
+      ccf::crypto::COSE_PHEADER_KEY_RANGE_END.size()};
+    header_items[TO_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
+    header_items[TO_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+    header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
+
+    QCBORDecode_GetItemsInMap(&ctx, static_cast<QCBORItem*>(header_items));
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      throw std::logic_error("Failed to decode protected header");
+    }
+
+    if (header_items[FROM_INDEX].uDataType == QCBOR_TYPE_NONE)
+    {
+      throw std::logic_error(fmt::format(
+        "Failed to retrieve (missing) {} parameter",
+        ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN));
+    }
+
+    if (header_items[TO_INDEX].uDataType == QCBOR_TYPE_NONE)
+    {
+      throw std::logic_error(fmt::format(
+        "Failed to retrieve (missing) {} parameter",
+        ccf::crypto::COSE_PHEADER_KEY_RANGE_END));
+    }
+
+    const auto from = qcbor_buf_to_string(header_items[FROM_INDEX].val.string);
+    const auto to = qcbor_buf_to_string(header_items[TO_INDEX].val.string);
+
+    // Complete decode to ensure well-formed CBOR.
+
+    QCBORDecode_ExitMap(&ctx); // phdr["ccf.v1"]
+    QCBORDecode_ExitMap(&ctx); // phdr
+    QCBORDecode_ExitBstrWrapped(&ctx);
+
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      throw std::logic_error(fmt::format(
+        "Failed to decode protected header with error code: {}", qcbor_result));
+    }
+
+    return COSEEndorsementValidity{.from_txid = from, .to_txid = to};
   }
 }

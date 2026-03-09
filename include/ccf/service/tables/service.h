@@ -9,7 +9,7 @@
 
 namespace ccf
 {
-  enum class ServiceStatus : uint8_t
+  enum class ServiceStatus
   {
     OPENING = 1,
     OPEN = 2,

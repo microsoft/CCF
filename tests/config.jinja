@@ -1,7 +1,14 @@
 {
+  "enclave": {
+    "type": "{{ enclave_type }}",
+    "platform": "{{ enclave_platform }}"
+  },
   "network": {
     "node_to_node_interface": { "bind_address": "{{ node_address }}", "published_address": "{{ published_node_address }}" },
     "rpc_interfaces": {{ rpc_interfaces|tojson }}
+    {% if acme %}
+    , "acme": {{ acme|tojson }}
+    {% endif %}
   },
   "node_certificate":
   {
@@ -45,11 +52,13 @@
       "retry_timeout": "{{ join_timer }}",
       "target_rpc_address": "{{ target_rpc_address }}",
       "follow_redirect": {{ follow_redirect|tojson }},
-      "fetch_recent_snapshot": {{ fetch_recent_snapshot|tojson }}{% if host_data_transparent_statement_path %},
-      "host_data_transparent_statement_path": {{ host_data_transparent_statement_path|tojson }}{% endif %}
+      "fetch_recent_snapshot": {{ fetch_recent_snapshot|tojson }}
     },
     "recover": {
       "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }},
+      {% if previous_sealed_ledger_secret_location %}
+        "previous_sealed_ledger_secret_location": "{{ previous_sealed_ledger_secret_location }}",
+      {% endif %}
       "previous_service_identity_file": "{{ previous_service_identity_file }}"
     }
   },
@@ -89,6 +98,9 @@
     "node_certificate_file": "{{ node_certificate_file or "node.pem" }}",
     "pid_file": "{{ node_pid_file or "node.pid" }}",
     "node_to_node_address_file": "{{ node_address_file }}",
+    {% if sealed_ledger_secret_location %}
+      "sealed_ledger_secret_location": "{{ sealed_ledger_secret_location }}",
+    {% endif %}
     "rpc_addresses_file" : "{{ rpc_addresses_file }}"
   },
   "tick_interval": "{{ tick_ms }}ms",
@@ -102,24 +114,7 @@
     "max_msg_size": "{{ max_msg_size_bytes }}",
     "max_fragment_size": "256KB"
   },
-  "ignore_first_sigterm": {{ ignore_first_sigterm|tojson }}{% if sealing_recovery_location %},
-  "sealing_recovery": {
-    "location": {
-      "name": "{{ sealing_recovery_location.name }}",
-      "address": "{{ sealing_recovery_location.address }}"
-    }{% if recovery_decision_protocol_expected_locations %},
-    "recovery_decision_protocol": {
-      "expected_locations" : [
-        {% for location in recovery_decision_protocol_expected_locations %}
-          {
-            "name": "{{location.name}}",
-            "address": "{{location.address}}"
-          }{% if not loop.last %},{% endif %}
-        {% endfor %}
-      ]
-    }
-    {% endif %}
-  }{% endif %}{% if node_to_node_message_limit %},
+  "ignore_first_sigterm": {{ ignore_first_sigterm|tojson }}{% if node_to_node_message_limit %},
   "node_to_node_message_limit": {{ node_to_node_message_limit|tojson }}{% endif %}{% if historical_cache_soft_limit %},
   "historical_cache_soft_limit": {{ historical_cache_soft_limit|tojson }}{% endif %}
 }

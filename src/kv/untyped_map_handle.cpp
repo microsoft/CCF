@@ -3,7 +3,6 @@
 
 #include "ccf/kv/untyped_map_handle.h"
 
-#include "ds/internal_logger.h"
 #include "kv/untyped_change_set.h"
 
 namespace ccf::kv::untyped
@@ -16,10 +15,10 @@ namespace ccf::kv::untyped
     if (write != tx_changes.writes.end())
     {
       MapHandle::ValueType* ptr = nullptr;
-      auto& value_opt = write->second;
-      if (value_opt.has_value())
+      if (write->second.has_value())
       {
-        ptr = &(value_opt.value());
+        ptr = &(
+          write->second.value()); // NOLINT(bugprone-unchecked-optional-access)
       }
       return ptr;
     }

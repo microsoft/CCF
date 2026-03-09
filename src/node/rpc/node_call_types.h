@@ -6,12 +6,10 @@
 #include "ccf/node/cose_signatures_config.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/pal/mem.h"
-#include "ccf/service/local_sealing.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
-#include "ccf/service/tables/self_healing_open.h"
 #include "ccf/service/tables/service.h"
 #include "common/configuration.h"
 #include "enclave/interface.h"
@@ -30,15 +28,15 @@ namespace ccf
     struct Out
     {
       ccf::NodeId node_id;
-      ccf::NodeStartupState state{};
-      ccf::kv::Version last_signed_seqno{};
-      ccf::kv::Version startup_seqno{};
+      ccf::NodeStartupState state;
+      ccf::kv::Version last_signed_seqno;
+      ccf::kv::Version startup_seqno;
 
       // Only on recovery
       std::optional<ccf::kv::Version> recovery_target_seqno;
       std::optional<ccf::kv::Version> last_recovered_seqno;
 
-      bool stop_notice{};
+      bool stop_notice;
     };
   };
 
@@ -50,7 +48,7 @@ namespace ccf
     {
       std::string ccf_version;
       std::string quickjs_version;
-      bool unsafe{};
+      bool unsafe;
     };
   };
 
@@ -73,8 +71,6 @@ namespace ccf
       nlohmann::json node_data;
       nlohmann::json service_data;
       ccf::TxID create_txid;
-      std::optional<std::pair<SealedRecoveryKey, sealing_recovery::Name>>
-        sealing_recovery_data = std::nullopt;
 
       // Only set on genesis transaction, but not on recovery
       std::optional<ccf::StartupConfig::Start> genesis_info = std::nullopt;
@@ -92,15 +88,11 @@ namespace ccf
       std::optional<ccf::crypto::Pem> certificate_signing_request =
         std::nullopt;
       nlohmann::json node_data = nullptr;
-      std::optional<std::pair<SealedRecoveryKey, sealing_recovery::Name>>
-        sealing_recovery_data = std::nullopt;
-      std::optional<std::vector<uint8_t>> code_transparent_statement =
-        std::nullopt;
     };
 
     struct Out
     {
-      NodeStatus node_status{};
+      NodeStatus node_status;
 
       // Deprecated in 2.x
       std::optional<NodeId> node_id = std::nullopt;
@@ -117,23 +109,24 @@ namespace ccf
         std::optional<ccf::COSESignaturesConfig> cose_signatures_config =
           std::nullopt;
 
-        NetworkInfo() = default;
+        NetworkInfo() {}
 
         NetworkInfo(
           bool public_only,
           ccf::kv::Version last_recovered_signed_idx,
-          LedgerSecretsMap ledger_secrets,
+          const LedgerSecretsMap& ledger_secrets,
           const NetworkIdentity& identity,
           ServiceStatus service_status,
-          std::optional<ccf::crypto::Pem> endorsed_certificate,
-          std::optional<ccf::COSESignaturesConfig> cose_signatures_config_) :
+          const std::optional<ccf::crypto::Pem>& endorsed_certificate,
+          const std::optional<ccf::COSESignaturesConfig>&
+            cose_signatures_config_) :
           public_only(public_only),
           last_recovered_signed_idx(last_recovered_signed_idx),
-          ledger_secrets(std::move(ledger_secrets)),
+          ledger_secrets(ledger_secrets),
           identity(identity),
           service_status(service_status),
-          endorsed_certificate(std::move(endorsed_certificate)),
-          cose_signatures_config(std::move(cose_signatures_config_))
+          endorsed_certificate(endorsed_certificate),
+          cose_signatures_config(cose_signatures_config_)
         {}
 
         bool operator==(const NetworkInfo& other) const

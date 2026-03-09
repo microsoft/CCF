@@ -53,16 +53,14 @@ namespace ccf::crypto
      * @param size The size of @p data
      * @param type The type of hash to compute
      */
-    HashBytes hash(const uint8_t* data, size_t size, MDType type) const override
+    virtual HashBytes Hash(const uint8_t* data, size_t size, MDType type) const
     {
-      const auto* o_md_type = OpenSSL::get_md_type(type);
+      auto o_md_type = OpenSSL::get_md_type(type);
       HashBytes r(EVP_MD_size(o_md_type));
       unsigned int len = 0;
 
-      if (EVP_Digest(data, size, r.data(), &len, o_md_type, nullptr) != 1)
-      {
+      if (EVP_Digest(data, size, r.data(), &len, o_md_type, NULL) != 1)
         throw std::runtime_error("OpenSSL hash update error");
-      }
 
       return r;
     }
@@ -72,13 +70,15 @@ namespace ccf::crypto
   {
   public:
     ISha256OpenSSL();
-    ~ISha256OpenSSL() override;
-    void update_hash(std::span<const uint8_t> data) override;
-    Sha256Hash finalise() override;
+    ~ISha256OpenSSL();
+    virtual void update_hash(std::span<const uint8_t> data);
+    virtual Sha256Hash finalise();
 
   protected:
     EVP_MD_CTX* ctx = nullptr;
   };
 
   void openssl_sha256(const std::span<const uint8_t>& data, uint8_t* h);
+  void openssl_sha256_init();
+  void openssl_sha256_shutdown();
 }

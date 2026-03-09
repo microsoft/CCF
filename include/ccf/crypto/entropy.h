@@ -12,6 +12,7 @@ namespace ccf::crypto
   class Entropy
   {
   public:
+    Entropy() = default;
     virtual ~Entropy() = default;
 
     /// Generate @p len random bytes

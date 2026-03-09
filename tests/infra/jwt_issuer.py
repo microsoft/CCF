@@ -13,7 +13,6 @@ import time
 import uuid
 
 from infra.log_capture import flush_info
-from infra.node import CCFVersion
 from loguru import logger as LOG
 from enum import Enum
 from cryptography.x509 import load_pem_x509_certificate
@@ -309,7 +308,7 @@ class JwtIssuer:
         kid_ = kid or self.default_kid
         primary, _ = network.find_nodes()
         end_time = time.time() + timeout
-        if CCFVersion(primary.version) > CCFVersion("ccf-5.0.0-rc3"):
+        if primary.version_after("ccf-5.0.0-rc3"):
             with primary.api_versioned_client(
                 network.consortium.get_any_active_member().local_id,
                 api_version=args.gov_api_version,
@@ -344,7 +343,7 @@ class JwtIssuer:
                     keys = r.body.json()
                     if kid_ in keys:
                         kid_vals = keys[kid_]
-                        if CCFVersion(primary.version) > CCFVersion("ccf-5.0.0-dev17"):
+                        if primary.version_after("ccf-5.0.0-dev17"):
                             assert len(kid_vals) == 1
                             stored_cert = kid_vals[0]["cert"]
                         else:

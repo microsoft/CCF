@@ -14,7 +14,7 @@ namespace ccf::js::modules
   public:
     ChainedModuleLoader(ModuleLoaders&& ml) : sub_loaders(std::move(ml)) {}
 
-    std::optional<js::core::JSWrappedValue> get_module(
+    virtual std::optional<js::core::JSWrappedValue> get_module(
       std::string_view module_name, js::core::Context& ctx) override
     {
       for (auto& sub_loader : sub_loaders)

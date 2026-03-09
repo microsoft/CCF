@@ -21,32 +21,24 @@ namespace ccf::crypto
 
     Sha256Hash() = default;
 
-    void set(const Representation& r)
+    inline void set(Representation&& r)
     {
-      h = r;
+      h = std::move(r);
     }
 
     Sha256Hash(const uint8_t* data, size_t size);
-    explicit Sha256Hash(const std::vector<uint8_t>& vec);
-    explicit Sha256Hash(const std::string& str);
+    Sha256Hash(const std::vector<uint8_t>& vec);
+    Sha256Hash(const std::string& str);
     Sha256Hash(const Sha256Hash& left, const Sha256Hash& right);
     Sha256Hash(
       const Sha256Hash& first,
       const Sha256Hash& second,
       const Sha256Hash& third);
-    Sha256Hash(const Sha256Hash& hash) = default;
-    Sha256Hash& operator=(const Sha256Hash& hash) = default;
-    Sha256Hash(Sha256Hash&& hash) noexcept : h(hash.h) {}
-    Sha256Hash& operator=(Sha256Hash&& hash) noexcept
-    {
-      h = hash.h;
-      return *this;
-    }
 
     friend std::ostream& operator<<(
       std::ostream& os, const ccf::crypto::Sha256Hash& h);
 
-    [[nodiscard]] std::string hex_str() const;
+    std::string hex_str() const;
 
     static Sha256Hash from_hex_string(const std::string& str);
     static Sha256Hash from_span(const std::span<const uint8_t, SIZE>& sp);
@@ -57,9 +49,9 @@ namespace ccf::crypto
 
   void from_json(const nlohmann::json& j, Sha256Hash& hash);
 
-  std::string schema_name(const Sha256Hash* hash);
+  std::string schema_name(const Sha256Hash*);
 
-  void fill_json_schema(nlohmann::json& schema, const Sha256Hash* hash);
+  void fill_json_schema(nlohmann::json& schema, const Sha256Hash*);
 
   bool operator==(const Sha256Hash& lhs, const Sha256Hash& rhs);
 
@@ -92,13 +84,14 @@ namespace ccf::kv::serialisers
     static SerialisedEntry to_serialised(const ccf::crypto::Sha256Hash& h)
     {
       auto hex_str = h.hex_str();
-      return {hex_str.begin(), hex_str.end()};
+      return SerialisedEntry(hex_str.begin(), hex_str.end());
     }
 
     static ccf::crypto::Sha256Hash from_serialised(const SerialisedEntry& data)
     {
       auto data_str = std::string{data.begin(), data.end()};
-      return ccf::crypto::Sha256Hash::from_hex_string(data_str);
+      ccf::crypto::Sha256Hash ret;
+      return ret.from_hex_string(data_str);
     }
   };
 }

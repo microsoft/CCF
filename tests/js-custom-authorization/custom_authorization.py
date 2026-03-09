@@ -41,7 +41,7 @@ def test_custom_auth(network, args):
 
 def run(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network = test_custom_auth(network, args)
@@ -272,7 +272,7 @@ def test_execution_time_limit(network, args):
 
 def run_limits(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network = test_stack_size_limit(network, args)
@@ -782,7 +782,7 @@ def test_role_based_access(network, args):
 
 def run_authn(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network = test_cert_auth(network, args)
@@ -931,7 +931,7 @@ def test_unknown_path(network, args):
 
 def run_content_types(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network = test_content_types(network, args)
@@ -956,7 +956,7 @@ def test_random_api(args):
     n_repeats = 3
     for _ in range(n_repeats):
         with infra.network.network(
-            args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+            args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
         ) as network:
             network.start_and_open(args)
             primary, _ = network.find_nodes()
@@ -1056,23 +1056,17 @@ def test_datetime_api(network, args):
         body = r.body.json()
 
         # Python datetime "ISO" doesn't parse Z suffix, so replace it
+        default = body["default"].replace("Z", "+00:00")
         definitely_now = body["definitely_now"].replace("Z", "+00:00")
         definitely_1970 = body["definitely_1970"].replace("Z", "+00:00")
 
-        # Assume less than 5ms of execution time between grabbing timestamps, and confirm that untrustedDateTime has no effect
+        # Assume less than 5ms of execution time between grabbing timestamps, and confirm that default call gets real timestamp from global activation
+        default_time = datetime.datetime.fromisoformat(default)
         service_time = datetime.datetime.fromisoformat(definitely_now)
-        untrusted_on = datetime.datetime.fromisoformat(
-            body["untrusted_on"].replace("Z", "+00:00")
-        )
-        untrusted_off = datetime.datetime.fromisoformat(
-            body["untrusted_off"].replace("Z", "+00:00")
-        )
-        diff = (untrusted_on - service_time).total_seconds()
-        assert diff < 0.005, diff
-        diff = (untrusted_off - untrusted_on).total_seconds()
+        diff = (service_time - default_time).total_seconds()
         assert diff < 0.005, diff
 
-        # Assume less than 1 second of clock skew + execution time, and that service time is now
+        # Assume less than 1 second of clock skew + execution time
         diff = (local_time - service_time).total_seconds()
         assert abs(diff) < 1, diff
 
@@ -1141,7 +1135,7 @@ def run_api(args):
     test_random_api(args)
 
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network = test_request_object_api(network, args)
@@ -1371,7 +1365,7 @@ def run_interpreter_reuse(args):
     args.js_app_bundle = os.path.join(js_src_dir, "dist")
 
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 

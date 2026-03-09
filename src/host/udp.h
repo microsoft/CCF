@@ -3,9 +3,9 @@
 #pragma once
 
 #include "before_io.h"
+#include "ccf/ds/logger.h"
 #include "ccf/pal/locking.h"
 #include "dns.h"
-#include "ds/internal_logger.h"
 #include "ds/pending_io.h"
 #include "proxy.h"
 #include "socket.h"
@@ -14,7 +14,6 @@
 
 namespace asynchost
 {
-  // NOLINTBEGIN(cppcoreguidelines-virtual-class-destructor)
   class UDPImpl;
   using UDP = proxy_ptr<UDPImpl>;
 
@@ -35,7 +34,7 @@ namespace asynchost
     // This is a simplified version of the state machine for QUIC that
     // mostly follows plain UDP state. We should add more when we need
     // for QUIC, not predict complexity prematurely.
-    enum Status : uint8_t
+    enum Status
     {
       // Starting state + failure recovery (if any)
       FRESH,
@@ -51,7 +50,7 @@ namespace asynchost
     };
 
     /// Current status
-    Status status{FRESH};
+    Status status;
     /// Callback behaviour from user
     std::unique_ptr<SocketBehaviour<UDP>> behaviour;
 
@@ -71,12 +70,12 @@ namespace asynchost
     /// Current address (node in the list that resolved first)
     addrinfo* addr_current = nullptr;
 
-    [[nodiscard]] bool port_assigned() const
+    bool port_assigned() const
     {
       return port != "0";
     }
 
-    [[nodiscard]] std::string get_address_name() const
+    std::string get_address_name() const
     {
       const std::string port_suffix =
         port_assigned() ? fmt::format(":{}", port) : "";
@@ -85,11 +84,13 @@ namespace asynchost
       {
         return fmt::format("[{}]{}", host, port_suffix);
       }
-
-      return fmt::format("{}{}", host, port_suffix);
+      else
+      {
+        return fmt::format("{}{}", host, port_suffix);
+      }
     }
 
-    UDPImpl()
+    UDPImpl() : status(FRESH)
     {
       if (!init())
       {
@@ -99,11 +100,11 @@ namespace asynchost
       uv_handle.data = this;
     }
 
-    ~UDPImpl() override
+    ~UDPImpl()
     {
       {
         std::unique_lock<ccf::pal::Mutex> guard(pending_resolve_requests_mtx);
-        for (const auto& req : pending_resolve_requests)
+        for (auto& req : pending_resolve_requests)
         {
           // The UV request objects can stay, but if there are any references
           // to `this` left, we need to remove them.
@@ -130,17 +131,17 @@ namespace asynchost
       behaviour = std::move(b);
     }
 
-    [[nodiscard]] std::string get_host() const
+    std::string get_host() const
     {
       return host;
     }
 
-    [[nodiscard]] std::string get_port() const
+    std::string get_port() const
     {
       return port;
     }
 
-    [[nodiscard]] std::optional<std::string> get_listen_name() const
+    std::optional<std::string> get_listen_name() const
     {
       return listen_name;
     }
@@ -163,7 +164,7 @@ namespace asynchost
       behaviour->on_start(id);
     }
 
-    bool connect(const std::string& /*host_*/, const std::string& /*port_*/)
+    bool connect(const std::string& host_, const std::string& port_)
     {
       LOG_TRACE_FMT("UDP dummy connect to {}:{}", host, port);
       return true;
@@ -171,12 +172,10 @@ namespace asynchost
 
     bool write(size_t len, const uint8_t* data, sockaddr addr)
     {
-      auto* req = new uv_udp_send_t; // NOLINT(cppcoreguidelines-owning-memory)
-      auto* copy = new char[len]; // NOLINT(cppcoreguidelines-owning-memory)
-      if (data != nullptr)
-      {
+      auto req = new uv_udp_send_t;
+      char* copy = new char[len];
+      if (data)
         memcpy(copy, data, len);
-      }
       req->data = copy;
 
       switch (status)
@@ -217,7 +216,7 @@ namespace asynchost
     {
       assert_status(FRESH, FRESH);
 
-      int rc = 0;
+      int rc;
       LOG_TRACE_FMT("UDP init");
       if ((rc = uv_udp_init(uv_default_loop(), &uv_handle)) < 0)
       {
@@ -230,13 +229,13 @@ namespace asynchost
 
     bool send_write(uv_udp_send_t* req, size_t len, const struct sockaddr* addr)
     {
-      auto* copy = static_cast<char*>(req->data);
+      char* copy = (char*)req->data;
 
       uv_buf_t buf;
       buf.base = copy;
       buf.len = len;
 
-      int rc = 0;
+      int rc;
 
       auto [h, p] = addr_to_str(addr);
       LOG_TRACE_FMT("UDP send_write addr: {}:{}", h, p);
@@ -264,7 +263,7 @@ namespace asynchost
 
     void resolved()
     {
-      int rc = 0;
+      int rc;
 
       LOG_TRACE_FMT("UDP bind to {}:{}", host, port);
       while (addr_current != nullptr)
@@ -286,8 +285,8 @@ namespace asynchost
         // (addr_current will not contain it)
         if (!port_assigned())
         {
-          sockaddr_storage sa_storage{};
-          auto* const sa = reinterpret_cast<sockaddr*>(&sa_storage);
+          sockaddr_storage sa_storage;
+          const auto sa = (sockaddr*)&sa_storage;
           int sa_len = sizeof(sa_storage);
           if ((rc = uv_udp_getsockname(&uv_handle, sa, &sa_len)) != 0)
           {
@@ -358,7 +357,7 @@ namespace asynchost
       pending_resolve_requests.erase(req);
 
       LOG_TRACE_FMT("UDP on_resolve static");
-      if (req->data != nullptr)
+      if (req->data)
       {
         static_cast<UDPImpl*>(req->data)->on_resolved(req, rc);
       }
@@ -367,7 +366,7 @@ namespace asynchost
         // The UDPImpl that submitted the request has been destroyed, but we
         // need to clean up the request object.
         uv_freeaddrinfo(res);
-        delete req; // NOLINT(cppcoreguidelines-owning-memory)
+        delete req;
       }
     }
 
@@ -378,11 +377,11 @@ namespace asynchost
       // request to close uv_handle. In this scenario, we should not try to
       // do anything with the handle and return immediately (otherwise,
       // uv_close cb will abort).
-      if (uv_is_closing(reinterpret_cast<uv_handle_t*>(&uv_handle)) != 0)
+      if (uv_is_closing((uv_handle_t*)&uv_handle))
       {
         LOG_DEBUG_FMT("on_resolved: closing");
         uv_freeaddrinfo(req->addrinfo);
-        delete req; // NOLINT(cppcoreguidelines-owning-memory)
+        delete req;
         return;
       }
 
@@ -401,7 +400,7 @@ namespace asynchost
         resolved();
       }
 
-      delete req; // NOLINT(cppcoreguidelines-owning-memory)
+      delete req;
     }
 
     void push_pending_writes()
@@ -419,7 +418,7 @@ namespace asynchost
 
     void read_start()
     {
-      int rc = 0;
+      int rc;
 
       LOG_TRACE_FMT("UDP read start");
       if ((rc = uv_udp_recv_start(&uv_handle, on_alloc, on_read)) < 0)
@@ -447,14 +446,13 @@ namespace asynchost
         alloc_size,
         remaining_read_quota);
 
-      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
       buf->base = new char[alloc_size];
       buf->len = alloc_size;
     }
 
     void on_free(const uv_buf_t* buf)
     {
-      delete[] buf->base; // NOLINT(cppcoreguidelines-owning-memory)
+      delete[] buf->base;
     }
 
     static void on_read(
@@ -471,7 +469,7 @@ namespace asynchost
       ssize_t sz,
       const uv_buf_t* buf,
       const struct sockaddr* addr,
-      unsigned /*flags*/)
+      unsigned flags)
     {
       if (sz == 0)
       {
@@ -489,7 +487,7 @@ namespace asynchost
       if (sz < 0)
       {
         on_free(buf);
-        LOG_DEBUG_FMT("UDP on_read: {}", uv_strerror(static_cast<int>(sz)));
+        LOG_DEBUG_FMT("UDP on_read: {}", uv_strerror(sz));
         behaviour->on_disconnect();
         return;
       }
@@ -497,18 +495,16 @@ namespace asynchost
       auto [h, p] = addr_to_str(addr);
       LOG_TRACE_FMT("UDP on_read addr: {}:{}", h, p);
 
-      auto* b = reinterpret_cast<uint8_t*>(buf->base);
-      std::string data(reinterpret_cast<char*>(b), sz);
+      uint8_t* b = (uint8_t*)buf->base;
+      std::string data((char*)b, sz);
       LOG_TRACE_FMT("UDP on_read [{}]", data);
-      behaviour->on_read(static_cast<size_t>(sz), b, *addr);
+      behaviour->on_read((size_t)sz, b, *addr);
 
       if (b != nullptr)
-      {
         on_free(buf);
-      }
     }
 
-    static void on_write(uv_udp_send_t* req, int /*status*/)
+    static void on_write(uv_udp_send_t* req, int)
     {
       free_write(req);
     }
@@ -516,22 +512,18 @@ namespace asynchost
     static void free_write(uv_udp_send_t* req)
     {
       if (req == nullptr)
-      {
         return;
-      }
 
-      auto* copy = static_cast<char*>(req->data);
-      delete[] copy; // NOLINT(cppcoreguidelines-owning-memory)
-      delete req; // NOLINT(cppcoreguidelines-owning-memory)
+      char* copy = (char*)req->data;
+      delete[] copy;
+      delete req;
     }
   };
-
-  // NOLINTEND(cppcoreguidelines-virtual-class-destructor)
 
   class ResetUDPReadQuotaImpl
   {
   public:
-    ResetUDPReadQuotaImpl() = default;
+    ResetUDPReadQuotaImpl() {}
 
     void before_io()
     {

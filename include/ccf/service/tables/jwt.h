@@ -12,7 +12,7 @@
 
 namespace ccf
 {
-  enum class JwtIssuerKeyFilter : uint8_t
+  enum class JwtIssuerKeyFilter
   {
     All
   };
@@ -35,11 +35,11 @@ namespace ccf
   using JwtIssuer = std::string;
   using JwtKeyId = std::string;
   using Cert = std::vector<uint8_t>;
-  using ECPublicKey = std::vector<uint8_t>;
+  using PublicKey = std::vector<uint8_t>;
 
   struct OpenIDJWKMetadata
   {
-    ECPublicKey public_key;
+    PublicKey public_key;
     JwtIssuer issuer;
     std::optional<JwtIssuer> constraint;
   };
@@ -71,6 +71,21 @@ namespace ccf
 
     static constexpr auto JWT_PUBLIC_SIGNING_KEYS_METADATA =
       "public:ccf.gov.jwt.public_signing_keys_metadata_v2";
+
+    namespace Legacy
+    {
+      static constexpr auto JWT_PUBLIC_SIGNING_KEYS =
+        "public:ccf.gov.jwt.public_signing_key";
+      static constexpr auto JWT_PUBLIC_SIGNING_KEY_ISSUER =
+        "public:ccf.gov.jwt.public_signing_key_issuer";
+      static constexpr auto JWT_PUBLIC_SIGNING_KEYS_METADATA =
+        "public:ccf.gov.jwt.public_signing_keys_metadata";
+
+      using JwtPublicSigningKeys =
+        ccf::kv::RawCopySerialisedMap<JwtKeyId, Cert>;
+      using JwtPublicSigningKeyIssuer =
+        ccf::kv::RawCopySerialisedMap<JwtKeyId, JwtIssuer>;
+    }
   }
 
   struct JsonWebKeySet
@@ -82,6 +97,6 @@ namespace ccf
       return keys != rhs.keys;
     }
   };
-  DECLARE_JSON_TYPE(JsonWebKeySet);
-  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeySet, keys);
+  DECLARE_JSON_TYPE(JsonWebKeySet)
+  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeySet, keys)
 }

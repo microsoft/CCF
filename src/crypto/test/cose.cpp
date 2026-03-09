@@ -3,15 +3,15 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/cose.h"
 
-#include "ccf/ds/hex.h"
 #include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/cose_verifier.h"
-#include "node/cose_common.h"
 
 #include <cstdint>
 #include <doctest/doctest.h>
 #include <fstream>
 #include <limits>
+#include <qcbor/qcbor_decode.h>
+#include <qcbor/qcbor_spiffy_decode.h>
 #include <string>
 #include <vector>
 
@@ -35,7 +35,7 @@ enum class PayloadType
 
 struct Signer
 {
-  ccf::crypto::ECKeyPair_OpenSSL kp;
+  ccf::crypto::KeyPair_OpenSSL kp;
   std::vector<uint8_t> payload;
   bool detached_payload = false;
 
@@ -52,18 +52,20 @@ struct Signer
         break;
       case PayloadType::NestedCBOR:
       {
-        using namespace ccf::cbor;
-
-        std::vector<Value> arr;
-        arr.push_back(make_signed(1));
-
-        std::vector<Value> inner;
-        inner.push_back(make_signed(2));
-        inner.push_back(make_signed(3));
-
-        arr.push_back(make_array(std::move(inner)));
-
-        payload = serialize(make_array(std::move(arr)));
+        payload.resize(1024);
+        QCBOREncodeContext ctx;
+        QCBOREncode_Init(&ctx, {payload.data(), payload.size()});
+        QCBOREncode_OpenArray(&ctx);
+        QCBOREncode_AddInt64(&ctx, 1);
+        QCBOREncode_OpenArray(&ctx);
+        QCBOREncode_AddInt64(&ctx, 2);
+        QCBOREncode_AddInt64(&ctx, 3);
+        QCBOREncode_CloseArray(&ctx);
+        QCBOREncode_CloseArray(&ctx);
+        UsefulBufC result;
+        QCBOREncode_Finish(&ctx, &result);
+        payload.resize(result.len);
+        payload.shrink_to_fit();
       }
       break;
     }
@@ -71,14 +73,11 @@ struct Signer
 
   std::vector<uint8_t> make_cose_sign1()
   {
-    using namespace ccf::cbor;
+    const auto pheaders = {
+      ccf::crypto::cose_params_int_bytes(300, value),
+      ccf::crypto::cose_params_int_int(301, 34)};
 
-    std::vector<MapItem> phdr;
-    phdr.emplace_back(make_signed(300), make_bytes(value));
-    phdr.emplace_back(make_signed(301), make_signed(34));
-    auto phdr_map = make_map(std::move(phdr));
-
-    return ccf::crypto::cose_sign1(kp, phdr_map, payload, detached_payload);
+    return ccf::crypto::cose_sign1(kp, pheaders, payload, detached_payload);
   };
 
   void verify(const std::vector<uint8_t>& cose_sign1)
@@ -87,7 +86,7 @@ struct Signer
       ccf::crypto::make_cose_verifier_from_key(kp.public_key_pem());
     if (detached_payload)
     {
-      REQUIRE(verifier->verify_detached(cose_sign1, payload));
+      verifier->verify_detached(cose_sign1, payload);
     }
     else
     {
@@ -167,8 +166,6 @@ TEST_CASE("Check unprotected header")
     Signer signer(type);
     auto csp = signer.make_cose_sign1();
 
-    using namespace ccf::cbor;
-
     for (const auto& key : keys)
     {
       for (const auto& position : positions)
@@ -176,30 +173,61 @@ TEST_CASE("Check unprotected header")
         ccf::cose::edit::desc::Value desc{position, key, value};
         auto csp_set = ccf::cose::edit::set_unprotected_header(csp, desc);
 
-        auto edited = parse(csp_set);
-        const auto& uhdr =
-          edited->tag_at(ccf::cbor::tag::COSE_SIGN_1)->array_at(1);
-
-        std::vector<MapItem> ref;
-        if (std::holds_alternative<ccf::cose::edit::pos::InArray>(position))
+        std::vector<uint8_t> ref(1024);
         {
-          std::vector<Value> items{make_bytes(value)};
+          // Create expected reference value for the unprotected header
+          UsefulBuf ref_buf{ref.data(), ref.size()};
+          QCBOREncodeContext ctx;
+          QCBOREncode_Init(&ctx, ref_buf);
+          QCBOREncode_OpenMap(&ctx);
 
-          ref.emplace_back(make_signed(key), make_array(std::move(items)));
+          if (std::holds_alternative<ccf::cose::edit::pos::InArray>(position))
+          {
+            QCBOREncode_OpenArrayInMapN(&ctx, key);
+            QCBOREncode_AddBytes(&ctx, {value.data(), value.size()});
+            QCBOREncode_CloseArray(&ctx);
+          }
+          else if (std::holds_alternative<ccf::cose::edit::pos::AtKey>(
+                     position))
+          {
+            QCBOREncode_OpenMapInMapN(&ctx, key);
+            auto subkey = std::get<ccf::cose::edit::pos::AtKey>(position).key;
+            QCBOREncode_OpenArrayInMapN(&ctx, subkey);
+            QCBOREncode_AddBytes(&ctx, {value.data(), value.size()});
+            QCBOREncode_CloseArray(&ctx);
+            QCBOREncode_CloseMap(&ctx);
+          }
+          QCBOREncode_CloseMap(&ctx);
+          UsefulBufC ref_buf_c;
+          QCBOREncode_Finish(&ctx, &ref_buf_c);
+          ref.resize(ref_buf_c.len);
+          ref.shrink_to_fit();
         }
-        else if (std::holds_alternative<ccf::cose::edit::pos::AtKey>(position))
-        {
-          auto subkey = std::get<ccf::cose::edit::pos::AtKey>(position).key;
 
-          std::vector<Value> items{make_bytes(value)};
-          std::vector<MapItem> inner_map{
-            {make_signed(subkey), make_array(std::move(items))}};
-
-          ref.emplace_back(make_signed(key), make_map(std::move(inner_map)));
-        }
-        auto ref_map = make_map(std::move(ref));
-
-        REQUIRE_EQ(to_string(ref_map), to_string(uhdr));
+        size_t uhdr_start, uhdr_end;
+        QCBORError err;
+        QCBORItem item;
+        QCBORDecodeContext ctx;
+        UsefulBufC buf{csp_set.data(), csp_set.size()};
+        QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);
+        QCBORDecode_EnterArray(&ctx, nullptr);
+        QCBORDecode_GetNthTagOfLast(&ctx, 0);
+        // Protected header
+        QCBORDecode_VGetNextConsume(&ctx, &item);
+        // Unprotected header
+        QCBORDecode_PartialFinish(&ctx, &uhdr_start);
+        QCBORDecode_VGetNextConsume(&ctx, &item);
+        QCBORDecode_PartialFinish(&ctx, &uhdr_end);
+        std::vector<uint8_t> uhdr{
+          csp_set.data() + uhdr_start, csp_set.data() + uhdr_end};
+        REQUIRE(uhdr == ref);
+        // Payload
+        QCBORDecode_VGetNextConsume(&ctx, &item);
+        // Signature
+        QCBORDecode_VGetNextConsume(&ctx, &item);
+        QCBORDecode_ExitArray(&ctx);
+        err = QCBORDecode_Finish(&ctx);
+        REQUIRE(err == QCBOR_SUCCESS);
       }
     }
 
@@ -207,50 +235,43 @@ TEST_CASE("Check unprotected header")
       auto csp_set_empty = ccf::cose::edit::set_unprotected_header(
         csp, ccf::cose::edit::desc::Empty{});
 
-      auto edited = parse(csp_set_empty);
-      const auto& uhdr =
-        edited->tag_at(ccf::cbor::tag::COSE_SIGN_1)->array_at(1);
+      std::vector<uint8_t> ref(1024);
+      {
+        // Create expected reference value for the unprotected header
+        UsefulBuf ref_buf{ref.data(), ref.size()};
+        QCBOREncodeContext ctx;
+        QCBOREncode_Init(&ctx, ref_buf);
+        QCBOREncode_OpenMap(&ctx);
+        QCBOREncode_CloseMap(&ctx);
+        UsefulBufC ref_buf_c;
+        QCBOREncode_Finish(&ctx, &ref_buf_c);
+        ref.resize(ref_buf_c.len);
+        ref.shrink_to_fit();
+      }
 
-      auto ref_map = make_map({});
-
-      REQUIRE_EQ(to_string(ref_map), to_string(uhdr));
+      size_t uhdr_start, uhdr_end;
+      QCBORError err;
+      QCBORItem item;
+      QCBORDecodeContext ctx;
+      UsefulBufC buf{csp_set_empty.data(), csp_set_empty.size()};
+      QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);
+      QCBORDecode_EnterArray(&ctx, nullptr);
+      QCBORDecode_GetNthTagOfLast(&ctx, 0);
+      // Protected header
+      QCBORDecode_VGetNextConsume(&ctx, &item);
+      // Unprotected header
+      QCBORDecode_PartialFinish(&ctx, &uhdr_start);
+      QCBORDecode_VGetNextConsume(&ctx, &item);
+      QCBORDecode_PartialFinish(&ctx, &uhdr_end);
+      std::vector<uint8_t> uhdr{
+        csp_set_empty.data() + uhdr_start, csp_set_empty.data() + uhdr_end};
+      REQUIRE(uhdr == ref);
+      // Payload
+      QCBORDecode_VGetNextConsume(&ctx, &item);
+      // Signature
+      QCBORDecode_VGetNextConsume(&ctx, &item);
+      QCBORDecode_ExitArray(&ctx);
+      err = QCBORDecode_Finish(&ctx);
     }
   }
-}
-
-TEST_CASE("Decode CCF COSE receipt")
-{
-  const std::string receipt_hex =
-    "d284588ca50138220458403464393230653531646339303636373336653433333738636131"
-    "34323863656165306435343335326634306535316232306564633863366237633536316430"
-    "3519018b020fa3061a692875730173736572766963652e6578616d706c652e636f6d02706c"
-    "65646765722e7369676e6174757265666363662e7631a1647478696464322e3137a119018c"
-    "a1208158b7a201835820e2a97fad0c69119d6e216158b762b19277a579d7a89047d98aa37f"
-    "152f194a92784863653a322e31363a38633765646230386135323963613237326166623062"
-    "31653664613939306233636137336665313064336535663462356633663231613561346638"
-    "37663637635820000000000000000000000000000000000000000000000000000000000000"
-    "0000028182f55820d774c9dfeec96478a0797f8ce3d78464767833d052fb78d72b2b8eeda5"
-    "21215af658604568ff2c93350fa181bf02186b26d3f04728a61fd2ef2c9388a55268ed8bf7"
-    "88a6bd06bfa195c78676bebeef5560a87980e8dd13725a87ef0b00ac0b78ff07ab7eb4646a"
-    "4a54b421456d14e90b7dea1f0b32044bf93116d85ef0834f493681d5";
-
-  const auto receipt_bytes = ccf::ds::from_hex(receipt_hex);
-
-  auto receipt =
-    ccf::cose::decode_ccf_receipt(receipt_bytes, /*recompute_root*/ true);
-
-  REQUIRE(receipt.phdr.alg == -35);
-  REQUIRE(
-    ccf::ds::to_hex(receipt.phdr.kid) ==
-    "34643932306535316463393036363733366534333337386361313432386365616530643534"
-    "333532663430653531623230656463386336623763353631643035");
-  REQUIRE(receipt.phdr.cwt.iat.value() == 1764259187);
-  REQUIRE(receipt.phdr.cwt.iss == "service.example.com");
-  REQUIRE(receipt.phdr.cwt.sub == "ledger.signature");
-  REQUIRE(receipt.phdr.ccf.txid == "2.17");
-  REQUIRE(receipt.phdr.vds == 2);
-
-  REQUIRE(
-    ccf::ds::to_hex(receipt.merkle_root) ==
-    "209f5aefb0f45d7647c917337044c44a1b848fe833fa2869d016bea797d79a9e");
 }

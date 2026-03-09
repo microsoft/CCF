@@ -14,7 +14,7 @@
 #include "ccf/service/consensus_type.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/tx_id.h"
-#include "crypto/openssl/ec_key_pair.h"
+#include "crypto/openssl/key_pair.h"
 #include "kv/ledger_chunker_interface.h"
 #include "serialiser_declare.h"
 
@@ -34,6 +34,11 @@ namespace ccf
   struct PrimarySignature;
 }
 
+namespace aft
+{
+  struct Request;
+}
+
 namespace ccf::kv
 {
   // Term describes an epoch of Versions. It is incremented when global kv's
@@ -42,6 +47,36 @@ namespace ccf::kv
   // TermHistory
   using Term = uint64_t;
   using NodeId = ccf::NodeId;
+
+  struct TxID
+  {
+    Term term = 0;
+    Version version = 0;
+
+    TxID() = default;
+    TxID(Term t, Version v) : term(t), version(v) {}
+
+    // Would like to remove these duplicate types, but for now we just do free
+    // conversion
+    TxID(const ccf::TxID& other) : term(other.view), version(other.seqno) {}
+
+    operator ccf::TxID() const
+    {
+      return {term, version};
+    }
+
+    bool operator==(const TxID& other) const
+    {
+      return term == other.term && version == other.version;
+    }
+
+    std::string str() const
+    {
+      return fmt::format("{}.{}", term, version);
+    }
+  };
+  DECLARE_JSON_TYPE(TxID);
+  DECLARE_JSON_REQUIRED_FIELDS(TxID, term, version)
 
   using ReconfigurationId = uint64_t;
 
@@ -54,9 +89,9 @@ namespace ccf::kv
 
       NodeInfo() = default;
 
-      NodeInfo(std::string hostname_, std::string port_) :
-        hostname(std::move(hostname_)),
-        port(std::move(port_))
+      NodeInfo(const std::string& hostname_, const std::string& port_) :
+        hostname(hostname_),
+        port(port_)
       {}
 
       bool operator==(const NodeInfo& other) const
@@ -67,9 +102,9 @@ namespace ccf::kv
 
     using Nodes = std::map<NodeId, NodeInfo>;
 
-    ccf::SeqNo idx = 0;
+    ccf::SeqNo idx;
     Nodes nodes;
-    ReconfigurationId rid = 0;
+    ReconfigurationId rid;
   };
 
   inline void to_json(nlohmann::json& j, const Configuration::NodeInfo& ni)
@@ -85,13 +120,13 @@ namespace ccf::kv
     ni.port = p;
   }
 
-  inline std::string schema_name(const Configuration::NodeInfo* /*unused*/)
+  inline std::string schema_name(const Configuration::NodeInfo*)
   {
     return "Configuration__NodeInfo";
   }
 
   inline void fill_json_schema(
-    nlohmann::json& schema, const Configuration::NodeInfo* /*unused*/)
+    nlohmann::json& schema, const Configuration::NodeInfo*)
   {
     schema["type"] = "object";
     schema["required"] = nlohmann::json::array();
@@ -101,7 +136,7 @@ namespace ccf::kv
     schema["properties"]["address"]["$ref"] = "#/components/schemas/string";
   }
 
-  enum class LeadershipState : uint8_t
+  enum class LeadershipState
   {
     None,
     Leader,
@@ -118,7 +153,7 @@ namespace ccf::kv
      {LeadershipState::PreVoteCandidate, "PreVoteCandidate"},
      {LeadershipState::Candidate, "Candidate"}});
 
-  enum class MembershipState : uint8_t
+  enum class MembershipState
   {
     Active,
     Retired
@@ -129,7 +164,7 @@ namespace ccf::kv
     {{MembershipState::Active, "Active"},
      {MembershipState::Retired, "Retired"}});
 
-  enum class RetirementPhase : uint8_t
+  enum class RetirementPhase
   {
     Ordered = 1,
     Signed = 2,
@@ -155,9 +190,9 @@ namespace ccf::kv
       size_t last_received_ms;
     };
 
-    std::vector<Configuration> configs;
-    std::unordered_map<ccf::NodeId, Ack> acks;
-    MembershipState membership_state{};
+    std::vector<Configuration> configs = {};
+    std::unordered_map<ccf::NodeId, Ack> acks = {};
+    MembershipState membership_state;
     std::optional<LeadershipState> leadership_state = std::nullopt;
     std::optional<RetirementPhase> retirement_phase = std::nullopt;
     std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners =
@@ -187,15 +222,21 @@ namespace ccf::kv
     leadership_state,
     retirement_phase);
 
+  struct ConsensusParameters
+  {
+    ccf::ReconfigurationType reconfiguration_type;
+  };
+
   class ConfigurableConsensus
   {
   public:
-    virtual ~ConfigurableConsensus() = default;
     virtual void add_configuration(
-      ccf::SeqNo seqno, const Configuration::Nodes& conf) = 0;
+      ccf::SeqNo seqno,
+      const Configuration::Nodes& conf,
+      const std::unordered_set<NodeId>& learners = {},
+      const std::unordered_set<NodeId>& retired_nodes = {}) = 0;
     virtual Configuration::Nodes get_latest_configuration() = 0;
-    [[nodiscard]] virtual Configuration::Nodes get_latest_configuration_unsafe()
-      const = 0;
+    virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;
   };
 
@@ -205,21 +246,21 @@ namespace ccf::kv
     bool,
     std::shared_ptr<ConsensusHookPtrs>>>;
 
-  enum CommitResult : uint8_t
+  enum CommitResult
   {
     SUCCESS = 1,
     FAIL_CONFLICT = 2,
     FAIL_NO_REPLICATE = 3
   };
 
-  enum SecurityDomain : uint8_t
+  enum SecurityDomain
   {
     PUBLIC, // Public domain indicates the version and always appears first
     PRIVATE,
     SECURITY_DOMAIN_MAX
   };
 
-  enum AccessCategory : uint8_t
+  enum AccessCategory
   {
     INTERNAL,
     GOVERNANCE,
@@ -298,7 +339,7 @@ namespace ccf::kv
     return {security_domain, access_category};
   }
 
-  enum ApplyResult : uint8_t
+  enum ApplyResult
   {
     PASS = 1,
     PASS_SIGNATURE = 2,
@@ -317,9 +358,9 @@ namespace ccf::kv
     std::string msg;
 
   public:
-    KvSerialiserException(std::string msg_) : msg(std::move(msg_)) {}
+    KvSerialiserException(const std::string& msg_) : msg(msg_) {}
 
-    [[nodiscard]] const char* what() const noexcept override
+    virtual const char* what() const throw()
     {
       return msg.c_str();
     }
@@ -328,13 +369,46 @@ namespace ccf::kv
   class TxHistory
   {
   public:
-    virtual ~TxHistory() = default;
+    using RequestID = std::tuple<
+      size_t /* Client Session ID */,
+      size_t /* Request sequence number */>;
+
+    struct RequestCallbackArgs
+    {
+      RequestID rid;
+      std::vector<uint8_t> request;
+      std::vector<uint8_t> caller_cert;
+      uint8_t frame_format;
+    };
+
+    struct ResultCallbackArgs
+    {
+      RequestID rid;
+      Version version;
+      ccf::crypto::Sha256Hash replicated_state_merkle_root;
+    };
+
+    struct ResponseCallbackArgs
+    {
+      RequestID rid;
+      std::vector<uint8_t> response;
+    };
+
+    enum class Result
+    {
+      FAIL = 0,
+      OK,
+      SEND_SIG_RECEIPT_ACK,
+      SEND_REPLY_AND_NONCE
+    };
+
+    virtual ~TxHistory() {}
     virtual bool verify_root_signatures(ccf::kv::Version version) = 0;
     virtual void try_emit_signature() = 0;
     virtual void emit_signature() = 0;
     virtual ccf::crypto::Sha256Hash get_replicated_state_root() = 0;
     virtual std::tuple<
-      ccf::TxID /* TxID of last transaction seen by history */,
+      ccf::kv::TxID /* TxID of last transaction seen by history */,
       ccf::crypto::Sha256Hash /* root as of TxID */,
       ccf::kv::Term /* term_of_next_version */>
     get_replicated_state_txid_and_root() = 0;
@@ -348,14 +422,14 @@ namespace ccf::kv
       const ccf::crypto::Sha256Hash& digest,
       std::optional<ccf::kv::Term> expected_term = std::nullopt) = 0;
     virtual void rollback(
-      const ccf::TxID& tx_id, ccf::kv::Term term_of_next_version_) = 0;
+      const ccf::kv::TxID& tx_id, ccf::kv::Term term_of_next_version_) = 0;
     virtual void compact(Version v) = 0;
     virtual void set_term(ccf::kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t to) = 0;
     virtual void set_endorsed_certificate(const ccf::crypto::Pem& cert) = 0;
     virtual void start_signature_emit_timer() = 0;
     virtual void set_service_signing_identity(
-      std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> keypair,
+      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> keypair,
       const COSESignaturesConfig& cose_signatures) = 0;
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
   };
@@ -363,7 +437,7 @@ namespace ccf::kv
   class Consensus : public ConfigurableConsensus
   {
   public:
-    ~Consensus() override = default;
+    virtual ~Consensus() {}
 
     virtual NodeId id() = 0;
     virtual bool is_primary() = 0;
@@ -372,7 +446,7 @@ namespace ccf::kv
     virtual bool can_replicate() = 0;
     virtual bool is_at_max_capacity() = 0;
 
-    enum class SignatureDisposition : uint8_t
+    enum class SignatureDisposition
     {
       CANT_REPLICATE,
       CAN_SIGN,
@@ -401,16 +475,14 @@ namespace ccf::kv
     virtual void recv_message(
       const NodeId& from, const uint8_t* data, size_t size) = 0;
 
-    virtual void periodic(std::chrono::milliseconds /*elapsed*/) {}
+    virtual void periodic(std::chrono::milliseconds) {}
     virtual void periodic_end() {}
 
     virtual void enable_all_domains() {}
 
     virtual void set_retired_committed(
-      ccf::SeqNo /*seqno*/, const std::vector<NodeId>& node_ids)
+      ccf::SeqNo, const std::vector<NodeId>& node_ids)
     {}
-
-    virtual void nominate_successor() {};
   };
 
   struct PendingTxInfo
@@ -464,26 +536,26 @@ namespace ccf::kv
 
     PendingTxInfo call() override
     {
-      return {
+      return PendingTxInfo(
         CommitResult::SUCCESS,
         std::move(data),
         std::move(claims_digest),
         std::move(commit_evidence_digest),
-        std::move(hooks)};
+        std::move(hooks));
     }
   };
 
   class AbstractTxEncryptor
   {
   public:
-    virtual ~AbstractTxEncryptor() = default;
+    virtual ~AbstractTxEncryptor() {}
 
     virtual bool encrypt(
       const std::vector<uint8_t>& plain,
       const std::vector<uint8_t>& additional_data,
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
-      const ccf::TxID& tx_id,
+      const TxID& tx_id,
       EntryType entry_type = EntryType::WriteSet,
       bool historical_hint = false) = 0;
     virtual bool decrypt(
@@ -501,7 +573,7 @@ namespace ccf::kv
     virtual uint64_t get_term(const uint8_t* data, size_t size) = 0;
 
     virtual ccf::crypto::HashBytes get_commit_nonce(
-      const ccf::TxID& tx_id, bool historical_hint = false) = 0;
+      const TxID& tx_id, bool historical_hint = false) = 0;
   };
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
 
@@ -521,7 +593,7 @@ namespace ccf::kv
   public:
     virtual ~AbstractChangeSet() = default;
 
-    [[nodiscard]] virtual bool has_writes() const = 0;
+    virtual bool has_writes() const = 0;
   };
 
   class AbstractCommitter
@@ -545,11 +617,11 @@ namespace ccf::kv
     public:
       virtual ~Snapshot() = default;
       virtual void serialise(KvStoreSerialiser& s) = 0;
-      [[nodiscard]] virtual SecurityDomain get_security_domain() const = 0;
+      virtual SecurityDomain get_security_domain() const = 0;
     };
 
     using GetName::GetName;
-    ~AbstractMap() override = default;
+    virtual ~AbstractMap() {}
 
     virtual std::unique_ptr<AbstractCommitter> create_committer(
       AbstractChangeSet* changes) = 0;
@@ -613,23 +685,23 @@ namespace ccf::kv
     {
     public:
       virtual ~AbstractSnapshot() = default;
-      [[nodiscard]] virtual Version get_version() const = 0;
+      virtual Version get_version() const = 0;
       virtual std::vector<uint8_t> serialise(
         const std::shared_ptr<AbstractTxEncryptor>& encryptor) = 0;
     };
 
-    virtual ~AbstractStore() = default;
+    virtual ~AbstractStore() {}
 
     virtual void lock_map_set() = 0;
     virtual void unlock_map_set() = 0;
 
     virtual Version next_version() = 0;
     virtual std::tuple<Version, Version> next_version(bool commit_new_map) = 0;
-    virtual ccf::TxID next_txid() = 0;
+    virtual TxID next_txid() = 0;
 
     virtual Version current_version() = 0;
-    virtual ccf::TxID current_txid() = 0;
-    virtual std::pair<ccf::TxID, Term> current_txid_and_commit_term() = 0;
+    virtual TxID current_txid() = 0;
+    virtual std::pair<TxID, Term> current_txid_and_commit_term() = 0;
 
     virtual Version compacted_version() = 0;
     virtual Term commit_view() = 0;
@@ -648,12 +720,12 @@ namespace ccf::kv
     virtual std::unique_ptr<AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      const std::optional<ccf::TxID>& expected_txid = std::nullopt) = 0;
+      const std::optional<TxID>& expected_txid = std::nullopt) = 0;
     virtual void compact(Version v) = 0;
-    virtual void rollback(const ccf::TxID& tx_id, Term write_term_) = 0;
+    virtual void rollback(const TxID& tx_id, Term write_term_) = 0;
     virtual void initialise_term(Term t) = 0;
     virtual CommitResult commit(
-      const ccf::TxID& txid,
+      const TxID& txid,
       std::unique_ptr<PendingTx> pending_tx,
       bool globally_committable) = 0;
     virtual bool check_rollback_count(Version count) = 0;
@@ -685,7 +757,7 @@ namespace ccf::kv
     virtual bool flag_enabled(StoreFlag f) = 0;
     virtual void set_flag_unsafe(StoreFlag f) = 0;
     virtual void unset_flag_unsafe(StoreFlag f) = 0;
-    [[nodiscard]] virtual bool flag_enabled_unsafe(StoreFlag f) const = 0;
+    virtual bool flag_enabled_unsafe(StoreFlag f) const = 0;
   };
 
   template <class StorePointer>
@@ -693,7 +765,7 @@ namespace ccf::kv
   {
   public:
     ScopedStoreMapsLock() = delete;
-    ScopedStoreMapsLock(StorePointer _store) : store(std::move(_store))
+    ScopedStoreMapsLock(StorePointer _store) : store(_store)
     {
       store->lock_maps();
     }
@@ -724,7 +796,7 @@ struct formatter<ccf::kv::Configuration::Nodes>
     const -> decltype(ctx.out())
   {
     std::set<ccf::NodeId> node_ids;
-    for (const auto& [nid, _] : nodes)
+    for (auto& [nid, _] : nodes)
     {
       node_ids.insert(nid);
     }

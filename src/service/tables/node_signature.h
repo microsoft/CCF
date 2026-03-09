@@ -22,16 +22,18 @@ namespace ccf
 
     NodeSignature(const NodeSignature& ns) = default;
     NodeSignature(
-      std::vector<uint8_t> sig_, NodeId node_, Nonce hashed_nonce_) :
-      sig(std::move(sig_)),
-      node(std::move(node_)),
-      hashed_nonce(std::move(hashed_nonce_))
+      const std::vector<uint8_t>& sig_,
+      const NodeId& node_,
+      Nonce hashed_nonce_) :
+      sig(sig_),
+      node(node_),
+      hashed_nonce(hashed_nonce_)
     {}
-    NodeSignature(NodeId node_, Nonce hashed_nonce_) :
-      node(std::move(node_)),
-      hashed_nonce(std::move(hashed_nonce_))
+    NodeSignature(const NodeId& node_, Nonce hashed_nonce_) :
+      node(node_),
+      hashed_nonce(hashed_nonce_)
     {}
-    NodeSignature(NodeId node_) : node(std::move(node_)) {}
+    NodeSignature(const NodeId& node_) : node(node_) {}
     NodeSignature() = default;
 
     NodeSignature& operator=(const NodeSignature& ns) = default;
@@ -41,7 +43,7 @@ namespace ccf
       return sig == o.sig && hashed_nonce == o.hashed_nonce;
     }
 
-    [[nodiscard]] size_t get_serialized_size() const
+    size_t get_serialized_size() const
     {
       return sizeof(size_t) + sig.size() + sizeof(size_t) + node.size() +
         sizeof(hashed_nonce);
@@ -66,7 +68,7 @@ namespace ccf
     {
       NodeSignature n;
 
-      auto sig_size = serialized::read<size_t>(data, size);
+      size_t sig_size = serialized::read<size_t>(data, size);
       n.sig = serialized::read(data, size, sig_size);
       n.node = serialized::read<NodeId::Value>(data, size);
       n.hashed_nonce = serialized::read<Nonce>(data, size);

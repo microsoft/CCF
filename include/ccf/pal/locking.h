@@ -2,7 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <mutex>
+#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
+#  include <mutex>
+#else
+#  include <openenclave/3rdparty/libc/pthread.h>
+#  include <openenclave/edger8r/enclave.h> // For oe_lfence
+#endif
 
 namespace ccf::pal
 {

@@ -2,19 +2,22 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/hkdf.h"
+#include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/ccf_exception.h"
 #include "ccf/ds/hex.h"
+#include "ccf/ds/logger.h"
 #include "ccf/entity_id.h"
 #include "ccf/pal/locking.h"
 #include "crypto/key_exchange.h"
-#include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "ds/state_machine.h"
-#include "node/node_types.h"
+#include "ds/thread_messaging.h"
+#include "enclave/enclave_time.h"
+#include "node_types.h"
 
 #include <iostream>
 #include <map>
@@ -36,7 +39,7 @@
 
 namespace ccf
 {
-  enum ChannelStatus : uint8_t
+  enum ChannelStatus
   {
     INACTIVE = 0,
     INITIATED,
@@ -104,7 +107,7 @@ namespace ccf
 
     WireNonce(uint64_t nonce_) : nonce(nonce_) {}
 
-    [[nodiscard]] uint64_t get_val() const
+    uint64_t get_val() const
     {
       return *reinterpret_cast<const uint64_t*>(this);
     }
@@ -113,30 +116,33 @@ namespace ccf
     sizeof(WireNonce) == sizeof(MsgNonce), "WireNonce is the wrong size");
 
   // Static helper functions for serialization/deserialization
-  inline WireNonce get_wire_nonce(const GcmHdr& header)
+  namespace
   {
-    return *reinterpret_cast<const WireNonce*>(header.iv.data());
-  }
+    static inline WireNonce get_wire_nonce(const GcmHdr& header)
+    {
+      return *reinterpret_cast<const WireNonce*>(header.iv.data());
+    }
 
-  template <typename T>
-  inline void append_value(std::vector<uint8_t>& target, const T& t)
-  {
-    const auto size_before = target.size();
-    auto size = sizeof(t);
-    target.resize(size_before + size);
-    auto* data = target.data() + size_before;
-    serialized::write(data, size, t);
-  }
+    template <typename T>
+    static inline void append_value(std::vector<uint8_t>& target, const T& t)
+    {
+      const auto size_before = target.size();
+      auto size = sizeof(t);
+      target.resize(size_before + size);
+      auto data = target.data() + size_before;
+      serialized::write(data, size, t);
+    }
 
-  inline void append_buffer(
-    std::vector<uint8_t>& target, std::span<const uint8_t> src)
-  {
-    const auto size_before = target.size();
-    auto size = src.size() + sizeof(src.size());
-    target.resize(size_before + size);
-    auto* data = target.data() + size_before;
-    serialized::write(data, size, src.size());
-    serialized::write(data, size, src.data(), src.size());
+    static inline void append_buffer(
+      std::vector<uint8_t>& target, std::span<const uint8_t> src)
+    {
+      const auto size_before = target.size();
+      auto size = src.size() + sizeof(src.size());
+      target.resize(size_before + size);
+      auto data = target.data() + size_before;
+      serialized::write(data, size, src.size());
+      serialized::write(data, size, src.data(), src.size());
+    }
   }
 
   // Key exchange states are:
@@ -153,13 +159,7 @@ namespace ccf
   class Channel
   {
   public:
-    static std::chrono::system_clock::duration&
-    min_gap_between_initiation_attempts()
-    {
-      static std::chrono::system_clock::duration value =
-        std::chrono::seconds(2);
-      return value;
-    }
+    static std::chrono::microseconds min_gap_between_initiation_attempts;
 
   private:
     struct OutgoingMsg
@@ -182,7 +182,7 @@ namespace ccf
 
     NodeId self;
     const ccf::crypto::Pem& service_cert;
-    ccf::crypto::ECKeyPairPtr node_kp;
+    ccf::crypto::KeyPairPtr node_kp;
     const ccf::crypto::Pem& node_cert;
     ccf::crypto::VerifierPtr peer_cv;
     ccf::crypto::Pem peer_cert;
@@ -193,7 +193,7 @@ namespace ccf
     // Used for key exchange
     ::tls::KeyExchangeContext kex_ctx;
     ::ds::StateMachine<ChannelStatus> status;
-    std::chrono::system_clock::time_point last_initiation_time;
+    std::chrono::microseconds last_initiation_time;
     static constexpr size_t salt_len = 32;
     static constexpr size_t shared_key_size = 32;
     std::vector<uint8_t> hkdf_salt;
@@ -247,9 +247,7 @@ namespace ccf
           message_limit);
 
         send_key = nullptr;
-        send_nonce = 0;
         recv_key = nullptr;
-        local_recv_nonce = 0;
         reset_key_exchange();
         initiate();
       }
@@ -410,8 +408,8 @@ namespace ccf
       else if (status.check(INITIATED))
       {
         const auto time_since_initiated =
-          decltype(last_initiation_time)::clock::now() - last_initiation_time;
-        if (time_since_initiated >= min_gap_between_initiation_attempts())
+          ccf::get_enclave_time() - last_initiation_time;
+        if (time_since_initiated >= min_gap_between_initiation_attempts)
         {
           // If this node attempts to initiate too early when the peer node
           // starts up, they will never receive the init message (they drop it
@@ -441,7 +439,7 @@ namespace ccf
         "recv_key_exchange_init({} bytes, {})", size, they_have_priority);
 
       // Parse fields from incoming message
-      auto peer_version = serialized::read<size_t>(data, size);
+      size_t peer_version = serialized::read<size_t>(data, size);
       if (peer_version != protocol_version)
       {
         CHANNEL_RECV_FAIL(
@@ -511,15 +509,17 @@ namespace ccf
         CHANNEL_RECV_TRACE("Ignoring lower priority key init");
         return true;
       }
-
-      // Whatever else we _were_ doing, we've received a valid init from them
-      // - reset to use it
-      if (status.check(ESTABLISHED))
+      else
       {
-        kex_ctx.reset();
+        // Whatever else we _were_ doing, we've received a valid init from them
+        // - reset to use it
+        if (status.check(ESTABLISHED))
+        {
+          kex_ctx.reset();
+        }
+        peer_cert = cert;
+        peer_cv = verifier;
       }
-      peer_cert = cert;
-      peer_cv = verifier;
 
       CHANNEL_RECV_TRACE(
         "recv_key_exchange_init: version={} ks={} sig={} pc={} salt={}",
@@ -557,7 +557,7 @@ namespace ccf
       }
 
       // Parse fields from incoming message
-      auto peer_version = serialized::read<size_t>(data, size);
+      size_t peer_version = serialized::read<size_t>(data, size);
       if (peer_version != protocol_version)
       {
         CHANNEL_RECV_FAIL(
@@ -704,11 +704,13 @@ namespace ccf
           "Buffer header wants {} bytes, but only {} remain", sz, size);
         return {};
       }
+      else
+      {
+        data += sz;
+        size -= sz;
+      }
 
-      data += sz;
-      size -= sz;
-
-      return {data_start, sz};
+      return std::span<const uint8_t>(data_start, sz);
     }
 
     bool verify_peer_certificate(
@@ -737,8 +739,10 @@ namespace ccf
 
         return true;
       }
-
-      return false;
+      else
+      {
+        return false;
+      }
     }
 
     bool verify_peer_signature(
@@ -750,7 +754,12 @@ namespace ccf
         "Verifying peer signature with peer certificate serial {}",
         verifier ? verifier->serial_number() : "no peer_cv!");
 
-      return verifier && verifier->verify(msg, sig);
+      if (!verifier || !verifier->verify(msg, sig))
+      {
+        return false;
+      }
+
+      return true;
     }
 
     void update_send_key()
@@ -838,7 +847,7 @@ namespace ccf
       // status.expect(INACTIVE);
       status.advance(INITIATED);
 
-      last_initiation_time = decltype(last_initiation_time)::clock::now();
+      last_initiation_time = ccf::get_enclave_time();
 
       send_key_exchange_init();
     }
@@ -891,12 +900,14 @@ namespace ccf
                 outgoing_forwarding_queue_size);
               return true;
             }
-
-            CHANNEL_SEND_FAIL(
-              "Unable to queue outgoing forwarding message - already queued "
-              "maximum {} messages",
-              outgoing_forwarding_queue_size);
-            return false;
+            else
+            {
+              CHANNEL_SEND_FAIL(
+                "Unable to queue outgoing forwarding message - already queued "
+                "maximum {} messages",
+                outgoing_forwarding_queue_size);
+              return false;
+            }
           }
 
           default:
@@ -920,8 +931,7 @@ namespace ccf
         nonce);
 
       GcmHdr gcm_hdr;
-      gcm_hdr.set_iv(
-        reinterpret_cast<const uint8_t*>(&wire_nonce), sizeof(wire_nonce));
+      gcm_hdr.set_iv((const uint8_t*)&wire_nonce, sizeof(wire_nonce));
 
       std::vector<uint8_t> cipher;
       assert(send_key);
@@ -955,18 +965,18 @@ namespace ccf
     Channel(
       ringbuffer::AbstractWriterFactory& writer_factory,
       const ccf::crypto::Pem& service_cert_,
-      ccf::crypto::ECKeyPairPtr node_kp_,
+      ccf::crypto::KeyPairPtr node_kp_,
       const ccf::crypto::Pem& node_cert_,
-      NodeId self_,
-      NodeId peer_id_,
+      const NodeId& self_,
+      const NodeId& peer_id_,
       size_t message_limit_) :
-      self(std::move(self_)),
+      self(self_),
       service_cert(service_cert_),
-      node_kp(std::move(node_kp_)),
+      node_kp(node_kp_),
       node_cert(node_cert_),
       to_host(writer_factory.create_writer_to_outside()),
-      peer_id(std::move(peer_id_)),
-      status(fmt::format("Channel to {}", peer_id), INACTIVE),
+      peer_id(peer_id_),
+      status(fmt::format("Channel to {}", peer_id_), INACTIVE),
       message_limit(message_limit_)
     {
       auto e = ccf::crypto::get_entropy();
@@ -1053,9 +1063,9 @@ namespace ccf
       size_t size_ = size;
 
       GcmHdr hdr;
-      serialized::skip(data_, size_, (size_ - GcmHdr::serialised_size()));
+      serialized::skip(data_, size_, (size_ - hdr.serialised_size()));
       hdr.deserialise(data_, size_);
-      size -= GcmHdr::serialised_size();
+      size -= hdr.serialised_size();
 
       if (!verify(hdr, std::span<const uint8_t>(data, size)))
       {

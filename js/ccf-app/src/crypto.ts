@@ -132,7 +132,7 @@ export const pubEddsaJwkToPem = ccf.crypto.pubEddsaJwkToPem;
  */
 export const eddsaJwkToPem = ccf.crypto.eddsaJwkToPem;
 
-export type {
+export {
   WrapAlgoParams,
   AesKwpParams,
   RsaOaepParams,

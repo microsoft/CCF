@@ -3,11 +3,11 @@
 #include "node/history.h"
 
 #include "ccf/app_interface.h"
+#include "ccf/ds/logger.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/hash.h"
-#include "ds/internal_logger.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
@@ -17,6 +17,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 #undef FAIL
+
+std::unique_ptr<threading::ThreadMessaging>
+  threading::ThreadMessaging::singleton = nullptr;
 
 using MapT = ccf::kv::Map<size_t, size_t>;
 
@@ -71,9 +74,9 @@ TEST_CASE("Check signature verification")
 {
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
-  auto node_kp = ccf::crypto::make_ec_key_pair();
-  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
-    ccf::crypto::make_ec_key_pair());
+  auto node_kp = ccf::crypto::make_key_pair();
+  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::KeyPair_OpenSSL>(
+    ccf::crypto::make_key_pair());
 
   const auto self_signed = node_kp->self_sign("CN=Node", valid_from, valid_to);
 
@@ -149,9 +152,9 @@ TEST_CASE("Check signing works across rollback")
 {
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
-  auto node_kp = ccf::crypto::make_ec_key_pair();
-  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
-    ccf::crypto::make_ec_key_pair());
+  auto node_kp = ccf::crypto::make_key_pair();
+  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::KeyPair_OpenSSL>(
+    ccf::crypto::make_key_pair());
 
   const auto self_signed = node_kp->self_sign("CN=Node", valid_from, valid_to);
 
@@ -499,9 +502,12 @@ TEST_CASE(
 
 int main(int argc, char** argv)
 {
+  threading::ThreadMessaging::init(1);
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

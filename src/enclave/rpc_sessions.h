@@ -2,17 +2,21 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "ccf/http_responder.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/node_info_network.h"
-#include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "enclave/session.h"
 #include "forwarder_types.h"
 #include "http/http2_session.h"
 #include "http/http_session.h"
-#include "node/rpc/custom_protocol_subsystem.h"
 #include "node/session_metrics.h"
+// NB: This should be HTTP3 including QUIC, but this is
+// ok for now, as we only have an echo service for now
+#include "http/responder_lookup.h"
+#include "node/rpc/custom_protocol_subsystem.h"
+#include "quic/quic_session.h"
 #include "rpc_handler.h"
 #include "tls/cert.h"
 #include "tls/client.h"
@@ -20,10 +24,6 @@
 #include "tls/plaintext_server.h"
 #include "tls/server.h"
 #include "udp/msg_types.h"
-
-// NB: This should be HTTP3 including QUIC, but this is
-// ok for now, as we only have an echo service for now
-#include "quic/quic_session.h"
 
 #include <limits>
 #include <map>
@@ -36,22 +36,24 @@ namespace ccf
 
   static constexpr size_t max_open_sessions_soft_default = 1000;
   static constexpr size_t max_open_sessions_hard_default = 1010;
-  static const ccf::Endorsement endorsement_default = {ccf::Authority::SERVICE};
+  static const ccf::Endorsement endorsement_default = {
+    ccf::Authority::SERVICE, std::nullopt};
 
   class RPCSessions : public std::enable_shared_from_this<RPCSessions>,
                       public AbstractRPCResponder,
-                      public ::http::ErrorReporter
+                      public ::http::ErrorReporter,
+                      public ::http::ResponderLookup
   {
   private:
     struct ListenInterface
     {
-      size_t open_sessions = 0;
-      size_t peak_sessions = 0;
-      size_t max_open_sessions_soft = 0;
-      size_t max_open_sessions_hard = 0;
-      ccf::Endorsement endorsement{};
+      size_t open_sessions;
+      size_t peak_sessions;
+      size_t max_open_sessions_soft;
+      size_t max_open_sessions_hard;
+      ccf::Endorsement endorsement;
       http::ParserConfiguration http_configuration;
-      ccf::SessionMetrics::Errors errors{};
+      ccf::SessionMetrics::Errors errors;
       ccf::ApplicationProtocol app_protocol;
     };
     std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
@@ -105,18 +107,14 @@ namespace ccf
       const auto initial = id;
 
       if (next_client_session_id > 0)
-      {
         next_client_session_id = -1;
-      }
 
       while (sessions.find(id) != sessions.end())
       {
         id--;
 
         if (id > 0)
-        {
           id = -1;
-        }
 
         if (id == initial)
         {
@@ -157,9 +155,10 @@ namespace ccf
           writer_factory,
           std::move(ctx),
           parser_configuration,
-          shared_from_this());
+          shared_from_this(),
+          *this);
       }
-      if (app_protocol == "HTTP1")
+      else if (app_protocol == "HTTP1")
       {
         return std::make_shared<::http::HTTPServerSession>(
           rpc_map,
@@ -170,15 +169,17 @@ namespace ccf
           parser_configuration,
           shared_from_this());
       }
-      if (custom_protocol_subsystem)
+      else if (custom_protocol_subsystem)
       {
         return custom_protocol_subsystem->create_session(
           app_protocol, id, std::move(ctx));
       }
-
-      throw std::runtime_error(fmt::format(
-        "unknown protocol '{}' and custom protocol subsystem missing",
-        app_protocol));
+      else
+      {
+        throw std::runtime_error(fmt::format(
+          "unknown protocol '{}' and custom protocol subsystem missing",
+          app_protocol));
+      }
     }
 
   public:
@@ -186,7 +187,7 @@ namespace ccf
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::shared_ptr<RPCMap> rpc_map_) :
       writer_factory(writer_factory),
-      rpc_map(std::move(rpc_map_)),
+      rpc_map(rpc_map_),
       custom_protocol_subsystem(nullptr)
     {
       to_host = writer_factory.create_writer_to_outside();
@@ -301,7 +302,8 @@ namespace ccf
     void set_cert(
       ccf::Authority authority,
       const ccf::crypto::Pem& cert_,
-      const ccf::crypto::Pem& pk)
+      const ccf::crypto::Pem& pk,
+      const std::string& acme_configuration = "")
     {
       // Caller authentication is done by each frontend by looking up
       // the caller's certificate in the relevant store table. The caller
@@ -316,7 +318,13 @@ namespace ccf
       {
         if (interface.endorsement.authority == authority)
         {
-          certs.insert_or_assign(listen_interface_id, cert);
+          if (
+            interface.endorsement.authority != Authority::ACME ||
+            (interface.endorsement.acme_configuration &&
+             *interface.endorsement.acme_configuration == acme_configuration))
+          {
+            certs.insert_or_assign(listen_interface_id, cert);
+          }
         }
       }
     }
@@ -398,7 +406,8 @@ namespace ccf
               writer_factory,
               std::move(ctx),
               per_listen_interface.http_configuration,
-              shared_from_this());
+              shared_from_this(),
+              *this);
         }
         else
         {
@@ -515,7 +524,7 @@ namespace ccf
 
       LOG_DEBUG_FMT("Replying to session {}", id);
 
-      session->send_data(std::move(data));
+      session->send_data(data);
 
       if (terminate_after_send)
       {
@@ -568,7 +577,7 @@ namespace ccf
         sessions_peak = std::max(sessions_peak, sessions.size());
         return session;
       }
-      if (app_protocol == "HTTP1")
+      else if (app_protocol == "HTTP1")
       {
         auto session = std::make_shared<::http::HTTPClientSession>(
           id, writer_factory, std::move(ctx));
@@ -576,8 +585,10 @@ namespace ccf
         sessions_peak = std::max(sessions_peak, sessions.size());
         return session;
       }
-
-      throw std::runtime_error("unsupported client application protocol");
+      else
+      {
+        throw std::runtime_error("unsupported client application protocol");
+      }
     }
 
     std::shared_ptr<ClientSession> create_unencrypted_client()
@@ -645,8 +656,7 @@ namespace ccf
                 id);
               return;
             }
-
-            if (!search->second.second && custom_protocol_subsystem)
+            else if (!search->second.second && custom_protocol_subsystem)
             {
               LOG_DEBUG_FMT("Creating custom UDP session {}", id);
 

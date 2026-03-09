@@ -14,7 +14,7 @@ namespace http
   inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
   {
     nlohmann::json body = ccf::ODataErrorResponse{
-      ccf::ODataError{std::move(error.code), std::move(error.msg), {}}};
+      ccf::ODataError{std::move(error.code), std::move(error.msg)}};
     const auto s = body.dump();
 
     std::vector<uint8_t> data(s.begin(), s.end());
@@ -38,24 +38,24 @@ namespace http
   {
   private:
     ccf::RESTVerb verb;
-    std::string url;
+    std::string url = {};
 
-    std::string whole_path;
-    std::string path;
-    std::string query;
-    std::string fragment;
+    std::string whole_path = {};
+    std::string path = {};
+    std::string query = {};
+    std::string fragment = {};
 
-    ccf::http::HeaderMap request_headers;
+    ccf::http::HeaderMap request_headers = {};
 
-    std::vector<uint8_t> request_body;
+    std::vector<uint8_t> request_body = {};
 
     std::shared_ptr<ccf::http::HTTPResponder> responder = nullptr;
 
-    std::vector<uint8_t> serialised_request;
+    std::vector<uint8_t> serialised_request = {};
 
     ccf::http::HeaderMap response_headers;
     ccf::http::HeaderMap response_trailers;
-    std::vector<uint8_t> response_body;
+    std::vector<uint8_t> response_body = {};
     ccf::http_status response_status = HTTP_STATUS_OK;
 
     bool serialised = false;
@@ -97,20 +97,19 @@ namespace http
       ccf::HttpVersion http_version,
       llhttp_method verb_,
       const std::string_view& url_,
-      ccf::http::HeaderMap headers_,
+      const ccf::http::HeaderMap& headers_,
       const std::vector<uint8_t>& body_,
       const std::shared_ptr<ccf::http::HTTPResponder>& responder_ = nullptr,
       const std::vector<uint8_t>& raw_request_ = {}) :
       RpcContextImpl(s, http_version),
       verb(verb_),
       url(url_),
-      request_headers(std::move(headers_)),
+      request_headers(headers_),
       request_body(body_),
       responder(responder_),
       serialised_request(raw_request_)
     {
       const auto [path_, query_, fragment_] = split_url_path(url);
-      // NOLINTBEGIN(cppcoreguidelines-prefer-member-initializer)
       path = path_;
       whole_path = path_;
       query = url_decode(query_);
@@ -120,56 +119,65 @@ namespace http
       {
         serialised = true;
       }
-      // NOLINTEND(cppcoreguidelines-prefer-member-initializer)
     }
 
-    [[nodiscard]] ccf::http::HeaderMap get_response_headers() const
+    ccf::http::HeaderMap get_response_headers() const
     {
       return response_headers;
     }
 
-    [[nodiscard]] ccf::http::HeaderMap get_response_trailers() const
+    ccf::http::HeaderMap get_response_trailers() const
     {
       return response_trailers;
     }
 
-    [[nodiscard]] ccf::http_status get_response_http_status() const
+    std::vector<uint8_t>& get_response_body()
+    {
+      return response_body;
+    }
+
+    ccf::http_status get_response_http_status() const
     {
       return response_status;
     }
 
-    [[nodiscard]] ccf::FrameFormat frame_format() const override
+    virtual ccf::FrameFormat frame_format() const override
     {
       return ccf::FrameFormat::http;
     }
 
-    [[nodiscard]] const std::vector<uint8_t>& get_request_body() const override
+    virtual void set_tx_id(const ccf::TxID& tx_id) override
+    {
+      set_response_header(ccf::http::headers::CCF_TX_ID, tx_id.to_str());
+    }
+
+    virtual const std::vector<uint8_t>& get_request_body() const override
     {
       return request_body;
     }
 
-    [[nodiscard]] const std::string& get_request_query() const override
+    virtual const std::string& get_request_query() const override
     {
       return query;
     }
 
-    [[nodiscard]] const ccf::RESTVerb& get_request_verb() const override
+    virtual const ccf::RESTVerb& get_request_verb() const override
     {
       return verb;
     }
 
-    [[nodiscard]] std::string get_request_path() const override
+    virtual std::string get_request_path() const override
     {
       return whole_path;
     }
 
-    const std::vector<uint8_t>& get_serialised_request() override
+    virtual const std::vector<uint8_t>& get_serialised_request() override
     {
       serialise();
       return serialised_request;
     }
 
-    [[nodiscard]] std::string get_method() const override
+    virtual std::string get_method() const override
     {
       return path;
     }
@@ -179,13 +187,12 @@ namespace http
       path = p;
     }
 
-    [[nodiscard]] const ccf::http::HeaderMap& get_request_headers()
-      const override
+    virtual const ccf::http::HeaderMap& get_request_headers() const override
     {
       return request_headers;
     }
 
-    [[nodiscard]] std::optional<std::string> get_request_header(
+    virtual std::optional<std::string> get_request_header(
       const std::string_view& name) const override
     {
       const auto it = request_headers.find(name);
@@ -197,12 +204,12 @@ namespace http
       return std::nullopt;
     }
 
-    [[nodiscard]] const std::string& get_request_url() const override
+    virtual const std::string& get_request_url() const override
     {
       return url;
     }
 
-    [[nodiscard]] std::shared_ptr<ccf::http::HTTPResponder> get_responder()
+    virtual std::shared_ptr<ccf::http::HTTPResponder> get_responder()
       const override
     {
       return responder;
@@ -225,64 +232,59 @@ namespace http
       }
     }
 
-    void set_response_body(const std::vector<uint8_t>& body) override
+    virtual void set_response_body(const std::vector<uint8_t>& body) override
     {
       _set_response_body(body);
     }
 
-    void set_response_body(std::vector<uint8_t>&& body) override
+    virtual void set_response_body(std::vector<uint8_t>&& body) override
     {
       _set_response_body(std::move(body));
     }
 
-    void set_response_body(std::string&& body) override
+    virtual void set_response_body(std::string&& body) override
     {
       _set_response_body(std::move(body));
     }
 
-    [[nodiscard]] const std::vector<uint8_t>& get_response_body() const override
+    virtual const std::vector<uint8_t>& get_response_body() const override
     {
       return response_body;
     }
 
-    std::vector<uint8_t>&& take_response_body() override
-    {
-      return std::move(response_body);
-    }
-
-    void set_response_status(int status) override
+    virtual void set_response_status(int status) override
     {
       response_status = (ccf::http_status)status;
     }
 
-    [[nodiscard]] int get_response_status() const override
+    virtual int get_response_status() const override
     {
       return response_status;
     }
 
-    void set_response_header(
+    virtual void set_response_header(
       const std::string_view& name, const std::string_view& value) override
     {
       response_headers[std::string(name)] = value;
     }
 
-    void clear_response_headers() override
+    virtual void clear_response_headers() override
     {
       response_headers.clear();
     }
 
-    void set_response_trailer(
+    virtual void set_response_trailer(
       const std::string_view& name, const std::string_view& value) override
     {
       response_trailers[std::string(name)] = value;
     }
 
-    void set_apply_writes(bool apply) override
+    virtual void set_apply_writes(bool apply) override
     {
       explicit_apply_writes = apply;
     }
 
-    [[nodiscard]] bool should_apply_writes() const override
+    virtual bool should_apply_writes() const override
     {
       if (explicit_apply_writes.has_value())
       {
@@ -293,7 +295,7 @@ namespace http
       return status_success(response_status);
     }
 
-    void reset_response() override
+    virtual void reset_response() override
     {
       response_headers.clear();
       response_body.clear();
@@ -301,7 +303,7 @@ namespace http
       explicit_apply_writes.reset();
     }
 
-    [[nodiscard]] std::vector<uint8_t> serialise_response() const override
+    virtual std::vector<uint8_t> serialise_response() const override
     {
       auto http_response = ::http::Response(response_status);
 
@@ -328,6 +330,23 @@ namespace http
 
     auto actor = path.substr(first_slash + 1, second_slash - first_slash - 1);
     auto remaining_path = path.substr(second_slash);
+
+    // The "actor" is generally just a single path component, eg. `gov` or
+    // `node`.  We make an exception for .well-known paths however, which use
+    // two components, ie. `.well-known/acme-challenge`. This restricts the
+    // ACME frontend to just that particular sub-directory, and allows the
+    // application to handle other .well-known paths.
+    if (actor == ".well-known")
+    {
+      const auto third_slash = path.find_first_of('/', second_slash + 1);
+      if (third_slash == std::string::npos)
+      {
+        return std::nullopt;
+      }
+
+      actor = path.substr(first_slash + 1, third_slash - first_slash - 1);
+      remaining_path = path.substr(third_slash);
+    }
 
     if (actor.empty() || remaining_path.empty())
     {
@@ -364,8 +383,7 @@ namespace http
       // process the request
       search = rpc_map->find(ccf::ActorsType::users);
     }
-    // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
-    return *search;
+    return search.value();
   }
 }
 

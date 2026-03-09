@@ -49,7 +49,7 @@ private:
 public:
   LRU(size_t max_size) : max_size(max_size) {}
 
-  [[nodiscard]] size_t size() const
+  size_t size() const
   {
     return iter_map.size();
   }
@@ -60,27 +60,27 @@ public:
     cull();
   }
 
-  [[nodiscard]] size_t get_max_size() const
+  size_t get_max_size() const
   {
     return max_size;
   }
 
-  [[nodiscard]] Iterator begin()
+  Iterator begin()
   {
     return entries_list.begin();
   }
 
-  [[nodiscard]] Iterator end()
+  Iterator end()
   {
     return entries_list.end();
   }
 
-  [[nodiscard]] ConstIterator begin() const
+  ConstIterator begin() const
   {
     return entries_list.begin();
   }
 
-  [[nodiscard]] ConstIterator end() const
+  ConstIterator end() const
   {
     return entries_list.end();
   }
@@ -96,7 +96,7 @@ public:
     return entries_list.end();
   }
 
-  [[nodiscard]] bool contains(const K& k) const
+  bool contains(const K& k) const
   {
     const auto it = iter_map.find(k);
     return it != iter_map.end();

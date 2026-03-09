@@ -24,14 +24,14 @@ namespace ccf
     /// Service-endorsed certificate of the node which produced the signature
     ccf::crypto::Pem cert;
 
-    PrimarySignature() = default;
+    PrimarySignature() {}
 
-    PrimarySignature(ccf::NodeId node_, ccf::SeqNo seqno_) :
-      NodeSignature(std::move(node_)),
+    PrimarySignature(const ccf::NodeId& node_, ccf::SeqNo seqno_) :
+      NodeSignature(node_),
       seqno(seqno_)
     {}
 
-    PrimarySignature(ccf::crypto::Sha256Hash root_) : root(std::move(root_)) {}
+    PrimarySignature(const ccf::crypto::Sha256Hash& root_) : root(root_) {}
 
     PrimarySignature(
       const ccf::NodeId& node_,
@@ -40,18 +40,18 @@ namespace ccf
       const ccf::crypto::Sha256Hash root_,
       Nonce hashed_nonce_,
       const std::vector<uint8_t>& sig_,
-      ccf::crypto::Pem cert_) :
+      const ccf::crypto::Pem& cert_) :
       NodeSignature(sig_, node_, hashed_nonce_),
       seqno(seqno_),
       view(view_),
       root(root_),
-      cert(std::move(cert_))
+      cert(cert_)
     {}
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(
-    PrimarySignature, NodeSignature);
+    PrimarySignature, NodeSignature)
   DECLARE_JSON_REQUIRED_FIELDS(
-    PrimarySignature, seqno, view, commit_seqno, commit_view, root);
+    PrimarySignature, seqno, view, commit_seqno, commit_view, root)
   DECLARE_JSON_OPTIONAL_FIELDS(PrimarySignature, cert);
 
   // Most recent signature is a single Value in the KV

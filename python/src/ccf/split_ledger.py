@@ -4,7 +4,9 @@ import ccf.ledger
 import sys
 import argparse
 import os
-from typing import BinaryIO
+from typing import BinaryIO, List
+
+from loguru import logger as LOG
 
 DEFAULT_OUTPUT_DIR_NAME = "split_ledger"
 TEMPORARY_LEDGER_FILE_NAME = "ledger.tmp"
@@ -37,7 +39,7 @@ def make_final_ledger_file_name(
 
 
 def close_ledger_file(
-    ledger_file, entry_positions: list[int], final_file_name: str, complete_file=True
+    ledger_file, entry_positions: List[int], final_file_name: str, complete_file=True
 ):
     if complete_file:
         positions_offset = ledger_file.tell()
@@ -56,7 +58,7 @@ def close_ledger_file(
         ledger_file.name,
         os.path.join(os.path.dirname(ledger_file.name), final_file_name),
     )
-    print(f"Wrote new ledger file: {final_file_name} (complete: {complete_file})")
+    LOG.info(f"Wrote new ledger file: {final_file_name} (complete: {complete_file})")
 
 
 def run(args_):
@@ -90,10 +92,10 @@ def run(args_):
     ledger_file_input = ccf.ledger.LedgerChunk(args.path)
     is_input_file_complete = ledger_file_input.is_complete()
     is_input_file_committed = ledger_file_input.is_committed()
-    print(
+    LOG.info(
         f"Splitting ledger file {args.path} (complete: {is_input_file_complete}/committed: {is_input_file_committed}) at seqno {args.seqno}"
     )
-    print(f"Output directory: {args.output_dir}")
+    LOG.info(f"Output directory: {args.output_dir}")
 
     output_file = None
     found_target_seqno = False
@@ -128,7 +130,7 @@ def run(args_):
                 looking_for_following_signature = True
                 continue
 
-            print(f"Found target seqno {args.seqno}")
+            LOG.debug(f"Found target seqno {args.seqno}")
             found_target_seqno = True
             close_ledger_file(
                 output_file,
@@ -176,4 +178,10 @@ def run(args_):
 
 
 def main():
+    LOG.remove()
+    LOG.add(
+        sys.stdout,
+        format="<level>{message}</level>",
+    )
+
     run(sys.argv[1:])

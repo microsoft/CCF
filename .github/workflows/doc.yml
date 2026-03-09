@@ -6,8 +6,6 @@ on:
       - main
   workflow_dispatch:
 
-permissions: read-all
-
 jobs:
   build:
     name: Build
@@ -54,19 +52,19 @@ jobs:
         shell: bash
 
       - name: Upload pages
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v3
         with:
           path: build/html
 
+  # This is purposefully separate to keep the scope with
+  # with the permissions to deploy to a minimum.
   deploy:
     name: Deploy
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      # Needed to authorize deployment to GitHub Pages
+      contents: read
       pages: write
-      # Needed to authenticate via OIDC
-      # See https://github.com/actions/deploy-pages?tab=readme-ov-file#usage
       id-token: write
     environment:
       name: github-pages

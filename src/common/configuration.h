@@ -5,6 +5,7 @@
 
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/pem.h"
+#include "ccf/ds/logger.h"
 #include "ccf/ds/unit_strings.h"
 #include "ccf/node/startup_config.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
@@ -14,8 +15,8 @@
 #include "ccf/service/tables/members.h"
 #include "common/enclave_interface_types.h"
 #include "consensus/consensus_types.h"
-#include "ds/internal_logger.h"
 #include "ds/oversized.h"
+#include "http/curl.h"
 #include "service/tables/config.h"
 
 #include <optional>
@@ -30,15 +31,17 @@ DECLARE_JSON_ENUM(
 
 struct EnclaveConfig
 {
-  uint8_t* to_enclave_buffer_start = nullptr;
-  size_t to_enclave_buffer_size = 0;
-  ringbuffer::Offsets* to_enclave_buffer_offsets = nullptr;
+  uint8_t* to_enclave_buffer_start;
+  size_t to_enclave_buffer_size;
+  ringbuffer::Offsets* to_enclave_buffer_offsets;
 
-  uint8_t* from_enclave_buffer_start = nullptr;
-  size_t from_enclave_buffer_size = 0;
-  ringbuffer::Offsets* from_enclave_buffer_offsets = nullptr;
+  uint8_t* from_enclave_buffer_start;
+  size_t from_enclave_buffer_size;
+  ringbuffer::Offsets* from_enclave_buffer_offsets;
 
   oversized::WriterConfig writer_config = {};
+
+  std::shared_ptr<ccf::curl::CurlmLibuvContext> curlm_libuv_context_instance;
 };
 
 static constexpr auto node_to_node_interface_name = "node_to_node_interface";
@@ -54,7 +57,7 @@ namespace ccf
      {LoggerLevel::FATAL, "Fatal"}});
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::NodeCertificateInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::NodeCertificateInfo);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::NodeCertificateInfo)
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCFConfig::NodeCertificateInfo,
     subject_name,
@@ -113,34 +116,23 @@ namespace ccf
     node_to_node_message_limit,
     historical_cache_soft_limit);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoveryDecisionProtocolConfig);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    RecoveryDecisionProtocolConfig, expected_locations);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    RecoveryDecisionProtocolConfig, message_retry_timeout, failover_timeout);
-
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SealingRecoveryConfig);
-  DECLARE_JSON_REQUIRED_FIELDS(SealingRecoveryConfig, location);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    SealingRecoveryConfig, recovery_decision_protocol);
-
   DECLARE_JSON_TYPE(StartupConfig::Start);
   DECLARE_JSON_REQUIRED_FIELDS(
     StartupConfig::Start, members, constitution, service_configuration);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(StartupConfig::Join);
+  DECLARE_JSON_TYPE(StartupConfig::Join);
   DECLARE_JSON_REQUIRED_FIELDS(
     StartupConfig::Join,
     target_rpc_address,
     retry_timeout,
     service_cert,
     follow_redirect);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    StartupConfig::Join, host_data_transparent_statement_path);
 
   DECLARE_JSON_TYPE(StartupConfig::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(
-    StartupConfig::Recover, previous_service_identity);
+    StartupConfig::Recover,
+    previous_service_identity,
+    previous_sealed_ledger_secret_location);
 
   DECLARE_JSON_TYPE_WITH_BASE(StartupConfig, CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -155,5 +147,5 @@ namespace ccf
     start,
     join,
     recover,
-    sealing_recovery);
+    sealed_ledger_secret_location);
 }

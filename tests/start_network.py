@@ -3,7 +3,6 @@
 import infra.e2e_args
 import infra.interfaces
 import infra.network
-import infra.platform_detection
 import http
 import time
 import sys
@@ -54,8 +53,6 @@ def run(args):
                     ),
                 )
 
-            interface.enabled_operator_features = ["SnapshotRead", "LedgerChunkRead"]
-
             hosts.append(
                 infra.interfaces.HostSpec(
                     rpc_interfaces={infra.interfaces.PRIMARY_RPC_INTERFACE: interface}
@@ -71,7 +68,7 @@ def run(args):
         LOG.disable("infra")
         LOG.disable("ccf")
 
-    if infra.platform_detection.is_virtual():
+    if args.enclave_platform == "virtual":
         LOG.warning("Virtual mode enabled")
     LOG.info(f"Starting {len(hosts)} CCF node{'s' if len(hosts) > 1 else ''}...")
 

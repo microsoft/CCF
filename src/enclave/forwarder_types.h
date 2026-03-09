@@ -13,7 +13,7 @@ namespace ccf
   class AbstractRPCResponder
   {
   public:
-    virtual ~AbstractRPCResponder() = default;
+    virtual ~AbstractRPCResponder() {}
     virtual bool reply_async(
       int64_t id, bool terminate_after_reply, std::vector<uint8_t>&& data) = 0;
   };
@@ -21,7 +21,7 @@ namespace ccf
   class AbstractForwarder
   {
   public:
-    virtual ~AbstractForwarder() = default;
+    virtual ~AbstractForwarder() {}
 
     virtual bool forward_command(
       std::shared_ptr<ccf::RpcContextImpl> rpc_ctx,

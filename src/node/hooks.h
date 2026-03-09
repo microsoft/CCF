@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/reconfiguration_type.h"
-#include "ds/internal_logger.h"
 #include "service/tables/config.h"
 #include "service/tables/signatures.h"
 
@@ -20,6 +20,8 @@ namespace ccf
   {
     ccf::kv::Version version;
     std::map<NodeId, std::optional<NodeAddr>> cfg_delta;
+    std::unordered_set<NodeId> learners;
+    std::unordered_set<NodeId> retired_nodes;
 
   public:
     ConfigurationChangeHook(ccf::kv::Version version_, const Nodes::Write& w) :
@@ -52,6 +54,7 @@ namespace ccf
           case NodeStatus::RETIRED:
           {
             cfg_delta.try_emplace(node_id, std::nullopt);
+            retired_nodes.insert(node_id);
             break;
           }
           default:
@@ -77,7 +80,8 @@ namespace ccf
       }
       if (!cfg_delta.empty())
       {
-        consensus->add_configuration(version, configuration);
+        consensus->add_configuration(
+          version, configuration, learners, retired_nodes);
       }
     }
   };

@@ -5,7 +5,6 @@
 
 #include "ccf/crypto/entropy.h"
 #include "ccf/js/core/context.h"
-#include "js/checks.h"
 
 #include <quickjs/quickjs.h>
 
@@ -13,15 +12,8 @@ namespace ccf::js::extensions
 {
   namespace
   {
-    constexpr uint64_t exponent_mask = 1023;
-    constexpr uint64_t exponent_shift = 52;
-    constexpr uint64_t mantissa_shift = 12;
-
     JSValue js_random_impl(
-      JSContext* ctx,
-      [[maybe_unused]] JSValueConst this_val,
-      [[maybe_unused]] int argc,
-      [[maybe_unused]] JSValueConst* argv)
+      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
       ccf::crypto::EntropyPtr entropy = ccf::crypto::get_entropy();
 
@@ -30,12 +22,12 @@ namespace ccf::js::extensions
       // sound.
       union
       {
-        double double_value = 0;
-        uint64_t uint_value;
-      } value;
+        double d;
+        uint64_t u;
+      } u;
       try
       {
-        value.uint_value = entropy->random64();
+        u.u = entropy->random64();
       }
       catch (const std::exception& e)
       {
@@ -44,10 +36,9 @@ namespace ccf::js::extensions
       }
       // From QuickJS - set exponent to 1, and shift random bytes to
       // fractional part, producing 1.0 <= u.d < 2
-      value.uint_value = (exponent_mask << exponent_shift) |
-        (value.uint_value >> mantissa_shift);
+      u.u = ((uint64_t)1023 << 52) | (u.u >> 12);
 
-      return JS_NewFloat64(ctx, value.double_value - 1.0);
+      return JS_NewFloat64(ctx, u.d - 1.0);
     }
   }
 
@@ -55,7 +46,6 @@ namespace ccf::js::extensions
   {
     // Overriding built-in Math.random
     auto math_val = ctx.get_global_property("Math");
-    JS_CHECK_OR_THROW(
-      math_val.set("random", ctx.new_c_function(js_random_impl, "random", 0)));
+    math_val.set("random", ctx.new_c_function(js_random_impl, "random", 0));
   }
 }

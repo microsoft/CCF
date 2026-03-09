@@ -21,12 +21,11 @@ namespace ccf::kv
     const size_t chunk_threshold;
     Version current_tx_version;
 
-    std::map<Version, size_t> transaction_sizes;
-    std::set<Version> chunk_ends;
-    std::set<Version> forced_chunk_versions;
-    std::mutex chunker_lock;
+    std::map<Version, size_t> transaction_sizes = {};
+    std::set<Version> chunk_ends = {};
+    std::set<Version> forced_chunk_versions = {};
 
-    [[nodiscard]] size_t get_unchunked_size(Version up_to) const
+    size_t get_unchunked_size(Version up_to) const
     {
       auto begin = transaction_sizes.cbegin();
       auto end = transaction_sizes.upper_bound(up_to);
@@ -62,19 +61,16 @@ namespace ccf::kv
 
     void append_entry_size(size_t n) override
     {
-      std::lock_guard<std::mutex> l(chunker_lock);
       transaction_sizes[++current_tx_version] = n;
     }
 
     void force_end_of_chunk(Version v) override
     {
-      std::lock_guard<std::mutex> l(chunker_lock);
       forced_chunk_versions.insert(v);
     }
 
     bool is_chunk_end_requested(Version v) override
     {
-      std::lock_guard<std::mutex> l(chunker_lock);
       if (!forced_chunk_versions.empty())
       {
         // There is an outstanding forced-chunk request for this if there is a
@@ -101,7 +97,6 @@ namespace ccf::kv
 
     void rolled_back_to(Version v) override
     {
-      std::lock_guard<std::mutex> l(chunker_lock);
       current_tx_version = v;
 
       transaction_sizes.erase(
@@ -113,8 +108,7 @@ namespace ccf::kv
 
     void compacted_to(Version v) override
     {
-      std::lock_guard<std::mutex> l(chunker_lock);
-      Version compactable_v = 0;
+      Version compactable_v;
 
       auto compactable_it = chunk_ends.lower_bound(v);
       if (compactable_it != chunk_ends.begin())
@@ -139,7 +133,6 @@ namespace ccf::kv
 
     void produced_chunk_at(Version v) override
     {
-      std::lock_guard<std::mutex> l(chunker_lock);
       chunk_ends.insert(v);
     }
   };

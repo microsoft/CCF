@@ -39,7 +39,6 @@ import programmability
 import e2e_common_endpoints
 import subprocess
 import base64
-import cbor2
 
 from loguru import logger as LOG
 
@@ -877,7 +876,7 @@ def test_genesis_receipt(network, args):
             "/gov/service/constitution?api-version=2023-06-01-preview"
         ).body.text()
 
-    if args.package == "samples/apps/logging/logging":
+    if args.package == "samples/apps/logging/liblogging":
         # Only the logging app sets a claim on the genesis
         assert claims_digest == sha256(constitution.encode()).hexdigest()
     else:
@@ -890,79 +889,39 @@ def test_genesis_receipt(network, args):
 
 
 @reqs.description("Read CBOR Merkle Proof")
-def test_cbor_receipts(network, args):
+def test_cbor_merkle_proof(network, args):
     primary, _ = network.find_nodes()
 
     with primary.client("user0") as client:
         r = client.get("/commit")
         assert r.status_code == http.HTTPStatus.OK
         last_txid = TxID.from_str(r.body.json()["transaction_id"])
-        found_receipt = False
 
         for seqno in range(last_txid.seqno, last_txid.seqno - 10, -1):
             txid = f"{last_txid.view}.{seqno}"
-            LOG.debug(f"Trying to get COSE receipt for txid {txid}")
+            LOG.debug(f"Trying to get CBOR Merkle proof for txid {txid}")
             max_retries = 10
+            found_proof = False
             for _ in range(max_retries):
                 r = client.get(
-                    "/log/public/cose_receipt",
+                    "/log/public/cbor_merkle_proof",
                     headers={infra.clients.CCF_TX_ID_HEADER: txid},
                     log_capture=[],  # Do not emit raw binary to stdout
                 )
                 if r.status_code == http.HTTPStatus.OK:
-                    cose_receipt = r.body.data()
-                    uhdr = cbor2.loads(cose_receipt).value[1]
-                    VDP_KEY = 396
-                    if VDP_KEY not in uhdr:
-                        # Signature TX: valid receipt with empty UHDR, skip to next seqno
-                        LOG.debug(
-                            f"Transaction {txid} is a signature TX (empty UHDR), skipping"
-                        )
-                        break
-                    found_receipt = True
-                    proofs = uhdr[VDP_KEY][-1]
-                    assert len(proofs) > 0, "No Merkle proofs found in receipt"
-
-                    r = client.get(
-                        "/log/public/verify_cose_receipt",
-                        cose_receipt,
-                        headers={"Content-Type": "application/cose"},
+                    cbor_proof = r.body.data()
+                    cbor_proof_filename = os.path.join(
+                        network.common_dir, f"proof_{txid}.cbor"
                     )
-                    assert (
-                        r.status_code == http.HTTPStatus.NO_CONTENT
-                    ), f"Failed to verify COSE receipt for txid {txid}: {r.status_code} {r.body.text()}"
-
-                    for cbor_proof in proofs:
-                        cbor_proof_filename = os.path.join(
-                            network.common_dir, f"proof_{txid}.cbor"
-                        )
-                        with open(cbor_proof_filename, "wb") as f:
-                            f.write(cbor_proof)
-                        subprocess.run(
-                            [
-                                "cddl",
-                                "../cddl/ccf-tree-alg.cddl",
-                                "v",
-                                cbor_proof_filename,
-                            ],
-                            check=True,
-                        )
-                        LOG.debug(f"Checked CBOR Merkle proof for txid {txid}")
-
-                    # change last four bytes of cose_receipt to 0000 and call verify again
-                    corrupted_receipt = cose_receipt[:-4] + b"\x00\x00\x00\x00"
-                    r = client.get(
-                        "/log/public/verify_cose_receipt",
-                        corrupted_receipt,
-                        headers={"Content-Type": "application/cose"},
+                    with open(cbor_proof_filename, "wb") as f:
+                        f.write(cbor_proof)
+                    subprocess.run(
+                        ["cddl", "../cddl/ccf-tree-alg.cddl", "v", cbor_proof_filename],
+                        check=True,
                     )
-                    assert (
-                        r.status_code != http.HTTPStatus.NO_CONTENT
-                    ), f"Corrupted COSE receipt should not verify for txid {txid}"
-                    LOG.debug(f"Verified that corrupted receipt fails for txid {txid}")
-
-                    break  # inner, found a receipt
-
+                    found_proof = True
+                    LOG.debug(f"Checked CBOR Merkle proof for txid {txid}")
+                    break
                 elif r.status_code == http.HTTPStatus.ACCEPTED:
                     LOG.debug(f"Transaction {txid} accepted, retrying")
                     time.sleep(0.1)
@@ -973,10 +932,10 @@ def test_cbor_receipts(network, args):
                 assert (
                     False
                 ), f"Failed to get receipt for txid {txid} after {max_retries} retries"
-
-        assert (
-            found_receipt
-        ), "Failed to find a non-signature in the last 10 transactions"
+            if found_proof:
+                break
+        else:
+            assert False, "Failed to find a non-signature in the last 10 transactions"
 
     return network
 
@@ -1415,7 +1374,7 @@ def test_forwarding_frontends(network, args):
     else:
         assert args.http2 is False
 
-    if args.package == "samples/apps/logging/logging" and not args.http2:
+    if args.package == "samples/apps/logging/liblogging" and not args.http2:
         with backup.client("user0") as c:
             escaped_query_tests(c, "request_query")
 
@@ -2167,6 +2126,7 @@ def run_udp_tests(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
+        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -2195,6 +2155,7 @@ def run(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
+        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -2209,6 +2170,7 @@ def run_app_space_js(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
+        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -2282,8 +2244,8 @@ def run_main_tests(network, args):
     test_remove(network, args)
     test_clear(network, args)
     test_record_count(network, args)
-    if args.package == "samples/apps/logging/logging":
-        test_cbor_receipts(network, args)
+    if args.package == "samples/apps/logging/liblogging":
+        test_cbor_merkle_proof(network, args)
         test_cose_signature_schema(network, args)
         test_cose_receipt_schema(network, args)
 
@@ -2291,8 +2253,7 @@ def run_main_tests(network, args):
     if not args.http2:
         test_forwarding_frontends(network, args)
         test_forwarding_frontends_without_app_prefix(network, args)
-        if not os.getenv("TSAN_OPTIONS"):
-            test_long_lived_forwarding(network, args)
+        test_long_lived_forwarding(network, args)
     test_user_data_ACL(network, args)
     test_cert_prefix(network, args)
     test_anonymous_caller(network, args)
@@ -2304,7 +2265,7 @@ def run_main_tests(network, args):
     test_historical_query_range(network, args)
     test_view_history(network, args)
     test_empty_path(network, args)
-    if args.package == "samples/apps/logging/logging":
+    if args.package == "samples/apps/logging/liblogging":
         # Local-commit lambda is currently only supported in C++
         test_post_local_commit_failure(network, args)
         # Custom indexers currently only supported in C++
@@ -2313,13 +2274,13 @@ def run_main_tests(network, args):
     test_rekey(network, args)
     test_liveness(network, args)
     test_random_receipts(network, args, False)
-    if args.package == "samples/apps/logging/logging":
+    if args.package == "samples/apps/logging/liblogging":
         test_receipts(network, args)
         test_historical_query_sparse(network, args)
     test_historical_receipts(network, args)
     test_historical_receipts_with_claims(network, args)
     test_genesis_receipt(network, args)
-    if args.package == "samples/apps/logging/logging":
+    if args.package == "samples/apps/logging/liblogging":
         test_etags(network, args)
         test_cose_config(network, args)
 
@@ -2330,6 +2291,7 @@ def run_parsing_errors(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
+        args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
     ) as network:
@@ -2346,7 +2308,7 @@ if __name__ == "__main__":
     cr.add(
         "js",
         run,
-        package="js_generic",
+        package="libjs_generic",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,
         initial_member_count=2,
@@ -2355,7 +2317,7 @@ if __name__ == "__main__":
     cr.add(
         "app_space_js",
         run_app_space_js,
-        package="samples/apps/programmability/programmability",
+        package="samples/apps/programmability/libprogrammability",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,
         initial_member_count=2,
@@ -2364,7 +2326,7 @@ if __name__ == "__main__":
     cr.add(
         "cpp",
         run,
-        package="samples/apps/logging/logging",
+        package="samples/apps/logging/liblogging",
         js_app_bundle=None,
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,
@@ -2374,7 +2336,7 @@ if __name__ == "__main__":
     cr.add(
         "common",
         e2e_common_endpoints.run,
-        package="samples/apps/logging/logging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
@@ -2382,14 +2344,14 @@ if __name__ == "__main__":
     cr.add(
         "js_illegal",
         run_parsing_errors,
-        package="js_generic",
+        package="libjs_generic",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
     cr.add(
         "cpp_illegal",
         run_parsing_errors,
-        package="samples/apps/logging/logging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
@@ -2397,7 +2359,7 @@ if __name__ == "__main__":
     cr.add(
         "udp",
         run_udp_tests,
-        package="samples/apps/logging/logging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 

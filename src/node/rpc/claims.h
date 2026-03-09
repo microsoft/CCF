@@ -3,13 +3,13 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
-#include "ds/internal_logger.h"
+#include "ccf/ds/logger.h"
 
 namespace ccf
 {
   static ClaimsDigest no_claims()
   {
-    return {};
+    return ClaimsDigest();
   }
 
   static ccf::crypto::Sha256Hash entry_leaf(
@@ -23,18 +23,27 @@ namespace ccf
     {
       if (claims_digest.empty())
       {
-        return {write_set_digest, commit_evidence_digest.value()};
+        return ccf::crypto::Sha256Hash(
+          write_set_digest, commit_evidence_digest.value());
       }
-      return {
-        write_set_digest,
-        commit_evidence_digest.value(),
-        claims_digest.value()};
+      else
+      {
+        return ccf::crypto::Sha256Hash(
+          write_set_digest,
+          commit_evidence_digest.value(),
+          claims_digest.value());
+      }
     }
-
-    if (claims_digest.empty())
+    else
     {
-      return {write_set_digest};
+      if (claims_digest.empty())
+      {
+        return ccf::crypto::Sha256Hash(write_set_digest);
+      }
+      else
+      {
+        return ccf::crypto::Sha256Hash(write_set_digest, claims_digest.value());
+      }
     }
-    return {write_set_digest, claims_digest.value()};
   }
 }

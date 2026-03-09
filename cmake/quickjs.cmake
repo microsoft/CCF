@@ -25,21 +25,48 @@ execute_process(
 )
 message(STATUS "QuickJS prefix: ${QUICKJS_PREFIX} version: ${QUICKJS_VERSION}")
 
-add_library(quickjs STATIC ${QUICKJS_SRC})
+# We need two versions of libquickjs, because it depends on libc
+
+if(COMPILE_TARGET STREQUAL "snp")
+  add_library(quickjs.snp STATIC ${QUICKJS_SRC})
+  target_compile_options(
+    quickjs.snp
+    PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}" -DCONFIG_BIGNUM
+    PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
+  )
+  add_san(quickjs.snp)
+  set_property(TARGET quickjs.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+  target_include_directories(
+    quickjs.snp PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs>
+                       $<INSTALL_INTERFACE:include/3rdparty/quickjs>
+  )
+
+  if(CCF_DEVEL)
+    install(
+      TARGETS quickjs.snp
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
+endif()
+
+add_library(quickjs.host STATIC ${QUICKJS_SRC})
 target_compile_options(
-  quickjs
+  quickjs.host
   PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}" -DCONFIG_BIGNUM
   PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
 )
-add_san(quickjs)
-set_property(TARGET quickjs PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_san(quickjs.host)
+set_property(TARGET quickjs.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(
-  quickjs PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs>
-                 $<INSTALL_INTERFACE:include/3rdparty/quickjs>
+  quickjs.host PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs>
+                      $<INSTALL_INTERFACE:include/3rdparty/quickjs>
 )
 
-install(
-  TARGETS quickjs
-  EXPORT ccf
-  DESTINATION lib
-)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS quickjs.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()

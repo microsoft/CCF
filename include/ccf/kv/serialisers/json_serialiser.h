@@ -24,7 +24,7 @@ namespace ccf::kv::serialisers
 
       const nlohmann::json j = t;
       const auto dumped = j.dump();
-      return {dumped.begin(), dumped.end()};
+      return SerialisedEntry(dumped.begin(), dumped.end());
     }
 
     static T from_serialised(const SerialisedEntry& rep)

@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "ccf/http_responder.h"
-#include "ds/internal_logger.h"
 #include "enclave/client_session.h"
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
-#include "http/http2_types.h"
+#include "http/responder_lookup.h"
 #include "http2_parser.h"
 #include "http_rpc_context.h"
 
@@ -40,8 +40,6 @@ namespace http
     std::weak_ptr<http2::ServerParser> server_parser;
 
   public:
-    using StreamOnCloseCallback = http2::StreamCloseCB;
-
     HTTP2StreamResponder(
       http2::StreamId stream_id_,
       const std::shared_ptr<http2::ServerParser>& server_parser_) :
@@ -53,7 +51,7 @@ namespace http
       ccf::http_status status_code,
       ccf::http::HeaderMap&& headers,
       ccf::http::HeaderMap&& trailers,
-      std::vector<uint8_t>&& body) override
+      std::span<const uint8_t> body) override
     {
       auto sp = server_parser.lock();
       try
@@ -63,7 +61,7 @@ namespace http
           status_code,
           std::move(headers),
           std::move(trailers),
-          std::move(body));
+          body);
       }
       catch (const std::exception& e)
       {
@@ -75,14 +73,15 @@ namespace http
       return true;
     }
 
-    bool start_stream(ccf::http_status status, ccf::http::HeaderMap&& headers)
+    bool start_stream(
+      ccf::http_status status, const ccf::http::HeaderMap& headers) override
     {
       auto sp = server_parser.lock();
       if (sp)
       {
         try
         {
-          sp->start_stream(stream_id, status, std::move(headers));
+          sp->start_stream(stream_id, status, headers);
         }
         catch (const std::exception& e)
         {
@@ -98,7 +97,7 @@ namespace http
       return true;
     }
 
-    bool close_stream(ccf::http::HeaderMap&& trailers)
+    bool close_stream(ccf::http::HeaderMap&& trailers) override
     {
       auto sp = server_parser.lock();
       if (sp)
@@ -121,14 +120,14 @@ namespace http
       return true;
     }
 
-    bool stream_data(std::vector<uint8_t>&& data)
+    bool stream_data(std::span<const uint8_t> data) override
     {
       auto sp = server_parser.lock();
       if (sp)
       {
         try
         {
-          sp->send_data(stream_id, std::move(data));
+          sp->send_data(stream_id, data);
         }
         catch (const std::exception& e)
         {
@@ -146,7 +145,8 @@ namespace http
       return true;
     }
 
-    bool set_on_stream_close_callback(StreamOnCloseCallback cb)
+    bool set_on_stream_close_callback(
+      ccf::http::StreamOnCloseCallback cb) override
     {
       auto sp = server_parser.lock();
       if (sp)
@@ -185,8 +185,7 @@ namespace http
     std::shared_ptr<ErrorReporter> error_reporter;
     ccf::ListenInterfaceID interface_id;
 
-    std::unordered_map<http2::StreamId, std::shared_ptr<HTTP2StreamResponder>>
-      responders_by_stream;
+    http::ResponderLookup& responder_lookup;
 
     std::unordered_map<http2::StreamId, std::shared_ptr<HTTP2SessionContext>>
       session_ctxs;
@@ -199,64 +198,74 @@ namespace http
       {
         it = session_ctxs.emplace_hint(
           it,
-          stream_id,
-          std::make_shared<HTTP2SessionContext>(
-            session_id, tls_io->peer_cert(), interface_id, stream_id));
+          std::make_pair(
+            stream_id,
+            std::make_shared<HTTP2SessionContext>(
+              session_id, tls_io->peer_cert(), interface_id, stream_id)));
       }
 
       return it->second;
     }
 
-    std::shared_ptr<HTTP2StreamResponder> get_stream_responder(
+    std::shared_ptr<HTTPResponder> get_stream_responder(
       http2::StreamId stream_id)
     {
-      auto it = responders_by_stream.find(stream_id);
-      if (it == responders_by_stream.end())
+      auto responder = responder_lookup.lookup_responder(session_id, stream_id);
+      if (responder == nullptr)
       {
-        auto responder =
+        responder =
           std::make_shared<HTTP2StreamResponder>(stream_id, server_parser);
-        it = responders_by_stream.emplace_hint(it, stream_id, responder);
+        responder_lookup.add_responder(session_id, stream_id, responder);
       }
 
-      return it->second;
+      return responder;
     }
 
     void respond_with_error(
       http2::StreamId stream_id, const ccf::ErrorDetails& error)
     {
-      nlohmann::json body =
-        ccf::ODataErrorResponse{ccf::ODataError{error.code, error.msg, {}}};
-      const std::string s = body.dump();
-      std::vector<uint8_t> v(s.begin(), s.end());
+      nlohmann::json body = ccf::ODataErrorResponse{
+        ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+      const auto s = body.dump();
 
       ccf::http::HeaderMap headers;
       headers[ccf::http::headers::CONTENT_TYPE] =
         ccf::http::headervalues::contenttype::JSON;
 
       get_stream_responder(stream_id)->send_response(
-        error.status, std::move(headers), {}, std::move(v));
+        error.status,
+        std::move(headers),
+        {},
+        {(const uint8_t*)s.data(), s.size()});
     }
 
   public:
     HTTP2ServerSession(
-      std::shared_ptr<ccf::RPCMap> rpc_map_,
+      std::shared_ptr<ccf::RPCMap> rpc_map,
       int64_t session_id_,
-      ccf::ListenInterfaceID interface_id_,
+      const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<ccf::tls::Context> ctx,
       const ccf::http::ParserConfiguration& configuration,
-      const std::shared_ptr<ErrorReporter>& error_reporter_) :
+      const std::shared_ptr<ErrorReporter>& error_reporter,
+      http::ResponderLookup& responder_lookup_) :
       HTTP2Session(session_id_, writer_factory, std::move(ctx)),
       server_parser(
         std::make_shared<http2::ServerParser>(*this, configuration)),
-      rpc_map(std::move(rpc_map_)),
-      error_reporter(error_reporter_),
-      interface_id(std::move(interface_id_))
+      rpc_map(rpc_map),
+      error_reporter(error_reporter),
+      interface_id(interface_id),
+      responder_lookup(responder_lookup_)
     {
       server_parser->set_outgoing_data_handler(
         [this](std::span<const uint8_t> data) {
-          send_data(std::vector<uint8_t>(data.begin(), data.end()));
+          this->tls_io->send_raw(data.data(), data.size());
         });
+    }
+
+    ~HTTP2ServerSession()
+    {
+      responder_lookup.cleanup_responders(session_id);
     }
 
     bool parse(std::span<const uint8_t> data) override
@@ -266,7 +275,7 @@ namespace http
         if (!server_parser->execute(data.data(), data.size()))
         {
           // Close session gracefully
-          close_session();
+          tls_io->close();
           return false;
         }
         return true;
@@ -287,7 +296,7 @@ namespace http
 
         respond_with_error(e.get_stream_id(), error);
 
-        close_session();
+        tls_io->close();
       }
       catch (http::RequestHeaderTooLargeException& e)
       {
@@ -305,7 +314,7 @@ namespace http
 
         respond_with_error(e.get_stream_id(), error);
 
-        close_session();
+        tls_io->close();
       }
       catch (const std::exception& e)
       {
@@ -320,7 +329,7 @@ namespace http
         // HTTP/2 response to send back to the default stream (0), the session
         // is simply closed.
 
-        close_session();
+        tls_io->close();
       }
       return false;
     }
@@ -373,12 +382,14 @@ namespace http
           LOG_TRACE_FMT("Pending");
           return;
         }
-
-        responder->send_response(
-          rpc_ctx->get_response_http_status(),
-          rpc_ctx->get_response_headers(),
-          rpc_ctx->get_response_trailers(),
-          std::move(rpc_ctx->take_response_body()));
+        else
+        {
+          responder->send_response(
+            rpc_ctx->get_response_http_status(),
+            rpc_ctx->get_response_headers(),
+            rpc_ctx->get_response_trailers(),
+            std::move(rpc_ctx->get_response_body()));
+        }
       }
       catch (const std::exception& e)
       {
@@ -390,7 +401,7 @@ namespace http
         // On any exception, close the connection.
         LOG_FAIL_FMT("Closing connection");
         LOG_DEBUG_FMT("Closing connection due to exception: {}", e.what());
-        close_session();
+        tls_io->close();
         throw;
       }
     }
@@ -399,36 +410,33 @@ namespace http
       ccf::http_status status_code,
       ccf::http::HeaderMap&& headers,
       ccf::http::HeaderMap&& trailers,
-      std::vector<uint8_t>&& body) override
+      std::span<const uint8_t> body) override
     {
       return get_stream_responder(http2::DEFAULT_STREAM_ID)
         ->send_response(
-          status_code,
-          std::move(headers),
-          std::move(trailers),
-          std::move(body));
+          status_code, std::move(headers), std::move(trailers), body);
     }
 
-    bool start_stream(ccf::http_status status, ccf::http::HeaderMap&& headers)
+    bool start_stream(
+      ccf::http_status status, const ccf::http::HeaderMap& headers) override
     {
       return get_stream_responder(http2::DEFAULT_STREAM_ID)
-        ->start_stream(status, std::move(headers));
+        ->start_stream(status, headers);
     }
 
-    bool stream_data(std::vector<uint8_t>&& data)
+    bool stream_data(std::span<const uint8_t> data) override
     {
-      return get_stream_responder(http2::DEFAULT_STREAM_ID)
-        ->stream_data(std::move(data));
+      return get_stream_responder(http2::DEFAULT_STREAM_ID)->stream_data(data);
     }
 
-    bool close_stream(ccf::http::HeaderMap&& trailers)
+    bool close_stream(ccf::http::HeaderMap&& trailers) override
     {
       return get_stream_responder(http2::DEFAULT_STREAM_ID)
         ->close_stream(std::move(trailers));
     }
 
     bool set_on_stream_close_callback(
-      HTTP2StreamResponder::StreamOnCloseCallback cb)
+      ccf::http::StreamOnCloseCallback cb) override
     {
       return get_stream_responder(http2::DEFAULT_STREAM_ID)
         ->set_on_stream_close_callback(cb);
@@ -453,7 +461,7 @@ namespace http
     {
       client_parser.set_outgoing_data_handler(
         [this](std::span<const uint8_t> data) {
-          send_data(std::vector<uint8_t>(data.begin(), data.end()));
+          this->tls_io->send_raw(data.data(), data.size());
         });
     }
 
@@ -473,10 +481,9 @@ namespace http
         LOG_DEBUG_FMT(
           "Error occurred while parsing fragment {} byte fragment:\n{}",
           data.size(),
-          std::string_view(
-            reinterpret_cast<char const*>(data.data()), data.size()));
+          std::string_view((char const*)data.data(), data.size()));
 
-        close_session();
+        tls_io->close();
       }
       return false;
     }
@@ -487,8 +494,7 @@ namespace http
         request.get_method(),
         request.get_path(),
         request.get_headers(),
-        {request.get_content_data(),
-         request.get_content_data() + request.get_content_length()});
+        {request.get_content_data(), request.get_content_length()});
     }
 
     void handle_response(
@@ -499,7 +505,7 @@ namespace http
       handle_data_cb(status, std::move(headers), std::move(body));
 
       LOG_TRACE_FMT("Closing connection, message handled");
-      close_session();
+      tls_io->close();
     }
   };
 }

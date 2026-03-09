@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/rest_verb.h"
-#include "ds/internal_logger.h"
 #include "host/proxy.h"
 
 #include <cstddef>
@@ -189,7 +189,7 @@ namespace ccf::curl
       unsent = std::span<const uint8_t>(buffer.data(), buffer.size());
     }
 
-    RequestBody(std::vector<uint8_t>&& buffer_) : buffer(std::move(buffer_))
+    RequestBody(std::vector<uint8_t>&& buffer) : buffer(std::move(buffer))
     {
       unsent = std::span<const uint8_t>(buffer.data(), buffer.size());
     }
@@ -242,7 +242,7 @@ namespace ccf::curl
     ResponseBody(size_t max_size_) : maximum_size(max_size_) {}
 
     static size_t write_response_chunk(
-      const uint8_t* ptr, size_t size, size_t nmemb, ResponseBody* response)
+      uint8_t* ptr, size_t size, size_t nmemb, ResponseBody* response)
     {
       if (response == nullptr)
       {
@@ -275,7 +275,7 @@ namespace ccf::curl
     }
 
     static size_t noop_write_function(
-      const uint8_t* ptr, size_t size, size_t nmemb, ResponseBody* response)
+      uint8_t* ptr, size_t size, size_t nmemb, ResponseBody* response)
     {
       (void)ptr;
       (void)response;
@@ -392,7 +392,7 @@ namespace ccf::curl
     CurlRequest(
       UniqueCURL&& curl_handle_,
       RESTVerb method_,
-      std::string url_,
+      const std::string& url_,
       UniqueSlist&& headers_,
       std::unique_ptr<RequestBody>&& request_body_,
       std::unique_ptr<ccf::curl::ResponseBody>&& response_,
@@ -411,14 +411,13 @@ namespace ccf::curl
       }
       CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_URL, url.c_str());
 
-      auto http_method = method.get_http_method();
-      if (!http_method.has_value())
+      if (!method.get_http_method().has_value())
       {
         throw std::logic_error(
           fmt::format("Unsupported HTTP method: {}", method.c_str()));
       }
 
-      switch (http_method.value())
+      switch (method.get_http_method().value())
       {
         case HTTP_GET:
           CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPGET, 1L);
@@ -473,17 +472,14 @@ namespace ccf::curl
     static void handle_response(
       std::unique_ptr<CurlRequest>&& request, CURLcode curl_response_code)
     {
-      LOG_TRACE_FMT("Handling response for {}", request->url);
-      auto& callback = request->response_callback;
-      if (callback.has_value())
+      LOG_DEBUG_FMT("Handling response for {}", request->url);
+      if (request->response_callback.has_value())
       {
-        if (callback.value() != nullptr)
-        {
-          long status_code = 0;
-          CHECK_CURL_EASY_GETINFO(
-            request->curl_handle, CURLINFO_RESPONSE_CODE, &status_code);
-          callback.value()(std::move(request), curl_response_code, status_code);
-        }
+        long status_code = 0;
+        CHECK_CURL_EASY_GETINFO(
+          request->curl_handle, CURLINFO_RESPONSE_CODE, &status_code);
+        request->response_callback.value()(
+          std::move(request), curl_response_code, status_code);
       }
     }
 
@@ -598,9 +594,6 @@ namespace ccf::curl
           // detach the easy handle such that it can be cleaned up with the
           // destructor of CurlRequest
           curl_multi_remove_handle(p.get(), easy);
-
-          // handle response inline. Note that if this is expensive, it should
-          // defer its work to a task
           CurlRequest::handle_response(std::move(request_data_ptr), result);
         }
       } while (msgq > 0);
@@ -959,8 +952,7 @@ namespace ccf::curl
       // remove, stop and cleanup all curl easy handles
       std::unique_ptr<CURL*, void (*)(CURL**)> easy_handles(
         curl_multi_get_handles(curl_request_curlm),
-        // NOLINTNEXTLINE(bugprone-multi-level-implicit-pointer-conversion)
-        [](CURL** handles) { curl_free(static_cast<void*>(handles)); });
+        [](CURL** handles) { curl_free(handles); });
       // curl_multi_get_handles returns the handles as a null-terminated array
       for (size_t i = 0; easy_handles.get()[i] != nullptr; ++i)
       {
@@ -1020,35 +1012,55 @@ namespace ccf::curl
   class CurlmLibuvContextSingleton
   {
   private:
-    static std::unique_ptr<CurlmLibuvContext>& instance()
+    static std::weak_ptr<CurlmLibuvContext>& instance()
     {
-      static std::unique_ptr<CurlmLibuvContext> curlm_libuv_context_instance =
-        nullptr;
+      static std::weak_ptr<CurlmLibuvContext> curlm_libuv_context_instance;
       return curlm_libuv_context_instance;
     }
 
   public:
     static CurlmLibuvContext& get_instance()
     {
-      if (instance() == nullptr)
+      if (instance().expired())
       {
         throw std::logic_error(
           "CurlmLibuvContextSingleton instance not initialized");
       }
-      return *instance();
+      return *instance().lock();
     }
-    CurlmLibuvContextSingleton(uv_loop_t* loop)
+
+    static void set_instance(std::shared_ptr<CurlmLibuvContext> ctx)
     {
-      if (instance() != nullptr)
+      if (!instance().expired())
       {
         throw std::logic_error(
           "CurlmLibuvContextSingleton instance already initialized");
       }
-      instance() = std::make_unique<CurlmLibuvContext>(loop);
+      instance() = ctx;
+    }
+
+  private:
+    std::shared_ptr<CurlmLibuvContext> context;
+
+  public:
+    CurlmLibuvContextSingleton(uv_loop_t* loop) :
+      context(std::make_shared<CurlmLibuvContext>(loop))
+    {
+      if (!instance().expired())
+      {
+        throw std::logic_error(
+          "CurlmLibuvContextSingleton instance already initialized");
+      }
+      instance() = context;
     }
     ~CurlmLibuvContextSingleton()
     {
-      instance().reset(); // Clean up the instance
+      instance().reset();
+    }
+
+    std::shared_ptr<CurlmLibuvContext>& get_context()
+    {
+      return context;
     }
 
     CurlmLibuvContextSingleton(const CurlmLibuvContextSingleton&) = delete;

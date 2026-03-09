@@ -1,9 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#define CCF_LOGGER_NO_DEPRECATE
+
 #include "ccf/ds/json.h"
+#include "ccf/ds/logger.h"
 #include "curl/curl.h"
-#include "ds/internal_logger.h"
 #include "http/curl.h"
 
 #include <cstdlib>
@@ -13,7 +15,6 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <openssl/x509_vfy.h>
-#include <optional>
 #include <random>
 #include <span>
 #include <uv.h>

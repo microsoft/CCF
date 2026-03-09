@@ -16,30 +16,28 @@ namespace nontls
     Unique_BIO write_bio;
 
   public:
-    void set_bio(
+    virtual void set_bio(
       void* cb_obj, BIO_callback_fn_ex send, BIO_callback_fn_ex recv) override
     {
       // Read/Write BIOs will be used by TLS
       BIO_set_mem_eof_return(read_bio, -1);
-      BIO_set_callback_arg(read_bio, static_cast<char*>(cb_obj));
+      BIO_set_callback_arg(read_bio, (char*)cb_obj);
       BIO_set_callback_ex(read_bio, recv);
 
       BIO_set_mem_eof_return(write_bio, -1);
-      BIO_set_callback_arg(write_bio, static_cast<char*>(cb_obj));
+      BIO_set_callback_arg(write_bio, (char*)cb_obj);
       BIO_set_callback_ex(write_bio, send);
     }
 
-    int handshake() override
+    virtual int handshake() override
     {
       return 0;
     }
 
-    int read(uint8_t* buf, size_t len) override
+    virtual int read(uint8_t* buf, size_t len) override
     {
       if (len == 0)
-      {
         return 0;
-      }
       size_t readbytes = 0;
       int rc = BIO_read_ex(read_bio, buf, len, &readbytes);
       if (rc > 0)
@@ -49,12 +47,10 @@ namespace nontls
       return -rc;
     }
 
-    int write(const uint8_t* buf, size_t len) override
+    virtual int write(const uint8_t* buf, size_t len) override
     {
       if (len == 0)
-      {
         return 0;
-      }
       size_t written = 0;
       int rc = BIO_write_ex(write_bio, buf, len, &written);
       if (rc > 0)
@@ -64,22 +60,22 @@ namespace nontls
       return -rc;
     }
 
-    int close() override
+    virtual int close() override
     {
       return 0;
     }
 
-    bool peer_cert_ok() override
+    virtual bool peer_cert_ok() override
     {
       return true;
     }
 
-    std::string get_verify_error() override
+    virtual std::string get_verify_error() override
     {
       return "no error";
     }
 
-    std::vector<uint8_t> peer_cert() override
+    virtual std::vector<uint8_t> peer_cert() override
     {
       return {};
     }

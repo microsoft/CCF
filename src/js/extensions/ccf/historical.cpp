@@ -21,7 +21,7 @@ namespace ccf::js::extensions
       ccf::historical::StatePtr state;
       std::unique_ptr<ccf::kv::ReadOnlyTx> tx;
       std::unordered_map<std::string, ccf::kv::untyped::Map::ReadOnlyHandle*>
-        kv_handles;
+        kv_handles = {};
     };
     std::unordered_map<ccf::SeqNo, HistoricalHandle> historical_handles;
 
@@ -30,11 +30,8 @@ namespace ccf::js::extensions
 
   namespace
   {
-    JSValue js_historical_get_state_range(
-      JSContext* ctx,
-      [[maybe_unused]] JSValueConst this_val,
-      int argc,
-      JSValueConst* argv)
+    static JSValue js_historical_get_state_range(
+      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
       if (argc != 4)
       {
@@ -42,25 +39,24 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments, but expected 4", argc);
       }
 
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
-      auto* extension = jsctx.get_extension<HistoricalExtension>();
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      auto extension = jsctx.get_extension<HistoricalExtension>();
 
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto* historical_state = extension->impl->historical_state;
+      auto historical_state = extension->impl->historical_state;
       if (historical_state == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get state cache");
       }
 
-      int64_t handle = 0;
-      int64_t start_seqno = 0;
-      int64_t end_seqno = 0;
-      int64_t seconds_until_expiry = 0;
+      int64_t handle;
+      int64_t start_seqno;
+      int64_t end_seqno;
+      int64_t seconds_until_expiry;
       if (JS_ToInt64(ctx, &handle, argv[0]) < 0)
       {
         return ccf::js::core::constants::Exception;
@@ -85,6 +81,8 @@ namespace ccf::js::extensions
           ctx, "Invalid handle or seqno or expiry: cannot be negative");
       }
 
+      ccf::View view;
+      ccf::SeqNo seqno;
       std::vector<ccf::historical::StatePtr> states;
       try
       {
@@ -110,18 +108,16 @@ namespace ccf::js::extensions
       size_t i = 0;
       for (auto& state : states)
       {
-        auto js_state = extension->create_historical_state_object(jsctx, state);
+        auto js_state =
+          jsctx.wrap(extension->create_historical_state_object(jsctx, state));
         JS_CHECK_SET(states_array.set_at_index(i++, std::move(js_state)));
       }
 
       return states_array.take();
     }
 
-    JSValue js_historical_drop_cached_states(
-      JSContext* ctx,
-      [[maybe_unused]] JSValueConst this_val,
-      int argc,
-      JSValueConst* argv)
+    static JSValue js_historical_drop_cached_states(
+      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
       if (argc != 1)
       {
@@ -129,22 +125,21 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments, but expected 1", argc);
       }
 
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
-      auto* extension = jsctx.get_extension<HistoricalExtension>();
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      auto extension = jsctx.get_extension<HistoricalExtension>();
 
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto* historical_state = extension->impl->historical_state;
+      auto historical_state = extension->impl->historical_state;
       if (historical_state == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get state cache");
       }
 
-      int64_t handle = 0;
+      int64_t handle;
       if (JS_ToInt64(ctx, &handle, argv[0]) < 0)
       {
         return ccf::js::core::constants::Exception;
@@ -157,7 +152,7 @@ namespace ccf::js::extensions
       try
       {
         auto found = historical_state->drop_cached_states(handle);
-        return JS_NewBool(ctx, static_cast<int>(found));
+        return JS_NewBool(ctx, found);
       }
       catch (const std::exception& exc)
       {
@@ -166,7 +161,7 @@ namespace ccf::js::extensions
       }
     }
 
-    JSValue ccf_receipt_to_js(
+    static JSValue ccf_receipt_to_js(
       js::core::Context& jsctx, TxReceiptImplPtr receipt)
     {
       ccf::ReceiptPtr receipt_out_p = ccf::describe_receipt_v2(*receipt);
@@ -244,7 +239,7 @@ namespace ccf::js::extensions
           JS_CHECK_EXC(js_element);
 
           auto is_left =
-            element.direction == ccf::ProofReceipt::ProofStep::Direction::Left;
+            element.direction == ccf::ProofReceipt::ProofStep::Left;
           const auto hash_hex = ds::to_hex(element.hash.h);
 
           auto js_hash = jsctx.new_string(hash_hex);
@@ -269,7 +264,7 @@ namespace ccf::js::extensions
       return js_receipt.take();
     }
 
-    kvhelpers::KVMap::ReadOnlyHandle* get_map_handle_historical(
+    static kvhelpers::KVMap::ReadOnlyHandle* get_map_handle_historical(
       js::core::Context& jsctx, JSValueConst _this_val)
     {
       auto this_val = jsctx.duplicate_value(_this_val);
@@ -286,7 +281,7 @@ namespace ccf::js::extensions
         JS_GetOpaque(_this_val, kv_map_handle_class_id));
 
       // Handle to historical KV
-      auto* extension = jsctx.get_extension<HistoricalExtension>();
+      auto extension = jsctx.get_extension<HistoricalExtension>();
       if (extension == nullptr)
       {
         LOG_FAIL_FMT("No historical extension available");
@@ -323,14 +318,13 @@ namespace ccf::js::extensions
       return hit->second;
     }
 
-    int js_historical_kv_lookup(
+    static int js_historical_kv_lookup(
       JSContext* ctx,
       JSPropertyDescriptor* desc,
       JSValueConst this_val,
       JSAtom property)
     {
-      js::core::Context& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
       const auto map_name = jsctx.to_str(property).value_or("");
       auto seqno = reinterpret_cast<ccf::SeqNo>(
         JS_GetOpaque(this_val, kv_historical_class_id));
@@ -354,7 +348,7 @@ namespace ccf::js::extensions
       auto handle_val =
         kvhelpers::create_kv_map_handle<get_map_handle_historical, nullptr>(
           jsctx, map_name, access_permission, explanation);
-      if (JS_IsException(handle_val) != 0)
+      if (JS_IsException(handle_val))
       {
         return -1;
       }
@@ -365,7 +359,7 @@ namespace ccf::js::extensions
       desc->flags = 0;
       desc->value = handle_val;
 
-      return 1;
+      return true;
     }
   }
 
@@ -379,60 +373,45 @@ namespace ccf::js::extensions
 
   void HistoricalExtension::install(js::core::Context& ctx)
   {
-    auto historical = ctx.new_obj();
+    auto historical = JS_NewObject(ctx);
 
-    JS_CHECK_OR_THROW(historical.set(
+    JS_SetPropertyStr(
+      ctx,
+      historical,
       "getStateRange",
-      ctx.new_c_function(js_historical_get_state_range, "getStateRange", 4)));
-    JS_CHECK_OR_THROW(historical.set(
+      JS_NewCFunction(ctx, js_historical_get_state_range, "getStateRange", 4));
+    JS_SetPropertyStr(
+      ctx,
+      historical,
       "dropCachedStates",
-      ctx.new_c_function(
-        js_historical_drop_cached_states, "dropCachedStates", 1)));
+      JS_NewCFunction(
+        ctx, js_historical_drop_cached_states, "dropCachedStates", 1));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    JS_CHECK_OR_THROW(ccf.set("historical", std::move(historical)));
+    ccf.set("historical", std::move(historical));
   }
 
-  js::core::JSWrappedValue HistoricalExtension::create_historical_state_object(
-    js::core::Context& ctx, ccf::historical::StatePtr state) const
+  JSValue HistoricalExtension::create_historical_state_object(
+    js::core::Context& ctx, ccf::historical::StatePtr state)
   {
-#define WRAPPED_CHECK_EXC(val) \
-  do \
-  { \
-    if ((val).is_exception()) \
-    { \
-      return val; \
-    } \
-  } while (0)
-
-#define WRAPPED_CHECK_SET(val) \
-  do \
-  { \
-    if ((val) != 1) \
-    { \
-      return ctx.wrap(ccf::js::core::constants::Exception); \
-    } \
-  } while (0)
-
     auto js_state = ctx.new_obj_class(historical_state_class_id);
-    WRAPPED_CHECK_EXC(js_state);
+    JS_CHECK_EXC(js_state);
 
     const auto transaction_id = state->transaction_id;
     auto transaction_id_s = ctx.new_string(transaction_id.to_str());
-    WRAPPED_CHECK_EXC(transaction_id_s);
-    WRAPPED_CHECK_SET(
-      js_state.set("transactionId", std::move(transaction_id_s)));
+    JS_CHECK_EXC(transaction_id_s);
+    JS_CHECK_SET(js_state.set("transactionId", std::move(transaction_id_s)));
 
     // NB: ccf_receipt_to_js returns a JSValue (unwrapped), due to its use of
     // macros. So we must rewrap it here, immediately after returning
     auto js_receipt = ctx.wrap(ccf_receipt_to_js(ctx, state->receipt));
-    WRAPPED_CHECK_EXC(js_receipt);
-    WRAPPED_CHECK_SET(js_state.set("receipt", std::move(js_receipt)));
+    JS_CHECK_EXC(js_receipt);
+    JS_CHECK_SET(js_state.set("receipt", std::move(js_receipt)));
 
     auto kv = ctx.new_obj_class(kv_historical_class_id);
-    WRAPPED_CHECK_EXC(kv);
+    JS_CHECK_EXC(kv);
     JS_SetOpaque(kv.val, reinterpret_cast<void*>(transaction_id.seqno));
-    WRAPPED_CHECK_SET(js_state.set("kv", std::move(kv)));
+    JS_CHECK_SET(js_state.set("kv", std::move(kv)));
 
     try
     {
@@ -440,19 +419,17 @@ namespace ccf::js::extensions
       auto tx = state->store->create_read_only_tx_ptr();
 
       // Extend lifetime of state and tx, by storing on this extension
-      impl->historical_handles[transaction_id.seqno] = {
-        state, std::move(tx), {}};
+      impl->historical_handles[transaction_id.seqno] = {state, std::move(tx)};
     }
     catch (const std::exception& e)
     {
-      return ctx.new_internal_error(
-        "Failed to create read-only historical tx: %s", e.what());
+      return ctx
+        .new_internal_error(
+          "Failed to create read-only historical tx: %s", e.what())
+        .take();
     }
 
-    return js_state;
-
-#undef WRAPPED_CHECK_EXC
-#undef WRAPPED_CHECK_SET
+    return js_state.take();
   }
 }
 

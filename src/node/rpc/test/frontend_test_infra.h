@@ -6,9 +6,9 @@
 #define DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
 #include "ccf/app_interface.h"
 #include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/ds/logger.h"
 #include "ccf/service/signed_req.h"
 #include "ds/files.h"
-#include "ds/internal_logger.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
@@ -35,7 +35,7 @@ auto valid_from =
 auto valid_to = ccf::crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
-auto kp = ccf::crypto::make_ec_key_pair();
+auto kp = ccf::crypto::make_key_pair();
 auto member_cert = kp->self_sign("CN=name_member", valid_from, valid_to);
 auto verifier_mem = ccf::crypto::make_verifier(member_cert);
 auto user_cert = kp->self_sign("CN=name_user", valid_from, valid_to);
@@ -108,7 +108,7 @@ auto frontend_process(
   return processor.received.front();
 }
 
-auto get_cert(uint64_t member_id, ccf::crypto::ECKeyPairPtr& kp_mem)
+auto get_cert(uint64_t member_id, ccf::crypto::KeyPairPtr& kp_mem)
 {
   return kp_mem->self_sign(
     "CN=new member" + to_string(member_id), valid_from, valid_to);

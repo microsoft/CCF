@@ -24,7 +24,7 @@ namespace ccf::kv
      *
      * @return String containing name used to construct this map handle
      */
-    [[nodiscard]] std::string get_name_of_map() const
+    std::string get_name_of_map() const
     {
       return read_handle.get_name_of_map();
     }
@@ -143,7 +143,7 @@ namespace ccf::kv
      * (true) or stop (false)
      */
     template <class F>
-    void foreach(F&& f) // NOLINT(cppcoreguidelines-missing-std-forward)
+    void foreach(F&& f)
     {
       auto g = [&](
                  const ccf::kv::serialisers::SerialisedEntry& k_rep,
@@ -166,7 +166,7 @@ namespace ccf::kv
      * (true) or stop (false)
      */
     template <class F>
-    void foreach_key(F&& f) // NOLINT(cppcoreguidelines-missing-std-forward)
+    void foreach_key(F&& f)
     {
       auto g = [&](
                  const ccf::kv::serialisers::SerialisedEntry& k_rep,
@@ -187,7 +187,7 @@ namespace ccf::kv
      * (true) or stop (false)
      */
     template <class F>
-    void foreach_value(F&& f) // NOLINT(cppcoreguidelines-missing-std-forward)
+    void foreach_value(F&& f)
     {
       auto g = [&](
                  const ccf::kv::serialisers::SerialisedEntry&,

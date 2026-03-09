@@ -1051,6 +1051,22 @@ const actions = new Map([
     ),
   ],
   [
+    "add_node_code",
+    new Action(
+      function (args) {
+        checkType(args.code_id, "string", "code_id");
+      },
+      function (args, proposalId) {
+        const codeId = ccf.strToBuf(args.code_id);
+        const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToJoin");
+        ccf.kv["public:ccf.gov.nodes.code_ids"].set(codeId, ALLOWED);
+
+        // Adding a new allowed code ID changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
+        invalidateOtherOpenProposals(proposalId);
+      },
+    ),
+  ],
+  [
     "add_snp_measurement",
     new Action(
       function (args) {
@@ -1307,9 +1323,6 @@ const actions = new Map([
             ccf.strToBuf(args.node_id),
             ccf.jsonCompatibleToBuf(nodeInfo),
           );
-          if (ccf.node.shuffleSealedShares !== undefined) {
-            ccf.node.shuffleSealedShares();
-          }
 
           // Also generate and record service-endorsed node certificate from node CSR
           if (nodeInfo.certificate_signing_request !== undefined) {
@@ -1339,6 +1352,18 @@ const actions = new Map([
             );
           }
         }
+      },
+    ),
+  ],
+  [
+    "remove_node_code",
+    new Action(
+      function (args) {
+        checkType(args.code_id, "string", "code_id");
+      },
+      function (args) {
+        const codeId = ccf.strToBuf(args.code_id);
+        ccf.kv["public:ccf.gov.nodes.code_ids"].delete(codeId);
       },
     ),
   ],
@@ -1535,6 +1560,21 @@ const actions = new Map([
     ),
   ],
   [
+    "trigger_acme_refresh",
+    new Action(
+      function (args) {
+        checkType(
+          args.interfaces,
+          "array?",
+          "interfaces to refresh the certificates for",
+        );
+      },
+      function (args, proposalId) {
+        ccf.node.triggerACMERefresh(args.interfaces);
+      },
+    ),
+  ],
+  [
     "assert_service_identity",
     new Action(
       function (args) {
@@ -1550,58 +1590,6 @@ const actions = new Map([
         }
       },
       function (args) {},
-    ),
-  ],
-  [
-    "cleanup_legacy_jwt_records",
-    new Action(
-      function (args) {
-        checkType(
-          args.ensure_new_records_exist,
-          "boolean?",
-          "ensure_new_records_exist",
-        );
-      },
-      function (args) {
-        if (
-          args.ensure_new_records_exist &&
-          ccf.kv["public:ccf.gov.jwt.public_signing_keys_metadata_v2"].size ===
-            0
-        ) {
-          throw new Error("No new JWT public signing keys records found");
-        }
-
-        ccf.kv["public:ccf.gov.jwt.public_signing_keys"].clear();
-        ccf.kv["public:ccf.gov.jwt.public_signing_keys_metadata"].clear();
-        ccf.kv["public:ccf.gov.jwt.public_signing_key_issuer"].clear();
-      },
-    ),
-  ],
-  [
-    "set_node_join_policy",
-    new Action(
-      function (args) {
-        checkType(args.policy, "string", "policy");
-      },
-      function (args, proposalId) {
-        const codeUpdatePolicyTable =
-          ccf.kv["public:ccf.gov.nodes.node_join_policy"];
-        codeUpdatePolicyTable.set(
-          getSingletonKvKey(),
-          ccf.strToBuf(args.policy),
-        );
-      },
-    ),
-  ],
-  [
-    "remove_node_join_policy",
-    new Action(
-      function (args) {},
-      function (args, proposalId) {
-        const codeUpdatePolicyTable =
-          ccf.kv["public:ccf.gov.nodes.node_join_policy"];
-        codeUpdatePolicyTable.delete(getSingletonKvKey());
-      },
     ),
   ],
 ]);

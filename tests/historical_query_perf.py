@@ -7,13 +7,14 @@ import infra.commit
 import http
 from concurrent import futures
 from infra.log_capture import flush_info
+from infra.snp import IS_SNP
 import infra.jwt_issuer
 import time
 import infra.bencher
 
 from loguru import logger as LOG
 
-DEFAULT_TIMEOUT_S = 10
+DEFAULT_TIMEOUT_S = 10 if IS_SNP else 5
 
 
 def submit_range(primary, id_pattern, start, end, format_width):
@@ -58,10 +59,9 @@ def get_all_entries(
     target_id,
     from_seqno=None,
     to_seqno=None,
+    timeout=DEFAULT_TIMEOUT_S,
     log_on_success=False,
     headers=None,
-    *,
-    timeout,
 ):
     LOG.info(
         f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {target_id}"
@@ -205,7 +205,7 @@ def test_historical_query_range(network, args):
 
 def run(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 
@@ -218,7 +218,7 @@ if __name__ == "__main__":
         pass
 
     args = infra.e2e_args.cli_args(add=add)
-    args.package = "samples/apps/logging/logging"
+    args.package = "samples/apps/logging/liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.initial_member_count = 1
     args.sig_ms_interval = 1000  # Set to cchost default value

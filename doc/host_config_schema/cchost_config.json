@@ -2,8 +2,32 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "title": "CCF node configuration",
-  "description": "JSON schema for configuration of a single CCF node",
+  "description": "JSON schema for configuration of a single CCF node (cchost executable)",
   "properties": {
+    "enclave": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "DEPRECATED: Replaced by --enclave-file CLI argument. Path to enclave application"
+        },
+        "platform": {
+          "type": "string",
+          "enum": ["SNP", "Virtual"],
+          "default": "SNP",
+          "description": "Trusted Execution Environment platform"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["Release", "Debug", "Virtual"],
+          "default": "Release",
+          "description": "Type of enclave application (only if platform is SGX, now deprecated). \"Virtual\" is deprecated (use ``platform`` instead)"
+        }
+      },
+      "description": "This section includes configuration for the enclave application launched by this node",
+      "required": ["platform", "type"],
+      "additionalProperties": false
+    },
     "network": {
       "type": "object",
       "properties": {
@@ -102,9 +126,27 @@
                     "type": "string",
                     "enum": ["Node", "Service", "ACME", "Unsecured"],
                     "default": "Service",
-                    "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed, 'ACME' is deprecated, 'Unsecured' means unencrypted traffic and no endorsement authority"
+                    "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed, 'ACME' means an ACME-capable CA, 'Unsecured' means unencrypted traffic and no endorsement authority"
+                  },
+                  "acme_configuration": {
+                    "type": "string",
+                    "description": "Name of the ACME configuration defined in the network.acme.configurations section"
                   }
                 },
+                "oneOf": [
+                  {
+                    "required": ["acme_configuration"]
+                  },
+                  {
+                    "not": {
+                      "properties": {
+                        "authority": {
+                          "const": "ACME"
+                        }
+                      }
+                    }
+                  }
+                ],
                 "required": ["authority"],
                 "additionalProperties": false
               },
@@ -147,6 +189,69 @@
             "required": ["bind_address"]
           },
           "description": "Interfaces to listen on for incoming client TLS connections, as a dictionary from unique interface name to RPC interface information"
+        },
+        "acme": {
+          "type": "object",
+          "properties": {
+            "configurations": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "ca_certs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": [],
+                    "description": "Root certificate(s) of the CA to connect to in PEM format (for TLS connections to the CA, e.g. Let's Encrypt's ISRG Root X1)"
+                  },
+                  "directory_url": {
+                    "type": "string",
+                    "description": "URL of the ACME server's directory"
+                  },
+                  "service_dns_name": {
+                    "type": "string",
+                    "description": "DNS name of the service we represent"
+                  },
+                  "alternative_names": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": [],
+                    "description": "Alternative names for the service we represent (X509 SANs)"
+                  },
+                  "contact": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": [],
+                    "description": "Contact addresses (see RFC8555 7.3, e.g. mailto:john@example.com)"
+                  },
+                  "terms_of_service_agreed": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Indication that the user/operator is aware of the latest terms and conditions for the CA"
+                  },
+                  "challenge_type": {
+                    "type": "string",
+                    "default": "http-01",
+                    "description": "Type of the ACME challenge (usually http-01; others are supported but require a custom challenge handler)"
+                  },
+                  "challenge_server_interface": {
+                    "type": "string",
+                    "description": "Name of the interface for the http-01 challenge frontend to listen on"
+                  }
+                },
+                "description": "ACME Configurations",
+                "additionalProperties": false
+              }
+            }
+          },
+          "description": "Configuration for the ACME client(s) to obtain globally valid TLS certificates, e.g. from Let's Encrypt",
+          "additionalProperties": false
         }
       },
       "description": "This section includes configuration for the interfaces a node listens on (for both client and node-to-node communications)",
@@ -325,11 +430,6 @@
                     "type": "string",
                     "default": "10GB",
                     "description": "Maximum size of snapshot this node is willing to fetch"
-                  },
-                  "host_data_transparent_statement_path": {
-                    "type": ["string", "null"],
-                    "default": null,
-                    "description": "Path to a SCITT Transparent Statement over the attested host_data of the node"
                   }
                 },
                 "required": ["target_rpc_address"],
@@ -361,6 +461,10 @@
                   "previous_service_identity_file": {
                     "type": "string",
                     "description": "Path to the previous service certificate (PEM) file"
+                  },
+                  "previous_sealed_ledger_secret_location": {
+                    "type": ["string"],
+                    "description": "Path to the sealed ledger secret folder, the ledger secrets for the recovered service will be unsealed from here instead of reconstructed from recovery shares."
                   }
                 },
                 "required": ["previous_service_identity_file"],
@@ -510,7 +614,7 @@
           "type": "string",
           "enum": ["Trace", "Debug", "Info", "Fail", "Fatal"],
           "default": "Info",
-          "description": "Logging level for the untrusted host. DEPRECATED, use the --log-level CLI switch instead."
+          "description": "Logging level for the untrusted host."
         },
         "format": {
           "type": "string",
@@ -584,8 +688,8 @@
         },
         "pid_file": {
           "type": "string",
-          "default": "node.pid",
-          "description": "Path to file in which process identifier (PID) will be written to on startup"
+          "default": "cchost.pid",
+          "description": "Path to file in which 'cchost' process identifier (PID) will be written to on startup"
         },
         "node_to_node_address_file": {
           "type": "string",
@@ -594,6 +698,10 @@
         "rpc_addresses_file": {
           "type": "string",
           "description": "Path to file in which all RPC addresses (hostnames and ports) will be written to on startup. This option is particularly useful when binding to port 0 and getting auto-assigned a port by the OS. No file is created if this entry is not specified"
+        },
+        "sealed_ledger_secret_location": {
+          "type": "string",
+          "description": "Path to the folder where the node will seal its ledger secrets."
         }
       },
       "description": "This section includes configuration for additional files output by the node",
@@ -665,63 +773,9 @@
       "type": "string",
       "default": "512MB",
       "description": "Historical queries cache soft limit (as size string)"
-    },
-    "sealing_recovery": {
-      "type": "object",
-      "description": "Optional. Controls the behaviour of sealing-based recovery. If set, enables sealing of ledger secrets using platform derived key capabilities (e.g. AMD SEV-SNP derived keys). This allows a future recovering node to unilaterally recover its ledger secrets on restart without needing to reconstruct them from recovery shares.",
-      "properties": {
-        "location": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string"
-            },
-            "address": {
-              "type": "string"
-            }
-          },
-          "required": ["name", "address"],
-          "additionalProperties": false
-        },
-        "recovery_decision_protocol": {
-          "type": "object",
-          "properties": {
-            "expected_locations": {
-              "type": "array",
-              "description": "List of locations that the recovery_decision_protocol expects to be part of the previous network.",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "address": {
-                    "type": "string"
-                  }
-                },
-                "required": ["name", "address"],
-                "additionalProperties": false
-              }
-            },
-            "message_retry_timeout": {
-              "type": "string",
-              "default": "100ms"
-            },
-            "failover_timeout": {
-              "type": "string",
-              "default": "2000ms",
-              "description": "Timeout duration before failover forcibly advances the recovery_decision_protocol, allowing recovery to proceed even in the presence of unresponsive nodes. Set to 0 to disable failover."
-            }
-          },
-          "required": ["expected_locations"],
-          "additionalProperties": false
-        }
-      },
-      "required": ["location"],
-      "additionalProperties": false
     }
   },
-  "required": ["network", "command"],
+  "required": ["enclave", "network", "command"],
   "additionalProperties": false,
   "$defs": {
     "RedirectionResolver": {

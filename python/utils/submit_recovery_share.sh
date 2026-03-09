@@ -3,12 +3,11 @@
 # Licensed under the Apache 2.0 License.
 
 set -e
-set -o pipefail
 
 function usage()
 {
-    echo "Usage:"
-    echo "  $0 https://<node-address> --member-enc-privk /path/to/member_enc_privk.pem --api-version api_version --member-id-privk /path/to/member_id_privk.pem --member-id-cert /path/to/member_cert.pem [CURL_OPTIONS]"
+    echo "Usage:"""
+    echo "  $0 https://<node-address> --member-enc-privk /path/to/member_enc_privk.pem --api-version api_version --member-id-privk /path/to/member_id_privk.pem ----member-id-cert /path/to/member_cert.pem [CURL_OPTIONS]"
     echo "Retrieves the encrypted recovery share for a given member, decrypts the share and submits it for recovery."
     echo ""
     echo "A sufficient number of recovery shares must be submitted by members to initiate the end of recovery procedure."
@@ -26,7 +25,7 @@ fi
 node_rpc_address=$1
 shift
 
-api_version="2024-07-01"
+api_version="classic"
 while [ "$1" != "" ]; do
     case $1 in
         -h|-\?|--help)
@@ -75,9 +74,15 @@ fi
 # Compute member ID, as the SHA-256 fingerprint of the signing certificate
 member_id=$(openssl x509 -in "$member_id_cert" -noout -fingerprint -sha256 | cut -d "=" -f 2 | sed 's/://g' | awk '{print tolower($0)}')
 
-get_share_path="gov/recovery/encrypted-shares/${member_id}?api-version=${api_version}"
-share_field="encryptedShare"
-submit_share_path="gov/recovery/members/${member_id}:recover?api-version=${api_version}"
+if [ "${api_version}" == "classic" ]; then
+    get_share_path="gov/encrypted_recovery_share/${member_id}"
+    share_field="encrypted_share"
+    submit_share_path="gov/recovery_share"
+else
+    get_share_path="gov/recovery/encrypted-shares/${member_id}?api-version=${api_version}"
+    share_field="encryptedShare"
+    submit_share_path="gov/recovery/members/${member_id}:recover?api-version=${api_version}"
+fi
 
 # First, retrieve the encrypted recovery share
 encrypted_share=$(curl -sS --fail -X GET "${node_rpc_address}/${get_share_path}" "${@}" | jq -r ".${share_field}")

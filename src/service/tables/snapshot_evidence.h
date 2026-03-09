@@ -13,11 +13,11 @@ namespace ccf
     /// Snapshot digest
     ccf::crypto::Sha256Hash hash;
     /// Sequence number to which the snapshot corresponds
-    ccf::kv::Version version = 0;
+    ccf::kv::Version version;
   };
 
-  DECLARE_JSON_TYPE(SnapshotHash);
-  DECLARE_JSON_REQUIRED_FIELDS(SnapshotHash, hash, version);
+  DECLARE_JSON_TYPE(SnapshotHash)
+  DECLARE_JSON_REQUIRED_FIELDS(SnapshotHash, hash, version)
 
   using SnapshotEvidence = ServiceValue<SnapshotHash>;
   namespace Tables

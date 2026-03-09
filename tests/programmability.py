@@ -14,7 +14,6 @@ import ccf.cose
 import infra.clients
 
 import npm_tests
-import jwt_test
 
 from loguru import logger as LOG
 
@@ -87,7 +86,6 @@ def sign_payload(identity, msg_type, json_payload):
         "app.msg.type": msg_type,
         "app.msg.created_at": int(infra.clients.get_clock().moment().timestamp()),
     }
-
     return ccf.cose.create_cose_sign1(serialised_payload, key, cert, phdr)
 
 
@@ -600,6 +598,7 @@ def run(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
+        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args)
@@ -628,36 +627,11 @@ if __name__ == "__main__":
     cr.add(
         "programmability",
         run,
-        package="samples/apps/programmability/programmability",
+        package="samples/apps/programmability/libprogrammability",
         js_app_bundle=None,
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         initial_user_count=2,
         initial_member_count=1,
-    )
-
-    cr.add(
-        "auto",
-        jwt_test.run_auto,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        jwt_key_refresh_interval_s=1,
-        issuer_port=12345,
-    )
-
-    cr.add(
-        "manual",
-        jwt_test.run_manual,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        jwt_key_refresh_interval_s=100000,
-        issuer_port=12346,
-    )
-
-    cr.add(
-        "ca_cert",
-        jwt_test.run_ca_cert,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
     cr.run()

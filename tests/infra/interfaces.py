@@ -45,6 +45,7 @@ NODE_TO_NODE_INTERFACE_NAME = "node_to_node_interface"
 class EndorsementAuthority(str, Enum):
     Service = "Service"
     Node = "Node"
+    ACME = "ACME"
     Unsecured = "Unsecured"
 
 
@@ -52,15 +53,20 @@ class EndorsementAuthority(str, Enum):
 class Endorsement:
     authority: EndorsementAuthority = EndorsementAuthority.Service
 
+    acme_configuration: Optional[str] = None
+
     @staticmethod
     def to_json(endorsement):
         r = {"authority": endorsement.authority.name}
+        if endorsement.acme_configuration:
+            r["acme_configuration"] = endorsement.acme_configuration
         return r
 
     @staticmethod
     def from_json(json):
         endorsement = Endorsement()
         endorsement.authority = EndorsementAuthority(json["authority"])
+        endorsement.acme_configuration = json.get("acme_configuration", None)
         return endorsement
 
 
@@ -194,6 +200,7 @@ class RPCInterface(Interface):
         default_factory=lambda: DEFAULT_MAX_FRAME_SIZE
     )
     endorsement: Optional[Endorsement] = field(default_factory=lambda: Endorsement())
+    acme_configuration: Optional[str] = None
     accepted_endpoints: Optional[str] = None
     enabled_operator_features: Optional[list[str]] = None
     forwarding_timeout_ms: Optional[int] = field(
@@ -308,10 +315,11 @@ class HostSpec:
         default_factory=lambda: {
             PRIMARY_RPC_INTERFACE: RPCInterface(),
             FILE_SERVING_RPC_INTERFACE: RPCInterface(
-                enabled_operator_features=["SnapshotRead", "LedgerChunkRead"],
+                enabled_operator_features=["SnapshotRead"],
             ),
         }
     )
+    acme_challenge_server_interface: Optional[str] = None
 
     def get_primary_interface(self):
         return self.rpc_interfaces[PRIMARY_RPC_INTERFACE]

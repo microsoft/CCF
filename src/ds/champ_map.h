@@ -10,7 +10,6 @@
 #include <array>
 #include <memory>
 #include <optional>
-#include <utility>
 #include <vector>
 
 namespace champ
@@ -54,27 +53,27 @@ namespace champ
 
     constexpr Bitmap operator&(const Bitmap& other) const
     {
-      return {_bits & other._bits};
+      return Bitmap(_bits & other._bits);
     }
 
-    [[nodiscard]] constexpr SmallIndex pop() const
+    constexpr SmallIndex pop() const
     {
       return __builtin_popcount(_bits);
     }
 
-    [[nodiscard]] constexpr Bitmap set(SmallIndex idx) const
+    constexpr Bitmap set(SmallIndex idx) const
     {
-      return {_bits | (static_cast<uint32_t>(1) << idx)};
+      return Bitmap(_bits | ((uint32_t)1 << idx));
     }
 
-    [[nodiscard]] constexpr Bitmap clear(SmallIndex idx) const
+    constexpr Bitmap clear(SmallIndex idx) const
     {
-      return {_bits & ~(static_cast<uint32_t>(1) << idx)};
+      return Bitmap(_bits & ~((uint32_t)1 << idx));
     }
 
-    [[nodiscard]] constexpr bool check(SmallIndex idx) const
+    constexpr bool check(SmallIndex idx) const
     {
-      return (_bits & (static_cast<uint32_t>(1) << idx)) != 0;
+      return (_bits & ((uint32_t)1 << idx)) != 0;
     }
   };
 
@@ -87,15 +86,14 @@ namespace champ
     K key;
     V value;
 
-    Entry(K k, V v) : key(std::move(k)), value(std::move(v)) {}
+    Entry(K k, V v) : key(k), value(v) {}
 
-    [[nodiscard]] const V* getp(const K& k) const
+    const V* getp(const K& k) const
     {
       if (k == key)
-      {
         return &value;
-      }
-      return nullptr;
+      else
+        return nullptr;
     }
   };
 
@@ -107,16 +105,14 @@ namespace champ
   {
     std::array<std::vector<std::shared_ptr<Entry<K, V>>>, collision_bins> bins;
 
-    [[nodiscard]] const V* getp(Hash hash, const K& k) const
+    const V* getp(Hash hash, const K& k) const
     {
       const auto idx = mask(hash, collision_depth);
       const auto& bin = bins[idx];
       for (const auto& node : bin)
       {
         if (k == node->key)
-        {
           return &node->value;
-        }
       }
       return nullptr;
     }
@@ -164,12 +160,8 @@ namespace champ
       for (const auto& bin : bins)
       {
         for (const auto& entry : bin)
-        {
-          if (!std::forward<F>(f)(entry->key, entry->value))
-          {
+          if (!f(entry->key, entry->value))
             return false;
-          }
-        }
       }
       return true;
     }
@@ -182,7 +174,7 @@ namespace champ
     Bitmap node_map;
     Bitmap data_map;
 
-    SubNodes() = default;
+    SubNodes() {}
 
     SubNodes(std::vector<Node<K, V, H>>&& ns) : nodes(std::move(ns)) {}
 
@@ -192,41 +184,31 @@ namespace champ
       data_map(dm)
     {}
 
-    [[nodiscard]] SmallIndex compressed_idx(SmallIndex idx) const
+    SmallIndex compressed_idx(SmallIndex idx) const
     {
       if (!node_map.check(idx) && !data_map.check(idx))
-      {
-        return static_cast<SmallIndex>(-1);
-      }
+        return (SmallIndex)-1;
 
-      const auto mask = Bitmap(~(static_cast<uint32_t>(-1) << idx));
+      const auto mask = Bitmap(~((uint32_t)-1 << idx));
       if (data_map.check(idx))
-      {
         return (data_map & mask).pop();
-      }
 
       return data_map.pop() + (node_map & mask).pop();
     }
 
-    [[nodiscard]] const V* getp(SmallIndex depth, Hash hash, const K& k) const
+    const V* getp(SmallIndex depth, Hash hash, const K& k) const
     {
       const auto idx = mask(hash, depth);
       const auto c_idx = compressed_idx(idx);
 
-      if (c_idx == static_cast<SmallIndex>(-1))
-      {
+      if (c_idx == (SmallIndex)-1)
         return nullptr;
-      }
 
       if (data_map.check(idx))
-      {
         return node_as<Entry<K, V>>(c_idx)->getp(k);
-      }
 
       if (depth == (collision_depth - 1))
-      {
         return node_as<Collisions<K, V, H>>(c_idx)->getp(hash, k);
-      }
 
       return node_as<SubNodes<K, V, H>>(c_idx)->getp(depth + 1, hash, k);
     }
@@ -237,7 +219,7 @@ namespace champ
       const auto idx = mask(hash, depth);
       auto c_idx = compressed_idx(idx);
 
-      if (c_idx == static_cast<SmallIndex>(-1))
+      if (c_idx == (SmallIndex)-1)
       {
         data_map = data_map.set(idx);
         c_idx = compressed_idx(idx);
@@ -248,7 +230,7 @@ namespace champ
 
       if (node_map.check(idx))
       {
-        size_t insert = 0;
+        size_t insert;
         if (depth < (collision_depth - 1))
         {
           auto sn = *node_as<SubNodes<K, V, H>>(c_idx);
@@ -309,7 +291,7 @@ namespace champ
       return 0;
     }
 
-    [[nodiscard]] std::pair<std::shared_ptr<SubNodes<K, V, H>>, size_t> put(
+    std::pair<std::shared_ptr<SubNodes<K, V, H>>, size_t> put(
       SmallIndex depth, Hash hash, const K& k, const V& v) const
     {
       auto node = *this;
@@ -324,18 +306,14 @@ namespace champ
       const auto idx = mask(hash, depth);
       const auto c_idx = compressed_idx(idx);
 
-      if (c_idx == static_cast<SmallIndex>(-1))
-      {
+      if (c_idx == (SmallIndex)-1)
         return 0;
-      }
 
       if (data_map.check(idx))
       {
         const auto& entry = node_as<Entry<K, V>>(c_idx);
         if (entry->key != k)
-        {
           return 0;
-        }
 
         const auto diff = map::get_serialized_size_with_padding(entry->key) +
           map::get_serialized_size_with_padding(entry->value);
@@ -358,7 +336,7 @@ namespace champ
       return diff;
     }
 
-    [[nodiscard]] std::pair<std::shared_ptr<SubNodes<K, V, H>>, size_t> remove(
+    std::pair<std::shared_ptr<SubNodes<K, V, H>>, size_t> remove(
       SmallIndex depth, Hash hash, const K& k) const
     {
       auto node = *this;
@@ -374,27 +352,21 @@ namespace champ
       for (SmallIndex i = 0; i < entries; ++i)
       {
         const auto& entry = node_as<Entry<K, V>>(i);
-        if (!std::forward<F>(f)(entry->key, entry->value))
-        {
+        if (!f(entry->key, entry->value))
           return false;
-        }
       }
       for (size_t i = entries; i < nodes.size(); ++i)
       {
         if (depth == (collision_depth - 1))
         {
           if (!node_as<Collisions<K, V, H>>(i)->foreach(std::forward<F>(f)))
-          {
             return false;
-          }
         }
         else
         {
           if (!node_as<SubNodes<K, V, H>>(i)->foreach(
                 depth + 1, std::forward<F>(f)))
-          {
             return false;
-          }
         }
       }
       return true;
@@ -402,7 +374,7 @@ namespace champ
 
   private:
     template <class A>
-    [[nodiscard]] const std::shared_ptr<A>& node_as(SmallIndex c_idx) const
+    const std::shared_ptr<A>& node_as(SmallIndex c_idx) const
     {
       return reinterpret_cast<const std::shared_ptr<A>&>(nodes[c_idx]);
     }
@@ -432,45 +404,42 @@ namespace champ
 
     Map() : root(std::make_shared<SubNodes<K, V, H>>()) {}
 
-    [[nodiscard]] size_t size() const
+    size_t size() const
     {
       return map_size;
     }
 
-    [[nodiscard]] size_t get_serialized_size() const
+    size_t get_serialized_size() const
     {
       return serialized_size;
     }
 
-    [[nodiscard]] bool empty() const
+    bool empty() const
     {
       return map_size == 0;
     }
 
-    [[nodiscard]] std::optional<V> get(const K& key) const
+    std::optional<V> get(const K& key) const
     {
       auto v = root->getp(0, H()(key), key);
 
       if (v)
-      {
         return *v;
-      }
-      return {};
+      else
+        return {};
     }
 
-    [[nodiscard]] const V* getp(const K& key) const
+    const V* getp(const K& key) const
     {
       return root->getp(0, H()(key), key);
     }
 
-    [[nodiscard]] Map<K, V, H> put(const K& key, const V& value) const
+    const Map<K, V, H> put(const K& key, const V& value) const
     {
       auto r = root->put(0, H()(key), key, value);
       auto size_ = map_size;
       if (r.second == 0)
-      {
         size_++;
-      }
 
       const auto size_change = (map::get_serialized_size_with_padding(key) +
                                 map::get_serialized_size_with_padding(value)) -
@@ -479,14 +448,12 @@ namespace champ
       return Map(std::move(r.first), size_, size_change + serialized_size);
     }
 
-    [[nodiscard]] Map<K, V, H> remove(const K& key) const
+    const Map<K, V, H> remove(const K& key) const
     {
       auto r = root->remove(0, H()(key), key);
       auto size_ = map_size;
       if (r.second > 0)
-      {
         size_--;
-      }
 
       return Map(std::move(r.first), size_, serialized_size - r.second);
     }
@@ -497,7 +464,7 @@ namespace champ
       return root->foreach(0, std::forward<F>(f));
     }
 
-    [[nodiscard]] std::unique_ptr<Snapshot> make_snapshot() const
+    std::unique_ptr<Snapshot> make_snapshot() const
     {
       return std::make_unique<Snapshot>(*this);
     }

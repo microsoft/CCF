@@ -21,25 +21,26 @@ struct PendingIO
   size_t len;
   sockaddr addr;
   free_cb_t free_cb;
-  bool clear = false;
+  bool clear;
 
   PendingIO(
     T* req_, size_t len_, sockaddr addr_, free_cb_t free_cb_ = nullptr) :
     req(req_),
     len(len_),
     addr(addr_),
-    free_cb(free_cb_)
+    free_cb(free_cb_),
+    clear(false)
   {
     if (free_cb == nullptr)
     {
       // Assume we take ownership
       auto orig = req;
-      req = new T[len]; // NOLINT(cppcoreguidelines-owning-memory)
+      req = new T[len];
       memcpy(req, orig, len);
     }
   }
 
-  PendingIO(PendingIO&& that) noexcept :
+  PendingIO(PendingIO&& that) :
     req(that.req),
     len(that.len),
     addr(that.addr),
@@ -49,7 +50,7 @@ struct PendingIO
     that.req = nullptr;
   }
 
-  PendingIO<T>& operator=(PendingIO&& that) noexcept
+  PendingIO<T>& operator=(PendingIO&& that)
   {
     req = std::move(that.req);
     len = std::move(that.len);

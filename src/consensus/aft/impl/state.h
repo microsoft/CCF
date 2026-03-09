@@ -2,11 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/logger.h"
 #include "ccf/pal/locking.h"
 #include "ccf/tx_status.h"
 #include "consensus/aft/raft_types.h"
-#include "ds/internal_logger.h"
 #include "kv/kv_types.h"
 
 #include <deque>
@@ -129,10 +130,28 @@ namespace aft
     }
   };
 
+  class Replica
+  {
+  public:
+    Replica(const ccf::NodeId& id_, const std::vector<uint8_t>& cert_) :
+      id(id_),
+      verifier(ccf::crypto::make_unique_verifier(cert_))
+    {}
+
+    ccf::NodeId get_id() const
+    {
+      return id;
+    }
+
+  private:
+    ccf::NodeId id;
+    ccf::crypto::VerifierUniquePtr verifier;
+  };
+
   struct State
   {
-    State(ccf::NodeId node_id_, bool pre_vote_enabled_ = true) :
-      node_id(std::move(node_id_)),
+    State(const ccf::NodeId& node_id_, bool pre_vote_enabled_ = false) :
+      node_id(node_id_),
       pre_vote_enabled(pre_vote_enabled_)
     {}
     State() = default;
@@ -173,7 +192,7 @@ namespace aft
     // that index itself is committed
     std::optional<ccf::SeqNo> retired_committed_idx = std::nullopt;
 
-    bool pre_vote_enabled = true;
+    bool pre_vote_enabled = false;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(State);
   DECLARE_JSON_REQUIRED_FIELDS(

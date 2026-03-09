@@ -23,10 +23,11 @@ namespace ccf::js::extensions
   class ConsoleExtension : public ExtensionInterface
   {
   public:
-    ConsoleExtension() = default;
+    ConsoleExtension() {}
 
     void install(js::core::Context& ctx) override;
 
-    static void log_info_with_tag(ccf::js::TxAccess access, std::string_view s);
+    static void log_info_with_tag(
+      const ccf::js::TxAccess access, std::string_view s);
   };
 }

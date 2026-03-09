@@ -10,7 +10,6 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/pal/locking.h"
 #include "ccf/receipt.h"
-#include "crypto/cbor.h"
 #include "crypto/openssl/hash.h"
 #include "ds/messaging.h"
 #include "ds/test/stub_writer.h"
@@ -23,6 +22,9 @@
 #include <random>
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
+
+std::unique_ptr<threading::ThreadMessaging>
+  threading::ThreadMessaging::singleton = nullptr;
 
 using NumToString = ccf::kv::Map<size_t, std::string>;
 
@@ -38,8 +40,8 @@ struct TestState
 {
   std::shared_ptr<ccf::kv::Store> kv_store = nullptr;
   std::shared_ptr<ccf::LedgerSecrets> ledger_secrets = nullptr;
-  ccf::crypto::ECKeyPairPtr node_kp = nullptr;
-  std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp = nullptr;
+  ccf::crypto::KeyPairPtr node_kp = nullptr;
+  std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp = nullptr;
 };
 
 TestState create_and_init_state(bool initialise_ledger_rekey = true)
@@ -51,9 +53,9 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   ts.kv_store->set_encryptor(encryptor);
 
-  ts.node_kp = ccf::crypto::make_ec_key_pair();
-  ts.service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
-    ccf::crypto::make_ec_key_pair());
+  ts.node_kp = ccf::crypto::make_key_pair();
+  ts.service_kp = std::dynamic_pointer_cast<ccf::crypto::KeyPair_OpenSSL>(
+    ccf::crypto::make_key_pair());
 
   // Make history to produce signatures
   const ccf::NodeId node_id = std::string("node_id");
@@ -71,7 +73,6 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     ccf::NodeInfo ni;
     ni.cert = ts.node_kp->self_sign("CN=Test node", valid_from, valid_to);
     ni.status = ccf::NodeStatus::TRUSTED;
-    ni.encryption_pub_key = ts.node_kp->public_key_pem();
     nodes->put(node_id, ni);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
@@ -98,7 +99,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-    auto kp = ccf::crypto::make_ec_key_pair();
+    auto kp = ccf::crypto::make_key_pair();
     auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
       ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(cert)).hex_str();
@@ -208,7 +209,7 @@ void validate_business_transaction(
   REQUIRE(state->receipt != nullptr);
 
   const auto state_txid = state->transaction_id;
-  const auto store_txid = state->store->current_txid();
+  const auto store_txid = state->store->get_txid();
   REQUIRE(state_txid.view == store_txid.view);
   REQUIRE(state_txid.seqno == store_txid.seqno);
 }
@@ -256,48 +257,89 @@ size_t get_cache_limit_for_entries(
 
 struct MerkleProofData
 {
-  using PathItem =
-    std::pair</* left/right */ bool, /* digest */ std::vector<uint8_t>>;
-
   std::vector<uint8_t> write_set_digest;
   std::string commit_evidence;
   std::vector<uint8_t> claims_digest;
-  std::vector<PathItem> path;
+  std::vector<std::pair<int64_t, std::vector<uint8_t>>> path;
 };
+
+std::vector<uint8_t> bstring_to_bytes(QCBORItem& item)
+{
+  return {
+    static_cast<const uint8_t*>(item.val.string.ptr),
+    static_cast<const uint8_t*>(item.val.string.ptr) + item.val.string.len};
+}
+
+std::string tstring_to_string(QCBORItem& item)
+{
+  return {
+    static_cast<const char*>(item.val.string.ptr),
+    static_cast<const char*>(item.val.string.ptr) + item.val.string.len};
+}
 
 MerkleProofData decode_merkle_proof(const std::vector<uint8_t>& encoded)
 {
+  q_useful_buf_c buf{encoded.data(), encoded.size()};
+  QCBORDecodeContext ctx;
+  QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);
+  struct q_useful_buf_c params;
+  QCBORDecode_EnterMap(&ctx, NULL);
+  QCBORDecode_EnterArrayFromMapN(
+    &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL);
+  QCBORItem item;
   MerkleProofData data;
 
-  auto decoded = ccf::cbor::parse(encoded);
+  QCBORDecode_GetNext(&ctx, &item);
+  REQUIRE(item.uDataType == QCBOR_TYPE_BYTE_STRING);
+  data.write_set_digest = bstring_to_bytes(item);
 
-  const auto& leaf = decoded->map_at(
-    ccf::cbor::make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL));
+  QCBORDecode_GetNext(&ctx, &item);
+  REQUIRE(item.uDataType == QCBOR_TYPE_TEXT_STRING);
+  data.commit_evidence = tstring_to_string(item);
 
-  REQUIRE_EQ(leaf->size(), 3);
+  QCBORDecode_GetNext(&ctx, &item);
+  REQUIRE(item.uDataType == QCBOR_TYPE_BYTE_STRING);
+  data.claims_digest = bstring_to_bytes(item);
 
-  const auto& wsd = leaf->array_at(0)->as_bytes();
-  data.write_set_digest.assign(wsd.begin(), wsd.end());
+  QCBORDecode_ExitArray(&ctx);
+  QCBORDecode_EnterArrayFromMapN(
+    &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL);
 
-  data.commit_evidence = leaf->array_at(1)->as_string();
-
-  const auto& cd = leaf->array_at(2)->as_bytes();
-  data.claims_digest.assign(cd.begin(), cd.end());
-
-  const auto& path = decoded->map_at(
-    ccf::cbor::make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL));
-
-  for (size_t i = 0; i < path->size(); i++)
+  for (;;)
   {
-    const auto& node = path->array_at(i);
-    const auto& dir = node->array_at(0)->as_simple();
-    const auto& hash = node->array_at(1)->as_bytes();
+    QCBORDecode_EnterArray(&ctx, &item);
+    if (QCBORDecode_GetError(&ctx) != QCBOR_SUCCESS)
+      break;
 
-    MerkleProofData::PathItem item;
-    item.first = ccf::cbor::simple_to_boolean(dir);
-    item.second.assign(hash.begin(), hash.end());
-    data.path.push_back(item);
+    std::pair<int64_t, std::vector<uint8_t>> path_item;
+
+    REQUIRE(QCBORDecode_GetNext(&ctx, &item) == QCBOR_SUCCESS);
+    if (item.uDataType == CBOR_SIMPLEV_TRUE)
+    {
+      path_item.first = true;
+    }
+    else if (item.uDataType == CBOR_SIMPLEV_FALSE)
+    {
+      path_item.first = false;
+    }
+    else
+    {
+      // Not a valid CBOR boolean
+      REQUIRE(false);
+    }
+
+    REQUIRE(QCBORDecode_GetNext(&ctx, &item) == QCBOR_SUCCESS);
+    REQUIRE(item.uDataType == QCBOR_TYPE_BYTE_STRING);
+    path_item.second = bstring_to_bytes(item);
+
+    data.path.push_back(path_item);
+    QCBORDecode_ExitArray(&ctx);
   }
+
+  QCBORDecode_ExitArray(&ctx);
+  QCBORDecode_ExitMap(&ctx);
+
+  REQUIRE(QCBORDecode_Finish(&ctx) == QCBOR_ERR_NO_MORE_ITEMS);
 
   return data;
 }
@@ -864,7 +906,7 @@ TEST_CASE("StateCache range queries")
       for (auto& store : stores)
       {
         REQUIRE(store != nullptr);
-        const auto seqno = store->current_txid().seqno;
+        const auto seqno = store->get_txid().seqno;
 
         // Don't validate anything about signature transactions, just the
         // business transactions between them
@@ -1221,7 +1263,7 @@ TEST_CASE("StateCache sparse queries")
       for (auto& store : stores)
       {
         REQUIRE(store != nullptr);
-        const auto seqno = store->current_txid().seqno;
+        const auto seqno = store->get_txid().seqno;
 
         // Don't validate anything about signature transactions, just the
         // business transactions between them
@@ -1304,6 +1346,7 @@ TEST_CASE("StateCache concurrent access")
 
   std::atomic<bool> finished = false;
   std::thread host_thread([&]() {
+    ccf::crypto::openssl_sha256_init();
     auto ledger = construct_host_ledger(state.kv_store->get_consensus());
 
     size_t last_handled_write = 0;
@@ -1354,6 +1397,7 @@ TEST_CASE("StateCache concurrent access")
       cache.tick(std::chrono::milliseconds(100));
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+    ccf::crypto::openssl_sha256_shutdown();
   });
 
   constexpr auto per_thread_queries = 30;
@@ -1413,7 +1457,7 @@ TEST_CASE("StateCache concurrent access")
       for (auto& store : stores)
       {
         REQUIRE(store != nullptr);
-        const auto seqno = store->current_txid().seqno;
+        const auto seqno = store->get_txid().seqno;
         if (
           std::find(
             signature_versions.begin(), signature_versions.end(), seqno) ==
@@ -1429,7 +1473,7 @@ TEST_CASE("StateCache concurrent access")
       for (auto& state : states)
       {
         REQUIRE(state != nullptr);
-        const auto seqno = state->store->current_txid().seqno;
+        const auto seqno = state->store->get_txid().seqno;
         if (
           std::find(
             signature_versions.begin(), signature_versions.end(), seqno) ==
@@ -1485,6 +1529,7 @@ TEST_CASE("StateCache concurrent access")
                                      size_t handle,
                                      const auto& error_printer) {
     std::vector<ccf::historical::StatePtr> states;
+    ccf::crypto::openssl_sha256_init();
     auto fetch_result = [&]() {
       states = cache.get_state_range(handle, range_start, range_end);
     };
@@ -1492,6 +1537,7 @@ TEST_CASE("StateCache concurrent access")
     REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
     REQUIRE(states.size() == range_end - range_start + 1);
     validate_all_states(states);
+    ccf::crypto::openssl_sha256_shutdown();
   };
 
   auto query_random_sparse_set_stores = [&](
@@ -1513,6 +1559,7 @@ TEST_CASE("StateCache concurrent access")
                                           size_t handle,
                                           const auto& error_printer) {
     std::vector<ccf::historical::StatePtr> states;
+    ccf::crypto::openssl_sha256_init();
     auto fetch_result = [&]() {
       states = cache.get_states_for(handle, seqnos);
     };
@@ -1520,6 +1567,7 @@ TEST_CASE("StateCache concurrent access")
     REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
     REQUIRE(states.size() == seqnos.size());
     validate_all_states(states);
+    ccf::crypto::openssl_sha256_shutdown();
   };
 
   auto run_n_queries = [&](size_t handle) {
@@ -1777,6 +1825,7 @@ TEST_CASE("StateCache concurrent access")
 
 TEST_CASE("Recover historical ledger secrets")
 {
+  ccf::crypto::openssl_sha256_init();
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
 
@@ -1893,10 +1942,12 @@ TEST_CASE("Recover historical ledger secrets")
 
     validate_business_transaction(historical_state, first_seqno);
   }
+  ccf::crypto::openssl_sha256_shutdown();
 }
 
 TEST_CASE("Valid merkle proof from receipts")
 {
+  ccf::crypto::openssl_sha256_init();
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
   auto sigseq = write_transactions_and_signature(kv_store, 10);
@@ -1950,10 +2001,13 @@ TEST_CASE("Valid merkle proof from receipts")
   // We don't provide a merkle proof for the signature itself.
   proof = ccf::describe_merkle_proof_v1(*historical_state->receipt);
   REQUIRE_FALSE(proof.has_value());
+
+  ccf::crypto::openssl_sha256_shutdown();
 }
 
 TEST_CASE("Cache size estimation")
 {
+  ccf::crypto::openssl_sha256_init();
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
 
@@ -1989,10 +2043,12 @@ TEST_CASE("Cache size estimation")
   cache.tick(std::chrono::milliseconds(1000));
 
   REQUIRE(cache.get_estimated_store_cache_size() == 0);
+  ccf::crypto::openssl_sha256_shutdown();
 }
 
 TEST_CASE("adjust_ranges")
 {
+  ccf::crypto::openssl_sha256_init();
   using SeqNoSet = std::set<ccf::SeqNo>;
 
   struct AdjustRangesAccessor : public ccf::historical::StateCacheImpl
@@ -2089,13 +2145,17 @@ TEST_CASE("adjust_ranges")
       REQUIRE(actual_removed == expected_removed);
     }
   }
+  ccf::crypto::openssl_sha256_shutdown();
 }
 
 int main(int argc, char** argv)
 {
+  threading::ThreadMessaging::init(1);
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

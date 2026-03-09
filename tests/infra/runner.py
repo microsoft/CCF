@@ -16,7 +16,6 @@ import sys
 import better_exceptions
 import re
 import infra.bencher
-import os
 
 from loguru import logger as LOG
 
@@ -81,7 +80,7 @@ def run(get_command, args):
     LOG.info("Starting nodes on {}".format(hosts))
 
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         primary, backups = network.find_nodes()
@@ -149,16 +148,11 @@ def run(get_command, args):
 
                     time.sleep(5)
 
-                perf_label = args.perf_label
-
                 for remote_client in clients:
                     perf_result = remote_client.get_result()
                     LOG.success(f"{args.label}/{remote_client.name}: {perf_result}")
                     bf = infra.bencher.Bencher()
-                    bf.set(
-                        perf_label,
-                        infra.bencher.Throughput(perf_result),
-                    )
+                    bf.set(args.perf_label, infra.bencher.Throughput(perf_result))
 
                 primary, _ = network.find_primary()
                 with primary.client() as nc:
@@ -171,7 +165,7 @@ def run(get_command, args):
 
                     bf = infra.bencher.Bencher()
                     bf.set(
-                        perf_label,
+                        args.perf_label,
                         infra.bencher.Memory(current_value, high_value=peak_value),
                     )
 
@@ -238,7 +232,7 @@ class ConcurrentRunner:
         config = {
             "handlers": [
                 {
-                    "sink": sys.stdout,
+                    "sink": sys.stderr,
                     "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <red>{{{thread.name}}}</red> <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
                 }
             ]
@@ -259,13 +253,6 @@ class ConcurrentRunner:
 
         if not max_concurrent:
             max_concurrent = len(self.threads)
-
-        if os.getenv("TSAN_OPTIONS"):
-            cores_count = len(os.sched_getaffinity(0))
-            avg_nodes_per_network = 3
-            safety_factor = 0.5
-            max_concurrent = int(safety_factor * cores_count / avg_nodes_per_network)
-            assert max_concurrent > 0
 
         thread_groups = [
             self.threads[i : i + max_concurrent]

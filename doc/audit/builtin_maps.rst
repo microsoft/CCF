@@ -218,17 +218,6 @@ The minimum trusted TCB version for new nodes allowed to join the network (:doc`
    * - ``00a00f11``
      - ``{"hexstring": "d315000000000004", "boot_loader": 4, "tee": 0, "snp": 21, "microcode": 211}``
 
-``nodes.sealed_recovery_keys``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Key** Node ID: SHA-256 digest of the node public key, represented as a hex-encoded string.
-
-**Value** Sealed recovery key for the node. The private key is encrypted using a key derived from SNP's ``DERIVED_KEY``, allowing the node to unseal its recovery share during local sealing recovery.
-
-.. doxygenstruct:: ccf::SealedRecoveryKey
-    :project: CCF
-    :members:
-
 ``service.info``
 ~~~~~~~~~~~~~~~~
 
@@ -274,6 +263,13 @@ PEM identity of previous service, which this service recovered from.
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
 **Value** Previous :term:`Service Identity`, represented as a PEM-encoded JSON string.
+
+``service.acme_certificates``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Key** Name of a network interface (string).
+
+**Value** Endorsed TLS certificate for the interface, represented as a PEM-encoded string.
 
 ``proposals``
 ~~~~~~~~~~~~~
@@ -570,80 +566,9 @@ While the contents themselves are encrypted, the table is public so as to be acc
 
 **Value** Last signed Merkle root of previous service instance, represented as a hex-encoded string.
 
-``sealed_shares``
-~~~~~~~~~~~~~~~~~
-
-**Value** Per-node encrypted ledger secret wrapping keys, encrypted by the public keys recorded in ``nodes.sealed_recovery_keys``.
-
-While the contents themselves are encrypted, the table is public so as to be accessible by a node starting a recovery service.
-
-.. doxygenstruct:: ccf::SealedSharesInfo
-    :project: CCF
-    :members:
-
-``sealing_recovery_names``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Mapping from sealing recovery names to node IDs for nodes that support local sealing. This table is used alongside ``nodes.sealed_recovery_keys`` to fetch the sealed recovery key when a node is recovering.
-
-**Key** Sealing recovery name of the node, represented as a string.
-
-**Value** Node ID: SHA-256 digest of the node public key, represented as a hex-encoded string.
-
 ``last_recovery_type``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 **Value** The mechanism by which the ledger secret was recovered.
 
 .. doxygenenum:: ccf::RecoveryType
-   :project: CCF
-
-``recovery_decision_protocol.nodes``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Key** Location name: A string which is unique to the location of a particular node within a network.
-
-**Value** 
-
-.. doxygenstruct:: ccf::recovery_decision_protocol::NodeInfo
-   :project: CCF
-   :members:
-
-``recovery_decision_protocol.gossip``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Key** Location name of the source of the gossip message.
-
-**Value** The TxID of the last recovered signed transaction known by the source node.
-
-``recovery_decision_protocol.chosen_node``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Value** The location name of the chosen node. This will either be the node this node voted for, or the node that it has received an `IAmOpen` message from.
-
-``recovery_decision_protocol.votes``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Key** Location name of the node which has voted for this node to be opened.
-
-``recovery_decision_protocol.sm_state``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Value** State machine state of the recovery decision protocol.
-
-.. doxygenenum:: ccf::recovery_decision_protocol::StateMachine
-   :project: CCF
-
-``recovery_decision_protocol.timeout_sm_state``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Value** Timeout state machine state of the recovery decision protocol. Ticks based on `failover_timeout` and advances `recovery_decision_protocol.sm_state` if it falls behind.
-
-See :cpp:enum:`ccf::recovery_decision_protocol::StateMachine` above.
-
-``recovery_decision_protocol.open_kind``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Value** The kind of recovery that was performed, either `Quorum`-based which guarantees that there is at most one recovered service using this path, or `Failover`-based which could allow multiple services to recover.
-
-.. doxygenenum:: ccf::recovery_decision_protocol::OpenKinds
    :project: CCF

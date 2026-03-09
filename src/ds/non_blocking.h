@@ -8,7 +8,6 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <memory>
-#include <utility>
 #include <vector>
 
 namespace ringbuffer
@@ -28,26 +27,27 @@ namespace ringbuffer
     struct PendingMessage
     {
       Message m;
-      size_t marker = 0;
-      bool finished = false;
+      size_t marker;
+      bool finished;
       std::vector<uint8_t> buffer;
 
       PendingMessage(Message m_, std::vector<uint8_t>&& buffer_) :
         m(m_),
-        buffer(std::move(buffer_))
+        marker(0),
+        finished(false),
+        buffer(buffer_)
       {}
     };
 
     std::deque<PendingMessage> pending;
 
   public:
-    NonBlockingWriter(WriterPtr writer) : underlying_writer(std::move(writer))
-    {}
+    NonBlockingWriter(const WriterPtr& writer) : underlying_writer(writer) {}
 
-    WriteMarker prepare(
+    virtual WriteMarker prepare(
       ringbuffer::Message m,
       size_t total_size,
-      bool /*unused*/,
+      bool,
       size_t* identifier = nullptr) override
     {
       if (pending.empty())
@@ -67,14 +67,14 @@ namespace ringbuffer
       pending.emplace_back(m, std::vector<uint8_t>(total_size));
 
       auto& msg = pending.back();
-      msg.marker = reinterpret_cast<size_t>(msg.buffer.data());
+      msg.marker = (size_t)msg.buffer.data();
 
       // NB: There is an assumption that these markers will never conflict with
       // the markers produced by the underlying writer impl
       return msg.marker;
     }
 
-    void finish(const WriteMarker& marker) override
+    virtual void finish(const WriteMarker& marker) override
     {
       if (marker.has_value())
       {
@@ -82,7 +82,7 @@ namespace ringbuffer
         {
           // NB: finish is passed the _initial_ WriteMarker, so we compare
           // against it.buffer.data() rather than it.marker
-          if (reinterpret_cast<size_t>(it.buffer.data()) == marker.value())
+          if ((size_t)it.buffer.data() == marker.value())
           {
             // This is a pending write. Mark as completed, so we can later flush
             // it
@@ -95,7 +95,7 @@ namespace ringbuffer
       underlying_writer->finish(marker);
     }
 
-    WriteMarker write_bytes(
+    virtual WriteMarker write_bytes(
       const WriteMarker& marker, const uint8_t* bytes, size_t size) override
     {
       if (marker.has_value())
@@ -111,24 +111,24 @@ namespace ringbuffer
           {
             // This is a pending write - dump data directly to write marker,
             // which should be within the appropriate buffer
-            auto* dest = reinterpret_cast<uint8_t*>(marker.value());
+            auto dest = (uint8_t*)marker.value();
             if (dest < it.buffer.data())
             {
               throw std::runtime_error(fmt::format(
                 "Invalid pending marker - writing before buffer: {} < {}",
-                reinterpret_cast<size_t>(dest),
-                reinterpret_cast<size_t>(it.buffer.data())));
+                (size_t)dest,
+                (size_t)it.buffer.data()));
             }
 
-            auto* const buffer_end = it.buffer.data() + it.buffer.size();
+            const auto buffer_end = it.buffer.data() + it.buffer.size();
             if (dest + size > buffer_end)
             {
               throw std::runtime_error(fmt::format(
                 "Invalid pending marker - write extends beyond buffer: {} + {} "
                 "> {}",
-                reinterpret_cast<size_t>(dest),
-                size,
-                reinterpret_cast<size_t>(buffer_end)));
+                (size_t)dest,
+                (size_t)size,
+                (size_t)buffer_end));
             }
 
             if (size != 0)
@@ -137,7 +137,7 @@ namespace ringbuffer
             }
 
             dest += size;
-            it.marker = reinterpret_cast<size_t>(dest);
+            it.marker = (size_t)dest;
             return {it.marker};
           }
         }

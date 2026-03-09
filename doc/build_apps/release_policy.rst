@@ -100,10 +100,7 @@ Support calendar
      - November 24, 2023
    * - 4.0
      - May 2, 2023
-     - October 25, 2024
+     - Oct 25, 2024
    * - 5.0
-     - July 17, 2024
-     - September 28, 2025
-   * - 6.0
-     - March 28, 2025
+     - Jul 17, 2024
      - \-

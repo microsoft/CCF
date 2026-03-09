@@ -2,11 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/internal_logger.h"
+#include "ccf/ds/logger.h"
 
 #include <atomic>
 #include <string>
-#include <utility>
 
 namespace ds
 {
@@ -17,8 +16,8 @@ namespace ds
     std::atomic<T> state;
 
   public:
-    StateMachine(std::string label_, T state_) :
-      label(std::move(label_)),
+    StateMachine(const std::string& label_, T state_) :
+      label(label_),
       state(state_)
     {}
 
@@ -32,12 +31,12 @@ namespace ds
       }
     }
 
-    [[nodiscard]] bool check(T state_) const
+    bool check(T state_) const
     {
       return state_ == state.load();
     }
 
-    [[nodiscard]] T value() const
+    T value() const
     {
       return state.load();
     }

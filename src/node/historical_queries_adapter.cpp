@@ -3,61 +3,63 @@
 
 #include "ccf/historical_queries_adapter.h"
 
-#include "ccf/crypto/cose.h"
 #include "ccf/historical_queries_utils.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
-#include "crypto/cbor.h"
-#include "crypto/cose.h"
 #include "kv/kv_types.h"
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/tx_receipt_impl.h"
 
+#include <t_cose/t_cose_sign1_sign.h>
+
 namespace
 {
-  ccf::cbor::Value encode_leaf_cbor(const ccf::TxReceiptImpl& receipt)
+  void encode_leaf_cbor(
+    QCBOREncodeContext& ctx, const ccf::TxReceiptImpl& receipt)
   {
-    using namespace ccf::cbor;
-    std::vector<Value> items;
+    QCBOREncode_OpenArrayInMapN(
+      &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL);
 
     // 1 WSD
     if (!receipt.write_set_digest.has_value())
     {
       throw std::logic_error("Write set digest is required for COSE receipts");
     }
-    items.push_back(make_bytes(receipt.write_set_digest->h));
+    const auto& wsd = receipt.write_set_digest->h;
+    QCBOREncode_AddBytes(&ctx, {wsd.data(), wsd.size()});
 
     // 2. CE
     if (!receipt.commit_evidence.has_value())
     {
       throw std::logic_error("Commit evidence is required for COSE receipts");
     }
-    items.push_back(make_string(receipt.commit_evidence.value()));
+    const auto& ce = receipt.commit_evidence.value();
+    QCBOREncode_AddSZString(&ctx, ce.data());
 
     // 3. CD
-    items.push_back(make_bytes(receipt.claims_digest.value().h));
+    const auto& cd = receipt.claims_digest.value().h;
+    QCBOREncode_AddBytes(&ctx, {cd.data(), cd.size()});
 
-    return make_array(std::move(items));
+    QCBOREncode_CloseArray(&ctx);
   }
 
-  ccf::cbor::Value encode_path_cbor(const ccf::HistoryTree::Path& path)
+  void encode_path_cbor(
+    QCBOREncodeContext& ctx, const ccf::HistoryTree::Path& path)
   {
-    using namespace ccf::cbor;
-    std::vector<Value> items;
-
+    QCBOREncode_OpenArrayInMapN(
+      &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL);
     for (const auto& node : path)
     {
       const bool dir =
         (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT);
+      std::vector<uint8_t> hash{node.hash};
 
-      std::span<const uint8_t> hash{node.hash.bytes, node.hash.size()};
-      std::vector<Value> path_element;
-      path_element.push_back(make_simple(boolean_to_simple(dir)));
-      path_element.push_back(make_bytes(hash));
-
-      items.push_back(make_array(std::move(path_element)));
+      QCBOREncode_OpenArray(&ctx);
+      QCBOREncode_AddBool(&ctx, dir);
+      QCBOREncode_AddBytes(&ctx, {hash.data(), hash.size()});
+      QCBOREncode_CloseArray(&ctx);
     }
-    return make_array(std::move(items));
+    QCBOREncode_CloseArray(&ctx);
   }
 }
 
@@ -151,8 +153,8 @@ namespace ccf
       {
         const auto direction =
           node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT ?
-          ccf::ProofReceipt::ProofStep::Direction::Left :
-          ccf::ProofReceipt::ProofStep::Direction::Right;
+          ccf::ProofReceipt::ProofStep::Left :
+          ccf::ProofReceipt::ProofStep::Right;
         const auto hash = ccf::crypto::Sha256Hash::from_span(
           std::span<const uint8_t, ccf::ClaimsDigest::Digest::SIZE>(
             node.hash.bytes, sizeof(node.hash.bytes)));
@@ -211,37 +213,52 @@ namespace ccf
   std::optional<std::vector<uint8_t>> describe_merkle_proof_v1(
     const TxReceiptImpl& receipt)
   {
+    constexpr size_t buf_size = 2048; // TBD: calculate why this is enough
+    std::vector<uint8_t> underlying_buffer(buf_size);
+    UsefulBuf buffer{underlying_buffer.data(), underlying_buffer.size()};
+    assert(buffer.len == buf_size);
+
+    QCBOREncodeContext ctx;
+    QCBOREncode_Init(&ctx, buffer);
+
+    QCBOREncode_OpenMap(&ctx);
+
     if (!receipt.commit_evidence)
     {
       LOG_DEBUG_FMT("Merkle proof is missing commit evidence");
       return std::nullopt;
     }
-
     if (!receipt.write_set_digest)
     {
       LOG_DEBUG_FMT("Merkle proof is missing write set digest");
       return std::nullopt;
     }
+    encode_leaf_cbor(ctx, receipt);
 
     if (!receipt.path)
     {
       LOG_DEBUG_FMT("Merkle proof is missing path");
       return std::nullopt;
     }
+    encode_path_cbor(ctx, *receipt.path);
 
-    using namespace ccf::cbor;
-    std::vector<MapItem> proof;
+    QCBOREncode_CloseMap(&ctx);
 
-    proof.emplace_back(
-      make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL),
-      encode_leaf_cbor(receipt));
+    UsefulBufC result;
+    auto qerr = QCBOREncode_Finish(&ctx, &result);
+    if (qerr != QCBOR_SUCCESS)
+    {
+      LOG_DEBUG_FMT("Failed to encode merkle proof: {}", qerr);
+      return std::nullopt;
+    }
 
-    proof.emplace_back(
-      make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL),
-      encode_path_cbor(*receipt.path));
+    // Memory address is said to match:
+    // github.com/laurencelundblade/QCBOR/blob/v1.4.1/inc/qcbor/qcbor_encode.h#L2190-L2191
+    assert(result.ptr == underlying_buffer.data());
 
-    auto proof_map = make_map(std::move(proof));
-    return serialize(proof_map);
+    underlying_buffer.resize(result.len);
+    underlying_buffer.shrink_to_fit();
+    return underlying_buffer;
   }
 
   std::optional<SerialisedCoseEndorsements> describe_cose_endorsements_v1(
@@ -254,30 +271,6 @@ namespace ccf
     const TxReceiptImpl& receipt)
   {
     return receipt.cose_signature;
-  }
-
-  std::optional<SerialisedCoseReceipt> describe_cose_receipt_v1(
-    const TxReceiptImpl& receipt)
-  {
-    auto signature = describe_cose_signature_v1(receipt);
-    if (!signature.has_value())
-    {
-      return std::nullopt;
-    }
-
-    auto proof = describe_merkle_proof_v1(receipt);
-    if (!proof.has_value())
-    {
-      // Signature TX: return COSE signature as-is, with empty UHDR
-      return signature;
-    }
-
-    auto inclusion_proof =
-      ccf::cose::edit::pos::AtKey{ccf::cose::header::iana::INCLUSION_PROOFS};
-    ccf::cose::edit::desc::Value desc{
-      inclusion_proof, ccf::cose::header::iana::VDP, *proof};
-
-    return ccf::cose::edit::set_unprotected_header(*signature, desc);
   }
 }
 
@@ -417,6 +410,58 @@ namespace ccf::historical
     class TQueryHandler,
     class TEndpointFunction,
     class TEndpointContext,
+    class TTxIDExtractor>
+  TEndpointFunction _adapter_v3(
+    const TQueryHandler& f,
+    ccf::AbstractNodeContext& node_context,
+    const CheckHistoricalTxStatus& available,
+    const TTxIDExtractor& extractor)
+  {
+    return _adapter_v4<TQueryHandler, TEndpointFunction, TEndpointContext>(
+      f, node_context, available, extractor, default_error_handler);
+  }
+
+  ccf::endpoints::EndpointFunction adapter_v3(
+    const HandleHistoricalQuery& f,
+    ccf::AbstractNodeContext& node_context,
+    const CheckHistoricalTxStatus& available,
+    const TxIDExtractor& extractor)
+  {
+    return _adapter_v3<
+      HandleHistoricalQuery,
+      ccf::endpoints::EndpointFunction,
+      ccf::endpoints::EndpointContext>(f, node_context, available, extractor);
+  }
+
+  ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v3(
+    const HandleReadOnlyHistoricalQuery& f,
+    ccf::AbstractNodeContext& node_context,
+    const CheckHistoricalTxStatus& available,
+    const ReadOnlyTxIDExtractor& extractor)
+  {
+    return _adapter_v3<
+      HandleReadOnlyHistoricalQuery,
+      ccf::endpoints::ReadOnlyEndpointFunction,
+      ccf::endpoints::ReadOnlyEndpointContext>(
+      f, node_context, available, extractor);
+  }
+
+  ccf::endpoints::EndpointFunction read_write_adapter_v3(
+    const HandleReadWriteHistoricalQuery& f,
+    ccf::AbstractNodeContext& node_context,
+    const CheckHistoricalTxStatus& available,
+    const TxIDExtractor& extractor)
+  {
+    return _adapter_v3<
+      HandleReadWriteHistoricalQuery,
+      ccf::endpoints::EndpointFunction,
+      ccf::endpoints::EndpointContext>(f, node_context, available, extractor);
+  }
+
+  template <
+    class TQueryHandler,
+    class TEndpointFunction,
+    class TEndpointContext,
     class TTxIDExtractor,
     class TErrorHandler>
   TEndpointFunction _adapter_v4(
@@ -528,7 +573,7 @@ namespace ccf::historical
             state_cache,
             network_identity_subsystem)) ||
           !populate_cose_service_endorsements(
-            args.tx, historical_state, network_identity_subsystem))
+            args.tx, historical_state, state_cache))
         {
           auto reason = fmt::format(
             "Historical transaction {} is not currently available.",

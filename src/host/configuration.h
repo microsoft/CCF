@@ -4,7 +4,6 @@
 #pragma once
 
 #include "ccf/ds/unit_strings.h"
-#include "ccf/pal/platform.h"
 #include "common/configuration.h"
 
 #include <optional>
@@ -12,7 +11,29 @@
 
 namespace host
 {
-  enum class LogFormat : uint8_t
+  enum class EnclaveType
+  {
+    RELEASE,
+    DEBUG,
+    VIRTUAL // Deprecated (use EnclavePlatform instead)
+  };
+  DECLARE_JSON_ENUM(
+    EnclaveType,
+    {{EnclaveType::RELEASE, "Release"},
+     {EnclaveType::DEBUG, "Debug"},
+     {EnclaveType::VIRTUAL, "Virtual"}});
+
+  enum class EnclavePlatform
+  {
+    SGX,
+    SNP,
+    VIRTUAL,
+  };
+  DECLARE_JSON_ENUM(
+    EnclavePlatform,
+    {{EnclavePlatform::SNP, "SNP"}, {EnclavePlatform::VIRTUAL, "Virtual"}});
+
+  enum class LogFormat
   {
     TEXT,
     JSON
@@ -40,6 +61,17 @@ namespace host
 
   struct CCHostConfig : public ccf::CCFConfig
   {
+    struct Enclave
+    {
+      std::string file;
+      EnclaveType type;
+      EnclavePlatform platform;
+
+      bool operator==(const Enclave&) const = default;
+    };
+    Enclave enclave = {};
+
+    // Other
     ccf::ds::TimeString tick_interval = {"10ms"};
     ccf::ds::TimeString slow_io_logging_threshold = {"10ms"};
     std::optional<std::string> node_client_interface = std::nullopt;
@@ -49,16 +81,17 @@ namespace host
     std::optional<std::string> node_data_json_file = std::nullopt;
     std::optional<std::string> service_data_json_file = std::nullopt;
     bool ignore_first_sigterm = false;
-    std::optional<ccf::SealingRecoveryConfig> sealing_recovery = std::nullopt;
 
     struct OutputFiles
     {
       std::string node_certificate_file = "nodecert.pem";
-      std::string pid_file = "my_node.pid";
+      std::string pid_file = "cchost.pid";
 
       // Addresses files
-      std::string node_to_node_address_file;
-      std::string rpc_addresses_file;
+      std::string node_to_node_address_file = "";
+      std::string rpc_addresses_file = "";
+
+      std::optional<std::string> sealed_ledger_secret_location = std::nullopt;
 
       bool operator==(const OutputFiles&) const = default;
     };
@@ -66,6 +99,7 @@ namespace host
 
     struct Logging
     {
+      ccf::LoggerLevel host_level = ccf::LoggerLevel::INFO;
       LogFormat format = LogFormat::TEXT;
 
       bool operator==(const Logging&) const = default;
@@ -89,8 +123,8 @@ namespace host
 
       struct Start
       {
-        std::vector<ParsedMemberInfo> members;
-        std::vector<std::string> constitution_files;
+        std::vector<ParsedMemberInfo> members = {};
+        std::vector<std::string> constitution_files = {};
         ccf::ServiceConfiguration service_configuration;
         size_t initial_service_certificate_validity_days = 1;
         std::string service_subject_name = "CN=CCF Service";
@@ -109,8 +143,6 @@ namespace host
         size_t fetch_snapshot_max_attempts = 3;
         ccf::ds::TimeString fetch_snapshot_retry_interval = {"1000ms"};
         ccf::ds::SizeString fetch_snapshot_max_size = {"10GB"};
-        std::optional<std::string> host_data_transparent_statement_path =
-          std::nullopt;
 
         bool operator==(const Join&) const = default;
       };
@@ -120,12 +152,18 @@ namespace host
       {
         size_t initial_service_certificate_validity_days = 1;
         std::string previous_service_identity_file;
+        std::optional<std::string> previous_sealed_ledger_secret_location =
+          std::nullopt;
         bool operator==(const Recover&) const = default;
       };
       Recover recover = {};
     };
     Command command = {};
   };
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Enclave);
+  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Enclave, type, platform);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Enclave, file);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::OutputFiles);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::OutputFiles);
@@ -134,11 +172,12 @@ namespace host
     node_certificate_file,
     pid_file,
     node_to_node_address_file,
-    rpc_addresses_file);
+    rpc_addresses_file,
+    sealed_ledger_secret_location);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Logging);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Logging);
-  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Logging, format);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Logging, host_level, format);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Memory);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Memory);
@@ -164,15 +203,15 @@ namespace host
     fetch_recent_snapshot,
     fetch_snapshot_max_attempts,
     fetch_snapshot_retry_interval,
-    fetch_snapshot_max_size,
-    host_data_transparent_statement_path);
+    fetch_snapshot_max_size);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Recover);
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCHostConfig::Command::Recover,
     initial_service_certificate_validity_days,
-    previous_service_identity_file);
+    previous_service_identity_file,
+    previous_sealed_ledger_secret_location);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);
@@ -180,7 +219,7 @@ namespace host
     CCHostConfig::Command, service_certificate_file, start, join, recover);
 
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, ccf::CCFConfig);
-  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, command);
+  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave, command);
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCHostConfig,
     tick_interval,
@@ -191,7 +230,6 @@ namespace host
     node_data_json_file,
     service_data_json_file,
     ignore_first_sigterm,
-    sealing_recovery,
     output_files,
     snapshots,
     logging,

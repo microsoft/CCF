@@ -7,7 +7,6 @@ import infra.network
 import infra.path
 import infra.proc
 import infra.net
-from infra.node import CCFVersion
 import infra.e2e_args
 import infra.proposal
 import suite.test_requirements as reqs
@@ -23,11 +22,8 @@ import tempfile
 import infra.interfaces
 import infra.log_capture
 import governance_api
-from hashlib import sha256
+from hashlib import md5
 import random
-
-import memberclient
-import membership
 
 from loguru import logger as LOG
 
@@ -291,6 +287,7 @@ def test_all_members(network, args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
+        args.perf_nodes,
         existing_network=network,
     )
     recovered_network.start_in_recovery(
@@ -509,7 +506,7 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
     self_signed_node_certs_before = {}
     for node in network.get_joined_nodes():
         # Note: GET /node/self_signed_certificate endpoint was added after 2.0.0-r6
-        if CCFVersion(node.version) > CCFVersion("ccf-2.0.0-rc6"):
+        if node.version_after("ccf-2.0.0-rc6"):
             self_signed_node_certs_before[node.local_node_id] = (
                 node.retrieve_self_signed_cert()
             )
@@ -525,7 +522,7 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
 
     for node in network.get_joined_nodes():
         node.set_certificate_validity_period(valid_from, validity_period_days)
-        if CCFVersion(node.version) > CCFVersion("ccf-2.0.0-rc6"):
+        if node.version_after("ccf-2.0.0-rc6"):
             assert (
                 self_signed_node_certs_before[node.local_node_id]
                 != node.retrieve_self_signed_cert()
@@ -548,7 +545,7 @@ def gov(args):
         node.rpc_interfaces.update(infra.interfaces.make_secondary_interface())
 
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network.consortium.set_authenticate_session(args.authenticate_session)
@@ -584,6 +581,7 @@ def single_node(args):
             args.nodes,
             args.binary_dir,
             args.debug_nodes,
+            args.perf_nodes,
             pdb=args.pdb,
             node_data_json_file=ntf.name,
         ) as network:
@@ -600,7 +598,7 @@ def single_node(args):
             consortium = network.consortium
 
             def rand_hex():
-                return sha256(random.getrandbits(32).to_bytes(4, "big")).hexdigest()
+                return md5(random.getrandbits(32).to_bytes(4, "big")).hexdigest()
 
             validate_info = f"Logged at info during validate: {rand_hex()}"
             validate_warn = f"Logged at warn during validate: {rand_hex()}"
@@ -715,7 +713,7 @@ def single_node(args):
 
 def js_gov(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network.consortium.set_authenticate_session(args.authenticate_session)
@@ -743,7 +741,7 @@ def js_gov(args):
 
 def gov_replay(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         network.consortium.set_authenticate_session(args.authenticate_session)
@@ -765,7 +763,7 @@ if __name__ == "__main__":
     cr.add(
         "single_node",
         single_node,
-        package="samples/apps/logging/logging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         authenticate_session="COSE",
     )
@@ -773,7 +771,7 @@ if __name__ == "__main__":
     cr.add(
         "session_coseauth",
         gov,
-        package="samples/apps/logging/logging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=3,
         authenticate_session="COSE",
@@ -782,7 +780,7 @@ if __name__ == "__main__":
     cr.add(
         "js",
         js_gov,
-        package="samples/apps/logging/logging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=3,
         authenticate_session="COSE",
@@ -791,7 +789,7 @@ if __name__ == "__main__":
     cr.add(
         "replay",
         gov_replay,
-        package="samples/apps/logging/logging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=3,
         authenticate_session="COSE",
@@ -800,7 +798,7 @@ if __name__ == "__main__":
     cr.add(
         "history",
         governance_history.run,
-        package="samples/apps/logging/logging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         authenticate_session="COSE",
     )
@@ -808,23 +806,8 @@ if __name__ == "__main__":
     cr.add(
         "gov_api",
         governance_api.run,
-        package="samples/apps/logging/logging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
-    cr.add(
-        "membership",
-        membership.run,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=0,
-    )
-
-    cr.add(
-        "member_client",
-        memberclient.run,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=1),
-    )
-
-    cr.run()
+    cr.run(2)

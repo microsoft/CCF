@@ -6,7 +6,7 @@
 
 namespace ccf::crypto
 {
-  enum class MDType : uint8_t
+  enum class MDType
   {
     NONE = 0,
     SHA1,

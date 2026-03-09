@@ -121,7 +121,10 @@ html_theme = "furo"
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-html_theme_options = {}
+html_theme_options = {
+    "light_logo": "ccf.svg",
+    "dark_logo": "ccf.svg",
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -215,7 +218,7 @@ breathe_default_project = "CCF"
 
 # Set up multiversion extension
 
-smv_tag_whitelist = r'(?!.*)' # Match nothing, build no tags. Docs suggest using None, but this produces a Warning
+smv_tag_whitelist = None
 smv_branch_whitelist = r"^(main)|(release\/([5-9]|\d\d\d*)\.x)$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
@@ -225,12 +228,6 @@ assert not re.match(smv_branch_whitelist, "release/1.x")
 assert not re.match(smv_branch_whitelist, "release/2.x")
 assert re.match(smv_branch_whitelist, "release/100.x")
 assert not re.match(smv_branch_whitelist, "release/1.x_feature")
-
-# -- Warnings filter
-
-suppress_warnings = [
-    "autosectionlabel", # https://stackoverflow.com/a/77577337
-]
 
 # Intercept command line arguments passed by sphinx-multiversion to retrieve doc version.
 # This is a little hacky with sphinx-multiversion 0.2.4 and the `SPHINX_MULTIVERSION_NAME`
@@ -261,6 +258,7 @@ extlinks = {
 
 # Theme options
 
+html_logo = "_static/ccf.svg"
 html_favicon = "_static/favicon.ico"
 
 html_context = {

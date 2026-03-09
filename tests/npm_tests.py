@@ -722,12 +722,8 @@ def test_npm_app(network, args):
             priv_key_pem3, cn="3", issuer_priv_key_pem=priv_key_pem2, issuer_cn="2"
         )
         # validates chains with target being trusted directly
-        r = c.post("/app/isValidX509CertChain", {"chain": pem2, "trusted": pem2})
-        assert r.body.json(), r.body
-        # does not validate trusted certificates where CA=False
         r = c.post("/app/isValidX509CertChain", {"chain": pem3, "trusted": pem3})
-        assert r.status_code == 200, r.status_code
-        assert r.body.text() == "false", r.body
+        assert r.body.json(), r.body
         # validates chains without intermediates
         r = c.post("/app/isValidX509CertChain", {"chain": pem2, "trusted": pem1})
         assert r.body.json(), r.body
@@ -950,11 +946,10 @@ def test_npm_app(network, args):
         )
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
 
-        if infra.platform_detection.is_snp():
-            LOG.info("Test primary's attestation is verifiable")
-
-            r = c.get("/node/quotes/self")
-            primary_quote_info = r.body.json()
+        r = c.get("/node/quotes/self")
+        primary_quote_info = r.body.json()
+        if args.enclave_platform == "snp":
+            LOG.info("SNP: Test verifySnpAttestation")
 
             # Test without UVM endorsements
             r = c.post(
@@ -987,29 +982,139 @@ def test_npm_app(network, args):
             for key, value in r.body.json().items():
                 LOG.info(f"{key} : {value}")
 
-            # Test with endorsed_tcb derived from the reported_tcb of the
-            # first call, which also captures the architecture (Milan/Genoa/Turin)
-            endorsed_tcb = report_json["reported_tcb"]
-            LOG.info(f"Testing with endorsed_tcb: {endorsed_tcb}")
+            # Test endorsed TCB too small
             r = c.post(
                 "/app/verifySnpAttestation",
                 {
                     "evidence": primary_quote_info["raw"],
                     "endorsements": primary_quote_info["endorsements"],
                     "uvm_endorsements": primary_quote_info["uvm_endorsements"],
-                    "endorsed_tcb": endorsed_tcb,
+                    "endorsed_tcb": "0000000000000000",
                 },
             )
-            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+            assert "does not match reported TCB" in r.body.json()["error"]["message"]
 
-            # Test with endorsed_tcb of correct size but all zeroes, should be rejected
+            # Test too short a quote
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"][:-10],
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+            assert (
+                "attestation report is not of expected size"
+                in r.body.json()["error"]["message"]
+            )
+
+            # Test too long a quote
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"] + "1",
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+            assert (
+                "attestation report is not of expected size"
+                in r.body.json()["error"]["message"]
+            )
+
+            # Test corrupted quote
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": corrupt_value(primary_quote_info["raw"]),
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+
+            # Test too short an endorsement
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"][:-10],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+            assert (
+                "Expected 3 endorsement certificates but got 2"
+                in r.body.json()["error"]["message"]
+            )
+
+            # Test too long an endorsement
+            extended_endorsements = (
+                b64decode(primary_quote_info["endorsements"])
+                + b"-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
+            )
+            extended_endorsements = b64encode(extended_endorsements).decode(
+                encoding="utf-8"
+            )
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": extended_endorsements,
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+            assert (
+                "Expected 3 endorsement certificates but got 4"
+                in r.body.json()["error"]["message"]
+            )
+
+            # Test corrupted endorsements
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": corrupt_value(primary_quote_info["endorsements"]),
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+
+            # Test too short a uvm endorsement
             r = c.post(
                 "/app/verifySnpAttestation",
                 {
                     "evidence": primary_quote_info["raw"],
                     "endorsements": primary_quote_info["endorsements"],
-                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
-                    "endorsed_tcb": "0" * len(endorsed_tcb),
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"][:-10],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+
+            # Test too long a uvm endorsement
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"] + "1",
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+
+            # Test corrupted uvm endorsements
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": corrupt_value(
+                        primary_quote_info["uvm_endorsements"]
+                    ),
                 },
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code

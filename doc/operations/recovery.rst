@@ -25,7 +25,7 @@ The recovery procedure consists of two phases:
 Establishing a Recovered Public Network
 ---------------------------------------
 
-To initiate the first phase of the recovery procedure, one or several nodes should be started with the ``Recover`` command in their config file (see also the sample recovery configuration file :ccf_repo:`recover_config.json </samples/config/recover_config.json>`):
+To initiate the first phase of the recovery procedure, one or several nodes should be started with the ``Recover`` command in the ``cchost`` config file (see also the sample recovery configuration file :ccf_repo:`recover_config.json </samples/config/recover_config.json>`):
 
 .. code-block:: bash
 
@@ -38,9 +38,9 @@ To initiate the first phase of the recovery procedure, one or several nodes shou
           "initial_service_certificate_validity_days": 1
         }
       ...
-    $ /opt/ccf/bin/js_generic --config /path/to/config/file
+    $ cchost --config /path/to/config/file
 
-Each node will then immediately restore the public entries of its ledger (``ledger.directory`` and ``ledger.read_only_ledger_dir`` configuration entries). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling :http:GET:`/node/state` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
+Each node will then immediately restore the public entries of its ledger ("ledger.directory`` and ``ledger.read_only_ledger_dir`` configuration entries). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling :http:GET:`/node/state` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
 
 The recovery procedure can be accelerated by specifying a valid snapshot file created by the previous service in the directory specified via the ``snapshots.directory`` configuration entry. If specified, the ``recover`` node will automatically recover the snapshot and the ledger entries following that snapshot, which in practice should be a fraction of the total time required to recover the entire historical ledger.`
 
@@ -82,11 +82,11 @@ Summary Diagram
         participant Node 1
         participant Node 2
 
-        Operators->>+Node 0: recover
+        Operators->>+Node 0: cchost recover
         Node 0-->>Operators: Service Certificate 0
         Note over Node 0: Reading Public Ledger...
 
-        Operators->>+Node 1: recover
+        Operators->>+Node 1: cchost recover
         Node 1-->>Operators: Service Certificate 1
         Note over Node 1: Reading Public Ledger...
 
@@ -104,225 +104,46 @@ Summary Diagram
 
         Note over Operators, Node 1: Operators select Node 0 to start the new network (243 > 203)
 
-        Operators->>+Node 1: shutdown
+        Operators->>+Node 1: cchost shutdown
 
-        Operators->>+Node 2: join
+        Operators->>+Node 2: cchost join
         Node 2->>+Node 0: Join network (over TLS)
         Node 0-->>Node 2: Join network response
         Note over Node 2: Part of Public Network
 
 Once operators have established a recovered crash-fault tolerant public network, the existing members of the consortium :ref:`must vote to accept the recovery of the network and submit their recovery shares <governance/accept_recovery:Accepting Recovery and Submitting Shares>`.
 
-Sealing-based Recovery (Experimental)
--------------------------------------
+Local Sealing Recovery
+----------------------
 
-Sealing-based recovery aims to minimise operator intervention during disaster recovery, by first automating the Recovery-Decision-Protocol (deciding which node has the best ledger to recover) and then allowing the chosen node to automatically recover the ledger secrets using previously Locally Sealed secrets.
+SNP provides the `DERIVED_KEY` guest message which derives a key from the CPU's VCEK (or VLEK), TCB version and the guest's measurement and host_data (policy), thus any change to the CPU, measurement or policy, or a rolled-back TCB version, will prevent the key from being reconstructed.
+If configured, the node will unseal the secrets it previously sealed instead of waiting for recovery shares from members after `transition_to_open` is triggered.
 
-Together these features allow a network to automatically recover from a crash without requiring operators to manually inspect the ledgers and intervene in the recovery process, while still ensuring that the recovered ledger is the most up-to-date one available.
+If, in config.json, `output_files.sealed_ledger_secret_location` is set, the node will derive a key and seal versioned ledger secrets to that directory.
+This capability is noted in `public:ccf.gov.node.info[node].will_locally_seal_ledger_secrets`, to allow it to be audited.
 
+Then if `command.recover.previous_sealed_ledger_secret_location` is set in the config.json, when the node recovers and receives the `transition_to_open` transaction, the node will try to unseal the latest ledger secret and use that to recover the ledger.
+If this is unsuccessful, it will fall back to waiting for recovery shares.
+Which of these two paths is taken is noted in the `public:ccf.internal.last_recovery_type`.
 
-Recovery Decision Protocol
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. code-block:: bash
 
-At a high level, the recovery decision protocol allows recovering nodes to discover which node has the most up-to-date ledger and automatically recover the network using that ledger.
-The protocol completes with a node choosing to `transition-to-open`, and so requires another mechanism to unseal and recover the private ledger.
-
-The protocol uses three phases to ensure that so long as the hosts and network between them is sufficiently healthy, forks are prevented and the most up-to-date ledger is recovered.
-Specifically, the protocol ensures this so long as: all nodes restart, have full network connectivity and a majority of nodes' on-disk ledger contains every committed transaction.
-This is a strong, but reasonable requirement, and greatly simplifies the protocol.
-To ensure progress even when these requirements are not met, the protocol also includes a fallback path that advances through the phases after a timeout.
-This fallback cannot prevent forks or data loss, but allows the service to recover and make progress even in unhealthy conditions.
-We refer to the healthy case as the "election path" and the other as the "failover path".
-
-In the election path, nodes first gossip with each other, learning of the ledgers of other nodes.
-Once they have heard from every node they vote for the node with the best ledger.
-If a node receives votes from a majority of nodes, it invokes `transition-to-open` and notifies the other nodes to restart and join it.
-This path is illustrated below, and is guaranteed to succeed if all nodes can communicate and no timeouts trigger.
-
-.. mermaid::
-
-    sequenceDiagram
-      participant N1
-      participant N2
-      participant N3
-      
-      Note over N1, N3: Gossip
-
-      N1 ->> N2: Gossip(Tx=1)
-      N1 ->> N3: Gossip(Tx=1)
-      N2 ->> N3: Gossip(Tx=2)
-      N3 ->> N2: Gossip(Tx=3)
-
-      Note over N1, N3: Vote
-      N2 ->> N3: Vote
-      N3 ->> N3: Vote
-
-      Note over N1, N3: Open/Join
-      N3 ->> N1: IAmOpen
-      N3 ->> N2: IAmOpen
-
-      Note over N1, N2: Restart
-
-      Note over N3: Transition-to-open
-
-      Note over N3: Local unsealing
-
-      Note over N3: Open
-
-      N1 ->> N3: Join
-      N2 ->> N3: Join
-
-If failover is enabled, each phase has a timeout, after which the node will advance to the next phase regardless of whether it meets the requirements to do so. 
-For example, the election path requires all nodes to communicate to advance from the gossip phase to the vote phase.
-However, if any node fails to recover, the election path is stuck.
-In this case, after a timeout, nodes will advance to the vote phase regardless of whether they have heard from all nodes, and vote for the best ledger they have heard of at that point.
-
-Unfortunately, this can lead to multiple forks of the service if different nodes cannot communicate with each other and timeout.
-Hence, we recommend setting the timeout substantially higher than the highest expected recovery time, to minimise the chance of this happening.
-To audit if timeouts were used to open the service, the `public:ccf.gov.recovery_decision_protocol.open_kind` table tracks this.
-
-This failover path is illustrated below.
-
-.. mermaid::
-
-    sequenceDiagram
-      participant N1
-      participant N2
-      participant N3
-
-      Note over N1, N3: Gossip
-
-      N2 ->> N3: Gossip(Tx=2)
-      N3 ->> N2: Gossip(Tx=3)
-
-      Note over N1: Timeout
-      Note over N3: Timeout
-
-      Note over N1, N3: Vote
-
-      N1 ->> N1: Vote
-      N3 ->> N3: Vote
-      N2 ->> N3: Vote
-
-      Note over N1, N3: Open/Join
-      
-      Note over N1: Transition-to-open
-      Note over N3: Transition-to-open
-
-
-If the network fails during reconfiguration, each node will use its latest known configuration to recover. Since reconfiguration requires votes from a majority of nodes, the latest configuration should recover using the election path, however nodes in the previous configuration may recover using the election path.
-
-Local Sealing
-~~~~~~~~~~~~~
-
-When sealing-based recovery is enabled, each node generates an RSA key pair (the "recovery key pair") during join. The private key is encrypted (sealed) using an AES-GCM key derived from the SNP ``DERIVED_KEY``, and the public key along with the sealed private key is stored in the ``public:ccf.gov.nodes.sealed_recovery_keys`` table.
-
-During normal operation, whenever the ledger secret changes, or a node joins the network, the system also shuffles "sealed shares". 
-The primary generates a fresh ledger secret wrapping key, encrypts the ledger secret with that key, and stores a sealed copy of the wrapping key for each trusted node with a sealed recovery public key. 
-
-During recovery, if the node was previously part of the network and has the same CPU, measurement, and policy, it can bypass the need for member recovery shares by re-deriving the sealing key, unsealing its recovery private key, decrypting the sealed wrapping key, and using that to unwrap the ledger secret. 
-
-The following diagram illustrates the key hierarchy and encryption relationships:
-
-.. mermaid::
-
-    flowchart TB
-        subgraph SNP["SNP PSP"]
-            DK["DERIVED_KEY"]
-            VCEK
-            Measurement
-            Policy["UserData (Policy)"]
-            TCB
-
-            VCEK --> DK
-            Measurement --> DK
-            Policy --> DK            
-            TCB --> DK
-        end
-
-        subgraph KG["Key Generation"]
-            subgraph Sealing Key
-                SK["Sealing Key<br/>(HKDF)"]
-                Label["Label: <br/>CCF AMD Local Sealing Key"]
-                DK -->|ikm| SK
-                Label -->|info| SK
-            end
-            
-            RSA["Recovery Key<br/>(RSA Key Pair)"]
-            PubKey["Public Key"]
-            PrivKey["Private Key"]
-            RSA --> PubKey
-            RSA --> PrivKey
-
-            LS["Ledger secret"]
-            LSWK["Ledger secret wrapping key"]
-        end
-
-        subgraph Sealed["Store: nodes.sealed_recovery_keys"]
-            SPK["Sealed Private Key<br/>(AES-GCM encrypted)"]
-            SK -->|key| SPK
-            PrivKey --> SPK
-
-            StoredPubKey["Public Key (plaintext)"]
-            PubKey --> StoredPubKey
-        end
-
-
-        subgraph Shares["Store: internal.sealed_shares table"]
-            WLS["Wrapped Ledger Secret<br/>(AES-GCM encrypted)"]
-            LSWK -->|key| WLS
-            LS --> WLS
-
-            EWK["Encrypted Wrapping Key<br/>(per-node, RSA-OAEP encrypted)"]
-            StoredPubKey -->|key| EWK
-            LSWK --> EWK
-        end
-
-        subgraph Recovery["Recovery Process"]
-            UPK["Unsealed Private Key"]
-            SK -->|key| UPK
-            SPK --> UPK
-
-            UWK["Unsealed Wrapping Key"]
-            UPK -->|key| UWK
-            EWK --> UWK
-
-            ULS["Unsealed Ledger Secret"]
-            UWK -->|key| ULS
-            WLS --> ULS            
-        end
-
-Configuration
-~~~~~~~~~~~~~
-
-If the ``sealing_recovery`` field is set in the configuration, this will enable local sealing, where the current node will seal ledger secrets into the ledger and a future recovering node will attempt to unseal these secrets using the supplied ``sealing_recovery.location.name``.
-Additionally, the ``sealing_recovery.recovery_decision_protocol`` field can be set to enable the recovery decision protocol, and configure its parameters.
-
-.. code-block:: json
-
-    {
-      "sealing_recovery": {
-        "location": {
-          "name": "<persistent-node-id>",
-          "address": "<node-host:port>"
-        },
-        "recovery_decision_protocol": {
-          "expected_locations": [
-            {
-              "name": "<persistent-node-id-0>",
-              "address": "<node-0-host:port>"
-            },
-            {
-              "name": "<persistent-node-id-1>",
-              "address": "<node-1-host:port>"
-            }
-          ],
-          "failover_timeout": "2000ms"
+    $ cat /path/to/config/file
+      ...
+      "command": {
+        "type": "Recover",
+        ...
+        "recover": {
+          ...
+          "previous_sealed_ledger_secret_location": "/path/to/previous/secret"
         }
-      },
-    }
-
-Setting ``sealing_recovery.recovery_decision_protocol.failover_timeout`` to ``0ms`` disables failover timers.
+      }
+      "output_files": {
+        ...
+        "sealed_ledger_secret_location": "/path/to/new/secret"
+      }
+      ...
+    $ cchost --config /path/to/config/file
 
 Notes
 -----

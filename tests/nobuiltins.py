@@ -5,7 +5,6 @@ from http import HTTPStatus
 import openapi_spec_validator
 from datetime import datetime, timezone
 import time
-import infra.platform_detection
 
 
 def test_nobuiltins_endpoints(network, args):
@@ -21,14 +20,14 @@ def test_nobuiltins_endpoints(network, args):
         body_j = r.body.json()
         assert body_j["committed_view"] >= tx_id.view
         assert body_j["committed_seqno"] >= tx_id.seqno
-        if infra.platform_detection.is_virtual():
+        if args.enclave_platform == "sgx":
+            expected_format = "OE_SGX_v1"
+        elif args.enclave_platform == "virtual":
             expected_format = "Insecure_Virtual"
-        elif infra.platform_detection.is_snp():
+        elif args.enclave_platform == "snp":
             expected_format = "AMD_SEV_SNP_v1"
         else:
-            raise ValueError(
-                f"Unhandled enclave platform = {infra.platform_detection.get_platform()}"
-            )
+            raise ValueError(f"Unhandled enclave platform = {args.enclave_platform}")
         assert body_j["quote_format"] == expected_format, body_j["quote_format"]
         assert body_j["node_id"] == primary.node_id
 

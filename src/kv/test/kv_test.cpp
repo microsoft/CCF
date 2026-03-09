@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/app_interface.h"
+#include "ccf/ds/logger.h"
 #include "ccf/kv/map.h"
 #include "ccf/kv/set.h"
 #include "ccf/kv/value.h"
 #include "crypto/openssl/hash.h"
-#include "ds/internal_logger.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/kv_serialiser.h"
 #include "kv/ledger_chunker.h"
@@ -2045,7 +2045,7 @@ TEST_CASE("Deserialise return status")
   MapTypes::NumNum data("public:data");
 
   constexpr auto default_curve = ccf::crypto::CurveID::SECP384R1;
-  auto kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto kp = ccf::crypto::make_key_pair(default_curve);
 
   auto history = std::make_shared<ccf::NullTxHistory>(
     store, ccf::kv::test::PrimaryNodeId, *kp);
@@ -2399,7 +2399,7 @@ TEST_CASE("Conflict resolution")
   REQUIRE(res3 == ccf::kv::CommitResult::SUCCESS);
 
   REQUIRE(tx1.commit_version() > tx2.commit_version());
-  REQUIRE(tx3.get_txid()->seqno >= tx2.get_txid()->seqno);
+  REQUIRE(tx3.get_txid()->version >= tx2.get_txid()->version);
 
   // Re-running a _committed_ transaction is exceptionally bad
   REQUIRE_THROWS(tx1.commit());
@@ -2731,8 +2731,8 @@ TEST_CASE("Store clear")
     REQUIRE(kv_store.current_version() != 0);
     REQUIRE(kv_store.compacted_version() != 0);
     auto tx_id = kv_store.current_txid();
-    REQUIRE(tx_id.view != 0);
-    REQUIRE(tx_id.seqno != 0);
+    REQUIRE(tx_id.term != 0);
+    REQUIRE(tx_id.version != 0);
   }
 
   INFO("Verify that store state is cleared");
@@ -2746,8 +2746,8 @@ TEST_CASE("Store clear")
     REQUIRE(kv_store.current_version() == 0);
     REQUIRE(kv_store.compacted_version() == 0);
     auto tx_id = kv_store.current_txid();
-    REQUIRE(tx_id.view == 0);
-    REQUIRE(tx_id.seqno == 0);
+    REQUIRE(tx_id.term == 0);
+    REQUIRE(tx_id.version == 0);
   }
 }
 
@@ -2782,7 +2782,8 @@ TEST_CASE("Reported TxID after commit")
 
     REQUIRE(kv_store.current_version() == store_last_seqno);
     REQUIRE_EQ(
-      kv_store.current_txid(), ccf::TxID(store_read_term, store_last_seqno));
+      kv_store.current_txid(),
+      ccf::kv::TxID(store_read_term, store_last_seqno));
   }
 
   INFO("Empty committed tx");
@@ -2792,7 +2793,7 @@ TEST_CASE("Reported TxID after commit")
     // No map handle acquired
 
     // Tx is not yet committed
-    REQUIRE_THROWS_AS(auto _ = tx.get_txid(), std::logic_error);
+    REQUIRE_THROWS_AS(tx.get_txid(), std::logic_error);
 
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
@@ -2816,8 +2817,8 @@ TEST_CASE("Reported TxID after commit")
     // Reported TxID includes store read term and last seqno
     auto tx_id = tx.get_txid();
     REQUIRE(tx_id.has_value());
-    REQUIRE(tx_id->view == store_read_term);
-    REQUIRE(tx_id->seqno == store_last_seqno);
+    REQUIRE(tx_id->term == store_read_term);
+    REQUIRE(tx_id->version == store_last_seqno);
     REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
   }
 
@@ -2835,9 +2836,9 @@ TEST_CASE("Reported TxID after commit")
 
     auto tx_id = tx.get_txid();
     REQUIRE(tx_id.has_value());
-    REQUIRE(tx_id->view == store_read_term); // Read in term in which
+    REQUIRE(tx_id->term == store_read_term); // Read in term in which
                                              // last entry was committed
-    REQUIRE(tx_id->seqno == store_last_seqno);
+    REQUIRE(tx_id->version == store_last_seqno);
     REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
   }
 
@@ -2853,9 +2854,9 @@ TEST_CASE("Reported TxID after commit")
 
     auto tx_id = tx.get_txid();
     REQUIRE(tx_id.has_value());
-    REQUIRE(tx_id->view == store_read_term); // Read in term in which
+    REQUIRE(tx_id->term == store_read_term); // Read in term in which
                                              // last entry was committed
-    REQUIRE(tx_id->seqno == store_last_seqno);
+    REQUIRE(tx_id->version == store_last_seqno);
     REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
   }
 
@@ -2870,8 +2871,8 @@ TEST_CASE("Reported TxID after commit")
 
     auto tx_id = tx.get_txid();
     REQUIRE(tx_id.has_value());
-    REQUIRE(tx_id->view == store_read_term);
-    REQUIRE(tx_id->seqno == store_last_seqno);
+    REQUIRE(tx_id->term == store_read_term);
+    REQUIRE(tx_id->version == store_last_seqno);
     REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
   }
 
@@ -2887,8 +2888,8 @@ TEST_CASE("Reported TxID after commit")
 
       auto tx_id = tx.get_txid();
       REQUIRE(tx_id.has_value());
-      REQUIRE(tx_id->view == store_commit_term);
-      REQUIRE(tx_id->seqno == store_last_seqno);
+      REQUIRE(tx_id->term == store_commit_term);
+      REQUIRE(tx_id->version == store_last_seqno);
 
       // Since a write Tx was committed, further Txs should read from there
     }
@@ -2901,8 +2902,8 @@ TEST_CASE("Reported TxID after commit")
 
       auto tx_id = tx.get_txid();
       REQUIRE(tx_id.has_value());
-      REQUIRE(tx_id->view == store_read_term);
-      REQUIRE(tx_id->seqno == store_last_seqno);
+      REQUIRE(tx_id->term == store_read_term);
+      REQUIRE(tx_id->version == store_last_seqno);
       REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
     }
 
@@ -2915,8 +2916,8 @@ TEST_CASE("Reported TxID after commit")
 
       auto tx_id = tx.get_txid();
       REQUIRE(tx_id.has_value());
-      REQUIRE(tx_id->view == store_read_term);
-      REQUIRE(tx_id->seqno == store_last_seqno);
+      REQUIRE(tx_id->term == store_read_term);
+      REQUIRE(tx_id->version == store_last_seqno);
       REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
     }
   }
@@ -2934,8 +2935,8 @@ TEST_CASE("Reported TxID after commit")
 
     auto tx_id = tx.get_txid();
     REQUIRE(tx_id.has_value());
-    REQUIRE(tx_id->view == store_read_term);
-    REQUIRE(tx_id->seqno == store_last_seqno - 1);
+    REQUIRE(tx_id->term == store_read_term);
+    REQUIRE(tx_id->version == store_last_seqno - 1);
     REQUIRE_EQ(tx_id.value(), kv_store.current_txid());
   }
 }
@@ -3145,7 +3146,7 @@ TEST_CASE("Ledger entry chunk request")
   MapTypes::NumNum data("public:data");
 
   constexpr auto default_curve = ccf::crypto::CurveID::SECP384R1;
-  auto kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto kp = ccf::crypto::make_key_pair(default_curve);
 
   auto history = std::make_shared<ccf::NullTxHistory>(
     store, ccf::kv::test::PrimaryNodeId, *kp);
@@ -3218,7 +3219,7 @@ TEST_CASE("Ledger entry chunk request")
       auto tx = store.create_reserved_tx(txid);
       auto sig_handle = tx.rw(signatures);
       auto tree_handle = tx.rw(serialised_tree);
-      ccf::PrimarySignature sigv(ccf::kv::test::PrimaryNodeId, txid.seqno);
+      ccf::PrimarySignature sigv(ccf::kv::test::PrimaryNodeId, txid.version);
       sig_handle->put(sigv);
       tree_handle->put({});
       auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
@@ -3289,12 +3290,12 @@ TEST_CASE("Ledger entry chunk request")
       auto tx = store.create_reserved_tx(txid);
 
       // The store must know that we need a new ledger chunk at this version
-      REQUIRE(store.should_create_ledger_chunk(txid.seqno));
+      REQUIRE(store.should_create_ledger_chunk(txid.version));
 
       // Add the signature
       auto sig_handle = tx.rw(signatures);
       auto tree_handle = tx.rw(serialised_tree);
-      ccf::PrimarySignature sigv(ccf::kv::test::PrimaryNodeId, txid.seqno);
+      ccf::PrimarySignature sigv(ccf::kv::test::PrimaryNodeId, txid.version);
       sig_handle->put(sigv);
       tree_handle->put({});
       auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
@@ -3321,9 +3322,11 @@ TEST_CASE("Ledger entry chunk request")
 int main(int argc, char** argv)
 {
   ccf::logger::config::default_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

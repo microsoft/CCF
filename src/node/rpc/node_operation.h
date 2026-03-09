@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "node/recovery_decision_protocol.h"
 #include "node/rpc/node_interface.h"
 #include "node/rpc/node_operation_interface.h"
 
@@ -21,27 +20,27 @@ namespace ccf
       return impl.state();
     }
 
-    [[nodiscard]] bool is_in_initialised_state() const override
+    bool is_in_initialised_state() const override
     {
       return impl.is_in_initialised_state();
     }
 
-    [[nodiscard]] bool is_part_of_public_network() const override
+    bool is_part_of_public_network() const override
     {
       return impl.is_part_of_public_network();
     }
 
-    [[nodiscard]] bool is_part_of_network() const override
+    bool is_part_of_network() const override
     {
       return impl.is_part_of_network();
     }
 
-    [[nodiscard]] bool is_reading_public_ledger() const override
+    bool is_reading_public_ledger() const override
     {
       return impl.is_reading_public_ledger();
     }
 
-    [[nodiscard]] bool is_reading_private_ledger() const override
+    bool is_reading_private_ledger() const override
     {
       return impl.is_reading_private_ledger();
     }
@@ -56,7 +55,7 @@ namespace ccf
       return impl.is_member_frontend_open();
     }
 
-    [[nodiscard]] bool is_accessible_to_members() const override
+    bool is_accessible_to_members() const override
     {
       return impl.is_accessible_to_members();
     }
@@ -95,18 +94,10 @@ namespace ccf
       ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
-      pal::PlatformAttestationMeasurement& measurement,
-      const std::optional<std::vector<uint8_t>>& code_transparent_statement,
-      std::shared_ptr<NetworkIdentitySubsystemInterface>
-        network_identity_subsystem) override
+      pal::PlatformAttestationMeasurement& measurement) override
     {
       return impl.verify_quote(
-        tx,
-        quote_info,
-        expected_node_public_key_der,
-        measurement,
-        code_transparent_statement,
-        network_identity_subsystem);
+        tx, quote_info, expected_node_public_key_der, measurement);
     }
 
     void initiate_private_recovery(ccf::kv::Tx& tx) override
@@ -122,16 +113,6 @@ namespace ccf
     const ccf::COSESignaturesConfig& get_cose_signatures_config() override
     {
       return impl.get_cose_signatures_config();
-    }
-
-    RecoveryDecisionProtocolSubsystem& recovery_decision_protocol() override
-    {
-      return impl.get_recovery_decision_protocol();
-    }
-
-    void shuffle_sealed_shares(ccf::kv::Tx& tx) override
-    {
-      impl.shuffle_sealed_shares(tx);
     }
   };
 }

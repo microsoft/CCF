@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "ccf/indexing/indexer_interface.h"
-#include "ds/internal_logger.h"
 #include "indexing/transaction_fetcher_interface.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
@@ -63,7 +63,7 @@ namespace ccf::indexing
     // Returns true if it looks like there's still a gap to fill. Useful for
     // testing
     bool update_strategies(
-      std::chrono::milliseconds /*elapsed*/, const ccf::TxID& newly_committed)
+      std::chrono::milliseconds elapsed, const ccf::TxID& newly_committed)
     {
       update_commit(newly_committed);
 
@@ -71,7 +71,7 @@ namespace ccf::indexing
 
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
-      for (const auto& strategy : strategies)
+      for (auto& strategy : strategies)
       {
         strategy->tick();
 
@@ -110,9 +110,9 @@ namespace ccf::indexing
           auto stores = transaction_fetcher->fetch_transactions(seqnos);
           for (auto& store : stores)
           {
-            const ccf::TxID tx_id = store->current_txid();
+            const ccf::TxID tx_id = store->get_txid();
 
-            for (const auto& strategy : strategies)
+            for (auto& strategy : strategies)
             {
               const auto next_requested = strategy->next_requested();
               if (

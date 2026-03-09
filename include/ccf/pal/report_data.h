@@ -67,12 +67,12 @@ namespace ccf::pal
       data(report_data.report_data.begin(), report_data.report_data.end())
     {}
 
-    [[nodiscard]] std::string hex_str() const
+    std::string hex_str() const
     {
       return ds::to_hex(data);
     }
 
-    [[nodiscard]] ccf::crypto::Sha256Hash to_sha256_hash() const
+    ccf::crypto::Sha256Hash to_sha256_hash() const
     {
       std::span<const uint8_t, ccf::crypto::Sha256Hash::SIZE> s(
         data.data(), ccf::crypto::Sha256Hash::SIZE);

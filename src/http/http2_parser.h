@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "ccf/ds/nonstd.h"
-#include "ds/internal_logger.h"
 #include "enclave/session.h"
 #include "http2_callbacks.h"
 #include "http2_types.h"
@@ -25,16 +25,17 @@ namespace http2
 
   protected:
     std::map<StreamId, std::shared_ptr<StreamData>> streams;
-    nghttp2_session* session = nullptr;
+    nghttp2_session* session;
 
   public:
     Parser(
-      ccf::http::ParserConfiguration configuration_, bool is_client = false) :
-      configuration(std::move(configuration_))
+      const ccf::http::ParserConfiguration& configuration_,
+      bool is_client = false) :
+      configuration(configuration_)
     {
       LOG_TRACE_FMT("Creating HTTP2 parser");
 
-      nghttp2_session_callbacks* callbacks = nullptr;
+      nghttp2_session_callbacks* callbacks;
       nghttp2_session_callbacks_new(&callbacks);
       nghttp2_session_callbacks_set_on_stream_close_callback(
         callbacks, on_stream_close_callback);
@@ -106,18 +107,17 @@ namespace http2
       nghttp2_session_callbacks_del(callbacks);
     }
 
-    ~Parser() override
+    virtual ~Parser()
     {
       nghttp2_session_del(session);
     }
 
-    [[nodiscard]] StreamId get_last_stream_id() const override
+    StreamId get_last_stream_id() const override
     {
       return last_stream_id;
     }
 
-    [[nodiscard]] ccf::http::ParserConfiguration get_configuration()
-      const override
+    ccf::http::ParserConfiguration get_configuration() const override
     {
       return configuration;
     }
@@ -268,22 +268,23 @@ namespace http2
     void submit_response(
       StreamId stream_id,
       ccf::http_status status,
-      ccf::http::HeaderMap&& base_headers,
+      const ccf::http::HeaderMap& base_headers,
       const ccf::http::HeaderMap& extra_headers = {})
     {
       std::vector<nghttp2_nv> hdrs = {};
 
       auto status_str = fmt::format(
-        "{}", static_cast<std::underlying_type_t<ccf::http_status>>(status));
+        "{}",
+        static_cast<std::underlying_type<ccf::http_status>::type>(status));
       hdrs.emplace_back(
         make_nv(ccf::http2::headers::STATUS, status_str.data()));
 
-      for (const auto& [k, v] : base_headers)
+      for (auto& [k, v] : base_headers)
       {
         hdrs.emplace_back(make_nv(k.data(), v.data()));
       }
 
-      for (const auto& [k, v] : extra_headers)
+      for (auto& [k, v] : extra_headers)
       {
         hdrs.emplace_back(make_nv(k.data(), v.data()));
       }
@@ -326,9 +327,9 @@ namespace http2
     void respond(
       StreamId stream_id,
       ccf::http_status status,
-      ccf::http::HeaderMap&& headers,
+      const ccf::http::HeaderMap& headers,
       ccf::http::HeaderMap&& trailers,
-      std::vector<uint8_t>&& body)
+      std::span<const uint8_t> body)
     {
       LOG_TRACE_FMT(
         "http2::respond: stream {} - {} headers - {} trailers - {} bytes "
@@ -359,12 +360,12 @@ namespace http2
         extra_headers[ccf::http::headers::TRAILER] = thv.value();
       }
 
-      stream_data->outgoing.body = DataSource(std::move(body));
+      stream_data->outgoing.body = DataSource(body);
       stream_data->outgoing.has_trailers = !trailers.empty();
 
       if (should_submit_response)
       {
-        submit_response(stream_id, status, std::move(headers), extra_headers);
+        submit_response(stream_id, status, headers, extra_headers);
         send_all_submitted();
       }
 
@@ -375,7 +376,7 @@ namespace http2
     void start_stream(
       StreamId stream_id,
       ccf::http_status status,
-      ccf::http::HeaderMap&& headers)
+      const ccf::http::HeaderMap& headers)
     {
       LOG_TRACE_FMT(
         "http2::start_stream: stream {} - {} headers",
@@ -397,11 +398,11 @@ namespace http2
 
       stream_data->outgoing.state = StreamResponseState::Streaming;
 
-      submit_response(stream_id, status, std::move(headers));
+      submit_response(stream_id, status, headers);
       send_all_submitted();
     }
 
-    void send_data(StreamId stream_id, std::vector<uint8_t>&& data)
+    void send_data(StreamId stream_id, std::span<const uint8_t> data)
     {
       LOG_TRACE_FMT(
         "http2::send_data: stream {} - {} bytes", stream_id, data.size());
@@ -419,7 +420,7 @@ namespace http2
           fmt::format("Stream {} should be streaming to send data", stream_id));
       }
 
-      stream_data->outgoing.body = DataSource(std::move(data));
+      stream_data->outgoing.body = DataSource(data);
 
       int rv = nghttp2_session_resume_data(session, stream_id);
       if (rv < 0)
@@ -456,7 +457,8 @@ namespace http2
       // trailers
     }
 
-    void handle_completed(StreamId stream_id, StreamData* stream_data) override
+    virtual void handle_completed(
+      StreamId stream_id, StreamData* stream_data) override
     {
       LOG_TRACE_FMT("http2::ServerParser: handle_completed");
 
@@ -482,7 +484,7 @@ namespace http2
         const auto method_it = headers.find(ccf::http2::headers::METHOD);
         if (method_it != headers.end())
         {
-          method = ccf::http_method_from_str(method_it->second);
+          method = ccf::http_method_from_str(method_it->second.c_str());
         }
       }
 
@@ -510,7 +512,7 @@ namespace http2
       llhttp_method method,
       const std::string& route,
       const ccf::http::HeaderMap& headers,
-      std::vector<uint8_t>&& body)
+      std::span<const uint8_t> body)
     {
       std::vector<nghttp2_nv> hdrs;
       hdrs.emplace_back(
@@ -524,7 +526,7 @@ namespace http2
       }
 
       auto stream_data = std::make_shared<StreamData>();
-      stream_data->outgoing.body = DataSource(std::move(body));
+      stream_data->outgoing.body = DataSource(body);
 
       nghttp2_data_provider prov;
       prov.read_callback = read_outgoing_callback;
@@ -546,8 +548,7 @@ namespace http2
       LOG_DEBUG_FMT("Successfully sent request with stream id: {}", stream_id);
     }
 
-    void handle_completed(
-      StreamId /*stream_id*/, StreamData* stream_data) override
+    void handle_completed(StreamId stream_id, StreamData* stream_data) override
     {
       LOG_TRACE_FMT("http2::ClientParser: handle_completed");
 

@@ -10,7 +10,6 @@
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/tx.h"
-#include "node/recovery_decision_protocol.h"
 #include "node/session_metrics.h"
 
 namespace ccf
@@ -23,7 +22,7 @@ namespace ccf
   class AbstractNodeOperation : public ccf::AbstractNodeSubSystem
   {
   public:
-    ~AbstractNodeOperation() override = default;
+    virtual ~AbstractNodeOperation() = default;
 
     static char const* get_subsystem_name()
     {
@@ -32,15 +31,15 @@ namespace ccf
 
     virtual ExtendedState state() = 0;
 
-    [[nodiscard]] virtual bool is_in_initialised_state() const = 0;
-    [[nodiscard]] virtual bool is_part_of_public_network() const = 0;
-    [[nodiscard]] virtual bool is_part_of_network() const = 0;
-    [[nodiscard]] virtual bool is_reading_public_ledger() const = 0;
-    [[nodiscard]] virtual bool is_reading_private_ledger() const = 0;
+    virtual bool is_in_initialised_state() const = 0;
+    virtual bool is_part_of_public_network() const = 0;
+    virtual bool is_part_of_network() const = 0;
+    virtual bool is_reading_public_ledger() const = 0;
+    virtual bool is_reading_private_ledger() const = 0;
 
     virtual bool is_user_frontend_open() = 0;
     virtual bool is_member_frontend_open() = 0;
-    [[nodiscard]] virtual bool is_accessible_to_members() const = 0;
+    virtual bool is_accessible_to_members() const = 0;
 
     virtual bool can_replicate() = 0;
     virtual std::optional<ccf::NodeId> get_primary() = 0;
@@ -55,19 +54,12 @@ namespace ccf
       ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
-      pal::PlatformAttestationMeasurement& measurement,
-      const std::optional<std::vector<uint8_t>>& code_transparent_statement,
-      std::shared_ptr<NetworkIdentitySubsystemInterface>
-        network_identity_subsystem) = 0;
+      pal::PlatformAttestationMeasurement& measurement) = 0;
 
     virtual void initiate_private_recovery(ccf::kv::Tx& tx) = 0;
 
     virtual ccf::crypto::Pem get_self_signed_node_certificate() = 0;
 
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
-
-    virtual RecoveryDecisionProtocolSubsystem& recovery_decision_protocol() = 0;
-
-    virtual void shuffle_sealed_shares(ccf::kv::Tx& tx) = 0;
   };
 }

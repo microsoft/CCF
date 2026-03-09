@@ -1,26 +1,27 @@
 [build-system]
-requires = ["setuptools >= 77.0, < 83"]
+requires = ["setuptools>=71.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ccf"
-version = "7.0.0.dev12"
+version = "6.0.24"
 authors = [
   { name="CCF Team", email="CCF-Sec@microsoft.com" },
 ]
 description = "Set of tools and utilities for the Confidential Consortium Framework (CCF)"
 readme = "README.md"
-requires-python = ">=3.12"
-license = "Apache-2.0"
-license-files = ["LICENSE"]
+requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = [
-    "cbor2 >= 5.6, < 7",
-    "cryptography >= 46, < 47",
-    "cwt >= 3.2.0, < 4",
-    "packaging >= 25, < 27"
+    "loguru >= 0.5, == 0.*",
+    "cryptography >= 44,< 47",
+    "string-color >= 1.2.1, == 1.*",
+    "pycose >= 1.0.1, == 1.*",
+    "setuptools >= 74,< 81",
+    "packaging >= 24,< 26"
 ]
 
 [tool.setuptools]

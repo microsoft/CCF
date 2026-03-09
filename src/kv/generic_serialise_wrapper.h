@@ -29,7 +29,7 @@ namespace ccf::kv
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
 
     // must only be set by set_current_domain, since it affects current_writer
-    SecurityDomain current_domain{SecurityDomain::PUBLIC};
+    SecurityDomain current_domain;
 
     // If true, consider historical ledger secrets when encrypting entries
     bool historical_hint;
@@ -71,12 +71,12 @@ namespace ccf::kv
       tx_id(tx_id_),
       entry_type(entry_type_),
       header_flags(header_flags_),
-      crypto_util(std::move(e)),
+      crypto_util(e),
       historical_hint(historical_hint_)
     {
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(entry_type);
-      serialise_internal(tx_id.seqno);
+      serialise_internal(tx_id.version);
       if (has_claims(entry_type))
       {
         serialise_internal(claims_digest_.value());
@@ -177,7 +177,7 @@ namespace ccf::kv
       size_ += sizeof(SerialisedEntryHeader);
 
       std::vector<uint8_t> entry(size_);
-      auto* data_ = entry.data();
+      auto data_ = entry.data();
 
       serialized::write(data_, size_, entry_header);
 
@@ -210,7 +210,7 @@ namespace ccf::kv
             historical_hint))
       {
         throw KvSerialiserException(fmt::format(
-          "Could not serialise transaction at seqno {}", tx_id.seqno));
+          "Could not serialise transaction at seqno {}", tx_id.version));
       }
 
       serialized::write(
@@ -221,7 +221,7 @@ namespace ccf::kv
         size_,
         serialised_public_domain.data(),
         serialised_public_domain.size());
-      if (!encrypted_private_domain.empty())
+      if (encrypted_private_domain.size() > 0)
       {
         serialized::write(
           data_,
@@ -242,13 +242,13 @@ namespace ccf::kv
     R private_reader;
     R* current_reader;
     std::vector<uint8_t> decrypted_buffer;
-    EntryType entry_type{EntryType::WriteSet};
+    EntryType entry_type;
     // Present systematically in regular transactions, but absent from snapshots
     ccf::ClaimsDigest claims_digest = ccf::no_claims();
     // Present systematically in regular transactions, but absent from snapshots
     std::optional<ccf::crypto::Sha256Hash> commit_evidence_digest =
       std::nullopt;
-    Version version{0};
+    Version version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
     std::optional<SecurityDomain> domain_restriction;
 
@@ -282,7 +282,7 @@ namespace ccf::kv
     GenericDeserialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
       std::optional<SecurityDomain> domain_restriction = std::nullopt) :
-      crypto_util(std::move(e)),
+      crypto_util(e),
       domain_restriction(domain_restriction)
     {}
 
@@ -300,17 +300,14 @@ namespace ccf::kv
       const uint8_t* data,
       size_t size,
       ccf::kv::Term& term,
-      EntryFlags& flags,
       bool historical_hint = false)
     {
       current_reader = &public_reader;
-      const auto* data_ = data;
+      auto data_ = data;
       auto size_ = size;
 
       const auto tx_header =
         serialized::read<SerialisedEntryHeader>(data_, size_);
-
-      flags = static_cast<EntryFlags>(tx_header.flags);
 
       if (tx_header.size != size_)
       {
@@ -320,7 +317,7 @@ namespace ccf::kv
           size_));
       }
 
-      const auto* gcm_hdr_data = data_;
+      auto gcm_hdr_data = data_;
 
       switch (tx_header.version)
       {
@@ -348,7 +345,7 @@ namespace ccf::kv
       serialized::skip(data_, size_, crypto_util->get_header_length());
       auto public_domain_length = serialized::read<size_t>(data_, size_);
 
-      const auto* data_public = data_;
+      auto data_public = data_;
       public_reader.init(data_public, public_domain_length);
       read_public_header();
 

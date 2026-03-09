@@ -17,6 +17,7 @@
 #include "ccf/tx.h"
 #include "consensus/aft/raft_types.h"
 #include "crypto/openssl/cose_sign.h"
+#include "enclave/enclave_time.h"
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
 #include "service/tables/governance_history.h"
@@ -30,12 +31,12 @@ namespace ccf
 {
   /* We can't query the past epochs' TXs if the service hasn't been opened
    * yet. We do guess values based on epoch value and seqno changing rules. */
-  inline ccf::TxID previous_tx_if_recovery(ccf::TxID txid)
+  ccf::TxID previous_tx_if_recovery(ccf::TxID txid)
   {
     return ccf::TxID{
       .view = txid.view - aft::starting_view_change, .seqno = txid.seqno - 1};
   }
-  inline ccf::TxID next_tx_if_recovery(ccf::TxID txid)
+  ccf::TxID next_tx_if_recovery(ccf::TxID txid)
   {
     return ccf::TxID{
       .view = txid.view + aft::starting_view_change, .seqno = txid.seqno + 1};
@@ -56,15 +57,13 @@ namespace ccf
 
     static void retire_active_nodes(ccf::kv::Tx& tx)
     {
-      auto* nodes = tx.rw<ccf::Nodes>(Tables::NODES);
+      auto nodes = tx.rw<ccf::Nodes>(Tables::NODES);
 
       std::map<NodeId, NodeInfo> nodes_to_delete;
       nodes->foreach([&nodes_to_delete](const NodeId& nid, const NodeInfo& ni) {
         // Only retire nodes that have not already been retired
         if (ni.status != NodeStatus::RETIRED)
-        {
           nodes_to_delete[nid] = ni;
-        }
         return true;
       });
 
@@ -78,7 +77,7 @@ namespace ccf
     static bool is_recovery_participant_or_owner(
       ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
     {
-      auto* member_encryption_public_keys =
+      auto member_encryption_public_keys =
         tx.ro<ccf::MemberPublicEncryptionKeys>(
           Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
@@ -95,7 +94,7 @@ namespace ccf
     static bool is_recovery_owner(
       ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
     {
-      auto* member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
       auto mi = member_info->get(member_id);
       if (!mi.has_value())
       {
@@ -109,7 +108,7 @@ namespace ccf
     static bool is_active_member(
       ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
     {
-      auto* member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
       auto mi = member_info->get(member_id);
       if (!mi.has_value())
       {
@@ -122,8 +121,8 @@ namespace ccf
     static std::map<MemberId, ccf::crypto::Pem>
     get_active_recovery_participants(ccf::kv::ReadOnlyTx& tx)
     {
-      auto* member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
-      auto* member_encryption_public_keys =
+      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto member_encryption_public_keys =
         tx.ro<ccf::MemberPublicEncryptionKeys>(
           Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
@@ -154,8 +153,8 @@ namespace ccf
     static std::map<MemberId, ccf::crypto::Pem> get_active_recovery_owners(
       ccf::kv::ReadOnlyTx& tx)
     {
-      auto* member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
-      auto* member_encryption_public_keys =
+      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto member_encryption_public_keys =
         tx.ro<ccf::MemberPublicEncryptionKeys>(
           Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
@@ -186,10 +185,10 @@ namespace ccf
     static MemberId add_member(
       ccf::kv::Tx& tx, const NewMember& member_pub_info)
     {
-      auto* member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
-      auto* member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
-      auto* member_acks = tx.rw<ccf::MemberAcks>(Tables::MEMBER_ACKS);
-      auto* signatures = tx.ro<ccf::Signatures>(Tables::SIGNATURES);
+      auto member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
+      auto member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto member_acks = tx.rw<ccf::MemberAcks>(Tables::MEMBER_ACKS);
+      auto signatures = tx.ro<ccf::Signatures>(Tables::SIGNATURES);
 
       auto member_cert_der =
         ccf::crypto::make_verifier(member_pub_info.cert)->cert_der();
@@ -241,7 +240,7 @@ namespace ccf
 
       if (member_pub_info.encryption_pub_key.has_value())
       {
-        auto* member_encryption_public_keys =
+        auto member_encryption_public_keys =
           tx.rw<ccf::MemberPublicEncryptionKeys>(
             Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
         member_encryption_public_keys->put(
@@ -262,7 +261,7 @@ namespace ccf
 
     static bool activate_member(ccf::kv::Tx& tx, const MemberId& member_id)
     {
-      auto* member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
 
       auto member = member_info->get(member_id);
       if (!member.has_value())
@@ -281,13 +280,13 @@ namespace ccf
 
     static bool remove_member(ccf::kv::Tx& tx, const MemberId& member_id)
     {
-      auto* member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
-      auto* member_encryption_public_keys =
+      auto member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
+      auto member_encryption_public_keys =
         tx.rw<ccf::MemberPublicEncryptionKeys>(
           Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
-      auto* member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
-      auto* member_acks = tx.rw<ccf::MemberAcks>(Tables::MEMBER_ACKS);
-      auto* member_gov_history =
+      auto member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto member_acks = tx.rw<ccf::MemberAcks>(Tables::MEMBER_ACKS);
+      auto member_gov_history =
         tx.rw<ccf::GovernanceHistory>(Tables::GOV_HISTORY);
 
       auto member_to_remove = member_info->get(member_id);
@@ -387,7 +386,7 @@ namespace ccf
 
     static UserId add_user(ccf::kv::Tx& tx, const NewUser& new_user)
     {
-      auto* user_certs = tx.rw<ccf::UserCerts>(Tables::USER_CERTS);
+      auto user_certs = tx.rw<ccf::UserCerts>(Tables::USER_CERTS);
 
       auto user_cert_der =
         ccf::crypto::make_verifier(new_user.cert)->cert_der();
@@ -404,7 +403,7 @@ namespace ccf
 
       if (new_user.user_data != nullptr)
       {
-        auto* user_info = tx.rw<ccf::UserInfo>(Tables::USER_INFO);
+        auto user_info = tx.rw<ccf::UserInfo>(Tables::USER_INFO);
         auto ui = user_info->get(id);
         if (ui.has_value())
         {
@@ -421,8 +420,8 @@ namespace ccf
     static void remove_user(ccf::kv::Tx& tx, const UserId& user_id)
     {
       // Has no effect if the user does not exist
-      auto* user_certs = tx.rw<ccf::UserCerts>(Tables::USER_CERTS);
-      auto* user_info = tx.rw<ccf::UserInfo>(Tables::USER_INFO);
+      auto user_certs = tx.rw<ccf::UserCerts>(Tables::USER_CERTS);
+      auto user_info = tx.rw<ccf::UserInfo>(Tables::USER_INFO);
 
       user_certs->remove(user_id);
       user_info->remove(user_id);
@@ -431,7 +430,7 @@ namespace ccf
     static void add_node(
       ccf::kv::Tx& tx, const NodeId& id, const NodeInfo& node_info)
     {
-      auto* node = tx.rw<ccf::Nodes>(Tables::NODES);
+      auto node = tx.rw<ccf::Nodes>(Tables::NODES);
       node->put(id, node_info);
     }
 
@@ -439,7 +438,7 @@ namespace ccf
     {
       std::map<NodeId, NodeInfo> active_nodes;
 
-      auto* nodes = tx.ro<ccf::Nodes>(Tables::NODES);
+      auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
 
       nodes->foreach(
         [&active_nodes, &nodes](const NodeId& nid, const NodeInfo& ni) {
@@ -471,47 +470,26 @@ namespace ccf
       nlohmann::json service_data = nullptr,
       bool recovering = false)
     {
-      auto* service = tx.rw<ccf::Service>(Tables::SERVICE);
+      auto service = tx.rw<ccf::Service>(Tables::SERVICE);
 
       size_t recovery_count = 0;
-      std::optional<ccf::kv::Version> prev_service_created_at = std::nullopt;
 
       if (service->has())
       {
         const auto prev_service_info = service->get();
-        if (!prev_service_info.has_value())
-        {
-          throw std::logic_error("Failed to get previous service info");
-        }
-
-        if (!prev_service_info->current_service_create_txid.has_value())
-        {
-          throw std::logic_error(
-            "Starting TX for the previous service doesn't have "
-            "current_service_create_txid recorded");
-        }
-        prev_service_created_at =
-          prev_service_info->current_service_create_txid.value().seqno;
-
-        auto* previous_service_identity = tx.wo<ccf::PreviousServiceIdentity>(
+        auto previous_service_identity = tx.wo<ccf::PreviousServiceIdentity>(
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
         previous_service_identity->put(prev_service_info->cert);
 
-        auto* last_signed_root = tx.wo<ccf::PreviousServiceLastSignedRoot>(
+        auto last_signed_root = tx.wo<ccf::PreviousServiceLastSignedRoot>(
           ccf::Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT);
-        auto* sigs = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
+        auto sigs = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
         if (!sigs->has())
         {
           throw std::logic_error(
             "Previous service doesn't have any signed transactions");
         }
-        auto sig_opt = sigs->get();
-        if (!sig_opt.has_value())
-        {
-          throw std::logic_error(
-            "Previous service doesn't have signature value");
-        }
-        last_signed_root->put(sig_opt->root);
+        last_signed_root->put(sigs->get()->root);
 
         // Record number of recoveries for service. If the value does
         // not exist in the table (i.e. pre 2.x ledger), assume it is the
@@ -522,7 +500,7 @@ namespace ccf
       service->put(
         {service_cert,
          recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
-         prev_service_created_at,
+         recovering ? service->get_version_of_previous_write() : std::nullopt,
          recovery_count,
          service_data,
          create_txid});
@@ -531,19 +509,17 @@ namespace ccf
     static bool is_service_created(
       ccf::kv::ReadOnlyTx& tx, const ccf::crypto::Pem& expected_service_cert)
     {
-      auto* service = tx.ro<ccf::Service>(Tables::SERVICE);
-      auto service_info = service->get();
-      return service_info.has_value() &&
-        service_info->cert == expected_service_cert;
+      auto service = tx.ro<ccf::Service>(Tables::SERVICE)->get();
+      return service.has_value() && service->cert == expected_service_cert;
     }
 
     static bool endorse_previous_identity(
-      ccf::kv::Tx& tx, const ccf::crypto::ECKeyPair_OpenSSL& service_key)
+      ccf::kv::Tx& tx, const ccf::crypto::KeyPair_OpenSSL& service_key)
     {
-      auto* service = tx.ro<ccf::Service>(Tables::SERVICE);
+      auto service = tx.ro<ccf::Service>(Tables::SERVICE);
       auto active_service = service->get();
 
-      auto* previous_identity_endorsement =
+      auto previous_identity_endorsement =
         tx.rw<ccf::PreviousServiceIdentityEndorsement>(
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
 
@@ -556,18 +532,6 @@ namespace ccf
       if (previous_identity_endorsement->has())
       {
         const auto prev_endorsement = previous_identity_endorsement->get();
-        if (!prev_endorsement.has_value())
-        {
-          throw std::logic_error("Failed to get previous endorsement");
-        }
-
-        if (
-          !active_service.has_value() ||
-          !active_service->current_service_create_txid.has_value())
-        {
-          throw std::logic_error(
-            "Active service or current_service_create_txid is not set");
-        }
 
         endorsement.endorsement_epoch_begin =
           prev_endorsement->endorsement_epoch_end.has_value() ?
@@ -582,7 +546,7 @@ namespace ccf
 
         key_to_endorse = prev_endorsement->endorsing_key;
 
-        auto* previous_service_last_signed_root =
+        auto previous_service_last_signed_root =
           tx.ro<ccf::PreviousServiceLastSignedRoot>(
             ccf::Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT);
         if (!previous_service_last_signed_root->has())
@@ -592,15 +556,7 @@ namespace ccf
           return false;
         }
 
-        auto root_opt = previous_service_last_signed_root->get();
-        if (!root_opt.has_value())
-        {
-          LOG_FAIL_FMT(
-            "Failed to sign previous service identity: no last signed root "
-            "value");
-          return false;
-        }
-        const auto root = root_opt.value();
+        const auto root = previous_service_last_signed_root->get().value();
         previous_root.assign(root.h.begin(), root.h.end());
       }
       else
@@ -608,65 +564,56 @@ namespace ccf
         // There's no `epoch_end` for the a self-endorsement, leave it
         // open-ranged and sign the current service key.
 
-        if (
-          !active_service.has_value() ||
-          !active_service->current_service_create_txid.has_value())
-        {
-          throw std::logic_error(
-            "Active service or current_service_create_txid is not set");
-        }
-
         endorsement.endorsement_epoch_begin =
           active_service->current_service_create_txid.value();
 
         key_to_endorse = endorsement.endorsing_key;
       }
 
-      std::vector<cbor::MapItem> ccf_headers;
-      auto from_txid = endorsement.endorsement_epoch_begin.to_str();
-      ccf_headers.emplace_back(
-        cbor::make_string(ccf::cose::header::custom::TX_RANGE_BEGIN),
-        cbor::make_string(from_txid));
-
-      std::string to_txid{};
+      std::vector<std::shared_ptr<ccf::crypto::COSEParametersFactory>>
+        ccf_headers_arr{};
+      ccf_headers_arr.push_back(ccf::crypto::cose_params_string_string(
+        ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN,
+        endorsement.endorsement_epoch_begin.to_str()));
       if (endorsement.endorsement_epoch_end)
       {
-        to_txid = endorsement.endorsement_epoch_end->to_str();
-        ccf_headers.emplace_back(
-          cbor::make_string(ccf::cose::header::custom::TX_RANGE_END),
-          cbor::make_string(to_txid));
+        ccf_headers_arr.push_back(ccf::crypto::cose_params_string_string(
+          ccf::crypto::COSE_PHEADER_KEY_RANGE_END,
+          endorsement.endorsement_epoch_end->to_str()));
       }
       if (!previous_root.empty())
       {
-        ccf_headers.emplace_back(
-          cbor::make_string(ccf::cose::header::custom::EPOCH_LAST_MERKLE_ROOT),
-          cbor::make_bytes(previous_root));
+        ccf_headers_arr.push_back(ccf::crypto::cose_params_string_bytes(
+          ccf::crypto::COSE_PHEADER_KEY_EPOCH_LAST_MERKLE_ROOT, previous_root));
       }
 
       const auto time_since_epoch =
         std::chrono::duration_cast<std::chrono::seconds>(
-          std::chrono::system_clock::now().time_since_epoch())
+          ccf::get_enclave_time())
           .count();
 
-      std::vector<cbor::MapItem> cwt_headers;
-      cwt_headers.emplace_back(
-        cbor::make_signed(ccf::cwt::header::iana::IAT),
-        cbor::make_signed(time_since_epoch));
+      auto cwt_headers =
+        std::static_pointer_cast<ccf::crypto::COSEParametersFactory>(
+          std::make_shared<ccf::crypto::COSEParametersMap>(
+            std::make_shared<ccf::crypto::COSEMapIntKey>(
+              ccf::crypto::COSE_PHEADER_KEY_CWT),
+            ccf::crypto::COSEHeadersArray{ccf::crypto::cose_params_int_int(
+              ccf::crypto::COSE_PHEADER_KEY_IAT, time_since_epoch)}));
 
-      std::vector<cbor::MapItem> phdr;
-      phdr.emplace_back(
-        cbor::make_signed(ccf::cose::header::iana::CWT_CLAIMS),
-        cbor::make_map(std::move(cwt_headers)));
-      phdr.emplace_back(
-        cbor::make_string(ccf::cose::header::custom::CCF_V1),
-        cbor::make_map(std::move(ccf_headers)));
+      auto ccf_headers =
+        std::static_pointer_cast<ccf::crypto::COSEParametersFactory>(
+          std::make_shared<ccf::crypto::COSEParametersMap>(
+            std::make_shared<ccf::crypto::COSEMapStringKey>(
+              ccf::crypto::COSE_PHEADER_KEY_CCF),
+            ccf_headers_arr));
 
-      auto phdr_map = cbor::make_map(std::move(phdr));
+      ccf::crypto::COSEHeadersArray pheaders{cwt_headers, ccf_headers};
+
       try
       {
         endorsement.endorsement = cose_sign1(
           service_key,
-          phdr_map,
+          pheaders,
           key_to_endorse,
           false // detached payload
         );
@@ -683,7 +630,7 @@ namespace ccf
 
     static bool open_service(ccf::kv::Tx& tx)
     {
-      auto* service = tx.rw<ccf::Service>(Tables::SERVICE);
+      auto service = tx.rw<ccf::Service>(Tables::SERVICE);
 
       auto active_recovery_participants_count =
         get_active_recovery_participants(tx).size();
@@ -737,6 +684,8 @@ namespace ccf
       }
 
       active_service->status = ServiceStatus::OPEN;
+      active_service->previous_service_identity_version =
+        service->get_version_of_previous_write();
       service->put(active_service.value());
 
       return true;
@@ -745,7 +694,7 @@ namespace ccf
     static std::optional<ServiceStatus> get_service_status(
       ccf::kv::ReadOnlyTx& tx)
     {
-      auto* service = tx.ro<ccf::Service>(Tables::SERVICE);
+      auto service = tx.ro<ccf::Service>(Tables::SERVICE);
       auto active_service = service->get();
       if (!active_service.has_value())
       {
@@ -761,7 +710,7 @@ namespace ccf
       const NodeId& node_id,
       ccf::kv::Version latest_ledger_secret_seqno)
     {
-      auto* nodes = tx.rw<ccf::Nodes>(Tables::NODES);
+      auto nodes = tx.rw<ccf::Nodes>(Tables::NODES);
       auto node_info = nodes->get(node_id);
 
       if (!node_info.has_value())
@@ -830,7 +779,7 @@ namespace ccf
     static void trust_node_virtual_host_data(
       ccf::kv::Tx& tx, const HostData& host_data)
     {
-      auto* host_data_table =
+      auto host_data_table =
         tx.wo<ccf::VirtualHostDataMap>(Tables::VIRTUAL_HOST_DATA);
       host_data_table->insert(host_data);
     }
@@ -840,7 +789,7 @@ namespace ccf
       const HostData& host_data,
       const std::optional<HostDataMetadata>& security_policy = std::nullopt)
     {
-      auto* host_data_table = tx.wo<ccf::SnpHostDataMap>(Tables::HOST_DATA);
+      auto host_data_table = tx.wo<ccf::SnpHostDataMap>(Tables::HOST_DATA);
       if (security_policy.has_value())
       {
         auto raw_security_policy =
@@ -866,7 +815,7 @@ namespace ccf
         return;
       }
 
-      auto* uvme =
+      auto uvme =
         tx.rw<ccf::SNPUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
 
       if (!recovering)
@@ -952,7 +901,7 @@ namespace ccf
           attestation.cpuid_mod_id,
           attestation.cpuid_step));
       }
-      auto* h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+      auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
       auto product = pal::snp::get_sev_snp_product(cpuid);
       h->put(cpuid.hex_str(), attestation.reported_tcb.to_policy(product));
     }
@@ -960,7 +909,7 @@ namespace ccf
     static void init_configuration(
       ccf::kv::Tx& tx, const ServiceConfiguration& configuration)
     {
-      auto* config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
+      auto config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
       if (config->has())
       {
         throw std::logic_error(
@@ -973,7 +922,7 @@ namespace ccf
 
     static bool set_recovery_threshold(ccf::kv::Tx& tx, size_t threshold)
     {
-      auto* config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
+      auto config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
 
       if (threshold == 0)
       {
@@ -998,7 +947,7 @@ namespace ccf
           "recovery shares");
         return false;
       }
-      if (service_status.value() == ServiceStatus::OPEN)
+      else if (service_status.value() == ServiceStatus::OPEN)
       {
         auto active_recovery_participants_count =
           get_active_recovery_participants(tx).size();
@@ -1044,7 +993,7 @@ namespace ccf
 
     static size_t get_recovery_threshold(ccf::kv::ReadOnlyTx& tx)
     {
-      auto* config = tx.ro<ccf::Configuration>(Tables::CONFIGURATION);
+      auto config = tx.ro<ccf::Configuration>(Tables::CONFIGURATION);
       auto current_config = config->get();
       if (!current_config.has_value())
       {

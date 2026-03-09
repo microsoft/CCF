@@ -22,7 +22,7 @@ namespace ccf::http
       return s == "*";
     }
 
-    [[nodiscard]] bool matches(const std::string& mime) const
+    bool matches(const std::string& mime) const
     {
       const auto [t, st] = ccf::nonstd::split_1(mime, "/");
 

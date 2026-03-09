@@ -3,11 +3,10 @@
 
 #include "crypto/openssl/verifier.h"
 
-#include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "crypto/openssl/ec_public_key.h"
-#include "crypto/openssl/rsa_public_key.h"
-#include "ds/internal_logger.h"
+#include "ccf/crypto/public_key.h"
+#include "ccf/ds/logger.h"
+#include "crypto/openssl/rsa_key_pair.h"
 #include "x509_time.h"
 
 #include <openssl/evp.h>
@@ -54,16 +53,21 @@ namespace ccf::crypto
       }
     }
 
+    int mdnid = 0;
+    int pknid = 0;
+    int secbits = 0;
+    X509_get_signature_info(cert, &mdnid, &pknid, &secbits, nullptr);
+
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
     auto base_id = EVP_PKEY_get_base_id(pk);
     if (base_id == EVP_PKEY_EC)
     {
-      public_key = std::make_shared<ECPublicKey_OpenSSL>(pk);
+      public_key = std::make_unique<PublicKey_OpenSSL>(pk);
     }
     else if (base_id == EVP_PKEY_RSA)
     {
-      public_key = std::make_shared<RSAPublicKey_OpenSSL>(pk);
+      public_key = std::make_unique<RSAPublicKey_OpenSSL>(pk);
     }
     else
     {
@@ -110,17 +114,6 @@ namespace ccf::crypto
       if (tc == nullptr)
       {
         LOG_DEBUG_FMT("Failed to load certificate from PEM: {}", pem->str());
-        return false;
-      }
-
-      auto rc = X509_check_ca(tc);
-      // trusted certs should be a CA
-      // (x509v3 basic constraints CA:TRUE or self-signed x509v1)
-      // Excludes KeyUsage extensions and outdated Netscape extensions
-      auto is_ca = (rc == 1 || rc == 3);
-      if (!is_ca)
-      {
-        LOG_DEBUG_FMT("Trusted certificate is not a CA: {}", pem->str());
         return false;
       }
 

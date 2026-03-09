@@ -23,8 +23,7 @@ namespace tls
       {
         Unique_BIO bio(ca_string.data(), ca_string.size());
         Unique_X509 ca;
-        ca = Unique_X509(bio, true);
-        if (ca == nullptr)
+        if (!(ca = Unique_X509(bio, true)))
         {
           throw std::runtime_error(
             "Could not parse CA: " + error_string(ERR_get_error()));

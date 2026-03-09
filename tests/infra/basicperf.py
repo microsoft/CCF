@@ -65,7 +65,7 @@ def write_to_key_space(
             f"/records/{key}",
             "PUT",
             additional_headers=additional_headers,
-            body=f"{hashlib.sha256(key.encode()).hexdigest()}",
+            body=f"{hashlib.md5(key.encode()).hexdigest()}",
             content_type="text/plain",
         )
 
@@ -164,7 +164,7 @@ class RWMix:
 def create_and_fill_key_space(size: int, primary: infra.node.Node) -> List[str]:
     LOG.info(f"Creating and filling key space of size {size}")
     space = [f"{i}" for i in range(size)]
-    mapping = {key: f"{hashlib.sha256(key.encode()).hexdigest()}" for key in space}
+    mapping = {key: f"{hashlib.md5(key.encode()).hexdigest()}" for key in space}
     with primary.client("user0") as c:
         r = c.post("/records", mapping)
         assert r.status_code == http.HTTPStatus.NO_CONTENT, r
@@ -219,7 +219,7 @@ def run(args):
 
     LOG.info("Starting nodes on {}".format(hosts))
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         # Manipulate election timeouts to produce a deterministic successor to the primary
         # when it is stopped, allowing the submitters to be configured to fail over accordingly
@@ -374,8 +374,6 @@ def run(args):
                 for remote_client in clients:
                     remote_client.stop()
 
-                perf_label = args.perf_label
-
                 if not args.stop_primary_after_s:
                     primary, _ = network.find_primary()
                     with primary.client() as nc:
@@ -388,7 +386,7 @@ def run(args):
 
                         bf = infra.bencher.Bencher()
                         bf.set(
-                            perf_label,
+                            args.perf_label,
                             infra.bencher.Memory(
                                 current_value,
                                 high_value=peak_value,
@@ -592,7 +590,7 @@ def run(args):
 
                 bf = infra.bencher.Bencher()
                 bf.set(
-                    perf_label,
+                    args.perf_label,
                     infra.bencher.Throughput(round(throughput, 1)),
                 )
 
@@ -622,7 +620,7 @@ def cli_args():
     parser.add_argument(
         "--client-timeout-s",
         help="Number of seconds after which unresponsive clients are shut down",
-        default=300,
+        default=90,
         type=float,
     )
     parser.add_argument(

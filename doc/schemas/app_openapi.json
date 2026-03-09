@@ -798,55 +798,6 @@
         }
       }
     },
-    "/app/log/private/historical/handle": {
-      "get": {
-        "operationId": "GetAppLogPrivateHistoricalHandle",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "handle",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/uint64"
-            }
-          },
-          {
-            "in": "query",
-            "name": "seqno",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/uint64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/json"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "security": [
-          {
-            "jwt": []
-          },
-          {
-            "user_cose_sign1": []
-          }
-        ],
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
-        }
-      }
-    },
     "/app/log/private/historical/sparse": {
       "get": {
         "operationId": "GetAppLogPrivateHistoricalSparse",
@@ -1227,6 +1178,30 @@
         }
       }
     },
+    "/app/log/public/cbor_merkle_proof": {
+      "get": {
+        "operationId": "GetAppLogPublicCborMerkleProof",
+        "responses": {
+          "204": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          },
+          {
+            "user_cose_sign1": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
+    },
     "/app/log/public/cose_endorsements": {
       "get": {
         "operationId": "GetAppLogPublicCoseEndorsements",
@@ -1269,6 +1244,14 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "security": [
+          {
+            "jwt": []
+          },
+          {
+            "user_cose_sign1": []
+          }
+        ],
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/never"
         }
@@ -1434,38 +1417,6 @@
         }
       }
     },
-    "/app/log/public/trusted_keys": {
-      "get": {
-        "operationId": "GetAppLogPublicTrustedKeys",
-        "responses": {
-          "204": {
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
-        }
-      }
-    },
-    "/app/log/public/verify_cose_receipt": {
-      "get": {
-        "operationId": "GetAppLogPublicVerifyCoseReceipt",
-        "responses": {
-          "204": {
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
-        }
-      }
-    },
     "/app/log/request_query": {
       "get": {
         "operationId": "GetAppLogRequestQuery",
@@ -1486,38 +1437,6 @@
         },
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
-        }
-      }
-    },
-    "/app/log/signed_statement": {
-      "post": {
-        "operationId": "PostAppLogSignedStatement",
-        "responses": {
-          "204": {
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/always"
-        }
-      }
-    },
-    "/app/log/transparent_statement": {
-      "get": {
-        "operationId": "GetAppLogTransparentStatement",
-        "responses": {
-          "204": {
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },

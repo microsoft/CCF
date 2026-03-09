@@ -19,7 +19,6 @@
 #include <set>
 #include <string>
 #include <vector>
-#include <cmath>
 
 #include <valijson/constraints/basic_constraint.hpp>
 #include <valijson/internal/custom_allocator.hpp>
@@ -785,11 +784,6 @@ public:
 
     void setDivisor(double newValue)
     {
-        if (!std::isfinite(newValue) || newValue <= 0.0) {
-            throwRuntimeError(
-                "Divisor for 'multipleOf' or 'divisibleBy' must be positive");
-        }
-
         m_value = newValue;
     }
 
@@ -819,11 +813,6 @@ public:
 
     void setDivisor(int64_t newValue)
     {
-        if (newValue <= 0) {
-            throwRuntimeError(
-                "Divisor for 'multipleOf' or 'divisibleBy' must be positive");
-        }
-
         m_value = newValue;
     }
 

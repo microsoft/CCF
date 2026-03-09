@@ -11,7 +11,7 @@ namespace ccf
   class AbstractGovernanceEffects : public ccf::AbstractNodeSubSystem
   {
   public:
-    ~AbstractGovernanceEffects() override = default;
+    virtual ~AbstractGovernanceEffects() = default;
 
     static char const* get_subsystem_name()
     {
@@ -30,6 +30,9 @@ namespace ccf
     virtual void trigger_recovery_shares_refresh(ccf::kv::Tx& tx) = 0;
     virtual void trigger_ledger_chunk(ccf::kv::Tx& tx) = 0;
     virtual void trigger_snapshot(ccf::kv::Tx& tx) = 0;
-    virtual void shuffle_sealed_shares(ccf::kv::Tx& tx) = 0;
+    virtual void trigger_acme_refresh(
+      ccf::kv::Tx& tx,
+      const std::optional<std::vector<std::string>>& interfaces =
+        std::nullopt) = 0;
   };
 }

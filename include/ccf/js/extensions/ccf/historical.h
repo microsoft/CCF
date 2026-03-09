@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/historical_queries_interface.h"
-#include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/extension_interface.h"
 
 #include <quickjs/quickjs.h>
@@ -28,11 +27,11 @@ namespace ccf::js::extensions
     std::unique_ptr<Impl> impl;
 
     HistoricalExtension(ccf::historical::AbstractStateCache* hs);
-    ~HistoricalExtension() override;
+    ~HistoricalExtension();
 
     void install(js::core::Context& ctx) override;
 
-    js::core::JSWrappedValue create_historical_state_object(
-      js::core::Context& ctx, ccf::historical::StatePtr state) const;
+    JSValue create_historical_state_object(
+      js::core::Context& ctx, ccf::historical::StatePtr state);
   };
 }

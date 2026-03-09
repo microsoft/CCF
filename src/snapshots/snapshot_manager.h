@@ -2,8 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/nonstd.h"
 #include "consensus/ledger_enclave_types.h"
+#include "crypto/openssl/hash.h"
+#include "ds/files.h"
 #include "host/time_bound_logger.h"
 #include "snapshots/filenames.h"
 
@@ -62,7 +65,7 @@ namespace snapshots
       }
     }
 
-    [[nodiscard]] fs::path get_main_directory() const
+    fs::path get_main_directory() const
     {
       return snapshot_dir;
     }
@@ -87,11 +90,8 @@ namespace snapshots
     auto rc = x; \
     if (rc == -1) \
     { \
-      throw std::runtime_error( \
-        fmt::format(/* NOLINTNEXTLINE(concurrency-mt-unsafe) */ \
-                    "Error ({}) writing snapshot {} in " #x, \
-                    strerror(errno), \
-                    name)); \
+      throw std::runtime_error(fmt::format( \
+        "Error ({}) writing snapshot {} in " #x, strerror(errno), name)); \
     } \
   } while (0)
 
@@ -103,20 +103,24 @@ namespace snapshots
       const int snapshot_fd;
 
       // Outputs, populated by callback
-      std::string committed_file_name;
+      std::string committed_file_name = {};
     };
 
     static void on_snapshot_sync_and_rename(uv_work_t* req)
     {
-      auto* data = static_cast<AsyncSnapshotSyncAndRename*>(req->data);
+// don't init / deinit in sync
+#ifndef TEST_MODE_EXECUTE_SYNC_INLINE
+      ccf::crypto::openssl_sha256_init();
+#endif
+      auto data = static_cast<AsyncSnapshotSyncAndRename*>(req->data);
 
       {
         asynchost::TimeBoundLogger log_if_slow(
           fmt::format("Committing snapshot - fsync({})", data->tmp_file_name));
-        fsync(data->snapshot_fd); // NOLINT(concurrency-mt-unsafe)
+        fsync(data->snapshot_fd);
       }
 
-      close(data->snapshot_fd); // NOLINT(concurrency-mt-unsafe)
+      close(data->snapshot_fd);
 
       // e.g. snapshot_100_105.committed
       data->committed_file_name =
@@ -125,20 +129,31 @@ namespace snapshots
 
       const auto full_tmp_path = data->dir / data->tmp_file_name;
       files::rename(full_tmp_path, full_committed_path);
+
+      // read and log the hash of the written snapshot
+      auto raw = files::slurp(full_committed_path);
+      LOG_INFO_FMT(
+        "Written snapshot to {} (size: {} bytes, sha256: {} )",
+        data->committed_file_name,
+        raw.size(),
+        ccf::crypto::Sha256Hash(raw).hex_str());
+
+#ifndef TEST_MODE_EXECUTE_SYNC_INLINE
+      ccf::crypto::openssl_sha256_shutdown();
+#endif
     }
 
-    static void on_snapshot_sync_and_rename_complete(
-      uv_work_t* req, int /*status*/)
+    static void on_snapshot_sync_and_rename_complete(uv_work_t* req, int status)
     {
-      auto* data = static_cast<AsyncSnapshotSyncAndRename*>(req->data);
+      auto data = static_cast<AsyncSnapshotSyncAndRename*>(req->data);
 
       LOG_INFO_FMT(
         "Renamed temporary snapshot {} to {}",
         data->tmp_file_name,
         data->committed_file_name);
 
-      delete data; // NOLINT(cppcoreguidelines-owning-memory)
-      delete req; // NOLINT(cppcoreguidelines-owning-memory)
+      delete data;
+      delete req;
     }
 
     void commit_snapshot(
@@ -190,17 +205,11 @@ namespace snapshots
             {
               const auto& snapshot = it->second.snapshot;
 
-              {
-                asynchost::TimeBoundLogger log_write_if_slow(
-                  fmt::format("Writing snapshot to {}", file_name));
-                // NOLINTNEXTLINE(concurrency-mt-unsafe)
-                THROW_ON_ERROR(
-                  write(snapshot_fd, snapshot->data(), snapshot->size()),
-                  file_name);
-                // NOLINTNEXTLINE(concurrency-mt-unsafe)
-                THROW_ON_ERROR(
-                  write(snapshot_fd, receipt_data, receipt_size), file_name);
-              }
+              THROW_ON_ERROR(
+                write(snapshot_fd, snapshot->data(), snapshot->size()),
+                file_name);
+              THROW_ON_ERROR(
+                write(snapshot_fd, receipt_data, receipt_size), file_name);
 
               LOG_INFO_FMT(
                 "New snapshot file written to {} [{} bytes] (unsynced)",
@@ -209,16 +218,13 @@ namespace snapshots
 
               // Call fsync and rename on a worker-thread via uv async, as they
               // may be slow
-              // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-              auto* work_handle = new uv_work_t;
+              uv_work_t* work_handle = new uv_work_t;
 
               {
-                // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
                 auto* data = new AsyncSnapshotSyncAndRename{
                   .dir = snapshot_dir,
                   .tmp_file_name = file_name,
-                  .snapshot_fd = snapshot_fd,
-                  .committed_file_name = {}};
+                  .snapshot_fd = snapshot_fd};
 
                 work_handle->data = data;
               }
@@ -234,6 +240,10 @@ namespace snapshots
                 &on_snapshot_sync_and_rename_complete);
 #endif
             }
+
+            auto sha = ccf::crypto::Sha256Hash(*it->second.snapshot);
+            LOG_INFO_FMT(
+              "Writing snapshot to {} (sha256: {})", full_snapshot_path, sha);
 
             pending_snapshots.erase(it);
 
@@ -253,15 +263,37 @@ namespace snapshots
     }
 #undef THROW_ON_ERROR
 
-    std::optional<fs::path> find_latest_committed_snapshot()
+    std::optional<std::pair<fs::path, fs::path>>
+    find_latest_committed_snapshot()
     {
-      std::vector<fs::path> directories;
-      directories.push_back(snapshot_dir);
+      // Keep track of latest snapshot file in both directories
+      size_t latest_idx = 0;
+
+      std::optional<fs::path> read_only_latest_committed_snapshot =
+        std::nullopt;
       if (read_snapshot_dir.has_value())
       {
-        directories.push_back(read_snapshot_dir.value());
+        read_only_latest_committed_snapshot =
+          find_latest_committed_snapshot_in_directory(
+            read_snapshot_dir.value(), latest_idx);
       }
-      return find_latest_committed_snapshot_in_directories(directories);
+
+      auto main_latest_committed_snapshot =
+        find_latest_committed_snapshot_in_directory(snapshot_dir, latest_idx);
+
+      if (main_latest_committed_snapshot.has_value())
+      {
+        return std::make_pair(
+          snapshot_dir, main_latest_committed_snapshot.value());
+      }
+      else if (read_only_latest_committed_snapshot.has_value())
+      {
+        return std::make_pair(
+          read_snapshot_dir.value(),
+          read_only_latest_committed_snapshot.value());
+      }
+
+      return std::nullopt;
     }
 
     void register_message_handlers(

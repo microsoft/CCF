@@ -63,18 +63,19 @@ namespace ccf::http
         val = true;
         return true;
       }
-
-      if (param_val == "false")
+      else if (param_val == "false")
       {
         val = false;
         return true;
       }
-
-      error_reason = fmt::format(
-        "Unable to parse value '{}' as bool in parameter '{}'",
-        param_val,
-        param_key);
-      return false;
+      else
+      {
+        error_reason = fmt::format(
+          "Unable to parse value '{}' as bool in parameter '{}'",
+          param_val,
+          param_key);
+        return false;
+      }
     }
     else if constexpr (std::is_integral_v<T>)
     {
@@ -107,6 +108,9 @@ namespace ccf::http
     {
       return val;
     }
-    return std::nullopt;
+    else
+    {
+      return std::nullopt;
+    }
   }
 }

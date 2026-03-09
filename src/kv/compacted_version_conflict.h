@@ -12,9 +12,9 @@ namespace ccf::kv
     std::string msg;
 
   public:
-    CompactedVersionConflict(std::string s) : msg(std::move(s)) {}
+    CompactedVersionConflict(const std::string& s) : msg(s) {}
 
-    [[nodiscard]] char const* what() const
+    char const* what() const
     {
       return msg.c_str();
     }

@@ -6,7 +6,6 @@
 #include "ccf/js/modules/module_loader_interface.h"
 #include "ccf/service/tables/modules.h"
 #include "ccf/tx.h"
-#include "ds/internal_logger.h"
 
 #include <string>
 
@@ -20,7 +19,7 @@ namespace ccf::js::modules
   public:
     KvModuleLoader(ccf::Modules::ReadOnlyHandle* mh) : modules_handle(mh) {}
 
-    std::optional<js::core::JSWrappedValue> get_module(
+    virtual std::optional<js::core::JSWrappedValue> get_module(
       std::string_view module_name, js::core::Context& ctx) override
     {
       std::string module_name_kv(module_name);
@@ -38,7 +37,7 @@ namespace ccf::js::modules
         return std::nullopt;
       }
 
-      const auto* module_name_quickjs = module_name_kv.c_str() + 1;
+      auto module_name_quickjs = module_name_kv.c_str() + 1;
       const char* buf = module_str->c_str();
       size_t buf_len = module_str->size();
       auto parsed_module = ctx.eval(

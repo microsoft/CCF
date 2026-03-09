@@ -20,6 +20,5 @@ namespace ccf::threading
   static constexpr ThreadID MAIN_THREAD_ID = 0;
 
   uint16_t get_current_thread_id();
-  void set_current_thread_id(ThreadID to);
-  void reset_thread_id_generator(ThreadID to = MAIN_THREAD_ID);
+  void reset_thread_id_generator();
 }

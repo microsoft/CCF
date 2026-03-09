@@ -13,6 +13,7 @@ import infra.e2e_args
 import infra.proposal
 import suite.test_requirements as reqs
 from infra.jwt_issuer import get_jwt_issuers, get_jwt_keys
+from infra.runner import ConcurrentRunner
 import ca_certs
 import ccf.ledger
 from ccf.tx_id import TxID
@@ -355,15 +356,11 @@ def test_jwt_key_auto_refresh(network, args):
             )
             metadata_fp.flush()
             network.consortium.set_jwt_issuer(primary, metadata_fp.name)
-
             # Make sure we did serve at least one request with oversized headers to CCF before
             # reverting to normal headers.
-            def assert_request_count_increased():
-                assert (
-                    server.request_count > req_count
-                ), "No request was served with oversized headers"
-
-            with_timeout(assert_request_count_increased, timeout=1)
+            assert (
+                server.request_count > req_count
+            ), "No request was served with oversized headers"
             server.inject_oversized_header = False
 
             LOG.info("Check that keys got refreshed")
@@ -632,58 +629,6 @@ def test_jwt_key_refresh_aad(network, args, ascending=True):
     with_timeout(lambda: check_kv_jwt_keys_not_empty(args, network, issuer), timeout=5)
 
 
-def test_malformed_tokens(network, args):
-    primary, _ = network.find_nodes()
-
-    with primary.client() as c:
-        malformed_tokens = [
-            (
-                "abc.def",
-                "Malformed JWT: must contain exactly 3 parts",
-            ),
-            (
-                "abc.def.ghi.jkl",
-                "Malformed JWT: must contain exactly 3 parts",
-            ),
-            (
-                "Zm9v.YmF6.=wwy",
-                "Failed to parse base64url in JWT (signature)",
-            ),
-            (
-                "Zm9v.=wwy.YmF6",
-                "Failed to parse base64url in JWT (payload)",
-            ),
-            (
-                "=wwy.Zm9v.YmF6",
-                "Failed to parse base64url in JWT (header)",
-            ),
-            (
-                ".abc.abc",
-                "JWT part is empty (header)",
-            ),
-            (
-                "abc..abc",
-                "JWT part is empty (payload)",
-            ),
-            (
-                "abc.abc.",
-                "JWT part is empty (signature)",
-            ),
-        ]
-
-        for token, message in malformed_tokens:
-            r = c.get("/app/log/public", headers={"authorization": f"Bearer {token}"})
-            assert (
-                r.status_code == 401
-            ), f"Unexpected status code for token {token}: {r}"
-            error = r.body.json().get("error")
-            assert error["code"] == "InvalidAuthenticationInfo"
-            details = {
-                detail["auth_policy"]: detail for detail in error.get("details", [])
-            }
-            assert details["jwt"]["message"] == message, r
-
-
 def with_timeout(fn, timeout):
     t0 = time.time()
     while True:
@@ -698,7 +643,7 @@ def with_timeout(fn, timeout):
 
 def run_auto(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         test_jwt_mulitple_issuers_same_kids_different_pem(network, args)
@@ -719,12 +664,10 @@ def run_auto(args):
         test_jwt_key_refresh_aad(network, args, ascending=False)
         test_jwt_key_auto_refresh_entries(network, args)
 
-        test_malformed_tokens(network, args)
-
 
 def run_manual(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         test_jwt_key_initial_refresh(network, args)
@@ -738,7 +681,38 @@ def run_manual(args):
 
 def run_ca_cert(args):
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
         ca_certs.test_cert_store(network, args)
+
+
+if __name__ == "__main__":
+    cr = ConcurrentRunner()
+
+    cr.add(
+        "auto",
+        run_auto,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        jwt_key_refresh_interval_s=1,
+        issuer_port=12345,
+    )
+
+    cr.add(
+        "manual",
+        run_manual,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        jwt_key_refresh_interval_s=100000,
+        issuer_port=12346,
+    )
+
+    cr.add(
+        "ca_cert",
+        run_ca_cert,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    cr.run()

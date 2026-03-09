@@ -8,7 +8,7 @@
  * @module
  */
 
-import { type JsonCompatible, ccf } from "./global.js";
+import { JsonCompatible, ccf } from "./global.js";
 
 /**
  * The body of a request.

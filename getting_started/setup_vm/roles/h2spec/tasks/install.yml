@@ -1,0 +1,20 @@
+- name: Include vars
+  include_vars: common.yml
+
+- name: Download h2spec
+  get_url:
+    url: https://github.com/summerwind/h2spec/releases/download/v{{ h2spec_version }}/h2spec_linux_amd64.tar.gz
+    dest: "{{ workspace }}/h2spec.tar.gz"
+  become: true
+
+- name: Create directory for h2spec
+  file:
+    path: "{{ h2spec_install_prefix }}"
+    state: directory
+  become: true
+
+- name: Unpack h2spec
+  unarchive:
+    src: "{{ workspace }}/h2spec.tar.gz"
+    dest: "{{ h2spec_install_prefix }}"
+  become: true

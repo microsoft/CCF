@@ -3,10 +3,6 @@
 
 #include "node/uvm_endorsements.h"
 
-#include "crypto/cbor.h"
-#include "crypto/cose_utils.h"
-#include "ds/internal_logger.h"
-
 namespace ccf
 {
   size_t parse_svn(const std::string& svn_str)
@@ -22,7 +18,7 @@ namespace ccf
     return svn;
   }
 
-  bool matches_uvm_roots_of_trust(
+  bool inline matches_uvm_roots_of_trust(
     const pal::UVMEndorsements& endorsements,
     const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust)
   {
@@ -39,216 +35,194 @@ namespace ccf
 
   namespace cose
   {
-    namespace
+    static constexpr auto HEADER_PARAM_ISSUER = "iss";
+    static constexpr auto HEADER_PARAM_FEED = "feed";
+
+    static std::vector<std::vector<uint8_t>> decode_x5chain(
+      QCBORDecodeContext& ctx, const QCBORItem& x5chain)
     {
-      UvmEndorsementsProtectedHeader decode_protected_header(
-        std::span<const uint8_t> raw_endorsements)
+      std::vector<std::vector<uint8_t>> parsed;
+
+      if (x5chain.uDataType == QCBOR_TYPE_ARRAY)
       {
-        auto parsed = ccf::cbor::rethrow_with_msg(
-          [&]() { return ccf::cbor::parse(raw_endorsements); },
-          "UVM endorsements COSE envelope");
-        const auto& cose_array = ccf::cbor::rethrow_with_msg(
-          [&]() -> const ccf::cbor::Value& {
-            return parsed->tag_at(ccf::cbor::tag::COSE_SIGN_1);
-          },
-          "COSE_Sign1 tag");
-        constexpr std::string_view phdr_context{"COSE_Sign1[0]"};
-        const auto& phdr_bytes = ccf::cbor::rethrow_with_msg(
-          [&]() -> const ccf::cbor::Value& { return cose_array->array_at(0); },
-          phdr_context);
-        auto phdr_bytes_span = ccf::cbor::rethrow_with_msg(
-          [&]() { return phdr_bytes->as_bytes(); }, phdr_context);
-        auto parsed_phdr = ccf::cbor::rethrow_with_msg(
-          [&]() { return ccf::cbor::parse(phdr_bytes_span); },
-          "Parse protected header in UVM endorsements");
-
-        UvmEndorsementsProtectedHeader result;
-
-        result.alg = ccf::cbor::rethrow_with_msg(
-          [&]() {
-            return parsed_phdr
-              ->map_at(ccf::cbor::make_signed(header::iana::ALG))
-              ->as_signed();
-          },
-          fmt::format(
-            "Parse alg ({}) in protected header in UVM endorsements",
-            header::iana::ALG));
-
-        result.content_type = ccf::cbor::rethrow_with_msg(
-          [&]() {
-            return std::string(
-              parsed_phdr
-                ->map_at(ccf::cbor::make_signed(header::iana::CONTENT_TYPE))
-                ->as_string());
-          },
-          fmt::format(
-            "Parse content-type ({}) in protected header in UVM endorsements",
-            header::iana::CONTENT_TYPE));
-
-        result.x5_chain = ccf::cbor::rethrow_with_msg(
-          [&]() {
-            return utils::parse_x5chain(parsed_phdr->map_at(
-              ccf::cbor::make_signed(header::iana::X5CHAIN)));
-          },
-          fmt::format(
-            "Parse x5chain ({}) in protected header in UVM endorsements",
-            header::iana::X5CHAIN));
-
-        result.iss = ccf::cbor::rethrow_with_msg(
-          [&]() {
-            return parsed_phdr->map_at(ccf::cbor::make_string("iss"))
-              ->as_string();
-          },
-          "Parse iss in protected header in UVM endorsements");
-
-        result.feed = ccf::cbor::rethrow_with_msg(
-          [&]() {
-            return std::string(
-              parsed_phdr->map_at(ccf::cbor::make_string("feed"))->as_string());
-          },
-          "Parse feed in protected header in UVM endorsements");
-
-        return result;
-      }
-
-      std::pair<UvmEndorsementsProtectedHeader, std::string>
-      decode_protected_header_with_cwt(
-        std::span<const uint8_t> raw_endorsements)
-      {
-        auto parsed = ccf::cbor::rethrow_with_msg(
-          [&]() { return ccf::cbor::parse(raw_endorsements); },
-          "COSE envelope");
-        const auto& cose_array = ccf::cbor::rethrow_with_msg(
-          [&]() -> const ccf::cbor::Value& {
-            return parsed->tag_at(ccf::cbor::tag::COSE_SIGN_1);
-          },
-          "COSE_Sign1 tag");
-
-        constexpr std::string_view phdr_context{"COSE_Sign1[0]"};
-        const auto& phdr_bytes = ccf::cbor::rethrow_with_msg(
-          [&]() -> const ccf::cbor::Value& { return cose_array->array_at(0); },
-          phdr_context);
-        auto phdr_bytes_span = ccf::cbor::rethrow_with_msg(
-          [&]() { return phdr_bytes->as_bytes(); }, phdr_context);
-
-        auto parsed_phdr = ccf::cbor::rethrow_with_msg(
-          [&]() { return ccf::cbor::parse(phdr_bytes_span); },
-          "Parse protected header in UVM endorsements");
-
-        UvmEndorsementsProtectedHeader result;
-
-        result.alg = ccf::cbor::rethrow_with_msg(
-          [&]() {
-            return parsed_phdr
-              ->map_at(ccf::cbor::make_signed(header::iana::ALG))
-              ->as_signed();
-          },
-          fmt::format(
-            "Parse alg ({}) in protected header in UVM endorsements",
-            header::iana::ALG));
-
-        result.content_type = ccf::cbor::rethrow_with_msg(
-          [&]() {
-            return std::string(parsed_phdr
-                                 ->map_at(ccf::cbor::make_signed(
-                                   header::iana::PREIMAGE_CONTENT_TYPE))
-                                 ->as_string());
-          },
-          fmt::format(
-            "Parse content-type ({}) in protected header in UVM endorsements",
-            header::iana::PREIMAGE_CONTENT_TYPE));
-
-        result.x5_chain = ccf::cbor::rethrow_with_msg(
-          [&]() {
-            return utils::parse_x5chain(parsed_phdr->map_at(
-              ccf::cbor::make_signed(header::iana::X5CHAIN)));
-          },
-          fmt::format(
-            "Parse x5chain ({}) in protected header in UVM endorsements",
-            header::iana::X5CHAIN));
-
-        const ccf::cbor::Value& cwt_claims = ccf::cbor::rethrow_with_msg(
-          [&]() -> const ccf::cbor::Value& {
-            return parsed_phdr->map_at(
-              ccf::cbor::make_signed(ccf::cose::header::iana::CWT_CLAIMS));
-          },
-          fmt::format(
-            "Parse CWT claims ({}) in protected header in UVM endorsements",
-            ccf::cose::header::iana::CWT_CLAIMS));
-
-        result.iss = ccf::cbor::rethrow_with_msg(
-          [&]() {
-            return std::string(
-              cwt_claims
-                ->map_at(ccf::cbor::make_signed(ccf::cwt::header::iana::ISS))
-                ->as_string());
-          },
-          fmt::format(
-            "Parse iss ({}) in CWT claims in UVM endorsements",
-            ccf::cwt::header::iana::ISS));
-
-        result.feed = ccf::cbor::rethrow_with_msg(
-          [&]() {
-            return std::string(
-              cwt_claims
-                ->map_at(ccf::cbor::make_signed(ccf::cwt::header::iana::SUB))
-                ->as_string());
-          },
-          fmt::format(
-            "Parse sub ({}) in CWT claims in UVM endorsements",
-            ccf::cwt::header::iana::SUB));
-
-        uint64_t svn = ccf::cbor::rethrow_with_msg(
-          [&]() {
-            return cwt_claims
-              ->map_at(ccf::cbor::make_string(ccf::cwt::header::custom::SVN))
-              ->as_signed();
-          },
-          fmt::format(
-            "Parse svn ({}) in CWT claims in UVM endorsements",
-            ccf::cwt::header::custom::SVN));
-
-        return {result, std::to_string(svn)};
-      }
-
-      std::span<const uint8_t> verify_uvm_endorsements_signature(
-        const ccf::crypto::Pem& leaf_cert_pub_key,
-        const std::vector<uint8_t>& uvm_endorsements_raw)
-      {
-        auto verifier =
-          ccf::crypto::make_cose_verifier_from_key(leaf_cert_pub_key);
-
-        std::span<uint8_t> payload;
-        if (!verifier->verify(uvm_endorsements_raw, payload))
+        QCBORDecode_EnterArrayFromMapN(&ctx, headers::PARAM_X5CHAIN);
+        while (true)
         {
-          throw cose::COSESignatureValidationError(
-            "Signature verification failed");
+          QCBORItem item;
+          auto result = QCBORDecode_GetNext(&ctx, &item);
+          if (result == QCBOR_ERR_NO_MORE_ITEMS)
+          {
+            break;
+          }
+          if (result != QCBOR_SUCCESS)
+          {
+            throw COSEDecodeError("Item in x5chain is not well-formed");
+          }
+          if (item.uDataType == QCBOR_TYPE_BYTE_STRING)
+          {
+            parsed.push_back(qcbor_buf_to_byte_vector(item.val.string));
+          }
+          else
+          {
+            throw COSEDecodeError(
+              "Next item in x5chain was not of type byte string");
+          }
         }
-
-        return payload;
+        QCBORDecode_ExitArray(&ctx);
+        if (parsed.empty())
+        {
+          throw COSEDecodeError("x5chain array length was 0 in COSE header");
+        }
       }
+      else if (x5chain.uDataType == QCBOR_TYPE_BYTE_STRING)
+      {
+        parsed.push_back(qcbor_buf_to_byte_vector(x5chain.val.string));
+      }
+      else
+      {
+        throw COSEDecodeError(fmt::format(
+          "Value type {} of x5chain in COSE header is not array or byte string",
+          x5chain.uDataType));
+      }
+
+      return parsed;
+    }
+
+    static UvmEndorsementsProtectedHeader decode_protected_header(
+      const std::vector<uint8_t>& uvm_endorsements_raw)
+    {
+      UsefulBufC msg{uvm_endorsements_raw.data(), uvm_endorsements_raw.size()};
+
+      QCBORError qcbor_result;
+
+      QCBORDecodeContext ctx;
+      QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
+
+      QCBORDecode_EnterArray(&ctx, nullptr);
+      qcbor_result = QCBORDecode_GetError(&ctx);
+      if (qcbor_result != QCBOR_SUCCESS)
+      {
+        throw COSEDecodeError("Failed to parse COSE_Sign1 outer array");
+      }
+
+      uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
+      if (tag != CBOR_TAG_COSE_SIGN1)
+      {
+        throw COSEDecodeError("Failed to parse COSE_Sign1 tag");
+      }
+
+      struct q_useful_buf_c protected_parameters;
+      QCBORDecode_EnterBstrWrapped(
+        &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
+      QCBORDecode_EnterMap(&ctx, NULL);
+
+      enum
+      {
+        ALG_INDEX,
+        CONTENT_TYPE_INDEX,
+        X5_CHAIN_INDEX,
+        ISS_INDEX,
+        FEED_INDEX,
+        END_INDEX
+      };
+      QCBORItem header_items[END_INDEX + 1];
+
+      header_items[ALG_INDEX].label.int64 = headers::PARAM_ALG;
+      header_items[ALG_INDEX].uLabelType = QCBOR_TYPE_INT64;
+      header_items[ALG_INDEX].uDataType = QCBOR_TYPE_INT64;
+
+      header_items[CONTENT_TYPE_INDEX].label.int64 =
+        headers::PARAM_CONTENT_TYPE;
+      header_items[CONTENT_TYPE_INDEX].uLabelType = QCBOR_TYPE_INT64;
+      header_items[CONTENT_TYPE_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+      header_items[X5_CHAIN_INDEX].label.int64 = headers::PARAM_X5CHAIN;
+      header_items[X5_CHAIN_INDEX].uLabelType = QCBOR_TYPE_INT64;
+      header_items[X5_CHAIN_INDEX].uDataType = QCBOR_TYPE_ANY;
+
+      header_items[ISS_INDEX].label.string =
+        UsefulBuf_FromSZ(HEADER_PARAM_ISSUER);
+      header_items[ISS_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
+      header_items[ISS_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+      header_items[FEED_INDEX].label.string =
+        UsefulBuf_FromSZ(HEADER_PARAM_FEED);
+      header_items[FEED_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
+      header_items[FEED_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+      header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
+
+      QCBORDecode_GetItemsInMap(&ctx, header_items);
+      qcbor_result = QCBORDecode_GetError(&ctx);
+      if (qcbor_result != QCBOR_SUCCESS)
+      {
+        throw COSEDecodeError("Failed to decode protected header");
+      }
+
+      UvmEndorsementsProtectedHeader phdr = {};
+
+      if (header_items[ALG_INDEX].uDataType != QCBOR_TYPE_NONE)
+      {
+        phdr.alg = header_items[ALG_INDEX].val.int64;
+      }
+
+      if (header_items[CONTENT_TYPE_INDEX].uDataType != QCBOR_TYPE_NONE)
+      {
+        phdr.content_type =
+          qcbor_buf_to_string(header_items[CONTENT_TYPE_INDEX].val.string);
+      }
+
+      if (header_items[X5_CHAIN_INDEX].uDataType != QCBOR_TYPE_NONE)
+      {
+        phdr.x5_chain = decode_x5chain(ctx, header_items[X5_CHAIN_INDEX]);
+      }
+
+      if (header_items[ISS_INDEX].uDataType != QCBOR_TYPE_NONE)
+      {
+        phdr.iss = qcbor_buf_to_string(header_items[ISS_INDEX].val.string);
+      }
+
+      if (header_items[FEED_INDEX].uDataType != QCBOR_TYPE_NONE)
+      {
+        phdr.feed = qcbor_buf_to_string(header_items[FEED_INDEX].val.string);
+      }
+
+      QCBORDecode_ExitMap(&ctx);
+      QCBORDecode_ExitBstrWrapped(&ctx);
+
+      qcbor_result = QCBORDecode_GetError(&ctx);
+      if (qcbor_result != QCBOR_SUCCESS)
+      {
+        throw COSEDecodeError(
+          fmt::format("Failed to decode protected header: {}", qcbor_result));
+      }
+
+      return phdr;
     }
   }
+
+  static std::span<const uint8_t> verify_uvm_endorsements_signature(
+    const ccf::crypto::Pem& leaf_cert_pub_key,
+    const std::vector<uint8_t>& uvm_endorsements_raw)
+  {
+    auto verifier = ccf::crypto::make_cose_verifier_from_key(leaf_cert_pub_key);
+
+    std::span<uint8_t> payload;
+    if (!verifier->verify(uvm_endorsements_raw, payload))
+    {
+      throw cose::COSESignatureValidationError("Signature verification failed");
+    }
+
+    return payload;
+  }
+
   pal::UVMEndorsements verify_uvm_endorsements(
     const std::vector<uint8_t>& uvm_endorsements_raw,
     const pal::PlatformAttestationMeasurement& uvm_measurement,
     const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust,
     bool enforce_uvm_roots_of_trust)
   {
-    UvmEndorsementsProtectedHeader phdr{};
-    std::string sevsnpvm_guest_svn;
-
-    try
-    {
-      std::tie(phdr, sevsnpvm_guest_svn) =
-        cose::decode_protected_header_with_cwt(uvm_endorsements_raw);
-    }
-    // Since ContainerPlat 0.2.10, UVM endorsements carry SVN in CWT claims,
-    // alongside ISS and SUB(feed), so on decoding failure fallback to legacy.
-    catch (const ccf::cbor::CBORDecodeError&)
-    {
-      phdr = cose::decode_protected_header(uvm_endorsements_raw);
-    }
+    auto phdr = cose::decode_protected_header(uvm_endorsements_raw);
 
     if (!(cose::is_rsa_alg(phdr.alg) || cose::is_ecdsa_alg(phdr.alg)))
     {
@@ -257,7 +231,6 @@ namespace ccf
     }
 
     std::vector<std::string> pem_chain;
-    pem_chain.reserve(phdr.x5_chain.size());
     for (auto const& c : phdr.x5_chain)
     {
       pem_chain.emplace_back(ccf::crypto::cert_der_to_pem(c).str());
@@ -280,7 +253,7 @@ namespace ccf
       case ccf::crypto::JsonWebKeyType::EC:
       {
         auto ec_jwk = jwk.get<ccf::crypto::JsonWebKeyECPublic>();
-        pubk = ccf::crypto::make_ec_public_key(ec_jwk)->public_key_pem();
+        pubk = ccf::crypto::make_public_key(ec_jwk)->public_key_pem();
         break;
       }
       default:
@@ -291,65 +264,48 @@ namespace ccf
     }
 
     auto raw_payload =
-      cose::verify_uvm_endorsements_signature(pubk, uvm_endorsements_raw);
+      verify_uvm_endorsements_signature(pubk, uvm_endorsements_raw);
 
-    std::string sevsnpvm_launch_measurement{};
-    if (sevsnpvm_guest_svn.empty())
+    if (phdr.content_type != cose::headers::CONTENT_TYPE_APPLICATION_JSON_VALUE)
     {
-      if (phdr.content_type != cose::value::CT_JSON)
-      {
-        throw std::logic_error(fmt::format(
-          "Unexpected payload content type {}, expected {}",
-          phdr.content_type,
-          cose::value::CT_JSON));
-      }
+      throw std::logic_error(fmt::format(
+        "Unexpected payload content type {}, expected {}",
+        phdr.content_type,
+        cose::headers::CONTENT_TYPE_APPLICATION_JSON_VALUE));
+    }
 
-      auto payload = nlohmann::json::parse(raw_payload);
-      sevsnpvm_launch_measurement =
-        payload["x-ms-sevsnpvm-launchmeasurement"].get<std::string>();
-      auto sevsnpvm_guest_svn_obj = payload["x-ms-sevsnpvm-guestsvn"];
-      if (sevsnpvm_guest_svn_obj.is_string())
-      {
-        sevsnpvm_guest_svn = sevsnpvm_guest_svn_obj.get<std::string>();
-        size_t uintval = 0;
-        auto result = std::from_chars(
-          sevsnpvm_guest_svn.data(),
-          sevsnpvm_guest_svn.data() + sevsnpvm_guest_svn.size(),
-          uintval);
-        if (result.ec != std::errc())
-        {
-          throw std::logic_error(fmt::format(
-            "Unable to parse sevsnpvm_guest_svn value {} to unsigned in UVM "
-            "endorsements "
-            "payload",
-            sevsnpvm_guest_svn));
-        }
-      }
-      else if (sevsnpvm_guest_svn_obj.is_number_unsigned())
-      {
-        sevsnpvm_guest_svn =
-          std::to_string(sevsnpvm_guest_svn_obj.get<size_t>());
-      }
-      else
+    auto payload = nlohmann::json::parse(raw_payload);
+    std::string sevsnpvm_launch_measurement =
+      payload["x-ms-sevsnpvm-launchmeasurement"].get<std::string>();
+    auto sevsnpvm_guest_svn_obj = payload["x-ms-sevsnpvm-guestsvn"];
+    std::string sevsnpvm_guest_svn;
+    if (sevsnpvm_guest_svn_obj.is_string())
+    {
+      sevsnpvm_guest_svn = sevsnpvm_guest_svn_obj.get<std::string>();
+      size_t uintval = 0;
+      auto result = std::from_chars(
+        sevsnpvm_guest_svn.data(),
+        sevsnpvm_guest_svn.data() + sevsnpvm_guest_svn.size(),
+        uintval);
+      if (result.ec != std::errc())
       {
         throw std::logic_error(fmt::format(
-          "Unexpected type {} for sevsnpvm_guest_svn in UVM endorsements "
-          "payload, expected string or unsigned integer",
-          sevsnpvm_guest_svn_obj.type_name()));
+          "Unable to parse sevsnpvm_guest_svn value {} to unsigned in UVM "
+          "endorsements "
+          "payload",
+          sevsnpvm_guest_svn));
       }
+    }
+    else if (sevsnpvm_guest_svn_obj.is_number_unsigned())
+    {
+      sevsnpvm_guest_svn = std::to_string(sevsnpvm_guest_svn_obj.get<size_t>());
     }
     else
     {
-      if (phdr.content_type != cose::value::CT_OCTET_STREAM)
-      {
-        throw std::logic_error(fmt::format(
-          "Unexpected payload content type {}, expected {}",
-          phdr.content_type,
-          cose::value::CT_OCTET_STREAM));
-      }
-
-      sevsnpvm_launch_measurement =
-        ccf::ds::to_hex(raw_payload.begin(), raw_payload.end());
+      throw std::logic_error(fmt::format(
+        "Unexpected type {} for sevsnpvm_guest_svn in UVM endorsements "
+        "payload, expected string or unsigned integer",
+        sevsnpvm_guest_svn_obj.type_name()));
     }
 
     if (sevsnpvm_launch_measurement != uvm_measurement.hex_str())

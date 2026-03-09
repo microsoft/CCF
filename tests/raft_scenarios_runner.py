@@ -51,12 +51,13 @@ def preprocess_for_trace_validation(log):
     last_cmd = ""
     for line in log:
         entry = json.loads(line)
-        if "cmd" in entry and len(entry["cmd"]) > 0:
+        if "cmd" in entry:
             last_cmd = entry["cmd"]
             continue
         node = entry["msg"]["state"]["node_id"]
         entry["cmd"] = last_cmd
         entry["cmd_prefix"] = entry["cmd"].split(",")[0]
+        last_cmd = ""
         if initial_node is None:
             initial_node = node
         if entry["msg"]["function"] == "add_configuration":
@@ -67,15 +68,6 @@ def preprocess_for_trace_validation(log):
             ), removed
             entry["cmd"] = entry["cmd"] or removed["cmd"]
         log_by_node[node].append(entry)
-
-        # Collapse propose_vote->become_candidate to just propose_vote
-        if len(log_by_node[node]) >= 2 and [
-            e["msg"]["function"] for e in log_by_node[node][-2:]
-        ] == ["recv_propose_request_vote", "become_candidate"]:
-            bc = log_by_node[node].pop()
-            pr = log_by_node[node].pop()
-            assert bc["cmd"] == pr["cmd"], f"Command mismatch between {pr} and {bc}"
-            log_by_node[node].append(pr)
 
     def head():
         return log_by_node[initial_node].pop(0)

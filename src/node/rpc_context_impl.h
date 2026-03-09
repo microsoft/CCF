@@ -7,7 +7,7 @@
 
 namespace ccf
 {
-  enum class HttpVersion : uint8_t
+  enum class HttpVersion
   {
     HTTP1 = 0,
     HTTP2
@@ -33,48 +33,45 @@ namespace ccf
       http_version(v)
     {}
 
-    [[nodiscard]] std::shared_ptr<SessionContext> get_session_context()
-      const override
+    std::shared_ptr<SessionContext> get_session_context() const override
     {
       return session;
     }
 
-    void set_user_data(std::shared_ptr<void> data) override
+    virtual void set_user_data(std::shared_ptr<void> data) override
     {
       user_data = data;
     }
 
-    [[nodiscard]] void* get_user_data() const override
+    virtual void* get_user_data() const override
     {
       return user_data.get();
     }
 
     ccf::ClaimsDigest claims = ccf::empty_claims();
-    // NOLINTBEGIN(performance-move-const-arg)
     void set_claims_digest(ccf::ClaimsDigest::Digest&& digest) override
     {
       claims.set(std::move(digest));
     }
-    // NOLINTEND(performance-move-const-arg)
 
-    ccf::PathParams path_params;
-    const ccf::PathParams& get_request_path_params() override
+    ccf::PathParams path_params = {};
+    virtual const ccf::PathParams& get_request_path_params() override
     {
       return path_params;
     }
 
-    ccf::PathParams decoded_path_params;
-    const ccf::PathParams& get_decoded_request_path_params() override
+    ccf::PathParams decoded_path_params = {};
+    virtual const ccf::PathParams& get_decoded_request_path_params() override
     {
       return decoded_path_params;
     }
 
-    [[nodiscard]] HttpVersion get_http_version() const
+    HttpVersion get_http_version() const
     {
       return http_version;
     }
 
-    void set_error(
+    virtual void set_error(
       ccf::http_status status,
       const std::string& code,
       std::string&& msg,
@@ -88,7 +85,7 @@ namespace ccf
     void set_error(ccf::ErrorDetails&& error) override
     {
       nlohmann::json body = ccf::ODataErrorResponse{
-        ccf::ODataError{std::move(error.code), std::move(error.msg), {}}};
+        ccf::ODataError{std::move(error.code), std::move(error.msg)}};
       set_response_json(body, error.status);
     }
 
@@ -109,9 +106,10 @@ namespace ccf
     bool response_is_pending = false;
     bool terminate_session = false;
 
-    [[nodiscard]] virtual bool should_apply_writes() const = 0;
+    virtual void set_tx_id(const ccf::TxID& tx_id) = 0;
+    virtual bool should_apply_writes() const = 0;
     virtual void reset_response() = 0;
-    [[nodiscard]] virtual std::vector<uint8_t> serialise_response() const = 0;
+    virtual std::vector<uint8_t> serialise_response() const = 0;
     virtual const std::vector<uint8_t>& get_serialised_request() = 0;
   };
 }

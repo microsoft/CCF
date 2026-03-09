@@ -5,7 +5,6 @@
     "moduleResolution": "node",
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "verbatimModuleSyntax": true,
     "allowJs": true,
     "lib": ["ES2020"],
     "declaration": true,

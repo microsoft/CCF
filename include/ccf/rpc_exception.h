@@ -18,7 +18,7 @@ namespace ccf
       error{status, code, std::move(msg)}
     {}
 
-    [[nodiscard]] const char* what() const noexcept override
+    const char* what() const throw() override
     {
       return error.msg.c_str();
     }

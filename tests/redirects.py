@@ -205,6 +205,7 @@ def run_redirect_tests_role(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
+        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args)
@@ -218,6 +219,7 @@ def run_redirect_tests_static(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
+        args.perf_nodes,
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args)
@@ -231,28 +233,28 @@ if __name__ == "__main__":
     cr.add(
         "cpp_redirects_role",
         run_redirect_tests_role,
-        package="samples/apps/logging/logging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
     )
 
     cr.add(
         "cpp_redirects_static",
         run_redirect_tests_static,
-        package="samples/apps/logging/logging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
     )
 
     cr.add(
         "js_redirects_role",
         run_redirect_tests_role,
-        package="js_generic",
+        package="libjs_generic",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
     )
 
     cr.add(
         "js_redirects_static",
         run_redirect_tests_static,
-        package="js_generic",
+        package="libjs_generic",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
     )
 

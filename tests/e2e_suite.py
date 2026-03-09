@@ -57,7 +57,7 @@ def run(args):
         if seed is None:
             seed = time.time()
         seed = int(seed)
-        LOG.success(f"Shuffling suite with seed {seed}")
+        LOG.success(f"Shuffling full suite with seed {seed}")
         random.seed(seed)
         random.shuffle(chosen_suite)
         # Only time reqs can be safely ignored is if they are produced from a randomly shuffled suite
@@ -74,6 +74,7 @@ def run(args):
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
+        args.perf_nodes,
         txs=txs,
         jwt_issuer=jwt_issuer,
     )
@@ -168,12 +169,12 @@ def run(args):
         jwt_server.stop()
 
     if success:
-        LOG.success(f"Suite passed. Ran {len(run_tests)}/{len(chosen_suite)}")
+        LOG.success(f"Full suite passed. Ran {len(run_tests)}/{len(chosen_suite)}")
     else:
         LOG.error(f"Suite failed. Ran {len(run_tests)}/{len(chosen_suite)}")
 
     if seed:
-        LOG.info(f"Suite was shuffled with seed: {seed}")
+        LOG.info(f"Full suite was shuffled with seed: {seed}")
 
     for idx, test in run_tests.items():
         if "status" not in test:
@@ -197,7 +198,7 @@ if __name__ == "__main__":
     def add(parser):
         parser.add_argument(
             "--test-duration",
-            help="Duration of suite (s)",
+            help="Duration of full suite (s)",
             type=int,
             required=True,
         )
@@ -225,7 +226,7 @@ if __name__ == "__main__":
         )
 
     args = infra.e2e_args.cli_args(add)
-    args.package = "samples/apps/logging/logging"
+    args.package = "samples/apps/logging/liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.initial_user_count = 3
     args.jwt_key_refresh_interval_s = 1

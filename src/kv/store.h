@@ -3,10 +3,10 @@
 #pragma once
 
 #include "apply_changes.h"
+#include "ccf/ds/ccf_exception.h"
 #include "ccf/kv/read_only_store.h"
 #include "ccf/pal/locking.h"
 #include "deserialise.h"
-#include "ds/internal_logger.h"
 #include "kv/committable_tx.h"
 #include "kv/ledger_chunker_interface.h"
 #include "kv/snapshot.h"
@@ -111,6 +111,9 @@ namespace ccf::kv
     // Ledger entry header flags
     uint8_t flags = 0;
 
+    size_t size_since_chunk = 0;
+    size_t chunk_threshold = 0;
+
     bool commit_deserialised(
       OrderedChanges& changes,
       Version v,
@@ -142,7 +145,11 @@ namespace ccf::kv
 
     bool has_map_internal(const std::string& name)
     {
-      return maps.contains(name);
+      auto search = maps.find(name);
+      if (search != maps.end())
+        return true;
+
+      return false;
     }
 
     Version next_version_unsafe()
@@ -401,9 +408,8 @@ namespace ccf::kv
         public_only ? ccf::kv::SecurityDomain::PUBLIC :
                       std::optional<ccf::kv::SecurityDomain>());
 
-      ccf::kv::Term term = 0;
-      ccf::kv::EntryFlags entry_flags = {};
-      auto v_ = d.init(data, size, term, entry_flags, is_historical);
+      ccf::kv::Term term;
+      auto v_ = d.init(data, size, term, is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
@@ -428,7 +434,7 @@ namespace ccf::kv
           hash_at_snapshot = d.deserialise_raw();
         }
 
-        if (view_history != nullptr)
+        if (view_history)
         {
           view_history_ = d.deserialise_view_history();
         }
@@ -525,7 +531,7 @@ namespace ccf::kv
         }
       }
 
-      if (view_history != nullptr)
+      if (view_history)
       {
         *view_history = std::move(view_history_);
       }
@@ -602,30 +608,30 @@ namespace ccf::kv
 
       if (snapshotter)
       {
-        snapshotter->rollback(tx_id.seqno);
+        snapshotter->rollback(tx_id.version);
       }
 
       if (chunker)
       {
-        chunker->rolled_back_to(tx_id.seqno);
+        chunker->rolled_back_to(tx_id.version);
       }
 
       std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
 
       {
         std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-        if (tx_id.seqno < compacted)
+        if (tx_id.version < compacted)
         {
           throw std::logic_error(fmt::format(
             "Attempting rollback to {}, earlier than commit version {}",
-            tx_id.seqno,
+            tx_id.version,
             compacted));
         }
 
         // The term should always be updated on rollback() when passed
         // regardless of whether version needs to be updated or not
         term_of_next_version = term_of_next_version_;
-        term_of_last_version = tx_id.view;
+        term_of_last_version = tx_id.term;
 
         // History must be informed of the term_of_last_version change, even if
         // no actual rollback is required
@@ -635,20 +641,20 @@ namespace ccf::kv
           h->rollback(tx_id, term_of_next_version);
         }
 
-        if (tx_id.seqno >= version)
+        if (tx_id.version >= version)
         {
           return;
         }
 
-        version = tx_id.seqno;
-        last_replicated = tx_id.seqno;
+        version = tx_id.version;
+        last_replicated = tx_id.version;
         unset_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
         auto e = get_encryptor();
         if (e)
         {
-          e->rollback(tx_id.seqno);
+          e->rollback(tx_id.version);
         }
       }
 
@@ -664,8 +670,8 @@ namespace ccf::kv
         auto& [map_creation_version, map] = it->second;
         // Rollback this map whether we're forgetting about it or not. Anyone
         // else still holding it should see it has rolled back
-        map->rollback(tx_id.seqno);
-        if (map_creation_version > tx_id.seqno)
+        map->rollback(tx_id.version);
+        if (map_creation_version > tx_id.version)
         {
           // Map was created more recently; its creation is being forgotten.
           // Erase our knowledge of it
@@ -708,7 +714,6 @@ namespace ccf::kv
       bool public_only,
       ccf::kv::Version& v,
       ccf::kv::Term& view,
-      ccf::kv::EntryFlags& entry_flags,
       OrderedChanges& changes,
       MapCollection& new_maps,
       ccf::ClaimsDigest& claims_digest,
@@ -727,8 +732,7 @@ namespace ccf::kv
         public_only ? ccf::kv::SecurityDomain::PUBLIC :
                       std::optional<ccf::kv::SecurityDomain>());
 
-      auto v_ =
-        d.init(data.data(), data.size(), view, entry_flags, is_historical);
+      auto v_ = d.init(data.data(), data.size(), view, is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
@@ -744,11 +748,9 @@ namespace ccf::kv
 
       commit_evidence_digest = std::move(d.consume_commit_evidence_digest());
       if (commit_evidence_digest.has_value())
-      {
         LOG_TRACE_FMT(
           "Deserialised commit evidence digest {}",
           commit_evidence_digest.value());
-      }
 
       // Throw away any local commits that have not propagated via the
       // consensus.
@@ -823,7 +825,12 @@ namespace ccf::kv
       const std::optional<TxID>& expected_txid = std::nullopt) override
     {
       auto exec = std::make_unique<CFTExecutionWrapper>(
-        this, get_history(), get_chunker(), data, public_only, expected_txid);
+        this,
+        get_history(),
+        get_chunker(),
+        std::move(data),
+        public_only,
+        expected_txid);
       return exec;
     }
 
@@ -831,38 +838,29 @@ namespace ccf::kv
     {
       // Only used for debugging, not thread safe.
       if (version != that.version)
-      {
         return false;
-      }
 
       if (maps.size() != that.maps.size())
-      {
         return false;
-      }
 
-      return std::ranges::all_of(maps, [&that](const auto& entry) {
-        const auto& [map_name, map_pair] = entry;
-        auto search = that.maps.find(map_name);
+      for (auto it = maps.begin(); it != maps.end(); ++it)
+      {
+        auto search = that.maps.find(it->first);
 
         if (search == that.maps.end())
-        {
           return false;
-        }
 
-        const auto& [this_v, this_map] = map_pair;
-        const auto& [that_v, that_map] = search->second;
+        auto& [this_v, this_map] = it->second;
+        auto& [that_v, that_map] = search->second;
 
         if (this_v != that_v)
-        {
           return false;
-        }
 
         if (*this_map != *that_map)
-        {
           return false;
-        }
-        return true;
-      });
+      }
+
+      return true;
     }
 
     Version current_version() override
@@ -870,11 +868,17 @@ namespace ccf::kv
       return version;
     }
 
-    ccf::TxID current_txid() override
+    ccf::kv::TxID current_txid() override
     {
       // Must lock in case the version or read term is being incremented.
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
       return current_txid_unsafe();
+    }
+
+    ccf::TxID get_txid() override
+    {
+      const auto kv_id = current_txid();
+      return {kv_id.term, kv_id.version};
     }
 
     std::pair<TxID, Term> current_txid_and_commit_term() override
@@ -910,7 +914,7 @@ namespace ccf::kv
 
       LOG_DEBUG_FMT(
         "Store::commit {}{}",
-        txid.seqno,
+        txid.version,
         (globally_committable ? " globally_committable" : ""));
 
       BatchVector batch;
@@ -925,28 +929,28 @@ namespace ccf::kv
 
       {
         std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-        if (txid.view != term_of_next_version && get_consensus()->is_primary())
+        if (txid.term != term_of_next_version && get_consensus()->is_primary())
         {
           // This can happen when a transaction started before a view change,
           // but tries to commit after the view change is complete.
           LOG_DEBUG_FMT(
             "Want to commit for term {} but term is {}",
-            txid.view,
+            txid.term,
             term_of_next_version);
 
           return CommitResult::FAIL_NO_REPLICATE;
         }
 
-        if (globally_committable && txid.seqno > last_committable)
+        if (globally_committable && txid.version > last_committable)
         {
-          last_committable = txid.seqno;
+          last_committable = txid.version;
         }
 
         pending_txs.insert(
-          {txid.seqno,
+          {txid.version,
            std::make_tuple(std::move(pending_tx), globally_committable)});
 
-        LOG_TRACE_FMT("Inserting pending tx at {}", txid.seqno);
+        LOG_TRACE_FMT("Inserting pending tx at {}", txid.version);
 
         for (Version offset = 1; true; ++offset)
         {
@@ -959,8 +963,8 @@ namespace ccf::kv
               last_replicated + offset,
               last_replicated,
               offset,
-              txid.view,
-              txid.seqno);
+              txid.term,
+              txid.version);
             break;
           }
 
@@ -976,7 +980,7 @@ namespace ccf::kv
       }
       // Release version lock
 
-      if (contiguous_pending_txs.empty())
+      if (contiguous_pending_txs.size() == 0)
       {
         return CommitResult::SUCCESS;
       }
@@ -998,8 +1002,7 @@ namespace ccf::kv
         // two contiguous signatures are fine
         if (success_ != CommitResult::SUCCESS)
         {
-          LOG_DEBUG_FMT(
-            "Failed Tx commit {}", previous_last_replicated + offset);
+          LOG_DEBUG_FMT("Failed Tx commit {}", last_replicated + offset);
         }
 
         if (h)
@@ -1017,17 +1020,13 @@ namespace ccf::kv
 
         LOG_DEBUG_FMT(
           "Batching {} ({}) during commit of {}.{}",
-          previous_last_replicated + offset,
+          last_replicated + offset,
           data_shared->size(),
-          txid.view,
-          txid.seqno);
+          txid.term,
+          txid.version);
 
         batch.emplace_back(
-          previous_last_replicated + offset,
-          data_shared,
-          committable_,
-          hooks_shared);
-
+          last_replicated + offset, data_shared, committable_, hooks_shared);
         offset++;
       }
 
@@ -1042,9 +1041,11 @@ namespace ccf::kv
         }
         return CommitResult::SUCCESS;
       }
-
-      LOG_DEBUG_FMT("Failed to replicate");
-      return CommitResult::FAIL_NO_REPLICATE;
+      else
+      {
+        LOG_DEBUG_FMT("Failed to replicate");
+        return CommitResult::FAIL_NO_REPLICATE;
+      }
     }
 
     bool should_create_ledger_chunk(Version version) override
@@ -1265,7 +1266,7 @@ namespace ccf::kv
 
     ReadOnlyTx create_read_only_tx() override
     {
-      return {this};
+      return ReadOnlyTx(this);
     }
 
     std::unique_ptr<ReadOnlyTx> create_read_only_tx_ptr() override
@@ -1275,12 +1276,12 @@ namespace ccf::kv
 
     TxDiff create_tx_diff() override
     {
-      return {this};
+      return TxDiff(this);
     }
 
     CommittableTx create_tx()
     {
-      return {this};
+      return CommittableTx(this);
     }
 
     std::unique_ptr<CommittableTx> create_tx_ptr()
@@ -1291,38 +1292,38 @@ namespace ccf::kv
     ReservedTx create_reserved_tx(const TxID& tx_id)
     {
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-      return {this, term_of_last_version, tx_id, rollback_count};
+      return ReservedTx(this, term_of_last_version, tx_id, rollback_count);
     }
 
-    void set_flag(StoreFlag f) override
+    virtual void set_flag(StoreFlag f) override
     {
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
       set_flag_unsafe(f);
     }
 
-    void unset_flag(StoreFlag f) override
+    virtual void unset_flag(StoreFlag f) override
     {
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
       unset_flag_unsafe(f);
     }
 
-    bool flag_enabled(StoreFlag f) override
+    virtual bool flag_enabled(StoreFlag f) override
     {
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
       return flag_enabled_unsafe(f);
     }
 
-    void set_flag_unsafe(StoreFlag f) override
+    virtual void set_flag_unsafe(StoreFlag f) override
     {
       this->flags |= static_cast<uint8_t>(f);
     }
 
-    void unset_flag_unsafe(StoreFlag f) override
+    virtual void unset_flag_unsafe(StoreFlag f) override
     {
       this->flags &= ~static_cast<uint8_t>(f);
     }
 
-    [[nodiscard]] bool flag_enabled_unsafe(StoreFlag f) const override
+    virtual bool flag_enabled_unsafe(StoreFlag f) const override
     {
       return (flags & static_cast<uint8_t>(f)) != 0;
     }
