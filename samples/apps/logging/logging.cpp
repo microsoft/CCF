@@ -9,6 +9,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/cose_signatures_config_interface.h"
 #include "ccf/crypto/cose.h"
+#include "ccf/crypto/key_id.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hash.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
@@ -21,7 +22,6 @@
 #include "ccf/json_handler.h"
 #include "ccf/network_identity_interface.h"
 #include "ccf/version.h"
-#include "crypto/public_key.h"
 
 #include <charconv>
 #include <crypto/cose.h>
