@@ -4,10 +4,11 @@
 #include "ccf/app_interface.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/service.h"
+#include "crypto/openssl/hash.h"
 #include "service/tables/config.h"
 #include "service/tables/signatures.h"
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_IMPLEMENT
 
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
@@ -240,4 +241,16 @@ TEST_CASE(
     REQUIRE(it != result->end());
     REQUIRE(it->second.svn == "42");
   }
+}
+
+int main(int argc, char** argv)
+{
+  ccf::crypto::openssl_sha256_init();
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int res = context.run();
+  ccf::crypto::openssl_sha256_shutdown();
+  if (context.shouldExit())
+    return res;
+  return res;
 }
