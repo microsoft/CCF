@@ -1296,6 +1296,27 @@ def run_initial_uvm_descriptor_checks(args):
         network.start_and_open(args)
         primary, _ = network.find_primary()
         old_common = infra.network.get_common_folder_name(args.workspace, args.label)
+
+        LOG.info("Fetch current join policy to get UVM endorsement values")
+        with primary.api_versioned_client(api_version=args.gov_api_version) as uc:
+            r = uc.get("/gov/service/join-policy")
+            assert r.status_code == http.HTTPStatus.OK, r
+            snp_policy = r.body.json()["snp"]
+            uvm_endorsements = snp_policy["uvmEndorsements"]
+            assert len(uvm_endorsements) == 1, uvm_endorsements
+            did = list(uvm_endorsements.keys())[0]
+            feeds = uvm_endorsements[did]
+            assert len(feeds) == 1, feeds
+            feed = list(feeds.keys())[0]
+            svn = int(feeds[feed]["svn"])
+            LOG.info(f"Current UVM endorsement: did={did} feed={feed} svn={svn}")
+
+        bumped_svn = str(svn + 10)
+        LOG.info(
+            f"Proposing UVM endorsement with bumped SVN: did={did} feed={feed} svn={bumped_svn}"
+        )
+        network.consortium.add_snp_uvm_endorsement(primary, did, feed, bumped_svn)
+
         snapshots_dir = network.get_committed_snapshots(primary)
         network.stop_all_nodes()
         LOG.info("Check that the a UVM descriptor is present")
