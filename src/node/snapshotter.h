@@ -104,8 +104,8 @@ namespace ccf
       ::consensus::Index snapshot_idx,
       const std::vector<uint8_t>& serialised_receipt)
     {
-      // Snapshot evidence write is now durable. Update baseline and prune all in-flight
-      // entries up to this point.
+      // Snapshot evidence write is now durable. Update baseline and prune all
+      // in-flight entries up to this point.
       auto snapshot_time = scheduled_snapshot_times.find(snapshot_idx);
       if (snapshot_time != scheduled_snapshot_times.end())
       {
@@ -443,9 +443,8 @@ namespace ccf
       if (count_overdue || time_overdue)
       {
         LOG_DEBUG_FMT(
-          "Snapshot at seqno {} is due (c: {}, t: {}): count since last unforced "
-          "snapshot "
-          "is {}, time since last unforced snapshot is {}s",
+          "Snapshot at seqno {} is due (c: {}, t: {}): count since last "
+          "unforced snapshot is {}, time since last unforced snapshot is {}s",
           threshold_idx,
           count_overdue ? "overdue" : "not overdue",
           time_overdue ? "overdue" : "not overdue",
@@ -488,7 +487,9 @@ namespace ccf
         next_snapshot_indices.push_back({idx, actually_forced, false});
         scheduled_snapshot_times[idx] = std::chrono::system_clock::now();
         LOG_TRACE_FMT(
-          "{} {} as snapshot index", actually_forced ? "Forced" : "Recorded", idx);
+          "{} {} as snapshot index",
+          actually_forced ? "Forced" : "Recorded",
+          idx);
         store->unset_flag_unsafe(
           ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         return true;
@@ -655,8 +656,7 @@ namespace ccf
         // unforced, snapshot index, so that backups (which don't know forced
         // indices) continue the snapshot interval normally.
         last_snapshot_idx = next.idx;
-        LOG_TRACE_FMT(
-          "Recorded {} as last snapshot index", last_snapshot_idx);
+        LOG_TRACE_FMT("Recorded {} as last snapshot index", last_snapshot_idx);
       }
     }
 

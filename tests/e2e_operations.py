@@ -2893,6 +2893,7 @@ def run_propose_request_vote(const_args):
             for node in network.nodes:
                 node.remote.remote.proc.send_signal(signal.SIGTERM)
 
+
 def run_time_based_snapshotting(const_args):
     args = copy.deepcopy(const_args)
     args.label += "_tb_snapshot"
@@ -2900,6 +2901,7 @@ def run_time_based_snapshotting(const_args):
         10000  # Large interval to avoid interference from regular snapshots
     )
     args.snapshot_time_interval = "1s"
+
     @contextmanager
     def net_with_min_tx(label, min_tx_interval):
         inner_args = copy.deepcopy(args)
@@ -2928,31 +2930,42 @@ def run_time_based_snapshotting(const_args):
         LOG.info("Got snapshot count")
         time.sleep(10)
         after = get_snapshot_count(net)
-        assert after > baseline, f"min_tx_count set to 0 should cause many snapshots, got {after - baseline}"
+        assert (
+            after > baseline
+        ), f"min_tx_count set to 0 should cause many snapshots, got {after - baseline}"
 
     # min_tx set just right
     with net_with_min_tx("_exact", 2) as net:
         baseline = get_snapshot_count(net)
         time.sleep(10)
         after = get_snapshot_count(net)
-        assert after == baseline, f"With a exact min_tx we expect to not see any extra snapshots, got {after - baseline}"
+        assert (
+            after == baseline
+        ), f"With a exact min_tx we expect to not see any extra snapshots, got {after - baseline}"
 
-    # set much higher to show that 
+    # set much higher to show that
     with net_with_min_tx("_high", 10) as net:
         baseline = get_snapshot_count(net)
         time.sleep(10)
         after = get_snapshot_count(net)
-        assert after == baseline, f"Expect no snapshots when min_tx is high, got {after - baseline}"
+        assert (
+            after == baseline
+        ), f"Expect no snapshots when min_tx is high, got {after - baseline}"
 
         net.txs.issue(net, number_txs=1)
         time.sleep(5)
         after = get_snapshot_count(net)
-        assert after == baseline, f"Expect no snapshots when min_tx is high and only 1 tx issued, got {after - baseline}"
+        assert (
+            after == baseline
+        ), f"Expect no snapshots when min_tx is high and only 1 tx issued, got {after - baseline}"
 
         net.txs.issue(net, number_txs=20)
         time.sleep(5)
         after = get_snapshot_count(net)
-        assert after > baseline, f"Expect at least one snapshot after issuing many txs, got {after - baseline}"
+        assert (
+            after > baseline
+        ), f"Expect at least one snapshot after issuing many txs, got {after - baseline}"
+
 
 def run_snp_tests(args):
     run_initial_uvm_descriptor_checks(args)
