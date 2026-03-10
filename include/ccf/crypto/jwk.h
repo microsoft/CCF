@@ -72,7 +72,7 @@ namespace ccf::crypto
       case CurveID::NONE:
       case CurveID::CURVE25519:
       case CurveID::X25519:
-        throw std::logic_error(fmt::format("Unknown curve {}", curve_id));
+        throw std::logic_error(fmt::format("Unsupported curve {}", curve_id));
       case CurveID::SECP384R1:
         return JsonWebKeyECCurve::P384;
       case CurveID::SECP256R1:
@@ -85,7 +85,7 @@ namespace ccf::crypto
     switch (jwk_curve)
     {
       case JsonWebKeyECCurve::P521:
-        throw std::logic_error(fmt::format("Unknown JWK curve {}", jwk_curve));
+        throw std::logic_error(fmt::format("Unsupported JWK curve {}", jwk_curve));
       case JsonWebKeyECCurve::P384:
         return CurveID::SECP384R1;
       case JsonWebKeyECCurve::P256:

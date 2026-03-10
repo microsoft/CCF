@@ -102,7 +102,7 @@ namespace ccf::pal::snp
         return "Turin";
     }
 
-    throw std::logic_error("Unknown SEV-SNP product");
+    throw std::logic_error(fmt::format("Unknown SEV-SNP product: {}", product));
   }
 
   DECLARE_JSON_ENUM(
