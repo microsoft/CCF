@@ -2928,6 +2928,19 @@ namespace ccf
       {
         throw std::logic_error("Snapshotter already initialised");
       }
+
+      if (
+        config.snapshots.min_tx_count < 2 &&
+        std::chrono::microseconds(config.snapshots.time_interval).count() > 0)
+      {
+        LOG_INFO_FMT(
+          "snapshots.min_tx_count is lower than 2 while "
+          "snapshots.time_interval is set to {}. Time-based snapshots may "
+          "continue to be generated without application writes due to the "
+          "writes to snapshot evidence and its signature.",
+          config.snapshots.time_interval.str);
+      }
+
       snapshotter = std::make_shared<Snapshotter>(
         writer_factory,
         network.tables,
