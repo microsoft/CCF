@@ -428,7 +428,7 @@ namespace ccf
       if (count_overdue || time_overdue)
       {
         LOG_DEBUG_FMT(
-          "Snapshot at seqno {} is due (c{},t{}): count since last unforced "
+          "Snapshot at seqno {} is due (c: {}, t: {}): count since last unforced "
           "snapshot "
           "is {}, time since last unforced snapshot is {}s",
           threshold_idx,
