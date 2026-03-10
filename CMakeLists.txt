@@ -277,16 +277,11 @@ add_ccf_static_library(
        ${CCF_DIR}/src/tasks/thread_manager.cpp
        ${CCF_DIR}/src/tasks/worker.cpp
 )
+
 # libbacktrace reads DWARF debug info directly, providing file/line/function
-# resolution in stack traces without requiring -rdynamic.
+# resolution in stack traces.
 find_library(BACKTRACE_LIBRARY backtrace REQUIRED)
 target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS} ${BACKTRACE_LIBRARY})
-if(USE_LIBCXX)
-  # worker.cpp uses backtrace() which, under libc++, resolves through libunwind.
-  # On systems where libunwind is built with LZMA support (e.g. Azure Linux),
-  # this creates a transitive dependency on liblzma.
-  target_link_libraries(ccf_tasks PRIVATE lzma)
-endif()
 
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS
