@@ -420,8 +420,9 @@ namespace ccf
     bool should_schedule_snapshot_unsafe(::consensus::Index threshold_idx)
     {
       ::consensus::Index latest_snapshot_idx = next_snapshot_indices.back().idx;
-      // Trigger if count exceeds the full interval, OR if the minimum tx
-      // threshold is met and the time interval has elapsed.
+      // Trigger if the tx count since that index exceeds the full interval,
+      // or if the minimum tx threshold is met and the time interval has
+      // elapsed.
       auto count = threshold_idx - latest_snapshot_idx;
       auto count_overdue = count >= snapshot_tx_interval;
 
@@ -444,7 +445,7 @@ namespace ccf
       {
         LOG_DEBUG_FMT(
           "Snapshot at seqno {} is due (c: {}, t: {}): count since last "
-          "unforced snapshot is {}, time since last unforced snapshot is {}s",
+          "queued snapshot is {}, time since last queued snapshot is {}s",
           threshold_idx,
           count_overdue ? "overdue" : "not overdue",
           time_overdue ? "overdue" : "not overdue",
@@ -578,8 +579,9 @@ namespace ccf
         TimePoint(std::chrono::duration_cast<TimePoint::duration>(
           std::chrono::nanoseconds(static_cast<int64_t>(status.timestamp))));
 
-      // Keep this node's snapshot timing baseline aligned with the replicated
-      // status produced by the primary.
+      // Keep this node's snapshot timing and index baselines aligned with the
+      // replicated status produced by the primary.
+      last_snapshot_idx = status.version;
       last_snapshot_time = timestamp;
       scheduled_snapshot_times[status.version] = timestamp;
     }
@@ -651,11 +653,11 @@ namespace ccf
         }
       }
 
-      if (!next.forced && last_snapshot_idx != next.idx)
+      if (last_snapshot_idx != next.idx)
       {
-        // last_snapshot_idx records the last normally scheduled, i.e.
-        // unforced, snapshot index, so that backups (which don't know forced
-        // indices) continue the snapshot interval normally.
+        // Record the latest released snapshot index, including forced
+        // snapshots, so rollback and replay continue from the same baseline
+        // used by the primary.
         last_snapshot_idx = next.idx;
         LOG_TRACE_FMT("Recorded {} as last snapshot index", last_snapshot_idx);
       }

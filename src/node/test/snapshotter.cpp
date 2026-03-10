@@ -429,6 +429,60 @@ TEST_CASE("Rollback before snapshot is committed")
 
     run_one_task();
   }
+
+  INFO("Rollback after forced snapshot uses released forced baseline");
+  {
+    snapshotter->rollback(0);
+
+    // The released forced snapshot was taken at seqno 24. After rollback, the
+    // baseline should remain there rather than falling back to the previous
+    // regular snapshot at seqno 22.
+    issue_transactions(network, snapshot_tx_interval - 4);
+    REQUIRE_FALSE(
+      record_signature(history, snapshotter, network.tables->current_version()));
+  }
+}
+
+TEST_CASE("Snapshot status updates released snapshot baseline")
+{
+  ccf::logger::config::default_init();
+
+  ccf::NetworkState network;
+
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  auto history = std::make_shared<ccf::MerkleTxHistory>(
+    *network.tables.get(), ccf::kv::test::PrimaryNodeId, *node_kp);
+  network.tables->set_history(history);
+  network.tables->initialise_term(2);
+  network.tables->set_consensus(consensus);
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
+
+  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
+
+  std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
+    std::make_unique<ringbuffer::WriterFactory>(eio);
+
+  size_t snapshot_tx_interval = 10;
+  issue_transactions(network, snapshot_tx_interval);
+
+  auto snapshotter = std::make_shared<ccf::Snapshotter>(
+    *writer_factory, network.tables, snapshot_tx_interval);
+  snapshotter->set_last_snapshot_idx(snapshot_tx_interval);
+
+  // Simulate a backup learning that the latest released snapshot was forced
+  // at a later seqno via the replicated snapshot status table.
+  snapshotter->record_snapshot_status({
+    .version = snapshot_tx_interval + 4,
+    .timestamp = 0,
+  });
+  snapshotter->rollback(0);
+
+  issue_transactions(network, snapshot_tx_interval);
+  REQUIRE_FALSE(
+    record_signature(history, snapshotter, network.tables->current_version()));
 }
 
 // https://github.com/microsoft/CCF/issues/3796

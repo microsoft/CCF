@@ -498,12 +498,12 @@
         "min_tx_count": {
           "type": "integer",
           "default": 2,
-          "description": "Minimum number of transactions that must have elapsed before a time-based snapshot can be triggered. Has no effect if time_interval is not set. If lower than 2 while time_interval is enabled, snapshots will be triggered indefinitely."
+          "description": "Minimum number of transactions that must have elapsed since the last snapshot before a time-based snapshot can be triggered. Has no effect if time_interval is not set. If lower than 2 while time_interval is enabled, snapshots will be triggered indefinitely."
         },
         "time_interval": {
           "type": "string",
           "default": "0s",
-          "description": "Time interval after which a snapshot should be triggered, provided more than min_tx_count transactions have elapsed. Set this to 0s to disable time-based snapshotting."
+          "description": "Time interval after which a snapshot should be triggered, provided more than min_tx_count transactions have elapsed since the last snapshot. Set this to 0s to disable time-based snapshotting."
         },
         "read_only_directory": {
           "type": ["string", "null"],
