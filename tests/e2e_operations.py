@@ -2931,7 +2931,7 @@ def run_time_based_snapshotting(const_args):
         assert after > baseline, f"min_tx_count set to 0 should cause many snapshots, got {after - baseline}"
 
     # min_tx set just right
-    with net_with_min_tx("_exact", 3) as net:
+    with net_with_min_tx("_exact", 2) as net:
         baseline = get_snapshot_count(net)
         time.sleep(10)
         after = get_snapshot_count(net)
@@ -2945,10 +2945,13 @@ def run_time_based_snapshotting(const_args):
         assert after == baseline, f"Expect no snapshots when min_tx is high, got {after - baseline}"
 
         net.txs.issue(net, number_txs=1)
+        time.sleep(5)
         after = get_snapshot_count(net)
         assert after == baseline, f"Expect no snapshots when min_tx is high and only 1 tx issued, got {after - baseline}"
 
         net.txs.issue(net, number_txs=20)
+        time.sleep(5)
+        after = get_snapshot_count(net)
         assert after > baseline, f"Expect at least one snapshot after issuing many txs, got {after - baseline}"
 
 def run_snp_tests(args):

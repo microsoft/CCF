@@ -419,7 +419,7 @@ namespace ccf
         }
       }
       auto time_enabled = snapshot_time_interval.count() > 0;
-      auto min_count_met = count >= min_snapshot_tx_interval;
+      auto min_count_met = count > min_snapshot_tx_interval;
       auto time_overdue = time_enabled && min_count_met &&
         (std::chrono::system_clock::now() -
            latest_scheduled_or_committed_time >=
