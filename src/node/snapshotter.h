@@ -574,8 +574,9 @@ namespace ccf
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
-      auto timestamp = TimePoint(
-        std::chrono::nanoseconds(static_cast<int64_t>(status.timestamp)));
+      auto timestamp =
+        TimePoint(std::chrono::duration_cast<TimePoint::duration>(
+          std::chrono::nanoseconds(static_cast<int64_t>(status.timestamp))));
 
       // Keep this node's snapshot timing baseline aligned with the replicated
       // status produced by the primary.
