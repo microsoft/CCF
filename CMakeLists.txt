@@ -280,8 +280,7 @@ add_ccf_static_library(
 
 # libbacktrace reads DWARF debug info directly, providing file/line/function
 # resolution in stack traces.
-find_library(BACKTRACE_LIBRARY backtrace REQUIRED)
-target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS} ${BACKTRACE_LIBRARY})
+target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS} backtrace)
 
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS
