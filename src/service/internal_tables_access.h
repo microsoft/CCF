@@ -857,7 +857,8 @@ namespace ccf
 
     static void trust_node_uvm_endorsements(
       ccf::kv::Tx& tx,
-      const std::optional<pal::UVMEndorsements>& uvm_endorsements)
+      const std::optional<pal::UVMEndorsements>& uvm_endorsements,
+      bool recovering)
     {
       if (!uvm_endorsements.has_value())
       {
@@ -867,9 +868,61 @@ namespace ccf
 
       auto* uvme =
         tx.rw<ccf::SNPUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
-      uvme->put(
+
+      if (!recovering)
+      {
+        uvme->put(
+          uvm_endorsements->did,
+          {{uvm_endorsements->feed, {uvm_endorsements->svn}}});
+        LOG_INFO_FMT(
+          "UVM descriptor set to did: {} feed: {} svn: {}",
+          uvm_endorsements->did,
+          uvm_endorsements->feed,
+          uvm_endorsements->svn);
+        return;
+      }
+
+      auto updated_map =
+        uvme->get(uvm_endorsements->did).value_or(FeedToEndorsementsDataMap{});
+
+      auto feed_it = updated_map.find(uvm_endorsements->feed);
+      if (feed_it == updated_map.end())
+      {
+        updated_map[uvm_endorsements->feed] = {uvm_endorsements->svn};
+        uvme->put(uvm_endorsements->did, updated_map);
+        LOG_INFO_FMT(
+          "UVM descriptor set to did: {} feed: {} svn: {} "
+          "(no pre-existing entry for did and feed)",
+          uvm_endorsements->did,
+          uvm_endorsements->feed,
+          uvm_endorsements->svn);
+        return;
+      }
+
+      auto existing_svn = parse_svn(feed_it->second.svn);
+      auto new_svn = parse_svn(uvm_endorsements->svn);
+      auto min_svn = std::to_string(std::min(existing_svn, new_svn));
+
+      if (min_svn != feed_it->second.svn)
+      {
+        updated_map[uvm_endorsements->feed] = {min_svn};
+        uvme->put(uvm_endorsements->did, updated_map);
+        LOG_INFO_FMT(
+          "UVM descriptor set to did: {} feed: {} svn: {} (from {}) ",
+          uvm_endorsements->did,
+          uvm_endorsements->feed,
+          min_svn,
+          existing_svn);
+        return;
+      }
+
+      LOG_INFO_FMT(
+        "UVM descriptor unchanged for did: {} feed: {} svn: {} (startup "
+        "svn is not lower: {})",
         uvm_endorsements->did,
-        {{uvm_endorsements->feed, {uvm_endorsements->svn}}});
+        uvm_endorsements->feed,
+        min_svn,
+        new_svn);
     }
 
     static void trust_node_snp_tcb_version(

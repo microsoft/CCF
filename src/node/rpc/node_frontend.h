@@ -285,8 +285,17 @@ namespace ccf
 
       pal::PlatformAttestationMeasurement measurement;
 
+      auto network_identity_subsystem =
+        context
+          .template get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
+
       QuoteVerificationResult verify_result = this->node_operation.verify_quote(
-        tx, in.quote_info, pubk_der, measurement);
+        tx,
+        in.quote_info,
+        pubk_der,
+        measurement,
+        in.code_transparent_statement,
+        network_identity_subsystem);
       if (verify_result != QuoteVerificationResult::Verified)
       {
         const auto [code, message] = quote_verification_error(verify_result);
@@ -1606,7 +1615,7 @@ namespace ccf
               ctx.tx, host_data, in.snp_security_policy);
 
             InternalTablesAccess::trust_node_uvm_endorsements(
-              ctx.tx, in.snp_uvm_endorsements);
+              ctx.tx, in.snp_uvm_endorsements, recovering);
 
             auto attestation =
               AttestationProvider::get_snp_attestation(in.quote_info).value();
