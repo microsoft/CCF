@@ -266,8 +266,23 @@ namespace ccf
       while ((next_snapshot_indices.size() > 1) &&
              (std::next(next_snapshot_indices.begin())->idx <= idx))
       {
-        // Coalesced snapshots are cancelled and should no longer be in-flight.
-        scheduled_snapshot_times.erase(next_snapshot_indices.front().idx);
+        const auto coalesced_idx = next_snapshot_indices.front().idx;
+        const auto has_pending_snapshot = std::any_of(
+          pending_snapshots.begin(),
+          pending_snapshots.end(),
+          [coalesced_idx](const auto& entry) {
+            return entry.second.version == coalesced_idx;
+          });
+
+        // Coalesced snapshots can be removed from the scheduling queue, but
+        // their scheduled time must be retained until any already-generated
+        // snapshot at that seqno has been durably released. Non-pending
+        // entries still need to be erased here, otherwise stale scheduled
+        // times survive and break the rollback bookkeeping.
+        if (!has_pending_snapshot)
+        {
+          scheduled_snapshot_times.erase(coalesced_idx);
+        }
         next_snapshot_indices.pop_front();
       }
 
