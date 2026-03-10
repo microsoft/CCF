@@ -391,7 +391,6 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
 
   // Verify demangled function names appear in the stack traces
 #ifndef NDEBUG
-
   // ThrowsException call chain
   REQUIRE(logger_ptr->contains("level_3_throws_runtime_error"));
   REQUIRE(logger_ptr->contains("level_2_calls_level_3"));
