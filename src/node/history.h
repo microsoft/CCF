@@ -637,9 +637,6 @@ namespace ccf
               }
               case ccf::kv::Consensus::SignatureDisposition::CAN_SIGN:
               {
-                // TODO work out locking behaviour to ensure we don't deadlock
-                // between these two calls /sigh
-                //
                 // To snapshot we need to complete the chunk and to do that we
                 // need to set the force_chunk_after flag on the last snapshot
                 // in it.
