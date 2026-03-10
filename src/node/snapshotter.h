@@ -94,9 +94,9 @@ namespace ccf
     // indicate whether a snapshot was forced at the given index
     struct SnapshotEntry
     {
-      ::consensus::Index idx{};
-      bool forced{};
-      bool done{};
+      ::consensus::Index idx;
+      bool forced;
+      bool done;
     };
     std::deque<SnapshotEntry> next_snapshot_indices;
 
@@ -104,8 +104,8 @@ namespace ccf
       ::consensus::Index snapshot_idx,
       const std::vector<uint8_t>& serialised_receipt)
     {
-      // Snapshot release is the durable point. Update baseline and prune all
-      // in-flight entries up to this point.
+      // Snapshot evidence write is now durable. Update baseline and prune all in-flight
+      // entries up to this point.
       auto snapshot_time = scheduled_snapshot_times.find(snapshot_idx);
       if (snapshot_time != scheduled_snapshot_times.end())
       {
@@ -421,7 +421,8 @@ namespace ccf
       auto time_enabled = snapshot_time_interval.count() > 0;
       auto min_count_met = count >= min_snapshot_tx_interval;
       auto time_overdue = time_enabled && min_count_met &&
-        (std::chrono::system_clock::now() - latest_scheduled_or_committed_time >=
+        (std::chrono::system_clock::now() -
+           latest_scheduled_or_committed_time >=
          snapshot_time_interval);
 
       if (count_overdue || time_overdue)
@@ -436,7 +437,7 @@ namespace ccf
           count,
           std::chrono::duration_cast<std::chrono::seconds>(
             std::chrono::system_clock::now() -
-              latest_scheduled_or_committed_time)
+            latest_scheduled_or_committed_time)
             .count());
       }
 
@@ -468,10 +469,11 @@ namespace ccf
 
       if (due || forced)
       {
-        next_snapshot_indices.push_back({idx, forced, false});
+        auto actually_forced = !due && forced;
+        next_snapshot_indices.push_back({idx, actually_forced, false});
         scheduled_snapshot_times[idx] = std::chrono::system_clock::now();
         LOG_TRACE_FMT(
-          "{} {} as snapshot index", forced ? "Forced" : "Recorded", idx);
+          "{} {} as snapshot index", actually_forced ? "Forced" : "Recorded", idx);
         store->unset_flag_unsafe(
           ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         return true;
@@ -551,12 +553,13 @@ namespace ccf
       }
     }
 
+    // Called from a commit hook on snapshot_status on backups
     void record_snapshot_status(const SnapshotStatus& status)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
-      auto timestamp =
-        TimePoint(std::chrono::nanoseconds(static_cast<int64_t>(status.timestamp)));
+      auto timestamp = TimePoint(
+        std::chrono::nanoseconds(static_cast<int64_t>(status.timestamp)));
 
       // Keep this node's snapshot timing baseline aligned with the replicated
       // status produced by the primary.
@@ -609,8 +612,7 @@ namespace ccf
         next_snapshot_indices.front().idx);
 
       auto& next = next_snapshot_indices.front();
-      auto due = next.idx - last_snapshot_idx >= snapshot_tx_interval;
-      if (due || (next.forced && !next.done))
+      if (!next.done)
       {
         if (
           snapshot_generation_enabled && generate_snapshot && (next.idx != 0u))
@@ -618,7 +620,8 @@ namespace ccf
           auto snapshot_time = scheduled_snapshot_times.find(next.idx);
           if (snapshot_time == scheduled_snapshot_times.end())
           {
-            // Temporary branch until we are sure the scheduled_snapshot_times invariants hold
+            // Temporary branch until we are sure the scheduled_snapshot_times
+            // invariants hold
             LOG_FAIL_FMT(
               "Could not find scheduled snapshot time for idx {}", next.idx);
             schedule_snapshot(next.idx, std::chrono::system_clock::now());
@@ -629,16 +632,16 @@ namespace ccf
           }
           next.done = true;
         }
+      }
 
-        if (due && !next.forced)
-        {
-          // last_snapshot_idx records the last normally scheduled, i.e.
-          // unforced, snapshot index, so that backups (which don't know forced
-          // indices) continue the snapshot interval normally.
-          last_snapshot_idx = next.idx;
-          LOG_TRACE_FMT(
-            "Recorded {} as last snapshot index", last_snapshot_idx);
-        }
+      if (!next.forced && last_snapshot_idx != next.idx)
+      {
+        // last_snapshot_idx records the last normally scheduled, i.e.
+        // unforced, snapshot index, so that backups (which don't know forced
+        // indices) continue the snapshot interval normally.
+        last_snapshot_idx = next.idx;
+        LOG_TRACE_FMT(
+          "Recorded {} as last snapshot index", last_snapshot_idx);
       }
     }
 
@@ -652,9 +655,9 @@ namespace ccf
         next_snapshot_indices.pop_back();
       }
 
-      std::erase_if(
-        scheduled_snapshot_times,
-        [idx](const auto& entry) { return entry.first > idx; });
+      std::erase_if(scheduled_snapshot_times, [idx](const auto& entry) {
+        return entry.first > idx;
+      });
 
       if (next_snapshot_indices.empty())
       {
