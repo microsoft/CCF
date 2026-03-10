@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Fix race condition when initialising a ledger secret's commit secret (#7689)
 - Add missing cases for `FailedInvalidCPUID` and `FailedInvalidTcbVersion` in quote verification error handling (#7696).
+- On recovery, the UVM descriptor SVN is now set to the minimum of the previously stored value in the KV and the value found in the new node's startup endorsements. On start, the behaviour is unchanged (#7716).
 
 ## [6.0.23]
 
