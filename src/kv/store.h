@@ -1079,6 +1079,12 @@ namespace ccf::kv
       {
         r |= snapshotter->record_committable(version);
       }
+      else
+      {
+        // This branch is required to ensure that when there is no snapshotter,
+        // that this still triggers chunk ends if the flag is set.
+        r |= flag_enabled_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      }
 
       return r;
     }
