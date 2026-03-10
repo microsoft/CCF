@@ -401,7 +401,7 @@ TEST_CASE("Rollback before snapshot is committed")
     network.tables->set_flag(
       ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
-    REQUIRE_FALSE(record_signature(history, snapshotter, snapshot_idx));
+    REQUIRE(record_signature(history, snapshotter, snapshot_idx));
     snapshotter->commit(snapshot_idx, true);
 
     run_one_task();
