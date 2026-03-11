@@ -508,6 +508,39 @@
         "read_only_directory": {
           "type": ["string", "null"],
           "description": "Path to read-only snapshots directory"
+        },
+        "backup_fetch": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "If true, backup nodes will automatically fetch snapshots from the primary when snapshot evidence is detected"
+            },
+            "max_attempts": {
+              "type": "integer",
+              "default": 3,
+              "description": "Maximum number of fetch attempts before giving up",
+              "minimum": 1
+            },
+            "retry_interval": {
+              "type": "string",
+              "default": "1000ms",
+              "description": "Delay between retry attempts"
+            },
+            "target_rpc_interface": {
+              "type": "string",
+              "default": "primary_rpc_interface",
+              "description": "Name of the RPC interface on the primary node to use for downloading snapshots. Must have the SnapshotRead feature enabled."
+            },
+            "max_size": {
+              "type": "string",
+              "default": "200MB",
+              "description": "Maximum size of snapshot this node is willing to fetch"
+            }
+          },
+          "description": "Configuration for automatic snapshot fetching by backup nodes",
+          "additionalProperties": false
         }
       },
       "description": "This section includes configuration for the snapshot directories and files",

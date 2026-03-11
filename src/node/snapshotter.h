@@ -64,9 +64,7 @@ namespace ccf
 
       std::optional<::consensus::Index> evidence_idx = std::nullopt;
 
-      std::optional<NodeId> node_id = std::nullopt;
-      std::optional<ccf::crypto::Pem> node_cert = std::nullopt;
-      std::optional<std::vector<uint8_t>> sig = std::nullopt;
+      std::optional<std::vector<uint8_t>> cose_sig = std::nullopt;
       std::optional<std::vector<uint8_t>> tree = std::nullopt;
 
       SnapshotInfo() = default;
@@ -294,15 +292,11 @@ namespace ccf
         if (
           snapshot_info.is_stored && snapshot_info.evidence_idx.has_value() &&
           idx > snapshot_info.evidence_idx.value() &&
-          snapshot_info.sig.has_value() && snapshot_info.tree.has_value() &&
-          snapshot_info.node_id.has_value() &&
-          snapshot_info.node_cert.has_value())
+          snapshot_info.cose_sig.has_value() && snapshot_info.tree.has_value())
         {
           auto serialised_receipt = build_and_serialise_receipt(
-            snapshot_info.sig.value(),
+            snapshot_info.cose_sig.value(),
             snapshot_info.tree.value(),
-            snapshot_info.node_id.value(),
-            snapshot_info.node_cert.value(),
             snapshot_info.evidence_idx.value(),
             snapshot_info.write_set_digest,
             snapshot_info.commit_evidence,
@@ -493,11 +487,8 @@ namespace ccf
       return false;
     }
 
-    void record_signature(
-      ::consensus::Index idx,
-      const std::vector<uint8_t>& sig,
-      const NodeId& node_id,
-      const ccf::crypto::Pem& node_cert)
+    void record_cose_signature(
+      ::consensus::Index idx, const std::vector<uint8_t>& cose_sig)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
@@ -506,17 +497,16 @@ namespace ccf
         if (
           pending_snapshot.evidence_idx.has_value() &&
           idx > pending_snapshot.evidence_idx.value() &&
-          !pending_snapshot.sig.has_value())
+          !pending_snapshot.cose_sig.has_value())
         {
           LOG_TRACE_FMT(
-            "Recording signature at {} for snapshot {} with evidence at {}",
+            "Recording COSE signature at {} for snapshot {} with evidence at "
+            "{}",
             idx,
             pending_snapshot.version,
             pending_snapshot.evidence_idx.value());
 
-          pending_snapshot.node_id = node_id;
-          pending_snapshot.node_cert = node_cert;
-          pending_snapshot.sig = sig;
+          pending_snapshot.cose_sig = cose_sig;
         }
       }
     }
