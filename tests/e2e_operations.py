@@ -2796,70 +2796,53 @@ def run_error_message_on_failure_to_read_aci_sec_context(args):
         ), f"Did not find expected log messages: {expected_log_messages}"
 
 
-def run_error_message_on_failure_to_fetch_snapshot(const_args):
-    args = copy.deepcopy(const_args)
-    args.label += "_error_msg_fetch_snapshot"
-    # Use a small snapshot interval to trigger snapshots quickly
-    args.snapshot_tx_interval = 30
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
-    with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        pdb=args.pdb,
-        txs=app.LoggingTxs("user0"),
-    ) as network:
-        # Enable backup snapshot fetch, but direct it to the primary_rpc_interface
-        # which does NOT expose the SnapshotRead operator feature.
-        # This causes every fetch attempt to receive HTTP 404, reliably exercising
-        # the retry loop and "giving up" error messages.
-        network.start_and_open(
-            args,
-            backup_snapshot_fetch_enabled=True,
-            backup_snapshot_fetch_target_rpc_interface=infra.interfaces.PRIMARY_RPC_INTERFACE,
-        )
+def test_error_message_on_failure_to_fetch_snapshot(network, args):
+    # Add a new backup node pointed at the primary_rpc_interface for snapshot
+    # fetching. That interface does NOT expose the SnapshotRead operator
+    # feature, so every fetch request returns HTTP 404, reliably driving the
+    # BackupSnapshotFetch retry loop to exhaustion.
+    primary, _ = network.find_primary()
+    new_node = network.create_node()
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        target_node=primary,
+        timeout=5,
+        backup_snapshot_fetch_enabled=True,
+        backup_snapshot_fetch_target_rpc_interface=infra.interfaces.PRIMARY_RPC_INTERFACE,
+    )
+    network.trust_node(new_node, args)
+    new_node.wait_for_node_to_join(timeout=5)
 
-        primary, _ = network.find_primary()
-        backups = network.find_backups()
-        assert len(backups) > 0, "Expected at least one backup node"
-        backup = backups[0]
+    # Issue enough transactions to trigger a new snapshot on the primary.
+    # The snapshot_evidence hook on new_node then schedules BackupSnapshotFetch,
+    # which exhausts its 3 attempts (all HTTP 404) and logs "giving up".
+    network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
+    network.get_committed_snapshots(primary)
 
-        # Issue enough transactions to trigger snapshot generation on the primary
-        network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
+    expected_log_messages = [
+        re.compile(r"Fetching snapshot from .* \(attempt 1/3\)"),
+        re.compile(r"Fetching snapshot from .* \(attempt 2/3\)"),
+        re.compile(r"Fetching snapshot from .* \(attempt 3/3\)"),
+        re.compile(r"Exceeded maximum snapshot fetch retries \([0-9]+\), giving up"),
+    ]
 
-        # Wait for a committed snapshot on the primary; this ensures the
-        # snapshot_evidence hook has fired on the backup, scheduling
-        # BackupSnapshotFetch, which will attempt (and fail) to download from
-        # primary_rpc_interface (no SnapshotRead feature → HTTP 404).
-        network.get_committed_snapshots(primary)
+    timeout_s = 30
+    end_time = time.time() + timeout_s
+    remaining = list(expected_log_messages)
+    while time.time() < end_time and remaining:
+        out_path, _ = new_node.get_logs()
+        with open(out_path, "r", encoding="utf-8") as f:
+            for line in f:
+                matched = [e for e in remaining if re.search(e, line)]
+                for m in matched:
+                    remaining.remove(m)
+                    LOG.info(f"Found expected log message: {line.rstrip()}")
+        if remaining:
+            time.sleep(0.5)
 
-        # BackupSnapshotFetch runs max_attempts (default 3) attempts with
-        # retry_interval (default 1 s) between each.  Poll the backup log
-        # until all expected messages have appeared or the timeout expires.
-        expected_log_messages = [
-            re.compile(r"Fetching snapshot from .* \(attempt 1/3\)"),
-            re.compile(r"Fetching snapshot from .* \(attempt 2/3\)"),
-            re.compile(r"Fetching snapshot from .* \(attempt 3/3\)"),
-            re.compile(
-                r"Exceeded maximum snapshot fetch retries \([0-9]+\), giving up"
-            ),
-        ]
-
-        timeout_s = 30
-        end_time = time.time() + timeout_s
-        remaining = list(expected_log_messages)
-        while time.time() < end_time and remaining:
-            out_path, _ = backup.get_logs()
-            with open(out_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    matched = [e for e in remaining if re.search(e, line)]
-                    for m in matched:
-                        remaining.remove(m)
-                        LOG.info(f"Found expected log message: {line.rstrip()}")
-            if remaining:
-                time.sleep(0.5)
-
-        assert not remaining, f"Did not find expected log messages: {remaining}"
+    assert not remaining, f"Did not find expected log messages: {remaining}"
 
 
 def test_backup_snapshot_fetch(network, args):
@@ -3002,6 +2985,7 @@ def run_backup_snapshot_download(const_args):
         network.start_and_open(args, backup_snapshot_fetch_enabled=True)
         test_backup_snapshot_fetch(network, args)
         test_backup_snapshot_fetch_max_size(network, args)
+        test_error_message_on_failure_to_fetch_snapshot(network, args)
 
 
 def run_propose_request_vote(const_args):
