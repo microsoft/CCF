@@ -2582,7 +2582,7 @@ def run_read_ledger_on_testdata(args):
                     )
 
 
-def test_merkle_verification_level(args):
+def run_merkle_verification_level(args):
     """Test MERKLE verification level on isolated chunks and full ledgers"""
     LOG.info("Testing MERKLE verification level")
 
@@ -2746,7 +2746,7 @@ def test_merkle_verification_level(args):
         temp_dir.cleanup()
 
 
-def test_error_message_on_failure_to_read_aci_sec_context(args):
+def run_error_message_on_failure_to_read_aci_sec_context(args):
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -2796,7 +2796,7 @@ def test_error_message_on_failure_to_read_aci_sec_context(args):
         ), f"Did not find expected log messages: {expected_log_messages}"
 
 
-def test_error_message_on_failure_to_fetch_snapshot(const_args):
+def run_error_message_on_failure_to_fetch_snapshot(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, 0)
     with infra.network.network(
@@ -2909,7 +2909,7 @@ def run_snp_tests(args):
     )
     run_recovery_local_unsealing(args, recovery_f=1, suffix="_unsealing_with_f_equal_1")
     run_recovery_unsealing_validate_audit(args)
-    test_error_message_on_failure_to_read_aci_sec_context(args)
+    run_error_message_on_failure_to_read_aci_sec_context(args)
     run_recovery_decision_protocol(args)
     run_recovery_decision_protocol_timeout_path(args)
     run_recovery_decision_protocol_multiple_timeout(args)
@@ -2930,5 +2930,5 @@ def run(args):
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
     run_read_ledger_on_testdata(args)
-    test_merkle_verification_level(args)
+    run_merkle_verification_level(args)
     run_propose_request_vote(args)
