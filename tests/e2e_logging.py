@@ -2200,7 +2200,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        run_main_tests(network, args)
+        do_main_tests(network, args)
 
 
 def run_app_space_js(args):
@@ -2256,7 +2256,7 @@ def run_app_space_js(args):
             )
             assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 
-        run_main_tests(network, args)
+        do_main_tests(network, args)
 
 
 def test_cose_config(network, args):
@@ -2276,7 +2276,7 @@ def test_cose_config(network, args):
     return network
 
 
-def run_main_tests(network, args):
+def do_main_tests(network, args):
     test_basic_constraints(network, args)
     test(network, args)
     test_remove(network, args)
