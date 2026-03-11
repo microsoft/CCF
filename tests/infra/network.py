@@ -301,7 +301,10 @@ class Network:
 
         for host in self.hosts:
             self.create_node(
-                host, binary_dir=binary_dir, version=self.version, node_data_json_file=node_data_json_file
+                host,
+                binary_dir=binary_dir,
+                version=self.version,
+                node_data_json_file=node_data_json_file,
             )
 
     def _get_next_local_node_id(self):

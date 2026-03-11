@@ -1244,6 +1244,8 @@ if(BUILD_TESTS)
   endif()
 endif()
 
+write_e2e_test_configs()
+
 # Generate and install CMake export file for consumers using CMake
 include(CMakePackageConfigHelpers)
 configure_package_config_file(

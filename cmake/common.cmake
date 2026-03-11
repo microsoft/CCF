@@ -59,6 +59,111 @@ function(add_test_bin name)
   add_san(${name})
 endfunction()
 
+# Convert a CMake list to a JSON array of strings
+function(_cmake_list_to_json_array LIST_VAR OUTPUT_VAR)
+  set(JSON_STR "[")
+  set(FIRST TRUE)
+  foreach(ITEM IN LISTS LIST_VAR)
+    if(FIRST)
+      set(FIRST FALSE)
+    else()
+      string(APPEND JSON_STR ", ")
+    endif()
+    # Escape backslashes and quotes for JSON
+    string(REPLACE "\\" "\\\\" ITEM "${ITEM}")
+    string(REPLACE "\"" "\\\"" ITEM "${ITEM}")
+    string(APPEND JSON_STR "\"${ITEM}\"")
+  endforeach()
+  string(APPEND JSON_STR "]")
+  set(${OUTPUT_VAR}
+      "${JSON_STR}"
+      PARENT_SCOPE
+  )
+endfunction()
+
+# Extract values from a flag-value list (e.g. --constitution /path1
+# --constitution /path2) Returns only the values, filtering out the flag tokens.
+function(_extract_flag_values FLAG_NAME INPUT_LIST OUTPUT_VAR)
+  set(RESULT "")
+  set(TAKE_NEXT FALSE)
+  foreach(ITEM IN LISTS INPUT_LIST)
+    if(TAKE_NEXT)
+      list(APPEND RESULT "${ITEM}")
+      set(TAKE_NEXT FALSE)
+    elseif("${ITEM}" STREQUAL "${FLAG_NAME}")
+      set(TAKE_NEXT TRUE)
+    endif()
+  endforeach()
+  set(${OUTPUT_VAR}
+      "${RESULT}"
+      PARENT_SCOPE
+  )
+endfunction()
+
+# Accumulate a test entry into the global e2e test config. Call
+# write_e2e_test_configs() after all tests are defined.
+function(_accumulate_e2e_test_config)
+  cmake_parse_arguments(
+    PARSE_ARGV 0 CFG "" "NAME;PYTHON_SCRIPT;LABEL"
+    "CONSTITUTION;ADDITIONAL_ARGS;ENV"
+  )
+
+  # Extract constitution file paths (strip --constitution flags)
+  _extract_flag_values(
+    "--constitution" "${CFG_CONSTITUTION}" CONSTITUTION_PATHS
+  )
+  _cmake_list_to_json_array("${CONSTITUTION_PATHS}" CONSTITUTION_JSON)
+
+  # Additional args as flat array
+  _cmake_list_to_json_array("${CFG_ADDITIONAL_ARGS}" ADDITIONAL_ARGS_JSON)
+
+  # Env vars
+  _cmake_list_to_json_array("${CFG_ENV}" ENV_JSON)
+
+  set(LABEL_VALUE "${CFG_LABEL}")
+  if(NOT LABEL_VALUE)
+    set(LABEL_VALUE "")
+  endif()
+
+  # Escape the python script path
+  string(REPLACE "\\" "\\\\" SCRIPT "${CFG_PYTHON_SCRIPT}")
+  string(REPLACE "\"" "\\\"" SCRIPT "${SCRIPT}")
+
+  set(ENTRY
+      "    \"${CFG_NAME}\": {\n\
+      \"python_script\": \"${SCRIPT}\",\n\
+      \"label\": \"${LABEL_VALUE}\",\n\
+      \"constitution\": ${CONSTITUTION_JSON},\n\
+      \"additional_args\": ${ADDITIONAL_ARGS_JSON},\n\
+      \"env\": ${ENV_JSON}\n\
+    }"
+  )
+
+  set_property(GLOBAL APPEND PROPERTY _E2E_TEST_CONFIG_ENTRIES "${ENTRY}")
+endfunction()
+
+# Write the consolidated e2e_tests.json to the build directory. Must be called
+# after all add_e2e_test() invocations.
+function(write_e2e_test_configs)
+  get_property(ENTRIES GLOBAL PROPERTY _E2E_TEST_CONFIG_ENTRIES)
+
+  set(JSON_CONTENT "{\n")
+  list(LENGTH ENTRIES NUM_ENTRIES)
+  math(EXPR LAST_INDEX "${NUM_ENTRIES} - 1")
+  set(INDEX 0)
+  foreach(ENTRY IN LISTS ENTRIES)
+    string(APPEND JSON_CONTENT "${ENTRY}")
+    if(INDEX LESS LAST_INDEX)
+      string(APPEND JSON_CONTENT ",")
+    endif()
+    string(APPEND JSON_CONTENT "\n")
+    math(EXPR INDEX "${INDEX} + 1")
+  endforeach()
+  string(APPEND JSON_CONTENT "}\n")
+
+  file(WRITE "${CMAKE_BINARY_DIR}/e2e_tests.json" "${JSON_CONTENT}")
+endfunction()
+
 # Helper for building end-to-end function tests using the python infrastructure
 function(add_e2e_test)
   cmake_parse_arguments(
@@ -98,12 +203,23 @@ function(add_e2e_test)
       set(PARSED_ARGS_PERF_LABEL ${PARSED_ARGS_NAME})
     endif()
 
+    # Build the full argument list for the test (everything after the python
+    # script)
+    set(FULL_TEST_ARGS
+        -b
+        .
+        --label
+        ${PARSED_ARGS_NAME}
+        ${CCF_NETWORK_TEST_ARGS}
+        ${PARSED_ARGS_CONSTITUTION}
+        ${PARSED_ARGS_ADDITIONAL_ARGS}
+        --tick-ms
+        ${NODE_TICK_MS}
+    )
+
     add_test(
       NAME ${PARSED_ARGS_NAME}
-      COMMAND
-        ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
-        ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
-        ${PARSED_ARGS_ADDITIONAL_ARGS} --tick-ms ${NODE_TICK_MS}
+      COMMAND ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} ${FULL_TEST_ARGS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 
@@ -114,12 +230,15 @@ function(add_e2e_test)
       PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
 
+    set(TEST_ENV_VARS "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}")
+
     if(SHUFFLE_SUITE)
       set_property(
         TEST ${PARSED_ARGS_NAME}
         APPEND
         PROPERTY ENVIRONMENT "SHUFFLE_SUITE=1"
       )
+      list(APPEND TEST_ENV_VARS "SHUFFLE_SUITE=1")
     endif()
 
     if("${PARSED_ARGS_LABEL}" STREQUAL "partitions")
@@ -128,6 +247,7 @@ function(add_e2e_test)
         APPEND
         PROPERTY ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
       )
+      list(APPEND TEST_ENV_VARS "PYTHONDONTWRITEBYTECODE=1")
     endif()
 
     add_san_test_properties(${PARSED_ARGS_NAME})
@@ -149,7 +269,24 @@ function(add_e2e_test)
         APPEND
         PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
       )
+      list(APPEND TEST_ENV_VARS "CURL_CLIENT=ON")
     endif()
+
+    # Accumulate JSON configuration for the test
+    _accumulate_e2e_test_config(
+      NAME
+      "${PARSED_ARGS_NAME}"
+      PYTHON_SCRIPT
+      "${PARSED_ARGS_PYTHON_SCRIPT}"
+      LABEL
+      "${PARSED_ARGS_LABEL}"
+      CONSTITUTION
+      ${PARSED_ARGS_CONSTITUTION}
+      ADDITIONAL_ARGS
+      ${PARSED_ARGS_ADDITIONAL_ARGS}
+      ENV
+      ${TEST_ENV_VARS}
+    )
   endif()
 endfunction()
 
