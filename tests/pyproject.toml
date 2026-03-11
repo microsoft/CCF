@@ -1,19 +1,9 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
 name = "ccf-tests"
 version = "0.0.0"
 requires-python = ">=3.12"
-
-[tool.hatch.metadata]
-allow-direct-references = true
-
-[tool.hatch.envs.default]
-skip-install = true
 dependencies = [
-    "ccf @ {root:uri}/../python/",
+    "ccf",
     "wheel >= 0.46.2, < 0.47",
     "loguru >= 0.7.3, < 0.8",
     "openapi-spec-validator >= 0.7.2, < 0.8",
@@ -44,5 +34,5 @@ dependencies = [
     "aiohttp >= 3.13.0, < 4",
 ]
 
-[tool.hatch.envs.default.scripts]
-commit-latency = "python commit_latency.py {args}"
+[tool.uv.sources]
+ccf = { path = "../python/", editable = true }
