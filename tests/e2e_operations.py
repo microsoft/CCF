@@ -3006,3 +3006,4 @@ def run(args):
     run_read_ledger_on_testdata(args)
     test_merkle_verification_level(args)
     run_propose_request_vote(args)
+    run_time_based_snapshotting(args)
