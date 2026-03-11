@@ -2184,8 +2184,7 @@ namespace ccf
       // numeric, but at least the final component (TLD) must not be
       // all-numeric. So this distinguishes "1.2.3.4" (an IP address) from
       // "1.2.3.c4m" (a DNS name). "1.2.3." is invalid for either, and will
-      // throw. Attempts to handle IPv6 by also splitting on ':', but this is
-      // untested.
+      // throw. Handles IPv6 by splitting on ':' after splitting on '.'.
       const auto final_component =
         ccf::nonstd::split(ccf::nonstd::split(hostname, ".").back(), ":")
           .back();
@@ -2216,6 +2215,11 @@ namespace ccf
       for (const auto& [_, interface] : config.network.rpc_interfaces)
       {
         auto host = split_net_address(interface.published_address).first;
+        // Strip brackets from IPv6 addresses (e.g. "[::1]" -> "::1")
+        if (host.size() >= 2 && host.front() == '[' && host.back() == ']')
+        {
+          host = host.substr(1, host.size() - 2);
+        }
         sans.push_back({host, is_ip(host)});
       }
       return sans;
