@@ -440,8 +440,8 @@ TEST_CASE("Rollback before snapshot is committed")
     // baseline should remain there rather than falling back to the previous
     // regular snapshot at seqno 22.
     issue_transactions(network, snapshot_tx_interval - 4);
-    REQUIRE_FALSE(
-      record_signature(history, snapshotter, network.tables->current_version()));
+    REQUIRE_FALSE(record_signature(
+      history, snapshotter, network.tables->current_version()));
   }
 }
 

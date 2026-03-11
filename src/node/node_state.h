@@ -1217,8 +1217,7 @@ namespace ccf
             {
               auto snap_tx = network.tables->create_read_only_tx();
               auto snapshot_status =
-                snap_tx.ro<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS)
-                  ->get();
+                snap_tx.ro<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS)->get();
               if (snapshot_status.has_value())
               {
                 snapshotter->init_from_snapshot_status(snapshot_status.value());
@@ -3130,7 +3129,7 @@ namespace ccf
               }
             }
           }));
-      
+
       // Keep time and tx count in sync between primary and backups for bounded
       // snapshotting
       network.tables->set_map_hook(
@@ -3142,8 +3141,7 @@ namespace ccf
             assert(w.has_value());
             s->record_snapshot_status(w.value());
             return {nullptr};
-        }));
-
+          }));
 
       setup_basic_hooks();
     }
