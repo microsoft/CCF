@@ -73,6 +73,21 @@ namespace ccf
       {segments.receipt.begin(), segments.receipt.end()},
       /* recompute_root */ true);
 
+    auto snapshot_digest = ccf::crypto::Sha256Hash(
+      segments.header_and_body.data(), segments.header_and_body.size());
+    if (
+      receipt.claims_digest.size() != ccf::crypto::Sha256Hash::SIZE ||
+      std::memcmp(
+        snapshot_digest.h.data(),
+        receipt.claims_digest.data(),
+        ccf::crypto::Sha256Hash::SIZE) != 0)
+    {
+      throw std::logic_error(fmt::format(
+        "Snapshot digest ({}) does not match receipt claim ({})",
+        snapshot_digest,
+        ds::to_hex(receipt.claims_digest)));
+    }
+
     if (prev_service_identity)
     {
       auto verifier =
