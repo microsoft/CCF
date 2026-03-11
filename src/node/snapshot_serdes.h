@@ -76,6 +76,31 @@ namespace ccf
     auto contents = ccf::cose::parse_cose_receipt(segments.receipt);
     LOG_DEBUG_FMT("COSE receipt KID (node ID): {}", contents.kid);
 
+    if (contents.proofs.empty())
+    {
+      throw std::logic_error("No Merkle proofs found in COSE receipt");
+    }
+
+    auto snapshot_digest = ccf::crypto::Sha256Hash(
+      {segments.header_and_body.data(), segments.header_and_body.size()});
+    auto& claims_digest_bytes = contents.proofs[0].claims_digest;
+    if (claims_digest_bytes.size() != ccf::crypto::Sha256Hash::SIZE)
+    {
+      throw std::logic_error(fmt::format(
+        "Unsupported claims digest size: {}", claims_digest_bytes.size()));
+    }
+    ccf::crypto::Sha256Hash snapshot_digest_claim =
+      ccf::crypto::Sha256Hash::from_span(
+        std::span<const uint8_t, ccf::crypto::Sha256Hash::SIZE>{
+          claims_digest_bytes.data(), ccf::crypto::Sha256Hash::SIZE});
+    if (snapshot_digest != snapshot_digest_claim)
+    {
+      throw std::logic_error(fmt::format(
+        "Snapshot digest ({}) does not match COSE receipt claim ({})",
+        snapshot_digest,
+        snapshot_digest_claim));
+    }
+
     auto merkle_root = ccf::cose::verify_merkle_root(contents.proofs);
     LOG_DEBUG_FMT(
       "COSE snapshot receipt Merkle root verified for node {}", contents.kid);
