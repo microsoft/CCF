@@ -1006,6 +1006,15 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      internal_tables_access_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/internal_tables_access_test.cpp
+      ${CCF_DIR}/src/node/uvm_endorsements.cpp
+    )
+    target_link_libraries(
+      internal_tables_access_test PRIVATE ccfcrypto.host ccf_kv.host
+    )
+
+    add_unit_test(
       node_frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
       ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
