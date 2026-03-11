@@ -14,6 +14,7 @@ import functools
 
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.backends import default_backend
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import utils, ec
 
@@ -44,6 +45,7 @@ IGNORED_FILE_SUFFIX = ".ignored"
 WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
 
 SHA256_DIGEST_SIZE = sha256().digest_size
+ENCODED_COSE_SIGN1_TAG = 0xD2
 
 
 class NodeStatus(Enum):
@@ -1020,34 +1022,8 @@ class Snapshot(Entry):
         if self.is_committed() and not self.is_snapshot_file_1_x():
             receipt_pos = entry_start_pos + self._header.size
             receipt_bytes = _peek_all(self._file, pos=receipt_pos)
-
-            try:
-                receipt = json.loads(receipt_bytes.decode("utf-8"))
-            except json.decoder.JSONDecodeError as e:
-                raise InvalidSnapshotException(
-                    f"Cannot read receipt from snapshot {os.path.basename(self._filename)}: Receipt starts at {receipt_pos} (file is {self._file_size} bytes), and contains {receipt_bytes}"
-                ) from e
-
-            # Receipts included in snapshots always contain leaf components,
-            # including a claims digest and commit evidence, from 2.0.0-rc0 onwards.
-            # This verification code deliberately does not support snapshots
-            # produced by 2.0.0-dev* releases.
-            assert "leaf_components" in receipt
-            write_set_digest = bytes.fromhex(
-                receipt["leaf_components"]["write_set_digest"]
-            )
-            claims_digest = bytes.fromhex(receipt["leaf_components"]["claims_digest"])
-            commit_evidence_digest = sha256(
-                receipt["leaf_components"]["commit_evidence"].encode()
-            ).digest()
-            leaf = (
-                sha256(write_set_digest + commit_evidence_digest + claims_digest)
-                .digest()
-                .hex()
-            )
-            root = ccf.receipt.root(leaf, receipt["proof"])
-            node_cert = load_pem_x509_certificate(receipt["cert"].encode())
-            ccf.receipt.verify(root, receipt["signature"], node_cert)
+            snapshot_digest = sha256(_peek(self._file, receipt_pos, pos=0)).digest()
+            self._verify_snapshot_receipt(receipt_bytes, receipt_pos, snapshot_digest)
 
     def is_committed(self):
         return COMMITTED_FILE_SUFFIX in self._filename
@@ -1060,6 +1036,88 @@ class Snapshot(Entry):
 
     def get_len(self) -> int:
         return self._file_size
+
+    def _verify_snapshot_receipt(
+        self, receipt_bytes: bytes, receipt_pos: int, snapshot_digest: bytes
+    ):
+        if not receipt_bytes:
+            raise InvalidSnapshotException("Empty snapshot receipt")
+
+        first_byte = receipt_bytes[0]
+        if first_byte == ENCODED_COSE_SIGN1_TAG:
+            self._verify_cose_snapshot_receipt(receipt_bytes, snapshot_digest)
+        elif first_byte == ord("{"):
+            self._verify_json_snapshot_receipt(
+                receipt_bytes, receipt_pos, snapshot_digest
+            )
+        else:
+            raise InvalidSnapshotException(
+                f"Invalid snapshot receipt: unrecognised format (first byte: 0x{first_byte:02X})"
+            )
+
+    def _service_public_key(self):
+        service_info_table = (
+            self.get_public_domain().get_tables().get(SERVICE_INFO_TABLE_NAME)
+        )
+        if service_info_table is None:
+            raise InvalidSnapshotException(
+                "Snapshot is missing service info table for COSE receipt verification"
+            )
+
+        service_info = service_info_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
+        if service_info is None:
+            raise InvalidSnapshotException(
+                "Snapshot is missing service info for COSE receipt verification"
+            )
+
+        service_info_json = json.loads(service_info)
+        cert = load_pem_x509_certificate(
+            service_info_json["cert"].encode("ascii"), default_backend()
+        )
+        return cert.public_key()
+
+    def _verify_cose_snapshot_receipt(
+        self, receipt_bytes: bytes, snapshot_digest: bytes
+    ):
+        ccf.cose.verify_receipt(
+            receipt_bytes, self._service_public_key(), snapshot_digest
+        )
+
+    def _verify_json_snapshot_receipt(
+        self, receipt_bytes: bytes, receipt_pos: int, snapshot_digest: bytes
+    ):
+        try:
+            receipt = json.loads(receipt_bytes.decode("utf-8"))
+        except json.decoder.JSONDecodeError as e:
+            raise InvalidSnapshotException(
+                f"Cannot read receipt from snapshot {os.path.basename(self._filename)}: Receipt starts at {receipt_pos} (file is {self._file_size} bytes), and contains {receipt_bytes!r}"
+            ) from e
+
+        # Receipts included in snapshots always contain leaf components,
+        # including a claims digest and commit evidence, from 2.0.0-rc0 onwards.
+        # This verification code deliberately does not support snapshots
+        # produced by 2.0.0-dev* releases.
+        assert "leaf_components" in receipt
+        write_set_digest = bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
+        claims_digest = bytes.fromhex(receipt["leaf_components"]["claims_digest"])
+        if snapshot_digest != claims_digest:
+            raise InvalidSnapshotException(
+                f"Snapshot digest ({snapshot_digest.hex()}) does not match receipt claim ({claims_digest.hex()})"
+            )
+
+        commit_evidence_digest = sha256(
+            receipt["leaf_components"]["commit_evidence"].encode()
+        ).digest()
+        leaf = (
+            sha256(write_set_digest + commit_evidence_digest + claims_digest)
+            .digest()
+            .hex()
+        )
+        root = ccf.receipt.root(leaf, receipt["proof"])
+        node_cert = load_pem_x509_certificate(
+            receipt["cert"].encode(), default_backend()
+        )
+        ccf.receipt.verify(root, receipt["signature"], node_cert)
 
 
 class TransactionIterator:

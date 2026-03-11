@@ -316,6 +316,9 @@ class HostSpec:
     def get_primary_interface(self):
         return self.rpc_interfaces[PRIMARY_RPC_INTERFACE]
 
+    def get_file_serving_interface(self):
+        return self.rpc_interfaces[FILE_SERVING_RPC_INTERFACE]
+
     def with_args(self, args):
         for interface in self.rpc_interfaces.values():
             interface.apply_args(args)

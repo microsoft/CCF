@@ -375,7 +375,7 @@ def test_recover_service_with_wrong_identity(network, args):
         raise ValueError("Recovery should have failed")
 
     if not broken_network.nodes[0].check_log_for_error_message(
-        "Previous service identity does not endorse the node identity that signed the snapshot"
+        "Previous service identity does not match the service identity that signed the snapshot"
     ):
         raise ValueError("Node log does not contain the expected error message")
 
@@ -591,7 +591,7 @@ def test_trusted_keys_vs_endorsements(network, args):
 
 
 @reqs.description("Recover a service from local files")
-def test_recover_service_from_files(
+def run_recover_service_from_files(
     args,
     directory,
     expected_recovery_count,
@@ -1202,7 +1202,7 @@ def run(args):
 
 
 def run_recovery_from_files(args):
-    test_recover_service_from_files(
+    run_recover_service_from_files(
         args,
         directory=args.directory,
         expected_recovery_count=args.expected_recovery_count,
