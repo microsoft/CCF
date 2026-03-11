@@ -470,7 +470,8 @@ TEST_CASE("Snapshot status updates released snapshot baseline")
 
   auto snapshotter = std::make_shared<ccf::Snapshotter>(
     *writer_factory, network.tables, snapshot_tx_interval);
-  snapshotter->set_last_snapshot_idx(snapshot_tx_interval);
+  snapshotter->init_from_snapshot_status(
+    {static_cast<ccf::kv::Version>(snapshot_tx_interval), 0});
 
   // Simulate a backup learning that the latest released snapshot was forced
   // at a later seqno via the replicated snapshot status table.

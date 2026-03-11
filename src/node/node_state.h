@@ -387,7 +387,15 @@ namespace ccf
           &view_history,
           true /* public_only */);
 
-        snapshotter->set_last_snapshot_idx(last_recovered_idx);
+        {
+          auto tx = network.tables->create_read_only_tx();
+          auto status =
+            tx.ro<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS)->get();
+          if (status.has_value())
+          {
+            snapshotter->init_from_snapshot_status(status.value());
+          }
+        }
       }
     }
 
@@ -1057,8 +1065,16 @@ namespace ccf
               view_history_,
               last_recovered_signed_idx);
 
-            snapshotter->set_last_snapshot_idx(
-              network.tables->current_version());
+            {
+              auto snap_tx = network.tables->create_read_only_tx();
+              auto snapshot_status =
+                snap_tx.ro<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS)
+                  ->get();
+              if (snapshot_status.has_value())
+              {
+                snapshotter->init_from_snapshot_status(snapshot_status.value());
+              }
+            }
             history->start_signature_emit_timer();
 
             if (resp.network_info->public_only)

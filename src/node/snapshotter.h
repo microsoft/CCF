@@ -333,7 +333,6 @@ namespace ccf
       snapshot_time_interval(snapshot_time_interval_)
     {
       next_snapshot_indices.push_back({initial_snapshot_idx, false, true});
-      last_snapshot_time = std::chrono::system_clock::now();
     }
 
     void init_after_public_recovery()
@@ -353,24 +352,19 @@ namespace ccf
       snapshot_generation_enabled = enabled;
     }
 
-    void set_last_snapshot_idx(::consensus::Index idx)
+    void init_from_snapshot_status(const SnapshotStatus& status)
     {
-      // Should only be called once, after the startup (recovery or join)
-      // snapshot has been applied
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
-      if (last_snapshot_idx != 0)
-      {
-        throw std::logic_error(
-          "Last snapshot index can only be set if no snapshot has been "
-          "generated");
-      }
+      auto timestamp =
+        TimePoint(std::chrono::duration_cast<TimePoint::duration>(
+          std::chrono::nanoseconds(static_cast<int64_t>(status.timestamp))));
 
-      last_snapshot_idx = idx;
+      last_snapshot_idx = std::max(last_snapshot_idx, status.version);
+      last_snapshot_time = std::max(last_snapshot_time, timestamp);
 
       next_snapshot_indices.clear();
       next_snapshot_indices.push_back({last_snapshot_idx, false, true});
-      last_snapshot_time = std::chrono::system_clock::now();
     }
 
     bool write_snapshot(
