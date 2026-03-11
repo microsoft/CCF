@@ -45,6 +45,8 @@ namespace ccf
     const pal::PlatformAttestationMeasurement& uvm_measurement,
     const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust);
 
+  size_t parse_svn(const std::string& svn_str);
+
   bool matches_uvm_roots_of_trust(
     const pal::UVMEndorsements& endorsements,
     const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust);
