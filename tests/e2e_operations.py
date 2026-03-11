@@ -2798,41 +2798,44 @@ def run_error_message_on_failure_to_read_aci_sec_context(args):
 
 def run_error_message_on_failure_to_fetch_snapshot(const_args):
     args = copy.deepcopy(const_args)
-    args.nodes = infra.e2e_args.min_nodes(args, 0)
+    args.label += "_error_msg_fetch_snapshot"
+    # Use a small snapshot interval to trigger snapshots quickly
+    args.snapshot_tx_interval = 30
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
     with infra.network.network(
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
         pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
     ) as network:
-        network.start_and_open(args)
+        # Enable backup snapshot fetch, but direct it to the primary_rpc_interface
+        # which does NOT expose the SnapshotRead operator feature.
+        # This causes every fetch attempt to receive HTTP 404, reliably exercising
+        # the retry loop and "giving up" error messages.
+        network.start_and_open(
+            args,
+            backup_snapshot_fetch_enabled=True,
+            backup_snapshot_fetch_target_rpc_interface=infra.interfaces.PRIMARY_RPC_INTERFACE,
+        )
 
         primary, _ = network.find_primary()
+        backups = network.find_backups()
+        assert len(backups) > 0, "Expected at least one backup node"
+        backup = backups[0]
 
-        new_node = network.create_node()
+        # Issue enough transactions to trigger snapshot generation on the primary
+        network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
 
-        # Shut down primary to cause snapshot fetch to fail
-        primary.remote.stop()
+        # Wait for a committed snapshot on the primary; this ensures the
+        # snapshot_evidence hook has fired on the backup, scheduling
+        # BackupSnapshotFetch, which will attempt (and fail) to download from
+        # primary_rpc_interface (no SnapshotRead feature → HTTP 404).
+        network.get_committed_snapshots(primary)
 
-        failed = False
-        try:
-            LOG.info("Starting join")
-            network.join_node(
-                new_node,
-                args.package,
-                args,
-                target_node=primary,
-                timeout=10,
-                from_snapshot=False,
-                wait_for_node_in_store=False,
-            )
-            new_node.wait_for_node_to_join(timeout=5)
-        except Exception as e:
-            LOG.info(f"Joining node could not join as expected {e}")
-            failed = True
-
-        assert failed, "Joining node could not join failed node as expected"
-
+        # BackupSnapshotFetch runs max_attempts (default 3) attempts with
+        # retry_interval (default 1 s) between each.  Poll the backup log
+        # until all expected messages have appeared or the timeout expires.
         expected_log_messages = [
             re.compile(r"Fetching snapshot from .* \(attempt 1/3\)"),
             re.compile(r"Fetching snapshot from .* \(attempt 2/3\)"),
@@ -2842,19 +2845,21 @@ def run_error_message_on_failure_to_fetch_snapshot(const_args):
             ),
         ]
 
-        out_path, _ = new_node.get_logs()
-        for line in open(out_path, "r", encoding="utf-8").readlines():
-            for expected in expected_log_messages:
-                match = re.search(expected, line)
-                if match:
-                    expected_log_messages.remove(expected)
-                    LOG.info(f"Found expected log message: {line}")
-            if len(expected_log_messages) == 0:
-                break
+        timeout_s = 30
+        end_time = time.time() + timeout_s
+        remaining = list(expected_log_messages)
+        while time.time() < end_time and remaining:
+            out_path, _ = backup.get_logs()
+            with open(out_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    matched = [e for e in remaining if re.search(e, line)]
+                    for m in matched:
+                        remaining.remove(m)
+                        LOG.info(f"Found expected log message: {line.rstrip()}")
+            if remaining:
+                time.sleep(0.5)
 
-        assert (
-            len(expected_log_messages) == 0
-        ), f"Did not find expected log messages: {expected_log_messages}"
+        assert not remaining, f"Did not find expected log messages: {remaining}"
 
 
 def test_backup_snapshot_fetch(network, args):

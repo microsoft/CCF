@@ -252,4 +252,12 @@ if __name__ == "__main__":
         initial_user_count=1,
     )
 
+    cr.add(
+        "error-msg-fetch-snapshot",
+        e2e_operations.run_error_message_on_failure_to_fetch_snapshot,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=1,
+    )
+
     cr.run()
