@@ -347,6 +347,7 @@ class Network:
         read_only_ledger_dirs=None,
         from_snapshot=True,
         snapshots_dir=None,
+        join_target_interface_name=None,
         **kwargs,
     ):
         # Contact primary if no target node is set
@@ -400,7 +401,8 @@ class Network:
             label=args.label,
             common_dir=self.common_dir,
             target_rpc_address=target_node.get_public_rpc_address(
-                interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+                interface_name=join_target_interface_name
+                or infra.interfaces.FILE_SERVING_RPC_INTERFACE
             ),
             snapshots_dir=snapshots_dir,
             read_only_snapshots_dir=read_only_snapshots_dir,

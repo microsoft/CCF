@@ -2796,6 +2796,68 @@ def run_error_message_on_failure_to_read_aci_sec_context(args):
         ), f"Did not find expected log messages: {expected_log_messages}"
 
 
+def test_join_time_snapshot_fetch_failure(network, args):
+    # Test that the join-time FetchSnapshot task produces the expected retry
+    # and "giving up" log messages when the snapshot endpoint is unreachable.
+    #
+    # Strategy:
+    #  1. Add an intermediate node joined from a snapshot so its startup_seqno
+    #     > 0.  That node will act as the join target.
+    #  2. Join a fresh node (no snapshot, startup_seqno = 0) targeting the
+    #     intermediate node via primary_rpc_interface.  Because the
+    #     intermediate node's startup_seqno > 0, it returns StartupSeqnoIsOld
+    #     for the fresh joiner, triggering the FetchSnapshot task.
+    #  3. primary_rpc_interface lacks the SnapshotRead operator feature, so
+    #     GET /node/snapshot returns HTTP 404, exhausting the 3-attempt retry
+    #     loop and logging "Exceeded maximum snapshot fetch retries".
+    primary, _ = network.find_primary()
+
+    # Ensure at least one committed snapshot exists so that a joining node
+    # can be given one (startup_seqno > 0).
+    network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
+    network.get_committed_snapshots(primary)
+
+    # Add an intermediate node that starts from that snapshot.
+    intermediate_node = network.create_node()
+    network.join_node(intermediate_node, args.package, args, target_node=primary)
+    network.trust_node(intermediate_node, args)
+    intermediate_node.wait_for_node_to_join(timeout=10)
+
+    # Now join a fresh node (no snapshot) targeting the intermediate node via
+    # primary_rpc_interface.  StartupSeqnoIsOld is expected, so use a short
+    # timeout and catch the exception.
+    # Timeout accounts for: 3 fetch attempts × 1s retry_interval = ~3s, plus
+    # join retry overhead and test environment scheduling headroom.
+    failing_node = network.create_node()
+    try:
+        network.join_node(
+            failing_node,
+            args.package,
+            args,
+            target_node=intermediate_node,
+            from_snapshot=False,
+            join_target_interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE,
+            timeout=15,
+        )
+    except infra.network.StartupSeqnoIsOld:
+        pass  # expected: FetchSnapshot exhausts retries and node cannot join
+
+    expected_log_messages = [
+        re.compile(r"Fetching snapshot from .* \(attempt 1/3\)"),
+        re.compile(r"Fetching snapshot from .* \(attempt 2/3\)"),
+        re.compile(r"Fetching snapshot from .* \(attempt 3/3\)"),
+        re.compile(r"Exceeded maximum snapshot fetch retries \([0-9]+\), giving up"),
+    ]
+
+    out_path, _ = failing_node.get_logs()
+    with open(out_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    for pattern in expected_log_messages:
+        assert re.search(
+            pattern, content
+        ), f"Did not find expected log message: {pattern.pattern}"
+
+
 def test_error_message_on_failure_to_fetch_snapshot(network, args):
     # Add a new backup node pointed at the primary_rpc_interface for snapshot
     # fetching. That interface does NOT expose the SnapshotRead operator
@@ -2985,6 +3047,7 @@ def run_backup_snapshot_download(const_args):
         network.start_and_open(args, backup_snapshot_fetch_enabled=True)
         test_backup_snapshot_fetch(network, args)
         test_backup_snapshot_fetch_max_size(network, args)
+        test_join_time_snapshot_fetch_failure(network, args)
         test_error_message_on_failure_to_fetch_snapshot(network, args)
 
 
