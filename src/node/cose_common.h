@@ -194,6 +194,7 @@ namespace ccf::cose
   {
     CcfCoseReceiptPhdr phdr;
     std::vector<uint8_t> merkle_root;
+    std::vector<uint8_t> claims_digest;
   };
 
   static std::vector<uint8_t> recompute_merkle_root(const MerkleProof& proof)
@@ -446,6 +447,7 @@ namespace ccf::cose
       }
 
       receipt.merkle_root = recompute_merkle_root(proofs[0]);
+      receipt.claims_digest = proofs[0].leaf.claims_digest;
       for (size_t i = 1; i < proofs.size(); ++i)
       {
         auto root = recompute_merkle_root(proofs[i]);
@@ -453,6 +455,13 @@ namespace ccf::cose
         {
           throw COSEDecodeError(
             "Inconsistent Merkle roots computed from COSE receipt proofs");
+        }
+        if (proofs[i].leaf.claims_digest != receipt.claims_digest)
+        {
+          throw COSEDecodeError(fmt::format(
+            "Claims from proofs don't match: {} != {}",
+            ds::to_hex(receipt.claims_digest),
+            ds::to_hex(proofs[i].leaf.claims_digest)));
         }
       }
     }

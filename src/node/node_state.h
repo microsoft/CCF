@@ -3038,14 +3038,13 @@ namespace ccf
       // are always written by each signature transaction.
 
       network.tables->set_map_hook(
-        network.signatures.get_name(),
-        Signatures::wrap_map_hook(
+        network.cose_signatures.get_name(),
+        CoseSignatures::wrap_map_hook(
           [s = this->snapshotter](
             ccf::kv::Version version,
-            const Signatures::Write& w) -> ccf::kv::ConsensusHookPtr {
+            const CoseSignatures::Write& w) -> ccf::kv::ConsensusHookPtr {
             assert(w.has_value());
-            auto sig = w.value();
-            s->record_signature(version, sig.sig, sig.node, sig.cert);
+            s->record_cose_signature(version, w.value());
             return {nullptr};
           }));
 
