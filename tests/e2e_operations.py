@@ -3069,10 +3069,20 @@ def run_time_based_snapshotting(const_args):
 
         return len(os.listdir(snapshots_dir))
 
+    def wait_for_at_least_one(net):
+        timeout_s = 10
+        end_time = time.time() + timeout_s
+        while time.time() < end_time:
+            if get_snapshot_count(net) > 0:
+                return
+
+            time.sleep(0.1)
+        raise TimeoutError(f"Expected at least one snapshot after {timeout_s}s")
+
     # min_tx set low
     with net_with_min_tx("_low", 0) as net:
         LOG.info("Started")
-        baseline = get_snapshot_count(net)
+        baseline = wait_for_at_least_one(net)
         LOG.info("Got snapshot count")
         time.sleep(10)
         after = get_snapshot_count(net)
@@ -3082,7 +3092,7 @@ def run_time_based_snapshotting(const_args):
 
     # min_tx set just right
     with net_with_min_tx("_exact", 2) as net:
-        baseline = get_snapshot_count(net)
+        baseline = wait_for_at_least_one(net)
         time.sleep(10)
         after = get_snapshot_count(net)
         assert (
@@ -3091,7 +3101,7 @@ def run_time_based_snapshotting(const_args):
 
     # set much higher to show that
     with net_with_min_tx("_high", 10) as net:
-        baseline = get_snapshot_count(net)
+        baseline = wait_for_at_least_one(net)
         time.sleep(10)
         after = get_snapshot_count(net)
         assert (
