@@ -2796,6 +2796,35 @@ def run_error_message_on_failure_to_read_aci_sec_context(args):
         ), f"Did not find expected log messages: {expected_log_messages}"
 
 
+def _assert_snapshot_fetch_failure_messages(node, timeout_s=0):
+    """Assert that the expected snapshot fetch failure messages appear in node's logs.
+
+    Polls the node's logs until all expected messages are found or timeout_s elapses.
+    Use the default timeout_s=0 for nodes that have already stopped (single pass).
+    Pass a positive timeout_s for nodes still running (poll until messages appear).
+    """
+    expected_patterns = [
+        re.compile(r"Fetching snapshot from .* \(attempt 1/3\)"),
+        re.compile(r"Fetching snapshot from .* \(attempt 2/3\)"),
+        re.compile(r"Fetching snapshot from .* \(attempt 3/3\)"),
+        re.compile(r"Exceeded maximum snapshot fetch retries \([0-9]+\), giving up"),
+    ]
+    end_time = time.time() + timeout_s
+    remaining = list(expected_patterns)
+    while True:
+        out_path, _ = node.get_logs()
+        with open(out_path, "r", encoding="utf-8") as f:
+            for line in f:
+                matched = [e for e in remaining if re.search(e, line)]
+                for m in matched:
+                    remaining.remove(m)
+                    LOG.info(f"Found expected log message: {line.rstrip()}")
+        if not remaining or time.time() >= end_time:
+            break
+        time.sleep(0.5)
+    assert not remaining, f"Did not find expected log messages: {remaining}"
+
+
 def test_join_time_snapshot_fetch_failure(network, args):
     # Test that the join-time FetchSnapshot task produces the expected retry
     # and "giving up" log messages when the snapshot endpoint is unreachable.
@@ -2842,20 +2871,7 @@ def test_join_time_snapshot_fetch_failure(network, args):
     except infra.network.StartupSeqnoIsOld:
         pass  # expected: FetchSnapshot exhausts retries and node cannot join
 
-    expected_log_messages = [
-        re.compile(r"Fetching snapshot from .* \(attempt 1/3\)"),
-        re.compile(r"Fetching snapshot from .* \(attempt 2/3\)"),
-        re.compile(r"Fetching snapshot from .* \(attempt 3/3\)"),
-        re.compile(r"Exceeded maximum snapshot fetch retries \([0-9]+\), giving up"),
-    ]
-
-    out_path, _ = failing_node.get_logs()
-    with open(out_path, "r", encoding="utf-8") as f:
-        content = f.read()
-    for pattern in expected_log_messages:
-        assert re.search(
-            pattern, content
-        ), f"Did not find expected log message: {pattern.pattern}"
+    _assert_snapshot_fetch_failure_messages(failing_node)
 
 
 def test_error_message_on_failure_to_fetch_snapshot(network, args):
@@ -2883,28 +2899,7 @@ def test_error_message_on_failure_to_fetch_snapshot(network, args):
     network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
     network.get_committed_snapshots(primary)
 
-    expected_log_messages = [
-        re.compile(r"Fetching snapshot from .* \(attempt 1/3\)"),
-        re.compile(r"Fetching snapshot from .* \(attempt 2/3\)"),
-        re.compile(r"Fetching snapshot from .* \(attempt 3/3\)"),
-        re.compile(r"Exceeded maximum snapshot fetch retries \([0-9]+\), giving up"),
-    ]
-
-    timeout_s = 30
-    end_time = time.time() + timeout_s
-    remaining = list(expected_log_messages)
-    while time.time() < end_time and remaining:
-        out_path, _ = new_node.get_logs()
-        with open(out_path, "r", encoding="utf-8") as f:
-            for line in f:
-                matched = [e for e in remaining if re.search(e, line)]
-                for m in matched:
-                    remaining.remove(m)
-                    LOG.info(f"Found expected log message: {line.rstrip()}")
-        if remaining:
-            time.sleep(0.5)
-
-    assert not remaining, f"Did not find expected log messages: {remaining}"
+    _assert_snapshot_fetch_failure_messages(new_node, timeout_s=30)
 
 
 def test_backup_snapshot_fetch(network, args):
