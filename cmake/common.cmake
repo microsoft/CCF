@@ -133,7 +133,7 @@ endfunction()
 function(_accumulate_e2e_test_config)
   cmake_parse_arguments(
     PARSE_ARGV 0 CFG "" "NAME;PYTHON_SCRIPT;LABEL"
-    "CONSTITUTION;ADDITIONAL_ARGS;ENV"
+    "CONSTITUTION;ADDITIONAL_ARGS"
   )
 
   # Extract constitution file paths (strip --constitution flags)
@@ -144,9 +144,6 @@ function(_accumulate_e2e_test_config)
 
   # Additional args as flat array
   _cmake_list_to_json_array("${CFG_ADDITIONAL_ARGS}" ADDITIONAL_ARGS_JSON)
-
-  # Env vars
-  _cmake_list_to_json_array("${CFG_ENV}" ENV_JSON)
 
   set(LABEL_VALUE "${CFG_LABEL}")
   if(NOT LABEL_VALUE)
@@ -162,8 +159,7 @@ function(_accumulate_e2e_test_config)
       \"python_script\": \"${SCRIPT}\",\n\
       \"label\": \"${LABEL_VALUE}\",\n\
       \"constitution\": ${CONSTITUTION_JSON},\n\
-      \"additional_args\": ${ADDITIONAL_ARGS_JSON},\n\
-      \"env\": ${ENV_JSON}\n\
+      \"additional_args\": ${ADDITIONAL_ARGS_JSON}\n\
     }"
   )
 
@@ -312,8 +308,6 @@ function(add_e2e_test)
       ${PARSED_ARGS_CONSTITUTION}
       ADDITIONAL_ARGS
       ${PARSED_ARGS_ADDITIONAL_ARGS}
-      ENV
-      ${TEST_ENV_VARS}
     )
   endif()
 endfunction()
