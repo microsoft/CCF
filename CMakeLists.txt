@@ -1246,6 +1246,19 @@ endif()
 
 write_e2e_test_configs()
 
+# Generate e2e_config.json so that `uv run python <test>.py` picks up
+# constitution, binary_dir, etc. without explicit flags.
+write_e2e_config(
+  CONSTITUTION
+  ${CCF_NETWORK_TEST_DEFAULT_CONSTITUTION}
+  LOG_LEVEL
+  ${TEST_LOGGING_LEVEL}
+  WORKER_THREADS
+  ${WORKER_THREADS}
+  TICK_MS
+  1
+)
+
 # Generate and install CMake export file for consumers using CMake
 include(CMakePackageConfigHelpers)
 configure_package_config_file(

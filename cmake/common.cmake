@@ -100,6 +100,34 @@ function(_extract_flag_values FLAG_NAME INPUT_LIST OUTPUT_VAR)
   )
 endfunction()
 
+# Write a shared e2e_config.json that the Python test framework reads via
+# --defaults-file to populate CLI argument defaults (constitution, binary_dir,
+# log_level, etc).  This removes the need to pass common flags when invoking
+# tests manually.
+function(write_e2e_config)
+  cmake_parse_arguments(
+    PARSE_ARGV 0 CFG "" "LOG_LEVEL;WORKER_THREADS;TICK_MS" "CONSTITUTION"
+  )
+
+  # constitution is passed as --constitution /a --constitution /b … Extract just
+  # the paths.
+  _extract_flag_values(
+    "--constitution" "${CFG_CONSTITUTION}" CONSTITUTION_PATHS
+  )
+  _cmake_list_to_json_array("${CONSTITUTION_PATHS}" CONSTITUTION_JSON)
+
+  set(JSON_CONTENT "{\n")
+  string(APPEND JSON_CONTENT "  \"binary_dir\": \"${CMAKE_BINARY_DIR}\",\n")
+  string(APPEND JSON_CONTENT "  \"library_dir\": \"${CMAKE_BINARY_DIR}\",\n")
+  string(APPEND JSON_CONTENT "  \"constitution\": ${CONSTITUTION_JSON},\n")
+  string(APPEND JSON_CONTENT "  \"log_level\": \"${CFG_LOG_LEVEL}\",\n")
+  string(APPEND JSON_CONTENT "  \"worker_threads\": ${CFG_WORKER_THREADS},\n")
+  string(APPEND JSON_CONTENT "  \"tick_ms\": ${CFG_TICK_MS}\n")
+  string(APPEND JSON_CONTENT "}\n")
+
+  file(WRITE "${CMAKE_BINARY_DIR}/e2e_config.json" "${JSON_CONTENT}")
+endfunction()
+
 # Accumulate a test entry into the global e2e test config. Call
 # write_e2e_test_configs() after all tests are defined.
 function(_accumulate_e2e_test_config)

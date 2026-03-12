@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import argparse
+import json
 import os
 import infra.interfaces
 import infra.path
@@ -62,6 +63,11 @@ def cli_args(
         parser = argparse.ArgumentParser(
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
         )
+    parser.add_argument(
+        "--defaults-file",
+        help="Path to JSON file with default argument values (keys are argparse dest names). Silently skipped if the file does not exist.",
+        default="../build/e2e_config.json",
+    )
     parser.add_argument(
         "-b",
         "--binary-dir",
@@ -385,6 +391,17 @@ def cli_args(
         default=infra.clients.API_VERSION_01,
     )
     add(parser)
+
+    # Two-pass parsing: extract --defaults-file first, load JSON defaults, then
+    # do the real parse so that CLI args override config-file values.
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("--defaults-file", default="../build/e2e_config.json")
+    pre_args, _ = pre_parser.parse_known_args()
+    if os.path.isfile(pre_args.defaults_file):
+        with open(pre_args.defaults_file, "r") as f:
+            config = json.load(f)
+        LOG.info(f"Loaded default args from {pre_args.defaults_file}")
+        parser.set_defaults(**config)
 
     if accept_unknown:
         args, unknown_args = parser.parse_known_args()
