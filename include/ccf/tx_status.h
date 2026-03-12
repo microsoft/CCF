@@ -34,7 +34,8 @@ namespace ccf
   // Contains only the terminal values of TxStatus
   enum class FinalTxStatus : std::underlying_type_t<TxStatus>
   {
-    Committed = static_cast<std::underlying_type_t<TxStatus>>(TxStatus::Committed),
+    Committed =
+      static_cast<std::underlying_type_t<TxStatus>>(TxStatus::Committed),
     Invalid = static_cast<std::underlying_type_t<TxStatus>>(TxStatus::Invalid),
   };
 
