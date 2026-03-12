@@ -8,9 +8,12 @@
 
 #include <crypto/cbor.h>
 #include <crypto/cose.h>
+#include <crypto/cose_utils.h>
 #include <crypto/openssl/cose_sign.h>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <variant>
 
 namespace ccf::cose
 {
@@ -51,10 +54,114 @@ namespace ccf::cose
 
   struct CwtClaims
   {
-    int64_t iat{};
+    std::optional<int64_t> iat;
     std::string iss;
     std::string sub;
+    std::optional<int64_t> svn;
   };
+
+  struct Sign1ProtectedHeader
+  {
+    int64_t alg{};
+    std::optional<std::variant<int64_t, std::string>> cty;
+    std::vector<std::vector<uint8_t>> x5chain;
+    CwtClaims cwt;
+  };
+
+  static void decode_cwt_claims(const ccf::cbor::Value& cbor, CwtClaims& claims)
+  {
+    using namespace ccf::cbor;
+
+    const auto& cwt_claims = rethrow_with_msg(
+      [&]() -> auto& {
+        return cbor->map_at(make_signed(ccf::cose::header::iana::CWT_CLAIMS));
+      },
+      "Parse CWT claims map");
+
+    try
+    {
+      claims.iat = cwt_claims->map_at(make_signed(ccf::cwt::header::iana::IAT))
+                     ->as_signed();
+    }
+    catch (const CBORDecodeError& err)
+    {
+      std::ignore = err; // optional field
+    }
+
+    claims.iss = rethrow_with_msg(
+      [&]() {
+        return cwt_claims->map_at(make_signed(ccf::cwt::header::iana::ISS))
+          ->as_string();
+      },
+      fmt::format(
+        "Parse CWT claim iss({}) field", ccf::cwt::header::iana::ISS));
+
+    claims.sub = rethrow_with_msg(
+      [&]() {
+        return cwt_claims->map_at(make_signed(ccf::cwt::header::iana::SUB))
+          ->as_string();
+      },
+      fmt::format(
+        "Parse CWT claim sub({}) field", ccf::cwt::header::iana::SUB));
+
+    try
+    {
+      claims.svn =
+        cwt_claims->map_at(make_string(ccf::cwt::header::custom::SVN))
+          ->as_signed();
+    }
+    catch (const CBORDecodeError& err)
+    {
+      std::ignore = err; // optional field
+    }
+  }
+
+  static Sign1ProtectedHeader decode_sign1_protected_header(
+    const ccf::cbor::Value& phdr)
+  {
+    using namespace ccf::cbor;
+    Sign1ProtectedHeader hdr;
+
+    hdr.alg = rethrow_with_msg(
+      [&]() {
+        return phdr->map_at(make_signed(ccf::cose::header::iana::ALG))
+          ->as_signed();
+      },
+      fmt::format(
+        "Parse protected header alg({})", ccf::cose::header::iana::ALG));
+
+    try
+    {
+      const auto& cty =
+        phdr->map_at(make_signed(ccf::cose::header::iana::CONTENT_TYPE));
+      try
+      {
+        hdr.cty = std::string(cty->as_string());
+      }
+      catch (const CBORDecodeError&)
+      {
+        hdr.cty = cty->as_signed();
+      }
+    }
+    catch (const CBORDecodeError& err)
+    {
+      std::ignore = err; // optional field
+    }
+
+    hdr.x5chain = rethrow_with_msg(
+      [&]() {
+        const auto& x5chain_val =
+          phdr->map_at(make_signed(ccf::cose::header::iana::X5CHAIN));
+        return ccf::cose::utils::parse_x5chain(x5chain_val);
+      },
+      fmt::format(
+        "Parse protected header x5chain({})",
+        ccf::cose::header::iana::X5CHAIN));
+
+    decode_cwt_claims(phdr, hdr.cwt);
+
+    return hdr;
+  }
 
   struct CcfClaims
   {
@@ -87,6 +194,7 @@ namespace ccf::cose
   {
     CcfCoseReceiptPhdr phdr;
     std::vector<uint8_t> merkle_root;
+    std::vector<uint8_t> claims_digest;
   };
 
   static std::vector<uint8_t> recompute_merkle_root(const MerkleProof& proof)
@@ -134,41 +242,6 @@ namespace ccf::cose
     }
 
     return {leaf_digest.h.begin(), leaf_digest.h.end()};
-  }
-
-  static void decode_cwt_claims(const ccf::cbor::Value& cbor, CwtClaims& claims)
-  {
-    using namespace ccf::cbor;
-
-    const auto& cwt_claims = rethrow_with_msg(
-      [&]() -> auto& {
-        return cbor->map_at(make_signed(ccf::cose::header::iana::CWT_CLAIMS));
-      },
-      "Parse CWT claims map");
-
-    claims.iat = rethrow_with_msg(
-      [&]() {
-        return cwt_claims->map_at(make_signed(ccf::cwt::header::iana::IAT))
-          ->as_signed();
-      },
-      fmt::format(
-        "Parse CWT claim iat({}) field", ccf::cwt::header::iana::IAT));
-
-    claims.iss = rethrow_with_msg(
-      [&]() {
-        return cwt_claims->map_at(make_signed(ccf::cwt::header::iana::ISS))
-          ->as_string();
-      },
-      fmt::format(
-        "Parse CWT claim iss({}) field", ccf::cwt::header::iana::ISS));
-
-    claims.sub = rethrow_with_msg(
-      [&]() {
-        return cwt_claims->map_at(make_signed(ccf::cwt::header::iana::SUB))
-          ->as_string();
-      },
-      fmt::format(
-        "Parse CWT claim sub({}) field", ccf::cwt::header::iana::SUB));
   }
 
   static void decode_ccf_claims(const ccf::cbor::Value& cbor, CcfClaims& claims)
@@ -374,6 +447,7 @@ namespace ccf::cose
       }
 
       receipt.merkle_root = recompute_merkle_root(proofs[0]);
+      receipt.claims_digest = proofs[0].leaf.claims_digest;
       for (size_t i = 1; i < proofs.size(); ++i)
       {
         auto root = recompute_merkle_root(proofs[i]);
@@ -381,6 +455,13 @@ namespace ccf::cose
         {
           throw COSEDecodeError(
             "Inconsistent Merkle roots computed from COSE receipt proofs");
+        }
+        if (proofs[i].leaf.claims_digest != receipt.claims_digest)
+        {
+          throw COSEDecodeError(fmt::format(
+            "Claims from proofs don't match: {} != {}",
+            ds::to_hex(receipt.claims_digest),
+            ds::to_hex(proofs[i].leaf.claims_digest)));
         }
       }
     }

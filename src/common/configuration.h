@@ -93,10 +93,24 @@ namespace ccf
     snp_uvm_endorsements_file,
     snp_endorsements_file);
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Snapshots::BackupFetch);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Snapshots::BackupFetch);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::Snapshots::BackupFetch,
+    enabled,
+    max_attempts,
+    retry_interval,
+    target_rpc_interface,
+    max_size);
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Snapshots);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Snapshots);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCFConfig::Snapshots, directory, tx_count, read_only_directory);
+    CCFConfig::Snapshots,
+    directory,
+    tx_count,
+    read_only_directory,
+    backup_fetch);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
@@ -128,13 +142,15 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     StartupConfig::Start, members, constitution, service_configuration);
 
-  DECLARE_JSON_TYPE(StartupConfig::Join);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(StartupConfig::Join);
   DECLARE_JSON_REQUIRED_FIELDS(
     StartupConfig::Join,
     target_rpc_address,
     retry_timeout,
     service_cert,
     follow_redirect);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    StartupConfig::Join, host_data_transparent_statement_path);
 
   DECLARE_JSON_TYPE(StartupConfig::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(

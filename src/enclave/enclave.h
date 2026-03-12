@@ -33,6 +33,7 @@
 #include "node/rpc/user_frontend.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
+#include "tasks/worker.h"
 
 #include <openssl/engine.h>
 
@@ -396,7 +397,7 @@ namespace ccf
           size_t tasks_done = 0;
           while (task != nullptr)
           {
-            task->do_task();
+            ccf::tasks::try_do_task(*task);
             ++tasks_done;
             if (tasks_done >= max_messages)
             {
@@ -433,7 +434,7 @@ namespace ccf
           auto task = job_board.wait_for_task(timeout);
           if (task != nullptr)
           {
-            task->do_task();
+            ccf::tasks::try_do_task(*task);
           }
         }
       }
