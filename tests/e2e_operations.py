@@ -3175,9 +3175,7 @@ def run_snapshot_persistence_across_primary_failure(const_args):
             f"(interval={snapshot_interval_ms}ms, election_timeout={args.election_timeout_ms}ms)"
         )
 
-        assert (
-            min_expected <= total_snapshots <= max_expected
-        ), (
+        assert min_expected <= total_snapshots <= max_expected, (
             f"Snapshot count {total_snapshots} is outside expected bounds "
             f"[{min_expected:.1f}, {max_expected:.1f}] based on elapsed time, "
             f"snapshot interval, and election timeout"
