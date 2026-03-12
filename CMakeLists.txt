@@ -1134,7 +1134,6 @@ if(BUILD_TESTS)
     CONFIGURATIONS snp
   )
 
-  list(APPEND LTS_TEST_ARGS --ccf-version ${CCF_VERSION})
   if(LONG_TESTS)
     list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
   endif()
@@ -1165,11 +1164,10 @@ if(BUILD_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)
   endif()
 
-  set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
   add_e2e_test(
     NAME nodes_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/nodes.py
-    ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS} ${ROTATION_TEST_ARGS}
+    ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
   )
 
   add_piccolo_test(

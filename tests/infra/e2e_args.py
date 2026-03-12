@@ -401,6 +401,15 @@ def cli_args(
         with open(pre_args.defaults_file, "r") as f:
             config = json.load(f)
         LOG.info(f"Loaded default args from {pre_args.defaults_file}")
+        # If ccf_version is not already in the config, try to read it from
+        # VERSION_LONG in the same directory as the defaults file.
+        if "ccf_version" not in config:
+            version_long_path = os.path.join(
+                os.path.dirname(pre_args.defaults_file), "VERSION_LONG"
+            )
+            if os.path.isfile(version_long_path):
+                with open(version_long_path, "r") as vf:
+                    config["ccf_version"] = vf.read().strip()
         parser.set_defaults(**config)
 
     if accept_unknown:
