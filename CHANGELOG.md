@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev13]
+
+[7.0.0-dev13]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev13
+
+### Added
+
+- Added time-based snapshot scheduling. Snapshots can now be triggered after a configurable wall-clock interval (`snapshots.time_interval`) elapses, in addition to the existing transaction-count threshold (`snapshots.tx_count`). A new `snapshots.min_tx_count` option (default 2) sets the minimum number of transactions required before a time-based snapshot fires. Snapshot timing state is replicated to backups via a new `public:ccf.internal.snapshot_status` internal table (#7731).
+
 ## [7.0.0-dev12]
 
 [7.0.0-dev12]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev12
@@ -12,7 +20,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Backup nodes can now be configured to automatically fetch snapshots from the primary when snapshot evidence is detected. This is controlled by the `snapshots.backup_fetch` configuration section, with `enabled`, `max_attempts`, `retry_interval`, `max_size` and `target_rpc_interface` options. Note that the target RPC interface selected must have the `SnapshotRead` operator feature enabled.
-- Added time-based snapshot scheduling. Snapshots can now be triggered after a configurable wall-clock interval (`snapshots.time_interval`) elapses, in addition to the existing transaction-count threshold (`snapshots.tx_count`). A new `snapshots.min_tx_count` option (default 2) sets the minimum number of transactions required before a time-based snapshot fires. Snapshot timing state is replicated to backups via a new `public:ccf.internal.snapshot_status` internal table (#7731).
 - Added `ccf::IdentityHistoryNotFetched` exception type to distinguish identity-history-fetching errors from other logic errors in the network identity subsystem (#7708).
 - Added `ccf::describe_cose_receipt_v1(receipt)` to obtain COSE receipts with Merkle proof in unprotected header for non-signature TXs, and empty unprotected header for signature TXs (#7700).
 - `NetworkIdentitySubsystemInterface` now exposes `get_trusted_keys()`, returning all trusted network identity keys as a `TrustedKeys` map (#7690).
