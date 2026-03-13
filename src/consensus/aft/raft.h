@@ -207,6 +207,16 @@ namespace aft
     std::unique_ptr<LedgerProxy> ledger;
     std::shared_ptr<ccf::NodeToNode> channels;
 
+    // Describes how this node should force leadership at construction time,
+    // before any other thread can observe it (so no lock is needed).
+    struct StartupPrimaryInfo
+    {
+      // For recovery, these fields are populated from the recovered ledger
+      std::optional<Index> index = std::nullopt;
+      std::optional<Term> term = std::nullopt;
+      std::optional<std::vector<Index>> view_history = std::nullopt;
+    };
+
     Aft(
       const ccf::consensus::Configuration& settings_,
       std::unique_ptr<Store> store_,
@@ -214,7 +224,8 @@ namespace aft
       std::shared_ptr<ccf::NodeToNode> channels_,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
-      bool public_only_ = false) :
+      bool public_only_ = false,
+      std::optional<StartupPrimaryInfo> startup_primary = std::nullopt) :
       store(std::move(store_)),
 
       timeout_elapsed(0),
@@ -236,7 +247,26 @@ namespace aft
 
       ledger(std::move(ledger_)),
       channels(std::move(channels_))
-    {}
+    {
+      if (startup_primary.has_value())
+      {
+        // Force leadership at construction time. No lock needed — this
+        // object is not yet visible to other threads.
+        const auto& sp = startup_primary.value();
+        if (sp.index.has_value())
+        {
+          // Recovery path
+          state->current_view = sp.term.value();
+          state->last_idx = sp.index.value();
+          state->commit_idx = sp.index.value();
+          state->view_history.initialise(sp.view_history.value());
+          state->view_history.update(
+            sp.index.value(), sp.term.value());
+        }
+        state->current_view += starting_view_change;
+        become_leader(true);
+      }
+    }
 
     ~Aft() override = default;
 

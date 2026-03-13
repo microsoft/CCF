@@ -365,6 +365,10 @@ namespace ccf
     NodeId self;
     std::shared_ptr<ccf::crypto::RSAKeyPair> node_encrypt_kp;
     ccf::crypto::Pem self_signed_node_cert;
+
+    // Protects endorsed_node_cert only, to avoid taking the main lock in map
+    // hooks (which would create a lock cycle with consensus/snapshot locks)
+    pal::Mutex endorsed_cert_lock;
     std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
     pal::PlatformAttestationMeasurement node_measurement;
@@ -925,10 +929,10 @@ namespace ccf
           history->set_service_signing_identity(
             network.identity->get_key_pair(), config.cose_signatures);
 
-          setup_consensus(false, endorsed_node_cert);
-
-          // Become the primary and force replication
-          consensus->force_become_primary();
+          setup_consensus(
+            false,
+            endorsed_node_cert,
+            RaftType::StartupPrimaryInfo{});
 
           LOG_INFO_FMT("Created new node {}", self);
           return {self_signed_node_cert, network.identity->cert};
@@ -1611,12 +1615,13 @@ namespace ccf
         }
       }
 
-      setup_consensus(true);
+      setup_consensus(
+        true,
+        std::nullopt,
+        RaftType::StartupPrimaryInfo{index, view, view_history});
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT("Restarting consensus at view: {} seqno: {}", view, index);
-
-      consensus->force_become_primary(index, view, view_history, index);
 
       create_and_send_boot_request(
         new_term, false /* Restore consortium from ledger */);
@@ -2758,7 +2763,7 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              std::lock_guard<pal::Mutex> guard(lock);
+              std::lock_guard<pal::Mutex> guard(endorsed_cert_lock);
 
               if (endorsed_node_cert.has_value())
               {
@@ -2999,6 +3004,8 @@ namespace ccf
     void setup_consensus(
       bool public_only = false,
       const std::optional<ccf::crypto::Pem>& endorsed_node_certificate_ =
+        std::nullopt,
+      std::optional<RaftType::StartupPrimaryInfo> startup_primary =
         std::nullopt)
     {
       setup_n2n_channels(endorsed_node_certificate_);
@@ -3016,7 +3023,8 @@ namespace ccf
         n2n_channels,
         shared_state,
         node_client,
-        public_only);
+        public_only,
+        startup_primary);
 
       network.tables->set_consensus(consensus);
       network.tables->set_snapshotter(snapshotter);
