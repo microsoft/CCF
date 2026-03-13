@@ -90,8 +90,8 @@ jobs:
       - name: "Run partitions tests"
         run: |
           set -ex
-          cd build
-          uv run --project ../tests python ../tests/run_e2e.py -L partitions -C partitions --timeout 360
+          cd tests
+          uv run ./run_e2e.py -L partitions -C partitions --timeout 360
 
       - name: "Upload logs for virtual A"
         uses: actions/upload-artifact@v7
@@ -160,12 +160,12 @@ jobs:
       - name: "Test virtual"
         run: |
           set -ex
-          cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
 
           # End to end tests
-          uv run --project ../tests python ../tests/run_e2e.py -LE "benchmark|suite|unit" --timeout 360
+          cd tests
+          uv run ./run_e2e.py -LE "benchmark|suite|unit" --timeout 360
         shell: bash
 
       - name: "Upload logs for virtual B"
@@ -231,11 +231,11 @@ jobs:
       - name: "Tests"
         run: |
           set -ex
-          cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          uv run --project ../tests python ../tests/run_e2e.py -C snp -L snp --timeout 360
-          uv run --project ../tests python ../tests/run_e2e.py -R code_update --timeout 360
+          cd tests
+          uv run ./run_e2e.py -C snp -L snp --timeout 360
+          uv run ./run_e2e.py -R code_update --timeout 360
         shell: bash
 
       - name: "Capture dmesg"
@@ -312,11 +312,11 @@ jobs:
       - name: "Tests"
         run: |
           set -ex
-          cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          uv run --project ../tests python ../tests/run_e2e.py -C snp -L snp --timeout 360
-          uv run --project ../tests python ../tests/run_e2e.py -R code_update --timeout 360
+          cd tests
+          uv run ./run_e2e.py -C snp -L snp --timeout 360
+          uv run ./run_e2e.py -R code_update --timeout 360
         shell: bash
 
       - name: "Capture dmesg"

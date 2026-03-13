@@ -56,7 +56,7 @@ jobs:
           # Microbenchmarks
           ctest -VV -L benchmark
           # End to end performance tests
-          uv run --project ../tests python ../tests/run_e2e.py -L perf -C perf
+          (cd ../tests && uv run ./run_e2e.py -L perf -C perf)
           # Convert microbenchmark output to bencher json
           source env/bin/activate
           PYTHONPATH=../tests python convert_pico_to_bencher.py
@@ -103,7 +103,7 @@ jobs:
           # Microbenchmarks
           ctest -VV -L benchmark -E task_bench
           # End to end performance tests
-          uv run --project ../tests python ../tests/run_e2e.py -L perf -C perf
+          (cd ../tests && uv run ./run_e2e.py -L perf -C perf)
           # Convert microbenchmark output to bencher json
           source env/bin/activate
           PYTHONPATH=../tests python convert_pico_to_bencher.py

@@ -149,9 +149,10 @@ jobs:
           # Unit tests
           ctest --output-on-failure -L unit -j$(nproc --all)
           # Suite tests
-          uv run --project ../tests python ../tests/run_e2e.py -L "suite" --timeout 600
+          cd ../tests
+          uv run ./run_e2e.py -L "suite" --timeout 600
           # Most tests
-          uv run --project ../tests python ../tests/run_e2e.py -LE "suite|benchmark|unit" --timeout 360
+          uv run ./run_e2e.py -LE "suite|benchmark|unit" --timeout 360
         shell: bash
 
       - name: "Upload logs"

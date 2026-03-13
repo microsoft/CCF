@@ -62,8 +62,8 @@ jobs:
       - name: "Test"
         run: |
           set +x
-          cd build
-          uv run --project ../tests python ../tests/run_e2e.py -LE "benchmark" --timeout 1600
+          cd tests
+          uv run ./run_e2e.py -LE "benchmark" --timeout 1600
 
       - name: "Upload logs"
         if: success() || failure()
@@ -122,8 +122,8 @@ jobs:
       - name: "Test"
         run: |
           set +x
-          cd build
-          setarch -R uv run --project ../tests python ../tests/run_e2e.py -LE "benchmark" -E "recovery|regression|governance|membership" --timeout 3600
+          cd tests
+          setarch -R uv run ./run_e2e.py -LE "benchmark" -E "recovery|regression|governance|membership" --timeout 3600
 
       - name: "Upload logs"
         if: success() || failure()
@@ -187,8 +187,8 @@ jobs:
       - name: "Test"
         run: |
           set +x
-          cd build
-          uv run --project ../tests python ../tests/run_e2e.py -LE "benchmark" --timeout 1600
+          cd tests
+          uv run ./run_e2e.py -LE "benchmark" --timeout 1600
 
       - name: "Upload logs"
         if: success() || failure()
@@ -247,8 +247,8 @@ jobs:
       - name: "Test"
         run: |
           set +x
-          cd build
-          uv run --project ../tests python ../tests/run_e2e.py -LE "benchmark" --timeout 1600
+          cd tests
+          uv run ./run_e2e.py -LE "benchmark" --timeout 1600
 
       - name: "Upload logs"
         if: success() || failure()
@@ -311,14 +311,14 @@ jobs:
       - name: "Test Long LTS"
         run: |
           set +x
-          cd build
-          uv run --project ../tests python ../tests/run_e2e.py -R "lts" --timeout 1600
+          cd tests
+          uv run ./run_e2e.py -R "lts" --timeout 1600
 
       - name: "Test shuffled"
         run: |
           set +x
-          cd build
-          uv run --project ../tests python ../tests/run_e2e.py -R "suite" --timeout 1600
+          cd tests
+          uv run ./run_e2e.py -R "suite" --timeout 1600
 
       - name: "Check snmalloc disabled"
         run: |

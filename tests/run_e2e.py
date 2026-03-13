@@ -5,8 +5,8 @@
 """
 Run e2e tests from e2e_tests.json, bypassing CTest.
 
-Usage (from the build directory):
-    uv run --project ../tests python ../tests/run_e2e.py [options]
+Usage (from the tests directory):
+    uv run ./run_e2e.py [options]
 
 Supports the same filtering semantics as CTest:
     -L / --label-include     Include tests matching label regex
@@ -122,10 +122,12 @@ def main():
     parser = argparse.ArgumentParser(
         description="Run CCF e2e tests from e2e_tests.json"
     )
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    default_build_dir = os.path.join(script_dir, "..", "build")
     parser.add_argument(
         "--tests-json",
-        default="e2e_tests.json",
-        help="Path to e2e_tests.json (default: e2e_tests.json in cwd)",
+        default=os.path.join(default_build_dir, "e2e_tests.json"),
+        help="Path to e2e_tests.json (default: ../build/e2e_tests.json relative to this script)",
     )
     parser.add_argument(
         "-L",
