@@ -11,7 +11,9 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 ROOT_DIR=$( dirname "$SCRIPT_DIR" )
 cd "$ROOT_DIR" || exit 1
 
-npm install --loglevel=error --no-save @apidevtools/swagger-cli 1>/dev/null || exit 1
+NPM_DIR=$(mktemp -d)
+trap 'rm -rf "$NPM_DIR"' EXIT
+npm install --loglevel=error --no-save --prefix "$NPM_DIR" @apidevtools/swagger-cli 1>/dev/null || exit 1
 
-find doc/schemas/*.json -exec npx swagger-cli validate {} \; || exit 1
-find doc/schemas/gov/*/*.json -exec npx swagger-cli validate {} \;
+find doc/schemas/*.json -exec npx --prefix "$NPM_DIR" swagger-cli validate {} \; || exit 1
+find doc/schemas/gov/*/*.json -exec npx --prefix "$NPM_DIR" swagger-cli validate {} \;

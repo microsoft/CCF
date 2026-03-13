@@ -18,10 +18,12 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 ROOT_DIR=$( dirname "$SCRIPT_DIR" )
 cd "$ROOT_DIR" || exit 1
 
-npm install --loglevel=error --no-save prettier @typespec/prettier-plugin-typespec 1>/dev/null || exit 1
+NPM_DIR=$(mktemp -d)
+trap 'rm -rf "$NPM_DIR"' EXIT
+npm install --loglevel=error --no-save --prefix "$NPM_DIR" prettier @typespec/prettier-plugin-typespec 1>/dev/null || exit 1
 
 if [ $FIX -ne 0 ]; then
-  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | grep -v -e 'tests/sandbox/' | xargs npx prettier --write
+  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | grep -v -e 'tests/sandbox/' | xargs npx --prefix "$NPM_DIR" prettier --write
 else
-  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | grep -v -e 'tests/sandbox/' | xargs npx prettier --check
+  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | grep -v -e 'tests/sandbox/' | xargs npx --prefix "$NPM_DIR" prettier --check
 fi
