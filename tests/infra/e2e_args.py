@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import argparse
+import json
 import os
 import infra.interfaces
 import infra.path
@@ -384,12 +385,31 @@ def cli_args(
         type=str,
         default=infra.clients.API_VERSION_01,
     )
+
     add(parser)
+
+    # Look for e2e_config.json in cwd (the build dir when run via ctest).
+    # Values from the config are applied as parser defaults so that explicit
+    # CLI args still take precedence.
+    e2e_config = None
+    config_path = os.path.join(os.getcwd(), "e2e_config.json")
+    if os.path.isfile(config_path):
+        with open(config_path, encoding="utf-8") as f:
+            e2e_config = json.load(f)
+        config_defaults = {
+            k: v for k, v in e2e_config.items() if k != "default_constitution"
+        }
+        parser.set_defaults(**config_defaults)
 
     if accept_unknown:
         args, unknown_args = parser.parse_known_args()
     else:
         args = parser.parse_args()
+
+    # Constitution uses append action, so set_defaults can't help.
+    # Fall back to config value when nothing was passed on the CLI.
+    if e2e_config and not args.constitution:
+        args.constitution = e2e_config.get("default_constitution", [])
 
     args.binary_dir = os.path.abspath(args.binary_dir)
 

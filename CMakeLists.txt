@@ -297,18 +297,41 @@ set(WORKER_THREADS
     CACHE STRING "Number of worker threads to start on each CCF node"
 )
 
-set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
-    --constitution
+# Default constitution file paths (used for both CLI args and config generation)
+set(CCF_DEFAULT_CONSTITUTION_FILES
     ${CCF_DIR}/samples/constitutions/default/actions.js
-    --constitution
     ${CCF_DIR}/samples/constitutions/default/validate.js
-    --constitution
     ${CCF_DIR}/samples/constitutions/default/resolve.js
-    --constitution
     ${CCF_DIR}/samples/constitutions/default/apply.js
 )
+
+# Build the --constitution CLI args from the file list
+set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION "")
+foreach(f ${CCF_DEFAULT_CONSTITUTION_FILES})
+  list(APPEND CCF_NETWORK_TEST_DEFAULT_CONSTITUTION --constitution ${f})
+endforeach()
+
 set(CCF_NETWORK_TEST_ARGS --log-level ${TEST_LOGGING_LEVEL} --worker-threads
                           ${WORKER_THREADS}
+)
+
+# Tick period: faster for non-instrumented builds
+if(SAN)
+  set(NODE_TICK_MS 10)
+else()
+  set(NODE_TICK_MS 1)
+endif()
+
+# Build JSON array of default constitution paths for e2e config
+list(TRANSFORM CCF_DEFAULT_CONSTITUTION_FILES REPLACE "(.+)" "\"\\1\""
+     OUTPUT_VARIABLE _quoted
+)
+list(JOIN _quoted ", " DEFAULT_CONSTITUTION_JSON)
+set(DEFAULT_CONSTITUTION_JSON "[${DEFAULT_CONSTITUTION_JSON}]")
+
+# Generate e2e test config consumed by tests/infra/e2e_args.py
+configure_file(
+  ${CCF_DIR}/cmake/e2e_config.json.in ${CMAKE_BINARY_DIR}/e2e_config.json @ONLY
 )
 
 # SNIPPET_START: JS generic application
