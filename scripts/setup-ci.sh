@@ -60,4 +60,5 @@ tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install strace
 tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install rpm-build
 
 # For end to end tests
+tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install python3-pip
 pip install uv==0.10.8
