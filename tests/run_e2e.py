@@ -204,7 +204,9 @@ def main():
     for name, success, duration in results:
         status = "PASS" if success else "FAIL"
         print(f"  {status}: {name} ({duration:.1f}s)")
-    print(f"\n{passed} passed, {failed} failed, {len(results)} total ({total_time:.1f}s)")
+    print(
+        f"\n{passed} passed, {failed} failed, {len(results)} total ({total_time:.1f}s)"
+    )
 
     sys.exit(1 if failed > 0 else 0)
 
