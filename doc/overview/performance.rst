@@ -15,7 +15,7 @@ The micro-benchmark tests can be run from the CCF build directory:
 
 .. code-block:: bash
 
-    ./tests.sh -VV -L "bench"
+    ctest -VV -L "bench"
 
 These test performance-critical features of CCF such as certificate verification and KV-alterations. As an example, here is sample output of ``crypto_bench``:
 
@@ -97,7 +97,7 @@ The end-to-end service performance tests can also be from the CCF build director
 
 .. code-block:: bash
 
-    ./tests.sh -VV -L "perf" -C "perf"
+    uv run --project ../tests python ../tests/run_e2e.py -L perf -C perf
 
 Each of these tests creates a temporary CCF service on the local machine, then sends a high volume of transactions to measure peak and average throughput. The python test wrappers will print summary statistics including a transaction rate histogram when the test completes. These statistics can be retrieved from any CCF service via the ``getMetrics`` RPC.
 

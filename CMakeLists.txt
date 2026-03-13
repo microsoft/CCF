@@ -150,7 +150,7 @@ foreach(UTILITY ${CCF_UTILITIES})
 endforeach()
 
 # Copy utilities from tests directory
-set(CCF_TEST_UTILITIES tests.sh convert_pico_to_bencher.py test_install.sh
+set(CCF_TEST_UTILITIES convert_pico_to_bencher.py test_install.sh
                        docker_wrap.sh config.jinja recovery_benchmark.sh
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})

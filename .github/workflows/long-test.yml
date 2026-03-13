@@ -63,7 +63,7 @@ jobs:
         run: |
           set +x
           cd build
-          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
+          uv run --project ../tests python ../tests/run_e2e.py -LE "benchmark" --timeout 1600
 
       - name: "Upload logs"
         if: success() || failure()
@@ -123,7 +123,7 @@ jobs:
         run: |
           set +x
           cd build
-          setarch -R ./tests.sh --output-on-failure --timeout 3600 -LE "benchmark" -E "recovery|regression|governance|membership"
+          setarch -R uv run --project ../tests python ../tests/run_e2e.py -LE "benchmark" -E "recovery|regression|governance|membership" --timeout 3600
 
       - name: "Upload logs"
         if: success() || failure()
@@ -188,7 +188,7 @@ jobs:
         run: |
           set +x
           cd build
-          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
+          uv run --project ../tests python ../tests/run_e2e.py -LE "benchmark" --timeout 1600
 
       - name: "Upload logs"
         if: success() || failure()
@@ -248,7 +248,7 @@ jobs:
         run: |
           set +x
           cd build
-          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
+          uv run --project ../tests python ../tests/run_e2e.py -LE "benchmark" --timeout 1600
 
       - name: "Upload logs"
         if: success() || failure()
@@ -312,13 +312,13 @@ jobs:
         run: |
           set +x
           cd build
-          ./tests.sh --output-on-failure --timeout 1600 -R "lts"
+          uv run --project ../tests python ../tests/run_e2e.py -R "lts" --timeout 1600
 
       - name: "Test shuffled"
         run: |
           set +x
           cd build
-          ./tests.sh --output-on-failure --timeout 1600 -R "suite"
+          uv run --project ../tests python ../tests/run_e2e.py -R "suite" --timeout 1600
 
       - name: "Check snmalloc disabled"
         run: |

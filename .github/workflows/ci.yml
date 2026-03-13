@@ -82,7 +82,7 @@ jobs:
         run: |
           set -ex
           cd build
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          ctest --output-on-failure -L unit -j$(nproc --all)
 
         # Note that those are only run on the virtual CI, as they require enough
         # privileges to configure iptables. ACI-based pools run unprivileged
@@ -91,7 +91,7 @@ jobs:
         run: |
           set -ex
           cd build
-          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+          uv run --project ../tests python ../tests/run_e2e.py -L partitions -C partitions --timeout 360
 
       - name: "Upload logs for virtual A"
         uses: actions/upload-artifact@v7
@@ -165,7 +165,7 @@ jobs:
           mkdir -p /github/home/.cache
 
           # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+          uv run --project ../tests python ../tests/run_e2e.py -LE "benchmark|suite|unit" --timeout 360
         shell: bash
 
       - name: "Upload logs for virtual B"
@@ -234,8 +234,8 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
-          ./tests.sh --timeout 360 --output-on-failure -R code_update
+          uv run --project ../tests python ../tests/run_e2e.py -C snp -L snp --timeout 360
+          uv run --project ../tests python ../tests/run_e2e.py -R code_update --timeout 360
         shell: bash
 
       - name: "Capture dmesg"
@@ -315,8 +315,8 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
-          ./tests.sh --timeout 360 --output-on-failure -R code_update
+          uv run --project ../tests python ../tests/run_e2e.py -C snp -L snp --timeout 360
+          uv run --project ../tests python ../tests/run_e2e.py -R code_update --timeout 360
         shell: bash
 
       - name: "Capture dmesg"

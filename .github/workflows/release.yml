@@ -147,11 +147,11 @@ jobs:
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
           # Unit tests
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          ctest --output-on-failure -L unit -j$(nproc --all)
           # Suite tests
-          ./tests.sh --timeout 600 --output-on-failure -L "suite"
+          uv run --project ../tests python ../tests/run_e2e.py -L "suite" --timeout 600
           # Most tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "suite|benchmark|unit"
+          uv run --project ../tests python ../tests/run_e2e.py -LE "suite|benchmark|unit" --timeout 360
         shell: bash
 
       - name: "Upload logs"

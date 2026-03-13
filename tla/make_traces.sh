@@ -8,6 +8,6 @@ mkdir -p build
 pushd build
 cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON -DCCF_RAFT_TRACING=ON ..
 ninja raft_driver
-./tests.sh -VV -R scenario
+ctest -VV -R scenario
 popd
 popd
