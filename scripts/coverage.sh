@@ -134,6 +134,28 @@ echo "Merging coverage data into '${OUTPUT_FILE}'..."
 "${LLVM_PROFDATA}" merge -sparse "${PROFRAW_FILES[@]}" -o "${OUTPUT_FILE}"
 
 # ---------------------------------------------------------------------------
+# Detect -ffile-prefix-map and compute -compilation-dir for llvm-cov.
+# The build uses -ffile-prefix-map=<real>=<mapped> (e.g.
+# /workspaces/CCF=CCF) to make binaries reproducible.  This turns all
+# recorded source paths into relative paths like CCF/include/...  By
+# default llvm-cov resolves these relative to the (also-mapped)
+# compilation directory, producing non-existent doubled paths such as
+# CCF/build/CCF/include/...  Setting -compilation-dir to the parent of
+# the real source tree lets llvm-cov resolve the mapped paths correctly:
+# e.g. CCF/include/... relative to /workspaces -> /workspaces/CCF/include/...
+# ---------------------------------------------------------------------------
+COMPILATION_DIR=""
+COMPILE_DB="${PROFRAW_DIR}/compile_commands.json"
+if [[ -f "${COMPILE_DB}" ]]; then
+  prefix_map=$(grep -m1 -o '\-ffile-prefix-map=[^ "]*' "${COMPILE_DB}" | sed 's/-ffile-prefix-map=//' || true)
+  if [[ -n "${prefix_map}" ]]; then
+    real_path="${prefix_map%%=*}"
+    COMPILATION_DIR=$(dirname "${real_path}")
+    echo "Detected file-prefix-map, using compilation-dir: ${COMPILATION_DIR}"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # Build common llvm-cov argument list
 # ---------------------------------------------------------------------------
 build_cov_args() {
@@ -144,6 +166,10 @@ build_cov_args() {
   done
   # Exclude third-party code from all reports
   args+=("-ignore-filename-regex=3rdparty/")
+  # Override compilation directory so llvm-cov can resolve mapped source paths
+  if [[ -n "${COMPILATION_DIR}" ]]; then
+    args+=("-compilation-dir=${COMPILATION_DIR}")
+  fi
   printf '%s\n' "${args[@]}"
 }
 
