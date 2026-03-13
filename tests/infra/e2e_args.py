@@ -260,7 +260,7 @@ def cli_args(
         "--snapshot-min-tx-interval",
         help="Minimum number of transactions before a time-based snapshot can trigger",
         type=int,
-        default=0,
+        default=2,
     )
     parser.add_argument(
         "--snapshot-time-interval",

@@ -445,7 +445,7 @@ TEST_CASE("Rollback before snapshot is committed")
   }
 }
 
-TEST_CASE("Snapshot status updates released snapshot baseline")
+TEST_CASE("Snapshot status updates preserve future queued snapshot")
 {
   ccf::logger::config::default_init();
 
@@ -453,7 +453,7 @@ TEST_CASE("Snapshot status updates released snapshot baseline")
 
   auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
   auto history = std::make_shared<ccf::MerkleTxHistory>(
-    *network.tables.get(), ccf::kv::test::PrimaryNodeId, *node_kp);
+    *network.tables, ccf::kv::test::PrimaryNodeId, *node_kp);
   network.tables->set_history(history);
   network.tables->initialise_term(2);
   network.tables->set_consensus(consensus);
@@ -472,19 +472,68 @@ TEST_CASE("Snapshot status updates released snapshot baseline")
 
   auto snapshotter = std::make_shared<ccf::Snapshotter>(
     *writer_factory, network.tables, snapshot_tx_interval);
-  snapshotter->init_from_snapshot_status(
-    {static_cast<ccf::kv::Version>(snapshot_tx_interval), 0});
+  REQUIRE(record_signature(history, snapshotter, snapshot_tx_interval));
 
-  // Simulate a backup learning that the latest released snapshot was forced
-  // at a later seqno via the replicated snapshot status table.
+  issue_transactions(network, snapshot_tx_interval);
+  REQUIRE(
+    record_signature(history, snapshotter, network.tables->current_version()));
+
+  // Simulate a node learning that the latest released snapshot baseline has
+  // moved forward via the replicated snapshot status table.
   snapshotter->record_snapshot_status({
     .version = snapshot_tx_interval + 4,
     .timestamp = 0,
   });
-  snapshotter->rollback(0);
 
-  issue_transactions(network, snapshot_tx_interval);
+  issue_transactions(network, 6);
   REQUIRE_FALSE(
+    record_signature(history, snapshotter, network.tables->current_version()));
+
+  snapshotter->commit(2 * snapshot_tx_interval, true);
+  run_one_task();
+
+  auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
+  REQUIRE(snapshot_allocate_msg.has_value());
+  const auto snapshot_idx = std::get<0>(snapshot_allocate_msg.value());
+  REQUIRE(snapshot_idx == 2 * snapshot_tx_interval);
+}
+
+TEST_CASE("Snapshot status restore uses persisted timestamp baseline")
+{
+  ccf::logger::config::default_init();
+
+  ccf::NetworkState network;
+
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  auto history = std::make_shared<ccf::MerkleTxHistory>(
+    *network.tables, ccf::kv::test::PrimaryNodeId, *node_kp);
+  network.tables->set_history(history);
+  network.tables->initialise_term(2);
+  network.tables->set_consensus(consensus);
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
+
+  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
+
+  std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
+    std::make_unique<ringbuffer::WriterFactory>(eio);
+
+  auto snapshotter = std::make_shared<ccf::Snapshotter>(
+    *writer_factory, network.tables, 100, 2, std::chrono::seconds(1));
+
+  snapshotter->init_from_snapshot_status({
+    .version = 0,
+    .timestamp = 0,
+  });
+
+  issue_transactions(network, 2);
+  REQUIRE_FALSE(
+    record_signature(history, snapshotter, network.tables->current_version()));
+
+  issue_transactions(network, 1);
+  REQUIRE(
     record_signature(history, snapshotter, network.tables->current_version()));
 }
 

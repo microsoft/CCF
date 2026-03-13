@@ -120,6 +120,32 @@ namespace ccf
       return static_cast<uint64_t>(timestamp_ns);
     }
 
+    ::consensus::Index latest_scheduled_or_committed_snapshot_idx() const
+    {
+      auto latest_idx = last_snapshot_idx;
+      for (const auto& entry : next_snapshot_indices)
+      {
+        latest_idx = std::max(latest_idx, entry.idx);
+      }
+
+      return latest_idx;
+    }
+
+    TimePoint latest_scheduled_or_committed_snapshot_time(
+      ::consensus::Index latest_snapshot_idx) const
+    {
+      auto latest_time = last_snapshot_time;
+      for (const auto& [idx, time] : scheduled_snapshot_times)
+      {
+        if (idx <= latest_snapshot_idx)
+        {
+          latest_time = std::max(latest_time, time);
+        }
+      }
+
+      return latest_time;
+    }
+
     void commit_snapshot(
       ::consensus::Index snapshot_idx,
       const std::vector<uint8_t>& serialised_receipt)
@@ -372,9 +398,8 @@ namespace ccf
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
       const auto timestamp = time_point_from_snapshot_status(status.timestamp);
-
-      last_snapshot_idx = std::max(last_snapshot_idx, status.version);
-      last_snapshot_time = std::max(last_snapshot_time, timestamp);
+      last_snapshot_idx = status.version;
+      last_snapshot_time = timestamp;
 
       next_snapshot_indices.clear();
       next_snapshot_indices.push_back({last_snapshot_idx, false, true});
@@ -426,21 +451,15 @@ namespace ccf
 
     bool should_schedule_snapshot_unsafe(::consensus::Index threshold_idx)
     {
-      ::consensus::Index latest_snapshot_idx = next_snapshot_indices.back().idx;
+      auto latest_snapshot_idx = latest_scheduled_or_committed_snapshot_idx();
       // Trigger if the tx count since that index exceeds the full interval,
       // or if the minimum tx threshold is met and the time interval has
       // elapsed.
       auto count = threshold_idx - latest_snapshot_idx;
       auto count_overdue = count >= snapshot_tx_interval;
 
-      TimePoint latest_scheduled_or_committed_time = last_snapshot_time;
-      for (const auto& [idx, time] : scheduled_snapshot_times)
-      {
-        if (idx <= latest_snapshot_idx)
-        {
-          latest_scheduled_or_committed_time = time;
-        }
-      }
+      auto latest_scheduled_or_committed_time =
+        latest_scheduled_or_committed_snapshot_time(latest_snapshot_idx);
       auto time_enabled = snapshot_time_interval.count() > 0;
       auto min_count_met = count > min_snapshot_tx_interval;
       const auto now = Clock::now();
@@ -571,18 +590,15 @@ namespace ccf
       }
     }
 
-    // Called from a commit hook on snapshot_status on backups
+    // Called from committed snapshot status updates to keep local released
+    // baselines aligned with replicated state.
     void record_snapshot_status(const SnapshotStatus& status)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
       const auto timestamp = time_point_from_snapshot_status(status.timestamp);
-
-      // Keep this node's snapshot timing and index baselines aligned with the
-      // replicated status produced by the primary.
       last_snapshot_idx = status.version;
       last_snapshot_time = timestamp;
-      scheduled_snapshot_times[status.version] = timestamp;
     }
 
     void schedule_snapshot(::consensus::Index idx, TimePoint timestamp)
