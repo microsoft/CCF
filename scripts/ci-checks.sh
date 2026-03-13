@@ -2,13 +2,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-if [ "$1" == "-f" ]; then
-  FIX=1
+if [ "${1:-}" == "-f" ]; then
+  FIX_ARG="-f"
 else
-  FIX=0
+  FIX_ARG=""
 fi
 
-# Replace numeric flag with list of failed groups
+# List of failed groups
 FAIL=""
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -45,121 +45,51 @@ function fail() {
 }
 
 group "Shell scripts"
-git ls-files | grep -e '\.sh$' | grep -E -v "^3rdparty" | xargs shellcheck -S warning -s bash || fail
+"$SCRIPT_DIR"/shellcheck-checks.sh $FIX_ARG || fail
 endgroup
 
-# No inline TODOs in the codebase, use tickets, with a pointer to the code if necessary.
 group "TODOs"
-"$SCRIPT_DIR"/check-todo.sh . || fail
+"$SCRIPT_DIR"/todo-checks.sh $FIX_ARG || fail
 endgroup
 
-group "Public includes"
-# Enforce that no private headers are included from public header files
-violations=$(find "$ROOT_DIR/include/ccf" -type f -print0 | xargs --null grep -e "#include \"" | grep -v "#include \"ccf" | sort)
-if [[ -n "$violations" ]]; then
-  echo "Public headers include private implementation files:"
-  echo "$violations"
-  fail
-else
-  echo "No public-private include violations"
-fi
-endgroup
-
-group "Public header namespaces"
-# Enforce that all public headers namespace their exports
-# NB: This only greps for a namespace definition in each file, doesn't precisely enforce that no types escape that namespace - mistakes are possible
-violations=$(find "$ROOT_DIR/include/ccf" -type f -name "*.h" -print0 | xargs --null grep -L "namespace ccf" | sort || true)
-if [[ -n "$violations" ]]; then
-  echo "Public headers missing ccf namespace:"
-  echo "$violations"
-  fail
-else
-  echo "No public header namespace violations"
-fi
+group "Includes"
+"$SCRIPT_DIR"/includes-checks.sh $FIX_ARG || fail
 endgroup
 
 group "Release notes"
-if [ $FIX -ne 0 ]; then
-  "$SCRIPT_DIR"/extract-release-notes.py -f || fail
-else
-  "$SCRIPT_DIR"/extract-release-notes.py || fail
-fi
+"$SCRIPT_DIR"/release-notes-checks.sh $FIX_ARG || fail
 endgroup
 
 group "C/C++ format"
-if [ $FIX -ne 0 ]; then
-  "$SCRIPT_DIR"/check-format.sh -f include src samples || fail
-else
-  "$SCRIPT_DIR"/check-format.sh include src samples || fail
-fi
-endgroup
-
-group "Headers are included"
-"$SCRIPT_DIR"/headers-are-included.sh || fail
+"$SCRIPT_DIR"/cpp-format-checks.sh $FIX_ARG || fail
 endgroup
 
 group "TypeScript, JavaScript, Markdown, TypeSpec, YAML and JSON format"
-npm install --loglevel=error --no-save prettier @typespec/prettier-plugin-typespec 1>/dev/null || fail
-if [ $FIX -ne 0 ]; then
-  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | grep -v -e 'tests/sandbox/' | xargs npx prettier --write || fail
-else
-  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | grep -v -e 'tests/sandbox/' | xargs npx prettier --check || fail
-fi
+"$SCRIPT_DIR"/prettier-checks.sh $FIX_ARG || fail
 endgroup
 
 group "OpenAPI"
-npm install --loglevel=error --no-save @apidevtools/swagger-cli 1>/dev/null || fail
-find doc/schemas/*.json -exec npx swagger-cli validate {} \; || fail
-find doc/schemas/gov/*/*.json -exec npx swagger-cli validate {} \; || fail
+"$SCRIPT_DIR"/openapi-checks.sh $FIX_ARG || fail
 endgroup
 
 group "Copyright notice headers"
-python3 "$SCRIPT_DIR"/notice-check.py || fail
+"$SCRIPT_DIR"/copyright-checks.sh $FIX_ARG || fail
 endgroup
 
 group "CMake format"
-if [ $FIX -ne 0 ]; then
-  "$SCRIPT_DIR"/check-cmake-format.sh -f cmake samples src tests CMakeLists.txt || fail
-else
-  "$SCRIPT_DIR"/check-cmake-format.sh cmake samples src tests CMakeLists.txt || fail
-fi
-endgroup
-
-group "Python dependencies"
-# Virtual Environment w/ dependencies for Python steps
-if [ ! -f "scripts/env/bin/activate" ]
-    then
-        python3 -m venv scripts/env
-fi
-
-source scripts/env/bin/activate
-pip install -U pip || fail
-pip install -U wheel black pytest-mypy mypy ruff 1>/dev/null || fail
+"$SCRIPT_DIR"/cmake-format-checks.sh $FIX_ARG || fail
 endgroup
 
 group "Python format"
-if [ $FIX -ne 0 ]; then
-  git ls-files tests/ python/ scripts/ tla/ .cmake-format.py | grep -e '\.py$' | xargs black || fail
-else
-  git ls-files tests/ python/ scripts/ tla/ .cmake-format.py | grep -e '\.py$' | xargs black --check || fail
-fi
-endgroup
-
-group "Python lint dependencies"
-pip install -U -r tests/requirements.txt 1>/dev/null || fail
-pip install -U -e python 1>/dev/null || fail
+"$SCRIPT_DIR"/python-format-checks.sh $FIX_ARG || fail
 endgroup
 
 group "Python lint"
-if [ $FIX -ne 0 ]; then
-  ruff check --fix python/ tests/ || fail
-else
-  ruff check python/ tests/ || fail
-fi
+"$SCRIPT_DIR"/python-lint-checks.sh $FIX_ARG || fail
 endgroup
 
 group "Python types"
-git ls-files python/ | grep -e '\.py$' | xargs mypy || fail
+"$SCRIPT_DIR"/python-types-checks.sh $FIX_ARG || fail
 endgroup
 
 group "Summary"
