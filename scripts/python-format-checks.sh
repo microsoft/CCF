@@ -5,7 +5,7 @@
 # Checks (and optionally fixes) Python formatting via black.
 # Pass -f to auto-fix formatting issues.
 
-set -uo pipefail
+set -euo pipefail
 
 if [ "${1:-}" == "-f" ]; then
   FIX=1

@@ -19,14 +19,14 @@ cd "$ROOT_DIR" || exit 1
 
 # Ensure venv exists and activate (uses a dedicated venv to allow concurrent runs)
 if [ ! -f "scripts/env-lint/bin/activate" ]; then
-  python3 -m venv scripts/env-lint
+  python3 -m venv scripts/env-lint || exit 1
 fi
-source scripts/env-lint/bin/activate
+source scripts/env-lint/bin/activate || exit 1
 
 pip install -U pip > /dev/null || exit 1
 pip install -U wheel ruff 1>/dev/null || exit 1
 pip install -U -r tests/requirements.txt 1>/dev/null || exit 1
-pip install -U -e python 1>/dev/null || exit 1
+pip install -U ./python 1>/dev/null || exit 1
 
 if [ $FIX -ne 0 ]; then
   ruff check --fix python/ tests/

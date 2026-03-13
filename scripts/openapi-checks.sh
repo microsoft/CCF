@@ -11,7 +11,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 ROOT_DIR=$( dirname "$SCRIPT_DIR" )
 cd "$ROOT_DIR" || exit 1
 
-NPM_DIR=$(mktemp -d)
+NPM_DIR=$(mktemp -d) || exit 1
 trap 'rm -rf "$NPM_DIR"' EXIT
 npm install --loglevel=error --no-save --prefix "$NPM_DIR" @apidevtools/swagger-cli 1>/dev/null || exit 1
 

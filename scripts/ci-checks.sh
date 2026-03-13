@@ -31,7 +31,7 @@ function endgroup() {
 # Each check runs as a background job with output captured to a temp file.
 # After all jobs complete, outputs are printed in order with CI group annotations.
 
-TMPDIR_CHECKS=$(mktemp -d)
+TMPDIR_CHECKS=$(mktemp -d) || { echo "Failed to create temporary directory for ci-checks" >&2; exit 1; }
 trap 'rm -rf "$TMPDIR_CHECKS"' EXIT
 
 # Declare the checks: "group_name:script_name"
