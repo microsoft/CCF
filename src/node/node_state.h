@@ -932,7 +932,7 @@ namespace ccf
           setup_consensus(
             false,
             endorsed_node_cert,
-            RaftType::StartupPrimaryInfo{});
+            RaftType::StartupState{RaftType::StartupRole::Primary});
 
           LOG_INFO_FMT("Created new node {}", self);
           return {self_signed_node_cert, network.identity->cert};
@@ -1149,9 +1149,6 @@ namespace ccf
             }
             n2n_channels_cert = resp.network_info->endorsed_certificate.value();
 
-            setup_consensus(resp.network_info->public_only, n2n_channels_cert);
-            auto_refresh_jwt_keys();
-
             if (resp.network_info->public_only)
             {
               last_recovered_signed_idx =
@@ -1162,22 +1159,17 @@ namespace ccf
 
             View view = VIEW_UNKNOWN;
             std::vector<ccf::kv::Version> view_history_ = {};
+            ccf::kv::ConsensusHookPtrs snapshot_hooks;
             if (startup_snapshot_info)
             {
               // It is only possible to deserialise the entire snapshot now,
               // once the ledger secrets have been passed in by the network
-              ccf::kv::ConsensusHookPtrs hooks;
               deserialise_snapshot(
                 network.tables,
                 startup_snapshot_info->raw,
-                hooks,
+                snapshot_hooks,
                 &view_history_,
                 resp.network_info->public_only);
-
-              for (auto& hook : hooks)
-              {
-                hook->call(consensus.get());
-              }
 
               auto tx = network.tables->create_read_only_tx();
               auto* signatures = tx.ro(network.signatures);
@@ -1204,11 +1196,28 @@ namespace ccf
                 view);
             }
 
-            consensus->init_as_backup(
-              network.tables->current_version(),
-              view,
-              view_history_,
-              last_recovered_signed_idx);
+            // Create consensus with backup init info baked in, so
+            // init_as_backup runs in the constructor before any other
+            // thread can see the consensus object.
+            setup_consensus(
+              resp.network_info->public_only,
+              n2n_channels_cert,
+              RaftType::StartupState{
+                RaftType::StartupRole::Backup,
+                RaftType::StartupState::StateInfo{
+                  network.tables->current_version(),
+                  view,
+                  view_history_,
+                  last_recovered_signed_idx}});
+
+            // Now that consensus exists, execute any hooks from the
+            // snapshot (e.g. ConfigurationChangeHook)
+            for (auto& hook : snapshot_hooks)
+            {
+              hook->call(consensus.get());
+            }
+
+            auto_refresh_jwt_keys();
 
             snapshotter->set_last_snapshot_idx(
               network.tables->current_version());
@@ -1618,7 +1627,10 @@ namespace ccf
       setup_consensus(
         true,
         std::nullopt,
-        RaftType::StartupPrimaryInfo{index, view, view_history});
+        RaftType::StartupState{
+          RaftType::StartupRole::Primary,
+          RaftType::StartupState::StateInfo{
+            index, view, view_history}});
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT("Restarting consensus at view: {} seqno: {}", view, index);
@@ -3005,8 +3017,7 @@ namespace ccf
       bool public_only = false,
       const std::optional<ccf::crypto::Pem>& endorsed_node_certificate_ =
         std::nullopt,
-      std::optional<RaftType::StartupPrimaryInfo> startup_primary =
-        std::nullopt)
+      std::optional<RaftType::StartupState> startup = std::nullopt)
     {
       setup_n2n_channels(endorsed_node_certificate_);
       setup_cmd_forwarder();
@@ -3024,7 +3035,7 @@ namespace ccf
         shared_state,
         node_client,
         public_only,
-        startup_primary);
+        startup);
 
       network.tables->set_consensus(consensus);
       network.tables->set_snapshotter(snapshotter);
