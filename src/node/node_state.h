@@ -366,8 +366,9 @@ namespace ccf
     std::shared_ptr<ccf::crypto::RSAKeyPair> node_encrypt_kp;
     ccf::crypto::Pem self_signed_node_cert;
 
-    // Protects endorsed_node_cert only, to avoid taking the main lock in map
-    // hooks (which would create a lock cycle with consensus/snapshot locks)
+    // Protects endorsed_node_cert and self_signed_node_cert. This lock is
+    // used instead of the main NodeState lock in map/global hooks to avoid
+    // lock-order-inversion with KV maps_lock and consensus state->lock.
     pal::Mutex endorsed_cert_lock;
     std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
@@ -889,6 +890,7 @@ namespace ccf
       StartType start_type_, const ccf::StartupConfig& config_)
     {
       std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> cert_guard(endorsed_cert_lock);
       sm.expect(NodeStartupState::initialized);
       start_type = start_type_;
 
@@ -987,7 +989,7 @@ namespace ccf
 
       auto join_client_cert = std::make_unique<::tls::Cert>(
         network_ca,
-        self_signed_node_cert,
+        get_self_signed_certificate_unsafe(),
         node_sign_kp->private_key_pem(),
         target_host);
 
@@ -1346,7 +1348,7 @@ namespace ccf
         rpcsessions,
         rpc_map,
         node_sign_kp,
-        self_signed_node_cert);
+        get_self_signed_certificate_unsafe());
       jwt_key_auto_refresh->start();
 
       network.tables->set_map_hook(
@@ -2327,7 +2329,12 @@ namespace ccf
 
     ccf::crypto::Pem get_self_signed_certificate() override
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(endorsed_cert_lock);
+      return self_signed_node_cert;
+    }
+
+    ccf::crypto::Pem get_self_signed_certificate_unsafe()
+    {
       return self_signed_node_cert;
     }
 
@@ -2548,8 +2555,9 @@ namespace ccf
 
     bool send_create_request(const std::vector<uint8_t>& packed)
     {
+      auto self_signed_cert = get_self_signed_certificate();
       auto node_session = std::make_shared<SessionContext>(
-        InvalidSessionId, self_signed_node_cert.raw());
+        InvalidSessionId, self_signed_cert.raw());
       auto ctx = make_rpc_context(node_session, packed);
 
       std::shared_ptr<ccf::RpcHandler> search =
@@ -2825,7 +2833,7 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              std::lock_guard<pal::Mutex> guard(lock);
+              std::lock_guard<pal::Mutex> guard(endorsed_cert_lock);
 
               LOG_INFO_FMT("[global] Accepting network connections");
               accept_network_tls_connections();
@@ -3024,6 +3032,8 @@ namespace ccf
 
       auto shared_state = std::make_shared<aft::State>(self);
 
+      // Caller must ensure endorsed_cert_lock is held, or that the cert
+      // fields are stable (e.g. during single-threaded startup).
       auto node_client = std::make_shared<HTTPNodeClient>(
         rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
 
@@ -3199,6 +3209,7 @@ namespace ccf
       std::optional<ccf::crypto::Pem> client_cert_key = std::nullopt;
       if (authenticate_as_node_client_certificate)
       {
+        std::lock_guard<pal::Mutex> cert_guard(endorsed_cert_lock);
         client_cert =
           endorsed_node_cert ? *endorsed_node_cert : self_signed_node_cert;
         client_cert_key = node_sign_kp->private_key_pem();
