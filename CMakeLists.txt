@@ -44,6 +44,12 @@ include(GNUInstallDirs)
 # Use fixed name instead of absolute path for reproducible builds
 add_compile_options("-ffile-prefix-map=${CCF_DIR}=CCF")
 
+# In Debug builds, export symbols to the dynamic symbol table so that
+# backtrace_symbols can resolve function names in stacktraces, and preserve
+# frame pointers so that backtrace() can walk the full call stack.
+add_link_options($<$<CONFIG:Debug>:-rdynamic>)
+add_compile_options($<$<CONFIG:Debug>:-fno-omit-frame-pointer>)
+
 set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -275,7 +281,15 @@ add_ccf_static_library(
        ${CCF_DIR}/src/tasks/ordered_tasks.cpp
        ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
        ${CCF_DIR}/src/tasks/thread_manager.cpp
+       ${CCF_DIR}/src/tasks/worker.cpp
 )
+target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
+if(USE_LIBCXX)
+  # worker.cpp uses backtrace() which, under libc++, resolves through libunwind.
+  # On systems where libunwind is built with LZMA support (e.g. Azure Linux),
+  # this creates a transitive dependency on liblzma.
+  target_link_libraries(ccf_tasks PRIVATE lzma)
+endif()
 
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS
@@ -658,6 +672,13 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      js_policy_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/js_policy.cpp
+    )
+    target_link_libraries(
+      js_policy_test PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto
+    )
+
+    add_unit_test(
       endorsements_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/endorsements.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/uvm_endorsements.cpp
@@ -803,6 +824,13 @@ if(BUILD_TESTS)
               curl
               ccf_tasks
     )
+
+    add_unit_test(
+      internal_tables_access_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/internal_tables_access_test.cpp
+      ${CCF_DIR}/src/node/uvm_endorsements.cpp
+    )
+    target_link_libraries(internal_tables_access_test PRIVATE ccfcrypto ccf_kv)
 
     add_unit_test(
       merkle_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/merkle_test.cpp

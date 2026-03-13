@@ -210,7 +210,7 @@ def test_forced_snapshot(network, args):
                 LOG.info(
                     f"Found a snapshot at {snapshot_seqno} which is after the pre-proposal-high-water-mark {hwm_pre_proposal}"
                 )
-                return
+                return network
 
     raise RuntimeError("Could not find matching snapshot file")
 
@@ -2077,6 +2077,27 @@ def run_initial_uvm_descriptor_checks(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         primary, _ = network.find_primary()
+
+        LOG.info("Fetch current join policy to get UVM endorsement values")
+        with primary.api_versioned_client(api_version=args.gov_api_version) as uc:
+            r = uc.get("/gov/service/join-policy")
+            assert r.status_code == http.HTTPStatus.OK, r
+            snp_policy = r.body.json()["snp"]
+            uvm_endorsements = snp_policy["uvmEndorsements"]
+            assert len(uvm_endorsements) == 1, uvm_endorsements
+            did = list(uvm_endorsements.keys())[0]
+            feeds = uvm_endorsements[did]
+            assert len(feeds) == 1, feeds
+            feed = list(feeds.keys())[0]
+            svn = int(feeds[feed]["svn"])
+            LOG.info(f"Current UVM endorsement: did={did} feed={feed} svn={svn}")
+
+        bumped_svn = str(svn + 10)
+        LOG.info(
+            f"Proposing UVM endorsement with bumped SVN: did={did} feed={feed} svn={bumped_svn}"
+        )
+        network.consortium.add_snp_uvm_endorsement(primary, did, feed, bumped_svn)
+
         network_service_identity_file, _ = network.save_service_identity_to_file()
         snapshots_dir = network.get_committed_snapshots(primary)
         network.stop_all_nodes()
@@ -2561,7 +2582,7 @@ def run_read_ledger_on_testdata(args):
                     )
 
 
-def test_merkle_verification_level(args):
+def run_merkle_verification_level(args):
     """Test MERKLE verification level on isolated chunks and full ledgers"""
     LOG.info("Testing MERKLE verification level")
 
@@ -2725,7 +2746,7 @@ def test_merkle_verification_level(args):
         temp_dir.cleanup()
 
 
-def test_error_message_on_failure_to_read_aci_sec_context(args):
+def run_error_message_on_failure_to_read_aci_sec_context(args):
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -2775,7 +2796,7 @@ def test_error_message_on_failure_to_read_aci_sec_context(args):
         ), f"Did not find expected log messages: {expected_log_messages}"
 
 
-def test_error_message_on_failure_to_fetch_snapshot(const_args):
+def run_error_message_on_failure_to_fetch_snapshot(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, 0)
     with infra.network.network(
@@ -2836,6 +2857,148 @@ def test_error_message_on_failure_to_fetch_snapshot(const_args):
         ), f"Did not find expected log messages: {expected_log_messages}"
 
 
+def test_backup_snapshot_fetch(network, args):
+    primary, _ = network.find_primary()
+    backups = network.find_backups()
+    assert len(backups) > 0, "Expected at least one backup node"
+
+    # Issue enough transactions to trigger snapshot generation
+    # The primary will create a snapshot after snapshot_tx_interval txs
+    LOG.info("Issuing transactions to trigger snapshot generation")
+    network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
+
+    # Wait for committed snapshots on the primary, and use those as expected
+    # snapshot files on backups.
+    LOG.info("Waiting for committed snapshot on primary")
+    primary_snapshots_dir = network.get_committed_snapshots(primary)
+    expected_snapshot_sizes = {
+        snapshot_name: os.path.getsize(
+            os.path.join(primary_snapshots_dir, snapshot_name)
+        )
+        for snapshot_name in os.listdir(primary_snapshots_dir)
+        if ccf.ledger.is_snapshot_file_committed(snapshot_name)
+    }
+
+    assert (
+        len(expected_snapshot_sizes) > 0
+    ), f"No committed snapshots found in {primary_snapshots_dir}"
+
+    for backup in backups:
+        backup_snapshots_dir = os.path.join(
+            backup.remote.remote.root, backup.remote.snapshots_dir_name
+        )
+        LOG.info(
+            f"Checking backup {backup.local_node_id} snapshots in {backup_snapshots_dir}"
+        )
+
+        for snapshot_name, expected_size in expected_snapshot_sizes.items():
+            snapshot_path = os.path.join(backup_snapshots_dir, snapshot_name)
+            timeout_s = 10
+            end_time = time.time() + timeout_s
+            while time.time() < end_time:
+                if os.path.exists(snapshot_path):
+                    actual_size = os.path.getsize(snapshot_path)
+                    if actual_size == expected_size:
+                        LOG.info(
+                            f"Backup {backup.local_node_id}: found {snapshot_name} with expected size {expected_size} bytes"
+                        )
+                        break
+
+                    LOG.info(
+                        f"Backup {backup.local_node_id}: snapshot {snapshot_name} present with size {actual_size}, expected {expected_size}; retrying"
+                    )
+
+                time.sleep(0.1)
+            else:
+                actual_size = (
+                    os.path.getsize(snapshot_path)
+                    if os.path.exists(snapshot_path)
+                    else None
+                )
+                raise AssertionError(
+                    f"Backup {backup.local_node_id} missing snapshot {snapshot_name} "
+                    f"with expected size {expected_size} in {backup_snapshots_dir} "
+                    f"after {timeout_s}s (actual size: {actual_size})"
+                )
+
+    LOG.success("All backups successfully fetched snapshots from primary")
+
+
+def test_backup_snapshot_fetch_max_size(network, args):
+    # Add a new node to the network with a very small max backup snapshot fetch size,
+    # and confirm that it although it can join the network successfully,
+    # it cannot fetch snapshots from the primary,
+    # and that it logs appropriate error messages
+    primary, _ = network.find_primary()
+    new_node = network.create_node()
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        target_node=primary,
+        timeout=5,
+        backup_snapshot_fetch_enabled=True,
+        backup_snapshot_fetch_max_attempts=1,
+        backup_snapshot_fetch_max_size="1KB",
+    )
+    network.trust_node(new_node, args)
+    new_node.wait_for_node_to_join(timeout=5)
+    # Check the snapshot directory for the new node only contains a single file
+    snapshot_dir = os.path.join(
+        new_node.remote.remote.root, new_node.remote.snapshots_dir_name
+    )
+
+    def assert_no_snapshot_present():
+        timeout_s = 10
+        end_time = time.time() + timeout_s
+        while time.time() < end_time:
+            if os.path.exists(snapshot_dir):
+                files = os.listdir(snapshot_dir)
+                if len(files) > 0:
+                    LOG.info(
+                        f"New node {new_node.local_node_id}: found snapshot file {files[0]} in {snapshot_dir}"
+                    )
+                    break
+
+                LOG.info(
+                    f"New node {new_node.local_node_id}: expected to find a single snapshot file in {snapshot_dir}, but found {files}; retrying"
+                )
+
+            time.sleep(0.1)
+
+    assert_no_snapshot_present()
+    network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
+    assert_no_snapshot_present()
+    expected_log_message = "Failed writing received data to disk/application"
+    out_path, _ = new_node.get_logs()
+    for line in open(out_path, "r", encoding="utf-8").readlines():
+        if expected_log_message in line:
+            LOG.info(f"Found expected log message: {line}")
+            break
+    else:
+        raise AssertionError(
+            f"Did not find expected log message about snapshot exceeding max size: {expected_log_message}"
+        )
+
+
+def run_backup_snapshot_download(const_args):
+    args = copy.deepcopy(const_args)
+    args.label += "_backup_snapshot_download"
+    # Use a small snapshot interval to trigger snapshots quickly
+    args.snapshot_tx_interval = 30
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args, backup_snapshot_fetch_enabled=True)
+        test_backup_snapshot_fetch(network, args)
+        test_backup_snapshot_fetch_max_size(network, args)
+
+
 def run_propose_request_vote(const_args):
     args = copy.deepcopy(const_args)
     args.label += "_propose_vote"
@@ -2888,7 +3051,7 @@ def run_snp_tests(args):
     )
     run_recovery_local_unsealing(args, recovery_f=1, suffix="_unsealing_with_f_equal_1")
     run_recovery_unsealing_validate_audit(args)
-    test_error_message_on_failure_to_read_aci_sec_context(args)
+    run_error_message_on_failure_to_read_aci_sec_context(args)
     run_recovery_decision_protocol(args)
     run_recovery_decision_protocol_timeout_path(args)
     run_recovery_decision_protocol_multiple_timeout(args)
@@ -2909,5 +3072,5 @@ def run(args):
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
     run_read_ledger_on_testdata(args)
-    test_merkle_verification_level(args)
+    run_merkle_verification_level(args)
     run_propose_request_vote(args)

@@ -45,7 +45,8 @@
       "retry_timeout": "{{ join_timer }}",
       "target_rpc_address": "{{ target_rpc_address }}",
       "follow_redirect": {{ follow_redirect|tojson }},
-      "fetch_recent_snapshot": {{ fetch_recent_snapshot|tojson }}
+      "fetch_recent_snapshot": {{ fetch_recent_snapshot|tojson }}{% if host_data_transparent_statement_path %},
+      "host_data_transparent_statement_path": {{ host_data_transparent_statement_path|tojson }}{% endif %}
     },
     "recover": {
       "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }},
@@ -62,7 +63,14 @@
   {
     "directory": "{{ snapshots_dir }}",
     "tx_count": {{ snapshot_tx_interval }},
-    "read_only_directory": {{ read_only_snapshots_dir|tojson }}
+    "read_only_directory": {{ read_only_snapshots_dir|tojson }}{% if backup_snapshot_fetch_enabled %},
+    "backup_fetch": {
+      "enabled": true{% if backup_snapshot_fetch_max_attempts %},
+      "max_attempts": {{ backup_snapshot_fetch_max_attempts }}{% endif %}{% if backup_snapshot_fetch_retry_interval %},
+      "retry_interval": "{{ backup_snapshot_fetch_retry_interval }}"{% endif %}{% if backup_snapshot_fetch_target_rpc_interface %},
+      "target_rpc_interface": "{{ backup_snapshot_fetch_target_rpc_interface }}"{% endif %}{% if backup_snapshot_fetch_max_size %},
+      "max_size": "{{ backup_snapshot_fetch_max_size }}"{% endif %}
+    }{% endif %}
   },
   "logging":
   {
