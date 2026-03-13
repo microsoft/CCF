@@ -3073,8 +3073,9 @@ def run_time_based_snapshotting(const_args):
         timeout_s = 10
         end_time = time.time() + timeout_s
         while time.time() < end_time:
-            if get_snapshot_count(net) > 0:
-                return
+            count = get_snapshot_count(net)
+            if count > 0:
+                return count
 
             time.sleep(0.1)
         raise TimeoutError(f"Expected at least one snapshot after {timeout_s}s")
