@@ -522,9 +522,12 @@ struct formatter<ccf::endpoints::ForwardingRequired>
       {
         return format_to(ctx.out(), "never");
       }
+      default:
+      {
+        throw std::logic_error(fmt::format(
+          "Unhandled value for ForwardingRequired: {}", static_cast<int>(v)));
+      }
     }
-    throw std::logic_error(
-      fmt::format("Unhandled value for ForwardingRequired: {}", v));
   }
 };
 FMT_END_NAMESPACE
