@@ -154,7 +154,7 @@ def generate_and_verify_jwk(client):
         assert body["pem"] == pub_pem
 
 
-def test_apply_writes(c):
+def check_apply_writes(c):
     ### Default behaviour
     # Writes are applied for 2xx response codes
     r = c.post("/app/rpc/apply_writes", {"val": "aaa", "statusCode": 200})
@@ -695,7 +695,7 @@ def test_npm_app(network, args):
         v3 = r.body.json()["version"]
         assert v3 == v1
 
-        test_apply_writes(c)
+        check_apply_writes(c)
 
         priv_key_pem, _ = infra.crypto.generate_rsa_keypair(2048)
         pem = infra.crypto.generate_cert(priv_key_pem)
@@ -986,6 +986,33 @@ def test_npm_app(network, args):
             assert "uvm_endorsements" in r.body.json()
             for key, value in r.body.json().items():
                 LOG.info(f"{key} : {value}")
+
+            # Test with endorsed_tcb derived from the reported_tcb of the
+            # first call, which also captures the architecture (Milan/Genoa/Turin)
+            endorsed_tcb = report_json["reported_tcb"]
+            LOG.info(f"Testing with endorsed_tcb: {endorsed_tcb}")
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                    "endorsed_tcb": endorsed_tcb,
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+            # Test with endorsed_tcb of correct size but all zeroes, should be rejected
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                    "endorsed_tcb": "0" * len(endorsed_tcb),
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
 
         validate_openapi(c)
         generate_and_verify_jwk(c)

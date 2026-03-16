@@ -2,12 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/cose.h"
+#include "ccf/crypto/cose_verifier.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/service/tables/nodes.h"
+#include "crypto/cose.h"
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
+#include "node/cose_common.h"
 #include "node/history.h"
 #include "node/tx_receipt_impl.h"
 
@@ -61,29 +65,47 @@ namespace ccf
     return SnapshotSegments{header_and_body, receipt};
   }
 
-  static void verify_snapshot(
+  static void verify_cose_snapshot_receipt(
     const SnapshotSegments& segments,
-    std::optional<std::vector<uint8_t>> prev_service_identity = std::nullopt)
+    const std::optional<std::vector<uint8_t>>& prev_service_identity)
   {
-    LOG_INFO_FMT(
-      "Deserialising snapshot receipt (size: {}).", segments.receipt.size());
-    constexpr size_t max_printed_size = 1024;
-    if (segments.receipt.size() > max_printed_size)
-    {
-      LOG_INFO_FMT(
-        "Receipt size ({}) exceeds max printed size ({}), only printing "
-        "first {} bytes",
-        segments.receipt.size(),
-        max_printed_size,
-        max_printed_size);
-    }
-    auto printed_size =
-      std::min<size_t>(segments.receipt.size(), max_printed_size);
-    LOG_INFO_FMT(
-      "{}",
-      ds::to_hex(
-        segments.receipt.data(), segments.receipt.data() + printed_size));
+    auto receipt = ccf::cose::decode_ccf_receipt(
+      {segments.receipt.begin(), segments.receipt.end()},
+      /* recompute_root */ true);
 
+    auto snapshot_digest = ccf::crypto::Sha256Hash(
+      segments.header_and_body.data(), segments.header_and_body.size());
+    if (
+      receipt.claims_digest.size() != ccf::crypto::Sha256Hash::SIZE ||
+      std::memcmp(
+        snapshot_digest.h.data(),
+        receipt.claims_digest.data(),
+        ccf::crypto::Sha256Hash::SIZE) != 0)
+    {
+      throw std::logic_error(fmt::format(
+        "Snapshot digest ({}) does not match receipt claim ({})",
+        snapshot_digest,
+        ds::to_hex(receipt.claims_digest)));
+    }
+
+    if (prev_service_identity)
+    {
+      auto verifier =
+        ccf::crypto::make_cose_verifier_from_cert(*prev_service_identity);
+      if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
+      {
+        throw std::logic_error(
+          "Previous service identity does not match the service identity that "
+          "signed the snapshot");
+      }
+      LOG_DEBUG_FMT("Previous service identity matches snapshot signer");
+    }
+  }
+
+  static void verify_json_snapshot_receipt(
+    const SnapshotSegments& segments,
+    const std::optional<std::vector<uint8_t>>& prev_service_identity)
+  {
     auto j =
       nlohmann::json::parse(segments.receipt.begin(), segments.receipt.end());
     auto receipt_p = j.get<ReceiptPtr>();
@@ -106,7 +128,6 @@ namespace ccf
     }
 
     auto root = receipt->calculate_root();
-    auto raw_sig = receipt->signature;
 
     auto v = ccf::crypto::make_unique_verifier(receipt->cert);
     if (!v->verify_hash(
@@ -132,6 +153,54 @@ namespace ccf
           "that signed the snapshot");
       }
       LOG_DEBUG_FMT("Previous service identity endorses snapshot signer");
+    }
+  }
+
+  static void verify_snapshot(
+    const SnapshotSegments& segments,
+    std::optional<std::vector<uint8_t>> prev_service_identity = std::nullopt)
+  {
+    LOG_INFO_FMT(
+      "Deserialising snapshot receipt (size: {}).", segments.receipt.size());
+    constexpr size_t max_printed_size = 1024;
+    if (segments.receipt.size() > max_printed_size)
+    {
+      LOG_INFO_FMT(
+        "Receipt size ({}) exceeds max printed size ({}), only printing "
+        "first {} bytes",
+        segments.receipt.size(),
+        max_printed_size,
+        max_printed_size);
+    }
+    auto printed_size =
+      std::min<size_t>(segments.receipt.size(), max_printed_size);
+    LOG_INFO_FMT(
+      "{}",
+      ds::to_hex(
+        segments.receipt.data(), segments.receipt.data() + printed_size));
+
+    if (segments.receipt.empty())
+    {
+      throw std::logic_error("Empty snapshot receipt");
+    }
+
+    auto first_byte = segments.receipt[0];
+    constexpr uint8_t ENCODED_COSE_SIGN1_TAG = 0xD2;
+    if (first_byte == ENCODED_COSE_SIGN1_TAG)
+    {
+      LOG_DEBUG_FMT("Snapshot with COSE receipt detected");
+      verify_cose_snapshot_receipt(segments, prev_service_identity);
+    }
+    else if (first_byte == '{')
+    {
+      LOG_DEBUG_FMT("Snapshot with JSON receipt detected");
+      verify_json_snapshot_receipt(segments, prev_service_identity);
+    }
+    else
+    {
+      throw std::logic_error(fmt::format(
+        "Invalid snapshot receipt: unrecognised format (first byte: 0x{:02X})",
+        first_byte));
     }
   }
 
@@ -176,10 +245,8 @@ namespace ccf
   }
 
   static std::vector<uint8_t> build_and_serialise_receipt(
-    const std::vector<uint8_t>& sig,
+    const std::vector<uint8_t>& cose_sig,
     const std::vector<uint8_t>& tree,
-    const NodeId& node_id,
-    const ccf::crypto::Pem& node_cert,
     ccf::kv::Version seqno,
     const ccf::crypto::Sha256Hash& write_set_digest,
     const std::string& commit_evidence,
@@ -191,18 +258,33 @@ namespace ccf
     // NOLINTNEXTLINE(performance-move-const-arg)
     cd.set(std::move(claims_digest));
     ccf::TxReceiptImpl tx_receipt(
-      sig,
-      std::nullopt, // cose
+      {},
+      cose_sig,
       proof.get_root(),
       proof.get_path(),
-      node_id,
-      node_cert,
+      {},
+      std::nullopt,
       write_set_digest,
       commit_evidence,
       cd);
 
-    auto receipt = ccf::describe_receipt_v1(tx_receipt);
-    const auto receipt_str = receipt.dump();
-    return {receipt_str.begin(), receipt_str.end()};
+    // To be replaced with 'describe_cose_receipt' once 7700 is merged.
+    auto cose_signature = ccf::describe_cose_signature_v1(tx_receipt);
+    if (!cose_signature.has_value())
+    {
+      throw std::logic_error(
+        "No COSE signature available for snapshot receipt");
+    }
+    auto merkle_proof = ccf::describe_merkle_proof_v1(tx_receipt);
+    if (!merkle_proof.has_value())
+    {
+      return *cose_signature;
+    }
+
+    ccf::cose::edit::desc::Value desc{
+      ccf::cose::edit::pos::AtKey{ccf::cose::header::iana::INCLUSION_PROOFS},
+      ccf::cose::header::iana::VDP,
+      *merkle_proof};
+    return ccf::cose::edit::set_unprotected_header(*cose_signature, desc);
   }
 }

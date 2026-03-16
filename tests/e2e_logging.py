@@ -910,10 +910,17 @@ def test_cbor_receipts(network, args):
                     log_capture=[],  # Do not emit raw binary to stdout
                 )
                 if r.status_code == http.HTTPStatus.OK:
-                    found_receipt = True
                     cose_receipt = r.body.data()
                     uhdr = cbor2.loads(cose_receipt).value[1]
-                    proofs = uhdr[396][-1]
+                    VDP_KEY = 396
+                    if VDP_KEY not in uhdr:
+                        # Signature TX: valid receipt with empty UHDR, skip to next seqno
+                        LOG.debug(
+                            f"Transaction {txid} is a signature TX (empty UHDR), skipping"
+                        )
+                        break
+                    found_receipt = True
+                    proofs = uhdr[VDP_KEY][-1]
                     assert len(proofs) > 0, "No Merkle proofs found in receipt"
 
                     r = client.get(
@@ -2193,7 +2200,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        run_main_tests(network, args)
+        do_main_tests(network, args)
 
 
 def run_app_space_js(args):
@@ -2249,7 +2256,7 @@ def run_app_space_js(args):
             )
             assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 
-        run_main_tests(network, args)
+        do_main_tests(network, args)
 
 
 def test_cose_config(network, args):
@@ -2269,7 +2276,7 @@ def test_cose_config(network, args):
     return network
 
 
-def run_main_tests(network, args):
+def do_main_tests(network, args):
     test_basic_constraints(network, args)
     test(network, args)
     test_remove(network, args)

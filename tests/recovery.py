@@ -375,7 +375,7 @@ def test_recover_service_with_wrong_identity(network, args):
         raise ValueError("Recovery should have failed")
 
     if not broken_network.nodes[0].check_log_for_error_message(
-        "Previous service identity does not endorse the node identity that signed the snapshot"
+        "Previous service identity does not match the service identity that signed the snapshot"
     ):
         raise ValueError("Node log does not contain the expected error message")
 
@@ -530,8 +530,68 @@ def test_recover_service_with_wrong_identity(network, args):
         return recovered_network
 
 
+@reqs.description("Test trusted keys as JWKs via logging app endpoint")
+@reqs.sufficient_network_recovery_count(required_count=2)
+def test_trusted_keys_vs_endorsements(network, args):
+    primary, _ = network.find_primary()
+
+    with primary.client() as cli:
+        service_cert = cli.get("/node/network").body.json()["service_certificate"]
+        cert = load_pem_x509_certificate(
+            service_cert.encode("ascii"), default_backend()
+        )
+
+    expected_keys_der = set()
+    expected_keys_der.add(
+        bytes(
+            cert.public_key().public_bytes(
+                serialization.Encoding.DER,
+                serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+        )
+    )
+    chain_pubkey = cert.public_key().public_bytes(
+        serialization.Encoding.PEM,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+
+    look_from = ccf.tx_id.TxID(2, 3)
+    response = query_endorsements_chain(primary, look_from)
+    chain_endorsements = [
+        base64.b64decode(x) for x in response.body.json()["endorsements"]
+    ]
+    for endorsement in chain_endorsements:
+        _, _, payload = verify_cose_sign1_with_key(chain_pubkey, endorsement)
+        expected_keys_der.add(bytes(payload))
+        chain_pubkey = infra.crypto.pub_key_der_to_pem(payload).encode("ascii")
+
+    # Verify trusted keys from the endpoint match endorsement keys
+    with primary.client() as cli:
+        r = cli.get("/log/public/trusted_keys")
+        assert r.status_code == http.HTTPStatus.OK, r
+        jwks = r.body.json()
+        assert "keys" in jwks, jwks
+
+        endpoint_keys_der = set()
+        for key in jwks["keys"]:
+            assert "kid" in key, key
+            der = bytes(infra.crypto.pub_key_der_from_jwk(key))
+            expected_kid = infra.crypto.compute_public_key_der_hash_hex(der)
+            assert (
+                key["kid"] == expected_kid
+            ), f"kid mismatch: got {key['kid']}, expected {expected_kid}"
+            endpoint_keys_der.add(der)
+
+        assert endpoint_keys_der == expected_keys_der, (
+            f"Keys from trusted_keys endpoint do not match endorsement keys. "
+            f"Expected {len(expected_keys_der)}, got {len(endpoint_keys_der)}"
+        )
+
+    return network
+
+
 @reqs.description("Recover a service from local files")
-def test_recover_service_from_files(
+def run_recover_service_from_files(
     args,
     directory,
     expected_recovery_count,
@@ -1080,6 +1140,7 @@ def run(args):
 
         network = test_persistence_old_snapshot(network, args)
         network = test_recover_service_with_wrong_identity(network, args)
+        network = test_trusted_keys_vs_endorsements(network, args)
 
         for i in range(recoveries_count):
             # Issue transactions which will required historical ledger queries recovery
@@ -1141,7 +1202,7 @@ def run(args):
 
 
 def run_recovery_from_files(args):
-    test_recover_service_from_files(
+    run_recover_service_from_files(
         args,
         directory=args.directory,
         expected_recovery_count=args.expected_recovery_count,
