@@ -82,7 +82,9 @@ struct formatter<ccf::ProposalState>
       }
       default:
       {
-        throw std::logic_error(fmt::format("Unknown proposal state {}", state));
+        throw std::logic_error(fmt::format(
+          "Unknown proposal state {}",
+          static_cast<uint8_t>(state)));
       }
     }
   }
