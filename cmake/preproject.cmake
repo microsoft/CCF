@@ -72,7 +72,7 @@ function(add_warning_checks name)
             -Wno-unused-function
             -Wshadow
             -Wswitch-enum
-            -Wcovered-switch-default
+            -Wswitch-default
   )
 endfunction()
 
