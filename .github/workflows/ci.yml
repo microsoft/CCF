@@ -229,6 +229,17 @@ jobs:
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
         shell: bash
 
+      - name: "End to end tests except partition"
+        run: |
+          set -ex
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+
+          # End to end tests
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+        shell: bash
+
       - name: "Generate coverage reports"
         run: |
           set -ex

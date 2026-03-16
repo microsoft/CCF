@@ -48,6 +48,7 @@ function(add_ccf_app name)
 
   add_san(${name})
   add_tidy(${name})
+  enable_coverage(${name})
 
   if(USE_SNMALLOC)
     target_link_libraries(${name} INTERFACE snmallocshim-static)
