@@ -118,12 +118,14 @@ bool record_signature(
   const std::shared_ptr<ccf::Snapshotter>& snapshotter,
   size_t idx)
 {
-  std::vector<uint8_t> dummy_signature(128, 43);
-  ccf::crypto::Pem node_cert;
+  std::vector<uint8_t> dummy_cose_sig = ccf::ds::from_hex(
+    "d28451a301382219012c440102030419012d1822a0f6586026a27ea4c9f067a0e6716c779b"
+    "80f78b1366b3dec549423f06a2b56f1f25fd45a21e9e6295aed0b05ebca639eac103a68967"
+    "e7eb6ef9f7603741960b6fca20841b9730921220e9ec1d0897e424bb4290c5abe498b67373"
+    "b96881e8c6f9265af8");
 
   bool requires_snapshot = snapshotter->record_committable(idx);
-  snapshotter->record_signature(
-    idx, dummy_signature, ccf::kv::test::PrimaryNodeId, node_cert);
+  snapshotter->record_cose_signature(idx, dummy_cose_sig);
   snapshotter->record_serialised_tree(idx, history->serialise_tree(idx));
 
   return requires_snapshot;

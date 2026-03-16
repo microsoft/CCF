@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Backup nodes can now be configured to automatically fetch snapshots from the primary when snapshot evidence is detected. This is controlled by the `snapshots.backup_fetch` configuration section, with `enabled`, `max_attempts`, `retry_interval`, `max_size` and `target_rpc_interface` options. Note that the target RPC interface selected must have the `SnapshotRead` operator feature enabled.
 - Added `ccf::IdentityHistoryNotFetched` exception type to distinguish identity-history-fetching errors from other logic errors in the network identity subsystem (#7708).
 - Added `ccf::describe_cose_receipt_v1(receipt)` to obtain COSE receipts with Merkle proof in unprotected header for non-signature TXs, and empty unprotected header for signature TXs (#7700).
 - `NetworkIdentitySubsystemInterface` now exposes `get_trusted_keys()`, returning all trusted network identity keys as a `TrustedKeys` map (#7690).
@@ -19,10 +20,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - On recovery, the UVM descriptor SVN is now set to the minimum of the previously stored value in the KV and the value found in the new node's startup endorsements. On start, the behaviour is unchanged (#7716).
-- Refactored the user facing surface of self-healing-open and local sealing. The whole feature is now `sealing-recovery` with `self-healing-open` now referred to as the `recovery-decision-protocol`. (#7679)
-  - Local sealing is enabled by setting the `sealing-recovery` config field (for both the sealing node, and the unsealing recovery node)
-  - The local sealing identity is under `sealing-recovery.location.name`
-  - The recovery-decision-protocol is configured via `sealing-recovery.recovery_decision_protocol`
+- Refactored the user facing surface of self-healing-open and local sealing. The whole feature is now `sealing-recovery` with `self-healing-open` now referred to as the `recovery-decision-protocol` (#7679).
+  - Local sealing is enabled by setting the `sealing-recovery` config field (for both the sealing node, and the unsealing recovery node).
+  - The local sealing identity is under `sealing-recovery.location.name`.
+  - The recovery-decision-protocol is configured via `sealing-recovery.recovery_decision_protocol`.
+- Snapshots now carry COSE receipts, JSON receipts are no longer included (#7711).
 
 ## [7.0.0-dev11]
 
