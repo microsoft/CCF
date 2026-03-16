@@ -81,7 +81,7 @@ namespace ccf::js
               }
               case (TxAccess::GOV_RO):
               {
-                return KVAccessPermissions::READ_ONLY;
+                return KVAccessPermissions::ILLEGAL;
               }
             }
           }

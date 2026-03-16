@@ -508,7 +508,7 @@ struct formatter<ccf::endpoints::ForwardingRequired>
   auto format(
     const ccf::endpoints::ForwardingRequired& v, FormatContext& ctx) const
   {
-    switch (v)
+    switch ()
     {
       case ccf::endpoints::ForwardingRequired::Sometimes:
       {
@@ -523,7 +523,8 @@ struct formatter<ccf::endpoints::ForwardingRequired>
         return format_to(ctx.out(), "never");
       }
     }
-    throw std::logic_error("Unhandled value for ForwardingRequired");
+    throw std::logic_error(
+      fmt::format("Unhandled value for ForwardingRequired: {}", v));
   }
 };
 FMT_END_NAMESPACE
