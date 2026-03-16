@@ -7,6 +7,7 @@
 #include "ds/internal_logger.h"
 #include "service/tables/config.h"
 #include "service/tables/signatures.h"
+#include <stdexcept>
 
 namespace ccf
 {
@@ -53,6 +54,13 @@ namespace ccf
           {
             cfg_delta.try_emplace(node_id, std::nullopt);
             break;
+          }
+          default:
+          {
+            throw std::logic_error(fmt::format(
+              "Unknown node status {} for node {} in configuration change hook",
+              static_cast<uint8_t>(ni.status),
+              node_id));
           }
         }
       }

@@ -315,16 +315,19 @@ namespace ccf
                   LOG_FAIL_FMT(
                     "Cannot recover ledger entry: Unexpected node state {}", s);
                 }
-                return;
+                break;
               }
               case ::consensus::LedgerRequestPurpose::HistoricalQuery:
               {
                 historical_state_cache->handle_ledger_entries(
                   from_seqno, to_seqno, body);
-                return;
+                break;
+              }
+              default:
+              {
+                LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
               }
             }
-            LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
@@ -339,16 +342,19 @@ namespace ccf
               case ::consensus::LedgerRequestPurpose::Recovery:
               {
                 node->recover_ledger_end();
-                return;
+                break;
               }
               case ::consensus::LedgerRequestPurpose::HistoricalQuery:
               {
                 historical_state_cache->handle_no_entry_range(
                   from_seqno, to_seqno);
-                return;
+                break;
+              }
+              default:
+              {
+                LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
               }
             }
-            LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(

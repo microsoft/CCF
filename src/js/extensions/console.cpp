@@ -88,6 +88,12 @@ namespace ccf::js::extensions
           GOV_FAIL_FMT("{}", ss->str());
           break;
         }
+
+        default:
+        {
+          LOG_FAIL_FMT("{}", ss->str());
+          break;
+        }
       }
       return ccf::js::core::constants::Undefined;
     }
@@ -115,6 +121,12 @@ namespace ccf::js::extensions
         case (js::TxAccess::GOV_RW):
         {
           GOV_FATAL_FMT("{}", ss->str());
+          break;
+        }
+
+        default:
+        {
+          LOG_FATAL_FMT("{}", ss->str());
           break;
         }
       }
@@ -160,6 +172,12 @@ namespace ccf::js::extensions
       case (js::TxAccess::GOV_RW):
       {
         GOV_INFO_FMT("{}", s);
+        break;
+      }
+
+      default:
+      {
+        LOG_INFO_FMT("{}", s);
         break;
       }
     }

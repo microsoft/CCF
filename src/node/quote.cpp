@@ -68,7 +68,7 @@ namespace ccf
         {
           return QuoteVerificationResult::FailedMeasurementNotFound;
         }
-        return QuoteVerificationResult::Verified;
+        break;
       }
       case QuoteFormat::insecure_virtual:
       {
@@ -78,7 +78,7 @@ namespace ccf
         {
           return QuoteVerificationResult::FailedMeasurementNotFound;
         }
-        return QuoteVerificationResult::Verified;
+        break;
       }
       case QuoteFormat::amd_sev_snp_v1:
       {
@@ -100,13 +100,17 @@ namespace ccf
             return QuoteVerificationResult::FailedMeasurementNotFound;
           }
         }
-        return QuoteVerificationResult::Verified;
+        break;
+      }
+      default:
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected quote format {} when verifying quote against store",
+          quote_format));
       }
     }
 
-    throw std::logic_error(fmt::format(
-      "Unexpected quote format {} when verifying quote against store",
-      quote_format));
+    return QuoteVerificationResult::Verified;
   }
 
   QuoteVerificationResult verify_quoted_node_public_key(

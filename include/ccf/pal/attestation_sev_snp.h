@@ -277,10 +277,10 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             .boot_loader = tcb.boot_loader,
             .fmc = tcb.fmc};
         }
+        default:
+          throw std::logic_error(
+            "Unsupported SEV-SNP product for TCB version policy");
       }
-
-      throw std::logic_error(
-        "Unsupported SEV-SNP product for TCB version policy");
     }
 
     [[nodiscard]] TcbVersionMilanGenoa* as_milan_genoa()
@@ -548,6 +548,11 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
               fmc = fmt::format("{}", tcb.fmc);
               break;
             }
+            default:
+            {
+              throw std::logic_error(
+                fmt::format("Unsupported SEV-SNP product: {}", product));
+            }
           }
 
           auto loc =
@@ -576,6 +581,11 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             max_retries_count,
             max_client_response_size));
           break;
+        }
+        default:
+        {
+          throw std::logic_error(fmt::format(
+            "Unsupported endorsements server type: {}", server.type));
         }
       }
     }

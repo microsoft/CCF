@@ -126,6 +126,11 @@ namespace ccf::js
         exec_context = "read-write governance";
         break;
       }
+      default:
+      {
+        exec_context = "unknown";
+        break;
+      }
     }
 
     static constexpr char const* access_permissions_explanation_url =

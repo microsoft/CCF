@@ -51,9 +51,11 @@ namespace ccf
       {
         return "Invalid";
       }
+      default:
+      {
+        return "Unhandled value";
+      }
     }
-
-    return "Unhandled value";
   }
 
   DECLARE_JSON_ENUM(

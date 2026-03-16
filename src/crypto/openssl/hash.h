@@ -30,9 +30,9 @@ namespace ccf::crypto
           return EVP_sha384();
         case MDType::SHA512:
           return EVP_sha512();
+        default:
+          throw std::runtime_error("Unsupported hash algorithm");
       }
-
-      throw std::runtime_error("Unsupported hash algorithm");
     }
 
     std::vector<uint8_t> hkdf(

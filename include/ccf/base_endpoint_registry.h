@@ -56,9 +56,11 @@ namespace ccf
       {
         return "InternalError";
       }
+      default:
+      {
+        return "Unhandled ApiResult";
+      }
     }
-
-    return "Unhandled ApiResult";
   }
 
   /** Lists possible reasons for an ApiResult::InvalidArgs being return in @c
@@ -95,9 +97,11 @@ namespace ccf
       {
         return "StaleActionCreatedTimestamp";
       }
+      default:
+      {
+        return "Unhandled InvalidArgsReason";
+      }
     }
-
-    return "Unhandled InvalidArgsReason";
   }
 
   /** Extends the basic @ref ccf::endpoints::EndpointRegistry with helper API

@@ -3,9 +3,6 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
-#include "ccf/common_auth_policies.h"
-#include "ccf/crypto/hash_provider.h"
-#include "ccf/crypto/sha256.h"
 #include "ccf/js/common_context.h"
 #include "ccf/js/extensions/ccf/gov_effects.h"
 #include "js/checks.h"
@@ -404,6 +401,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
+        default:
         {
           const auto& cose_ident =
             ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
@@ -612,6 +610,12 @@ namespace ccf::gov::endpoints
               {
                 break;
               }
+
+              default:
+              {
+                throw std::runtime_error(
+                  "Invalid ProposalSubmissionResult::Status value");
+              }
             }
           }
 
@@ -665,6 +669,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
+        default:
         {
           const auto& cose_ident =
             ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
@@ -759,6 +764,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
+        default:
         {
           ccf::ProposalId proposal_id;
           if (!detail::try_parse_proposal_id(ctx.rpc_ctx, proposal_id))
@@ -802,6 +808,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
+        default:
         {
           auto proposal_info_handle =
             ctx.tx.template ro<ccf::jsgov::ProposalInfoMap>(
@@ -839,6 +846,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
+        default:
         {
           ccf::ProposalId proposal_id;
           if (!detail::try_parse_proposal_id(ctx.rpc_ctx, proposal_id))
@@ -884,6 +892,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
+        default:
         {
           const auto& cose_ident =
             ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
@@ -1053,6 +1062,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
+        default:
         {
           ccf::ProposalId proposal_id;
           if (!detail::try_parse_proposal_id(ctx.rpc_ctx, proposal_id))
