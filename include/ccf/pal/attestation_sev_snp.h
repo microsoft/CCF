@@ -279,8 +279,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         }
         default:
           throw std::logic_error(fmt::format(
-            "Unsupported SEV-SNP product for TCB version policy: {}",
-            product));
+            "Unsupported SEV-SNP product for TCB version policy: {}", product));
       }
     }
 

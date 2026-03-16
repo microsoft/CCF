@@ -7,6 +7,7 @@
 #include "ds/internal_logger.h"
 #include "service/tables/config.h"
 #include "service/tables/signatures.h"
+
 #include <stdexcept>
 
 namespace ccf
