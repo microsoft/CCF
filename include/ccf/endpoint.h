@@ -508,7 +508,7 @@ struct formatter<ccf::endpoints::ForwardingRequired>
   auto format(
     const ccf::endpoints::ForwardingRequired& v, FormatContext& ctx) const
   {
-    switch ()
+    switch (v)
     {
       case ccf::endpoints::ForwardingRequired::Sometimes:
       {
