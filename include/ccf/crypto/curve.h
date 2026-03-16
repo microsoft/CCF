@@ -47,7 +47,7 @@ namespace ccf::crypto
       case CurveID::CURVE25519:
       case CurveID::X25519:
       {
-        throw std::logic_error(fmt::format("Unhandled CurveID: {}", ec));
+        throw std::logic_error(fmt::format("Invalid ECDSA curve: {}", ec));
       }
       case CurveID::SECP384R1:
         return MDType::SHA384;

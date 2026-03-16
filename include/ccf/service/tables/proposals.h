@@ -80,9 +80,11 @@ struct formatter<ccf::ProposalState>
       {
         return format_to(ctx.out(), "dropped");
       }
+      default:
+      {
+        return format_to(ctx.out(), "UNKNOWN");
+      }
     }
-
-    return format_to(ctx.out(), "UNKNOWN");
   }
 };
 FMT_END_NAMESPACE
