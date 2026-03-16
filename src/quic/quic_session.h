@@ -312,6 +312,7 @@ namespace quic
         case closed:
         case authfail:
         case error:
+        default:
         {
         }
       }
@@ -343,6 +344,7 @@ namespace quic
 
         case handshake:
         case ready:
+        default:
         {
         }
       }

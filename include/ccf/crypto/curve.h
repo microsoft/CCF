@@ -53,6 +53,10 @@ namespace ccf::crypto
         return MDType::SHA384;
       case CurveID::SECP256R1:
         return MDType::SHA256;
+      default:
+      {
+        throw std::logic_error(fmt::format("Unhandled CurveId: {}", ec));
+      }
     }
   }
 }

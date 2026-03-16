@@ -132,11 +132,11 @@ namespace ccf::pal
       }
       case (ccf::pal::Platform::SGX):
       case (ccf::pal::Platform::Unknown):
+      default:
       {
-        break;
+        throw std::logic_error(fmt::format(
+          "Unsupported platform for quote generation: {}", ccf::pal::platform));
       }
     }
-    throw std::logic_error(fmt::format(
-      "Unsupported platform for quote generation: {}", ccf::pal::platform));
   }
 }

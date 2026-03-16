@@ -480,6 +480,10 @@ namespace ccf
             ::tcp::tcp_stop, to_host, session_id, std::string("Error"));
           break;
         }
+
+        default:
+          throw std::logic_error(
+            fmt::format("TLS {} unknown status: {}", session_id, status));
       }
     }
 

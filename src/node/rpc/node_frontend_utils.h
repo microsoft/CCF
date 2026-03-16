@@ -44,9 +44,10 @@ namespace ccf
       case QuoteVerificationResult::FailedInvalidTcbVersion:
         return std::make_pair(
           HTTP_STATUS_UNAUTHORIZED, "Quote TCB version is too low");
+      default:
+        throw std::logic_error(fmt::format(
+          "Unknown QuoteVerificationResult: {}",
+          static_cast<uint32_t>(result)));
     }
-
-    return std::make_pair(
-      HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unknown quote verification error");
   }
 }

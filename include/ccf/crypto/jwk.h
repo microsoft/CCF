@@ -77,6 +77,8 @@ namespace ccf::crypto
         return JsonWebKeyECCurve::P384;
       case CurveID::SECP256R1:
         return JsonWebKeyECCurve::P256;
+      default:
+        throw std::logic_error(fmt::format("Unknown curve {}", curve_id));
     }
   }
 
@@ -90,6 +92,8 @@ namespace ccf::crypto
         return CurveID::SECP384R1;
       case JsonWebKeyECCurve::P256:
         return CurveID::SECP256R1;
+      default:
+        throw std::logic_error(fmt::format("Unknown JWK curve {}", jwk_curve));
     }
   }
 
@@ -115,6 +119,8 @@ namespace ccf::crypto
         return JsonWebKeyEdDSACurve::ED25519;
       case CurveID::X25519:
         return JsonWebKeyEdDSACurve::X25519;
+      default:
+        throw std::logic_error(fmt::format("Unknown EdDSA curve {}", curve_id));
     }
   }
 

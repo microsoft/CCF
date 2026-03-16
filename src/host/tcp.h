@@ -320,6 +320,12 @@ namespace asynchost
           }
           return true;
         }
+
+        default:
+        {
+          throw std::logic_error(
+            fmt::format("Unexpected status during reconnect: {}", status));
+        }
       }
 
       return false;
@@ -348,10 +354,6 @@ namespace asynchost
 
       switch (status)
       {
-        case FRESH:
-        case LISTENING_RESOLVING:
-        case LISTENING:
-        case LISTENING_FAILED:
         case BINDING:
         case BINDING_FAILED:
         case CONNECTING_RESOLVING:
@@ -374,6 +376,17 @@ namespace asynchost
           LOG_DEBUG_FMT("Disconnected: Ignoring write of size {}", len);
           free_write(req);
           break;
+        }
+
+        case FRESH:
+        case LISTENING_RESOLVING:
+        case LISTENING:
+        case LISTENING_FAILED:
+        default:
+        {
+          free_write(req);
+          throw std::logic_error(
+            fmt::format("Unexpected status during write: {}", status));
         }
       }
 
@@ -642,6 +655,18 @@ namespace asynchost
 
         switch (status)
         {
+          case CONNECTING_RESOLVING:
+          {
+            connect_resolved();
+            break;
+          }
+
+          case LISTENING_RESOLVING:
+          {
+            listen_resolved();
+            break;
+          }
+
           case FRESH:
           case LISTENING:
           case BINDING:
@@ -653,20 +678,10 @@ namespace asynchost
           case LISTENING_FAILED:
           case CONNECTING_FAILED:
           case RECONNECTING:
+          default:
           {
             throw std::logic_error(
               fmt::format("Unexpected status during on_resolved: {}", status));
-          }
-          case CONNECTING_RESOLVING:
-          {
-            connect_resolved();
-            break;
-          }
-
-          case LISTENING_RESOLVING:
-          {
-            listen_resolved();
-            break;
           }
         }
       }

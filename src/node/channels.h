@@ -1132,13 +1132,16 @@ namespace ccf
           {
             return recv_key_exchange_final(data, size);
           }
-        }
 
-        throw std::runtime_error(fmt::format(
-          "Received message with initial bytes {} from {} - not recognised "
-          "as a key exchange message",
-          chmsg,
-          peer_id));
+          default:
+          {
+            throw std::runtime_error(fmt::format(
+              "Received message with initial bytes {} from {} - not recognised "
+              "as a key exchange message",
+              chmsg,
+              peer_id));
+          }
+        }
       }
       catch (const std::exception& e)
       {

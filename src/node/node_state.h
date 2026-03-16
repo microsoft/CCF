@@ -2015,9 +2015,13 @@ namespace ccf
             consensus->recv_message(from, payload_data, payload_size);
             return;
           }
+          default:
+          {
+            throw std::logic_error(fmt::format(
+              "Unknown node message type: {}",
+              static_cast<uint32_t>(msg_type)));
+          }
         }
-        throw std::logic_error(fmt::format(
-          "Unknown node message type: {}", static_cast<uint32_t>(msg_type)));
       }
     }
 

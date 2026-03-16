@@ -181,12 +181,6 @@ namespace asynchost
 
       switch (status)
       {
-        case FRESH:
-        {
-          free_write(req);
-          throw std::logic_error(
-            fmt::format("Unexpected status during write: {}", status));
-        }
         // Handles unbound or in unknown state
         case RESOLVING:
         case RESOLVING_FAILED:
@@ -203,6 +197,14 @@ namespace asynchost
           auto [h, p] = addr_to_str(&addr);
           LOG_TRACE_FMT("UDP write addr: {}:{}", h, p);
           return send_write(req, len, &addr);
+        }
+
+        case FRESH:
+        default:
+        {
+          free_write(req);
+          throw std::logic_error(
+            fmt::format("Unexpected status during write: {}", status));
         }
       }
 
