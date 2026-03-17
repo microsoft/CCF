@@ -906,7 +906,7 @@ namespace ccf
         config.node_certificate.initial_validity_days);
 
       accept_node_tls_connections();
-      open_frontend(ActorsType::nodes);
+      open_frontend_async(ActorsType::nodes);
 
       // Signatures are only emitted on a timer once the public ledger has been
       // recovered
@@ -1631,8 +1631,7 @@ namespace ccf
         std::nullopt,
         RaftType::StartupState{
           RaftType::StartupRole::Primary,
-          RaftType::StartupState::StateInfo{
-            index, view, view_history}});
+          RaftType::StartupState::StateInfo{index, view, view_history}});
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT("Restarting consensus at view: {} seqno: {}", view, index);
@@ -2437,6 +2436,16 @@ namespace ccf
       find_frontend(actor)->open();
     }
 
+    void open_frontend_async(ActorsType actor)
+    {
+      // Schedule frontend opening on a task to avoid calling open() (which
+      // may take locks to set up frontend-specific systems) while KV or
+      // consensus locks are held — e.g. from global hooks during
+      // post_compact().
+      ccf::tasks::add_task(
+        ccf::tasks::make_basic_task([this, actor]() { open_frontend(actor); }));
+    }
+
     bool is_member_frontend_open_unsafe()
     {
       return find_frontend(ActorsType::members)->is_open();
@@ -2869,7 +2878,7 @@ namespace ccf
               }
 
               LOG_INFO_FMT("[global] Opening members frontend");
-              open_frontend(ActorsType::members);
+              open_frontend_async(ActorsType::members);
             }
           }));
 
@@ -2907,7 +2916,7 @@ namespace ccf
             network.identity->set_certificate(w->cert);
             if (w->status == ServiceStatus::OPEN)
             {
-              open_frontend(ActorsType::users);
+              open_frontend_async(ActorsType::users);
 
               RINGBUFFER_WRITE_MESSAGE(::consensus::ledger_open, to_host);
               LOG_INFO_FMT("Service open at seqno {}", hook_version);
