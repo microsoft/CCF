@@ -17,7 +17,7 @@ These scripts accept a `-f` flag that automatically corrects issues. Always run 
 
 | Script                            | Run with                             | File types                                                                    | Tool                     |
 | --------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------- | ------------------------ |
-| `scripts/cpp-format-checks.sh`    | `scripts/cpp-format-checks.sh -f`    | `.h`, `.hpp`, `.cpp`, `.cc` in `include/`, `src/`, `samples/`                 | clang-format             |
+| `scripts/cpp-format-checks.sh`    | `scripts/cpp-format-checks.sh -f`    | `.h`, `.hpp`, `.c`, `.cpp`, `.cc` in `include/`, `src/`, `samples/`           | clang-format             |
 | `scripts/python-format-checks.sh` | `scripts/python-format-checks.sh -f` | `.py` in `tests/`, `python/`, `scripts/`, `tla/`                              | black                    |
 | `scripts/python-lint-checks.sh`   | `scripts/python-lint-checks.sh -f`   | `.py` in `python/`, `tests/`                                                  | ruff                     |
 | `scripts/prettier-checks.sh`      | `scripts/prettier-checks.sh -f`      | `.ts`, `.js`, `.md`, `.yaml`, `.yml`, `.json` (excludes `tests/sandbox/`)     | prettier                 |
@@ -28,20 +28,20 @@ These scripts accept a `-f` flag that automatically corrects issues. Always run 
 
 These scripts only report problems. Run them and read the error output to determine what manual changes are needed:
 
-| Script                           | Run with                         | File types                         | What to look for in the output                                                                    |
-| -------------------------------- | -------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `scripts/shellcheck-checks.sh`   | `scripts/shellcheck-checks.sh`   | `.sh` files (excludes `3rdparty/`) | shellcheck warnings and errors with line numbers and fix suggestions                              |
-| `scripts/python-types-checks.sh` | `scripts/python-types-checks.sh` | `.py` in `python/`                 | mypy type errors with file, line number, and expected types                                       |
-| `scripts/includes-checks.sh`     | `scripts/includes-checks.sh`     | `.h` in `include/ccf/`             | Private headers included from public headers, missing `namespace ccf`, or unused exported headers |
-| `scripts/copyright-checks.sh`    | `scripts/copyright-checks.sh`    | All source files                   | Files missing or with incorrect copyright notice headers                                          |
-| `scripts/openapi-checks.sh`      | `scripts/openapi-checks.sh`      | `.json` in `doc/schemas/`          | OpenAPI schema validation errors from swagger-cli                                                 |
-| `scripts/todo-checks.sh`         | `scripts/todo-checks.sh`         | All tracked files                  | Unacceptable `TODO` or `FIXME` comments that must be removed or resolved                          |
+| Script                           | Run with                         | File types                                         | What to look for in the output                                                                                       |
+| -------------------------------- | -------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `scripts/shellcheck-checks.sh`   | `scripts/shellcheck-checks.sh`   | `.sh` files (excludes `3rdparty/`)                 | shellcheck warnings and errors with line numbers and fix suggestions                                                 |
+| `scripts/python-types-checks.sh` | `scripts/python-types-checks.sh` | `.py` in `python/`                                 | mypy type errors with file, line number, and expected types                                                          |
+| `scripts/includes-checks.sh`     | `scripts/includes-checks.sh`     | Public headers under `include/ccf/` (`.h`, `.hpp`) | Public/private include violations in files under `include/ccf/`, missing `namespace ccf` in public headers, or unused exported headers |
+| `scripts/copyright-checks.sh`    | `scripts/copyright-checks.sh`    | All source files                                   | Files missing or with incorrect copyright notice headers                                                             |
+| `scripts/openapi-checks.sh`      | `scripts/openapi-checks.sh`      | `.json` in `doc/schemas/`                          | OpenAPI schema validation errors from swagger-cli                                                                    |
+| `scripts/todo-checks.sh`         | `scripts/todo-checks.sh`         | All tracked files                  | Unacceptable comments that must be removed or resolved                          |
 
 ## Which scripts to run for each file type
 
 | If you modified                                       | Run these scripts                                                                                         |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| C/C++ source or headers (`.h`, `.hpp`, `.cpp`, `.cc`) | `cpp-format-checks.sh -f`, `includes-checks.sh`, `copyright-checks.sh`                                    |
+| C/C++ source or headers (`.h`, `.hpp`, `.c`, `.cpp`, `.cc`) | `cpp-format-checks.sh -f`, `includes-checks.sh`, `copyright-checks.sh`                                    |
 | Python files (`.py`)                                  | `python-format-checks.sh -f`, `python-lint-checks.sh -f`, `python-types-checks.sh`, `copyright-checks.sh` |
 | TypeScript/JavaScript (`.ts`, `.js`)                  | `prettier-checks.sh -f`, `copyright-checks.sh`                                                            |
 | Markdown (`.md`)                                      | `prettier-checks.sh -f`                                                                                   |
