@@ -2437,11 +2437,6 @@ namespace ccf
       find_frontend(actor)->open();
     }
 
-    void open_user_frontend()
-    {
-      open_frontend(ActorsType::users);
-    }
-
     bool is_member_frontend_open_unsafe()
     {
       return find_frontend(ActorsType::members)->is_open();
@@ -2912,7 +2907,7 @@ namespace ccf
             network.identity->set_certificate(w->cert);
             if (w->status == ServiceStatus::OPEN)
             {
-              open_user_frontend();
+              open_frontend(ActorsType::users);
 
               RINGBUFFER_WRITE_MESSAGE(::consensus::ledger_open, to_host);
               LOG_INFO_FMT("Service open at seqno {}", hook_version);
