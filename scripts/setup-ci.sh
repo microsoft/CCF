@@ -48,7 +48,7 @@ tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install procps
 tdnf --snapshottime=$SOURCE_DATE_EPOCH install -y bind-utils
 curl -L --output h2spec_linux_amd64.tar.gz https://github.com/summerwind/h2spec/releases/download/$H2SPEC_VERSION/h2spec_linux_amd64.tar.gz
 tar -xvf h2spec_linux_amd64.tar.gz
-mkdir /opt/h2spec
+mkdir -p /opt/h2spec
 mv h2spec /opt/h2spec/h2spec
 rm h2spec_linux_amd64.tar.gz
 
@@ -58,3 +58,6 @@ tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install strace
 
 # For packaging
 tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install rpm-build
+
+# Rust
+tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install rust
