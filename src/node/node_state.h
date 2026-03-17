@@ -1947,7 +1947,14 @@ namespace ccf
       ccf::kv::Tx& tx,
       AbstractGovernanceEffects::ServiceIdentities identities) override
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      // NB: NodeState::lock is deliberately not held here. All member
+      // accesses in this function are either via the passed-in tx (which has
+      // its own KV-level protection), read-only on effectively-immutable
+      // fields (config, network.identity, sm), or on fields with their own
+      // locks (share_manager, LedgerSecrets). Holding NodeState::lock would
+      // create a lock-order-inversion with KV maps_lock, since this function
+      // is called from governance endpoints that may hold maps_lock (via
+      // apply_changes) or be called under it indirectly.
 
       auto* service = tx.rw<Service>(Tables::SERVICE);
       auto service_info = service->get();
