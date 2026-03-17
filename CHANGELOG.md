@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Added ``snapshots.max_retained_snapshot_files`` configuration option to limit the number of committed snapshot files retained on disk. When the number of committed snapshots exceeds this value, the oldest snapshots (by sequence number) are automatically deleted. The value must be at least 2 if set.
+- Added `snapshots.max_retained_snapshot_files` configuration option to limit the number of committed snapshot files retained on disk. When the number of committed snapshots exceeds this value, the oldest snapshots (by sequence number) are automatically deleted. The value must be at least 2 if set.
 - Backup nodes can now be configured to automatically fetch snapshots from the primary when snapshot evidence is detected. This is controlled by the `snapshots.backup_fetch` configuration section, with `enabled`, `max_attempts`, `retry_interval`, `max_size` and `target_rpc_interface` options. Note that the target RPC interface selected must have the `SnapshotRead` operator feature enabled.
 - Added `ccf::IdentityHistoryNotFetched` exception type to distinguish identity-history-fetching errors from other logic errors in the network identity subsystem (#7708).
 - Added `ccf::describe_cose_receipt_v1(receipt)` to obtain COSE receipts with Merkle proof in unprotected header for non-signature TXs, and empty unprotected header for signature TXs (#7700).

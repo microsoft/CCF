@@ -144,8 +144,7 @@ namespace snapshots
       {
         const auto max_retained = data->max_retained.value();
         std::vector<fs::path> directories{data->dir};
-        auto committed =
-          find_committed_snapshots_in_directories(directories);
+        auto committed = find_committed_snapshots_in_directories(directories);
 
         if (committed.size() > max_retained)
         {
