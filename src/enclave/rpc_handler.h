@@ -14,6 +14,8 @@
 namespace ccf::kv
 {
   class CommittableTx;
+  class Consensus;
+  class TxHistory;
 }
 
 namespace ccf
@@ -31,7 +33,9 @@ namespace ccf
     virtual void set_cmd_forwarder(
       std::shared_ptr<AbstractForwarder> cmd_forwarder_) = 0;
     virtual void tick(std::chrono::milliseconds /*elapsed*/) {}
-    virtual void open() = 0;
+    virtual void open(
+      ccf::kv::Consensus* consensus = nullptr,
+      ccf::kv::TxHistory* history = nullptr) = 0;
     virtual bool is_open() = 0;
 
     // Used by rpcendpoint to process incoming client RPCs

@@ -52,23 +52,6 @@ namespace ccf
     std::shared_ptr<NodeConfigurationSubsystem> node_configuration_subsystem =
       nullptr;
 
-    void update_consensus()
-    {
-      auto* c = tables.get_consensus().get();
-
-      if (consensus != c)
-      {
-        consensus = c;
-        endpoints.set_consensus(consensus);
-      }
-    }
-
-    void update_history()
-    {
-      history = tables.get_history().get();
-      endpoints.set_history(history);
-    }
-
     endpoints::EndpointDefinitionPtr find_endpoint(
       std::shared_ptr<ccf::RpcContextImpl> ctx, ccf::kv::CommittableTx& tx)
     {
@@ -687,8 +670,6 @@ namespace ccf
         }
 
         ++attempts;
-        update_history();
-
         endpoint = find_endpoint(ctx, *tx_p);
         if (endpoint == nullptr)
         {
@@ -972,13 +953,22 @@ namespace ccf
       cmd_forwarder = cmd_forwarder_;
     }
 
-    void open() override
+    void open(
+      ccf::kv::Consensus* consensus_ = nullptr,
+      ccf::kv::TxHistory* history_ = nullptr) override
     {
       std::lock_guard<ccf::pal::Mutex> mguard(open_lock);
       if (!is_open_)
       {
         LOG_INFO_FMT("Opening frontend");
         is_open_ = true;
+
+        consensus = consensus_;
+        endpoints.set_consensus(consensus);
+
+        history = history_;
+        endpoints.set_history(history);
+
         endpoints.init_handlers();
       }
     }
@@ -994,7 +984,6 @@ namespace ccf
     {
       if (endpoints.request_needs_root(ctx))
       {
-        update_history();
         if (history != nullptr)
         {
           // Warning: Retrieving the current TxID and root from the history
@@ -1019,8 +1008,6 @@ namespace ccf
      */
     void process(std::shared_ptr<ccf::RpcContextImpl> ctx) override
     {
-      update_consensus();
-
       // NB: If we want to re-execute on backups, the original command could
       // be propagated from here
       process_command(ctx);
@@ -1038,7 +1025,6 @@ namespace ccf
           "Processing forwarded command with unitialised forwarded context");
       }
 
-      update_consensus();
       process_command(ctx);
       if (ctx->response_is_pending)
       {
@@ -1050,8 +1036,6 @@ namespace ccf
 
     void tick(std::chrono::milliseconds elapsed) override
     {
-      update_consensus();
-
       endpoints.tick(elapsed);
     }
   };

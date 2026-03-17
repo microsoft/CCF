@@ -906,7 +906,6 @@ namespace ccf
         config.node_certificate.initial_validity_days);
 
       accept_node_tls_connections();
-      open_frontend_async(ActorsType::nodes);
 
       // Signatures are only emitted on a timer once the public ledger has been
       // recovered
@@ -935,6 +934,8 @@ namespace ccf
             false,
             endorsed_node_cert,
             RaftType::StartupState{RaftType::StartupRole::Primary});
+
+          open_frontend(ActorsType::nodes);
 
           LOG_INFO_FMT("Created new node {}", self);
           return {self_signed_node_cert, network.identity->cert};
@@ -1211,6 +1212,8 @@ namespace ccf
                   view,
                   view_history_,
                   last_recovered_signed_idx}});
+
+            open_frontend(ActorsType::nodes);
 
             // Now that consensus exists, execute any hooks from the
             // snapshot (e.g. ConfigurationChangeHook)
@@ -1632,6 +1635,8 @@ namespace ccf
         RaftType::StartupState{
           RaftType::StartupRole::Primary,
           RaftType::StartupState::StateInfo{index, view, view_history}});
+
+      open_frontend(ActorsType::nodes);
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT("Restarting consensus at view: {} seqno: {}", view, index);
@@ -2440,7 +2445,7 @@ namespace ccf
 
     void open_frontend(ActorsType actor)
     {
-      find_frontend(actor)->open();
+      find_frontend(actor)->open(consensus.get(), history.get());
     }
 
     void open_frontend_async(ActorsType actor)
@@ -2885,7 +2890,7 @@ namespace ccf
               }
 
               LOG_INFO_FMT("[global] Opening members frontend");
-              open_frontend_async(ActorsType::members);
+              open_frontend(ActorsType::members);
             }
           }));
 
