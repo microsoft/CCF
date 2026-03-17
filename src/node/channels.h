@@ -905,6 +905,15 @@ namespace ccf
               "Cannot send channel message on unestablished channel");
             return false;
           }
+
+          default:
+          {
+            CHANNEL_SEND_FAIL(
+              "Cannot send message of unexpected type {} on unestablished "
+              "channel",
+              static_cast<size_t>(type));
+            return false;
+          }
         }
       }
 
