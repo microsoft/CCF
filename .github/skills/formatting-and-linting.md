@@ -1,3 +1,8 @@
+---
+name: Formatting and linting
+description: How to run the individual formatting and linting check scripts, which support auto-fix, and which scripts to use for each file type.
+---
+
 # Formatting and linting
 
 `scripts/ci-checks.sh` orchestrates all formatting and linting checks by running individual scripts concurrently. You can run all checks at once, or run only the scripts relevant to the files you changed.
