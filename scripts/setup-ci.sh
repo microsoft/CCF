@@ -60,4 +60,4 @@ tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install strace
 tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install rpm-build
 
 # Rust
-tdnf -y install rust
+tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install rust
