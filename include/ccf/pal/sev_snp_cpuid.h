@@ -154,7 +154,7 @@ namespace ccf::pal::snp
       case ProductName::Genoa:
         return "00a10f11";
       case ProductName::Turin:
-        return "00b00f11";
+        return "00b00f21";
       default:
         throw std::logic_error(fmt::format(
           "SEV-SNP: Unsupported product for CPUID: {}", to_string(product)));
