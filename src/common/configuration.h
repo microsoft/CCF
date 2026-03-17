@@ -110,6 +110,7 @@ namespace ccf
     directory,
     tx_count,
     read_only_directory,
+    max_retained_snapshot_files,
     backup_fetch);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);

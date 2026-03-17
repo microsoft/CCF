@@ -617,7 +617,8 @@ namespace ccf
     snapshots::SnapshotManager snapshots(
       config.snapshots.directory,
       writer_factory,
-      config.snapshots.read_only_directory);
+      config.snapshots.read_only_directory,
+      config.snapshots.max_retained_snapshot_files);
     snapshots.register_message_handlers(buffer_processor.get_dispatcher());
 
     // handle LFS-related messages from the enclave

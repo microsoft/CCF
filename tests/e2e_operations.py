@@ -3057,10 +3057,100 @@ def run_snp_tests(args):
     run_recovery_decision_protocol_multiple_timeout(args)
 
 
+def test_max_retained_snapshot_files(network, args):
+    max_retained = 3
+    primary, _ = network.find_primary()
+
+    # Generate more snapshots than the retention limit
+    num_snapshots_to_create = max_retained + 3
+    for i in range(num_snapshots_to_create):
+        LOG.info(f"Triggering snapshot {i + 1}/{num_snapshots_to_create}")
+        network.txs.issue(network, number_txs=3)
+
+        proposal_body, careful_vote = network.consortium.make_proposal(
+            "trigger_snapshot"
+        )
+        proposal = network.consortium.get_any_active_member().propose(
+            primary, proposal_body
+        )
+        network.consortium.vote_using_majority(
+            primary,
+            proposal,
+            careful_vote,
+        )
+
+        # Issue more transactions to advance commit past the snapshot evidence
+        network.txs.issue(network, number_txs=3)
+        time.sleep(1)
+
+    # Wait for the last snapshot to be committed
+    with primary.client() as c:
+        r = c.get("/node/commit").body.json()
+        target_seqno = TxID.from_str(r["transaction_id"]).seqno
+
+    network.get_committed_snapshots(primary, target_seqno=target_seqno)
+
+    # Check the actual snapshot directory on the node filesystem
+    snapshots_dir = os.path.join(
+        primary.remote.remote.root,
+        primary.remote.snapshots_dir_name,
+    )
+
+    committed_snapshots = [
+        f
+        for f in os.listdir(snapshots_dir)
+        if f.startswith("snapshot_") and ccf.ledger.is_snapshot_file_committed(f)
+    ]
+
+    LOG.info(
+        f"Found {len(committed_snapshots)} committed snapshots in {snapshots_dir}: {sorted(committed_snapshots)}"
+    )
+
+    assert len(committed_snapshots) <= max_retained, (
+        f"Expected at most {max_retained} committed snapshots, "
+        f"but found {len(committed_snapshots)}: {sorted(committed_snapshots)}"
+    )
+
+    # Verify deletion log messages appeared
+    log_path = primary.remote.log_path()
+    with open(log_path, "r") as f:
+        log_content = f.read()
+    deletion_messages = [
+        line
+        for line in log_content.splitlines()
+        if "Deleting old snapshot" in line
+    ]
+    LOG.info(f"Found {len(deletion_messages)} snapshot deletion log messages")
+    assert len(deletion_messages) > 0, (
+        "Expected at least one log message about deleting old snapshots"
+    )
+
+    return network
+
+
+def run_max_retained_snapshot_files(const_args):
+    args = copy.deepcopy(const_args)
+    args.common_read_only_ledger_dir = None
+    args.label = f"{args.label}_max_retained_snapshots"
+    args.snapshot_tx_interval = 10000
+    args.max_retained_snapshot_files = 3
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args)
+        test_max_retained_snapshot_files(network, args)
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
     run_manual_snapshot_tests(args)
+    run_max_retained_snapshot_files(args)
     run_tls_san_checks(args)
     run_config_timeout_check(args)
     run_configuration_file_checks(args)

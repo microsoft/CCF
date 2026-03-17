@@ -24,6 +24,7 @@ namespace snapshots
 
     const fs::path snapshot_dir;
     const std::optional<fs::path> read_snapshot_dir = std::nullopt;
+    const std::optional<size_t> max_retained_snapshot_files = std::nullopt;
 
     struct PendingSnapshot
     {
@@ -36,11 +37,22 @@ namespace snapshots
     SnapshotManager(
       const std::string& snapshot_dir_,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      const std::optional<std::string>& read_snapshot_dir_ = std::nullopt) :
+      const std::optional<std::string>& read_snapshot_dir_ = std::nullopt,
+      const std::optional<size_t>& max_retained_snapshot_files_ =
+        std::nullopt) :
       to_enclave(writer_factory.create_writer_to_inside()),
       snapshot_dir(snapshot_dir_),
-      read_snapshot_dir(read_snapshot_dir_)
+      read_snapshot_dir(read_snapshot_dir_),
+      max_retained_snapshot_files(max_retained_snapshot_files_)
     {
+      if (
+        max_retained_snapshot_files.has_value() &&
+        max_retained_snapshot_files.value() < 2)
+      {
+        throw std::logic_error(fmt::format(
+          "max_retained_snapshot_files must be at least 2, got {}",
+          max_retained_snapshot_files.value()));
+      }
       if (fs::is_directory(snapshot_dir))
       {
         LOG_INFO_FMT(
@@ -101,6 +113,7 @@ namespace snapshots
       const std::filesystem::path dir;
       const std::string tmp_file_name;
       const int snapshot_fd;
+      const std::optional<size_t> max_retained;
 
       // Outputs, populated by callback
       std::string committed_file_name;
@@ -125,6 +138,30 @@ namespace snapshots
 
       const auto full_tmp_path = data->dir / data->tmp_file_name;
       files::rename(full_tmp_path, full_committed_path);
+
+      // Delete oldest committed snapshots if max_retained is set
+      if (data->max_retained.has_value())
+      {
+        const auto max_retained = data->max_retained.value();
+        std::vector<fs::path> directories{data->dir};
+        auto committed =
+          find_committed_snapshots_in_directories(directories);
+
+        if (committed.size() > max_retained)
+        {
+          // committed is sorted descending by snapshot index, so the
+          // oldest are at the end
+          for (size_t i = max_retained; i < committed.size(); ++i)
+          {
+            const auto& path = committed[i].second;
+            LOG_INFO_FMT(
+              "Deleting old snapshot {} (retaining {})",
+              path.filename(),
+              max_retained);
+            fs::remove(path);
+          }
+        }
+      }
     }
 
     static void on_snapshot_sync_and_rename_complete(
@@ -218,6 +255,7 @@ namespace snapshots
                   .dir = snapshot_dir,
                   .tmp_file_name = file_name,
                   .snapshot_fd = snapshot_fd,
+                  .max_retained = max_retained_snapshot_files,
                   .committed_file_name = {}};
 
                 work_handle->data = data;

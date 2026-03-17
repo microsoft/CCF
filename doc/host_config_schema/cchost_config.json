@@ -499,6 +499,12 @@
           "type": ["string", "null"],
           "description": "Path to read-only snapshots directory"
         },
+        "max_retained_snapshot_files": {
+          "type": ["integer", "null"],
+          "default": null,
+          "description": "Maximum number of committed snapshot files to retain. When the number of committed snapshots exceeds this value, the oldest snapshots are deleted. Must be at least 2 if set.",
+          "minimum": 2
+        },
         "backup_fetch": {
           "type": "object",
           "properties": {
