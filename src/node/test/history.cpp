@@ -18,6 +18,11 @@
 #include <doctest/doctest.h>
 #undef FAIL
 
+#include <condition_variable>
+#include <exception>
+#include <mutex>
+#include <thread>
+
 using MapT = ccf::kv::Map<size_t, size_t>;
 
 constexpr size_t certificate_validity_period_days = 365;
@@ -310,6 +315,55 @@ public:
   }
 };
 
+struct PausedSignatureCommit
+{
+  std::mutex lock;
+  std::condition_variable reserved_tx_created_cv;
+  std::condition_variable resume_cv;
+  bool reserved_tx_created = false;
+  bool resume = false;
+};
+
+class PausedReservedSignatureTx : public ccf::kv::PendingTx
+{
+  ccf::TxID txid;
+  ccf::kv::Store& store;
+  ccf::Signatures signatures;
+  ccf::SerialisedMerkleTree serialised_tree;
+  PausedSignatureCommit& paused;
+
+public:
+  PausedReservedSignatureTx(
+    ccf::TxID txid_, ccf::kv::Store& store_, PausedSignatureCommit& paused_) :
+    txid(txid_),
+    store(store_),
+    signatures(ccf::Tables::SIGNATURES),
+    serialised_tree(ccf::Tables::SERIALISED_MERKLE_TREE),
+    paused(paused_)
+  {}
+
+  ccf::kv::PendingTxInfo call() override
+  {
+    auto tx = store.create_reserved_tx(txid);
+    auto sig = tx.rw(signatures);
+    auto tree = tx.rw(serialised_tree);
+
+    sig->put(ccf::PrimarySignature(ccf::kv::test::PrimaryNodeId, txid.seqno));
+    tree->put({});
+
+    {
+      std::lock_guard<std::mutex> guard(paused.lock);
+      paused.reserved_tx_created = true;
+    }
+    paused.reserved_tx_created_cv.notify_one();
+
+    std::unique_lock<std::mutex> guard(paused.lock);
+    paused.resume_cv.wait(guard, [this]() { return paused.resume; });
+
+    return tx.commit_reserved();
+  }
+};
+
 TEST_CASE(
   "Batches containing but not ending on a committable transaction should not "
   "halt replication")
@@ -455,6 +509,81 @@ TEST_CASE(
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 3);
   }
+}
+
+TEST_CASE(
+  "Reserved signature tx returns no-replicate if rolled back before "
+  "commit_reserved")
+{
+  ccf::kv::Store store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  store.set_consensus(consensus);
+  constexpr auto store_term = 2;
+  store.initialise_term(store_term);
+
+  MapT table("public:table");
+
+  INFO("Commit two normal transactions before emitting a signature");
+  {
+    auto tx = store.create_tx();
+    auto txv = tx.rw(table);
+    txv->put(0, 1);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = store.create_tx();
+    auto txv = tx.rw(table);
+    txv->put(0, 2);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  REQUIRE(store.current_version() == 2);
+
+  auto txid = store.next_txid();
+  REQUIRE(txid == ccf::TxID(store_term, 3));
+
+  PausedSignatureCommit paused;
+  std::optional<ccf::kv::CommitResult> worker_result;
+
+  std::thread worker([&]() {
+    worker_result = store.commit(
+      txid,
+      std::make_unique<PausedReservedSignatureTx>(txid, store, paused),
+      true);
+  });
+
+  {
+    std::unique_lock<std::mutex> guard(paused.lock);
+    paused.reserved_tx_created_cv.wait(
+      guard, [&paused]() { return paused.reserved_tx_created; });
+  }
+
+  INFO("Rollback after create_reserved_tx but before commit_reserved");
+  store.rollback({store_term, 1}, store.commit_view());
+
+  {
+    std::lock_guard<std::mutex> guard(paused.lock);
+    paused.resume = true;
+  }
+  paused.resume_cv.notify_one();
+  worker.join();
+
+  REQUIRE(worker_result.has_value());
+  REQUIRE(worker_result.value() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+  REQUIRE(consensus->number_of_replicas() == 2);
+
+  INFO("A normal transaction can still commit after the failed signature path");
+  {
+    auto tx = store.create_tx();
+    auto txv = tx.rw(table);
+    txv->put(0, 3);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  REQUIRE(consensus->number_of_replicas() == 3);
 }
 
 TEST_CASE(
