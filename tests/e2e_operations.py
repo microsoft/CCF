@@ -3061,11 +3061,23 @@ def test_max_retained_snapshot_files(network, args):
     max_retained = 3
     primary, _ = network.find_primary()
 
+    # Track all snapshot seqnos as they are created
+    all_snapshot_seqnos = set()
+
+    snapshots_dir = os.path.join(
+        primary.remote.remote.root,
+        primary.remote.snapshots_dir_name,
+    )
+
     # Generate more snapshots than the retention limit
     num_snapshots_to_create = max_retained + 3
     for i in range(num_snapshots_to_create):
         LOG.info(f"Triggering snapshot {i + 1}/{num_snapshots_to_create}")
         network.txs.issue(network, number_txs=3)
+
+        with primary.client() as c:
+            r = c.get("/node/commit").body.json()
+            seqno_before = TxID.from_str(r["transaction_id"]).seqno
 
         proposal_body, careful_vote = network.consortium.make_proposal(
             "trigger_snapshot"
@@ -3081,48 +3093,47 @@ def test_max_retained_snapshot_files(network, args):
 
         # Issue more transactions to advance commit past the snapshot evidence
         network.txs.issue(network, number_txs=3)
-        time.sleep(1)
 
-    # Wait for the last snapshot to be committed
-    with primary.client() as c:
-        r = c.get("/node/commit").body.json()
-        target_seqno = TxID.from_str(r["transaction_id"]).seqno
+        # Wait for this snapshot to be committed on disk
+        network.get_committed_snapshots(primary, target_seqno=seqno_before)
 
-    network.get_committed_snapshots(primary, target_seqno=target_seqno)
+        # Record the seqnos of committed snapshots currently on disk
+        for f in os.listdir(snapshots_dir):
+            if f.startswith("snapshot_") and ccf.ledger.is_snapshot_file_committed(f):
+                seqno, _ = ccf.ledger.snapshot_index_from_filename(f)
+                all_snapshot_seqnos.add(seqno)
+
+    sorted_seqnos = sorted(all_snapshot_seqnos)
+    LOG.info(f"All snapshot seqnos created over time: {sorted_seqnos}")
+    assert len(all_snapshot_seqnos) >= num_snapshots_to_create, (
+        f"Expected at least {num_snapshots_to_create} distinct snapshots to have been created, "
+        f"but only tracked {len(all_snapshot_seqnos)}"
+    )
+
+    # Determine the expected survivors: the most recent max_retained seqnos
+    expected_survivors = set(sorted_seqnos[-max_retained:])
 
     # Check the actual snapshot directory on the node filesystem
-    snapshots_dir = os.path.join(
-        primary.remote.remote.root,
-        primary.remote.snapshots_dir_name,
-    )
-
-    committed_snapshots = [
-        f
-        for f in os.listdir(snapshots_dir)
-        if f.startswith("snapshot_") and ccf.ledger.is_snapshot_file_committed(f)
-    ]
+    remaining_seqnos = set()
+    for f in os.listdir(snapshots_dir):
+        if f.startswith("snapshot_") and ccf.ledger.is_snapshot_file_committed(f):
+            seqno, _ = ccf.ledger.snapshot_index_from_filename(f)
+            remaining_seqnos.add(seqno)
 
     LOG.info(
-        f"Found {len(committed_snapshots)} committed snapshots in {snapshots_dir}: {sorted(committed_snapshots)}"
+        f"Remaining snapshot seqnos: {sorted(remaining_seqnos)}, "
+        f"expected survivors: {sorted(expected_survivors)}"
     )
 
-    assert len(committed_snapshots) <= max_retained, (
+    assert len(remaining_seqnos) <= max_retained, (
         f"Expected at most {max_retained} committed snapshots, "
-        f"but found {len(committed_snapshots)}: {sorted(committed_snapshots)}"
+        f"but found {len(remaining_seqnos)}: {sorted(remaining_seqnos)}"
     )
 
-    # Verify deletion log messages appeared
-    log_path = primary.remote.log_path()
-    with open(log_path, "r") as f:
-        log_content = f.read()
-    deletion_messages = [
-        line
-        for line in log_content.splitlines()
-        if "Deleting old snapshot" in line
-    ]
-    LOG.info(f"Found {len(deletion_messages)} snapshot deletion log messages")
-    assert len(deletion_messages) > 0, (
-        "Expected at least one log message about deleting old snapshots"
+    # Verify that the retained snapshots are the newest ones
+    assert remaining_seqnos == expected_survivors, (
+        f"Expected the retained snapshots to be the newest: {sorted(expected_survivors)}, "
+        f"but found: {sorted(remaining_seqnos)}"
     )
 
     return network
