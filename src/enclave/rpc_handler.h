@@ -33,10 +33,10 @@ namespace ccf
     virtual void set_cmd_forwarder(
       std::shared_ptr<AbstractForwarder> cmd_forwarder_) = 0;
     virtual void tick(std::chrono::milliseconds /*elapsed*/) {}
-    virtual void open(
-      ccf::kv::Consensus* consensus = nullptr,
-      ccf::kv::TxHistory* history = nullptr) = 0;
+    virtual void open() = 0;
     virtual bool is_open() = 0;
+    virtual void set_consensus_and_history(
+      ccf::kv::Consensus* consensus, ccf::kv::TxHistory* history) = 0;
 
     // Used by rpcendpoint to process incoming client RPCs
     virtual void process(std::shared_ptr<RpcContextImpl> ctx) = 0;

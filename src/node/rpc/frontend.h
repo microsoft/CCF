@@ -953,24 +953,25 @@ namespace ccf
       cmd_forwarder = cmd_forwarder_;
     }
 
-    void open(
-      ccf::kv::Consensus* consensus_ = nullptr,
-      ccf::kv::TxHistory* history_ = nullptr) override
+    void open() override
     {
       std::lock_guard<ccf::pal::Mutex> mguard(open_lock);
       if (!is_open_)
       {
         LOG_INFO_FMT("Opening frontend");
         is_open_ = true;
-
-        consensus = consensus_;
-        endpoints.set_consensus(consensus);
-
-        history = history_;
-        endpoints.set_history(history);
-
         endpoints.init_handlers();
       }
+    }
+
+    void set_consensus_and_history(
+      ccf::kv::Consensus* consensus_, ccf::kv::TxHistory* history_) override
+    {
+      consensus = consensus_;
+      endpoints.set_consensus(consensus);
+
+      history = history_;
+      endpoints.set_history(history);
     }
 
     bool is_open() override
