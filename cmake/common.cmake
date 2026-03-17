@@ -44,6 +44,14 @@ function(add_unit_test name)
     PROPERTY LABELS unit
   )
 
+  if(COVERAGE)
+    set_property(
+      TEST ${name}
+      APPEND
+      PROPERTY ENVIRONMENT "LLVM_PROFILE_FILE=${name}-%p.profraw"
+    )
+  endif()
+
   add_san_test_properties(${name})
 endfunction()
 
@@ -275,6 +283,16 @@ function(add_e2e_test)
     endif()
 
     add_san_test_properties(${PARSED_ARGS_NAME})
+
+    if(COVERAGE)
+      set_property(
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY
+          ENVIRONMENT
+          "LLVM_PROFILE_FILE=${CMAKE_BINARY_DIR}/${PARSED_ARGS_NAME}-%p.profraw"
+      )
+    endif()
 
     set_property(
       TEST ${PARSED_ARGS_NAME}

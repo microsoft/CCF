@@ -372,6 +372,8 @@ class CCFRemote(object):
         env["ASAN_OPTIONS"] = os.environ.get("ASAN_OPTIONS", "")
         env["ASAN_SYMBOLIZER_PATH"] = os.environ.get("ASAN_SYMBOLIZER_PATH", "")
         env["TSAN_SYMBOLIZER_PATH"] = os.environ.get("TSAN_SYMBOLIZER_PATH", "")
+        if "LLVM_PROFILE_FILE" in os.environ:
+            env["LLVM_PROFILE_FILE"] = os.environ["LLVM_PROFILE_FILE"]
 
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
