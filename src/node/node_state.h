@@ -910,6 +910,7 @@ namespace ccf
       // Signatures are only emitted on a timer once the public ledger has been
       // recovered
       setup_history();
+      setup_basic_hooks();
       setup_snapshotter();
       setup_encryptor();
 
@@ -2890,7 +2891,7 @@ namespace ccf
               }
 
               LOG_INFO_FMT("[global] Opening members frontend");
-              open_frontend(ActorsType::members);
+              open_frontend_async(ActorsType::members);
             }
           }));
 
@@ -2911,7 +2912,7 @@ namespace ccf
                 ->public_key_pem();
             if (hook_pubk_pem != current_pubk_pem)
             {
-              LOG_TRACE_FMT(
+              LOG_INFO_FMT(
                 "Ignoring historical service open at seqno {} for {}",
                 hook_version,
                 w->cert.str());
@@ -3160,7 +3161,9 @@ namespace ccf
             }
           }));
 
-      setup_basic_hooks();
+      // Note: setup_basic_hooks() is intentionally NOT called here. It is
+      // called earlier in create(), before snapshot deserialization, to ensure
+      // global hooks are registered before any data is committed to the maps.
     }
 
     void setup_snapshotter()
