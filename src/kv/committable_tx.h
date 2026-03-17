@@ -414,7 +414,14 @@ namespace ccf::kv
 
       if (!success)
       {
-        throw std::logic_error("Failed to commit reserved transaction");
+        if (pimpl->store->check_rollback_count(rollback_count))
+        {
+          throw std::logic_error("Failed to commit reserved transaction");
+        }
+
+        committed = true;
+        return {
+          CommitResult::FAIL_NO_REPLICATE, {}, ccf::empty_claims(), {}, {}};
       }
 
       ccf::crypto::Sha256Hash commit_evidence_digest;
