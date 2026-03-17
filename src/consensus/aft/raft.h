@@ -207,7 +207,7 @@ namespace aft
     std::unique_ptr<LedgerProxy> ledger;
     std::shared_ptr<ccf::NodeToNode> channels;
 
-    enum class StartupRole
+    enum class StartupRole : std::uint8_t
     {
       Primary,
       Backup,
@@ -223,8 +223,8 @@ namespace aft
       // a primary, the node starts from scratch (genesis).
       struct StateInfo
       {
-        Index index;
-        Term term;
+        Index index = 0;
+        Term term = 0;
         std::vector<Index> view_history;
         Index recovery_start_index = 0;
       };
