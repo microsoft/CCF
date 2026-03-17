@@ -800,8 +800,10 @@ namespace aft
           }
 
           case raft_append_entries_signed_response:
+          default:
           {
             RAFT_FAIL_FMT("Received unhandled AFT message type: {}", type);
+            return;
           }
         }
       }
