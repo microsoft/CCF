@@ -3,6 +3,7 @@
 
 import functools
 
+import infra.test_filter
 from infra.snp import SNP_SUPPORT
 from loguru import logger as LOG
 from infra.member import RecoveryRole
@@ -16,6 +17,13 @@ def description(desc):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            if infra.test_filter.should_skip_test(func.__name__):
+                LOG.info(
+                    f'Skipping "{func.__name__}" (filtered by {infra.test_filter._ENV_VAR})'
+                )
+                # Return first arg (network) unchanged to preserve chaining
+                return args[0] if args else None
+            infra.test_filter.record_match(func.__name__)
             LOG.opt(colors=True, depth=1).info(
                 f'<magenta>Test: {desc} {(kwargs or "")}</>'
             )

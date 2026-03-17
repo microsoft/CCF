@@ -14,8 +14,8 @@ import copy
 from typing import List
 import sys
 import better_exceptions
-import re
 import infra.bencher
+import infra.test_filter
 import os
 
 from loguru import logger as LOG
@@ -216,12 +216,6 @@ class ConcurrentRunner:
                 help="List all sub-tests without executing",
                 action="store_true",
             )
-            parser.add_argument(
-                "-R",
-                "--regex",
-                help="Run sub-tests whose name includes this string",
-                metavar="<string>",
-            )
             if add_options:
                 add_options(parser)
 
@@ -245,12 +239,18 @@ class ConcurrentRunner:
         }
         LOG.configure(**config)
 
-        if self.args.regex:
+        runner_filter = infra.test_filter.get_runner_filter()
+        if runner_filter:
             self.threads = [
                 thread
                 for thread in self.threads
-                if re.compile(self.args.regex).search(thread.name)
+                if runner_filter == thread.name
             ]
+            if not self.threads:
+                raise RuntimeError(
+                    f'{infra.test_filter._ENV_VAR}="{infra.test_filter.get_filter()}" '
+                    f"matched no runner threads. Check for typos."
+                )
 
         if self.args.show_only:
             for thread in self.threads:
@@ -278,6 +278,8 @@ class ConcurrentRunner:
 
             for thread in group:
                 thread.join()
+
+        infra.test_filter.check_any_matched()
 
         if FAILURES:
             raise RuntimeError(FAILURES)
