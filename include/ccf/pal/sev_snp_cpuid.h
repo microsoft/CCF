@@ -150,10 +150,16 @@ namespace ccf::pal::snp
     switch (product)
     {
       case ProductName::Milan:
+        // See Table 2 of "Revision Guide for 19h 00h-0Fh Processors"
+        // https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/revision-guides/56683.pdf
         return "00a00f11";
       case ProductName::Genoa:
+        // See Table 2 of "Revision Guide for 19h 10h-1Fh Processors"
+        // https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/revision-guides/57095-PUB_1_01.pdf
         return "00a10f11";
       case ProductName::Turin:
+        // See Table 2 of "Revision Guide for 1Ah 00h-0Fh Processors"
+        // https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/revision-guides/58251.pdf
         return "00b00f21";
       default:
         throw std::logic_error(fmt::format(
