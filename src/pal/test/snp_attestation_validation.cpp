@@ -94,12 +94,13 @@ TEST_CASE("Mismatched attestation and endorsements fail")
   pal::PlatformAttestationMeasurement measurement;
   pal::PlatformAttestationReportData report_data;
 
-  CHECK_THROWS_WITH(
+  CHECK_THROWS_WITH_AS(
     pal::verify_snp_attestation_report(
       mismatched_quote, measurement, report_data),
     doctest::Contains(
       "SEV-SNP: The root of trust public key for this attestation "
-      "was not the expected one"));
+      "was not the expected one"),
+    std::logic_error);
 }
 
 TEST_CASE("Parsing of Tcb versions from strings")
