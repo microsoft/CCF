@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Fixed the Turin SEV-SNP CPUID mapping used for product detection.
+- Fixed the Turin SEV-SNP CPUID mapping used for product detection. (#7748)
 
 ## [7.0.0-dev12]
 
