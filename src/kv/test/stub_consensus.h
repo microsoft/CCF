@@ -5,6 +5,7 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "consensus/aft/impl/state.h"
 #include "kv/kv_types.h"
+#include "kv/store.h"
 
 #include <algorithm>
 #include <iostream>
@@ -269,6 +270,88 @@ namespace ccf::kv::test
     Consensus::SignatureDisposition get_signature_disposition() override
     {
       return Consensus::SignatureDisposition::CAN_SIGN;
+    }
+  };
+
+  class RollbackAwarePrimaryStubConsensus
+    : public ccf::kv::test::PrimaryStubConsensus
+  {
+  private:
+    ccf::kv::Store& store;
+    ccf::SeqNo last_idx = 0;
+
+  public:
+    RollbackAwarePrimaryStubConsensus(ccf::kv::Store& store_) : store(store_) {}
+
+    bool replicate(const ccf::kv::BatchVector& entries, ccf::View view) override
+    {
+      const auto replicated =
+        ccf::kv::test::PrimaryStubConsensus::replicate(entries, view);
+
+      if (replicated)
+      {
+        for (const auto& [version, data, committable, hooks] : entries)
+        {
+          last_idx = std::max(last_idx, version);
+        }
+      }
+
+      return replicated;
+    }
+
+    ccf::View get_view(ccf::SeqNo seqno) override
+    {
+      if (seqno > last_idx)
+      {
+        return ccf::VIEW_UNKNOWN;
+      }
+
+      return ccf::kv::test::PrimaryStubConsensus::get_view(seqno);
+    }
+
+    ccf::View get_view() override
+    {
+      return ccf::kv::test::PrimaryStubConsensus::get_view();
+    }
+
+    [[nodiscard]] ccf::SeqNo get_last_seqno() const
+    {
+      return last_idx;
+    }
+
+    void rollback(ccf::SeqNo rollback_idx, ccf::View new_view)
+    {
+      if (rollback_idx > last_idx)
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot rollback stub consensus from {} to {}",
+          last_idx,
+          rollback_idx));
+      }
+
+      const auto retained_term = get_view(rollback_idx);
+      if (retained_term == ccf::VIEW_UNKNOWN)
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot determine retained term at {} during rollback",
+          rollback_idx));
+      }
+
+      if (rollback_idx > replica.size())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot truncate {} replicated entries to {}",
+          replica.size(),
+          rollback_idx));
+      }
+
+      store.rollback({retained_term, rollback_idx}, new_view);
+
+      // equivalent to ledger->truncate(idx)
+      replica.resize(rollback_idx);
+      last_idx = rollback_idx;
+      view_history.rollback(rollback_idx);
+      current_view = new_view;
     }
   };
 }
