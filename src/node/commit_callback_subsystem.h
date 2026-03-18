@@ -118,8 +118,7 @@ namespace ccf
             }
 
             const auto final_status = static_cast<ccf::FinalTxStatus>(status);
-            ready.emplace_back(
-              std::move(tx_id), final_status, std::move(callback));
+            ready.emplace_back(tx_id, final_status, std::move(callback));
           }
 
           it = pending_callbacks.erase(it);
