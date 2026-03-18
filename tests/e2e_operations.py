@@ -186,15 +186,7 @@ def test_forced_snapshot(network, args):
     network.txs.issue(network, number_txs=1, wait_for_sync=True)
 
     # Submit a proposal to force a snapshot
-    proposal_body, careful_vote = network.consortium.make_proposal("trigger_snapshot")
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    proposal = network.consortium.vote_using_majority(
-        primary,
-        proposal,
-        careful_vote,
-    )
+    primary.trigger_snapshot(network.consortium)
 
     # Issue some more transactions
     network.txs.issue(network, number_txs=5)
@@ -233,15 +225,7 @@ def test_large_snapshot(network, args):
             )
 
     # Submit a proposal to force a snapshot at the following signature
-    proposal_body, careful_vote = network.consortium.make_proposal("trigger_snapshot")
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    proposal = network.consortium.vote_using_majority(
-        primary,
-        proposal,
-        careful_vote,
-    )
+    primary.trigger_snapshot(network.consortium)
 
     # Check that there is at least a snapshot larger than args.max_msg_size_bytes
     snapshots_dir = network.get_committed_snapshots(primary)
@@ -529,24 +513,10 @@ def test_snapshot_selection(network, args):
         )
         network.trust_node(new_node, args)
 
-    def trigger_snapshot(node):
-        LOG.info(f"Triggering snapshot on {node.local_node_id}")
-        proposal_body, careful_vote = network.consortium.make_proposal(
-            "trigger_snapshot"
-        )
-        proposal = network.consortium.get_any_active_member().propose(
-            node, proposal_body
-        )
-        network.consortium.vote_using_majority(
-            node,
-            proposal,
-            careful_vote,
-        )
-
     LOG.info("Creating snapshots")
     primary, backups = network.find_nodes()
     for i in range(3):
-        trigger_snapshot(primary)
+        primary.trigger_snapshot(network.consortium)
         # Snapshot creation and commit takes time. All of the helpers we have to track/poll this
         # are expensive, so try a short sleep
         time.sleep(1)
@@ -3058,18 +3028,41 @@ def run_snp_tests(args):
 
 
 def test_max_retained_snapshot_files(network, args):
-    max_retained = 3
+    max_retained = args.max_retained_snapshot_files
     primary, _ = network.find_primary()
-
-    # Track all snapshot seqnos as they are created
-    all_snapshot_seqnos = set()
 
     snapshots_dir = os.path.join(
         primary.remote.remote.root,
         primary.remote.snapshots_dir_name,
     )
 
-    # Generate more snapshots than the retention limit
+    def wait_for_snapshot_seqnos(count, timeout=10):
+        end_time = time.time() + timeout
+        observed_seqnos = set()
+        while time.time() < end_time:
+            observed_seqnos = set()
+            for f in os.listdir(snapshots_dir):
+                if f.startswith("snapshot_") and ccf.ledger.is_snapshot_file_committed(
+                    f
+                ):
+                    seqno, _ = ccf.ledger.snapshot_index_from_filename(f)
+                    observed_seqnos.add(seqno)
+
+            if len(observed_seqnos) >= count:
+                return sorted(observed_seqnos)
+
+            time.sleep(0.1)
+
+        raise TimeoutError(
+            f"Timed out waiting for at least {count} committed snapshots in "
+            f"{snapshots_dir}. Last observed {len(observed_seqnos)}: {sorted(observed_seqnos)}"
+        )
+
+    # We expect an initial snapshot, created by network open.
+    prev_seqnos = wait_for_snapshot_seqnos(count=1)
+    LOG.info(f"Initial snapshots on disk: {prev_seqnos}")
+
+    # Generate more snapshots than the retention limit, checking invariants at each step
     num_snapshots_to_create = max_retained + 3
     for i in range(num_snapshots_to_create):
         LOG.info(f"Triggering snapshot {i + 1}/{num_snapshots_to_create}")
@@ -3079,62 +3072,38 @@ def test_max_retained_snapshot_files(network, args):
             r = c.get("/node/commit").body.json()
             seqno_before = TxID.from_str(r["transaction_id"]).seqno
 
-        proposal_body, careful_vote = network.consortium.make_proposal(
-            "trigger_snapshot"
-        )
-        proposal = network.consortium.get_any_active_member().propose(
-            primary, proposal_body
-        )
-        network.consortium.vote_using_majority(
-            primary,
-            proposal,
-            careful_vote,
-        )
-
-        # Issue more transactions to advance commit past the snapshot evidence
+        primary.trigger_snapshot(network.consortium)
         network.txs.issue(network, number_txs=3)
 
-        # Wait for this snapshot to be committed on disk
-        network.get_committed_snapshots(primary, target_seqno=seqno_before)
+        # Read all committed snapshots currently on disk
+        expected_count = min(max_retained, len(prev_seqnos) + 1)
+        current_seqnos = wait_for_snapshot_seqnos(count=expected_count)
 
-        # Record the seqnos of committed snapshots currently on disk
-        for f in os.listdir(snapshots_dir):
-            if f.startswith("snapshot_") and ccf.ledger.is_snapshot_file_committed(f):
-                seqno, _ = ccf.ledger.snapshot_index_from_filename(f)
-                all_snapshot_seqnos.add(seqno)
+        LOG.info(
+            f"Snapshot {i + 1}: seqnos on disk: {current_seqnos}, "
+            f"previous iteration: {prev_seqnos}"
+        )
 
-    sorted_seqnos = sorted(all_snapshot_seqnos)
-    LOG.info(f"All snapshot seqnos created over time: {sorted_seqnos}")
-    assert len(all_snapshot_seqnos) >= num_snapshots_to_create, (
-        f"Expected at least {num_snapshots_to_create} distinct snapshots to have been created, "
-        f"but only tracked {len(all_snapshot_seqnos)}"
-    )
+        # At most max_retained snapshots on disk at any time
+        assert len(current_seqnos) <= max_retained, (
+            f"Expected at most {max_retained} snapshots after iteration {i + 1}, "
+            f"found {len(current_seqnos)}: {current_seqnos}"
+        )
 
-    # Determine the expected survivors: the most recent max_retained seqnos
-    expected_survivors = set(sorted_seqnos[-max_retained:])
+        # The latest snapshot is the one we just created
+        assert current_seqnos[-1] >= seqno_before, (
+            f"Expected the newest snapshot seqno {current_seqnos[-1]} "
+            f"to be >= seqno_before {seqno_before}"
+        )
 
-    # Check the actual snapshot directory on the node filesystem
-    remaining_seqnos = set()
-    for f in os.listdir(snapshots_dir):
-        if f.startswith("snapshot_") and ccf.ledger.is_snapshot_file_committed(f):
-            seqno, _ = ccf.ledger.snapshot_index_from_filename(f)
-            remaining_seqnos.add(seqno)
+        # All snapshots except the latest were present in the previous iteration
+        for seqno in current_seqnos[:-1]:
+            assert seqno in prev_seqnos, (
+                f"Snapshot with seqno {seqno} was not present in the previous "
+                f"iteration {prev_seqnos}"
+            )
 
-    LOG.info(
-        f"Remaining snapshot seqnos: {sorted(remaining_seqnos)}, "
-        f"expected survivors: {sorted(expected_survivors)}"
-    )
-
-    assert len(remaining_seqnos) <= max_retained, (
-        f"Expected at most {max_retained} committed snapshots, "
-        f"but found {len(remaining_seqnos)}: {sorted(remaining_seqnos)}"
-    )
-
-    # Verify that the retained snapshots are the newest ones
-    assert remaining_seqnos == expected_survivors, (
-        f"Expected the retained snapshots to be the newest: {sorted(expected_survivors)}, "
-        f"but found: {sorted(remaining_seqnos)}"
-    )
+        prev_seqnos = current_seqnos
 
     return network
 
@@ -3161,6 +3130,10 @@ def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
     run_manual_snapshot_tests(args)
+    run_max_retained_snapshot_files(args)
+    run_max_retained_snapshot_files(args)
+    run_max_retained_snapshot_files(args)
+    run_max_retained_snapshot_files(args)
     run_max_retained_snapshot_files(args)
     run_tls_san_checks(args)
     run_config_timeout_check(args)

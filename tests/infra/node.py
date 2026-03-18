@@ -885,6 +885,12 @@ class Node:
             LOG.debug(f"Failed to connect {e}")
             self.network_state = NodeNetworkState.stopped
 
+    def trigger_snapshot(self, consortium):
+        LOG.info(f"Triggering snapshot on {self.local_node_id}")
+        proposal_body, careful_vote = consortium.make_proposal("trigger_snapshot")
+        proposal = consortium.get_any_active_member().propose(self, proposal_body)
+        consortium.vote_using_majority(self, proposal, careful_vote)
+
     def log_stack_trace(self, timeout=20):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
             self.remote.log_stack_trace(timeout=timeout)

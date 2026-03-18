@@ -150,9 +150,11 @@ namespace snapshots
         {
           // committed is sorted descending by snapshot index, so the
           // oldest are at the end
-          for (size_t i = max_retained; i < committed.size(); ++i)
+          for (auto it = committed.rbegin();
+               it != committed.rend() - max_retained;
+               ++it)
           {
-            const auto& path = committed[i].second;
+            const auto& path = it->second;
             LOG_INFO_FMT(
               "Deleting old snapshot {} (retaining {})",
               path.filename(),
