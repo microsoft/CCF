@@ -69,6 +69,11 @@ namespace ccf::crypto
   {
     switch (curve_id)
     {
+      case CurveID::NONE:
+      case CurveID::CURVE25519:
+      case CurveID::X25519:
+        throw std::logic_error(
+          fmt::format("Invalid JWK EC CurveId {}", curve_id));
       case CurveID::SECP384R1:
         return JsonWebKeyECCurve::P384;
       case CurveID::SECP256R1:
@@ -82,6 +87,9 @@ namespace ccf::crypto
   {
     switch (jwk_curve)
     {
+      case JsonWebKeyECCurve::P521:
+        throw std::logic_error(
+          fmt::format("Unsupported JWK curve {}", jwk_curve));
       case JsonWebKeyECCurve::P384:
         return CurveID::SECP384R1;
       case JsonWebKeyECCurve::P256:
@@ -105,6 +113,10 @@ namespace ccf::crypto
   {
     switch (curve_id)
     {
+      case CurveID::NONE:
+      case CurveID::SECP384R1:
+      case CurveID::SECP256R1:
+        throw std::logic_error(fmt::format("Invalid EdDSA curve {}", curve_id));
       case CurveID::CURVE25519:
         return JsonWebKeyEdDSACurve::ED25519;
       case CurveID::X25519:
