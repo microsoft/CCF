@@ -195,7 +195,7 @@ To set the minimum TCB version for a specific CPU model, you can use the followi
 
 The parsed TCB version mapped to that cpuid in the :ref:`audit/builtin_maps:``nodes.snp.tcb_versions``` table, which is used to validate the TCB version of joining nodes.
 
-.. note:: 
+.. note::
   `Milan <https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dcasv5-series>`__
   and `Genoa <https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dcasv6-series>`__
   are currently deployed in Azure Container Instances.
