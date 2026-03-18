@@ -911,8 +911,8 @@ namespace ccf
       // Signatures are only emitted on a timer once the public ledger has been
       // recovered
       setup_history();
-      setup_basic_hooks();
       setup_snapshotter();
+      setup_basic_hooks();
       setup_encryptor();
 
       initiate_quote_generation();
@@ -2931,6 +2931,100 @@ namespace ccf
               LOG_INFO_FMT("Service open at seqno {}", hook_version);
             }
           }));
+
+      // When a node is added, even locally, inform consensus so that it
+      // can add a new active configuration.
+      network.tables->set_map_hook(
+        network.nodes.get_name(),
+        Nodes::wrap_map_hook(
+          [](ccf::kv::Version version, const Nodes::Write& w)
+            -> ccf::kv::ConsensusHookPtr {
+            return std::make_unique<ConfigurationChangeHook>(version, w);
+          }));
+
+      // Note: The Signatures hook and SerialisedMerkleTree hook are separate
+      // because the signature and the Merkle tree are recorded in distinct
+      // tables (for serialisation performance reasons). However here, they are
+      // expected to always be called together and for the same version as they
+      // are always written by each signature transaction.
+
+      network.tables->set_map_hook(
+        network.cose_signatures.get_name(),
+        CoseSignatures::wrap_map_hook(
+          [s = this->snapshotter](
+            ccf::kv::Version version,
+            const CoseSignatures::Write& w) -> ccf::kv::ConsensusHookPtr {
+            assert(w.has_value());
+            s->record_cose_signature(version, w.value());
+            return {nullptr};
+          }));
+
+      network.tables->set_map_hook(
+        network.serialise_tree.get_name(),
+        SerialisedMerkleTree::wrap_map_hook(
+          [s = this->snapshotter](
+            ccf::kv::Version version,
+            const SerialisedMerkleTree::Write& w) -> ccf::kv::ConsensusHookPtr {
+            assert(w.has_value());
+            const auto& tree = w.value();
+            s->record_serialised_tree(version, tree);
+            return {nullptr};
+          }));
+
+      network.tables->set_map_hook(
+        network.snapshot_evidence.get_name(),
+        SnapshotEvidence::wrap_map_hook(
+          [s = this->snapshotter](
+            ccf::kv::Version version,
+            const SnapshotEvidence::Write& w) -> ccf::kv::ConsensusHookPtr {
+            assert(w.has_value());
+            auto snapshot_evidence = w.value();
+            s->record_snapshot_evidence_idx(version, snapshot_evidence);
+            return {nullptr};
+          }));
+
+      network.tables->set_global_hook(
+        network.snapshot_evidence.get_name(),
+        SnapshotEvidence::wrap_commit_hook(
+          [this](
+            [[maybe_unused]] ccf::kv::Version version,
+            const SnapshotEvidence::Write& w) {
+            if (!w.has_value())
+            {
+              return;
+            }
+
+            auto snapshot_evidence = w.value();
+
+            // If backup snapshot fetching is enabled and this node is a
+            // backup, schedule a fetch task
+            if (
+              config.snapshots.backup_fetch.enabled && consensus != nullptr &&
+              !consensus->is_primary())
+            {
+              std::lock_guard<pal::Mutex> guard(lock);
+              if (
+                backup_snapshot_fetch_task != nullptr &&
+                !backup_snapshot_fetch_task->is_cancelled())
+              {
+                LOG_DEBUG_FMT(
+                  "Backup snapshot fetch already in progress, skipping");
+              }
+              else
+              {
+                LOG_INFO_FMT(
+                  "Snapshot evidence detected on backup - scheduling "
+                  "snapshot fetch from primary (since seqno: {})",
+                  snapshot_evidence.version);
+                backup_snapshot_fetch_task =
+                  std::make_shared<BackupSnapshotFetch>(
+                    config.snapshots,
+                    snapshot_evidence.version - 1 /* YIKES */,
+                    this);
+                ccf::tasks::add_task(backup_snapshot_fetch_task);
+              }
+            }
+          }));
     }
 
     ccf::kv::Version get_last_recovered_signed_idx() override
@@ -3067,104 +3161,6 @@ namespace ccf
       {
         fe->set_consensus_and_history(consensus.get(), history.get());
       }
-
-      // When a node is added, even locally, inform consensus so that it
-      // can add a new active configuration.
-      network.tables->set_map_hook(
-        network.nodes.get_name(),
-        Nodes::wrap_map_hook(
-          [](ccf::kv::Version version, const Nodes::Write& w)
-            -> ccf::kv::ConsensusHookPtr {
-            return std::make_unique<ConfigurationChangeHook>(version, w);
-          }));
-
-      // Note: The Signatures hook and SerialisedMerkleTree hook are separate
-      // because the signature and the Merkle tree are recorded in distinct
-      // tables (for serialisation performance reasons). However here, they are
-      // expected to always be called together and for the same version as they
-      // are always written by each signature transaction.
-
-      network.tables->set_map_hook(
-        network.cose_signatures.get_name(),
-        CoseSignatures::wrap_map_hook(
-          [s = this->snapshotter](
-            ccf::kv::Version version,
-            const CoseSignatures::Write& w) -> ccf::kv::ConsensusHookPtr {
-            assert(w.has_value());
-            s->record_cose_signature(version, w.value());
-            return {nullptr};
-          }));
-
-      network.tables->set_map_hook(
-        network.serialise_tree.get_name(),
-        SerialisedMerkleTree::wrap_map_hook(
-          [s = this->snapshotter](
-            ccf::kv::Version version,
-            const SerialisedMerkleTree::Write& w) -> ccf::kv::ConsensusHookPtr {
-            assert(w.has_value());
-            const auto& tree = w.value();
-            s->record_serialised_tree(version, tree);
-            return {nullptr};
-          }));
-
-      network.tables->set_map_hook(
-        network.snapshot_evidence.get_name(),
-        SnapshotEvidence::wrap_map_hook(
-          [s = this->snapshotter](
-            ccf::kv::Version version,
-            const SnapshotEvidence::Write& w) -> ccf::kv::ConsensusHookPtr {
-            assert(w.has_value());
-            auto snapshot_evidence = w.value();
-            s->record_snapshot_evidence_idx(version, snapshot_evidence);
-            return {nullptr};
-          }));
-
-      network.tables->set_global_hook(
-        network.snapshot_evidence.get_name(),
-        SnapshotEvidence::wrap_commit_hook(
-          [this](
-            [[maybe_unused]] ccf::kv::Version version,
-            const SnapshotEvidence::Write& w) {
-            if (!w.has_value())
-            {
-              return;
-            }
-
-            auto snapshot_evidence = w.value();
-
-            // If backup snapshot fetching is enabled and this node is a
-            // backup, schedule a fetch task
-            if (
-              config.snapshots.backup_fetch.enabled && consensus != nullptr &&
-              !consensus->is_primary())
-            {
-              std::lock_guard<pal::Mutex> guard(lock);
-              if (
-                backup_snapshot_fetch_task != nullptr &&
-                !backup_snapshot_fetch_task->is_cancelled())
-              {
-                LOG_DEBUG_FMT(
-                  "Backup snapshot fetch already in progress, skipping");
-              }
-              else
-              {
-                LOG_INFO_FMT(
-                  "Snapshot evidence detected on backup - scheduling "
-                  "snapshot fetch from primary (since seqno: {})",
-                  snapshot_evidence.version);
-                backup_snapshot_fetch_task =
-                  std::make_shared<BackupSnapshotFetch>(
-                    config.snapshots,
-                    snapshot_evidence.version - 1 /* YIKES */,
-                    this);
-                ccf::tasks::add_task(backup_snapshot_fetch_task);
-              }
-            }
-          }));
-
-      // Note: setup_basic_hooks() is intentionally NOT called here. It is
-      // called earlier in create(), before snapshot deserialization, to ensure
-      // global hooks are registered before any data is committed to the maps.
     }
 
     void setup_snapshotter()
