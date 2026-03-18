@@ -642,6 +642,9 @@ namespace ccf::kv
 
         version = tx_id.seqno;
         last_replicated = tx_id.seqno;
+        // In practice rollback is only called at signature seqnos, so
+        // clamping here restores the latest committable entry
+        last_committable = std::min(last_committable, tx_id.seqno);
         unset_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
@@ -992,14 +995,23 @@ namespace ccf::kv
         auto hooks_shared =
           std::make_shared<ccf::kv::ConsensusHookPtrs>(std::move(hooks_));
 
-        // NB: this cannot happen currently. Regular Tx only make it here if
-        // they did succeed, and signatures cannot conflict because they
-        // execute in order with a read_version that's version - 1, so even
-        // two contiguous signatures are fine
-        if (success_ != CommitResult::SUCCESS)
+        // A pending tx may fail here if rollback invalidated a reserved
+        // signature tx after it was dequeued from pending_txs.
+        if (success_ == CommitResult::FAIL_NO_REPLICATE)
         {
           LOG_DEBUG_FMT(
             "Failed Tx commit {}", previous_last_replicated + offset);
+          return success_;
+        }
+        // We should never fail from here, as normal txs have already succeeded
+        // and reserved txs only fail with FAIL_NO_REPLICATE
+        if (success_ != CommitResult::SUCCESS)
+        {
+          LOG_FAIL_FMT(
+            "Unexpected failure reason {} during commit of {}.{}",
+            static_cast<int>(success_),
+            txid.view,
+            txid.seqno);
         }
 
         if (h)

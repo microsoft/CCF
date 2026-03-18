@@ -276,6 +276,20 @@ namespace asynchost
     {
       switch (status)
       {
+        case FRESH:
+        case BINDING:
+        case LISTENING_RESOLVING:
+        case LISTENING:
+        case CONNECTING_RESOLVING:
+        case CONNECTING:
+        case CONNECTED:
+        case LISTENING_FAILED:
+        case RECONNECTING:
+        {
+          LOG_DEBUG_FMT(
+            "Unexpected status during reconnect, ignoring: {}", status);
+          break;
+        }
         case BINDING_FAILED:
         {
           // Try again, from the start.
@@ -309,8 +323,8 @@ namespace asynchost
 
         default:
         {
-          LOG_DEBUG_FMT(
-            "Unexpected status during reconnect, ignoring: {}", status);
+          throw std::logic_error(
+            fmt::format("Unexpected status during reconnect: {}", status));
         }
       }
 
@@ -364,6 +378,10 @@ namespace asynchost
           break;
         }
 
+        case FRESH:
+        case LISTENING_RESOLVING:
+        case LISTENING:
+        case LISTENING_FAILED:
         default:
         {
           free_write(req);
@@ -649,6 +667,17 @@ namespace asynchost
             break;
           }
 
+          case FRESH:
+          case LISTENING:
+          case BINDING:
+          case BINDING_FAILED:
+          case CONNECTING:
+          case CONNECTED:
+          case DISCONNECTED:
+          case RESOLVING_FAILED:
+          case LISTENING_FAILED:
+          case CONNECTING_FAILED:
+          case RECONNECTING:
           default:
           {
             throw std::logic_error(
