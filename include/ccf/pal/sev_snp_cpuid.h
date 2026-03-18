@@ -130,7 +130,7 @@ namespace ccf::pal::snp
       return ProductName::Genoa;
     }
     constexpr uint8_t turin_family = 0x1A;
-    constexpr uint8_t turin_model = 0x01;
+    constexpr uint8_t turin_model = 0x02;
     if (family == turin_family && model == turin_model)
     {
       return ProductName::Turin;
