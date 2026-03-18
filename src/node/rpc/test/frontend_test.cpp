@@ -1055,6 +1055,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   auto primary_consensus =
     std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
+  user_frontend_primary.set_consensus_and_history(
+    primary_consensus.get(), nullptr);
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
   auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
@@ -1064,6 +1066,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   auto backup_consensus =
     std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
+  user_frontend_backup.set_consensus_and_history(
+    backup_consensus.get(), nullptr);
 
   auto simple_call = create_simple_request();
   auto serialized_call = simple_call.build_request();
@@ -1089,6 +1093,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   {
     INFO("Read command is not forwarded to primary");
     TestUserFrontend user_frontend_backup_read(*network_backup.tables);
+    user_frontend_backup_read.set_consensus_and_history(
+      backup_consensus.get(), nullptr);
     REQUIRE(channel_stub->is_empty());
 
     user_frontend_backup_read.process(backup_ctx);
@@ -1161,6 +1167,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     INFO("Read command is now forwarded to primary on this session");
 
     TestUserFrontend user_frontend_backup_read(*network_backup.tables);
+    user_frontend_backup_read.set_consensus_and_history(
+      backup_consensus.get(), nullptr);
     user_frontend_backup_read.set_cmd_forwarder(backup_forwarder);
     REQUIRE(channel_stub->is_empty());
 
@@ -1203,6 +1211,8 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto primary_consensus =
     std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
+  node_frontend_primary.set_consensus_and_history(
+    primary_consensus.get(), nullptr);
 
   auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
   auto rpc_map = std::weak_ptr<ccf::RPCMap>();
@@ -1212,6 +1222,8 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto backup_consensus =
     std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
+  node_frontend_backup.set_consensus_and_history(
+    backup_consensus.get(), nullptr);
 
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
@@ -1254,6 +1266,8 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto primary_consensus =
     std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
+  user_frontend_primary.set_consensus_and_history(
+    primary_consensus.get(), nullptr);
 
   auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
   auto rpc_map = std::weak_ptr<ccf::RPCMap>();
@@ -1263,6 +1277,8 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto backup_consensus =
     std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
+  user_frontend_backup.set_consensus_and_history(
+    backup_consensus.get(), nullptr);
 
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
@@ -1305,6 +1321,8 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   auto primary_consensus =
     std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
+  member_frontend_primary.set_consensus_and_history(
+    primary_consensus.get(), nullptr);
 
   auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
   auto rpc_map = std::weak_ptr<ccf::RPCMap>();
@@ -1314,6 +1332,8 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   auto backup_consensus =
     std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
+  member_frontend_backup.set_consensus_and_history(
+    backup_consensus.get(), nullptr);
 
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
