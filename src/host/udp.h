@@ -199,7 +199,7 @@ namespace asynchost
           return send_write(req, len, &addr);
         }
 
-        // This shouldn't happen, but the only state is FRESH
+        case FRESH:
         default:
         {
           free_write(req);
