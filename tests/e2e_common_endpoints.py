@@ -1,9 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.network
+import infra.interfaces
 from ccf.ledger import NodeStatus
 import http
 import random
+import socket
 import suite.test_requirements as reqs
 
 
@@ -338,3 +340,37 @@ def run(args):
         test_memory(network, args)
         test_large_messages(network, args)
         test_readiness(network, args)
+
+
+def run_ipv6(args):
+    # Check if IPv6 loopback is available before attempting to start nodes.
+    # Some CI environments disable IPv6, in which case this test is skipped.
+    try:
+        with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as s:
+            s.bind(("::1", 0))
+    except (OSError, socket.error):
+        LOG.warning("IPv6 loopback (::1) is not available, skipping IPv6 test")
+        return
+
+    # Set each RPC interface host to the IPv6 loopback address directly,
+    # so the setting is isolated to this test (no environment variable).
+    # Ports are dynamically assigned, so sharing ::1 across nodes is fine.
+    for host_spec in args.nodes:
+        for rpc_interface in host_spec.rpc_interfaces.values():
+            rpc_interface.host = "::1"
+
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+
+        primary, _ = network.find_primary()
+        primary_interface = primary.host.rpc_interfaces[
+            infra.interfaces.PRIMARY_RPC_INTERFACE
+        ]
+        assert (
+            ":" in primary_interface.host
+        ), f"Expected IPv6 address, got {primary_interface.host}"
+        LOG.info(f"Confirmed primary is using IPv6 address: {primary_interface.host}")
+
+        test_primary(network, args)
