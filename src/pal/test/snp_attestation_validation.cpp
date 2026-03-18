@@ -95,18 +95,13 @@ TEST_CASE("Mismatched attestation and endorsements fail")
   pal::PlatformAttestationMeasurement measurement;
   pal::PlatformAttestationReportData report_data;
 
-  try
-  {
+  CHECK_THROWS_WITH_AS(
     pal::verify_snp_attestation_report(
-      mismatched_quote, measurement, report_data);
-  }
-  catch (const std::logic_error& e)
-  {
-    const std::string what = e.what();
-    CHECK(
-      what.find("SEV-SNP: The root of trust public key for this attestation "
-                "was not the expected one") != std::string::npos);
-  }
+      mismatched_quote, measurement, report_data),
+    doctest::Contains(
+      "SEV-SNP: The root of trust public key for this attestation "
+      "was not the expected one"),
+    std::logic_error);
 }
 
 TEST_CASE("Parsing of Tcb versions from strings")
@@ -158,6 +153,47 @@ TEST_CASE("Parsing tcb versions from attestaion")
   CHECK_EQ(milan_tcb.snp, 0x18);
   CHECK_EQ(milan_tcb.tee, 0x00);
   CHECK_EQ(milan_tcb.boot_loader, 0x04);
+}
+
+TEST_CASE("CPUID product mapping roundtrip")
+{
+  const std::vector<ccf::pal::snp::ProductName> products = {
+    ccf::pal::snp::ProductName::Milan,
+    ccf::pal::snp::ProductName::Genoa,
+    ccf::pal::snp::ProductName::Turin,
+  };
+
+  for (const auto product : products)
+  {
+    const auto cpuid_hex = ccf::pal::snp::get_cpuid_of_snp_sev_product(product);
+    const auto cpuid = ccf::pal::snp::cpuid_from_hex(cpuid_hex);
+
+    CHECK_EQ(cpuid.hex_str(), cpuid_hex);
+    CHECK_EQ(ccf::pal::snp::get_sev_snp_product(cpuid), product);
+    CHECK_EQ(
+      ccf::pal::snp::get_sev_snp_product(
+        cpuid.get_family_id(), cpuid.get_model_id()),
+      product);
+
+    switch (product)
+    {
+      case ccf::pal::snp::ProductName::Milan:
+        CHECK_EQ(cpuid.get_family_id(), 0x19);
+        CHECK_EQ(cpuid.get_model_id(), 0x01);
+        break;
+      case ccf::pal::snp::ProductName::Genoa:
+        CHECK_EQ(cpuid.get_family_id(), 0x19);
+        CHECK_EQ(cpuid.get_model_id(), 0x11);
+        break;
+      case ccf::pal::snp::ProductName::Turin:
+        CHECK_EQ(cpuid.get_family_id(), 0x1A);
+        CHECK_EQ(cpuid.get_model_id(), 0x02);
+        break;
+      default:
+        FAIL("Unexpected SNP product");
+        break;
+    }
+  }
 }
 
 struct QuoteEndorsementsTestCase
