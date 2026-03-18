@@ -187,13 +187,29 @@ To set the minimum TCB version for a specific CPU model, you can use the followi
           "name": "set_snp_minimum_tcb_version_hex",
           "args": {
             "cpuid": "00a00f11",
-            "tcb_version": "d315000000000004"
+            "tcb_version": "db18000000000004"
           }
         }
       ]
     }
 
 The parsed TCB version mapped to that cpuid in the :ref:`audit/builtin_maps:``nodes.snp.tcb_versions``` table, which is used to validate the TCB version of joining nodes.
+
+.. note:: 
+  `Milan <https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dcasv5-series>`__
+  and `Genoa <https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dcasv6-series>`__
+  are currently deployed in Azure Container Instances.
+  As of March 2026, reasonable minimum values are:
+
+  +-------+----------+---------------------+
+  | Model | CPUID    | Minimum TCB Version |
+  +=======+==========+=====================+
+  | Milan | 00a00f11 | db18000000000004    |
+  +-------+----------+---------------------+
+  | Genoa | 00a10f11 | 541700000000000a    |
+  +-------+----------+---------------------+
+  | Turin | 00b00f21 | 5100000004010101    |
+  +-------+----------+---------------------+
 
 .. note::
     The CPUID and TCB version must be input as lower-case hex-strings. The values in the above example are for Milan CPUs, and can be expanded as follows:
@@ -220,7 +236,7 @@ The parsed TCB version mapped to that cpuid in the :ref:`audit/builtin_maps:``no
 
     SNP attestation structures contain the combined Family (``Extended Family + Base Family``) and Model (``Extended Model : Base Model``) values, so 25 (0x19) and 1 (0x01) respectively for the above Milan example.
 
-    The above TCB version ``d315000000000004`` is for a Milan CPU. 
+    The TCB version ``d315000000000004`` is for a Milan CPU. 
     It, and also TCB versions for Genoa CPUs, can be expanded as follows:
 
     +-------------------+------------------+
@@ -258,6 +274,7 @@ The parsed TCB version mapped to that cpuid in the :ref:`audit/builtin_maps:``no
     +-------------------+-----+------------+
     | FMC               | 85  |       0x55 |
     +-------------------+-----+------------+
+
 
 Testing CCF's attestation validation
 -----------------------------------------------------
