@@ -160,6 +160,7 @@ namespace ccf::pal::snp
       case ProductName::Turin:
         // See Table 2 of "Revision Guide for 1Ah 00h-0Fh Processors"
         // https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/revision-guides/58251.pdf
+        # See Table 5 in https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/revision-guides/58251.pdf
         return "00b00f21";
       default:
         throw std::logic_error(fmt::format(
