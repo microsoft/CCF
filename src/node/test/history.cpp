@@ -518,8 +518,7 @@ TEST_CASE(
   ccf::kv::Store store;
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   store.set_encryptor(encryptor);
-  auto consensus =
-    std::make_shared<ccf::kv::test::RollbackAwarePrimaryStubConsensus>(store);
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   store.set_consensus(consensus);
   constexpr auto store_term = 2;
   store.initialise_term(store_term);
@@ -542,8 +541,6 @@ TEST_CASE(
   }
 
   REQUIRE(store.current_version() == 2);
-  REQUIRE(consensus->get_view(2) == store_term);
-  REQUIRE(consensus->get_last_seqno() == 2);
 
   auto txid = store.next_txid();
   REQUIRE(txid == ccf::TxID(store_term, 3));
@@ -569,12 +566,9 @@ TEST_CASE(
   INFO(
     "Rollback after create_reserved_tx but before commit_reserved in a new "
     "term");
-  consensus->rollback(1, new_term);
+  store.rollback({store_term, 1}, new_term);
   REQUIRE(store.commit_view() == new_term);
   REQUIRE(store.current_txid() == ccf::TxID(store_term, 1));
-  REQUIRE(consensus->get_view() == new_term);
-  REQUIRE(consensus->get_view(1) == store_term);
-  REQUIRE(consensus->get_last_seqno() == 1);
 
   {
     std::lock_guard<std::mutex> guard(paused.lock);
@@ -596,10 +590,6 @@ TEST_CASE(
   }
 
   REQUIRE(store.current_txid() == ccf::TxID(new_term, 2));
-  REQUIRE(consensus->get_view() == new_term);
-  REQUIRE(consensus->get_view(1) == store_term);
-  REQUIRE(consensus->get_view(2) == new_term);
-  REQUIRE(consensus->get_last_seqno() == 2);
 }
 
 TEST_CASE(
