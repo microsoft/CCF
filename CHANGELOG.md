@@ -5,13 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [6.0.26]
-
-[6.0.26]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.26
-
-### Fixed
-
-- Fixed the Turin SEV-SNP CPUID mapping used for product detection. (#7748)
 
 ## [6.0.25]
 
@@ -20,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Support for COSE-only receipts in snapshots to support #7711). #7712
+
+### Fixed
+
+- Fixed the Turin SEV-SNP CPUID mapping used for product detection. (#7748)
 
 ## [6.0.24]
 
