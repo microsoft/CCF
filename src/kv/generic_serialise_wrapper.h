@@ -4,6 +4,7 @@
 
 #include "ccf/kv/serialisers/serialised_entry.h"
 #include "ds/ccf_assert.h"
+#include "ds/serialized.h"
 #include "kv_types.h"
 #include "node/rpc/claims.h"
 #include "serialised_entry_format.h"
@@ -52,8 +53,10 @@ namespace ccf::kv
           current_writer = &public_writer;
           current_domain = SecurityDomain::PUBLIC;
           break;
-        default:
-          break;
+        case SecurityDomain::SECURITY_DOMAIN_MAX:
+        {
+          throw std::logic_error("Invalid security domain");
+        }
       }
     }
 

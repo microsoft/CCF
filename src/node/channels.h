@@ -899,11 +899,19 @@ namespace ccf
             return false;
           }
 
+          case (NodeMsgType::channel_msg):
+          {
+            CHANNEL_SEND_FAIL(
+              "Cannot send channel message on unestablished channel");
+            return false;
+          }
+
           default:
           {
             CHANNEL_SEND_FAIL(
-              "Unhandled message type {} on unestablished channel - ignoring",
-              type);
+              "Cannot send message of unexpected type {} on unestablished "
+              "channel",
+              static_cast<size_t>(type));
             return false;
           }
         }
