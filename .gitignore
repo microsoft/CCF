@@ -46,3 +46,4 @@ tests/perf-system/analyzer/*.png
 scripts/azure_deployment/.env
 .env
 python/src/ccf/version.py
+scripts/env-*

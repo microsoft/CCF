@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added `ccf::describe_cose_receipt_v1(receipt)` to obtain COSE receipts with Merkle proof in unprotected header for non-signature TXs, and empty unprotected header for signature TXs (#7700).
 - `NetworkIdentitySubsystemInterface` now exposes `get_trusted_keys()`, returning all trusted network identity keys as a `TrustedKeys` map (#7690).
 - Added support for self-transparent code update policies (#7681).
+- Added `scripts/coverage.sh` to aggregate LLVM coverage data produced by tests built with `-DCOVERAGE=ON`. The script merges all `.profraw` files in the build directory, prints an overall coverage summary, and optionally shows uncovered lines (`--show-uncovered`) or generates an HTML report (`--html <dir>`). CMake now also generates `coverage_binaries.txt` in the build directory listing all instrumented test binaries, and automatically sets `LLVM_PROFILE_FILE` for each unit test so that parallel test runs produce uniquely-named profile files.
 
 ### Changed
 

@@ -71,6 +71,7 @@ function(add_warning_checks name)
             -Wno-unused-parameter
             -Wno-unused-function
             -Wshadow
+            -Wswitch-enum
   )
 endfunction()
 
