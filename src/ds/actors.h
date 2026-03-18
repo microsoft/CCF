@@ -37,7 +37,7 @@ namespace ccf
       {
         return "node";
       }
-      default:
+      case ActorsType::unknown:
       {
         return "";
       }

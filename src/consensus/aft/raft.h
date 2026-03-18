@@ -799,9 +799,11 @@ namespace aft
             break;
           }
 
+          case raft_append_entries_signed_response:
           default:
           {
-            RAFT_FAIL_FMT("Unhandled AFT message type: {}", type);
+            RAFT_FAIL_FMT("Received unhandled AFT message type: {}", type);
+            return;
           }
         }
       }
@@ -1444,7 +1446,11 @@ namespace aft
             break;
           }
 
-          default:
+          case ccf::kv::ApplyResult::PASS_BACKUP_SIGNATURE:
+          case ccf::kv::ApplyResult::PASS_BACKUP_SIGNATURE_SEND_ACK:
+          case ccf::kv::ApplyResult::PASS_NONCES:
+          case ccf::kv::ApplyResult::PASS_NEW_VIEW:
+          case ccf::kv::ApplyResult::PASS_APPLY:
           {
             throw std::logic_error("Unknown ApplyResult value");
           }
@@ -2427,7 +2433,9 @@ namespace aft
           case ccf::kv::LeadershipState::Candidate:
             become_leader();
             break;
-          default:
+          case ccf::kv::LeadershipState::None:
+          case ccf::kv::LeadershipState::Leader:
+          case ccf::kv::LeadershipState::Follower:
             throw std::logic_error(
               "add_vote_for_me() called while not a pre-vote candidate or "
               "candidate");
