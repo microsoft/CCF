@@ -368,6 +368,7 @@ namespace ccf
             send_iamopen_unsafe(tx);
             break;
           case recovery_decision_protocol::StateMachine::JOINING:
+          case recovery_decision_protocol::StateMachine::OPEN:
             stop_timers();
             return;
           default:

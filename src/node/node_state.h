@@ -2192,23 +2192,28 @@ namespace ccf
 
         switch (msg_type)
         {
+          case forwarded_msg:
+          {
+            LOG_FAIL_FMT("Unexpected forwarded_msg in recv_node_inbound");
+            return;
+          }
           case channel_msg:
           {
             n2n_channels->recv_channel_message(
               from, payload_data, payload_size);
-            break;
+            return;
           }
 
           case consensus_msg:
           {
             consensus->recv_message(from, payload_data, payload_size);
-            break;
+            return;
           }
-
           default:
           {
-            LOG_FAIL_FMT("Unknown node message type: {}", msg_type);
-            return;
+            throw std::logic_error(fmt::format(
+              "Unknown node message type: {}",
+              static_cast<uint32_t>(msg_type)));
           }
         }
       }
