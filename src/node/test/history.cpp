@@ -561,8 +561,13 @@ TEST_CASE(
       guard, [&paused]() { return paused.reserved_tx_created; });
   }
 
-  INFO("Rollback after create_reserved_tx but before commit_reserved");
-  store.rollback({store_term, 1}, store.commit_view());
+  const auto new_term = store_term + 1;
+
+  INFO(
+    "Rollback after create_reserved_tx but before commit_reserved in a new "
+    "term");
+  store.rollback({store_term, 1}, new_term);
+  REQUIRE(store.commit_view() == new_term);
 
   {
     std::lock_guard<std::mutex> guard(paused.lock);
@@ -583,6 +588,7 @@ TEST_CASE(
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
+  REQUIRE(store.current_txid() == ccf::TxID(new_term, 2));
   REQUIRE(consensus->number_of_replicas() == 3);
 }
 
