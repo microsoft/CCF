@@ -10,10 +10,10 @@ namespace ccf
 {
   struct SnapshotStatus
   {
-    /// Sequence number of the latest snapshot
+    /// Sequence number of the latest globally committed snapshot baseline
     ccf::kv::Version version = 0;
-    /// Timestamp at which the snapshot was scheduled (nanoseconds since Unix
-    /// epoch)
+    /// Timestamp at which that globally committed snapshot was scheduled
+    /// (nanoseconds since Unix epoch)
     uint64_t timestamp = 0;
   };
 

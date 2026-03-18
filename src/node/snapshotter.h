@@ -76,11 +76,10 @@ namespace ccf
     // Initial snapshot index
     static constexpr ::consensus::Index initial_snapshot_idx = 0;
 
-    // Index at which the latest snapshot was generated
+    // Seqno of the latest globally committed snapshot baseline.
     ::consensus::Index last_snapshot_idx = 0;
 
-    // Baseline time used for time-based snapshot scheduling. This is advanced
-    // when a snapshot is durably released.
+    // Baseline time of the latest globally committed snapshot.
     TimePoint last_snapshot_time = Clock::now();
     // The times for which inflight snapshots have been scheduled
     std::map<::consensus::Index, TimePoint> scheduled_snapshot_times;
@@ -150,24 +149,6 @@ namespace ccf
       ::consensus::Index snapshot_idx,
       const std::vector<uint8_t>& serialised_receipt)
     {
-      // Snapshot evidence write is now durable. Update baseline and prune all
-      // in-flight entries up to this point.
-      auto snapshot_time = scheduled_snapshot_times.find(snapshot_idx);
-      if (snapshot_time != scheduled_snapshot_times.end())
-      {
-        last_snapshot_time = snapshot_time->second;
-      }
-      else
-      {
-        LOG_FAIL_FMT(
-          "Could not find scheduled snapshot time for released idx {}",
-          snapshot_idx);
-      }
-
-      std::erase_if(
-        scheduled_snapshot_times, [snapshot_idx](const auto& entry) {
-          return entry.first <= snapshot_idx;
-        });
       // The snapshot_idx is used to retrieve the correct snapshot file
       // previously generated.
       auto to_host = writer_factory.create_writer_to_outside();
@@ -590,8 +571,8 @@ namespace ccf
       }
     }
 
-    // Called from committed snapshot status updates to keep local released
-    // baselines aligned with replicated state.
+    // Called from globally committed snapshot status updates to keep the local
+    // globally committed baseline aligned with replicated state.
     void record_snapshot_status(const SnapshotStatus& status)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
@@ -599,6 +580,13 @@ namespace ccf
       const auto timestamp = time_point_from_snapshot_status(status.timestamp);
       last_snapshot_idx = status.version;
       last_snapshot_time = timestamp;
+
+      // Snapshot evidence write is now durable. Prune all in-flight entries up
+      // to this point. The globally committed baseline itself is updated from
+      // the SNAPSHOT_STATUS table.
+      std::erase_if(scheduled_snapshot_times, [&status](const auto& entry) {
+        return entry.first <= status.version;
+      });
     }
 
     void schedule_snapshot(::consensus::Index idx, TimePoint timestamp)
