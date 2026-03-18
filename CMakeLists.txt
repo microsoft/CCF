@@ -748,27 +748,6 @@ endif()
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
 
-# UVM canary executable
-add_test_bin(
-  verify_uvm_attestation_and_endorsements
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/verify_uvm_attestation_and_endorsements.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/host/env.cpp
-)
-target_link_libraries(
-  verify_uvm_attestation_and_endorsements PRIVATE ccf_pal ccf
-)
-install(TARGETS verify_uvm_attestation_and_endorsements DESTINATION bin)
-
-# SNP attestation fetching and verification binary
-add_test_bin(
-  verify_attestation
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/verify_attestation.cpp
-)
-target_link_libraries(
-  verify_attestation PRIVATE ccf_pal ccf_tasks uv curl http_parser
-)
-install(TARGETS verify_attestation DESTINATION bin)
-
 if(BUILD_TESTS)
   enable_testing()
 
