@@ -236,7 +236,7 @@ The parsed TCB version mapped to that cpuid in the :ref:`audit/builtin_maps:``no
 
     SNP attestation structures contain the combined Family (``Extended Family + Base Family``) and Model (``Extended Model : Base Model``) values, so 25 (0x19) and 1 (0x01) respectively for the above Milan example.
 
-    The TCB version ``d315000000000004`` is for a Milan CPU. 
+    The TCB version ``db18000000000004`` is for a Milan CPU. 
     It, and also TCB versions for Genoa CPUs, can be expanded as follows:
 
     +-------------------+------------------+
@@ -244,9 +244,9 @@ The parsed TCB version mapped to that cpuid in the :ref:`audit/builtin_maps:``no
     | TCB Version Field +-----+------------+
     |                   | dec |        hex |
     +===================+=====+============+
-    | Microcode         | 211 |       0xd3 |
+    | Microcode         | 219 |       0xdb |
     +-------------------+-----+------------+
-    | SNP               | 21  |       0x15 |
+    | SNP               | 24  |       0x18 |
     +-------------------+-----+------------+
     | Reserved          | 0   | 0x00000000 |
     +-------------------+-----+------------+
