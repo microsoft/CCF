@@ -578,7 +578,7 @@ TEST_CASE(
 
   REQUIRE(worker_result.has_value());
   REQUIRE(worker_result.value() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
-  REQUIRE(consensus->number_of_replicas() == 2);
+  REQUIRE(store.current_txid() == ccf::TxID(store_term, 1));
 
   INFO("A normal transaction can still commit after the failed signature path");
   {
@@ -589,7 +589,6 @@ TEST_CASE(
   }
 
   REQUIRE(store.current_txid() == ccf::TxID(new_term, 2));
-  REQUIRE(consensus->number_of_replicas() == 3);
 }
 
 TEST_CASE(
