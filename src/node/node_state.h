@@ -1424,10 +1424,15 @@ namespace ccf
           }
           ++last_recovered_idx;
 
-          // Not synchronised because consensus isn't effectively running then
-          for (auto& hook : r->get_hooks())
+          // Consensus may not exist yet, in which case there's nothing for
+          // these hooks to do
+          if (consensus.get())
           {
-            hook->call(consensus.get());
+            // Not synchronised because consensus isn't effectively running then
+            for (auto& hook : r->get_hooks())
+            {
+              hook->call(consensus.get());
+            }
           }
         }
         catch (const std::exception& e)
