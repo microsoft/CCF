@@ -365,6 +365,11 @@ namespace ccf
     NodeId self;
     std::shared_ptr<ccf::crypto::RSAKeyPair> node_encrypt_kp;
     ccf::crypto::Pem self_signed_node_cert;
+
+    // Protects endorsed_node_cert and self_signed_node_cert. This lock is
+    // used instead of the main NodeState lock in map/global hooks to avoid
+    // lock-order-inversion with KV maps_lock and consensus state->lock.
+    pal::Mutex endorsed_cert_lock;
     std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
     pal::PlatformAttestationMeasurement node_measurement;
@@ -885,6 +890,7 @@ namespace ccf
       StartType start_type_, const ccf::StartupConfig& config_)
     {
       std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> cert_guard(endorsed_cert_lock);
       sm.expect(NodeStartupState::initialized);
       start_type = start_type_;
 
@@ -906,6 +912,7 @@ namespace ccf
       // recovered
       setup_history();
       setup_snapshotter();
+      setup_basic_hooks();
       setup_encryptor();
 
       initiate_quote_generation();
@@ -925,10 +932,10 @@ namespace ccf
           history->set_service_signing_identity(
             network.identity->get_key_pair(), config.cose_signatures);
 
-          setup_consensus(false, endorsed_node_cert);
-
-          // Become the primary and force replication
-          consensus->force_become_primary();
+          setup_consensus(
+            false,
+            endorsed_node_cert,
+            RaftType::StartupState{RaftType::StartupRole::Primary});
 
           LOG_INFO_FMT("Created new node {}", self);
           return {self_signed_node_cert, network.identity->cert};
@@ -983,7 +990,7 @@ namespace ccf
 
       auto join_client_cert = std::make_unique<::tls::Cert>(
         network_ca,
-        self_signed_node_cert,
+        get_self_signed_certificate_unsafe(),
         node_sign_kp->private_key_pem(),
         target_host);
 
@@ -1145,9 +1152,6 @@ namespace ccf
             }
             n2n_channels_cert = resp.network_info->endorsed_certificate.value();
 
-            setup_consensus(resp.network_info->public_only, n2n_channels_cert);
-            auto_refresh_jwt_keys();
-
             if (resp.network_info->public_only)
             {
               last_recovered_signed_idx =
@@ -1158,22 +1162,17 @@ namespace ccf
 
             View view = VIEW_UNKNOWN;
             std::vector<ccf::kv::Version> view_history_ = {};
+            ccf::kv::ConsensusHookPtrs snapshot_hooks;
             if (startup_snapshot_info)
             {
               // It is only possible to deserialise the entire snapshot now,
               // once the ledger secrets have been passed in by the network
-              ccf::kv::ConsensusHookPtrs hooks;
               deserialise_snapshot(
                 network.tables,
                 startup_snapshot_info->raw,
-                hooks,
+                snapshot_hooks,
                 &view_history_,
                 resp.network_info->public_only);
-
-              for (auto& hook : hooks)
-              {
-                hook->call(consensus.get());
-              }
 
               auto tx = network.tables->create_read_only_tx();
               auto* signatures = tx.ro(network.signatures);
@@ -1200,11 +1199,28 @@ namespace ccf
                 view);
             }
 
-            consensus->init_as_backup(
-              network.tables->current_version(),
-              view,
-              view_history_,
-              last_recovered_signed_idx);
+            // Create consensus with backup init info baked in, so
+            // init_as_backup runs in the constructor before any other
+            // thread can see the consensus object.
+            setup_consensus(
+              resp.network_info->public_only,
+              n2n_channels_cert,
+              RaftType::StartupState{
+                RaftType::StartupRole::Backup,
+                RaftType::StartupState::StateInfo{
+                  network.tables->current_version(),
+                  view,
+                  view_history_,
+                  last_recovered_signed_idx}});
+
+            // Now that consensus exists, execute any hooks from the
+            // snapshot (e.g. ConfigurationChangeHook)
+            for (auto& hook : snapshot_hooks)
+            {
+              hook->call(consensus.get());
+            }
+
+            auto_refresh_jwt_keys();
 
             snapshotter->set_last_snapshot_idx(
               network.tables->current_version());
@@ -1333,7 +1349,7 @@ namespace ccf
         rpcsessions,
         rpc_map,
         node_sign_kp,
-        self_signed_node_cert);
+        get_self_signed_certificate_unsafe());
       jwt_key_auto_refresh->start();
 
       network.tables->set_map_hook(
@@ -1408,10 +1424,15 @@ namespace ccf
           }
           ++last_recovered_idx;
 
-          // Not synchronised because consensus isn't effectively running then
-          for (auto& hook : r->get_hooks())
+          // Consensus may not exist yet, in which case there's nothing for
+          // these hooks to do
+          if (consensus.get())
           {
-            hook->call(consensus.get());
+            // Not synchronised because consensus isn't effectively running then
+            for (auto& hook : r->get_hooks())
+            {
+              hook->call(consensus.get());
+            }
           }
         }
         catch (const std::exception& e)
@@ -1611,12 +1632,16 @@ namespace ccf
         }
       }
 
-      setup_consensus(true);
+      setup_consensus(
+        true,
+        std::nullopt,
+        RaftType::StartupState{
+          RaftType::StartupRole::Primary,
+          RaftType::StartupState::StateInfo{index, view, view_history}});
+
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT("Restarting consensus at view: {} seqno: {}", view, index);
-
-      consensus->force_become_primary(index, view, view_history, index);
 
       create_and_send_boot_request(
         new_term, false /* Restore consortium from ledger */);
@@ -1929,7 +1954,14 @@ namespace ccf
       ccf::kv::Tx& tx,
       AbstractGovernanceEffects::ServiceIdentities identities) override
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      // NB: NodeState::lock is deliberately not held here. All member
+      // accesses in this function are either via the passed-in tx (which has
+      // its own KV-level protection), read-only on effectively-immutable
+      // fields (config, network.identity, sm), or on fields with their own
+      // locks (share_manager, LedgerSecrets). Holding NodeState::lock would
+      // create a lock-order-inversion with KV maps_lock, since this function
+      // is called from governance endpoints that may hold maps_lock (via
+      // apply_changes) or be called under it indirectly.
 
       auto* service = tx.rw<Service>(Tables::SERVICE);
       auto service_info = service->get();
@@ -2315,7 +2347,12 @@ namespace ccf
 
     ccf::crypto::Pem get_self_signed_certificate() override
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> guard(endorsed_cert_lock);
+      return self_signed_node_cert;
+    }
+
+    ccf::crypto::Pem get_self_signed_certificate_unsafe()
+    {
       return self_signed_node_cert;
     }
 
@@ -2418,9 +2455,14 @@ namespace ccf
       find_frontend(actor)->open();
     }
 
-    void open_user_frontend()
+    void open_frontend_async(ActorsType actor)
     {
-      open_frontend(ActorsType::users);
+      // Schedule frontend opening on a task to avoid calling open() (which
+      // may take locks to set up frontend-specific systems) while KV or
+      // consensus locks are held — e.g. from global hooks during
+      // post_compact().
+      ccf::tasks::add_task(
+        ccf::tasks::make_basic_task([this, actor]() { open_frontend(actor); }));
     }
 
     bool is_member_frontend_open_unsafe()
@@ -2536,8 +2578,9 @@ namespace ccf
 
     bool send_create_request(const std::vector<uint8_t>& packed)
     {
+      auto self_signed_cert = get_self_signed_certificate();
       auto node_session = std::make_shared<SessionContext>(
-        InvalidSessionId, self_signed_node_cert.raw());
+        InvalidSessionId, self_signed_cert.raw());
       auto ctx = make_rpc_context(node_session, packed);
 
       std::shared_ptr<ccf::RpcHandler> search =
@@ -2763,7 +2806,7 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              std::lock_guard<pal::Mutex> guard(lock);
+              std::lock_guard<pal::Mutex> guard(endorsed_cert_lock);
 
               if (endorsed_node_cert.has_value())
               {
@@ -2813,7 +2856,7 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              std::lock_guard<pal::Mutex> guard(lock);
+              std::lock_guard<pal::Mutex> guard(endorsed_cert_lock);
 
               LOG_INFO_FMT("[global] Accepting network connections");
               accept_network_tls_connections();
@@ -2854,7 +2897,7 @@ namespace ccf
               }
 
               LOG_INFO_FMT("[global] Opening members frontend");
-              open_frontend(ActorsType::members);
+              open_frontend_async(ActorsType::members);
             }
           }));
 
@@ -2875,7 +2918,7 @@ namespace ccf
                 ->public_key_pem();
             if (hook_pubk_pem != current_pubk_pem)
             {
-              LOG_TRACE_FMT(
+              LOG_INFO_FMT(
                 "Ignoring historical service open at seqno {} for {}",
                 hook_version,
                 w->cert.str());
@@ -2892,10 +2935,104 @@ namespace ccf
             network.identity->set_certificate(w->cert);
             if (w->status == ServiceStatus::OPEN)
             {
-              open_user_frontend();
+              open_frontend_async(ActorsType::users);
 
               RINGBUFFER_WRITE_MESSAGE(::consensus::ledger_open, to_host);
               LOG_INFO_FMT("Service open at seqno {}", hook_version);
+            }
+          }));
+
+      // When a node is added, even locally, inform consensus so that it
+      // can add a new active configuration.
+      network.tables->set_map_hook(
+        network.nodes.get_name(),
+        Nodes::wrap_map_hook(
+          [](ccf::kv::Version version, const Nodes::Write& w)
+            -> ccf::kv::ConsensusHookPtr {
+            return std::make_unique<ConfigurationChangeHook>(version, w);
+          }));
+
+      // Note: The Signatures hook and SerialisedMerkleTree hook are separate
+      // because the signature and the Merkle tree are recorded in distinct
+      // tables (for serialisation performance reasons). However here, they are
+      // expected to always be called together and for the same version as they
+      // are always written by each signature transaction.
+
+      network.tables->set_map_hook(
+        network.cose_signatures.get_name(),
+        CoseSignatures::wrap_map_hook(
+          [s = this->snapshotter](
+            ccf::kv::Version version,
+            const CoseSignatures::Write& w) -> ccf::kv::ConsensusHookPtr {
+            assert(w.has_value());
+            s->record_cose_signature(version, w.value());
+            return {nullptr};
+          }));
+
+      network.tables->set_map_hook(
+        network.serialise_tree.get_name(),
+        SerialisedMerkleTree::wrap_map_hook(
+          [s = this->snapshotter](
+            ccf::kv::Version version,
+            const SerialisedMerkleTree::Write& w) -> ccf::kv::ConsensusHookPtr {
+            assert(w.has_value());
+            const auto& tree = w.value();
+            s->record_serialised_tree(version, tree);
+            return {nullptr};
+          }));
+
+      network.tables->set_map_hook(
+        network.snapshot_evidence.get_name(),
+        SnapshotEvidence::wrap_map_hook(
+          [s = this->snapshotter](
+            ccf::kv::Version version,
+            const SnapshotEvidence::Write& w) -> ccf::kv::ConsensusHookPtr {
+            assert(w.has_value());
+            auto snapshot_evidence = w.value();
+            s->record_snapshot_evidence_idx(version, snapshot_evidence);
+            return {nullptr};
+          }));
+
+      network.tables->set_global_hook(
+        network.snapshot_evidence.get_name(),
+        SnapshotEvidence::wrap_commit_hook(
+          [this](
+            [[maybe_unused]] ccf::kv::Version version,
+            const SnapshotEvidence::Write& w) {
+            if (!w.has_value())
+            {
+              return;
+            }
+
+            auto snapshot_evidence = w.value();
+
+            // If backup snapshot fetching is enabled and this node is a
+            // backup, schedule a fetch task
+            if (
+              config.snapshots.backup_fetch.enabled && consensus != nullptr &&
+              !consensus->is_primary())
+            {
+              std::lock_guard<pal::Mutex> guard(lock);
+              if (
+                backup_snapshot_fetch_task != nullptr &&
+                !backup_snapshot_fetch_task->is_cancelled())
+              {
+                LOG_DEBUG_FMT(
+                  "Backup snapshot fetch already in progress, skipping");
+              }
+              else
+              {
+                LOG_INFO_FMT(
+                  "Snapshot evidence detected on backup - scheduling "
+                  "snapshot fetch from primary (since seqno: {})",
+                  snapshot_evidence.version);
+                backup_snapshot_fetch_task =
+                  std::make_shared<BackupSnapshotFetch>(
+                    config.snapshots,
+                    snapshot_evidence.version - 1 /* YIKES */,
+                    this);
+                ccf::tasks::add_task(backup_snapshot_fetch_task);
+              }
             }
           }));
     }
@@ -3004,13 +3141,16 @@ namespace ccf
     void setup_consensus(
       bool public_only = false,
       const std::optional<ccf::crypto::Pem>& endorsed_node_certificate_ =
-        std::nullopt)
+        std::nullopt,
+      std::optional<RaftType::StartupState> startup = std::nullopt)
     {
       setup_n2n_channels(endorsed_node_certificate_);
       setup_cmd_forwarder();
 
       auto shared_state = std::make_shared<aft::State>(self);
 
+      // Caller must ensure endorsed_cert_lock is held, or that the cert
+      // fields are stable (e.g. during single-threaded startup).
       auto node_client = std::make_shared<HTTPNodeClient>(
         rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
 
@@ -3021,106 +3161,16 @@ namespace ccf
         n2n_channels,
         shared_state,
         node_client,
-        public_only);
+        public_only,
+        startup);
 
       network.tables->set_consensus(consensus);
       network.tables->set_snapshotter(snapshotter);
 
-      // When a node is added, even locally, inform consensus so that it
-      // can add a new active configuration.
-      network.tables->set_map_hook(
-        network.nodes.get_name(),
-        Nodes::wrap_map_hook(
-          [](ccf::kv::Version version, const Nodes::Write& w)
-            -> ccf::kv::ConsensusHookPtr {
-            return std::make_unique<ConfigurationChangeHook>(version, w);
-          }));
-
-      // Note: The Signatures hook and SerialisedMerkleTree hook are separate
-      // because the signature and the Merkle tree are recorded in distinct
-      // tables (for serialisation performance reasons). However here, they are
-      // expected to always be called together and for the same version as they
-      // are always written by each signature transaction.
-
-      network.tables->set_map_hook(
-        network.cose_signatures.get_name(),
-        CoseSignatures::wrap_map_hook(
-          [s = this->snapshotter](
-            ccf::kv::Version version,
-            const CoseSignatures::Write& w) -> ccf::kv::ConsensusHookPtr {
-            assert(w.has_value());
-            s->record_cose_signature(version, w.value());
-            return {nullptr};
-          }));
-
-      network.tables->set_map_hook(
-        network.serialise_tree.get_name(),
-        SerialisedMerkleTree::wrap_map_hook(
-          [s = this->snapshotter](
-            ccf::kv::Version version,
-            const SerialisedMerkleTree::Write& w) -> ccf::kv::ConsensusHookPtr {
-            assert(w.has_value());
-            const auto& tree = w.value();
-            s->record_serialised_tree(version, tree);
-            return {nullptr};
-          }));
-
-      network.tables->set_map_hook(
-        network.snapshot_evidence.get_name(),
-        SnapshotEvidence::wrap_map_hook(
-          [s = this->snapshotter](
-            ccf::kv::Version version,
-            const SnapshotEvidence::Write& w) -> ccf::kv::ConsensusHookPtr {
-            assert(w.has_value());
-            auto snapshot_evidence = w.value();
-            s->record_snapshot_evidence_idx(version, snapshot_evidence);
-            return {nullptr};
-          }));
-
-      network.tables->set_global_hook(
-        network.snapshot_evidence.get_name(),
-        SnapshotEvidence::wrap_commit_hook(
-          [this](
-            [[maybe_unused]] ccf::kv::Version version,
-            const SnapshotEvidence::Write& w) {
-            if (!w.has_value())
-            {
-              return;
-            }
-
-            auto snapshot_evidence = w.value();
-
-            // If backup snapshot fetching is enabled and this node is a
-            // backup, schedule a fetch task
-            if (
-              config.snapshots.backup_fetch.enabled && consensus != nullptr &&
-              !consensus->is_primary())
-            {
-              std::lock_guard<pal::Mutex> guard(lock);
-              if (
-                backup_snapshot_fetch_task != nullptr &&
-                !backup_snapshot_fetch_task->is_cancelled())
-              {
-                LOG_DEBUG_FMT(
-                  "Backup snapshot fetch already in progress, skipping");
-              }
-              else
-              {
-                LOG_INFO_FMT(
-                  "Snapshot evidence detected on backup - scheduling "
-                  "snapshot fetch from primary (since seqno: {})",
-                  snapshot_evidence.version);
-                backup_snapshot_fetch_task =
-                  std::make_shared<BackupSnapshotFetch>(
-                    config.snapshots,
-                    snapshot_evidence.version - 1 /* YIKES */,
-                    this);
-                ccf::tasks::add_task(backup_snapshot_fetch_task);
-              }
-            }
-          }));
-
-      setup_basic_hooks();
+      for (auto& [actor, fe] : rpc_map->frontends())
+      {
+        fe->set_consensus_and_history(consensus.get(), history.get());
+      }
     }
 
     void setup_snapshotter()
@@ -3185,6 +3235,7 @@ namespace ccf
       std::optional<ccf::crypto::Pem> client_cert_key = std::nullopt;
       if (authenticate_as_node_client_certificate)
       {
+        std::lock_guard<pal::Mutex> cert_guard(endorsed_cert_lock);
         client_cert =
           endorsed_node_cert ? *endorsed_node_cert : self_signed_node_cert;
         client_cert_key = node_sign_kp->private_key_pem();

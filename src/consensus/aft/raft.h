@@ -207,6 +207,30 @@ namespace aft
     std::unique_ptr<LedgerProxy> ledger;
     std::shared_ptr<ccf::NodeToNode> channels;
 
+    enum class StartupRole : std::uint8_t
+    {
+      Primary,
+      Backup,
+    };
+
+    // Describes the initial role and state for this node at construction
+    // time, before any other thread can observe it (so no lock is needed).
+    struct StartupState
+    {
+      StartupRole role;
+
+      // State to apply before becoming primary/backup. When nullopt for
+      // a primary, the node starts from scratch (genesis).
+      struct StateInfo
+      {
+        Index index = 0;
+        Term term = 0;
+        std::vector<Index> view_history;
+        Index recovery_start_index = 0;
+      };
+      std::optional<StateInfo> info = std::nullopt;
+    };
+
     Aft(
       const ccf::consensus::Configuration& settings_,
       std::unique_ptr<Store> store_,
@@ -214,7 +238,8 @@ namespace aft
       std::shared_ptr<ccf::NodeToNode> channels_,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
-      bool public_only_ = false) :
+      bool public_only_ = false,
+      std::optional<StartupState> startup = std::nullopt) :
       store(std::move(store_)),
 
       timeout_elapsed(0),
@@ -236,7 +261,38 @@ namespace aft
 
       ledger(std::move(ledger_)),
       channels(std::move(channels_))
-    {}
+    {
+      if (startup.has_value())
+      {
+        const auto& s = startup.value();
+        if (s.info.has_value())
+        {
+          const auto& si = s.info.value();
+          if (s.role == StartupRole::Primary)
+          {
+            state->current_view = si.term;
+            state->last_idx = si.index;
+            state->commit_idx = si.index;
+            state->view_history.initialise(si.view_history);
+            state->view_history.update(si.index, si.term);
+          }
+          else
+          {
+            state->last_idx = si.index;
+            state->commit_idx = si.index;
+            state->view_history.initialise(si.view_history);
+            ledger->init(si.index, si.recovery_start_index);
+            become_aware_of_new_term(si.term);
+          }
+        }
+
+        if (s.role == StartupRole::Primary)
+        {
+          state->current_view += starting_view_change;
+          become_leader(true);
+        }
+      }
+    }
 
     ~Aft() override = default;
 
