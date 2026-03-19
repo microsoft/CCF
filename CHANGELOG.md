@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added time-based snapshot scheduling. Snapshots can now be triggered after a configurable wall-clock interval (`snapshots.time_interval`) elapses, in addition to the existing transaction-count threshold (`snapshots.tx_count`). A new `snapshots.min_tx_count` option (default 2) sets the minimum number of transactions required before a time-based snapshot fires. Snapshot timing state is replicated to backups via a new `public:ccf.internal.snapshot_status` internal table (#7731).
+- Added support for endpoints which defer their HTTP response until the transaction has been committed by consensus. App developers can opt in by calling `.set_consensus_committed_function()` when installing an endpoint. The built-in `ccf::endpoints::default_respond_on_commit_func` can be used as a default handler: it leaves successful responses unchanged and replaces the response with an error (`TransactionInvalid`, HTTP 500) if the transaction is invalidated during a view change. Custom handlers receive the `RpcContext`, `TxID`, and a `FinalTxStatus` (either `Committed` or `Invalid`) and may modify response headers or body before it is sent. See the logging sample app (`samples/apps/logging/logging.cpp`) for usage examples (#7562).
 
 ### Fixed
 
@@ -93,7 +94,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Experimental self-healing-open protocol for automatically transitioning-to-open during a disaster recovery without operator intervention. (#7189)
-- Added support for endpoints which only respond once their content is committed by the consensus protocol (#7562).
 
 ### Changed
 
