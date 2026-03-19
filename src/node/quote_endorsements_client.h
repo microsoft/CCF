@@ -10,9 +10,6 @@
 #include "enclave/rpc_sessions.h"
 #include "ccf/pal/locking.h"
 #include "http/curl.h"
-#include "tasks/basic_task.h"
-#include "tasks/task.h"
-#include "tasks/task_system.h"
 
 #include <curl/curl.h>
 
