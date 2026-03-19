@@ -8,7 +8,6 @@
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/pal/locking.h"
 #include "ds/thread_messaging.h"
-#include "enclave/rpc_sessions.h"
 #include "http/curl.h"
 
 #include <curl/curl.h>
