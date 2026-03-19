@@ -6,8 +6,8 @@
 #include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
+#include "cose_rs_ffi.h"
 #include "crypto/cose.h"
-#include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/public_key.h"
@@ -358,47 +358,35 @@ namespace ccf
         endorsed_cert);
 
       auto kid = ccf::crypto::kid_from_key(service_kp.public_key_der());
-      std::span<const uint8_t> kid_span{
-        reinterpret_cast<const uint8_t*>(kid.data()), kid.size()};
+      auto key_der = service_kp.private_key_der();
+      const auto tx_id = txid.to_str();
 
       const auto time_since_epoch =
         std::chrono::duration_cast<std::chrono::seconds>(
           std::chrono::system_clock::now().time_since_epoch())
           .count();
 
-      std::vector<cbor::MapItem> ccf_headers;
-      const auto tx_id = txid.to_str();
-      ccf_headers.emplace_back(
-        cbor::make_string(ccf::cose::header::custom::TX_ID),
-        cbor::make_string(tx_id));
-
-      std::vector<cbor::MapItem> cwt_headers;
-      cwt_headers.emplace_back(
-        cbor::make_signed(ccf::cwt::header::iana::IAT),
-        cbor::make_signed(time_since_epoch));
-      cwt_headers.emplace_back(
-        cbor::make_signed(ccf::cwt::header::iana::ISS),
-        cbor::make_string(cose_signatures_config.issuer));
-      cwt_headers.emplace_back(
-        cbor::make_signed(ccf::cwt::header::iana::SUB),
-        cbor::make_string(cose_signatures_config.subject));
-
-      std::vector<cbor::MapItem> phdr;
-      phdr.emplace_back(
-        cbor::make_signed(ccf::cose::header::iana::KID),
-        cbor::make_bytes(kid_span));
-      phdr.emplace_back(
-        cbor::make_signed(ccf::cose::header::iana::VDS),
-        cbor::make_signed(ccf::cose::value::CCF_LEDGER_SHA256));
-      phdr.emplace_back(
-        cbor::make_signed(ccf::cose::header::iana::CWT_CLAIMS),
-        cbor::make_map(std::move(cwt_headers)));
-      phdr.emplace_back(
-        cbor::make_string(ccf::cose::header::custom::CCF_V1),
-        cbor::make_map(std::move(ccf_headers)));
-
-      auto phdr_map = cbor::make_map(std::move(phdr));
-      auto cose_sign = crypto::cose_sign1(service_kp, phdr_map, root_hash);
+      CoseBuffer cose_buf;
+      auto rc = cose_sign_ledger(
+        key_der.data(),
+        key_der.size(),
+        reinterpret_cast<const uint8_t*>(kid.data()),
+        kid.size(),
+        time_since_epoch,
+        reinterpret_cast<const uint8_t*>(cose_signatures_config.issuer.data()),
+        cose_signatures_config.issuer.size(),
+        reinterpret_cast<const uint8_t*>(cose_signatures_config.subject.data()),
+        cose_signatures_config.subject.size(),
+        reinterpret_cast<const uint8_t*>(tx_id.data()),
+        tx_id.size(),
+        root_hash.data(),
+        root_hash.size(),
+        cose_buf);
+      if (rc != 0 || !cose_buf.ok())
+      {
+        throw std::runtime_error("cose_sign_ledger failed");
+      }
+      std::vector<uint8_t> cose_sign(cose_buf.to_vector());
 
       signatures->put(sig_value);
       cose_signatures->put(cose_sign);

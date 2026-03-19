@@ -1,0 +1,14 @@
+[package]
+name = "cose-rs"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+cose-openssl = { path = "../../../3rdparty/internal/cose-openssl" }
+
+[profile.release]
+lto = true
+codegen-units = 1

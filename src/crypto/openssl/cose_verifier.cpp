@@ -5,7 +5,7 @@
 
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "crypto/openssl/cose_sign.h"
+#include "cose_rs_ffi.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "ds/internal_logger.h"
 #include "x509_time.h"
@@ -16,74 +16,60 @@
 #include <openssl/ossl_typ.h>
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
-#include <t_cose/t_cose_sign1_verify.h>
 
 namespace
 {
-  std::optional<int> extract_algorithm_from_header(
-    std::span<const uint8_t> cose_msg)
+  using CoseSign1Components = std::tuple<
+    std::span<const uint8_t>, // phdr
+    std::optional<std::span<const uint8_t>>, // payload (nullopt if detached)
+    std::span<const uint8_t> // sig
+    >;
+
+  CoseSign1Components decompose_cose_sign1(std::span<const uint8_t> envelope)
   {
     using namespace ccf::cbor;
 
     auto cose_cbor =
-      rethrow_with_msg([&]() { return parse(cose_msg); }, "Parse COSE CBOR");
+      rethrow_with_msg([&]() { return parse(envelope); }, "Parse COSE CBOR");
 
     const auto& cose_envelope = rethrow_with_msg(
       [&]() -> auto& { return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1); },
       "Parse COSE tag");
 
-    const auto& phdr_raw = rethrow_with_msg(
-      [&]() -> auto& { return cose_envelope->array_at(0); },
-      "Parse raw protected header");
-
     auto phdr = rethrow_with_msg(
-      [&]() { return parse(phdr_raw->as_bytes()); }, "Decode protected header");
+      [&]() { return cose_envelope->array_at(0)->as_bytes(); },
+      "Parse protected header");
 
-    const int64_t alg = rethrow_with_msg(
-      [&]() {
-        return phdr->map_at(make_signed(ccf::cose::header::iana::ALG))
-          ->as_signed();
-      },
-      "Retrieve alg from protected header");
-
-    return alg;
-  }
-
-  q_useful_buf_c buf_from_span(const std::span<const uint8_t> span)
-  {
-    return {.ptr = span.data(), .len = span.size()};
-  }
-
-  class TCOSEVerify
-  {
-  private:
-    EVP_PKEY* pkey = nullptr;
-    t_cose_key cose_key = {};
-
-  public:
-    t_cose_sign1_verify_ctx ctx = {};
-
-    TCOSEVerify(
-      std::shared_ptr<ccf::crypto::PublicKey_OpenSSL> pkey_,
-      const std::span<const uint8_t> envelope) :
-      pkey(*pkey_)
+    std::optional<std::span<const uint8_t>> payload;
     {
-      const auto alg_header = extract_algorithm_from_header(envelope);
-      if (!alg_header.has_value())
+      const auto& payload_item = cose_envelope->array_at(2);
+      try
       {
-        throw std::domain_error("COSE header is missing 'alg' parameter");
+        payload = payload_item->as_bytes();
       }
-
-      pkey_->check_is_cose_compatible(alg_header.value());
-
-      cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
-      cose_key.k.key_ptr = pkey;
-
-      t_cose_sign1_verify_init(&ctx, T_COSE_OPT_TAG_REQUIRED);
-      t_cose_sign1_set_verification_key(&ctx, cose_key);
+      catch (const CBORDecodeError&)
+      {
+        // as_bytes() fails when payload is CBOR null (detached)
+        if (payload_item->as_simple() != ccf::cbor::SimpleValue::Null)
+        {
+          throw;
+        }
+      }
     }
-  };
 
+    auto sig = rethrow_with_msg(
+      [&]() { return cose_envelope->array_at(3)->as_bytes(); },
+      "Parse signature");
+
+    return {phdr, payload, sig};
+  }
+
+  int64_t extract_alg(std::span<const uint8_t> phdr_bytes)
+  {
+    using namespace ccf::cbor;
+    auto phdr = parse(phdr_bytes);
+    return phdr->map_at(make_signed(ccf::cose::header::iana::ALG))->as_signed();
+  }
 }
 
 namespace ccf::crypto
@@ -128,22 +114,34 @@ namespace ccf::crypto
   {
     try
     {
-      TCOSEVerify cose_verify(public_key, envelope);
-      q_useful_buf_c envelope_ = buf_from_span(envelope);
+      auto key_der = public_key->public_key_der();
+      auto [phdr, payload, sig] = decompose_cose_sign1(envelope);
 
-      q_useful_buf_c authned_content_ = {};
+      if (!payload.has_value())
+      {
+        LOG_DEBUG_FMT("COSE Sign1 verification failed: payload is detached");
+        return false;
+      }
 
-      t_cose_err_t error = t_cose_sign1_verify(
-        &cose_verify.ctx, envelope_, &authned_content_, nullptr);
-      if (error == T_COSE_SUCCESS)
+      auto alg = extract_alg(phdr);
+      auto rc = cose_verify1(
+        key_der.data(),
+        key_der.size(),
+        alg,
+        phdr.data(),
+        phdr.size(),
+        payload->data(),
+        payload->size(),
+        sig.data(),
+        sig.size());
+      if (rc == 0)
       {
         authned_content = {
-          reinterpret_cast<uint8_t*>(const_cast<void*>(authned_content_.ptr)),
-          authned_content_.len};
+          const_cast<uint8_t*>(payload->data()), payload->size()};
         return true;
       }
 
-      LOG_DEBUG_FMT("COSE Sign1 verification failed: {}", error);
+      LOG_DEBUG_FMT("COSE Sign1 verification failed with rc: {}", rc);
     }
     catch (const std::exception& e)
     {
@@ -157,23 +155,59 @@ namespace ccf::crypto
   {
     try
     {
-      TCOSEVerify cose_verify(public_key, envelope);
+      auto key_der = public_key->public_key_der();
+      auto [phdr, _payload, sig] = decompose_cose_sign1(envelope);
 
-      q_useful_buf_c envelope_ = buf_from_span(envelope);
-
-      q_useful_buf_c payload_ = {};
-      payload_.ptr = payload.data();
-      payload_.len = payload.size();
-
-      t_cose_err_t error = t_cose_sign1_verify_detached(
-        &cose_verify.ctx, envelope_, NULL_Q_USEFUL_BUF_C, payload_, nullptr);
-
-      if (error == T_COSE_SUCCESS)
+      auto alg = extract_alg(phdr);
+      auto rc = cose_verify1(
+        key_der.data(),
+        key_der.size(),
+        alg,
+        phdr.data(),
+        phdr.size(),
+        payload.data(),
+        payload.size(),
+        sig.data(),
+        sig.size());
+      if (rc == 0)
       {
         return true;
       }
 
-      LOG_DEBUG_FMT("COSE Sign1 verification failed: {}", error);
+      LOG_DEBUG_FMT("COSE Sign1 verification failed with rc: {}", rc);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_DEBUG_FMT("COSE Sign1 verification failed: {}", e.what());
+    }
+    return false;
+  }
+
+  bool COSEVerifier_OpenSSL::verify_decomposed(
+    std::span<const uint8_t> phdr,
+    std::span<const uint8_t> payload,
+    std::span<const uint8_t> sig,
+    int64_t alg) const
+  {
+    try
+    {
+      auto key_der = public_key->public_key_der();
+      auto rc = cose_verify1(
+        key_der.data(),
+        key_der.size(),
+        alg,
+        phdr.data(),
+        phdr.size(),
+        payload.data(),
+        payload.size(),
+        sig.data(),
+        sig.size());
+      if (rc == 0)
+      {
+        return true;
+      }
+
+      LOG_DEBUG_FMT("COSE Sign1 verification failed with rc: {}", rc);
     }
     catch (const std::exception& e)
     {

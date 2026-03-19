@@ -1,0 +1,18 @@
+[package]
+name = "cose-openssl"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["lib"]
+
+[features]
+pqc = []
+
+[lints.rust]
+warnings = "deny"
+
+[dependencies]
+openssl-sys = "0.9"
+cborrs = { git = "https://github.com/project-everest/everparse.git", tag = "v2026.02.25" }
+cborrs-nondet = { git = "https://github.com/project-everest/everparse.git", tag = "v2026.02.25" }
