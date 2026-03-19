@@ -80,8 +80,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   inline const std::map<ProductName, const char*> amd_root_signing_keys{
     {ProductName::Milan, amd_milan_root_signing_public_key},
     {ProductName::Genoa, amd_genoa_root_signing_public_key},
-    // Disabled until we can test this
-    //{ProductName::turin, amd_turin_root_signing_public_key},
+    {ProductName::Turin, amd_turin_root_signing_public_key},
   };
 
 #pragma pack(push, 1)
@@ -417,6 +416,23 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     TcbVersionRaw launch_tcb; /* 0x1F0 */
     uint8_t reserved4[168]; /* 0x1F8 */
     struct Signature signature; /* 0x2A0 */
+
+    [[nodiscard]] std::span<const uint8_t> get_chip_id_for_vcek() const
+    {
+      auto product = get_sev_snp_product(cpuid_fam_id, cpuid_mod_id);
+      if (product == ProductName::Milan || product == ProductName::Genoa)
+      {
+        return {chip_id, sizeof(chip_id)};
+      }
+      // On Turin only the first 8 bytes are used for the chip ID
+      // VCEK certificate and KDS interface spec section 3.1
+      if (product == ProductName::Turin)
+      {
+        return {chip_id, 8};
+      }
+      throw std::logic_error(
+        fmt::format("Unsupported SEV-SNP product: {}", product));
+    }
   };
 #pragma pack(pop)
 
@@ -456,8 +472,10 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
     EndorsementEndpointsConfiguration config;
 
-    auto chip_id_hex = fmt::format("{:02x}", fmt::join(quote.chip_id, ""));
-    auto reported_tcb = fmt::format("{:0x}", *(uint64_t*)(&quote.reported_tcb));
+    auto chip_id_hex =
+      fmt::format("{:02x}", fmt::join(quote.get_chip_id_for_vcek(), ""));
+    auto reported_tcb = fmt::format(
+      "{:0x}", *reinterpret_cast<const uint64_t*>(&quote.reported_tcb));
 
     constexpr size_t default_max_retries_count = 10;
     static const ds::SizeString default_max_client_response_size =
@@ -505,6 +523,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
           std::string tee;
           std::string snp;
           std::string microcode;
+          std::optional<std::string> fmc = std::nullopt;
           switch (product)
           {
             case ProductName::Milan:
@@ -524,6 +543,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
               tee = fmt::format("{}", tcb.tee);
               snp = fmt::format("{}", tcb.snp);
               microcode = fmt::format("{}", tcb.microcode);
+              fmc = fmt::format("{}", tcb.fmc);
               break;
             }
             default:
@@ -544,7 +564,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             microcode,
             product,
             max_retries_count,
-            max_client_response_size));
+            max_client_response_size,
+            fmc));
           break;
         }
         case EndorsementsEndpointType::THIM:

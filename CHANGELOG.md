@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Support for COSE-only receipts in snapshots to support #7711). #7712
+- Support for Turin attestations (#7295, #7264, #7449, #7748, #7749)
 
 ## [6.0.24]
 

@@ -15,7 +15,8 @@ namespace ccf::pal::snp
 #pragma pack(push, 1)
   // AMD CPUID specification. Chapter 2 Fn0000_0001_EAX
   // Milan: 0x00A00F11
-  // Genoa: 0X00A10F11
+  // Genoa: 0x00A10F11
+  // Turin: 0x00B00F21
   // Note: The CPUID is little-endian so the hex_string is reversed
   struct CPUID
   {
@@ -130,7 +131,7 @@ namespace ccf::pal::snp
       return ProductName::Genoa;
     }
     constexpr uint8_t turin_family = 0x1A;
-    constexpr uint8_t turin_model = 0x01;
+    constexpr uint8_t turin_model = 0x02;
     if (family == turin_family && model == turin_model)
     {
       return ProductName::Turin;
@@ -149,11 +150,17 @@ namespace ccf::pal::snp
     switch (product)
     {
       case ProductName::Milan:
+        // See Table 2 of "Revision Guide for 19h 00h-0Fh Processors"
+        // https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/revision-guides/56683.pdf
         return "00a00f11";
       case ProductName::Genoa:
+        // See Table 2 of "Revision Guide for 19h 10h-1Fh Processors"
+        // https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/revision-guides/57095-PUB_1_01.pdf
         return "00a10f11";
       case ProductName::Turin:
-        return "00b00f11";
+        // See Table 2 of "Revision Guide for 1Ah 00h-0Fh Processors"
+        // https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/revision-guides/58251.pdf
+        return "00b00f21";
       default:
         throw std::logic_error(fmt::format(
           "SEV-SNP: Unsupported product for CPUID: {}", to_string(product)));

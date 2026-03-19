@@ -59,6 +59,26 @@ TEST_CASE("genoa validation")
     genoa_quote_info, measurement, report_data);
 }
 
+TEST_CASE("turin validation")
+{
+  using namespace ccf;
+
+  auto turin_quote_info = QuoteInfo{
+    .format = QuoteFormat::amd_sev_snp_v1,
+    .quote = pal::snp::testing::turin_attestation,
+    .endorsements = std::vector<uint8_t>(
+      pal::snp::testing::turin_endorsements.begin(),
+      pal::snp::testing::turin_endorsements.end()),
+    .uvm_endorsements = std::nullopt,
+  };
+
+  pal::PlatformAttestationMeasurement measurement;
+  pal::PlatformAttestationReportData report_data;
+
+  pal::verify_snp_attestation_report(
+    turin_quote_info, measurement, report_data);
+}
+
 TEST_CASE("Mismatched attestation and endorsements fail")
 {
   using namespace ccf;
@@ -75,18 +95,13 @@ TEST_CASE("Mismatched attestation and endorsements fail")
   pal::PlatformAttestationMeasurement measurement;
   pal::PlatformAttestationReportData report_data;
 
-  try
-  {
+  CHECK_THROWS_WITH_AS(
     pal::verify_snp_attestation_report(
-      mismatched_quote, measurement, report_data);
-  }
-  catch (const std::logic_error& e)
-  {
-    const std::string what = e.what();
-    CHECK(
-      what.find("SEV-SNP: The root of trust public key for this attestation "
-                "was not the expected one") != std::string::npos);
-  }
+      mismatched_quote, measurement, report_data),
+    doctest::Contains(
+      "SEV-SNP: The root of trust public key for this attestation "
+      "was not the expected one"),
+    std::logic_error);
 }
 
 TEST_CASE("Parsing of Tcb versions from strings")
@@ -138,6 +153,47 @@ TEST_CASE("Parsing tcb versions from attestaion")
   CHECK_EQ(milan_tcb.snp, 0x18);
   CHECK_EQ(milan_tcb.tee, 0x00);
   CHECK_EQ(milan_tcb.boot_loader, 0x04);
+}
+
+TEST_CASE("CPUID product mapping roundtrip")
+{
+  const std::vector<ccf::pal::snp::ProductName> products = {
+    ccf::pal::snp::ProductName::Milan,
+    ccf::pal::snp::ProductName::Genoa,
+    ccf::pal::snp::ProductName::Turin,
+  };
+
+  for (const auto product : products)
+  {
+    const auto cpuid_hex = ccf::pal::snp::get_cpuid_of_snp_sev_product(product);
+    const auto cpuid = ccf::pal::snp::cpuid_from_hex(cpuid_hex);
+
+    CHECK_EQ(cpuid.hex_str(), cpuid_hex);
+    CHECK_EQ(ccf::pal::snp::get_sev_snp_product(cpuid), product);
+    CHECK_EQ(
+      ccf::pal::snp::get_sev_snp_product(
+        cpuid.get_family_id(), cpuid.get_model_id()),
+      product);
+
+    switch (product)
+    {
+      case ccf::pal::snp::ProductName::Milan:
+        CHECK_EQ(cpuid.get_family_id(), 0x19);
+        CHECK_EQ(cpuid.get_model_id(), 0x01);
+        break;
+      case ccf::pal::snp::ProductName::Genoa:
+        CHECK_EQ(cpuid.get_family_id(), 0x19);
+        CHECK_EQ(cpuid.get_model_id(), 0x11);
+        break;
+      case ccf::pal::snp::ProductName::Turin:
+        CHECK_EQ(cpuid.get_family_id(), 0x1A);
+        CHECK_EQ(cpuid.get_model_id(), 0x02);
+        break;
+      default:
+        FAIL("Unexpected SNP product");
+        break;
+    }
+  }
 }
 
 struct QuoteEndorsementsTestCase
@@ -204,6 +260,41 @@ TEST_CASE("Quote endorsements url generation")
                 .max_retries_count = max_retries_count,
                 .max_client_response_size = ccf::ds::SizeString("100mb"),
               }}}}}},
+    {
+      .attestation = ccf::pal::snp::testing::turin_attestation,
+      .servers = {{
+        ccf::pal::snp::EndorsementsEndpointType::AMD,
+        "invalid.amd.com:12345",
+      }},
+      .expected_urls =
+        {.servers =
+           {
+             {{{
+                 .host = "invalid.amd.com",
+                 .port = "12345",
+                 .uri = "/vcek/v1/Turin/59790fb1c39f35c1",
+                 .params =
+                   {
+                     {"fmcSPL", "1"},
+                     {"blSPL", "1"},
+                     {"teeSPL", "1"},
+                     {"snpSPL", "4"},
+                     {"ucodeSPL", "81"},
+                   },
+                 .response_is_der = true, // DER response
+                 .max_retries_count = max_retries_count,
+                 .max_client_response_size = ccf::ds::SizeString("100mb"),
+               },
+               {
+                 .host = "invalid.amd.com",
+                 .port = "12345",
+                 .uri = "/vcek/v1/Turin/cert_chain",
+                 .params = {},
+                 .response_is_der = false, // Not DER response
+                 .max_retries_count = max_retries_count,
+                 .max_client_response_size = ccf::ds::SizeString("100mb"),
+               }}}}},
+    },
     {
       .attestation = ccf::pal::snp::testing::genoa_attestation,
       .servers = {{

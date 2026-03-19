@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import argparse
+from enum import Enum
 import logging
 import sys
 import httpx
@@ -12,10 +13,16 @@ from cryptography.hazmat.backends import default_backend
 import json
 
 
+class AMDCPUFamily(Enum):
+    MILAN = "Milan"
+    GENOA = "Genoa"
+    TURIN = "Turin"
+
+
 def make_host_amd_blob(tcbm, leaf, chain):
     return json.dumps(
         {
-            "cacheControl": "0",
+            "cacheControl": 0,
             "tcbm": tcbm.upper(),
             "vcekCert": leaf,
             "certificateChain": chain,
@@ -24,15 +31,42 @@ def make_host_amd_blob(tcbm, leaf, chain):
 
 
 def make_leaf_url(base_url, product_family, chip_id, tcbm):
-    microcode = int(tcbm[0:2], base=16)
-    snp = int(tcbm[2:4], base=16)
-    # 4 reserved bytes
-    tee = int(tcbm[12:14], base=16)
-    bootloader = int(tcbm[14:16], base=16)
+    if len(tcbm) != 16:
+        raise ValueError("TCBM must be 16 hex characters (64 bits)")
 
-    return (
-        f"{base_url}/vcek/v1/{product_family}/{chip_id}"
-        + f"?blSPL={bootloader}&teeSPL={tee}&snpSPL={snp}&ucodeSPL={microcode}"
+    if product_family in [AMDCPUFamily.MILAN.value, AMDCPUFamily.GENOA.value]:
+        assert len(chip_id) == 64 * 2, "Chip ID must be 64 bytes long"
+        hwid = chip_id[0 : 64 * 2]
+        params = {
+            "ucodeSPL": int(tcbm[0:2], base=16),
+            "snpSPL": int(tcbm[2:4], base=16),
+            # 4 reserved bytes
+            "teeSPL": int(tcbm[12:14], base=16),
+            "blSPL": int(tcbm[14:16], base=16),
+        }
+    elif product_family == AMDCPUFamily.TURIN.value:
+        # Note hwid is explicitly shortened for turin (the full chip_id in the attestation will not work)
+        # See Table 11 (section 3.1) of the VCEK spec for details
+        assert (
+            len(chip_id) >= 8 * 2
+        ), "Chip ID should be at least 8 bytes long for Turin"
+        hwid = chip_id[0 : 8 * 2]
+        assert chip_id[8 * 2 :] == "0" * (
+            len(chip_id) - len(hwid)
+        ), "Chip ID bytes 8-64 should be zero for Turin"
+        params = {
+            "ucodeSPL": int(tcbm[0:2], base=16),
+            # 3 reserved bytes
+            "snpSPL": int(tcbm[8:10], base=16),
+            "teeSPL": int(tcbm[10:12], base=16),
+            "blSPL": int(tcbm[12:14], base=16),
+            "fmcSPL": int(tcbm[14:16], base=16),
+        }
+    else:
+        raise ValueError(f"Unknown product family {product_family}")
+
+    return f"{base_url}/vcek/v1/{product_family}/{hwid}?" + "&".join(
+        [f"{k}={v}" for k, v in params.items()]
     )
 
 
@@ -63,7 +97,8 @@ if __name__ == "__main__":
         "--product-family",
         type=str,
         default="Milan",
-        help="AMD product family (e.g., Milan, Genoa).",
+        choices=[pf.value for pf in AMDCPUFamily],
+        help="AMD product family",
     )
     parser.add_argument(
         "--output",

@@ -748,6 +748,17 @@ endif()
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
 
+# SNP attestation fetching and verification binary
+add_test_bin(
+  verify_attestation
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/verify_attestation.cpp
+)
+target_link_libraries(
+  verify_attestation PRIVATE ccf_pal.host ccfcrypto.host uv curl
+                             http_parser.host
+)
+install(TARGETS verify_attestation DESTINATION bin)
+
 if(BUILD_TESTS)
   enable_testing()
 
