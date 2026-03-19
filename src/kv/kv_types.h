@@ -14,6 +14,7 @@
 #include "ccf/service/consensus_type.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/tx_id.h"
+#include "ccf/tx_status.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "kv/ledger_chunker_interface.h"
 #include "serialiser_declare.h"
@@ -411,6 +412,16 @@ namespace ccf::kv
     {}
 
     virtual void nominate_successor() {};
+
+    ccf::TxStatus evaluate_tx_status(
+      ccf::View target_view, ccf::SeqNo target_seqno)
+    {
+      const auto local_view = get_view(target_seqno);
+      const auto [committed_view, committed_seqno] = get_committed_txid();
+
+      return ccf::evaluate_tx_status(
+        target_view, target_seqno, local_view, committed_view, committed_seqno);
+    }
   };
 
   struct PendingTxInfo
