@@ -192,6 +192,8 @@ class Network:
         "ledger_chunk_bytes",
         "subject_alt_names",
         "snapshot_tx_interval",
+        "snapshot_min_tx_interval",
+        "snapshot_time_interval",
         "max_open_sessions",
         "max_open_sessions_hard",
         "forwarding_timeout_ms",

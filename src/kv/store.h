@@ -1059,6 +1059,16 @@ namespace ccf::kv
       return CommitResult::FAIL_NO_REPLICATE;
     }
 
+    bool should_schedule_snapshot()
+    {
+      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      if (snapshotter)
+      {
+        return snapshotter->should_schedule_snapshot(last_committable);
+      }
+      return false;
+    }
+
     bool should_create_ledger_chunk(Version version) override
     {
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
@@ -1070,7 +1080,7 @@ namespace ccf::kv
       // Note that snapshotter->record_committable, and therefore this function,
       // assumes that `version` is a committable entry/signature.
 
-      bool r = flag_enabled_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      bool r = false;
 
       if (chunker)
       {
@@ -1080,6 +1090,12 @@ namespace ccf::kv
       if (snapshotter)
       {
         r |= snapshotter->record_committable(version);
+      }
+      else
+      {
+        // This branch is required to ensure that when there is no snapshotter,
+        // that this still triggers chunk ends if the flag is set.
+        r |= flag_enabled_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
       }
 
       return r;

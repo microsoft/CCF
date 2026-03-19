@@ -109,6 +109,8 @@ namespace ccf
     CCFConfig::Snapshots,
     directory,
     tx_count,
+    min_tx_count,
+    time_interval,
     read_only_directory,
     backup_fetch);
 
