@@ -6,9 +6,9 @@
 #include "ccf/http_consts.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
+#include "ccf/pal/locking.h"
 #include "ds/thread_messaging.h"
 #include "enclave/rpc_sessions.h"
-#include "ccf/pal/locking.h"
 #include "http/curl.h"
 
 #include <curl/curl.h>
