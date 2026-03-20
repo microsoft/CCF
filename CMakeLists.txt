@@ -150,7 +150,7 @@ foreach(UTILITY ${CCF_UTILITIES})
 endforeach()
 
 # Copy utilities from tests directory
-set(CCF_TEST_UTILITIES tests.sh convert_pico_to_bencher.py test_install.sh
+set(CCF_TEST_UTILITIES convert_pico_to_bencher.py test_install.sh
                        docker_wrap.sh config.jinja recovery_benchmark.sh
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})
@@ -1162,7 +1162,6 @@ if(BUILD_TESTS)
     CONFIGURATIONS snp
   )
 
-  list(APPEND LTS_TEST_ARGS --ccf-version ${CCF_VERSION})
   if(LONG_TESTS)
     list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
   endif()
@@ -1193,11 +1192,10 @@ if(BUILD_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)
   endif()
 
-  set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
   add_e2e_test(
     NAME nodes_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/nodes.py
-    ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS} ${ROTATION_TEST_ARGS}
+    ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
   )
 
   add_piccolo_test(
@@ -1286,6 +1284,21 @@ if(BUILD_TESTS)
     )
   endif()
 endif()
+
+write_e2e_test_configs()
+
+# Generate e2e_config.json so that `uv run python <test>.py` picks up
+# constitution, binary_dir, etc. without explicit flags.
+write_e2e_config(
+  CONSTITUTION
+  ${CCF_NETWORK_TEST_DEFAULT_CONSTITUTION}
+  LOG_LEVEL
+  ${TEST_LOGGING_LEVEL}
+  WORKER_THREADS
+  ${WORKER_THREADS}
+  TICK_MS
+  1
+)
 
 # Generate and install CMake export file for consumers using CMake
 include(CMakePackageConfigHelpers)
