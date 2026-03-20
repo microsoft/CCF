@@ -149,6 +149,73 @@ def test_add_node(network, args, from_snapshot=True):
     return network
 
 
+@reqs.description("Adding a node with corrupted ledger file")
+def test_add_node_with_corrupted_ledger(network, args):
+    # Reproduce issue #6612: a node joining with a corrupted (truncated) ledger
+    # file should fail to start rather than crash unexpectedly.
+    new_node = network.create_node()
+
+    # Set up the join node (copies ledger, snapshots, etc.) but do not start it yet
+    network.setup_join_node(
+        new_node,
+        args.package,
+        args,
+        from_snapshot=True,
+        fetch_recent_snapshot=True,
+    )
+
+    # Find the latest uncommitted ledger file in the node's working directory
+    ledger_dir = new_node.remote.get_main_ledger_dir()
+    ledger_files = sorted(
+        [
+            f
+            for f in os.listdir(ledger_dir)
+            if f.startswith("ledger_") and not f.endswith(".committed")
+        ]
+    )
+
+    assert ledger_files, "Expected uncommitted ledger files to corrupt"
+
+    # Corrupt the latest uncommitted ledger file by truncating it in the middle
+    # of a transaction, so the transaction size does not match the number of
+    # bytes available left to read in the file (as described in issue #6612)
+    ledger = ccf.ledger.Ledger([ledger_dir], committed_only=False)
+    chunk_filename = None
+    truncate_offset = None
+    for chunk in ledger:
+        for tx in chunk:
+            offset, next_offset = tx.get_offsets()
+            chunk_filename = chunk.filename()
+            truncate_offset = offset + (next_offset - offset) // 2
+
+    assert truncate_offset is not None, "Should always find a transaction to corrupt"
+
+    LOG.info(
+        f"Corrupting ledger file {chunk_filename} by truncating at offset {truncate_offset}"
+    )
+    with open(chunk_filename, "r+", encoding="utf-8") as f:
+        f.truncate(truncate_offset)
+
+    # Attempt to start the node - it should fail due to the corrupted ledger
+    try:
+        network.run_join_node(new_node, timeout=3)
+    except (RuntimeError, TimeoutError) as e:
+        LOG.info(
+            f"Node {new_node.local_node_id} with corrupted ledger failed to start, as expected: {e}"
+        )
+        # Cleanup: run_join_node may have already stopped and removed the node
+        # on TimeoutError, but not on RuntimeError
+        new_node.stop()
+        if new_node in network.nodes:
+            network.nodes.remove(new_node)
+    else:
+        assert (
+            False
+        ), f"Node {new_node.local_node_id} with corrupted ledger unexpectedly started"
+
+    return network
+
+
 @reqs.description("Test ignore_first_sigterm")
 def test_ignore_first_sigterm(network, args):
     # Note: host is supplied explicitly to avoid having differently
@@ -790,6 +857,7 @@ def run_all(args):
         test_add_node_invalid_service_cert(network, args)
         test_add_node(network, args, from_snapshot=False)
         test_add_node_with_read_only_ledger(network, args)
+        test_add_node_with_corrupted_ledger(network, args)
         test_join_straddling_primary_replacement(network, args)
         test_node_replacement(network, args)
         test_add_node_from_backup(network, args)
