@@ -11,11 +11,22 @@ extern "C"
 {
 #endif
 
-  /// Sign a CCF ledger signature (COSE_Sign1, detached payload).
+  /// Opaque handle to a Rust-managed signing key.
+  typedef struct CoseEvpKey CoseEvpKey;
+
+  /// Create a signing key from DER-encoded private key bytes.
+  /// Returns an opaque pointer, or NULL on failure.
+  /// The caller must free the key with cose_key_free.
+  CoseEvpKey* cose_key_from_der_private(
+    const uint8_t* key_der_ptr, size_t key_der_len);
+
+  /// Free a key created by cose_key_from_der_private.
+  void cose_key_free(CoseEvpKey* key);
+
+  /// Sign a CCF ledger signature using a pre-created key handle.
   /// Returns 0 on success, non-zero on failure.
   int cose_sign_ledger(
-    const uint8_t* key_der_ptr,
-    size_t key_der_len,
+    const CoseEvpKey* key,
     const uint8_t* kid_ptr,
     size_t kid_len,
     int64_t iat,
@@ -34,8 +45,7 @@ extern "C"
   /// epoch_end and prev_root may be NULL/0 if not applicable.
   /// Returns 0 on success, non-zero on failure.
   int cose_sign_endorsement(
-    const uint8_t* key_der_ptr,
-    size_t key_der_len,
+    const CoseEvpKey* key,
     int64_t iat,
     const uint8_t* epoch_begin_ptr,
     size_t epoch_begin_len,
@@ -141,9 +151,65 @@ public:
   }
 };
 
+/// RAII wrapper for a Rust-managed signing key.
+/// Automatically calls cose_key_free on destruction.
+class CoseKey
+{
+  CoseEvpKey* key = nullptr;
+
+public:
+  CoseKey() = default;
+
+  CoseKey(const uint8_t* der_ptr, size_t der_len) :
+    key(cose_key_from_der_private(der_ptr, der_len))
+  {}
+
+  CoseKey(const CoseKey&) = delete;
+  CoseKey& operator=(const CoseKey&) = delete;
+
+  CoseKey(CoseKey&& other) noexcept : key(other.key)
+  {
+    other.key = nullptr;
+  }
+
+  CoseKey& operator=(CoseKey&& other) noexcept
+  {
+    if (this != &other)
+    {
+      reset();
+      key = other.key;
+      other.key = nullptr;
+    }
+    return *this;
+  }
+
+  ~CoseKey()
+  {
+    reset();
+  }
+
+  void reset()
+  {
+    if (key != nullptr)
+    {
+      cose_key_free(key);
+      key = nullptr;
+    }
+  }
+
+  [[nodiscard]] const CoseEvpKey* get() const
+  {
+    return key;
+  }
+
+  [[nodiscard]] bool ok() const
+  {
+    return key != nullptr;
+  }
+};
+
 inline int cose_sign_ledger(
-  const uint8_t* key_der_ptr,
-  size_t key_der_len,
+  const CoseKey& key,
   const uint8_t* kid_ptr,
   size_t kid_len,
   int64_t iat,
@@ -158,8 +224,7 @@ inline int cose_sign_ledger(
   CoseBuffer& out)
 {
   return ::cose_sign_ledger(
-    key_der_ptr,
-    key_der_len,
+    key.get(),
     kid_ptr,
     kid_len,
     iat,
@@ -176,8 +241,7 @@ inline int cose_sign_ledger(
 }
 
 inline int cose_sign_endorsement(
-  const uint8_t* key_der_ptr,
-  size_t key_der_len,
+  const CoseKey& key,
   int64_t iat,
   const uint8_t* epoch_begin_ptr,
   size_t epoch_begin_len,
@@ -190,8 +254,7 @@ inline int cose_sign_endorsement(
   CoseBuffer& out)
 {
   return ::cose_sign_endorsement(
-    key_der_ptr,
-    key_der_len,
+    key.get(),
     iat,
     epoch_begin_ptr,
     epoch_begin_len,

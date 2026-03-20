@@ -84,6 +84,8 @@ namespace
 TEST_CASE("cose_sign_ledger sign and verify round-trip")
 {
   TestKey key;
+  CoseKey cose_key(key.priv_der.data(), key.priv_der.size());
+  REQUIRE(cose_key.ok());
 
   const std::string kid = "test-kid";
   const std::string issuer = "test-issuer";
@@ -94,8 +96,7 @@ TEST_CASE("cose_sign_ledger sign and verify round-trip")
 
   CoseBuffer buf;
   auto rc = cose_sign_ledger(
-    key.priv_der.data(),
-    key.priv_der.size(),
+    cose_key,
     reinterpret_cast<const uint8_t*>(kid.data()),
     kid.size(),
     iat,
@@ -125,36 +126,15 @@ TEST_CASE("cose_sign_ledger sign and verify round-trip")
 TEST_CASE("cose_sign_ledger fails with invalid key")
 {
   const std::vector<uint8_t> bad_key = {0, 1, 2, 3};
-  const std::string kid = "k";
-  const std::string issuer = "i";
-  const std::string subject = "s";
-  const std::string txid = "1.1";
-  const std::vector<uint8_t> payload = {1};
-
-  CoseBuffer buf;
-  auto rc = cose_sign_ledger(
-    bad_key.data(),
-    bad_key.size(),
-    reinterpret_cast<const uint8_t*>(kid.data()),
-    kid.size(),
-    0,
-    reinterpret_cast<const uint8_t*>(issuer.data()),
-    issuer.size(),
-    reinterpret_cast<const uint8_t*>(subject.data()),
-    subject.size(),
-    reinterpret_cast<const uint8_t*>(txid.data()),
-    txid.size(),
-    payload.data(),
-    payload.size(),
-    buf);
-
-  CHECK(rc != 0);
-  CHECK(!buf.ok());
+  CoseKey cose_key(bad_key.data(), bad_key.size());
+  CHECK(!cose_key.ok());
 }
 
 TEST_CASE("cose_sign_endorsement sign and verify round-trip")
 {
   TestKey key;
+  CoseKey cose_key(key.priv_der.data(), key.priv_der.size());
+  REQUIRE(cose_key.ok());
 
   const std::string epoch_begin = "2.1";
   const std::string epoch_end = "3.10";
@@ -165,8 +145,7 @@ TEST_CASE("cose_sign_endorsement sign and verify round-trip")
 
   CoseBuffer buf;
   auto rc = cose_sign_endorsement(
-    key.priv_der.data(),
-    key.priv_der.size(),
+    cose_key,
     iat,
     reinterpret_cast<const uint8_t*>(epoch_begin.data()),
     epoch_begin.size(),
@@ -189,6 +168,8 @@ TEST_CASE("cose_sign_endorsement sign and verify round-trip")
 TEST_CASE("cose_sign_endorsement without optional fields")
 {
   TestKey key;
+  CoseKey cose_key(key.priv_der.data(), key.priv_der.size());
+  REQUIRE(cose_key.ok());
 
   const std::string epoch_begin = "1.1";
   const std::vector<uint8_t> payload = {42};
@@ -196,8 +177,7 @@ TEST_CASE("cose_sign_endorsement without optional fields")
 
   CoseBuffer buf;
   auto rc = cose_sign_endorsement(
-    key.priv_der.data(),
-    key.priv_der.size(),
+    cose_key,
     iat,
     reinterpret_cast<const uint8_t*>(epoch_begin.data()),
     epoch_begin.size(),
@@ -220,6 +200,8 @@ TEST_CASE("cose_sign_endorsement without optional fields")
 TEST_CASE("cose_verify1 fails with wrong key")
 {
   TestKey sign_key;
+  CoseKey sign_cose_key(sign_key.priv_der.data(), sign_key.priv_der.size());
+  REQUIRE(sign_cose_key.ok());
   TestKey wrong_key;
 
   const std::string epoch_begin = "1.1";
@@ -227,8 +209,7 @@ TEST_CASE("cose_verify1 fails with wrong key")
 
   CoseBuffer buf;
   cose_sign_endorsement(
-    sign_key.priv_der.data(),
-    sign_key.priv_der.size(),
+    sign_cose_key,
     0,
     reinterpret_cast<const uint8_t*>(epoch_begin.data()),
     epoch_begin.size(),
@@ -249,14 +230,15 @@ TEST_CASE("cose_verify1 fails with wrong key")
 TEST_CASE("cose_verify1 fails with corrupted signature")
 {
   TestKey key;
+  CoseKey cose_key(key.priv_der.data(), key.priv_der.size());
+  REQUIRE(cose_key.ok());
 
   const std::string epoch_begin = "1.1";
   const std::vector<uint8_t> payload = {1, 2, 3};
 
   CoseBuffer buf;
   cose_sign_endorsement(
-    key.priv_der.data(),
-    key.priv_der.size(),
+    cose_key,
     0,
     reinterpret_cast<const uint8_t*>(epoch_begin.data()),
     epoch_begin.size(),
@@ -291,14 +273,15 @@ TEST_CASE("cose_verify1 fails with corrupted signature")
 TEST_CASE("cose_verify1 wrong alg fails")
 {
   TestKey key;
+  CoseKey cose_key(key.priv_der.data(), key.priv_der.size());
+  REQUIRE(cose_key.ok());
 
   const std::string epoch_begin = "1.1";
   const std::vector<uint8_t> payload = {0xCA, 0xFE};
 
   CoseBuffer buf;
   cose_sign_endorsement(
-    key.priv_der.data(),
-    key.priv_der.size(),
+    cose_key,
     0,
     reinterpret_cast<const uint8_t*>(epoch_begin.data()),
     epoch_begin.size(),
@@ -342,13 +325,14 @@ TEST_CASE("CoseBuffer RAII semantics")
   SUBCASE("move construction")
   {
     TestKey key;
+    CoseKey cose_key(key.priv_der.data(), key.priv_der.size());
+    REQUIRE(cose_key.ok());
     const std::string epoch_begin = "1.1";
     const std::vector<uint8_t> payload = {1};
 
     CoseBuffer buf;
     cose_sign_endorsement(
-      key.priv_der.data(),
-      key.priv_der.size(),
+      cose_key,
       0,
       reinterpret_cast<const uint8_t*>(epoch_begin.data()),
       epoch_begin.size(),
@@ -371,13 +355,14 @@ TEST_CASE("CoseBuffer RAII semantics")
   SUBCASE("reset")
   {
     TestKey key;
+    CoseKey cose_key(key.priv_der.data(), key.priv_der.size());
+    REQUIRE(cose_key.ok());
     const std::string epoch_begin = "1.1";
     const std::vector<uint8_t> payload = {1};
 
     CoseBuffer buf;
     cose_sign_endorsement(
-      key.priv_der.data(),
-      key.priv_der.size(),
+      cose_key,
       0,
       reinterpret_cast<const uint8_t*>(epoch_begin.data()),
       epoch_begin.size(),

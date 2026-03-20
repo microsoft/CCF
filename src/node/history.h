@@ -357,8 +357,7 @@ namespace ccf
         primary_sig,
         endorsed_cert);
 
-      auto kid = ccf::crypto::kid_from_key(service_kp.public_key_der());
-      auto key_der = service_kp.private_key_der();
+      static auto kid = ccf::crypto::kid_from_key(service_kp.public_key_der());
       const auto tx_id = txid.to_str();
 
       const auto time_since_epoch =
@@ -366,10 +365,19 @@ namespace ccf
           std::chrono::system_clock::now().time_since_epoch())
           .count();
 
+      static std::unordered_map<std::string, CoseKey> key_cache;
+      auto it = key_cache.find(kid);
+      if (it == key_cache.end())
+      {
+        auto key_der = service_kp.private_key_der();
+        auto [inserted, _] =
+          key_cache.emplace(kid, CoseKey(key_der.data(), key_der.size()));
+        it = inserted;
+      }
+
       CoseBuffer cose_buf;
       auto rc = cose_sign_ledger(
-        key_der.data(),
-        key_der.size(),
+        it->second,
         reinterpret_cast<const uint8_t*>(kid.data()),
         kid.size(),
         time_since_epoch,

@@ -93,44 +93,43 @@ fn build_endorsement_phdr(
     ])
 }
 
-/// Sign a ledger signature.
+/// Sign an identity endorsement using a pre-created key handle.
 ///
-/// On success, writes the output pointer and length into `out_ptr`/`out_len`
-/// and returns 0. On failure returns non-zero. Caller frees with `cose_free`.
+/// `epoch_end_ptr`/`epoch_end_len` and `prev_root_ptr`/`prev_root_len` may be
+/// null/0 if not applicable.
 ///
 /// # Safety
+/// `key` must be a valid pointer from `cose_key_from_der_private`.
 /// All pointer+length pairs must be valid.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn cose_sign_ledger(
-    key_der_ptr: *const u8,
-    key_der_len: usize,
-    kid_ptr: *const u8,
-    kid_len: usize,
+pub unsafe extern "C" fn cose_sign_endorsement(
+    key: *const EvpKey,
     iat: i64,
-    issuer_ptr: *const u8,
-    issuer_len: usize,
-    subject_ptr: *const u8,
-    subject_len: usize,
-    txid_ptr: *const u8,
-    txid_len: usize,
+    epoch_begin_ptr: *const u8,
+    epoch_begin_len: usize,
+    epoch_end_ptr: *const u8,
+    epoch_end_len: usize,
+    prev_root_ptr: *const u8,
+    prev_root_len: usize,
     payload_ptr: *const u8,
     payload_len: usize,
     out_ptr: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
+    if key.is_null() {
+        return -1;
+    }
     let result = std::panic::catch_unwind(|| unsafe {
-        let key_der = slice_from_raw(key_der_ptr, key_der_len);
-        let kid = slice_from_raw(kid_ptr, kid_len);
-        let issuer = str_from_raw(issuer_ptr, issuer_len);
-        let subject = str_from_raw(subject_ptr, subject_len);
-        let txid = str_from_raw(txid_ptr, txid_len);
+        let key = &*key;
+        let epoch_begin = str_from_raw(epoch_begin_ptr, epoch_begin_len);
+        let epoch_end = str_from_raw(epoch_end_ptr, epoch_end_len);
+        let prev_root = slice_from_raw(prev_root_ptr, prev_root_len);
         let payload = slice_from_raw(payload_ptr, payload_len);
 
-        let key = EvpKey::from_der_private(key_der)?;
-        let phdr = build_ledger_phdr(kid, iat, issuer, subject, txid);
+        let phdr = build_endorsement_phdr(iat, epoch_begin, epoch_end, prev_root);
         let uhdr = CborValue::Map(vec![]);
 
-        cose_openssl::cose_sign1(&key, phdr, uhdr, payload, true)
+        cose_openssl::cose_sign1(key, phdr, uhdr, payload, false)
     });
 
     match result {
@@ -145,41 +144,79 @@ pub unsafe extern "C" fn cose_sign_ledger(
     }
 }
 
-/// Sign an identity endorsement.
-///
-/// `epoch_end_ptr`/`epoch_end_len` and `prev_root_ptr`/`prev_root_len` may be
-/// null/0 if not applicable.
+/// Create an opaque signing key from a DER-encoded private key.
+/// Returns a pointer to the key, or null on failure.
+/// The caller must free the key with `cose_key_free`.
 ///
 /// # Safety
-/// All pointer+length pairs must be valid.
+/// `key_der_ptr` must point to `key_der_len` valid bytes.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn cose_sign_endorsement(
+pub unsafe extern "C" fn cose_key_from_der_private(
     key_der_ptr: *const u8,
     key_der_len: usize,
+) -> *mut EvpKey {
+    let result = std::panic::catch_unwind(|| unsafe {
+        let key_der = slice_from_raw(key_der_ptr, key_der_len);
+        EvpKey::from_der_private(key_der)
+    });
+
+    match result {
+        Ok(Ok(key)) => Box::into_raw(Box::new(key)),
+        _ => std::ptr::null_mut(),
+    }
+}
+
+/// Free a key previously created by `cose_key_from_der_private`.
+///
+/// # Safety
+/// `key` must be a pointer returned by `cose_key_from_der_private`,
+/// or null (which is a no-op).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cose_key_free(key: *mut EvpKey) {
+    if !key.is_null() {
+        unsafe {
+            drop(Box::from_raw(key));
+        }
+    }
+}
+
+/// Sign a ledger signature using a pre-created key handle.
+///
+/// # Safety
+/// `key` must be a valid pointer from `cose_key_from_der_private`.
+/// All pointer+length pairs must be valid.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cose_sign_ledger(
+    key: *const EvpKey,
+    kid_ptr: *const u8,
+    kid_len: usize,
     iat: i64,
-    epoch_begin_ptr: *const u8,
-    epoch_begin_len: usize,
-    epoch_end_ptr: *const u8,
-    epoch_end_len: usize,
-    prev_root_ptr: *const u8,
-    prev_root_len: usize,
+    issuer_ptr: *const u8,
+    issuer_len: usize,
+    subject_ptr: *const u8,
+    subject_len: usize,
+    txid_ptr: *const u8,
+    txid_len: usize,
     payload_ptr: *const u8,
     payload_len: usize,
     out_ptr: *mut *mut u8,
     out_len: *mut usize,
 ) -> i32 {
+    if key.is_null() {
+        return -1;
+    }
     let result = std::panic::catch_unwind(|| unsafe {
-        let key_der = slice_from_raw(key_der_ptr, key_der_len);
-        let epoch_begin = str_from_raw(epoch_begin_ptr, epoch_begin_len);
-        let epoch_end = str_from_raw(epoch_end_ptr, epoch_end_len);
-        let prev_root = slice_from_raw(prev_root_ptr, prev_root_len);
+        let key = &*key;
+        let kid = slice_from_raw(kid_ptr, kid_len);
+        let issuer = str_from_raw(issuer_ptr, issuer_len);
+        let subject = str_from_raw(subject_ptr, subject_len);
+        let txid = str_from_raw(txid_ptr, txid_len);
         let payload = slice_from_raw(payload_ptr, payload_len);
 
-        let key = EvpKey::from_der_private(key_der)?;
-        let phdr = build_endorsement_phdr(iat, epoch_begin, epoch_end, prev_root);
+        let phdr = build_ledger_phdr(kid, iat, issuer, subject, txid);
         let uhdr = CborValue::Map(vec![]);
 
-        cose_openssl::cose_sign1(&key, phdr, uhdr, payload, false)
+        cose_openssl::cose_sign1(key, phdr, uhdr, payload, true)
     });
 
     match result {

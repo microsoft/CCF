@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "cborrs"
 version = "0.1.0"
-source = "git+https://github.com/project-everest/everparse.git?tag=v2026.02.25#f4cd5ffa183edd5cc824d66588012bcf8d0bdccd"
+source = "git+https://github.com/project-everest/everparse.git?rev=f4cd5ffa183edd5cc824d66588012bcf8d0bdccd#f4cd5ffa183edd5cc824d66588012bcf8d0bdccd"
 dependencies = [
  "static_assertions",
 ]
@@ -13,7 +13,7 @@ dependencies = [
 [[package]]
 name = "cborrs-nondet"
 version = "0.1.0"
-source = "git+https://github.com/project-everest/everparse.git?tag=v2026.02.25#f4cd5ffa183edd5cc824d66588012bcf8d0bdccd"
+source = "git+https://github.com/project-everest/everparse.git?rev=f4cd5ffa183edd5cc824d66588012bcf8d0bdccd#f4cd5ffa183edd5cc824d66588012bcf8d0bdccd"
 dependencies = [
  "static_assertions",
 ]

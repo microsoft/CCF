@@ -635,11 +635,11 @@ namespace ccf
           .count();
 
       auto key_der = service_key.private_key_der();
+      CoseKey cose_key(key_der.data(), key_der.size());
 
       CoseBuffer cose_buf;
       auto rc = cose_sign_endorsement(
-        key_der.data(),
-        key_der.size(),
+        cose_key,
         time_since_epoch,
         reinterpret_cast<const uint8_t*>(from_txid.data()),
         from_txid.size(),
