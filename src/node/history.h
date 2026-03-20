@@ -6,7 +6,7 @@
 #include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
-#include "cose_rs_ffi.h"
+#include "cose/cose_rs_ffi.h"
 #include "crypto/cose.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "crypto/openssl/hash.h"
