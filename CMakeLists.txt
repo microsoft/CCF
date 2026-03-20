@@ -44,12 +44,6 @@ include(GNUInstallDirs)
 # Use fixed name instead of absolute path for reproducible builds
 add_compile_options("-ffile-prefix-map=${CCF_DIR}=CCF")
 
-# In Debug builds, export symbols to the dynamic symbol table so that
-# backtrace_symbols can resolve function names in stacktraces, and preserve
-# frame pointers so that backtrace() can walk the full call stack.
-add_link_options($<$<CONFIG:Debug>:-rdynamic>)
-add_compile_options($<$<CONFIG:Debug>:-fno-omit-frame-pointer>)
-
 set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -283,13 +277,10 @@ add_ccf_static_library(
        ${CCF_DIR}/src/tasks/thread_manager.cpp
        ${CCF_DIR}/src/tasks/worker.cpp
 )
-target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
-if(USE_LIBCXX)
-  # worker.cpp uses backtrace() which, under libc++, resolves through libunwind.
-  # On systems where libunwind is built with LZMA support (e.g. Azure Linux),
-  # this creates a transitive dependency on liblzma.
-  target_link_libraries(ccf_tasks PRIVATE lzma)
-endif()
+
+# libbacktrace reads DWARF debug info directly, providing file/line/function
+# resolution in stack traces.
+target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS} backtrace)
 
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS
