@@ -1,4 +1,4 @@
-use crate::cbor::CborValue;
+use crate::cbor::{CborSlice, CborValue, serialize_array};
 use crate::ossl_wrappers::{
     EvpKey, KeyType, WhichEC, WhichRSA, ecdsa_der_to_fixed, ecdsa_fixed_to_der,
     rsa_pss_md_for_cose_alg,
@@ -56,14 +56,18 @@ fn insert_alg_value(
 
 /// To-be-signed (TBS).
 /// https://www.rfc-editor.org/rfc/rfc9052.html#section-4.4.
+///
+/// Uses `serialize_array` with borrowed slices to avoid copying
+/// `phdr` and `payload` into intermediate `Vec<u8>`s. These can
+/// be large (payload especially), so we serialize directly from
+/// the caller's buffers.
 fn sig_structure(phdr: &[u8], payload: &[u8]) -> Result<Vec<u8>, String> {
-    CborValue::Array(vec![
-        CborValue::TextString(SIG_STRUCTURE1_CONTEXT.to_string()),
-        CborValue::ByteString(phdr.to_vec()),
-        CborValue::ByteString(vec![]),
-        CborValue::ByteString(payload.to_vec()),
+    serialize_array(&[
+        CborSlice::TextStr(SIG_STRUCTURE1_CONTEXT),
+        CborSlice::ByteStr(phdr),
+        CborSlice::ByteStr(&[]),
+        CborSlice::ByteStr(payload),
     ])
-    .to_bytes()
 }
 
 /// Produce a COSE_Sign1 envelope.

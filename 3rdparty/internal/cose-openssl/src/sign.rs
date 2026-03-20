@@ -33,7 +33,7 @@ fn sign_with_ctx(
             msg.len(),
         );
         if res != 1 {
-            return Err(format!("Failed to signature size, err: {}", res));
+            return Err(format!("Failed to get signature size, err: {}", res));
         }
 
         let mut sig = vec![0u8; sig_size];

@@ -287,6 +287,28 @@ fn serialize_det(item: CborDet) -> Result<Vec<u8>, String> {
     Ok(buf)
 }
 
+/// A CBOR item that borrows its data, for zero-copy serialization.
+pub enum CborSlice<'a> {
+    TextStr(&'a str),
+    ByteStr(&'a [u8]),
+}
+
+/// Serialize a CBOR array of borrowed items without intermediate copies.
+pub fn serialize_array(items: &[CborSlice<'_>]) -> Result<Vec<u8>, String> {
+    let mut raw: Vec<CborDet<'_>> = items
+        .iter()
+        .map(|item| match item {
+            CborSlice::TextStr(s) => cbor_det_mk_text_string(s)
+                .ok_or("Failed to make CBOR text string".to_string()),
+            CborSlice::ByteStr(b) => cbor_det_mk_byte_string(b)
+                .ok_or("Failed to make CBOR byte string".to_string()),
+        })
+        .collect::<Result<_, _>>()?;
+    let array = cbor_det_mk_array(&mut raw)
+        .ok_or("Failed to build CBOR array".to_string())?;
+    serialize_det(array)
+}
+
 impl std::fmt::Debug for CborValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
