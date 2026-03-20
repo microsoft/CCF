@@ -16,7 +16,7 @@
 #include "ccf/service/tables/virtual_measurements.h"
 #include "ccf/tx.h"
 #include "consensus/aft/raft_types.h"
-#include "cose_rs_ffi.h"
+#include "cose/cose_rs_ffi.h"
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
 #include "service/tables/governance_history.h"

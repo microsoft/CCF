@@ -45,9 +45,6 @@ target_link_libraries(
          $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/lib/${COSE_RS_LIB}>
 )
 add_dependencies(ccfcrypto cargo-build_cose_rs)
-target_include_directories(
-  ccfcrypto PUBLIC $<BUILD_INTERFACE:${CCF_DIR}/src/cose>
-)
 set_property(TARGET ccfcrypto PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 install(

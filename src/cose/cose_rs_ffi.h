@@ -12,7 +12,7 @@ extern "C"
 #endif
 
   /// Opaque handle to a Rust-managed signing key.
-  typedef struct CoseEvpKey CoseEvpKey;
+  struct CoseEvpKey;
 
   /// Create a signing key from DER-encoded private key bytes.
   /// Returns an opaque pointer, or NULL on failure.
