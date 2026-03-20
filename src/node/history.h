@@ -310,6 +310,7 @@ namespace ccf
     ccf::crypto::ECKeyPair_OpenSSL& service_kp;
     ccf::crypto::Pem& endorsed_cert;
     const ccf::COSESignaturesConfig& cose_signatures_config;
+    std::unordered_map<std::string, CoseKey>& cose_key_cache;
 
   public:
     MerkleTreeHistoryPendingTx(
@@ -320,7 +321,8 @@ namespace ccf
       ccf::crypto::ECKeyPair& node_kp_,
       ccf::crypto::ECKeyPair_OpenSSL& service_kp_,
       ccf::crypto::Pem& endorsed_cert_,
-      const ccf::COSESignaturesConfig& cose_signatures_config_) :
+      const ccf::COSESignaturesConfig& cose_signatures_config_,
+      std::unordered_map<std::string, CoseKey>& cose_key_cache_) :
       txid(txid_),
       store(store_),
       history(history_),
@@ -328,7 +330,8 @@ namespace ccf
       node_kp(node_kp_),
       service_kp(service_kp_),
       endorsed_cert(endorsed_cert_),
-      cose_signatures_config(cose_signatures_config_)
+      cose_signatures_config(cose_signatures_config_),
+      cose_key_cache(cose_key_cache_)
     {}
 
     ccf::kv::PendingTxInfo call() override
@@ -357,7 +360,7 @@ namespace ccf
         primary_sig,
         endorsed_cert);
 
-      static auto kid = ccf::crypto::kid_from_key(service_kp.public_key_der());
+      auto kid = ccf::crypto::kid_from_key(service_kp.public_key_der());
       const auto tx_id = txid.to_str();
 
       const auto time_since_epoch =
@@ -365,13 +368,12 @@ namespace ccf
           std::chrono::system_clock::now().time_since_epoch())
           .count();
 
-      static std::unordered_map<std::string, CoseKey> key_cache;
-      auto it = key_cache.find(kid);
-      if (it == key_cache.end())
+      auto it = cose_key_cache.find(kid);
+      if (it == cose_key_cache.end())
       {
         auto key_der = service_kp.private_key_der();
         auto [inserted, _] =
-          key_cache.emplace(kid, CoseKey(key_der.data(), key_der.size()));
+          cose_key_cache.emplace(kid, CoseKey(key_der.data(), key_der.size()));
         it = inserted;
       }
 
@@ -557,6 +559,8 @@ namespace ccf
     };
 
     std::optional<ServiceSigningIdentity> signing_identity = std::nullopt;
+
+    std::unordered_map<std::string, CoseKey> cose_key_cache;
 
   public:
     HashedTxHistory(
@@ -891,7 +895,8 @@ namespace ccf
           node_kp,
           *signing_identity->service_kp,
           endorsed_cert.value(),
-          signing_identity->cose_signatures_config),
+          signing_identity->cose_signatures_config,
+          cose_key_cache),
         true);
     }
 
