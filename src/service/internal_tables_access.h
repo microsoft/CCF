@@ -16,7 +16,7 @@
 #include "ccf/service/tables/virtual_measurements.h"
 #include "ccf/tx.h"
 #include "consensus/aft/raft_types.h"
-#include "crypto/openssl/cose_sign.h"
+#include "cose/cose_rs_ffi.h"
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
 #include "service/tables/governance_history.h"
@@ -622,25 +622,11 @@ namespace ccf
         key_to_endorse = endorsement.endorsing_key;
       }
 
-      std::vector<cbor::MapItem> ccf_headers;
       auto from_txid = endorsement.endorsement_epoch_begin.to_str();
-      ccf_headers.emplace_back(
-        cbor::make_string(ccf::cose::header::custom::TX_RANGE_BEGIN),
-        cbor::make_string(from_txid));
-
       std::string to_txid{};
       if (endorsement.endorsement_epoch_end)
       {
         to_txid = endorsement.endorsement_epoch_end->to_str();
-        ccf_headers.emplace_back(
-          cbor::make_string(ccf::cose::header::custom::TX_RANGE_END),
-          cbor::make_string(to_txid));
-      }
-      if (!previous_root.empty())
-      {
-        ccf_headers.emplace_back(
-          cbor::make_string(ccf::cose::header::custom::EPOCH_LAST_MERKLE_ROOT),
-          cbor::make_bytes(previous_root));
       }
 
       const auto time_since_epoch =
@@ -648,34 +634,28 @@ namespace ccf
           std::chrono::system_clock::now().time_since_epoch())
           .count();
 
-      std::vector<cbor::MapItem> cwt_headers;
-      cwt_headers.emplace_back(
-        cbor::make_signed(ccf::cwt::header::iana::IAT),
-        cbor::make_signed(time_since_epoch));
+      auto key_der = service_key.private_key_der();
+      CoseKey cose_key(key_der.data(), key_der.size());
 
-      std::vector<cbor::MapItem> phdr;
-      phdr.emplace_back(
-        cbor::make_signed(ccf::cose::header::iana::CWT_CLAIMS),
-        cbor::make_map(std::move(cwt_headers)));
-      phdr.emplace_back(
-        cbor::make_string(ccf::cose::header::custom::CCF_V1),
-        cbor::make_map(std::move(ccf_headers)));
-
-      auto phdr_map = cbor::make_map(std::move(phdr));
-      try
+      CoseBuffer cose_buf;
+      auto rc = cose_sign_endorsement(
+        cose_key,
+        time_since_epoch,
+        reinterpret_cast<const uint8_t*>(from_txid.data()),
+        from_txid.size(),
+        reinterpret_cast<const uint8_t*>(to_txid.data()),
+        to_txid.size(),
+        previous_root.data(),
+        previous_root.size(),
+        key_to_endorse.data(),
+        key_to_endorse.size(),
+        cose_buf);
+      if (rc != 0 || !cose_buf.ok())
       {
-        endorsement.endorsement = cose_sign1(
-          service_key,
-          phdr_map,
-          key_to_endorse,
-          false // detached payload
-        );
-      }
-      catch (const ccf::crypto::COSESignError& e)
-      {
-        LOG_FAIL_FMT("Failed to sign previous service identity: {}", e.what());
+        LOG_FAIL_FMT("Failed to sign previous service identity");
         return false;
       }
+      endorsement.endorsement = cose_buf.to_vector();
 
       previous_identity_endorsement->put(endorsement);
       return true;

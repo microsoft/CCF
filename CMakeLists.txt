@@ -173,11 +173,18 @@ set(HTTP_PARSER_SOURCES
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
 )
 
+include(FetchContent)
+FetchContent_Declare(
+  Corrosion
+  GIT_REPOSITORY https://github.com/corrosion-rs/corrosion.git
+  GIT_TAG a1a1aaa057a5da656c06c3d8505b767a4e941709 # v0.5.2
+)
+FetchContent_MakeAvailable(Corrosion)
+
+include(${CCF_DIR}/cmake/cose_openssl.cmake)
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
-include(${CCF_DIR}/cmake/qcbor.cmake)
 include(${CCF_DIR}/cmake/evercbor.cmake)
-include(${CCF_DIR}/cmake/t_cose.cmake)
 
 # Launcher library
 list(APPEND CCF_LAUNCHER_SOURCES ${CCF_DIR}/src/host/run.cpp
@@ -270,8 +277,6 @@ add_ccf_static_library(
        ${CCF_DIR}/src/node/local_sealing.cpp
   LINK_LIBS http_parser ccfcrypto ccf_kv
 )
-
-target_link_libraries(ccf_endpoints PRIVATE t_cose) # For cose_auth only
 
 # CCF task system library
 add_ccf_static_library(
@@ -633,7 +638,7 @@ if(BUILD_TESTS)
       crypto_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp
     )
     target_include_directories(crypto_test PRIVATE ${CCFCRYPTO_INC})
-    target_link_libraries(crypto_test PRIVATE ccfcrypto t_cose)
+    target_link_libraries(crypto_test PRIVATE ccfcrypto)
 
     add_unit_test(
       cbor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cbor.cpp
@@ -738,8 +743,13 @@ if(BUILD_TESTS)
     add_unit_test(
       cose_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cose.cpp
     )
+    target_link_libraries(cose_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto)
+
+    add_unit_test(
+      cose_ffi_test ${CMAKE_CURRENT_SOURCE_DIR}/src/cose/test/cose_ffi_test.cpp
+    )
     target_link_libraries(
-      cose_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto t_cose
+      cose_ffi_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto
     )
 
     add_unit_test(pem_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/pem.cpp)
