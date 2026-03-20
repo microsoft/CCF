@@ -63,7 +63,7 @@ FMT_END_NAMESPACE
 namespace ccf::historical
 {
   static constexpr auto slow_fetch_threshold = std::chrono::milliseconds(1000);
-  static constexpr size_t soft_to_raw_ratio{5};
+  static constexpr size_t soft_to_raw_ratio{1};
 
   static std::optional<ccf::PrimarySignature> get_signature(
     const ccf::kv::StorePtr& sig_store)
