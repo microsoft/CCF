@@ -199,3 +199,61 @@ TEST_CASE("OrderedTasks" * doctest::test_suite("ordered_tasks"))
     }
   }
 }
+
+TEST_CASE(
+  "Concurrent pause + add_action does not double-enqueue" *
+  doctest::test_suite("ordered_tasks"))
+{
+  ccf::tasks::JobBoard job_board;
+  auto tasks = ccf::tasks::OrderedTasks::create(job_board);
+
+  std::vector<size_t> execution_order;
+
+  // Step 1: Add an action that pauses itself mid-execution
+  ccf::tasks::Resumable resumable;
+
+  tasks->add_action(ccf::tasks::make_basic_action([&]() {
+    execution_order.push_back(1);
+
+    // Pause the task (simulating respond_on_commit)
+    resumable = ccf::tasks::pause_current_task();
+  }));
+
+  // Step 2: Execute the first action - it will pause
+  {
+    auto task = job_board.get_task();
+    REQUIRE(task != nullptr);
+    task->do_task();
+  }
+
+  // Confirm results of action - board should be empty, and we hold a resumable
+  // token to restore the paused queue
+  REQUIRE(job_board.get_task() == nullptr);
+  REQUIRE(resumable != nullptr);
+
+  // Step 3: Simulate concurrent operations — add_action + resume_task
+  tasks->add_action(
+    ccf::tasks::make_basic_action([&]() { execution_order.push_back(2); }));
+
+  ccf::tasks::resume_task(std::move(resumable));
+
+  // Step 4: Count how many times the task was enqueued
+  size_t enqueue_count = 0;
+  while (true)
+  {
+    auto task = job_board.get_task();
+    if (task == nullptr)
+    {
+      break;
+    }
+    enqueue_count++;
+    task->do_task();
+  }
+
+  // Confirm that despite 2 potentially-queuing concurrent operations, only one
+  // actual enqueue occurred
+  REQUIRE(enqueue_count == 1);
+
+  // Verify the second action (added in step 3) actually executed
+  REQUIRE(execution_order == std::vector<size_t>{1, 2});
+}

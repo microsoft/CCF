@@ -35,6 +35,7 @@ import infra.concurrency
 import ccf.read_ledger
 import re
 import hashlib
+from contextlib import contextmanager
 
 from loguru import logger as LOG
 
@@ -3039,6 +3040,159 @@ def run_propose_request_vote(const_args):
                 node.remote.remote.proc.send_signal(signal.SIGTERM)
 
 
+def run_time_based_snapshotting(const_args):
+    args = copy.deepcopy(const_args)
+    args.label += "_tb_snapshot"
+    args.snapshot_tx_interval = (
+        10000  # Large interval to avoid interference from regular snapshots
+    )
+    args.snapshot_time_interval = "1s"
+
+    @contextmanager
+    def net_with_min_tx(label, min_tx_interval):
+        inner_args = copy.deepcopy(args)
+        inner_args.snapshot_min_tx_interval = min_tx_interval
+        inner_args.label += label
+        with infra.network.network(
+            inner_args.nodes,
+            inner_args.binary_dir,
+            inner_args.debug_nodes,
+            pdb=inner_args.pdb,
+            txs=app.LoggingTxs("user0"),
+        ) as net:
+            net.start_and_open(inner_args)
+            yield net
+
+    def get_snapshot_count(net):
+        primary, _ = net.find_primary()
+        snapshots_dir = net.get_committed_snapshots(primary, force_txs=False)
+
+        return len(os.listdir(snapshots_dir))
+
+    def wait_for_at_least_one(net):
+        timeout_s = 10
+        end_time = time.time() + timeout_s
+        while time.time() < end_time:
+            count = get_snapshot_count(net)
+            if count > 0:
+                return count
+
+            time.sleep(0.1)
+        raise TimeoutError(f"Expected at least one snapshot after {timeout_s}s")
+
+    # min_tx set low
+    with net_with_min_tx("_low", 0) as net:
+        LOG.info("Started")
+        baseline = wait_for_at_least_one(net)
+        LOG.info("Got snapshot count")
+        time.sleep(10)
+        after = get_snapshot_count(net)
+        assert (
+            after > baseline
+        ), f"min_tx_count set to 0 should cause many snapshots, got {after - baseline}"
+
+    # min_tx set just right
+    with net_with_min_tx("_exact", 2) as net:
+        baseline = wait_for_at_least_one(net)
+        time.sleep(10)
+        after = get_snapshot_count(net)
+        assert (
+            after == baseline
+        ), f"With a exact min_tx we expect to not see any extra snapshots, got {after - baseline}"
+
+    # set much higher to show that
+    with net_with_min_tx("_high", 10) as net:
+        baseline = wait_for_at_least_one(net)
+        time.sleep(10)
+        after = get_snapshot_count(net)
+        assert (
+            after == baseline
+        ), f"Expect no snapshots when min_tx is high, got {after - baseline}"
+
+        net.txs.issue(net, number_txs=1)
+        time.sleep(5)
+        after = get_snapshot_count(net)
+        assert (
+            after == baseline
+        ), f"Expect no snapshots when min_tx is high and only 1 tx issued, got {after - baseline}"
+
+        net.txs.issue(net, number_txs=20)
+        time.sleep(5)
+        after = get_snapshot_count(net)
+        assert (
+            after > baseline
+        ), f"Expect at least one snapshot after issuing many txs, got {after - baseline}"
+
+
+def run_snapshot_persistence_across_primary_failure(const_args):
+    """
+    Verify that the snapshot generation rate stays consistent across
+    leadership changes. Suspends the primary to trigger an election,
+    then resumes it. If the time baseline reset on each election,
+    new primaries would snapshot immediately, inflating the count.
+    """
+    snapshot_interval_ms = 5000
+    test_duration_s = 60
+    stable_time_s = 5
+
+    args = copy.deepcopy(const_args)
+    args.label += "_tb_snapshot_persist"
+    args.nodes = infra.e2e_args.nodes(args, 3)
+    args.snapshot_tx_interval = 10000  # High to avoid tx-count-triggered snapshots
+    args.snapshot_time_interval = f"{snapshot_interval_ms}ms"
+    args.snapshot_min_tx_interval = 0
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as net:
+        net.start_and_open(args)
+
+        start_time = time.time()
+        end_time = time.time() + test_duration_s
+
+        while True:
+            primary, _ = net.find_primary()
+            LOG.info(f"Leadership change suspending {primary.local_node_id}")
+            primary.suspend()
+            new_primary, _ = net.wait_for_new_primary(primary)
+            LOG.info(f"New primary is {new_primary.local_node_id}")
+            primary.resume()
+            if time.time() < end_time:
+                time.sleep(stable_time_s)
+            else:
+                break
+
+        elapsed = time.time() - start_time
+        snapshots = set()
+        for node in net.nodes:
+            snapshots_dir = net.get_committed_snapshots(node, force_txs=False)
+            snapshots = snapshots.union(set(os.listdir(snapshots_dir)))
+
+        total_snapshots = len(snapshots)
+
+        snapshot_interval_s = snapshot_interval_ms / 1000
+        election_timeout_s = args.election_timeout_ms / 1000
+        # In the worst case, each snapshot is delayed by one extra election timeout
+        # beyond the nominal snapshot interval while leadership is re-established.
+        min_expected = elapsed / (snapshot_interval_s + election_timeout_s * 1.2)
+        max_expected = elapsed / snapshot_interval_s * 0.9
+        LOG.info(
+            f"Elapsed: {elapsed:.1f}s, snapshots: {total_snapshots}, "
+            f"expected bounds [{min_expected:.1f}, {max_expected:.1f}] "
+            f"(interval={snapshot_interval_ms}ms, election_timeout={args.election_timeout_ms}ms)"
+        )
+
+        assert min_expected <= total_snapshots <= max_expected, (
+            f"Snapshot count {total_snapshots} is outside expected bounds "
+            f"[{min_expected:.1f}, {max_expected:.1f}] based on elapsed time, "
+            f"snapshot interval, and election timeout"
+        )
+
+
 def run_snp_tests(args):
     run_initial_uvm_descriptor_checks(args)
     run_initial_tcb_version_checks(args)
@@ -3074,3 +3228,5 @@ def run(args):
     run_read_ledger_on_testdata(args)
     run_merkle_verification_level(args)
     run_propose_request_vote(args)
+    run_time_based_snapshotting(args)
+    run_snapshot_persistence_across_primary_failure(args)

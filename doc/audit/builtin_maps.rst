@@ -547,6 +547,19 @@ Evidence inserted in the ledger by a primary producing a snapshot to establish p
    :project: CCF
    :members:
 
+``snapshot_status``
+~~~~~~~~~~~~~~~~~~~
+
+Status information recorded when a primary produces a snapshot.
+
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+
+**Value**
+
+.. doxygenstruct:: ccf::SnapshotStatus
+   :project: CCF
+   :members:
+
 ``encrypted_submitted_shares``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

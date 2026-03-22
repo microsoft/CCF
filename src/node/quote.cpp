@@ -217,8 +217,7 @@ namespace ccf
 
         return HostData::from_representation(rep);
       }
-
-      default:
+      case QuoteFormat::oe_sgx_v1:
       {
         return std::nullopt;
       }

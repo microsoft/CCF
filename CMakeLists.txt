@@ -1275,6 +1275,21 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
     )
   endif()
+
+  if(COVERAGE)
+    # Generate a list of coverage-instrumented binaries for scripts/coverage.sh
+    get_property(_cov_targets GLOBAL PROPERTY CCF_COVERAGE_TARGETS)
+    set(_cov_binaries "")
+    foreach(_target ${_cov_targets})
+      list(APPEND _cov_binaries "$<TARGET_FILE:${_target}>")
+    endforeach()
+    string(REPLACE ";" "\n" _cov_binaries_nl "${_cov_binaries}")
+    file(
+      GENERATE
+      OUTPUT "${CMAKE_BINARY_DIR}/coverage_binaries.txt"
+      CONTENT "${_cov_binaries_nl}\n"
+    )
+  endif()
 endif()
 
 # Generate and install CMake export file for consumers using CMake
