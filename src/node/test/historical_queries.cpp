@@ -2027,12 +2027,11 @@ TEST_CASE("Cache size with populate_receipts")
     REQUIRE(states.empty());
   }
 
-  REQUIRE(cache.get_estimated_store_cache_size() == 0);
+  size_t expected_cache_size = 0;
+  REQUIRE(cache.get_estimated_store_cache_size() == expected_cache_size);
 
   // Tick to trigger fetch of seqno 3
   cache.tick(std::chrono::milliseconds(100));
-
-  size_t expected_cache_size = 0;
 
   {
     INFO(
