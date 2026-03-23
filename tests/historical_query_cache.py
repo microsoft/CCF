@@ -9,6 +9,8 @@ import random
 
 from loguru import logger as LOG
 
+from ccf.tx_id import TxID
+
 
 def large_message(idx):
     """
@@ -17,28 +19,12 @@ def large_message(idx):
     return "x" * 1024 + str(idx)
 
 
-def submit_log_entry(primary, idx):
-    with primary.client("user0") as c:
-        msg = large_message(idx)
-        r = c.post(
-            "/app/log/private",
-            {
-                "id": idx,
-                "msg": msg,
-            },
-            log_capture=None,
-        )
-        assert r.status_code == http.HTTPStatus.OK
-        c.wait_for_commit(r)
-        return f"{r.view}.{r.seqno}"
-
-
 def fetch_historical(client, idx, tx_id, timeout=10):
     end_time = time.time() + timeout
     while time.time() < end_time:
         r = client.get(
             f"/app/log/private/historical?id={idx}",
-            headers={infra.clients.CCF_TX_ID_HEADER: tx_id},
+            headers={infra.clients.CCF_TX_ID_HEADER: str(tx_id)},
         )
         if r.status_code == http.HTTPStatus.ACCEPTED:
             time.sleep(0.1)
@@ -90,7 +76,7 @@ def test_historical_query_cache_overflow(network, args):
                 )
                 assert r.status_code == http.HTTPStatus.OK
                 c.wait_for_commit(r)
-                tx_id = f"{r.view}.{r.seqno}"
+                tx_id = TxID(r.view, r.seqno)
                 tx_ids.append((i, tx_id))
 
             get_and_verify_entry(historical_client, target_id, tx_id, msg_idx=i)
@@ -124,7 +110,7 @@ def test_historical_query_sparse_consecutive(network, args, tx_ids):
     node = network.find_node_by_role(role=infra.network.NodeRole.BACKUP, log_capture=[])
     target_id = 42
 
-    all_seqnos = sorted(int(tx_id.split(".")[1]) for _, tx_id in tx_ids)
+    all_seqnos = sorted(tx_id.seqno for _, tx_id in tx_ids)
     # Exclude the last seqno
     seqnos_pool = all_seqnos[:-1]
 
@@ -144,7 +130,7 @@ def test_historical_query_sparse_random(network, args, tx_ids):
     node = network.find_node_by_role(role=infra.network.NodeRole.BACKUP, log_capture=[])
     target_id = 42
 
-    all_seqnos = [int(tx_id.split(".")[1]) for _, tx_id in tx_ids]
+    all_seqnos = [tx_id.seqno for _, tx_id in tx_ids]
 
     with node.client("user0") as c:
         for i in range(100):
@@ -183,7 +169,7 @@ def test_historical_query_batched(network, args):
                         log_capture=None,
                     )
                     assert r.status_code == http.HTTPStatus.OK
-                    batch.append((i, f"{r.view}.{r.seqno}"))
+                    batch.append((i, TxID(r.view, r.seqno)))
                 # Only wait for commit on the last tx in the batch
                 c.wait_for_commit(r)
 
@@ -215,7 +201,7 @@ def test_historical_query_all_seqnos(network, args, first_seqno):
 
     with node.client("user0") as historical_client:
         for seqno in range(first_seqno, last_seqno + 1):
-            tx_id = f"{view}.{seqno}"
+            tx_id = TxID(view, seqno)
             r = fetch_historical(historical_client, target_id, tx_id)
             assert r.status_code in (
                 http.HTTPStatus.OK,
@@ -251,7 +237,7 @@ def run(args):
         network = test_historical_query_sparse_consecutive(network, args, all_tx_ids)
         network = test_historical_query_sparse_random(network, args, all_tx_ids)
         network = test_historical_query_all_seqnos(
-            network, args, first_seqno=int(tx_ids[0][1].split(".")[1])
+            network, args, first_seqno=tx_ids[0][1].seqno
         )
 
 
