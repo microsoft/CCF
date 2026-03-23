@@ -2051,6 +2051,7 @@ TEST_CASE("Cache size with populate_receipts")
   // the supporting stores created by populate_receipts (to find the next
   // signature) are properly eliminated from the cache.
 
+  ccf::crypto::openssl_sha256_init();
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
 
@@ -2151,6 +2152,8 @@ TEST_CASE("Cache size with populate_receipts")
     cache.drop_cached_states(handle);
     REQUIRE(cache.get_estimated_store_cache_size() == 0);
   }
+
+  ccf::crypto::openssl_sha256_shutdown();
 }
 
 TEST_CASE("adjust_ranges")
