@@ -86,6 +86,19 @@ namespace ccf
   DECLARE_JSON_TYPE(NodeMetrics);
   DECLARE_JSON_REQUIRED_FIELDS(NodeMetrics, sessions);
 
+  struct GetHistoricalCacheInfo
+  {
+    using In = void;
+
+    struct Out
+    {
+      size_t estimated_size;
+    };
+  };
+
+  DECLARE_JSON_TYPE(GetHistoricalCacheInfo::Out);
+  DECLARE_JSON_REQUIRED_FIELDS(GetHistoricalCacheInfo::Out, estimated_size);
+
   struct JavaScriptMetrics
   {
     uint64_t bytecode_size;
@@ -430,7 +443,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "4.16.0";
+      openapi_info.document_version = "4.17.0";
     }
 
     void init_handlers() override
@@ -1862,6 +1875,22 @@ namespace ccf
         .install();
 
       ccf::node::init_file_serving_handlers(*this, context);
+
+      auto historical_cache_info = [this](
+                                     [[maybe_unused]] auto& args,
+                                     [[maybe_unused]] nlohmann::json&&) {
+        GetHistoricalCacheInfo::Out result{};
+        result.estimated_size =
+          this->context.get_historical_state().get_estimated_store_cache_size();
+        return make_success(result);
+      };
+      make_read_only_endpoint(
+        "/historical_cache",
+        HTTP_GET,
+        json_read_only_adapter(historical_cache_info),
+        no_auth_required)
+        .set_auto_schema<GetHistoricalCacheInfo>()
+        .install();
     }
   };
 
