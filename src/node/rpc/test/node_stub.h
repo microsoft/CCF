@@ -270,6 +270,11 @@ namespace ccf
     {
       return true;
     }
+
+    size_t get_estimated_store_cache_size()
+    {
+      return 0;
+    }
   };
 
   struct StubNodeContext : public ccf::AbstractNodeContext

@@ -245,14 +245,13 @@ std::map<ccf::SeqNo, std::vector<uint8_t>> construct_host_ledger(
 size_t get_cache_limit_for_entries(
   const std::vector<std::vector<uint8_t>>& entries)
 {
-  return ccf::historical::soft_to_raw_ratio *
-    std::accumulate(
-           entries.begin(),
-           entries.end(),
-           0ll,
-           [&](size_t prev, const std::vector<uint8_t>& entry) {
-             return prev + entry.size();
-           });
+  return std::accumulate(
+    entries.begin(),
+    entries.end(),
+    0ll,
+    [&](size_t prev, const std::vector<uint8_t>& entry) {
+      return prev + entry.size();
+    });
 }
 
 struct MerkleProofData
@@ -2044,6 +2043,114 @@ TEST_CASE("Cache size estimation")
 
   REQUIRE(cache.get_estimated_store_cache_size() == 0);
   ccf::crypto::openssl_sha256_shutdown();
+}
+
+TEST_CASE("Cache size with populate_receipts")
+{
+  // Verifies that when a non-signature transaction is requested with receipts,
+  // the supporting stores created by populate_receipts (to find the next
+  // signature) are properly eliminated from the cache.
+
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+
+  // Write 3 data transactions followed by a signature
+  // After create_and_init_state, current version is 2
+  // write_transactions(3) creates seqnos 3, 4, 5
+  // emit_signature creates seqno 6
+  const auto sig_seqno = write_transactions_and_signature(kv_store, 3);
+  REQUIRE(sig_seqno == 6);
+
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  REQUIRE(ledger.size() == sig_seqno);
+
+  auto stub_writer = std::make_shared<StubWriter>();
+  ccf::historical::StateCacheImpl cache(
+    kv_store, state.ledger_secrets, stub_writer);
+
+  constexpr ccf::SeqNo target_seqno = 3;
+
+  ccf::historical::CompoundHandle handle = {
+    ccf::historical::RequestNamespace::Application, 1};
+
+  {
+    INFO("Request a non-signature transaction with receipts");
+    ccf::ds::ContiguousSet<ccf::SeqNo> seqnos;
+    seqnos.insert(target_seqno);
+    auto states =
+      cache.get_states_for(handle, seqnos, std::chrono::seconds(30));
+    REQUIRE(states.empty());
+  }
+
+  size_t expected_cache_size = 0;
+  REQUIRE(cache.get_estimated_store_cache_size() == expected_cache_size);
+
+  // Tick to trigger fetch of seqno 3
+  cache.tick(std::chrono::milliseconds(100));
+
+  {
+    INFO(
+      "Feed entries one at a time. Each non-signature entry triggers "
+      "populate_receipts which discovers the next gap and creates a "
+      "supporting store for it.");
+
+    // Feed seqno 3 - populate_receipts(3) adds supporting store for seqno 4
+    cache.handle_ledger_entry(target_seqno, ledger.at(target_seqno));
+    expected_cache_size += ledger.at(target_seqno).size();
+    REQUIRE(cache.get_estimated_store_cache_size() == expected_cache_size);
+
+    // Tick to fetch the supporting store at seqno 4
+    cache.tick(std::chrono::milliseconds(100));
+
+    // Feed seqno 4 - populate_receipts(4) adds supporting store for seqno 5
+    cache.handle_ledger_entry(4, ledger.at(4));
+    expected_cache_size += ledger.at(4).size();
+    REQUIRE(cache.get_estimated_store_cache_size() == expected_cache_size);
+
+    cache.tick(std::chrono::milliseconds(100));
+
+    // Feed seqno 5 - populate_receipts(5) adds supporting store for seqno 6
+    cache.handle_ledger_entry(5, ledger.at(5));
+    expected_cache_size += ledger.at(5).size();
+    REQUIRE(cache.get_estimated_store_cache_size() == expected_cache_size);
+
+    cache.tick(std::chrono::milliseconds(100));
+
+    // Feed seqno 6 (the signature) - receipt is produced for seqno 3
+    cache.handle_ledger_entry(sig_seqno, ledger.at(sig_seqno));
+    expected_cache_size += ledger.at(sig_seqno).size();
+    REQUIRE(cache.get_estimated_store_cache_size() == expected_cache_size);
+  }
+
+  // Clear all outgoing writes to the RB, to be able to detect any unexpected
+  // ones in the next steps
+  stub_writer->writes.clear();
+
+  for (size_t i = 0; i < 5; ++i)
+  {
+    INFO("Verify the state is now available with a receipt");
+    ccf::ds::ContiguousSet<ccf::SeqNo> seqnos;
+    seqnos.insert(target_seqno);
+    auto states =
+      cache.get_states_for(handle, seqnos, std::chrono::seconds(30));
+    REQUIRE(states.size() == 1);
+    REQUIRE(states[0]->receipt != nullptr);
+    // No more requests for additional entries, such as 4 (supporting
+    // signature!)
+    REQUIRE(stub_writer->writes.empty());
+
+    REQUIRE(cache.get_estimated_store_cache_size() <= expected_cache_size);
+    expected_cache_size = cache.get_estimated_store_cache_size();
+  }
+
+  // Cache still contains something
+  REQUIRE(cache.get_estimated_store_cache_size() > 0);
+
+  {
+    INFO("Drop the request and verify all store sizes are properly cleaned up");
+    cache.drop_cached_states(handle);
+    REQUIRE(cache.get_estimated_store_cache_size() == 0);
+  }
 }
 
 TEST_CASE("adjust_ranges")

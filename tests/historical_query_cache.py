@@ -1,103 +1,225 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
+import infra.clients
 import infra.network
-import infra.proc
-import infra.commit
 import http
-from infra.snp import IS_SNP
-import infra.jwt_issuer
 import time
-import infra.bencher
+import random
 
 from loguru import logger as LOG
 
-DEFAULT_TIMEOUT_S = 10 if IS_SNP else 5
+from ccf.tx_id import TxID
 
 
-def format_message(idx):
-    return """
-    Nodes whisper secrets,
-    Across vast digital realms,
-    Harmony in bits.
-    """ + str(idx)
+def large_message(idx):
+    """
+    ~1kb transaction
+    """
+    return "x" * 1024 + str(idx)
 
 
-def submit_log_entry(primary, idx):
-    with primary.client("user0") as c:
-        msg = format_message(idx)
-        r = c.post(
-            "/app/log/public",
-            {
-                "id": idx,
-                "msg": msg,
-            },
-            log_capture=None,
-        )
-        assert r.status_code == http.HTTPStatus.OK
-        return (r.view, r.seqno)
-
-
-def get_and_verify_entry(client, idx):
-    start_time = time.time()
-    end_time = start_time + 10
-    entries = []
-    path = f"/app/log/public/historical/range?id={idx}"
+def fetch_historical(client, idx, tx_id, timeout=10):
+    end_time = time.time() + timeout
     while time.time() < end_time:
-        r = client.get(path, headers={})
-        if r.status_code == http.HTTPStatus.OK:
-            j_body = r.body.json()
-            entries += j_body["entries"]
-            if "@nextLink" in j_body:
-                path = j_body["@nextLink"]
+        r = client.get(
+            f"/app/log/private/historical?id={idx}",
+            headers={infra.clients.CCF_TX_ID_HEADER: str(tx_id)},
+        )
+        if r.status_code == http.HTTPStatus.ACCEPTED:
+            time.sleep(0.1)
+            continue
+        if r.status_code == http.HTTPStatus.NOT_FOUND:
+            err = r.body.json().get("error", {})
+            if err.get("code") == "TransactionPendingOrUnknown":
+                time.sleep(0.1)
                 continue
-            else:
-                # No @nextLink means we've reached end of range
-                assert entries[0]["msg"] == format_message(idx)
-                return
+        return r
+    raise TimeoutError(f"Historical query did not complete for tx_id={tx_id}")
+
+
+def get_and_verify_entry(client, idx, tx_id, timeout=10, msg_idx=None):
+    if msg_idx is None:
+        msg_idx = idx
+    r = fetch_historical(client, idx, tx_id, timeout=timeout)
+    if r.status_code == http.HTTPStatus.OK:
+        assert r.body.json()["msg"] == large_message(msg_idx)
+        return
+    raise ValueError(
+        f"Unexpected status code from historical query: {r.status_code} - {r.body}"
+    )
+
+
+def test_historical_query_cache_overflow(network, args):
+    """Write repeatedly to the same index, and after each write fetch the
+    corresponding historical value at that transaction."""
+
+    primary, _ = network.find_primary()
+    node = network.find_node_by_role(role=infra.network.NodeRole.BACKUP, log_capture=[])
+
+    target_id = 42
+    # 20kb limit, roughly 1kb*50 = 50kb of TXs.
+    max_entries = 50
+    tx_ids = []
+
+    with node.client("user0") as historical_client:
+        for i in range(1, max_entries + 1):
+            msg = large_message(i)
+            with primary.client("user0") as c:
+                r = c.post(
+                    "/app/log/private",
+                    {
+                        "id": target_id,
+                        "msg": msg,
+                    },
+                    log_capture=None,
+                )
+                assert r.status_code == http.HTTPStatus.OK
+                c.wait_for_commit(r)
+                tx_id = TxID(r.view, r.seqno)
+                tx_ids.append((i, tx_id))
+
+            get_and_verify_entry(historical_client, target_id, tx_id, msg_idx=i)
+
+    return network, tx_ids
+
+
+def fetch_sparse(client, target_id, seqnos, timeout=10):
+    seqnos_s = ",".join(str(s) for s in seqnos)
+    path = f"/app/log/private/historical/sparse?id={target_id}&seqnos={seqnos_s}"
+    LOG.info(f"Sparse query: seqnos={seqnos_s}")
+    end_time = time.time() + timeout
+    while time.time() < end_time:
+        r = client.get(path)
+        if r.status_code == http.HTTPStatus.OK:
+            return r
         elif r.status_code == http.HTTPStatus.ACCEPTED:
-            # Ignore retry-after header, retry soon
             time.sleep(0.1)
             continue
         else:
-            raise ValueError(f"""
-                Unexpected status code from historical range query: {r.status_code}
-
-                {r.body}
-                """)
-
-    raise TimeoutError("Historical range not available")
+            raise ValueError(
+                f"Unexpected status from historical/sparse: {r.status_code} - {r.body}"
+            )
+    raise TimeoutError("Historical sparse query did not complete")
 
 
-def test_historical_query_stress_cache(network, args):
-    """This test loads the historical cache good enough so it's force to
-    lru_shrink. We go over the range twice and make sure we're able to load new
-    entries after they get evicted from the cache."""
+def test_historical_query_sparse_consecutive(network, args, tx_ids):
+    """10 attempts of 5 random consecutive seqnos via /historical/sparse,
+    never including the last seqno."""
 
-    jwt_issuer = infra.jwt_issuer.JwtIssuer()
-    jwt_issuer.register(network)
-    jwt = jwt_issuer.issue_jwt()
+    node = network.find_node_by_role(role=infra.network.NodeRole.BACKUP, log_capture=[])
+    target_id = 42
+
+    all_seqnos = sorted(tx_id.seqno for _, tx_id in tx_ids)
+    # Exclude the last seqno
+    seqnos_pool = all_seqnos[:-1]
+
+    with node.client("user0") as c:
+        for i in range(10):
+            start_idx = random.randint(0, len(seqnos_pool) - 5)
+            seqnos = seqnos_pool[start_idx : start_idx + 5]
+            LOG.info(f"Sparse consecutive {i + 1}/10")
+            fetch_sparse(c, target_id, seqnos)
+
+    return network
+
+
+def test_historical_query_sparse_random(network, args, tx_ids):
+    """100 attempts of 3 randomly chosen seqnos via /historical/sparse."""
+
+    node = network.find_node_by_role(role=infra.network.NodeRole.BACKUP, log_capture=[])
+    target_id = 42
+
+    all_seqnos = [tx_id.seqno for _, tx_id in tx_ids]
+
+    with node.client("user0") as c:
+        for i in range(100):
+            seqnos = random.sample(all_seqnos, 3)
+            LOG.info(f"Sparse random {i + 1}/100")
+            fetch_sparse(c, target_id, seqnos)
+
+    return network
+
+
+def test_historical_query_batched(network, args):
+    """Submit transactions in batches so that consecutive user txs appear
+    in the ledger without interleaved signatures, then fetch each one."""
 
     primary, _ = network.find_primary()
-
-    start = 1
-    end = 100
-    last_seqno = None
-    last_view = None
-    for i in range(start, end + 1):
-        last_view, last_seqno = submit_log_entry(primary, i)
-
-    with primary.client("user0") as c:
-        infra.commit.wait_for_commit(c, seqno=last_seqno, view=last_view, timeout=10)
-
-    network.wait_for_all_nodes_to_commit(primary=primary)
     node = network.find_node_by_role(role=infra.network.NodeRole.BACKUP, log_capture=[])
 
-    with node.client(common_headers={"authorization": f"Bearer {jwt}"}) as c:
-        for cycle in range(0, 2):
-            LOG.info(f"Polling [{start}:{end + 1}] range. Attempt=[{cycle}]")
-            for idx in range(start, end + 1):
-                get_and_verify_entry(c, idx)
+    target_id = 42
+    max_entries = 50
+    batch_size = 3
+    tx_ids = []
+
+    with node.client("user0") as historical_client:
+        for batch_start in range(1, max_entries + 1, batch_size):
+            batch_end = min(batch_start + batch_size, max_entries + 1)
+            batch = []
+            with primary.client("user0") as c:
+                for i in range(batch_start, batch_end):
+                    msg = large_message(i)
+                    r = c.post(
+                        "/app/log/private",
+                        {
+                            "id": target_id,
+                            "msg": msg,
+                        },
+                        log_capture=None,
+                    )
+                    assert r.status_code == http.HTTPStatus.OK
+                    batch.append((i, TxID(r.view, r.seqno)))
+                # Only wait for commit on the last tx in the batch
+                c.wait_for_commit(r)
+
+            tx_ids.extend(batch)
+            for msg_idx, tx_id in batch:
+                get_and_verify_entry(
+                    historical_client, target_id, tx_id, msg_idx=msg_idx
+                )
+
+    return network, tx_ids
+
+
+def test_historical_query_all_seqnos(network, args, first_seqno):
+    """Iterate over every seqno from first_seqno up to the last committed,
+    fetching each one.  Txs that don't contain the target key return 204."""
+
+    node = network.find_node_by_role(role=infra.network.NodeRole.BACKUP, log_capture=[])
+    target_id = 42
+
+    with node.client("user0") as c:
+        r = c.get("/node/commit")
+        assert r.status_code == http.HTTPStatus.OK
+        committed = r.body.json()["transaction_id"]
+        view, last_seqno = committed.split(".")
+        view = int(view)
+        last_seqno = int(last_seqno)
+
+    LOG.info(f"All-seqnos test: iterating {first_seqno}..{last_seqno}")
+
+    with node.client("user0") as historical_client:
+        for seqno in range(first_seqno, last_seqno + 1):
+            tx_id = TxID(view, seqno)
+            r = fetch_historical(historical_client, target_id, tx_id)
+            assert r.status_code in (
+                http.HTTPStatus.OK,
+                http.HTTPStatus.NO_CONTENT,
+                http.HTTPStatus.NOT_FOUND,
+            ), f"Unexpected status {r.status_code} for {tx_id}: {r.body}"
+
+    return network
+
+
+def test_historical_query_cache_is(network, predicate):
+    """Test that the historical cache is empty on startup."""
+    node = network.find_node_by_role(role=infra.network.NodeRole.BACKUP, log_capture=[])
+    with node.client("user0") as c:
+        r = c.get("/node/historical_cache")
+        assert r.status_code == http.HTTPStatus.OK
+        cache_info = r.body.json()
+        assert predicate(cache_info["estimated_size"]), cache_info
 
     return network
 
@@ -107,21 +229,24 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
+        network = test_historical_query_cache_is(network, lambda size: size == 0)
 
-        network = test_historical_query_stress_cache(network, args)
+        network, tx_ids = test_historical_query_cache_overflow(network, args)
+        network, batched_tx_ids = test_historical_query_batched(network, args)
+        all_tx_ids = tx_ids + batched_tx_ids
+        network = test_historical_query_sparse_consecutive(network, args, all_tx_ids)
+        network = test_historical_query_sparse_random(network, args, all_tx_ids)
+        network = test_historical_query_all_seqnos(
+            network, args, first_seqno=tx_ids[0][1].seqno
+        )
 
 
 if __name__ == "__main__":
-
-    def add(parser):
-        pass
-
-    args = infra.e2e_args.cli_args(add=add)
-    args.package = "samples/apps/logging/liblogging"
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args = infra.e2e_args.cli_args()
+    args.package = "samples/apps/logging/logging"
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.initial_member_count = 1
     args.sig_ms_interval = 1000  # Set to cchost default value
-
-    args.historical_cache_soft_limit = "10KB"
+    args.historical_cache_soft_limit = "20KB"
 
     run(args)
