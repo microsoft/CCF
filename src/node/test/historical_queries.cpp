@@ -2067,6 +2067,11 @@ TEST_CASE("Cache size with populate_receipts")
     REQUIRE(cache.get_estimated_store_cache_size() == expected_cache_size);
   }
 
+  // Clear all outgoing writes to the RB, to be able to detect any unexpected
+  // ones in the next steps
+  stub_writer->writes.clear();
+
+  for (size_t i = 0; i < 5; ++i)
   {
     INFO("Verify the state is now available with a receipt");
     ccf::ds::ContiguousSet<ccf::SeqNo> seqnos;
@@ -2075,10 +2080,16 @@ TEST_CASE("Cache size with populate_receipts")
       cache.get_states_for(handle, seqnos, std::chrono::seconds(30));
     REQUIRE(states.size() == 1);
     REQUIRE(states[0]->receipt != nullptr);
+    // No more requests for additional entries, such as 4 (supporting
+    // signature!)
+    REQUIRE(stub_writer->writes.empty());
+
+    REQUIRE(cache.get_estimated_store_cache_size() <= expected_cache_size);
+    expected_cache_size = cache.get_estimated_store_cache_size();
   }
 
-  // Cache is unchanged
-  REQUIRE(cache.get_estimated_store_cache_size() == expected_cache_size);
+  // Cache still contains something
+  REQUIRE(cache.get_estimated_store_cache_size() > 0);
 
   {
     INFO("Drop the request and verify all store sizes are properly cleaned up");

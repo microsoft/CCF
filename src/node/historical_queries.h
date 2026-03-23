@@ -21,6 +21,7 @@
 
 #ifdef ENABLE_HISTORICAL_VERBOSE_LOGGING
 #  define HISTORICAL_LOG(...) LOG_INFO_FMT(__VA_ARGS__)
+#  include <ranges>
 #else
 #  define HISTORICAL_LOG(...)
 #endif
@@ -333,6 +334,12 @@ namespace ccf::historical
           }
         }
 
+        HISTORICAL_LOG(
+          "Added seqnos: {}, removed seqnos: {}, supporting signatures: {}",
+          fmt::join(added, ","),
+          fmt::join(removed, ","),
+          fmt::join(std::views::keys(supporting_signatures), ","));
+
         const bool any_diff = !removed.empty() || !added.empty();
 
         if (!any_diff && (should_include_receipts == include_receipts))
@@ -411,6 +418,14 @@ namespace ccf::historical
 
             HISTORICAL_LOG("{} is not a signature", new_seqno);
             supporting_signatures.erase(new_seqno);
+
+            if (new_details->receipt != nullptr)
+            {
+              HISTORICAL_LOG(
+                "Already have a receipt for {}, so no need to populate more",
+                new_seqno);
+              return {};
+            }
 
             std::vector<SeqNo> added;
 
@@ -1705,6 +1720,11 @@ namespace ccf::historical
     bool drop_cached_states(RequestHandle handle) override
     {
       return StateCacheImpl::drop_cached_states(make_compound_handle(handle));
+    }
+
+    size_t get_estimated_store_cache_size() override
+    {
+      return StateCacheImpl::get_estimated_store_cache_size();
     }
   };
 }

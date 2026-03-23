@@ -226,11 +226,25 @@ def test_historical_query_all_seqnos(network, args, first_seqno):
     return network
 
 
+def test_historical_query_cache_is(network, predicate):
+    """Test that the historical cache is empty on startup."""
+    node = network.find_node_by_role(role=infra.network.NodeRole.BACKUP, log_capture=[])
+    with node.client("user0") as c:
+        r = c.get("/node/historical_cache")
+        assert r.status_code == http.HTTPStatus.OK
+        cache_info = r.body.json()
+        assert predicate(cache_info["estimated_size"]), cache_info
+
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
+        network = test_historical_query_cache_is(network, lambda size: size == 0)
+
         network, tx_ids = test_historical_query_cache_overflow(network, args)
         network, batched_tx_ids = test_historical_query_batched(network, args)
         all_tx_ids = tx_ids + batched_tx_ids
