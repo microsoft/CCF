@@ -3078,14 +3078,11 @@ def run_time_based_snapshotting(const_args):
 
         return len(snapshots)
 
-    def wait_for_stable_network_snapshot_count(net):
-        time.sleep(1)
-        return get_snapshot_count(net)
-
     # min_tx set low
     with net_with_min_tx("_low", 0) as net:
         LOG.info("Started")
-        baseline = wait_for_stable_network_snapshot_count(net)
+        time.sleep(1)
+        baseline = get_snapshot_count(net)
         LOG.info("Got snapshot count")
         time.sleep(10)
         after = get_snapshot_count(net)
@@ -3095,7 +3092,8 @@ def run_time_based_snapshotting(const_args):
 
     # min_tx set just right
     with net_with_min_tx("_exact", 2) as net:
-        baseline = wait_for_stable_network_snapshot_count(net)
+        time.sleep(1)
+        baseline = get_snapshot_count(net)
         time.sleep(10)
         after = get_snapshot_count(net)
         assert (
@@ -3104,7 +3102,8 @@ def run_time_based_snapshotting(const_args):
 
     # set much higher to show that
     with net_with_min_tx("_high", 10) as net:
-        baseline = wait_for_stable_network_snapshot_count(net)
+        time.sleep(1)
+        baseline = get_snapshot_count(net)
         time.sleep(10)
         after = get_snapshot_count(net)
         assert (
