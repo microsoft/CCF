@@ -1861,8 +1861,10 @@ namespace ccf
 
       ccf::node::init_file_serving_handlers(*this, context);
 
-      auto historical_cache_info = [this](auto& args, nlohmann::json&&) {
-        GetHistoricalCacheInfo::Out result;
+      auto historical_cache_info = [this](
+                                     [[maybe_unused]] auto& args,
+                                     [[maybe_unused]] nlohmann::json&&) {
+        GetHistoricalCacheInfo::Out result{};
         result.estimated_size =
           this->context.get_historical_state().get_estimated_store_cache_size();
         return make_success(result);
