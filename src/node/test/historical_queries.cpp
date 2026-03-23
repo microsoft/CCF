@@ -2076,7 +2076,7 @@ TEST_CASE("Cache size with populate_receipts")
     REQUIRE(states.size() == 1);
     REQUIRE(states[0]->receipt != nullptr);
   }
-  
+
   // Cache is unchanged
   REQUIRE(cache.get_estimated_store_cache_size() == expected_cache_size);
 
