@@ -267,6 +267,11 @@ namespace ccf
           std::move(serialised_snapshot);
       }
 
+      LOG_INFO_FMT(
+        "Snapshot queued: snapshot_{}_{}",
+        snapshot_version,
+        evidence_version);
+
       auto to_host = writer_factory.create_writer_to_outside();
       RINGBUFFER_WRITE_MESSAGE(
         ::consensus::snapshot_allocate,

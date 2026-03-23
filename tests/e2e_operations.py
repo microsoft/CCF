@@ -3065,25 +3065,27 @@ def run_time_based_snapshotting(const_args):
 
     def get_snapshot_count(net):
         primary, _ = net.find_primary()
-        snapshots_dir = net.get_committed_snapshots(primary, force_txs=False)
+        out_path, _ = primary.get_logs()
+        snapshots = set()
 
-        return len(os.listdir(snapshots_dir))
+        for line in open(out_path, "r", encoding="utf-8").readlines():
+            match = re.search(
+                r"Snapshot queued: (snapshot_\d+_\d+)",
+                line,
+            )
+            if match is not None:
+                snapshots.add(match.group(1))
 
-    def wait_for_at_least_one(net):
-        timeout_s = 10
-        end_time = time.time() + timeout_s
-        while time.time() < end_time:
-            count = get_snapshot_count(net)
-            if count > 0:
-                return count
+        return len(snapshots)
 
-            time.sleep(0.1)
-        raise TimeoutError(f"Expected at least one snapshot after {timeout_s}s")
+    def wait_for_stable_network_snapshot_count(net):
+        time.sleep(1)
+        return get_snapshot_count(net)
 
     # min_tx set low
     with net_with_min_tx("_low", 0) as net:
         LOG.info("Started")
-        baseline = wait_for_at_least_one(net)
+        baseline = wait_for_stable_network_snapshot_count(net)
         LOG.info("Got snapshot count")
         time.sleep(10)
         after = get_snapshot_count(net)
@@ -3093,7 +3095,7 @@ def run_time_based_snapshotting(const_args):
 
     # min_tx set just right
     with net_with_min_tx("_exact", 2) as net:
-        baseline = wait_for_at_least_one(net)
+        baseline = wait_for_stable_network_snapshot_count(net)
         time.sleep(10)
         after = get_snapshot_count(net)
         assert (
@@ -3102,7 +3104,7 @@ def run_time_based_snapshotting(const_args):
 
     # set much higher to show that
     with net_with_min_tx("_high", 10) as net:
-        baseline = wait_for_at_least_one(net)
+        baseline = wait_for_stable_network_snapshot_count(net)
         time.sleep(10)
         after = get_snapshot_count(net)
         assert (
