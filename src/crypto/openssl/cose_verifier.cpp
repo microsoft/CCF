@@ -93,17 +93,26 @@ namespace ccf::crypto
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
     public_key = std::make_shared<PublicKey_OpenSSL>(pk);
+    auto der = public_key->public_key_der();
+    CoseBuffer key_err;
+    verify_key = CoseKey::from_public(der.data(), der.size(), key_err);
   }
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const Pem& public_key_)
   {
     public_key = std::make_shared<PublicKey_OpenSSL>(public_key_);
+    auto der = public_key->public_key_der();
+    CoseBuffer key_err;
+    verify_key = CoseKey::from_public(der.data(), der.size(), key_err);
   }
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(
     std::span<const uint8_t> public_key_der_)
   {
     public_key = std::make_shared<PublicKey_OpenSSL>(public_key_der_);
+    auto der = public_key->public_key_der();
+    CoseBuffer key_err;
+    verify_key = CoseKey::from_public(der.data(), der.size(), key_err);
   }
 
   COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;
@@ -114,7 +123,6 @@ namespace ccf::crypto
   {
     try
     {
-      auto key_der = public_key->public_key_der();
       auto [phdr, payload, sig] = decompose_cose_sign1(envelope);
 
       if (!payload.has_value())
@@ -126,8 +134,7 @@ namespace ccf::crypto
       auto alg = extract_alg(phdr);
       CoseBuffer verify_err;
       auto rc = cose_verify1(
-        key_der.data(),
-        key_der.size(),
+        verify_key,
         alg,
         phdr.data(),
         phdr.size(),
@@ -135,8 +142,7 @@ namespace ccf::crypto
         payload->size(),
         sig.data(),
         sig.size(),
-        verify_err.data(),
-        verify_err.size());
+        verify_err);
       if (rc == 0)
       {
         authned_content = {
@@ -160,14 +166,12 @@ namespace ccf::crypto
   {
     try
     {
-      auto key_der = public_key->public_key_der();
       auto [phdr, _payload, sig] = decompose_cose_sign1(envelope);
 
       auto alg = extract_alg(phdr);
       CoseBuffer verify_err;
       auto rc = cose_verify1(
-        key_der.data(),
-        key_der.size(),
+        verify_key,
         alg,
         phdr.data(),
         phdr.size(),
@@ -175,8 +179,7 @@ namespace ccf::crypto
         payload.size(),
         sig.data(),
         sig.size(),
-        verify_err.data(),
-        verify_err.size());
+        verify_err);
       if (rc == 0)
       {
         return true;
@@ -201,11 +204,9 @@ namespace ccf::crypto
   {
     try
     {
-      auto key_der = public_key->public_key_der();
       CoseBuffer verify_err;
       auto rc = cose_verify1(
-        key_der.data(),
-        key_der.size(),
+        verify_key,
         alg,
         phdr.data(),
         phdr.size(),
@@ -213,8 +214,7 @@ namespace ccf::crypto
         payload.size(),
         sig.data(),
         sig.size(),
-        verify_err.data(),
-        verify_err.size());
+        verify_err);
       if (rc == 0)
       {
         return true;

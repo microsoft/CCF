@@ -70,14 +70,23 @@ extern "C"
     uint8_t** err_ptr,
     size_t* err_len);
 
-  /// Verify a COSE_Sign1 from pre-parsed components.
+  /// Create a verification key from DER-encoded public key bytes.
+  /// Returns an opaque pointer, or NULL on failure.
+  /// On failure, if err_ptr/err_len are non-null, an error message
+  /// is written there.
+  CoseEvpKey* cose_key_from_der_public(
+    const uint8_t* key_der_ptr,
+    size_t key_der_len,
+    uint8_t** err_ptr,
+    size_t* err_len);
+
+  /// Verify a COSE_Sign1 using a pre-created key handle.
   /// alg: COSE algorithm integer (e.g. -7 for ES256).
   /// Returns 0 on successful verification, non-zero on failure.
   /// On failure, if err_ptr/err_len are non-null, an error message
   /// is written there.
   int cose_verify1(
-    const uint8_t* key_pub_der_ptr,
-    size_t key_pub_der_len,
+    const CoseEvpKey* key,
     int64_t alg,
     const uint8_t* phdr_cbor_ptr,
     size_t phdr_cbor_len,
@@ -181,20 +190,34 @@ public:
   }
 };
 
-/// RAII wrapper for a signing key created from DER-encoded private key bytes.
+/// RAII wrapper for an opaque COSE key (Rust-managed).
+/// Can hold either a private key (for signing) or a public key (for
+/// verification). Use the named constructors from_private() / from_public().
 /// On destruction the underlying key is freed automatically.
-/// Pass a CoseBuffer& to the constructor; on failure is_set() returns false
-/// and the CoseBuffer holds the reason.
 class CoseKey
 {
   CoseEvpKey* key = nullptr;
 
+  explicit CoseKey(CoseEvpKey* k) : key(k) {}
+
 public:
   CoseKey() = default;
 
-  CoseKey(const uint8_t* der_ptr, size_t der_len, CoseBuffer& err) :
-    key(cose_key_from_der_private(der_ptr, der_len, err.data(), err.size()))
-  {}
+  /// Create a signing key from DER-encoded private key bytes.
+  static CoseKey from_private(
+    const uint8_t* der_ptr, size_t der_len, CoseBuffer& err)
+  {
+    return CoseKey(
+      cose_key_from_der_private(der_ptr, der_len, err.data(), err.size()));
+  }
+
+  /// Create a verification key from DER-encoded public key bytes.
+  static CoseKey from_public(
+    const uint8_t* der_ptr, size_t der_len, CoseBuffer& err)
+  {
+    return CoseKey(
+      cose_key_from_der_public(der_ptr, der_len, err.data(), err.size()));
+  }
 
   CoseKey(const CoseKey&) = delete;
   CoseKey& operator=(const CoseKey&) = delete;
@@ -309,6 +332,33 @@ inline int cose_sign_endorsement(
     payload_len,
     out.data(),
     out.size(),
+    err.data(),
+    err.size());
+}
+
+/// Verify a COSE_Sign1 using a pre-created verification key handle.
+/// Returns 0 on successful verification, non-zero on failure.
+/// On failure the CoseBuffer holds the error message.
+inline int cose_verify1(
+  const CoseKey& key,
+  int64_t alg,
+  const uint8_t* phdr_cbor_ptr,
+  size_t phdr_cbor_len,
+  const uint8_t* payload_ptr,
+  size_t payload_len,
+  const uint8_t* sig_ptr,
+  size_t sig_len,
+  CoseBuffer& err)
+{
+  return ::cose_verify1(
+    key.get(),
+    alg,
+    phdr_cbor_ptr,
+    phdr_cbor_len,
+    payload_ptr,
+    payload_len,
+    sig_ptr,
+    sig_len,
     err.data(),
     err.size());
 }

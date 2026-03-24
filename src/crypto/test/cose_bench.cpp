@@ -1,10 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/crypto/cose_verifier.h"
+#include "cose/cose_rs_ffi.h"
 #include "crypto/cbor.h"
 #include "crypto/cose.h"
-#include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/ec_key_pair.h"
 
 #define PICOBENCH_UNIQUE_SYM_SUFFIX __COUNTER__
@@ -56,58 +55,76 @@ static const string bench_subject = "bench-subject";
 static const string bench_txid = "2.42";
 static const int64_t bench_iat = 1700000000;
 
-static ccf::cbor::Value make_protected_headers()
+struct CoseSign1Components
 {
-  namespace cbor = ccf::cbor;
+  std::span<const uint8_t> phdr;
+  std::optional<std::span<const uint8_t>> payload;
+  std::span<const uint8_t> sig;
+  int64_t alg;
+};
 
-  std::vector<cbor::MapItem> ccf_headers;
-  ccf_headers.emplace_back(
-    cbor::make_string(ccf::cose::header::custom::TX_ID),
-    cbor::make_string(bench_txid));
+static CoseSign1Components decompose(const std::vector<uint8_t>& envelope)
+{
+  using namespace ccf::cbor;
+  auto cose = parse(envelope);
+  const auto& env = cose->tag_at(ccf::cbor::tag::COSE_SIGN_1);
+  auto phdr = env->array_at(0)->as_bytes();
 
-  std::vector<cbor::MapItem> cwt_headers;
-  cwt_headers.emplace_back(
-    cbor::make_signed(ccf::cwt::header::iana::IAT),
-    cbor::make_signed(bench_iat));
-  cwt_headers.emplace_back(
-    cbor::make_signed(ccf::cwt::header::iana::ISS),
-    cbor::make_string(bench_issuer));
-  cwt_headers.emplace_back(
-    cbor::make_signed(ccf::cwt::header::iana::SUB),
-    cbor::make_string(bench_subject));
+  std::optional<std::span<const uint8_t>> payload;
+  try
+  {
+    payload = env->array_at(2)->as_bytes();
+  }
+  catch (const CBORDecodeError&)
+  {
+    if (env->array_at(2)->as_simple() != ccf::cbor::SimpleValue::Null)
+    {
+      throw;
+    }
+  }
 
-  std::vector<cbor::MapItem> phdr;
-  phdr.emplace_back(
-    cbor::make_signed(ccf::cose::header::iana::KID),
-    cbor::make_bytes(std::span<const uint8_t>(
-      reinterpret_cast<const uint8_t*>(bench_kid.data()),
-      bench_kid.size())));
-  phdr.emplace_back(
-    cbor::make_signed(ccf::cose::header::iana::VDS),
-    cbor::make_signed(ccf::cose::value::CCF_LEDGER_SHA256));
-  phdr.emplace_back(
-    cbor::make_signed(ccf::cose::header::iana::CWT_CLAIMS),
-    cbor::make_map(std::move(cwt_headers)));
-  phdr.emplace_back(
-    cbor::make_string(ccf::cose::header::custom::CCF_V1),
-    cbor::make_map(std::move(ccf_headers)));
+  auto sig = env->array_at(3)->as_bytes();
 
-  return cbor::make_map(std::move(phdr));
+  auto phdr_parsed = parse({phdr.data(), phdr.size()});
+  auto alg =
+    phdr_parsed->map_at(ccf::cbor::make_signed(ccf::cose::header::iana::ALG))
+      ->as_signed();
+
+  return {phdr, payload, sig, alg};
 }
 
 template <CurveID Curve, size_t PayloadSize>
 static void benchmark_cose_sign(picobench::state& s)
 {
   ECKeyPair_OpenSSL kp(Curve);
+  auto priv_der = kp.private_key_der();
+  CoseBuffer key_err;
+  auto cose_key =
+    CoseKey::from_private(priv_der.data(), priv_der.size(), key_err);
   auto payload = make_contents<PayloadSize>();
 
   s.start_timer();
   for (auto _ : s)
   {
     (void)_;
-    auto phdr = make_protected_headers();
-    auto envelope = cose_sign1(kp, phdr, payload);
-    do_not_optimize(envelope);
+    CoseBuffer buf;
+    CoseBuffer sign_err;
+    cose_sign_ledger(
+      cose_key,
+      reinterpret_cast<const uint8_t*>(bench_kid.data()),
+      bench_kid.size(),
+      bench_iat,
+      reinterpret_cast<const uint8_t*>(bench_issuer.data()),
+      bench_issuer.size(),
+      reinterpret_cast<const uint8_t*>(bench_subject.data()),
+      bench_subject.size(),
+      reinterpret_cast<const uint8_t*>(bench_txid.data()),
+      bench_txid.size(),
+      payload.data(),
+      payload.size(),
+      buf,
+      sign_err);
+    do_not_optimize(buf);
     clobber_memory();
   }
   s.stop_timer();
@@ -117,18 +134,53 @@ template <CurveID Curve, size_t PayloadSize>
 static void benchmark_cose_verify(picobench::state& s)
 {
   ECKeyPair_OpenSSL kp(Curve);
+  auto priv_der = kp.private_key_der();
+  auto pub_der = kp.public_key_der();
+  CoseBuffer key_err;
+  auto cose_key =
+    CoseKey::from_private(priv_der.data(), priv_der.size(), key_err);
+  CoseBuffer vkey_err;
+  auto verify_key =
+    CoseKey::from_public(pub_der.data(), pub_der.size(), vkey_err);
   auto payload = make_contents<PayloadSize>();
 
-  auto phdr = make_protected_headers();
-  auto envelope = cose_sign1(kp, phdr, payload);
-  auto verifier = make_cose_verifier_from_key(kp.public_key_pem());
+  // Sign once outside the timed section.
+  CoseBuffer buf;
+  CoseBuffer sign_err;
+  cose_sign_ledger(
+    cose_key,
+    reinterpret_cast<const uint8_t*>(bench_kid.data()),
+    bench_kid.size(),
+    bench_iat,
+    reinterpret_cast<const uint8_t*>(bench_issuer.data()),
+    bench_issuer.size(),
+    reinterpret_cast<const uint8_t*>(bench_subject.data()),
+    bench_subject.size(),
+    reinterpret_cast<const uint8_t*>(bench_txid.data()),
+    bench_txid.size(),
+    payload.data(),
+    payload.size(),
+    buf,
+    sign_err);
+  auto envelope = buf.to_vector();
+  auto c = decompose(envelope);
 
   s.start_timer();
   for (auto _ : s)
   {
     (void)_;
-    auto ok = verifier->verify_detached(envelope, payload);
-    do_not_optimize(ok);
+    CoseBuffer verify_err;
+    auto rc = cose_verify1(
+      verify_key,
+      c.alg,
+      c.phdr.data(),
+      c.phdr.size(),
+      payload.data(),
+      payload.size(),
+      c.sig.data(),
+      c.sig.size(),
+      verify_err);
+    do_not_optimize(rc);
     clobber_memory();
   }
   s.stop_timer();
@@ -141,63 +193,51 @@ const std::vector<int> sizes = {10};
 PICOBENCH_SUITE("cose sign secp256r1");
 namespace COSE_SIGN_SECP256R1
 {
-  auto sign_256r1_1byte =
-    benchmark_cose_sign<CurveID::SECP256R1, 1>;
+  auto sign_256r1_1byte = benchmark_cose_sign<CurveID::SECP256R1, 1>;
   PICOBENCH(sign_256r1_1byte).PICO_SUFFIX();
 
-  auto sign_256r1_1k =
-    benchmark_cose_sign<CurveID::SECP256R1, 1024>;
+  auto sign_256r1_1k = benchmark_cose_sign<CurveID::SECP256R1, 1024>;
   PICOBENCH(sign_256r1_1k).PICO_SUFFIX();
 
-  auto sign_256r1_100k =
-    benchmark_cose_sign<CurveID::SECP256R1, 102400>;
+  auto sign_256r1_100k = benchmark_cose_sign<CurveID::SECP256R1, 102400>;
   PICOBENCH(sign_256r1_100k).PICO_SUFFIX();
 }
 
 PICOBENCH_SUITE("cose sign secp384r1");
 namespace COSE_SIGN_SECP384R1
 {
-  auto sign_384r1_1byte =
-    benchmark_cose_sign<CurveID::SECP384R1, 1>;
+  auto sign_384r1_1byte = benchmark_cose_sign<CurveID::SECP384R1, 1>;
   PICOBENCH(sign_384r1_1byte).PICO_SUFFIX();
 
-  auto sign_384r1_1k =
-    benchmark_cose_sign<CurveID::SECP384R1, 1024>;
+  auto sign_384r1_1k = benchmark_cose_sign<CurveID::SECP384R1, 1024>;
   PICOBENCH(sign_384r1_1k).PICO_SUFFIX();
 
-  auto sign_384r1_100k =
-    benchmark_cose_sign<CurveID::SECP384R1, 102400>;
+  auto sign_384r1_100k = benchmark_cose_sign<CurveID::SECP384R1, 102400>;
   PICOBENCH(sign_384r1_100k).PICO_SUFFIX();
 }
 
 PICOBENCH_SUITE("cose verify secp256r1");
 namespace COSE_VERIFY_SECP256R1
 {
-  auto verify_256r1_1byte =
-    benchmark_cose_verify<CurveID::SECP256R1, 1>;
+  auto verify_256r1_1byte = benchmark_cose_verify<CurveID::SECP256R1, 1>;
   PICOBENCH(verify_256r1_1byte).PICO_SUFFIX();
 
-  auto verify_256r1_1k =
-    benchmark_cose_verify<CurveID::SECP256R1, 1024>;
+  auto verify_256r1_1k = benchmark_cose_verify<CurveID::SECP256R1, 1024>;
   PICOBENCH(verify_256r1_1k).PICO_SUFFIX();
 
-  auto verify_256r1_100k =
-    benchmark_cose_verify<CurveID::SECP256R1, 102400>;
+  auto verify_256r1_100k = benchmark_cose_verify<CurveID::SECP256R1, 102400>;
   PICOBENCH(verify_256r1_100k).PICO_SUFFIX();
 }
 
 PICOBENCH_SUITE("cose verify secp384r1");
 namespace COSE_VERIFY_SECP384R1
 {
-  auto verify_384r1_1byte =
-    benchmark_cose_verify<CurveID::SECP384R1, 1>;
+  auto verify_384r1_1byte = benchmark_cose_verify<CurveID::SECP384R1, 1>;
   PICOBENCH(verify_384r1_1byte).PICO_SUFFIX();
 
-  auto verify_384r1_1k =
-    benchmark_cose_verify<CurveID::SECP384R1, 1024>;
+  auto verify_384r1_1k = benchmark_cose_verify<CurveID::SECP384R1, 1024>;
   PICOBENCH(verify_384r1_1k).PICO_SUFFIX();
 
-  auto verify_384r1_100k =
-    benchmark_cose_verify<CurveID::SECP384R1, 102400>;
+  auto verify_384r1_100k = benchmark_cose_verify<CurveID::SECP384R1, 102400>;
   PICOBENCH(verify_384r1_100k).PICO_SUFFIX();
 }

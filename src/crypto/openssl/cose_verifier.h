@@ -6,6 +6,7 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
+#include "cose/cose_rs_ffi.h"
 #include "crypto/openssl/ec_public_key.h"
 #include "crypto/openssl/public_key.h"
 #include "crypto/openssl/rsa_public_key.h"
@@ -19,6 +20,7 @@ namespace ccf::crypto
   {
   protected:
     std::shared_ptr<PublicKey_OpenSSL> public_key;
+    CoseKey verify_key;
 
   public:
     ~COSEVerifier_OpenSSL() override;

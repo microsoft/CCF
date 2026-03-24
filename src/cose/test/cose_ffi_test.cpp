@@ -69,10 +69,11 @@ namespace
     std::span<const uint8_t> payload,
     CoseBuffer* out_err = nullptr)
   {
+    CoseBuffer key_err;
+    auto vkey = CoseKey::from_public(pub_der.data(), pub_der.size(), key_err);
     CoseBuffer err;
     auto rc = cose_verify1(
-      pub_der.data(),
-      pub_der.size(),
+      vkey,
       c.alg,
       c.phdr.data(),
       c.phdr.size(),
@@ -80,8 +81,7 @@ namespace
       payload.size(),
       c.sig.data(),
       c.sig.size(),
-      err.data(),
-      err.size());
+      err);
     if (out_err)
     {
       *out_err = std::move(err);
@@ -94,7 +94,8 @@ TEST_CASE("cose_sign_ledger sign and verify round-trip")
 {
   TestKey key;
   CoseBuffer key_err;
-  CoseKey cose_key(key.priv_der.data(), key.priv_der.size(), key_err);
+  auto cose_key =
+    CoseKey::from_private(key.priv_der.data(), key.priv_der.size(), key_err);
   REQUIRE(cose_key.is_set());
 
   const std::string kid = "test-kid";
@@ -141,7 +142,8 @@ TEST_CASE("cose_sign_ledger fails with invalid key")
 {
   const std::vector<uint8_t> bad_key = {0, 1, 2, 3};
   CoseBuffer key_err;
-  CoseKey cose_key(bad_key.data(), bad_key.size(), key_err);
+  auto cose_key =
+    CoseKey::from_private(bad_key.data(), bad_key.size(), key_err);
   CHECK(!cose_key.is_set());
   CHECK(key_err.is_set());
   CHECK(
@@ -154,7 +156,7 @@ TEST_CASE("CoseKey error propagation")
   SUBCASE("null DER pointer")
   {
     CoseBuffer err;
-    CoseKey k(nullptr, 0, err);
+    auto k = CoseKey::from_private(nullptr, 0, err);
     CHECK(!k.is_set());
   }
 
@@ -163,7 +165,7 @@ TEST_CASE("CoseKey error propagation")
     // A plausible but truncated EC private key prefix.
     const std::vector<uint8_t> truncated = {0x30, 0x81, 0x87, 0x02, 0x01};
     CoseBuffer err;
-    CoseKey k(truncated.data(), truncated.size(), err);
+    auto k = CoseKey::from_private(truncated.data(), truncated.size(), err);
     CHECK(!k.is_set());
     CHECK(err.is_set());
     CHECK(
@@ -174,7 +176,7 @@ TEST_CASE("CoseKey error propagation")
   {
     TestKey tk;
     CoseBuffer err;
-    CoseKey k(tk.priv_der.data(), tk.priv_der.size(), err);
+    auto k = CoseKey::from_private(tk.priv_der.data(), tk.priv_der.size(), err);
     CHECK(k.is_set());
     CHECK(!err.is_set());
   }
@@ -183,7 +185,7 @@ TEST_CASE("CoseKey error propagation")
   {
     TestKey tk;
     CoseBuffer err;
-    CoseKey k(tk.priv_der.data(), tk.priv_der.size(), err);
+    auto k = CoseKey::from_private(tk.priv_der.data(), tk.priv_der.size(), err);
     REQUIRE(k.is_set());
 
     CoseKey moved(std::move(k));
@@ -195,7 +197,7 @@ TEST_CASE("CoseKey error propagation")
   {
     TestKey tk;
     CoseBuffer err;
-    CoseKey k(tk.priv_der.data(), tk.priv_der.size(), err);
+    auto k = CoseKey::from_private(tk.priv_der.data(), tk.priv_der.size(), err);
     REQUIRE(k.is_set());
 
     k.reset();
@@ -207,7 +209,8 @@ TEST_CASE("cose_sign_endorsement sign and verify round-trip")
 {
   TestKey key;
   CoseBuffer key_err;
-  CoseKey cose_key(key.priv_der.data(), key.priv_der.size(), key_err);
+  auto cose_key =
+    CoseKey::from_private(key.priv_der.data(), key.priv_der.size(), key_err);
   REQUIRE(cose_key.is_set());
 
   const std::string epoch_begin = "2.1";
@@ -245,7 +248,8 @@ TEST_CASE("cose_sign_endorsement without optional fields")
 {
   TestKey key;
   CoseBuffer key_err;
-  CoseKey cose_key(key.priv_der.data(), key.priv_der.size(), key_err);
+  auto cose_key =
+    CoseKey::from_private(key.priv_der.data(), key.priv_der.size(), key_err);
   REQUIRE(cose_key.is_set());
 
   const std::string epoch_begin = "1.1";
@@ -280,7 +284,7 @@ TEST_CASE("cose_verify1 fails with wrong key")
 {
   TestKey sign_key;
   CoseBuffer key_err;
-  CoseKey sign_cose_key(
+  auto sign_cose_key = CoseKey::from_private(
     sign_key.priv_der.data(), sign_key.priv_der.size(), key_err);
   REQUIRE(sign_cose_key.is_set());
   TestKey wrong_key;
@@ -318,7 +322,8 @@ TEST_CASE("cose_verify1 fails with corrupted signature")
 {
   TestKey key;
   CoseBuffer key_err;
-  CoseKey cose_key(key.priv_der.data(), key.priv_der.size(), key_err);
+  auto cose_key =
+    CoseKey::from_private(key.priv_der.data(), key.priv_der.size(), key_err);
   REQUIRE(cose_key.is_set());
 
   const std::string epoch_begin = "1.1";
@@ -347,10 +352,12 @@ TEST_CASE("cose_verify1 fails with corrupted signature")
   std::vector<uint8_t> bad_sig(c.sig.begin(), c.sig.end());
   bad_sig[bad_sig.size() - 1] ^= 0xFF;
 
+  CoseBuffer vkey_err;
+  auto vkey =
+    CoseKey::from_public(key.pub_der.data(), key.pub_der.size(), vkey_err);
   CoseBuffer verify_err;
   auto vrc = cose_verify1(
-    key.pub_der.data(),
-    key.pub_der.size(),
+    vkey,
     c.alg,
     c.phdr.data(),
     c.phdr.size(),
@@ -358,8 +365,7 @@ TEST_CASE("cose_verify1 fails with corrupted signature")
     c.payload.value().size(),
     bad_sig.data(),
     bad_sig.size(),
-    verify_err.data(),
-    verify_err.size());
+    verify_err);
   CHECK(vrc != 0);
   CHECK(verify_err.is_set());
   CHECK(verify_err.to_string() == "Signature verification failed");
@@ -369,7 +375,8 @@ TEST_CASE("cose_verify1 wrong alg fails")
 {
   TestKey key;
   CoseBuffer key_err;
-  CoseKey cose_key(key.priv_der.data(), key.priv_der.size(), key_err);
+  auto cose_key =
+    CoseKey::from_private(key.priv_der.data(), key.priv_der.size(), key_err);
   REQUIRE(cose_key.is_set());
 
   const std::string epoch_begin = "1.1";
@@ -398,10 +405,12 @@ TEST_CASE("cose_verify1 wrong alg fails")
   CHECK(verify_decoded(key.pub_der, c, c.payload.value()) == 0);
 
   auto payload_span = c.payload.value();
+  CoseBuffer vkey_err;
+  auto vkey =
+    CoseKey::from_public(key.pub_der.data(), key.pub_der.size(), vkey_err);
   CoseBuffer verify_err;
   auto vrc = cose_verify1(
-    key.pub_der.data(),
-    key.pub_der.size(),
+    vkey,
     -7,
     c.phdr.data(),
     c.phdr.size(),
@@ -409,8 +418,7 @@ TEST_CASE("cose_verify1 wrong alg fails")
     payload_span.size(),
     c.sig.data(),
     c.sig.size(),
-    verify_err.data(),
-    verify_err.size());
+    verify_err);
   CHECK(vrc != 0);
   CHECK(verify_err.is_set());
   CHECK(
@@ -431,7 +439,8 @@ TEST_CASE("CoseBuffer RAII semantics")
   {
     TestKey key;
     CoseBuffer key_err;
-    CoseKey cose_key(key.priv_der.data(), key.priv_der.size(), key_err);
+    auto cose_key =
+      CoseKey::from_private(key.priv_der.data(), key.priv_der.size(), key_err);
     REQUIRE(cose_key.is_set());
     const std::string epoch_begin = "1.1";
     const std::vector<uint8_t> payload = {1};
@@ -464,7 +473,8 @@ TEST_CASE("CoseBuffer RAII semantics")
   {
     TestKey key;
     CoseBuffer key_err;
-    CoseKey cose_key(key.priv_der.data(), key.priv_der.size(), key_err);
+    auto cose_key =
+      CoseKey::from_private(key.priv_der.data(), key.priv_der.size(), key_err);
     REQUIRE(cose_key.is_set());
     const std::string epoch_begin = "1.1";
     const std::vector<uint8_t> payload = {1};
