@@ -138,7 +138,7 @@
               "enabled_operator_features": {
                 "type": "array",
                 "items": {
-                  "enum": ["SnapshotRead", "LedgerChunkRead"],
+                  "enum": ["SnapshotRead", "LedgerChunkRead", "SnapshotTrigger"],
                   "type": "string"
                 },
                 "description": "An array of features which should be enabled on this interface, providing access to endpoints with specific security or performance constraints."

@@ -603,7 +603,8 @@
       "OperatorFeature": {
         "enum": [
           "SnapshotRead",
-          "LedgerChunkRead"
+          "LedgerChunkRead",
+          "SnapshotTrigger"
         ],
         "type": "string"
       },
@@ -1790,6 +1791,22 @@
         ],
         "responses": {
           "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
+    },
+    "/node/snapshot/force": {
+      "post": {
+        "operationId": "PostNodeSnapshotForce",
+        "responses": {
+          "204": {
             "description": "Default response description"
           },
           "default": {

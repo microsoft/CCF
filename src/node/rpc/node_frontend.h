@@ -1857,6 +1857,20 @@ namespace ccf
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
+      auto force_snapshot = [this](auto& args, nlohmann::json&&) {
+        this->node_operation.trigger_snapshot(args.tx);
+        return make_success();
+      };
+      make_endpoint(
+        "/snapshot/force",
+        HTTP_POST,
+        json_adapter(force_snapshot),
+        no_auth_required)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .require_operator_feature(endpoints::OperatorFeature::SnapshotTrigger)
+        .install();
+
       ccf::node::init_recovery_decision_protocol_handlers(*this, context);
 
       ccf::node::init_file_serving_handlers(*this, context);
