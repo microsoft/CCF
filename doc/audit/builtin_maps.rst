@@ -560,6 +560,17 @@ Status information recorded when a primary produces a snapshot.
    :project: CCF
    :members:
 
+``snapshot_trigger``
+~~~~~~~~~~~~~~~~~~~~
+
+Durability marker written when a snapshot is explicitly requested via the operator endpoint.
+This ensures the request is recorded as a real transaction even when it would otherwise
+carry only a transaction flag.
+
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+
+**Value** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+
 ``encrypted_submitted_shares``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
