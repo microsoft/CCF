@@ -892,6 +892,11 @@ if(BUILD_TESTS)
       LINK_LIBS
     )
     add_picobench(
+      cose_bench
+      SRCS src/crypto/test/cose_bench.cpp
+      LINK_LIBS
+    )
+    add_picobench(
       history_bench
       SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
       LINK_LIBS ccf_kv ccf_tasks
