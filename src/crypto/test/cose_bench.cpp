@@ -1,10 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/crypto/cose_verifier.h"
+#include "cose/cose_rs_ffi.h"
 #include "crypto/cbor.h"
 #include "crypto/cose.h"
-#include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/ec_key_pair.h"
 
 #define PICOBENCH_UNIQUE_SYM_SUFFIX __COUNTER__
@@ -50,35 +49,69 @@ vector<uint8_t> make_contents()
   return contents;
 }
 
-static ccf::cbor::Value make_protected_headers(std::span<const uint8_t> kid)
+struct DecomposedCoseSign1
 {
-  namespace cbor = ccf::cbor;
+  std::vector<uint8_t> envelope;
+  std::span<const uint8_t> phdr;
+  std::span<const uint8_t> sig;
+  int64_t alg;
+};
 
-  std::vector<cbor::MapItem> phdr;
-  phdr.emplace_back(
-    cbor::make_signed(ccf::cose::header::iana::KID), cbor::make_bytes(kid));
-  phdr.emplace_back(
-    cbor::make_signed(ccf::cose::header::iana::VDS),
-    cbor::make_signed(ccf::cose::value::CCF_LEDGER_SHA256));
-  return cbor::make_map(std::move(phdr));
+static DecomposedCoseSign1 decompose(std::vector<uint8_t>&& envelope_data)
+{
+  DecomposedCoseSign1 result;
+  result.envelope = std::move(envelope_data);
+
+  namespace cbor = ccf::cbor;
+  auto cose = cbor::parse(result.envelope);
+  const auto& env = cose->tag_at(cbor::tag::COSE_SIGN_1);
+  result.phdr = env->array_at(0)->as_bytes();
+  result.sig = env->array_at(3)->as_bytes();
+
+  auto phdr_parsed = cbor::parse({result.phdr.data(), result.phdr.size()});
+  result.alg =
+    phdr_parsed
+      ->map_at(cbor::make_signed(ccf::cose::header::iana::ALG))
+      ->as_signed();
+
+  return result;
 }
+
+static const string bench_kid = "bench-kid";
+static const string bench_issuer = "bench-issuer";
+static const string bench_subject = "bench-subject";
+static const string bench_txid = "2.42";
+static const int64_t bench_iat = 1700000000;
 
 template <CurveID Curve, size_t PayloadSize>
 static void benchmark_cose_sign(picobench::state& s)
 {
   ECKeyPair_OpenSSL kp(Curve);
   auto payload = make_contents<PayloadSize>();
-  auto kid_pem = kp.public_key_pem();
-  std::span<const uint8_t> kid(
-    reinterpret_cast<const uint8_t*>(kid_pem.data()), kid_pem.size());
+  auto key_der = kp.private_key_der();
+  CoseKey cose_key(key_der.data(), key_der.size());
 
   s.start_timer();
   for (auto _ : s)
   {
     (void)_;
-    auto phdr = make_protected_headers(kid);
-    auto envelope = cose_sign1(kp, phdr, payload);
-    do_not_optimize(envelope);
+    CoseBuffer buf;
+    auto rc = cose_sign_ledger(
+      cose_key,
+      reinterpret_cast<const uint8_t*>(bench_kid.data()),
+      bench_kid.size(),
+      bench_iat,
+      reinterpret_cast<const uint8_t*>(bench_issuer.data()),
+      bench_issuer.size(),
+      reinterpret_cast<const uint8_t*>(bench_subject.data()),
+      bench_subject.size(),
+      reinterpret_cast<const uint8_t*>(bench_txid.data()),
+      bench_txid.size(),
+      payload.data(),
+      payload.size(),
+      buf);
+    do_not_optimize(rc);
+    do_not_optimize(buf);
     clobber_memory();
   }
   s.stop_timer();
@@ -89,20 +122,44 @@ static void benchmark_cose_verify(picobench::state& s)
 {
   ECKeyPair_OpenSSL kp(Curve);
   auto payload = make_contents<PayloadSize>();
-  auto kid_pem = kp.public_key_pem();
-  std::span<const uint8_t> kid(
-    reinterpret_cast<const uint8_t*>(kid_pem.data()), kid_pem.size());
+  auto key_der = kp.private_key_der();
+  auto pub_der = kp.public_key_der();
+  CoseKey cose_key(key_der.data(), key_der.size());
 
-  auto phdr = make_protected_headers(kid);
-  auto envelope = cose_sign1(kp, phdr, payload);
-  auto verifier = make_cose_verifier_from_key(kp.public_key_pem());
+  CoseBuffer sign_buf;
+  auto rc = cose_sign_ledger(
+    cose_key,
+    reinterpret_cast<const uint8_t*>(bench_kid.data()),
+    bench_kid.size(),
+    bench_iat,
+    reinterpret_cast<const uint8_t*>(bench_issuer.data()),
+    bench_issuer.size(),
+    reinterpret_cast<const uint8_t*>(bench_subject.data()),
+    bench_subject.size(),
+    reinterpret_cast<const uint8_t*>(bench_txid.data()),
+    bench_txid.size(),
+    payload.data(),
+    payload.size(),
+    sign_buf);
+  (void)rc;
+
+  auto d = decompose(sign_buf.to_vector());
 
   s.start_timer();
   for (auto _ : s)
   {
     (void)_;
-    auto ok = verifier->verify_detached(envelope, payload);
-    do_not_optimize(ok);
+    auto vrc = cose_verify1(
+      pub_der.data(),
+      pub_der.size(),
+      d.alg,
+      d.phdr.data(),
+      d.phdr.size(),
+      payload.data(),
+      payload.size(),
+      d.sig.data(),
+      d.sig.size());
+    do_not_optimize(vrc);
     clobber_memory();
   }
   s.stop_timer();
