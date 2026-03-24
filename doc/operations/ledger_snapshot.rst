@@ -47,7 +47,7 @@ The listing below is an example of what a ledger directory may look like:
 Download Endpoints
 ~~~~~~~~~~~~~~~~~~
 
-In order to faciliate long term backup of the ledger files (also called chunks), nodes can enable HTTP endpoints that allow a client to download committed ledger files.
+In order to facilitate long term backup of the ledger files (also called chunks), nodes can enable HTTP endpoints that allow a client to download committed ledger files.
 The `LedgerChunkRead` feature must be added to `enabled_operator_features` on the relevant `rpc_interfaces` entries in the node configuration.
 
 1. :http:GET:`/node/ledger-chunk` and :http:HEAD:`/node/ledger-chunk`, both taking a `seqno` query parameter.
