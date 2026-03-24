@@ -336,7 +336,8 @@ pub unsafe extern "C" fn cose_key_from_der_public(
 /// Verify a COSE_Sign1 from pre-parsed components using a pre-created key
 /// handle.
 ///
-/// `key` must be a valid pointer from `cose_key_from_der_public`.
+/// `key` must be a valid pointer from `cose_key_from_der_public` or
+/// `cose_key_from_der_private`.
 /// `alg` is the COSE algorithm integer (e.g. -7 for ES256).
 ///
 /// Returns 0 on successful verification, non-zero on failure.
@@ -345,7 +346,8 @@ pub unsafe extern "C" fn cose_key_from_der_public(
 /// non-null).  The caller must free it with `cose_free`.
 ///
 /// # Safety
-/// `key` must be a valid pointer from `cose_key_from_der_public`.
+/// `key` must be a valid pointer from `cose_key_from_der_public` or
+/// `cose_key_from_der_private`.
 /// All pointer+length pairs must be valid.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cose_verify1(

@@ -373,13 +373,15 @@ namespace ccf
       {
         auto key_der = service_kp.private_key_der();
         CoseBuffer key_err;
-        auto [inserted, _] = cose_key_cache.emplace(
-          kid, CoseKey::from_private(key_der.data(), key_der.size(), key_err));
-        if (key_err.is_set())
+        auto cose_key =
+          CoseKey::from_private(key_der.data(), key_der.size(), key_err);
+        if (!cose_key.is_set())
         {
           throw std::runtime_error(fmt::format(
-            "cose_key_from_der_private failed: {}", key_err.to_string()));
+            "cose_key_from_der_private failed: {}",
+            key_err.is_set() ? key_err.to_string() : "unknown error"));
         }
+        auto [inserted, _] = cose_key_cache.emplace(kid, std::move(cose_key));
         it = inserted;
       }
 

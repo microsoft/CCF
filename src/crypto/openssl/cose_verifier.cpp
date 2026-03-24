@@ -96,6 +96,12 @@ namespace ccf::crypto
     auto der = public_key->public_key_der();
     CoseBuffer key_err;
     verify_key = CoseKey::from_public(der.data(), der.size(), key_err);
+    if (!verify_key.is_set())
+    {
+      throw std::runtime_error(fmt::format(
+        "Failed to create COSE verification key: {}",
+        key_err.is_set() ? key_err.to_string() : "unknown error"));
+    }
   }
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const Pem& public_key_)
@@ -104,6 +110,12 @@ namespace ccf::crypto
     auto der = public_key->public_key_der();
     CoseBuffer key_err;
     verify_key = CoseKey::from_public(der.data(), der.size(), key_err);
+    if (!verify_key.is_set())
+    {
+      throw std::runtime_error(fmt::format(
+        "Failed to create COSE verification key: {}",
+        key_err.is_set() ? key_err.to_string() : "unknown error"));
+    }
   }
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(
@@ -113,6 +125,12 @@ namespace ccf::crypto
     auto der = public_key->public_key_der();
     CoseBuffer key_err;
     verify_key = CoseKey::from_public(der.data(), der.size(), key_err);
+    if (!verify_key.is_set())
+    {
+      throw std::runtime_error(fmt::format(
+        "Failed to create COSE verification key: {}",
+        key_err.is_set() ? key_err.to_string() : "unknown error"));
+    }
   }
 
   COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;
