@@ -50,7 +50,7 @@ Download Endpoints
 In order to facilitate long term backup of the ledger files (also called chunks), nodes can enable HTTP endpoints that allow a client to download committed ledger files.
 The `LedgerChunkRead` feature must be added to `enabled_operator_features` on the relevant `rpc_interfaces` entries in the node configuration.
 
-1. :http:GET:`/node/ledger-chunk` and :http:HEAD:`/node/ledger-chunk`, both taking a `seqno` query parameter.
+1. :http:GET:`/node/ledger-chunk` and :http:HEAD:`/node/ledger-chunk`, both taking a `since` query parameter.
 
 These endpoints can be used by a client to download the next ledger chunk including a given sequence number `<seqno>`.
 They redirect to the appropriate chunk if it exists, using the endpoints described below, or return a `404 Not Found` response if no such chunk is available.
