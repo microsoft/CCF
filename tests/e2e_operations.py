@@ -2944,7 +2944,6 @@ def test_backup_snapshot_fetch_max_size(network, args):
     )
     network.trust_node(new_node, args)
     new_node.wait_for_node_to_join(timeout=5)
-    # Check the snapshot directory for the new node only contains a single file
     snapshot_dir = os.path.join(
         new_node.remote.remote.root, new_node.remote.snapshots_dir_name
     )
@@ -2953,9 +2952,8 @@ def test_backup_snapshot_fetch_max_size(network, args):
         """
         On a join node, the snapshot directory is expected to be empty until
         the node attempts to fetch a snapshot from the primary. Directory creation
-        is not always visible immediately, so we delay enforcing the expectation
-        that the directory exists until after we expect the fetch to have been
-        attempted, but before we expect it to have been retried.
+        is not always visible immediately, so we defer enforcing the expectation
+        that the directory exists.
         """
         end_time = time.time() + duration_s
         while time.time() < end_time:
