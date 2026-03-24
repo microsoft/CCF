@@ -45,26 +45,7 @@ ninja                                      # Build all targets
 
 ### Testing
 
-Tests must be run via the `tests.sh` wrapper (in the build directory), which sets up a Python venv, installs the SDK and test dependencies, then invokes `ctest`:
-
-```bash
-cd build
-./tests.sh                          # Run all tests
-./tests.sh -VV                      # Verbose output
-./tests.sh -R <pattern>             # Run tests matching a name regex
-./tests.sh -L unit                  # Run only unit tests
-./tests.sh -L e2e                   # Run only end-to-end tests
-./tests.sh -L partitions            # Run partition tests (requires NET_ADMIN)
-./tests.sh --timeout 360 -R recovery_test  # Single e2e test with timeout
-```
-
-Test labels: `unit`, `e2e`, `partitions`, `perf`, `benchmark`, `raft_scenario`, `suite`, `lts_compatibility`, `snp`.
-
-Python SDK tests (separate from e2e):
-
-```bash
-cd python && pytest
-```
+See [testing skill](/.github/skills/testing.md) for how to run tests (unit, e2e, SDK), test labels, coverage, and patterns for writing new e2e tests.
 
 ### Linting and formatting
 
@@ -75,14 +56,6 @@ See [formatting-and-linting skill](/.github/skills/formatting-and-linting.md) fo
 ```bash
 pip install -r doc/requirements.txt -r doc/historical_ccf_requirements.txt
 sphinx-build --fail-on-warning -b html doc doc/html
-```
-
-### Code coverage
-
-Build with `-DCOVERAGE=ON`, run tests, then:
-```bash
-scripts/coverage.sh                  # Print summary
-scripts/coverage.sh --html report/   # Generate HTML report
 ```
 
 ## Code changes
@@ -168,39 +141,6 @@ auto val = handle->get(key);  // Returns std::optional
 - There are 2 kinds of Python code in the repository: the end-to-end tests (and supporting infra) in `tests/`, and the Python SDK in `python/`.
 - Pay attention to existing helpers and utilities in the test suite when writing new tests, and avoid duplicating code. If you find yourself copying and pasting code, consider refactoring it into a shared helper function or class.
 - All code in the SDK should include type annotations and docstrings.
-
-#### End-to-end test patterns
-
-E2e tests use the infrastructure in `tests/infra/`. The key classes are:
-- `infra.network.Network` — manages a multi-node CCF network (start, stop, find primary/backup, add/remove nodes)
-- `infra.node.Node` — represents a single CCF node process
-- `infra.consortium.Consortium` — member governance operations (proposals, votes)
-- `infra.runner.ConcurrentRunner` — runs multiple test functions against separate networks in parallel
-
-Test functions take `(network, args)` parameters and are decorated with requirement annotations:
-
-```python
-@reqs.description("Write/Read messages on primary")
-@reqs.supports_methods("/app/log/private")
-@reqs.at_least_n_nodes(2)
-def test_example(network, args):
-    primary, _ = network.find_primary()
-    with primary.client("user0") as c:
-        r = c.post("/app/log/private", body={"id": 42, "msg": "hello"})
-        assert r.status_code == http.HTTPStatus.OK
-    return network
-```
-
-Tests are assembled in `ConcurrentRunner` at the bottom of test files:
-
-```python
-if __name__ == "__main__":
-    cr = ConcurrentRunner()
-    cr.add("test_name", test_function, package="samples/apps/logging/logging", nodes=...)
-    cr.run()
-```
-
-When a test needs its own network configuration, deep-copy `const_args`, set a distinct `args.label`, and create a standalone `Network` in a separate `run_*` function.
 
 ### Documentation
 
