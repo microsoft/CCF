@@ -2944,32 +2944,32 @@ def test_backup_snapshot_fetch_max_size(network, args):
     )
     network.trust_node(new_node, args)
     new_node.wait_for_node_to_join(timeout=5)
-    # Check the snapshot directory for the new node only contains a single file
     snapshot_dir = os.path.join(
         new_node.remote.remote.root, new_node.remote.snapshots_dir_name
     )
 
-    def assert_no_snapshot_present():
-        timeout_s = 10
-        end_time = time.time() + timeout_s
+    def assert_no_snapshot_is_present(duration_s=10):
+        """
+        On a join node, the snapshot directory is expected to be empty until
+        the node attempts to fetch a snapshot from the primary. Directory creation
+        is not always visible immediately, so we defer enforcing the expectation
+        that the directory exists.
+        """
+        end_time = time.time() + duration_s
         while time.time() < end_time:
             if os.path.exists(snapshot_dir):
                 files = os.listdir(snapshot_dir)
-                if len(files) > 0:
-                    LOG.info(
-                        f"New node {new_node.local_node_id}: found snapshot file {files[0]} in {snapshot_dir}"
-                    )
-                    break
-
-                LOG.info(
-                    f"New node {new_node.local_node_id}: expected to find a single snapshot file in {snapshot_dir}, but found {files}; retrying"
-                )
-
+                assert (
+                    files == []
+                ), f"Expected no snapshot in {snapshot_dir}, but found {files}"
             time.sleep(0.1)
+        assert os.path.exists(
+            snapshot_dir
+        ), f"Expected snapshot directory {snapshot_dir} to exist"
 
-    assert_no_snapshot_present()
+    assert_no_snapshot_is_present()
     network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
-    assert_no_snapshot_present()
+    assert_no_snapshot_is_present()
     expected_log_message = "Failed writing received data to disk/application"
     out_path, _ = new_node.get_logs()
     for line in open(out_path, "r", encoding="utf-8").readlines():
