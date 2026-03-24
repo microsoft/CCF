@@ -3068,13 +3068,14 @@ def run_time_based_snapshotting(const_args):
         out_path, _ = primary.get_logs()
         snapshots = set()
 
-        for line in open(out_path, "r", encoding="utf-8").readlines():
-            match = re.search(
-                r"Snapshot queued: (snapshot_\d+_\d+)",
-                line,
-            )
-            if match is not None:
-                snapshots.add(match.group(1))
+        with open(out_path, "r", encoding="utf-8") as f:
+            for line in f:
+                match = re.search(
+                    r"Snapshot queued: (snapshot_\d+_\d+)",
+                    line,
+                )
+                if match is not None:
+                    snapshots.add(match.group(1))
 
         return len(snapshots)
 
