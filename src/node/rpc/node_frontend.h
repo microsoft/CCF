@@ -31,6 +31,7 @@
 #include "service/internal_tables_access.h"
 #include "service/tables/local_sealing.h"
 #include "service/tables/previous_service_identity.h"
+#include "service/tables/snapshot_status.h"
 
 #include <llhttp/llhttp.h>
 #include <stdexcept>
@@ -1858,6 +1859,9 @@ namespace ccf
         .install();
 
       auto force_snapshot = [this](auto& args, nlohmann::json&&) {
+        auto* snapshot_trigger =
+          args.tx.template rw<ccf::SnapshotTrigger>(ccf::Tables::SNAPSHOT_TRIGGER);
+        snapshot_trigger->put(0);
         this->node_operation.trigger_snapshot(args.tx);
         return make_success();
       };

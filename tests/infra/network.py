@@ -1865,7 +1865,13 @@ class Network:
         )
         return primary
 
-    def get_committed_snapshots(self, node, target_seqno=None, force_txs=True):
+    def get_committed_snapshots(
+        self,
+        node,
+        target_seqno=None,
+        force_txs=True,
+        wait_for_target_seqno=False,
+    ):
         # Wait for the snapshot including target_seqno to be committed before
         # copying snapshot directory. Do not issue transactions if force_txs is False
         # and expect snapshot to have already been created.
@@ -1875,7 +1881,7 @@ class Network:
                 target_seqno = TxID.from_str(r["transaction_id"]).seqno
 
         def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=20):
-            if not force_txs:
+            if not wait_for_target_seqno and not force_txs:
                 return True
 
             LOG.info(
@@ -1899,12 +1905,13 @@ class Network:
                     )
                     return False
 
-                # Update state digest as a neutral write operation, to advance commit
-                member = self.consortium.get_any_active_member()
-                for _ in range(self.args.snapshot_tx_interval // 2):
-                    r = member.update_ack_state_digest(node)
-                with node.client() as c:
-                    c.wait_for_commit(r)
+                if force_txs:
+                    # Update state digest as a neutral write operation, to advance commit
+                    member = self.consortium.get_any_active_member()
+                    for _ in range(self.args.snapshot_tx_interval // 2):
+                        r = member.update_ack_state_digest(node)
+                    with node.client() as c:
+                        c.wait_for_commit(r)
                 time.sleep(0.1)
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
