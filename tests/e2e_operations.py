@@ -3063,65 +3063,108 @@ def run_time_based_snapshotting(const_args):
             net.start_and_open(inner_args)
             yield net
 
-    def get_snapshot_count(net):
+    def get_committed_snapshot_files(net):
         primary, _ = net.find_primary()
-        snapshots_dir = net.get_committed_snapshots(primary, force_txs=False)
+        snapshots_dirs = [
+            os.path.join(primary.remote.remote.root, primary.remote.snapshots_dir_name)
+        ]
+        if primary.remote.read_only_snapshots_dir_name is not None:
+            snapshots_dirs.append(
+                os.path.join(
+                    primary.remote.remote.root,
+                    primary.remote.read_only_snapshots_dir_name,
+                )
+            )
 
-        return len(os.listdir(snapshots_dir))
+        snapshots = set()
+        for snapshots_dir in snapshots_dirs:
+            if not os.path.isdir(snapshots_dir):
+                continue
 
-    def wait_for_at_least_one(net):
-        timeout_s = 10
-        end_time = time.time() + timeout_s
-        while time.time() < end_time:
-            count = get_snapshot_count(net)
-            if count > 0:
-                return count
+            for snapshot_name in os.listdir(snapshots_dir):
+                if ccf.ledger.is_snapshot_file_committed(snapshot_name):
+                    snapshots.add(snapshot_name)
 
-            time.sleep(0.1)
-        raise TimeoutError(f"Expected at least one snapshot after {timeout_s}s")
+        return snapshots
+
+    def count_new_snapshots(net, seen_snapshots):
+        current_snapshots = get_committed_snapshot_files(net)
+        new_snapshots = current_snapshots - seen_snapshots
+        seen_snapshots.update(current_snapshots)
+        return len(new_snapshots)
+
+    def get_bucketed_snapshot_counts(net, duration_s=20, sample_interval_s=1, seen_snapshots=None):
+        if seen_snapshots is None:
+            seen_snapshots = get_committed_snapshot_files(net)
+
+        sample_count = duration_s // sample_interval_s
+        buckets = []
+
+        for _ in range(sample_count):
+            time.sleep(sample_interval_s)
+            buckets.append(count_new_snapshots(net, seen_snapshots))
+
+        return buckets, seen_snapshots
+
+    def smoothed_snapshot_rate(snapshot_counts):
+        snapshot_counts = snapshot_counts[len(snapshot_counts) // 2:]
+        return sum(snapshot_counts) / len(snapshot_counts)
 
     # min_tx set low
     with net_with_min_tx("_low", 0) as net:
-        LOG.info("Started")
-        baseline = wait_for_at_least_one(net)
-        LOG.info("Got snapshot count")
-        time.sleep(10)
-        after = get_snapshot_count(net)
+        buckets, _ = get_bucketed_snapshot_counts(net)
+        rate = smoothed_snapshot_rate(buckets)
         assert (
-            after > baseline
-        ), f"min_tx_count set to 0 should cause many snapshots, got {after - baseline}"
+            rate > 0.5
+        ), f"min_tx_count set to 0 should snapshot about once per second, got {rate} from buckets {buckets}"
 
     # min_tx set just right
     with net_with_min_tx("_exact", 2) as net:
-        baseline = wait_for_at_least_one(net)
-        time.sleep(10)
-        after = get_snapshot_count(net)
+        buckets, seen_snapshots = get_bucketed_snapshot_counts(net)
+        rate = smoothed_snapshot_rate(buckets)
         assert (
-            after == baseline
-        ), f"With a exact min_tx we expect to not see any extra snapshots, got {after - baseline}"
+            rate < 0.1
+        ), f"With an exact min_tx we expect the startup snapshot rate to remain near zero, got {rate} from buckets {buckets}"
+
+        tx_id = net.txs.issue(net, number_txs=1)
+        primary, _ = net.find_primary()
+        net.get_committed_snapshots(
+            primary,
+            target_seqno=tx_id.seqno,
+            force_txs=False,
+            wait_for_target_seqno=True,
+        )
+        seen_snapshots.update(get_committed_snapshot_files(net))
+
+        buckets, _ = get_bucketed_snapshot_counts(net, seen_snapshots=seen_snapshots)
+        rate = smoothed_snapshot_rate(buckets)
+        assert (
+            rate < 0.1
+        ), f"With an exact min_tx we expect the snapshot rate to return near zero after the triggered snapshot, got {rate} from buckets {buckets}"
 
     # set much higher to show that
     with net_with_min_tx("_high", 10) as net:
-        baseline = wait_for_at_least_one(net)
-        time.sleep(10)
-        after = get_snapshot_count(net)
+        buckets, seen_snapshots = get_bucketed_snapshot_counts(net)
+        rate = smoothed_snapshot_rate(buckets)
         assert (
-            after == baseline
-        ), f"Expect no snapshots when min_tx is high, got {after - baseline}"
+            rate < 0.1
+        ), f"Expect the startup snapshot rate to remain near zero when min_tx is high, got {rate} from buckets {buckets}"
 
-        net.txs.issue(net, number_txs=1)
-        time.sleep(5)
-        after = get_snapshot_count(net)
+        tx_id = net.txs.issue(net, number_txs=1)
+        buckets, _ = get_bucketed_snapshot_counts(net, seen_snapshots=seen_snapshots)
+        rate = smoothed_snapshot_rate(buckets)
         assert (
-            after == baseline
-        ), f"Expect no snapshots when min_tx is high and only 1 tx issued, got {after - baseline}"
+            rate < 0.1
+        ), f"Expect the snapshot rate to remain near zero when min_tx is high and only one tx is issued, got {rate} from buckets {buckets}"
 
         net.txs.issue(net, number_txs=20)
-        time.sleep(5)
-        after = get_snapshot_count(net)
-        assert (
-            after > baseline
-        ), f"Expect at least one snapshot after issuing many txs, got {after - baseline}"
+        primary, _ = net.find_primary()
+        net.get_committed_snapshots(
+            primary,
+            target_seqno=tx_id.seqno,
+            force_txs=False,
+            wait_for_target_seqno=True,
+        )
 
 
 def run_snapshot_persistence_across_primary_failure(const_args):
