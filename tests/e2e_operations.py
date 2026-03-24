@@ -3107,8 +3107,11 @@ def run_time_based_snapshotting(const_args):
         return buckets, seen_snapshots
 
     def smoothed_snapshot_rate(snapshot_counts):
-        snapshot_counts = snapshot_counts[len(snapshot_counts) // 2:]
-        return sum(snapshot_counts) / len(snapshot_counts)
+        quarter = len(snapshot_counts) // 4
+        half = len(snapshot_counts) // 2
+        half_weighted = snapshot_counts[quarter:half]
+        full_weight = snapshot_counts[half:]
+        return (0.5 * sum(half_weighted) / len(half_weighted)) + sum(full_weight) / len(full_weight)
 
     # min_tx set low
     with net_with_min_tx("_low", 0) as net:
