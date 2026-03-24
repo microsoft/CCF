@@ -68,12 +68,7 @@ cd python && pytest
 
 ### Linting and formatting
 
-```bash
-scripts/ci-checks.sh        # Run all checks (concurrent)
-scripts/ci-checks.sh -f     # Auto-fix formatting and supported lint issues
-```
-
-This runs 12 checks concurrently: clang-format (C++), black (Python), ruff (Python lint), mypy (Python types), shellcheck, prettier (JS/TS/MD/YAML/JSON), cmake-format, copyright headers, include hygiene, OpenAPI schema validation, release notes, and TODO format.
+See [formatting-and-linting skill](/.github/skills/formatting-and-linting.md) for which scripts to run for each file type, and which support auto-fix.
 
 ### Documentation
 
