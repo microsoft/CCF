@@ -50,16 +50,48 @@ vector<uint8_t> make_contents()
   return contents;
 }
 
-static ccf::cbor::Value make_protected_headers(std::span<const uint8_t> kid)
+static const string bench_kid = "bench-kid";
+static const string bench_issuer = "bench-issuer";
+static const string bench_subject = "bench-subject";
+static const string bench_txid = "2.42";
+static const int64_t bench_iat = 1700000000;
+
+static ccf::cbor::Value make_protected_headers()
 {
   namespace cbor = ccf::cbor;
 
+  std::vector<cbor::MapItem> ccf_headers;
+  ccf_headers.emplace_back(
+    cbor::make_string(ccf::cose::header::custom::TX_ID),
+    cbor::make_string(bench_txid));
+
+  std::vector<cbor::MapItem> cwt_headers;
+  cwt_headers.emplace_back(
+    cbor::make_signed(ccf::cwt::header::iana::IAT),
+    cbor::make_signed(bench_iat));
+  cwt_headers.emplace_back(
+    cbor::make_signed(ccf::cwt::header::iana::ISS),
+    cbor::make_string(bench_issuer));
+  cwt_headers.emplace_back(
+    cbor::make_signed(ccf::cwt::header::iana::SUB),
+    cbor::make_string(bench_subject));
+
   std::vector<cbor::MapItem> phdr;
   phdr.emplace_back(
-    cbor::make_signed(ccf::cose::header::iana::KID), cbor::make_bytes(kid));
+    cbor::make_signed(ccf::cose::header::iana::KID),
+    cbor::make_bytes(std::span<const uint8_t>(
+      reinterpret_cast<const uint8_t*>(bench_kid.data()),
+      bench_kid.size())));
   phdr.emplace_back(
     cbor::make_signed(ccf::cose::header::iana::VDS),
     cbor::make_signed(ccf::cose::value::CCF_LEDGER_SHA256));
+  phdr.emplace_back(
+    cbor::make_signed(ccf::cose::header::iana::CWT_CLAIMS),
+    cbor::make_map(std::move(cwt_headers)));
+  phdr.emplace_back(
+    cbor::make_string(ccf::cose::header::custom::CCF_V1),
+    cbor::make_map(std::move(ccf_headers)));
+
   return cbor::make_map(std::move(phdr));
 }
 
@@ -68,15 +100,12 @@ static void benchmark_cose_sign(picobench::state& s)
 {
   ECKeyPair_OpenSSL kp(Curve);
   auto payload = make_contents<PayloadSize>();
-  auto kid_pem = kp.public_key_pem();
-  std::span<const uint8_t> kid(
-    reinterpret_cast<const uint8_t*>(kid_pem.data()), kid_pem.size());
 
   s.start_timer();
   for (auto _ : s)
   {
     (void)_;
-    auto phdr = make_protected_headers(kid);
+    auto phdr = make_protected_headers();
     auto envelope = cose_sign1(kp, phdr, payload);
     do_not_optimize(envelope);
     clobber_memory();
@@ -89,11 +118,8 @@ static void benchmark_cose_verify(picobench::state& s)
 {
   ECKeyPair_OpenSSL kp(Curve);
   auto payload = make_contents<PayloadSize>();
-  auto kid_pem = kp.public_key_pem();
-  std::span<const uint8_t> kid(
-    reinterpret_cast<const uint8_t*>(kid_pem.data()), kid_pem.size());
 
-  auto phdr = make_protected_headers(kid);
+  auto phdr = make_protected_headers();
   auto envelope = cose_sign1(kp, phdr, payload);
   auto verifier = make_cose_verifier_from_key(kp.public_key_pem());
 
