@@ -107,6 +107,49 @@ namespace snapshots
     } \
   } while (0)
 
+    static void cleanup_old_snapshots(const fs::path& dir, size_t max_retained)
+    {
+      std::vector<fs::path> directories{dir};
+      auto committed = find_committed_snapshots_in_directories(directories);
+
+      if (committed.size() > max_retained)
+      {
+        // committed is sorted descending by snapshot index, so the
+        // oldest are at the end
+        for (auto it = committed.rbegin();
+             it != committed.rend() - max_retained;
+             ++it)
+        {
+          const auto& path = it->second;
+          LOG_INFO_FMT(
+            "Deleting old snapshot {} (retaining {})",
+            path.filename(),
+            max_retained);
+          fs::remove(path);
+        }
+      }
+    }
+
+    struct SnapshotCleanupWork
+    {
+      fs::path dir;
+      size_t max_retained;
+    };
+
+    static void on_snapshot_cleanup(uv_work_t* req)
+    {
+      auto* work = static_cast<SnapshotCleanupWork*>(req->data);
+      cleanup_old_snapshots(work->dir, work->max_retained);
+    }
+
+    static void on_snapshot_cleanup_complete(uv_work_t* req, int /*status*/)
+    {
+      LOG_DEBUG_FMT("Snapshot cleanup completed");
+      delete static_cast<SnapshotCleanupWork*>(
+        req->data); // NOLINT(cppcoreguidelines-owning-memory)
+      delete req; // NOLINT(cppcoreguidelines-owning-memory)
+    }
+
     struct AsyncSnapshotSyncAndRename
     {
       // Inputs, populated at construction
@@ -138,31 +181,6 @@ namespace snapshots
 
       const auto full_tmp_path = data->dir / data->tmp_file_name;
       files::rename(full_tmp_path, full_committed_path);
-
-      // Delete oldest committed snapshots if max_retained is set
-      if (data->max_retained.has_value())
-      {
-        const auto max_retained = data->max_retained.value();
-        std::vector<fs::path> directories{data->dir};
-        auto committed = find_committed_snapshots_in_directories(directories);
-
-        if (committed.size() > max_retained)
-        {
-          // committed is sorted descending by snapshot index, so the
-          // oldest are at the end
-          for (auto it = committed.rbegin();
-               it != committed.rend() - max_retained;
-               ++it)
-          {
-            const auto& path = it->second;
-            LOG_INFO_FMT(
-              "Deleting old snapshot {} (retaining {})",
-              path.filename(),
-              max_retained);
-            fs::remove(path);
-          }
-        }
-      }
     }
 
     static void on_snapshot_sync_and_rename_complete(
@@ -174,6 +192,25 @@ namespace snapshots
         "Renamed temporary snapshot {} to {}",
         data->tmp_file_name,
         data->committed_file_name);
+
+      // Schedule cleanup of old snapshots as a separate worker task now
+      // that we know the rename is complete and a new snapshot is available
+#ifndef TEST_MODE_EXECUTE_SYNC_INLINE
+      if (data->max_retained.has_value())
+      {
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        auto* cleanup_work = new SnapshotCleanupWork{
+          .dir = data->dir, .max_retained = data->max_retained.value()};
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        auto* work_handle = new uv_work_t;
+        work_handle->data = cleanup_work;
+        uv_queue_work(
+          req->loop,
+          work_handle,
+          &on_snapshot_cleanup,
+          &on_snapshot_cleanup_complete);
+      }
+#endif
 
       delete data; // NOLINT(cppcoreguidelines-owning-memory)
       delete req; // NOLINT(cppcoreguidelines-owning-memory)
@@ -265,6 +302,13 @@ namespace snapshots
 #ifdef TEST_MODE_EXECUTE_SYNC_INLINE
               on_snapshot_sync_and_rename(work_handle);
               on_snapshot_sync_and_rename_complete(work_handle, 0);
+              // In test mode there is no event loop, so run cleanup
+              // synchronously
+              if (max_retained_snapshot_files.has_value())
+              {
+                cleanup_old_snapshots(
+                  snapshot_dir, max_retained_snapshot_files.value());
+              }
 #else
               uv_queue_work(
                 uv_default_loop(),
