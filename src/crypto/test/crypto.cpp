@@ -18,7 +18,6 @@
 #include "crypto/certs.h"
 #include "crypto/cose.h"
 #include "crypto/csr.h"
-#include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/cose_verifier.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "crypto/openssl/rsa_key_pair.h"
@@ -32,8 +31,6 @@
 #include <doctest/doctest.h>
 #include <optional>
 #include <span>
-#include <t_cose/t_cose_sign1_sign.h>
-#include <t_cose/t_cose_sign1_verify.h>
 
 using namespace std;
 using namespace ccf::crypto;
@@ -195,81 +192,6 @@ ccf::crypto::Pem generate_self_signed_cert(
 
   return ccf::crypto::create_self_signed_cert(
     kp, name, {}, valid_from, certificate_validity_period_days);
-}
-
-t_cose_err_t verify_detached(
-  EVP_PKEY* key, std::span<const uint8_t> buf, std::span<const uint8_t> payload)
-{
-  t_cose_key cose_key;
-  cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
-  cose_key.k.key_ptr = key;
-
-  t_cose_sign1_verify_ctx verify_ctx;
-  t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_TAG_REQUIRED);
-  t_cose_sign1_set_verification_key(&verify_ctx, cose_key);
-
-  q_useful_buf_c buf_;
-  buf_.ptr = buf.data();
-  buf_.len = buf.size();
-
-  q_useful_buf_c payload_;
-  payload_.ptr = payload.data();
-  payload_.len = payload.size();
-
-  t_cose_err_t error = t_cose_sign1_verify_detached(
-    &verify_ctx, buf_, NULL_Q_USEFUL_BUF_C, payload_, nullptr);
-
-  return error;
-}
-
-void require_match_headers(
-  std::pair<int64_t, std::optional<int64_t>> kv1,
-  std::pair<int64_t, std::optional<std::string_view>> kv2,
-  std::pair<std::string_view, std::optional<int64_t>> kv3,
-  std::pair<std::string_view, std::optional<std::string_view>> kv4,
-  const std::vector<uint8_t>& cose_sign)
-{
-  auto decoded = ccf::cbor::parse(cose_sign);
-
-  const auto& as_cose = decoded->tag_at(ccf::cbor::tag::COSE_SIGN_1);
-  const auto& raw_phdr = as_cose->array_at(0)->as_bytes();
-
-  auto phdr = ccf::cbor::parse(raw_phdr);
-
-  // 'alg'
-  REQUIRE_NOTHROW((void)phdr->map_at(ccf::cbor::make_signed(1)));
-
-  if (kv1.second)
-    REQUIRE_EQ(
-      phdr->map_at(ccf::cbor::make_signed(kv1.first))->as_signed(),
-      *kv1.second);
-  else
-    REQUIRE_THROWS(
-      (void)phdr->map_at(ccf::cbor::make_signed(kv1.first))->as_signed());
-
-  if (kv2.second)
-    REQUIRE_EQ(
-      phdr->map_at(ccf::cbor::make_signed(kv2.first))->as_string(),
-      *kv2.second);
-  else
-    REQUIRE_THROWS(
-      (void)phdr->map_at(ccf::cbor::make_signed(kv2.first))->as_string());
-
-  if (kv3.second)
-    REQUIRE_EQ(
-      phdr->map_at(ccf::cbor::make_string(kv3.first))->as_signed(),
-      *kv3.second);
-  else
-    REQUIRE_THROWS(
-      (void)phdr->map_at(ccf::cbor::make_string(kv3.first))->as_signed());
-
-  if (kv4.second)
-    REQUIRE_EQ(
-      phdr->map_at(ccf::cbor::make_string(kv4.first))->as_string(),
-      *kv4.second);
-  else
-    REQUIRE_THROWS(
-      (void)phdr->map_at(ccf::cbor::make_string(kv4.first))->as_string());
 }
 
 TEST_CASE("Check verifier handles nested certs for both PEM and DER inputs")
@@ -1284,68 +1206,6 @@ TEST_CASE("Sign and verify with RSA key")
       RSAPadding::PKCS_PSS,
       verify_salt_legth));
   }
-}
-
-TEST_CASE("COSE sign & verify")
-{
-  std::shared_ptr<ECKeyPair_OpenSSL> kp =
-    std::dynamic_pointer_cast<ECKeyPair_OpenSSL>(
-      ccf::crypto::make_ec_key_pair(CurveID::SECP384R1));
-
-  std::vector<uint8_t> payload{1, 10, 42, 43, 44, 45, 100};
-
-  using namespace ccf;
-  std::vector<cbor::MapItem> phdr;
-
-  phdr.emplace_back(cbor::make_signed(35), cbor::make_signed(53));
-  phdr.emplace_back(cbor::make_signed(36), cbor::make_string("thirsty six"));
-  phdr.emplace_back(cbor::make_string("hungry seven"), cbor::make_signed(47));
-  phdr.emplace_back(
-    cbor::make_string("string key"), cbor::make_string("string value"));
-
-  auto phdr_map = cbor::make_map(std::move(phdr));
-  auto cose_sign = cose_sign1(*kp, phdr_map, payload);
-
-  if constexpr (false) // enable to see the whole cose_sign as byte string
-  {
-    std::cout << "Public key: " << kp->public_key_pem().str() << std::endl;
-    std::cout << "Serialised cose: " << std::hex << std::uppercase
-              << std::setw(2) << std::setfill('0');
-    for (uint8_t x : cose_sign)
-      std::cout << static_cast<int>(x) << ' ';
-    std::cout << std::endl;
-    std::cout << "Raw payload: ";
-    for (uint8_t x : payload)
-      std::cout << static_cast<int>(x) << ' ';
-    std::cout << std::endl;
-  }
-
-  require_match_headers(
-    {35, 53},
-    {36, "thirsty six"},
-    {"hungry seven", 47},
-    {"string key", "string value"},
-    cose_sign);
-
-  auto cose_verifier =
-    ccf::crypto::make_cose_verifier_from_key(kp->public_key_pem());
-
-  REQUIRE(cose_verifier->verify_detached(cose_sign, payload));
-
-  // Wrong payload, must not pass verification.
-  REQUIRE_FALSE(
-    cose_verifier->verify_detached(cose_sign, std::vector<uint8_t>{1, 2, 3}));
-
-  // Empty headers and payload handled correctly
-  cose_sign = cose_sign1(*kp, ccf::cbor::make_map({}), {});
-  require_match_headers(
-    {35, std::nullopt},
-    {36, std::nullopt},
-    {"hungry seven", std::nullopt},
-    {"string key", std::nullopt},
-    cose_sign);
-
-  REQUIRE(cose_verifier->verify_detached(cose_sign, {}));
 }
 
 TEST_CASE("COSE algorithm validation")
