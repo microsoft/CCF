@@ -4,6 +4,23 @@
 use cose_openssl::{CborValue, EvpKey};
 use std::slice;
 
+/// Write an error message string into caller-provided output pointers.
+///
+/// If `err_ptr` and `err_len` are both non-null the message is heap-allocated
+/// with `Box<[u8]>` and ownership is transferred to the caller (who must free
+/// it with `cose_free`).  When either pointer is null the message is silently
+/// dropped.
+unsafe fn set_error(msg: &str, err_ptr: *mut *mut u8, err_len: *mut usize) {
+    if err_ptr.is_null() || err_len.is_null() {
+        return;
+    }
+    let bytes = msg.as_bytes().to_vec().into_boxed_slice();
+    unsafe {
+        *err_len = bytes.len();
+        *err_ptr = Box::into_raw(bytes) as *mut u8;
+    }
+}
+
 // COSE/CWT header labels (matching CCF's C++ constants).
 const CWT_CLAIMS: i64 = 15;
 const KID: i64 = 4;
@@ -98,6 +115,9 @@ fn build_endorsement_phdr(
 /// `epoch_end_ptr`/`epoch_end_len` and `prev_root_ptr`/`prev_root_len` may be
 /// null/0 if not applicable.
 ///
+/// On failure the error message is written to `err_ptr`/`err_len` (if
+/// non-null).  The caller must free it with `cose_free`.
+///
 /// # Safety
 /// `key` must be a valid pointer from `cose_key_from_der_private`.
 /// All pointer+length pairs must be valid.
@@ -115,8 +135,11 @@ pub unsafe extern "C" fn cose_sign_endorsement(
     payload_len: usize,
     out_ptr: *mut *mut u8,
     out_len: *mut usize,
+    err_ptr: *mut *mut u8,
+    err_len: *mut usize,
 ) -> i32 {
     if key.is_null() {
+        unsafe { set_error("key is null", err_ptr, err_len) };
         return -1;
     }
     let result = std::panic::catch_unwind(|| unsafe {
@@ -140,7 +163,14 @@ pub unsafe extern "C" fn cose_sign_endorsement(
             std::mem::forget(buf);
             0
         },
-        _ => -1,
+        Ok(Err(e)) => unsafe {
+            set_error(&e, err_ptr, err_len);
+            -1
+        },
+        Err(_) => unsafe {
+            set_error("panic during cose_sign_endorsement", err_ptr, err_len);
+            -1
+        },
     }
 }
 
@@ -148,12 +178,17 @@ pub unsafe extern "C" fn cose_sign_endorsement(
 /// Returns a pointer to the key, or null on failure.
 /// The caller must free the key with `cose_key_free`.
 ///
+/// On failure the error message is written to `err_ptr`/`err_len` (if
+/// non-null).  The caller must free it with `cose_free`.
+///
 /// # Safety
 /// `key_der_ptr` must point to `key_der_len` valid bytes.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cose_key_from_der_private(
     key_der_ptr: *const u8,
     key_der_len: usize,
+    err_ptr: *mut *mut u8,
+    err_len: *mut usize,
 ) -> *mut EvpKey {
     let result = std::panic::catch_unwind(|| unsafe {
         let key_der = slice_from_raw(key_der_ptr, key_der_len);
@@ -162,7 +197,14 @@ pub unsafe extern "C" fn cose_key_from_der_private(
 
     match result {
         Ok(Ok(key)) => Box::into_raw(Box::new(key)),
-        _ => std::ptr::null_mut(),
+        Ok(Err(e)) => unsafe {
+            set_error(&e, err_ptr, err_len);
+            std::ptr::null_mut()
+        },
+        Err(_) => unsafe {
+            set_error("panic during cose_key_from_der_private", err_ptr, err_len);
+            std::ptr::null_mut()
+        },
     }
 }
 
@@ -181,6 +223,9 @@ pub unsafe extern "C" fn cose_key_free(key: *mut EvpKey) {
 }
 
 /// Sign a ledger signature using a pre-created key handle.
+///
+/// On failure the error message is written to `err_ptr`/`err_len` (if
+/// non-null).  The caller must free it with `cose_free`.
 ///
 /// # Safety
 /// `key` must be a valid pointer from `cose_key_from_der_private`.
@@ -201,8 +246,11 @@ pub unsafe extern "C" fn cose_sign_ledger(
     payload_len: usize,
     out_ptr: *mut *mut u8,
     out_len: *mut usize,
+    err_ptr: *mut *mut u8,
+    err_len: *mut usize,
 ) -> i32 {
     if key.is_null() {
+        unsafe { set_error("key is null", err_ptr, err_len) };
         return -1;
     }
     let result = std::panic::catch_unwind(|| unsafe {
@@ -227,7 +275,14 @@ pub unsafe extern "C" fn cose_sign_ledger(
             std::mem::forget(buf);
             0
         },
-        _ => -1,
+        Ok(Err(e)) => unsafe {
+            set_error(&e, err_ptr, err_len);
+            -1
+        },
+        Err(_) => unsafe {
+            set_error("panic during cose_sign_ledger", err_ptr, err_len);
+            -1
+        },
     }
 }
 
@@ -253,6 +308,9 @@ pub unsafe extern "C" fn cose_free(ptr: *mut u8, len: usize) {
 ///
 /// Returns 0 on successful verification, non-zero on failure.
 ///
+/// On failure the error message is written to `err_ptr`/`err_len` (if
+/// non-null).  The caller must free it with `cose_free`.
+///
 /// # Safety
 /// All pointer+length pairs must be valid.
 #[unsafe(no_mangle)]
@@ -266,6 +324,8 @@ pub unsafe extern "C" fn cose_verify1(
     payload_len: usize,
     sig_ptr: *const u8,
     sig_len: usize,
+    err_ptr: *mut *mut u8,
+    err_len: *mut usize,
 ) -> i32 {
     let result = std::panic::catch_unwind(|| unsafe {
         let key_der = slice_from_raw(key_pub_der_ptr, key_pub_der_len);
@@ -285,6 +345,13 @@ pub unsafe extern "C" fn cose_verify1(
 
     match result {
         Ok(Ok(rc)) => rc,
-        _ => -1,
+        Ok(Err(e)) => unsafe {
+            set_error(&e, err_ptr, err_len);
+            -1
+        },
+        Err(_) => unsafe {
+            set_error("panic during cose_verify1", err_ptr, err_len);
+            -1
+        },
     }
 }

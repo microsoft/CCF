@@ -16,6 +16,38 @@ unsafe extern "C" {
         name_sz: usize,
         gname_len: *mut usize,
     ) -> std::ffi::c_int;
+
+    fn ERR_error_string_n(
+        e: std::ffi::c_ulong,
+        buf: *mut std::ffi::c_char,
+        len: usize,
+    );
+}
+
+/// Drain the OpenSSL error queue and return the last (newest) error.
+pub(crate) fn ossl_err_string() -> String {
+    unsafe {
+        let mut last_code: std::ffi::c_ulong = 0;
+        loop {
+            let code = ossl::ERR_get_error();
+            if code == 0 {
+                break;
+            }
+            last_code = code;
+        }
+        if last_code == 0 {
+            return "(no OpenSSL error)".to_string();
+        }
+        let mut buf = [0u8; 256];
+        ERR_error_string_n(
+            last_code,
+            buf.as_mut_ptr() as *mut std::ffi::c_char,
+            buf.len(),
+        );
+        std::ffi::CStr::from_ptr(buf.as_ptr() as *const std::ffi::c_char)
+            .to_string_lossy()
+            .into_owned()
+    }
 }
 
 #[cfg(feature = "pqc")]
@@ -131,7 +163,10 @@ impl EvpKey {
             };
 
             if key.is_null() {
-                return Err("Failed to create signing key".to_string());
+                return Err(format!(
+                    "EVP_PKEY_Q_keygen failed: {}",
+                    ossl_err_string()
+                ));
             }
 
             Ok(EvpKey { key, typ })
@@ -146,7 +181,10 @@ impl EvpKey {
             let key =
                 ossl::d2i_PUBKEY(ptr::null_mut(), &mut ptr, der.len() as i64);
             if key.is_null() {
-                return Err("Failed to parse DER public key".to_string());
+                return Err(format!(
+                    "d2i_PUBKEY failed: {}",
+                    ossl_err_string()
+                ));
             }
             key
         };
@@ -176,7 +214,10 @@ impl EvpKey {
                 der.len() as i64,
             );
             if key.is_null() {
-                return Err("Failed to parse DER private key".to_string());
+                return Err(format!(
+                    "d2i_AutoPrivateKey failed: {}",
+                    ossl_err_string()
+                ));
             }
             key
         };
@@ -220,7 +261,10 @@ impl EvpKey {
                     &mut len,
                 ) != 1
                 {
-                    return Err("Failed to get EC group name".to_string());
+                    return Err(format!(
+                        "EVP_PKEY_get_group_name failed: {}",
+                        ossl_err_string()
+                    ));
                 }
                 let group = std::str::from_utf8(&buf[..len])
                     .map_err(|_| "EC group name is not UTF-8".to_string())?;
@@ -253,8 +297,9 @@ impl EvpKey {
 
             if len <= 0 || der_ptr.is_null() {
                 return Err(format!(
-                    "Failed to encode public key to DER (rc={})",
-                    len
+                    "i2d_PUBKEY returned {}: {}",
+                    len,
+                    ossl_err_string()
                 ));
             }
 
@@ -279,8 +324,9 @@ impl EvpKey {
 
             if len <= 0 || der_ptr.is_null() {
                 return Err(format!(
-                    "Failed to encode private key to DER (rc={})",
-                    len
+                    "i2d_PrivateKey returned {}: {}",
+                    len,
+                    ossl_err_string()
                 ));
             }
 
@@ -305,7 +351,10 @@ impl EvpKey {
         unsafe {
             let bits = ossl::EVP_PKEY_bits(self.key);
             if bits <= 0 {
-                return Err("EVP_PKEY_bits failed".to_string());
+                return Err(format!(
+                    "EVP_PKEY_bits failed: {}",
+                    ossl_err_string()
+                ));
             }
             Ok(((bits + 7) / 8) as usize)
         }
@@ -363,7 +412,7 @@ pub fn ecdsa_der_to_fixed(
             der.len() as std::ffi::c_long,
         );
         if sig.is_null() {
-            return Err("Failed to parse DER ECDSA signature".to_string());
+            return Err(format!("d2i_ECDSA_SIG failed: {}", ossl_err_string()));
         }
 
         let mut r: *const ossl::BIGNUM = ptr::null();
@@ -386,7 +435,7 @@ pub fn ecdsa_der_to_fixed(
         if rc_r != field_size as std::ffi::c_int
             || rc_s != field_size as std::ffi::c_int
         {
-            return Err("BN_bn2binpad failed for ECDSA r or s".to_string());
+            return Err(format!("BN_bn2binpad failed: {}", ossl_err_string()));
         }
 
         Ok(fixed)
@@ -413,7 +462,7 @@ pub fn ecdsa_fixed_to_der(
             ptr::null_mut(),
         );
         if r.is_null() {
-            return Err("BN_bin2bn failed for ECDSA r".to_string());
+            return Err(format!("BN_bin2bn failed (r): {}", ossl_err_string()));
         }
 
         let s = ossl::BN_bin2bn(
@@ -423,21 +472,24 @@ pub fn ecdsa_fixed_to_der(
         );
         if s.is_null() {
             ossl::BN_free(r);
-            return Err("BN_bin2bn failed for ECDSA s".to_string());
+            return Err(format!("BN_bin2bn failed (s): {}", ossl_err_string()));
         }
 
         let sig = ossl::ECDSA_SIG_new();
         if sig.is_null() {
             ossl::BN_free(r);
             ossl::BN_free(s);
-            return Err("ECDSA_SIG_new failed".to_string());
+            return Err(format!("ECDSA_SIG_new failed: {}", ossl_err_string()));
         }
 
         if ossl::ECDSA_SIG_set0(sig, r, s) != 1 {
             ossl::ECDSA_SIG_free(sig);
             ossl::BN_free(r);
             ossl::BN_free(s);
-            return Err("ECDSA_SIG_set0 failed".to_string());
+            return Err(format!(
+                "ECDSA_SIG_set0 failed: {}",
+                ossl_err_string()
+            ));
         }
         // ECDSA_SIG_set0 takes ownership of r and s on success.
 
@@ -446,7 +498,7 @@ pub fn ecdsa_fixed_to_der(
         ossl::ECDSA_SIG_free(sig);
 
         if len <= 0 || out_ptr.is_null() {
-            return Err("i2d_ECDSA_SIG failed".to_string());
+            return Err(format!("i2d_ECDSA_SIG failed: {}", ossl_err_string()));
         }
 
         let der = std::slice::from_raw_parts(out_ptr, len as usize).to_vec();
@@ -546,17 +598,18 @@ impl<T: ContextInit> EvpMdContext<T> {
             let ctx = ossl::EVP_MD_CTX_new();
             if ctx.is_null() {
                 return Err(format!(
-                    "Failed to create ctx for: {}",
-                    T::purpose()
+                    "EVP_MD_CTX_new failed: {}",
+                    ossl_err_string()
                 ));
             }
             let mut pctx: *mut ossl::EVP_PKEY_CTX = ptr::null_mut();
             if let Err(err) = T::init(ctx, md, key.key, &mut pctx) {
                 ossl::EVP_MD_CTX_free(ctx);
                 return Err(format!(
-                    "Failed to init context for {} with err {}",
+                    "EVP_Digest{}Init returned {}: {}",
                     T::purpose(),
-                    err
+                    err,
+                    ossl_err_string()
                 ));
             }
             // For RSA keys, configure PSS padding.
@@ -568,7 +621,10 @@ impl<T: ContextInit> EvpMdContext<T> {
                 ) != 1
                 {
                     ossl::EVP_MD_CTX_free(ctx);
-                    return Err("Failed to set RSA PSS padding".into());
+                    return Err(format!(
+                        "EVP_PKEY_CTX_set_rsa_padding failed: {}",
+                        ossl_err_string()
+                    ));
                 }
                 if ossl::EVP_PKEY_CTX_set_rsa_pss_saltlen(
                     pctx,
@@ -576,7 +632,10 @@ impl<T: ContextInit> EvpMdContext<T> {
                 ) != 1
                 {
                     ossl::EVP_MD_CTX_free(ctx);
-                    return Err("Failed to set RSA PSS salt length".into());
+                    return Err(format!(
+                        "EVP_PKEY_CTX_set_rsa_pss_saltlen failed: {}",
+                        ossl_err_string()
+                    ));
                 }
             }
             Ok(EvpMdContext {
@@ -698,12 +757,22 @@ mod tests {
 
     #[test]
     fn from_der_rejects_garbage() {
-        assert!(EvpKey::from_der_public(&[0xde, 0xad, 0xbe, 0xef]).is_err());
+        let err =
+            EvpKey::from_der_public(&[0xde, 0xad, 0xbe, 0xef]).unwrap_err();
+        assert!(
+            err.starts_with("d2i_PUBKEY failed: error:"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]
     fn from_der_private_rejects_garbage() {
-        assert!(EvpKey::from_der_private(&[0xde, 0xad, 0xbe, 0xef]).is_err());
+        let err =
+            EvpKey::from_der_private(&[0xde, 0xad, 0xbe, 0xef]).unwrap_err();
+        assert!(
+            err.starts_with("d2i_AutoPrivateKey failed: error:"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]
@@ -774,5 +843,49 @@ mod tests {
         // detect it if not ignored.
         let key = EvpKey::new(KeyType::EC(WhichEC::P256)).unwrap();
         std::mem::forget(key);
+    }
+
+    // ---------------------------------------------------------------
+    // Tests verifying exact OpenSSL errors in Err values
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn from_der_public_error_has_ossl_detail() {
+        let err =
+            EvpKey::from_der_public(&[0xde, 0xad, 0xbe, 0xef]).unwrap_err();
+        assert!(
+            err.starts_with("d2i_PUBKEY failed: error:"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn from_der_private_error_has_ossl_detail() {
+        let err =
+            EvpKey::from_der_private(&[0xde, 0xad, 0xbe, 0xef]).unwrap_err();
+        assert!(
+            err.starts_with("d2i_AutoPrivateKey failed: error:"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn ecdsa_der_to_fixed_error() {
+        assert_eq!(
+            ecdsa_der_to_fixed(&[0xff, 0xff], 32).unwrap_err(),
+            "d2i_ECDSA_SIG failed: (no OpenSSL error)",
+        );
+    }
+
+    #[test]
+    fn sign_with_public_only_key_error_has_ossl_detail() {
+        let key = EvpKey::new(KeyType::EC(WhichEC::P256)).unwrap();
+        let pub_der = key.to_der_public().unwrap();
+        let pub_key = EvpKey::from_der_public(&pub_der).unwrap();
+        let err = crate::sign::sign(&pub_key, b"test message").unwrap_err();
+        assert!(
+            err.starts_with("EVP_DigestSign returned 0: error:"),
+            "unexpected error: {err}"
+        );
     }
 }

@@ -372,12 +372,19 @@ namespace ccf
       if (it == cose_key_cache.end())
       {
         auto key_der = service_kp.private_key_der();
-        auto [inserted, _] =
-          cose_key_cache.emplace(kid, CoseKey(key_der.data(), key_der.size()));
+        CoseBuffer key_err;
+        auto [inserted, _] = cose_key_cache.emplace(
+          kid, CoseKey(key_der.data(), key_der.size(), key_err));
+        if (key_err.is_set())
+        {
+          throw std::runtime_error(fmt::format(
+            "cose_key_from_der_private failed: {}", key_err.to_string()));
+        }
         it = inserted;
       }
 
       CoseBuffer cose_buf;
+      CoseBuffer cose_err;
       auto rc = cose_sign_ledger(
         it->second,
         reinterpret_cast<const uint8_t*>(kid.data()),
@@ -391,10 +398,13 @@ namespace ccf
         tx_id.size(),
         root_hash.data(),
         root_hash.size(),
-        cose_buf);
-      if (rc != 0 || !cose_buf.ok())
+        cose_buf,
+        cose_err);
+      if (rc != 0 || !cose_buf.is_set())
       {
-        throw std::runtime_error("cose_sign_ledger failed");
+        throw std::runtime_error(fmt::format(
+          "cose_sign_ledger failed: {}",
+          cose_err.is_set() ? cose_err.to_string() : "unknown error"));
       }
       std::vector<uint8_t> cose_sign(cose_buf.to_vector());
 

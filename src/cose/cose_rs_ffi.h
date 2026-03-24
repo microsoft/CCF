@@ -11,20 +11,26 @@ extern "C"
 {
 #endif
 
-  /// Opaque handle to a Rust-managed signing key.
+  /// Opaque handle to a signing key (Rust-managed).
   struct CoseEvpKey;
 
   /// Create a signing key from DER-encoded private key bytes.
   /// Returns an opaque pointer, or NULL on failure.
-  /// The caller must free the key with cose_key_free.
+  /// On failure, if err_ptr/err_len are non-null, an error message
+  /// is written there.
   CoseEvpKey* cose_key_from_der_private(
-    const uint8_t* key_der_ptr, size_t key_der_len);
+    const uint8_t* key_der_ptr,
+    size_t key_der_len,
+    uint8_t** err_ptr,
+    size_t* err_len);
 
   /// Free a key created by cose_key_from_der_private.
   void cose_key_free(CoseEvpKey* key);
 
   /// Sign a CCF ledger signature using a pre-created key handle.
   /// Returns 0 on success, non-zero on failure.
+  /// On failure, if err_ptr/err_len are non-null, an error message
+  /// is written there.
   int cose_sign_ledger(
     const CoseEvpKey* key,
     const uint8_t* kid_ptr,
@@ -39,11 +45,15 @@ extern "C"
     const uint8_t* payload_ptr,
     size_t payload_len,
     uint8_t** out_ptr,
-    size_t* out_len);
+    size_t* out_len,
+    uint8_t** err_ptr,
+    size_t* err_len);
 
   /// Sign a CCF identity endorsement (COSE_Sign1, embedded payload).
   /// epoch_end and prev_root may be NULL/0 if not applicable.
   /// Returns 0 on success, non-zero on failure.
+  /// On failure, if err_ptr/err_len are non-null, an error message
+  /// is written there.
   int cose_sign_endorsement(
     const CoseEvpKey* key,
     int64_t iat,
@@ -56,14 +66,15 @@ extern "C"
     const uint8_t* payload_ptr,
     size_t payload_len,
     uint8_t** out_ptr,
-    size_t* out_len);
+    size_t* out_len,
+    uint8_t** err_ptr,
+    size_t* err_len);
 
   /// Verify a COSE_Sign1 from pre-parsed components.
   /// alg: COSE algorithm integer (e.g. -7 for ES256).
-  /// phdr_cbor_ptr/phdr_cbor_len: serialized CBOR protected header bytes.
-  /// payload_ptr/payload_len: raw payload bytes (not CBOR-wrapped).
-  /// sig_ptr/sig_len: the fixed-size signature bytes.
   /// Returns 0 on successful verification, non-zero on failure.
+  /// On failure, if err_ptr/err_len are non-null, an error message
+  /// is written there.
   int cose_verify1(
     const uint8_t* key_pub_der_ptr,
     size_t key_pub_der_len,
@@ -73,19 +84,27 @@ extern "C"
     const uint8_t* payload_ptr,
     size_t payload_len,
     const uint8_t* sig_ptr,
-    size_t sig_len);
+    size_t sig_len,
+    uint8_t** err_ptr,
+    size_t* err_len);
 
-  /// Free a buffer returned by cose_sign_*.
+  /// Free a byte buffer or error string allocated by any cose_* call.
   void cose_free(uint8_t* ptr, size_t len);
 
 #ifdef __cplusplus
 }
 
 #  include <stdexcept>
+#  include <string>
 #  include <vector>
 
-/// RAII wrapper for buffers allocated by cose_sign_* FFI functions.
-/// Automatically calls cose_free on destruction.
+/// RAII wrapper for a byte buffer allocated by a COSE FFI call.
+/// On destruction any held buffer is freed automatically via cose_free.
+/// Pass data()/size() to FFI functions that accept ptr/len output pairs.
+///
+/// Used for both output envelopes and error strings:
+///   is_set() / to_vector()  — for sign output buffers.
+///   is_set() / to_string() — for error strings.
 class CoseBuffer
 {
   uint8_t* ptr = nullptr;
@@ -140,19 +159,32 @@ public:
     }
   }
 
+  // -- Buffer accessors --
+
   [[nodiscard]] std::vector<uint8_t> to_vector() const
   {
     return {ptr, ptr + len};
   }
 
-  [[nodiscard]] bool ok() const
+  [[nodiscard]] std::string to_string() const
+  {
+    if (ptr != nullptr && len > 0)
+    {
+      return {reinterpret_cast<const char*>(ptr), len};
+    }
+    return {};
+  }
+
+  [[nodiscard]] bool is_set() const
   {
     return ptr != nullptr && len > 0;
   }
 };
 
-/// RAII wrapper for a Rust-managed signing key.
-/// Automatically calls cose_key_free on destruction.
+/// RAII wrapper for a signing key created from DER-encoded private key bytes.
+/// On destruction the underlying key is freed automatically.
+/// Pass a CoseBuffer& to the constructor; on failure is_set() returns false
+/// and the CoseBuffer holds the reason.
 class CoseKey
 {
   CoseEvpKey* key = nullptr;
@@ -160,8 +192,8 @@ class CoseKey
 public:
   CoseKey() = default;
 
-  CoseKey(const uint8_t* der_ptr, size_t der_len) :
-    key(cose_key_from_der_private(der_ptr, der_len))
+  CoseKey(const uint8_t* der_ptr, size_t der_len, CoseBuffer& err) :
+    key(cose_key_from_der_private(der_ptr, der_len, err.data(), err.size()))
   {}
 
   CoseKey(const CoseKey&) = delete;
@@ -202,12 +234,15 @@ public:
     return key;
   }
 
-  [[nodiscard]] bool ok() const
+  [[nodiscard]] bool is_set() const
   {
     return key != nullptr;
   }
 };
 
+/// Sign a CCF ledger signature using a pre-created key handle.
+/// Returns 0 on success, non-zero on failure.
+/// On failure the CoseBuffer holds the error message.
 inline int cose_sign_ledger(
   const CoseKey& key,
   const uint8_t* kid_ptr,
@@ -221,7 +256,8 @@ inline int cose_sign_ledger(
   size_t txid_len,
   const uint8_t* payload_ptr,
   size_t payload_len,
-  CoseBuffer& out)
+  CoseBuffer& out,
+  CoseBuffer& err)
 {
   return ::cose_sign_ledger(
     key.get(),
@@ -237,9 +273,15 @@ inline int cose_sign_ledger(
     payload_ptr,
     payload_len,
     out.data(),
-    out.size());
+    out.size(),
+    err.data(),
+    err.size());
 }
 
+/// Sign a CCF identity endorsement (COSE_Sign1, embedded payload).
+/// epoch_end and prev_root may be nullptr/0 if not applicable.
+/// Returns 0 on success, non-zero on failure.
+/// On failure the CoseBuffer holds the error message.
 inline int cose_sign_endorsement(
   const CoseKey& key,
   int64_t iat,
@@ -251,7 +293,8 @@ inline int cose_sign_endorsement(
   size_t prev_root_len,
   const uint8_t* payload_ptr,
   size_t payload_len,
-  CoseBuffer& out)
+  CoseBuffer& out,
+  CoseBuffer& err)
 {
   return ::cose_sign_endorsement(
     key.get(),
@@ -265,7 +308,9 @@ inline int cose_sign_endorsement(
     payload_ptr,
     payload_len,
     out.data(),
-    out.size());
+    out.size(),
+    err.data(),
+    err.size());
 }
 
 #endif

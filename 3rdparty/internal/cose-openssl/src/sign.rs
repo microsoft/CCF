@@ -1,4 +1,4 @@
-use crate::ossl_wrappers::{EvpKey, EvpMdContext, SignOp};
+use crate::ossl_wrappers::{EvpKey, EvpMdContext, SignOp, ossl_err_string};
 
 use openssl_sys as ossl;
 use std::ptr;
@@ -33,7 +33,11 @@ fn sign_with_ctx(
             msg.len(),
         );
         if res != 1 {
-            return Err(format!("Failed to get signature size, err: {}", res));
+            return Err(format!(
+                "EVP_DigestSign (get size) returned {}: {}",
+                res,
+                ossl_err_string()
+            ));
         }
 
         let mut sig = vec![0u8; sig_size];
@@ -45,7 +49,11 @@ fn sign_with_ctx(
             msg.len(),
         );
         if res != 1 {
-            return Err(format!("Failed to sign, err: {}", res));
+            return Err(format!(
+                "EVP_DigestSign returned {}: {}",
+                res,
+                ossl_err_string()
+            ));
         }
 
         // Not always fixed size, e.g. for EC keys. More on this here:
@@ -53,5 +61,64 @@ fn sign_with_ctx(
         sig.truncate(sig_size);
 
         Ok(sig)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ossl_wrappers::{EvpKey, KeyType, WhichEC, WhichRSA};
+
+    #[test]
+    fn sign_ec_succeeds() {
+        let key = EvpKey::new(KeyType::EC(WhichEC::P256)).unwrap();
+        let sig = sign(&key, b"hello");
+        assert!(sig.is_ok());
+        assert!(!sig.unwrap().is_empty());
+    }
+
+    #[test]
+    fn sign_rsa_succeeds() {
+        let key = EvpKey::new(KeyType::RSA(WhichRSA::PS256)).unwrap();
+        let sig = sign(&key, b"hello");
+        assert!(sig.is_ok());
+        assert!(!sig.unwrap().is_empty());
+    }
+
+    #[test]
+    fn sign_with_public_only_ec_key_fails_with_ossl_detail() {
+        let key = EvpKey::new(KeyType::EC(WhichEC::P256)).unwrap();
+        let pub_der = key.to_der_public().unwrap();
+        let pub_key = EvpKey::from_der_public(&pub_der).unwrap();
+        let err = sign(&pub_key, b"hello").unwrap_err();
+        assert!(
+            err.starts_with("EVP_DigestSign returned 0: error:"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn sign_with_public_only_rsa_key_fails_with_ossl_detail() {
+        let key = EvpKey::new(KeyType::RSA(WhichRSA::PS256)).unwrap();
+        let pub_der = key.to_der_public().unwrap();
+        let pub_key = EvpKey::from_der_public(&pub_der).unwrap();
+        let err = sign(&pub_key, b"hello").unwrap_err();
+        assert!(
+            err.starts_with("EVP_DigestSign returned 0: error:"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn sign_context_init_error_propagates() {
+        let null_key = EvpKey {
+            key: std::ptr::null_mut(),
+            typ: KeyType::EC(WhichEC::P256),
+        };
+        let err = sign(&null_key, b"hello").unwrap_err();
+        assert!(
+            err.starts_with("EVP_DigestSignInit returned 0: error:"),
+            "unexpected error: {err}"
+        );
     }
 }

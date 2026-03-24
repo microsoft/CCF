@@ -124,6 +124,7 @@ namespace ccf::crypto
       }
 
       auto alg = extract_alg(phdr);
+      CoseBuffer verify_err;
       auto rc = cose_verify1(
         key_der.data(),
         key_der.size(),
@@ -133,7 +134,9 @@ namespace ccf::crypto
         payload->data(),
         payload->size(),
         sig.data(),
-        sig.size());
+        sig.size(),
+        verify_err.data(),
+        verify_err.size());
       if (rc == 0)
       {
         authned_content = {
@@ -141,7 +144,9 @@ namespace ccf::crypto
         return true;
       }
 
-      LOG_DEBUG_FMT("COSE Sign1 verification failed with rc: {}", rc);
+      LOG_DEBUG_FMT(
+        "COSE Sign1 verification failed: {}",
+        verify_err.is_set() ? verify_err.to_string() : "unknown error");
     }
     catch (const std::exception& e)
     {
@@ -159,6 +164,7 @@ namespace ccf::crypto
       auto [phdr, _payload, sig] = decompose_cose_sign1(envelope);
 
       auto alg = extract_alg(phdr);
+      CoseBuffer verify_err;
       auto rc = cose_verify1(
         key_der.data(),
         key_der.size(),
@@ -168,13 +174,17 @@ namespace ccf::crypto
         payload.data(),
         payload.size(),
         sig.data(),
-        sig.size());
+        sig.size(),
+        verify_err.data(),
+        verify_err.size());
       if (rc == 0)
       {
         return true;
       }
 
-      LOG_DEBUG_FMT("COSE Sign1 verification failed with rc: {}", rc);
+      LOG_DEBUG_FMT(
+        "COSE Sign1 verification failed: {}",
+        verify_err.is_set() ? verify_err.to_string() : "unknown error");
     }
     catch (const std::exception& e)
     {
@@ -192,6 +202,7 @@ namespace ccf::crypto
     try
     {
       auto key_der = public_key->public_key_der();
+      CoseBuffer verify_err;
       auto rc = cose_verify1(
         key_der.data(),
         key_der.size(),
@@ -201,13 +212,17 @@ namespace ccf::crypto
         payload.data(),
         payload.size(),
         sig.data(),
-        sig.size());
+        sig.size(),
+        verify_err.data(),
+        verify_err.size());
       if (rc == 0)
       {
         return true;
       }
 
-      LOG_DEBUG_FMT("COSE Sign1 verification failed with rc: {}", rc);
+      LOG_DEBUG_FMT(
+        "COSE Sign1 verification failed: {}",
+        verify_err.is_set() ? verify_err.to_string() : "unknown error");
     }
     catch (const std::exception& e)
     {

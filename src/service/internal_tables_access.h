@@ -635,9 +635,16 @@ namespace ccf
           .count();
 
       auto key_der = service_key.private_key_der();
-      CoseKey cose_key(key_der.data(), key_der.size());
+      CoseBuffer key_err;
+      CoseKey cose_key(key_der.data(), key_der.size(), key_err);
+      if (key_err.is_set())
+      {
+        LOG_FAIL_FMT("Failed to create signing key: {}", key_err.to_string());
+        return false;
+      }
 
       CoseBuffer cose_buf;
+      CoseBuffer cose_err;
       auto rc = cose_sign_endorsement(
         cose_key,
         time_since_epoch,
@@ -649,10 +656,13 @@ namespace ccf
         previous_root.size(),
         key_to_endorse.data(),
         key_to_endorse.size(),
-        cose_buf);
-      if (rc != 0 || !cose_buf.ok())
+        cose_buf,
+        cose_err);
+      if (rc != 0 || !cose_buf.is_set())
       {
-        LOG_FAIL_FMT("Failed to sign previous service identity");
+        LOG_FAIL_FMT(
+          "Failed to sign previous service identity: {}",
+          cose_err.is_set() ? cose_err.to_string() : "unknown error");
         return false;
       }
       endorsement.endorsement = cose_buf.to_vector();
