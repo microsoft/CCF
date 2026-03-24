@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Fixed the Turin SEV-SNP CPUID mapping used for product detection. (#7748)
+- Fixed the Turin SEV-SNP CPUID mapping used for product detection (#7748).
+- Fixed cache size calculations for historical queries, resolving a bug where signature transactions could become orphaned and fill the cache's useful space, resulting in incoming user-requested stores being immediately evicted (#7755).
 
 ## [7.0.0-dev12]
 
