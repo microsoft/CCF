@@ -99,6 +99,7 @@ namespace ccf
       size_t tx_count = 10'000;
       std::optional<std::string> read_only_directory = std::nullopt;
       std::optional<size_t> max_retained_snapshot_files = std::nullopt;
+      ccf::ds::TimeString snapshot_cleanup_interval = {"30s"};
 
       struct BackupFetch
       {

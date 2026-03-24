@@ -3126,15 +3126,88 @@ def run_max_retained_snapshot_files(const_args):
         test_max_retained_snapshot_files(network, args)
 
 
+def test_backup_snapshot_cleanup(network, args):
+    max_retained = args.max_retained_snapshot_files
+    primary, _ = network.find_primary()
+    backups = network.find_backups()
+    assert len(backups) > 0, "Expected at least one backup node"
+
+    num_snapshots_to_create = max_retained + 3
+    for i in range(num_snapshots_to_create):
+        LOG.info(f"Triggering snapshot {i + 1}/{num_snapshots_to_create}")
+        network.txs.issue(network, number_txs=3)
+        primary.trigger_snapshot(network.consortium)
+        network.txs.issue(network, number_txs=3)
+
+    # Wait for backups to download and clean up snapshots.
+    # The cleanup timer should fire within the configured interval.
+    for backup in backups:
+        backup_snapshots_dir = os.path.join(
+            backup.remote.remote.root, backup.remote.snapshots_dir_name
+        )
+        LOG.info(
+            f"Waiting for backup {backup.local_node_id} to prune snapshots "
+            f"in {backup_snapshots_dir} to at most {max_retained}"
+        )
+
+        timeout_s = 30
+        end_time = time.time() + timeout_s
+        while time.time() < end_time:
+            committed = [
+                f
+                for f in os.listdir(backup_snapshots_dir)
+                if f.startswith("snapshot_")
+                and ccf.ledger.is_snapshot_file_committed(f)
+            ]
+            if len(committed) <= max_retained:
+                LOG.success(
+                    f"Backup {backup.local_node_id}: "
+                    f"{len(committed)} committed snapshots (<= {max_retained})"
+                )
+                break
+            time.sleep(0.5)
+        else:
+            committed = [
+                f
+                for f in os.listdir(backup_snapshots_dir)
+                if f.startswith("snapshot_")
+                and ccf.ledger.is_snapshot_file_committed(f)
+            ]
+            raise AssertionError(
+                f"Backup {backup.local_node_id} has {len(committed)} committed "
+                f"snapshots after {timeout_s}s, expected at most {max_retained}: "
+                f"{sorted(committed)}"
+            )
+
+    return network
+
+
+def run_backup_snapshot_cleanup(const_args):
+    args = copy.deepcopy(const_args)
+    args.common_read_only_ledger_dir = None
+    args.label = f"{args.label}_backup_snapshot_cleanup"
+    args.snapshot_tx_interval = 30
+    args.max_retained_snapshot_files = 3
+    args.snapshot_cleanup_interval = "1s"
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args, backup_snapshot_fetch_enabled=True)
+        test_backup_snapshot_cleanup(network, args)
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
     run_manual_snapshot_tests(args)
     run_max_retained_snapshot_files(args)
-    run_max_retained_snapshot_files(args)
-    run_max_retained_snapshot_files(args)
-    run_max_retained_snapshot_files(args)
-    run_max_retained_snapshot_files(args)
+    run_backup_snapshot_cleanup(args)
     run_tls_san_checks(args)
     run_config_timeout_check(args)
     run_configuration_file_checks(args)

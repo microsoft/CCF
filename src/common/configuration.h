@@ -111,6 +111,7 @@ namespace ccf
     tx_count,
     read_only_directory,
     max_retained_snapshot_files,
+    snapshot_cleanup_interval,
     backup_fetch);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);

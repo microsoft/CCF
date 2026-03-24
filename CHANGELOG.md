@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.0-dev13]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev13
 
+### Added
+
+- Added `snapshots.snapshot_cleanup_interval` configuration option (default `"30s"`) to periodically scan the snapshot directory and delete old committed snapshots exceeding `max_retained_snapshot_files`. This ensures backup nodes (which receive snapshots via `backup_fetch`) also prune old snapshots. Only effective when `max_retained_snapshot_files` is set.
+
 ### Fixed
 
 - Fixed the Turin SEV-SNP CPUID mapping used for product detection. (#7748)

@@ -505,6 +505,11 @@
           "description": "Maximum number of committed snapshot files to retain. When the number of committed snapshots exceeds this value, the oldest snapshots are deleted. Must be at least 2 if set.",
           "minimum": 2
         },
+        "snapshot_cleanup_interval": {
+          "type": "string",
+          "default": "30s",
+          "description": "How often to scan the snapshot directory and delete old committed snapshots that exceed max_retained_snapshot_files. This periodic cleanup ensures backup nodes (which receive snapshots via backup_fetch) also prune old snapshots. Only effective when max_retained_snapshot_files is set."
+        },
         "backup_fetch": {
           "type": "object",
           "properties": {

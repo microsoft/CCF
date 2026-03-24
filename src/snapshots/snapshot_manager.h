@@ -26,6 +26,19 @@ namespace snapshots
     const std::optional<fs::path> read_snapshot_dir = std::nullopt;
     const std::optional<size_t> max_retained_snapshot_files = std::nullopt;
 
+    struct CleanupTimerState
+    {
+      uv_timer_t handle{};
+      bool cleanup_pending = false;
+      // Back-pointer to owning SnapshotManager. Nulled in destructor
+      // (after uv_timer_stop) so in-flight cleanup work items see nullptr
+      // rather than a dangling pointer.
+      SnapshotManager* owner = nullptr;
+    };
+    // Heap-allocated so it can outlive this object (uv_close is async).
+    // Freed in the uv_close callback.
+    CleanupTimerState* cleanup_state = nullptr;
+
     struct PendingSnapshot
     {
       ::consensus::Index evidence_idx;
@@ -38,8 +51,9 @@ namespace snapshots
       const std::string& snapshot_dir_,
       ringbuffer::AbstractWriterFactory& writer_factory,
       const std::optional<std::string>& read_snapshot_dir_ = std::nullopt,
-      const std::optional<size_t>& max_retained_snapshot_files_ =
-        std::nullopt) :
+      const std::optional<size_t>& max_retained_snapshot_files_ = std::nullopt,
+      std::chrono::milliseconds cleanup_interval =
+        std::chrono::milliseconds::zero()) :
       to_enclave(writer_factory.create_writer_to_inside()),
       snapshot_dir(snapshot_dir_),
       read_snapshot_dir(read_snapshot_dir_),
@@ -72,7 +86,50 @@ namespace snapshots
           "{} read-only snapshot is not a directory",
           read_snapshot_dir.value()));
       }
+
+#ifndef TEST_MODE_EXECUTE_SYNC_INLINE
+      if (
+        max_retained_snapshot_files.has_value() &&
+        cleanup_interval > std::chrono::milliseconds::zero())
+      {
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        cleanup_state = new CleanupTimerState{};
+        cleanup_state->owner = this;
+        uv_timer_init(uv_default_loop(), &cleanup_state->handle);
+        cleanup_state->handle.data = cleanup_state;
+        uv_timer_start(
+          &cleanup_state->handle,
+          on_cleanup_timer,
+          cleanup_interval.count(),
+          cleanup_interval.count());
+        // Don't let the cleanup timer keep the event loop alive
+        uv_unref(reinterpret_cast<uv_handle_t*>(&cleanup_state->handle));
+      }
+#endif
     }
+
+    ~SnapshotManager()
+    {
+#ifndef TEST_MODE_EXECUTE_SYNC_INLINE
+      if (cleanup_state != nullptr)
+      {
+        uv_timer_stop(&cleanup_state->handle);
+        // Sever back-pointer so any in-flight cleanup work items don't
+        // dereference a destroyed SnapshotManager
+        cleanup_state->owner = nullptr;
+        uv_close(
+          reinterpret_cast<uv_handle_t*>(&cleanup_state->handle),
+          [](uv_handle_t* h) {
+            delete static_cast<CleanupTimerState*>(
+              h->data); // NOLINT(cppcoreguidelines-owning-memory)
+          });
+        cleanup_state = nullptr;
+      }
+#endif
+    }
+
+    SnapshotManager(const SnapshotManager&) = delete;
+    SnapshotManager& operator=(const SnapshotManager&) = delete;
 
     [[nodiscard]] fs::path get_main_directory() const
     {
@@ -134,6 +191,7 @@ namespace snapshots
     {
       fs::path dir;
       size_t max_retained;
+      CleanupTimerState* state;
     };
 
     static void on_snapshot_cleanup(uv_work_t* req)
@@ -144,10 +202,50 @@ namespace snapshots
 
     static void on_snapshot_cleanup_complete(uv_work_t* req, int /*status*/)
     {
+      auto* work = static_cast<SnapshotCleanupWork*>(req->data);
       LOG_DEBUG_FMT("Snapshot cleanup completed");
-      delete static_cast<SnapshotCleanupWork*>(
-        req->data); // NOLINT(cppcoreguidelines-owning-memory)
+#ifndef TEST_MODE_EXECUTE_SYNC_INLINE
+      if (work->state != nullptr)
+      {
+        work->state->cleanup_pending = false;
+      }
+#endif
+      delete work; // NOLINT(cppcoreguidelines-owning-memory)
       delete req; // NOLINT(cppcoreguidelines-owning-memory)
+    }
+
+    // Schedule cleanup on the worker thread pool if not already pending.
+    // Must be called from the event loop thread.
+    void schedule_cleanup(uv_loop_t* loop)
+    {
+#ifndef TEST_MODE_EXECUTE_SYNC_INLINE
+      if (
+        !max_retained_snapshot_files.has_value() || cleanup_state == nullptr ||
+        cleanup_state->cleanup_pending)
+      {
+        return;
+      }
+      cleanup_state->cleanup_pending = true;
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      auto* cleanup_work = new SnapshotCleanupWork{
+        .dir = snapshot_dir,
+        .max_retained = max_retained_snapshot_files.value(),
+        .state = cleanup_state};
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      auto* work_handle = new uv_work_t;
+      work_handle->data = cleanup_work;
+      uv_queue_work(
+        loop, work_handle, &on_snapshot_cleanup, &on_snapshot_cleanup_complete);
+#endif
+    }
+
+    static void on_cleanup_timer(uv_timer_t* handle)
+    {
+      auto* state = static_cast<CleanupTimerState*>(handle->data);
+      if (state->owner != nullptr)
+      {
+        state->owner->schedule_cleanup(handle->loop);
+      }
     }
 
     struct AsyncSnapshotSyncAndRename
@@ -156,7 +254,7 @@ namespace snapshots
       const std::filesystem::path dir;
       const std::string tmp_file_name;
       const int snapshot_fd;
-      const std::optional<size_t> max_retained;
+      SnapshotManager* owner;
 
       // Outputs, populated by callback
       std::string committed_file_name;
@@ -193,24 +291,11 @@ namespace snapshots
         data->tmp_file_name,
         data->committed_file_name);
 
-      // Schedule cleanup of old snapshots as a separate worker task now
-      // that we know the rename is complete and a new snapshot is available
-#ifndef TEST_MODE_EXECUTE_SYNC_INLINE
-      if (data->max_retained.has_value())
+      // Schedule cleanup of old snapshots now that the rename is complete
+      if (data->owner != nullptr)
       {
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-        auto* cleanup_work = new SnapshotCleanupWork{
-          .dir = data->dir, .max_retained = data->max_retained.value()};
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-        auto* work_handle = new uv_work_t;
-        work_handle->data = cleanup_work;
-        uv_queue_work(
-          req->loop,
-          work_handle,
-          &on_snapshot_cleanup,
-          &on_snapshot_cleanup_complete);
+        data->owner->schedule_cleanup(req->loop);
       }
-#endif
 
       delete data; // NOLINT(cppcoreguidelines-owning-memory)
       delete req; // NOLINT(cppcoreguidelines-owning-memory)
@@ -293,7 +378,7 @@ namespace snapshots
                   .dir = snapshot_dir,
                   .tmp_file_name = file_name,
                   .snapshot_fd = snapshot_fd,
-                  .max_retained = max_retained_snapshot_files,
+                  .owner = this,
                   .committed_file_name = {}};
 
                 work_handle->data = data;
