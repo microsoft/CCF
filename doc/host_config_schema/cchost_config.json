@@ -512,8 +512,8 @@
         "max_retained_snapshot_files": {
           "type": ["integer", "null"],
           "default": null,
-          "description": "Maximum number of committed snapshot files to retain. When the number of committed snapshots exceeds this value, the oldest snapshots are deleted. Must be at least 2 if set.",
-          "minimum": 2
+          "description": "Maximum number of committed snapshot files to retain. When the number of committed snapshots exceeds this value, the oldest snapshots are deleted. Must be at least 1 if set. If null, no automated snapshot garbage collection is performed.",
+           "minimum": 1
         },
         "snapshot_cleanup_interval": {
           "type": "string",

@@ -61,10 +61,10 @@ namespace snapshots
     {
       if (
         max_retained_snapshot_files.has_value() &&
-        max_retained_snapshot_files.value() < 2)
+        max_retained_snapshot_files.value() < 1)
       {
         throw std::logic_error(fmt::format(
-          "max_retained_snapshot_files must be at least 2, got {}",
+          "max_retained_snapshot_files must be at least 1, got {}",
           max_retained_snapshot_files.value()));
       }
       if (fs::is_directory(snapshot_dir))
@@ -182,7 +182,15 @@ namespace snapshots
             "Deleting old snapshot {} (retaining {})",
             path.filename(),
             max_retained);
-          fs::remove(path);
+          std::error_code ec;
+          fs::remove(path, ec);
+          if (ec)
+          {
+            LOG_FAIL_FMT(
+              "Failed to delete old snapshot {}: {}",
+              path.filename(),
+              ec.message());
+          }
         }
       }
     }
