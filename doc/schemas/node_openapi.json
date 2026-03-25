@@ -930,7 +930,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "5.0.4"
+    "version": "5.0.5"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1802,22 +1802,6 @@
         }
       }
     },
-    "/node/snapshot:create": {
-      "post": {
-        "operationId": "PostNodeSnapshotCreate",
-        "responses": {
-          "204": {
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
-        }
-      }
-    },
     "/node/snapshot/{snapshot_name}": {
       "get": {
         "operationId": "GetNodeSnapshotSnapshotName",
@@ -1857,6 +1841,22 @@
           }
         }
       ]
+    },
+    "/node/snapshot:create": {
+      "post": {
+        "operationId": "PostNodeSnapshotCreate",
+        "responses": {
+          "204": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
     },
     "/node/state": {
       "get": {
