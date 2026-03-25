@@ -5,6 +5,8 @@
 
 #include "tasks/sub_task_queue.h"
 
+#include <atomic>
+
 namespace ccf::tasks
 {
   struct OrderedTasks::PImpl

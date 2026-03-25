@@ -24,13 +24,9 @@ namespace ccf::tasks
   public:
     // Enqueue a new sub-task.
     //
-    // Returns true iff this call made the queue non-empty, the queue was not
-    // already active, and the queue is not paused. Callers should interpret
-    // a true return as "schedule processing of this queue now" (eg, enqueue
-    // the parent runner). While paused, this function intentionally never
-    // requests scheduling (it will always return false), even if the queue
-    // transitions from empty to non-empty. This avoids double-enqueue when
-    // the queue is resumed elsewhere.
+    // Returns true iff this call made the queue non-empty and the queue was
+    // not already active. Callers should interpret a true return as "schedule
+    // processing of this queue now" (eg, enqueue the parent runner).
     bool push(T&& t)
     {
       std::lock_guard<std::mutex> lock(pending_mutex);
