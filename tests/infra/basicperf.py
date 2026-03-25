@@ -89,11 +89,62 @@ def read_from_key_space(
         )
 
 
+def blocking_write_to_key_space(
+    key_space: List[str],
+    iterations: int,
+    msgs: generator.Messages,
+    additional_headers: Dict[str, str],
+):
+    LOG.info(
+        f"Workload: {iterations} blocking writes to a range of {len(key_space)} keys"
+    )
+    indices = list(range(iterations))
+    random.shuffle(indices)
+    for index in indices:
+        key = key_space[index % len(key_space)]
+        msgs.append(
+            f"/records/blocking/{key}",
+            "PUT",
+            additional_headers=additional_headers,
+            body=f"{hashlib.sha256(key.encode()).hexdigest()}",
+            content_type="text/plain",
+        )
+
+
+def blocking_read_from_key_space(
+    key_space: List[str],
+    iterations: int,
+    msgs: generator.Messages,
+    additional_headers: Dict[str, str],
+):
+    LOG.info(
+        f"Workload: {iterations} blocking reads from a range of {len(key_space)} keys"
+    )
+    indices = list(range(iterations))
+    random.shuffle(indices)
+    for index in indices:
+        key = key_space[index % len(key_space)]
+        msgs.append(
+            f"/records/blocking/{key}",
+            "GET",
+            additional_headers=additional_headers,
+            content_type="text/plain",
+        )
+
+
 def append_to_msgs(definition, key_space, iterations, msgs, additional_headers):
     if definition == "write":
         return write_to_key_space(key_space, iterations, msgs, additional_headers)
     elif definition == "read":
         return read_from_key_space(key_space, iterations, msgs, additional_headers)
+    elif definition == "blocking_write":
+        return blocking_write_to_key_space(
+            key_space, iterations, msgs, additional_headers
+        )
+    elif definition == "blocking_read":
+        return blocking_read_from_key_space(
+            key_space, iterations, msgs, additional_headers
+        )
     elif definition.startswith("rwmix:"):
         _, ratio = definition.split(":")
         assert iterations % 1000 == 0
