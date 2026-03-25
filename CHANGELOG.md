@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Added time-based snapshot scheduling. Snapshots can now be triggered after a configurable wall-clock interval (`snapshots.time_interval`) elapses, in addition to the existing transaction-count threshold (`snapshots.tx_count`). A new `snapshots.min_tx_count` option (default 2) sets the minimum number of transactions required before a time-based snapshot fires. Snapshot timing state is replicated to backups via a new `public:ccf.internal.snapshot_status` internal table (#7731).
 - Added support for endpoints that defer their HTTP response until the submitted transaction reaches a terminal consensus state (committed or invalidated). Endpoint authors can call `set_consensus_committed_function()` when installing an endpoint to register a callback that is invoked once the transaction is globally committed or invalidated. The callback receives the `ccf::TxID` and a `ccf::FinalTxStatus` (either `Committed` or `Invalid`), and may inspect or modify the response before it is sent. A built-in `ccf::endpoints::default_respond_on_commit_func` is provided that returns the original response on commit, or an error on invalidation. See the logging sample app (`/log/blocking/private`) for example usage (#7562).
+- Backported the `SnapshotCreate` operator feature flag so RPC interface configuration can opt into it ahead of the corresponding operator endpoint being added on this branch.
 
 ### Changed
 

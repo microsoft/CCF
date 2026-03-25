@@ -603,7 +603,8 @@
       "OperatorFeature": {
         "enum": [
           "SnapshotRead",
-          "LedgerChunkRead"
+          "LedgerChunkRead",
+          "SnapshotCreate"
         ],
         "type": "string"
       },
