@@ -984,18 +984,18 @@ def test_ledger_chunk_access(network, args):
                 # Asking about any index in the chunk should redirect to the chunk
                 for index in (start_index, end_index, (start_index + end_index) // 2):
                     r = c.head(
-                        f"/node/ledger-chunk?since={index}", allow_redirects=False
+                        f"/node/ledger_chunk?since={index}", allow_redirects=False
                     )
                     assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
                     assert r.headers["Location"].endswith(
-                        f"/node/ledger-chunk/{chunk}"
+                        f"/node/ledger_chunk/{chunk}"
                     ), r
                     r = c.get(
-                        f"/node/ledger-chunk?since={index}", allow_redirects=False
+                        f"/node/ledger_chunk?since={index}", allow_redirects=False
                     )
                     assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
                     assert r.headers["Location"].endswith(
-                        f"/node/ledger-chunk/{chunk}"
+                        f"/node/ledger_chunk/{chunk}"
                     ), r
 
                     chunk_url = urllib.parse.urlparse(r.headers["Location"])
@@ -1023,14 +1023,14 @@ def test_ledger_chunk_access(network, args):
 
             LOG.info("Accessing an empty chunk always returns an error")
             with tempfile.NamedTemporaryFile(dir=main_ledger_dir) as temp_chunk:
-                chunk_url = f"/node/ledger-chunk/{os.path.basename(temp_chunk.name)}"
+                chunk_url = f"/node/ledger_chunk/{os.path.basename(temp_chunk.name)}"
                 r = c.get(
                     chunk_url,
                     allow_redirects=True,
                 )
                 assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
 
-                chunk_url = f"/node/ledger-chunk/{os.path.basename(temp_chunk.name)}"
+                chunk_url = f"/node/ledger_chunk/{os.path.basename(temp_chunk.name)}"
                 for range_value in ("bytes=0-10", "bytes=0-", "bytes=0-0"):
                     r = c.get(
                         chunk_url,
@@ -1050,7 +1050,7 @@ def test_ledger_chunk_access(network, args):
         )
         assert len(chunks) > 0, "No committed chunks found"
         _, _, chunk = chunks[0]
-        chunk_url = f"/node/ledger-chunk/{chunk}"
+        chunk_url = f"/node/ledger_chunk/{chunk}"
         ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
         with open(ledger_chunk_path, "rb") as f:
             chunk_data = f.read()
@@ -1225,7 +1225,7 @@ def test_ledger_chunk_access(network, args):
 def test_ledger_chunk_repr_digest(network, args):
     """
     Verify that the Want-Repr-Digest / Repr-Digest headers work correctly
-    on the ledger-chunk endpoints for GET and HEAD, including sha-256,
+    on the ledger_chunk endpoints for GET and HEAD, including sha-256,
     sha-384 and sha-512 algorithms.
     """
     primary, _ = network.find_nodes()
@@ -1241,7 +1241,7 @@ def test_ledger_chunk_repr_digest(network, args):
         assert len(chunks) > 0, "No committed chunks found"
 
         _, _, chunk = chunks[0]
-        chunk_url = f"/node/ledger-chunk/{chunk}"
+        chunk_url = f"/node/ledger_chunk/{chunk}"
         ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
         with open(ledger_chunk_path, "rb") as f:
             chunk_data = f.read()
@@ -1370,7 +1370,7 @@ def test_ledger_chunk_redirect_recent(network, args):
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
     ) as c:
         r = c.head(
-            f"/node/ledger-chunk?since={start_of_last_chunk}", allow_redirects=False
+            f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=False
         )
         assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
         expected_host = primary.get_public_rpc_host(
@@ -1379,10 +1379,10 @@ def test_ledger_chunk_redirect_recent(network, args):
         expected_port = primary.get_public_rpc_port(
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         )
-        expected_location = f"https://{expected_host}:{expected_port}/node/ledger-chunk?since={start_of_last_chunk}"
+        expected_location = f"https://{expected_host}:{expected_port}/node/ledger_chunk?since={start_of_last_chunk}"
         assert r.headers["Location"] == expected_location, r
         r = c.get(
-            f"/node/ledger-chunk?since={start_of_last_chunk}", allow_redirects=True
+            f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=True
         )
         primary_main_ledger_dir = primary.get_main_ledger_dir()
         ledger_chunk_path = os.path.join(primary_main_ledger_dir, chunks[-1])
@@ -1443,7 +1443,7 @@ def test_ledger_chunk_redirect_gap(network, args):
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         ) as c:
             r = c.head(
-                f"/node/ledger-chunk?since={download_index}", allow_redirects=False
+                f"/node/ledger_chunk?since={download_index}", allow_redirects=False
             )
             assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
             # Should redirect to any existing node
@@ -1472,7 +1472,7 @@ def test_ledger_chunk_redirect_gap(network, args):
             ), "Ledger chunk redirect should not point to self"
 
             r = c.get(
-                f"/node/ledger-chunk?since={download_index}", allow_redirects=True
+                f"/node/ledger_chunk?since={download_index}", allow_redirects=True
             )
             chunk_name = os.path.basename(r.headers["x-ms-ccf-ledger-chunk-name"])
             ledger_chunk_path = os.path.join(
