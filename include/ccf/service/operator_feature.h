@@ -10,7 +10,7 @@ namespace ccf::endpoints
   {
     SnapshotRead,
     LedgerChunkRead,
-    SnapshotTrigger
+    SnapshotCreate
   };
 
   DECLARE_JSON_ENUM(
@@ -18,6 +18,6 @@ namespace ccf::endpoints
     {
       {OperatorFeature::SnapshotRead, "SnapshotRead"},
       {OperatorFeature::LedgerChunkRead, "LedgerChunkRead"},
-      {OperatorFeature::SnapshotTrigger, "SnapshotTrigger"},
+      {OperatorFeature::SnapshotCreate, "SnapshotCreate"},
     });
 }

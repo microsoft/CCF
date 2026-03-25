@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Added `POST /node/snapshot:create`, gated by the `SnapshotTrigger` RPC interface operator feature, to trigger a snapshot via an operator endpoint rather than a governance action.
+- Added `POST /node/snapshot:create`, gated by the `SnapshotCreate` RPC interface operator feature, to create a snapshot via an operator endpoint rather than a governance action.
 
 ## [7.0.0-dev13]
 

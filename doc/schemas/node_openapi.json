@@ -604,7 +604,7 @@
         "enum": [
           "SnapshotRead",
           "LedgerChunkRead",
-          "SnapshotTrigger"
+          "SnapshotCreate"
         ],
         "type": "string"
       },
@@ -1802,9 +1802,9 @@
         }
       }
     },
-    "/node/snapshot/force": {
+    "/node/snapshot:create": {
       "post": {
-        "operationId": "PostNodeSnapshotForce",
+        "operationId": "PostNodeSnapshotCreate",
         "responses": {
           "204": {
             "description": "Default response description"

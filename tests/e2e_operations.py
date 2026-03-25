@@ -223,9 +223,9 @@ def test_forced_snapshot(network, args):
     return network
 
 
-@reqs.description("Force snapshot from node endpoint")
+@reqs.description("Create snapshot from node endpoint")
 @app.scoped_txs()
-def test_forced_snapshot_endpoint(network, args):
+def test_snapshot_create_endpoint(network, args):
     primary, _ = network.find_primary()
 
     network.txs.issue(network, number_txs=3)
@@ -235,13 +235,13 @@ def test_forced_snapshot_endpoint(network, args):
         hwm_pre_request = TxID.from_str(r["transaction_id"]).seqno
 
     with primary.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
-        r = c.post("/node/snapshot/force")
+        r = c.post("/node/snapshot:create")
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r
 
     with primary.client(
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
     ) as c:
-        r = c.post("/node/snapshot/force")
+        r = c.post("/node/snapshot:create")
         assert r.status_code == http.HTTPStatus.NO_CONTENT, r
 
     snapshots_dir = network.get_committed_snapshots(
@@ -555,7 +555,7 @@ def run_manual_snapshot_tests(const_args):
 
         test_snapshot_selection(network, args)
         test_forced_snapshot(network, args)
-        test_forced_snapshot_endpoint(network, args)
+        test_snapshot_create_endpoint(network, args)
 
 
 def test_snapshot_selection(network, args):

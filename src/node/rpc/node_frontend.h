@@ -1858,21 +1858,21 @@ namespace ccf
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
-      auto force_snapshot = [this](auto& args, nlohmann::json&&) {
-        auto* snapshot_trigger = args.tx.template rw<ccf::SnapshotTrigger>(
-          ccf::Tables::SNAPSHOT_TRIGGER);
-        snapshot_trigger->put(0);
+      auto create_snapshot = [this](auto& args, nlohmann::json&&) {
+        auto* snapshot_create = args.tx.template rw<ccf::SnapshotCreate>(
+          ccf::Tables::SNAPSHOT_CREATE);
+        snapshot_create->put(0);
         this->node_operation.trigger_snapshot(args.tx);
         return make_success();
       };
       make_endpoint(
         "/snapshot:create",
         HTTP_POST,
-        json_adapter(force_snapshot),
+        json_adapter(create_snapshot),
         no_auth_required)
         .set_auto_schema<void, void>()
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .require_operator_feature(endpoints::OperatorFeature::SnapshotTrigger)
+        .require_operator_feature(endpoints::OperatorFeature::SnapshotCreate)
         .install();
 
       ccf::node::init_recovery_decision_protocol_handlers(*this, context);

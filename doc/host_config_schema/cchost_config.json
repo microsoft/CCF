@@ -141,7 +141,7 @@
                   "enum": [
                     "SnapshotRead",
                     "LedgerChunkRead",
-                    "SnapshotTrigger"
+                    "SnapshotCreate"
                   ],
                   "type": "string"
                 },

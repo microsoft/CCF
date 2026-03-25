@@ -130,7 +130,7 @@ all_tests_suite = [
     # e2e_operations:
     e2e_operations.test_forced_ledger_chunk,
     e2e_operations.test_forced_snapshot,
-    e2e_operations.test_forced_snapshot_endpoint,
+    e2e_operations.test_snapshot_create_endpoint,
     #
     #
     #

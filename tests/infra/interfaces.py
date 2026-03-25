@@ -311,7 +311,7 @@ class HostSpec:
                 enabled_operator_features=[
                     "SnapshotRead",
                     "LedgerChunkRead",
-                    "SnapshotTrigger",
+                    "SnapshotCreate",
                 ],
             ),
         }

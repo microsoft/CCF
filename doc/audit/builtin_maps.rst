@@ -560,8 +560,8 @@ Status information recorded when a primary produces a snapshot.
    :project: CCF
    :members:
 
-``snapshot_trigger``
-~~~~~~~~~~~~~~~~~~~~
+``snapshot_create``
+~~~~~~~~~~~~~~~~~~~
 
 Durability marker written when a snapshot is explicitly requested via the operator endpoint.
 This ensures the request is recorded as a real transaction even when it would otherwise
