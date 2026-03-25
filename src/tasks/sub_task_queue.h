@@ -34,7 +34,7 @@ namespace ccf::tasks
     bool push(T&& t)
     {
       std::lock_guard<std::mutex> lock(pending_mutex);
-      const bool ret = pending.empty() && !active.load() && !paused.load();
+      const bool ret = pending.empty() && !active.load();
       pending.emplace_back(std::forward<T>(t));
       return ret;
     }

@@ -12,6 +12,11 @@ namespace ccf::tasks
     JobBoard& job_board;
     const std::string name;
     SubTaskQueue<TaskAction> actions;
+
+    // Guard against multiple concurrent enqueue_on_board() calls.
+    // Only the caller that flips this from false->true actually enqueues.
+    // Cleared when do_task_implementation decides not to re-enqueue.
+    std::atomic<bool> board_enqueued{false};
   };
 
   struct OrderedTasks::ResumeOrderedTasks : public ccf::tasks::IResumable
@@ -33,7 +38,13 @@ namespace ccf::tasks
 
   void OrderedTasks::enqueue_on_board()
   {
-    pimpl->job_board.add_task(shared_from_this());
+    // Only the caller that flips false->true actually enqueues. This prevents
+    // double-enqueue when push() and unpause() both return true from different
+    // threads before either has a chance to call add_task().
+    if (!pimpl->board_enqueued.exchange(true))
+    {
+      pimpl->job_board.add_task(shared_from_this());
+    }
   }
 
   OrderedTasks::~OrderedTasks() = default;
@@ -50,7 +61,26 @@ namespace ccf::tasks
     if (pimpl->actions.pop_and_visit(
           [](TaskAction&& action) { action->do_action(); }))
     {
-      enqueue_on_board();
+      // More work to do - stay on the board (flag remains true)
+      pimpl->job_board.add_task(shared_from_this());
+    }
+    else
+    {
+      // No more work right now. Clear the flag so future push()/unpause()
+      // callers can re-enqueue us.
+      pimpl->board_enqueued.store(false);
+
+      // Edge case: a push() or unpause() may have occurred between
+      // pop_and_visit returning false and our store(false) above.
+      // That caller would have seen board_enqueued==true and skipped
+      // the enqueue, so we must check and re-enqueue if needed.
+      size_t num_pending = 0;
+      bool is_active = false;
+      pimpl->actions.get_queue_summary(num_pending, is_active);
+      if (num_pending > 0 && !is_active)
+      {
+        enqueue_on_board();
+      }
     }
   }
 
