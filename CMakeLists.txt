@@ -1227,6 +1227,14 @@ if(BUILD_TESTS)
   )
 
   add_piccolo_test(
+    NAME pi_basic_blocking
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
+    CLIENT_BIN ./submit PERF_LABEL "Basic Blocking"
+    ADDITIONAL_ARGS --package "samples/apps/basic/basic" --client-def
+                    "32,blocking_write,1000,primary" --max-writes-ahead 0
+  )
+
+  add_piccolo_test(
     NAME pi_basic_js
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
     CLIENT_BIN ./submit PERF_LABEL "Basic JS"
