@@ -28,6 +28,11 @@ namespace ccf::crypto
     [[nodiscard]] bool verify_detached(
       std::span<const uint8_t> envelope,
       std::span<const uint8_t> payload) const override;
+    [[nodiscard]] bool verify_decomposed(
+      std::span<const uint8_t> phdr,
+      std::span<const uint8_t> payload,
+      std::span<const uint8_t> sig,
+      int64_t alg) const override;
   };
 
   class COSECertVerifier_OpenSSL : public COSEVerifier_OpenSSL
