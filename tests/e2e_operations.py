@@ -178,9 +178,7 @@ def find_snapshot_after_seqno(snapshots_dir, seqno):
         ) as snapshot:
             snapshot_seqno = snapshot.get_public_domain().get_seqno()
             if snapshot_seqno > seqno:
-                LOG.info(
-                    f"Found a snapshot at {snapshot_seqno} which is after {seqno}"
-                )
+                LOG.info(f"Found a snapshot at {snapshot_seqno} which is after {seqno}")
                 return snapshot_seqno
 
     raise RuntimeError(
@@ -240,7 +238,9 @@ def test_forced_snapshot_endpoint(network, args):
         r = c.post("/node/snapshot/force")
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r
 
-    with primary.client(interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE) as c:
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
         r = c.post("/node/snapshot/force")
         assert r.status_code == http.HTTPStatus.NO_CONTENT, r
 

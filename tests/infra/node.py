@@ -203,7 +203,9 @@ class Node:
             ) <= Version("7.0.0-dev6"):
                 if rpc_interface.enabled_operator_features:
                     if "LedgerChunkRead" in rpc_interface.enabled_operator_features:
-                        rpc_interface.enabled_operator_features.remove("LedgerChunkRead")
+                        rpc_interface.enabled_operator_features.remove(
+                            "LedgerChunkRead"
+                        )
 
             # SnapshotTrigger operator feature is only supported from 7.0.0-dev14 onwards
             if self.version is not None and Version(
@@ -211,7 +213,9 @@ class Node:
             ) <= Version("7.0.0-dev13"):
                 if rpc_interface.enabled_operator_features:
                     if "SnapshotTrigger" in rpc_interface.enabled_operator_features:
-                        rpc_interface.enabled_operator_features.remove("SnapshotTrigger")
+                        rpc_interface.enabled_operator_features.remove(
+                            "SnapshotTrigger"
+                        )
 
     def __hash__(self):
         return self.local_node_id

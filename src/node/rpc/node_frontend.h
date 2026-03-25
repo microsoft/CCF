@@ -1859,8 +1859,8 @@ namespace ccf
         .install();
 
       auto force_snapshot = [this](auto& args, nlohmann::json&&) {
-        auto* snapshot_trigger =
-          args.tx.template rw<ccf::SnapshotTrigger>(ccf::Tables::SNAPSHOT_TRIGGER);
+        auto* snapshot_trigger = args.tx.template rw<ccf::SnapshotTrigger>(
+          ccf::Tables::SNAPSHOT_TRIGGER);
         snapshot_trigger->put(0);
         this->node_operation.trigger_snapshot(args.tx);
         return make_success();
