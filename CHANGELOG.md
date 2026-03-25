@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Backported the `SnapshotCreate` operator feature flag so RPC interface configuration can opt into it ahead of the corresponding operator endpoint being added in a future release.
+- Backported the `SnapshotCreate` operator feature flag so RPC interface configuration can opt into it ahead of the corresponding operator endpoint being added in a future release. (#7767)
+
 
 ## [6.0.26]
 
