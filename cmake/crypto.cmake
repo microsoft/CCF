@@ -25,7 +25,6 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/openssl/rsa_key_pair.cpp
     ${CCF_DIR}/src/crypto/openssl/verifier.cpp
     ${CCF_DIR}/src/crypto/openssl/cose_verifier.cpp
-    ${CCF_DIR}/src/crypto/openssl/cose_sign.cpp
     ${CCF_DIR}/src/crypto/sharing.cpp
     ${CCF_DIR}/src/crypto/cbor.cpp
 )
@@ -40,7 +39,12 @@ target_compile_options(ccfcrypto PUBLIC ${COMPILE_LIBCXX})
 target_link_options(ccfcrypto PUBLIC ${LINK_LIBCXX})
 
 target_link_libraries(ccfcrypto PUBLIC crypto ssl evercbor)
-target_link_libraries(ccfcrypto PRIVATE t_cose)
+target_link_libraries(
+  ccfcrypto
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/${COSE_RS_LIB}>
+         $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/lib/${COSE_RS_LIB}>
+)
+add_dependencies(ccfcrypto cargo-build_cose_rs)
 set_property(TARGET ccfcrypto PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 install(
