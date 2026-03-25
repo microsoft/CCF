@@ -970,7 +970,7 @@ namespace ccf
       {
         cose_cert_cached = cert;
         cose_verifier =
-          ccf::crypto::make_cose_verifier_from_cert(cose_cert_cached);
+          ccf::crypto::make_cose_verifier_from_der_cert(cose_cert_cached);
       }
       return cose_verifier;
     }

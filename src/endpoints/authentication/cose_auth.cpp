@@ -263,7 +263,7 @@ namespace ccf
     if (member_cert.has_value())
     {
       auto verifier =
-        ccf::crypto::make_cose_verifier_from_cert(member_cert->raw());
+        ccf::crypto::make_cose_verifier_from_der_cert(member_cert->raw());
 
       if (!verifier->verify_decomposed(
             decomposed.phdr_bytes,
@@ -407,7 +407,7 @@ namespace ccf
     if (user_cert.has_value())
     {
       auto verifier =
-        ccf::crypto::make_cose_verifier_from_cert(user_cert->raw());
+        ccf::crypto::make_cose_verifier_from_der_cert(user_cert->raw());
 
       if (!verifier->verify_decomposed(
             decomposed.phdr_bytes,

@@ -91,7 +91,7 @@ namespace ccf
     if (prev_service_identity)
     {
       auto verifier =
-        ccf::crypto::make_cose_verifier_from_cert(*prev_service_identity);
+        ccf::crypto::make_cose_verifier_from_pem_cert(*prev_service_identity);
       if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
       {
         throw std::logic_error(

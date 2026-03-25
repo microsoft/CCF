@@ -81,6 +81,27 @@ extern "C"
     uint8_t** err_ptr,
     size_t* err_len);
 
+  /// Create a verification key from PEM-encoded public key bytes.
+  /// Returns an opaque pointer, or NULL on failure.
+  /// On failure, if err_ptr/err_len are non-null, an error message
+  /// is written there.
+  CoseEvpKey* cose_key_from_pem_public(
+    const uint8_t* pem_ptr, size_t pem_len, uint8_t** err_ptr, size_t* err_len);
+
+  /// Extract the public key from a PEM-encoded X.509 certificate.
+  /// Returns an opaque pointer, or NULL on failure.
+  /// On failure, if err_ptr/err_len are non-null, an error message
+  /// is written there.
+  CoseEvpKey* cose_key_from_pem_cert(
+    const uint8_t* pem_ptr, size_t pem_len, uint8_t** err_ptr, size_t* err_len);
+
+  /// Extract the public key from a DER-encoded X.509 certificate.
+  /// Returns an opaque pointer, or NULL on failure.
+  /// On failure, if err_ptr/err_len are non-null, an error message
+  /// is written there.
+  CoseEvpKey* cose_key_from_der_cert(
+    const uint8_t* der_ptr, size_t der_len, uint8_t** err_ptr, size_t* err_len);
+
   /// Verify a COSE_Sign1 using a pre-created key handle.
   /// alg: COSE algorithm integer (e.g. -7 for ES256).
   /// Returns 0 on successful verification, non-zero on failure.
@@ -218,6 +239,30 @@ public:
   {
     return CoseKey(
       cose_key_from_der_public(der_ptr, der_len, err.data(), err.size()));
+  }
+
+  /// Create a verification key from PEM-encoded public key bytes.
+  static CoseKey from_pem_public(
+    const uint8_t* pem_ptr, size_t pem_len, CoseBuffer& err)
+  {
+    return CoseKey(
+      cose_key_from_pem_public(pem_ptr, pem_len, err.data(), err.size()));
+  }
+
+  /// Extract the public key from a PEM-encoded X.509 certificate.
+  static CoseKey from_pem_cert(
+    const uint8_t* pem_ptr, size_t pem_len, CoseBuffer& err)
+  {
+    return CoseKey(
+      cose_key_from_pem_cert(pem_ptr, pem_len, err.data(), err.size()));
+  }
+
+  /// Extract the public key from a DER-encoded X.509 certificate.
+  static CoseKey from_der_cert(
+    const uint8_t* der_ptr, size_t der_len, CoseBuffer& err)
+  {
+    return CoseKey(
+      cose_key_from_der_cert(der_ptr, der_len, err.data(), err.size()));
   }
 
   CoseKey(const CoseKey&) = delete;

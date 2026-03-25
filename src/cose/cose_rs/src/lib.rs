@@ -333,6 +333,101 @@ pub unsafe extern "C" fn cose_key_from_der_public(
     }
 }
 
+/// Create a verification key from a PEM-encoded public key.
+/// Returns a pointer to the key, or null on failure.
+/// The caller must free the key with `cose_key_free`.
+///
+/// # Safety
+/// `pem_ptr` must point to `pem_len` valid bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cose_key_from_pem_public(
+    pem_ptr: *const u8,
+    pem_len: usize,
+    err_ptr: *mut *mut u8,
+    err_len: *mut usize,
+) -> *mut EvpKey {
+    let result = std::panic::catch_unwind(|| unsafe {
+        let pem = slice_from_raw(pem_ptr, pem_len);
+        EvpKey::from_pem_public(pem)
+    });
+
+    match result {
+        Ok(Ok(key)) => Box::into_raw(Box::new(key)),
+        Ok(Err(e)) => unsafe {
+            set_error(&e, err_ptr, err_len);
+            std::ptr::null_mut()
+        },
+        Err(_) => unsafe {
+            set_error("panic during cose_key_from_pem_public", err_ptr, err_len);
+            std::ptr::null_mut()
+        },
+    }
+}
+
+/// Create a verification key by extracting the public key from a
+/// PEM-encoded X.509 certificate.
+/// Returns a pointer to the key, or null on failure.
+/// The caller must free the key with `cose_key_free`.
+///
+/// # Safety
+/// `pem_ptr` must point to `pem_len` valid bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cose_key_from_pem_cert(
+    pem_ptr: *const u8,
+    pem_len: usize,
+    err_ptr: *mut *mut u8,
+    err_len: *mut usize,
+) -> *mut EvpKey {
+    let result = std::panic::catch_unwind(|| unsafe {
+        let pem = slice_from_raw(pem_ptr, pem_len);
+        EvpKey::from_pem_cert(pem)
+    });
+
+    match result {
+        Ok(Ok(key)) => Box::into_raw(Box::new(key)),
+        Ok(Err(e)) => unsafe {
+            set_error(&e, err_ptr, err_len);
+            std::ptr::null_mut()
+        },
+        Err(_) => unsafe {
+            set_error("panic during cose_key_from_pem_cert", err_ptr, err_len);
+            std::ptr::null_mut()
+        },
+    }
+}
+
+/// Create a verification key by extracting the public key from a
+/// DER-encoded X.509 certificate.
+/// Returns a pointer to the key, or null on failure.
+/// The caller must free the key with `cose_key_free`.
+///
+/// # Safety
+/// `der_ptr` must point to `der_len` valid bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cose_key_from_der_cert(
+    der_ptr: *const u8,
+    der_len: usize,
+    err_ptr: *mut *mut u8,
+    err_len: *mut usize,
+) -> *mut EvpKey {
+    let result = std::panic::catch_unwind(|| unsafe {
+        let der = slice_from_raw(der_ptr, der_len);
+        EvpKey::from_der_cert(der)
+    });
+
+    match result {
+        Ok(Ok(key)) => Box::into_raw(Box::new(key)),
+        Ok(Err(e)) => unsafe {
+            set_error(&e, err_ptr, err_len);
+            std::ptr::null_mut()
+        },
+        Err(_) => unsafe {
+            set_error("panic during cose_key_from_der_cert", err_ptr, err_len);
+            std::ptr::null_mut()
+        },
+    }
+}
+
 /// Verify a COSE_Sign1 from pre-parsed components using a pre-created key
 /// handle.
 ///

@@ -7,6 +7,7 @@
 #include "crypto/cose.h"
 #include "crypto/openssl/ec_key_pair.h"
 
+#include <ccf/crypto/verifier.h>
 #include <doctest/doctest.h>
 #include <string>
 #include <vector>
@@ -505,4 +506,157 @@ TEST_CASE("cose_free with null is safe")
 {
   cose_free(nullptr, 0);
   cose_free(nullptr, 100);
+}
+
+TEST_CASE("CoseKey::from_pem_public")
+{
+  TestKey tk;
+  auto pem = tk.kp.public_key_pem();
+
+  SUBCASE("valid PEM succeeds")
+  {
+    CoseBuffer err;
+    auto key = CoseKey::from_pem_public(pem.data(), pem.size(), err);
+    CHECK(key.is_set());
+    CHECK(!err.is_set());
+  }
+
+  SUBCASE("garbage fails with error")
+  {
+    const std::vector<uint8_t> garbage = {0xDE, 0xAD};
+    CoseBuffer err;
+    auto key = CoseKey::from_pem_public(garbage.data(), garbage.size(), err);
+    CHECK(!key.is_set());
+    CHECK(err.is_set());
+  }
+}
+
+TEST_CASE("CoseKey::from_pem_cert")
+{
+  TestKey tk;
+  auto cert_pem =
+    tk.kp.self_sign("CN=test", "20200101000000Z", "20301231235959Z");
+
+  SUBCASE("valid PEM cert succeeds and can verify")
+  {
+    CoseBuffer err;
+    auto key = CoseKey::from_pem_cert(cert_pem.data(), cert_pem.size(), err);
+    CHECK(key.is_set());
+    CHECK(!err.is_set());
+
+    // Sign with the private key, verify with the cert-derived key.
+    CoseBuffer key_err;
+    auto sign_key =
+      CoseKey::from_private(tk.priv_der.data(), tk.priv_der.size(), key_err);
+    REQUIRE(sign_key.is_set());
+
+    const std::string epoch_begin = "1.1";
+    const std::vector<uint8_t> payload = {0xCA, 0xFE};
+    CoseBuffer out, sign_err;
+    auto rc = cose_sign_endorsement(
+      sign_key,
+      0,
+      reinterpret_cast<const uint8_t*>(epoch_begin.data()),
+      epoch_begin.size(),
+      nullptr,
+      0,
+      nullptr,
+      0,
+      payload.data(),
+      payload.size(),
+      out,
+      sign_err);
+    REQUIRE(rc == 0);
+    REQUIRE(out.is_set());
+
+    auto envelope = out.to_vector();
+    auto c = decompose(envelope);
+    CoseBuffer verify_err;
+    auto vrc = cose_verify1(
+      key,
+      c.alg,
+      c.phdr.data(),
+      c.phdr.size(),
+      c.payload.value().data(),
+      c.payload.value().size(),
+      c.sig.data(),
+      c.sig.size(),
+      verify_err);
+    CHECK(vrc == 0);
+  }
+
+  SUBCASE("garbage fails with error")
+  {
+    const std::vector<uint8_t> garbage = {0xDE, 0xAD};
+    CoseBuffer err;
+    auto key = CoseKey::from_pem_cert(garbage.data(), garbage.size(), err);
+    CHECK(!key.is_set());
+    CHECK(err.is_set());
+  }
+}
+
+TEST_CASE("CoseKey::from_der_cert")
+{
+  TestKey tk;
+  auto cert_pem =
+    tk.kp.self_sign("CN=test", "20200101000000Z", "20301231235959Z");
+  // Convert PEM cert to DER via the raw bytes of the PEM -> parse -> re-encode.
+  auto cert_der = ccf::crypto::cert_pem_to_der(cert_pem);
+
+  SUBCASE("valid DER cert succeeds and can verify")
+  {
+    CoseBuffer err;
+    auto key = CoseKey::from_der_cert(cert_der.data(), cert_der.size(), err);
+    CHECK(key.is_set());
+    CHECK(!err.is_set());
+
+    // Sign with the private key, verify with the cert-derived key.
+    CoseBuffer key_err;
+    auto sign_key =
+      CoseKey::from_private(tk.priv_der.data(), tk.priv_der.size(), key_err);
+    REQUIRE(sign_key.is_set());
+
+    const std::string epoch_begin = "1.1";
+    const std::vector<uint8_t> payload = {0xCA, 0xFE};
+    CoseBuffer out, sign_err;
+    auto rc = cose_sign_endorsement(
+      sign_key,
+      0,
+      reinterpret_cast<const uint8_t*>(epoch_begin.data()),
+      epoch_begin.size(),
+      nullptr,
+      0,
+      nullptr,
+      0,
+      payload.data(),
+      payload.size(),
+      out,
+      sign_err);
+    REQUIRE(rc == 0);
+    REQUIRE(out.is_set());
+
+    auto envelope = out.to_vector();
+    auto c = decompose(envelope);
+    CoseBuffer verify_err;
+    auto vrc = cose_verify1(
+      key,
+      c.alg,
+      c.phdr.data(),
+      c.phdr.size(),
+      c.payload.value().data(),
+      c.payload.value().size(),
+      c.sig.data(),
+      c.sig.size(),
+      verify_err);
+    CHECK(vrc == 0);
+  }
+
+  SUBCASE("garbage fails with error")
+  {
+    const std::vector<uint8_t> garbage = {0xDE, 0xAD};
+    CoseBuffer err;
+    auto key = CoseKey::from_der_cert(garbage.data(), garbage.size(), err);
+    CHECK(!key.is_set());
+    CHECK(err.is_set());
+  }
 }
