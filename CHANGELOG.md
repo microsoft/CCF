@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added support for endpoints that defer their HTTP response until the submitted transaction reaches a terminal consensus state (committed or invalidated). Endpoint authors can call `set_consensus_committed_function()` when installing an endpoint to register a callback that is invoked once the transaction is globally committed or invalidated. The callback receives the `ccf::TxID` and a `ccf::FinalTxStatus` (either `Committed` or `Invalid`), and may inspect or modify the response before it is sent. A built-in `ccf::endpoints::default_respond_on_commit_func` is provided that returns the original response on commit, or an error on invalidation. See the logging sample app (`/log/blocking/private`) for example usage (#7562).
 - Added `make_cose_verifier_from_pem_cert()` and `make_cose_verifier_from_der_cert()` that accept certificates in a known format, the existing `make_cose_verifier_cert()` is renamed to `make_cose_verifier_any_cert()` (#7768).
 
+### Changed
+
+- Renamed `/node/ledger-chunk` and `/node/ledger-chunk/{chunk_name}` endpoints to `/node/ledger_chunk` and `/node/ledger_chunk/{chunk_name}` for consistency with the naming convention used by other `/node/*` endpoints.
+
 ### Fixed
 
 - Fixed the Turin SEV-SNP CPUID mapping used for product detection (#7748).
