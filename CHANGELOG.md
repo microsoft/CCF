@@ -13,7 +13,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Backported the `SnapshotCreate` operator feature flag so RPC interface configuration can opt into it ahead of the corresponding operator endpoint being added in a future release. (#7767)
 
-
 ## [6.0.26]
 
 [6.0.26]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.26

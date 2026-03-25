@@ -344,7 +344,7 @@ namespace ccf
       const pal::snp::EndorsementEndpointsConfiguration& config_,
       QuoteEndorsementsFetchedCallback cb) :
       config(config_),
-      done_cb(cb) {};
+      done_cb(cb){};
 
     void fetch_endorsements()
     {
