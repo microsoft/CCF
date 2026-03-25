@@ -254,7 +254,6 @@ namespace snapshots
       const std::filesystem::path dir;
       const std::string tmp_file_name;
       const int snapshot_fd;
-      SnapshotManager* owner;
 
       // Outputs, populated by callback
       std::string committed_file_name;
@@ -290,12 +289,6 @@ namespace snapshots
         "Renamed temporary snapshot {} to {}",
         data->tmp_file_name,
         data->committed_file_name);
-
-      // Schedule cleanup of old snapshots now that the rename is complete
-      if (data->owner != nullptr)
-      {
-        data->owner->schedule_cleanup(req->loop);
-      }
 
       delete data; // NOLINT(cppcoreguidelines-owning-memory)
       delete req; // NOLINT(cppcoreguidelines-owning-memory)
@@ -378,7 +371,6 @@ namespace snapshots
                   .dir = snapshot_dir,
                   .tmp_file_name = file_name,
                   .snapshot_fd = snapshot_fd,
-                  .owner = this,
                   .committed_file_name = {}};
 
                 work_handle->data = data;
@@ -387,13 +379,6 @@ namespace snapshots
 #ifdef TEST_MODE_EXECUTE_SYNC_INLINE
               on_snapshot_sync_and_rename(work_handle);
               on_snapshot_sync_and_rename_complete(work_handle, 0);
-              // In test mode there is no event loop, so run cleanup
-              // synchronously
-              if (max_retained_snapshot_files.has_value())
-              {
-                cleanup_old_snapshots(
-                  snapshot_dir, max_retained_snapshot_files.value());
-              }
 #else
               uv_queue_work(
                 uv_default_loop(),

@@ -3058,6 +3058,24 @@ def test_max_retained_snapshot_files(network, args):
             f"{snapshots_dir}. Last observed {len(observed_seqnos)}: {sorted(observed_seqnos)}"
         )
 
+    def wait_for_cleanup(max_count, timeout=10):
+        """Wait for the periodic cleanup timer to prune snapshots."""
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            committed = [
+                f
+                for f in os.listdir(snapshots_dir)
+                if f.startswith("snapshot_")
+                and ccf.ledger.is_snapshot_file_committed(f)
+            ]
+            if len(committed) <= max_count:
+                return
+            time.sleep(0.5)
+        raise TimeoutError(
+            f"Timed out waiting for snapshot count to drop to {max_count} in "
+            f"{snapshots_dir}. Found {len(committed)}: {sorted(committed)}"
+        )
+
     # We expect an initial snapshot, created by network open.
     prev_seqnos = wait_for_snapshot_seqnos(count=1)
     LOG.info(f"Initial snapshots on disk: {prev_seqnos}")
@@ -3075,25 +3093,37 @@ def test_max_retained_snapshot_files(network, args):
         primary.trigger_snapshot(network.consortium)
         network.txs.issue(network, number_txs=3)
 
-        # Read all committed snapshots currently on disk
-        expected_count = min(max_retained, len(prev_seqnos) + 1)
-        current_seqnos = wait_for_snapshot_seqnos(count=expected_count)
+        # Wait for the new committed snapshot to appear
+        current_seqnos = wait_for_snapshot_seqnos(count=len(prev_seqnos) + 1)
 
         LOG.info(
             f"Snapshot {i + 1}: seqnos on disk: {current_seqnos}, "
             f"previous iteration: {prev_seqnos}"
         )
 
-        # At most max_retained snapshots on disk at any time
-        assert len(current_seqnos) <= max_retained, (
-            f"Expected at most {max_retained} snapshots after iteration {i + 1}, "
-            f"found {len(current_seqnos)}: {current_seqnos}"
-        )
-
         # The latest snapshot is the one we just created
         assert current_seqnos[-1] >= seqno_before, (
             f"Expected the newest snapshot seqno {current_seqnos[-1]} "
             f"to be >= seqno_before {seqno_before}"
+        )
+
+        # Wait for the periodic cleanup timer to prune old snapshots
+        if len(current_seqnos) > max_retained:
+            wait_for_cleanup(max_retained)
+
+        # Re-read the snapshot list after cleanup
+        current_seqnos = sorted(
+            {
+                ccf.ledger.snapshot_index_from_filename(f)[0]
+                for f in os.listdir(snapshots_dir)
+                if f.startswith("snapshot_")
+                and ccf.ledger.is_snapshot_file_committed(f)
+            }
+        )
+
+        assert len(current_seqnos) <= max_retained, (
+            f"Expected at most {max_retained} snapshots after iteration {i + 1}, "
+            f"found {len(current_seqnos)}: {current_seqnos}"
         )
 
         # All snapshots except the latest were present in the previous iteration
@@ -3114,6 +3144,7 @@ def run_max_retained_snapshot_files(const_args):
     args.label = f"{args.label}_max_retained_snapshots"
     args.snapshot_tx_interval = 10000
     args.max_retained_snapshot_files = 3
+    args.snapshot_cleanup_interval = "1s"
 
     with infra.network.network(
         args.nodes,
