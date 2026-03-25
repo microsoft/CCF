@@ -28,6 +28,8 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
     second_rpc_name,
     ccf::NodeInfoNetwork::NetInterface{
       rpc_b, rpc_b_pub, "udp", "HTTP2", 300, 400});
+  current.node_to_node_interface.enabled_operator_features = {
+    ccf::endpoints::OperatorFeature::SnapshotCreate};
 
   ccf::NodeInfoNetwork_v1 v1;
   std::tie(v1.nodehost, v1.nodeport) = ccf::split_net_address(node);

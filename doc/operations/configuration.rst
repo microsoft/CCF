@@ -30,6 +30,7 @@ Currently supported features are:
 
 1. 'SnapshotRead': gates access to endpoints used to fetch snapshots directly from nodes (:http:GET:`/node/snapshot`, :http:HEAD:`/node/snapshot`, :http:GET:`/node/snapshot/{snapshot_name}` and :http:HEAD:`/node/snapshot/{snapshot_name}`).
 2. 'LedgerChunkRead': gates access to endpoints used to retrieve ledger chunks, to be added in a future release.
+3. 'SnapshotCreate': gates access to an operator endpoint used to request snapshot creation, to be added in a future release.
 
 Since these operations may require disk IO and produce large responses, these features should not be enabled on interfaces with public access, and instead restricted to interfaces with local connectivity for node-to-node and operator access.
 
