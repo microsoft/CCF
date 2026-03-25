@@ -1871,6 +1871,7 @@ class Network:
         target_seqno=None,
         force_txs=True,
         wait_for_target_seqno=False,
+        timeout=20,
     ):
         # Wait for the snapshot including target_seqno to be committed before
         # copying snapshot directory. Do not issue transactions if force_txs is False
@@ -1880,7 +1881,9 @@ class Network:
                 r = c.get("/node/commit").body.json()
                 target_seqno = TxID.from_str(r["transaction_id"]).seqno
 
-        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=20):
+        def wait_for_snapshots_to_be_committed(
+            src_dir, list_src_dir_func, timeout=timeout
+        ):
             if not wait_for_target_seqno and not force_txs:
                 return True
 

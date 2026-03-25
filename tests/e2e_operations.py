@@ -3087,78 +3087,73 @@ def run_time_based_snapshotting(const_args):
 
         return snapshots
 
-    def count_new_snapshots(net, seen_snapshots):
-        current_snapshots = get_committed_snapshot_files(net)
-        new_snapshots = current_snapshots - seen_snapshots
-        seen_snapshots.update(current_snapshots)
-        return len(new_snapshots)
-
-    def get_bucketed_snapshot_counts(net, duration_s=20, sample_interval_s=1, seen_snapshots=None):
-        if seen_snapshots is None:
-            seen_snapshots = get_committed_snapshot_files(net)
-
-        sample_count = duration_s // sample_interval_s
-        buckets = []
-
-        for _ in range(sample_count):
-            time.sleep(sample_interval_s)
-            buckets.append(count_new_snapshots(net, seen_snapshots))
-
-        return buckets, seen_snapshots
-
-    def smoothed_snapshot_rate(snapshot_counts):
-        quarter = len(snapshot_counts) // 4
-        half = len(snapshot_counts) // 2
-        half_weighted = snapshot_counts[quarter:half]
-        full_weight = snapshot_counts[half:]
-        return (0.5 * sum(half_weighted) / len(half_weighted)) + sum(full_weight) / len(full_weight)
+    # Pattern for these tests:
+    # 1. wait for any startup triggered txs to commit and net to settle
+    # 2. wait for a snapshot with the latest committed tx, or wait 5s
+    # 3. record baseline
+    # 4. record new snapshots over 10s and compare that to the baseline
 
     # min_tx set low
     with net_with_min_tx("_low", 0) as net:
-        buckets, _ = get_bucketed_snapshot_counts(net)
-        rate = smoothed_snapshot_rate(buckets)
+        time.sleep(1)
+        net.get_committed_snapshots(
+            net.find_primary()[0],
+            force_txs=False,
+            wait_for_target_seqno=True,
+            timeout=5,
+        )
+        baseline = get_committed_snapshot_files(net)
+        time.sleep(10)
+        final = get_committed_snapshot_files(net)
         assert (
-            rate > 0.5
-        ), f"min_tx_count set to 0 should snapshot about once per second, got {rate} from buckets {buckets}"
+            len(final - baseline) >= 8
+        ), f"With min_tx_interval set to 0 we expect snapshots to be generated at around 1 per second, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
 
     # min_tx set just right
     with net_with_min_tx("_exact", 2) as net:
-        buckets, seen_snapshots = get_bucketed_snapshot_counts(net)
-        rate = smoothed_snapshot_rate(buckets)
+        time.sleep(1)
+        try:
+            net.get_committed_snapshots(
+                net.find_primary()[0],
+                force_txs=False,
+                wait_for_target_seqno=True,
+                timeout=5,
+            )
+        except TimeoutError:
+            pass
+        baseline = get_committed_snapshot_files(net)
+        time.sleep(10)
+        final = get_committed_snapshot_files(net)
         assert (
-            rate < 0.1
-        ), f"With an exact min_tx we expect the startup snapshot rate to remain near zero, got {rate} from buckets {buckets}"
-
-        tx_id = net.txs.issue(net, number_txs=1)
-        primary, _ = net.find_primary()
-        net.get_committed_snapshots(
-            primary,
-            target_seqno=tx_id.seqno,
-            force_txs=False,
-            wait_for_target_seqno=True,
-        )
-        seen_snapshots.update(get_committed_snapshot_files(net))
-
-        buckets, _ = get_bucketed_snapshot_counts(net, seen_snapshots=seen_snapshots)
-        rate = smoothed_snapshot_rate(buckets)
-        assert (
-            rate < 0.1
-        ), f"With an exact min_tx we expect the snapshot rate to return near zero after the triggered snapshot, got {rate} from buckets {buckets}"
+            final == baseline
+        ), f"With min_tx_interval set to 2 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
 
     # set much higher to show that
     with net_with_min_tx("_high", 10) as net:
-        buckets, seen_snapshots = get_bucketed_snapshot_counts(net)
-        rate = smoothed_snapshot_rate(buckets)
+        time.sleep(1)
+        try:
+            net.get_committed_snapshots(
+                net.find_primary()[0],
+                force_txs=False,
+                wait_for_target_seqno=True,
+                timeout=5,
+            )
+        except TimeoutError:
+            pass
+        baseline = get_committed_snapshot_files(net)
+        time.sleep(10)
+        final = get_committed_snapshot_files(net)
         assert (
-            rate < 0.1
-        ), f"Expect the startup snapshot rate to remain near zero when min_tx is high, got {rate} from buckets {buckets}"
+            final == baseline
+        ), f"With min_tx_interval set to 10 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
 
         tx_id = net.txs.issue(net, number_txs=1)
-        buckets, _ = get_bucketed_snapshot_counts(net, seen_snapshots=seen_snapshots)
-        rate = smoothed_snapshot_rate(buckets)
+        baseline = get_committed_snapshot_files(net)
+        time.sleep(10)
+        final = get_committed_snapshot_files(net)
         assert (
-            rate < 0.1
-        ), f"Expect the snapshot rate to remain near zero when min_tx is high and only one tx is issued, got {rate} from buckets {buckets}"
+            final == baseline
+        ), f"With min_tx_interval set to 10 and we expect no snapshots to be generated with only one extra tx, but got {final} snapshots 10s after a baseline of {baseline}, and in total saw {final - baseline} new snapshots over the test."
 
         net.txs.issue(net, number_txs=20)
         primary, _ = net.find_primary()
