@@ -17,6 +17,11 @@ namespace ccf::crypto
     [[nodiscard]] virtual bool verify_detached(
       std::span<const uint8_t> envelope,
       std::span<const uint8_t> payload) const = 0;
+    [[nodiscard]] virtual bool verify_decomposed(
+      std::span<const uint8_t> phdr,
+      std::span<const uint8_t> payload,
+      std::span<const uint8_t> sig,
+      int64_t alg) const = 0;
     virtual ~COSEVerifier() = default;
   };
 
