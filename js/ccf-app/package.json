@@ -32,7 +32,7 @@
     "mocha": "^11.7.5",
     "node-forge": "^1.2.0",
     "ts-node": "^10.9.2",
-    "typedoc": "^0.28.10",
+    "typedoc": "^0.28.18",
     "typescript": "^6.0.2"
   },
   "bin": {
