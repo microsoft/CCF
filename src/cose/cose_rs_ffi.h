@@ -24,8 +24,7 @@ extern "C"
     uint8_t** err_ptr,
     size_t* err_len);
 
-  /// Free a key created by cose_key_from_der_private or
-  /// cose_key_from_der_public.
+  /// Free a CoseEvpKey.
   void cose_key_free(CoseEvpKey* key);
 
   /// Sign a CCF ledger signature using a pre-created key handle.

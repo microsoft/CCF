@@ -86,10 +86,8 @@ namespace ccf::crypto
           der_err.is_set() ? der_err.to_string() : "unknown error"));
       }
     }
-    auto v =
-      std::unique_ptr<COSECertVerifier_OpenSSL>(new COSECertVerifier_OpenSSL());
-    v->verify_key = std::move(key);
-    return v;
+    return std::unique_ptr<COSECertVerifier_OpenSSL>(
+      new COSECertVerifier_OpenSSL(std::move(key)));
   }
 
   std::unique_ptr<COSECertVerifier_OpenSSL> COSECertVerifier_OpenSSL::from_pem(
@@ -103,10 +101,8 @@ namespace ccf::crypto
         "Failed to parse PEM certificate: {}",
         key_err.is_set() ? key_err.to_string() : "unknown error"));
     }
-    auto v =
-      std::unique_ptr<COSECertVerifier_OpenSSL>(new COSECertVerifier_OpenSSL());
-    v->verify_key = std::move(key);
-    return v;
+    return std::unique_ptr<COSECertVerifier_OpenSSL>(
+      new COSECertVerifier_OpenSSL(std::move(key)));
   }
 
   std::unique_ptr<COSECertVerifier_OpenSSL> COSECertVerifier_OpenSSL::from_der(
@@ -120,38 +116,44 @@ namespace ccf::crypto
         "Failed to parse DER certificate: {}",
         key_err.is_set() ? key_err.to_string() : "unknown error"));
     }
-    auto v =
-      std::unique_ptr<COSECertVerifier_OpenSSL>(new COSECertVerifier_OpenSSL());
-    v->verify_key = std::move(key);
-    return v;
+    return std::unique_ptr<COSECertVerifier_OpenSSL>(
+      new COSECertVerifier_OpenSSL(std::move(key)));
   }
 
-  COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const Pem& public_key_)
+  static CoseKey cose_key_from_pem(const Pem& pem)
   {
     CoseBuffer key_err;
-    verify_key =
-      CoseKey::from_pem_public(public_key_.data(), public_key_.size(), key_err);
-    if (!verify_key.is_set())
+    auto key = CoseKey::from_pem_public(pem.data(), pem.size(), key_err);
+    if (!key.is_set())
     {
       throw std::runtime_error(fmt::format(
         "Failed to create COSE verification key: {}",
         key_err.is_set() ? key_err.to_string() : "unknown error"));
     }
+    return key;
   }
+
+  static CoseKey cose_key_from_der(std::span<const uint8_t> der)
+  {
+    CoseBuffer key_err;
+    auto key = CoseKey::from_public(der.data(), der.size(), key_err);
+    if (!key.is_set())
+    {
+      throw std::runtime_error(fmt::format(
+        "Failed to create COSE verification key: {}",
+        key_err.is_set() ? key_err.to_string() : "unknown error"));
+    }
+    return key;
+  }
+
+  COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const Pem& public_key_) :
+    COSEVerifier_OpenSSL(cose_key_from_pem(public_key_))
+  {}
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(
-    std::span<const uint8_t> public_key_der_)
-  {
-    CoseBuffer key_err;
-    verify_key = CoseKey::from_public(
-      public_key_der_.data(), public_key_der_.size(), key_err);
-    if (!verify_key.is_set())
-    {
-      throw std::runtime_error(fmt::format(
-        "Failed to create COSE verification key: {}",
-        key_err.is_set() ? key_err.to_string() : "unknown error"));
-    }
-  }
+    std::span<const uint8_t> public_key_der_) :
+    COSEVerifier_OpenSSL(cose_key_from_der(public_key_der_))
+  {}
 
   COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;
 

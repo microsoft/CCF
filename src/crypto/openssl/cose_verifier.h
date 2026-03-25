@@ -14,6 +14,8 @@ namespace ccf::crypto
   protected:
     CoseKey verify_key;
 
+    explicit COSEVerifier_OpenSSL(CoseKey&& key) : verify_key(std::move(key)) {}
+
   public:
     ~COSEVerifier_OpenSSL() override;
     bool verify(
@@ -31,7 +33,7 @@ namespace ccf::crypto
 
   class COSECertVerifier_OpenSSL : public COSEVerifier_OpenSSL
   {
-    COSECertVerifier_OpenSSL() = default;
+    using COSEVerifier_OpenSSL::COSEVerifier_OpenSSL;
 
   public:
     /// Accepts PEM or DER certificate (auto-detects format).
