@@ -19,6 +19,7 @@ import shutil
 import datetime
 import ccf.ledger
 import plotext as plt
+from plotext._utility import get_title, colorize, simple_bar_marker, to_rgb
 import infra.bencher
 
 
@@ -87,7 +88,6 @@ def read_from_key_space(
             additional_headers=additional_headers,
             content_type="text/plain",
         )
-
 
 def append_to_msgs(definition, key_space, iterations, msgs, additional_headers):
     if definition == "write":
@@ -324,13 +324,25 @@ def run(args):
                 primary_has_stopped = False
                 while True:
                     stop_waiting = True
+                    running = []
+                    done_list = []
                     for i, remote_client in enumerate(clients):
                         done = remote_client.check_done()
-                        # all the clients need to be done
-                        LOG.info(
-                            f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {args.client_timeout_s}s)"
-                        )
+                        if done:
+                            done_list.append(i)
+                        else:
+                            running.append(i)
                         stop_waiting = stop_waiting and done
+                    elapsed = f"{time.time() - start_time:>{format_width}.2f}s / {args.client_timeout_s}s"
+                    if len(clients) <= 3:
+                        for i, remote_client in enumerate(clients):
+                            status = "completed" if i in done_list else "not completed"
+                            LOG.info(f"Client {i} has {status} running ({elapsed})")
+                    else:
+                        parts = [f"{len(running)} running ({elapsed})"]
+                        if done_list:
+                            parts.append(f"{len(done_list)} complete")
+                        LOG.info(f"Clients: {', '.join(parts)}")
                     if stop_waiting:
                         break
                     if time.time() > start_time + args.client_timeout_s:
@@ -471,15 +483,23 @@ def run(args):
                 start_send = agg["sendTime"].min()
                 end_recv = agg["receiveTime"].max()
                 duration_s = (end_recv - start_send).total_seconds()
-                throughput = len(agg) / duration_s
+                throughput = len(agg) / duration_s if duration_s > 0 else 0
                 statistics["average_throughput_tx/s"] = throughput
                 print(f"Average throughput: {throughput:.2f} tx/s")
 
-                byte_input = (agg["requestSize"].sum() / duration_s) / (1024 * 1024)
+                byte_input = (
+                    (agg["requestSize"].sum() / duration_s) / (1024 * 1024)
+                    if duration_s > 0
+                    else 0
+                )
                 statistics["average_request_input_mb/s"] = byte_input
                 print(f"Average request input: {byte_input:.2f} Mbytes/s")
 
-                byte_output = (agg["responseSize"].sum() / duration_s) / (1024 * 1024)
+                byte_output = (
+                    (agg["responseSize"].sum() / duration_s) / (1024 * 1024)
+                    if duration_s > 0
+                    else 0
+                )
                 statistics["average_request_output_mb/s"] = byte_output
                 print(f"Average request output: {byte_output:.2f} Mbytes/s")
 
@@ -495,8 +515,10 @@ def run(args):
                 print(
                     f"All clients active from {latest_start.time()} to {earliest_end.time()}"
                 )
-                all_clients_active_percentage = int(
-                    (all_active_duration_s / duration_s) * 100
+                all_clients_active_percentage = (
+                    int((all_active_duration_s / duration_s) * 100)
+                    if duration_s > 0
+                    else 0
                 )
                 print(
                     f"This {all_active_duration_s:.3f}s is {all_clients_active_percentage}% of the {duration_s:.3f}s used to calculate throughputs above"
@@ -510,80 +532,168 @@ def run(args):
                     pl.col("receiveTime") < earliest_end
                 )
                 all_active_duration_s = (earliest_end - latest_start).total_seconds()
-                all_active_throughput = len(agg_all_active) / all_active_duration_s
+                if len(agg_all_active) > 0 and all_active_duration_s > 0:
+                    all_active_throughput = len(agg_all_active) / all_active_duration_s
+                    writes = len(
+                        agg_all_active.filter(
+                            pl.col("request").bin.starts_with(b"PUT ")
+                        )
+                    )
+                    write_fraction = writes / len(agg_all_active)
+                else:
+                    all_active_throughput = 0
+                    write_fraction = 0
                 statistics["all_clients_active_average_throughput_tx/s"] = (
                     all_active_throughput
                 )
-                writes = len(
-                    agg_all_active.filter(pl.col("request").bin.starts_with(b"PUT "))
-                )
-                statistics["all_clients_active_write_fraction"] = writes / len(
-                    agg_all_active
-                )
+                statistics["all_clients_active_write_fraction"] = write_fraction
 
                 statistics_path = os.path.join(network.common_dir, "statistics.json")
                 with open(statistics_path, "w") as f:
                     json.dump(statistics, f, indent=2)
                 print(f"Aggregated statistics written to {statistics_path}")
 
-                sent_per_sec = (
-                    agg.with_columns(
-                        (
-                            (pl.col("sendTime").alias("second") - start_send) / 1000000
-                        ).cast(pl.Int64)
-                    )
-                    .group_by("second")
-                    .len()
-                    .rename({"len": "sent"})
+                # Build per-client, per-second breakdown for stacked charts
+                client_names = sorted(
+                    agg["client"].unique().to_list(),
+                    key=lambda c: int(c.split("_")[-1]),
                 )
-                recv_per_sec = (
-                    agg.with_columns(
-                        (
-                            (pl.col("receiveTime").alias("second") - start_send)
-                            / 1000000
-                        ).cast(pl.Int64)
-                    )
-                    .group_by("second")
-                    .len()
-                    .rename({"len": "rcvd"})
-                )
-                errors_per_sec = (
-                    agg.with_columns(
-                        (
-                            (pl.col("receiveTime").alias("second") - start_send)
-                            / 1000000
-                        ).cast(pl.Int64)
-                    )
-                    .filter(pl.col("responseStatus") >= 500)
-                    .group_by("second")
-                    .len()
-                    .rename({"len": "errors"})
-                )
+                n_clients = len(client_names)
+                all_seconds = set()
 
-                per_sec = (
-                    sent_per_sec.join(recv_per_sec, on="second")
-                    .join(errors_per_sec, on="second", how="full")
-                    .sort("second")
-                    .fill_null(0)
-                )
+                # Generate stepped color shades for per-client stacked bars.
+                # client_0 gets the darkest shade (matching plotext defaults), higher clients get lighter.
+                def _shades(n, start, end):
+                    """Generate n colors interpolating from start to end RGB tuples."""
+                    return [
+                        tuple(
+                            s + i * (e - s) // max(n - 1, 1) for s, e in zip(start, end)
+                        )
+                        for i in range(n)
+                    ]
 
-                plt.simple_bar(
-                    list(per_sec["second"]),
-                    list(per_sec["sent"]),
-                    width=100,
-                    title="Sent requests per second",
-                )
-                plt.show()
+                def blue_shades(n):
+                    return _shades(n, to_rgb("blue+"), (180, 180, 255))
 
+                def green_shades(n):
+                    return _shades(n, to_rgb("green"), (180, 255, 180))
+
+                def red_shades(n):
+                    return _shades(n, to_rgb("red"), (255, 180, 180))
+
+                client_sent = {}
+                client_rcvd = {}
+                client_errors = {}
+                for cn in client_names:
+                    c_df = agg.filter(pl.col("client") == cn)
+                    cs = (
+                        c_df.with_columns(
+                            ((pl.col("sendTime") - start_send) / 1000000)
+                            .cast(pl.Int64)
+                            .alias("second")
+                        )
+                        .group_by("second")
+                        .len()
+                    )
+                    client_sent[cn] = dict(
+                        zip(cs["second"].to_list(), cs["len"].to_list())
+                    )
+                    all_seconds.update(cs["second"].to_list())
+
+                    cr = (
+                        c_df.filter(pl.col("responseStatus") < 500)
+                        .with_columns(
+                            ((pl.col("receiveTime") - start_send) / 1000000)
+                            .cast(pl.Int64)
+                            .alias("second")
+                        )
+                        .group_by("second")
+                        .len()
+                    )
+                    client_rcvd[cn] = dict(
+                        zip(cr["second"].to_list(), cr["len"].to_list())
+                    )
+                    all_seconds.update(cr["second"].to_list())
+
+                    ce = (
+                        c_df.filter(pl.col("responseStatus") >= 500)
+                        .with_columns(
+                            ((pl.col("receiveTime") - start_send) / 1000000)
+                            .cast(pl.Int64)
+                            .alias("second")
+                        )
+                        .group_by("second")
+                        .len()
+                    )
+                    client_errors[cn] = dict(
+                        zip(ce["second"].to_list(), ce["len"].to_list())
+                    )
+                    all_seconds.update(ce["second"].to_list())
+
+                seconds = sorted(all_seconds)
+
+                def color_legend(names, *color_groups, width=100):
+                    """Print a centered legend bar with color swatches for first and last client."""
+                    marker = simple_bar_marker * 3
+                    parts = []
+                    for color_list, suffix in color_groups:
+                        first = colorize(marker, color_list[0])
+                        last = colorize(marker, color_list[-1])
+                        parts.append(
+                            f"{names[0]}{suffix} {first} .. {last} {names[-1]}{suffix}"
+                        )
+                    print(get_title(" ".join(parts), width), end="")
+
+                use_builtin_legend = n_clients <= 3
+
+                # Stacked bar: sent per second, blue shades per client
+                sent_stacks = [
+                    [client_sent[cn].get(s, 0) for s in seconds] for cn in client_names
+                ]
+                sent_colors = blue_shades(n_clients)
+                sent_kwargs = {"colors": sent_colors}
+                if use_builtin_legend:
+                    sent_kwargs["labels"] = client_names
                 plt.simple_stacked_bar(
-                    list(per_sec["second"]),
-                    [list(per_sec["rcvd"]), list(per_sec["errors"])],
+                    seconds,
+                    sent_stacks,
                     width=100,
-                    labels=["rcvd", "errors"],
-                    colors=["green", "red"],
-                    title="Received requests per second",
+                    title="Sent requests per second (by client)",
+                    **sent_kwargs,
                 )
                 plt.show()
+                if not use_builtin_legend:
+                    color_legend(client_names, (sent_colors, ""))
+
+                # Stacked bar: received per second, green shades per client + red for errors
+                rcvd_stacks = [
+                    [client_rcvd[cn].get(s, 0) for s in seconds] for cn in client_names
+                ]
+                error_stacks = [
+                    [client_errors[cn].get(s, 0) for s in seconds]
+                    for cn in client_names
+                ]
+                rcvd_colors = green_shades(n_clients)
+                error_colors = red_shades(n_clients)
+                rcvd_kwargs = {"colors": rcvd_colors + error_colors}
+                if use_builtin_legend:
+                    rcvd_kwargs["labels"] = client_names + [
+                        f"{cn} errors" for cn in client_names
+                    ]
+                plt.simple_stacked_bar(
+                    seconds,
+                    rcvd_stacks + error_stacks,
+                    width=100,
+                    title="Received requests per second (by client)",
+                    **rcvd_kwargs,
+                )
+                plt.show()
+                if not use_builtin_legend:
+                    color_legend(
+                        client_names,
+                        (rcvd_colors, ""),
+                        (error_colors, " errors"),
+                    )
 
                 if number_of_errors and not args.stop_primary_after_s:
                     raise RuntimeError(
