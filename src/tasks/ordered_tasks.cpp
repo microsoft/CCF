@@ -76,10 +76,12 @@ namespace ccf::tasks
       // pop_and_visit returning false and our store(false) above.
       // That caller would have seen board_enqueued==true and skipped
       // the enqueue, so we must check and re-enqueue if needed.
+      // Skip re-enqueue while paused - unpause() will handle it.
       size_t num_pending = 0;
       bool is_active = false;
-      pimpl->actions.get_queue_summary(num_pending, is_active);
-      if (num_pending > 0 && !is_active)
+      bool is_paused = false;
+      pimpl->actions.get_queue_summary(num_pending, is_active, is_paused);
+      if (num_pending > 0 && !is_active && !is_paused)
       {
         enqueue_on_board();
       }
@@ -106,9 +108,10 @@ namespace ccf::tasks
     }
   }
 
-  void OrderedTasks::get_queue_summary(size_t& num_pending, bool& is_active)
+  void OrderedTasks::get_queue_summary(
+    size_t& num_pending, bool& is_active, bool& is_paused)
   {
-    pimpl->actions.get_queue_summary(num_pending, is_active);
+    pimpl->actions.get_queue_summary(num_pending, is_active, is_paused);
   }
 
   std::shared_ptr<OrderedTasks> OrderedTasks::create(

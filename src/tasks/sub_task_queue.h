@@ -80,11 +80,13 @@ namespace ccf::tasks
       return !pending.empty() && !active.load();
     }
 
-    void get_queue_summary(size_t& num_pending, bool& is_active)
+    void get_queue_summary(
+      size_t& num_pending, bool& is_active, bool& is_paused)
     {
       std::lock_guard<std::mutex> lock(pending_mutex);
       num_pending = pending.size();
       is_active = active.load();
+      is_paused = paused.load();
     }
   };
 }
