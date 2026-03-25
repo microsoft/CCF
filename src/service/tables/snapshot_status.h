@@ -21,7 +21,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(SnapshotStatus, version, timestamp);
 
   using SnapshotStatusValue = ServiceValue<SnapshotStatus>;
-  using SnapshotCreate = ServiceValue<uint64_t>;
+  using SnapshotCreate = ServiceUnit;
   namespace Tables
   {
     static constexpr auto SNAPSHOT_STATUS =

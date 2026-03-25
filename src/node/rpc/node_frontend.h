@@ -1861,7 +1861,7 @@ namespace ccf
       auto create_snapshot = [this](auto& args, nlohmann::json&&) {
         auto* snapshot_create = args.tx.template rw<ccf::SnapshotCreate>(
           ccf::Tables::SNAPSHOT_CREATE);
-        snapshot_create->put(0);
+        snapshot_create->touch();
         this->node_operation.trigger_snapshot(args.tx);
         return make_success();
       };
