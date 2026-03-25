@@ -552,7 +552,7 @@ namespace ccf
 
     ccf::crypto::ECKeyPair& node_kp;
     ccf::crypto::COSEVerifierUniquePtr cose_verifier;
-    std::vector<uint8_t> cose_cert_cached;
+    ccf::crypto::Pem cose_cert_cached;
 
     ccf::tasks::Task emit_signature_periodic_task;
     size_t sig_tx_interval;
@@ -803,12 +803,10 @@ namespace ccf
         return false;
       }
 
-      const auto raw_cert = service_info->cert.raw();
       std::vector<uint8_t> root_hash{
         root.h.data(), root.h.data() + root.h.size()};
-
-      return cose_verifier_cached(raw_cert)->verify_detached(
-        cose_sig.value(), root_hash);
+      return cose_verifier_cached(service_info->cert)
+        ->verify_detached(cose_sig.value(), root_hash);
     }
 
     std::vector<uint8_t> serialise_tree(size_t to) override
@@ -964,13 +962,13 @@ namespace ccf
 
   private:
     ccf::crypto::COSEVerifierUniquePtr& cose_verifier_cached(
-      const std::vector<uint8_t>& cert)
+      const ccf::crypto::Pem& cert)
     {
       if (cert != cose_cert_cached)
       {
         cose_cert_cached = cert;
         cose_verifier =
-          ccf::crypto::make_cose_verifier_from_der_cert(cose_cert_cached);
+          ccf::crypto::make_cose_verifier_from_pem_cert(cose_cert_cached);
       }
       return cose_verifier;
     }
