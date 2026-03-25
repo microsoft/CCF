@@ -65,9 +65,7 @@
     "tx_count": {{ snapshot_tx_interval }},
     "min_tx_count": {{ snapshot_min_tx_interval }},
     "time_interval": "{{ snapshot_time_interval }}",
-    "read_only_directory": {{ read_only_snapshots_dir|tojson }}{% if max_retained_snapshot_files %},
-    "max_retained_snapshot_files": {{ max_retained_snapshot_files }}{% endif %}{% if snapshot_cleanup_interval %},
-    "snapshot_cleanup_interval": "{{ snapshot_cleanup_interval }}"{% endif %}{% if backup_snapshot_fetch_enabled %},
+    "read_only_directory": {{ read_only_snapshots_dir|tojson }}{% if backup_snapshot_fetch_enabled %},
     "backup_fetch": {
       "enabled": true{% if backup_snapshot_fetch_max_attempts %},
       "max_attempts": {{ backup_snapshot_fetch_max_attempts }}{% endif %}{% if backup_snapshot_fetch_retry_interval %},
@@ -75,7 +73,12 @@
       "target_rpc_interface": "{{ backup_snapshot_fetch_target_rpc_interface }}"{% endif %}{% if backup_snapshot_fetch_max_size %},
       "max_size": "{{ backup_snapshot_fetch_max_size }}"{% endif %}
     }{% endif %}
-  },
+  },{% if files_cleanup_max_snapshots or files_cleanup_interval %}
+  "files_cleanup":
+  {
+    {% if files_cleanup_max_snapshots %}"max_snapshots": {{ files_cleanup_max_snapshots }}{% endif %}{% if files_cleanup_max_snapshots and files_cleanup_interval %},
+    {% endif %}{% if files_cleanup_interval %}"interval": "{{ files_cleanup_interval }}"{% endif %}
+  },{% endif %}
   "logging":
   {
     "host_level": "{{ host_log_level }}",

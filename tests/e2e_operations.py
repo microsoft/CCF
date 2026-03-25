@@ -3223,7 +3223,7 @@ def run_snp_tests(args):
 
 
 def test_max_retained_snapshot_files(network, args):
-    max_retained = args.max_retained_snapshot_files
+    max_retained = args.files_cleanup_max_snapshots
     primary, _ = network.find_primary()
 
     snapshots_dir = os.path.join(
@@ -3288,8 +3288,28 @@ def test_max_retained_snapshot_files(network, args):
         primary.trigger_snapshot(network.consortium)
         network.txs.issue(network, number_txs=3)
 
-        # Wait for the new committed snapshot to appear
-        current_seqnos = wait_for_snapshot_seqnos(count=len(prev_seqnos) + 1)
+        # Wait for a new committed snapshot to appear. Once at the retention
+        # limit the cleanup timer may prune before we observe a higher total,
+        # so we look for a *new* seqno rather than an increased count.
+        def wait_for_new_snapshot(prev, timeout=10):
+            end_time = time.time() + timeout
+            while time.time() < end_time:
+                observed = set()
+                for f in os.listdir(snapshots_dir):
+                    if f.startswith(
+                        "snapshot_"
+                    ) and ccf.ledger.is_snapshot_file_committed(f):
+                        seqno, _ = ccf.ledger.snapshot_index_from_filename(f)
+                        observed.add(seqno)
+                if observed - set(prev):
+                    return sorted(observed)
+                time.sleep(0.1)
+            raise TimeoutError(
+                f"Timed out waiting for a new committed snapshot in "
+                f"{snapshots_dir}. Previous: {prev}, last observed: {sorted(observed)}"
+            )
+
+        current_seqnos = wait_for_new_snapshot(prev_seqnos)
 
         LOG.info(
             f"Snapshot {i + 1}: seqnos on disk: {current_seqnos}, "
@@ -3338,8 +3358,8 @@ def run_max_retained_snapshot_files(const_args):
     args.common_read_only_ledger_dir = None
     args.label = f"{args.label}_max_retained_snapshots"
     args.snapshot_tx_interval = 10000
-    args.max_retained_snapshot_files = 3
-    args.snapshot_cleanup_interval = "1s"
+    args.files_cleanup_max_snapshots = 3
+    args.files_cleanup_interval = "1s"
 
     with infra.network.network(
         args.nodes,
@@ -3353,7 +3373,7 @@ def run_max_retained_snapshot_files(const_args):
 
 
 def test_backup_snapshot_cleanup(network, args):
-    max_retained = args.max_retained_snapshot_files
+    max_retained = args.files_cleanup_max_snapshots
     primary, _ = network.find_primary()
     backups = network.find_backups()
     assert len(backups) > 0, "Expected at least one backup node"
@@ -3413,8 +3433,8 @@ def run_backup_snapshot_cleanup(const_args):
     args.common_read_only_ledger_dir = None
     args.label = f"{args.label}_backup_snapshot_cleanup"
     args.snapshot_tx_interval = 30
-    args.max_retained_snapshot_files = 3
-    args.snapshot_cleanup_interval = "1s"
+    args.files_cleanup_max_snapshots = 3
+    args.files_cleanup_interval = "1s"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
 
     with infra.network.network(

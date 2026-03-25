@@ -509,17 +509,6 @@
           "type": ["string", "null"],
           "description": "Path to read-only snapshots directory"
         },
-        "max_retained_snapshot_files": {
-          "type": ["integer", "null"],
-          "default": null,
-          "description": "Maximum number of committed snapshot files to retain. When the number of committed snapshots exceeds this value, the oldest snapshots are deleted. Must be at least 1 if set. If null, no automated snapshot garbage collection is performed.",
-           "minimum": 1
-        },
-        "snapshot_cleanup_interval": {
-          "type": "string",
-          "default": "30s",
-          "description": "How often to scan the snapshot directory and delete old committed snapshots that exceed max_retained_snapshot_files. This periodic cleanup ensures backup nodes (which receive snapshots via backup_fetch) also prune old snapshots. Only effective when max_retained_snapshot_files is set."
-        },
         "backup_fetch": {
           "type": "object",
           "properties": {
@@ -555,6 +544,24 @@
         }
       },
       "description": "This section includes configuration for the snapshot directories and files",
+      "additionalProperties": false
+    },
+    "files_cleanup": {
+      "type": "object",
+      "properties": {
+        "max_snapshots": {
+          "type": ["integer", "null"],
+          "default": null,
+          "description": "Maximum number of committed snapshot files to retain. When the number of committed snapshots exceeds this value, the oldest snapshots are deleted. Must be at least 1 if set. If null, no automated snapshot garbage collection is performed.",
+          "minimum": 1
+        },
+        "interval": {
+          "type": "string",
+          "default": "30s",
+          "description": "How often to scan the snapshot directory and delete old committed snapshots that exceed max_snapshots. This periodic cleanup ensures backup nodes (which receive snapshots via backup_fetch) also prune old snapshots. Only effective when max_snapshots is set."
+        }
+      },
+      "description": "This section includes configuration for periodic cleanup of old files (snapshots, ledger chunks)",
       "additionalProperties": false
     },
     "logging": {

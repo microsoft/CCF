@@ -178,7 +178,7 @@ Committed snapshot files are named ``snapshot_<seqno>_<evidence_seqno>.committed
 
 Uncommitted snapshot files, i.e. those whose evidence has not yet been committed, are named ``snapshot_<seqno>_<evidence_seqno>``. These files will be ignored by CCF when joining or recovering a service as no evidence can attest of their validity.
 
-.. note:: The ``snapshots.max_retained_snapshot_files`` configuration entry can be used to limit the number of committed snapshot files retained on disk. When the number of committed snapshots exceeds this value, the oldest snapshots (by sequence number) are automatically deleted. This is useful to control the local persistent storage footprint of a node. The value must be at least 1 if set.
+.. note:: The ``files_cleanup.max_snapshots`` configuration entry can be used to limit the number of committed snapshot files retained on disk. When the number of committed snapshots exceeds this value, the oldest snapshots (by sequence number) are automatically deleted. This is useful to control the local persistent storage footprint of a node. The value must be at least 1 if set.
 
 Join or Recover From Snapshot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

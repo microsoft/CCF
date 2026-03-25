@@ -24,7 +24,7 @@ namespace snapshots
 
     const fs::path snapshot_dir;
     const std::optional<fs::path> read_snapshot_dir = std::nullopt;
-    const std::optional<size_t> max_retained_snapshot_files = std::nullopt;
+    const std::optional<size_t> max_snapshots = std::nullopt;
 
     struct CleanupTimerState
     {
@@ -51,21 +51,19 @@ namespace snapshots
       const std::string& snapshot_dir_,
       ringbuffer::AbstractWriterFactory& writer_factory,
       const std::optional<std::string>& read_snapshot_dir_ = std::nullopt,
-      const std::optional<size_t>& max_retained_snapshot_files_ = std::nullopt,
+      const std::optional<size_t>& max_snapshots_ = std::nullopt,
       std::chrono::milliseconds cleanup_interval =
         std::chrono::milliseconds::zero()) :
       to_enclave(writer_factory.create_writer_to_inside()),
       snapshot_dir(snapshot_dir_),
       read_snapshot_dir(read_snapshot_dir_),
-      max_retained_snapshot_files(max_retained_snapshot_files_)
+      max_snapshots(max_snapshots_)
     {
-      if (
-        max_retained_snapshot_files.has_value() &&
-        max_retained_snapshot_files.value() < 1)
+      if (max_snapshots.has_value() && max_snapshots.value() < 1)
       {
         throw std::logic_error(fmt::format(
-          "max_retained_snapshot_files must be at least 1, got {}",
-          max_retained_snapshot_files.value()));
+          "files_cleanup.max_snapshots must be at least 1, got {}",
+          max_snapshots.value()));
       }
       if (fs::is_directory(snapshot_dir))
       {
@@ -89,7 +87,7 @@ namespace snapshots
 
 #ifndef TEST_MODE_EXECUTE_SYNC_INLINE
       if (
-        max_retained_snapshot_files.has_value() &&
+        max_snapshots.has_value() &&
         cleanup_interval > std::chrono::milliseconds::zero())
       {
         // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
@@ -228,7 +226,7 @@ namespace snapshots
     {
 #ifndef TEST_MODE_EXECUTE_SYNC_INLINE
       if (
-        !max_retained_snapshot_files.has_value() || cleanup_state == nullptr ||
+        !max_snapshots.has_value() || cleanup_state == nullptr ||
         cleanup_state->cleanup_pending)
       {
         return;
@@ -237,7 +235,7 @@ namespace snapshots
       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
       auto* cleanup_work = new SnapshotCleanupWork{
         .dir = snapshot_dir,
-        .max_retained = max_retained_snapshot_files.value(),
+        .max_retained = max_snapshots.value(),
         .state = cleanup_state};
       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
       auto* work_handle = new uv_work_t;
