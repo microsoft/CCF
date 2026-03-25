@@ -24,17 +24,13 @@ namespace ccf::tasks
   public:
     // Enqueue a new sub-task.
     //
-    // Returns true iff this call made the queue non-empty, the queue was not
-    // already active, and the queue is not paused. Callers should interpret
-    // a true return as "schedule processing of this queue now" (eg, enqueue
-    // the parent runner). While paused, this function intentionally never
-    // requests scheduling (it will always return false), even if the queue
-    // transitions from empty to non-empty. This avoids double-enqueue when
-    // the queue is resumed elsewhere.
+    // Returns true iff this call made the queue non-empty and the queue was
+    // not already active. Callers should interpret a true return as "schedule
+    // processing of this queue now" (eg, enqueue the parent runner).
     bool push(T&& t)
     {
       std::lock_guard<std::mutex> lock(pending_mutex);
-      const bool ret = pending.empty() && !active.load() && !paused.load();
+      const bool ret = pending.empty() && !active.load();
       pending.emplace_back(std::forward<T>(t));
       return ret;
     }
@@ -84,11 +80,13 @@ namespace ccf::tasks
       return !pending.empty() && !active.load();
     }
 
-    void get_queue_summary(size_t& num_pending, bool& is_active)
+    void get_queue_summary(
+      size_t& num_pending, bool& is_active, bool& is_paused)
     {
       std::lock_guard<std::mutex> lock(pending_mutex);
       num_pending = pending.size();
       is_active = active.load();
+      is_paused = paused.load();
     }
   };
 }
