@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
+#include "ccf/crypto/verifier.h"
 #include "cose/cose_rs_ffi.h"
 #include "crypto/cbor.h"
 #include "crypto/cose.h"
 #include "crypto/openssl/ec_key_pair.h"
 
-#include <ccf/crypto/verifier.h>
 #include <doctest/doctest.h>
 #include <string>
 #include <vector>
