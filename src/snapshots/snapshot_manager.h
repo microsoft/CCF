@@ -117,10 +117,11 @@ namespace snapshots
         cleanup_state->owner = nullptr;
         uv_close(
           reinterpret_cast<uv_handle_t*>(&cleanup_state->handle),
+          // NOLINTBEGIN(cppcoreguidelines-owning-memory)
           [](uv_handle_t* h) {
-            delete static_cast<CleanupTimerState*>(
-              h->data); // NOLINT(cppcoreguidelines-owning-memory)
+            delete static_cast<CleanupTimerState*>(h->data);
           });
+        // NOLINTEND(cppcoreguidelines-owning-memory)
         cleanup_state = nullptr;
       }
 #endif
