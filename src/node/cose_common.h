@@ -9,7 +9,6 @@
 #include <crypto/cbor.h>
 #include <crypto/cose.h>
 #include <crypto/cose_utils.h>
-#include <crypto/openssl/cose_sign.h>
 #include <optional>
 #include <stdexcept>
 #include <string>
