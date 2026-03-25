@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-dev14]
+
+[7.0.0-dev14]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev14
+
+### Added
+
+- Added `make_cose_verifier_from_pem_cert()` and `make_cose_verifier_from_der_cert()` that accept certificates in a known format. The existing `make_cose_verifier_cert()` is renamed to `make_cose_verifier_any_cert()` (#7768).
+
 ## [7.0.0-dev13]
 
 [7.0.0-dev13]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev13

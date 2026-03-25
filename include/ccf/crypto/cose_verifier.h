@@ -27,8 +27,13 @@ namespace ccf::crypto
 
   using COSEVerifierUniquePtr = std::unique_ptr<COSEVerifier>;
 
-  COSEVerifierUniquePtr make_cose_verifier_from_cert(
+  /// Create a verifier from a certificate in either PEM or DER format.
+  /// Tries PEM first, then DER.
+  COSEVerifierUniquePtr make_cose_verifier_any_cert(
     const std::vector<uint8_t>& cert);
+  COSEVerifierUniquePtr make_cose_verifier_from_pem_cert(const Pem& pem);
+  COSEVerifierUniquePtr make_cose_verifier_from_der_cert(
+    const std::vector<uint8_t>& der);
   COSEVerifierUniquePtr make_cose_verifier_from_key(const Pem& public_key);
   COSEVerifierUniquePtr make_cose_verifier_from_key(
     std::span<const uint8_t> public_key);

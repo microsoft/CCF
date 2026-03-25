@@ -560,6 +560,49 @@ mod tests {
         );
     }
 
+    #[test]
+    fn cose_sign_verify_with_pem_imported_key() {
+        let original = EvpKey::new(KeyType::EC(WhichEC::P256)).unwrap();
+
+        let priv_pem = original.to_pem_private().unwrap();
+        let signing_key = EvpKey::from_pem_private(&priv_pem).unwrap();
+
+        let pub_pem = original.to_pem_public().unwrap();
+        let verification_key = EvpKey::from_pem_public(&pub_pem).unwrap();
+
+        let phdr_bytes = hex_decode(TEST_PHDR);
+        let phdr = CborValue::from_bytes(&phdr_bytes).unwrap();
+        let uhdr = CborValue::Map(vec![]);
+        let payload = b"signed with PEM-imported key";
+
+        let envelope =
+            cose_sign1(&signing_key, phdr, uhdr, payload, false).unwrap();
+
+        let parsed = CborValue::from_bytes(&envelope).unwrap();
+        let inner = match parsed {
+            CborValue::Tagged { payload, .. } => *payload,
+            _ => panic!("not tagged"),
+        };
+        let items = match inner {
+            CborValue::Array(v) => v,
+            _ => panic!("not array"),
+        };
+        let phdr_raw = match &items[0] {
+            CborValue::ByteString(b) => b.clone(),
+            _ => panic!("phdr not bstr"),
+        };
+        let sig_raw = match &items[3] {
+            CborValue::ByteString(b) => b.clone(),
+            _ => panic!("sig not bstr"),
+        };
+
+        let alg = cose_alg(&verification_key).unwrap();
+        assert!(
+            cose_verify1(&verification_key, alg, &phdr_raw, payload, &sig_raw)
+                .unwrap()
+        );
+    }
+
     #[cfg(feature = "pqc")]
     mod pqc_tests {
         use super::*;
