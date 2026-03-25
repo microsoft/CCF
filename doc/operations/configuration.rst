@@ -29,7 +29,7 @@ The `enabled_operator_features` configuration field allows enabling or disabling
 Currently supported features are:
 
 1. 'SnapshotRead': gates access to endpoints used to fetch snapshots directly from nodes (:http:GET:`/node/snapshot`, :http:HEAD:`/node/snapshot`, :http:GET:`/node/snapshot/{snapshot_name}` and :http:HEAD:`/node/snapshot/{snapshot_name}`).
-2. 'LedgerChunkRead': gates access to endpoints used to retrieve ledger chunks (:http:GET:`/node/ledger-chunk`, :http:HEAD:`/node/ledger-chunk`, :http:GET:`/node/ledger-chunk/{chunk_name}` and :http:HEAD:`/node/ledger-chunk/{chunk_name}`).
+2. 'LedgerChunkRead': gates access to endpoints used to retrieve ledger chunks (:http:GET:`/node/ledger_chunk`, :http:HEAD:`/node/ledger_chunk`, :http:GET:`/node/ledger_chunk/{chunk_name}` and :http:HEAD:`/node/ledger_chunk/{chunk_name}`).
 3. 'SnapshotCreate': gates access to the operator endpoint used to create a snapshot on the next signature transaction (:http:POST:`/node/snapshot:create`).
 
 Since these operations may require disk IO and produce large responses, these features should not be enabled on interfaces with public access, and instead restricted to interfaces with local connectivity for node-to-node and operator access.

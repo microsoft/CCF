@@ -1201,9 +1201,9 @@
         }
       }
     },
-    "/node/ledger-chunk": {
+    "/node/ledger_chunk": {
       "get": {
-        "description": "Redirect to the corresponding /node/ledger-chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.",
+        "description": "Redirect to the corresponding /node/ledger_chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.",
         "operationId": "GetNodeLedgerChunk",
         "parameters": [
           {
@@ -1229,7 +1229,7 @@
         }
       },
       "head": {
-        "description": "Redirect to the corresponding /node/ledger-chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.",
+        "description": "Redirect to the corresponding /node/ledger_chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.",
         "operationId": "HeadNodeLedgerChunk",
         "parameters": [
           {
@@ -1255,7 +1255,7 @@
         }
       }
     },
-    "/node/ledger-chunk/{chunk_name}": {
+    "/node/ledger_chunk/{chunk_name}": {
       "get": {
         "description": "Download a specific ledger chunk by name. Supports HTTP Range header for partial downloads.",
         "operationId": "GetNodeLedgerChunkChunkName",
