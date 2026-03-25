@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/cose.h"
 #include "ccf/crypto/cose_verifier.h"
+#include "ccf/crypto/pem.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/cose.h"
@@ -90,8 +91,8 @@ namespace ccf
 
     if (prev_service_identity)
     {
-      auto verifier =
-        ccf::crypto::make_cose_verifier_from_pem_cert(*prev_service_identity);
+      auto verifier = ccf::crypto::make_cose_verifier_from_pem_cert(
+        ccf::crypto::Pem(*prev_service_identity));
       if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
       {
         throw std::logic_error(
