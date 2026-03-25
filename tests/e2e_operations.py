@@ -3063,65 +3063,106 @@ def run_time_based_snapshotting(const_args):
             net.start_and_open(inner_args)
             yield net
 
-    def get_snapshot_count(net):
+    def get_committed_snapshot_files(net):
         primary, _ = net.find_primary()
-        snapshots_dir = net.get_committed_snapshots(primary, force_txs=False)
+        snapshots_dirs = [
+            os.path.join(primary.remote.remote.root, primary.remote.snapshots_dir_name)
+        ]
+        if primary.remote.read_only_snapshots_dir_name is not None:
+            snapshots_dirs.append(
+                os.path.join(
+                    primary.remote.remote.root,
+                    primary.remote.read_only_snapshots_dir_name,
+                )
+            )
 
-        return len(os.listdir(snapshots_dir))
+        snapshots = set()
+        for snapshots_dir in snapshots_dirs:
+            if not os.path.isdir(snapshots_dir):
+                continue
 
-    def wait_for_at_least_one(net):
-        timeout_s = 10
-        end_time = time.time() + timeout_s
-        while time.time() < end_time:
-            count = get_snapshot_count(net)
-            if count > 0:
-                return count
+            for snapshot_name in os.listdir(snapshots_dir):
+                if ccf.ledger.is_snapshot_file_committed(snapshot_name):
+                    snapshots.add(snapshot_name)
 
-            time.sleep(0.1)
-        raise TimeoutError(f"Expected at least one snapshot after {timeout_s}s")
+        return snapshots
+
+    # Pattern for these tests:
+    # 1. wait for any startup triggered txs to commit and net to settle
+    # 2. wait for a snapshot with the latest committed tx, or wait 5s
+    # 3. record baseline
+    # 4. record new snapshots over 10s and compare that to the baseline
 
     # min_tx set low
     with net_with_min_tx("_low", 0) as net:
-        LOG.info("Started")
-        baseline = wait_for_at_least_one(net)
-        LOG.info("Got snapshot count")
+        time.sleep(1)
+        net.get_committed_snapshots(
+            net.find_primary()[0],
+            force_txs=False,
+            wait_for_target_seqno=True,
+            timeout=5,
+        )
+        baseline = get_committed_snapshot_files(net)
         time.sleep(10)
-        after = get_snapshot_count(net)
+        final = get_committed_snapshot_files(net)
         assert (
-            after > baseline
-        ), f"min_tx_count set to 0 should cause many snapshots, got {after - baseline}"
+            len(final - baseline) >= 8
+        ), f"With min_tx_interval set to 0 we expect snapshots to be generated at around 1 per second, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
 
     # min_tx set just right
     with net_with_min_tx("_exact", 2) as net:
-        baseline = wait_for_at_least_one(net)
+        time.sleep(1)
+        try:
+            net.get_committed_snapshots(
+                net.find_primary()[0],
+                force_txs=False,
+                wait_for_target_seqno=True,
+                timeout=5,
+            )
+        except TimeoutError:
+            pass
+        baseline = get_committed_snapshot_files(net)
         time.sleep(10)
-        after = get_snapshot_count(net)
+        final = get_committed_snapshot_files(net)
         assert (
-            after == baseline
-        ), f"With a exact min_tx we expect to not see any extra snapshots, got {after - baseline}"
+            final == baseline
+        ), f"With min_tx_interval set to 2 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
 
     # set much higher to show that
     with net_with_min_tx("_high", 10) as net:
-        baseline = wait_for_at_least_one(net)
+        time.sleep(1)
+        try:
+            net.get_committed_snapshots(
+                net.find_primary()[0],
+                force_txs=False,
+                wait_for_target_seqno=True,
+                timeout=5,
+            )
+        except TimeoutError:
+            pass
+        baseline = get_committed_snapshot_files(net)
         time.sleep(10)
-        after = get_snapshot_count(net)
+        final = get_committed_snapshot_files(net)
         assert (
-            after == baseline
-        ), f"Expect no snapshots when min_tx is high, got {after - baseline}"
+            final == baseline
+        ), f"With min_tx_interval set to 10 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
 
-        net.txs.issue(net, number_txs=1)
-        time.sleep(5)
-        after = get_snapshot_count(net)
+        tx_id = net.txs.issue(net, number_txs=1)
+        baseline = get_committed_snapshot_files(net)
+        time.sleep(10)
+        final = get_committed_snapshot_files(net)
         assert (
-            after == baseline
-        ), f"Expect no snapshots when min_tx is high and only 1 tx issued, got {after - baseline}"
+            final == baseline
+        ), f"With min_tx_interval set to 10 and we expect no snapshots to be generated with only one extra tx, but got {final} snapshots 10s after a baseline of {baseline}, and in total saw {final - baseline} new snapshots over the test."
 
         net.txs.issue(net, number_txs=20)
-        time.sleep(5)
-        after = get_snapshot_count(net)
-        assert (
-            after > baseline
-        ), f"Expect at least one snapshot after issuing many txs, got {after - baseline}"
+        primary, _ = net.find_primary()
+        net.get_committed_snapshots(
+            primary,
+            target_seqno=tx_id.seqno,
+            force_txs=False,
+            wait_for_target_seqno=True,
+        )
 
 
 def run_snapshot_persistence_across_primary_failure(const_args):
