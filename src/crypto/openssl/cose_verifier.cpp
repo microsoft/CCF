@@ -62,6 +62,32 @@ namespace
     auto phdr = parse(phdr_bytes);
     return phdr->map_at(make_signed(ccf::cose::header::iana::ALG))->as_signed();
   }
+
+  CoseKey cose_key_from_pem(const ccf::crypto::Pem& pem)
+  {
+    CoseBuffer key_err;
+    auto key = CoseKey::from_pem_public(pem.data(), pem.size(), key_err);
+    if (!key.is_set())
+    {
+      throw std::runtime_error(fmt::format(
+        "Failed to create COSE verification key: {}",
+        key_err.is_set() ? key_err.to_string() : "unknown error"));
+    }
+    return key;
+  }
+
+  CoseKey cose_key_from_der(std::span<const uint8_t> der)
+  {
+    CoseBuffer key_err;
+    auto key = CoseKey::from_public(der.data(), der.size(), key_err);
+    if (!key.is_set())
+    {
+      throw std::runtime_error(fmt::format(
+        "Failed to create COSE verification key: {}",
+        key_err.is_set() ? key_err.to_string() : "unknown error"));
+    }
+    return key;
+  }
 }
 
 namespace ccf::crypto
@@ -118,32 +144,6 @@ namespace ccf::crypto
     }
     return std::unique_ptr<COSECertVerifier_OpenSSL>(
       new COSECertVerifier_OpenSSL(std::move(key)));
-  }
-
-  static CoseKey cose_key_from_pem(const Pem& pem)
-  {
-    CoseBuffer key_err;
-    auto key = CoseKey::from_pem_public(pem.data(), pem.size(), key_err);
-    if (!key.is_set())
-    {
-      throw std::runtime_error(fmt::format(
-        "Failed to create COSE verification key: {}",
-        key_err.is_set() ? key_err.to_string() : "unknown error"));
-    }
-    return key;
-  }
-
-  static CoseKey cose_key_from_der(std::span<const uint8_t> der)
-  {
-    CoseBuffer key_err;
-    auto key = CoseKey::from_public(der.data(), der.size(), key_err);
-    if (!key.is_set())
-    {
-      throw std::runtime_error(fmt::format(
-        "Failed to create COSE verification key: {}",
-        key_err.is_set() ? key_err.to_string() : "unknown error"));
-    }
-    return key;
   }
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const Pem& public_key_) :
