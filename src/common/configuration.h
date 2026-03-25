@@ -109,6 +109,8 @@ namespace ccf
     CCFConfig::Snapshots,
     directory,
     tx_count,
+    min_tx_count,
+    time_interval,
     read_only_directory,
     max_retained_snapshot_files,
     snapshot_cleanup_interval,

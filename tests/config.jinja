@@ -63,6 +63,8 @@
   {
     "directory": "{{ snapshots_dir }}",
     "tx_count": {{ snapshot_tx_interval }},
+    "min_tx_count": {{ snapshot_min_tx_interval }},
+    "time_interval": "{{ snapshot_time_interval }}",
     "read_only_directory": {{ read_only_snapshots_dir|tojson }}{% if max_retained_snapshot_files %},
     "max_retained_snapshot_files": {{ max_retained_snapshot_files }}{% endif %}{% if snapshot_cleanup_interval %},
     "snapshot_cleanup_interval": "{{ snapshot_cleanup_interval }}"{% endif %}{% if backup_snapshot_fetch_enabled %},

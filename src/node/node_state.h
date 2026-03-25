@@ -34,6 +34,7 @@
 #include "indexing/indexer.h"
 #include "js/global_class_ids.h"
 #include "network_state.h"
+#include "node/commit_callback_subsystem.h"
 #include "node/hooks.h"
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
@@ -392,6 +393,7 @@ namespace ccf
     std::shared_ptr<indexing::Indexer> indexer;
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
+    std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks = nullptr;
     std::shared_ptr<RPCSessions> rpcsessions;
 
     std::shared_ptr<ccf::kv::TxHistory> history;
@@ -536,7 +538,15 @@ namespace ccf
           &view_history,
           true /* public_only */);
 
-        snapshotter->set_last_snapshot_idx(last_recovered_idx);
+        {
+          auto tx = network.tables->create_read_only_tx();
+          auto status =
+            tx.ro<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS)->get();
+          if (status.has_value())
+          {
+            snapshotter->init_from_snapshot_status(status.value());
+          }
+        }
       }
     }
 
@@ -587,6 +597,7 @@ namespace ccf
       std::shared_ptr<RPCMap> rpc_map_,
       std::shared_ptr<AbstractRPCResponder> rpc_sessions_,
       std::shared_ptr<indexing::Indexer> indexer_,
+      std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks_,
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
     {
@@ -595,7 +606,10 @@ namespace ccf
 
       consensus_config = consensus_config_;
       rpc_map = rpc_map_;
+
       indexer = indexer_;
+      commit_callbacks = commit_callbacks_;
+
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
 
@@ -1206,8 +1220,15 @@ namespace ccf
               view_history_,
               last_recovered_signed_idx);
 
-            snapshotter->set_last_snapshot_idx(
-              network.tables->current_version());
+            {
+              auto snap_tx = network.tables->create_read_only_tx();
+              auto snapshot_status =
+                snap_tx.ro<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS)->get();
+              if (snapshot_status.has_value())
+              {
+                snapshotter->init_from_snapshot_status(snapshot_status.value());
+              }
+            }
             history->start_signature_emit_timer();
 
             if (resp.network_info->public_only)
@@ -3021,6 +3042,7 @@ namespace ccf
         n2n_channels,
         shared_state,
         node_client,
+        commit_callbacks,
         public_only);
 
       network.tables->set_consensus(consensus);
@@ -3120,6 +3142,17 @@ namespace ccf
             }
           }));
 
+      // Keep the globally committed snapshot baseline in sync between primary
+      // and backups for bounded snapshotting.
+      network.tables->set_global_hook(
+        Tables::SNAPSHOT_STATUS,
+        SnapshotStatusValue::wrap_commit_hook(
+          [s = this->snapshotter](
+            ccf::kv::Version, const SnapshotStatusValue::Write& w) {
+            assert(w.has_value());
+            s->record_snapshot_status(w.value());
+          }));
+
       setup_basic_hooks();
     }
 
@@ -3129,8 +3162,25 @@ namespace ccf
       {
         throw std::logic_error("Snapshotter already initialised");
       }
+
+      if (
+        config.snapshots.min_tx_count < 2 &&
+        std::chrono::microseconds(config.snapshots.time_interval).count() > 0)
+      {
+        LOG_INFO_FMT(
+          "snapshots.min_tx_count is lower than 2 while "
+          "snapshots.time_interval is set to {}. Time-based snapshots may "
+          "continue to be generated without application writes due to the "
+          "writes to snapshot evidence and its signature.",
+          config.snapshots.time_interval.str);
+      }
+
       snapshotter = std::make_shared<Snapshotter>(
-        writer_factory, network.tables, config.snapshots.tx_count);
+        writer_factory,
+        network.tables,
+        config.snapshots.tx_count,
+        config.snapshots.min_tx_count,
+        config.snapshots.time_interval);
     }
 
     void read_ledger_entries(::consensus::Index from, ::consensus::Index to)

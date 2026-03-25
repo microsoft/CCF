@@ -30,7 +30,15 @@ namespace ccf
     static constexpr auto HEADER_PARAM_MSG_CREATED_AT =
       "ccf.gov.msg.created_at";
 
-    std::pair<ccf::GovernanceProtectedHeader, Signature>
+    struct DecomposedCoseSign1
+    {
+      std::span<const uint8_t> phdr_bytes;
+      std::span<const uint8_t> payload;
+      Signature sig;
+      int64_t alg;
+    };
+
+    std::pair<ccf::GovernanceProtectedHeader, DecomposedCoseSign1>
     extract_governance_protected_header_and_signature(
       const std::vector<uint8_t>& cose_sign1)
     {
@@ -112,10 +120,16 @@ namespace ccf
         [&]() { return cose_envelope->array_at(3)->as_bytes(); },
         "Parse COSE signature");
 
-      return {parsed, signature};
+      auto payload = rethrow_with_msg(
+        [&]() { return cose_envelope->array_at(2)->as_bytes(); },
+        "Parse COSE payload");
+
+      DecomposedCoseSign1 decomposed{
+        phdr_raw->as_bytes(), payload, signature, parsed.alg};
+      return {parsed, decomposed};
     }
 
-    std::pair<ccf::TimestampedProtectedHeader, Signature>
+    std::pair<ccf::TimestampedProtectedHeader, DecomposedCoseSign1>
     extract_protected_header_and_signature(
       const std::vector<uint8_t>& cose_sign1,
       const std::string& msg_type_name,
@@ -198,7 +212,13 @@ namespace ccf
         [&]() { return cose_envelope->array_at(3)->as_bytes(); },
         "Parse COSE signature");
 
-      return {parsed, signature};
+      auto payload = rethrow_with_msg(
+        [&]() { return cose_envelope->array_at(2)->as_bytes(); },
+        "Parse COSE payload");
+
+      DecomposedCoseSign1 decomposed{
+        phdr_raw->as_bytes(), payload, signature, parsed.alg};
+      return {parsed, decomposed};
     }
   }
 
@@ -227,7 +247,7 @@ namespace ccf
       return nullptr;
     }
 
-    auto [phdr, cose_signature] =
+    auto [phdr, decomposed] =
       cose::extract_governance_protected_header_and_signature(
         ctx->get_request_body());
 
@@ -245,14 +265,21 @@ namespace ccf
       auto verifier =
         ccf::crypto::make_cose_verifier_from_cert(member_cert->raw());
 
-      std::span<const uint8_t> body = {
-        ctx->get_request_body().data(), ctx->get_request_body().size()};
-      std::span<uint8_t> authned_content;
-      if (!verifier->verify(body, authned_content))
+      if (!verifier->verify_decomposed(
+            decomposed.phdr_bytes,
+            decomposed.payload,
+            decomposed.sig,
+            decomposed.alg))
       {
         error_reason = fmt::format("Failed to validate COSE Sign1");
         return nullptr;
       }
+
+      std::span<const uint8_t> body = {
+        ctx->get_request_body().data(), ctx->get_request_body().size()};
+      std::span<uint8_t> authned_content{
+        const_cast<uint8_t*>(decomposed.payload.data()),
+        decomposed.payload.size()};
 
       if (gov_msg_type.has_value())
       {
@@ -278,7 +305,7 @@ namespace ccf
       return std::make_unique<MemberCOSESign1AuthnIdentity>(
         authned_content,
         body,
-        cose_signature,
+        decomposed.sig,
         phdr.kid,
         member_cert.value(),
         phdr);
@@ -365,7 +392,7 @@ namespace ccf
       return nullptr;
     }
 
-    auto [phdr, cose_signature] = cose::extract_protected_header_and_signature(
+    auto [phdr, decomposed] = cose::extract_protected_header_and_signature(
       ctx->get_request_body(), msg_type_name, msg_created_at_name);
 
     if (!cose::is_ecdsa_alg(phdr.alg))
@@ -382,19 +409,26 @@ namespace ccf
       auto verifier =
         ccf::crypto::make_cose_verifier_from_cert(user_cert->raw());
 
-      std::span<const uint8_t> body = {
-        ctx->get_request_body().data(), ctx->get_request_body().size()};
-      std::span<uint8_t> authned_content;
-      if (!verifier->verify(body, authned_content))
+      if (!verifier->verify_decomposed(
+            decomposed.phdr_bytes,
+            decomposed.payload,
+            decomposed.sig,
+            decomposed.alg))
       {
         error_reason = fmt::format("Failed to validate COSE Sign1");
         return nullptr;
       }
 
+      std::span<const uint8_t> body = {
+        ctx->get_request_body().data(), ctx->get_request_body().size()};
+      std::span<uint8_t> authned_content{
+        const_cast<uint8_t*>(decomposed.payload.data()),
+        decomposed.payload.size()};
+
       return std::make_unique<UserCOSESign1AuthnIdentity>(
         authned_content,
         body,
-        cose_signature,
+        decomposed.sig,
         phdr.kid,
         user_cert.value(),
         phdr);

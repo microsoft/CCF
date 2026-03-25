@@ -97,6 +97,8 @@ namespace ccf
     {
       std::string directory = "snapshots";
       size_t tx_count = 10'000;
+      size_t min_tx_count = 2;
+      ccf::ds::TimeString time_interval = {"0s"};
       std::optional<std::string> read_only_directory = std::nullopt;
       std::optional<size_t> max_retained_snapshot_files = std::nullopt;
       ccf::ds::TimeString snapshot_cleanup_interval = {"30s"};
