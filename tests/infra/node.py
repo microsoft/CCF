@@ -213,9 +213,7 @@ class Node:
             ) <= Version("7.0.0-dev13"):
                 if rpc_interface.enabled_operator_features:
                     if "SnapshotCreate" in rpc_interface.enabled_operator_features:
-                        rpc_interface.enabled_operator_features.remove(
-                            "SnapshotCreate"
-                        )
+                        rpc_interface.enabled_operator_features.remove("SnapshotCreate")
 
     def __hash__(self):
         return self.local_node_id
