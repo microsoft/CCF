@@ -569,7 +569,7 @@ carry only a transaction flag.
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
-**Value** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+**Value** Sentinel value 0, serialized as the JSON number ``0``.
 
 ``encrypted_submitted_shares``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

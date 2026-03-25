@@ -1866,7 +1866,7 @@ namespace ccf
         return make_success();
       };
       make_endpoint(
-        "/snapshot/force",
+        "/snapshot:create",
         HTTP_POST,
         json_adapter(force_snapshot),
         no_auth_required)
