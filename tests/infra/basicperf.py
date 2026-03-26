@@ -627,13 +627,13 @@ def run(args):
                     ]
 
                 def blue_shades(n):
-                    return _shades(n, (59, 142, 234), (100, 100, 255))
+                    return _shades(n, (59, 142, 234), (180, 180, 255))
 
                 def green_shades(n):
-                    return _shades(n, (13, 188, 121), (100, 255, 100))
+                    return _shades(n, (13, 188, 121), (180, 255, 180))
 
                 def red_shades(n):
-                    return _shades(n, (205, 49, 49), (255, 100, 100))
+                    return _shades(n, (205, 49, 49), (255, 180, 180))
 
                 def format_title(title, width):
                     """Centered title bar in the style of plotext's simple_bar charts."""
