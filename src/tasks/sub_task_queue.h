@@ -10,7 +10,8 @@ namespace ccf::tasks
 {
   // Helper type for OrderedTasks, containing a list of sub-tasks to be
   // performed in-order. Modifiers return bools indicating whether the caller
-  // is responsible for scheduling a future flush of this queue.
+  // should schedule processing of this queue *now* (eg, enqueue the owning
+  // runner), based on the current state.
   template <typename T>
   class SubTaskQueue
   {
@@ -21,6 +22,11 @@ namespace ccf::tasks
     std::atomic<bool> paused;
 
   public:
+    // Enqueue a new sub-task.
+    //
+    // Returns true iff this call made the queue non-empty and the queue was
+    // not already active. Callers should interpret a true return as "schedule
+    // processing of this queue now" (eg, enqueue the parent runner).
     bool push(T&& t)
     {
       std::lock_guard<std::mutex> lock(pending_mutex);
@@ -74,11 +80,13 @@ namespace ccf::tasks
       return !pending.empty() && !active.load();
     }
 
-    void get_queue_summary(size_t& num_pending, bool& is_active)
+    void get_queue_summary(
+      size_t& num_pending, bool& is_active, bool& is_paused)
     {
       std::lock_guard<std::mutex> lock(pending_mutex);
       num_pending = pending.size();
       is_active = active.load();
+      is_paused = paused.load();
     }
   };
 }

@@ -47,10 +47,10 @@ The listing below is an example of what a ledger directory may look like:
 Download Endpoints
 ~~~~~~~~~~~~~~~~~~
 
-In order to faciliate long term backup of the ledger files (also called chunks), nodes can enable HTTP endpoints that allow a client to download committed ledger files.
-The `LedgerChunkDownload` feature must be added to `enabled_operator_features` on the relevant `rpc_interfaces` entries in the node configuration.
+In order to facilitate long term backup of the ledger files (also called chunks), nodes can enable HTTP endpoints that allow a client to download committed ledger files.
+The `LedgerChunkRead` feature must be added to `enabled_operator_features` on the relevant `rpc_interfaces` entries in the node configuration.
 
-1. :http:GET:`/node/ledger-chunk` and :http:HEAD:`/node/ledger-chunk`, both taking a `seqno` query parameter.
+1. :http:GET:`/node/ledger_chunk` and :http:HEAD:`/node/ledger_chunk`, both taking a `since=<seqno>` query parameter.
 
 These endpoints can be used by a client to download the next ledger chunk including a given sequence number `<seqno>`.
 They redirect to the appropriate chunk if it exists, using the endpoints described below, or return a `404 Not Found` response if no such chunk is available.
@@ -61,17 +61,17 @@ In the typical case, a requesting client will first hit a Backup, and will event
 
     sequenceDiagram
         Note over Client: Client asks for chunk starting at index
-        Client->>+Backup: GET /node/ledger-chunk?since=index
-        Backup->>-Client: 308 Location: /node/ledger-chunk/ledger_startIndex_endIndex.committed
+        Client->>+Backup: GET /node/ledger_chunk?since=index
+        Backup->>-Client: 308 Location: /node/ledger_chunk/ledger_startIndex_endIndex.committed
         Note over Backup: Backup node has that chunk
-        Client->>+Backup: GET /node/ledger-chunk/ledger_startIndex_endIndex.committed
+        Client->>+Backup: GET /node/ledger_chunk/ledger_startIndex_endIndex.committed
         Backup->>-Client: 200 <Chunk Contents>
-        Client->>+Backup: GET /node/ledger-chunk?since=endIndex+1
+        Client->>+Backup: GET /node/ledger_chunk?since=endIndex+1
         Note over Backup: Backup node does not yet have a committed chunk starting at endIndex+1
-        Backup->>-Client: 308 Location: https://primary/node/ledger-chunk?since=endIndex+1
-        Client->>+Primary: GET /node/ledger-chunk?since=endIndex+1
-        Primary->>-Client: 308 Location: /node/ledger-chunk/ledger_endIndex+1_nextEndIndex.committed
-        Client->>+Primary: GET /node/ledger-chunk/ledger_startIndex_endIndex.committed
+        Backup->>-Client: 308 Location: https://primary/node/ledger_chunk?since=endIndex+1
+        Client->>+Primary: GET /node/ledger_chunk?since=endIndex+1
+        Primary->>-Client: 308 Location: /node/ledger_chunk/ledger_endIndex+1_nextEndIndex.committed
+        Client->>+Primary: GET /node/ledger_chunk/ledger_startIndex_endIndex.committed
         Note over Primary: But the Primary node has the most recent chunk already
         Primary->>-Client: 200 <Chunk Contents>
 
@@ -95,18 +95,18 @@ then the following sequence can occur:
 .. mermaid::
 
     sequenceDiagram
-        Client->>+Primary: GET /node/ledger-chunk?since=51
-        Primary->>-Client: 308 Location: https://backup/node/ledger-chunk?since=51
-        Client->>+Backup: GET /node/ledger-chunk?since=51
-        Backup->>-Client: 308 Location: /node/ledger-chunk/ledger_51-100.committed
-        Client->>+Backup: GET /node/ledger-chunk/ledger_51-100.committed
+        Client->>+Primary: GET /node/ledger_chunk?since=51
+        Primary->>-Client: 308 Location: https://backup/node/ledger_chunk?since=51
+        Client->>+Backup: GET /node/ledger_chunk?since=51
+        Backup->>-Client: 308 Location: /node/ledger_chunk/ledger_51-100.committed
+        Client->>+Backup: GET /node/ledger_chunk/ledger_51-100.committed
         Backup->>-Client: 200 <Chunk Contents>
-        Client->>+Backup: GET /node/ledger-chunk?since=101
+        Client->>+Backup: GET /node/ledger_chunk?since=101
         Note over Backup: Backup node does not have 101-150
-        Backup->>-Client: 308 Location: https://primary/node/ledger-chunk?since=51
-        Client->>+Primary: GET /node/ledger-chunk?since=101
+        Backup->>-Client: 308 Location: https://primary/node/ledger_chunk?since=51
+        Client->>+Primary: GET /node/ledger_chunk?since=101
 
-2. :http:GET:`/node/ledger-chunk/{chunk_name}` and :http:HEAD:`/node/ledger-chunk/{chunk_name}`
+2. :http:GET:`/node/ledger_chunk/{chunk_name}` and :http:HEAD:`/node/ledger_chunk/{chunk_name}`
 
 These endpoints allow downloading a specific ledger chunk by name, where `<chunk-name>` is of the form `ledger_<start_seqno>-<end_seqno>.committed`.
 They support the HTTP `Range` header for partial downloads, and the `HEAD` method for clients to query metadata such as the total size without downloading the full chunk.
@@ -126,7 +126,7 @@ This allows clients to verify the integrity of downloaded files and avoid re-dow
 ETag and If-None-Match
 ^^^^^^^^^^^^^^^^^^^^^^
 
-``GET /node/ledger-chunk/{chunk_name}`` supports ``ETag`` and ``If-None-Match`` headers, allowing clients to atomically check whether a chunk (or a range of a chunk) has changed and re-download it in a single request, without needing a separate metadata query first.
+``GET /node/ledger_chunk/{chunk_name}`` supports ``ETag`` and ``If-None-Match`` headers, allowing clients to atomically check whether a chunk (or a range of a chunk) has changed and re-download it in a single request, without needing a separate metadata query first.
 Every successful ``GET`` response includes an ``ETag`` header whose value uses the `RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_ digest format: ``"sha-256=:<base64_digest>:"``, where ``<base64_digest>`` is the base64-encoded SHA-256 digest of the returned content (which may be a sub-range when the ``Range`` header is used).
 
 .. note:: ETag values must be surrounded by double quotes, as per `RFC 7232 <https://www.rfc-editor.org/rfc/rfc7232#section-2.3>`_.
@@ -140,7 +140,7 @@ When the client already holds a chunk and wants to check if it has changed, it s
 
     sequenceDiagram
         Note over Client: Client already has chunk with known ETag
-        Client->>+Node: GET /node/ledger-chunk/ledger_1-100.committed<br/>If-None-Match: "sha-256=:47DEQpj8HBSa+/TImW...=:"
+        Client->>+Node: GET /node/ledger_chunk/ledger_1-100.committed<br/>If-None-Match: "sha-256=:47DEQpj8HBSa+/TImW...=:"
         Note over Node: Computes digest, matches If-None-Match
         Node->>-Client: 304 Not Modified<br/>ETag: "sha-256=:47DEQpj8HBSa+/TImW...=:"
         Note over Client: No body transferred, client keeps existing copy
@@ -151,7 +151,7 @@ If the ``If-None-Match`` ETag does not match the current content (e.g. the clien
 
     sequenceDiagram
         Note over Client: Client sends an ETag that does not match
-        Client->>+Node: GET /node/ledger-chunk/ledger_1-100.committed<br/>If-None-Match: "sha-256=:AAAA...=:"
+        Client->>+Node: GET /node/ledger_chunk/ledger_1-100.committed<br/>If-None-Match: "sha-256=:AAAA...=:"
         Note over Node: Computes digest, does not match If-None-Match
         Node->>-Client: 200 OK<br/>ETag: "sha-256=:47DEQpj8HBSa+/TImW...=:"<br/><Chunk Contents>
         Note over Client: Client stores chunk and new ETag for future requests
@@ -168,7 +168,9 @@ Snapshot Generation
 
 Snapshots are generated at regular intervals by the current primary node and stored under the directory specified via the ``snapshots.directory`` configuration entry (defaults to ``snapshots/``). The transaction interval at which snapshots are generated is specified via the ``snapshots.tx_count`` configuration entry (defaults to a new snapshot generated every ``10,000`` committed transactions). Snapshots can also be generated by the ``trigger_snapshot`` governance action, i.e. by submitting a proposal. A snapshot will then be generated at the next signature transaction.
 
-.. note:: Because the generation of a snapshot requires a new ledger chunk to be created (see :ref:`operations/ledger_snapshot:File Layout`), all nodes in the network must be started with the same ``snapshots.tx_count`` value.
+Time-based snapshotting can also be enabled with ``snapshots.time_interval``. When this is set, a snapshot is eligible once more than ``snapshots.min_tx_count`` transactions have elapsed since the last snapshot. These transactions include CCF internal signature and snapshot bookkeeping transactions as well as application writes.
+
+.. warning:: Setting ``snapshots.min_tx_count`` lower than ``2`` while ``snapshots.time_interval`` is greater than ``0s`` can lead to repeated time-based snapshots even when there are no new application writes. This is because the snapshot itself generates two transactions.
 
 To guarantee that the identity of the primary node that generated the snapshot can be verified offline, the SHA-256 digest of the snapshot (i.e. evidence) is recorded in the :ref:`audit/builtin_maps:``snapshot_evidence``` table. The snapshot evidence will be signed by the primary node on the next signature transaction (see :ref:`operations/configuration:``ledger_signatures```).
 

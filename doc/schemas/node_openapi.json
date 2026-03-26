@@ -234,6 +234,17 @@
         ],
         "type": "object"
       },
+      "GetHistoricalCacheInfo__Out": {
+        "properties": {
+          "estimated_size": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "estimated_size"
+        ],
+        "type": "object"
+      },
       "GetNetworkInfo__Out": {
         "properties": {
           "current_service_create_txid": {
@@ -918,7 +929,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "5.0.3"
+    "version": "5.0.4"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1097,6 +1108,29 @@
         }
       }
     },
+    "/node/historical_cache": {
+      "get": {
+        "operationId": "GetNodeHistoricalCache",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetHistoricalCacheInfo__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
     "/node/index/strategies": {
       "get": {
         "operationId": "GetNodeIndexStrategies",
@@ -1166,9 +1200,9 @@
         }
       }
     },
-    "/node/ledger-chunk": {
+    "/node/ledger_chunk": {
       "get": {
-        "description": "Redirect to the corresponding /node/ledger-chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.",
+        "description": "Redirect to the corresponding /node/ledger_chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.",
         "operationId": "GetNodeLedgerChunk",
         "parameters": [
           {
@@ -1194,7 +1228,7 @@
         }
       },
       "head": {
-        "description": "Redirect to the corresponding /node/ledger-chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.",
+        "description": "Redirect to the corresponding /node/ledger_chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter.",
         "operationId": "HeadNodeLedgerChunk",
         "parameters": [
           {
@@ -1220,7 +1254,7 @@
         }
       }
     },
-    "/node/ledger-chunk/{chunk_name}": {
+    "/node/ledger_chunk/{chunk_name}": {
       "get": {
         "description": "Download a specific ledger chunk by name. Supports HTTP Range header for partial downloads.",
         "operationId": "GetNodeLedgerChunkChunkName",

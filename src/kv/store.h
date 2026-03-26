@@ -642,6 +642,9 @@ namespace ccf::kv
 
         version = tx_id.seqno;
         last_replicated = tx_id.seqno;
+        // In practice rollback is only called at signature seqnos, so
+        // clamping here restores the latest committable entry
+        last_committable = std::min(last_committable, tx_id.seqno);
         unset_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
@@ -992,14 +995,23 @@ namespace ccf::kv
         auto hooks_shared =
           std::make_shared<ccf::kv::ConsensusHookPtrs>(std::move(hooks_));
 
-        // NB: this cannot happen currently. Regular Tx only make it here if
-        // they did succeed, and signatures cannot conflict because they
-        // execute in order with a read_version that's version - 1, so even
-        // two contiguous signatures are fine
-        if (success_ != CommitResult::SUCCESS)
+        // A pending tx may fail here if rollback invalidated a reserved
+        // signature tx after it was dequeued from pending_txs.
+        if (success_ == CommitResult::FAIL_NO_REPLICATE)
         {
           LOG_DEBUG_FMT(
             "Failed Tx commit {}", previous_last_replicated + offset);
+          return success_;
+        }
+        // We should never fail from here, as normal txs have already succeeded
+        // and reserved txs only fail with FAIL_NO_REPLICATE
+        if (success_ != CommitResult::SUCCESS)
+        {
+          LOG_FAIL_FMT(
+            "Unexpected failure reason {} during commit of {}.{}",
+            static_cast<int>(success_),
+            txid.view,
+            txid.seqno);
         }
 
         if (h)
@@ -1047,6 +1059,16 @@ namespace ccf::kv
       return CommitResult::FAIL_NO_REPLICATE;
     }
 
+    bool should_schedule_snapshot()
+    {
+      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      if (snapshotter)
+      {
+        return snapshotter->should_schedule_snapshot(last_committable);
+      }
+      return false;
+    }
+
     bool should_create_ledger_chunk(Version version) override
     {
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
@@ -1058,7 +1080,7 @@ namespace ccf::kv
       // Note that snapshotter->record_committable, and therefore this function,
       // assumes that `version` is a committable entry/signature.
 
-      bool r = flag_enabled_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      bool r = false;
 
       if (chunker)
       {
@@ -1068,6 +1090,12 @@ namespace ccf::kv
       if (snapshotter)
       {
         r |= snapshotter->record_committable(version);
+      }
+      else
+      {
+        // This branch is required to ensure that when there is no snapshotter,
+        // that this still triggers chunk ends if the flag is set.
+        r |= flag_enabled_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
       }
 
       return r;

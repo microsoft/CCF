@@ -35,6 +35,7 @@ import infra.concurrency
 import ccf.read_ledger
 import re
 import hashlib
+from contextlib import contextmanager
 
 from loguru import logger as LOG
 
@@ -983,18 +984,18 @@ def test_ledger_chunk_access(network, args):
                 # Asking about any index in the chunk should redirect to the chunk
                 for index in (start_index, end_index, (start_index + end_index) // 2):
                     r = c.head(
-                        f"/node/ledger-chunk?since={index}", allow_redirects=False
+                        f"/node/ledger_chunk?since={index}", allow_redirects=False
                     )
                     assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
                     assert r.headers["Location"].endswith(
-                        f"/node/ledger-chunk/{chunk}"
+                        f"/node/ledger_chunk/{chunk}"
                     ), r
                     r = c.get(
-                        f"/node/ledger-chunk?since={index}", allow_redirects=False
+                        f"/node/ledger_chunk?since={index}", allow_redirects=False
                     )
                     assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
                     assert r.headers["Location"].endswith(
-                        f"/node/ledger-chunk/{chunk}"
+                        f"/node/ledger_chunk/{chunk}"
                     ), r
 
                     chunk_url = urllib.parse.urlparse(r.headers["Location"])
@@ -1022,14 +1023,14 @@ def test_ledger_chunk_access(network, args):
 
             LOG.info("Accessing an empty chunk always returns an error")
             with tempfile.NamedTemporaryFile(dir=main_ledger_dir) as temp_chunk:
-                chunk_url = f"/node/ledger-chunk/{os.path.basename(temp_chunk.name)}"
+                chunk_url = f"/node/ledger_chunk/{os.path.basename(temp_chunk.name)}"
                 r = c.get(
                     chunk_url,
                     allow_redirects=True,
                 )
                 assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
 
-                chunk_url = f"/node/ledger-chunk/{os.path.basename(temp_chunk.name)}"
+                chunk_url = f"/node/ledger_chunk/{os.path.basename(temp_chunk.name)}"
                 for range_value in ("bytes=0-10", "bytes=0-", "bytes=0-0"):
                     r = c.get(
                         chunk_url,
@@ -1049,7 +1050,7 @@ def test_ledger_chunk_access(network, args):
         )
         assert len(chunks) > 0, "No committed chunks found"
         _, _, chunk = chunks[0]
-        chunk_url = f"/node/ledger-chunk/{chunk}"
+        chunk_url = f"/node/ledger_chunk/{chunk}"
         ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
         with open(ledger_chunk_path, "rb") as f:
             chunk_data = f.read()
@@ -1224,7 +1225,7 @@ def test_ledger_chunk_access(network, args):
 def test_ledger_chunk_repr_digest(network, args):
     """
     Verify that the Want-Repr-Digest / Repr-Digest headers work correctly
-    on the ledger-chunk endpoints for GET and HEAD, including sha-256,
+    on the ledger_chunk endpoints for GET and HEAD, including sha-256,
     sha-384 and sha-512 algorithms.
     """
     primary, _ = network.find_nodes()
@@ -1240,7 +1241,7 @@ def test_ledger_chunk_repr_digest(network, args):
         assert len(chunks) > 0, "No committed chunks found"
 
         _, _, chunk = chunks[0]
-        chunk_url = f"/node/ledger-chunk/{chunk}"
+        chunk_url = f"/node/ledger_chunk/{chunk}"
         ledger_chunk_path = os.path.join(main_ledger_dir, chunk)
         with open(ledger_chunk_path, "rb") as f:
             chunk_data = f.read()
@@ -1369,7 +1370,7 @@ def test_ledger_chunk_redirect_recent(network, args):
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
     ) as c:
         r = c.head(
-            f"/node/ledger-chunk?since={start_of_last_chunk}", allow_redirects=False
+            f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=False
         )
         assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
         expected_host = primary.get_public_rpc_host(
@@ -1378,10 +1379,10 @@ def test_ledger_chunk_redirect_recent(network, args):
         expected_port = primary.get_public_rpc_port(
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         )
-        expected_location = f"https://{expected_host}:{expected_port}/node/ledger-chunk?since={start_of_last_chunk}"
+        expected_location = f"https://{expected_host}:{expected_port}/node/ledger_chunk?since={start_of_last_chunk}"
         assert r.headers["Location"] == expected_location, r
         r = c.get(
-            f"/node/ledger-chunk?since={start_of_last_chunk}", allow_redirects=True
+            f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=True
         )
         primary_main_ledger_dir = primary.get_main_ledger_dir()
         ledger_chunk_path = os.path.join(primary_main_ledger_dir, chunks[-1])
@@ -1442,7 +1443,7 @@ def test_ledger_chunk_redirect_gap(network, args):
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         ) as c:
             r = c.head(
-                f"/node/ledger-chunk?since={download_index}", allow_redirects=False
+                f"/node/ledger_chunk?since={download_index}", allow_redirects=False
             )
             assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
             # Should redirect to any existing node
@@ -1471,7 +1472,7 @@ def test_ledger_chunk_redirect_gap(network, args):
             ), "Ledger chunk redirect should not point to self"
 
             r = c.get(
-                f"/node/ledger-chunk?since={download_index}", allow_redirects=True
+                f"/node/ledger_chunk?since={download_index}", allow_redirects=True
             )
             chunk_name = os.path.basename(r.headers["x-ms-ccf-ledger-chunk-name"])
             ledger_chunk_path = os.path.join(
@@ -2988,32 +2989,32 @@ def test_backup_snapshot_fetch_max_size(network, args):
     )
     network.trust_node(new_node, args)
     new_node.wait_for_node_to_join(timeout=5)
-    # Check the snapshot directory for the new node only contains a single file
     snapshot_dir = os.path.join(
         new_node.remote.remote.root, new_node.remote.snapshots_dir_name
     )
 
-    def assert_no_snapshot_present():
-        timeout_s = 10
-        end_time = time.time() + timeout_s
+    def assert_no_snapshot_is_present(duration_s=10):
+        """
+        On a join node, the snapshot directory is expected to be empty until
+        the node attempts to fetch a snapshot from the primary. Directory creation
+        is not always visible immediately, so we defer enforcing the expectation
+        that the directory exists.
+        """
+        end_time = time.time() + duration_s
         while time.time() < end_time:
             if os.path.exists(snapshot_dir):
                 files = os.listdir(snapshot_dir)
-                if len(files) > 0:
-                    LOG.info(
-                        f"New node {new_node.local_node_id}: found snapshot file {files[0]} in {snapshot_dir}"
-                    )
-                    break
-
-                LOG.info(
-                    f"New node {new_node.local_node_id}: expected to find a single snapshot file in {snapshot_dir}, but found {files}; retrying"
-                )
-
+                assert (
+                    files == []
+                ), f"Expected no snapshot in {snapshot_dir}, but found {files}"
             time.sleep(0.1)
+        assert os.path.exists(
+            snapshot_dir
+        ), f"Expected snapshot directory {snapshot_dir} to exist"
 
-    assert_no_snapshot_present()
+    assert_no_snapshot_is_present()
     network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
-    assert_no_snapshot_present()
+    assert_no_snapshot_is_present()
     expected_log_message = "Failed writing received data to disk/application"
     out_path, _ = new_node.get_logs()
     for line in open(out_path, "r", encoding="utf-8").readlines():
@@ -3086,6 +3087,200 @@ def run_propose_request_vote(const_args):
                 node.remote.remote.proc.send_signal(signal.SIGTERM)
 
 
+def run_time_based_snapshotting(const_args):
+    args = copy.deepcopy(const_args)
+    args.label += "_tb_snapshot"
+    args.snapshot_tx_interval = (
+        10000  # Large interval to avoid interference from regular snapshots
+    )
+    args.snapshot_time_interval = "1s"
+
+    @contextmanager
+    def net_with_min_tx(label, min_tx_interval):
+        inner_args = copy.deepcopy(args)
+        inner_args.snapshot_min_tx_interval = min_tx_interval
+        inner_args.label += label
+        with infra.network.network(
+            inner_args.nodes,
+            inner_args.binary_dir,
+            inner_args.debug_nodes,
+            pdb=inner_args.pdb,
+            txs=app.LoggingTxs("user0"),
+        ) as net:
+            net.start_and_open(inner_args)
+            yield net
+
+    def get_committed_snapshot_files(net):
+        primary, _ = net.find_primary()
+        snapshots_dirs = [
+            os.path.join(primary.remote.remote.root, primary.remote.snapshots_dir_name)
+        ]
+        if primary.remote.read_only_snapshots_dir_name is not None:
+            snapshots_dirs.append(
+                os.path.join(
+                    primary.remote.remote.root,
+                    primary.remote.read_only_snapshots_dir_name,
+                )
+            )
+
+        snapshots = set()
+        for snapshots_dir in snapshots_dirs:
+            if not os.path.isdir(snapshots_dir):
+                continue
+
+            for snapshot_name in os.listdir(snapshots_dir):
+                if ccf.ledger.is_snapshot_file_committed(snapshot_name):
+                    snapshots.add(snapshot_name)
+
+        return snapshots
+
+    # Pattern for these tests:
+    # 1. wait for any startup triggered txs to commit and net to settle
+    # 2. wait for a snapshot with the latest committed tx, or wait 5s
+    # 3. record baseline
+    # 4. record new snapshots over 10s and compare that to the baseline
+
+    # min_tx set low
+    with net_with_min_tx("_low", 0) as net:
+        time.sleep(1)
+        net.get_committed_snapshots(
+            net.find_primary()[0],
+            force_txs=False,
+            wait_for_target_seqno=True,
+            timeout=5,
+        )
+        baseline = get_committed_snapshot_files(net)
+        time.sleep(10)
+        final = get_committed_snapshot_files(net)
+        assert (
+            len(final - baseline) >= 8
+        ), f"With min_tx_interval set to 0 we expect snapshots to be generated at around 1 per second, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
+
+    # min_tx set just right
+    with net_with_min_tx("_exact", 2) as net:
+        time.sleep(1)
+        try:
+            net.get_committed_snapshots(
+                net.find_primary()[0],
+                force_txs=False,
+                wait_for_target_seqno=True,
+                timeout=5,
+            )
+        except TimeoutError:
+            pass
+        baseline = get_committed_snapshot_files(net)
+        time.sleep(10)
+        final = get_committed_snapshot_files(net)
+        assert (
+            final == baseline
+        ), f"With min_tx_interval set to 2 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
+
+    # set much higher to show that
+    with net_with_min_tx("_high", 10) as net:
+        time.sleep(1)
+        try:
+            net.get_committed_snapshots(
+                net.find_primary()[0],
+                force_txs=False,
+                wait_for_target_seqno=True,
+                timeout=5,
+            )
+        except TimeoutError:
+            pass
+        baseline = get_committed_snapshot_files(net)
+        time.sleep(10)
+        final = get_committed_snapshot_files(net)
+        assert (
+            final == baseline
+        ), f"With min_tx_interval set to 10 we expect no snapshots to be generated without transactions, but got {final} snapshots 10s after a baseline of {baseline}, with {final - baseline} new snapshots seen over the test."
+
+        tx_id = net.txs.issue(net, number_txs=1)
+        baseline = get_committed_snapshot_files(net)
+        time.sleep(10)
+        final = get_committed_snapshot_files(net)
+        assert (
+            final == baseline
+        ), f"With min_tx_interval set to 10 and we expect no snapshots to be generated with only one extra tx, but got {final} snapshots 10s after a baseline of {baseline}, and in total saw {final - baseline} new snapshots over the test."
+
+        net.txs.issue(net, number_txs=20)
+        primary, _ = net.find_primary()
+        net.get_committed_snapshots(
+            primary,
+            target_seqno=tx_id.seqno,
+            force_txs=False,
+            wait_for_target_seqno=True,
+        )
+
+
+def run_snapshot_persistence_across_primary_failure(const_args):
+    """
+    Verify that the snapshot generation rate stays consistent across
+    leadership changes. Suspends the primary to trigger an election,
+    then resumes it. If the time baseline reset on each election,
+    new primaries would snapshot immediately, inflating the count.
+    """
+    snapshot_interval_ms = 5000
+    test_duration_s = 60
+    stable_time_s = 5
+
+    args = copy.deepcopy(const_args)
+    args.label += "_tb_snapshot_persist"
+    args.nodes = infra.e2e_args.nodes(args, 3)
+    args.snapshot_tx_interval = 10000  # High to avoid tx-count-triggered snapshots
+    args.snapshot_time_interval = f"{snapshot_interval_ms}ms"
+    args.snapshot_min_tx_interval = 0
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as net:
+        net.start_and_open(args)
+
+        start_time = time.time()
+        end_time = time.time() + test_duration_s
+
+        while True:
+            primary, _ = net.find_primary()
+            LOG.info(f"Leadership change suspending {primary.local_node_id}")
+            primary.suspend()
+            new_primary, _ = net.wait_for_new_primary(primary)
+            LOG.info(f"New primary is {new_primary.local_node_id}")
+            primary.resume()
+            if time.time() < end_time:
+                time.sleep(stable_time_s)
+            else:
+                break
+
+        elapsed = time.time() - start_time
+        snapshots = set()
+        for node in net.nodes:
+            snapshots_dir = net.get_committed_snapshots(node, force_txs=False)
+            snapshots = snapshots.union(set(os.listdir(snapshots_dir)))
+
+        total_snapshots = len(snapshots)
+
+        snapshot_interval_s = snapshot_interval_ms / 1000
+        election_timeout_s = args.election_timeout_ms / 1000
+        # In the worst case, each snapshot is delayed by one extra election timeout
+        # beyond the nominal snapshot interval while leadership is re-established.
+        min_expected = elapsed / (snapshot_interval_s + election_timeout_s * 1.2)
+        max_expected = elapsed / snapshot_interval_s * 0.9
+        LOG.info(
+            f"Elapsed: {elapsed:.1f}s, snapshots: {total_snapshots}, "
+            f"expected bounds [{min_expected:.1f}, {max_expected:.1f}] "
+            f"(interval={snapshot_interval_ms}ms, election_timeout={args.election_timeout_ms}ms)"
+        )
+
+        assert min_expected <= total_snapshots <= max_expected, (
+            f"Snapshot count {total_snapshots} is outside expected bounds "
+            f"[{min_expected:.1f}, {max_expected:.1f}] based on elapsed time, "
+            f"snapshot interval, and election timeout"
+        )
+
+
 def run_snp_tests(args):
     run_initial_uvm_descriptor_checks(args)
     run_initial_tcb_version_checks(args)
@@ -3121,3 +3316,5 @@ def run(args):
     run_read_ledger_on_testdata(args)
     run_merkle_verification_level(args)
     run_propose_request_vote(args)
+    run_time_based_snapshotting(args)
+    run_snapshot_persistence_across_primary_failure(args)
