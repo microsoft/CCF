@@ -62,6 +62,8 @@ namespace ccf
 
     virtual void initiate_private_recovery(ccf::kv::Tx& tx) = 0;
 
+    virtual void trigger_snapshot(ccf::kv::Tx& tx) = 0;
+
     virtual ccf::crypto::Pem get_self_signed_node_certificate() = 0;
 
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
