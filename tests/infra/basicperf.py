@@ -719,15 +719,43 @@ def run(args):
 
                 seconds = sorted(all_seconds)
 
-                use_builtin_legend = n_clients <= max_builtin_legend_clients
+                # With many clients, bin them into groups so each group gets
+                # enough bar width to be visible. Target ~chart_width/4 groups max.
+                max_stacked_layers = chart_width // 4
+                if n_clients > max_stacked_layers:
+                    group_size = (
+                        n_clients + max_stacked_layers - 1
+                    ) // max_stacked_layers
+                    groups = [
+                        client_names[i : i + group_size]
+                        for i in range(0, n_clients, group_size)
+                    ]
+                    group_names = [
+                        f"{g[0]}-{g[-1]}" if len(g) > 1 else g[0] for g in groups
+                    ]
+                else:
+                    groups = [[cn] for cn in client_names]
+                    group_names = client_names
 
-                # Stacked bar: sent per second, blue shades per client
-                sent_stacks = [
-                    [client_sent[cn].get(s, 0) for s in seconds] for cn in client_names
-                ]
+                n_groups = len(groups)
+                sent_colors = blue_shades(n_groups)
+                rcvd_colors = green_shades(n_groups)
+                error_colors = red_shades(n_groups)
+
+                def group_stacks(per_client_dict):
+                    return [
+                        [
+                            sum(per_client_dict[cn].get(s, 0) for cn in group)
+                            for s in seconds
+                        ]
+                        for group in groups
+                    ]
+
+                # Stacked bar: sent per second
+                sent_stacks = group_stacks(client_sent)
                 sent_kwargs = {"colors": sent_colors}
-                if use_builtin_legend:
-                    sent_kwargs["labels"] = client_names
+                if n_groups <= max_builtin_legend_clients:
+                    sent_kwargs["labels"] = group_names
                 plt.simple_stacked_bar(
                     seconds,
                     sent_stacks,
@@ -736,21 +764,16 @@ def run(args):
                     **sent_kwargs,
                 )
                 plt.show()
-                if not use_builtin_legend:
-                    color_legend(client_names, (sent_colors, ""))
+                if n_groups > max_builtin_legend_clients:
+                    color_legend(group_names, (sent_colors, ""))
 
-                # Stacked bar: received per second, green shades per client + red for errors
-                rcvd_stacks = [
-                    [client_rcvd[cn].get(s, 0) for s in seconds] for cn in client_names
-                ]
-                error_stacks = [
-                    [client_errors[cn].get(s, 0) for s in seconds]
-                    for cn in client_names
-                ]
+                # Stacked bar: received per second + errors
+                rcvd_stacks = group_stacks(client_rcvd)
+                error_stacks = group_stacks(client_errors)
                 rcvd_kwargs = {"colors": rcvd_colors + error_colors}
-                if use_builtin_legend:
-                    rcvd_kwargs["labels"] = client_names + [
-                        f"{cn} errors" for cn in client_names
+                if n_groups <= max_builtin_legend_clients:
+                    rcvd_kwargs["labels"] = group_names + [
+                        f"{gn} errors" for gn in group_names
                     ]
                 plt.simple_stacked_bar(
                     seconds,
@@ -760,9 +783,9 @@ def run(args):
                     **rcvd_kwargs,
                 )
                 plt.show()
-                if not use_builtin_legend:
+                if n_groups > max_builtin_legend_clients:
                     color_legend(
-                        client_names,
+                        group_names,
                         (rcvd_colors, ""),
                         (error_colors, " errors"),
                     )
