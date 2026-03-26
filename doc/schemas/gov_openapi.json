@@ -527,7 +527,8 @@
                 "items": {
                   "enum": [
                     "SnapshotRead",
-                    "LedgerChunkRead"
+                    "LedgerChunkRead",
+                    "SnapshotCreate"
                   ],
                   "type": "string"
                 },
@@ -676,7 +677,8 @@
                   "items": {
                     "enum": [
                       "SnapshotRead",
-                      "LedgerChunkRead"
+                      "LedgerChunkRead",
+                      "SnapshotCreate"
                     ],
                     "type": "string"
                   },
