@@ -87,6 +87,7 @@ namespace ccf::tasks
 
     void add_action(TaskAction&& action);
 
-    void get_queue_summary(size_t& num_pending, bool& is_active);
+    void get_queue_summary(
+      size_t& num_pending, bool& is_active, bool& is_paused);
   };
 }
