@@ -456,9 +456,14 @@ def run(args):
                             f"{remote_client.name}: First send at {first_send}, last receive at {last_recv}"
                         )
                         duration = (last_recv - first_send).total_seconds()
-                        print(
-                            f"{remote_client.name}: {len(overall)} requests in {duration}s => {len(overall)//duration}tx/s"
-                        )
+                        if duration > 0:
+                            print(
+                                f"{remote_client.name}: {len(overall)} requests in {duration}s => {len(overall)//duration}tx/s"
+                            )
+                        else:
+                            print(
+                                f"{remote_client.name}: {len(overall)} requests in {duration}s"
+                            )
                         agg.append(overall)
 
                     table()
@@ -536,9 +541,7 @@ def run(args):
                 n_all_active = max(len(agg_all_active), 1)
                 all_active_throughput = n_all_active / all_active_duration_s
                 writes = len(
-                    agg_all_active.filter(
-                        pl.col("request").bin.starts_with(b"PUT ")
-                    )
+                    agg_all_active.filter(pl.col("request").bin.starts_with(b"PUT "))
                 )
                 write_fraction = writes / n_all_active
                 statistics["all_clients_active_average_throughput_tx/s"] = (
@@ -552,6 +555,9 @@ def run(args):
                 print(f"Aggregated statistics written to {statistics_path}")
 
                 # Build per-client, per-second breakdown for stacked charts
+                chart_width = 100
+                max_builtin_legend_clients = 3
+
                 client_names = sorted(
                     agg["client"].unique().to_list(),
                     key=lambda c: int(c.split("_")[-1]),
@@ -559,10 +565,9 @@ def run(args):
                 n_clients = len(client_names)
                 all_seconds = set()
 
-                # Generate stepped color shades for per-client stacked bars.
+                # Color gradient helpers: interpolate n RGB colors from start to end.
                 # client_0 gets the darkest shade (matching plotext defaults), higher clients get lighter.
                 def _shades(n, start, end):
-                    """Generate n colors interpolating from start to end RGB tuples."""
                     return [
                         tuple(
                             s + i * (e - s) // max(n - 1, 1) for s, e in zip(start, end)
@@ -578,6 +583,37 @@ def run(args):
 
                 def red_shades(n):
                     return _shades(n, (205, 49, 49), (255, 100, 100))
+
+                def format_title(title, width):
+                    """Centered title bar in the style of plotext's simple_bar charts."""
+                    if title is None:
+                        return ""
+                    visible_len = len(plt.uncolorize(title))
+                    w1 = (width - 2 - visible_len) // 2
+                    w2 = width - visible_len - 2 - w1
+                    return (
+                        plt.colorize(
+                            "─" * w1 + " " + title + " " + "─" * w2, "gray+", "bold"
+                        )
+                        + "\n"
+                    )
+
+                def color_legend(names, *color_groups):
+                    """Print a legend bar with color swatches for first and last client."""
+                    marker = "▇" * 3
+                    parts = []
+                    for color_list, suffix in color_groups:
+                        first = plt.colorize(marker, color_list[0])
+                        last = plt.colorize(marker, color_list[-1])
+                        parts.append(
+                            f"{names[0]}{suffix} {first} .. {last} {names[-1]}{suffix}"
+                        )
+                    print(format_title(" ".join(parts), chart_width), end="")
+
+                # Generate per-client color palettes
+                sent_colors = blue_shades(n_clients)
+                rcvd_colors = green_shades(n_clients)
+                error_colors = red_shades(n_clients)
 
                 # Compute per-client, per-second counts in a single pass
                 agg_with_seconds = agg.with_columns(
@@ -632,43 +668,19 @@ def run(args):
 
                 seconds = sorted(all_seconds)
 
-                def get_title(title, width):
-                    out = ""
-                    if title is not None:
-                        l = len(plt.uncolorize(title))
-                        w1 = (width - 2 - l) // 2
-                        w2 = width - l - 2 - w1
-                        l1 = "─" * w1 + " "
-                        l2 = " " + "─" * w2
-                        out = plt.colorize(l1 + title + l2, "gray+", "bold") + "\n"
-                    return out
-
-                def color_legend(names, *color_groups, width=100):
-                    """Print a centered legend bar with color swatches for first and last client."""
-                    marker = "▇" * 3
-                    parts = []
-                    for color_list, suffix in color_groups:
-                        first = plt.colorize(marker, color_list[0])
-                        last = plt.colorize(marker, color_list[-1])
-                        parts.append(
-                            f"{names[0]}{suffix} {first} .. {last} {names[-1]}{suffix}"
-                        )
-                    print(get_title(" ".join(parts), width), end="")
-
-                use_builtin_legend = n_clients <= 3
+                use_builtin_legend = n_clients <= max_builtin_legend_clients
 
                 # Stacked bar: sent per second, blue shades per client
                 sent_stacks = [
                     [client_sent[cn].get(s, 0) for s in seconds] for cn in client_names
                 ]
-                sent_colors = blue_shades(n_clients)
                 sent_kwargs = {"colors": sent_colors}
                 if use_builtin_legend:
                     sent_kwargs["labels"] = client_names
                 plt.simple_stacked_bar(
                     seconds,
                     sent_stacks,
-                    width=100,
+                    width=chart_width,
                     title="Sent requests per second (by client)",
                     **sent_kwargs,
                 )
@@ -684,8 +696,6 @@ def run(args):
                     [client_errors[cn].get(s, 0) for s in seconds]
                     for cn in client_names
                 ]
-                rcvd_colors = green_shades(n_clients)
-                error_colors = red_shades(n_clients)
                 rcvd_kwargs = {"colors": rcvd_colors + error_colors}
                 if use_builtin_legend:
                     rcvd_kwargs["labels"] = client_names + [
@@ -694,7 +704,7 @@ def run(args):
                 plt.simple_stacked_bar(
                     seconds,
                     rcvd_stacks + error_stacks,
-                    width=100,
+                    width=chart_width,
                     title="Received requests per second (by client)",
                     **rcvd_kwargs,
                 )
