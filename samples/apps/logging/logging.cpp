@@ -571,6 +571,16 @@ namespace loggingapp
           ccf::endpoints::default_respond_on_commit_func)
         .install();
 
+      make_endpoint(
+        "/log/receipt/private",
+        HTTP_POST,
+        ccf::json_adapter(record),
+        auth_policies)
+        .set_auto_schema<LoggingRecord::In, bool>()
+        .set_consensus_committed_function(
+          ccf::endpoints::make_respond_with_signature_on_commit(context))
+        .install();
+
       auto add_txid_in_body_put = [](auto& ctx, const auto& tx_id) {
         static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
         ctx.rpc_ctx->set_response_header(CCF_TX_ID, tx_id.to_str());

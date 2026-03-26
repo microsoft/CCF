@@ -15,6 +15,11 @@
 #include <regex>
 #include <set>
 
+namespace ccf
+{
+  struct AbstractNodeContext;
+}
+
 namespace ccf::kv
 {
   class Consensus;
@@ -64,6 +69,9 @@ namespace ccf::endpoints
     std::shared_ptr<ccf::RpcContext> rpc_ctx,
     const TxID& tx_id,
     ccf::FinalTxStatus status);
+
+  ConsensusCommittedEndpointFunction make_respond_with_signature_on_commit(
+    ccf::AbstractNodeContext& context);
 
   template <typename T>
   inline bool get_path_param(

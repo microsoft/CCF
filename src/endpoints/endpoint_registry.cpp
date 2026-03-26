@@ -4,11 +4,13 @@
 #include "ccf/endpoint_registry.h"
 
 #include "ccf/common_auth_policies.h"
+#include "ccf/node_context.h"
 #include "ccf/pal/locking.h"
 #include "ds/nonstd.h"
 #include "endpoint_utils.h"
 #include "http/http_parser.h"
 #include "node/rpc_context_impl.h"
+#include "node/signature_cache_interface.h"
 
 namespace ccf::endpoints
 {
@@ -217,6 +219,59 @@ namespace ccf::endpoints
     }
 
     // Else leave the original response untouched, and return it now
+  }
+
+  ConsensusCommittedEndpointFunction make_respond_with_signature_on_commit(
+    ccf::AbstractNodeContext& context)
+  {
+    auto sig_cache = context.get_subsystem<ccf::SignatureCacheInterface>();
+    if (sig_cache == nullptr)
+    {
+      throw std::logic_error(
+        "SignatureCacheInterface subsystem is not installed");
+    }
+
+    return [sig_cache](
+             std::shared_ptr<ccf::RpcContext> rpc_ctx,
+             const TxID& tx_id,
+             ccf::FinalTxStatus status) {
+      if (status == ccf::FinalTxStatus::Invalid)
+      {
+        rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::TransactionInvalid,
+          fmt::format(
+            "While waiting for TxID {} to commit, it was invalidated",
+            tx_id.to_str()));
+        return;
+      }
+
+      auto cached = sig_cache->get_signature_for(tx_id.seqno);
+      if (!cached.has_value())
+      {
+        rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          fmt::format(
+            "No cached signature found covering TxID {}", tx_id.to_str()));
+        return;
+      }
+
+      auto body = nlohmann::json::object();
+      body["tx_id"] = tx_id.to_str();
+      body["signature"] = cached->sig;
+      body["signature_seqno"] = cached->sig_seqno;
+      if (cached->cose_signature.has_value())
+      {
+        body["cose_signature_size"] = cached->cose_signature->size();
+      }
+
+      rpc_ctx->set_response_status(HTTP_STATUS_OK);
+      rpc_ctx->set_response_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+      const auto s = body.dump();
+      rpc_ctx->set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
+    };
   }
 
   Endpoint EndpointRegistry::make_endpoint(
