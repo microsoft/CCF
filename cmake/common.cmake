@@ -51,6 +51,7 @@ function(add_test_bin name)
   enable_coverage(${name})
   target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host)
   add_san(${name})
+  target_compile_definitions(${name} PRIVATE CCF_LOGGER_NO_DEPRECATE)
 endfunction()
 
 # Helper for building clients inheriting from perf_client
