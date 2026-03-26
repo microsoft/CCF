@@ -3,22 +3,18 @@
 #pragma once
 
 #include "ccf/crypto/cose_verifier.h"
-#include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "ccf/crypto/rsa_key_pair.h"
-#include "ccf/crypto/verifier.h"
-#include "crypto/openssl/ec_public_key.h"
-#include "crypto/openssl/public_key.h"
-#include "crypto/openssl/rsa_public_key.h"
+#include "cose/cose_rs_ffi.h"
 
 #include <chrono>
-#include <openssl/x509.h>
 
 namespace ccf::crypto
 {
   class COSEVerifier_OpenSSL : public COSEVerifier
   {
   protected:
-    std::shared_ptr<PublicKey_OpenSSL> public_key;
+    CoseKey verify_key;
+
+    explicit COSEVerifier_OpenSSL(CoseKey&& key) : verify_key(std::move(key)) {}
 
   public:
     ~COSEVerifier_OpenSSL() override;
@@ -37,8 +33,17 @@ namespace ccf::crypto
 
   class COSECertVerifier_OpenSSL : public COSEVerifier_OpenSSL
   {
+    using COSEVerifier_OpenSSL::COSEVerifier_OpenSSL;
+
   public:
-    COSECertVerifier_OpenSSL(const std::vector<uint8_t>& certificate);
+    /// Accepts PEM or DER certificate (auto-detects format).
+    static std::unique_ptr<COSECertVerifier_OpenSSL> from_any(
+      const std::vector<uint8_t>& certificate);
+    /// PEM certificate only.
+    static std::unique_ptr<COSECertVerifier_OpenSSL> from_pem(const Pem& pem);
+    /// DER certificate only.
+    static std::unique_ptr<COSECertVerifier_OpenSSL> from_der(
+      const std::vector<uint8_t>& der);
   };
 
   class COSEKeyVerifier_OpenSSL : public COSEVerifier_OpenSSL
