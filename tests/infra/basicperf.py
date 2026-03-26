@@ -661,11 +661,6 @@ def run(args):
                         )
                     print(format_title(" ".join(parts), chart_width), end="")
 
-                # Generate per-client color palettes
-                sent_colors = blue_shades(n_clients)
-                rcvd_colors = green_shades(n_clients)
-                error_colors = red_shades(n_clients)
-
                 # Compute per-client, per-second counts in a single pass
                 agg_with_seconds = agg.with_columns(
                     ((pl.col("sendTime") - start_send) / 1000000)
