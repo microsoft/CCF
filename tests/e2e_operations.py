@@ -305,13 +305,17 @@ def test_snapshot_access(network, args):
             assert location == f"{loc}{path}"
             LOG.warning(r.headers)
 
+            # since uses closed/inclusive semantics: since=N returns snapshots
+            # with index >= N. So since=snapshot_index returns the snapshot
+            # (inclusive boundary), while since=snapshot_index+1 does not
+            # (strictly past the available snapshot index).
             for since, expected in (
                 (0, location),
                 (1, location),
                 (snapshot_index // 2, location),
                 (snapshot_index - 1, location),
-                (snapshot_index, location),
-                (snapshot_index + 1, None),
+                (snapshot_index, location),  # inclusive: exact index is returned
+                (snapshot_index + 1, None),  # strictly past: nothing returned
             ):
                 for method in ("GET", "HEAD"):
                     r = do_request(
