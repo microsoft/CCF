@@ -299,12 +299,141 @@ pub unsafe extern "C" fn cose_free(ptr: *mut u8, len: usize) {
     }
 }
 
-/// Verify a COSE_Sign1 from pre-parsed components.
+/// Create an opaque verification key from a DER-encoded public key.
+/// Returns a pointer to the key, or null on failure.
+/// The caller must free the key with `cose_key_free`.
 ///
+/// On failure the error message is written to `err_ptr`/`err_len` (if
+/// non-null).  The caller must free it with `cose_free`.
+///
+/// # Safety
+/// `key_der_ptr` must point to `key_der_len` valid bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cose_key_from_der_public(
+    key_der_ptr: *const u8,
+    key_der_len: usize,
+    err_ptr: *mut *mut u8,
+    err_len: *mut usize,
+) -> *mut EvpKey {
+    let result = std::panic::catch_unwind(|| unsafe {
+        let key_der = slice_from_raw(key_der_ptr, key_der_len);
+        EvpKey::from_der_public(key_der)
+    });
+
+    match result {
+        Ok(Ok(key)) => Box::into_raw(Box::new(key)),
+        Ok(Err(e)) => unsafe {
+            set_error(&e, err_ptr, err_len);
+            std::ptr::null_mut()
+        },
+        Err(_) => unsafe {
+            set_error("panic during cose_key_from_der_public", err_ptr, err_len);
+            std::ptr::null_mut()
+        },
+    }
+}
+
+/// Create a verification key from a PEM-encoded public key.
+/// Returns a pointer to the key, or null on failure.
+/// The caller must free the key with `cose_key_free`.
+///
+/// # Safety
+/// `pem_ptr` must point to `pem_len` valid bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cose_key_from_pem_public(
+    pem_ptr: *const u8,
+    pem_len: usize,
+    err_ptr: *mut *mut u8,
+    err_len: *mut usize,
+) -> *mut EvpKey {
+    let result = std::panic::catch_unwind(|| unsafe {
+        let pem = slice_from_raw(pem_ptr, pem_len);
+        EvpKey::from_pem_public(pem)
+    });
+
+    match result {
+        Ok(Ok(key)) => Box::into_raw(Box::new(key)),
+        Ok(Err(e)) => unsafe {
+            set_error(&e, err_ptr, err_len);
+            std::ptr::null_mut()
+        },
+        Err(_) => unsafe {
+            set_error("panic during cose_key_from_pem_public", err_ptr, err_len);
+            std::ptr::null_mut()
+        },
+    }
+}
+
+/// Create a verification key by extracting the public key from a
+/// PEM-encoded X.509 certificate.
+/// Returns a pointer to the key, or null on failure.
+/// The caller must free the key with `cose_key_free`.
+///
+/// # Safety
+/// `pem_ptr` must point to `pem_len` valid bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cose_key_from_pem_cert(
+    pem_ptr: *const u8,
+    pem_len: usize,
+    err_ptr: *mut *mut u8,
+    err_len: *mut usize,
+) -> *mut EvpKey {
+    let result = std::panic::catch_unwind(|| unsafe {
+        let pem = slice_from_raw(pem_ptr, pem_len);
+        EvpKey::from_pem_cert(pem)
+    });
+
+    match result {
+        Ok(Ok(key)) => Box::into_raw(Box::new(key)),
+        Ok(Err(e)) => unsafe {
+            set_error(&e, err_ptr, err_len);
+            std::ptr::null_mut()
+        },
+        Err(_) => unsafe {
+            set_error("panic during cose_key_from_pem_cert", err_ptr, err_len);
+            std::ptr::null_mut()
+        },
+    }
+}
+
+/// Create a verification key by extracting the public key from a
+/// DER-encoded X.509 certificate.
+/// Returns a pointer to the key, or null on failure.
+/// The caller must free the key with `cose_key_free`.
+///
+/// # Safety
+/// `der_ptr` must point to `der_len` valid bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cose_key_from_der_cert(
+    der_ptr: *const u8,
+    der_len: usize,
+    err_ptr: *mut *mut u8,
+    err_len: *mut usize,
+) -> *mut EvpKey {
+    let result = std::panic::catch_unwind(|| unsafe {
+        let der = slice_from_raw(der_ptr, der_len);
+        EvpKey::from_der_cert(der)
+    });
+
+    match result {
+        Ok(Ok(key)) => Box::into_raw(Box::new(key)),
+        Ok(Err(e)) => unsafe {
+            set_error(&e, err_ptr, err_len);
+            std::ptr::null_mut()
+        },
+        Err(_) => unsafe {
+            set_error("panic during cose_key_from_der_cert", err_ptr, err_len);
+            std::ptr::null_mut()
+        },
+    }
+}
+
+/// Verify a COSE_Sign1 from pre-parsed components using a pre-created key
+/// handle.
+///
+/// `key` must be a valid pointer from `cose_key_from_der_public` or
+/// `cose_key_from_der_private`.
 /// `alg` is the COSE algorithm integer (e.g. -7 for ES256).
-/// `phdr_cbor` is the serialized CBOR protected header.
-/// `payload` is the raw payload bytes (not CBOR-wrapped).
-/// `sig` is the fixed-size signature.
 ///
 /// Returns 0 on successful verification, non-zero on failure.
 ///
@@ -312,11 +441,12 @@ pub unsafe extern "C" fn cose_free(ptr: *mut u8, len: usize) {
 /// non-null).  The caller must free it with `cose_free`.
 ///
 /// # Safety
+/// `key` must be a valid pointer from `cose_key_from_der_public` or
+/// `cose_key_from_der_private`.
 /// All pointer+length pairs must be valid.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cose_verify1(
-    key_pub_der_ptr: *const u8,
-    key_pub_der_len: usize,
+    key: *const EvpKey,
     alg: i64,
     phdr_cbor_ptr: *const u8,
     phdr_cbor_len: usize,
@@ -327,15 +457,17 @@ pub unsafe extern "C" fn cose_verify1(
     err_ptr: *mut *mut u8,
     err_len: *mut usize,
 ) -> i32 {
+    if key.is_null() {
+        unsafe { set_error("key is null", err_ptr, err_len) };
+        return -1;
+    }
     let result = std::panic::catch_unwind(|| unsafe {
-        let key_der = slice_from_raw(key_pub_der_ptr, key_pub_der_len);
+        let key = &*key;
         let phdr_cbor = slice_from_raw(phdr_cbor_ptr, phdr_cbor_len);
         let payload = slice_from_raw(payload_ptr, payload_len);
         let sig = slice_from_raw(sig_ptr, sig_len);
 
-        let key = EvpKey::from_der_public(key_der)?;
-
-        let verified = cose_openssl::cose_verify1(&key, alg, phdr_cbor, payload, sig)?;
+        let verified = cose_openssl::cose_verify1(key, alg, phdr_cbor, payload, sig)?;
         if verified {
             Ok(0i32)
         } else {

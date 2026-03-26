@@ -3,7 +3,10 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/cose.h"
 
+#include "ccf/crypto/ec_key_pair.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
+#include "cose/cose_rs_ffi.h"
 #include "crypto/openssl/cose_verifier.h"
 #include "node/cose_common.h"
 
@@ -246,4 +249,64 @@ TEST_CASE("Decode CCF COSE receipt")
   REQUIRE(
     ccf::ds::to_hex(receipt.merkle_root) ==
     "209f5aefb0f45d7647c917337044c44a1b848fe833fa2869d016bea797d79a9e");
+}
+
+TEST_CASE("make_cose_verifier_any_cert with PEM and DER certificates")
+{
+  // Generate a fresh key pair and self-signed certificate.
+  auto kp = ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
+  auto cert_pem = kp->self_sign(
+    "CN=test", "20200101000000Z", "20301231235959Z", std::nullopt, true);
+  auto cert_der = ccf::crypto::cert_pem_to_der(cert_pem);
+
+  // Sign an endorsement using the FFI so we have a real COSE_Sign1 envelope.
+  auto priv_der = kp->private_key_der();
+  CoseBuffer key_err;
+  auto cose_key =
+    CoseKey::from_private(priv_der.data(), priv_der.size(), key_err);
+  REQUIRE(cose_key.is_set());
+
+  const std::string epoch_begin = "1.1";
+  const std::vector<uint8_t> payload = {0xCA, 0xFE};
+
+  CoseBuffer out;
+  CoseBuffer sign_err;
+  auto rc = cose_sign_endorsement(
+    cose_key,
+    1700000000,
+    reinterpret_cast<const uint8_t*>(epoch_begin.data()),
+    epoch_begin.size(),
+    nullptr,
+    0,
+    nullptr,
+    0,
+    payload.data(),
+    payload.size(),
+    out,
+    sign_err);
+  REQUIRE(rc == 0);
+  REQUIRE(out.is_set());
+  auto envelope = out.to_vector();
+
+  SUBCASE("PEM certificate bytes")
+  {
+    std::vector<uint8_t> pem_bytes(
+      cert_pem.data(), cert_pem.data() + cert_pem.size());
+    auto verifier = ccf::crypto::make_cose_verifier_any_cert(pem_bytes);
+    std::span<uint8_t> authned;
+    CHECK(verifier->verify(envelope, authned));
+  }
+
+  SUBCASE("DER certificate bytes")
+  {
+    auto verifier = ccf::crypto::make_cose_verifier_any_cert(cert_der);
+    std::span<uint8_t> authned;
+    CHECK(verifier->verify(envelope, authned));
+  }
+
+  SUBCASE("garbage bytes fail")
+  {
+    std::vector<uint8_t> garbage = {0xDE, 0xAD, 0xBE, 0xEF};
+    CHECK_THROWS(ccf::crypto::make_cose_verifier_any_cert(garbage));
+  }
 }
