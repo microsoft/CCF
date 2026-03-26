@@ -111,6 +111,8 @@ namespace ccf
       throw std::logic_error("Unimplemented");
     }
 
+    void trigger_snapshot(ccf::kv::Tx& /*tx*/) override {}
+
     ccf::crypto::Pem get_self_signed_node_certificate() override
     {
       return {};
