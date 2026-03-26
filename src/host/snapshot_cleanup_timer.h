@@ -28,8 +28,29 @@ namespace asynchost
       const std::filesystem::path& dir, size_t max_retained)
     {
       std::vector<std::filesystem::path> directories{dir};
-      auto committed =
-        snapshots::find_committed_snapshots_in_directories(directories);
+      decltype(snapshots::find_committed_snapshots_in_directories(directories))
+        committed;
+      try
+      {
+        committed =
+          snapshots::find_committed_snapshots_in_directories(directories);
+      }
+      catch (const std::filesystem::filesystem_error& e)
+      {
+        LOG_FAIL_FMT(
+          "Failed to list committed snapshots in {}: {}",
+          dir,
+          e.what());
+        return;
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "Unexpected error while listing committed snapshots in {}: {}",
+          dir,
+          e.what());
+        return;
+      }
 
       if (committed.size() > max_retained)
       {
