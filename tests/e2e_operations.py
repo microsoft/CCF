@@ -171,6 +171,21 @@ def test_forced_ledger_chunk(network, args):
     return network
 
 
+def find_snapshot_after_seqno(snapshots_dir, seqno):
+    for snapshot_name in os.listdir(snapshots_dir):
+        with ccf.ledger.Snapshot(
+            os.path.join(snapshots_dir, snapshot_name)
+        ) as snapshot:
+            snapshot_seqno = snapshot.get_public_domain().get_seqno()
+            if snapshot_seqno > seqno:
+                LOG.info(f"Found a snapshot at {snapshot_seqno} which is after {seqno}")
+                return snapshot_seqno
+
+    raise RuntimeError(
+        f"Could not find a snapshot after seqno {seqno} in {snapshots_dir}"
+    )
+
+
 @reqs.description("Forced snapshot")
 @app.scoped_txs()
 def test_forced_snapshot(network, args):
@@ -193,19 +208,43 @@ def test_forced_snapshot(network, args):
     network.txs.issue(network, number_txs=5)
 
     snapshots_dir = network.get_committed_snapshots(
-        primary, target_seqno=hwm_pre_proposal + 1
+        primary, target_seqno=hwm_pre_proposal + 1, wait_for_target_seqno=True
     )
+    find_snapshot_after_seqno(snapshots_dir, hwm_pre_proposal)
 
-    for s in os.listdir(snapshots_dir):
-        with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
-            snapshot_seqno = snapshot.get_public_domain().get_seqno()
-            if snapshot_seqno > hwm_pre_proposal:
-                LOG.info(
-                    f"Found a snapshot at {snapshot_seqno} which is after the pre-proposal-high-water-mark {hwm_pre_proposal}"
-                )
-                return network
+    return network
 
-    raise RuntimeError("Could not find matching snapshot file")
+
+@reqs.description("Create snapshot from node endpoint")
+@app.scoped_txs()
+def test_snapshot_create_endpoint(network, args):
+    primary, _ = network.find_primary()
+
+    network.txs.issue(network, number_txs=3)
+
+    with primary.client() as c:
+        r = c.get("/node/commit").body.json()
+        hwm_pre_request = TxID.from_str(r["transaction_id"]).seqno
+
+    with primary.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
+        r = c.post("/node/snapshot:create")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        r = c.post("/node/snapshot:create")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+
+    snapshots_dir = network.get_committed_snapshots(
+        primary,
+        target_seqno=hwm_pre_request + 1,
+        force_txs=False,
+        wait_for_target_seqno=True,
+    )
+    find_snapshot_after_seqno(snapshots_dir, hwm_pre_request)
+
+    return network
 
 
 # https://github.com/microsoft/CCF/issues/1858
@@ -504,6 +543,7 @@ def run_manual_snapshot_tests(const_args):
 
         test_snapshot_selection(network, args)
         test_forced_snapshot(network, args)
+        test_snapshot_create_endpoint(network, args)
 
 
 def test_snapshot_selection(network, args):

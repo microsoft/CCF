@@ -31,6 +31,7 @@
 #include "service/internal_tables_access.h"
 #include "service/tables/local_sealing.h"
 #include "service/tables/previous_service_identity.h"
+#include "service/tables/snapshot_status.h"
 
 #include <llhttp/llhttp.h>
 #include <stdexcept>
@@ -433,7 +434,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "5.0.4";
+      openapi_info.document_version = "5.0.5";
     }
 
     void init_handlers() override
@@ -1855,6 +1856,23 @@ namespace ccf
         "/ready/gov", HTTP_GET, get_ready_gov, no_auth_required)
         .set_auto_schema<void, void>()
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .install();
+
+      auto create_snapshot = [this](auto& args, nlohmann::json&&) {
+        auto* snapshot_create = args.tx.template rw<ccf::SnapshotCreate>(
+          ccf::Tables::SNAPSHOT_CREATE);
+        snapshot_create->touch();
+        this->node_operation.trigger_snapshot(args.tx);
+        return make_success();
+      };
+      make_endpoint(
+        "/snapshot:create",
+        HTTP_POST,
+        json_adapter(create_snapshot),
+        no_auth_required)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .require_operator_feature(endpoints::OperatorFeature::SnapshotCreate)
         .install();
 
       ccf::node::init_recovery_decision_protocol_handlers(*this, context);
