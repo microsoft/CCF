@@ -1236,7 +1236,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
     CLIENT_BIN ./submit PERF_LABEL "Basic Blocking"
     ADDITIONAL_ARGS --package "samples/apps/basic/basic" --client-def
-                    "32,blocking_write,1000,primary" --max-writes-ahead 0
+                    "128,blocking_write,100,primary" --max-writes-ahead 0
   )
 
   add_piccolo_test(
