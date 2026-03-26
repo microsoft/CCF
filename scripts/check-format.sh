@@ -41,7 +41,9 @@ NPROC=$(nproc 2>/dev/null || echo 4)
 mapfile -t files < <(git ls-files "$@" | grep -e '\.h$' -e '\.hpp$' -e '\.cpp$' -e '\.c$')
 
 # --- Format check (parallel) ---
-if $fix ; then
+if [ "${#files[@]}" -eq 0 ]; then
+  unformatted_files=""
+elif $fix ; then
   # In fix mode, format first then check what changed
   printf '%s\n' "${files[@]}" | xargs -P "$NPROC" -n 50 "$CLANG_FORMAT" -style=file -i
 
