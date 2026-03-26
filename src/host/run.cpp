@@ -30,6 +30,7 @@
 #include "enclave/entry_points.h"
 #include "handle_ring_buffer.h"
 #include "host/env.h"
+#include "host/snapshot_cleanup_timer.h"
 #include "http/curl.h"
 #include "json_schema.h"
 #include "lfs_file_handler.h"
@@ -617,10 +618,20 @@ namespace ccf
     snapshots::SnapshotManager snapshots(
       config.snapshots.directory,
       writer_factory,
-      config.snapshots.read_only_directory,
-      config.files_cleanup.max_snapshots,
-      config.files_cleanup.interval);
+      config.snapshots.read_only_directory);
     snapshots.register_message_handlers(buffer_processor.get_dispatcher());
+
+    std::optional<asynchost::SnapshotCleanupTimer> snapshot_cleanup;
+    if (
+      config.files_cleanup.max_snapshots.has_value() &&
+      std::chrono::milliseconds(config.files_cleanup.interval) >
+        std::chrono::milliseconds::zero())
+    {
+      snapshot_cleanup.emplace(
+        std::chrono::milliseconds(config.files_cleanup.interval),
+        config.snapshots.directory,
+        config.files_cleanup.max_snapshots.value());
+    }
 
     // handle LFS-related messages from the enclave
     asynchost::LFSFileHandler lfs_file_handler(
