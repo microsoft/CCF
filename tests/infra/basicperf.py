@@ -483,23 +483,21 @@ def run(args):
                 start_send = agg["sendTime"].min()
                 end_recv = agg["receiveTime"].max()
                 duration_s = (end_recv - start_send).total_seconds()
-                throughput = len(agg) / duration_s if duration_s > 0 else 0
+                if duration_s <= 1:
+                    LOG.error(
+                        f"Duration is {duration_s}s (first send: {start_send}, last recv: {end_recv}). "
+                        "Clamping to 1s; results may be inaccurate."
+                    )
+                    duration_s = 1
+                throughput = len(agg) / duration_s
                 statistics["average_throughput_tx/s"] = throughput
                 print(f"Average throughput: {throughput:.2f} tx/s")
 
-                byte_input = (
-                    (agg["requestSize"].sum() / duration_s) / (1024 * 1024)
-                    if duration_s > 0
-                    else 0
-                )
+                byte_input = (agg["requestSize"].sum() / duration_s) / (1024 * 1024)
                 statistics["average_request_input_mb/s"] = byte_input
                 print(f"Average request input: {byte_input:.2f} Mbytes/s")
 
-                byte_output = (
-                    (agg["responseSize"].sum() / duration_s) / (1024 * 1024)
-                    if duration_s > 0
-                    else 0
-                )
+                byte_output = (agg["responseSize"].sum() / duration_s) / (1024 * 1024)
                 statistics["average_request_output_mb/s"] = byte_output
                 print(f"Average request output: {byte_output:.2f} Mbytes/s")
 
@@ -509,16 +507,20 @@ def run(args):
                     client["receiveTime"].max() for client in each_client
                 )
                 all_active_duration_s = (earliest_end - latest_start).total_seconds()
+                if all_active_duration_s <= 0:
+                    LOG.error(
+                        f"All-clients-active duration is {all_active_duration_s}s. "
+                        "Clamping to 1s; results may be inaccurate."
+                    )
+                    all_active_duration_s = 1
                 statistics["all_clients_active_from"] = latest_start.isoformat()
                 statistics["all_clients_active_to"] = earliest_end.isoformat()
                 statistics["all_clients_active_duration_s"] = all_active_duration_s
                 print(
                     f"All clients active from {latest_start.time()} to {earliest_end.time()}"
                 )
-                all_clients_active_percentage = (
-                    int((all_active_duration_s / duration_s) * 100)
-                    if duration_s > 0
-                    else 0
+                all_clients_active_percentage = int(
+                    (all_active_duration_s / duration_s) * 100
                 )
                 print(
                     f"This {all_active_duration_s:.3f}s is {all_clients_active_percentage}% of the {duration_s:.3f}s used to calculate throughputs above"
@@ -531,18 +533,14 @@ def run(args):
                 agg_all_active = agg.filter(pl.col("sendTime") > latest_start).filter(
                     pl.col("receiveTime") < earliest_end
                 )
-                all_active_duration_s = (earliest_end - latest_start).total_seconds()
-                if len(agg_all_active) > 0 and all_active_duration_s > 0:
-                    all_active_throughput = len(agg_all_active) / all_active_duration_s
-                    writes = len(
-                        agg_all_active.filter(
-                            pl.col("request").bin.starts_with(b"PUT ")
-                        )
+                n_all_active = max(len(agg_all_active), 1)
+                all_active_throughput = n_all_active / all_active_duration_s
+                writes = len(
+                    agg_all_active.filter(
+                        pl.col("request").bin.starts_with(b"PUT ")
                     )
-                    write_fraction = writes / len(agg_all_active)
-                else:
-                    all_active_throughput = 0
-                    write_fraction = 0
+                )
+                write_fraction = writes / n_all_active
                 statistics["all_clients_active_average_throughput_tx/s"] = (
                     all_active_throughput
                 )
