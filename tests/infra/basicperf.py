@@ -19,7 +19,6 @@ import shutil
 import datetime
 import ccf.ledger
 import plotext as plt
-from plotext._utility import get_title, colorize, simple_bar_marker, to_rgb
 import infra.bencher
 
 
@@ -574,13 +573,13 @@ def run(args):
                     ]
 
                 def blue_shades(n):
-                    return _shades(n, to_rgb("blue+"), (180, 180, 255))
+                    return _shades(n, (59, 142, 234), (100, 100, 255))
 
                 def green_shades(n):
-                    return _shades(n, to_rgb("green"), (180, 255, 180))
+                    return _shades(n, (13, 188, 121), (100, 255, 100))
 
                 def red_shades(n):
-                    return _shades(n, to_rgb("red"), (255, 180, 180))
+                    return _shades(n, (205, 49, 49), (255, 100, 100))
 
                 client_sent = {}
                 client_rcvd = {}
@@ -633,13 +632,24 @@ def run(args):
 
                 seconds = sorted(all_seconds)
 
+                def get_title(title, width):
+                    out = ""
+                    if title is not None:
+                        l = len(plt.uncolorize(title))
+                        w1 = (width - 2 - l) // 2
+                        w2 = width - l - 2 - w1
+                        l1 = "─" * w1 + " "
+                        l2 = " " + "─" * w2
+                        out = plt.colorize(l1 + title + l2, "gray+", "bold") + "\n"
+                    return out
+
                 def color_legend(names, *color_groups, width=100):
                     """Print a centered legend bar with color swatches for first and last client."""
-                    marker = simple_bar_marker * 3
+                    marker = "▇" * 3
                     parts = []
                     for color_list, suffix in color_groups:
-                        first = colorize(marker, color_list[0])
-                        last = colorize(marker, color_list[-1])
+                        first = plt.colorize(marker, color_list[0])
+                        last = plt.colorize(marker, color_list[-1])
                         parts.append(
                             f"{names[0]}{suffix} {first} .. {last} {names[-1]}{suffix}"
                         )
