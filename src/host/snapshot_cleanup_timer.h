@@ -15,6 +15,14 @@ namespace asynchost
   private:
     std::filesystem::path dir;
     size_t max_retained;
+    bool cleanup_pending = false;
+
+    struct CleanupWork
+    {
+      std::filesystem::path dir;
+      size_t max_retained;
+      bool* pending_flag;
+    };
 
     static void cleanup_old_snapshots(
       const std::filesystem::path& dir, size_t max_retained)
@@ -49,6 +57,24 @@ namespace asynchost
       }
     }
 
+    static void on_cleanup_work(uv_work_t* req)
+    {
+      auto* work = static_cast<CleanupWork*>(req->data);
+      cleanup_old_snapshots(work->dir, work->max_retained);
+    }
+
+    static void on_cleanup_work_done(uv_work_t* req, int /*status*/)
+    {
+      auto* work = static_cast<CleanupWork*>(req->data);
+      LOG_DEBUG_FMT("Snapshot cleanup completed");
+      if (work->pending_flag != nullptr)
+      {
+        *work->pending_flag = false;
+      }
+      delete work; // NOLINT(cppcoreguidelines-owning-memory)
+      delete req; // NOLINT(cppcoreguidelines-owning-memory)
+    }
+
   public:
     SnapshotCleanupImpl(const std::string& dir_, size_t max_retained_) :
       dir(dir_),
@@ -64,7 +90,22 @@ namespace asynchost
 
     void on_timer()
     {
-      cleanup_old_snapshots(dir, max_retained);
+      if (cleanup_pending)
+      {
+        return;
+      }
+      cleanup_pending = true;
+
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      auto* work = new CleanupWork{
+        .dir = dir,
+        .max_retained = max_retained,
+        .pending_flag = &cleanup_pending};
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      auto* req = new uv_work_t;
+      req->data = work;
+      uv_queue_work(
+        uv_default_loop(), req, &on_cleanup_work, &on_cleanup_work_done);
     }
   };
 
