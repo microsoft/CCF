@@ -9,8 +9,10 @@
 #include "ds/nonstd.h"
 #include "endpoint_utils.h"
 #include "http/http_parser.h"
+#include "node/rpc/claims.h"
 #include "node/rpc_context_impl.h"
 #include "node/signature_cache_interface.h"
+#include "node/tx_receipt_impl.h"
 
 namespace ccf::endpoints
 {
@@ -246,8 +248,8 @@ namespace ccf::endpoints
         return;
       }
 
-      auto cached = sig_cache->get_signature_for(tx_id.seqno);
-      if (!cached.has_value())
+      auto cached_sig = sig_cache->get_signature_for(tx_id.seqno);
+      if (!cached_sig.has_value())
       {
         rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -257,14 +259,40 @@ namespace ccf::endpoints
         return;
       }
 
+      // Reconstruct merkle tree from the cached serialised tree and
+      // extract a proof for this specific seqno
+      ccf::MerkleTreeHistory tree(cached_sig->serialised_tree);
+      if (!tree.in_range(tx_id.seqno))
+      {
+        rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          fmt::format(
+            "Seqno {} is not in range of cached signature tree",
+            tx_id.seqno));
+        return;
+      }
+      auto proof = tree.get_proof(tx_id.seqno);
+
+      // Get leaf components TODO
+      std::optional<ccf::crypto::Sha256Hash> write_set_digest = std::nullopt;
+      std::optional<std::string> commit_evidence = std::nullopt;
+      ccf::ClaimsDigest claims_digest = ccf::no_claims();
+
+      auto receipt = std::make_shared<TxReceiptImpl>(
+        cached_sig->sig.sig,
+        cached_sig->cose_signature,
+        proof.get_root(),
+        proof.get_path(),
+        cached_sig->sig.node,
+        cached_sig->sig.cert,
+        write_set_digest,
+        commit_evidence,
+        claims_digest);
+
       auto body = nlohmann::json::object();
       body["tx_id"] = tx_id.to_str();
-      body["signature"] = cached->sig;
-      body["signature_seqno"] = cached->sig_seqno;
-      if (cached->cose_signature.has_value())
-      {
-        body["cose_signature_size"] = cached->cose_signature->size();
-      }
+      body["receipt"] = ccf::describe_receipt_v2(*receipt);
 
       rpc_ctx->set_response_status(HTTP_STATUS_OK);
       rpc_ctx->set_response_header(

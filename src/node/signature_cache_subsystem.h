@@ -15,7 +15,21 @@ namespace ccf
   private:
     static constexpr size_t DEFAULT_MAX_CACHE_SIZE = 5;
 
-    std::deque<CachedSignature> cache;
+    struct PendingEntry
+    {
+      std::optional<PrimarySignature> sig = std::nullopt;
+      std::optional<std::vector<uint8_t>> cose_signature = std::nullopt;
+      std::optional<std::vector<uint8_t>> serialised_tree = std::nullopt;
+      ccf::SeqNo sig_seqno = 0;
+
+      bool is_complete() const
+      {
+        return sig.has_value() && cose_signature.has_value() &&
+          serialised_tree.has_value();
+      }
+    };
+
+    std::deque<PendingEntry> cache;
     size_t max_cache_size = DEFAULT_MAX_CACHE_SIZE;
     mutable std::mutex cache_mutex;
 
@@ -27,17 +41,18 @@ namespace ccf
       }
     }
 
-    CachedSignature& get_or_create_entry(ccf::kv::Version version)
+    PendingEntry& get_or_create_entry(ccf::kv::Version version)
     {
       // Fast path: the new version extends the cache (expected common case)
       if (cache.empty() || version > cache.back().sig_seqno)
       {
-        cache.push_back(CachedSignature{{}, std::nullopt, version});
+        cache.push_back(PendingEntry{
+          std::nullopt, std::nullopt, std::nullopt, version});
         evict_oldest();
         return cache.back();
       }
 
-      // Match the last entry (the other hook for the same version)
+      // Match the last entry (another hook for the same version)
       if (version == cache.back().sig_seqno)
       {
         return cache.back();
@@ -70,26 +85,26 @@ namespace ccf
       // first entry with sig_seqno > seqno (the covering signature).
       // Reverse linear scan is used since callers typically want recently
       // committed signatures.
+      const PendingEntry* match = nullptr;
       for (auto it = cache.rbegin(); it != cache.rend(); ++it)
       {
         if (it->sig_seqno <= seqno)
         {
-          // We've passed the target — the next entry forward was the match
-          if (it != cache.rbegin())
-          {
-            return *std::prev(it);
-          }
-          return std::nullopt;
+          break;
         }
+        match = &*it;
       }
 
-      // All entries have sig_seqno > seqno; the first is the best match
-      if (!cache.empty())
+      if (match == nullptr || !match->is_complete())
       {
-        return cache.front();
+        return std::nullopt;
       }
 
-      return std::nullopt;
+      return CachedSignature{
+        match->sig.value(),
+        match->cose_signature.value(),
+        match->serialised_tree.value(),
+        match->sig_seqno};
     }
 
     void on_signature_committed(
@@ -106,6 +121,14 @@ namespace ccf
       std::lock_guard<std::mutex> guard(cache_mutex);
       auto& entry = get_or_create_entry(version);
       entry.cose_signature = cose_sig;
+    }
+
+    void on_tree_committed(
+      ccf::kv::Version version, const std::vector<uint8_t>& tree)
+    {
+      std::lock_guard<std::mutex> guard(cache_mutex);
+      auto& entry = get_or_create_entry(version);
+      entry.serialised_tree = tree;
     }
 
     void register_hooks(ccf::kv::Store& tables)
@@ -129,6 +152,18 @@ namespace ccf
             if (w.has_value())
             {
               on_cose_signature_committed(version, w.value());
+            }
+          }));
+
+      tables.set_global_hook(
+        Tables::SERIALISED_MERKLE_TREE,
+        SerialisedMerkleTree::wrap_commit_hook(
+          [this](
+            ccf::kv::Version version,
+            const SerialisedMerkleTree::Write& w) {
+            if (w.has_value())
+            {
+              on_tree_committed(version, w.value());
             }
           }));
     }

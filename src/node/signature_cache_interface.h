@@ -14,7 +14,8 @@ namespace ccf
   struct CachedSignature
   {
     PrimarySignature sig;
-    std::optional<std::vector<uint8_t>> cose_signature;
+    std::vector<uint8_t> cose_signature;
+    std::vector<uint8_t> serialised_tree;
     ccf::SeqNo sig_seqno;
   };
 
@@ -28,6 +29,8 @@ namespace ccf
       return "SignatureCache";
     }
 
+    // Returns the covering signature for a given seqno, or nullopt if
+    // unavailable. When a value is returned, all fields are populated.
     virtual std::optional<CachedSignature> get_signature_for(
       ccf::SeqNo seqno) const = 0;
 
