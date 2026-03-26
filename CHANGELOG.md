@@ -13,7 +13,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Backport the SnapshotCreate operator feature to preserve LTS compatibility on join with #7767 (#7773)
 
-
 ## [6.0.26]
 
 [6.0.26]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.26
