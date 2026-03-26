@@ -3134,7 +3134,9 @@ namespace ccf
                   snapshot_evidence.version);
                 backup_snapshot_fetch_task =
                   std::make_shared<BackupSnapshotFetch>(
-                    config.snapshots, snapshot_evidence.version, this);
+                    config.snapshots,
+                    snapshot_evidence.version - 1 /* YIKES */,
+                    this);
                 ccf::tasks::add_task(backup_snapshot_fetch_task);
               }
             }

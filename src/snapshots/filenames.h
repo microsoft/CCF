@@ -187,7 +187,7 @@ namespace snapshots
         }
 
         const auto idx = get_snapshot_idx_from_file_name(file_name.string());
-        if (minimum_idx.has_value() && idx < minimum_idx.value())
+        if (minimum_idx.has_value() && idx <= minimum_idx.value())
         {
           LOG_DEBUG_FMT(
             "Ignoring snapshot file {} below minimum idx {}",
