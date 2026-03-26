@@ -483,7 +483,7 @@ def run(args):
                 start_send = agg["sendTime"].min()
                 end_recv = agg["receiveTime"].max()
                 duration_s = (end_recv - start_send).total_seconds()
-                if duration_s <= 1:
+                if duration_s < 1:
                     LOG.error(
                         f"Duration is {duration_s}s (first send: {start_send}, last recv: {end_recv}). "
                         "Clamping to 1s; results may be inaccurate."
@@ -579,52 +579,54 @@ def run(args):
                 def red_shades(n):
                     return _shades(n, (205, 49, 49), (255, 100, 100))
 
+                # Compute per-client, per-second counts in a single pass
+                agg_with_seconds = agg.with_columns(
+                    ((pl.col("sendTime") - start_send) / 1000000)
+                    .cast(pl.Int64)
+                    .alias("send_second"),
+                    ((pl.col("receiveTime") - start_send) / 1000000)
+                    .cast(pl.Int64)
+                    .alias("recv_second"),
+                    (pl.col("responseStatus") >= 500).alias("is_error"),
+                )
+
+                sent_counts = (
+                    agg_with_seconds.group_by("client", "send_second")
+                    .len()
+                    .rename({"send_second": "second", "len": "count"})
+                )
+                rcvd_counts = (
+                    agg_with_seconds.filter(~pl.col("is_error"))
+                    .group_by("client", "recv_second")
+                    .len()
+                    .rename({"recv_second": "second", "len": "count"})
+                )
+                error_counts = (
+                    agg_with_seconds.filter(pl.col("is_error"))
+                    .group_by("client", "recv_second")
+                    .len()
+                    .rename({"recv_second": "second", "len": "count"})
+                )
+
                 client_sent = {}
                 client_rcvd = {}
                 client_errors = {}
                 for cn in client_names:
-                    c_df = agg.filter(pl.col("client") == cn)
-                    cs = (
-                        c_df.with_columns(
-                            ((pl.col("sendTime") - start_send) / 1000000)
-                            .cast(pl.Int64)
-                            .alias("second")
-                        )
-                        .group_by("second")
-                        .len()
-                    )
+                    cs = sent_counts.filter(pl.col("client") == cn)
                     client_sent[cn] = dict(
-                        zip(cs["second"].to_list(), cs["len"].to_list())
+                        zip(cs["second"].to_list(), cs["count"].to_list())
                     )
                     all_seconds.update(cs["second"].to_list())
 
-                    cr = (
-                        c_df.filter(pl.col("responseStatus") < 500)
-                        .with_columns(
-                            ((pl.col("receiveTime") - start_send) / 1000000)
-                            .cast(pl.Int64)
-                            .alias("second")
-                        )
-                        .group_by("second")
-                        .len()
-                    )
+                    cr = rcvd_counts.filter(pl.col("client") == cn)
                     client_rcvd[cn] = dict(
-                        zip(cr["second"].to_list(), cr["len"].to_list())
+                        zip(cr["second"].to_list(), cr["count"].to_list())
                     )
                     all_seconds.update(cr["second"].to_list())
 
-                    ce = (
-                        c_df.filter(pl.col("responseStatus") >= 500)
-                        .with_columns(
-                            ((pl.col("receiveTime") - start_send) / 1000000)
-                            .cast(pl.Int64)
-                            .alias("second")
-                        )
-                        .group_by("second")
-                        .len()
-                    )
+                    ce = error_counts.filter(pl.col("client") == cn)
                     client_errors[cn] = dict(
-                        zip(ce["second"].to_list(), ce["len"].to_list())
+                        zip(ce["second"].to_list(), ce["count"].to_list())
                     )
                     all_seconds.update(ce["second"].to_list())
 
