@@ -97,37 +97,6 @@ namespace snapshots
     } \
   } while (0)
 
-    static void cleanup_old_snapshots(const fs::path& dir, size_t max_retained)
-    {
-      std::vector<fs::path> directories{dir};
-      auto committed = find_committed_snapshots_in_directories(directories);
-
-      if (committed.size() > max_retained)
-      {
-        // committed is sorted descending by snapshot index, so the
-        // oldest are at the end
-        for (auto it = committed.rbegin();
-             it != committed.rend() - max_retained;
-             ++it)
-        {
-          const auto& path = it->second;
-          LOG_INFO_FMT(
-            "Deleting old snapshot {} (retaining {})",
-            path.filename(),
-            max_retained);
-          std::error_code ec;
-          fs::remove(path, ec);
-          if (ec)
-          {
-            LOG_FAIL_FMT(
-              "Failed to delete old snapshot {}: {}",
-              path.filename(),
-              ec.message());
-          }
-        }
-      }
-    }
-
     struct AsyncSnapshotSyncAndRename
     {
       // Inputs, populated at construction
