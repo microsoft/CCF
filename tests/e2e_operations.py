@@ -201,8 +201,8 @@ def test_forced_snapshot(network, args):
     # Ensure there is at least one signature greater than the hwm
     network.txs.issue(network, number_txs=1, wait_for_sync=True)
 
-    # Submit a proposal to force a snapshot
-    primary.trigger_snapshot(network.consortium)
+    # Force a snapshot
+    primary.trigger_snapshot()
 
     # Issue some more transactions
     network.txs.issue(network, number_txs=5)
@@ -264,8 +264,8 @@ def test_large_snapshot(network, args):
                 log_capture=[],
             )
 
-    # Submit a proposal to force a snapshot at the following signature
-    primary.trigger_snapshot(network.consortium)
+    # Force a snapshot at the following signature
+    primary.trigger_snapshot()
 
     # Check that there is at least a snapshot larger than args.max_msg_size_bytes
     snapshots_dir = network.get_committed_snapshots(primary)
@@ -561,7 +561,7 @@ def test_snapshot_selection(network, args):
     LOG.info("Creating snapshots")
     primary, backups = network.find_nodes()
     for i in range(3):
-        primary.trigger_snapshot(network.consortium)
+        primary.trigger_snapshot()
         # Snapshot creation and commit takes time. All of the helpers we have to track/poll this
         # are expensive, so try a short sleep
         time.sleep(1)
@@ -3329,7 +3329,7 @@ def test_max_retained_snapshot_files(network, args):
             r = c.get("/node/commit").body.json()
             seqno_before = TxID.from_str(r["transaction_id"]).seqno
 
-        primary.trigger_snapshot(network.consortium)
+        primary.trigger_snapshot()
         network.txs.issue(network, number_txs=3)
 
         # Wait for a new committed snapshot to appear. Once at the retention
@@ -3426,7 +3426,7 @@ def test_backup_snapshot_cleanup(network, args):
     for i in range(num_snapshots_to_create):
         LOG.info(f"Triggering snapshot {i + 1}/{num_snapshots_to_create}")
         network.txs.issue(network, number_txs=3)
-        primary.trigger_snapshot(network.consortium)
+        primary.trigger_snapshot()
         network.txs.issue(network, number_txs=3)
 
     # Wait for backups to download and clean up snapshots.
