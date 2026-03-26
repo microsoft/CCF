@@ -310,7 +310,7 @@ def test_snapshot_access(network, args):
                 (1, location),
                 (snapshot_index // 2, location),
                 (snapshot_index - 1, location),
-                (snapshot_index, None),
+                (snapshot_index, location),
                 (snapshot_index + 1, None),
             ):
                 for method in ("GET", "HEAD"):

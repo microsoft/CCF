@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Added `make_cose_verifier_from_pem_cert()` and `make_cose_verifier_from_der_cert()` that accept certificates in a known format. The existing `make_cose_verifier_cert()` is renamed to `make_cose_verifier_any_cert()` (#7768).
 
+### Changed
+
+- The `since` query parameter on the `GET /node/snapshot` endpoint now uses closed (inclusive) semantics, consistent with the `since` parameter on `GET /node/ledger_chunk`. A request with `?since=N` will now return snapshots with index greater than or equal to `N`, rather than strictly greater than `N` (#7742).
+
 ## [7.0.0-dev13]
 
 [7.0.0-dev13]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-dev13
