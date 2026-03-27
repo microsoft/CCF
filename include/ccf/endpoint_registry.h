@@ -66,9 +66,7 @@ namespace ccf::endpoints
     CommandEndpointContext& ctx, const TxID& tx_id);
 
   void default_respond_on_commit_func(
-    std::shared_ptr<ccf::RpcContext> rpc_ctx,
-    const TxID& tx_id,
-    ccf::FinalTxStatus status);
+    ccf::endpoints::CommittedTxInfo& info);
 
   ConsensusCommittedEndpointFunction make_respond_with_signature_on_commit(
     ccf::AbstractNodeContext& context);

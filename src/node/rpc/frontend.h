@@ -813,7 +813,20 @@ namespace ccf
           // else args owns a valid Tx relating to a non-pending response, which
           // should be applied
           ccf::kv::CommittableTx& tx = *args.owned_tx;
-          ccf::kv::CommitResult result = tx.commit(ctx->claims);
+
+          // Capture write set digest and commit evidence during commit
+          // for potential use in inline receipt construction
+          ccf::crypto::Sha256Hash captured_ws_digest;
+          std::string captured_commit_evidence;
+          auto ws_observer = [&captured_ws_digest, &captured_commit_evidence](
+                               const ccf::crypto::Sha256Hash& ws_digest,
+                               const std::string& ce) {
+            captured_ws_digest = ws_digest;
+            captured_commit_evidence = ce;
+          };
+
+          ccf::kv::CommitResult result =
+            tx.commit(ctx->claims, nullptr, ws_observer);
 
           switch (result)
           {
@@ -863,8 +876,12 @@ namespace ccf
                     concrete_endpoint != nullptr &&
                     concrete_endpoint->consensus_committed_func != nullptr)
                   {
-                    ctx->respond_on_commit = std::make_pair(
-                      tx_id, concrete_endpoint->consensus_committed_func);
+                    ctx->respond_on_commit =
+                      ccf::RpcContextImpl::RespondOnCommitInfo{
+                        tx_id,
+                        concrete_endpoint->consensus_committed_func,
+                        std::move(captured_ws_digest),
+                        std::move(captured_commit_evidence)};
                   }
                 }
               }

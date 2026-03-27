@@ -33,13 +33,6 @@ namespace ccf
     size_t max_cache_size = DEFAULT_MAX_CACHE_SIZE;
     mutable std::mutex cache_mutex;
 
-    // Used to derive commit evidence for requested transactions.
-    // NB: This derivation must only be performed for globally committed
-    // transactions. This is guaranteed here because this subsystem is only
-    // queried from ConsensusCommittedEndpointFunction callbacks, which
-    // execute after global commit.
-    ccf::kv::Store* store = nullptr;
-
     void evict_oldest()
     {
       while (cache.size() > max_cache_size)
@@ -84,7 +77,7 @@ namespace ccf
     }
 
     std::optional<CachedSignature> get_signature_for(
-      const ccf::TxID& tx_id) const override
+      ccf::SeqNo seqno) const override
     {
       std::lock_guard<std::mutex> guard(cache_mutex);
 
@@ -95,7 +88,7 @@ namespace ccf
       const PendingEntry* match = nullptr;
       for (auto it = cache.rbegin(); it != cache.rend(); ++it)
       {
-        if (it->sig_seqno <= tx_id.seqno)
+        if (it->sig_seqno <= seqno)
         {
           break;
         }
@@ -107,20 +100,11 @@ namespace ccf
         return std::nullopt;
       }
 
-      if (store == nullptr)
-      {
-        return std::nullopt;
-      }
-
-      auto e = store->get_encryptor();
-      auto ce = e->get_commit_evidence(tx_id);
-
       return CachedSignature{
         match->sig.value(),
         match->cose_signature.value(),
         match->serialised_tree.value(),
-        match->sig_seqno,
-        std::move(ce)};
+        match->sig_seqno};
     }
 
     void on_signature_committed(
@@ -149,7 +133,6 @@ namespace ccf
 
     void register_hooks(ccf::kv::Store& tables)
     {
-      store = &tables;
       tables.set_global_hook(
         Tables::SIGNATURES,
         Signatures::wrap_commit_hook(

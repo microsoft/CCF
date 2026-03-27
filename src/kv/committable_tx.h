@@ -134,7 +134,7 @@ namespace ccf::kv
       std::function<std::tuple<Version, Version>(bool has_new_map)>
         version_resolver = nullptr,
       std::function<void(
-        const std::vector<uint8_t>& write_set,
+        const ccf::crypto::Sha256Hash& write_set_digest,
         const std::string& commit_evidence)> write_set_observer = nullptr)
     {
       if (committed)
@@ -230,7 +230,8 @@ namespace ccf::kv
 
         if (write_set_observer != nullptr)
         {
-          write_set_observer(data, commit_evidence);
+          ccf::crypto::Sha256Hash ws_digest({data.data(), data.size()});
+          write_set_observer(ws_digest, commit_evidence);
         }
 
         auto claims_ = claims;

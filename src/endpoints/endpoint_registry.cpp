@@ -205,19 +205,16 @@ namespace ccf::endpoints
     ctx.rpc_ctx->set_response_header(http::headers::CCF_TX_ID, tx_id.to_str());
   }
 
-  void default_respond_on_commit_func(
-    std::shared_ptr<ccf::RpcContext> rpc_ctx,
-    const TxID& tx_id,
-    ccf::FinalTxStatus status)
+  void default_respond_on_commit_func(CommittedTxInfo& info)
   {
-    if (status == ccf::FinalTxStatus::Invalid)
+    if (info.status == ccf::FinalTxStatus::Invalid)
     {
-      rpc_ctx->set_error(
+      info.rpc_ctx->set_error(
         HTTP_STATUS_INTERNAL_SERVER_ERROR,
         ccf::errors::TransactionInvalid,
         fmt::format(
           "While waiting for TxID {} to commit, it was invalidated",
-          tx_id.to_str()));
+          info.tx_id.to_str()));
     }
 
     // Else leave the original response untouched, and return it now
@@ -233,50 +230,44 @@ namespace ccf::endpoints
         "SignatureCacheInterface subsystem is not installed");
     }
 
-    return [sig_cache](
-             std::shared_ptr<ccf::RpcContext> rpc_ctx,
-             const TxID& tx_id,
-             ccf::FinalTxStatus status) {
-      if (status == ccf::FinalTxStatus::Invalid)
+    return [sig_cache](CommittedTxInfo& info) {
+      if (info.status == ccf::FinalTxStatus::Invalid)
       {
-        rpc_ctx->set_error(
+        info.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::TransactionInvalid,
           fmt::format(
             "While waiting for TxID {} to commit, it was invalidated",
-            tx_id.to_str()));
+            info.tx_id.to_str()));
         return;
       }
 
-      auto cached_sig = sig_cache->get_signature_for(tx_id);
+      auto cached_sig = sig_cache->get_signature_for(info.tx_id.seqno);
       if (!cached_sig.has_value())
       {
-        rpc_ctx->set_error(
+        info.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           fmt::format(
-            "No cached signature found covering TxID {}", tx_id.to_str()));
+            "No cached signature found covering TxID {}",
+            info.tx_id.to_str()));
         return;
       }
 
       // Reconstruct merkle tree from the cached serialised tree and
       // extract a proof for this specific seqno
       ccf::MerkleTreeHistory tree(cached_sig->serialised_tree);
-      if (!tree.in_range(tx_id.seqno))
+      if (!tree.in_range(info.tx_id.seqno))
       {
-        rpc_ctx->set_error(
+        info.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           fmt::format(
-            "Seqno {} is not in range of cached signature tree", tx_id.seqno));
+            "Seqno {} is not in range of cached signature tree",
+            info.tx_id.seqno));
         return;
       }
-      auto proof = tree.get_proof(tx_id.seqno);
-
-      // Get leaf components
-      const auto& claims_digest = rpc_ctx->get_claims_digest();
-      // write_set_digest still TODO
-      std::optional<ccf::crypto::Sha256Hash> write_set_digest = std::nullopt;
+      auto proof = tree.get_proof(info.tx_id.seqno);
 
       auto receipt = std::make_shared<TxReceiptImpl>(
         cached_sig->sig.sig,
@@ -285,18 +276,19 @@ namespace ccf::endpoints
         proof.get_path(),
         cached_sig->sig.node,
         cached_sig->sig.cert,
-        write_set_digest,
-        cached_sig->commit_evidence,
-        claims_digest);
+        info.write_set_digest,
+        info.commit_evidence,
+        info.claims_digest);
 
       auto body = nlohmann::json::object();
-      body["receipt"] = ccf::describe_receipt_v1(*receipt);
+      body["receipt"] = ccf::describe_receipt_v2(*receipt);
 
-      rpc_ctx->set_response_status(HTTP_STATUS_OK);
-      rpc_ctx->set_response_header(
+      info.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+      info.rpc_ctx->set_response_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       const auto s = body.dump();
-      rpc_ctx->set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
+      info.rpc_ctx->set_response_body(
+        std::vector<uint8_t>(s.begin(), s.end()));
     };
   }
 

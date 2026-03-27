@@ -115,9 +115,14 @@ namespace ccf
     bool response_is_pending = false;
     bool terminate_session = false;
 
-    std::optional<
-      std::pair<ccf::TxID, ccf::endpoints::ConsensusCommittedEndpointFunction>>
-      respond_on_commit = std::nullopt;
+    struct RespondOnCommitInfo
+    {
+      ccf::TxID tx_id;
+      ccf::endpoints::ConsensusCommittedEndpointFunction committed_func;
+      ccf::crypto::Sha256Hash write_set_digest;
+      std::string commit_evidence;
+    };
+    std::optional<RespondOnCommitInfo> respond_on_commit = std::nullopt;
 
     [[nodiscard]] virtual bool should_apply_writes() const = 0;
     virtual void reset_response() = 0;
