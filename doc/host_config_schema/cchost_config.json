@@ -555,10 +555,15 @@
           "description": "Maximum number of committed snapshot files to retain. When the number of committed snapshots exceeds this value, the oldest snapshots are deleted. Must be at least 1 if set. If null or unset, no automated snapshot garbage collection is performed.",
           "minimum": 1
         },
+        "max_committed_ledger_chunks": {
+          "type": ["integer", "null"],
+          "default": null,
+          "description": "Maximum number of committed ledger chunk files to retain in the main ledger directory. When the number of committed chunks exceeds this value, the oldest chunks are deleted, but only after verifying that an identical copy (by SHA-256 digest) exists in at least one read-only ledger directory. Requires at least one ledger.read_only_directories entry; the node will refuse to start otherwise. If null or unset, no automated ledger chunk garbage collection is performed."
+        },
         "interval": {
           "type": "string",
           "default": "30s",
-          "description": "Time interval at which to scan the snapshot directory and delete old committed snapshots in excess of max_snapshots. This periodic cleanup executes regardless of the node's status (primary or backup)."
+          "description": "Time interval at which to scan and delete old committed files (snapshots and ledger chunks) that exceed the configured retention limits. This periodic cleanup executes regardless of the node's status (primary or backup)."
         }
       },
       "description": "This section includes configuration for periodic cleanup of old files (snapshots, ledger chunks)",

@@ -27,6 +27,8 @@ Ledger files that still contain some uncommitted entries are named ``ledger_<sta
 
 .. warning:: Removing `uncommitted` ledger files from the ``ledger.directory`` directory may cause a node to crash. It is however safe to move `committed` ledger files to another directory, accessible to a CCF node via the ``ledger.read_only_directories`` configuration entry.
 
+.. note:: The ``files_cleanup.max_committed_ledger_chunks`` configuration entry can be used to limit the number of committed ledger chunk files retained in the main ledger directory. When the number of committed chunks exceeds this value, the oldest chunks (by sequence number) are automatically deleted, but only after verifying that an identical copy (by SHA-256 digest) exists in at least one ``ledger.read_only_directories`` entry. At least one read-only ledger directory must be configured when this option is set; the node will refuse to start otherwise.
+
 It is important to note that while all entries stored in ledger files ending in ``.committed`` are committed, not all committed entries are stored in such a file at any given time. A number of them are typically in the in-progress files, waiting to be flushed to a ``.committed`` file once the size threshold (``ledger.chunk_size``) is met.
 
 The listing below is an example of what a ledger directory may look like:

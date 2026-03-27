@@ -3492,12 +3492,300 @@ def run_backup_snapshot_cleanup(const_args):
         test_backup_snapshot_cleanup(network, args)
 
 
+def test_max_committed_ledger_chunk_files(network, args, read_only_ledger_dir):
+    """
+    Verify that the periodic cleanup timer deletes committed ledger chunks
+    from the main ledger directory down to the configured retention limit.
+    Chunks are copied to the read-only dir so the digest check passes.
+    """
+    max_retained = args.files_cleanup_max_committed_ledger_chunks
+    primary, _ = network.find_primary()
+    main_ledger_dir = primary.get_main_ledger_dir()
+
+    def get_committed_chunks():
+        return sorted(
+            [
+                f
+                for f in os.listdir(main_ledger_dir)
+                if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f)
+            ],
+            key=lambda f: ccf.ledger.range_from_filename(f)[0],
+        )
+
+    def copy_new_committed_to_readonly():
+        """Copy any committed chunks from main dir to read-only dir."""
+        for f in os.listdir(main_ledger_dir):
+            if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f):
+                dst = os.path.join(read_only_ledger_dir, f)
+                if not os.path.exists(dst):
+                    shutil.copy2(os.path.join(main_ledger_dir, f), dst)
+
+    def wait_for_cleanup(max_count, timeout=15):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            committed = get_committed_chunks()
+            if len(committed) <= max_count:
+                return committed
+            time.sleep(0.5)
+        raise TimeoutError(
+            f"Timed out waiting for committed chunk count to drop to {max_count} in "
+            f"{main_ledger_dir}. Found {len(committed)}: {sorted(committed)}"
+        )
+
+    initial_committed = get_committed_chunks()
+    LOG.info(f"Initial committed chunks: {len(initial_committed)}")
+
+    # Generate more committed chunks than the retention limit
+    num_chunks_to_create = max_retained + 4
+    for i in range(num_chunks_to_create):
+        LOG.info(f"Forcing ledger chunk {i + 1}/{num_chunks_to_create}")
+        network.txs.issue(network, number_txs=3)
+        network.consortium.force_ledger_chunk(primary)
+        network.txs.issue(network, number_txs=3)
+        # Copy committed chunks to read-only dir so digest check passes
+        copy_new_committed_to_readonly()
+
+    # Wait for committed chunks to appear then for cleanup to prune
+    time.sleep(2)
+    committed_after = get_committed_chunks()
+    LOG.info(f"Committed chunks after issuing: {len(committed_after)}")
+
+    if len(committed_after) > max_retained:
+        committed_after = wait_for_cleanup(max_retained)
+
+    assert len(committed_after) <= max_retained, (
+        f"Expected at most {max_retained} committed chunks, "
+        f"found {len(committed_after)}: {committed_after}"
+    )
+
+    # Verify the retained chunks are the newest
+    all_start_seqnos = [ccf.ledger.range_from_filename(f)[0] for f in committed_after]
+    assert all_start_seqnos == sorted(
+        all_start_seqnos
+    ), f"Retained chunks are not sorted: {all_start_seqnos}"
+
+    return network
+
+
+def run_max_committed_ledger_chunk_files(const_args):
+    args = copy.deepcopy(const_args)
+    args.label = f"{args.label}_max_committed_ledger_chunks"
+    args.ledger_chunk_bytes = "20KB"
+    args.files_cleanup_max_committed_ledger_chunks = 3
+    args.files_cleanup_interval = "1s"
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        args.common_read_only_ledger_dir = tmp_dir
+
+        with infra.network.network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            pdb=args.pdb,
+            txs=app.LoggingTxs("user0"),
+        ) as network:
+            network.start_and_open(args)
+
+            # Copy all existing committed chunks to read-only dir so they can be pruned
+            primary, _ = network.find_primary()
+            main_ledger_dir = primary.get_main_ledger_dir()
+            for f in os.listdir(main_ledger_dir):
+                if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f):
+                    shutil.copy2(
+                        os.path.join(main_ledger_dir, f),
+                        os.path.join(tmp_dir, f),
+                    )
+
+            test_max_committed_ledger_chunk_files(network, args, tmp_dir)
+
+
+def test_ledger_chunk_cleanup_with_read_only_dir(network, args):
+    """
+    When read-only ledger directories are configured, only committed ledger
+    chunks that have an identical copy (by SHA-256 digest) in a read-only
+    directory should be deleted. Chunks not present there must be kept.
+    """
+    max_retained = args.files_cleanup_max_committed_ledger_chunks
+    primary, _ = network.find_primary()
+    main_ledger_dir = primary.get_main_ledger_dir()
+
+    # The read-only ledger dir for this node
+    read_only_ledger_dir = os.path.join(
+        primary.remote.remote.root,
+        primary.remote.read_only_ledger_dirs_names[0],
+    )
+    os.makedirs(read_only_ledger_dir, exist_ok=True)
+
+    def get_committed_chunks(d):
+        return sorted(
+            [
+                f
+                for f in os.listdir(d)
+                if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f)
+            ],
+            key=lambda f: ccf.ledger.range_from_filename(f)[0],
+        )
+
+    # Generate lots of committed chunks
+    num_chunks = max_retained + 5
+    for i in range(num_chunks):
+        network.txs.issue(network, number_txs=3)
+        network.consortium.force_ledger_chunk(primary)
+        network.txs.issue(network, number_txs=3)
+
+    time.sleep(1)
+
+    # Pause cleanup by collecting committed chunks before they're pruned.
+    # Copy only some of the oldest chunks to read-only dir.
+    committed = get_committed_chunks(main_ledger_dir)
+    LOG.info(f"Committed chunks before backup: {len(committed)}")
+
+    # Copy the 2 oldest committed chunks to read-only dir
+    num_to_backup = 2
+    backed_up = []
+    for f in committed[:num_to_backup]:
+        src = os.path.join(main_ledger_dir, f)
+        dst = os.path.join(read_only_ledger_dir, f)
+        shutil.copy2(src, dst)
+        backed_up.append(f)
+        LOG.info(f"Backed up {f} to read-only dir")
+
+    # Wait for the cleanup timer to process
+    timeout = 20
+    end_time = time.time() + timeout
+    while time.time() < end_time:
+        current = get_committed_chunks(main_ledger_dir)
+        if len(current) <= max_retained + (
+            len(committed) - max_retained - num_to_backup
+        ):
+            break
+        time.sleep(0.5)
+
+    current = get_committed_chunks(main_ledger_dir)
+    LOG.info(f"Committed chunks after cleanup: {len(current)}, files: {current}")
+
+    # The backed-up chunks should have been deleted from main dir
+    for f in backed_up:
+        assert f not in current, (
+            f"Chunk {f} was backed up to read-only dir but was not deleted "
+            f"from main dir. Current: {current}"
+        )
+
+    # Chunks not in read-only dir that were over the limit should still be present
+    # (they couldn't be safely deleted)
+    not_backed_up_over_limit = [f for f in committed if f not in backed_up][
+        : len(committed) - max_retained - num_to_backup
+    ]
+    for f in not_backed_up_over_limit:
+        assert f in current, (
+            f"Chunk {f} was NOT in read-only dir and should have been kept, "
+            f"but was deleted. Current: {current}"
+        )
+
+    return network
+
+
+def test_ledger_chunk_cleanup_digest_mismatch(network, args):
+    """
+    When a committed chunk exists in the read-only directory but its digest
+    does not match the local copy, the chunk must NOT be deleted.
+    """
+    max_retained = args.files_cleanup_max_committed_ledger_chunks
+    primary, _ = network.find_primary()
+    main_ledger_dir = primary.get_main_ledger_dir()
+
+    read_only_ledger_dir = os.path.join(
+        primary.remote.remote.root,
+        primary.remote.read_only_ledger_dirs_names[0],
+    )
+    os.makedirs(read_only_ledger_dir, exist_ok=True)
+
+    def get_committed_chunks(d):
+        return sorted(
+            [
+                f
+                for f in os.listdir(d)
+                if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f)
+            ],
+            key=lambda f: ccf.ledger.range_from_filename(f)[0],
+        )
+
+    # Generate committed chunks
+    num_chunks = max_retained + 3
+    for i in range(num_chunks):
+        network.txs.issue(network, number_txs=3)
+        network.consortium.force_ledger_chunk(primary)
+        network.txs.issue(network, number_txs=3)
+
+    time.sleep(1)
+    committed = get_committed_chunks(main_ledger_dir)
+    LOG.info(f"Committed chunks: {len(committed)}")
+
+    if len(committed) <= max_retained:
+        LOG.warning("Not enough committed chunks to test cleanup, skipping")
+        return network
+
+    # Copy oldest chunk to read-only dir, but corrupt it
+    target_chunk = committed[0]
+    src = os.path.join(main_ledger_dir, target_chunk)
+    dst = os.path.join(read_only_ledger_dir, target_chunk)
+    shutil.copy2(src, dst)
+
+    # Corrupt the read-only copy by flipping a byte
+    with open(dst, "r+b") as f:
+        f.seek(0)
+        original_byte = f.read(1)
+        f.seek(0)
+        f.write(bytes([original_byte[0] ^ 0xFF]))
+
+    LOG.info(f"Corrupted read-only copy of {target_chunk}")
+
+    # Wait for cleanup timer
+    time.sleep(3)
+
+    current = get_committed_chunks(main_ledger_dir)
+    LOG.info(f"Committed chunks after cleanup: {len(current)}")
+
+    # The target chunk should still exist because the digest didn't match
+    assert target_chunk in current, (
+        f"Chunk {target_chunk} was deleted despite digest mismatch with "
+        f"read-only copy. Current: {current}"
+    )
+
+    return network
+
+
+def run_ledger_chunk_cleanup_tests(const_args):
+    args = copy.deepcopy(const_args)
+    args.label = f"{args.label}_ledger_chunk_cleanup"
+    args.ledger_chunk_bytes = "20KB"
+    args.files_cleanup_max_committed_ledger_chunks = 3
+    args.files_cleanup_interval = "1s"
+
+    # Use a common read-only ledger dir for the read-only dir tests
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        args.common_read_only_ledger_dir = tmp_dir
+
+        with infra.network.network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            pdb=args.pdb,
+            txs=app.LoggingTxs("user0"),
+        ) as network:
+            network.start_and_open(args)
+            test_ledger_chunk_cleanup_with_read_only_dir(network, args)
+            test_ledger_chunk_cleanup_digest_mismatch(network, args)
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
     run_manual_snapshot_tests(args)
     run_max_retained_snapshot_files(args)
     run_backup_snapshot_cleanup(args)
+    run_max_committed_ledger_chunk_files(args)
+    run_ledger_chunk_cleanup_tests(args)
     run_tls_san_checks(args)
     run_config_timeout_check(args)
     run_configuration_file_checks(args)
