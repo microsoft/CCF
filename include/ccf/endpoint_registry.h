@@ -66,8 +66,7 @@ namespace ccf::endpoints
   void default_locally_committed_func(
     CommandEndpointContext& ctx, const TxID& tx_id);
 
-  void default_respond_on_commit_func(
-    ccf::endpoints::CommittedTxInfo& info);
+  void default_respond_on_commit_func(ccf::endpoints::CommittedTxInfo& info);
 
   ConsensusCommittedEndpointFunction make_respond_with_receipt_on_commit(
     ccf::AbstractNodeContext& context);

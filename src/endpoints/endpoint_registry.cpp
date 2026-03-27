@@ -240,8 +240,7 @@ namespace ccf::endpoints
         HTTP_STATUS_INTERNAL_SERVER_ERROR,
         ccf::errors::InternalError,
         fmt::format(
-          "No cached signature found covering TxID {}",
-          info.tx_id.to_str()));
+          "No cached signature found covering TxID {}", info.tx_id.to_str()));
       return nullptr;
     }
 
@@ -296,12 +295,7 @@ namespace ccf::endpoints
       auto body = nlohmann::json::object();
       body["receipt"] = ccf::describe_receipt_v2(*receipt);
 
-      info.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-      info.rpc_ctx->set_response_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-      const auto s = body.dump();
-      info.rpc_ctx->set_response_body(
-        std::vector<uint8_t>(s.begin(), s.end()));
+      info.rpc_ctx->set_response_json(body, HTTP_STATUS_OK);
     };
   }
 

@@ -46,8 +46,8 @@ namespace ccf
       // Fast path: the new version extends the cache (expected common case)
       if (cache.empty() || version > cache.back().sig_seqno)
       {
-        cache.push_back(PendingEntry{
-          std::nullopt, std::nullopt, std::nullopt, version});
+        cache.push_back(
+          PendingEntry{std::nullopt, std::nullopt, std::nullopt, version});
         evict_oldest();
         return cache.back();
       }
@@ -136,8 +136,7 @@ namespace ccf
       tables.set_global_hook(
         Tables::SIGNATURES,
         Signatures::wrap_commit_hook(
-          [this](
-            ccf::kv::Version version, const Signatures::Write& w) {
+          [this](ccf::kv::Version version, const Signatures::Write& w) {
             if (w.has_value())
             {
               on_signature_committed(version, w.value());
@@ -147,8 +146,7 @@ namespace ccf
       tables.set_global_hook(
         Tables::COSE_SIGNATURES,
         CoseSignatures::wrap_commit_hook(
-          [this](
-            ccf::kv::Version version, const CoseSignatures::Write& w) {
+          [this](ccf::kv::Version version, const CoseSignatures::Write& w) {
             if (w.has_value())
             {
               on_cose_signature_committed(version, w.value());
@@ -159,8 +157,7 @@ namespace ccf
         Tables::SERIALISED_MERKLE_TREE,
         SerialisedMerkleTree::wrap_commit_hook(
           [this](
-            ccf::kv::Version version,
-            const SerialisedMerkleTree::Write& w) {
+            ccf::kv::Version version, const SerialisedMerkleTree::Write& w) {
             if (w.has_value())
             {
               on_tree_committed(version, w.value());
