@@ -201,16 +201,8 @@ def test_forced_snapshot(network, args):
     # Ensure there is at least one signature greater than the hwm
     network.txs.issue(network, number_txs=1, wait_for_sync=True)
 
-    # Submit a proposal to force a snapshot
-    proposal_body, careful_vote = network.consortium.make_proposal("trigger_snapshot")
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    proposal = network.consortium.vote_using_majority(
-        primary,
-        proposal,
-        careful_vote,
-    )
+    # Force a snapshot
+    primary.trigger_snapshot()
 
     # Issue some more transactions
     network.txs.issue(network, number_txs=5)
@@ -272,16 +264,8 @@ def test_large_snapshot(network, args):
                 log_capture=[],
             )
 
-    # Submit a proposal to force a snapshot at the following signature
-    proposal_body, careful_vote = network.consortium.make_proposal("trigger_snapshot")
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    proposal = network.consortium.vote_using_majority(
-        primary,
-        proposal,
-        careful_vote,
-    )
+    # Force a snapshot at the following signature
+    primary.trigger_snapshot()
 
     # Check that there is at least a snapshot larger than args.max_msg_size_bytes
     snapshots_dir = network.get_committed_snapshots(primary)
@@ -574,24 +558,10 @@ def test_snapshot_selection(network, args):
         )
         network.trust_node(new_node, args)
 
-    def trigger_snapshot(node):
-        LOG.info(f"Triggering snapshot on {node.local_node_id}")
-        proposal_body, careful_vote = network.consortium.make_proposal(
-            "trigger_snapshot"
-        )
-        proposal = network.consortium.get_any_active_member().propose(
-            node, proposal_body
-        )
-        network.consortium.vote_using_majority(
-            node,
-            proposal,
-            careful_vote,
-        )
-
     LOG.info("Creating snapshots")
     primary, backups = network.find_nodes()
     for i in range(3):
-        trigger_snapshot(primary)
+        primary.trigger_snapshot()
         # Snapshot creation and commit takes time. All of the helpers we have to track/poll this
         # are expensive, so try a short sleep
         time.sleep(1)
@@ -3296,10 +3266,238 @@ def run_snp_tests(args):
     run_recovery_decision_protocol_multiple_timeout(args)
 
 
+def test_max_retained_snapshot_files(network, args):
+    max_retained = args.files_cleanup_max_snapshots
+    primary, _ = network.find_primary()
+
+    snapshots_dir = os.path.join(
+        primary.remote.remote.root,
+        primary.remote.snapshots_dir_name,
+    )
+
+    def wait_for_snapshot_seqnos(count, timeout=10):
+        end_time = time.time() + timeout
+        observed_seqnos = set()
+        while time.time() < end_time:
+            observed_seqnos = set()
+            for f in os.listdir(snapshots_dir):
+                if f.startswith("snapshot_") and ccf.ledger.is_snapshot_file_committed(
+                    f
+                ):
+                    seqno, _ = ccf.ledger.snapshot_index_from_filename(f)
+                    observed_seqnos.add(seqno)
+
+            if len(observed_seqnos) >= count:
+                return sorted(observed_seqnos)
+
+            time.sleep(0.1)
+
+        raise TimeoutError(
+            f"Timed out waiting for at least {count} committed snapshots in "
+            f"{snapshots_dir}. Last observed {len(observed_seqnos)}: {sorted(observed_seqnos)}"
+        )
+
+    def wait_for_cleanup(max_count, timeout=10):
+        """Wait for the periodic cleanup timer to prune snapshots."""
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            committed = [
+                f
+                for f in os.listdir(snapshots_dir)
+                if f.startswith("snapshot_")
+                and ccf.ledger.is_snapshot_file_committed(f)
+            ]
+            if len(committed) <= max_count:
+                return
+            time.sleep(0.5)
+        raise TimeoutError(
+            f"Timed out waiting for snapshot count to drop to {max_count} in "
+            f"{snapshots_dir}. Found {len(committed)}: {sorted(committed)}"
+        )
+
+    # We expect an initial snapshot, created by network open.
+    prev_seqnos = wait_for_snapshot_seqnos(count=1)
+    LOG.info(f"Initial snapshots on disk: {prev_seqnos}")
+
+    # Generate more snapshots than the retention limit, checking invariants at each step
+    num_snapshots_to_create = max_retained + 3
+    for i in range(num_snapshots_to_create):
+        LOG.info(f"Triggering snapshot {i + 1}/{num_snapshots_to_create}")
+        network.txs.issue(network, number_txs=3)
+
+        with primary.client() as c:
+            r = c.get("/node/commit").body.json()
+            seqno_before = TxID.from_str(r["transaction_id"]).seqno
+
+        primary.trigger_snapshot()
+        network.txs.issue(network, number_txs=3)
+
+        # Wait for a new committed snapshot to appear. Once at the retention
+        # limit the cleanup timer may prune before we observe a higher total,
+        # so we look for a *new* seqno rather than an increased count.
+        def wait_for_new_snapshot(prev, timeout=10):
+            end_time = time.time() + timeout
+            while time.time() < end_time:
+                observed = set()
+                for f in os.listdir(snapshots_dir):
+                    if f.startswith(
+                        "snapshot_"
+                    ) and ccf.ledger.is_snapshot_file_committed(f):
+                        seqno, _ = ccf.ledger.snapshot_index_from_filename(f)
+                        observed.add(seqno)
+                if observed - set(prev):
+                    return sorted(observed)
+                time.sleep(0.1)
+            raise TimeoutError(
+                f"Timed out waiting for a new committed snapshot in "
+                f"{snapshots_dir}. Previous: {prev}, last observed: {sorted(observed)}"
+            )
+
+        current_seqnos = wait_for_new_snapshot(prev_seqnos)
+
+        LOG.info(
+            f"Snapshot {i + 1}: seqnos on disk: {current_seqnos}, "
+            f"previous iteration: {prev_seqnos}"
+        )
+
+        # The latest snapshot is the one we just created
+        assert current_seqnos[-1] >= seqno_before, (
+            f"Expected the newest snapshot seqno {current_seqnos[-1]} "
+            f"to be >= seqno_before {seqno_before}"
+        )
+
+        # Wait for the periodic cleanup timer to prune old snapshots
+        if len(current_seqnos) > max_retained:
+            wait_for_cleanup(max_retained)
+
+        # Re-read the snapshot list after cleanup
+        current_seqnos = sorted(
+            {
+                ccf.ledger.snapshot_index_from_filename(f)[0]
+                for f in os.listdir(snapshots_dir)
+                if f.startswith("snapshot_")
+                and ccf.ledger.is_snapshot_file_committed(f)
+            }
+        )
+
+        assert len(current_seqnos) <= max_retained, (
+            f"Expected at most {max_retained} snapshots after iteration {i + 1}, "
+            f"found {len(current_seqnos)}: {current_seqnos}"
+        )
+
+        # All snapshots except the latest were present in the previous iteration
+        for seqno in current_seqnos[:-1]:
+            assert seqno in prev_seqnos, (
+                f"Snapshot with seqno {seqno} was not present in the previous "
+                f"iteration {prev_seqnos}"
+            )
+
+        prev_seqnos = current_seqnos
+
+    return network
+
+
+def run_max_retained_snapshot_files(const_args):
+    args = copy.deepcopy(const_args)
+    args.common_read_only_ledger_dir = None
+    args.label = f"{args.label}_max_retained_snapshots"
+    args.snapshot_tx_interval = 10000
+    args.files_cleanup_max_snapshots = 3
+    args.files_cleanup_interval = "1s"
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args)
+        test_max_retained_snapshot_files(network, args)
+
+
+def test_backup_snapshot_cleanup(network, args):
+    max_retained = args.files_cleanup_max_snapshots
+    primary, _ = network.find_primary()
+    backups = network.find_backups()
+    assert len(backups) > 0, "Expected at least one backup node"
+
+    num_snapshots_to_create = max_retained + 3
+    for i in range(num_snapshots_to_create):
+        LOG.info(f"Triggering snapshot {i + 1}/{num_snapshots_to_create}")
+        network.txs.issue(network, number_txs=3)
+        primary.trigger_snapshot()
+        network.txs.issue(network, number_txs=3)
+
+    # Wait for backups to download and clean up snapshots.
+    # The cleanup timer should fire within the configured interval.
+    for backup in backups:
+        backup_snapshots_dir = os.path.join(
+            backup.remote.remote.root, backup.remote.snapshots_dir_name
+        )
+        LOG.info(
+            f"Waiting for backup {backup.local_node_id} to prune snapshots "
+            f"in {backup_snapshots_dir} to at most {max_retained}"
+        )
+
+        timeout_s = 30
+        end_time = time.time() + timeout_s
+        while time.time() < end_time:
+            committed = [
+                f
+                for f in os.listdir(backup_snapshots_dir)
+                if f.startswith("snapshot_")
+                and ccf.ledger.is_snapshot_file_committed(f)
+            ]
+            if len(committed) <= max_retained:
+                LOG.success(
+                    f"Backup {backup.local_node_id}: "
+                    f"{len(committed)} committed snapshots (<= {max_retained})"
+                )
+                break
+            time.sleep(0.5)
+        else:
+            committed = [
+                f
+                for f in os.listdir(backup_snapshots_dir)
+                if f.startswith("snapshot_")
+                and ccf.ledger.is_snapshot_file_committed(f)
+            ]
+            raise AssertionError(
+                f"Backup {backup.local_node_id} has {len(committed)} committed "
+                f"snapshots after {timeout_s}s, expected at most {max_retained}: "
+                f"{sorted(committed)}"
+            )
+
+    return network
+
+
+def run_backup_snapshot_cleanup(const_args):
+    args = copy.deepcopy(const_args)
+    args.common_read_only_ledger_dir = None
+    args.label = f"{args.label}_backup_snapshot_cleanup"
+    args.snapshot_tx_interval = 30
+    args.files_cleanup_max_snapshots = 3
+    args.files_cleanup_interval = "1s"
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args, backup_snapshot_fetch_enabled=True)
+        test_backup_snapshot_cleanup(network, args)
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
     run_manual_snapshot_tests(args)
+    run_max_retained_snapshot_files(args)
+    run_backup_snapshot_cleanup(args)
     run_tls_san_checks(args)
     run_config_timeout_check(args)
     run_configuration_file_checks(args)
