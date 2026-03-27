@@ -248,7 +248,7 @@ namespace ccf::endpoints
         return;
       }
 
-      auto cached_sig = sig_cache->get_signature_for(tx_id.seqno);
+      auto cached_sig = sig_cache->get_signature_for(tx_id);
       if (!cached_sig.has_value())
       {
         rpc_ctx->set_error(
@@ -275,9 +275,8 @@ namespace ccf::endpoints
 
       // Get leaf components
       const auto& claims_digest = rpc_ctx->get_claims_digest();
-      // write_set_digest and commit_evidence still TODO
+      // write_set_digest still TODO
       std::optional<ccf::crypto::Sha256Hash> write_set_digest = std::nullopt;
-      std::optional<std::string> commit_evidence = std::nullopt;
 
       auto receipt = std::make_shared<TxReceiptImpl>(
         cached_sig->sig.sig,
@@ -287,7 +286,7 @@ namespace ccf::endpoints
         cached_sig->sig.node,
         cached_sig->sig.cert,
         write_set_digest,
-        commit_evidence,
+        cached_sig->commit_evidence,
         claims_digest);
 
       auto body = nlohmann::json::object();

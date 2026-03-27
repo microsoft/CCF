@@ -17,6 +17,7 @@ namespace ccf
     std::vector<uint8_t> cose_signature;
     std::vector<uint8_t> serialised_tree;
     ccf::SeqNo sig_seqno;
+    std::string commit_evidence;
   };
 
   class SignatureCacheInterface : public AbstractNodeSubSystem
@@ -29,10 +30,11 @@ namespace ccf
       return "SignatureCache";
     }
 
-    // Returns the covering signature for a given seqno, or nullopt if
-    // unavailable. When a value is returned, all fields are populated.
+    // Returns the covering signature for a given TxID, or nullopt if
+    // unavailable. When a value is returned, all fields are populated,
+    // including commit_evidence for the requested transaction.
     virtual std::optional<CachedSignature> get_signature_for(
-      ccf::SeqNo seqno) const = 0;
+      const ccf::TxID& tx_id) const = 0;
 
     virtual void set_max_cache_size(size_t n) = 0;
   };
