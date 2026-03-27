@@ -191,10 +191,13 @@ list(APPEND CCF_LAUNCHER_SOURCES ${CCF_DIR}/src/host/run.cpp
      ${CCF_DIR}/src/host/env.cpp
 )
 
-add_ccf_static_library(
+add_ccf_static_library
+(
   ccf_launcher
   SRCS ${CCF_LAUNCHER_SOURCES}
-  LINK_LIBS uv
+  LINK_LIBS 
+  
+  uv
             ${TLS_LIBRARY}
             ${CMAKE_DL_LIBS}
             ${CMAKE_THREAD_LIBS_INIT}
