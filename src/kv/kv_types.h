@@ -411,7 +411,7 @@ namespace ccf::kv
       ccf::SeqNo /*seqno*/, const std::vector<NodeId>& node_ids)
     {}
 
-    virtual void nominate_successor() {};
+    virtual void nominate_successor() {}
 
     ccf::TxStatus evaluate_tx_status(
       ccf::View target_view, ccf::SeqNo target_seqno)
