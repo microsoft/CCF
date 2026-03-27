@@ -190,6 +190,9 @@ namespace ccf
     /// the transaction serialisation format or what is stored in the KV.
     /// The digest will be included in receipts issued for that transaction.
     virtual void set_claims_digest(ccf::ClaimsDigest::Digest&& digest) = 0;
+
+    /// Gets the application claims digest associated with this transaction.
+    virtual const ccf::ClaimsDigest& get_claims_digest() const = 0;
     ///@}
   };
 }

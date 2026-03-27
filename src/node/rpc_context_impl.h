@@ -58,6 +58,11 @@ namespace ccf
     }
     // NOLINTEND(performance-move-const-arg)
 
+    const ccf::ClaimsDigest& get_claims_digest() const override
+    {
+      return claims;
+    }
+
     ccf::PathParams path_params;
     const ccf::PathParams& get_request_path_params() override
     {

@@ -268,16 +268,16 @@ namespace ccf::endpoints
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           fmt::format(
-            "Seqno {} is not in range of cached signature tree",
-            tx_id.seqno));
+            "Seqno {} is not in range of cached signature tree", tx_id.seqno));
         return;
       }
       auto proof = tree.get_proof(tx_id.seqno);
 
-      // Get leaf components TODO
+      // Get leaf components
+      const auto& claims_digest = rpc_ctx->get_claims_digest();
+      // write_set_digest and commit_evidence still TODO
       std::optional<ccf::crypto::Sha256Hash> write_set_digest = std::nullopt;
       std::optional<std::string> commit_evidence = std::nullopt;
-      ccf::ClaimsDigest claims_digest = ccf::no_claims();
 
       auto receipt = std::make_shared<TxReceiptImpl>(
         cached_sig->sig.sig,
@@ -291,8 +291,7 @@ namespace ccf::endpoints
         claims_digest);
 
       auto body = nlohmann::json::object();
-      body["tx_id"] = tx_id.to_str();
-      body["receipt"] = ccf::describe_receipt_v2(*receipt);
+      body["receipt"] = ccf::describe_receipt_v1(*receipt);
 
       rpc_ctx->set_response_status(HTTP_STATUS_OK);
       rpc_ctx->set_response_header(
