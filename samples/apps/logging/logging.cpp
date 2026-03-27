@@ -512,7 +512,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.8.1";
+      openapi_info.document_version = "2.8.2";
     };
 
     void init_handlers() override
@@ -572,11 +572,11 @@ namespace loggingapp
         .install();
 
       make_endpoint(
-        "/log/receipt/private",
+        "/log/blocking/private/receipt",
         HTTP_POST,
         ccf::json_adapter(record),
         auth_policies)
-        .set_auto_schema<LoggingRecord::In, bool>()
+        .set_auto_schema<LoggingRecord::In, nlohmann::json>()
         .set_consensus_committed_function(
           ccf::endpoints::make_respond_with_receipt_on_commit(context))
         .install();
