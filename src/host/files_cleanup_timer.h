@@ -8,9 +8,12 @@
 #include "snapshots/filenames.h"
 #include "timer.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace asynchost
@@ -273,7 +276,7 @@ namespace asynchost
 
         if (!file_exists_with_matching_digest(path, read_only_dirs))
         {
-          LOG_INFO_FMT(
+          LOG_FAIL_FMT(
             "Keeping ledger chunk {} because no matching copy was found "
             "in any read-only ledger directory",
             path.filename());
