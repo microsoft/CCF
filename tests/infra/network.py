@@ -1950,10 +1950,10 @@ class Network:
 
             if force_txs:
                 # Update state digest as a neutral write operation, to advance commit
+                primary, _ = self.find_primary()
                 member = self.consortium.get_any_active_member()
                 for _ in range(self.args.snapshot_tx_interval // 2):
-                    r = member.update_ack_state_digest(node)
-                primary, _ = self.find_primary()
+                    r = member.update_ack_state_digest(primary)
                 with primary.client() as c:
                     c.wait_for_commit(r)
 
