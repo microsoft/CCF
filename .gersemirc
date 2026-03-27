@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/BlankSpruce/gersemi/0.26.1/gersemi/configuration.schema.json
+
+definitions:
+  - cmake/gersemi_definitions.cmake
+indent: 2
+line_length: 80
+list_expansion: favour-inlining
+warn_about_unknown_commands: true

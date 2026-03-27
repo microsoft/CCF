@@ -14,8 +14,8 @@ function(add_san_test_properties name)
     set_property(
       TEST ${name}
       APPEND
-      PROPERTY ENVIRONMENT
-               "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+      PROPERTY
+        ENVIRONMENT "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
     )
 
     set_property(
@@ -31,18 +31,15 @@ function(add_unit_test name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
   target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(
-    ${name} PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
+    ${name}
+    PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
   )
   enable_coverage(${name})
   target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto -pthread)
   add_san(${name})
 
   add_test(NAME ${name} COMMAND ${name})
-  set_property(
-    TEST ${name}
-    APPEND
-    PROPERTY LABELS unit
-  )
+  set_property(TEST ${name} APPEND PROPERTY LABELS unit)
 
   if(COVERAGE)
     set_property(
@@ -60,7 +57,8 @@ function(add_test_bin name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
   target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(
-    ${name} PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
+    ${name}
+    PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
   )
   enable_coverage(${name})
   target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto)
@@ -70,7 +68,10 @@ endfunction()
 # Helper for building end-to-end function tests using the python infrastructure
 function(add_e2e_test)
   cmake_parse_arguments(
-    PARSE_ARGV 0 PARSED_ARGS "" "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT"
+    PARSE_ARGV 0
+    PARSED_ARGS
+    ""
+    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT"
     "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
 
@@ -80,15 +81,16 @@ function(add_e2e_test)
 
   if(BUILD_END_TO_END_TESTS)
     if(PROFILE_TESTS)
-      set(PYTHON_WRAPPER
-          py-spy
-          record
-          --format
-          speedscope
-          -o
-          ${PARSED_ARGS_NAME}.trace
-          --
-          python3
+      set(
+        PYTHON_WRAPPER
+        py-spy
+        record
+        --format
+        speedscope
+        -o
+        ${PARSED_ARGS_NAME}.trace
+        --
+        python3
       )
     else()
       set(PYTHON_WRAPPER ${PYTHON})
@@ -146,15 +148,11 @@ function(add_e2e_test)
         APPEND
         PROPERTY
           ENVIRONMENT
-          "LLVM_PROFILE_FILE=${CMAKE_BINARY_DIR}/${PARSED_ARGS_NAME}-%p.profraw"
+            "LLVM_PROFILE_FILE=${CMAKE_BINARY_DIR}/${PARSED_ARGS_NAME}-%p.profraw"
       )
     endif()
 
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY LABELS e2e
-    )
+    set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS e2e)
     set_property(
       TEST ${PARSED_ARGS_NAME}
       APPEND
@@ -173,10 +171,12 @@ endfunction()
 
 # Helper for building end-to-end perf tests using the python infrastucture
 function(add_piccolo_test)
-
   cmake_parse_arguments(
-    PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;PERF_LABEL" "ADDITIONAL_ARGS"
+    PARSE_ARGV 0
+    PARSED_ARGS
+    ""
+    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;PERF_LABEL"
+    "ADDITIONAL_ARGS"
   )
 
   if(NOT PARSED_ARGS_CONSTITUTION)
@@ -206,11 +206,7 @@ function(add_piccolo_test)
     PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
 
-  set_property(
-    TEST ${TEST_NAME}
-    APPEND
-    PROPERTY LABELS perf
-  )
+  set_property(TEST ${TEST_NAME} APPEND PROPERTY LABELS perf)
 
   add_san_test_properties(${TEST_NAME})
 endfunction()
@@ -218,18 +214,24 @@ endfunction()
 # Picobench wrapper
 function(add_picobench name)
   cmake_parse_arguments(
-    PARSE_ARGV 1 PARSED_ARGS "" "" "SRCS;INCLUDE_DIRS;LINK_LIBS"
+    PARSE_ARGV 1
+    PARSED_ARGS
+    ""
+    ""
+    "SRCS;INCLUDE_DIRS;LINK_LIBS"
   )
 
   add_executable(
-    ${name} ${PARSED_ARGS_SRCS} ${CCF_DIR}/src/enclave/thread_local.cpp
+    ${name}
+    ${PARSED_ARGS_SRCS}
+    ${CCF_DIR}/src/enclave/thread_local.cpp
   )
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
 
   target_link_libraries(
-    ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${PARSED_ARGS_LINK_LIBS}
-                    ccfcrypto
+    ${name}
+    PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${PARSED_ARGS_LINK_LIBS} ccfcrypto
   )
 
   add_san(${name})
@@ -243,11 +245,7 @@ function(add_picobench name)
       bash -c
       "$<TARGET_FILE:${name}> --samples=10 --out-fmt=csv --output=${name}.csv && cat ${name}.csv"
   )
-  set_property(
-    TEST ${name}
-    APPEND
-    PROPERTY LABELS benchmark
-  )
+  set_property(TEST ${name} APPEND PROPERTY LABELS benchmark)
 
   add_san_test_properties(${name})
 endfunction()
