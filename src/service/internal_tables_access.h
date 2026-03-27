@@ -636,7 +636,8 @@ namespace ccf
 
       auto key_der = service_key.private_key_der();
       CoseBuffer key_err;
-      CoseKey cose_key(key_der.data(), key_der.size(), key_err);
+      auto cose_key =
+        CoseKey::from_private(key_der.data(), key_der.size(), key_err);
       if (key_err.is_set())
       {
         LOG_FAIL_FMT("Failed to create signing key: {}", key_err.to_string());

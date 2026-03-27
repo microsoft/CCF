@@ -338,7 +338,8 @@ namespace ccf
       pal::snp::EndorsementEndpointsConfiguration config_,
       QuoteEndorsementsFetchedCallback cb) :
       config(std::move(config_)),
-      done_cb(std::move(cb)) {};
+      done_cb(std::move(cb))
+    {}
 
     void fetch_endorsements()
     {

@@ -224,7 +224,8 @@ namespace ccf
 
   MemberCOSESign1AuthnPolicy::MemberCOSESign1AuthnPolicy(
     std::optional<std::string> gov_msg_type_) :
-    gov_msg_type(std::move(gov_msg_type_)) {};
+    gov_msg_type(std::move(gov_msg_type_))
+  {}
   MemberCOSESign1AuthnPolicy::~MemberCOSESign1AuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> MemberCOSESign1AuthnPolicy::authenticate(
@@ -263,7 +264,7 @@ namespace ccf
     if (member_cert.has_value())
     {
       auto verifier =
-        ccf::crypto::make_cose_verifier_from_cert(member_cert->raw());
+        ccf::crypto::make_cose_verifier_from_pem_cert(member_cert.value());
 
       if (!verifier->verify_decomposed(
             decomposed.phdr_bytes,
@@ -407,7 +408,7 @@ namespace ccf
     if (user_cert.has_value())
     {
       auto verifier =
-        ccf::crypto::make_cose_verifier_from_cert(user_cert->raw());
+        ccf::crypto::make_cose_verifier_from_pem_cert(user_cert.value());
 
       if (!verifier->verify_decomposed(
             decomposed.phdr_bytes,

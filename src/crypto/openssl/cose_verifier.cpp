@@ -3,19 +3,11 @@
 
 #include "crypto/openssl/cose_verifier.h"
 
-#include "ccf/crypto/ec_public_key.h"
-#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "cose/cose_rs_ffi.h"
-#include "crypto/openssl/rsa_key_pair.h"
 #include "ds/internal_logger.h"
-#include "x509_time.h"
 
 #include <crypto/cbor.h>
 #include <crypto/cose.h>
-#include <openssl/evp.h>
-#include <openssl/ossl_typ.h>
-#include <openssl/x509.h>
-#include <openssl/x509_vfy.h>
 
 namespace
 {
@@ -70,41 +62,98 @@ namespace
     auto phdr = parse(phdr_bytes);
     return phdr->map_at(make_signed(ccf::cose::header::iana::ALG))->as_signed();
   }
+
+  CoseKey cose_key_from_pem(const ccf::crypto::Pem& pem)
+  {
+    CoseBuffer key_err;
+    auto key = CoseKey::from_pem_public(pem.data(), pem.size(), key_err);
+    if (!key.is_set())
+    {
+      throw std::runtime_error(fmt::format(
+        "Failed to create COSE verification key: {}",
+        key_err.is_set() ? key_err.to_string() : "unknown error"));
+    }
+    return key;
+  }
+
+  CoseKey cose_key_from_der(std::span<const uint8_t> der)
+  {
+    CoseBuffer key_err;
+    auto key = CoseKey::from_public(der.data(), der.size(), key_err);
+    if (!key.is_set())
+    {
+      throw std::runtime_error(fmt::format(
+        "Failed to create COSE verification key: {}",
+        key_err.is_set() ? key_err.to_string() : "unknown error"));
+    }
+    return key;
+  }
 }
 
 namespace ccf::crypto
 {
-  using namespace OpenSSL;
-
-  COSECertVerifier_OpenSSL::COSECertVerifier_OpenSSL(
+  std::unique_ptr<COSECertVerifier_OpenSSL> COSECertVerifier_OpenSSL::from_any(
     const std::vector<uint8_t>& certificate)
   {
-    Unique_BIO certbio(certificate);
-    OpenSSL::Unique_X509 cert;
-    if ((cert = Unique_X509(certbio, true)) == nullptr)
+    // Try PEM first, then DER.
+    CoseBuffer pem_err;
+    auto key =
+      CoseKey::from_pem_cert(certificate.data(), certificate.size(), pem_err);
+    if (!key.is_set())
     {
-      BIO_reset(certbio);
-      if ((cert = Unique_X509(certbio, false)) == nullptr)
+      CoseBuffer der_err;
+      key =
+        CoseKey::from_der_cert(certificate.data(), certificate.size(), der_err);
+      if (!key.is_set())
       {
         throw std::invalid_argument(fmt::format(
-          "OpenSSL error: {}", OpenSSL::error_string(ERR_get_error())));
+          "Failed to parse certificate (PEM: {}, DER: {})",
+          pem_err.is_set() ? pem_err.to_string() : "unknown error",
+          der_err.is_set() ? der_err.to_string() : "unknown error"));
       }
     }
-    EVP_PKEY* pk = X509_get_pubkey(cert);
-
-    public_key = std::make_shared<PublicKey_OpenSSL>(pk);
+    return std::unique_ptr<COSECertVerifier_OpenSSL>(
+      new COSECertVerifier_OpenSSL(std::move(key)));
   }
 
-  COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const Pem& public_key_)
+  std::unique_ptr<COSECertVerifier_OpenSSL> COSECertVerifier_OpenSSL::from_pem(
+    const Pem& pem)
   {
-    public_key = std::make_shared<PublicKey_OpenSSL>(public_key_);
+    CoseBuffer key_err;
+    auto key = CoseKey::from_pem_cert(pem.data(), pem.size(), key_err);
+    if (!key.is_set())
+    {
+      throw std::invalid_argument(fmt::format(
+        "Failed to parse PEM certificate: {}",
+        key_err.is_set() ? key_err.to_string() : "unknown error"));
+    }
+    return std::unique_ptr<COSECertVerifier_OpenSSL>(
+      new COSECertVerifier_OpenSSL(std::move(key)));
   }
+
+  std::unique_ptr<COSECertVerifier_OpenSSL> COSECertVerifier_OpenSSL::from_der(
+    const std::vector<uint8_t>& der)
+  {
+    CoseBuffer key_err;
+    auto key = CoseKey::from_der_cert(der.data(), der.size(), key_err);
+    if (!key.is_set())
+    {
+      throw std::invalid_argument(fmt::format(
+        "Failed to parse DER certificate: {}",
+        key_err.is_set() ? key_err.to_string() : "unknown error"));
+    }
+    return std::unique_ptr<COSECertVerifier_OpenSSL>(
+      new COSECertVerifier_OpenSSL(std::move(key)));
+  }
+
+  COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const Pem& public_key_) :
+    COSEVerifier_OpenSSL(cose_key_from_pem(public_key_))
+  {}
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(
-    std::span<const uint8_t> public_key_der_)
-  {
-    public_key = std::make_shared<PublicKey_OpenSSL>(public_key_der_);
-  }
+    std::span<const uint8_t> public_key_der_) :
+    COSEVerifier_OpenSSL(cose_key_from_der(public_key_der_))
+  {}
 
   COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;
 
@@ -114,7 +163,6 @@ namespace ccf::crypto
   {
     try
     {
-      auto key_der = public_key->public_key_der();
       auto [phdr, payload, sig] = decompose_cose_sign1(envelope);
 
       if (!payload.has_value())
@@ -126,8 +174,7 @@ namespace ccf::crypto
       auto alg = extract_alg(phdr);
       CoseBuffer verify_err;
       auto rc = cose_verify1(
-        key_der.data(),
-        key_der.size(),
+        verify_key,
         alg,
         phdr.data(),
         phdr.size(),
@@ -135,8 +182,7 @@ namespace ccf::crypto
         payload->size(),
         sig.data(),
         sig.size(),
-        verify_err.data(),
-        verify_err.size());
+        verify_err);
       if (rc == 0)
       {
         authned_content = {
@@ -160,14 +206,12 @@ namespace ccf::crypto
   {
     try
     {
-      auto key_der = public_key->public_key_der();
       auto [phdr, _payload, sig] = decompose_cose_sign1(envelope);
 
       auto alg = extract_alg(phdr);
       CoseBuffer verify_err;
       auto rc = cose_verify1(
-        key_der.data(),
-        key_der.size(),
+        verify_key,
         alg,
         phdr.data(),
         phdr.size(),
@@ -175,8 +219,7 @@ namespace ccf::crypto
         payload.size(),
         sig.data(),
         sig.size(),
-        verify_err.data(),
-        verify_err.size());
+        verify_err);
       if (rc == 0)
       {
         return true;
@@ -201,11 +244,9 @@ namespace ccf::crypto
   {
     try
     {
-      auto key_der = public_key->public_key_der();
       CoseBuffer verify_err;
       auto rc = cose_verify1(
-        key_der.data(),
-        key_der.size(),
+        verify_key,
         alg,
         phdr.data(),
         phdr.size(),
@@ -213,8 +254,7 @@ namespace ccf::crypto
         payload.size(),
         sig.data(),
         sig.size(),
-        verify_err.data(),
-        verify_err.size());
+        verify_err);
       if (rc == 0)
       {
         return true;
@@ -231,10 +271,21 @@ namespace ccf::crypto
     return false;
   }
 
-  COSEVerifierUniquePtr make_cose_verifier_from_cert(
+  COSEVerifierUniquePtr make_cose_verifier_any_cert(
     const std::vector<uint8_t>& cert)
   {
-    return std::make_unique<COSECertVerifier_OpenSSL>(cert);
+    return COSECertVerifier_OpenSSL::from_any(cert);
+  }
+
+  COSEVerifierUniquePtr make_cose_verifier_from_pem_cert(const Pem& pem)
+  {
+    return COSECertVerifier_OpenSSL::from_pem(pem);
+  }
+
+  COSEVerifierUniquePtr make_cose_verifier_from_der_cert(
+    const std::vector<uint8_t>& der)
+  {
+    return COSECertVerifier_OpenSSL::from_der(der);
   }
 
   COSEVerifierUniquePtr make_cose_verifier_from_key(const Pem& public_key)

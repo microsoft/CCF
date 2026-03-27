@@ -373,13 +373,15 @@ namespace ccf
       {
         auto key_der = service_kp.private_key_der();
         CoseBuffer key_err;
-        auto [inserted, _] = cose_key_cache.emplace(
-          kid, CoseKey(key_der.data(), key_der.size(), key_err));
-        if (key_err.is_set())
+        auto cose_key =
+          CoseKey::from_private(key_der.data(), key_der.size(), key_err);
+        if (!cose_key.is_set())
         {
           throw std::runtime_error(fmt::format(
-            "cose_key_from_der_private failed: {}", key_err.to_string()));
+            "cose_key_from_der_private failed: {}",
+            key_err.is_set() ? key_err.to_string() : "unknown error"));
         }
+        auto [inserted, _] = cose_key_cache.emplace(kid, std::move(cose_key));
         it = inserted;
       }
 
@@ -550,7 +552,7 @@ namespace ccf
 
     ccf::crypto::ECKeyPair& node_kp;
     ccf::crypto::COSEVerifierUniquePtr cose_verifier;
-    std::vector<uint8_t> cose_cert_cached;
+    ccf::crypto::Pem cose_cert_cached;
 
     ccf::tasks::Task emit_signature_periodic_task;
     size_t sig_tx_interval;
@@ -801,12 +803,10 @@ namespace ccf
         return false;
       }
 
-      const auto raw_cert = service_info->cert.raw();
       std::vector<uint8_t> root_hash{
         root.h.data(), root.h.data() + root.h.size()};
-
-      return cose_verifier_cached(raw_cert)->verify_detached(
-        cose_sig.value(), root_hash);
+      return cose_verifier_cached(service_info->cert)
+        ->verify_detached(cose_sig.value(), root_hash);
     }
 
     std::vector<uint8_t> serialise_tree(size_t to) override
@@ -962,13 +962,13 @@ namespace ccf
 
   private:
     ccf::crypto::COSEVerifierUniquePtr& cose_verifier_cached(
-      const std::vector<uint8_t>& cert)
+      const ccf::crypto::Pem& cert)
     {
       if (cert != cose_cert_cached)
       {
         cose_cert_cached = cert;
         cose_verifier =
-          ccf::crypto::make_cose_verifier_from_cert(cose_cert_cached);
+          ccf::crypto::make_cose_verifier_from_pem_cert(cose_cert_cached);
       }
       return cose_verifier;
     }
