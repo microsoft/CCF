@@ -17,17 +17,13 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 ROOT_DIR=$( dirname "$SCRIPT_DIR" )
 cd "$ROOT_DIR" || exit 1
 
-# Ensure venv exists and activate (uses a dedicated venv to allow concurrent runs)
-if [ ! -f "scripts/env-format/bin/activate" ]; then
-  python3 -m venv scripts/env-format
+if [ ! -x "$(command -v uv)" ]; then
+  echo "uv is required but not installed. See https://docs.astral.sh/uv/getting-started/installation/" >&2
+  exit 1
 fi
-source scripts/env-format/bin/activate
-
-pip install -U pip > /dev/null || exit 1
-pip install -U wheel black 1>/dev/null || exit 1
 
 if [ $FIX -ne 0 ]; then
-  git ls-files tests/ python/ scripts/ tla/ .cmake-format.py | grep -e '\.py$' | xargs black
+  git ls-files tests/ python/ scripts/ tla/ .cmake-format.py | grep -e '\.py$' | xargs uvx black
 else
-  git ls-files tests/ python/ scripts/ tla/ .cmake-format.py | grep -e '\.py$' | xargs black --check
+  git ls-files tests/ python/ scripts/ tla/ .cmake-format.py | grep -e '\.py$' | xargs uvx black --check
 fi

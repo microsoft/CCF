@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-set -u
+set -uo pipefail
 
 if [ "$#" -eq 0 ]; then
   echo "No args given - specify dir(s) to be formatted"
@@ -28,29 +28,29 @@ else
   echo "Checking file format in" "$@"
 fi
 
-if [ ! -f "scripts/env/bin/activate" ]
-    then
-        python3 -m venv scripts/env
+if [ ! -x "$(command -v uv)" ]; then
+  echo "uv is required but not installed. See https://docs.astral.sh/uv/getting-started/installation/" >&2
+  exit 1
 fi
 
-source scripts/env/bin/activate
-pip install -U pip
-pip install cmake_format==0.6.11 1>/dev/null
+CMAKE_FORMAT="uvx --from cmake-format==0.6.11 cmake-format"
 
-unformatted_files=""
-for file in $(git ls-files "$@" | grep -e '\.cmake$' -e 'CMakeLists\.txt$'); do
-  cmake-format --check "$file" > /dev/null
-  d=$?
-  if $fix ; then
-    cmake-format -i "$file"
-  fi
-  if [ $d -ne 0 ]; then
-    if [ "$unformatted_files" != "" ]; then
-      unformatted_files+=$'\n'
-    fi
-    unformatted_files+="$file"
-  fi
-done
+# Collect the file list once
+mapfile -t files < <(git ls-files "$@" | grep -e '\.cmake$' -e 'CMakeLists\.txt$')
+
+if [ "${#files[@]}" -eq 0 ]; then
+  echo "All files formatted correctly!"
+  exit 0
+fi
+
+# Check formatting in a single invocation (stderr has "Check failed: <file>")
+unformatted_files=$($CMAKE_FORMAT --check "${files[@]}" 2>&1 1>/dev/null | \
+  sed -n 's/.*Check failed: //p' | sort) || true
+
+if $fix && [ "$unformatted_files" != "" ]; then
+  # shellcheck disable=SC2086
+  $CMAKE_FORMAT -i $unformatted_files
+fi
 
 if [ "$unformatted_files" != "" ]; then
   if $fix ; then
