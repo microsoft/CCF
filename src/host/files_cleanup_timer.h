@@ -2,13 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/hash_provider.h"
 #include "ccf/crypto/sha256_hash.h"
-#include "ds/files.h"
 #include "ledger_filenames.h"
 #include "snapshots/filenames.h"
 #include "timer.h"
 
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -133,20 +134,53 @@ namespace asynchost
       return result;
     }
 
+    static constexpr size_t HASH_READ_CHUNK_SIZE = 64 * 1024; // 64 KB
+
+    // Compute SHA-256 digest of a file by reading it in chunks, without
+    // loading the entire file into memory.
+    static std::optional<ccf::crypto::Sha256Hash> hash_file(
+      const std::filesystem::path& path)
+    {
+      std::ifstream f(path, std::ios::binary);
+      if (!f)
+      {
+        return std::nullopt;
+      }
+
+      auto hasher = ccf::crypto::make_incremental_sha256();
+      std::vector<uint8_t> buf(HASH_READ_CHUNK_SIZE);
+      while (f.read(reinterpret_cast<char*>(buf.data()), buf.size()) ||
+             f.gcount() > 0)
+      {
+        hasher->update_hash({buf.data(), static_cast<size_t>(f.gcount())});
+        if (f.eof())
+        {
+          break;
+        }
+      }
+
+      if (f.bad())
+      {
+        return std::nullopt;
+      }
+
+      return hasher->finalise();
+    }
+
     static bool file_exists_with_matching_digest(
       const std::filesystem::path& local_path,
       const std::vector<std::filesystem::path>& read_only_dirs)
     {
       namespace fs = std::filesystem;
 
-      auto local_bytes = files::slurp(local_path.string(), true);
-      if (local_bytes.empty())
+      auto local_hash = hash_file(local_path);
+      if (!local_hash.has_value())
       {
         LOG_INFO_FMT(
-          "Ledger chunk {} no longer exists, skipping", local_path.filename());
+          "Ledger chunk {} no longer exists or could not be read, skipping",
+          local_path.filename());
         return false;
       }
-      ccf::crypto::Sha256Hash local_hash(local_bytes);
 
       auto file_name = local_path.filename();
 
@@ -160,8 +194,8 @@ namespace asynchost
 
         try
         {
-          auto ro_bytes = files::slurp(candidate.string(), true);
-          if (ro_bytes.empty())
+          auto ro_hash = hash_file(candidate);
+          if (!ro_hash.has_value())
           {
             LOG_DEBUG_FMT(
               "Ledger chunk {} in read-only directory {} could not be read",
@@ -169,8 +203,7 @@ namespace asynchost
               ro_dir);
             continue;
           }
-          ccf::crypto::Sha256Hash ro_hash(ro_bytes);
-          if (local_hash == ro_hash)
+          if (local_hash.value() == ro_hash.value())
           {
             return true;
           }
@@ -181,8 +214,8 @@ namespace asynchost
               "does not match (local: {}, read-only: {}). Skipping deletion.",
               file_name,
               ro_dir,
-              local_hash.hex_str(),
-              ro_hash.hex_str());
+              local_hash.value().hex_str(),
+              ro_hash.value().hex_str());
           }
         }
         catch (const std::exception& e)
