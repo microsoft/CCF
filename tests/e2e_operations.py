@@ -3116,9 +3116,7 @@ def run_time_based_snapshotting(const_args):
     # min_tx set low
     with net_with_min_tx("_low", 0) as net:
         time.sleep(1)
-        net.wait_for_snapshot_with_seqno(
-            committed=True,timeout=5
-        )
+        net.wait_for_snapshot_with_seqno(committed=True, timeout=5)
         baseline = net.get_current_snapshots(committed=True)
         time.sleep(10)
         final = net.get_current_snapshots(committed=True)
@@ -3130,8 +3128,7 @@ def run_time_based_snapshotting(const_args):
     with net_with_min_tx("_exact", 2) as net:
         time.sleep(1)
         try:
-            net.wait_for_snapshot_with_seqno(
-                committed=True, timeout=5)
+            net.wait_for_snapshot_with_seqno(committed=True, timeout=5)
         except TimeoutError:
             pass
         baseline = net.get_current_snapshots(committed=True)
@@ -3145,8 +3142,7 @@ def run_time_based_snapshotting(const_args):
     with net_with_min_tx("_high", 10) as net:
         time.sleep(1)
         try:
-            net.wait_for_snapshot_with_seqno(
-                committed=True, timeout=5)
+            net.wait_for_snapshot_with_seqno(committed=True, timeout=5)
         except TimeoutError:
             pass
         baseline = net.get_current_snapshots(committed=True)
@@ -3168,6 +3164,7 @@ def run_time_based_snapshotting(const_args):
         net.wait_for_snapshot_with_seqno(
             committed=True, target_seqno=tx_id.seqno, timeout=5
         )
+
 
 def run_snapshot_persistence_across_primary_failure(const_args):
     """

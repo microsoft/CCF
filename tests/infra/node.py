@@ -621,7 +621,9 @@ class Node:
                 continue
 
             for snapshot_name in os.listdir(snapshots_dir):
-                if committed and not ccf.ledger.is_snapshot_file_committed(snapshot_name):
+                if committed and not ccf.ledger.is_snapshot_file_committed(
+                    snapshot_name
+                ):
                     continue
                 snapshots.add(snapshot_name)
 
