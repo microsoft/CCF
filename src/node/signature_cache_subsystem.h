@@ -52,18 +52,34 @@ namespace ccf
         return cache.back();
       }
 
-      // Match the last entry (another hook for the same version)
-      if (version == cache.back().sig_seqno)
+      // Global hooks fire per-map, not per-version. When compact() covers
+      // multiple signature versions, map A may fire all its deltas (v92,
+      // v104) before map B fires any. So we may receive version 92 after
+      // 104 is already in the cache. Search backwards for a match or
+      // insertion point.
+      for (auto it = cache.rbegin(); it != cache.rend(); ++it)
       {
-        return cache.back();
+        if (it->sig_seqno == version)
+        {
+          return *it;
+        }
+        if (it->sig_seqno < version)
+        {
+          // Insert after this element to maintain sorted order
+          auto fwd = it.base();
+          auto inserted = cache.insert(
+            fwd,
+            PendingEntry{std::nullopt, std::nullopt, std::nullopt, version});
+          evict_oldest();
+          return *inserted;
+        }
       }
 
-      // Anything else would break our strictly ascending ordering invariant
-      throw std::logic_error(fmt::format(
-        "SignatureCache: received version {} but cache already contains "
-        "version {}; entries must arrive in strictly ascending order",
-        version,
-        cache.back().sig_seqno));
+      // version is smaller than everything — insert at the front
+      cache.push_front(
+        PendingEntry{std::nullopt, std::nullopt, std::nullopt, version});
+      evict_oldest();
+      return cache.front();
     }
 
   public:
