@@ -2302,53 +2302,69 @@ def test_blocking_calls(network, args):
 
     response_times = []
 
-    # Make some blocking and some non-blocking requests, in random order, and compare delta to known-commit time
+    paths = [
+        "/log/private",
+        "/log/blocking/private",
+        "/log/blocking/private/receipt",
+    ]
     n_requests = 5
-    request_order = [True] * n_requests + [False] * n_requests
+    request_order = paths * n_requests
     random.shuffle(request_order)
 
     with primary.client("user0") as c:
-        for blocking in request_order:
-            path = "/log/blocking/private" if blocking else "/log/private"
+        for path in request_order:
             r = c.post(path, {"id": 42, "msg": "Hello world"})
             assert r.status_code == http.HTTPStatus.OK, r.status_code
 
+            if path == "/log/blocking/private/receipt":
+                receipt = r.body.json()
+                verify_receipt(receipt, network.cert)
+
             now = datetime.now()
             txid = TxID.from_str(r.headers[infra.clients.CCF_TX_ID_HEADER])
-            response_times.append((now, (blocking, txid)))
+            response_times.append((now, path, txid))
 
-        # Ensure CommitPoller has waited for commit of _all_ entries
         c.wait_for_commit(r)
 
     cp.stop()
     cp.join()
 
-    # Measure the delta between when we received a response, and when we knew it was committed
-    blocking_deltas = []
-    non_blocking_deltas = []
+    commit_deltas = {p: [] for p in paths}
 
-    for response_time, (blocking, txid) in response_times:
+    for response_time, path, txid in response_times:
         for commit_time, commit_txid in cp.known_commit_times:
             assert commit_txid.view == txid.view
             if commit_txid.seqno >= txid.seqno:
                 delta = (commit_time - response_time).total_seconds()
-                if blocking:
-                    blocking_deltas.append(delta)
-                else:
-                    non_blocking_deltas.append(delta)
+                commit_deltas[path].append(delta)
                 break
         else:
             raise AssertionError(f"No commit found for {txid}")
 
-    blocking_mean = sum(blocking_deltas) / len(blocking_deltas)
-    non_blocking_mean = sum(non_blocking_deltas) / len(non_blocking_deltas)
+    mean_commit_deltas = {p: sum(ds) / len(ds) for p, ds in commit_deltas.items()}
+    LOG.info(f"Mean commit deltas: {mean_commit_deltas}")
 
     # Over a large-enough sample size, we'd expect:
-    # - blocking_mean to approach 0. We get a response and see commit advance at exactly the same time
-    # - non_blocking_mean to approach the signature interval. We get responses eagerly, and they're committed later at regular signature intervals
-
-    # Our actual test has far more variation, so we can only make much broader claims - the blocking_mean is (much) smaller than the non_blocking_mean
-    assert blocking_mean < non_blocking_mean
+    # - blocking means (both /blocking/private and /blocking/private/receipt)
+    #   to approach 0. We get a response and see commit advance at exactly
+    #   the same time, because the response is held until global commit.
+    # - non-blocking mean (/private) to approach the signature interval.
+    #   We get responses eagerly, and they're committed later at regular
+    #   signature intervals.
+    # - the receipt endpoint to behave similarly to the plain blocking
+    #   endpoint, since the receipt is constructed inline at commit time
+    #   with negligible overhead.
+    #
+    # Our actual test has far more variation (small sample, timing noise),
+    # so we can only make much broader claims — each blocking mean is
+    # smaller than the non-blocking mean.
+    assert (
+        mean_commit_deltas["/log/blocking/private"] < mean_commit_deltas["/log/private"]
+    )
+    assert (
+        mean_commit_deltas["/log/blocking/private/receipt"]
+        < mean_commit_deltas["/log/private"]
+    )
 
     return network
 
