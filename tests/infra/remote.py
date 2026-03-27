@@ -385,7 +385,7 @@ class CCFRemote(object):
         self.BIN = infra.path.build_bin_path(self.BIN, binary_dir=binary_dir)
         # 7.x releases combined binaries and removed the separate cchost entry-point
         if major_version is None or major_version >= 7:
-            self.BIN = enclave_file
+            self.BIN = infra.path.build_bin_path(enclave_file, binary_dir=binary_dir)
 
         self.common_dir = common_dir
         self.pub_host = host.get_primary_interface().public_host
@@ -570,7 +570,10 @@ class CCFRemote(object):
 
                 json.dump(j, f, indent=2)
 
-        exe_files += [self.BIN, enclave_file] + self.DEPS
+        exe_files += [self.BIN]
+        if major_version is not None and major_version < 7:
+            exe_files += [enclave_file]
+        exe_files += self.DEPS
         data_files += [self.ledger_dir] if self.ledger_dir else []
         data_files += [self.snapshots_dir] if self.snapshots_dir else []
         data_files += (

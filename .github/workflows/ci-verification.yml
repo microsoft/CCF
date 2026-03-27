@@ -220,7 +220,7 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          ./tests.sh -VV --timeout --no-compress-output -T Test -L raft_scenario
+          ctest -VV --timeout --no-compress-output -T Test -L raft_scenario
         shell: bash
 
       - name: Run trace validation

@@ -32,12 +32,13 @@
   cmake -GNinja ..          # RelWithDebInfo by default
   ninja                     # Build all targets
   ```
-- Both unit tests and end-to-end tests can be run using ctest, but should be invoked via the `tests.sh` wrapper script to ensure the correct environment is set up and used. For example:
+- Unit tests and C++ benchmarks can be run using ctest directly. End-to-end Python tests should be run via the `run_e2e.py` runner. For example:
   ```bash
   cd build
-  ./tests.sh              # Run all tests
-  ./tests.sh -VV          # Verbose output
-  ./tests.sh -R pattern   # Run tests matching pattern
+  ctest -L unit -j$(nproc)                                          # Unit tests
+  uv run --project ../tests python ../tests/run_e2e.py              # All e2e tests
+  uv run --project ../tests python ../tests/run_e2e.py -R pattern   # Filter by name
+  uv run --project ../tests python ../tests/run_e2e.py --list       # List tests
   ```
 - Most changes should be accompanied by new or updated tests. End-to-end tests are required for any changes that affect the user-visible behaviour.
 - Use modern features where appropriate, but be wary of newer features that may not be fully supported.

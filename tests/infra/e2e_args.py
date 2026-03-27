@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import argparse
+import json
 import os
 import infra.interfaces
 import infra.path
@@ -63,10 +64,15 @@ def cli_args(
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
         )
     parser.add_argument(
+        "--defaults-file",
+        help="Path to JSON file with default argument values (keys are argparse dest names). Silently skipped if the file does not exist.",
+        default="../build/e2e_config.json",
+    )
+    parser.add_argument(
         "-b",
         "--binary-dir",
         help="Path to CCF binaries (cchost, scurl, keygenerator)",
-        default=".",
+        default="../build",
     )
     parser.add_argument(
         "--library-dir",
@@ -397,6 +403,26 @@ def cli_args(
         default=infra.clients.API_VERSION_01,
     )
     add(parser)
+
+    # Two-pass parsing: extract --defaults-file first, load JSON defaults, then
+    # do the real parse so that CLI args override config-file values.
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("--defaults-file", default="../build/e2e_config.json")
+    pre_args, _ = pre_parser.parse_known_args()
+    if os.path.isfile(pre_args.defaults_file):
+        with open(pre_args.defaults_file, "r") as f:
+            config = json.load(f)
+        LOG.info(f"Loaded default args from {pre_args.defaults_file}")
+        # If ccf_version is not already in the config, try to read it from
+        # VERSION_LONG in the same directory as the defaults file.
+        if "ccf_version" not in config:
+            version_long_path = os.path.join(
+                os.path.dirname(pre_args.defaults_file), "VERSION_LONG"
+            )
+            if os.path.isfile(version_long_path):
+                with open(version_long_path, "r") as vf:
+                    config["ccf_version"] = vf.read().strip()
+        parser.set_defaults(**config)
 
     if accept_unknown:
         args, unknown_args = parser.parse_known_args()
