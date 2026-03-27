@@ -603,6 +603,30 @@ class Node:
 
         return snapshots_dir
 
+    def get_current_snapshots(self, committed=True):
+        snapshots_dirs = [
+            os.path.join(self.remote.remote.root, self.remote.snapshots_dir_name)
+        ]
+        if self.remote.read_only_snapshots_dir_name is not None:
+            snapshots_dirs.append(
+                os.path.join(
+                    self.remote.remote.root,
+                    self.remote.read_only_snapshots_dir_name,
+                )
+            )
+
+        snapshots = set()
+        for snapshots_dir in snapshots_dirs:
+            if not os.path.isdir(snapshots_dir):
+                continue
+
+            for snapshot_name in os.listdir(snapshots_dir):
+                if committed and not ccf.ledger.is_snapshot_file_committed(snapshot_name):
+                    continue
+                snapshots.add(snapshot_name)
+
+        return snapshots
+
     def identity(self, name=None):
         if name is not None:
             return infra.clients.Identity(

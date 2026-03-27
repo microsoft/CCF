@@ -1919,6 +1919,49 @@ class Network:
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
+    def get_current_snapshots(self, committed):
+        snapshots = set()
+        for node in self.get_joined_nodes():
+            snapshots = snapshots.union(node.get_current_snapshots(committed=committed))
+        return snapshots
+
+    def wait_for_snapshot_with_seqno(
+        self, target_seqno=None, force_txs=False, committed=False, timeout=20
+    ):
+        if target_seqno is None:
+            primary, _ = self.find_primary()
+            with primary.client() as c:
+                r = c.get("/node/commit").body.json()
+                target_seqno = TxID.from_str(r["transaction_id"]).seqno
+
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            for node in self.get_joined_nodes():
+                snapshots = node.get_current_snapshots(committed=committed)
+                for snapshot in snapshots:
+                    snapshot_seqno = infra.node.get_snapshot_seqnos(snapshot)[1]
+                    if snapshot_seqno >= target_seqno and (
+                        not committed or infra.node.is_file_committed(snapshot)
+                    ):
+                        LOG.info(
+                            f"Found {'committed ' if committed else ''}snapshot {snapshot} for seqno {target_seqno} after {timeout - (end_time - time.time()):.2f}s"
+                        )
+                        return snapshot
+
+            if force_txs:
+                # Update state digest as a neutral write operation, to advance commit
+                member = self.consortium.get_any_active_member()
+                for _ in range(self.args.snapshot_tx_interval // 2):
+                    r = member.update_ack_state_digest(node)
+                primary, _ = self.find_primary()
+                with primary.client() as c:
+                    c.wait_for_commit(r)
+
+            time.sleep(0.1)
+        raise TimeoutError(
+            f"Could not find {'committed ' if committed else ''}snapshot for seqno {target_seqno} after {timeout:.2f}s"
+        )
+
     def _get_ledger_public_view_at(self, node, call, seqno, timeout):
         end_time = time.time() + timeout
         self.consortium.force_ledger_chunk(node)
