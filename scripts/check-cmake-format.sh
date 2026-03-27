@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-set -u
+set -uo pipefail
 
 if [ "$#" -eq 0 ]; then
   echo "No args given - specify dir(s) to be formatted"
