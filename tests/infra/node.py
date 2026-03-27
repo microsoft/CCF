@@ -896,6 +896,14 @@ class Node:
             LOG.debug(f"Failed to connect {e}")
             self.network_state = NodeNetworkState.stopped
 
+    def trigger_snapshot(self):
+        LOG.info(f"Triggering snapshot on {self.local_node_id}")
+        with self.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
+            r = c.post("/node/snapshot:create")
+            assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+
     def log_stack_trace(self, timeout=20):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
             self.remote.log_stack_trace(timeout=timeout)
