@@ -5,6 +5,7 @@
 #include "ccf/ds/json_schema.h"
 #include "ccf/endpoint.h"
 #include "ccf/endpoint_context.h"
+#include "ccf/receipt.h"
 #include "ccf/rpc_context.h"
 #include "ccf/tx.h"
 
@@ -68,8 +69,13 @@ namespace ccf::endpoints
   void default_respond_on_commit_func(
     ccf::endpoints::CommittedTxInfo& info);
 
-  ConsensusCommittedEndpointFunction make_respond_with_signature_on_commit(
+  ConsensusCommittedEndpointFunction make_respond_with_receipt_on_commit(
     ccf::AbstractNodeContext& context);
+
+  // Builds a TxReceiptImpl for a committed transaction. Returns nullptr
+  // and sets an error on rpc_ctx if the receipt cannot be constructed.
+  ccf::TxReceiptImplPtr build_receipt_for_committed_tx(
+    ccf::AbstractNodeContext& context, CommittedTxInfo& info);
 
   template <typename T>
   inline bool get_path_param(

@@ -578,7 +578,7 @@ namespace loggingapp
         auth_policies)
         .set_auto_schema<LoggingRecord::In, bool>()
         .set_consensus_committed_function(
-          ccf::endpoints::make_respond_with_signature_on_commit(context))
+          ccf::endpoints::make_respond_with_receipt_on_commit(context))
         .install();
 
       auto add_txid_in_body_put = [](auto& ctx, const auto& tx_id) {

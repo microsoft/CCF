@@ -220,17 +220,62 @@ namespace ccf::endpoints
     // Else leave the original response untouched, and return it now
   }
 
-  ConsensusCommittedEndpointFunction make_respond_with_signature_on_commit(
-    ccf::AbstractNodeContext& context)
+  TxReceiptImplPtr build_receipt_for_committed_tx(
+    ccf::AbstractNodeContext& context, CommittedTxInfo& info)
   {
     auto sig_cache = context.get_subsystem<ccf::SignatureCacheInterface>();
     if (sig_cache == nullptr)
     {
-      throw std::logic_error(
+      info.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
         "SignatureCacheInterface subsystem is not installed");
+      return nullptr;
     }
 
-    return [sig_cache](CommittedTxInfo& info) {
+    auto cached_sig = sig_cache->get_signature_for(info.tx_id.seqno);
+    if (!cached_sig.has_value())
+    {
+      info.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        fmt::format(
+          "No cached signature found covering TxID {}",
+          info.tx_id.to_str()));
+      return nullptr;
+    }
+
+    // Reconstruct merkle tree from the cached serialised tree and
+    // extract a proof for this specific seqno
+    ccf::MerkleTreeHistory tree(cached_sig->serialised_tree);
+    if (!tree.in_range(info.tx_id.seqno))
+    {
+      info.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        fmt::format(
+          "Seqno {} is not in range of cached signature tree",
+          info.tx_id.seqno));
+      return nullptr;
+    }
+    auto proof = tree.get_proof(info.tx_id.seqno);
+
+    return std::make_shared<TxReceiptImpl>(
+      cached_sig->sig.sig,
+      cached_sig->cose_signature,
+      proof.get_root(),
+      proof.get_path(),
+      cached_sig->sig.node,
+      cached_sig->sig.cert,
+      info.write_set_digest,
+      info.commit_evidence,
+      info.claims_digest);
+  }
+
+  ConsensusCommittedEndpointFunction make_respond_with_receipt_on_commit(
+    ccf::AbstractNodeContext& context)
+  {
+    return [&context](CommittedTxInfo& info) {
       if (info.status == ccf::FinalTxStatus::Invalid)
       {
         info.rpc_ctx->set_error(
@@ -242,43 +287,11 @@ namespace ccf::endpoints
         return;
       }
 
-      auto cached_sig = sig_cache->get_signature_for(info.tx_id.seqno);
-      if (!cached_sig.has_value())
+      auto receipt = build_receipt_for_committed_tx(context, info);
+      if (receipt == nullptr)
       {
-        info.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          fmt::format(
-            "No cached signature found covering TxID {}",
-            info.tx_id.to_str()));
         return;
       }
-
-      // Reconstruct merkle tree from the cached serialised tree and
-      // extract a proof for this specific seqno
-      ccf::MerkleTreeHistory tree(cached_sig->serialised_tree);
-      if (!tree.in_range(info.tx_id.seqno))
-      {
-        info.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          fmt::format(
-            "Seqno {} is not in range of cached signature tree",
-            info.tx_id.seqno));
-        return;
-      }
-      auto proof = tree.get_proof(info.tx_id.seqno);
-
-      auto receipt = std::make_shared<TxReceiptImpl>(
-        cached_sig->sig.sig,
-        cached_sig->cose_signature,
-        proof.get_root(),
-        proof.get_path(),
-        cached_sig->sig.node,
-        cached_sig->sig.cert,
-        info.write_set_digest,
-        info.commit_evidence,
-        info.claims_digest);
 
       auto body = nlohmann::json::object();
       body["receipt"] = ccf::describe_receipt_v2(*receipt);
