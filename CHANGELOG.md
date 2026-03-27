@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Added `POST /node/snapshot:create`, gated by the `SnapshotCreate` RPC interface operator feature, to create a snapshot via an operator endpoint rather than a governance action.
 - Added `make_cose_verifier_from_pem_cert()` and `make_cose_verifier_from_der_cert()` that accept certificates in a known format. The existing `make_cose_verifier_cert()` is renamed to `make_cose_verifier_any_cert()` (#7768).
 
 ### Changed
