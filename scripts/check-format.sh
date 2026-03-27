@@ -43,17 +43,16 @@ mapfile -t files < <(git ls-files "$@" | grep -e '\.h$' -e '\.hpp$' -e '\.cpp$' 
 # --- Format check (parallel) ---
 if [ "${#files[@]}" -eq 0 ]; then
   unformatted_files=""
-elif $fix ; then
-  # In fix mode, format first then check what changed
-  printf '%s\n' "${files[@]}" | xargs -P "$NPROC" -n 50 "$CLANG_FORMAT" -style=file -i
-
-  # Re-check to report which files were fixed
-  unformatted_files=$(git diff --name-only -- "${files[@]}") || true
 else
-  # Check mode: collect filenames from clang-format warnings (parallel)
+  # Check which files need formatting (parallel)
   unformatted_files=$(printf '%s\n' "${files[@]}" | \
     xargs -P "$NPROC" -n 50 "$CLANG_FORMAT" -n -Werror -style=file 2>&1 | \
     sed -n 's/^\(.*\):[0-9]*:[0-9]*:.*/\1/p' | sort -u) || true
+
+  if $fix && [ "$unformatted_files" != "" ]; then
+    # Fix only the files that failed the check
+    echo "$unformatted_files" | xargs -P "$NPROC" -n 50 "$CLANG_FORMAT" -style=file -i
+  fi
 fi
 
 # --- File name check ---
