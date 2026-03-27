@@ -74,12 +74,8 @@ namespace ccf::kv
         throw KvSerialiserException("No encryptor set");
       }
 
-      auto commit_nonce = e->get_commit_nonce({pimpl->commit_view, version});
-      commit_evidence = fmt::format(
-        "ce:{}.{}:{}",
-        pimpl->commit_view,
-        version,
-        ccf::ds::to_hex(commit_nonce));
+      commit_evidence =
+        e->get_commit_evidence({pimpl->commit_view, version});
       LOG_TRACE_FMT("Commit evidence: {}", commit_evidence);
       ccf::crypto::Sha256Hash tx_commit_evidence_digest(commit_evidence);
       commit_evidence_digest = tx_commit_evidence_digest;
