@@ -114,6 +114,11 @@ namespace ccf
     read_only_directory,
     backup_fetch);
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::FilesCleanup);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::FilesCleanup);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::FilesCleanup, max_snapshots, interval);
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -126,6 +131,7 @@ namespace ccf
     jwt,
     attestation,
     snapshots,
+    files_cleanup,
     node_to_node_message_limit,
     historical_cache_soft_limit);
 

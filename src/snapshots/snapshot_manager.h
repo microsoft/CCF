@@ -24,7 +24,6 @@ namespace snapshots
 
     const fs::path snapshot_dir;
     const std::optional<fs::path> read_snapshot_dir = std::nullopt;
-
     struct PendingSnapshot
     {
       ::consensus::Index evidence_idx;
@@ -61,6 +60,9 @@ namespace snapshots
           read_snapshot_dir.value()));
       }
     }
+
+    SnapshotManager(const SnapshotManager&) = delete;
+    SnapshotManager& operator=(const SnapshotManager&) = delete;
 
     [[nodiscard]] fs::path get_main_directory() const
     {

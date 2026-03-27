@@ -116,6 +116,15 @@ namespace ccf
       bool operator==(const Snapshots&) const = default;
     };
     Snapshots snapshots = {};
+
+    struct FilesCleanup
+    {
+      std::optional<size_t> max_snapshots = std::nullopt;
+      ccf::ds::TimeString interval = {"30s"};
+
+      bool operator==(const FilesCleanup&) const = default;
+    };
+    FilesCleanup files_cleanup = {};
   };
 
   struct RecoveryDecisionProtocolConfig
