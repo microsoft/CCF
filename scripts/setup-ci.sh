@@ -28,7 +28,8 @@ tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
     libarrow-devel  \
     parquet-libs-devel  \
     doxygen  \
-    clang-tools-extra-devel
+    clang-tools-extra-devel  \
+    libbacktrace-static
 
 # To run standard tests
 tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
