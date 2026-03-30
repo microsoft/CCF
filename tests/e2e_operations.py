@@ -3757,6 +3757,11 @@ def test_ledger_chunk_cleanup_digest_mismatch(network, args):
         f"read-only copy. Current: {current}"
     )
 
+    # Clean up corrupted read-only copy so it doesn't interfere with shutdown
+    # ledger validation
+    for f in os.listdir(read_only_ledger_dir):
+        os.remove(os.path.join(read_only_ledger_dir, f))
+
     return network
 
 
