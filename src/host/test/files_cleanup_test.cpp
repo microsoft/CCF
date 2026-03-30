@@ -24,7 +24,10 @@ static void write_file(const fs::path& path, const std::string& content)
 
 // Helper to create a committed ledger chunk file with content
 static fs::path create_committed_chunk(
-  const fs::path& dir, size_t start_idx, size_t end_idx, const std::string& content = "data")
+  const fs::path& dir,
+  size_t start_idx,
+  size_t end_idx,
+  const std::string& content = "data")
 {
   auto name = fmt::format("ledger_{}-{}.committed", start_idx, end_idx);
   auto path = dir / name;
@@ -45,7 +48,9 @@ TEST_CASE("find_committed_ledger_chunks: empty directory")
   fs::remove_all(tmp);
 }
 
-TEST_CASE("find_committed_ledger_chunks: returns only committed chunks sorted ascending")
+TEST_CASE(
+  "find_committed_ledger_chunks: returns only committed chunks sorted "
+  "ascending")
 {
   auto tmp = fs::temp_directory_path() / "test_cleanup_sorted";
   fs::create_directories(tmp);
@@ -174,7 +179,8 @@ TEST_CASE("file_exists_with_matching_digest: matching copy in read-only dir")
   fs::create_directories(main_dir);
   fs::create_directories(ro_dir);
 
-  auto local_path = create_committed_chunk(main_dir, 1, 100, "identical content");
+  auto local_path =
+    create_committed_chunk(main_dir, 1, 100, "identical content");
   // Copy to read-only dir with same name and content
   write_file(ro_dir / local_path.filename(), "identical content");
 
@@ -287,8 +293,7 @@ TEST_CASE("cleanup_old_ledger_chunks: empty directory is a no-op")
   fs::remove_all(tmp);
 }
 
-TEST_CASE(
-  "cleanup_old_ledger_chunks: deletes oldest chunks when backed up")
+TEST_CASE("cleanup_old_ledger_chunks: deletes oldest chunks when backed up")
 {
   auto tmp = fs::temp_directory_path() / "test_ledger_cleanup_delete";
   auto main_dir = tmp / "main";
@@ -320,8 +325,7 @@ TEST_CASE(
   fs::remove_all(tmp);
 }
 
-TEST_CASE(
-  "cleanup_old_ledger_chunks: keeps chunks not backed up in read-only")
+TEST_CASE("cleanup_old_ledger_chunks: keeps chunks not backed up in read-only")
 {
   auto tmp = fs::temp_directory_path() / "test_ledger_cleanup_keep";
   auto main_dir = tmp / "main";
@@ -404,8 +408,7 @@ TEST_CASE("cleanup_old_ledger_chunks: count within limit is a no-op")
   fs::remove_all(tmp);
 }
 
-TEST_CASE(
-  "cleanup_old_ledger_chunks: digest mismatch prevents deletion")
+TEST_CASE("cleanup_old_ledger_chunks: digest mismatch prevents deletion")
 {
   auto tmp = fs::temp_directory_path() / "test_ledger_cleanup_mismatch";
   auto main_dir = tmp / "main";
@@ -437,7 +440,8 @@ TEST_CASE(
 
 // ---- FilesCleanupImpl constructor tests ----
 
-TEST_CASE("FilesCleanupImpl: constructor rejects ledger cleanup without read-only dirs")
+TEST_CASE(
+  "FilesCleanupImpl: constructor rejects ledger cleanup without read-only dirs")
 {
   CHECK_THROWS_AS(
     FilesCleanupImpl(
@@ -445,19 +449,16 @@ TEST_CASE("FilesCleanupImpl: constructor rejects ledger cleanup without read-onl
       std::nullopt,
       "/tmp/ledger",
       {}, // no read-only dirs
-      3   // but max_committed_ledger_chunks is set
-    ),
+      3 // but max_committed_ledger_chunks is set
+      ),
     std::logic_error);
 }
 
-TEST_CASE("FilesCleanupImpl: constructor accepts ledger cleanup with read-only dirs")
+TEST_CASE(
+  "FilesCleanupImpl: constructor accepts ledger cleanup with read-only dirs")
 {
   CHECK_NOTHROW(FilesCleanupImpl(
-    "/tmp/snapshots",
-    std::nullopt,
-    "/tmp/ledger",
-    {"/tmp/ro"},
-    3));
+    "/tmp/snapshots", std::nullopt, "/tmp/ledger", {"/tmp/ro"}, 3));
 }
 
 TEST_CASE("FilesCleanupImpl: constructor rejects max_snapshots < 1")
@@ -474,22 +475,14 @@ TEST_CASE("FilesCleanupImpl: constructor rejects max_snapshots < 1")
 
 TEST_CASE("FilesCleanupImpl: constructor accepts both cleanup options together")
 {
-  CHECK_NOTHROW(FilesCleanupImpl(
-    "/tmp/snapshots",
-    2,
-    "/tmp/ledger",
-    {"/tmp/ro"},
-    3));
+  CHECK_NOTHROW(
+    FilesCleanupImpl("/tmp/snapshots", 2, "/tmp/ledger", {"/tmp/ro"}, 3));
 }
 
 TEST_CASE("FilesCleanupImpl: constructor accepts all nullopt (no cleanup)")
 {
   CHECK_NOTHROW(FilesCleanupImpl(
-    "/tmp/snapshots",
-    std::nullopt,
-    "/tmp/ledger",
-    {},
-    std::nullopt));
+    "/tmp/snapshots", std::nullopt, "/tmp/ledger", {}, std::nullopt));
 }
 
 // ---- ledger_filenames.h tests ----
@@ -503,7 +496,8 @@ TEST_CASE("get_start_idx_from_file_name: parses start index")
 
 TEST_CASE("get_start_idx_from_file_name: throws on missing delimiter")
 {
-  CHECK_THROWS_AS(get_start_idx_from_file_name("nodelimiter"), std::logic_error);
+  CHECK_THROWS_AS(
+    get_start_idx_from_file_name("nodelimiter"), std::logic_error);
 }
 
 TEST_CASE("get_last_idx_from_file_name: parses last index")
