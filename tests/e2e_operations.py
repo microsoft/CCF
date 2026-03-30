@@ -3682,6 +3682,11 @@ def test_ledger_chunk_cleanup_with_read_only_dir(network, args):
             f"but was deleted. Current: {current}"
         )
 
+    # Clean up read-only dir so leftover files don't interfere with shutdown
+    # ledger validation
+    for f in os.listdir(read_only_ledger_dir):
+        os.remove(os.path.join(read_only_ledger_dir, f))
+
     return network
 
 
