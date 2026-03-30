@@ -137,7 +137,7 @@ namespace asynchost
       return result;
     }
 
-    static constexpr size_t HASH_READ_CHUNK_SIZE = 64 * 1024; // 64 KB
+    static constexpr size_t HASH_READ_CHUNK_SIZE = size_t{64} * 1024; // 64 KB
 
     // Compute SHA-256 digest of a file by reading it in chunks, without
     // loading the entire file into memory.
@@ -210,16 +210,14 @@ namespace asynchost
           {
             return true;
           }
-          else
-          {
-            LOG_FAIL_FMT(
-              "Ledger chunk {} found in read-only directory {} but digest "
-              "does not match (local: {}, read-only: {}). Skipping deletion.",
-              file_name,
-              ro_dir,
-              local_hash.value().hex_str(),
-              ro_hash.value().hex_str());
-          }
+
+          LOG_FAIL_FMT(
+            "Ledger chunk {} found in read-only directory {} but digest "
+            "does not match (local: {}, read-only: {}). Skipping deletion.",
+            file_name,
+            ro_dir,
+            local_hash.value().hex_str(),
+            ro_hash.value().hex_str());
         }
         catch (const std::exception& e)
         {
