@@ -68,7 +68,8 @@ endfunction()
 # Helper for building end-to-end function tests using the python infrastructure
 function(add_e2e_test)
   cmake_parse_arguments(
-    PARSE_ARGV 0
+    PARSE_ARGV
+    0
     PARSED_ARGS
     ""
     "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT"
@@ -172,7 +173,8 @@ endfunction()
 # Helper for building end-to-end perf tests using the python infrastucture
 function(add_piccolo_test)
   cmake_parse_arguments(
-    PARSE_ARGV 0
+    PARSE_ARGV
+    0
     PARSED_ARGS
     ""
     "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;PERF_LABEL"
@@ -214,7 +216,8 @@ endfunction()
 # Picobench wrapper
 function(add_picobench name)
   cmake_parse_arguments(
-    PARSE_ARGV 1
+    PARSE_ARGV
+    1
     PARSED_ARGS
     ""
     ""
