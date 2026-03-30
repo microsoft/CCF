@@ -60,12 +60,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
-function(message)
-  if(NOT MESSAGE_QUIET)
-    _message(${ARGN})
-  endif()
-endfunction()
-
 option(PROFILE_TESTS "Profile tests" OFF)
 
 if("$ENV{CI}" STREQUAL "")
@@ -1321,9 +1315,15 @@ if(BUILD_TESTS)
   add_piccolo_test(
     NAME pi_basic_blocking
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-    CLIENT_BIN ./submit PERF_LABEL "Basic Blocking"
-    ADDITIONAL_ARGS --package "samples/apps/basic/basic" --client-def
-                    "128,blocking_write,100,primary" --max-writes-ahead 0
+    CLIENT_BIN ./submit
+    PERF_LABEL "Basic Blocking"
+    ADDITIONAL_ARGS
+      --package
+      "samples/apps/basic/basic"
+      --client-def
+      "128,blocking_write,100,primary"
+      --max-writes-ahead
+      0
   )
 
   add_piccolo_test(
