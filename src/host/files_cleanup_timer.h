@@ -179,8 +179,20 @@ namespace asynchost
       auto local_hash = hash_file(local_path);
       if (!local_hash.has_value())
       {
-        LOG_INFO_FMT(
-          "Ledger chunk {} no longer exists or could not be read, skipping",
+        // Distinguish between a concurrent deletion (benign) and a genuine
+        // read error on an existing file.
+        if (!fs::exists(local_path) || !fs::is_regular_file(local_path))
+        {
+          // File was removed or is no longer a regular file; treat as already
+          // handled and do not report this as a retention failure.
+          LOG_INFO_FMT(
+            "Ledger chunk {} no longer exists, skipping",
+            local_path.filename());
+          return true;
+        }
+
+        LOG_FAIL_FMT(
+          "Ledger chunk {} exists but could not be read, skipping deletion",
           local_path.filename());
         return false;
       }
