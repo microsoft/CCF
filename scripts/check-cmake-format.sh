@@ -35,7 +35,7 @@ fi
 
 source scripts/env/bin/activate
 pip install -U pip
-pip install gersemi 1>/dev/null
+pip install 'gersemi==0.17.0' 1>/dev/null
 
 FILES=$(git ls-files "$@" | grep -e '\.cmake$' -e 'CMakeLists\.txt$')
 
