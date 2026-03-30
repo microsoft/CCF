@@ -25,9 +25,12 @@ message(STATUS "CCF version suffix = ${CCF_VERSION_SUFFIX}")
 # $ cmake -DCMAKE_INSTALL_PREFIX=/opt/myplace ..
 #
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-  set(CMAKE_INSTALL_PREFIX
-      "/opt/${CCF_PROJECT}"
-      CACHE PATH "Default install prefix" FORCE
+  set(
+    CMAKE_INSTALL_PREFIX
+    "/opt/${CCF_PROJECT}"
+    CACHE PATH
+    "Default install prefix"
+    FORCE
   )
 endif()
 
@@ -35,8 +38,9 @@ include(${CCF_DIR}/cmake/cpack_settings.cmake)
 
 message(STATUS "CMAKE_INSTALL_PREFIX is '${CMAKE_INSTALL_PREFIX}'")
 
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
-        DESTINATION cmake
+install(
+  FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
+  DESTINATION cmake
 )
 
 include(GNUInstallDirs)
@@ -56,12 +60,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
-function(message)
-  if(NOT MESSAGE_QUIET)
-    _message(${ARGN})
-  endif()
-endfunction()
-
 option(PROFILE_TESTS "Profile tests" OFF)
 
 if("$ENV{CI}" STREQUAL "")
@@ -80,8 +78,10 @@ if(VERBOSE_LOGGING)
   set(TEST_LOGGING_LEVEL "trace")
 endif()
 
-option(USE_NULL_ENCRYPTOR "Turn off encryption of ledger updates - debug only"
-       OFF
+option(
+  USE_NULL_ENCRYPTOR
+  "Turn off encryption of ledger updates - debug only"
+  OFF
 )
 if(USE_NULL_ENCRYPTOR)
   add_compile_definitions(USE_NULL_ENCRYPTOR)
@@ -107,7 +107,8 @@ option(CLANG_TIDY "Run clang-tidy on the codebase" OFF)
 # Must happen before tools.cmake is included
 if(CLANG_TIDY)
   find_program(
-    CLANG_TIDY_EXE NAMES "clang-tidy" "clang-tidy-18" "clang-tidy-15"
+    CLANG_TIDY_EXE
+    NAMES "clang-tidy" "clang-tidy-18" "clang-tidy-15"
   )
   message(STATUS "Using clang-tidy from: ${CLANG_TIDY_EXE}")
 endif()
@@ -144,18 +145,28 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
 set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh)
 foreach(UTILITY ${CCF_UTILITIES})
   configure_file(
-    ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
+    ${CCF_DIR}/python/utils/${UTILITY}
+    ${CMAKE_CURRENT_BINARY_DIR}
+    COPYONLY
   )
   install(PROGRAMS ${CCF_DIR}/python/utils/${UTILITY} DESTINATION bin)
 endforeach()
 
 # Copy utilities from tests directory
-set(CCF_TEST_UTILITIES tests.sh convert_pico_to_bencher.py test_install.sh
-                       docker_wrap.sh config.jinja recovery_benchmark.sh
+set(
+  CCF_TEST_UTILITIES
+  tests.sh
+  convert_pico_to_bencher.py
+  test_install.sh
+  docker_wrap.sh
+  config.jinja
+  recovery_benchmark.sh
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
-    ${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
+    ${CCF_DIR}/tests/${UTILITY}
+    ${CMAKE_CURRENT_BINARY_DIR}
+    COPYONLY
   )
 endforeach()
 
@@ -167,17 +178,19 @@ if(SAN)
   install(FILES ${CCF_DIR}/src/san_common.suppressions DESTINATION bin)
 endif()
 
-set(HTTP_PARSER_SOURCES
-    ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/api.c
-    ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/http.c
-    ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
+set(
+  HTTP_PARSER_SOURCES
+  ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/api.c
+  ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/http.c
+  ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
 )
 
 include(FetchContent)
 FetchContent_Declare(
   Corrosion
   GIT_REPOSITORY https://github.com/corrosion-rs/corrosion.git
-  GIT_TAG a1a1aaa057a5da656c06c3d8505b767a4e941709 # v0.5.2
+  GIT_TAG
+    a1a1aaa057a5da656c06c3d8505b767a4e941709 # v0.5.2
 )
 FetchContent_MakeAvailable(Corrosion)
 
@@ -187,21 +200,25 @@ include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/evercbor.cmake)
 
 # Launcher library
-list(APPEND CCF_LAUNCHER_SOURCES ${CCF_DIR}/src/host/run.cpp
-     ${CCF_DIR}/src/host/env.cpp
+list(
+  APPEND
+  CCF_LAUNCHER_SOURCES
+  ${CCF_DIR}/src/host/run.cpp
+  ${CCF_DIR}/src/host/env.cpp
 )
 
 add_ccf_static_library(
   ccf_launcher
   SRCS ${CCF_LAUNCHER_SOURCES}
-  LINK_LIBS uv
-            ${TLS_LIBRARY}
-            ${CMAKE_DL_LIBS}
-            ${CMAKE_THREAD_LIBS_INIT}
-            ${LINK_LIBCXX}
-            ccfcrypto
-            curl
-            http_parser
+  LINK_LIBS
+    uv
+    ${TLS_LIBRARY}
+    ${CMAKE_DL_LIBS}
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${LINK_LIBCXX}
+    ccfcrypto
+    curl
+    http_parser
 )
 
 target_include_directories(ccf_launcher PRIVATE ${CCF_GENERATED_DIR})
@@ -209,11 +226,7 @@ target_include_directories(ccf_launcher PRIVATE ${CCF_GENERATED_DIR})
 # HTTP parser
 add_library(http_parser "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser PROPERTY POSITION_INDEPENDENT_CODE ON)
-install(
-  TARGETS http_parser
-  EXPORT ccf
-  DESTINATION lib
-)
+install(TARGETS http_parser EXPORT ccf DESTINATION lib)
 
 # CCF platform agnostic library
 add_ccf_static_library(
@@ -225,68 +238,74 @@ add_ccf_static_library(
 # CCF js lib
 add_ccf_static_library(
   ccf_js
-  SRCS ${CCF_DIR}/src/js/global_class_ids.cpp
-       ${CCF_DIR}/src/js/core/wrapped_value.cpp
-       ${CCF_DIR}/src/js/core/runtime.cpp
-       ${CCF_DIR}/src/js/core/context.cpp
-       ${CCF_DIR}/src/js/extensions/console.cpp
-       ${CCF_DIR}/src/js/extensions/math/random.cpp
-       ${CCF_DIR}/src/js/extensions/snp_attestation.cpp
-       ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
-       ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
-       ${CCF_DIR}/src/js/extensions/ccf/crypto.cpp
-       ${CCF_DIR}/src/js/extensions/ccf/gov.cpp
-       ${CCF_DIR}/src/js/extensions/ccf/gov_effects.cpp
-       ${CCF_DIR}/src/js/extensions/ccf/historical.cpp
-       ${CCF_DIR}/src/js/extensions/ccf/kv.cpp
-       ${CCF_DIR}/src/js/extensions/ccf/network.cpp
-       ${CCF_DIR}/src/js/extensions/ccf/node.cpp
-       ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
-       ${CCF_DIR}/src/js/extensions/ccf/request.cpp
-       ${CCF_DIR}/src/js/registry.cpp
+  SRCS
+    ${CCF_DIR}/src/js/global_class_ids.cpp
+    ${CCF_DIR}/src/js/core/wrapped_value.cpp
+    ${CCF_DIR}/src/js/core/runtime.cpp
+    ${CCF_DIR}/src/js/core/context.cpp
+    ${CCF_DIR}/src/js/extensions/console.cpp
+    ${CCF_DIR}/src/js/extensions/math/random.cpp
+    ${CCF_DIR}/src/js/extensions/snp_attestation.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/crypto.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/gov.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/gov_effects.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/historical.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/kv.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/network.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/node.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/request.cpp
+    ${CCF_DIR}/src/js/registry.cpp
   LINK_LIBS ccfcrypto quickjs ccf_pal
 )
 
 # CCF kv lib
 add_ccf_static_library(
-  ccf_kv SRCS ${CCF_DIR}/src/kv/tx.cpp ${CCF_DIR}/src/kv/untyped_map_handle.cpp
-              ${CCF_DIR}/src/kv/untyped_map_diff.cpp
+  ccf_kv
+  SRCS
+    ${CCF_DIR}/src/kv/tx.cpp
+    ${CCF_DIR}/src/kv/untyped_map_handle.cpp
+    ${CCF_DIR}/src/kv/untyped_map_diff.cpp
 )
 
 # CCF endpoints lib
 add_ccf_static_library(
   ccf_endpoints
-  SRCS ${CCF_DIR}/src/endpoints/endpoint.cpp
-       ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
-       ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
-       ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
-       ${CCF_DIR}/src/endpoints/user_endpoint_registry.cpp
-       ${CCF_DIR}/src/endpoints/json_handler.cpp
-       ${CCF_DIR}/src/endpoints/authentication/cose_auth.cpp
-       ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
-       ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
-       ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
-       ${CCF_DIR}/src/endpoints/authentication/all_of_auth.cpp
-       ${CCF_DIR}/src/endpoints/endpoint_utils.cpp
-       ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
-       ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
-       ${CCF_DIR}/src/indexing/strategies/visit_each_entry_in_map.cpp
-       ${CCF_DIR}/src/node/historical_queries_adapter.cpp
-       ${CCF_DIR}/src/node/historical_queries_utils.cpp
-       ${CCF_DIR}/src/node/receipt.cpp
-       ${CCF_DIR}/src/node/local_sealing.cpp
+  SRCS
+    ${CCF_DIR}/src/endpoints/endpoint.cpp
+    ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/user_endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/json_handler.cpp
+    ${CCF_DIR}/src/endpoints/authentication/cose_auth.cpp
+    ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
+    ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
+    ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
+    ${CCF_DIR}/src/endpoints/authentication/all_of_auth.cpp
+    ${CCF_DIR}/src/endpoints/endpoint_utils.cpp
+    ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
+    ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
+    ${CCF_DIR}/src/indexing/strategies/visit_each_entry_in_map.cpp
+    ${CCF_DIR}/src/node/historical_queries_adapter.cpp
+    ${CCF_DIR}/src/node/historical_queries_utils.cpp
+    ${CCF_DIR}/src/node/receipt.cpp
+    ${CCF_DIR}/src/node/local_sealing.cpp
   LINK_LIBS http_parser ccfcrypto ccf_kv
 )
 
 # CCF task system library
 add_ccf_static_library(
   ccf_tasks
-  SRCS ${CCF_DIR}/src/tasks/task_system.cpp
-       ${CCF_DIR}/src/tasks/job_board.cpp
-       ${CCF_DIR}/src/tasks/ordered_tasks.cpp
-       ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
-       ${CCF_DIR}/src/tasks/thread_manager.cpp
-       ${CCF_DIR}/src/tasks/worker.cpp
+  SRCS
+    ${CCF_DIR}/src/tasks/task_system.cpp
+    ${CCF_DIR}/src/tasks/job_board.cpp
+    ${CCF_DIR}/src/tasks/ordered_tasks.cpp
+    ${CCF_DIR}/src/tasks/fan_in_tasks.cpp
+    ${CCF_DIR}/src/tasks/thread_manager.cpp
+    ${CCF_DIR}/src/tasks/worker.cpp
 )
 target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
 if(USE_LIBCXX)
@@ -297,81 +316,104 @@ if(USE_LIBCXX)
 endif()
 
 # Common test args for Python scripts starting up CCF networks
-set(WORKER_THREADS
-    0
-    CACHE STRING "Number of worker threads to start on each CCF node"
+set(
+  WORKER_THREADS
+  0
+  CACHE STRING
+  "Number of worker threads to start on each CCF node"
 )
 
-set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
-    --constitution
-    ${CCF_DIR}/samples/constitutions/default/actions.js
-    --constitution
-    ${CCF_DIR}/samples/constitutions/default/validate.js
-    --constitution
-    ${CCF_DIR}/samples/constitutions/default/resolve.js
-    --constitution
-    ${CCF_DIR}/samples/constitutions/default/apply.js
+set(
+  CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
+  --constitution
+  ${CCF_DIR}/samples/constitutions/default/actions.js
+  --constitution
+  ${CCF_DIR}/samples/constitutions/default/validate.js
+  --constitution
+  ${CCF_DIR}/samples/constitutions/default/resolve.js
+  --constitution
+  ${CCF_DIR}/samples/constitutions/default/apply.js
 )
-set(CCF_NETWORK_TEST_ARGS --log-level ${TEST_LOGGING_LEVEL} --worker-threads
-                          ${WORKER_THREADS}
+set(
+  CCF_NETWORK_TEST_ARGS
+  --log-level
+  ${TEST_LOGGING_LEVEL}
+  --worker-threads
+  ${WORKER_THREADS}
 )
 
 # SNIPPET_START: JS generic application
 add_ccf_app(
-  js_generic SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
-                  ${CCF_DIR}/samples/apps/main.cpp INSTALL_LIBS ON
+  js_generic
+  SRCS
+    ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
+    ${CCF_DIR}/samples/apps/main.cpp
+  INSTALL_LIBS ON
 )
 # SNIPPET_END: JS generic application
 
-install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
-        DESTINATION samples/logging
+install(
+  DIRECTORY ${CCF_DIR}/samples/apps/logging/js
+  DESTINATION samples/logging
 )
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
-set(CMAKE_GENERATED_COMMENT
-    "This file was auto-generated by CMake from a corresponding *.in file. DO NOT EDIT"
+set(
+  CMAKE_GENERATED_COMMENT
+  "This file was auto-generated by CMake from a corresponding *.in file. DO NOT EDIT"
 )
 
 configure_file(
-  ${CCF_DIR}/src/common/version.h.in ${CCF_DIR}/include/ccf/version.h @ONLY
+  ${CCF_DIR}/src/common/version.h.in
+  ${CCF_DIR}/include/ccf/version.h
+  @ONLY
 )
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
-file(READ ${CCF_DIR}/doc/host_config_schema/cchost_config.json
-     HOST_CONFIG_SCHEMA
+file(
+  READ
+  ${CCF_DIR}/doc/host_config_schema/cchost_config.json
+  HOST_CONFIG_SCHEMA
 )
 set_property(
   DIRECTORY
   APPEND
-  PROPERTY CMAKE_CONFIGURE_DEPENDS
-           ${CCF_DIR}/doc/host_config_schema/cchost_config.json
+  PROPERTY
+    CMAKE_CONFIGURE_DEPENDS ${CCF_DIR}/doc/host_config_schema/cchost_config.json
 )
 configure_file(
-  ${CCF_DIR}/src/host/config_schema.h.in ${CCF_DIR}/src/host/config_schema.h
+  ${CCF_DIR}/src/host/config_schema.h.in
+  ${CCF_DIR}/src/host/config_schema.h
   @ONLY
 )
 
-file(READ ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
-     GOV_API_SCHEMA_2023_06_01_PREVIEW
+file(
+  READ
+  ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
+  GOV_API_SCHEMA_2023_06_01_PREVIEW
 )
 set_property(
   DIRECTORY
   APPEND
-  PROPERTY CMAKE_CONFIGURE_DEPENDS
-           ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
+  PROPERTY
+    CMAKE_CONFIGURE_DEPENDS
+      ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
 )
-file(READ ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
-     GOV_API_SCHEMA_2024_07_01
+file(
+  READ
+  ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
+  GOV_API_SCHEMA_2024_07_01
 )
 set_property(
   DIRECTORY
   APPEND
-  PROPERTY CMAKE_CONFIGURE_DEPENDS
-           ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
+  PROPERTY
+    CMAKE_CONFIGURE_DEPENDS ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
 )
 configure_file(
-  ${CCF_DIR}/src/node/gov/api_schema.h.in ${CCF_DIR}/src/node/gov/api_schema.h
+  ${CCF_DIR}/src/node/gov/api_schema.h.in
+  ${CCF_DIR}/src/node/gov/api_schema.h
   @ONLY
 )
 
@@ -385,45 +427,47 @@ if(CCF_RAFT_TRACING)
 endif()
 
 # Build common library for CCF enclaves
-set(CCF_IMPL_SOURCE
-    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/thread_local.cpp
-    ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
-    ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
+set(
+  CCF_IMPL_SOURCE
+  ${CCF_DIR}/src/enclave/main.cpp
+  ${CCF_DIR}/src/enclave/thread_local.cpp
+  ${CCF_DIR}/src/node/quote.cpp
+  ${CCF_DIR}/src/node/uvm_endorsements.cpp
+  ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
 )
 
 add_ccf_static_library(
   ccf
   SRCS ${CCF_IMPL_SOURCE}
-  LINK_LIBS ${LINK_LIBCXX}
-            http_parser
-            ccf_js
-            ccf_endpoints
-            ccfcrypto
-            ccf_kv
-            ccf_tasks
-            nghttp2
-            ${CMAKE_THREAD_LIBS_INIT}
-            curl
-            ccf_pal
+  LINK_LIBS
+    ${LINK_LIBCXX}
+    http_parser
+    ccf_js
+    ccf_endpoints
+    ccfcrypto
+    ccf_kv
+    ccf_tasks
+    nghttp2
+    ${CMAKE_THREAD_LIBS_INIT}
+    curl
+    ccf_pal
 )
 
 target_include_directories(
-  ccf SYSTEM
-  PUBLIC $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-         $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
-                                           #< which are currently under src, and
-                                           #< should be removed or renamed
-         $<INSTALL_INTERFACE:include/>
-         $<INSTALL_INTERFACE:include/3rdparty/>
+  ccf
+  SYSTEM
+  PUBLIC
+    $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+    $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
+    #< which are currently under src, and
+    #< should be removed or renamed
+    $<INSTALL_INTERFACE:include/>
+    $<INSTALL_INTERFACE:include/3rdparty/>
 )
 
 add_dependencies(ccf ccf)
 
-install(
-  EXPORT ccf
-  DESTINATION cmake
-  FILE ccf-targets.cmake
-)
+install(EXPORT ccf DESTINATION cmake FILE ccf-targets.cmake)
 
 # Install exported 3rd-party library includes
 install(
@@ -445,12 +489,7 @@ install(
 )
 
 # Install all public CCF headers
-install(
-  DIRECTORY include/
-  DESTINATION include
-  FILES_MATCHING
-  PATTERN "*.h"
-)
+install(DIRECTORY include/ DESTINATION include FILES_MATCHING PATTERN "*.h")
 
 # Install CCF Python infrastructure
 install(
@@ -481,7 +520,8 @@ add_test_bin(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/host/env.cpp
 )
 target_link_libraries(
-  verify_uvm_attestation_and_endorsements PRIVATE ccf_pal ccf
+  verify_uvm_attestation_and_endorsements
+  PRIVATE ccf_pal ccf
 )
 install(TARGETS verify_uvm_attestation_and_endorsements DESTINATION bin)
 
@@ -491,7 +531,8 @@ add_test_bin(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/verify_attestation.cpp
 )
 target_link_libraries(
-  verify_attestation PRIVATE ccf_pal ccf_tasks uv curl http_parser
+  verify_attestation
+  PRIVATE ccf_pal ccf_tasks uv curl http_parser
 )
 install(TARGETS verify_attestation DESTINATION bin)
 
@@ -518,50 +559,38 @@ if(BUILD_TESTS)
       snp_ioctl_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
     )
-    set_property(
-      TEST snp_ioctl_test
-      APPEND
-      PROPERTY LABELS snp
-    )
-    set_property(
-      TEST snp_ioctl_test
-      APPEND
-      PROPERTY CONFIGURATIONS snp
-    )
+    set_property(TEST snp_ioctl_test APPEND PROPERTY LABELS snp)
+    set_property(TEST snp_ioctl_test APPEND PROPERTY CONFIGURATIONS snp)
 
     add_unit_test(
       snp_attestation_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_attestation_validation.cpp
     )
     target_link_libraries(snp_attestation_test PRIVATE ccf_pal ccfcrypto)
-    set_property(
-      TEST snp_attestation_test
-      APPEND
-      PROPERTY LABELS snp
-    )
-    set_property(
-      TEST snp_attestation_test
-      APPEND
-      PROPERTY CONFIGURATIONS snp
-    )
+    set_property(TEST snp_attestation_test APPEND PROPERTY LABELS snp)
+    set_property(TEST snp_attestation_test APPEND PROPERTY CONFIGURATIONS snp)
 
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
     add_unit_test(
-      env_test ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/env.cpp
+      env_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/env.cpp
       ${CCF_DIR}/src/host/env.cpp
     )
 
     add_unit_test(
-      json_schema ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp
+      json_schema
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp
     )
 
     add_unit_test(
-      logger_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger.cpp
+      logger_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger.cpp
     )
 
     add_unit_test(
-      openapi_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/openapi.cpp
+      openapi_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/openapi.cpp
     )
     target_link_libraries(openapi_test PRIVATE http_parser)
 
@@ -579,7 +608,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
     )
     target_link_libraries(
-      kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_kv
+      kv_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_kv
     )
 
     add_unit_test(
@@ -612,16 +642,19 @@ if(BUILD_TESTS)
     target_link_libraries(task_system_test PRIVATE ccf_tasks)
 
     add_unit_test(
-      task_system_demo ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/demo/main.cpp
+      task_system_demo
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/demo/main.cpp
     )
     target_link_libraries(task_system_demo PRIVATE ccf_tasks)
 
     add_unit_test(
-      ledger_test ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp
+      ledger_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp
     )
 
     add_unit_test(
-      raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
+      raft_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/committable_suffix.cpp
     )
@@ -635,13 +668,15 @@ if(BUILD_TESTS)
     target_link_libraries(raft_enclave_test PRIVATE ccfcrypto)
 
     add_unit_test(
-      crypto_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp
+      crypto_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp
     )
     target_include_directories(crypto_test PRIVATE ${CCFCRYPTO_INC})
     target_link_libraries(crypto_test PRIVATE ccfcrypto)
 
     add_unit_test(
-      cbor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cbor.cpp
+      cbor_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cbor.cpp
     )
     target_include_directories(cbor_test PRIVATE ${CCFCRYPTO_INC})
     target_link_libraries(cbor_test PRIVATE ccfcrypto)
@@ -660,27 +695,33 @@ if(BUILD_TESTS)
     target_link_libraries(key_exchange_test PRIVATE)
 
     add_unit_test(
-      history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
+      history_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
     )
     target_link_libraries(
-      history_test PRIVATE ccfcrypto http_parser ccf_kv ccf_tasks
+      history_test
+      PRIVATE ccfcrypto http_parser ccf_kv ccf_tasks
     )
 
     add_unit_test(
-      encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
+      encryptor_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
     )
     target_link_libraries(encryptor_test PRIVATE ccfcrypto ccf_kv)
 
     add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
     target_link_libraries(
-      js_test PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto http_parser
+      js_test
+      PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto http_parser
     )
 
     add_unit_test(
-      js_policy_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/js_policy.cpp
+      js_policy_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/js_policy.cpp
     )
     target_link_libraries(
-      js_policy_test PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto
+      js_policy_test
+      PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto
     )
 
     add_unit_test(
@@ -693,7 +734,7 @@ if(BUILD_TESTS)
       APPEND
       PROPERTY
         ENVIRONMENT
-        "TEST_ENDORSEMENTS_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/uvm_endorsements"
+          "TEST_ENDORSEMENTS_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/uvm_endorsements"
     )
     target_link_libraries(endorsements_test PRIVATE evercbor)
 
@@ -705,17 +746,19 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/local_sealing.cpp
     )
     target_link_libraries(
-      historical_queries_test PRIVATE http_parser ccf_kv ccf_endpoints
-                                      ccf_tasks
+      historical_queries_test
+      PRIVATE http_parser ccf_kv ccf_endpoints ccf_tasks
     )
     add_unit_test(
-      indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
+      indexing_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp
     )
     target_link_libraries(indexing_test PRIVATE ccf_endpoints ccf_kv ccf_tasks)
 
     add_unit_test(
-      snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
+      snapshot_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
     )
     target_link_libraries(snapshot_test PRIVATE ccf_kv ccf_tasks)
 
@@ -724,7 +767,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshotter.cpp
     )
     target_link_libraries(
-      snapshotter_test PRIVATE ccf_kv ccf_endpoints ccf_tasks
+      snapshotter_test
+      PRIVATE ccf_kv ccf_endpoints ccf_tasks
     )
 
     add_unit_test(
@@ -736,37 +780,44 @@ if(BUILD_TESTS)
     target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_unit_test(
-      base64_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/base64.cpp
+      base64_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/base64.cpp
     )
     target_link_libraries(base64_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_unit_test(
-      cose_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cose.cpp
+      cose_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cose.cpp
     )
     target_link_libraries(cose_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto)
 
     add_unit_test(
-      cose_ffi_test ${CMAKE_CURRENT_SOURCE_DIR}/src/cose/test/cose_ffi_test.cpp
+      cose_ffi_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/cose/test/cose_ffi_test.cpp
     )
     target_link_libraries(
-      cose_ffi_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto
+      cose_ffi_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto
     )
 
     add_unit_test(pem_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/pem.cpp)
     target_link_libraries(pem_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_test_bin(
-      kp_cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/kp_cert.cpp
+      kp_cert_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/kp_cert.cpp
     )
     target_link_libraries(kp_cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_unit_test(
-      channels_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
+      channels_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
     )
     target_link_libraries(channels_test PRIVATE)
 
     add_unit_test(
-      http_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_test.cpp
+      http_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_test.cpp
     )
     target_link_libraries(http_test PRIVATE http_parser)
 
@@ -784,15 +835,16 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
-              http_parser
-              ccf_js
-              ccf_endpoints
-              ccfcrypto
-              ccf_kv
-              ccf_tasks
-              curl
-              uv
+      PRIVATE
+        ${CMAKE_THREAD_LIBS_INIT}
+        http_parser
+        ccf_js
+        ccf_endpoints
+        ccfcrypto
+        ccf_kv
+        ccf_tasks
+        curl
+        uv
     )
 
     add_unit_test(
@@ -800,7 +852,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/endpoint_registry.cpp
     )
     target_include_directories(
-      endpoint_registry_test PRIVATE ${CCF_DIR}/src/endpoints
+      endpoint_registry_test
+      PRIVATE ${CCF_DIR}/src/endpoints
     )
     target_link_libraries(endpoint_registry_test PRIVATE ccf_endpoints)
 
@@ -824,15 +877,16 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       node_frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
-              http_parser
-              ccf_js
-              ccf_endpoints
-              ccfcrypto
-              ccf_kv
-              uv
-              curl
-              ccf_tasks
+      PRIVATE
+        ${CMAKE_THREAD_LIBS_INIT}
+        http_parser
+        ccf_js
+        ccf_endpoints
+        ccfcrypto
+        ccf_kv
+        uv
+        curl
+        ccf_tasks
     )
 
     add_unit_test(
@@ -843,50 +897,53 @@ if(BUILD_TESTS)
     target_link_libraries(internal_tables_access_test PRIVATE ccfcrypto ccf_kv)
 
     add_unit_test(
-      merkle_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/merkle_test.cpp
+      merkle_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/merkle_test.cpp
     )
 
     # Merkle Tree memory test
     add_executable(
-      merkle_mem src/node/test/merkle_mem.cpp
-                 ${CCF_DIR}/src/enclave/thread_local.cpp
+      merkle_mem
+      src/node/test/merkle_mem.cpp
+      ${CCF_DIR}/src/enclave/thread_local.cpp
     )
     target_compile_options(merkle_mem PRIVATE ${COMPILE_LIBCXX})
     target_link_libraries(
-      merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX} ccfcrypto
+      merkle_mem
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX} ccfcrypto
     )
 
     # Raft driver and scenario test
     add_executable(
-      raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
-                  src/enclave/thread_local.cpp
+      raft_driver
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
+      src/enclave/thread_local.cpp
     )
     target_link_libraries(raft_driver PRIVATE ccfcrypto ccf_tasks)
     target_include_directories(raft_driver PRIVATE src/aft)
 
     add_test(
       NAME raft_scenario_test
-      COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
-              ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios/
+      COMMAND
+        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
+        ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios/
     )
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
-    add_test(NAME csr_test COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/certs.py
-                                   ./kp_cert_test
+    add_test(
+      NAME csr_test
+      COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/certs.py ./kp_cert_test
     )
-    set_property(
-      TEST csr_test
-      APPEND
-      PROPERTY LABELS unit_test
+    set_property(TEST csr_test APPEND PROPERTY LABELS unit_test)
+
+    add_test(
+      NAME versionifier_test
+      COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/src/ccf/_versionifier.py
     )
 
-    add_test(NAME versionifier_test
-             COMMAND ${PYTHON}
-                     ${CMAKE_SOURCE_DIR}/python/src/ccf/_versionifier.py
-    )
-
-    add_test(NAME github_version_lts_test
-             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
+    add_test(
+      NAME github_version_lts_test
+      COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
     )
   endif()
 
@@ -896,16 +953,8 @@ if(BUILD_TESTS)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
     add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
     add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
-    add_picobench(
-      crypto_bench
-      SRCS src/crypto/test/bench.cpp
-      LINK_LIBS
-    )
-    add_picobench(
-      cose_bench
-      SRCS src/crypto/test/cose_bench.cpp
-      LINK_LIBS
-    )
+    add_picobench(crypto_bench SRCS src/crypto/test/bench.cpp LINK_LIBS)
+    add_picobench(cose_bench SRCS src/crypto/test/cose_bench.cpp LINK_LIBS)
     add_picobench(
       history_bench
       SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
@@ -922,9 +971,10 @@ if(BUILD_TESTS)
 
     add_picobench(
       task_bench
-      SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/merge_bench.cpp
-           ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/sleep_bench.cpp
-           ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/contention_bench.cpp
+      SRCS
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/merge_bench.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/sleep_bench.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/bench/contention_bench.cpp
       LINK_LIBS ccf_tasks
     )
   endif()
@@ -962,7 +1012,11 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     LABEL suite
     ADDITIONAL_ARGS
-      --test-duration 300 --test-suite reconfiguration --jinja-templates-path
+      --test-duration
+      300
+      --test-suite
+      reconfiguration
+      --jinja-templates-path
       ${CMAKE_SOURCE_DIR}/samples/templates
   )
 
@@ -1005,45 +1059,55 @@ if(BUILD_TESTS)
       ${CMAKE_SOURCE_DIR}/src/apps/batched
       --election-timeout-ms
       10000 # Larger election timeout as recording large JS applications may
-            # trigger leadership changes
+    # trigger leadership changes
   )
 
   add_e2e_test(
     NAME modules_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
     ADDITIONAL_ARGS
-      --package js_generic --election-timeout-ms 10000 # Larger election
-      # timeout as recording # large JS applications may trigger leadership
-      # changes
+      --package
+      js_generic
+      --election-timeout-ms
+      10000 # Larger election
+    # timeout as recording # large JS applications may trigger leadership
+    # changes
   )
 
   add_e2e_test(
     NAME auth
     PYTHON_SCRIPT
       ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
-    ADDITIONAL_ARGS --package js_generic --js-app-bundle
-                    ${CMAKE_SOURCE_DIR}/tests
+    ADDITIONAL_ARGS
+      --package
+      js_generic
+      --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/tests
   )
 
-  set(CONSTITUTION_ARGS
-      --constitution
-      ${CCF_DIR}/samples/constitutions/default/actions.js
-      --constitution
-      ${CCF_DIR}/samples/constitutions/test/test_actions.js
-      --constitution
-      ${CCF_DIR}/samples/constitutions/default/validate.js
-      --constitution
-      ${CCF_DIR}/samples/constitutions/test/resolve.js
-      --constitution
-      ${CCF_DIR}/samples/constitutions/default/apply.js
+  set(
+    CONSTITUTION_ARGS
+    --constitution
+    ${CCF_DIR}/samples/constitutions/default/actions.js
+    --constitution
+    ${CCF_DIR}/samples/constitutions/test/test_actions.js
+    --constitution
+    ${CCF_DIR}/samples/constitutions/default/validate.js
+    --constitution
+    ${CCF_DIR}/samples/constitutions/test/resolve.js
+    --constitution
+    ${CCF_DIR}/samples/constitutions/default/apply.js
   )
 
   add_e2e_test(
     NAME governance_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSTITUTION ${CONSTITUTION_ARGS}
-    ADDITIONAL_ARGS --initial-operator-count 1 --jinja-templates-path
-                    ${CMAKE_SOURCE_DIR}/samples/templates
+    ADDITIONAL_ARGS
+      --initial-operator-count
+      1
+      --jinja-templates-path
+      ${CMAKE_SOURCE_DIR}/samples/templates
   )
 
   add_e2e_test(
@@ -1066,7 +1130,9 @@ if(BUILD_TESTS)
         ${CMAKE_CURRENT_BINARY_DIR}/testssl
     )
     add_custom_target(
-      testssl ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
+      testssl
+      ALL
+      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
     )
   endif()
 
@@ -1076,17 +1142,18 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
-  set(RBAC_CONSTITUTION_ARGS
-      --constitution
-      ${CCF_DIR}/samples/constitutions/default/actions.js
-      --constitution
-      ${CCF_DIR}/samples/constitutions/roles/set_role_definition.js
-      --constitution
-      ${CCF_DIR}/samples/constitutions/default/validate.js
-      --constitution
-      ${CCF_DIR}/samples/constitutions/default/resolve.js
-      --constitution
-      ${CCF_DIR}/samples/constitutions/default/apply.js
+  set(
+    RBAC_CONSTITUTION_ARGS
+    --constitution
+    ${CCF_DIR}/samples/constitutions/default/actions.js
+    --constitution
+    ${CCF_DIR}/samples/constitutions/roles/set_role_definition.js
+    --constitution
+    ${CCF_DIR}/samples/constitutions/default/validate.js
+    --constitution
+    ${CCF_DIR}/samples/constitutions/default/resolve.js
+    --constitution
+    ${CCF_DIR}/samples/constitutions/default/apply.js
   )
 
   add_e2e_test(
@@ -1099,7 +1166,8 @@ if(BUILD_TESTS)
   # This test uses large requests (so too slow for SAN)
   if(NOT SAN)
     add_e2e_test(
-      NAME e2e_limits PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/limits.py
+      NAME e2e_limits
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/limits.py
     )
   endif()
 
@@ -1112,8 +1180,10 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME e2e_logging_http2
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-                    --http2
+    ADDITIONAL_ARGS
+      --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+      --http2
   )
 
   add_e2e_test(
@@ -1145,7 +1215,8 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME tls_stress_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+    NAME tls_stress_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
   )
 
   if(CLIENT_PROTOCOLS_TEST)
@@ -1218,49 +1289,74 @@ if(BUILD_TESTS)
   add_piccolo_test(
     NAME pi_ls
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
-    CLIENT_BIN ./submit PERF_LABEL "Logging"
-    ADDITIONAL_ARGS --package "samples/apps/logging/logging" --max-writes-ahead
-                    1000 --repetitions 100000
+    CLIENT_BIN ./submit
+    PERF_LABEL "Logging"
+    ADDITIONAL_ARGS
+      --package
+      "samples/apps/logging/logging"
+      --max-writes-ahead
+      1000
+      --repetitions
+      100000
   )
 
   add_piccolo_test(
     NAME pi_basic
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-    CLIENT_BIN ./submit PERF_LABEL "Basic"
-    ADDITIONAL_ARGS --package "samples/apps/basic/basic" --client-def
-                    "1,write,3000000,primary"
+    CLIENT_BIN ./submit
+    PERF_LABEL "Basic"
+    ADDITIONAL_ARGS
+      --package
+      "samples/apps/basic/basic"
+      --client-def
+      "1,write,3000000,primary"
   )
 
   add_piccolo_test(
     NAME pi_basic_blocking
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-    CLIENT_BIN ./submit PERF_LABEL "Basic Blocking"
-    ADDITIONAL_ARGS --package "samples/apps/basic/basic" --client-def
-                    "128,blocking_write,100,primary" --max-writes-ahead 0
+    CLIENT_BIN ./submit
+    PERF_LABEL "Basic Blocking"
+    ADDITIONAL_ARGS
+      --package
+      "samples/apps/basic/basic"
+      --client-def
+      "128,blocking_write,100,primary"
+      --max-writes-ahead
+      0
   )
 
   add_piccolo_test(
     NAME pi_basic_js
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-    CLIENT_BIN ./submit PERF_LABEL "Basic JS"
-    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
-                    --client-def "1,write,300000,primary"
+    CLIENT_BIN ./submit
+    PERF_LABEL "Basic JS"
+    ADDITIONAL_ARGS
+      --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
+      --client-def
+      "1,write,300000,primary"
   )
 
   if(WORKER_THREADS)
     add_piccolo_test(
       NAME pi_basic_mt
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-      CLIENT_BIN ./submit PERF_LABEL "Basic Multi-Threaded"
-      ADDITIONAL_ARGS --package "samples/apps/basic/basic" --client-def
-                      "${WORKER_THREADS},write,2000000,primary"
+      CLIENT_BIN ./submit
+      PERF_LABEL "Basic Multi-Threaded"
+      ADDITIONAL_ARGS
+        --package
+        "samples/apps/basic/basic"
+        --client-def
+        "${WORKER_THREADS},write,2000000,primary"
     )
   endif()
 
   add_piccolo_test(
     NAME pi_ls_jwt
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
-    CLIENT_BIN ./submit PERF_LABEL "Logging JWT"
+    CLIENT_BIN ./submit
+    PERF_LABEL "Logging JWT"
     ADDITIONAL_ARGS
       --package
       "samples/apps/logging/logging"
@@ -1279,13 +1375,15 @@ if(BUILD_TESTS)
   )
 
   add_test_bin(
-    curl_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/curl_test.cpp
+    curl_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/curl_test.cpp
   )
   target_link_libraries(curl_test PRIVATE curl uv http_parser)
 
   if(LONG_TESTS)
     add_e2e_test(
-      NAME e2e_curl PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_curl.py
+      NAME e2e_curl
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_curl.py
     )
 
     add_e2e_test(
@@ -1308,8 +1406,8 @@ if(BUILD_TESTS)
     endforeach()
     string(REPLACE ";" "\n" _cov_binaries_nl "${_cov_binaries}")
     file(
-      GENERATE
-      OUTPUT "${CMAKE_BINARY_DIR}/coverage_binaries.txt"
+      GENERATE OUTPUT
+      "${CMAKE_BINARY_DIR}/coverage_binaries.txt"
       CONTENT "${_cov_binaries_nl}\n"
     )
   endif()
@@ -1328,10 +1426,11 @@ write_basic_package_version_file(
   COMPATIBILITY SameMajorVersion
 )
 install(
-  FILES ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
-        ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
-        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/cpack_ccfapp.cmake
-        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/cpack_versions_pin.cmake
+  FILES
+    ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
+    ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/cpack_ccfapp.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/cpack_versions_pin.cmake
   DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
 )
 

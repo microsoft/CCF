@@ -2,14 +2,10 @@
 # Licensed under the Apache 2.0 License.
 
 corrosion_import_crate(
-  MANIFEST_PATH
-  "${CCF_DIR}/src/cose/cose_rs/Cargo.toml"
-  PROFILE
-  "release"
-  CRATES
-  "cose-rs"
-  CRATE_TYPES
-  "staticlib"
+  MANIFEST_PATH "${CCF_DIR}/src/cose/cose_rs/Cargo.toml"
+  PROFILE "release"
+  CRATES "cose-rs"
+  CRATE_TYPES "staticlib"
 )
 
 # Reproducible builds: remap absolute paths in the binary. RUSTFLAGS applies to
