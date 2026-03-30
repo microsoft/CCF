@@ -3527,9 +3527,10 @@ def test_max_committed_ledger_chunk_files(network, args, read_only_ledger_dir):
             if len(committed) <= max_count:
                 return committed
             time.sleep(0.5)
+        current = get_committed_chunks()
         raise TimeoutError(
             f"Timed out waiting for committed chunk count to drop to {max_count} in "
-            f"{main_ledger_dir}. Found {len(committed)}: {sorted(committed)}"
+            f"{main_ledger_dir}. Found {len(current)}: {sorted(current)}"
         )
 
     initial_committed = get_committed_chunks()
@@ -3685,7 +3686,10 @@ def test_ledger_chunk_cleanup_with_read_only_dir(network, args):
     # Clean up read-only dir so leftover files don't interfere with shutdown
     # ledger validation
     for f in os.listdir(read_only_ledger_dir):
-        os.remove(os.path.join(read_only_ledger_dir, f))
+        try:
+            os.remove(os.path.join(read_only_ledger_dir, f))
+        except OSError as e:
+            LOG.warning(f"Failed to clean up read-only ledger file {f}: {e}")
 
     return network
 
@@ -3760,7 +3764,10 @@ def test_ledger_chunk_cleanup_digest_mismatch(network, args):
     # Clean up corrupted read-only copy so it doesn't interfere with shutdown
     # ledger validation
     for f in os.listdir(read_only_ledger_dir):
-        os.remove(os.path.join(read_only_ledger_dir, f))
+        try:
+            os.remove(os.path.join(read_only_ledger_dir, f))
+        except OSError as e:
+            LOG.warning(f"Failed to clean up read-only ledger file {f}: {e}")
 
     return network
 

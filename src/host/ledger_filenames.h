@@ -29,7 +29,7 @@ namespace asynchost
         "Ledger file name {} does not contain a start seqno", file_name));
     }
 
-    return std::stol(file_name.substr(pos + 1));
+    return std::stoull(file_name.substr(pos + 1));
   }
 
   static inline std::optional<size_t> get_last_idx_from_file_name(
@@ -42,7 +42,7 @@ namespace asynchost
       return std::nullopt;
     }
 
-    return std::stol(file_name.substr(pos + 1));
+    return std::stoull(file_name.substr(pos + 1));
   }
 
   static inline bool is_ledger_file_name_committed(const std::string& file_name)

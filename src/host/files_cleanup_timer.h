@@ -18,83 +18,14 @@
 
 namespace asynchost
 {
-  class FilesCleanupImpl
+  // Pure helper functions for file cleanup, extracted for testability.
+  namespace files_cleanup
   {
-  private:
-    // Snapshot cleanup config
-    std::filesystem::path snapshots_dir;
-    std::optional<size_t> max_snapshots;
-
-    // Ledger chunk cleanup config
-    std::filesystem::path ledger_dir;
-    std::vector<std::filesystem::path> read_only_ledger_dirs;
-    std::optional<size_t> max_committed_ledger_chunks;
-
-    struct CleanupWork
-    {
-      std::filesystem::path snapshots_dir;
-      std::optional<size_t> max_snapshots;
-
-      std::filesystem::path ledger_dir;
-      std::vector<std::filesystem::path> read_only_ledger_dirs;
-      std::optional<size_t> max_committed_ledger_chunks;
-    };
-
-    static void cleanup_old_snapshots(
-      const std::filesystem::path& dir, size_t max_retained)
-    {
-      std::vector<std::filesystem::path> directories{dir};
-      decltype(snapshots::find_committed_snapshots_in_directories(
-        directories)) committed;
-      try
-      {
-        committed =
-          snapshots::find_committed_snapshots_in_directories(directories);
-      }
-      catch (const std::filesystem::filesystem_error& e)
-      {
-        LOG_FAIL_FMT(
-          "Failed to list committed snapshots in {}: {}", dir, e.what());
-        return;
-      }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_FMT(
-          "Unexpected error while listing committed snapshots in {}: {}",
-          dir,
-          e.what());
-        return;
-      }
-
-      if (committed.size() > max_retained)
-      {
-        // committed is sorted descending by snapshot index, so the
-        // oldest are at the end
-        for (auto it = committed.rbegin();
-             it != committed.rend() - max_retained;
-             ++it)
-        {
-          const auto& path = it->second;
-          LOG_INFO_FMT(
-            "Deleting old snapshot {} (retaining {})",
-            path.filename(),
-            max_retained);
-          std::error_code ec;
-          std::filesystem::remove(path, ec);
-          if (ec)
-          {
-            LOG_FAIL_FMT(
-              "Failed to delete old snapshot {}: {}",
-              path.filename(),
-              ec.message());
-          }
-        }
-      }
-    }
+    static constexpr size_t HASH_READ_CHUNK_SIZE = size_t{64} * 1024; // 64 KB
 
     // Returns committed ledger chunks in the given directory, sorted ascending
     // by start index. Each entry is (start_idx, path).
-    static std::vector<std::pair<size_t, std::filesystem::path>>
+    inline std::vector<std::pair<size_t, std::filesystem::path>>
     find_committed_ledger_chunks(const std::filesystem::path& dir)
     {
       namespace fs = std::filesystem;
@@ -130,18 +61,17 @@ namespace asynchost
       }
 
       // Sort ascending by start index (oldest first)
-      std::sort(result.begin(), result.end(), [](const auto& a, const auto& b) {
-        return a.first < b.first;
-      });
+      std::sort(
+        result.begin(), result.end(), [](const auto& a, const auto& b) {
+          return a.first < b.first;
+        });
 
       return result;
     }
 
-    static constexpr size_t HASH_READ_CHUNK_SIZE = size_t{64} * 1024; // 64 KB
-
     // Compute SHA-256 digest of a file by reading it in chunks, without
     // loading the entire file into memory.
-    static std::optional<ccf::crypto::Sha256Hash> hash_file(
+    inline std::optional<ccf::crypto::Sha256Hash> hash_file(
       const std::filesystem::path& path)
     {
       std::ifstream f(path, std::ios::binary);
@@ -170,7 +100,7 @@ namespace asynchost
       return hasher->finalise();
     }
 
-    static bool file_exists_with_matching_digest(
+    inline bool file_exists_with_matching_digest(
       const std::filesystem::path& local_path,
       const std::vector<std::filesystem::path>& read_only_dirs)
     {
@@ -245,7 +175,7 @@ namespace asynchost
       return false;
     }
 
-    static void cleanup_old_ledger_chunks(
+    inline void cleanup_old_ledger_chunks(
       const std::filesystem::path& main_dir,
       const std::vector<std::filesystem::path>& read_only_dirs,
       size_t max_retained)
@@ -309,16 +239,92 @@ namespace asynchost
       }
     }
 
+    inline void cleanup_old_snapshots(
+      const std::filesystem::path& dir, size_t max_retained)
+    {
+      std::vector<std::filesystem::path> directories{dir};
+      decltype(snapshots::find_committed_snapshots_in_directories(
+        directories)) committed;
+      try
+      {
+        committed =
+          snapshots::find_committed_snapshots_in_directories(directories);
+      }
+      catch (const std::filesystem::filesystem_error& e)
+      {
+        LOG_FAIL_FMT(
+          "Failed to list committed snapshots in {}: {}", dir, e.what());
+        return;
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "Unexpected error while listing committed snapshots in {}: {}",
+          dir,
+          e.what());
+        return;
+      }
+
+      if (committed.size() > max_retained)
+      {
+        // committed is sorted descending by snapshot index, so the
+        // oldest are at the end
+        for (auto it = committed.rbegin();
+             it != committed.rend() - max_retained;
+             ++it)
+        {
+          const auto& path = it->second;
+          LOG_INFO_FMT(
+            "Deleting old snapshot {} (retaining {})",
+            path.filename(),
+            max_retained);
+          std::error_code ec;
+          std::filesystem::remove(path, ec);
+          if (ec)
+          {
+            LOG_FAIL_FMT(
+              "Failed to delete old snapshot {}: {}",
+              path.filename(),
+              ec.message());
+          }
+        }
+      }
+    }
+  } // namespace files_cleanup
+
+  class FilesCleanupImpl
+  {
+  private:
+    // Snapshot cleanup config
+    std::filesystem::path snapshots_dir;
+    std::optional<size_t> max_snapshots;
+
+    // Ledger chunk cleanup config
+    std::filesystem::path ledger_dir;
+    std::vector<std::filesystem::path> read_only_ledger_dirs;
+    std::optional<size_t> max_committed_ledger_chunks;
+
+    struct CleanupWork
+    {
+      std::filesystem::path snapshots_dir;
+      std::optional<size_t> max_snapshots;
+
+      std::filesystem::path ledger_dir;
+      std::vector<std::filesystem::path> read_only_ledger_dirs;
+      std::optional<size_t> max_committed_ledger_chunks;
+    };
+
     static void on_cleanup_work(uv_work_t* req)
     {
       auto* work = static_cast<CleanupWork*>(req->data);
       if (work->max_snapshots.has_value())
       {
-        cleanup_old_snapshots(work->snapshots_dir, work->max_snapshots.value());
+        files_cleanup::cleanup_old_snapshots(
+          work->snapshots_dir, work->max_snapshots.value());
       }
       if (work->max_committed_ledger_chunks.has_value())
       {
-        cleanup_old_ledger_chunks(
+        files_cleanup::cleanup_old_ledger_chunks(
           work->ledger_dir,
           work->read_only_ledger_dirs,
           work->max_committed_ledger_chunks.value());
