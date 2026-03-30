@@ -337,28 +337,32 @@ namespace ccf
     ccf::kv::PendingTxInfo call() override
     {
       auto sig = store.create_reserved_tx(txid);
-      auto* signatures =
-        sig.template wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      auto* cose_signatures =
-        sig.template wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
-      auto* serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
-        ccf::Tables::SERIALISED_MERKLE_TREE);
       ccf::crypto::Sha256Hash root = history.get_replicated_state_root();
-
-      std::vector<uint8_t> primary_sig;
 
       std::vector<uint8_t> root_hash{
         root.h.data(), root.h.data() + root.h.size()};
-      primary_sig = node_kp.sign_hash(root_hash.data(), root_hash.size());
 
-      PrimarySignature sig_value(
-        id,
-        txid.seqno,
-        txid.view,
-        root,
-        {}, // Nonce is currently empty
-        primary_sig,
-        endorsed_cert);
+      if (cose_signatures_config.cose_only_ledger == false)
+      {
+        auto* signatures =
+          sig.template wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
+        auto primary_sig =
+          node_kp.sign_hash(root_hash.data(), root_hash.size());
+
+        PrimarySignature sig_value(
+          id,
+          txid.seqno,
+          txid.view,
+          root,
+          {}, // Nonce is currently empty
+          primary_sig,
+          endorsed_cert);
+
+        signatures->put(sig_value);
+      }
+
+      auto* cose_signatures =
+        sig.template wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
 
       auto kid = ccf::crypto::kid_from_key(service_kp.public_key_der());
       const auto tx_id = txid.to_str();
@@ -410,9 +414,12 @@ namespace ccf
       }
       std::vector<uint8_t> cose_sign(cose_buf.to_vector());
 
-      signatures->put(sig_value);
       cose_signatures->put(cose_sign);
+
+      auto* serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
+        ccf::Tables::SERIALISED_MERKLE_TREE);
       serialised_tree->put(history.serialise_tree(txid.seqno - 1));
+
       return sig.commit_reserved();
     }
   };
@@ -752,20 +759,18 @@ namespace ccf
     {
       auto tx = store.create_read_only_tx();
 
+      auto root = get_replicated_state_root();
+      log_hash(root, VERIFY);
+
       auto* signatures =
         tx.template ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
       auto sig = signatures->get();
-      if (!sig.has_value())
+      if (sig.has_value())
       {
-        LOG_FAIL_FMT("No signature found in signatures map");
-        return false;
-      }
-
-      auto root = get_replicated_state_root();
-      log_hash(root, VERIFY);
-      if (!verify_node_signature(tx, sig->node, sig->sig, root))
-      {
-        return false;
+        if (!verify_node_signature(tx, sig->node, sig->sig, root))
+        {
+          return false;
+        }
       }
 
       auto* cose_signatures =
@@ -774,7 +779,8 @@ namespace ccf
 
       if (!cose_sig.has_value())
       {
-        return true;
+        LOG_FAIL_FMT("No COSE signature found in COSE signatures map");
+        return false;
       }
 
       // Since COSE signatures have not always been emitted, it is possible in a

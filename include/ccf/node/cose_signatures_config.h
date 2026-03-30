@@ -12,10 +12,12 @@ namespace ccf
   {
     std::string issuer;
     std::string subject;
+    bool cose_only_ledger = false;
 
     bool operator==(const COSESignaturesConfig& other) const = default;
   };
 
   DECLARE_JSON_TYPE(COSESignaturesConfig);
-  DECLARE_JSON_REQUIRED_FIELDS(COSESignaturesConfig, issuer, subject);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    COSESignaturesConfig, issuer, subject, cose_only_ledger);
 }
