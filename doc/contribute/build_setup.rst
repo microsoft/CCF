@@ -63,6 +63,41 @@ How to install docker
     sudo systemctl daemon-reload  
     sudo systemctl start docker.service
 
+After installation, add your user to the ``docker`` group so you can run Docker commands without ``sudo``:
+
+.. code-block:: bash
+
+    sudo usermod -aG docker $USER
+    newgrp docker
+
+.. note::
+
+    The ``newgrp docker`` command activates the group change in your current shell session. Alternatively, log out and back in for the change to take effect in all sessions.
+
+Pushing images to Azure Container Registry (ACR)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To push Docker images to ACR, first authenticate with ``az acr login``:
+
+.. code-block:: bash
+
+    az acr login --name <registry-name>
+
+This command requires the Docker daemon to be running and your user to have permission to access it (see group membership above). If you see a ``permission denied`` error on ``/var/run/docker.sock``, it means the current user does not have access to the Docker daemon socket — ensure you have added your user to the ``docker`` group as described above.
+
+If Docker is not available or you prefer not to use it for authentication, use the ``--expose-token`` flag to retrieve a token and pipe it directly to ``docker login``:
+
+.. code-block:: bash
+
+    token=$(az acr login --name <registry-name> --expose-token --output tsv --query accessToken)
+    docker login <registry-name>.azurecr.io \
+        --username 00000000-0000-0000-0000-000000000000 \
+        --password-stdin <<< "$token"
+
+.. note::
+
+    The username ``00000000-0000-0000-0000-000000000000`` is the fixed placeholder that ACR expects when logging in with a token.
+
 How do I install an EXTENDED package
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
