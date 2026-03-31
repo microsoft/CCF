@@ -9,6 +9,7 @@
 #include "timer.h"
 
 #include <algorithm>
+#include <atomic>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -303,6 +304,9 @@ namespace asynchost
     std::vector<std::filesystem::path> read_only_ledger_dirs;
     std::optional<size_t> max_committed_ledger_chunks;
 
+    // Guard against overlapping cleanup tasks
+    std::atomic<bool> cleanup_in_progress{false};
+
     struct CleanupWork
     {
       std::filesystem::path snapshots_dir;
@@ -311,11 +315,14 @@ namespace asynchost
       std::filesystem::path ledger_dir;
       std::vector<std::filesystem::path> read_only_ledger_dirs;
       std::optional<size_t> max_committed_ledger_chunks;
+
+      std::atomic<bool>* cleanup_in_progress;
     };
 
     static void on_cleanup_work(uv_work_t* req)
     {
       auto* work = static_cast<CleanupWork*>(req->data);
+      LOG_DEBUG_FMT("Files cleanup started");
       if (work->max_snapshots.has_value())
       {
         files_cleanup::cleanup_old_snapshots(
@@ -333,6 +340,7 @@ namespace asynchost
     static void on_cleanup_work_done(uv_work_t* req, int /*status*/)
     {
       auto* work = static_cast<CleanupWork*>(req->data);
+      work->cleanup_in_progress->store(false);
       LOG_DEBUG_FMT("Files cleanup completed");
       delete work; // NOLINT(cppcoreguidelines-owning-memory)
       delete req; // NOLINT(cppcoreguidelines-owning-memory)
@@ -375,13 +383,22 @@ namespace asynchost
 
     void on_timer()
     {
+      bool expected = false;
+      if (!cleanup_in_progress.compare_exchange_strong(expected, true))
+      {
+        LOG_FAIL_FMT(
+          "Skipping files cleanup: previous cleanup task is still running");
+        return;
+      }
+
       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
       auto* work = new CleanupWork{
         .snapshots_dir = snapshots_dir,
         .max_snapshots = max_snapshots,
         .ledger_dir = ledger_dir,
         .read_only_ledger_dirs = read_only_ledger_dirs,
-        .max_committed_ledger_chunks = max_committed_ledger_chunks};
+        .max_committed_ledger_chunks = max_committed_ledger_chunks,
+        .cleanup_in_progress = &cleanup_in_progress};
       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
       auto* req = new uv_work_t;
       req->data = work;
@@ -390,6 +407,7 @@ namespace asynchost
       if (rc < 0)
       {
         LOG_FAIL_FMT("Failed to queue files cleanup work: {}", uv_strerror(rc));
+        cleanup_in_progress.store(false);
         delete work; // NOLINT(cppcoreguidelines-owning-memory)
         delete req; // NOLINT(cppcoreguidelines-owning-memory)
       }
