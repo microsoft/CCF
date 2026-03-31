@@ -88,7 +88,7 @@ namespace ccf
     void set_max_cache_size(size_t n) override
     {
       std::lock_guard<std::mutex> guard(cache_mutex);
-      max_cache_size = n;
+      max_cache_size = std::max<size_t>(1, n);
       evict_oldest();
     }
 
