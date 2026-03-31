@@ -27,7 +27,7 @@ Ledger files that still contain some uncommitted entries are named ``ledger_<sta
 
 .. warning:: Removing `uncommitted` ledger files from the ``ledger.directory`` directory may cause a node to crash. It is however safe to move `committed` ledger files to another directory, accessible to a CCF node via the ``ledger.read_only_directories`` configuration entry.
 
-.. note:: The ``files_cleanup.max_committed_ledger_chunks`` configuration entry can be used to limit the number of committed ledger chunk files retained in the main ledger directory. When the number of committed chunks exceeds this value, the oldest chunks (by sequence number) are automatically deleted, but only after verifying that an identical copy (by SHA-256 digest) exists in at least one ``ledger.read_only_directories`` entry. At least one read-only ledger directory must be configured when this option is set; the node will refuse to start otherwise.
+.. note:: The ``files_cleanup.max_committed_ledger_chunks`` configuration entry can be used to limit the number of committed ledger chunk files retained in the main ledger directory. When the number of committed chunks exceeds this value, the oldest chunks (by sequence number) are automatically deleted, but only after verifying that an identical copy (by SHA-256 digest) exists in at least one ``ledger.read_only_directories`` entry. At least one read-only ledger directory must be configured when this option is set; the node will refuse to start otherwise. Ledger chunk cleanup runs as part of the same periodic cleanup cycle as snapshot cleanup (see :ref:`operations/ledger_snapshot:Periodic File Cleanup`).
 
 It is important to note that while all entries stored in ledger files ending in ``.committed`` are committed, not all committed entries are stored in such a file at any given time. A number of them are typically in the in-progress files, waiting to be flushed to a ``.committed`` file once the size threshold (``ledger.chunk_size``) is met.
 
@@ -180,7 +180,7 @@ Committed snapshot files are named ``snapshot_<seqno>_<evidence_seqno>.committed
 
 Uncommitted snapshot files, i.e. those whose evidence has not yet been committed, are named ``snapshot_<seqno>_<evidence_seqno>``. These files will be ignored by CCF when joining or recovering a service as no evidence can attest of their validity.
 
-.. note:: The ``files_cleanup.max_snapshots`` configuration entry can be used to limit the number of committed snapshot files retained on disk. When the number of committed snapshots exceeds this value, the oldest snapshots (by sequence number) are automatically deleted. This is useful to control the local persistent storage footprint of a node. The value must be at least 1 if set.
+.. note:: The ``files_cleanup.max_snapshots`` configuration entry can be used to limit the number of committed snapshot files retained on disk. When the number of committed snapshots exceeds this value, the oldest snapshots (by sequence number) are automatically deleted. This is useful to control the local persistent storage footprint of a node. The value must be at least 1 if set. Snapshot cleanup runs as part of the same periodic cleanup cycle as ledger chunk cleanup (see :ref:`operations/ledger_snapshot:Periodic File Cleanup`).
 
 Join or Recover From Snapshot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -303,3 +303,10 @@ Invariants
 3. Snapshots are always generated for the ``seqno`` of a signature transaction (but not all signature transactions trigger the generation of snapshot).
 
 4. When a snapshot is generated, it must coincide with the end of a ledger file. Since a node can join using solely a snapshot, the first ledger file on that node will start just after the ``seqno`` of the snapshot. By 2., all nodes must have the same ledger files, so the generation of that snapshot on the primary must trigger the creation of a new ledger file starting at the next ``seqno`` to ensure the primary's ledger files are consistent with the joining node's files.
+
+Periodic File Cleanup
+---------------------
+
+Both snapshot and committed ledger chunk retention are managed by a single periodic cleanup cycle, controlled by the ``files_cleanup`` configuration section. The cleanup interval is set by ``files_cleanup.interval`` (default: ``30s``). On each cycle, the node checks whether committed snapshots or committed ledger chunks exceed their configured retention limits (``files_cleanup.max_snapshots`` and ``files_cleanup.max_committed_ledger_chunks`` respectively) and deletes the oldest files that qualify for removal.
+
+Only one cleanup cycle can run at a time. If a cleanup task is still in progress when the next timer fires, the new cycle is skipped and a warning is logged. This prevents overlapping cleanup operations, which could be wasteful or cause contention on the filesystem. Under normal conditions each cleanup cycle completes well within the configured interval, so skipped cycles indicate that the interval may be too short or the node has an unusually large number of files to process.
