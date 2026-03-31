@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -26,7 +27,7 @@ namespace asynchost
   {
     // Return type for check_digest_against_read_only_dirs(), distinguishing
     // between a verified digest match, no match, and concurrent deletion.
-    enum class DigestCheckResult
+    enum class DigestCheckResult : std::uint8_t
     {
       match_found, // An identical copy exists in a read-only directory
       no_match, // File exists locally but no matching copy was found
