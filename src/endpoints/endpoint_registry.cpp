@@ -205,21 +205,6 @@ namespace ccf::endpoints
     ctx.rpc_ctx->set_response_header(http::headers::CCF_TX_ID, tx_id.to_str());
   }
 
-  void default_respond_on_commit_func(CommittedTxInfo& info)
-  {
-    if (info.status == ccf::FinalTxStatus::Invalid)
-    {
-      info.rpc_ctx->set_error(
-        HTTP_STATUS_INTERNAL_SERVER_ERROR,
-        ccf::errors::TransactionInvalid,
-        fmt::format(
-          "While waiting for TxID {} to commit, it was invalidated",
-          info.tx_id.to_str()));
-    }
-
-    // Else leave the original response untouched, and return it now
-  }
-
   TxReceiptImplPtr build_receipt_for_committed_tx(
     ccf::AbstractNodeContext& context, CommittedTxInfo& info)
   {
@@ -269,46 +254,6 @@ namespace ccf::endpoints
       info.write_set_digest,
       info.commit_evidence,
       info.claims_digest);
-  }
-
-  ConsensusCommittedEndpointFunction make_respond_with_receipt_on_commit(
-    ccf::AbstractNodeContext& context)
-  {
-    return [&context](CommittedTxInfo& info) {
-      if (info.status == ccf::FinalTxStatus::Invalid)
-      {
-        info.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::TransactionInvalid,
-          fmt::format(
-            "While waiting for TxID {} to commit, it was invalidated",
-            info.tx_id.to_str()));
-        return;
-      }
-
-      auto receipt = build_receipt_for_committed_tx(context, info);
-      if (receipt == nullptr)
-      {
-        return;
-      }
-
-      auto cose_receipt = describe_cose_receipt_v1(*receipt);
-      if (!cose_receipt.has_value())
-      {
-        info.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "No COSE receipt produced for this transaction");
-
-        return;
-      }
-
-      info.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-      info.rpc_ctx->set_response_header(
-        ccf::http::headers::CONTENT_TYPE,
-        ccf::http::headervalues::contenttype::COSE);
-      info.rpc_ctx->set_response_body(cose_receipt.value());
-    };
   }
 
   Endpoint EndpointRegistry::make_endpoint(
