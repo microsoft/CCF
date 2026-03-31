@@ -309,6 +309,10 @@ Periodic File Cleanup
 
 Both snapshot and committed ledger chunk retention are managed by a single periodic cleanup cycle, controlled by the ``files_cleanup`` configuration section. The cleanup interval is set by ``files_cleanup.interval`` (default: ``30s``). On each cycle, the node checks whether committed snapshots or committed ledger chunks exceed their configured retention limits (``files_cleanup.max_snapshots`` and ``files_cleanup.max_committed_ledger_chunks`` respectively) and deletes the oldest files that qualify for removal.
 
-As a safety measure, ledger chunk cleanup never deletes a chunk whose entries extend to or beyond the sequence number of the newest committed snapshot. This ensures that a complete ledger history is always available from the newest snapshot onwards, which is required for disaster recovery. If no committed snapshots exist, no ledger chunks are protected by this rule (the existing backup-verification requirement still applies).
+Snapshots qualify for removal if their number is in excess of the limit, starting from the ones with the lowest sequence numbers.
+
+Ledger chunks qualify for removal if their number is in excess of the limit, and if two other conditions apply. First, there must be at least one identical file in a read only ledger directory (contents are captured in a SHA-256 digest and compared). Second, as a safety measure, ledger chunks whose entries extend to or beyond the sequence number of the newest committed snapshot never qualify. This ensures that a complete ledger history is always available from the newest snapshot onwards, which is required for disaster recovery.
+
+If no committed snapshots exist, no ledger chunks are protected by this rule, but the existing backup-verification requirement still applies.
 
 Only one cleanup cycle can run at a time. If a cleanup task is still in progress when the next timer fires, the new cycle is skipped and a failure-level log message is emitted. This prevents overlapping cleanup operations, which could be wasteful, cause contention on the filesystem and produce spurious failures in the log. Under normal conditions each cleanup cycle completes well within the configured interval, so skipped cycles indicate that the interval may be too short or the node has an unusually large number of files to process.
