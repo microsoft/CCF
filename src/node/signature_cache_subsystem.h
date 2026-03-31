@@ -4,8 +4,7 @@
 
 #include "node/signature_cache_interface.h"
 
-#include <algorithm>
-#include <deque>
+#include <map>
 #include <mutex>
 
 namespace ccf
@@ -20,7 +19,6 @@ namespace ccf
       std::optional<PrimarySignature> sig = std::nullopt;
       std::optional<std::vector<uint8_t>> cose_signature = std::nullopt;
       std::optional<std::vector<uint8_t>> serialised_tree = std::nullopt;
-      ccf::SeqNo sig_seqno = 0;
 
       [[nodiscard]] bool is_complete() const
       {
@@ -29,57 +27,35 @@ namespace ccf
       }
     };
 
-    std::deque<PendingEntry> cache;
+    std::map<ccf::SeqNo, PendingEntry> cache;
     size_t max_cache_size = DEFAULT_MAX_CACHE_SIZE;
     mutable std::mutex cache_mutex;
 
     void evict_oldest()
     {
-      while (cache.size() > max_cache_size)
+      if (cache.size() > max_cache_size)
       {
-        cache.pop_front();
+        auto excess = cache.size() - max_cache_size;
+        auto end = std::next(cache.begin(), static_cast<ptrdiff_t>(excess));
+        cache.erase(cache.begin(), end);
       }
     }
 
     PendingEntry& get_or_create_entry(ccf::kv::Version version)
     {
-      // Fast path: the new version extends the cache (expected common case)
-      if (cache.empty() || version > cache.back().sig_seqno)
-      {
-        cache.push_back(
-          PendingEntry{std::nullopt, std::nullopt, std::nullopt, version});
-        evict_oldest();
-        return cache.back();
-      }
-
-      // Global hooks fire per-map, not per-version. When compact() covers
-      // multiple signature versions, map A may fire all its deltas (v92,
-      // v104) before map B fires any. So we may receive version 92 after
-      // 104 is already in the cache. Search backwards for a match or
-      // insertion point.
-      for (auto it = cache.rbegin(); it != cache.rend(); ++it)
-      {
-        if (it->sig_seqno == version)
-        {
-          return *it;
-        }
-        if (it->sig_seqno < version)
-        {
-          // Insert after this element to maintain sorted order
-          auto fwd = it.base();
-          auto inserted = cache.insert(
-            fwd,
-            PendingEntry{std::nullopt, std::nullopt, std::nullopt, version});
-          evict_oldest();
-          return *inserted;
-        }
-      }
-
-      // version is smaller than everything — insert at the front
-      cache.push_front(
-        PendingEntry{std::nullopt, std::nullopt, std::nullopt, version});
+      cache.try_emplace(version);
       evict_oldest();
-      return cache.front();
+
+      // If eviction removed the entry we just inserted (version was
+      // older than everything and cache was full), re-insert it. This
+      // is an edge case that shouldn't occur in practice, would mean extremely
+      // out-of-order/large-batch hooks
+      auto it = cache.find(version);
+      if (it == cache.end())
+      {
+        it = cache.try_emplace(version).first;
+      }
+      return it->second;
     }
 
   public:
@@ -97,34 +73,26 @@ namespace ccf
     {
       std::lock_guard<std::mutex> guard(cache_mutex);
 
-      // Cache is strictly sorted by sig_seqno ascending. We want the
-      // first entry with sig_seqno > seqno (the covering signature).
-      // Reverse linear scan is used since callers typically want recently
-      // committed signatures.
-      const PendingEntry* match = nullptr;
-      for (size_t i = cache.size(); i > 0; --i)
+      // Find the first entry with version > seqno (the covering signature).
+      auto it = cache.upper_bound(seqno);
+      if (it == cache.end())
       {
-        const auto& entry = cache[i - 1];
-        if (entry.sig_seqno <= seqno)
-        {
-          break;
-        }
-        match = &entry;
+        return std::nullopt;
       }
 
+      const auto& [version, entry] = *it;
       if (
-        match == nullptr || !match->sig.has_value() ||
-        !match->cose_signature.has_value() ||
-        !match->serialised_tree.has_value())
+        !entry.sig.has_value() || !entry.cose_signature.has_value() ||
+        !entry.serialised_tree.has_value())
       {
         return std::nullopt;
       }
 
       return CachedSignature{
-        match->sig.value(),
-        match->cose_signature.value(),
-        match->serialised_tree.value(),
-        match->sig_seqno};
+        entry.sig.value(),
+        entry.cose_signature.value(),
+        entry.serialised_tree.value(),
+        version};
     }
 
     void on_signature_committed(
