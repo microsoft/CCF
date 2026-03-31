@@ -576,7 +576,6 @@ namespace loggingapp
         HTTP_POST,
         ccf::json_adapter(record),
         auth_policies)
-        .set_auto_schema<LoggingRecord::In, nlohmann::json>()
         .set_consensus_committed_function(
           ccf::endpoints::make_respond_with_receipt_on_commit(context))
         .install();

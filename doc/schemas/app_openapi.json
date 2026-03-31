@@ -458,25 +458,8 @@
     "/app/log/blocking/private/receipt": {
       "post": {
         "operationId": "PostAppLogBlockingPrivateReceipt",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LoggingRecord__In"
-              }
-            }
-          },
-          "description": "Auto-generated request body schema"
-        },
         "responses": {
           "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/json"
-                }
-              }
-            },
             "description": "Default response description"
           },
           "default": {

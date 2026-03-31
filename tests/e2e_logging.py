@@ -2317,8 +2317,17 @@ def test_blocking_calls(network, args):
             assert r.status_code == http.HTTPStatus.OK, r.status_code
 
             if path == "/log/blocking/private/receipt":
-                receipt = r.body.json()
-                verify_receipt(receipt, network.cert)
+                # Response is a binary COSE receipt
+                assert (
+                    r.headers["content-type"]
+                    == "application/cose"
+                ), r.headers["content-type"]
+                empty_claims_digest = b"\0" * 32
+                ccf.cose.verify_receipt(
+                    r.body.data(),
+                    network.cert.public_key(),
+                    empty_claims_digest,
+                )
 
             now = datetime.now()
             txid = TxID.from_str(r.headers[infra.clients.CCF_TX_ID_HEADER])
