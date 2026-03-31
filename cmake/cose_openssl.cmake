@@ -13,10 +13,7 @@ find_program(RUSTC rustc REQUIRED)
 
 # This path depends on Cargo's default host-layout target/release path. CMake
 # intentionally reruns Cargo and lets Cargo decide whether the Rust inputs are dirty.
-set(
-  COSE_RS_CARGO_LIB_PATH
-  "${COSE_RS_CARGO_TARGET_DIR}/release/${COSE_RS_LIB}"
-)
+set(COSE_RS_CARGO_LIB_PATH "${COSE_RS_CARGO_TARGET_DIR}/release/${COSE_RS_LIB}")
 
 # Reproducible builds: remap absolute paths in the binary. RUSTFLAGS applies to
 # all crates, including dependencies.
@@ -30,26 +27,14 @@ add_custom_target(
   BYPRODUCTS "${COSE_RS_LIB_BUILD_PATH}"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${COSE_RS_CARGO_TARGET_DIR}"
   COMMAND
-    "${CMAKE_COMMAND}" -E env
-    --unset=CARGO_BUILD_TARGET
-    "RUSTFLAGS=${COSE_RS_RUSTFLAGS}"
-    "CC=${CMAKE_C_COMPILER}"
-    "CXX=${CMAKE_CXX_COMPILER}"
-    "AR=${CMAKE_AR}"
-    "CARGO_BUILD_RUSTC=${RUSTC}"
-    "${CARGO}"
-    build
-    --lib
-    --package
-    "${COSE_RS_PACKAGE}"
-    --manifest-path
-    "${COSE_RS_MANIFEST_PATH}"
-    --target-dir
-    "${COSE_RS_CARGO_TARGET_DIR}"
+    "${CMAKE_COMMAND}" -E env --unset=CARGO_BUILD_TARGET
+    "RUSTFLAGS=${COSE_RS_RUSTFLAGS}" "CC=${CMAKE_C_COMPILER}"
+    "CXX=${CMAKE_CXX_COMPILER}" "AR=${CMAKE_AR}" "CARGO_BUILD_RUSTC=${RUSTC}"
+    "${CARGO}" build --lib --package "${COSE_RS_PACKAGE}" --manifest-path
+    "${COSE_RS_MANIFEST_PATH}" --target-dir "${COSE_RS_CARGO_TARGET_DIR}"
     --release
   COMMAND
-    "${CMAKE_COMMAND}" -E copy_if_different
-    "${COSE_RS_CARGO_LIB_PATH}"
+    "${CMAKE_COMMAND}" -E copy_if_different "${COSE_RS_CARGO_LIB_PATH}"
     "${CMAKE_BINARY_DIR}"
   WORKING_DIRECTORY "${COSE_RS_DIR}"
   DEPENDS
