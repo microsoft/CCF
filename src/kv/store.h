@@ -108,9 +108,9 @@ namespace ccf::kv
     // If true, use historical ledger secrets to deserialise entries
     const bool is_historical = false;
 
-    // Store-level flags (AbstractStore::StoreFlag) influencing behaviour such as
-    // snapshot and ledger chunk decisions. Atomic because _unsafe accessors may
-    // be called from different threads without a common lock.
+    // Store-level flags (AbstractStore::StoreFlag) influencing behaviour such
+    // as snapshot and ledger chunk decisions. Atomic because _unsafe accessors
+    // may be called from different threads without a common lock.
     std::atomic<uint8_t> flags = 0;
 
     bool commit_deserialised(
