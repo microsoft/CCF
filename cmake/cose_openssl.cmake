@@ -8,8 +8,8 @@ set(COSE_RS_LIB "libcose_rs.a")
 set(COSE_RS_LIB_BUILD_PATH "${CMAKE_BINARY_DIR}/${COSE_RS_LIB}")
 set(COSE_RS_CARGO_TARGET_DIR "${CMAKE_BINARY_DIR}/cargo/build")
 
-find_program(CARGO cargo REQUIRED)
-find_program(RUSTC rustc REQUIRED)
+find_program(CARGO NAMES cargo REQUIRED)
+find_program(RUSTC NAMES rustc REQUIRED)
 
 # This path depends on Cargo's default host-layout target/release path. CMake
 # intentionally reruns Cargo and lets Cargo decide whether the Rust inputs are dirty.
