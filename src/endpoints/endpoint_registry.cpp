@@ -295,7 +295,7 @@ namespace ccf::endpoints
       // Unclear if this should be _v1 or _v2? Most existing endpoints still use
       // _v1!
       auto body = describe_receipt_v1(*receipt);
-      info.rpc_ctx->set_response_json(std::move(body), HTTP_STATUS_OK);
+      info.rpc_ctx->set_response_json(body, HTTP_STATUS_OK);
     };
   }
 

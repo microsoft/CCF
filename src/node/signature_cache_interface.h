@@ -31,7 +31,7 @@ namespace ccf
 
     // Returns the covering signature for a given seqno, or nullopt if
     // unavailable. When a value is returned, all fields are populated.
-    virtual std::optional<CachedSignature> get_signature_for(
+    [[nodiscard]] virtual std::optional<CachedSignature> get_signature_for(
       ccf::SeqNo seqno) const = 0;
 
     virtual void set_max_cache_size(size_t n) = 0;

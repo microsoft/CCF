@@ -58,11 +58,6 @@ namespace ccf
     }
     // NOLINTEND(performance-move-const-arg)
 
-    const ccf::ClaimsDigest& get_claims_digest() const override
-    {
-      return claims;
-    }
-
     ccf::PathParams path_params;
     const ccf::PathParams& get_request_path_params() override
     {
@@ -121,6 +116,7 @@ namespace ccf
       ccf::endpoints::ConsensusCommittedEndpointFunction committed_func;
       ccf::crypto::Sha256Hash write_set_digest;
       std::string commit_evidence;
+      ccf::ClaimsDigest claims_digest;
     };
     std::optional<RespondOnCommitInfo> respond_on_commit = std::nullopt;
 

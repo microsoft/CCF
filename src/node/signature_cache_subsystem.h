@@ -22,7 +22,7 @@ namespace ccf
       std::optional<std::vector<uint8_t>> serialised_tree = std::nullopt;
       ccf::SeqNo sig_seqno = 0;
 
-      bool is_complete() const
+      [[nodiscard]] bool is_complete() const
       {
         return sig.has_value() && cose_signature.has_value() &&
           serialised_tree.has_value();
@@ -92,7 +92,7 @@ namespace ccf
       evict_oldest();
     }
 
-    std::optional<CachedSignature> get_signature_for(
+    [[nodiscard]] std::optional<CachedSignature> get_signature_for(
       ccf::SeqNo seqno) const override
     {
       std::lock_guard<std::mutex> guard(cache_mutex);
@@ -102,16 +102,20 @@ namespace ccf
       // Reverse linear scan is used since callers typically want recently
       // committed signatures.
       const PendingEntry* match = nullptr;
-      for (auto it = cache.rbegin(); it != cache.rend(); ++it)
+      for (size_t i = cache.size(); i > 0; --i)
       {
-        if (it->sig_seqno <= seqno)
+        const auto& entry = cache[i - 1];
+        if (entry.sig_seqno <= seqno)
         {
           break;
         }
-        match = &*it;
+        match = &entry;
       }
 
-      if (match == nullptr || !match->is_complete())
+      if (
+        match == nullptr || !match->sig.has_value() ||
+        !match->cose_signature.has_value() ||
+        !match->serialised_tree.has_value())
       {
         return std::nullopt;
       }

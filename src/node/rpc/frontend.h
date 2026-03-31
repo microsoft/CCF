@@ -881,7 +881,8 @@ namespace ccf
                         tx_id,
                         concrete_endpoint->consensus_committed_func,
                         std::move(captured_ws_digest),
-                        std::move(captured_commit_evidence)};
+                        std::move(captured_commit_evidence),
+                        ctx->claims};
                   }
                 }
               }

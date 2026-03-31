@@ -184,6 +184,7 @@ namespace http
           auto committed_func = info.committed_func;
           auto ws_digest = info.write_set_digest;
           auto ce = info.commit_evidence;
+          auto claims = info.claims_digest;
 
           // Block any future work from happening on this session, to
           // maintain session consistency
@@ -196,7 +197,7 @@ namespace http
           // invalidated)
           commit_callbacks->add_callback(
             tx_id,
-            [self, rpc_ctx, paused_task, committed_func, ws_digest, ce](
+            [self, rpc_ctx, paused_task, committed_func, ws_digest, ce, claims](
               ccf::TxID transaction_id, ccf::FinalTxStatus status) {
               try
               {
@@ -207,7 +208,7 @@ namespace http
                   status,
                   ws_digest,
                   ce,
-                  rpc_ctx->get_claims_digest()};
+                  claims};
                 committed_func(info);
 
                 // Write the response
