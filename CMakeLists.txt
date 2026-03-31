@@ -185,15 +185,6 @@ set(
   ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
 )
 
-include(FetchContent)
-FetchContent_Declare(
-  Corrosion
-  GIT_REPOSITORY https://github.com/corrosion-rs/corrosion.git
-  GIT_TAG
-    a1a1aaa057a5da656c06c3d8505b767a4e941709 # v0.5.2
-)
-FetchContent_MakeAvailable(Corrosion)
-
 include(${CCF_DIR}/cmake/cose_openssl.cmake)
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
