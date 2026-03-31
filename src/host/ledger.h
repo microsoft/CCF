@@ -629,8 +629,8 @@ namespace asynchost
 
       if (recovery)
       {
-        committed_file_name = fmt::format(
-          "{}{}", committed_file_name, ledger_recovery_file_suffix);
+        committed_file_name =
+          fmt::format("{}{}", committed_file_name, ledger_recovery_file_suffix);
       }
 
       if (!rename(committed_file_name))

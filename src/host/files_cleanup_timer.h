@@ -111,14 +111,39 @@ namespace asynchost
         // read error on an existing file. Use non-throwing overloads to
         // avoid exceptions from permission issues or broken mounts.
         std::error_code ec;
-        if (
-          !fs::exists(local_path, ec) || ec ||
-          !fs::is_regular_file(local_path, ec) || ec)
+        const auto exists = fs::exists(local_path, ec);
+        if (ec)
         {
-          // File was removed or is no longer a regular file; treat as already
-          // handled and do not report this as a retention failure.
+          LOG_FAIL_FMT(
+            "Failed to query existence of ledger chunk {}: {}. "
+            "Skipping deletion.",
+            local_path.filename(),
+            ec.message());
+          return false;
+        }
+        if (!exists)
+        {
           LOG_INFO_FMT(
             "Ledger chunk {} no longer exists, skipping",
+            local_path.filename());
+          return true;
+        }
+
+        ec.clear();
+        const auto is_reg = fs::is_regular_file(local_path, ec);
+        if (ec)
+        {
+          LOG_FAIL_FMT(
+            "Failed to query type of ledger chunk {}: {}. "
+            "Skipping deletion.",
+            local_path.filename(),
+            ec.message());
+          return false;
+        }
+        if (!is_reg)
+        {
+          LOG_INFO_FMT(
+            "Ledger chunk {} is no longer a regular file, skipping",
             local_path.filename());
           return true;
         }
