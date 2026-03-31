@@ -3791,6 +3791,11 @@ def run_ledger_chunk_cleanup_tests(const_args):
             txs=app.LoggingTxs("user0"),
         ) as network:
             network.start_and_open(args)
+            # These tests intentionally produce [fail] log lines when chunks
+            # are kept because no matching read-only copy exists, or because
+            # the digest does not match.
+            network.ignore_error_pattern_on_shutdown("Keeping ledger chunk")
+            network.ignore_error_pattern_on_shutdown("digest does not match")
             test_ledger_chunk_cleanup_with_read_only_dir(network, args)
             test_ledger_chunk_cleanup_digest_mismatch(network, args)
 
