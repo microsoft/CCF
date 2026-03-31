@@ -79,7 +79,6 @@ namespace asynchost
 
   static inline fs::path remove_recovery_suffix(std::string_view file_name)
   {
-    return remove_suffix(
-      file_name, ledger_recovery_file_suffix);
+    return remove_suffix(file_name, ledger_recovery_file_suffix);
   }
 }
