@@ -3933,68 +3933,41 @@ def run_ledger_cleanup_no_read_only_dir_check(const_args):
     args = copy.deepcopy(const_args)
     args.label = f"{args.label}_ledger_cleanup_no_ro_dir"
     args.nodes = infra.e2e_args.nodes(args, 1)
+    args.files_cleanup_max_committed_ledger_chunks = 3
+    args.files_cleanup_interval = "1s"
 
-    # First, start a healthy network so the node infra is fully set up
     with infra.network.network(
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
         pdb=args.pdb,
     ) as network:
-        network.start_and_open(args)
-        primary, _ = network.find_primary()
-        network.stop_all_nodes()
-
-        # Now reconfigure with max_committed_ledger_chunks but NO read-only dir.
-        # Manually patch the node config to inject the bad setting.
-        config_path = os.path.join(primary.remote.remote.root, "0.config.json")
-        with open(config_path, "r") as f:
-            config = json.load(f)
-
-        config["files_cleanup"] = {
-            "max_committed_ledger_chunks": 3,
-            "interval": "1s",
-        }
-        # Ensure no read-only ledger directories
-        config.get("ledger", {}).pop("read_only_directories", None)
-
-        with open(config_path, "w") as f:
-            json.dump(config, f)
-
-        # Remove pid file so the node can attempt a restart
-        pid_path = os.path.join(primary.remote.remote.root, "node.pid")
-        if os.path.exists(pid_path):
-            os.remove(pid_path)
-
-        network.skip_verify_chunking = True
-
-        # Try to restart — this should fail
         try:
-            primary.remote.start()
-            time.sleep(2)
+            network.start(args)
         except Exception:
             pass
 
+        network.skip_verify_chunking = True
+        network.ignore_errors_on_shutdown()
+
+        node = network.nodes[0]
         expected_msg = (
             "files_cleanup.max_committed_ledger_chunks requires at least one "
             "ledger.read_only_directories entry"
         )
-        # The error is thrown as std::logic_error which goes to stderr, not stdout
-        err_path = primary.remote.remote.err
+        _, err_path = node.get_logs()
         found = False
-        with open(err_path, "r") as f:
-            for line in f:
-                if expected_msg in line:
-                    found = True
-                    break
+        if err_path is not None:
+            with open(err_path, "r") as f:
+                for line in f:
+                    if expected_msg in line:
+                        found = True
+                        break
         if not found:
             raise AssertionError(
                 "Expected node error message about missing read-only ledger "
                 "directory when max_committed_ledger_chunks is configured"
             )
-
-        # We intentionally caused this error, so suppress it during teardown
-        network.ignore_errors_on_shutdown()
 
         LOG.success(
             "Node correctly refused to start without read-only ledger directory"
