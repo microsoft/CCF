@@ -32,7 +32,7 @@ add_custom_target(
     "CXX=${CMAKE_CXX_COMPILER}" "AR=${CMAKE_AR}" "CARGO_BUILD_RUSTC=${RUSTC}"
     "${CARGO}" build --lib --package "${COSE_RS_PACKAGE}" --manifest-path
     "${COSE_RS_MANIFEST_PATH}" --target-dir "${COSE_RS_CARGO_TARGET_DIR}"
-    --release
+    --release --locked
   COMMAND
     "${CMAKE_COMMAND}" -E copy_if_different "${COSE_RS_CARGO_LIB_PATH}"
     "${CMAKE_BINARY_DIR}"
