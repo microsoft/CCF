@@ -558,7 +558,7 @@
         "max_committed_ledger_chunks": {
           "type": ["integer", "null"],
           "default": null,
-          "description": "Maximum number of committed ledger chunk files to retain in the main ledger directory. When the number of committed chunks exceeds this value, the oldest chunks are deleted, but only after verifying that an identical copy (by SHA-256 digest) exists in at least one read-only ledger directory. Requires at least one ledger.read_only_directories entry; the node will refuse to start otherwise. If null or unset, no automated ledger chunk garbage collection is performed."
+          "description": "Maximum number of committed ledger chunk files to retain in the main ledger directory. When the number of committed chunks exceeds this value, the oldest chunks are deleted, but only after verifying that an identical copy (by SHA-256 digest) exists in at least one read-only ledger directory. Chunks whose entries extend to or beyond the sequence number of the newest committed snapshot are never deleted, ensuring a complete ledger history from that snapshot for disaster recovery. Requires at least one ledger.read_only_directories entry; the node will refuse to start otherwise. If null or unset, no automated ledger chunk garbage collection is performed."
         },
         "interval": {
           "type": "string",

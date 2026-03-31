@@ -118,7 +118,7 @@ TEST_CASE("hash_file: normal file returns a hash")
   auto result = hash_file(path);
   REQUIRE(result.has_value());
 
-  // Hash same content again — should be deterministic
+  // Hash same content again - should be deterministic
   auto result2 = hash_file(path);
   REQUIRE(result2.has_value());
   CHECK(result.value() == result2.value());
@@ -214,7 +214,7 @@ TEST_CASE("file_exists_with_matching_digest: no copy in read-only dir")
   fs::create_directories(ro_dir);
 
   auto local_path = create_committed_chunk(main_dir, 1, 100, "content");
-  // ro_dir is empty — no matching file
+  // ro_dir is empty - no matching file
 
   std::vector<fs::path> ro_dirs = {ro_dir};
   CHECK_FALSE(file_exists_with_matching_digest(local_path, ro_dirs));
@@ -231,7 +231,7 @@ TEST_CASE("file_exists_with_matching_digest: deleted local file returns true")
   fs::create_directories(ro_dir);
 
   auto local_path = main_dir / "ledger_1-100.committed";
-  // Do not create the file — simulate concurrent deletion
+  // Do not create the file - simulate concurrent deletion
 
   std::vector<fs::path> ro_dirs = {ro_dir};
   CHECK(file_exists_with_matching_digest(local_path, ro_dirs));
@@ -311,7 +311,7 @@ TEST_CASE("cleanup_old_ledger_chunks: deletes oldest chunks when backed up")
   }
 
   std::vector<fs::path> ro_dirs = {ro_dir};
-  // Keep only 2 — should delete 3 oldest
+  // Keep only 2 - should delete 3 oldest
   cleanup_old_ledger_chunks(main_dir, ro_dirs, 2);
 
   auto remaining = find_committed_ledger_chunks(main_dir);
@@ -343,7 +343,7 @@ TEST_CASE("cleanup_old_ledger_chunks: keeps chunks not backed up in read-only")
   create_committed_chunk(ro_dir, 1, 100, "chunk_0");
 
   std::vector<fs::path> ro_dirs = {ro_dir};
-  // Keep 2 — should try to delete 2 oldest, but only chunk 0 is backed up
+  // Keep 2 - should try to delete 2 oldest, but only chunk 0 is backed up
   cleanup_old_ledger_chunks(main_dir, ro_dirs, 2);
 
   auto remaining = find_committed_ledger_chunks(main_dir);
@@ -397,7 +397,7 @@ TEST_CASE("cleanup_old_ledger_chunks: count within limit is a no-op")
   create_committed_chunk(main_dir, 101, 200, "b");
 
   std::vector<fs::path> ro_dirs = {ro_dir};
-  // max_retained = 5, only 2 chunks — no deletions
+  // max_retained = 5, only 2 chunks - no deletions
   cleanup_old_ledger_chunks(main_dir, ro_dirs, 5);
 
   auto remaining = find_committed_ledger_chunks(main_dir);
@@ -432,6 +432,163 @@ TEST_CASE("cleanup_old_ledger_chunks: digest mismatch prevents deletion")
   // chunk 0 and 1 should both be kept (0: digest mismatch, 1: not backed up)
   // chunk 2 is within retention limit
   REQUIRE(remaining.size() == 3);
+
+  fs::remove_all(tmp);
+}
+
+// ---- find_committed_snapshots / highest_committed_snapshot_seqno tests ----
+
+static fs::path create_committed_snapshot(
+  const fs::path& dir, size_t seqno, size_t evidence_seqno)
+{
+  auto name = fmt::format("snapshot_{}_{}.committed", seqno, evidence_seqno);
+  auto path = dir / name;
+  write_file(path, fmt::format("snapshot_data_{}", seqno));
+  return path;
+}
+
+TEST_CASE("highest_committed_snapshot_seqno: returns newest snapshot seqno")
+{
+  auto tmp = fs::temp_directory_path() / "test_snap_watermark";
+  fs::create_directories(tmp);
+
+  create_committed_snapshot(tmp, 100, 105);
+  create_committed_snapshot(tmp, 300, 310);
+  create_committed_snapshot(tmp, 200, 210);
+
+  auto committed = find_committed_snapshots(tmp);
+  auto result = highest_committed_snapshot_seqno(committed);
+  REQUIRE(result.has_value());
+  CHECK(result.value() == 300);
+
+  fs::remove_all(tmp);
+}
+
+TEST_CASE(
+  "highest_committed_snapshot_seqno: returns nullopt for empty directory")
+{
+  auto tmp = fs::temp_directory_path() / "test_snap_watermark_empty";
+  fs::create_directories(tmp);
+
+  auto committed = find_committed_snapshots(tmp);
+  auto result = highest_committed_snapshot_seqno(committed);
+  CHECK_FALSE(result.has_value());
+
+  fs::remove_all(tmp);
+}
+
+TEST_CASE("highest_committed_snapshot_seqno: ignores uncommitted snapshots")
+{
+  auto tmp = fs::temp_directory_path() / "test_snap_watermark_uncommitted";
+  fs::create_directories(tmp);
+
+  // Uncommitted snapshot (no .committed suffix)
+  write_file(tmp / "snapshot_500_510", "data");
+  create_committed_snapshot(tmp, 200, 210);
+
+  auto committed = find_committed_snapshots(tmp);
+  auto result = highest_committed_snapshot_seqno(committed);
+  REQUIRE(result.has_value());
+  CHECK(result.value() == 200);
+
+  fs::remove_all(tmp);
+}
+
+// ---- snapshot watermark in cleanup_old_ledger_chunks tests ----
+
+TEST_CASE(
+  "cleanup_old_ledger_chunks: watermark prevents deletion of recent chunks")
+{
+  auto tmp = fs::temp_directory_path() / "test_ledger_watermark";
+  auto main_dir = tmp / "main";
+  auto ro_dir = tmp / "ro";
+  fs::create_directories(main_dir);
+  fs::create_directories(ro_dir);
+
+  // Create 5 committed chunks: 1-100, 101-200, 201-300, 301-400, 401-500
+  for (size_t i = 0; i < 5; ++i)
+  {
+    auto start = i * 100 + 1;
+    auto end = (i + 1) * 100;
+    auto content = fmt::format("chunk_{}", i);
+    create_committed_chunk(main_dir, start, end, content);
+    create_committed_chunk(ro_dir, start, end, content);
+  }
+
+  std::vector<fs::path> ro_dirs = {ro_dir};
+  // Keep only 1, but snapshot watermark at 250 protects chunks ending >= 250
+  // Chunks 1-100 and 101-200 end below 250, so eligible for deletion
+  // Chunks 201-300, 301-400, 401-500 end >= 250, protected
+  cleanup_old_ledger_chunks(main_dir, ro_dirs, 1, 250);
+
+  auto remaining = find_committed_ledger_chunks(main_dir);
+  // 1-100 deleted, 101-200 deleted, 201-300 kept (watermark), 301-400 kept,
+  // 401-500 kept (within retention)
+  REQUIRE(remaining.size() == 3);
+  CHECK(remaining[0].first == 201);
+  CHECK(remaining[1].first == 301);
+  CHECK(remaining[2].first == 401);
+
+  fs::remove_all(tmp);
+}
+
+TEST_CASE(
+  "cleanup_old_ledger_chunks: watermark at exact chunk boundary protects it")
+{
+  auto tmp = fs::temp_directory_path() / "test_ledger_watermark_exact";
+  auto main_dir = tmp / "main";
+  auto ro_dir = tmp / "ro";
+  fs::create_directories(main_dir);
+  fs::create_directories(ro_dir);
+
+  for (size_t i = 0; i < 4; ++i)
+  {
+    auto start = i * 100 + 1;
+    auto end = (i + 1) * 100;
+    auto content = fmt::format("chunk_{}", i);
+    create_committed_chunk(main_dir, start, end, content);
+    create_committed_chunk(ro_dir, start, end, content);
+  }
+
+  std::vector<fs::path> ro_dirs = {ro_dir};
+  // Watermark at 200 (exactly matching end of chunk 101-200)
+  // Chunk 1-100 ends at 100 < 200, eligible for deletion
+  // Chunk 101-200 ends at 200 >= 200, protected
+  cleanup_old_ledger_chunks(main_dir, ro_dirs, 1, 200);
+
+  auto remaining = find_committed_ledger_chunks(main_dir);
+  REQUIRE(remaining.size() == 3);
+  CHECK(remaining[0].first == 101); // kept by watermark
+  CHECK(remaining[1].first == 201);
+  CHECK(remaining[2].first == 301); // kept by retention
+
+  fs::remove_all(tmp);
+}
+
+TEST_CASE("cleanup_old_ledger_chunks: no watermark allows normal deletion")
+{
+  auto tmp = fs::temp_directory_path() / "test_ledger_no_watermark";
+  auto main_dir = tmp / "main";
+  auto ro_dir = tmp / "ro";
+  fs::create_directories(main_dir);
+  fs::create_directories(ro_dir);
+
+  for (size_t i = 0; i < 4; ++i)
+  {
+    auto start = i * 100 + 1;
+    auto end = (i + 1) * 100;
+    auto content = fmt::format("chunk_{}", i);
+    create_committed_chunk(main_dir, start, end, content);
+    create_committed_chunk(ro_dir, start, end, content);
+  }
+
+  std::vector<fs::path> ro_dirs = {ro_dir};
+  // No watermark - all backed-up chunks eligible
+  cleanup_old_ledger_chunks(main_dir, ro_dirs, 1, std::nullopt);
+
+  auto remaining = find_committed_ledger_chunks(main_dir);
+  REQUIRE(remaining.size() == 1);
+  CHECK(remaining[0].first == 301);
 
   fs::remove_all(tmp);
 }

@@ -175,10 +175,81 @@ namespace asynchost
       return false;
     }
 
+    // Lists committed snapshots in the given directory. Returns them sorted
+    // descending by snapshot index (newest first). On error, returns empty.
+    inline std::vector<std::pair<size_t, std::filesystem::path>>
+    find_committed_snapshots(const std::filesystem::path& dir)
+    {
+      std::vector<std::filesystem::path> directories{dir};
+      try
+      {
+        return snapshots::find_committed_snapshots_in_directories(directories);
+      }
+      catch (const std::filesystem::filesystem_error& e)
+      {
+        LOG_FAIL_FMT(
+          "Failed to list committed snapshots in {}: {}", dir, e.what());
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "Unexpected error while listing committed snapshots in {}: {}",
+          dir,
+          e.what());
+      }
+      return {};
+    }
+
+    // Returns the sequence number of the newest committed snapshot from a
+    // pre-gathered list, or nullopt if the list is empty.
+    inline std::optional<size_t> highest_committed_snapshot_seqno(
+      const std::vector<std::pair<size_t, std::filesystem::path>>&
+        committed_snapshots)
+    {
+      if (!committed_snapshots.empty())
+      {
+        // Sorted descending by snapshot index; first is newest
+        return committed_snapshots.front().first;
+      }
+      return std::nullopt;
+    }
+
+    inline void cleanup_old_snapshots(
+      const std::vector<std::pair<size_t, std::filesystem::path>>&
+        committed_snapshots,
+      size_t max_retained)
+    {
+      if (committed_snapshots.size() > max_retained)
+      {
+        // committed_snapshots is sorted descending by snapshot index, so the
+        // oldest are at the end
+        for (auto it = committed_snapshots.rbegin();
+             it != committed_snapshots.rend() - max_retained;
+             ++it)
+        {
+          const auto& path = it->second;
+          LOG_INFO_FMT(
+            "Deleting old snapshot {} (retaining {})",
+            path.filename(),
+            max_retained);
+          std::error_code ec;
+          std::filesystem::remove(path, ec);
+          if (ec)
+          {
+            LOG_FAIL_FMT(
+              "Failed to delete old snapshot {}: {}",
+              path.filename(),
+              ec.message());
+          }
+        }
+      }
+    }
+
     inline void cleanup_old_ledger_chunks(
       const std::filesystem::path& main_dir,
       const std::vector<std::filesystem::path>& read_only_dirs,
-      size_t max_retained)
+      size_t max_retained,
+      std::optional<size_t> snapshot_watermark = std::nullopt)
     {
       std::vector<std::pair<size_t, std::filesystem::path>> committed;
       try
@@ -207,12 +278,39 @@ namespace asynchost
         return;
       }
 
+      if (snapshot_watermark.has_value())
+      {
+        LOG_DEBUG_FMT(
+          "Ledger chunk cleanup: snapshot watermark is {}",
+          snapshot_watermark.value());
+      }
+
       // committed is sorted ascending by start index; the oldest are at the
       // front. Delete from front, keeping the last max_retained entries.
       size_t to_delete = committed.size() - max_retained;
       for (size_t i = 0; i < to_delete; ++i)
       {
         const auto& path = committed[i].second;
+
+        // Never delete a chunk that ends at or after the newest committed
+        // snapshot - we must preserve a complete ledger from that snapshot
+        // onwards for disaster recovery.
+        if (snapshot_watermark.has_value())
+        {
+          auto end_idx = get_last_idx_from_file_name(path.filename().string());
+          if (
+            end_idx.has_value() &&
+            end_idx.value() >= snapshot_watermark.value())
+          {
+            LOG_DEBUG_FMT(
+              "Keeping ledger chunk {} (end seqno {} >= snapshot "
+              "watermark {})",
+              path.filename(),
+              end_idx.value(),
+              snapshot_watermark.value());
+            continue;
+          }
+        }
 
         if (!file_exists_with_matching_digest(path, read_only_dirs))
         {
@@ -235,58 +333,6 @@ namespace asynchost
             "Failed to delete committed ledger chunk {}: {}",
             path.filename(),
             ec.message());
-        }
-      }
-    }
-
-    inline void cleanup_old_snapshots(
-      const std::filesystem::path& dir, size_t max_retained)
-    {
-      std::vector<std::filesystem::path> directories{dir};
-      decltype(snapshots::find_committed_snapshots_in_directories(
-        directories)) committed;
-      try
-      {
-        committed =
-          snapshots::find_committed_snapshots_in_directories(directories);
-      }
-      catch (const std::filesystem::filesystem_error& e)
-      {
-        LOG_FAIL_FMT(
-          "Failed to list committed snapshots in {}: {}", dir, e.what());
-        return;
-      }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_FMT(
-          "Unexpected error while listing committed snapshots in {}: {}",
-          dir,
-          e.what());
-        return;
-      }
-
-      if (committed.size() > max_retained)
-      {
-        // committed is sorted descending by snapshot index, so the
-        // oldest are at the end
-        for (auto it = committed.rbegin();
-             it != committed.rend() - max_retained;
-             ++it)
-        {
-          const auto& path = it->second;
-          LOG_INFO_FMT(
-            "Deleting old snapshot {} (retaining {})",
-            path.filename(),
-            max_retained);
-          std::error_code ec;
-          std::filesystem::remove(path, ec);
-          if (ec)
-          {
-            LOG_FAIL_FMT(
-              "Failed to delete old snapshot {}: {}",
-              path.filename(),
-              ec.message());
-          }
         }
       }
     }
@@ -323,17 +369,26 @@ namespace asynchost
     {
       auto* work = static_cast<CleanupWork*>(req->data);
       LOG_DEBUG_FMT("Files cleanup started");
+
+      // Gather committed snapshots once - used by both snapshot cleanup
+      // and as a watermark for ledger chunk cleanup.
+      auto committed_snapshots =
+        files_cleanup::find_committed_snapshots(work->snapshots_dir);
+
       if (work->max_snapshots.has_value())
       {
         files_cleanup::cleanup_old_snapshots(
-          work->snapshots_dir, work->max_snapshots.value());
+          committed_snapshots, work->max_snapshots.value());
       }
       if (work->max_committed_ledger_chunks.has_value())
       {
+        auto snapshot_watermark =
+          files_cleanup::highest_committed_snapshot_seqno(committed_snapshots);
         files_cleanup::cleanup_old_ledger_chunks(
           work->ledger_dir,
           work->read_only_ledger_dirs,
-          work->max_committed_ledger_chunks.value());
+          work->max_committed_ledger_chunks.value(),
+          snapshot_watermark);
       }
     }
 
