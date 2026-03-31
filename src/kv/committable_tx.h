@@ -115,6 +115,10 @@ namespace ccf::kv
   public:
     CommittableTx(AbstractStore* _store) : Tx(_store) {}
 
+    using WriteSetObserver = std::function<void(
+      const ccf::crypto::Sha256Hash& write_set_digest,
+      const std::string& commit_evidence)>;
+
     /** Commit this transaction to the local KV and submit it to consensus for
      * replication
      *
@@ -132,9 +136,7 @@ namespace ccf::kv
       const ccf::ClaimsDigest& claims = ccf::empty_claims(),
       std::function<std::tuple<Version, Version>(bool has_new_map)>
         version_resolver = nullptr,
-      std::function<void(
-        const ccf::crypto::Sha256Hash& write_set_digest,
-        const std::string& commit_evidence)> write_set_observer = nullptr)
+      WriteSetObserver write_set_observer = nullptr)
     {
       if (committed)
       {
