@@ -6,6 +6,7 @@
 #include "host/files_cleanup_timer.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
+#include <cstdlib>
 #include <doctest/doctest.h>
 #include <filesystem>
 #include <fstream>
@@ -13,6 +14,16 @@
 namespace fs = std::filesystem;
 using namespace asynchost;
 using namespace asynchost::files_cleanup;
+
+// Creates a unique temporary directory using mkdtemp to avoid cross-test
+// interference when tests run in parallel or a prior run left files behind.
+static fs::path make_unique_test_dir(const std::string& prefix)
+{
+  auto pattern = (fs::temp_directory_path() / (prefix + "_XXXXXX")).string();
+  auto* result = mkdtemp(pattern.data());
+  REQUIRE(result != nullptr);
+  return fs::path(result);
+}
 
 static void write_file(const fs::path& path, const std::string& content)
 {
@@ -37,8 +48,7 @@ static fs::path create_committed_chunk(
 
 TEST_CASE("find_committed_ledger_chunks: empty directory")
 {
-  auto tmp = fs::temp_directory_path() / "test_cleanup_empty";
-  fs::create_directories(tmp);
+  auto tmp = make_unique_test_dir("test_cleanup_empty");
 
   auto result = find_committed_ledger_chunks(tmp);
   CHECK(result.empty());
@@ -50,8 +60,7 @@ TEST_CASE(
   "find_committed_ledger_chunks: returns only committed chunks sorted "
   "ascending")
 {
-  auto tmp = fs::temp_directory_path() / "test_cleanup_sorted";
-  fs::create_directories(tmp);
+  auto tmp = make_unique_test_dir("test_cleanup_sorted");
 
   // Create committed chunks in non-sorted order
   create_committed_chunk(tmp, 300, 400);
@@ -69,8 +78,7 @@ TEST_CASE(
 
 TEST_CASE("find_committed_ledger_chunks: skips non-committed and special files")
 {
-  auto tmp = fs::temp_directory_path() / "test_cleanup_skip";
-  fs::create_directories(tmp);
+  auto tmp = make_unique_test_dir("test_cleanup_skip");
 
   // Committed chunk (should be included)
   create_committed_chunk(tmp, 1, 100);
@@ -99,8 +107,8 @@ TEST_CASE("find_committed_ledger_chunks: skips non-committed and special files")
 
 TEST_CASE("find_committed_ledger_chunks: nonexistent directory throws")
 {
-  auto tmp = fs::temp_directory_path() / "test_cleanup_nonexistent_dir";
-  fs::remove_all(tmp); // Ensure it doesn't exist
+  auto tmp = make_unique_test_dir("test_cleanup_nonexistent");
+  fs::remove_all(tmp); // mkdtemp creates it; remove so we test a missing dir
 
   CHECK_THROWS_AS(
     find_committed_ledger_chunks(tmp), std::filesystem::filesystem_error);
@@ -110,8 +118,7 @@ TEST_CASE("find_committed_ledger_chunks: nonexistent directory throws")
 
 TEST_CASE("hash_file: normal file returns a hash")
 {
-  auto tmp = fs::temp_directory_path() / "test_hash_normal";
-  fs::create_directories(tmp);
+  auto tmp = make_unique_test_dir("test_hash_normal");
   auto path = tmp / "test_file";
   write_file(path, "hello world");
 
@@ -128,8 +135,7 @@ TEST_CASE("hash_file: normal file returns a hash")
 
 TEST_CASE("hash_file: different content produces different hash")
 {
-  auto tmp = fs::temp_directory_path() / "test_hash_different";
-  fs::create_directories(tmp);
+  auto tmp = make_unique_test_dir("test_hash_different");
 
   auto path_a = tmp / "file_a";
   auto path_b = tmp / "file_b";
@@ -147,8 +153,7 @@ TEST_CASE("hash_file: different content produces different hash")
 
 TEST_CASE("hash_file: empty file returns a hash")
 {
-  auto tmp = fs::temp_directory_path() / "test_hash_empty";
-  fs::create_directories(tmp);
+  auto tmp = make_unique_test_dir("test_hash_empty");
   auto path = tmp / "empty_file";
   write_file(path, "");
 
@@ -160,18 +165,21 @@ TEST_CASE("hash_file: empty file returns a hash")
 
 TEST_CASE("hash_file: nonexistent file returns nullopt")
 {
-  auto path = fs::temp_directory_path() / "test_hash_no_such_file";
-  fs::remove_all(path);
+  auto tmp = make_unique_test_dir("test_hash_nosuch");
+  auto path = tmp / "no_such_file";
+  // path doesn't exist within the unique dir
 
   auto result = hash_file(path);
   CHECK_FALSE(result.has_value());
+
+  fs::remove_all(tmp);
 }
 
 // ---- file_exists_with_matching_digest tests ----
 
 TEST_CASE("file_exists_with_matching_digest: matching copy in read-only dir")
 {
-  auto tmp = fs::temp_directory_path() / "test_digest_match";
+  auto tmp = make_unique_test_dir("test_digest_match");
   auto main_dir = tmp / "main";
   auto ro_dir = tmp / "ro";
   fs::create_directories(main_dir);
@@ -190,7 +198,7 @@ TEST_CASE("file_exists_with_matching_digest: matching copy in read-only dir")
 
 TEST_CASE("file_exists_with_matching_digest: mismatched digest")
 {
-  auto tmp = fs::temp_directory_path() / "test_digest_mismatch";
+  auto tmp = make_unique_test_dir("test_digest_mismatch");
   auto main_dir = tmp / "main";
   auto ro_dir = tmp / "ro";
   fs::create_directories(main_dir);
@@ -207,7 +215,7 @@ TEST_CASE("file_exists_with_matching_digest: mismatched digest")
 
 TEST_CASE("file_exists_with_matching_digest: no copy in read-only dir")
 {
-  auto tmp = fs::temp_directory_path() / "test_digest_no_copy";
+  auto tmp = make_unique_test_dir("test_digest_no_copy");
   auto main_dir = tmp / "main";
   auto ro_dir = tmp / "ro";
   fs::create_directories(main_dir);
@@ -224,7 +232,7 @@ TEST_CASE("file_exists_with_matching_digest: no copy in read-only dir")
 
 TEST_CASE("file_exists_with_matching_digest: deleted local file returns true")
 {
-  auto tmp = fs::temp_directory_path() / "test_digest_deleted";
+  auto tmp = make_unique_test_dir("test_digest_deleted");
   auto main_dir = tmp / "main";
   auto ro_dir = tmp / "ro";
   fs::create_directories(main_dir);
@@ -242,7 +250,7 @@ TEST_CASE("file_exists_with_matching_digest: deleted local file returns true")
 TEST_CASE(
   "file_exists_with_matching_digest: match found in second read-only dir")
 {
-  auto tmp = fs::temp_directory_path() / "test_digest_multi_ro";
+  auto tmp = make_unique_test_dir("test_digest_multi_ro");
   auto main_dir = tmp / "main";
   auto ro_dir1 = tmp / "ro1";
   auto ro_dir2 = tmp / "ro2";
@@ -262,7 +270,7 @@ TEST_CASE(
 
 TEST_CASE("file_exists_with_matching_digest: empty read-only dirs list")
 {
-  auto tmp = fs::temp_directory_path() / "test_digest_no_ro_dirs";
+  auto tmp = make_unique_test_dir("test_digest_no_ro_dirs");
   auto main_dir = tmp / "main";
   fs::create_directories(main_dir);
 
@@ -278,7 +286,7 @@ TEST_CASE("file_exists_with_matching_digest: empty read-only dirs list")
 
 TEST_CASE("cleanup_old_ledger_chunks: empty directory is a no-op")
 {
-  auto tmp = fs::temp_directory_path() / "test_ledger_cleanup_empty";
+  auto tmp = make_unique_test_dir("test_ledger_cleanup_empty");
   auto main_dir = tmp / "main";
   auto ro_dir = tmp / "ro";
   fs::create_directories(main_dir);
@@ -293,7 +301,7 @@ TEST_CASE("cleanup_old_ledger_chunks: empty directory is a no-op")
 
 TEST_CASE("cleanup_old_ledger_chunks: deletes oldest chunks when backed up")
 {
-  auto tmp = fs::temp_directory_path() / "test_ledger_cleanup_delete";
+  auto tmp = make_unique_test_dir("test_ledger_cleanup_delete");
   auto main_dir = tmp / "main";
   auto ro_dir = tmp / "ro";
   fs::create_directories(main_dir);
@@ -325,7 +333,7 @@ TEST_CASE("cleanup_old_ledger_chunks: deletes oldest chunks when backed up")
 
 TEST_CASE("cleanup_old_ledger_chunks: keeps chunks not backed up in read-only")
 {
-  auto tmp = fs::temp_directory_path() / "test_ledger_cleanup_keep";
+  auto tmp = make_unique_test_dir("test_ledger_cleanup_keep");
   auto main_dir = tmp / "main";
   auto ro_dir = tmp / "ro";
   fs::create_directories(main_dir);
@@ -359,7 +367,7 @@ TEST_CASE("cleanup_old_ledger_chunks: keeps chunks not backed up in read-only")
 
 TEST_CASE("cleanup_old_ledger_chunks: max_retained = 0 deletes all backed up")
 {
-  auto tmp = fs::temp_directory_path() / "test_ledger_cleanup_zero";
+  auto tmp = make_unique_test_dir("test_ledger_cleanup_zero");
   auto main_dir = tmp / "main";
   auto ro_dir = tmp / "ro";
   fs::create_directories(main_dir);
@@ -386,7 +394,7 @@ TEST_CASE("cleanup_old_ledger_chunks: max_retained = 0 deletes all backed up")
 
 TEST_CASE("cleanup_old_ledger_chunks: count within limit is a no-op")
 {
-  auto tmp = fs::temp_directory_path() / "test_ledger_cleanup_within";
+  auto tmp = make_unique_test_dir("test_ledger_cleanup_within");
   auto main_dir = tmp / "main";
   auto ro_dir = tmp / "ro";
   fs::create_directories(main_dir);
@@ -408,7 +416,7 @@ TEST_CASE("cleanup_old_ledger_chunks: count within limit is a no-op")
 
 TEST_CASE("cleanup_old_ledger_chunks: digest mismatch prevents deletion")
 {
-  auto tmp = fs::temp_directory_path() / "test_ledger_cleanup_mismatch";
+  auto tmp = make_unique_test_dir("test_ledger_cleanup_mismatch");
   auto main_dir = tmp / "main";
   auto ro_dir = tmp / "ro";
   fs::create_directories(main_dir);
@@ -449,14 +457,15 @@ static fs::path create_committed_snapshot(
 
 TEST_CASE("highest_committed_snapshot_seqno: returns newest snapshot seqno")
 {
-  auto tmp = fs::temp_directory_path() / "test_snap_watermark";
-  fs::create_directories(tmp);
+  auto tmp = make_unique_test_dir("test_snap_watermark");
 
   create_committed_snapshot(tmp, 100, 105);
   create_committed_snapshot(tmp, 300, 310);
   create_committed_snapshot(tmp, 200, 210);
 
-  auto committed = find_committed_snapshots(tmp);
+  auto committed_opt = find_committed_snapshots(tmp);
+  REQUIRE(committed_opt.has_value());
+  auto& committed = committed_opt.value();
   auto result = highest_committed_snapshot_seqno(committed);
   REQUIRE(result.has_value());
   CHECK(result.value() == 300);
@@ -467,10 +476,11 @@ TEST_CASE("highest_committed_snapshot_seqno: returns newest snapshot seqno")
 TEST_CASE(
   "highest_committed_snapshot_seqno: returns nullopt for empty directory")
 {
-  auto tmp = fs::temp_directory_path() / "test_snap_watermark_empty";
-  fs::create_directories(tmp);
+  auto tmp = make_unique_test_dir("test_snap_watermark_empty");
 
-  auto committed = find_committed_snapshots(tmp);
+  auto committed_opt = find_committed_snapshots(tmp);
+  REQUIRE(committed_opt.has_value());
+  auto& committed = committed_opt.value();
   auto result = highest_committed_snapshot_seqno(committed);
   CHECK_FALSE(result.has_value());
 
@@ -479,14 +489,15 @@ TEST_CASE(
 
 TEST_CASE("highest_committed_snapshot_seqno: ignores uncommitted snapshots")
 {
-  auto tmp = fs::temp_directory_path() / "test_snap_watermark_uncommitted";
-  fs::create_directories(tmp);
+  auto tmp = make_unique_test_dir("test_snap_watermark_uncommitted");
 
   // Uncommitted snapshot (no .committed suffix)
   write_file(tmp / "snapshot_500_510", "data");
   create_committed_snapshot(tmp, 200, 210);
 
-  auto committed = find_committed_snapshots(tmp);
+  auto committed_opt = find_committed_snapshots(tmp);
+  REQUIRE(committed_opt.has_value());
+  auto& committed = committed_opt.value();
   auto result = highest_committed_snapshot_seqno(committed);
   REQUIRE(result.has_value());
   CHECK(result.value() == 200);
@@ -499,7 +510,7 @@ TEST_CASE("highest_committed_snapshot_seqno: ignores uncommitted snapshots")
 TEST_CASE(
   "cleanup_old_ledger_chunks: watermark prevents deletion of recent chunks")
 {
-  auto tmp = fs::temp_directory_path() / "test_ledger_watermark";
+  auto tmp = make_unique_test_dir("test_ledger_watermark");
   auto main_dir = tmp / "main";
   auto ro_dir = tmp / "ro";
   fs::create_directories(main_dir);
@@ -535,7 +546,7 @@ TEST_CASE(
 TEST_CASE(
   "cleanup_old_ledger_chunks: watermark at exact chunk boundary protects it")
 {
-  auto tmp = fs::temp_directory_path() / "test_ledger_watermark_exact";
+  auto tmp = make_unique_test_dir("test_ledger_watermark_exact");
   auto main_dir = tmp / "main";
   auto ro_dir = tmp / "ro";
   fs::create_directories(main_dir);
@@ -567,7 +578,7 @@ TEST_CASE(
 
 TEST_CASE("cleanup_old_ledger_chunks: no watermark allows normal deletion")
 {
-  auto tmp = fs::temp_directory_path() / "test_ledger_no_watermark";
+  auto tmp = make_unique_test_dir("test_ledger_no_watermark");
   auto main_dir = tmp / "main";
   auto ro_dir = tmp / "ro";
   fs::create_directories(main_dir);

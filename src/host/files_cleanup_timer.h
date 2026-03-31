@@ -12,6 +12,7 @@
 #include <atomic>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -107,8 +108,12 @@ namespace asynchost
       if (!local_hash.has_value())
       {
         // Distinguish between a concurrent deletion (benign) and a genuine
-        // read error on an existing file.
-        if (!fs::exists(local_path) || !fs::is_regular_file(local_path))
+        // read error on an existing file. Use non-throwing overloads to
+        // avoid exceptions from permission issues or broken mounts.
+        std::error_code ec;
+        if (
+          !fs::exists(local_path, ec) || ec ||
+          !fs::is_regular_file(local_path, ec) || ec)
         {
           // File was removed or is no longer a regular file; treat as already
           // handled and do not report this as a retention failure.
@@ -129,7 +134,10 @@ namespace asynchost
       for (const auto& ro_dir : read_only_dirs)
       {
         auto candidate = ro_dir / file_name;
-        if (!fs::exists(candidate) || !fs::is_regular_file(candidate))
+        std::error_code ec;
+        if (
+          !fs::exists(candidate, ec) || ec ||
+          !fs::is_regular_file(candidate, ec) || ec)
         {
           continue;
         }
@@ -173,8 +181,9 @@ namespace asynchost
     }
 
     // Lists committed snapshots in the given directory. Returns them sorted
-    // descending by snapshot index (newest first). On error, returns empty.
-    inline std::vector<std::pair<size_t, std::filesystem::path>>
+    // descending by snapshot index (newest first). Returns nullopt on error
+    // to allow callers to distinguish "no snapshots" from "listing failed".
+    inline std::optional<std::vector<std::pair<size_t, std::filesystem::path>>>
     find_committed_snapshots(const std::filesystem::path& dir)
     {
       std::vector<std::filesystem::path> directories{dir};
@@ -194,7 +203,7 @@ namespace asynchost
           dir,
           e.what());
       }
-      return {};
+      return std::nullopt;
     }
 
     // Returns the sequence number of the newest committed snapshot from a
@@ -347,8 +356,11 @@ namespace asynchost
     std::vector<std::filesystem::path> read_only_ledger_dirs;
     std::optional<size_t> max_committed_ledger_chunks;
 
-    // Guard against overlapping cleanup tasks
-    std::atomic<bool> cleanup_in_progress{false};
+    // Guard against overlapping cleanup tasks. Shared between the impl and
+    // any in-flight CleanupWork so the flag remains valid even if the timer
+    // is destroyed while a cleanup task is still running on the thread pool.
+    std::shared_ptr<std::atomic<bool>> cleanup_in_progress =
+      std::make_shared<std::atomic<bool>>(false);
 
     struct CleanupWork
     {
@@ -359,7 +371,7 @@ namespace asynchost
       std::vector<std::filesystem::path> read_only_ledger_dirs;
       std::optional<size_t> max_committed_ledger_chunks;
 
-      std::atomic<bool>* cleanup_in_progress;
+      std::shared_ptr<std::atomic<bool>> cleanup_in_progress;
     };
 
     static void on_cleanup_work(uv_work_t* req)
@@ -369,8 +381,20 @@ namespace asynchost
 
       // Gather committed snapshots once - used by both snapshot cleanup
       // and as a watermark for ledger chunk cleanup.
-      auto committed_snapshots =
+      auto committed_snapshots_opt =
         files_cleanup::find_committed_snapshots(work->snapshots_dir);
+
+      if (!committed_snapshots_opt.has_value())
+      {
+        // Snapshot listing failed. Skip both snapshot and ledger cleanup
+        // to avoid deleting ledger chunks without a valid watermark.
+        LOG_FAIL_FMT(
+          "Skipping all file cleanup because committed snapshot listing "
+          "failed");
+        return;
+      }
+
+      auto& committed_snapshots = committed_snapshots_opt.value();
 
       if (work->max_snapshots.has_value())
       {
@@ -436,7 +460,7 @@ namespace asynchost
     void on_timer()
     {
       bool expected = false;
-      if (!cleanup_in_progress.compare_exchange_strong(expected, true))
+      if (!cleanup_in_progress->compare_exchange_strong(expected, true))
       {
         LOG_FAIL_FMT(
           "Skipping files cleanup: previous cleanup task is still running");
@@ -450,7 +474,7 @@ namespace asynchost
         .ledger_dir = ledger_dir,
         .read_only_ledger_dirs = read_only_ledger_dirs,
         .max_committed_ledger_chunks = max_committed_ledger_chunks,
-        .cleanup_in_progress = &cleanup_in_progress};
+        .cleanup_in_progress = cleanup_in_progress};
       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
       auto* req = new uv_work_t;
       req->data = work;
@@ -459,7 +483,7 @@ namespace asynchost
       if (rc < 0)
       {
         LOG_FAIL_FMT("Failed to queue files cleanup work: {}", uv_strerror(rc));
-        cleanup_in_progress.store(false);
+        cleanup_in_progress->store(false);
         delete work; // NOLINT(cppcoreguidelines-owning-memory)
         delete req; // NOLINT(cppcoreguidelines-owning-memory)
       }
