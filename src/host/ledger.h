@@ -115,7 +115,7 @@ namespace asynchost
       if (recovery)
       {
         file_name =
-          fmt::format("{}.{}", file_name.string(), ledger_recovery_file_suffix);
+          fmt::format("{}{}", file_name.string(), ledger_recovery_file_suffix);
       }
 
       auto file_path = dir / file_name;
@@ -621,7 +621,7 @@ namespace asynchost
       }
 
       auto committed_file_name = fmt::format(
-        "{}_{}-{}.{}",
+        "{}_{}-{}{}",
         file_name_prefix,
         start_idx,
         get_last_idx(),
@@ -630,7 +630,7 @@ namespace asynchost
       if (recovery)
       {
         committed_file_name = fmt::format(
-          "{}.{}", committed_file_name, ledger_recovery_file_suffix);
+          "{}{}", committed_file_name, ledger_recovery_file_suffix);
       }
 
       if (!rename(committed_file_name))
@@ -909,7 +909,7 @@ namespace asynchost
       }
 
       auto ignored_file_name =
-        fmt::format("{}.{}", file_name, ledger_ignored_file_suffix);
+        fmt::format("{}{}", file_name, ledger_ignored_file_suffix);
       files::rename(ledger_dir / file_name, ledger_dir / ignored_file_name);
     }
 
@@ -1198,7 +1198,7 @@ namespace asynchost
               remove_suffix(
                 file_name.string(),
                 fmt::format(
-                  "{}{}.{}",
+                  "{}{}{}",
                   ledger_last_idx_delimiter,
                   last_idx_file.value(),
                   ledger_committed_suffix)));
