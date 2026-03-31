@@ -59,6 +59,13 @@ namespace basicapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
+      make_endpoint(
+        "/records/blocking/{key}", HTTP_PUT, put, {ccf::user_cert_auth_policy})
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_consensus_committed_function(
+          ccf::endpoints::default_respond_on_commit_func)
+        .install();
+
       auto get = [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
         std::string key;
         std::string error;
@@ -93,6 +100,13 @@ namespace basicapp
       make_read_only_endpoint(
         "/records/{key}", HTTP_GET, get, {ccf::user_cert_auth_policy})
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
+      make_read_only_endpoint(
+        "/records/blocking/{key}", HTTP_GET, get, {ccf::user_cert_auth_policy})
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_consensus_committed_function(
+          ccf::endpoints::default_respond_on_commit_func)
         .install();
 
       auto post = [](ccf::endpoints::EndpointContext& ctx) {

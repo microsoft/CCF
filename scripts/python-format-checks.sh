@@ -27,7 +27,7 @@ pip install -U pip > /dev/null || exit 1
 pip install -U wheel black 1>/dev/null || exit 1
 
 if [ $FIX -ne 0 ]; then
-  git ls-files tests/ python/ scripts/ tla/ .cmake-format.py | grep -e '\.py$' | xargs black
+  git ls-files tests/ python/ scripts/ tla/ | grep -e '\.py$' | xargs black
 else
-  git ls-files tests/ python/ scripts/ tla/ .cmake-format.py | grep -e '\.py$' | xargs black --check
+  git ls-files tests/ python/ scripts/ tla/ | grep -e '\.py$' | xargs black --check
 fi

@@ -15,7 +15,7 @@ tdnf -y install  \
 # For LTS test to extract binaries from rpms
 tdnf -y install cpio
 
-pip install cmakelang
+pip install gersemi
 
 # For shellcheck
 curl -L https://github.com/koalaman/shellcheck/releases/download/stable/shellcheck-stable.linux.x86_64.tar.xz  \
