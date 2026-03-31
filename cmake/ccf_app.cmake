@@ -14,9 +14,12 @@ endif()
 
 # Enclave library wrapper
 function(add_ccf_app name)
-
   cmake_parse_arguments(
-    PARSE_ARGV 1 PARSED_ARGS "" ""
+    PARSE_ARGV
+    1
+    PARSED_ARGS
+    ""
+    ""
     "SRCS;INCLUDE_DIRS;SYSTEM_INCLUDE_DIRS;LINK_LIBS;DEPS;INSTALL_LIBS"
   )
 
@@ -25,12 +28,15 @@ function(add_ccf_app name)
 
   target_include_directories(${name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS})
   target_include_directories(
-    ${name} SYSTEM PRIVATE ${PARSED_ARGS_SYSTEM_INCLUDE_DIRS}
+    ${name}
+    SYSTEM
+    PRIVATE ${PARSED_ARGS_SYSTEM_INCLUDE_DIRS}
   )
   add_warning_checks(${name})
 
   target_link_libraries(
-    ${name} PRIVATE ${PARSED_ARGS_LINK_LIBS} ccf_launcher ccf
+    ${name}
+    PRIVATE ${PARSED_ARGS_LINK_LIBS} ccf_launcher ccf
   )
 
   if(NOT (SAN OR TSAN))
@@ -40,8 +46,8 @@ function(add_ccf_app name)
   # Tracked in https://github.com/microsoft/CCF/issues/7596. Workaround for a
   # circular dependency between ccf.a and ccfcrypto.a
   target_link_options(
-    ${name} PRIVATE
-    LINKER:--undefined=_ZN3ccf9threading21get_current_thread_idEv
+    ${name}
+    PRIVATE LINKER:--undefined=_ZN3ccf9threading21get_current_thread_idEv
   )
 
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -79,11 +85,7 @@ function(add_ccf_static_library name)
   add_tidy(${name})
   add_warning_checks(${name})
 
-  install(
-    TARGETS ${name}
-    EXPORT ccf
-    DESTINATION lib
-  )
+  install(TARGETS ${name} EXPORT ccf DESTINATION lib)
 
   if(USE_SNMALLOC)
     target_link_libraries(${name} INTERFACE snmallocshim-static)
