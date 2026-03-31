@@ -208,6 +208,18 @@ namespace ccf::endpoints
   TxReceiptImplPtr build_receipt_for_committed_tx(
     ccf::AbstractNodeContext& context, CommittedTxInfo& info)
   {
+    if (info.commit_evidence.empty())
+    {
+      info.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        fmt::format(
+          "Cannot construct receipt for TxID {}: transaction produced no "
+          "write set (read-only transactions do not have receipts)",
+          info.tx_id.to_str()));
+      return nullptr;
+    }
+
     auto sig_cache = context.get_subsystem<ccf::SignatureCacheInterface>();
     if (sig_cache == nullptr)
     {

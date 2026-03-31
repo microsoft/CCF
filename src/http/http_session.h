@@ -203,12 +203,7 @@ namespace http
               {
                 // Build the context and let the handler modify the response
                 ccf::endpoints::CommittedTxInfo info{
-                  rpc_ctx,
-                  transaction_id,
-                  status,
-                  ws_digest,
-                  ce,
-                  claims};
+                  rpc_ctx, transaction_id, status, ws_digest, ce, claims};
                 committed_func(info);
 
                 // Write the response

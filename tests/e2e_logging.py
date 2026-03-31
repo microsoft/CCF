@@ -2318,10 +2318,9 @@ def test_blocking_calls(network, args):
 
             if path == "/log/blocking/private/receipt":
                 # Response is a binary COSE receipt
-                assert (
-                    r.headers["content-type"]
-                    == "application/cose"
-                ), r.headers["content-type"]
+                assert r.headers["content-type"] == "application/cose", r.headers[
+                    "content-type"
+                ]
                 empty_claims_digest = b"\0" * 32
                 ccf.cose.verify_receipt(
                     r.body.data(),

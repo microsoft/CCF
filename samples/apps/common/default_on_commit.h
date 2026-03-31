@@ -11,8 +11,7 @@ namespace ccf::samples
 {
   // A simple ConsensusCommittedEndpointFunction that returns the original
   // response once committed, or an error if the transaction was invalidated.
-  inline void default_respond_on_commit(
-    ccf::endpoints::CommittedTxInfo& info)
+  inline void default_respond_on_commit(ccf::endpoints::CommittedTxInfo& info)
   {
     if (info.status == ccf::FinalTxStatus::Invalid)
     {

@@ -885,8 +885,7 @@ namespace ccf
                 }
 
                 {
-                  if (
-                    committed_func != nullptr)
+                  if (committed_func != nullptr)
                   {
                     ctx->respond_on_commit =
                       ccf::RpcContextImpl::RespondOnCommitInfo{
