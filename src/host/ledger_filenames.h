@@ -13,11 +13,11 @@ namespace asynchost
 {
   namespace fs = std::filesystem;
 
-  static constexpr auto ledger_committed_suffix = "committed";
+  static constexpr auto ledger_committed_suffix = ".committed";
   static constexpr auto ledger_start_idx_delimiter = "_";
   static constexpr auto ledger_last_idx_delimiter = "-";
-  static constexpr auto ledger_recovery_file_suffix = "recovery";
-  static constexpr auto ledger_ignored_file_suffix = "ignored";
+  static constexpr auto ledger_recovery_file_suffix = ".recovery";
+  static constexpr auto ledger_ignored_file_suffix = ".ignored";
 
   static inline size_t get_start_idx_from_file_name(
     const std::string& file_name)
@@ -80,6 +80,6 @@ namespace asynchost
   static inline fs::path remove_recovery_suffix(std::string_view file_name)
   {
     return remove_suffix(
-      file_name, fmt::format(".{}", ledger_recovery_file_suffix));
+      file_name, ledger_recovery_file_suffix);
   }
 }

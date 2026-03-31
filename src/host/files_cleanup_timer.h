@@ -41,10 +41,7 @@ namespace asynchost
 
         auto file_name = entry.path().filename().string();
 
-        if (
-          !is_ledger_file_name_committed(file_name) ||
-          is_ledger_file_name_ignored(file_name) ||
-          is_ledger_file_name_recovery(file_name))
+        if (!is_ledger_file_name_committed(file_name))
         {
           continue;
         }
