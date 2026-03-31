@@ -14,7 +14,6 @@ namespace fs = std::filesystem;
 using namespace asynchost;
 using namespace asynchost::files_cleanup;
 
-// Helper to create a file with given content
 static void write_file(const fs::path& path, const std::string& content)
 {
   std::ofstream f(path, std::ios::binary);
@@ -22,7 +21,6 @@ static void write_file(const fs::path& path, const std::string& content)
   f << content;
 }
 
-// Helper to create a committed ledger chunk file with content
 static fs::path create_committed_chunk(
   const fs::path& dir,
   size_t start_idx,
