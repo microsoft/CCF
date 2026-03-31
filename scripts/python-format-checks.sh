@@ -23,7 +23,7 @@ if [ ! -x "$(command -v uv)" ]; then
 fi
 
 if [ $FIX -ne 0 ]; then
-  git ls-files tests/ python/ scripts/ tla/ .cmake-format.py | grep -e '\.py$' | xargs uvx black
+  git ls-files tests/ python/ scripts/ tla/ | grep -e '\.py$' | xargs uvx black
 else
-  git ls-files tests/ python/ scripts/ tla/ .cmake-format.py | grep -e '\.py$' | xargs uvx black --check
+  git ls-files tests/ python/ scripts/ tla/ | grep -e '\.py$' | xargs uvx black --check
 fi

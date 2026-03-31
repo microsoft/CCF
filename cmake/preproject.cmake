@@ -6,10 +6,11 @@
 # set a default Clang choice. If they have expressed even a partial choice, the
 # usual CMake selection logic applies. If we cannot find both a suitable clang
 # and a suitable clang++, the usual CMake selection logic applies
-if((NOT CMAKE_C_COMPILER)
-   AND (NOT CMAKE_CXX_COMPILER)
-   AND "$ENV{CC}" STREQUAL ""
-   AND "$ENV{CXX}" STREQUAL ""
+if(
+  (NOT CMAKE_C_COMPILER)
+  AND (NOT CMAKE_CXX_COMPILER)
+  AND "$ENV{CC}" STREQUAL ""
+  AND "$ENV{CXX}" STREQUAL ""
 )
   find_program(FOUND_CMAKE_C_COMPILER NAMES clang)
   find_program(FOUND_CMAKE_CXX_COMPILER NAMES clang++)
@@ -24,8 +25,8 @@ if((NOT CMAKE_C_COMPILER)
   if(NOT (FOUND_CMAKE_C_COMPILER AND FOUND_CMAKE_CXX_COMPILER))
     message(
       WARNING
-        "Clang not found, will use default compiler. "
-        "Override the compiler by setting CC and CXX environment variables."
+      "Clang not found, will use default compiler. "
+      "Override the compiler by setting CC and CXX environment variables."
     )
   else()
     # CMAKE_*_COMPILER can only be set once, and cannot be unset, we either want
@@ -40,15 +41,18 @@ set(default_build_type "RelWithDebInfo")
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(
     STATUS
-      "Setting build type to '${default_build_type}' as none was specified."
+    "Setting build type to '${default_build_type}' as none was specified."
   )
-  set(CMAKE_BUILD_TYPE
-      "${default_build_type}"
-      CACHE STRING "Choose the type of build." FORCE
+  set(
+    CMAKE_BUILD_TYPE
+    "${default_build_type}"
+    CACHE STRING
+    "Choose the type of build."
+    FORCE
   )
   set_property(
-    CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel"
-                                    "RelWithDebInfo"
+    CACHE CMAKE_BUILD_TYPE
+    PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo"
   )
 endif()
 
@@ -63,15 +67,16 @@ endif()
 function(add_warning_checks name)
   target_compile_options(
     ${name}
-    PRIVATE -Wall
-            -Wextra
-            -Werror
-            -Wundef
-            -Wpedantic
-            -Wno-unused-parameter
-            -Wno-unused-function
-            -Wshadow
-            -Wswitch-enum
+    PRIVATE
+      -Wall
+      -Wextra
+      -Werror
+      -Wundef
+      -Wpedantic
+      -Wno-unused-parameter
+      -Wno-unused-function
+      -Wshadow
+      -Wswitch-enum
   )
 endfunction()
 

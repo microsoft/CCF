@@ -33,34 +33,20 @@ if [ ! -x "$(command -v uv)" ]; then
   exit 1
 fi
 
-CMAKE_FORMAT="uvx --from cmake-format==0.6.11 cmake-format"
+GERSEMI="uvx gersemi@0.17.0"
 
-# Collect the file list once
-mapfile -t files < <(git ls-files "$@" | grep -e '\.cmake$' -e 'CMakeLists\.txt$')
+FILES=$(git ls-files "$@" | grep -e '\.cmake$' -e 'CMakeLists\.txt$')
 
-if [ "${#files[@]}" -eq 0 ]; then
-  echo "All files formatted correctly!"
-  exit 0
-fi
-
-# Check formatting in a single invocation (stderr has "Check failed: <file>")
-unformatted_files=$($CMAKE_FORMAT --check "${files[@]}" 2>&1 1>/dev/null | \
-  sed -n 's/.*Check failed: //p' | sort) || true
-
-if $fix && [ "$unformatted_files" != "" ]; then
+if $fix ; then
   # shellcheck disable=SC2086
-  $CMAKE_FORMAT -i $unformatted_files
-fi
-
-if [ "$unformatted_files" != "" ]; then
-  if $fix ; then
-    echo "Formatted files:"
-  else
-    echo "Fix formatting:"
-  fi
-
-  echo "$unformatted_files"
-  exit 1
+  $GERSEMI -i $FILES
+  echo "All files formatted!"
 else
-  echo "All files formatted correctly!"
+  # shellcheck disable=SC2086
+  if $GERSEMI --check $FILES; then
+    echo "All files formatted correctly!"
+  else
+    echo "Fix formatting by running: scripts/cmake-format-checks.sh -f"
+    exit 1
+  fi
 fi
