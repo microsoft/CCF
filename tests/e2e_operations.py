@@ -3772,6 +3772,198 @@ def test_ledger_chunk_cleanup_digest_mismatch(network, args):
     return network
 
 
+def test_post_snapshot_chunks_retained(network, args, read_only_ledger_dir):
+    """
+    Verify that committed ledger chunks created after the latest snapshot are
+    NOT deleted even when the total count exceeds max_committed_ledger_chunks.
+    The cleanup logic must preserve all chunks newer than the snapshot watermark
+    so that a node can still recover from that snapshot.
+    """
+    max_retained = args.files_cleanup_max_committed_ledger_chunks
+    primary, _ = network.find_primary()
+    main_ledger_dir = primary.get_main_ledger_dir()
+    snapshots_dir = os.path.join(
+        primary.remote.remote.root,
+        primary.remote.snapshots_dir_name,
+    )
+
+    def get_committed_chunks():
+        return sorted(
+            [
+                f
+                for f in os.listdir(main_ledger_dir)
+                if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f)
+            ],
+            key=lambda f: ccf.ledger.range_from_filename(f)[0],
+        )
+
+    def copy_new_committed_to_readonly():
+        for f in os.listdir(main_ledger_dir):
+            if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f):
+                dst = os.path.join(read_only_ledger_dir, f)
+                if not os.path.exists(dst):
+                    shutil.copy2(os.path.join(main_ledger_dir, f), dst)
+
+    def get_latest_committed_snapshot_seqno():
+        best = None
+        for f in os.listdir(snapshots_dir):
+            if f.startswith("snapshot_") and ccf.ledger.is_snapshot_file_committed(f):
+                seqno, _ = ccf.ledger.snapshot_index_from_filename(f)
+                if best is None or seqno > best:
+                    best = seqno
+        return best
+
+    # Step 1: Generate some chunks and trigger a snapshot so we have a watermark
+    LOG.info("Generating initial chunks and triggering a snapshot")
+    for _ in range(3):
+        network.txs.issue(network, number_txs=3)
+        network.consortium.force_ledger_chunk(primary)
+        network.txs.issue(network, number_txs=3)
+    copy_new_committed_to_readonly()
+
+    primary.trigger_snapshot()
+    # Issue enough txs to advance commit past the snapshot
+    network.txs.issue(network, number_txs=3)
+    network.consortium.force_ledger_chunk(primary)
+    network.txs.issue(network, number_txs=3)
+
+    # Wait for the snapshot to appear
+    timeout = 10
+    end_time = time.time() + timeout
+    snapshot_seqno = None
+    while time.time() < end_time:
+        snapshot_seqno = get_latest_committed_snapshot_seqno()
+        if snapshot_seqno is not None:
+            break
+        time.sleep(0.5)
+    assert snapshot_seqno is not None, (
+        f"Timed out waiting for a committed snapshot in {snapshots_dir}"
+    )
+    LOG.info(f"Latest committed snapshot seqno: {snapshot_seqno}")
+
+    # Step 2: Generate many chunks AFTER the snapshot so they exceed max_retained
+    num_post_snapshot_chunks = max_retained + 3
+    LOG.info(
+        f"Generating {num_post_snapshot_chunks} chunks after snapshot "
+        f"(max_retained={max_retained})"
+    )
+    for i in range(num_post_snapshot_chunks):
+        network.txs.issue(network, number_txs=3)
+        network.consortium.force_ledger_chunk(primary)
+        network.txs.issue(network, number_txs=3)
+        copy_new_committed_to_readonly()
+
+    # Step 3: Let the cleanup timer run
+    time.sleep(3)
+
+    # Step 4: Verify that all chunks after the snapshot watermark are retained
+    committed = get_committed_chunks()
+    LOG.info(f"Committed chunks after cleanup: {len(committed)}")
+
+    post_snapshot_chunks = [
+        f
+        for f in committed
+        if ccf.ledger.range_from_filename(f)[1] is not None
+        and ccf.ledger.range_from_filename(f)[1] >= snapshot_seqno
+    ]
+
+    LOG.info(
+        f"Post-snapshot chunks (end >= {snapshot_seqno}): "
+        f"{len(post_snapshot_chunks)}"
+    )
+
+    # There must be more post-snapshot chunks than max_retained to prove
+    # that the watermark prevented deletion
+    assert len(post_snapshot_chunks) > max_retained, (
+        f"Expected more than {max_retained} post-snapshot chunks to be retained, "
+        f"but only found {len(post_snapshot_chunks)}: {post_snapshot_chunks}. "
+        f"Snapshot watermark: {snapshot_seqno}"
+    )
+
+    # All post-snapshot chunks must still be present
+    for chunk in post_snapshot_chunks:
+        chunk_start, chunk_end = ccf.ledger.range_from_filename(chunk)
+        assert chunk_end >= snapshot_seqno, (
+            f"Post-snapshot chunk {chunk} (end={chunk_end}) should not have "
+            f"been deleted (snapshot watermark={snapshot_seqno})"
+        )
+
+    return network
+
+
+def run_post_snapshot_chunk_retention(const_args):
+    args = copy.deepcopy(const_args)
+    args.label = f"{args.label}_post_snapshot_chunk_retention"
+    args.ledger_chunk_bytes = "20KB"
+    # Use a very low retention limit so cleanup would aggressively delete
+    # if the snapshot watermark were not respected
+    args.files_cleanup_max_committed_ledger_chunks = 1
+    args.files_cleanup_interval = "1s"
+    args.snapshot_tx_interval = 30
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        args.common_read_only_ledger_dir = tmp_dir
+
+        with infra.network.network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            pdb=args.pdb,
+            txs=app.LoggingTxs("user0"),
+        ) as network:
+            network.start_and_open(args)
+
+            primary, _ = network.find_primary()
+            main_ledger_dir = primary.get_main_ledger_dir()
+            for f in os.listdir(main_ledger_dir):
+                if f.startswith("ledger_") and ccf.ledger.is_ledger_chunk_committed(f):
+                    shutil.copy2(
+                        os.path.join(main_ledger_dir, f),
+                        os.path.join(tmp_dir, f),
+                    )
+
+            test_post_snapshot_chunks_retained(network, args, tmp_dir)
+
+
+def run_ledger_cleanup_no_read_only_dir_check(const_args):
+    """
+    Verify that a node fails to start when max_committed_ledger_chunks is
+    configured but no read-only ledger directory is provided.
+    """
+    args = copy.deepcopy(const_args)
+    args.label = f"{args.label}_ledger_cleanup_no_ro_dir"
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    args.files_cleanup_max_committed_ledger_chunks = 3
+    args.files_cleanup_interval = "1s"
+    # Explicitly no read-only ledger dir
+    args.common_read_only_ledger_dir = None
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        try:
+            network.start_and_open(args)
+        except Exception:
+            pass
+
+        primary = network.nodes[0]
+        expected_msg = (
+            "files_cleanup.max_committed_ledger_chunks requires at least one "
+            "ledger.read_only_directories entry"
+        )
+        if not primary.check_log_for_error_message(expected_msg):
+            raise AssertionError(
+                f"Expected node error message about missing read-only ledger "
+                f"directory when max_committed_ledger_chunks is configured"
+            )
+        LOG.success(
+            "Node correctly refused to start without read-only ledger directory"
+        )
+
+
 def run_ledger_chunk_cleanup_tests(const_args):
     args = copy.deepcopy(const_args)
     args.label = f"{args.label}_ledger_chunk_cleanup"
@@ -3807,6 +3999,8 @@ def run(args):
     run_max_retained_snapshot_files(args)
     run_backup_snapshot_cleanup(args)
     run_max_committed_ledger_chunk_files(args)
+    run_post_snapshot_chunk_retention(args)
+    run_ledger_cleanup_no_read_only_dir_check(args)
     run_ledger_chunk_cleanup_tests(args)
     run_tls_san_checks(args)
     run_config_timeout_check(args)
