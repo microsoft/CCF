@@ -41,7 +41,7 @@ target_link_options(ccfcrypto PUBLIC ${LINK_LIBCXX})
 target_link_libraries(ccfcrypto PUBLIC crypto ssl evercbor)
 target_link_libraries(
   ccfcrypto
-  PUBLIC $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/${COSE_RS_LIB}>
+  PUBLIC $<BUILD_INTERFACE:${COSE_RS_LIB_BUILD_PATH}>
          $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/lib/${COSE_RS_LIB}>
 )
 add_dependencies(ccfcrypto cargo-build_cose_rs)
