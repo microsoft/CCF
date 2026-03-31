@@ -15,6 +15,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -23,6 +24,14 @@ namespace asynchost
   // Pure helper functions for file cleanup, extracted for testability.
   namespace files_cleanup
   {
+    // Return type for check_digest_against_read_only_dirs(), distinguishing
+    // between a verified digest match, no match, and concurrent deletion.
+    enum class DigestCheckResult
+    {
+      match_found, // An identical copy exists in a read-only directory
+      no_match, // File exists locally but no matching copy was found
+      file_gone // Local file was concurrently deleted (benign)
+    };
     static constexpr size_t HASH_READ_CHUNK_SIZE = size_t{64} * 1024; // 64 KB
 
     // Returns committed ledger chunks in the given directory, sorted ascending
@@ -98,7 +107,7 @@ namespace asynchost
       return hasher->finalise();
     }
 
-    inline bool file_exists_with_matching_digest(
+    inline DigestCheckResult check_digest_against_read_only_dirs(
       const std::filesystem::path& local_path,
       const std::vector<std::filesystem::path>& read_only_dirs)
     {
@@ -119,14 +128,14 @@ namespace asynchost
             "Skipping deletion.",
             local_path.filename(),
             ec.message());
-          return false;
+          return DigestCheckResult::no_match;
         }
         if (!exists)
         {
           LOG_INFO_FMT(
             "Ledger chunk {} no longer exists, skipping",
             local_path.filename());
-          return true;
+          return DigestCheckResult::file_gone;
         }
 
         ec.clear();
@@ -138,20 +147,20 @@ namespace asynchost
             "Skipping deletion.",
             local_path.filename(),
             ec.message());
-          return false;
+          return DigestCheckResult::no_match;
         }
         if (!is_reg)
         {
           LOG_INFO_FMT(
             "Ledger chunk {} is no longer a regular file, skipping",
             local_path.filename());
-          return true;
+          return DigestCheckResult::file_gone;
         }
 
         LOG_FAIL_FMT(
           "Ledger chunk {} exists but could not be read, skipping deletion",
           local_path.filename());
-        return false;
+        return DigestCheckResult::no_match;
       }
 
       auto file_name = local_path.filename();
@@ -180,7 +189,7 @@ namespace asynchost
           }
           if (local_hash.value() == ro_hash.value())
           {
-            return true;
+            return DigestCheckResult::match_found;
           }
 
           LOG_FAIL_FMT(
@@ -202,7 +211,7 @@ namespace asynchost
         }
       }
 
-      return false;
+      return DigestCheckResult::no_match;
     }
 
     // Lists committed snapshots in the given directory. Returns them sorted
@@ -343,7 +352,14 @@ namespace asynchost
           }
         }
 
-        if (!file_exists_with_matching_digest(path, read_only_dirs))
+        auto digest_result =
+          check_digest_against_read_only_dirs(path, read_only_dirs);
+        if (digest_result == DigestCheckResult::file_gone)
+        {
+          // File was concurrently deleted — nothing to do.
+          continue;
+        }
+        if (digest_result == DigestCheckResult::no_match)
         {
           LOG_FAIL_FMT(
             "Keeping ledger chunk {} because no matching copy was found "
@@ -360,10 +376,18 @@ namespace asynchost
         std::filesystem::remove(path, ec);
         if (ec)
         {
-          LOG_FAIL_FMT(
-            "Failed to delete committed ledger chunk {}: {}",
-            path.filename(),
-            ec.message());
+          if (ec == std::errc::no_such_file_or_directory)
+          {
+            LOG_INFO_FMT(
+              "Ledger chunk {} was already removed", path.filename());
+          }
+          else
+          {
+            LOG_FAIL_FMT(
+              "Failed to delete committed ledger chunk {}: {}",
+              path.filename(),
+              ec.message());
+          }
         }
       }
     }

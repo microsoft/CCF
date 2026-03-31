@@ -175,9 +175,9 @@ TEST_CASE("hash_file: nonexistent file returns nullopt")
   fs::remove_all(tmp);
 }
 
-// ---- file_exists_with_matching_digest tests ----
+// ---- check_digest_against_read_only_dirs tests ----
 
-TEST_CASE("file_exists_with_matching_digest: matching copy in read-only dir")
+TEST_CASE("check_digest_against_read_only_dirs: matching copy in read-only dir")
 {
   auto tmp = make_unique_test_dir("test_digest_match");
   auto main_dir = tmp / "main";
@@ -191,12 +191,14 @@ TEST_CASE("file_exists_with_matching_digest: matching copy in read-only dir")
   write_file(ro_dir / local_path.filename(), "identical content");
 
   std::vector<fs::path> ro_dirs = {ro_dir};
-  CHECK(file_exists_with_matching_digest(local_path, ro_dirs));
+  CHECK(
+    check_digest_against_read_only_dirs(local_path, ro_dirs) ==
+    DigestCheckResult::match_found);
 
   fs::remove_all(tmp);
 }
 
-TEST_CASE("file_exists_with_matching_digest: mismatched digest")
+TEST_CASE("check_digest_against_read_only_dirs: mismatched digest")
 {
   auto tmp = make_unique_test_dir("test_digest_mismatch");
   auto main_dir = tmp / "main";
@@ -208,12 +210,14 @@ TEST_CASE("file_exists_with_matching_digest: mismatched digest")
   write_file(ro_dir / local_path.filename(), "different content");
 
   std::vector<fs::path> ro_dirs = {ro_dir};
-  CHECK_FALSE(file_exists_with_matching_digest(local_path, ro_dirs));
+  CHECK(
+    check_digest_against_read_only_dirs(local_path, ro_dirs) ==
+    DigestCheckResult::no_match);
 
   fs::remove_all(tmp);
 }
 
-TEST_CASE("file_exists_with_matching_digest: no copy in read-only dir")
+TEST_CASE("check_digest_against_read_only_dirs: no copy in read-only dir")
 {
   auto tmp = make_unique_test_dir("test_digest_no_copy");
   auto main_dir = tmp / "main";
@@ -225,12 +229,15 @@ TEST_CASE("file_exists_with_matching_digest: no copy in read-only dir")
   // ro_dir is empty - no matching file
 
   std::vector<fs::path> ro_dirs = {ro_dir};
-  CHECK_FALSE(file_exists_with_matching_digest(local_path, ro_dirs));
+  CHECK(
+    check_digest_against_read_only_dirs(local_path, ro_dirs) ==
+    DigestCheckResult::no_match);
 
   fs::remove_all(tmp);
 }
 
-TEST_CASE("file_exists_with_matching_digest: deleted local file returns true")
+TEST_CASE(
+  "check_digest_against_read_only_dirs: deleted local file returns file_gone")
 {
   auto tmp = make_unique_test_dir("test_digest_deleted");
   auto main_dir = tmp / "main";
@@ -242,13 +249,15 @@ TEST_CASE("file_exists_with_matching_digest: deleted local file returns true")
   // Do not create the file - simulate concurrent deletion
 
   std::vector<fs::path> ro_dirs = {ro_dir};
-  CHECK(file_exists_with_matching_digest(local_path, ro_dirs));
+  CHECK(
+    check_digest_against_read_only_dirs(local_path, ro_dirs) ==
+    DigestCheckResult::file_gone);
 
   fs::remove_all(tmp);
 }
 
 TEST_CASE(
-  "file_exists_with_matching_digest: match found in second read-only dir")
+  "check_digest_against_read_only_dirs: match found in second read-only dir")
 {
   auto tmp = make_unique_test_dir("test_digest_multi_ro");
   auto main_dir = tmp / "main";
@@ -263,12 +272,14 @@ TEST_CASE(
   write_file(ro_dir2 / local_path.filename(), "my data");
 
   std::vector<fs::path> ro_dirs = {ro_dir1, ro_dir2};
-  CHECK(file_exists_with_matching_digest(local_path, ro_dirs));
+  CHECK(
+    check_digest_against_read_only_dirs(local_path, ro_dirs) ==
+    DigestCheckResult::match_found);
 
   fs::remove_all(tmp);
 }
 
-TEST_CASE("file_exists_with_matching_digest: empty read-only dirs list")
+TEST_CASE("check_digest_against_read_only_dirs: empty read-only dirs list")
 {
   auto tmp = make_unique_test_dir("test_digest_no_ro_dirs");
   auto main_dir = tmp / "main";
@@ -277,7 +288,9 @@ TEST_CASE("file_exists_with_matching_digest: empty read-only dirs list")
   auto local_path = create_committed_chunk(main_dir, 1, 100, "content");
 
   std::vector<fs::path> ro_dirs = {};
-  CHECK_FALSE(file_exists_with_matching_digest(local_path, ro_dirs));
+  CHECK(
+    check_digest_against_read_only_dirs(local_path, ro_dirs) ==
+    DigestCheckResult::no_match);
 
   fs::remove_all(tmp);
 }
