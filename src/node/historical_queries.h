@@ -148,27 +148,17 @@ namespace ccf::historical
       ccf::TxID transaction_id;
       bool has_commit_evidence = false;
 
-      ccf::crypto::HashBytes get_commit_nonce()
-      {
-        if (store != nullptr)
-        {
-          auto e = store->get_encryptor();
-          return e->get_commit_nonce(
-            {transaction_id.view, transaction_id.seqno}, true);
-        }
-
-        throw std::logic_error("Store pointer not set");
-      }
-
       std::optional<std::string> get_commit_evidence()
       {
         if (has_commit_evidence)
         {
-          return fmt::format(
-            "ce:{}.{}:{}",
-            transaction_id.view,
-            transaction_id.seqno,
-            ds::to_hex(get_commit_nonce()));
+          if (store == nullptr)
+          {
+            throw std::logic_error("Store pointer not set");
+          }
+          auto e = store->get_encryptor();
+          return e->get_commit_evidence(
+            {transaction_id.view, transaction_id.seqno}, true);
         }
 
         return std::nullopt;

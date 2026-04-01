@@ -179,7 +179,12 @@ namespace http
         const auto& respond_on_commit = rpc_ctx->respond_on_commit;
         if (respond_on_commit.has_value())
         {
-          auto [tx_id, committed_func] = respond_on_commit.value();
+          const auto& info = respond_on_commit.value();
+          auto tx_id = info.tx_id;
+          auto committed_func = info.committed_func;
+          auto ws_digest = info.write_set_digest;
+          auto ce = info.commit_evidence;
+          auto claims = info.claims_digest;
 
           // Block any future work from happening on this session, to
           // maintain session consistency
@@ -192,12 +197,14 @@ namespace http
           // invalidated)
           commit_callbacks->add_callback(
             tx_id,
-            [self, rpc_ctx, paused_task, committed_func](
+            [self, rpc_ctx, paused_task, committed_func, ws_digest, ce, claims](
               ccf::TxID transaction_id, ccf::FinalTxStatus status) {
               try
               {
-                // Let the handler modify the response
-                committed_func(rpc_ctx, transaction_id, status);
+                // Build the context and let the handler modify the response
+                ccf::endpoints::CommittedTxInfo info{
+                  rpc_ctx, transaction_id, status, ws_digest, ce, claims};
+                committed_func(info);
 
                 // Write the response
                 send_response_impl(
