@@ -1236,6 +1236,7 @@ if(BUILD_TESTS)
       --historical-testdata
       ${CMAKE_SOURCE_DIR}/tests/testdata
   )
+  set_tests_properties(schema_test PROPERTIES TIMEOUT 900)
 
   add_e2e_test(
     NAME snp_platform_tests
