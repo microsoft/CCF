@@ -644,6 +644,11 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      files_cleanup_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/files_cleanup_test.cpp
+    )
+
+    add_unit_test(
       raft_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
@@ -1231,6 +1236,7 @@ if(BUILD_TESTS)
       --historical-testdata
       ${CMAKE_SOURCE_DIR}/tests/testdata
   )
+  set_tests_properties(schema_test PROPERTIES TIMEOUT 900)
 
   add_e2e_test(
     NAME snp_platform_tests
