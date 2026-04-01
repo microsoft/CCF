@@ -507,7 +507,7 @@
         },
         "read_only_directory": {
           "type": ["string", "null"],
-          "description": "Path to read-only snapshots directory"
+          "description": "Path to read-only snapshots directory. Deprecated: this option is deprecated and will be removed in a future release. Use join.fetch_recent_snapshot and snapshots.backup_fetch to have joining and/or backup nodes automatically fetch snapshots from the primary node instead."
         },
         "backup_fetch": {
           "type": "object",

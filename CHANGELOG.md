@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The `ConsensusCommittedEndpointFunction` callback signature now receives a `CommittedTxInfo&` struct (containing `rpc_ctx`, `tx_id`, `status`, `write_set_digest`, `commit_evidence`, `claims_digest`) instead of individual arguments. This enables commit callbacks to construct receipts inline (#7785).
 - `ccf::endpoints::default_respond_on_commit_func` has been removed from the public API. A sample implementation is provided in the logging and basic sample apps (#7785).
 
+### Deprecated
+
+- `snapshots.read_only_directory` configuration option is deprecated and will be removed in a future release. A warning will be logged if this option is set at startup. Use `snapshots.backup_fetch` to have backup nodes automatically fetch snapshots from the primary node instead.
+
 ## [7.0.0-rc0]
 
 [7.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-rc0
