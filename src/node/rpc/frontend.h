@@ -813,7 +813,35 @@ namespace ccf
           // else args owns a valid Tx relating to a non-pending response, which
           // should be applied
           ccf::kv::CommittableTx& tx = *args.owned_tx;
-          ccf::kv::CommitResult result = tx.commit(ctx->claims);
+
+          // Only capture write set digest and commit evidence if the
+          // endpoint has a consensus committed callback that may need
+          // them for receipt construction. Avoids unnecessary hashing
+          // on the common path.
+          ccf::crypto::Sha256Hash captured_ws_digest;
+          std::string captured_commit_evidence;
+          ccf::kv::CommittableTx::WriteSetObserver ws_observer = nullptr;
+          ccf::endpoints::ConsensusCommittedEndpointFunction committed_func =
+            nullptr;
+          {
+            const auto* concrete_endpoint =
+              dynamic_cast<const endpoints::Endpoint*>(endpoint.get());
+            if (
+              concrete_endpoint != nullptr &&
+              concrete_endpoint->consensus_committed_func != nullptr)
+            {
+              committed_func = concrete_endpoint->consensus_committed_func;
+              ws_observer = [&captured_ws_digest, &captured_commit_evidence](
+                              const ccf::crypto::Sha256Hash& ws_digest,
+                              const std::string& ce) {
+                captured_ws_digest = ws_digest;
+                captured_commit_evidence = ce;
+              };
+            }
+          }
+
+          ccf::kv::CommitResult result =
+            tx.commit(ctx->claims, nullptr, ws_observer);
 
           switch (result)
           {
@@ -857,14 +885,15 @@ namespace ccf
                 }
 
                 {
-                  const auto* concrete_endpoint =
-                    dynamic_cast<const endpoints::Endpoint*>(endpoint.get());
-                  if (
-                    concrete_endpoint != nullptr &&
-                    concrete_endpoint->consensus_committed_func != nullptr)
+                  if (committed_func != nullptr)
                   {
-                    ctx->respond_on_commit = std::make_pair(
-                      tx_id, concrete_endpoint->consensus_committed_func);
+                    ctx->respond_on_commit =
+                      ccf::RpcContextImpl::RespondOnCommitInfo{
+                        tx_id,
+                        committed_func,
+                        std::move(captured_ws_digest),
+                        std::move(captured_commit_evidence),
+                        ctx->claims};
                   }
                 }
               }
