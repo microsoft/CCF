@@ -3853,10 +3853,17 @@ def test_post_snapshot_chunks_retained(network, args, read_only_ledger_dir):
         network.txs.issue(network, number_txs=3)
         copy_new_committed_to_readonly()
 
-    # Step 3: Let the cleanup timer run
+    # Step 3: Re-query the latest snapshot seqno, since new snapshots may have
+    # been auto-triggered during Step 2. The C++ cleanup uses the latest
+    # snapshot as its watermark, so the test must compare against the same value.
+    snapshot_seqno = get_latest_committed_snapshot_seqno()
+    assert snapshot_seqno is not None
+    LOG.info(f"Latest committed snapshot seqno (post Step 2): {snapshot_seqno}")
+
+    # Step 4: Let the cleanup timer run
     time.sleep(3)
 
-    # Step 4: Verify that all chunks after the snapshot watermark are retained
+    # Step 5: Verify that all chunks after the snapshot watermark are retained
     committed = get_committed_chunks()
     LOG.info(f"Committed chunks after cleanup: {len(committed)}")
 
