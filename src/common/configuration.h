@@ -117,7 +117,10 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::FilesCleanup);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::FilesCleanup);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCFConfig::FilesCleanup, max_snapshots, interval);
+    CCFConfig::FilesCleanup,
+    max_snapshots,
+    max_committed_ledger_chunks,
+    interval);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);

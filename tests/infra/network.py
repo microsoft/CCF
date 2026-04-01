@@ -195,6 +195,7 @@ class Network:
         "snapshot_min_tx_interval",
         "snapshot_time_interval",
         "files_cleanup_max_snapshots",
+        "files_cleanup_max_committed_ledger_chunks",
         "files_cleanup_interval",
         "max_open_sessions",
         "max_open_sessions_hard",
