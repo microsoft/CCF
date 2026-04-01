@@ -507,7 +507,7 @@
         },
         "read_only_directory": {
           "type": ["string", "null"],
-          "description": "Path to read-only snapshots directory"
+          "description": "Path to read-only snapshots directory. Deprecated: this option is deprecated and will be removed in a future release."
         },
         "backup_fetch": {
           "type": "object",

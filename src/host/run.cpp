@@ -615,6 +615,12 @@ namespace ccf
       config.ledger.read_only_directories);
     ledger.register_message_handlers(buffer_processor.get_dispatcher());
 
+    if (config.snapshots.read_only_directory.has_value())
+    {
+      LOG_FAIL_FMT(
+        "snapshots.read_only_directory is deprecated and will be removed in a "
+        "future release");
+    }
     snapshots::SnapshotManager snapshots(
       config.snapshots.directory,
       writer_factory,
