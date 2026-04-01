@@ -28,24 +28,22 @@ else
   echo "Checking file format in" "$@"
 fi
 
-if [ ! -f "scripts/env/bin/activate" ]
-    then
-        python3 -m venv scripts/env
+if [ ! -x "$(command -v uv)" ]; then
+  echo "uv is required but not installed. See https://docs.astral.sh/uv/getting-started/installation/" >&2
+  exit 1
 fi
 
-source scripts/env/bin/activate
-pip install -U pip
-pip install 'gersemi==0.17.0' 1>/dev/null
+GERSEMI="uvx gersemi@0.17.0"
 
 FILES=$(git ls-files "$@" | grep -e '\.cmake$' -e 'CMakeLists\.txt$')
 
 if $fix ; then
   # shellcheck disable=SC2086
-  gersemi -i $FILES
+  $GERSEMI -i $FILES
   echo "All files formatted!"
 else
   # shellcheck disable=SC2086
-  if gersemi --check $FILES; then
+  if $GERSEMI --check $FILES; then
     echo "All files formatted correctly!"
   else
     echo "Fix formatting by running: scripts/cmake-format-checks.sh -f"

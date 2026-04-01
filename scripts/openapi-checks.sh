@@ -11,9 +11,12 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 ROOT_DIR=$( dirname "$SCRIPT_DIR" )
 cd "$ROOT_DIR" || exit 1
 
-NPM_DIR=$(mktemp -d) || exit 1
-trap 'rm -rf "$NPM_DIR"' EXIT
-npm install --loglevel=error --no-save --prefix "$NPM_DIR" @apidevtools/swagger-cli 1>/dev/null || exit 1
+if [ ! -x "$(command -v uv)" ]; then
+  echo "uv is required but not installed. See https://docs.astral.sh/uv/getting-started/installation/" >&2
+  exit 1
+fi
 
-find doc/schemas/*.json -exec npx --prefix "$NPM_DIR" swagger-cli validate {} \; || exit 1
-find doc/schemas/gov/*/*.json -exec npx --prefix "$NPM_DIR" swagger-cli validate {} \;
+VALIDATOR="uvx --from openapi-spec-validator openapi-spec-validator"
+
+$VALIDATOR doc/schemas/*.json || exit 1
+$VALIDATOR doc/schemas/gov/*/*.json
