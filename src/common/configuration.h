@@ -122,6 +122,15 @@ namespace ccf
     max_committed_ledger_chunks,
     interval);
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Sharding);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Sharding);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::Sharding,
+    enabled,
+    auto_seal_after_seqno_count,
+    auto_seal_after_duration_s,
+    max_active_shard_memory_mb);
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -135,6 +144,7 @@ namespace ccf
     attestation,
     snapshots,
     files_cleanup,
+    sharding,
     node_to_node_message_limit,
     historical_cache_soft_limit);
 

@@ -67,6 +67,10 @@ namespace ccf
       std::optional<std::vector<uint8_t>> cose_sig = std::nullopt;
       std::optional<std::vector<uint8_t>> tree = std::nullopt;
 
+      // When set, this snapshot was taken as part of a shard seal operation
+      bool is_shard_seal = false;
+      std::optional<uint64_t> sealed_shard_id = std::nullopt;
+
       SnapshotInfo() = default;
     };
     // Queue of pending snapshots that have been generated, but are not yet
@@ -86,6 +90,11 @@ namespace ccf
 
     // Used to suspend snapshot generation during public recovery
     bool snapshot_generation_enabled = true;
+
+    // Shard seal tracking: when set, the next generated snapshot is marked
+    // as a shard boundary snapshot for the given shard_id
+    std::optional<uint64_t> pending_shard_seal_id = std::nullopt;
+    std::optional<uint64_t> last_committed_shard_seal_id = std::nullopt;
 
     // Indices at which a snapshot will be next generated and Boolean to
     // indicate whether a snapshot was forced at the given index
@@ -216,6 +225,15 @@ namespace ccf
         // seqno is recorded via `record_snapshot_evidence_idx()` on a hook
         // rather than here.
         pending_snapshots[generation_count].version = snapshot_version;
+
+        // If a shard seal is pending, mark this snapshot accordingly
+        if (pending_shard_seal_id.has_value())
+        {
+          pending_snapshots[generation_count].is_shard_seal = true;
+          pending_snapshots[generation_count].sealed_shard_id =
+            pending_shard_seal_id.value();
+          pending_shard_seal_id = std::nullopt;
+        }
       }
 
       auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
@@ -330,6 +348,18 @@ namespace ccf
             std::move(snapshot_info.snapshot_digest));
 
           commit_snapshot(snapshot_info.version, serialised_receipt);
+
+          // Track shard seal completion
+          if (snapshot_info.is_shard_seal &&
+              snapshot_info.sealed_shard_id.has_value())
+          {
+            last_committed_shard_seal_id =
+              snapshot_info.sealed_shard_id.value();
+            LOG_INFO_FMT(
+              "Shard seal snapshot committed for shard {}",
+              last_committed_shard_seal_id.value());
+          }
+
           it = pending_snapshots.erase(it);
         }
         else
@@ -371,6 +401,19 @@ namespace ccf
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
       snapshot_generation_enabled = enabled;
+    }
+
+    void mark_next_snapshot_as_shard_seal(uint64_t shard_id)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      pending_shard_seal_id = shard_id;
+    }
+
+    bool is_shard_seal_snapshot_committed(uint64_t shard_id)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      return last_committed_shard_seal_id.has_value() &&
+        last_committed_shard_seal_id.value() == shard_id;
     }
 
     void init_from_snapshot_status(const SnapshotStatus& status)

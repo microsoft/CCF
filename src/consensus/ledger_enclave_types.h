@@ -37,6 +37,9 @@ namespace consensus
     DEFINE_RINGBUFFER_MSG_TYPE(snapshot_allocate),
     DEFINE_RINGBUFFER_MSG_TYPE(snapshot_commit),
 
+    /// Notify host that a shard has been sealed. Enclave -> Host
+    DEFINE_RINGBUFFER_MSG_TYPE(ledger_shard_sealed),
+
     /// Host -> Enclave
     DEFINE_RINGBUFFER_MSG_TYPE(snapshot_allocated),
   };
@@ -84,3 +87,9 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   ::consensus::snapshot_commit,
   ::consensus::Index /* snapshot idx */,
   std::vector<uint8_t> /* serialised receipt */);
+
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  ::consensus::ledger_shard_sealed,
+  uint64_t /* shard_id */,
+  ::consensus::Index /* seqno_start */,
+  ::consensus::Index /* seqno_end */);

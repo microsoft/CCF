@@ -40,17 +40,18 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
 
   // Open Parquet file reader
   std::unique_ptr<parquet::arrow::FileReader> arrow_reader;
-  st = parquet::arrow::OpenFile(input, pool, &arrow_reader);
-  if (!st.ok())
+  auto arrow_reader_result = parquet::arrow::OpenFile(input, pool);
+  if (!arrow_reader_result.ok())
   {
     LOG_FAIL_FMT(
       "Couldn't find generator file ({}): {}",
       generator_filepath,
-      st.ToString());
+      arrow_reader_result.status().ToString());
     exit(1);
   }
   else
   {
+    arrow_reader = std::move(arrow_reader_result).ValueOrDie();
     LOG_INFO_FMT("Found generator file");
   }
 
