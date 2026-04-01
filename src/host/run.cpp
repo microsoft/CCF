@@ -617,7 +617,7 @@ namespace ccf
 
     if (config.snapshots.read_only_directory.has_value())
     {
-      LOG_FAIL_FMT(
+      LOG_INFO_FMT(
         "snapshots.read_only_directory is deprecated and will be removed in a "
         "future release");
     }
