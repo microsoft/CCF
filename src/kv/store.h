@@ -108,8 +108,10 @@ namespace ccf::kv
     // If true, use historical ledger secrets to deserialise entries
     const bool is_historical = false;
 
-    // Ledger entry header flags
-    uint8_t flags = 0;
+    // Store-level flags (AbstractStore::StoreFlag) influencing behaviour such
+    // as snapshot and ledger chunk decisions. Atomic because _unsafe accessors
+    // may be called from different threads without a common lock.
+    std::atomic<uint8_t> flags = 0;
 
     bool commit_deserialised(
       OrderedChanges& changes,
@@ -1342,17 +1344,19 @@ namespace ccf::kv
 
     void set_flag_unsafe(StoreFlag f) override
     {
-      this->flags |= static_cast<uint8_t>(f);
+      this->flags.fetch_or(static_cast<uint8_t>(f), std::memory_order_relaxed);
     }
 
     void unset_flag_unsafe(StoreFlag f) override
     {
-      this->flags &= ~static_cast<uint8_t>(f);
+      this->flags.fetch_and(
+        ~static_cast<uint8_t>(f), std::memory_order_relaxed);
     }
 
     [[nodiscard]] bool flag_enabled_unsafe(StoreFlag f) const override
     {
-      return (flags & static_cast<uint8_t>(f)) != 0;
+      return (flags.load(std::memory_order_relaxed) &
+              static_cast<uint8_t>(f)) != 0;
     }
   };
 
