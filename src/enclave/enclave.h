@@ -31,6 +31,7 @@
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/node_operation.h"
 #include "node/rpc/user_frontend.h"
+#include "node/signature_cache_subsystem.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
 #include "tasks/worker.h"
@@ -156,6 +157,9 @@ namespace ccf
       context->install_subsystem(commit_callbacks);
       rpcsessions->set_commit_callbacks_subsystem(commit_callbacks);
 
+      auto signature_cache = std::make_shared<ccf::SignatureCacheSubsystem>();
+      context->install_subsystem(signature_cache);
+
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(network, *context));
@@ -174,6 +178,7 @@ namespace ccf
         rpcsessions,
         indexer,
         commit_callbacks,
+        signature_cache,
         sig_tx_interval,
         sig_ms_interval);
     }
