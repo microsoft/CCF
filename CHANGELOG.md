@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Deprecated
 
-- `snapshots.read_only_directory` configuration option is deprecated and will be removed in a future release. A warning will be logged if this option is set at startup.
+- `snapshots.read_only_directory` configuration option is deprecated and will be removed in a future release. A warning will be logged if this option is set at startup. Use `snapshots.backup_fetch` to have backup nodes automatically fetch snapshots from the primary node instead.
 
 ## [7.0.0-rc0]
 

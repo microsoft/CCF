@@ -507,7 +507,7 @@
         },
         "read_only_directory": {
           "type": ["string", "null"],
-          "description": "Path to read-only snapshots directory. Deprecated: this option is deprecated and will be removed in a future release."
+          "description": "Path to read-only snapshots directory. Deprecated: this option is deprecated and will be removed in a future release. Use snapshots.backup_fetch to have backup nodes automatically fetch snapshots from the primary node instead."
         },
         "backup_fetch": {
           "type": "object",
