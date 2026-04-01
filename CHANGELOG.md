@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-rc1]
+
+[7.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-rc1
+
+### Added
+
+- Added support for inline transaction receipt construction at commit time. Endpoint authors can use `build_receipt_for_committed_tx()` to construct a full `TxReceiptImpl` from the `CommittedTxInfo` passed to their `ConsensusCommittedEndpointFunction` callback. See the logging sample app (`/log/blocking/private/receipt`) for example usage (#7785).
+
+### Changed
+
+- The `ConsensusCommittedEndpointFunction` callback signature now receives a `CommittedTxInfo&` struct (containing `rpc_ctx`, `tx_id`, `status`, `write_set_digest`, `commit_evidence`, `claims_digest`) instead of individual arguments. This enables commit callbacks to construct receipts inline (#7785).
+- `ccf::endpoints::default_respond_on_commit_func` has been removed from the public API. A sample implementation is provided in the logging and basic sample apps (#7785).
+
 ## [7.0.0-rc0]
 
 [7.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-rc0

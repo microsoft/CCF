@@ -4,6 +4,9 @@
 // This app's includes
 #include "logging_schema.h"
 
+// Sample apps common
+#include "../common/default_on_commit.h"
+
 // CCF
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
@@ -512,7 +515,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.8.1";
+      openapi_info.document_version = "2.8.2";
     };
 
     void init_handlers() override
@@ -568,7 +571,16 @@ namespace loggingapp
         auth_policies)
         .set_auto_schema<LoggingRecord::In, bool>()
         .set_consensus_committed_function(
-          ccf::endpoints::default_respond_on_commit_func)
+          ccf::samples::default_respond_on_commit)
+        .install();
+
+      make_endpoint(
+        "/log/blocking/private/receipt",
+        HTTP_POST,
+        ccf::json_adapter(record),
+        auth_policies)
+        .set_consensus_committed_function(
+          ccf::samples::make_respond_with_receipt_on_commit(context))
         .install();
 
       auto add_txid_in_body_put = [](auto& ctx, const auto& tx_id) {
@@ -685,7 +697,7 @@ namespace loggingapp
         .set_auto_schema<void, LoggingGet::Out>()
         .add_query_parameter<size_t>("id")
         .set_consensus_committed_function(
-          ccf::endpoints::default_respond_on_commit_func)
+          ccf::samples::default_respond_on_commit)
         .install();
 
       make_read_only_endpoint(
