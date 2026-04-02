@@ -1415,6 +1415,27 @@ def run_recover_via_added_recovery_owner(args):
         return network
 
 
+def run_recovery_cose_only(args):
+    """
+    Recover a service that was started with cose_only_ledger=True.
+    In this mode, only COSE signatures are emitted (no node signatures).
+    """
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args, cose_only_ledger=True)
+        # network.txs.issue(network, number_txs=5)
+        # network = test_recover_service(network, args, from_snapshot=True)
+        network.txs.issue(network, number_txs=5)
+        network = test_recover_service(network, args, from_snapshot=False)
+        return network
+
+
 if __name__ == "__main__":
 
     def add(parser):
@@ -1535,6 +1556,15 @@ checked. Note that the key for each logging message is unique (per table).
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=10000,
+    )
+
+    cr.add(
+        "recovery_cose_only",
+        run_recovery_cose_only,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
     )
 
     cr.run()

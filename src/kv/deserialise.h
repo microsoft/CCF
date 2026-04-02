@@ -130,7 +130,7 @@ namespace ccf::kv
       }
       auto success = ApplyResult::PASS;
 
-      auto search = changes.find(ccf::Tables::SIGNATURES);
+      auto search = changes.find(ccf::Tables::COSE_SIGNATURES);
       if (search != changes.end())
       {
         switch (changes.size())
@@ -146,7 +146,7 @@ namespace ccf::kv
             if (
               changes.find(ccf::Tables::SERIALISED_MERKLE_TREE) !=
                 changes.end() &&
-              changes.find(ccf::Tables::COSE_SIGNATURES) != changes.end())
+              changes.find(ccf::Tables::SIGNATURES) != changes.end())
             {
               break;
             }

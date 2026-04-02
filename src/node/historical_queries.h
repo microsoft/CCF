@@ -7,6 +7,7 @@
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
 #include "kv/store.h"
+#include "node/cose_common.h"
 #include "node/encryptor.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"
@@ -495,12 +496,11 @@ namespace ccf::historical
       {
         // Iterate through earlier indices. If this signature covers them
         // then create a receipt for them
-        const auto sig = get_signature(sig_details->store);
-        if (!sig.has_value())
+        const auto cose_sig = get_cose_signature(sig_details->store);
+        if (!cose_sig.has_value())
         {
           return false;
         }
-        const auto cose_sig = get_cose_signature(sig_details->store);
         const auto serialised_tree = get_tree(sig_details->store);
         if (!serialised_tree.has_value())
         {
@@ -525,15 +525,36 @@ namespace ccf::historical
               auto details = search_rit->second;
               if (details != nullptr && details->store != nullptr)
               {
+                auto sig = get_signature(sig_details->store);
+                std::optional<std::vector<uint8_t>> sig_bytes{std::nullopt};
+                std::optional<ccf::crypto::Pem> sig_cert{std::nullopt};
+                ccf::NodeId sig_node{};
+                if (sig.has_value())
+                {
+                  sig_bytes = sig->sig;
+                  sig_node = sig->node;
+                  sig_cert = sig->cert;
+                }
+
                 auto proof = tree.get_proof(seqno);
-                details->transaction_id = {sig->view, seqno};
+                auto cose_receipt =
+                  ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
+                auto parsed_txid =
+                  ccf::TxID::from_str(cose_receipt.phdr.ccf.txid);
+                if (!parsed_txid.has_value())
+                {
+                  throw std::logic_error(fmt::format(
+                    "Cannot parse CCF TxID: {}", cose_receipt.phdr.ccf.txid));
+                }
+
+                details->transaction_id = {parsed_txid->view, seqno};
                 details->receipt = std::make_shared<TxReceiptImpl>(
-                  sig->sig,
+                  sig_bytes,
                   cose_sig,
                   proof.get_root(),
                   proof.get_path(),
-                  sig->node,
-                  sig->cert,
+                  sig_node,
+                  sig_cert,
                   details->entry_digest,
                   details->get_commit_evidence(),
                   details->claims_digest);
@@ -811,13 +832,36 @@ namespace ccf::historical
         // the state to do so already, and it's simpler than constructing
         // the receipt _later_ for an already-fetched signature
         // transaction.
-        const auto sig = get_signature(details->store);
         const auto cose_sig = get_cose_signature(details->store);
-        if (sig.has_value())
+        if (cose_sig.has_value())
         {
-          details->transaction_id = {sig->view, sig->seqno};
-          details->receipt = std::make_shared<TxReceiptImpl>(
-            sig->sig, cose_sig, sig->root.h, nullptr, sig->node, sig->cert);
+          auto receipt = ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
+          const auto& txid = receipt.phdr.ccf.txid;
+          auto parsed_txid = ccf::TxID::from_str(txid);
+
+          if (!parsed_txid.has_value())
+          {
+            throw std::logic_error(
+              fmt::format("Cannot parse CCF TxID: {}", txid));
+          }
+          details->transaction_id = parsed_txid.value();
+
+          const auto sig = get_signature(details->store);
+          if (sig.has_value())
+          {
+            details->receipt = std::make_shared<TxReceiptImpl>(
+              sig->sig, cose_sig, sig->root.h, nullptr, sig->node, sig->cert);
+          }
+          else
+          {
+            details->receipt = std::make_shared<TxReceiptImpl>(
+              std::nullopt,
+              cose_sig,
+              std::nullopt,
+              nullptr,
+              ccf::NodeId{},
+              std::nullopt);
+          }
         }
       }
 

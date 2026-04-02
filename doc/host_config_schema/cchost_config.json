@@ -209,6 +209,11 @@
                       "subject": {
                         "type": "string",
                         "description": "Subject, set in CWT_Claims of COSE ledger signatures. Can only be set once on service start."
+                      },
+                      "cose_only_ledger": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Only COSE-sign Merkle tree root"
                       }
                     }
                   },

@@ -1,6 +1,8 @@
 {
   "network": {
-    "node_to_node_interface": { "bind_address": "127.0.0.1:8081" },
+    "node_to_node_interface": {
+      "bind_address": "127.0.0.1:8081"
+    },
     "rpc_interfaces": {
       "primary_rpc_interface": {
         "bind_address": "127.0.0.1:8080",
@@ -49,7 +51,8 @@
       "service_subject_name": "CN=A Sample CCF Service",
       "cose_signatures": {
         "issuer": "service.example.com",
-        "subject": "ledger.signature"
+        "subject": "ledger.signature",
+        "cose_only_ledger": true
       }
     }
   },

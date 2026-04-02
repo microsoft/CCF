@@ -2263,6 +2263,7 @@ TEST_CASE("Deserialise return status")
   store.set_encryptor(encryptor);
 
   ccf::Signatures signatures(ccf::Tables::SIGNATURES);
+  ccf::CoseSignatures cose_signatures(ccf::Tables::COSE_SIGNATURES);
   ccf::SerialisedMerkleTree serialised_tree(
     ccf::Tables::SERIALISED_MERKLE_TREE);
 
@@ -2292,9 +2293,12 @@ TEST_CASE("Deserialise return status")
   {
     auto tx = store.create_reserved_tx(store.next_txid());
     auto sig_handle = tx.rw(signatures);
+    auto cose_sig_handle = tx.rw(cose_signatures);
     auto tree_handle = tx.rw(serialised_tree);
     ccf::PrimarySignature sigv(ccf::kv::test::PrimaryNodeId, 2);
     sig_handle->put(sigv);
+    ccf::CoseSignature cose_sigv;
+    cose_sig_handle->put(cose_sigv);
     tree_handle->put({});
     auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
       tx.commit_reserved();
@@ -2310,9 +2314,12 @@ TEST_CASE("Deserialise return status")
   {
     auto tx = store.create_reserved_tx(store.next_txid());
     auto sig_handle = tx.rw(signatures);
+    auto cose_sig_handle = tx.rw(cose_signatures);
     auto data_handle = tx.rw(data);
     ccf::PrimarySignature sigv(ccf::kv::test::PrimaryNodeId, 2);
     sig_handle->put(sigv);
+    ccf::CoseSignature cose_sigv;
+    cose_sig_handle->put(cose_sigv);
     data_handle->put(43, 43);
     auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
       tx.commit_reserved();
@@ -3363,6 +3370,7 @@ TEST_CASE("Ledger entry chunk request")
   store.set_consensus(consensus);
 
   ccf::Signatures signatures(ccf::Tables::SIGNATURES);
+  ccf::CoseSignatures cose_signatures(ccf::Tables::COSE_SIGNATURES);
   ccf::SerialisedMerkleTree serialised_tree(
     ccf::Tables::SERIALISED_MERKLE_TREE);
 
@@ -3442,9 +3450,12 @@ TEST_CASE("Ledger entry chunk request")
       auto txid = store.next_txid();
       auto tx = store.create_reserved_tx(txid);
       auto sig_handle = tx.rw(signatures);
+      auto cose_sig_handle = tx.rw(cose_signatures);
       auto tree_handle = tx.rw(serialised_tree);
       ccf::PrimarySignature sigv(ccf::kv::test::PrimaryNodeId, txid.seqno);
       sig_handle->put(sigv);
+      ccf::CoseSignature cose_sigv;
+      cose_sig_handle->put(cose_sigv);
       tree_handle->put({});
       auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
         tx.commit_reserved();
@@ -3518,9 +3529,12 @@ TEST_CASE("Ledger entry chunk request")
 
       // Add the signature
       auto sig_handle = tx.rw(signatures);
+      auto cose_sig_handle = tx.rw(cose_signatures);
       auto tree_handle = tx.rw(serialised_tree);
       ccf::PrimarySignature sigv(ccf::kv::test::PrimaryNodeId, txid.seqno);
       sig_handle->put(sigv);
+      ccf::CoseSignature cose_sigv;
+      cose_sig_handle->put(cose_sigv);
       tree_handle->put({});
       auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
         tx.commit_reserved();
