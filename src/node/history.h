@@ -813,25 +813,28 @@ namespace ccf
         return false;
       }
 
-      try
+      if (ccf::logger::config::ok(LoggerLevel::DEBUG))
       {
-        auto receipt = ccf::cose::decode_ccf_receipt(
-          cose_sig.value(), /* recompute_root */ false);
-        if (receipt.phdr.cwt.iat.has_value())
+        try
+        {
+          auto receipt = ccf::cose::decode_ccf_receipt(
+            cose_sig.value(), /* recompute_root */ false);
+          if (receipt.phdr.cwt.iat.has_value())
+          {
+            LOG_DEBUG_FMT(
+              "Verified COSE signature for TxID {}, issued at {}",
+              receipt.phdr.ccf.txid,
+              ccf::ds::to_x509_time_string(
+                std::chrono::system_clock::from_time_t(
+                  receipt.phdr.cwt.iat.value())));
+          }
+        }
+        catch (const std::exception& e)
         {
           LOG_DEBUG_FMT(
-            "Verified COSE signature for TxID {}, issued at {}",
-            receipt.phdr.ccf.txid,
-            ccf::ds::to_x509_time_string(
-              std::chrono::system_clock::from_time_t(
-                receipt.phdr.cwt.iat.value())));
+            "Failed to decode COSE protected header for debug logging: {}",
+            e.what());
         }
-      }
-      catch (const std::exception& e)
-      {
-        LOG_DEBUG_FMT(
-          "Failed to decode COSE protected header for debug logging: {}",
-          e.what());
       }
 
       return true;
