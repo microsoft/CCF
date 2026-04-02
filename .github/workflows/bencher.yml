@@ -47,10 +47,18 @@ jobs:
           python3 tests/infra/platform_detection.py virtual
         shell: bash
 
+      - name: Cache build directory
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: build-virtual-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'src/**', '3rdparty/**', 'include/**') }}
+          restore-keys: |
+            build-virtual-
+
       - name: Build and run virtual perf tests
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
+          mkdir -p build
           cd build
           cmake -GNinja -DWORKER_THREADS=2 ..
           ninja
@@ -107,10 +115,18 @@ jobs:
           python3 tests/infra/platform_detection.py snp
         shell: bash
 
+      - name: Cache build directory
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: build-snp-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'src/**', '3rdparty/**', 'include/**') }}
+          restore-keys: |
+            build-snp-
+
       - name: Build and run SNP perf tests
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
+          mkdir -p build
           cd build
           cmake -GNinja -DWORKER_THREADS=2 ..
           ninja
