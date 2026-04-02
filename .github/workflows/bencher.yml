@@ -53,7 +53,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DWORKER_THREADS=2 ..
-          ninja basic
+          ninja basic submit
           # Microbenchmarks
           # ./tests.sh -VV -L benchmark
           # End to end performance tests
@@ -112,7 +112,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DWORKER_THREADS=2 ..
-          ninja basic
+          ninja basic submit
           # Microbenchmarks
           # ./tests.sh -VV -L benchmark -E task_bench
           # End to end performance tests
@@ -168,7 +168,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DWORKER_THREADS=2 ..
-          ninja basic
+          ninja basic submit
           # Microbenchmarks
           # ./tests.sh -VV -L benchmark -E task_bench
           # End to end performance tests
