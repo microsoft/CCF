@@ -47,21 +47,13 @@ jobs:
           python3 tests/infra/platform_detection.py virtual
         shell: bash
 
-      - name: Cache build directory
-        uses: actions/cache@v5
-        with:
-          path: build
-          key: build-virtual-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'src/**', '3rdparty/**', 'include/**') }}
-          restore-keys: |
-            build-virtual-
-
       - name: Build and run virtual perf tests
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
-          mkdir -p build
+          mkdir build
           cd build
           cmake -GNinja -DWORKER_THREADS=2 ..
-          ninja
+          ninja basic
           # Microbenchmarks
           # ./tests.sh -VV -L benchmark
           # End to end performance tests
@@ -114,21 +106,13 @@ jobs:
           python3 tests/infra/platform_detection.py snp
         shell: bash
 
-      - name: Cache build directory
-        uses: actions/cache@v5
-        with:
-          path: build
-          key: build-snp-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'src/**', '3rdparty/**', 'include/**') }}
-          restore-keys: |
-            build-snp-
-
       - name: Build and run SNP perf tests
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
-          mkdir -p build
+          mkdir build
           cd build
           cmake -GNinja -DWORKER_THREADS=2 ..
-          ninja
+          ninja basic
           # Microbenchmarks
           # ./tests.sh -VV -L benchmark -E task_bench
           # End to end performance tests
@@ -142,6 +126,62 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: logs-bench-snp
+          path: |
+            dmesg.log
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*/stack_trace
+            build/bencher.json
+          if-no-files-found: ignore
+        if: success() || failure()
+
+      - uses: bencherdev/bencher@main
+      - name: Track base branch benchmarks with Bencher
+        run: |
+          bencher run \
+          --project ccf \
+          --token '${{ secrets.BENCHER_API_TOKEN }}' \
+          --branch main \
+          --testbed gha-c-aci-ci \
+          --adapter json \
+          --err \
+          --file build/bencher.json
+        if: github.ref == 'refs/heads/main'
+
+  benchmark_aci:
+    name: Benchmark ACI
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=gha-aci-ci,
+        "JobId=bench_aci-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Build and run ACI perf tests
+        run: |
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DWORKER_THREADS=2 ..
+          ninja basic
+          # Microbenchmarks
+          # ./tests.sh -VV -L benchmark -E task_bench
+          # End to end performance tests
+          ./tests.sh -VV -L perf -C perf -R pi_basic_mt
+          # Convert microbenchmark output to bencher json
+          source env/bin/activate
+          PYTHONPATH=../tests python convert_pico_to_bencher.py
+        shell: bash
+
+      - name: "Upload logs"
+        uses: actions/upload-artifact@v7
+        with:
+          name: logs-bench-aci
           path: |
             dmesg.log
             build/workspace/*/*.config.json
