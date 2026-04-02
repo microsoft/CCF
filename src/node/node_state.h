@@ -438,6 +438,10 @@ namespace ccf
     };
     std::optional<PendingSealInfo> pending_seal_info = std::nullopt;
 
+    // Set by the snapshotter callback (which runs under the store maps lock,
+    // so we cannot do KV work there). Checked and cleared in tick().
+    std::atomic<bool> seal_snapshot_committed{false};
+
     //
     // JWT key auto-refresh
     //
@@ -2155,6 +2159,15 @@ namespace ccf
         const auto tx_id = consensus->get_committed_txid();
         indexer->update_strategies(elapsed, {tx_id.first, tx_id.second});
 
+        // Check if a shard-seal snapshot was committed (flag set by
+        // the snapshotter callback) and complete the seal transition
+        if (
+          seal_snapshot_committed.exchange(false) &&
+          pending_seal_info.has_value())
+        {
+          complete_shard_seal(pending_seal_info->shard_id);
+        }
+
         check_auto_seal(elapsed, tx_id.second);
       }
 
@@ -2462,9 +2475,9 @@ namespace ccf
 
     void complete_shard_seal(uint64_t shard_id)
     {
-      // Called by the snapshotter callback when the shard-seal snapshot is
-      // committed. Transitions the shard from Sealing → Sealed and notifies
-      // the host to archive the ledger chunks.
+      // Called from tick() when the snapshotter notifies us that the
+      // shard-seal snapshot has been committed. Transitions the shard from
+      // Sealing → Sealed and notifies the host to archive the ledger chunks.
       std::lock_guard<pal::Mutex> guard(lock);
 
       if (
@@ -2500,10 +2513,10 @@ namespace ccf
       // Notify the host to hard-link sealed shard's ledger chunks
       if (!config.ledger.read_only_directories.empty())
       {
-        auto to_host = writer_factory.create_writer_to_outside();
+        auto shard_writer = writer_factory.create_writer_to_outside();
         RINGBUFFER_WRITE_MESSAGE(
           ::consensus::ledger_shard_sealed,
-          to_host,
+          shard_writer,
           seal_info.shard_id,
           seal_info.seqno_start,
           seal_info.seqno_end);
@@ -3527,9 +3540,11 @@ namespace ccf
         config.snapshots.time_interval);
 
       // Register shard seal completion callback so that when a shard-seal
-      // snapshot is committed, the shard transitions Sealing → Sealed
+      // snapshot is committed, we get notified. The callback runs under the
+      // store's maps lock, so it just sets an atomic flag — the actual
+      // completion work (KV update + ring buffer message) happens in tick().
       snapshotter->set_on_shard_seal_committed(
-        [this](uint64_t shard_id) { complete_shard_seal(shard_id); });
+        [this](uint64_t) { seal_snapshot_committed.store(true); });
     }
 
     void read_ledger_entries(::consensus::Index from, ::consensus::Index to)

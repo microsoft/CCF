@@ -1749,14 +1749,14 @@ namespace asynchost
         }
 
         auto first_idx = get_start_idx_from_file_name(file_name);
-        auto last_idx = get_last_idx_from_file_name(file_name);
-        if (!last_idx.has_value())
+        auto chunk_last_idx = get_last_idx_from_file_name(file_name);
+        if (!chunk_last_idx.has_value())
         {
           continue;
         }
 
         // Include any chunk that overlaps with the shard's seqno range
-        if (last_idx.value() >= seqno_start && first_idx <= seqno_end)
+        if (chunk_last_idx.value() >= seqno_start && first_idx <= seqno_end)
         {
           const auto src = ledger_dir / file_name;
           const auto dst = shard_dir / file_name;
