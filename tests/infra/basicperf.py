@@ -261,7 +261,7 @@ def replace_primary(network, host, old_primary, snapshots_dir, statistics):
 
 
 def run(args):
-    hosts = args.nodes or infra.e2e_args.nodes(args, 1)
+    hosts = args.nodes or infra.e2e_args.nodes(args, 3)
 
     if args.stop_primary_after_s:
         assert (
@@ -822,7 +822,7 @@ def cli_args():
     parser.add_argument(
         "--client-timeout-s",
         help="Number of seconds after which unresponsive clients are shut down",
-        default=300,
+        default=600,
         type=float,
     )
     parser.add_argument(
