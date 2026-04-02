@@ -483,6 +483,25 @@ namespace ccf
         tx, new_ledger_secret, ledger_secrets->get_latest(tx));
     }
 
+    /** Issue new recovery shares for a shard seal operation. This is
+     * identical to a rekey-triggered share issuance, ensuring the previous
+     * shard's ledger secret is encrypted with the new shard's secret and
+     * recorded in ENCRYPTED_PAST_LEDGER_SECRET.
+     *
+     * @param tx Store transaction object
+     * @param new_ledger_secret Pointer to new ledger secret for the new shard
+     */
+    void issue_recovery_shares_for_shard_seal(
+      ccf::kv::Tx& tx, LedgerSecretPtr new_ledger_secret)
+    {
+      // Shard sealing mandates a rekey, so the previous secret is always
+      // the current latest. This ensures the backward chain of
+      // ENCRYPTED_PAST_LEDGER_SECRET spans shard boundaries for disaster
+      // recovery.
+      set_recovery_shares_info(
+        tx, new_ledger_secret, ledger_secrets->get_latest(tx));
+    }
+
     /** Issue new recovery shares of the same current ledger secret to all
      * active recovery members. The encrypted ledger secrets recorded in the
      * store are not updated.

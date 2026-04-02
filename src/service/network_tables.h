@@ -23,6 +23,7 @@
 #include "ccf/service/tables/virtual_measurements.h"
 #include "kv/store.h"
 #include "tables/config.h"
+#include "tables/shards.h"
 #include "tables/governance_history.h"
 #include "tables/previous_service_identity.h"
 #include "tables/secrets.h"
@@ -185,10 +186,16 @@ namespace ccf
     const Configuration config = {Tables::CONFIGURATION};
     const Constitution constitution = {Tables::CONSTITUTION};
 
+    //
+    // Sharding tables
+    //
+    const Shards shards = {Tables::SHARDS};
+    const ShardPolicy shard_policy = {Tables::SHARD_POLICY};
+
     [[nodiscard]] auto get_all_service_tables() const
     {
       return std::make_tuple(
-        service, config, constitution, previous_service_identity);
+        service, config, constitution, previous_service_identity, shards);
     }
 
     // All builtin governance tables should be included here, so that wrapper

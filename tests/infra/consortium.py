@@ -414,6 +414,27 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def seal_current_shard(self, remote_node):
+        proposal_body, careful_vote = self.make_proposal("seal_current_shard")
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def set_shard_policy(
+        self,
+        remote_node,
+        auto_seal_after_seqno_count=0,
+        auto_seal_after_duration_s=0,
+        max_active_shard_memory_mb=0,
+    ):
+        proposal_body, careful_vote = self.make_proposal(
+            "set_shard_policy",
+            auto_seal_after_seqno_count=auto_seal_after_seqno_count,
+            auto_seal_after_duration_s=auto_seal_after_duration_s,
+            max_active_shard_memory_mb=max_active_shard_memory_mb,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
     def user_cert_path(self, user_id):
         return os.path.join(self.common_dir, f"{user_id}_cert.pem")
 

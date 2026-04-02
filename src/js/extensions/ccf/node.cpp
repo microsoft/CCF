@@ -6,6 +6,7 @@
 #include "ccf/js/core/context.h"
 #include "js/checks.h"
 #include "node/rpc/gov_logging.h"
+#include "service/tables/shards.h"
 
 #include <quickjs/quickjs.h>
 
@@ -320,6 +321,115 @@ namespace ccf::js::extensions
 
       return ccf::js::core::constants::Undefined;
     }
+
+    JSValue js_node_seal_shard(
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      int argc,
+      [[maybe_unused]] JSValueConst* argv)
+    {
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      if (argc != 0)
+      {
+        return JS_ThrowTypeError(
+          ctx, "Passed %d arguments but expected none", argc);
+      }
+
+      auto* extension = jsctx.get_extension<NodeExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto* gov_effects = extension->gov_effects;
+      if (gov_effects == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get governance effects object");
+      }
+
+      auto* tx_ptr = extension->tx;
+      if (tx_ptr == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get tx object");
+      }
+
+      try
+      {
+        bool result = gov_effects->seal_shard(*tx_ptr);
+        if (!result)
+        {
+          return JS_ThrowInternalError(ctx, "Could not seal shard");
+        }
+      }
+      catch (const std::exception& e)
+      {
+        GOV_FAIL_FMT("Unable to seal shard: {}", e.what());
+        return JS_ThrowInternalError(
+          ctx, "Unable to seal shard: %s", e.what());
+      }
+
+      return ccf::js::core::constants::Undefined;
+    }
+
+    JSValue js_node_set_shard_policy(
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      int argc,
+      [[maybe_unused]] JSValueConst* argv)
+    {
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      if (argc != 1)
+      {
+        return JS_ThrowTypeError(
+          ctx, "Passed %d arguments but expected one", argc);
+      }
+
+      auto* extension = jsctx.get_extension<NodeExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto* gov_effects = extension->gov_effects;
+      if (gov_effects == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get governance effects object");
+      }
+
+      auto* tx_ptr = extension->tx;
+      if (tx_ptr == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get tx object");
+      }
+
+      try
+      {
+        size_t buf_sz = 0;
+        uint8_t* buf = JS_GetArrayBuffer(ctx, &buf_sz, argv[0]);
+        if (buf == nullptr)
+        {
+          return JS_ThrowTypeError(
+            ctx, "Shard policy argument is not an array buffer");
+        }
+
+        auto policy_json =
+          nlohmann::json::parse(buf, buf + buf_sz);
+        auto policy = policy_json.get<ccf::ShardPolicyInfo>();
+        gov_effects->set_shard_policy(*tx_ptr, policy);
+      }
+      catch (const std::exception& e)
+      {
+        GOV_FAIL_FMT("Unable to set shard policy: {}", e.what());
+        return JS_ThrowInternalError(
+          ctx, "Unable to set shard policy: %s", e.what());
+      }
+
+      return ccf::js::core::constants::Undefined;
+    }
   }
 
   void NodeExtension::install(js::core::Context& ctx)
@@ -349,6 +459,12 @@ namespace ccf::js::extensions
     JS_CHECK_OR_THROW(node.set(
       "shuffleSealedShares",
       ctx.new_c_function(js_shuffle_sealed_shares, "shuffleSealedShares", 0)));
+    JS_CHECK_OR_THROW(node.set(
+      "sealShard",
+      ctx.new_c_function(js_node_seal_shard, "sealShard", 0)));
+    JS_CHECK_OR_THROW(node.set(
+      "setShardPolicy",
+      ctx.new_c_function(js_node_set_shard_policy, "setShardPolicy", 1)));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
     JS_CHECK_OR_THROW(ccf.set("node", std::move(node)));
