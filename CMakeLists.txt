@@ -1345,7 +1345,7 @@ if(BUILD_TESTS)
         --package
         "samples/apps/basic/basic"
         --client-def
-        "${WORKER_THREADS},write,2000000,primary"
+        "${WORKER_THREADS},write,4000000,primary"
     )
   endif()
 
