@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/cose_verifier.h"
+#include "ccf/ds/x509_time_fmt.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
@@ -15,6 +16,7 @@
 #include "endian.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
+#include "node/cose_common.h"
 #include "node_signature_verify.h"
 #include "service/tables/signatures.h"
 #include "tasks/basic_task.h"
@@ -805,8 +807,34 @@ namespace ccf
 
       std::vector<uint8_t> root_hash{
         root.h.data(), root.h.data() + root.h.size()};
-      return cose_verifier_cached(service_info->cert)
-        ->verify_detached(cose_sig.value(), root_hash);
+      if (!cose_verifier_cached(service_info->cert)
+             ->verify_detached(cose_sig.value(), root_hash))
+      {
+        return false;
+      }
+
+      try
+      {
+        auto receipt = ccf::cose::decode_ccf_receipt(
+          cose_sig.value(), /* recompute_root */ false);
+        if (receipt.phdr.cwt.iat.has_value())
+        {
+          LOG_DEBUG_FMT(
+            "Verified COSE signature for TxID {}, issued at {}",
+            receipt.phdr.ccf.txid,
+            ccf::ds::to_x509_time_string(
+              std::chrono::system_clock::from_time_t(
+                receipt.phdr.cwt.iat.value())));
+        }
+      }
+      catch (const std::exception& e)
+      {
+        LOG_DEBUG_FMT(
+          "Failed to decode COSE protected header for debug logging: {}",
+          e.what());
+      }
+
+      return true;
     }
 
     std::vector<uint8_t> serialise_tree(size_t to) override
