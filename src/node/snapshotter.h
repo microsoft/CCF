@@ -96,6 +96,11 @@ namespace ccf
     std::optional<uint64_t> pending_shard_seal_id = std::nullopt;
     std::optional<uint64_t> last_committed_shard_seal_id = std::nullopt;
 
+    // Callback invoked (under lock) when a shard-seal snapshot is committed.
+    // Set by the node to transition the shard from Sealing → Sealed.
+    std::function<void(uint64_t shard_id)> on_shard_seal_committed_cb =
+      nullptr;
+
     // Indices at which a snapshot will be next generated and Boolean to
     // indicate whether a snapshot was forced at the given index
     struct SnapshotEntry
@@ -358,6 +363,12 @@ namespace ccf
             LOG_INFO_FMT(
               "Shard seal snapshot committed for shard {}",
               last_committed_shard_seal_id.value());
+
+            if (on_shard_seal_committed_cb)
+            {
+              on_shard_seal_committed_cb(
+                last_committed_shard_seal_id.value());
+            }
           }
 
           it = pending_snapshots.erase(it);
@@ -407,6 +418,13 @@ namespace ccf
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
       pending_shard_seal_id = shard_id;
+    }
+
+    void set_on_shard_seal_committed(
+      std::function<void(uint64_t shard_id)> cb)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      on_shard_seal_committed_cb = std::move(cb);
     }
 
     bool is_shard_seal_snapshot_committed(uint64_t shard_id)

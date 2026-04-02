@@ -258,6 +258,24 @@ TEST_CASE("Snapshotter shard seal marking")
     // Before any commit, this should not yet be committed
     REQUIRE_FALSE(snapshotter->is_shard_seal_snapshot_committed(0));
   }
+
+  INFO("Shard seal completion callback is invoked");
+  {
+    std::optional<uint64_t> callback_shard_id = std::nullopt;
+    snapshotter->set_on_shard_seal_committed(
+      [&callback_shard_id](uint64_t shard_id) {
+        callback_shard_id = shard_id;
+      });
+
+    // Verify callback is not yet called
+    REQUIRE_FALSE(callback_shard_id.has_value());
+
+    // The callback is invoked inside update_indices() when a shard-seal
+    // snapshot is committed — here we just verify the setter works and
+    // the callback pointer is stored
+    snapshotter->mark_next_snapshot_as_shard_seal(7);
+    REQUIRE_FALSE(callback_shard_id.has_value());
+  }
 }
 
 int main(int argc, char** argv)

@@ -429,6 +429,15 @@ namespace ccf
     bool shard_seal_in_progress = false;
     std::chrono::milliseconds current_shard_elapsed{0};
 
+    // Tracks info needed to complete a seal after snapshot commits
+    struct PendingSealInfo
+    {
+      uint64_t shard_id = 0;
+      ccf::kv::Version seqno_start = 0;
+      ccf::kv::Version seqno_end = 0;
+    };
+    std::optional<PendingSealInfo> pending_seal_info = std::nullopt;
+
     //
     // JWT key auto-refresh
     //
@@ -2424,23 +2433,16 @@ namespace ccf
         new_shard_id,
         committed_seqno + 1);
 
-      // 5. Notify the host to hard-link sealed shard's ledger chunks into
-      // the first read_only_directory for shared access across nodes
-      if (!config.ledger.read_only_directories.empty())
-      {
-        auto to_host = writer_factory.create_writer_to_outside();
-        RINGBUFFER_WRITE_MESSAGE(
-          ::consensus::ledger_shard_sealed,
-          to_host,
-          sealing_shard.shard_id,
-          current_shard_seqno_start,
-          committed_seqno);
-      }
+      // 5. Store pending seal info — the shard stays in Sealing state until
+      // the snapshot callback fires and transitions it to Sealed + notifies
+      // the host
+      pending_seal_info = PendingSealInfo{
+        sealing_shard.shard_id, current_shard_seqno_start, committed_seqno};
 
       current_shard_id = new_shard_id;
       current_shard_seqno_start = committed_seqno + 1;
       current_shard_elapsed = std::chrono::milliseconds{0};
-      shard_seal_in_progress = false;
+      // shard_seal_in_progress remains true until the callback fires
 
       return true;
     }
@@ -2456,6 +2458,65 @@ namespace ccf
         policy.auto_seal_after_seqno_count,
         policy.auto_seal_after_duration_s,
         policy.max_active_shard_memory_mb);
+    }
+
+    void complete_shard_seal(uint64_t shard_id)
+    {
+      // Called by the snapshotter callback when the shard-seal snapshot is
+      // committed. Transitions the shard from Sealing → Sealed and notifies
+      // the host to archive the ledger chunks.
+      std::lock_guard<pal::Mutex> guard(lock);
+
+      if (
+        !pending_seal_info.has_value() ||
+        pending_seal_info->shard_id != shard_id)
+      {
+        LOG_FAIL_FMT(
+          "Received shard seal completion for shard {} but no matching "
+          "pending seal",
+          shard_id);
+        return;
+      }
+
+      auto seal_info = pending_seal_info.value();
+      pending_seal_info = std::nullopt;
+
+      // Update the shard status to Sealed in the KV
+      auto tx = network.tables->create_tx();
+      auto* shards = tx.rw<ccf::Shards>(Tables::SHARDS);
+      auto shard = shards->get(shard_id);
+      if (shard.has_value())
+      {
+        shard->status = ShardStatus::Sealed;
+        shards->put(shard_id, shard.value());
+        auto rc = tx.commit();
+        if (rc != ccf::kv::CommitResult::SUCCESS)
+        {
+          LOG_FAIL_FMT(
+            "Failed to commit Sealed status for shard {}: {}", shard_id, rc);
+        }
+      }
+
+      // Notify the host to hard-link sealed shard's ledger chunks
+      if (!config.ledger.read_only_directories.empty())
+      {
+        auto to_host = writer_factory.create_writer_to_outside();
+        RINGBUFFER_WRITE_MESSAGE(
+          ::consensus::ledger_shard_sealed,
+          to_host,
+          seal_info.shard_id,
+          seal_info.seqno_start,
+          seal_info.seqno_end);
+      }
+
+      shard_seal_in_progress = false;
+
+      LOG_INFO_FMT(
+        "Shard {} sealed: seqno range [{}, {}] archived to read-only "
+        "directory",
+        shard_id,
+        seal_info.seqno_start,
+        seal_info.seqno_end);
     }
 
     void initialize_sharding(ccf::kv::Tx& tx)
@@ -3464,6 +3525,11 @@ namespace ccf
         config.snapshots.tx_count,
         config.snapshots.min_tx_count,
         config.snapshots.time_interval);
+
+      // Register shard seal completion callback so that when a shard-seal
+      // snapshot is committed, the shard transitions Sealing → Sealed
+      snapshotter->set_on_shard_seal_committed(
+        [this](uint64_t shard_id) { complete_shard_seal(shard_id); });
     }
 
     void read_ledger_entries(::consensus::Index from, ::consensus::Index to)

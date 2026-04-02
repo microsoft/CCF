@@ -74,7 +74,7 @@ Members can manage shards through governance proposals.
 ``seal_current_shard``
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Seals the currently active shard at the latest committed sequence number. This triggers a snapshot at the shard boundary, rekeys the ledger, and creates a new active shard. Sealed shard data is automatically archived to the shared read-only ledger directory.
+Seals the currently active shard at the latest committed sequence number. This initiates a two-phase process: the shard is marked as **Sealing**, a snapshot is triggered at the boundary, and the ledger is rekeyed. Once the snapshot is committed asynchronously, the shard transitions to **Sealed** and its data is archived to the shared read-only ledger directory.
 
 .. code-block:: json
 
@@ -131,12 +131,14 @@ Shard Lifecycle
 ---------------
 
 1. **Active** — The shard is open and accepting writes.
-2. **Sealing** — A seal has been initiated. A snapshot is being taken at the shard boundary and the ledger is being rekeyed.
-3. **Sealed** — The shard is immutable. Its data has been archived to the shared read-only directory.
+2. **Sealing** — A seal has been initiated. A snapshot is being taken at the shard boundary and the ledger is being rekeyed. The shard remains in this state until the snapshot is committed.
+3. **Sealed** — The snapshot has been committed. The shard is immutable and its data has been archived to the shared read-only directory.
 
 .. code-block:: text
 
-    Active ──seal_current_shard──> Sealing ──snapshot committed──> Sealed
+    Active ──seal_current_shard──> Sealing ──snapshot committed (async)──> Sealed
+
+The transition from Sealing to Sealed is **asynchronous**: when the snapshotter commits the shard-seal snapshot, it fires a callback (``on_shard_seal_committed``) that updates the shard status in the KV and notifies the host to archive the ledger chunks. This ensures that sealed shard data is only archived after the boundary snapshot is durable.
 
 Auto-seal
 ---------
@@ -147,3 +149,5 @@ Recovery
 --------
 
 During service recovery, the sharding state is restored from the KV store. The node identifies the current active shard and resumes from its start sequence number. Ledger secret chains are preserved across shard boundaries via the existing encrypted past ledger secret mechanism.
+
+If a shard is found in the **Sealing** state during recovery (i.e. the node crashed after initiating a seal but before the snapshot was committed), the seal can be retried via a new ``seal_current_shard`` proposal once the service is open.
