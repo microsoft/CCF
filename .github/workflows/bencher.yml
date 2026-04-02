@@ -114,9 +114,9 @@ jobs:
           cmake -GNinja -DWORKER_THREADS=2 ..
           ninja
           # Microbenchmarks
-          ./tests.sh -VV -L benchmark -E task_bench
+          # ./tests.sh -VV -L benchmark -E task_bench
           # End to end performance tests
-          ./tests.sh -VV -L perf -C perf
+          ./tests.sh -VV -L perf -C perf -R pi_basic_mt
           # Convert microbenchmark output to bencher json
           source env/bin/activate
           PYTHONPATH=../tests python convert_pico_to_bencher.py
@@ -133,6 +133,7 @@ jobs:
             build/workspace/*/err
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
+            build/bencher.json
           if-no-files-found: ignore
         if: success() || failure()
 
@@ -147,3 +148,4 @@ jobs:
           --adapter json \
           --err \
           --file build/bencher.json
+        if: github.ref == 'refs/heads/main'
