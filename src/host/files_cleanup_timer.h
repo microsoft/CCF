@@ -260,6 +260,9 @@ namespace asynchost
         committed_snapshots,
       size_t max_retained)
     {
+      TimeBoundLogger log_if_slow(
+        fmt::format("Cleaning snapshots"), std::chrono::seconds(1));
+
       if (committed_snapshots.size() > max_retained)
       {
         // committed_snapshots is sorted descending by snapshot index, so the
@@ -292,6 +295,15 @@ namespace asynchost
       size_t max_retained,
       std::optional<size_t> snapshot_watermark = std::nullopt)
     {
+      TimeBoundLogger log_if_slow(
+        fmt::format(
+          "Cleaning ledger chunks from {}, watermark={}",
+          main_dir,
+          snapshot_watermark.has_value() ?
+            std::to_string(snapshot_watermark.value()) :
+            "none"),
+        std::chrono::seconds(1));
+
       std::vector<std::pair<size_t, std::filesystem::path>> committed;
       try
       {
