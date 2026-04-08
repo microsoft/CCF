@@ -3821,11 +3821,7 @@ def test_post_snapshot_chunks_retained(network, args, read_only_ledger_dir):
         network.txs.issue(network, number_txs=3)
     copy_new_committed_to_readonly()
 
-    primary.trigger_snapshot()
-    # Issue enough txs to advance commit past the snapshot
-    network.txs.issue(network, number_txs=3)
-    network.consortium.force_ledger_chunk(primary)
-    network.txs.issue(network, number_txs=3)
+    snapshot_tx_id = primary.trigger_snapshot()
 
     # Wait for the snapshot to appear
     timeout = 10
@@ -3833,12 +3829,12 @@ def test_post_snapshot_chunks_retained(network, args, read_only_ledger_dir):
     snapshot_seqno = None
     while time.time() < end_time:
         snapshot_seqno = get_latest_committed_snapshot_seqno()
-        if snapshot_seqno is not None:
+        if snapshot_seqno is not None and snapshot_seqno >= snapshot_tx_id.seqno:
             break
         time.sleep(0.5)
     assert (
         snapshot_seqno is not None
-    ), f"Timed out waiting for a committed snapshot in {snapshots_dir}"
+    ), f"Timed out waiting for a committed snapshot covering {snapshot_tx_id.seqno} in {snapshots_dir}"
     LOG.info(f"Latest committed snapshot seqno: {snapshot_seqno}")
 
     # Step 2: Generate many chunks AFTER the snapshot so they exceed max_retained
@@ -3906,7 +3902,8 @@ def run_post_snapshot_chunk_retention(const_args):
     # if the snapshot watermark were not respected
     args.files_cleanup_max_committed_ledger_chunks = 1
     args.files_cleanup_interval = "1s"
-    args.snapshot_tx_interval = 30
+    # High to avoid tx-count-triggered snapshots during chunk generation
+    args.snapshot_tx_interval = 100000
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         args.common_read_only_ledger_dir = tmp_dir
