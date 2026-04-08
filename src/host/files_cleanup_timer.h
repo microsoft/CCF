@@ -6,6 +6,7 @@
 #include "ccf/crypto/sha256_hash.h"
 #include "ledger_filenames.h"
 #include "snapshots/filenames.h"
+#include "time_bound_logger.h"
 #include "timer.h"
 
 #include <algorithm>
