@@ -211,11 +211,17 @@ jobs:
           cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./recovery_benchmark.sh {}"
         shell: bash
 
-      - name: "Test Building a Sample Against Installed CCF"
+      - name: "Test Building `logging` Sample App Against Installed CCF"
         run: |
           set -ex
           ./tests/test_install_build.sh
         shell: bash
+
+      - name: "Upload `logging` Sample App"
+        uses: actions/upload-artifact@v7
+        with:
+          name: logging
+          path: build_against_install/logging
 
       - name: "Upload .rpm Package"
         uses: actions/upload-artifact@v7
