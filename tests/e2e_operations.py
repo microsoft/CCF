@@ -3906,7 +3906,8 @@ def run_post_snapshot_chunk_retention(const_args):
     # if the snapshot watermark were not respected
     args.files_cleanup_max_committed_ledger_chunks = 1
     args.files_cleanup_interval = "1s"
-    args.snapshot_tx_interval = 30
+    # High to avoid tx-count-triggered snapshots during chunk generation
+    args.snapshot_tx_interval = 100000
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         args.common_read_only_ledger_dir = tmp_dir
