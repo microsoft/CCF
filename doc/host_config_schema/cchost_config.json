@@ -692,7 +692,7 @@
     "worker_threads": {
       "type": "integer",
       "default": 0,
-      "description": "Experimental. Number of additional threads processing incoming client requests in the enclave (modify with care!)",
+      "description": "Number of additional threads processing incoming client requests",
       "minimum": 0
     },
     "memory": {
