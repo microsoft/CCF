@@ -262,7 +262,7 @@ namespace asynchost
       size_t max_retained)
     {
       TimeBoundLogger log_if_slow(
-        fmt::format("Cleaning snapshots"), std::chrono::seconds(1));
+        "Cleaning snapshots", std::chrono::seconds(1));
 
       if (committed_snapshots.size() > max_retained)
       {
