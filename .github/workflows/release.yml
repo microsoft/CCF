@@ -5,6 +5,11 @@ on:
     tags:
       - "ccf-[567].*"
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run the full pipeline without creating a GitHub release"
+        type: boolean
+        default: true
 
 permissions: read-all
 
@@ -40,6 +45,7 @@ jobs:
 
   release_notes:
     name: Release Notes
+    if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -89,7 +95,7 @@ jobs:
 
   build_release:
     name: Build Release
-    needs: [release_notes, image_digest]
+    needs: image_digest
     runs-on:
       [
         self-hosted,
@@ -423,12 +429,14 @@ jobs:
           path: ${{ env.REPRO_DIR }}
 
   create_release:
+    if: ${{ !inputs.dry_run }}
     permissions:
       contents: write
     needs:
       - reproduce_rpm
       - test_rpm_against_app
       - build_release
+      - release_notes
       - make_sbom
     name: Create Release
     runs-on: ubuntu-latest
