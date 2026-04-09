@@ -45,6 +45,32 @@ from datetime import datetime
 from loguru import logger as LOG
 
 
+def get_service_key(network):
+    service_cert_path = os.path.join(network.common_dir, "service_cert.pem")
+    service_cert = load_pem_x509_certificate(
+        open(service_cert_path, "rb").read(), default_backend()
+    )
+    return service_cert.public_key()
+
+
+def fetch_and_verify_cose_receipt(
+    client, view, seqno, service_key, claim_digest=None, timeout=3.0
+):
+    start_time = time.time()
+    while time.time() < (start_time + timeout):
+        rc = client.get(f"/node/receipt/cose?transaction_id={view}.{seqno}")
+        if rc.status_code == http.HTTPStatus.OK:
+            ccf.cose.verify_receipt(rc.body.data(), service_key, claim_digest)
+            return rc
+        elif rc.status_code == http.HTTPStatus.NOT_FOUND:
+            return rc
+        elif rc.status_code == http.HTTPStatus.ACCEPTED:
+            time.sleep(0.1)
+        else:
+            assert False, rc
+    assert False, f"Timed out fetching COSE receipt for {view}.{seqno}"
+
+
 def verify_receipt(
     receipt,
     service_cert,
@@ -810,28 +836,42 @@ def test_historical_query(network, args):
 @reqs.description("Read historical receipts")
 @reqs.supports_methods("/app/log/private", "/app/log/private/historical_receipt")
 def test_historical_receipts(network, args):
+    cose_only = getattr(args, "ledger_signature_mode", "Dual") == "COSE"
     primary, backups = network.find_nodes()
     TXS_COUNT = 5
     start_idx = network.txs.idx + 1
     network.txs.issue(network, number_txs=TXS_COUNT)
-    for idx in range(start_idx, TXS_COUNT + start_idx):
-        for node in [primary, backups[0]]:
-            first_msg = network.txs.priv[idx][0]
-            first_receipt = network.txs.get_receipt(
-                node, idx, first_msg["seqno"], first_msg["view"]
-            )
-            r = first_receipt.json()["receipt"]
-            verify_receipt(r, network.cert)
 
-    # receipt.verify() and ccf.receipt.check_endorsement() raise if they fail, but do not return anything
-    verified = True
-    try:
-        ccf.receipt.verify(
-            hashlib.sha256(b"").hexdigest(), r["signature"], network.cert
-        )
-    except InvalidSignature:
-        verified = False
-    assert not verified
+    if cose_only:
+        service_key = get_service_key(network)
+        for idx in range(start_idx, TXS_COUNT + start_idx):
+            for node in [primary, backups[0]]:
+                first_msg = network.txs.priv[idx][0]
+                with node.client("user0") as c:
+                    infra.commit.wait_for_commit(
+                        c, first_msg["seqno"], first_msg["view"], timeout=3
+                    )
+                    fetch_and_verify_cose_receipt(
+                        c, first_msg["view"], first_msg["seqno"], service_key
+                    )
+    else:
+        for idx in range(start_idx, TXS_COUNT + start_idx):
+            for node in [primary, backups[0]]:
+                first_msg = network.txs.priv[idx][0]
+                first_receipt = network.txs.get_receipt(
+                    node, idx, first_msg["seqno"], first_msg["view"]
+                )
+                r = first_receipt.json()["receipt"]
+                verify_receipt(r, network.cert)
+
+        verified = True
+        try:
+            ccf.receipt.verify(
+                hashlib.sha256(b"").hexdigest(), r["signature"], network.cert
+            )
+        except InvalidSignature:
+            verified = False
+        assert not verified
 
     return network
 
@@ -839,53 +879,79 @@ def test_historical_receipts(network, args):
 @reqs.description("Read historical receipts with claims")
 @reqs.supports_methods("/app/log/public", "/app/log/public/historical_receipt")
 def test_historical_receipts_with_claims(network, args):
+    cose_only = getattr(args, "ledger_signature_mode", "Dual") == "COSE"
     primary, backups = network.find_nodes()
     TXS_COUNT = 5
     start_idx = network.txs.idx + 1
     network.txs.issue(network, number_txs=TXS_COUNT, record_claim=True)
-    for idx in range(start_idx, TXS_COUNT + start_idx):
-        for node in [primary, backups[0]]:
-            first_msg = network.txs.pub[idx][0]
-            first_receipt = network.txs.get_receipt(
-                node, idx, first_msg["seqno"], first_msg["view"], domain="public"
-            )
-            r = first_receipt.json()["receipt"]
-            verify_receipt(r, network.cert, first_receipt.json()["msg"].encode())
 
-    # receipt.verify() and ccf.receipt.check_endorsement() raise if they fail, but do not return anything
-    verified = True
-    try:
-        ccf.receipt.verify(
-            hashlib.sha256(b"").hexdigest(), r["signature"], network.cert
-        )
-    except InvalidSignature:
-        verified = False
-    assert not verified
+    if cose_only:
+        service_key = get_service_key(network)
+        for idx in range(start_idx, TXS_COUNT + start_idx):
+            for node in [primary, backups[0]]:
+                first_msg = network.txs.pub[idx][0]
+                claim_digest = sha256(first_msg["msg"].encode()).digest()
+                with node.client("user0") as c:
+                    infra.commit.wait_for_commit(
+                        c, first_msg["seqno"], first_msg["view"], timeout=3
+                    )
+                    fetch_and_verify_cose_receipt(
+                        c,
+                        first_msg["view"],
+                        first_msg["seqno"],
+                        service_key,
+                        claim_digest,
+                    )
+    else:
+        for idx in range(start_idx, TXS_COUNT + start_idx):
+            for node in [primary, backups[0]]:
+                first_msg = network.txs.pub[idx][0]
+                first_receipt = network.txs.get_receipt(
+                    node, idx, first_msg["seqno"], first_msg["view"], domain="public"
+                )
+                r = first_receipt.json()["receipt"]
+                verify_receipt(r, network.cert, first_receipt.json()["msg"].encode())
+
+        verified = True
+        try:
+            ccf.receipt.verify(
+                hashlib.sha256(b"").hexdigest(), r["signature"], network.cert
+            )
+        except InvalidSignature:
+            verified = False
+        assert not verified
 
     return network
 
 
 @reqs.description("Read genesis receipt")
 def test_genesis_receipt(network, args):
+    cose_only = getattr(args, "ledger_signature_mode", "Dual") == "COSE"
     primary, _ = network.find_nodes()
 
-    genesis_receipt = primary.get_receipt(2, 1)
-    verify_receipt(genesis_receipt.json(), network.cert, generic=True)
-    claims_digest = genesis_receipt.json()["leaf_components"]["claims_digest"]
-
-    with primary.client() as client:
-        constitution = client.get(
-            "/gov/service/constitution?api-version=2023-06-01-preview"
-        ).body.text()
-
-    if args.package == "samples/apps/logging/logging":
-        # Only the logging app sets a claim on the genesis
-        assert claims_digest == sha256(constitution.encode()).hexdigest()
+    if cose_only:
+        service_key = get_service_key(network)
+        with primary.client("user0") as c:
+            rc = fetch_and_verify_cose_receipt(c, 2, 1, service_key)
+            assert rc.status_code == http.HTTPStatus.OK, rc
     else:
-        assert (
-            claims_digest
-            == "0000000000000000000000000000000000000000000000000000000000000000"
-        )
+        genesis_receipt = primary.get_receipt(2, 1)
+        verify_receipt(genesis_receipt.json(), network.cert, generic=True)
+        claims_digest = genesis_receipt.json()["leaf_components"]["claims_digest"]
+
+        with primary.client() as client:
+            constitution = client.get(
+                "/gov/service/constitution?api-version=2023-06-01-preview"
+            ).body.text()
+
+        if args.package == "samples/apps/logging/logging":
+            # Only the logging app sets a claim on the genesis
+            assert claims_digest == sha256(constitution.encode()).hexdigest()
+        else:
+            assert (
+                claims_digest
+                == "0000000000000000000000000000000000000000000000000000000000000000"
+            )
 
     return network
 
@@ -1702,25 +1768,34 @@ def test_tx_statuses(network, args):
 @reqs.at_least_n_nodes(2)
 @app.scoped_txs()
 def test_receipts(network, args):
+    cose_only = getattr(args, "ledger_signature_mode", "Dual") == "COSE"
     primary, _ = network.find_primary_and_any_backup()
     msg = "Hello world"
 
     LOG.info("Write/Read on primary")
-    with primary.client("user0") as c:
-        for j in range(10):
-            idx = j + 10000
-            r = network.txs.issue(network, 1, idx=idx, send_public=False, msg=msg)
-            start_time = time.time()
-            while time.time() < (start_time + 3.0):
-                rc = c.get(f"/app/receipt?transaction_id={r.view}.{r.seqno}")
-                if rc.status_code == http.HTTPStatus.OK:
-                    receipt = rc.body.json()
-                    verify_receipt(receipt, network.cert)
-                    break
-                elif rc.status_code == http.HTTPStatus.ACCEPTED:
-                    time.sleep(0.5)
-                else:
-                    assert False, rc
+    if cose_only:
+        service_key = get_service_key(network)
+        with primary.client("user0") as c:
+            for j in range(10):
+                idx = j + 10000
+                r = network.txs.issue(network, 1, idx=idx, send_public=False, msg=msg)
+                fetch_and_verify_cose_receipt(c, r.view, r.seqno, service_key)
+    else:
+        with primary.client("user0") as c:
+            for j in range(10):
+                idx = j + 10000
+                r = network.txs.issue(network, 1, idx=idx, send_public=False, msg=msg)
+                start_time = time.time()
+                while time.time() < (start_time + 3.0):
+                    rc = c.get(f"/app/receipt?transaction_id={r.view}.{r.seqno}")
+                    if rc.status_code == http.HTTPStatus.OK:
+                        receipt = rc.body.json()
+                        verify_receipt(receipt, network.cert)
+                        break
+                    elif rc.status_code == http.HTTPStatus.ACCEPTED:
+                        time.sleep(0.5)
+                    else:
+                        assert False, rc
 
     return network
 
@@ -1736,6 +1811,8 @@ def test_random_receipts(
     node=None,
     log_capture=None,
 ):
+    cose_only = getattr(args, "ledger_signature_mode", "Dual") == "COSE"
+
     if node is None:
         node, _ = network.find_primary_and_any_backup()
 
@@ -1750,6 +1827,8 @@ def test_random_receipts(
         with open(path, encoding="utf-8") as c:
             cert = c.read()
         certs[infra.crypto.compute_public_key_der_hash_hex_from_pem(cert)] = cert
+
+    service_key = get_service_key(network)
 
     with node.client("user0") as c:
         r = c.get("/app/commit")
@@ -1773,36 +1852,62 @@ def test_random_receipts(
         ):
             start_time = time.time()
             while time.time() < (start_time + 3.0):
-                rc = c.get(
-                    f"/app/receipt?transaction_id={view}.{s}", log_capture=log_capture
-                )
-                if rc.status_code == http.HTTPStatus.OK:
-                    receipt = rc.body.json()
-                    if "leaf" in receipt:
-                        if not lts:
-                            assert "proof" in receipt, receipt
-                            assert len(receipt["proof"]) == 0, receipt
-                        # Legacy signature receipt
+                if cose_only:
+                    rc = c.get(
+                        f"/node/receipt/cose?transaction_id={view}.{s}",
+                        log_capture=log_capture,
+                    )
+                    if rc.status_code == http.HTTPStatus.OK:
+                        receipt_bytes = rc.body.data()
+                        claim_digest = additional_seqnos.get(s)
+                        ccf.cose.verify_receipt(
+                            receipt_bytes, service_key, claim_digest
+                        )
+                        break
+                    elif rc.status_code == http.HTTPStatus.NOT_FOUND:
+                        # Signature TX — no COSE receipt available, skip
                         LOG.warning(
-                            f"Skipping verification of signature receipt at {view}.{s}"
+                            f"Skipping signature TX at {view}.{s} (no COSE receipt)"
                         )
+                        break
+                    elif rc.status_code == http.HTTPStatus.ACCEPTED:
+                        time.sleep(0.1)
                     else:
-                        if lts and not receipt.get("cert"):
-                            receipt["cert"] = certs[receipt["node_id"]]
-                        verify_receipt(
-                            receipt,
-                            network.cert,
-                            claims=additional_seqnos.get(s),
-                            generic=True,
-                            skip_cert_chain_checks=lts,
-                        )
-                    break
-                elif rc.status_code == http.HTTPStatus.ACCEPTED:
-                    time.sleep(0.1)
+                        view += 1
+                        if view > max_view:
+                            assert False, rc
                 else:
-                    view += 1
-                    if view > max_view:
-                        assert False, rc
+                    rc = c.get(
+                        f"/app/receipt?transaction_id={view}.{s}",
+                        log_capture=log_capture,
+                    )
+                    if rc.status_code == http.HTTPStatus.OK:
+                        receipt = rc.body.json()
+                        if "leaf" in receipt:
+                            if not lts:
+                                assert "proof" in receipt, receipt
+                                assert len(receipt["proof"]) == 0, receipt
+                            # Legacy signature receipt
+                            LOG.warning(
+                                f"Skipping verification of signature receipt at {view}.{s}"
+                            )
+                        else:
+                            if lts and not receipt.get("cert"):
+                                receipt["cert"] = certs[receipt["node_id"]]
+                            verify_receipt(
+                                receipt,
+                                network.cert,
+                                claims=additional_seqnos.get(s),
+                                generic=True,
+                                skip_cert_chain_checks=lts,
+                            )
+                        break
+                    elif rc.status_code == http.HTTPStatus.ACCEPTED:
+                        time.sleep(0.1)
+                    else:
+                        view += 1
+                        if view > max_view:
+                            assert False, rc
 
     return network
 
@@ -2177,6 +2282,8 @@ def run_udp_tests(args):
 
 
 def run(args):
+    ledger_signature_mode = getattr(args, "ledger_signature_mode", "Dual")
+
     # Listen on two additional RPC interfaces for each node
     def additional_interfaces(local_node_id):
         return {
@@ -2199,7 +2306,7 @@ def run(args):
         pdb=args.pdb,
         txs=txs,
     ) as network:
-        network.start_and_open(args)
+        network.start_and_open(args, ledger_signature_mode=ledger_signature_mode)
 
         do_main_tests(network, args)
 
@@ -2271,9 +2378,8 @@ def test_cose_config(network, args):
             configs.add(r.body.text())
 
     assert len(configs) == 1, configs
-    assert (
-        configs.pop() == '{"issuer":"service.example.com","subject":"ledger.signature"}'
-    ), configs
+    expected = '{"issuer":"service.example.com","subject":"ledger.signature"}'
+    assert configs.pop() == expected, configs
     return network
 
 
@@ -2472,6 +2578,17 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,
         initial_member_count=2,
+    )
+
+    cr.add(
+        "cpp_cose_only",
+        run,
+        package="samples/apps/logging/logging",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+        ledger_signature_mode="COSE",
     )
 
     cr.add(

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Added `ledger_signatures.mode` configuration option to enable `Dual` or `COSE`-only signing (#7772).
 - Added support for inline transaction receipt construction at commit time. Endpoint authors can use `build_receipt_for_committed_tx()` to construct a full `TxReceiptImpl` from the `CommittedTxInfo` passed to their `ConsensusCommittedEndpointFunction` callback. See the logging sample app (`/log/blocking/private/receipt`) for example usage (#7785).
 
 ### Changed

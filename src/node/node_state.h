@@ -941,7 +941,9 @@ namespace ccf
           network.ledger_secrets->init();
 
           history->set_service_signing_identity(
-            network.identity->get_key_pair(), config.cose_signatures);
+            network.identity->get_key_pair(),
+            config.cose_signatures,
+            config.ledger_signatures.mode);
 
           setup_consensus(false, endorsed_node_cert);
 
@@ -1152,7 +1154,8 @@ namespace ccf
             history->set_service_signing_identity(
               network.identity->get_key_pair(),
               resp.network_info->cose_signatures_config.value_or(
-                ccf::COSESignaturesConfig{}));
+                ccf::COSESignaturesConfig{}),
+              config.ledger_signatures.mode);
 
             ccf::crypto::Pem n2n_channels_cert;
             if (!resp.network_info->endorsed_certificate.has_value())
@@ -1194,14 +1197,34 @@ namespace ccf
               }
 
               auto tx = network.tables->create_read_only_tx();
-              auto* signatures = tx.ro(network.signatures);
-              auto sig = signatures->get();
-              if (!sig.has_value())
+              auto last_sig = tx.ro(network.signatures)->get();
+              if (last_sig.has_value())
               {
-                throw std::logic_error(
-                  fmt::format("No signatures found after applying snapshot"));
+                view = last_sig->view;
               }
-              view = sig->view;
+              else
+              {
+                auto* cose_signatures = tx.ro(network.cose_signatures);
+                auto cose_sig = cose_signatures->get();
+                if (!cose_sig.has_value())
+                {
+                  throw std::logic_error(
+                    "No signature found after applying snapshot");
+                }
+
+                auto receipt =
+                  ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
+                const auto& txid = receipt.phdr.ccf.txid;
+                auto parsed_txid = ccf::TxID::from_str(txid);
+
+                if (!parsed_txid.has_value())
+                {
+                  throw std::logic_error(
+                    fmt::format("Cannot parse CCF TxID: {}", txid));
+                }
+
+                view = parsed_txid->view;
+              }
 
               if (!resp.network_info->public_only)
               {
@@ -1453,17 +1476,33 @@ namespace ccf
           // If the ledger entry is a signature, it is safe to compact the store
           network.tables->compact(last_recovered_idx);
           auto tx = network.tables->create_read_only_tx();
-          auto last_sig = tx.ro(network.signatures)->get();
 
-          if (!last_sig.has_value())
+          ccf::kv::Term sig_view = 0;
+          auto last_sig = tx.ro(network.signatures)->get();
+          if (last_sig.has_value())
           {
-            throw std::logic_error("Signature missing");
+            sig_view = last_sig->view;
+          }
+          else
+          {
+            auto lcs = tx.ro(network.cose_signatures)->get();
+            if (!lcs.has_value())
+            {
+              throw std::logic_error("Signature missing");
+            }
+            auto receipt = cose::decode_ccf_receipt(lcs.value(), false);
+            auto tx_id_opt = ccf::TxID::from_str(receipt.phdr.ccf.txid);
+            if (!tx_id_opt.has_value())
+            {
+              throw std::logic_error(fmt::format(
+                "Failed to parse TxID from COSE signature: {}",
+                receipt.phdr.ccf.txid));
+            }
+            sig_view = tx_id_opt->view;
           }
 
           LOG_DEBUG_FMT(
-            "Read signature at {} for view {}",
-            last_recovered_idx,
-            last_sig->view);
+            "Read signature at {} for view {}", last_recovered_idx, sig_view);
           // Initial transactions, before the first signature, must have
           // happened in the first signature's view (eg - if the first
           // signature is at seqno 20 in view 4, then transactions 1->19 must
@@ -1473,12 +1512,8 @@ namespace ccf
           // valid signature.
           const auto view_start_idx =
             view_history.empty() ? 1 : last_recovered_signed_idx + 1;
-          CCF_ASSERT_FMT(
-            last_sig->view >= 0,
-            "last_sig->view is invalid, {}",
-            last_sig->view);
-          for (auto i = view_history.size();
-               i < static_cast<size_t>(last_sig->view);
+          CCF_ASSERT_FMT(sig_view >= 0, "sig_view is invalid, {}", sig_view);
+          for (auto i = view_history.size(); i < static_cast<size_t>(sig_view);
                ++i)
           {
             view_history.push_back(view_start_idx);
@@ -1549,10 +1584,6 @@ namespace ccf
         index = s.seqno;
         view = s.view;
       }
-      else
-      {
-        throw std::logic_error("No signature found after recovery");
-      }
 
       ccf::COSESignaturesConfig cs_cfg{};
       auto lcs = tx.ro(network.cose_signatures)->get();
@@ -1560,14 +1591,34 @@ namespace ccf
       {
         CoseSignature cs = lcs.value();
         LOG_INFO_FMT("COSE signature found after recovery");
+
+        auto as_receipt =
+          cose::decode_ccf_receipt(cs, /* recompute_root */ false);
+
         try
         {
-          auto receipt =
-            cose::decode_ccf_receipt(cs, /* recompute_root */ false);
-          auto issuer = receipt.phdr.cwt.iss;
-          auto subject = receipt.phdr.cwt.sub;
+          auto tx_id_opt = ccf::TxID::from_str(as_receipt.phdr.ccf.txid);
+          if (!tx_id_opt.has_value())
+          {
+            throw std::logic_error(fmt::format(
+              "Failed to parse TxID from COSE signature: {}",
+              as_receipt.phdr.ccf.txid));
+          }
+
+          // Use the COSE signature's TxID only if it is newer than the
+          // traditional signature's. In flip-flop scenarios (dual -> COSE ->
+          // dual) the COSE signature may be older than the traditional one.
+          if (tx_id_opt->seqno > index)
+          {
+            index = tx_id_opt->seqno;
+            view = tx_id_opt->view;
+          }
+
+          auto issuer = as_receipt.phdr.cwt.iss;
+          auto subject = as_receipt.phdr.cwt.sub;
           LOG_INFO_FMT(
             "COSE signature issuer: {}, subject: {}", issuer, subject);
+
           cs_cfg = ccf::COSESignaturesConfig{issuer, subject};
         }
         catch (const cose::COSEDecodeError& e)
@@ -1581,8 +1632,15 @@ namespace ccf
         LOG_INFO_FMT("No COSE signature found after recovery");
       }
 
+      if (!ls.has_value() && !lcs.has_value())
+      {
+        throw std::logic_error("No signature found after recovery");
+      }
+
       history->set_service_signing_identity(
-        network.identity->get_key_pair(), cs_cfg);
+        network.identity->get_key_pair(),
+        cs_cfg,
+        config.ledger_signatures.mode);
 
       auto* h = dynamic_cast<MerkleTxHistory*>(history.get());
       if (h != nullptr)

@@ -17,6 +17,7 @@
 #include "ccf/tx.h"
 #include "consensus/aft/raft_types.h"
 #include "cose/cose_rs_ffi.h"
+#include "node/history.h"
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
 #include "service/tables/governance_history.h"
@@ -499,19 +500,21 @@ namespace ccf
 
         auto* last_signed_root = tx.wo<ccf::PreviousServiceLastSignedRoot>(
           ccf::Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT);
-        auto* sigs = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
-        if (!sigs->has())
+        auto* tree_handle =
+          tx.ro<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE);
+        if (!tree_handle->has())
         {
           throw std::logic_error(
-            "Previous service doesn't have any signed transactions");
+            "Previous service doesn't have a serialised merkle tree");
         }
-        auto sig_opt = sigs->get();
-        if (!sig_opt.has_value())
+        auto tree_opt = tree_handle->get();
+        if (!tree_opt.has_value())
         {
           throw std::logic_error(
-            "Previous service doesn't have signature value");
+            "Previous service doesn't have serialised merkle tree value");
         }
-        last_signed_root->put(sig_opt->root);
+        ccf::MerkleTreeHistory tree(tree_opt.value());
+        last_signed_root->put(tree.get_root());
 
         // Record number of recoveries for service. If the value does
         // not exist in the table (i.e. pre 2.x ledger), assume it is the

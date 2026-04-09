@@ -42,7 +42,8 @@
   },
   "ledger_signatures": {
     "tx_count": 5000,
-    "delay": "1s"
+    "delay": "1s",
+    "mode": "Dual"
   },
   "jwt": {
     "key_refresh_interval": "30min"

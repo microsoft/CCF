@@ -1683,6 +1683,34 @@
         }
       }
     },
+    "/node/receipt/cose": {
+      "get": {
+        "description": "A COSE Sign1 envelope containing a signed statement from the service over a transaction entry in the ledger, with a Merkle proof in the unprotected header.",
+        "operationId": "GetNodeReceiptCose",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/TransactionId"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "COSE receipt for a transaction",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
     "/node/self_signed_certificate": {
       "get": {
         "operationId": "GetNodeSelfSignedCertificate",

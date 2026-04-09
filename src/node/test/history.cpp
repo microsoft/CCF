@@ -74,6 +74,14 @@ public:
 
 TEST_CASE("Check signature verification")
 {
+  auto sig_mode = ccf::CCFConfig::LedgerSignMode::Dual;
+
+  SUBCASE("normal") {}
+  SUBCASE("cose_only")
+  {
+    sig_mode = ccf::CCFConfig::LedgerSignMode::COSE;
+  }
+
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
   auto node_kp = ccf::crypto::make_ec_key_pair();
@@ -90,7 +98,7 @@ TEST_CASE("Check signature verification")
       primary_store, ccf::kv::test::PrimaryNodeId, *node_kp);
   primary_history->set_endorsed_certificate(self_signed);
   primary_history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, ccf::COSESignaturesConfig{}, sig_mode);
   primary_store.set_history(primary_history);
   primary_store.initialise_term(store_term);
 
@@ -101,13 +109,14 @@ TEST_CASE("Check signature verification")
       backup_store, ccf::kv::test::FirstBackupNodeId, *node_kp);
   backup_history->set_endorsed_certificate(self_signed);
   backup_history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, ccf::COSESignaturesConfig{}, sig_mode);
   backup_store.set_history(backup_history);
   backup_store.initialise_term(store_term);
 
   ccf::Nodes nodes(ccf::Tables::NODES);
   ccf::Service service(ccf::Tables::SERVICE);
-  ccf::Signatures signatures(ccf::Tables::SIGNATURES);
+  ccf::Signatures signatures_table(ccf::Tables::SIGNATURES);
+  ccf::CoseSignatures cose_signatures(ccf::Tables::COSE_SIGNATURES);
 
   std::shared_ptr<ccf::kv::Consensus> consensus =
     std::make_shared<DummyConsensus>(&backup_store);
@@ -139,19 +148,50 @@ TEST_CASE("Check signature verification")
     REQUIRE(backup_store.current_version() == 2);
   }
 
+  INFO("COSE signature table should be populated");
+  {
+    auto tx = primary_store.create_read_only_tx();
+    auto cose_sigs = tx.ro(cose_signatures);
+    REQUIRE(cose_sigs->get().has_value());
+  }
+
+  if (sig_mode == ccf::CCFConfig::LedgerSignMode::COSE)
+  {
+    INFO("In COSE-only mode, node signature table should not be populated");
+    auto tx = primary_store.create_read_only_tx();
+    auto sigs = tx.ro(signatures_table);
+    REQUIRE_FALSE(sigs->get().has_value());
+  }
+  else
+  {
+    INFO("In normal mode, node signature table should be populated");
+    auto tx = primary_store.create_read_only_tx();
+    auto sigs = tx.ro(signatures_table);
+    REQUIRE(sigs->get().has_value());
+  }
+
   INFO("Issue a bogus signature, rejected by verification on the backup");
   {
     auto txs = primary_store.create_tx();
-    auto sigs = txs.rw(signatures);
-    ccf::PrimarySignature bogus(ccf::kv::test::PrimaryNodeId, 0);
-    bogus.sig = std::vector<uint8_t>(256, 1);
-    sigs->put(bogus);
+    auto cose_sigs = txs.rw(cose_signatures);
+    ccf::CoseSignature bogus{};
+    cose_sigs->put(bogus);
     REQUIRE(txs.commit() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
   }
 }
 
 TEST_CASE("Check signing works across rollback")
 {
+  auto sig_mode = ccf::CCFConfig::LedgerSignMode::Dual;
+
+  SUBCASE("normal") {}
+  SUBCASE("cose_only")
+  {
+    sig_mode = ccf::CCFConfig::LedgerSignMode::COSE;
+  }
+
+  ccf::COSESignaturesConfig cose_config;
+
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
   auto node_kp = ccf::crypto::make_ec_key_pair();
@@ -168,7 +208,7 @@ TEST_CASE("Check signing works across rollback")
       primary_store, ccf::kv::test::PrimaryNodeId, *node_kp);
   primary_history->set_endorsed_certificate(self_signed);
   primary_history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, cose_config, sig_mode);
   primary_store.set_history(primary_history);
   primary_store.initialise_term(store_term);
 
@@ -178,7 +218,7 @@ TEST_CASE("Check signing works across rollback")
       backup_store, ccf::kv::test::FirstBackupNodeId, *node_kp);
   backup_history->set_endorsed_certificate(self_signed);
   backup_history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, cose_config, sig_mode);
   backup_store.set_history(backup_history);
   backup_store.set_encryptor(encryptor);
   backup_store.initialise_term(store_term);

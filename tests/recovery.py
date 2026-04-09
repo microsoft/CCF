@@ -187,6 +187,7 @@ def test_recover_service(
     no_ledger=False,
     via_recovery_owner=False,
     force_election=False,
+    ledger_signature_mode="Dual",
 ):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
@@ -251,6 +252,7 @@ def test_recover_service(
                 committed_ledger_dirs=committed_ledger_dirs,
                 snapshots_dir=snapshots_dir,
                 service_data_json_file=ntf.name,
+                ledger_signature_mode=ledger_signature_mode,
             )
             LOG.info("Check that service data has been set")
             primary, _ = recovered_network.find_primary()
@@ -1415,6 +1417,67 @@ def run_recover_via_added_recovery_owner(args):
         return network
 
 
+def run_recovery_cose_only(args):
+    """
+    Recover a service that was started with ledger_signature_mode=COSE.
+    Verifies that the recovered service also uses COSE-only signatures.
+    """
+
+    def assert_ledger_cose_only(node):
+        current_ledger_dir, committed_ledger_dirs = node.get_ledger()
+        ledger = ccf.ledger.Ledger(
+            committed_ledger_dirs + [current_ledger_dir], committed_only=False
+        )
+        cose_sig_count = 0
+        for chunk in ledger:
+            for tx in chunk:
+                tables = tx.get_public_domain().get_tables()
+                assert ccf.ledger.SIGNATURE_TX_TABLE_NAME not in tables, (
+                    f"Found traditional signature at seqno {tx.get_public_domain().get_seqno()}, "
+                    f"expected COSE-only for entire ledger"
+                )
+                if ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME in tables:
+                    cose_sig_count += 1
+        assert cose_sig_count > 0, "No COSE signatures found in ledger"
+        return cose_sig_count
+
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args, ledger_signature_mode="COSE")
+        network.txs.issue(network, number_txs=5)
+
+        # Recover in COSE-only mode
+        network = test_recover_service(
+            network, args, from_snapshot=True, ledger_signature_mode="COSE"
+        )
+
+        # Issue TXs after recovery and verify entire ledger is COSE-only
+        network.txs.issue(network, number_txs=5)
+        primary, _ = network.find_primary()
+        cose_sig_count = assert_ledger_cose_only(primary)
+        LOG.success(
+            f"Recovered COSE-only service has {cose_sig_count} COSE-only signatures"
+        )
+
+        # Second recovery without snapshot
+        network = test_recover_service(
+            network, args, from_snapshot=False, ledger_signature_mode="COSE"
+        )
+        network.txs.issue(network, number_txs=5)
+        primary, _ = network.find_primary()
+        cose_sig_count = assert_ledger_cose_only(primary)
+        LOG.success(
+            f"Second recovered COSE-only service has {cose_sig_count} COSE-only signatures"
+        )
+        return network
+
+
 if __name__ == "__main__":
 
     def add(parser):
@@ -1535,6 +1598,15 @@ checked. Note that the key for each logging message is unique (per table).
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=10000,
+    )
+
+    cr.add(
+        "recovery_cose_only",
+        run_recovery_cose_only,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
     )
 
     cr.run()

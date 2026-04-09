@@ -67,9 +67,15 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCFConfig::Ledger, directory, read_only_directories, chunk_size);
 
+  DECLARE_JSON_ENUM(
+    CCFConfig::LedgerSignMode,
+    {{CCFConfig::LedgerSignMode::Dual, "Dual"},
+     {CCFConfig::LedgerSignMode::COSE, "COSE"}});
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::LedgerSignatures);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::LedgerSignatures);
-  DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::LedgerSignatures, tx_count, delay);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::LedgerSignatures, tx_count, delay, mode);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::JWT);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::JWT);

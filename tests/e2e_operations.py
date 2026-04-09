@@ -33,6 +33,8 @@ import cbor2
 import pathlib
 import infra.concurrency
 import ccf.read_ledger
+import ccf.cose
+import infra.commit
 import re
 import hashlib
 from contextlib import contextmanager
@@ -1845,6 +1847,191 @@ def run_service_subject_name_check(args):
             cert_pem = r.body.json()["service_certificate"]
             cert = x509.load_pem_x509_certificate(cert_pem.encode(), default_backend())
             assert cert.subject.rfc4514_string() == "CN=This test service", cert
+
+
+def run_cose_only_mode_upgrade(args):
+
+    def get_service_key(network):
+        service_cert_path = os.path.join(network.common_dir, "service_cert.pem")
+        service_cert = x509.load_pem_x509_certificate(
+            open(service_cert_path, "rb").read(), default_backend()
+        )
+        return service_cert.public_key()
+
+    def verify_receipt_available(node, view, seqno, service_key, expect_regular=True):
+        with node.client("user0") as c:
+            infra.commit.wait_for_commit(c, seqno, view, timeout=3)
+
+            start_time = time.time()
+            while time.time() < start_time + 3:
+                rc = c.get(f"/node/receipt?transaction_id={view}.{seqno}")
+                if rc.status_code != http.HTTPStatus.ACCEPTED:
+                    break
+                time.sleep(0.1)
+
+            if expect_regular:
+                assert (
+                    rc.status_code == http.HTTPStatus.OK
+                ), f"Regular receipt should be available, got {rc.status_code}"
+            else:
+                assert (
+                    rc.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR
+                ), f"Regular receipt should fail on COSE-only network, got {rc.status_code}"
+
+            start_time = time.time()
+            while time.time() < start_time + 3:
+                cose_rc = c.get(f"/node/receipt/cose?transaction_id={view}.{seqno}")
+                if cose_rc.status_code != http.HTTPStatus.ACCEPTED:
+                    break
+                time.sleep(0.1)
+
+            assert (
+                cose_rc.status_code == http.HTTPStatus.OK
+            ), f"COSE receipt should be available, got {cose_rc.status_code}"
+            ccf.cose.verify_receipt(cose_rc.body.data(), service_key, None)
+
+        LOG.info(
+            f"Receipt check OK for {view}.{seqno} "
+            f"(regular={'available' if expect_regular else 'unavailable'})"
+        )
+
+    def assert_ledger_cose_only_after(node, start_seqno):
+        current_ledger_dir, committed_ledger_dirs = node.get_ledger()
+        ledger = ccf.ledger.Ledger(
+            committed_ledger_dirs + [current_ledger_dir], committed_only=False
+        )
+
+        cose_sig_count = 0
+        for chunk in ledger:
+            for tx in chunk:
+                pd = tx.get_public_domain()
+                tables = pd.get_tables()
+                seqno = pd.get_seqno()
+
+                if seqno <= start_seqno:
+                    continue
+
+                assert ccf.ledger.SIGNATURE_TX_TABLE_NAME not in tables, (
+                    f"Found traditional (non-COSE) signature at seqno {seqno}, "
+                    f"expected COSE-only after seqno {start_seqno}"
+                )
+
+                if ccf.ledger.COSE_SIGNATURE_TX_TABLE_NAME in tables:
+                    cose_sig_count += 1
+
+        assert (
+            cose_sig_count > 0
+        ), "No COSE signatures found in ledger after old nodes were removed"
+        return cose_sig_count
+
+    nargs = copy.deepcopy(args)
+    nargs.nodes = infra.e2e_args.max_nodes(nargs, f=0)
+
+    with infra.network.network(
+        nargs.nodes,
+        nargs.binary_dir,
+        nargs.debug_nodes,
+        pdb=nargs.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(nargs)
+
+        primary, _ = network.find_nodes()
+        old_nodes = network.get_joined_nodes()
+        service_key = get_service_key(network)
+
+        # Verify both regular and COSE receipts work on the dual-signing network
+        LOG.info("Verifying both receipt types work on dual-signing network")
+        pre_idx = network.txs.idx + 1
+        network.txs.issue(network, number_txs=1)
+        pre_msg = network.txs.priv[pre_idx][0]
+        verify_receipt_available(
+            primary, pre_msg["view"], pre_msg["seqno"], service_key, expect_regular=True
+        )
+
+        # Step 1: Add new nodes with COSE mode
+        LOG.info("Adding new nodes with ledger_signature_mode=COSE")
+        new_nodes = []
+        for _ in range(len(old_nodes)):
+            new_node = network.create_node()
+            network.join_node(
+                new_node,
+                nargs.package,
+                nargs,
+                ledger_signature_mode="COSE",
+            )
+            network.trust_node(new_node, nargs)
+            new_nodes.append(new_node)
+
+        # Issue some transactions to ensure the new nodes are caught up
+        network.txs.issue(network, number_txs=5)
+
+        # Step 2: Remove old dual-signing nodes
+        LOG.info("Removing old dual-signing nodes")
+        new_primary = new_nodes[0]
+        for old_node in old_nodes:
+            network.retire_node(new_primary, old_node)
+            old_node.stop()
+
+        # Record the seqno after all old nodes are removed
+        with new_primary.client() as c:
+            r = c.get("/node/state")
+            cose_only_start_seqno = r.body.json()["last_signed_seqno"]
+        LOG.info(
+            f"Old nodes removed. COSE-only starts after seqno {cose_only_start_seqno}"
+        )
+
+        # Step 3: Verify the network still works
+        LOG.info("Verifying network liveness after mode upgrade")
+        network.txs.issue(network, number_txs=5)
+
+        # Step 4: Add another COSE node
+        LOG.info("Adding another COSE node")
+        another_node = network.create_node()
+        network.join_node(
+            another_node,
+            nargs.package,
+            nargs,
+            ledger_signature_mode="COSE",
+        )
+        network.trust_node(another_node, nargs)
+
+        network.txs.issue(network, number_txs=3)
+
+        # Step 5: Verify receipts on all nodes after COSE-only transition
+        LOG.info("Verifying receipts on all nodes after COSE-only transition")
+        new_primary, _ = network.find_primary()
+        post_msg = network.txs.priv[network.txs.idx][0]
+
+        for node in network.get_joined_nodes():
+            # Old dual-signed TX should still have a regular receipt
+            verify_receipt_available(
+                node,
+                pre_msg["view"],
+                pre_msg["seqno"],
+                service_key,
+                expect_regular=True,
+            )
+            # New TX on COSE-only network: regular receipt should fail
+            verify_receipt_available(
+                node,
+                post_msg["view"],
+                post_msg["seqno"],
+                service_key,
+                expect_regular=False,
+            )
+
+        # Step 6: Verify ledger is COSE-only signed after old nodes removed
+        LOG.info("Verifying ledger is COSE-only signed after old nodes removed")
+        network.wait_for_all_nodes_to_commit(primary=new_primary)
+        cose_sig_count = assert_ledger_cose_only_after(
+            new_primary, cose_only_start_seqno
+        )
+
+        LOG.success(
+            f"COSE-only mode upgrade test passed. "
+            f"Found {cose_sig_count} COSE-only signatures after seqno {cose_only_start_seqno}"
+        )
 
 
 def run_cose_signatures_config_check(args):
@@ -4031,3 +4218,4 @@ def run(args):
     run_propose_request_vote(args)
     run_time_based_snapshotting(args)
     run_snapshot_persistence_across_primary_failure(args)
+    run_cose_only_mode_upgrade(args)

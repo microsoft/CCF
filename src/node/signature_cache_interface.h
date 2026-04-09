@@ -13,8 +13,8 @@ namespace ccf
 {
   struct CachedSignature
   {
-    PrimarySignature sig;
-    std::vector<uint8_t> cose_signature;
+    std::optional<PrimarySignature> sig;
+    std::optional<std::vector<uint8_t>> cose_signature;
     std::vector<uint8_t> serialised_tree;
     ccf::SeqNo sig_seqno;
   };

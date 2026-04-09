@@ -12,6 +12,7 @@
 #include "ccf/kv/hooks.h"
 #include "ccf/kv/version.h"
 #include "ccf/node/cose_signatures_config.h"
+#include "ccf/node/startup_config.h"
 #include "ccf/service/consensus_type.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/tx_id.h"
@@ -358,7 +359,9 @@ namespace ccf::kv
     virtual void start_signature_emit_timer() = 0;
     virtual void set_service_signing_identity(
       std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> keypair,
-      const COSESignaturesConfig& cose_signatures) = 0;
+      const COSESignaturesConfig& cose_signatures,
+      CCFConfig::LedgerSignMode ledger_signature_mode =
+        CCFConfig::LedgerSignMode::Dual) = 0;
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
   };
 
