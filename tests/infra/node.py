@@ -12,6 +12,7 @@ import infra.path
 import infra.interfaces
 import infra.clients
 import ccf.ledger
+from ccf.tx_id import TxID
 import os
 import socket
 import re
@@ -896,13 +897,14 @@ class Node:
             LOG.debug(f"Failed to connect {e}")
             self.network_state = NodeNetworkState.stopped
 
-    def trigger_snapshot(self):
+    def trigger_snapshot(self) -> TxID:
         LOG.info(f"Triggering snapshot on {self.local_node_id}")
         with self.client(
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         ) as c:
             r = c.post("/node/snapshot:create")
             assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+        return TxID(r.view, r.seqno)
 
     def log_stack_trace(self, timeout=20):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
