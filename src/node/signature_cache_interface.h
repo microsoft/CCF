@@ -30,7 +30,8 @@ namespace ccf
     }
 
     // Returns the covering signature for a given seqno, or nullopt if
-    // unavailable. When a value is returned, all fields are populated.
+    // unavailable. When a value is returned, Merkle tree and at least one of
+    // the signatures is populated, or both if present.
     [[nodiscard]] virtual std::optional<CachedSignature> get_signature_for(
       ccf::SeqNo seqno) const = 0;
 
