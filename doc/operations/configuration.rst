@@ -53,13 +53,11 @@ To enable COSE-only mode, set the ``mode`` field in your node configuration:
 
     {
       "ledger_signatures": {
-        "tx_count": 5000,
-        "delay": "1000ms",
         "mode": "COSE"
       }
     }
 
-When ``mode`` is set to ``"COSE"``:
+When ``ledger_signatures.mode`` is set to ``"COSE"``:
 
 - The node signs ledger entries using only COSE Sign1 with the service key. Traditional node signatures (``ccf.internal.signatures``) are not emitted.
 - The signature mode is preserved across service recovery. When recovering a COSE-only service, pass the same ``"COSE"`` mode in the recovery node configuration.

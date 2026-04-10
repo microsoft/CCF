@@ -317,7 +317,7 @@ namespace ccf
       ccf::historical::read_only_adapter_v4(
         get_cose_receipt, context, is_tx_committed, txid_from_query_string),
       no_auth_required)
-      .set_auto_schema<void, void>()
+      .set_auto_schema<void, ds::openapi::Cose>()
       .add_query_parameter<ccf::TxID>(tx_id_param_key)
       .set_openapi_summary("COSE receipt for a transaction")
       .set_openapi_description(

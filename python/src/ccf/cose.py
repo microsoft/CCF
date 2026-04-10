@@ -229,7 +229,7 @@ def verify_receipt(
         proof = cbor2.loads(inclusion_proof)
         assert CCF_PROOF_LEAF_LABEL in proof, "Leaf must be present"
         leaf = proof[CCF_PROOF_LEAF_LABEL]
-        if claim_digest and claim_digest != leaf[2]:
+        if claim_digest is not None and claim_digest != leaf[2]:
             raise ValueError(f"Claim digest mismatch: {leaf[2]!r} != {claim_digest!r}")
         accumulator = hashlib.sha256(
             leaf[0] + hashlib.sha256(leaf[1].encode()).digest() + leaf[2]

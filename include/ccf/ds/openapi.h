@@ -22,6 +22,24 @@
  */
 namespace ccf::ds::openapi
 {
+  /** Tag type representing a binary COSE body (application/cose). */
+  struct Cose
+  {};
+
+  inline void fill_json_schema(nlohmann::json& schema, const Cose*)
+  {
+    schema["type"] = "string";
+    schema["format"] = "binary";
+  }
+
+  inline std::string schema_name(const Cose*)
+  {
+    return "Cose";
+  }
+}
+
+namespace ccf::ds::openapi
+{
   namespace access
   {
     static inline nlohmann::json& get_object(
@@ -392,6 +410,10 @@ namespace ccf::ds::openapi
     if constexpr (std::is_same_v<T, std::string>)
     {
       return http::headervalues::contenttype::TEXT;
+    }
+    else if constexpr (std::is_same_v<T, Cose>)
+    {
+      return http::headervalues::contenttype::COSE;
     }
     else
     {
