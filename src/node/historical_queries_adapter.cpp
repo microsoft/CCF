@@ -191,14 +191,15 @@ namespace ccf
     else
     {
       // Signature transaction
+
+      auto sig_receipt = std::make_shared<SignatureReceipt>();
       if (in.root.has_value())
       {
-        auto sig_receipt = std::make_shared<SignatureReceipt>();
         sig_receipt->signed_root = ccf::crypto::Sha256Hash::from_span(
           std::span<const uint8_t, ccf::ClaimsDigest::Digest::SIZE>(
             in.root.value().bytes, sizeof(in.root.value().bytes)));
-        receipt = sig_receipt;
       }
+      receipt = sig_receipt;
     }
 
     auto& out = *receipt;

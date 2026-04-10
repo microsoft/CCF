@@ -198,6 +198,10 @@
         ],
         "type": "string"
       },
+      "Cose": {
+        "format": "binary",
+        "type": "string"
+      },
       "Endorsement": {
         "properties": {
           "authority": {
@@ -1698,7 +1702,14 @@
           }
         ],
         "responses": {
-          "204": {
+          "200": {
+            "content": {
+              "application/cose": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cose"
+                }
+              }
+            },
             "description": "Default response description"
           },
           "default": {

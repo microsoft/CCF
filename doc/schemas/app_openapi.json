@@ -31,6 +31,10 @@
         },
         "type": "object"
       },
+      "Cose": {
+        "format": "binary",
+        "type": "string"
+      },
       "GetCommit__Out": {
         "properties": {
           "transaction_id": {
@@ -1707,7 +1711,14 @@
           }
         ],
         "responses": {
-          "204": {
+          "200": {
+            "content": {
+              "application/cose": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cose"
+                }
+              }
+            },
             "description": "Default response description"
           },
           "default": {

@@ -26,13 +26,13 @@ namespace ccf::ds::openapi
   struct Cose
   {};
 
-  inline void fill_json_schema(nlohmann::json& schema, const Cose*)
+  inline void fill_json_schema(nlohmann::json& schema, const Cose* cose)
   {
     schema["type"] = "string";
     schema["format"] = "binary";
   }
 
-  inline std::string schema_name(const Cose*)
+  inline std::string schema_name(const Cose* cose)
   {
     return "Cose";
   }
