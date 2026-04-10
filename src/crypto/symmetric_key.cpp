@@ -107,7 +107,7 @@ namespace ccf::crypto
   std::vector<uint8_t> aes_gcm_encrypt(
     std::span<const uint8_t> key,
     std::span<const uint8_t> plaintext,
-    const std::vector<uint8_t>& iv,
+    std::span<const uint8_t> iv,
     const std::vector<uint8_t>& aad)
   {
     check_supported_aes_key_size(key.size() * CHAR_BIT);
@@ -123,7 +123,7 @@ namespace ccf::crypto
   std::vector<uint8_t> aes_gcm_decrypt(
     std::span<const uint8_t> key,
     std::span<const uint8_t> ciphertext,
-    const std::vector<uint8_t>& iv,
+    std::span<const uint8_t> iv,
     const std::vector<uint8_t>& aad)
   {
     check_supported_aes_key_size(key.size() * CHAR_BIT);

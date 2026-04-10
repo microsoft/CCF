@@ -107,19 +107,16 @@ namespace ccf::crypto
     }
   }
 
-  /** Default initialization vector for AES-GCM (12 zeroes) */
-  static std::vector<uint8_t> default_iv(iv_size, 0);
-
   /// AES-GCM Encryption with @p key of @p data
   /// @param key The key
   /// @param plaintext The data
-  /// @param iv Intialization vector
+  /// @param iv Initialization vector (must be unique per encryption)
   /// @param aad Additional authenticated data
   /// @return ciphertext
   std::vector<uint8_t> aes_gcm_encrypt(
     std::span<const uint8_t> key,
     std::span<const uint8_t> plaintext,
-    const std::vector<uint8_t>& iv = default_iv,
+    std::span<const uint8_t> iv,
     const std::vector<uint8_t>& aad = {});
 
   /// AES-GCM Decryption with @p key of @p data
@@ -131,6 +128,6 @@ namespace ccf::crypto
   std::vector<uint8_t> aes_gcm_decrypt(
     std::span<const uint8_t> key,
     std::span<const uint8_t> ciphertext,
-    const std::vector<uint8_t>& iv = default_iv,
+    std::span<const uint8_t> iv,
     const std::vector<uint8_t>& aad = {});
 }
