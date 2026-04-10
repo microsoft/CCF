@@ -110,6 +110,12 @@ namespace ccf::crypto
     std::span<const uint8_t> iv,
     const std::vector<uint8_t>& aad)
   {
+    if (iv.size() != iv_size)
+    {
+      throw std::runtime_error(
+        fmt::format("Expected IV of size {}, got {}", iv_size, iv.size()));
+    }
+
     check_supported_aes_key_size(key.size() * CHAR_BIT);
 
     std::vector<uint8_t> r;
@@ -126,6 +132,12 @@ namespace ccf::crypto
     std::span<const uint8_t> iv,
     const std::vector<uint8_t>& aad)
   {
+    if (iv.size() != iv_size)
+    {
+      throw std::runtime_error(
+        fmt::format("Expected IV of size {}, got {}", iv_size, iv.size()));
+    }
+
     check_supported_aes_key_size(key.size() * CHAR_BIT);
 
     if (ciphertext.size() <= GCM_SIZE_TAG)
