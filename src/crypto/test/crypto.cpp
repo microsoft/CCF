@@ -1342,8 +1342,7 @@ TEST_CASE("Decrypt should validate integrity")
   auto iv = entropy->random(ccf::crypto::iv_size);
   std::vector<uint8_t> expected_plaintext = {0xde, 0xad, 0xbe, 0xef};
   auto ciphertext = ccf::crypto::aes_gcm_encrypt(key, expected_plaintext, iv);
-  auto decrypted_plaintext =
-    ccf::crypto::aes_gcm_decrypt(key, ciphertext, iv);
+  auto decrypted_plaintext = ccf::crypto::aes_gcm_decrypt(key, ciphertext, iv);
 
   CHECK_EQ(expected_plaintext, decrypted_plaintext);
 
