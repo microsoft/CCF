@@ -35,6 +35,8 @@ from ccf.cose import verify_cose_sign1_with_key  # type: ignore
 import random
 import copy
 import infra.commit
+import infra.utils
+import infra.platform_detection
 from loguru import logger as LOG
 
 
@@ -1422,6 +1424,98 @@ def run_recover_via_added_recovery_owner(args):
         return network
 
 
+def run_recovery_after_cose_upgrade(args):
+    """Start Dual, upgrade to COSE-only via node replacement, then recover.
+    This exercises the ledger replay path where the ledger contains both
+    dual-signed and COSE-only-signed entries with different views."""
+    cose_only_package = args.package + "_cose_only_allow_join_dual"
+
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        network.txs.issue(network, number_txs=5)
+
+        primary, _ = network.find_primary()
+        old_nodes = network.get_joined_nodes()
+
+        # Trust COSE-only binary and replace all nodes
+        cose_host_data, _ = infra.utils.get_host_data_and_security_policy(
+            infra.platform_detection.get_platform(),
+            cose_only_package,
+            binary_dir=args.binary_dir,
+        )
+        network.consortium.add_host_data(
+            primary,
+            infra.platform_detection.get_platform(),
+            cose_host_data,
+        )
+
+        new_nodes = []
+        for _ in range(len(old_nodes)):
+            new_node = network.create_node()
+            network.join_node(new_node, cose_only_package, args)
+            network.trust_node(new_node, args)
+            new_nodes.append(new_node)
+
+        network.txs.issue(network, number_txs=5)
+
+        new_primary = new_nodes[0]
+        for old_node in old_nodes:
+            network.retire_node(new_primary, old_node)
+            old_node.stop()
+
+        # Issue more TXs in COSE-only mode (new view after election)
+        network.txs.issue(network, number_txs=5)
+
+        # Now stop and recover — the ledger has dual sigs then COSE-only sigs
+        network.save_service_identity(args)
+        recover_primary, _ = network.find_primary()
+        current_ledger_dir, committed_ledger_dirs = recover_primary.get_ledger()
+
+        watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
+        watcher.start()
+        for node in network.get_joined_nodes():
+            time.sleep(args.election_timeout_ms / 1000)
+            node.stop()
+        watcher.wait_for_recovery()
+
+        # Recover with COSE-only binary
+        recovered_args = copy.deepcopy(args)
+        recovered_args.package = cose_only_package
+        recovered_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            existing_network=network,
+        )
+        recovered_network.start_in_recovery(
+            recovered_args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+            # No snapshot - force full ledger replay so the recovery path
+            # encounters both dual and COSE-only signature entries.
+        )
+        recovered_network.recover(recovered_args)
+
+        # Verify the recovered network works
+        recovered_network.txs.issue(recovered_network, number_txs=3)
+        new_primary, _ = recovered_network.find_primary()
+        service_key = get_service_key(recovered_network)
+        post_msg = recovered_network.txs.priv[recovered_network.txs.idx][0]
+        with new_primary.client("user0") as c:
+            fetch_and_verify_cose_receipt(
+                c, post_msg["view"], post_msg["seqno"], service_key
+            )
+
+        LOG.success("Recovery after dual-to-COSE-only upgrade succeeded")
+
+
 def run_recovery_dual_to_cose_only(args):
     """Recover a Dual network in COSE-only mode.
     Verifies COSE receipts after recovery and that pre-recovery dual receipts
@@ -1594,7 +1688,8 @@ def run_recovery_cose_only_network(args):
 
 
 def run_recovery_cose_only(args):
-    """Run both COSE-only recovery test scenarios."""
+    """Run all COSE-only recovery test scenarios."""
+    run_recovery_after_cose_upgrade(args)
     run_recovery_dual_to_cose_only(args)
     run_recovery_cose_only_network(args)
 

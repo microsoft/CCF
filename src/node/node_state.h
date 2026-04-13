@@ -92,6 +92,48 @@ namespace ccf
     data.shrink_to_fit();
   }
 
+  // Resolve the latest signature view from both signature tables.
+  // In a mixed dual/COSE-only ledger, the traditional signature table may
+  // contain a stale entry from before the switch to COSE-only. Always pick
+  // the signature at the higher seqno.
+  inline ccf::kv::Term resolve_latest_sig_view(ccf::kv::ReadOnlyTx& tx)
+  {
+    ccf::kv::Version best_seqno = 0;
+    ccf::kv::Term best_view = 0;
+
+    auto ls = tx.ro<ccf::Signatures>(Tables::SIGNATURES)->get();
+    if (ls.has_value())
+    {
+      best_seqno = ls->seqno;
+      best_view = ls->view;
+    }
+
+    auto lcs = tx.ro<ccf::CoseSignatures>(Tables::COSE_SIGNATURES)->get();
+    if (lcs.has_value())
+    {
+      auto receipt = cose::decode_ccf_receipt(lcs.value(), false);
+      auto tx_id_opt = ccf::TxID::from_str(receipt.phdr.ccf.txid);
+      if (!tx_id_opt.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to parse TxID from COSE signature: {}",
+          receipt.phdr.ccf.txid));
+      }
+      if (tx_id_opt->seqno > best_seqno)
+      {
+        best_seqno = tx_id_opt->seqno;
+        best_view = tx_id_opt->view;
+      }
+    }
+
+    if (best_seqno == 0)
+    {
+      throw std::logic_error("No signature found");
+    }
+
+    return best_view;
+  }
+
   class NodeState : public AbstractNodeState
   {
     friend class RecoveryDecisionProtocolSubsystem;
@@ -1194,34 +1236,7 @@ namespace ccf
               }
 
               auto tx = network.tables->create_read_only_tx();
-              auto last_sig = tx.ro(network.signatures)->get();
-              if (last_sig.has_value())
-              {
-                view = last_sig->view;
-              }
-              else
-              {
-                auto* cose_signatures = tx.ro(network.cose_signatures);
-                auto cose_sig = cose_signatures->get();
-                if (!cose_sig.has_value())
-                {
-                  throw std::logic_error(
-                    "No signature found after applying snapshot");
-                }
-
-                auto receipt =
-                  ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
-                const auto& txid = receipt.phdr.ccf.txid;
-                auto parsed_txid = ccf::TxID::from_str(txid);
-
-                if (!parsed_txid.has_value())
-                {
-                  throw std::logic_error(
-                    fmt::format("Cannot parse CCF TxID: {}", txid));
-                }
-
-                view = parsed_txid->view;
-              }
+              view = resolve_latest_sig_view(tx);
 
               if (!resp.network_info->public_only)
               {
@@ -1475,29 +1490,7 @@ namespace ccf
           network.tables->compact(last_recovered_idx);
           auto tx = network.tables->create_read_only_tx();
 
-          ccf::kv::Term sig_view = 0;
-          auto last_sig = tx.ro(network.signatures)->get();
-          if (last_sig.has_value())
-          {
-            sig_view = last_sig->view;
-          }
-          else
-          {
-            auto lcs = tx.ro(network.cose_signatures)->get();
-            if (!lcs.has_value())
-            {
-              throw std::logic_error("Signature missing");
-            }
-            auto receipt = cose::decode_ccf_receipt(lcs.value(), false);
-            auto tx_id_opt = ccf::TxID::from_str(receipt.phdr.ccf.txid);
-            if (!tx_id_opt.has_value())
-            {
-              throw std::logic_error(fmt::format(
-                "Failed to parse TxID from COSE signature: {}",
-                receipt.phdr.ccf.txid));
-            }
-            sig_view = tx_id_opt->view;
-          }
+          ccf::kv::Term sig_view = resolve_latest_sig_view(tx);
 
           LOG_DEBUG_FMT(
             "Read signature at {} for view {}", last_recovered_idx, sig_view);
