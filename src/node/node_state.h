@@ -1635,6 +1635,36 @@ namespace ccf
         throw std::logic_error("No signature found after recovery");
       }
 
+      // In full COSE-only mode (COSE signing + dual joiners disallowed),
+      // refuse to recover a ledger whose last signature is dual-only.
+      if (
+        ccf::get_ledger_signing_mode() == ccf::LedgerSignMode::COSE &&
+        !ccf::get_allow_dual_signing_joinee())
+      {
+        const bool last_sig_is_dual =
+          ls.has_value() && (!lcs.has_value() || ls->seqno > index);
+        if (last_sig_is_dual)
+        {
+          throw std::logic_error(
+            "Cannot recover a dual-signed ledger in COSE-only mode. "
+            "The last signature in the ledger is a traditional (dual) "
+            "signature. Use a COSE-only binary that allows dual joiners "
+            "for the intermediate recovery step, or recover the ledger "
+            "with a dual-signing binary first.");
+        }
+      }
+
+      // Prevent downgrade: a Dual binary must not recover a COSE-only ledger
+      // (one where the last signature has no traditional signature).
+      if (
+        ccf::get_ledger_signing_mode() == ccf::LedgerSignMode::Dual &&
+        lcs.has_value() && !ls.has_value())
+      {
+        throw std::logic_error(
+          "Cannot recover a COSE-only ledger with a Dual signing binary. "
+          "Use a COSE-only binary to recover this ledger.");
+      }
+
       history->set_service_signing_identity(
         network.identity->get_key_pair(), cs_cfg);
 

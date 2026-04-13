@@ -17,7 +17,7 @@
 #include "endian.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
-#include "node/rpc/no_get_ledger_signing_mode.cpp" // NOLINT(bugprone-suspicious-include)
+#include "node/no_get_ledger_signing_mode.cpp" // NOLINT(bugprone-suspicious-include)
 #include "node_signature_verify.h"
 #include "service/tables/signatures.h"
 #include "tasks/basic_task.h"

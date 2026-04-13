@@ -16,7 +16,12 @@ from infra.runner import ConcurrentRunner
 from infra.consortium import slurp_file
 import infra.health_watcher
 import time
-from e2e_logging import verify_receipt, test_cose_receipt_schema
+from e2e_logging import (
+    verify_receipt,
+    test_cose_receipt_schema,
+    get_service_key,
+    fetch_and_verify_cose_receipt,
+)
 import infra.service_load
 import ccf.tx_id
 import tempfile
@@ -28,6 +33,8 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from ccf.cose import verify_cose_sign1_with_key  # type: ignore
 import random
+import copy
+import infra.commit
 from loguru import logger as LOG
 
 
@@ -1415,6 +1422,183 @@ def run_recover_via_added_recovery_owner(args):
         return network
 
 
+def run_recovery_dual_to_cose_only(args):
+    """Recover a Dual network in COSE-only mode.
+    Verifies COSE receipts after recovery and that pre-recovery dual receipts
+    remain available."""
+    cose_only_package = args.package + "_cose_only"
+
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        network.txs.issue(network, number_txs=5)
+
+        # Verify dual receipts work before recovery
+        primary, _ = network.find_nodes()
+        first_msg = network.txs.priv[network.txs.idx][0]
+        first_receipt = network.txs.get_receipt(
+            primary,
+            network.txs.idx,
+            first_msg["seqno"],
+            first_msg["view"],
+        )
+        verify_receipt(first_receipt.json()["receipt"], network.cert)
+        dual_seqno = first_msg["seqno"]
+        dual_view = first_msg["view"]
+
+        # Stop all nodes
+        network.save_service_identity(args)
+        old_primary, _ = network.find_primary()
+        snapshots_dir = network.get_committed_snapshots(old_primary)
+        current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+        watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
+        watcher.start()
+        for node in network.get_joined_nodes():
+            time.sleep(args.election_timeout_ms / 1000)
+            node.stop()
+        watcher.wait_for_recovery()
+
+        # Recover with COSE-only binary
+        recovered_args = copy.deepcopy(args)
+        recovered_args.package = cose_only_package
+        recovered_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            existing_network=network,
+        )
+        recovered_network.start_in_recovery(
+            recovered_args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+            snapshots_dir=snapshots_dir,
+        )
+        recovered_network.recover(recovered_args)
+
+        # Verify COSE receipts work after recovery
+        recovered_network.txs.issue(recovered_network, number_txs=3)
+        new_primary, _ = recovered_network.find_primary()
+        service_key = get_service_key(recovered_network)
+        post_msg = recovered_network.txs.priv[recovered_network.txs.idx][0]
+        with new_primary.client("user0") as c:
+            fetch_and_verify_cose_receipt(
+                c, post_msg["view"], post_msg["seqno"], service_key
+            )
+
+        # Dual receipts from before recovery should still be available
+        with new_primary.client("user0") as c:
+            infra.commit.wait_for_commit(c, dual_seqno, dual_view, timeout=3)
+            start_time = time.time()
+            while time.time() < start_time + 10:
+                rc = c.get(f"/app/receipt?transaction_id={dual_view}.{dual_seqno}")
+                if rc.status_code == http.HTTPStatus.OK:
+                    verify_receipt(rc.body.json(), recovered_network.cert)
+                    break
+                elif rc.status_code == http.HTTPStatus.ACCEPTED:
+                    time.sleep(0.5)
+                else:
+                    assert False, rc
+            else:
+                assert False, "Timed out waiting for dual receipt"
+
+        LOG.success("Dual network recovered in COSE-only mode")
+
+
+def run_recovery_cose_only_network(args):
+    """Start a COSE-only network, stop it, then verify:
+    - Recovering as Dual fails.
+    - Recovering as COSE-only succeeds with valid COSE receipts."""
+    cose_only_package = args.package + "_cose_only"
+    cose_args = copy.deepcopy(args)
+    cose_args.package = cose_only_package
+
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(cose_args)
+        network.txs.issue(network, number_txs=5)
+
+        # Stop all nodes
+        network.save_service_identity(cose_args)
+        old_primary, _ = network.find_primary()
+        snapshots_dir = network.get_committed_snapshots(old_primary)
+        current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+        watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
+        watcher.start()
+        for node in network.get_joined_nodes():
+            time.sleep(args.election_timeout_ms / 1000)
+            node.stop()
+        watcher.wait_for_recovery()
+
+        # Recovering as Dual should fail
+        LOG.info("Recovering COSE-only network as Dual (expect failure)")
+        dual_recovery_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            existing_network=network,
+        )
+        try:
+            dual_recovery_network.start_in_recovery(
+                args,  # Dual package
+                ledger_dir=current_ledger_dir,
+                committed_ledger_dirs=committed_ledger_dirs,
+                snapshots_dir=snapshots_dir,
+            )
+            assert False, "Dual recovery of COSE-only ledger should have failed"
+        except Exception as e:
+            LOG.success(f"Dual recovery correctly failed: {e}")
+            for node in dual_recovery_network.nodes:
+                node.stop()
+
+        # Recovering as COSE-only should succeed
+        LOG.info("Recovering COSE-only network as COSE-only (expect success)")
+        cose_recovery_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            existing_network=network,
+        )
+        cose_recovery_network.start_in_recovery(
+            cose_args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+            snapshots_dir=snapshots_dir,
+        )
+        cose_recovery_network.recover(cose_args)
+
+        # Verify COSE receipts work
+        cose_recovery_network.txs.issue(cose_recovery_network, number_txs=3)
+        new_primary, _ = cose_recovery_network.find_primary()
+        service_key = get_service_key(cose_recovery_network)
+        post_msg = cose_recovery_network.txs.priv[cose_recovery_network.txs.idx][0]
+        with new_primary.client("user0") as c:
+            fetch_and_verify_cose_receipt(
+                c, post_msg["view"], post_msg["seqno"], service_key
+            )
+
+        LOG.success("COSE-only network recovered as COSE-only")
+
+
+def run_recovery_cose_only(args):
+    """Run both COSE-only recovery test scenarios."""
+    run_recovery_dual_to_cose_only(args)
+    run_recovery_cose_only_network(args)
+
+
 if __name__ == "__main__":
 
     def add(parser):
@@ -1535,6 +1719,15 @@ checked. Note that the key for each logging message is unique (per table).
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=10000,
+    )
+
+    cr.add(
+        "recovery_cose_only",
+        run_recovery_cose_only,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
     )
 
     cr.run()
