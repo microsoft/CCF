@@ -2806,18 +2806,6 @@ namespace aft
         }
       }
 
-      // Remove all nodes in the node state that are not present in any active
-      // configuration.
-      std::vector<ccf::NodeId> to_remove;
-
-      for (const auto& node : all_other_nodes)
-      {
-        if (active_nodes.find(node.first) == active_nodes.end())
-        {
-          to_remove.push_back(node.first);
-        }
-      }
-
       // Add all active nodes that are not already present in the node state.
       for (auto node_info : active_nodes)
       {
