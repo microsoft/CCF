@@ -12,6 +12,7 @@
 #include "ccf/odata_error.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/mem.h"
+#include "ccf/research/get_ledger_signing_mode.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
@@ -314,6 +315,19 @@ namespace ccf
       {
         const auto [code, message] = quote_verification_error(verify_result);
         return make_error(code, ccf::errors::InvalidQuote, message);
+      }
+
+      // Check if the joining node's signing mode is acceptable
+      if (
+        in.ledger_signing_mode.has_value() &&
+        in.ledger_signing_mode.value() == ccf::LedgerSignMode::Dual &&
+        !ccf::get_allow_dual_joinee())
+      {
+        return make_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidInput,
+          "This network does not accept nodes running in Dual signing "
+          "mode. The joining node must use COSE-only signing.");
       }
 
       std::optional<ccf::kv::Version> ledger_secret_seqno = std::nullopt;

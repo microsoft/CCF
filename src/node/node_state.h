@@ -941,9 +941,7 @@ namespace ccf
           network.ledger_secrets->init();
 
           history->set_service_signing_identity(
-            network.identity->get_key_pair(),
-            config.cose_signatures,
-            config.ledger_signatures.mode);
+            network.identity->get_key_pair(), config.cose_signatures);
 
           setup_consensus(false, endorsed_node_cert);
 
@@ -1154,8 +1152,7 @@ namespace ccf
             history->set_service_signing_identity(
               network.identity->get_key_pair(),
               resp.network_info->cose_signatures_config.value_or(
-                ccf::COSESignaturesConfig{}),
-              config.ledger_signatures.mode);
+                ccf::COSESignaturesConfig{}));
 
             ccf::crypto::Pem n2n_channels_cert;
             if (!resp.network_info->endorsed_certificate.has_value())
@@ -1308,6 +1305,7 @@ namespace ccf
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
+      join_params.ledger_signing_mode = ccf::get_ledger_signing_mode();
       if (config.sealing_recovery.has_value() && snp_tcb_version.has_value())
       {
         join_params.sealing_recovery_data = std::make_pair(
@@ -1638,9 +1636,7 @@ namespace ccf
       }
 
       history->set_service_signing_identity(
-        network.identity->get_key_pair(),
-        cs_cfg,
-        config.ledger_signatures.mode);
+        network.identity->get_key_pair(), cs_cfg);
 
       auto* h = dynamic_cast<MerkleTxHistory*>(history.get());
       if (h != nullptr)

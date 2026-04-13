@@ -6,6 +6,7 @@
 #include "ccf/node/cose_signatures_config.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/pal/mem.h"
+#include "ccf/research/get_ledger_signing_mode.h"
 #include "ccf/service/local_sealing.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/code_id.h"
@@ -96,6 +97,7 @@ namespace ccf
         sealing_recovery_data = std::nullopt;
       std::optional<std::vector<uint8_t>> code_transparent_statement =
         std::nullopt;
+      std::optional<ccf::LedgerSignMode> ledger_signing_mode = std::nullopt;
     };
 
     struct Out

@@ -45,27 +45,14 @@ Since these operations may require disk IO and produce large responses, these fe
 COSE-Only Ledger Signatures
 ----------------------------
 
-By default, CCF nodes emit **dual** ledger signatures: a traditional node signature (stored in ``ccf.internal.signatures``) and a COSE Sign1 signature (stored in ``ccf.internal.cose_signatures``). The ``ledger_signatures.mode`` configuration option allows switching to **COSE-only** mode, where only COSE signatures are emitted.
+By default, CCF nodes emit **dual** ledger signatures: a traditional node signature (stored in ``ccf.internal.signatures``) and a COSE Sign1 signature (stored in ``ccf.internal.cose_signatures``).
 
-To enable COSE-only mode, set the ``mode`` field in your node configuration:
+Applications can switch to **COSE-only** mode by providing an implementation of ``ccf::get_ledger_signing_mode()`` (declared in ``ccf/research/get_ledger_signing_mode.h``) that returns ``ccf::LedgerSignMode::COSE``. This follows the same weak-symbol override pattern as ``ccf::get_create_tx_claims_digest()``.
 
-.. code-block:: json
-
-    {
-      "ledger_signatures": {
-        "mode": "COSE"
-      }
-    }
-
-When ``ledger_signatures.mode`` is set to ``"COSE"``:
+When the signing mode is ``COSE``:
 
 - The node signs ledger entries using only COSE Sign1 with the service key. Traditional node signatures (``ccf.internal.signatures``) are not emitted.
-- The signature mode is preserved across service recovery. When recovering a COSE-only service, pass the same ``"COSE"`` mode in the recovery node configuration.
-- All nodes in a service must use the same signature mode.
+- The signing mode is determined at link time and applies from the very first signature.
 
-The default value is ``"Dual"``, which retains backward-compatible behaviour by emitting both signature types.
-
-.. warning::
-
-    COSE-only mode is only supported from CCF 7.x onwards and is **not compatible with 6.x ledgers**. Operators upgrading from 6.x must first complete the migration to 7.x in ``"Dual"`` mode, and only then switch to ``"COSE"`` mode on a subsequent reconfiguration or recovery. Attempting to recover a 6.x ledger with ``"COSE"`` mode will fail.
+The default (weak) implementation returns ``Dual``, which retains backward-compatible behaviour by emitting both signature types.
 

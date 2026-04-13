@@ -1226,6 +1226,17 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME schema_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+    CONSTITUTION
+      --constitution
+      ${CCF_DIR}/samples/constitutions/default/actions.js
+      --constitution
+      ${CCF_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
+      --constitution
+      ${CCF_DIR}/samples/constitutions/default/validate.js
+      --constitution
+      ${CCF_DIR}/samples/constitutions/default/resolve.js
+      --constitution
+      ${CCF_DIR}/samples/constitutions/default/apply.js
     ADDITIONAL_ARGS
       --schema-dir
       ${CMAKE_SOURCE_DIR}/doc/schemas

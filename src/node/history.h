@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/pal/locking.h"
+#include "ccf/research/get_ledger_signing_mode.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
 #include "common/configuration.h"
@@ -16,6 +17,7 @@
 #include "endian.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
+#include "node/rpc/no_get_ledger_signing_mode.cpp" // NOLINT(bugprone-suspicious-include)
 #include "node_signature_verify.h"
 #include "service/tables/signatures.h"
 #include "tasks/basic_task.h"
@@ -182,9 +184,7 @@ namespace ccf
 
     void set_service_signing_identity(
       std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp_,
-      const ccf::COSESignaturesConfig& /*cose_signatures*/,
-      CCFConfig::LedgerSignMode /*ledger_signature_mode*/ =
-        CCFConfig::LedgerSignMode::Dual) override
+      const ccf::COSESignaturesConfig& /*cose_signatures*/) override
     {
       std::ignore = service_kp_;
     }
@@ -313,7 +313,7 @@ namespace ccf
     ccf::crypto::ECKeyPair_OpenSSL& service_kp;
     ccf::crypto::Pem& endorsed_cert;
     const ccf::COSESignaturesConfig& cose_signatures_config;
-    const CCFConfig::LedgerSignMode ledger_signature_mode;
+    const ccf::LedgerSignMode ledger_signature_mode;
     std::unordered_map<std::string, CoseKey>& cose_key_cache;
 
   public:
@@ -326,7 +326,7 @@ namespace ccf
       ccf::crypto::ECKeyPair_OpenSSL& service_kp_,
       ccf::crypto::Pem& endorsed_cert_,
       const ccf::COSESignaturesConfig& cose_signatures_config_,
-      CCFConfig::LedgerSignMode ledger_signature_mode_,
+      ccf::LedgerSignMode ledger_signature_mode_,
       std::unordered_map<std::string, CoseKey>& cose_key_cache_) :
       txid(txid_),
       store(store_),
@@ -348,7 +348,7 @@ namespace ccf
       std::vector<uint8_t> root_hash{
         root.h.data(), root.h.data() + root.h.size()};
 
-      if (ledger_signature_mode == CCFConfig::LedgerSignMode::Dual)
+      if (ledger_signature_mode == ccf::LedgerSignMode::Dual)
       {
         auto* signatures =
           sig.template wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
@@ -581,8 +581,8 @@ namespace ccf
     {
       const std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp;
       const ccf::COSESignaturesConfig cose_signatures_config;
-      const CCFConfig::LedgerSignMode ledger_signature_mode =
-        CCFConfig::LedgerSignMode::Dual;
+      const ccf::LedgerSignMode ledger_signature_mode =
+        ccf::LedgerSignMode::Dual;
     };
 
     std::optional<ServiceSigningIdentity> signing_identity = std::nullopt;
@@ -611,15 +611,15 @@ namespace ccf
 
     void set_service_signing_identity(
       std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp_,
-      const ccf::COSESignaturesConfig& cose_signatures_config_,
-      CCFConfig::LedgerSignMode ledger_signature_mode_ =
-        CCFConfig::LedgerSignMode::Dual) override
+      const ccf::COSESignaturesConfig& cose_signatures_config_) override
     {
       if (signing_identity.has_value())
       {
         throw std::logic_error(
           "Called set_service_signing_identity() multiple times");
       }
+
+      const auto ledger_signature_mode_ = ccf::get_ledger_signing_mode();
 
       signing_identity.emplace(ServiceSigningIdentity{
         service_kp_, cose_signatures_config_, ledger_signature_mode_});
@@ -629,7 +629,7 @@ namespace ccf
         "signature mode: {}",
         cose_signatures_config_.issuer,
         cose_signatures_config_.subject,
-        nlohmann::json(ledger_signature_mode_).dump());
+        ledger_signature_mode_ == ccf::LedgerSignMode::Dual ? "Dual" : "COSE");
     }
 
     const ccf::COSESignaturesConfig& get_cose_signatures_config() override

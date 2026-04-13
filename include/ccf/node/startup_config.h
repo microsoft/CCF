@@ -53,17 +53,10 @@ namespace ccf
     };
     Ledger ledger = {};
 
-    enum class LedgerSignMode : uint8_t
-    {
-      Dual = 0,
-      COSE = 1
-    };
-
     struct LedgerSignatures
     {
       size_t tx_count = 5000;
       ccf::ds::TimeString delay = {"1000ms"};
-      LedgerSignMode mode = LedgerSignMode::Dual;
 
       bool operator==(const LedgerSignatures&) const = default;
     };

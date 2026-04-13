@@ -836,7 +836,7 @@ def test_historical_query(network, args):
 @reqs.description("Read historical receipts")
 @reqs.supports_methods("/app/log/private", "/app/log/private/historical_receipt")
 def test_historical_receipts(network, args):
-    cose_only = getattr(args, "ledger_signature_mode", "Dual") == "COSE"
+    cose_only = args.package.endswith("_cose_only")
     primary, backups = network.find_nodes()
     TXS_COUNT = 5
     start_idx = network.txs.idx + 1
@@ -879,7 +879,7 @@ def test_historical_receipts(network, args):
 @reqs.description("Read historical receipts with claims")
 @reqs.supports_methods("/app/log/public", "/app/log/public/historical_receipt")
 def test_historical_receipts_with_claims(network, args):
-    cose_only = getattr(args, "ledger_signature_mode", "Dual") == "COSE"
+    cose_only = args.package.endswith("_cose_only")
     primary, backups = network.find_nodes()
     TXS_COUNT = 5
     start_idx = network.txs.idx + 1
@@ -926,7 +926,7 @@ def test_historical_receipts_with_claims(network, args):
 
 @reqs.description("Read genesis receipt")
 def test_genesis_receipt(network, args):
-    cose_only = getattr(args, "ledger_signature_mode", "Dual") == "COSE"
+    cose_only = args.package.endswith("_cose_only")
     primary, _ = network.find_nodes()
 
     if cose_only:
@@ -944,7 +944,7 @@ def test_genesis_receipt(network, args):
                 "/gov/service/constitution?api-version=2023-06-01-preview"
             ).body.text()
 
-        if args.package == "samples/apps/logging/logging":
+        if args.package.startswith("samples/apps/logging/logging"):
             # Only the logging app sets a claim on the genesis
             assert claims_digest == sha256(constitution.encode()).hexdigest()
         else:
@@ -1482,7 +1482,7 @@ def test_forwarding_frontends(network, args):
     else:
         assert args.http2 is False
 
-    if args.package == "samples/apps/logging/logging" and not args.http2:
+    if args.package.startswith("samples/apps/logging/logging") and not args.http2:
         with backup.client("user0") as c:
             escaped_query_tests(c, "request_query")
 
@@ -1768,7 +1768,7 @@ def test_tx_statuses(network, args):
 @reqs.at_least_n_nodes(2)
 @app.scoped_txs()
 def test_receipts(network, args):
-    cose_only = getattr(args, "ledger_signature_mode", "Dual") == "COSE"
+    cose_only = args.package.endswith("_cose_only")
     primary, _ = network.find_primary_and_any_backup()
     msg = "Hello world"
 
@@ -1811,7 +1811,7 @@ def test_random_receipts(
     node=None,
     log_capture=None,
 ):
-    cose_only = getattr(args, "ledger_signature_mode", "Dual") == "COSE"
+    cose_only = args.package.endswith("_cose_only")
 
     if node is None:
         node, _ = network.find_primary_and_any_backup()
@@ -2282,8 +2282,6 @@ def run_udp_tests(args):
 
 
 def run(args):
-    ledger_signature_mode = getattr(args, "ledger_signature_mode", "Dual")
-
     # Listen on two additional RPC interfaces for each node
     def additional_interfaces(local_node_id):
         return {
@@ -2306,7 +2304,7 @@ def run(args):
         pdb=args.pdb,
         txs=txs,
     ) as network:
-        network.start_and_open(args, ledger_signature_mode=ledger_signature_mode)
+        network.start_and_open(args)
 
         do_main_tests(network, args)
 
@@ -2489,7 +2487,7 @@ def do_main_tests(network, args):
     test_remove(network, args)
     test_clear(network, args)
     test_record_count(network, args)
-    if args.package == "samples/apps/logging/logging":
+    if args.package.startswith("samples/apps/logging/logging"):
         test_cbor_receipts(network, args)
         test_cose_signature_schema(network, args)
         test_cose_receipt_schema(network, args)
@@ -2511,7 +2509,7 @@ def do_main_tests(network, args):
     test_historical_query_range(network, args)
     test_view_history(network, args)
     test_empty_path(network, args)
-    if args.package == "samples/apps/logging/logging":
+    if args.package.startswith("samples/apps/logging/logging"):
         # Local-commit lambda is currently only supported in C++
         test_post_local_commit_failure(network, args)
         # Custom indexers currently only supported in C++
@@ -2520,13 +2518,13 @@ def do_main_tests(network, args):
     test_rekey(network, args)
     test_liveness(network, args)
     test_random_receipts(network, args, False)
-    if args.package == "samples/apps/logging/logging":
+    if args.package.startswith("samples/apps/logging/logging"):
         test_receipts(network, args)
         test_historical_query_sparse(network, args)
     test_historical_receipts(network, args)
     test_historical_receipts_with_claims(network, args)
     test_genesis_receipt(network, args)
-    if args.package == "samples/apps/logging/logging":
+    if args.package.startswith("samples/apps/logging/logging"):
         test_etags(network, args)
         test_cose_config(network, args)
         if not args.http2:
@@ -2583,12 +2581,11 @@ if __name__ == "__main__":
     cr.add(
         "cpp_cose_only",
         run,
-        package="samples/apps/logging/logging",
+        package="samples/apps/logging/logging_cose_only",
         js_app_bundle=None,
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,
         initial_member_count=2,
-        ledger_signature_mode="COSE",
     )
 
     cr.add(

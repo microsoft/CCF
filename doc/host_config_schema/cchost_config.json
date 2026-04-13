@@ -623,12 +623,6 @@
           "type": "string",
           "default": "1000ms",
           "description": "Maximum duration after which a signature transaction is automatically generated"
-        },
-        "mode": {
-          "type": "string",
-          "enum": ["Dual", "COSE"],
-          "default": "Dual",
-          "description": "Ledger signature mode. Dual emits both regular and COSE signatures. COSE emits only COSE signatures."
         }
       },
       "description": "This section includes configuration for the ledger signatures emitted by this node (note: should be the same for all other nodes in the service). Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput",

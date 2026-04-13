@@ -35,6 +35,7 @@ import infra.concurrency
 import ccf.read_ledger
 import ccf.cose
 import infra.commit
+import infra.utils
 import re
 import hashlib
 from contextlib import contextmanager
@@ -1924,6 +1925,35 @@ def run_cose_only_mode_upgrade(args):
         ), "No COSE signatures found in ledger after old nodes were removed"
         return cose_sig_count
 
+    def trust_package_host_data(network, primary, package):
+        host_data, _ = infra.utils.get_host_data_and_security_policy(
+            infra.platform_detection.get_platform(),
+            package,
+            binary_dir=nargs.binary_dir,
+        )
+        network.consortium.add_host_data(
+            primary,
+            infra.platform_detection.get_platform(),
+            host_data,
+        )
+
+    def replace_nodes(network, old_nodes, new_package):
+        new_nodes = []
+        for _ in range(len(old_nodes)):
+            new_node = network.create_node()
+            network.join_node(new_node, new_package, nargs)
+            network.trust_node(new_node, nargs)
+            new_nodes.append(new_node)
+
+        network.txs.issue(network, number_txs=5)
+
+        new_primary = new_nodes[0]
+        for old_node in old_nodes:
+            network.retire_node(new_primary, old_node)
+            old_node.stop()
+
+        return new_nodes
+
     nargs = copy.deepcopy(args)
     nargs.nodes = infra.e2e_args.max_nodes(nargs, f=0)
 
@@ -1937,7 +1967,7 @@ def run_cose_only_mode_upgrade(args):
         network.start_and_open(nargs)
 
         primary, _ = network.find_nodes()
-        old_nodes = network.get_joined_nodes()
+        dual_nodes = network.get_joined_nodes()
         service_key = get_service_key(network)
 
         # Verify both regular and COSE receipts work on the dual-signing network
@@ -1949,83 +1979,89 @@ def run_cose_only_mode_upgrade(args):
             primary, pre_msg["view"], pre_msg["seqno"], service_key, expect_regular=True
         )
 
-        # Step 1: Add new nodes with COSE mode
-        LOG.info("Adding new nodes with ledger_signature_mode=COSE")
-        new_nodes = []
-        for _ in range(len(old_nodes)):
-            new_node = network.create_node()
-            network.join_node(
-                new_node,
-                nargs.package,
-                nargs,
-                ledger_signature_mode="COSE",
-            )
-            network.trust_node(new_node, nargs)
-            new_nodes.append(new_node)
+        # ---- Phase 1: Dual -> COSE-only (allow dual joiners) ----
+        cose_only_allow_dual_package = nargs.package + "_cose_only_allow_join_dual"
+        LOG.info("Phase 1: Replacing dual nodes with COSE-only (allow dual joiners)")
+        trust_package_host_data(network, primary, cose_only_allow_dual_package)
+        cose_nodes = replace_nodes(network, dual_nodes, cose_only_allow_dual_package)
 
-        # Issue some transactions to ensure the new nodes are caught up
-        network.txs.issue(network, number_txs=5)
-
-        # Step 2: Remove old dual-signing nodes
-        LOG.info("Removing old dual-signing nodes")
-        new_primary = new_nodes[0]
-        for old_node in old_nodes:
-            network.retire_node(new_primary, old_node)
-            old_node.stop()
-
-        # Record the seqno after all old nodes are removed
-        with new_primary.client() as c:
+        # Record the seqno after all dual nodes are removed
+        cose_primary = cose_nodes[0]
+        with cose_primary.client() as c:
             r = c.get("/node/state")
             cose_only_start_seqno = r.body.json()["last_signed_seqno"]
         LOG.info(
-            f"Old nodes removed. COSE-only starts after seqno {cose_only_start_seqno}"
+            f"Dual nodes removed. COSE-only starts after seqno {cose_only_start_seqno}"
         )
-
-        # Step 3: Verify the network still works
-        LOG.info("Verifying network liveness after mode upgrade")
-        network.txs.issue(network, number_txs=5)
-
-        # Step 4: Add another COSE node
-        LOG.info("Adding another COSE node")
-        another_node = network.create_node()
-        network.join_node(
-            another_node,
-            nargs.package,
-            nargs,
-            ledger_signature_mode="COSE",
-        )
-        network.trust_node(another_node, nargs)
 
         network.txs.issue(network, number_txs=3)
 
-        # Step 5: Verify receipts on all nodes after COSE-only transition
-        LOG.info("Verifying receipts on all nodes after COSE-only transition")
-        new_primary, _ = network.find_primary()
+        # Verify a Dual joiner can still join (allow_dual_joinee=true)
+        LOG.info("Verifying Dual joiner can still join COSE-only (allow dual) network")
+        dual_joiner = network.create_node()
+        network.join_node(dual_joiner, nargs.package, nargs)
+        network.trust_node(dual_joiner, nargs)
+        LOG.success("Dual joiner successfully joined COSE-only network")
+
+        # Remove the Dual joiner
+        cose_primary, _ = network.find_primary()
+        network.retire_node(cose_primary, dual_joiner)
+        dual_joiner.stop()
+
+        # Verify receipts
+        LOG.info("Verifying receipts after phase 1")
+        cose_primary, _ = network.find_primary()
         post_msg = network.txs.priv[network.txs.idx][0]
+        verify_receipt_available(
+            cose_primary,
+            pre_msg["view"],
+            pre_msg["seqno"],
+            service_key,
+            expect_regular=True,
+        )
+        verify_receipt_available(
+            cose_primary,
+            post_msg["view"],
+            post_msg["seqno"],
+            service_key,
+            expect_regular=False,
+        )
 
-        for node in network.get_joined_nodes():
-            # Old dual-signed TX should still have a regular receipt
-            verify_receipt_available(
-                node,
-                pre_msg["view"],
-                pre_msg["seqno"],
-                service_key,
-                expect_regular=True,
-            )
-            # New TX on COSE-only network: regular receipt should fail
-            verify_receipt_available(
-                node,
-                post_msg["view"],
-                post_msg["seqno"],
-                service_key,
-                expect_regular=False,
-            )
+        # ---- Phase 2: COSE-only (allow dual) -> COSE-only (disallow dual) ----
+        cose_only_package = nargs.package + "_cose_only"
+        LOG.info("Phase 2: Replacing with COSE-only (disallow dual joiners)")
+        trust_package_host_data(network, cose_primary, cose_only_package)
+        replace_nodes(network, cose_nodes, cose_only_package)
 
-        # Step 6: Verify ledger is COSE-only signed after old nodes removed
-        LOG.info("Verifying ledger is COSE-only signed after old nodes removed")
-        network.wait_for_all_nodes_to_commit(primary=new_primary)
+        network.txs.issue(network, number_txs=3)
+
+        # Verify a Dual joiner is now rejected
+        LOG.info("Verifying Dual joiner is rejected by COSE-only-no-dual network")
+        rejected_joiner = network.create_node()
+        try:
+            network.join_node(rejected_joiner, nargs.package, nargs, timeout=10)
+            network.trust_node(rejected_joiner, nargs)
+            assert False, "Dual joiner should have been rejected"
+        except Exception as e:
+            LOG.success(f"Dual joiner correctly rejected: {e}")
+
+        # Verify COSE receipts still work
+        LOG.info("Verifying COSE receipts after phase 2")
+        no_dual_primary, _ = network.find_primary()
+        final_msg = network.txs.priv[network.txs.idx][0]
+        verify_receipt_available(
+            no_dual_primary,
+            final_msg["view"],
+            final_msg["seqno"],
+            service_key,
+            expect_regular=False,
+        )
+
+        # Verify ledger is COSE-only signed
+        LOG.info("Verifying ledger is COSE-only signed")
+        network.wait_for_all_nodes_to_commit(primary=no_dual_primary)
         cose_sig_count = assert_ledger_cose_only_after(
-            new_primary, cose_only_start_seqno
+            no_dual_primary, cose_only_start_seqno
         )
 
         LOG.success(
