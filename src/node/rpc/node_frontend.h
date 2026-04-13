@@ -321,7 +321,7 @@ namespace ccf
       if (
         in.ledger_signing_mode.has_value() &&
         in.ledger_signing_mode.value() == ccf::LedgerSignMode::Dual &&
-        !ccf::get_allow_dual_joinee())
+        !ccf::get_allow_dual_signing_joinee())
       {
         return make_error(
           HTTP_STATUS_BAD_REQUEST,

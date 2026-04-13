@@ -10,7 +10,7 @@ namespace ccf
     return LedgerSignMode::COSE;
   }
 
-  bool get_allow_dual_joinee()
+  bool get_allow_dual_signing_joinee()
   {
     return false;
   }

@@ -10,7 +10,7 @@ namespace ccf
     return LedgerSignMode::Dual;
   }
 
-  bool __attribute__((weak)) get_allow_dual_joinee()
+  bool __attribute__((weak)) get_allow_dual_signing_joinee()
   {
     return true;
   }

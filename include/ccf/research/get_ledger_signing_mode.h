@@ -35,5 +35,5 @@ namespace ccf
    *
    * @return true if Dual-mode nodes are allowed to join, false otherwise
    */
-  bool get_allow_dual_joinee();
+  bool get_allow_dual_signing_joinee();
 }
