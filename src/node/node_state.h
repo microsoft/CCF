@@ -1565,6 +1565,8 @@ namespace ccf
       snapshotter->init_after_public_recovery();
       snapshotter->set_snapshot_generation(false);
 
+      ccf::kv::Version sig_seqno = 0;
+      ccf::kv::Version cose_seqno = 0;
       ccf::kv::Version index = 0;
       ccf::kv::Term view = 0;
 
@@ -1572,6 +1574,7 @@ namespace ccf
       if (ls.has_value())
       {
         auto s = ls.value();
+        sig_seqno = s.seqno;
         index = s.seqno;
         view = s.view;
       }
@@ -1595,6 +1598,8 @@ namespace ccf
               "Failed to parse TxID from COSE signature: {}",
               as_receipt.phdr.ccf.txid));
           }
+
+          cose_seqno = tx_id_opt->seqno;
 
           // Use the COSE signature's TxID only if it is newer than the
           // traditional signature's. In flip-flop scenarios (dual -> COSE ->
@@ -1629,29 +1634,24 @@ namespace ccf
       }
 
       // In full COSE-only mode (COSE signing + dual joiners disallowed),
-      // refuse to recover a ledger whose last signature is dual-only.
+      // refuse to recover a ledger whose last signature is not COSE-only.
       if (
         ccf::get_ledger_signing_mode() == ccf::LedgerSignMode::COSE &&
-        !ccf::get_allow_dual_signing_joinee())
+        !ccf::get_allow_dual_signing_joinee() && !lcs.has_value())
       {
-        const bool last_sig_is_dual =
-          ls.has_value() && (!lcs.has_value() || ls->seqno > index);
-        if (last_sig_is_dual)
-        {
-          throw std::logic_error(
-            "Cannot recover a dual-signed ledger in COSE-only mode. "
-            "The last signature in the ledger is a traditional (dual) "
-            "signature. Use a COSE-only binary that allows dual joiners "
-            "for the intermediate recovery step, or recover the ledger "
-            "with a dual-signing binary first.");
-        }
+        throw std::logic_error(
+          "Cannot recover a ledger without COSE signatures in COSE-only "
+          "mode. Use a COSE-only binary that allows dual joiners for the "
+          "intermediate recovery step, or recover the ledger with a "
+          "dual-signing binary first.");
       }
 
       // Prevent downgrade: a Dual binary must not recover a COSE-only ledger
-      // (one where the last signature has no traditional signature).
+      // (one where the latest signature is COSE-only, i.e. COSE seqno is
+      // strictly ahead of any traditional signature).
       if (
         ccf::get_ledger_signing_mode() == ccf::LedgerSignMode::Dual &&
-        lcs.has_value() && !ls.has_value())
+        lcs.has_value() && cose_seqno > sig_seqno)
       {
         throw std::logic_error(
           "Cannot recover a COSE-only ledger with a Dual signing binary. "
