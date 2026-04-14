@@ -61,12 +61,12 @@ namespace ccf::crypto::OpenSSL
     }
   }
 
-  /// Throws if rc is 0 and has error
+  /// Throws if rc is 0
   inline void CHECK0(int rc)
   {
-    unsigned long ec = ERR_get_error();
-    if (rc == 0 && ec != 0)
+    if (rc == 0)
     {
+      unsigned long ec = ERR_get_error();
       throw std::runtime_error(
         fmt::format("OpenSSL error: {}", error_string(ec)));
     }
