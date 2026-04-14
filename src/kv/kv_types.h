@@ -5,6 +5,7 @@
 #include "ccf/claims_digest.h"
 #include "ccf/crypto/hash_bytes.h"
 #include "ccf/crypto/pem.h"
+#include "ccf/ds/hex.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/entity_id.h"
 #include "ccf/kv/get_name.h"
@@ -411,7 +412,7 @@ namespace ccf::kv
       ccf::SeqNo /*seqno*/, const std::vector<NodeId>& node_ids)
     {}
 
-    virtual void nominate_successor() {};
+    virtual void nominate_successor() {}
 
     ccf::TxStatus evaluate_tx_status(
       ccf::View target_view, ccf::SeqNo target_seqno)
@@ -513,6 +514,14 @@ namespace ccf::kv
 
     virtual ccf::crypto::HashBytes get_commit_nonce(
       const ccf::TxID& tx_id, bool historical_hint = false) = 0;
+
+    std::string get_commit_evidence(
+      const ccf::TxID& tx_id, bool historical_hint = false)
+    {
+      auto nonce = get_commit_nonce(tx_id, historical_hint);
+      return fmt::format(
+        "ce:{}.{}:{}", tx_id.view, tx_id.seqno, ccf::ds::to_hex(nonce));
+    }
   };
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
 

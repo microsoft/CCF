@@ -50,7 +50,7 @@ CHECKS=(
   "Python types:python-types-checks.sh"
 )
 
-PIDS=()
+declare -A PID_TO_IDX
 for i in "${!CHECKS[@]}"; do
   IFS=: read -r _name script <<< "${CHECKS[$i]}"
   (
@@ -60,17 +60,19 @@ for i in "${!CHECKS[@]}"; do
     echo $? > "$TMPDIR_CHECKS/$i.rc"
     echo $((SECONDS - start)) > "$TMPDIR_CHECKS/$i.time"
   ) > "$TMPDIR_CHECKS/$i.out" 2>&1 &
-  PIDS+=($!)
+  PID_TO_IDX[$!]=$i
 done
 
-# Wait for all background jobs
-for pid in "${PIDS[@]}"; do
-  wait "$pid" 2>/dev/null || true
-done
-
-# Print results in order, track failures
+# Print output from each check as it finishes (no interleaving)
 FAIL=""
-for i in "${!CHECKS[@]}"; do
+REMAINING=${#CHECKS[@]}
+while [ "$REMAINING" -gt 0 ]; do
+  DONE_PID=""
+  wait -n -p DONE_PID "${!PID_TO_IDX[@]}" 2>/dev/null || true
+  if [[ -z "$DONE_PID" ]]; then
+    break
+  fi
+  i=${PID_TO_IDX[$DONE_PID]}
   IFS=: read -r name _script <<< "${CHECKS[$i]}"
   rc=$(cat "$TMPDIR_CHECKS/$i.rc")
 
@@ -84,6 +86,8 @@ for i in "${!CHECKS[@]}"; do
     fi
   fi
   endgroup
+  unset "PID_TO_IDX[$DONE_PID]"
+  REMAINING=$((REMAINING - 1))
 done
 
 group "Timing"

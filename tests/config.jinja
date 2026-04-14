@@ -73,7 +73,13 @@
       "target_rpc_interface": "{{ backup_snapshot_fetch_target_rpc_interface }}"{% endif %}{% if backup_snapshot_fetch_max_size %},
       "max_size": "{{ backup_snapshot_fetch_max_size }}"{% endif %}
     }{% endif %}
-  },
+  },{% if files_cleanup_max_snapshots or files_cleanup_max_committed_ledger_chunks or files_cleanup_interval %}
+  "files_cleanup":
+  {
+    {% if files_cleanup_max_snapshots %}"max_snapshots": {{ files_cleanup_max_snapshots }}{% endif %}{% if files_cleanup_max_snapshots and (files_cleanup_max_committed_ledger_chunks or files_cleanup_interval) %},
+    {% endif %}{% if files_cleanup_max_committed_ledger_chunks %}"max_committed_ledger_chunks": {{ files_cleanup_max_committed_ledger_chunks }}{% endif %}{% if files_cleanup_max_committed_ledger_chunks and files_cleanup_interval %},
+    {% endif %}{% if files_cleanup_interval %}"interval": "{{ files_cleanup_interval }}"{% endif %}
+  },{% endif %}
   "logging":
   {
     "host_level": "{{ host_log_level }}",

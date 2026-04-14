@@ -89,11 +89,62 @@ def read_from_key_space(
         )
 
 
+def blocking_write_to_key_space(
+    key_space: List[str],
+    iterations: int,
+    msgs: generator.Messages,
+    additional_headers: Dict[str, str],
+):
+    LOG.info(
+        f"Workload: {iterations} blocking writes to a range of {len(key_space)} keys"
+    )
+    indices = list(range(iterations))
+    random.shuffle(indices)
+    for index in indices:
+        key = key_space[index % len(key_space)]
+        msgs.append(
+            f"/records/blocking/{key}",
+            "PUT",
+            additional_headers=additional_headers,
+            body=f"{hashlib.sha256(key.encode()).hexdigest()}",
+            content_type="text/plain",
+        )
+
+
+def blocking_read_from_key_space(
+    key_space: List[str],
+    iterations: int,
+    msgs: generator.Messages,
+    additional_headers: Dict[str, str],
+):
+    LOG.info(
+        f"Workload: {iterations} blocking reads from a range of {len(key_space)} keys"
+    )
+    indices = list(range(iterations))
+    random.shuffle(indices)
+    for index in indices:
+        key = key_space[index % len(key_space)]
+        msgs.append(
+            f"/records/blocking/{key}",
+            "GET",
+            additional_headers=additional_headers,
+            content_type="text/plain",
+        )
+
+
 def append_to_msgs(definition, key_space, iterations, msgs, additional_headers):
     if definition == "write":
         return write_to_key_space(key_space, iterations, msgs, additional_headers)
     elif definition == "read":
         return read_from_key_space(key_space, iterations, msgs, additional_headers)
+    elif definition == "blocking_write":
+        return blocking_write_to_key_space(
+            key_space, iterations, msgs, additional_headers
+        )
+    elif definition == "blocking_read":
+        return blocking_read_from_key_space(
+            key_space, iterations, msgs, additional_headers
+        )
     elif definition.startswith("rwmix:"):
         _, ratio = definition.split(":")
         assert iterations % 1000 == 0
@@ -324,13 +375,25 @@ def run(args):
                 primary_has_stopped = False
                 while True:
                     stop_waiting = True
+                    running = []
+                    done_list = []
                     for i, remote_client in enumerate(clients):
                         done = remote_client.check_done()
-                        # all the clients need to be done
-                        LOG.info(
-                            f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {args.client_timeout_s}s)"
-                        )
+                        if done:
+                            done_list.append(i)
+                        else:
+                            running.append(i)
                         stop_waiting = stop_waiting and done
+                    elapsed = f"{time.time() - start_time:>{format_width}.2f}s / {args.client_timeout_s}s"
+                    if len(clients) <= 3:
+                        for i, remote_client in enumerate(clients):
+                            status = "completed" if i in done_list else "not completed"
+                            LOG.info(f"Client {i} has {status} running ({elapsed})")
+                    else:
+                        parts = [f"{len(running)} running ({elapsed})"]
+                        if done_list:
+                            parts.append(f"{len(done_list)} complete")
+                        LOG.info(f"Clients: {', '.join(parts)}")
                     if stop_waiting:
                         break
                     if time.time() > start_time + args.client_timeout_s:
@@ -444,9 +507,14 @@ def run(args):
                             f"{remote_client.name}: First send at {first_send}, last receive at {last_recv}"
                         )
                         duration = (last_recv - first_send).total_seconds()
-                        print(
-                            f"{remote_client.name}: {len(overall)} requests in {duration}s => {len(overall)//duration}tx/s"
-                        )
+                        if duration > 0:
+                            print(
+                                f"{remote_client.name}: {len(overall)} requests in {duration}s => {len(overall)//duration}tx/s"
+                            )
+                        else:
+                            print(
+                                f"{remote_client.name}: {len(overall)} requests in {duration}s"
+                            )
                         agg.append(overall)
 
                     table()
@@ -471,6 +539,12 @@ def run(args):
                 start_send = agg["sendTime"].min()
                 end_recv = agg["receiveTime"].max()
                 duration_s = (end_recv - start_send).total_seconds()
+                if duration_s < 1:
+                    LOG.error(
+                        f"Duration is {duration_s}s (first send: {start_send}, last recv: {end_recv}). "
+                        "Clamping to 1s; results may be inaccurate."
+                    )
+                    duration_s = 1
                 throughput = len(agg) / duration_s
                 statistics["average_throughput_tx/s"] = throughput
                 print(f"Average throughput: {throughput:.2f} tx/s")
@@ -489,6 +563,12 @@ def run(args):
                     client["receiveTime"].max() for client in each_client
                 )
                 all_active_duration_s = (earliest_end - latest_start).total_seconds()
+                if all_active_duration_s <= 0:
+                    LOG.error(
+                        f"All-clients-active duration is {all_active_duration_s}s. "
+                        "Clamping to 1s; results may be inaccurate."
+                    )
+                    all_active_duration_s = 1
                 statistics["all_clients_active_from"] = latest_start.isoformat()
                 statistics["all_clients_active_to"] = earliest_end.isoformat()
                 statistics["all_clients_active_duration_s"] = all_active_duration_s
@@ -509,81 +589,201 @@ def run(args):
                 agg_all_active = agg.filter(pl.col("sendTime") > latest_start).filter(
                     pl.col("receiveTime") < earliest_end
                 )
-                all_active_duration_s = (earliest_end - latest_start).total_seconds()
-                all_active_throughput = len(agg_all_active) / all_active_duration_s
-                statistics["all_clients_active_average_throughput_tx/s"] = (
-                    all_active_throughput
-                )
+                n_all_active = max(len(agg_all_active), 1)
+                all_active_throughput = n_all_active / all_active_duration_s
                 writes = len(
                     agg_all_active.filter(pl.col("request").bin.starts_with(b"PUT "))
                 )
-                statistics["all_clients_active_write_fraction"] = writes / len(
-                    agg_all_active
+                write_fraction = writes / n_all_active
+                statistics["all_clients_active_average_throughput_tx/s"] = (
+                    all_active_throughput
                 )
+                statistics["all_clients_active_write_fraction"] = write_fraction
 
                 statistics_path = os.path.join(network.common_dir, "statistics.json")
                 with open(statistics_path, "w") as f:
                     json.dump(statistics, f, indent=2)
                 print(f"Aggregated statistics written to {statistics_path}")
 
-                sent_per_sec = (
-                    agg.with_columns(
-                        (
-                            (pl.col("sendTime").alias("second") - start_send) / 1000000
-                        ).cast(pl.Int64)
-                    )
-                    .group_by("second")
-                    .len()
-                    .rename({"len": "sent"})
+                # Build per-client, per-second breakdown for stacked charts
+                chart_width = 100
+                max_builtin_legend_clients = 3
+
+                client_names = sorted(
+                    agg["client"].unique().to_list(),
+                    key=lambda c: int(c.split("_")[-1]),
                 )
-                recv_per_sec = (
-                    agg.with_columns(
-                        (
-                            (pl.col("receiveTime").alias("second") - start_send)
-                            / 1000000
-                        ).cast(pl.Int64)
+                n_clients = len(client_names)
+                all_seconds = set()
+
+                # Color gradient helpers: interpolate n RGB colors from start to end.
+                # client_0 gets the darkest shade (matching plotext defaults), higher clients get lighter.
+                def _shades(n, start, end):
+                    return [
+                        tuple(
+                            s + i * (e - s) // max(n - 1, 1) for s, e in zip(start, end)
+                        )
+                        for i in range(n)
+                    ]
+
+                def blue_shades(n):
+                    return _shades(n, (59, 142, 234), (180, 180, 255))
+
+                def green_shades(n):
+                    return _shades(n, (13, 188, 121), (180, 255, 180))
+
+                def red_shades(n):
+                    return _shades(n, (205, 49, 49), (255, 180, 180))
+
+                def format_title(title, width):
+                    """Centered title bar in the style of plotext's simple_bar charts."""
+                    if title is None:
+                        return ""
+                    visible_len = len(plt.uncolorize(title))
+                    w1 = (width - 2 - visible_len) // 2
+                    w2 = width - visible_len - 2 - w1
+                    return (
+                        plt.colorize(
+                            "─" * w1 + " " + title + " " + "─" * w2, "gray+", "bold"
+                        )
+                        + "\n"
                     )
-                    .group_by("second")
-                    .len()
-                    .rename({"len": "rcvd"})
-                )
-                errors_per_sec = (
-                    agg.with_columns(
-                        (
-                            (pl.col("receiveTime").alias("second") - start_send)
-                            / 1000000
-                        ).cast(pl.Int64)
-                    )
-                    .filter(pl.col("responseStatus") >= 500)
-                    .group_by("second")
-                    .len()
-                    .rename({"len": "errors"})
+
+                def color_legend(names, *color_groups):
+                    """Print a legend bar with color swatches for first and last client."""
+                    marker = "▇" * 3
+                    parts = []
+                    for color_list, suffix in color_groups:
+                        first = plt.colorize(marker, color_list[0])
+                        last = plt.colorize(marker, color_list[-1])
+                        parts.append(
+                            f"{names[0]}{suffix} {first} .. {last} {names[-1]}{suffix}"
+                        )
+                    print(format_title(" ".join(parts), chart_width), end="")
+
+                # Compute per-client, per-second counts in a single pass
+                agg_with_seconds = agg.with_columns(
+                    ((pl.col("sendTime") - start_send) / 1000000)
+                    .cast(pl.Int64)
+                    .alias("send_second"),
+                    ((pl.col("receiveTime") - start_send) / 1000000)
+                    .cast(pl.Int64)
+                    .alias("recv_second"),
+                    (pl.col("responseStatus") >= 500).alias("is_error"),
                 )
 
-                per_sec = (
-                    sent_per_sec.join(recv_per_sec, on="second")
-                    .join(errors_per_sec, on="second", how="full")
-                    .sort("second")
-                    .fill_null(0)
+                sent_counts = (
+                    agg_with_seconds.group_by("client", "send_second")
+                    .len()
+                    .rename({"send_second": "second", "len": "count"})
+                )
+                rcvd_counts = (
+                    agg_with_seconds.filter(~pl.col("is_error"))
+                    .group_by("client", "recv_second")
+                    .len()
+                    .rename({"recv_second": "second", "len": "count"})
+                )
+                error_counts = (
+                    agg_with_seconds.filter(pl.col("is_error"))
+                    .group_by("client", "recv_second")
+                    .len()
+                    .rename({"recv_second": "second", "len": "count"})
                 )
 
-                plt.simple_bar(
-                    list(per_sec["second"]),
-                    list(per_sec["sent"]),
-                    width=100,
-                    title="Sent requests per second",
-                )
-                plt.show()
+                client_sent = {}
+                client_rcvd = {}
+                client_errors = {}
+                for cn in client_names:
+                    cs = sent_counts.filter(pl.col("client") == cn)
+                    client_sent[cn] = dict(
+                        zip(cs["second"].to_list(), cs["count"].to_list())
+                    )
+                    all_seconds.update(cs["second"].to_list())
 
+                    cr = rcvd_counts.filter(pl.col("client") == cn)
+                    client_rcvd[cn] = dict(
+                        zip(cr["second"].to_list(), cr["count"].to_list())
+                    )
+                    all_seconds.update(cr["second"].to_list())
+
+                    ce = error_counts.filter(pl.col("client") == cn)
+                    client_errors[cn] = dict(
+                        zip(ce["second"].to_list(), ce["count"].to_list())
+                    )
+                    all_seconds.update(ce["second"].to_list())
+
+                seconds = sorted(all_seconds)
+
+                # With many clients, bin them into groups so each group gets
+                # enough bar width to be visible. Target ~chart_width/4 groups max.
+                max_stacked_layers = chart_width // 4
+                if n_clients > max_stacked_layers:
+                    group_size = (
+                        n_clients + max_stacked_layers - 1
+                    ) // max_stacked_layers
+                    groups = [
+                        client_names[i : i + group_size]
+                        for i in range(0, n_clients, group_size)
+                    ]
+                    group_names = [
+                        f"{g[0]}-{g[-1]}" if len(g) > 1 else g[0] for g in groups
+                    ]
+                else:
+                    groups = [[cn] for cn in client_names]
+                    group_names = client_names
+
+                n_groups = len(groups)
+                sent_colors = blue_shades(n_groups)
+                rcvd_colors = green_shades(n_groups)
+                error_colors = red_shades(n_groups)
+
+                def group_stacks(per_client_dict):
+                    return [
+                        [
+                            sum(per_client_dict[cn].get(s, 0) for cn in group)
+                            for s in seconds
+                        ]
+                        for group in groups
+                    ]
+
+                # Stacked bar: sent per second
+                sent_stacks = group_stacks(client_sent)
+                sent_kwargs = {"colors": sent_colors}
+                if n_groups <= max_builtin_legend_clients:
+                    sent_kwargs["labels"] = group_names
                 plt.simple_stacked_bar(
-                    list(per_sec["second"]),
-                    [list(per_sec["rcvd"]), list(per_sec["errors"])],
-                    width=100,
-                    labels=["rcvd", "errors"],
-                    colors=["green", "red"],
-                    title="Received requests per second",
+                    seconds,
+                    sent_stacks,
+                    width=chart_width,
+                    title="Sent requests per second (by client)",
+                    **sent_kwargs,
                 )
                 plt.show()
+                if n_groups > max_builtin_legend_clients:
+                    color_legend(group_names, (sent_colors, ""))
+
+                # Stacked bar: received per second + errors
+                rcvd_stacks = group_stacks(client_rcvd)
+                error_stacks = group_stacks(client_errors)
+                rcvd_kwargs = {"colors": rcvd_colors + error_colors}
+                if n_groups <= max_builtin_legend_clients:
+                    rcvd_kwargs["labels"] = group_names + [
+                        f"{gn} errors" for gn in group_names
+                    ]
+                plt.simple_stacked_bar(
+                    seconds,
+                    rcvd_stacks + error_stacks,
+                    width=chart_width,
+                    title="Received requests per second (by client)",
+                    **rcvd_kwargs,
+                )
+                plt.show()
+                if n_groups > max_builtin_legend_clients:
+                    color_legend(
+                        group_names,
+                        (rcvd_colors, ""),
+                        (error_colors, " errors"),
+                    )
 
                 if number_of_errors and not args.stop_primary_after_s:
                     raise RuntimeError(

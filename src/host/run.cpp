@@ -30,6 +30,7 @@
 #include "enclave/entry_points.h"
 #include "handle_ring_buffer.h"
 #include "host/env.h"
+#include "host/files_cleanup_timer.h"
 #include "http/curl.h"
 #include "json_schema.h"
 #include "lfs_file_handler.h"
@@ -614,11 +615,33 @@ namespace ccf
       config.ledger.read_only_directories);
     ledger.register_message_handlers(buffer_processor.get_dispatcher());
 
+    if (config.snapshots.read_only_directory.has_value())
+    {
+      LOG_INFO_FMT(
+        "snapshots.read_only_directory is deprecated and will be removed in a "
+        "future release");
+    }
     snapshots::SnapshotManager snapshots(
       config.snapshots.directory,
       writer_factory,
       config.snapshots.read_only_directory);
     snapshots.register_message_handlers(buffer_processor.get_dispatcher());
+
+    std::optional<asynchost::FilesCleanupTimer> files_cleanup;
+    if (
+      (config.files_cleanup.max_snapshots.has_value() ||
+       config.files_cleanup.max_committed_ledger_chunks.has_value()) &&
+      std::chrono::milliseconds(config.files_cleanup.interval) >
+        std::chrono::milliseconds::zero())
+    {
+      files_cleanup.emplace(
+        std::chrono::milliseconds(config.files_cleanup.interval),
+        config.snapshots.directory,
+        config.files_cleanup.max_snapshots,
+        config.ledger.directory,
+        config.ledger.read_only_directories,
+        config.files_cleanup.max_committed_ledger_chunks);
+    }
 
     // handle LFS-related messages from the enclave
     asynchost::LFSFileHandler lfs_file_handler(

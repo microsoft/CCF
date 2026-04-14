@@ -43,6 +43,7 @@
 #include "node/local_sealing.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/recovery_decision_protocol.h"
+#include "node/signature_cache_subsystem.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
 #include "pal/quote_generation.h"
@@ -394,6 +395,7 @@ namespace ccf
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
     std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks = nullptr;
+    std::shared_ptr<ccf::SignatureCacheSubsystem> signature_cache = nullptr;
     std::shared_ptr<RPCSessions> rpcsessions;
 
     std::shared_ptr<ccf::kv::TxHistory> history;
@@ -598,6 +600,7 @@ namespace ccf
       std::shared_ptr<AbstractRPCResponder> rpc_sessions_,
       std::shared_ptr<indexing::Indexer> indexer_,
       std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks_,
+      std::shared_ptr<ccf::SignatureCacheSubsystem> signature_cache_,
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
     {
@@ -609,6 +612,7 @@ namespace ccf
 
       indexer = indexer_;
       commit_callbacks = commit_callbacks_;
+      signature_cache = signature_cache_;
 
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
@@ -3134,9 +3138,7 @@ namespace ccf
                   snapshot_evidence.version);
                 backup_snapshot_fetch_task =
                   std::make_shared<BackupSnapshotFetch>(
-                    config.snapshots,
-                    snapshot_evidence.version - 1 /* YIKES */,
-                    this);
+                    config.snapshots, snapshot_evidence.version, this);
                 ccf::tasks::add_task(backup_snapshot_fetch_task);
               }
             }
@@ -3152,6 +3154,11 @@ namespace ccf
             assert(w.has_value());
             s->record_snapshot_status(w.value());
           }));
+
+      if (signature_cache != nullptr)
+      {
+        signature_cache->register_hooks(*network.tables);
+      }
 
       setup_basic_hooks();
     }

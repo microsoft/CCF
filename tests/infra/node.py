@@ -12,6 +12,7 @@ import infra.path
 import infra.interfaces
 import infra.clients
 import ccf.ledger
+from ccf.tx_id import TxID
 import os
 import socket
 import re
@@ -202,7 +203,18 @@ class Node:
                 strip_version(self.version)
             ) <= Version("7.0.0-dev6"):
                 if rpc_interface.enabled_operator_features:
-                    rpc_interface.enabled_operator_features.remove("LedgerChunkRead")
+                    if "LedgerChunkRead" in rpc_interface.enabled_operator_features:
+                        rpc_interface.enabled_operator_features.remove(
+                            "LedgerChunkRead"
+                        )
+
+            # SnapshotCreate operator feature is only supported from 7.0.0-dev14 onwards
+            if self.version is not None and Version(
+                strip_version(self.version)
+            ) <= Version("7.0.0-dev13"):
+                if rpc_interface.enabled_operator_features:
+                    if "SnapshotCreate" in rpc_interface.enabled_operator_features:
+                        rpc_interface.enabled_operator_features.remove("SnapshotCreate")
 
     def __hash__(self):
         return self.local_node_id
@@ -884,6 +896,15 @@ class Node:
         except Exception as e:
             LOG.debug(f"Failed to connect {e}")
             self.network_state = NodeNetworkState.stopped
+
+    def trigger_snapshot(self) -> TxID:
+        LOG.info(f"Triggering snapshot on {self.local_node_id}")
+        with self.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
+            r = c.post("/node/snapshot:create")
+            assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+        return TxID(r.view, r.seqno)
 
     def log_stack_trace(self, timeout=20):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
