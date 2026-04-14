@@ -50,12 +50,12 @@ namespace ccf::crypto::OpenSSL
     return "unknown error";
   }
 
-  /// Throws if rc is not 1 and has error
+  /// Throws if rc is not 1
   inline void CHECK1(int rc)
   {
-    unsigned long ec = ERR_get_error();
-    if (rc != 1 && ec != 0)
+    if (rc != 1)
     {
+      unsigned long ec = ERR_get_error();
       throw std::runtime_error(
         fmt::format("OpenSSL error: {}", error_string(ec)));
     }

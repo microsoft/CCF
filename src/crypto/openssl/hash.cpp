@@ -104,9 +104,8 @@ namespace ccf::crypto
       const std::span<const uint8_t>& info)
     {
       const auto* md = get_md_type(md_type);
-      EVP_PKEY_CTX* pctx = nullptr;
       std::vector<uint8_t> r(length);
-      pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, nullptr);
+      Unique_EVP_PKEY_CTX pctx(EVP_PKEY_HKDF);
       CHECK1(EVP_PKEY_derive_init(pctx));
       CHECK1(EVP_PKEY_CTX_set_hkdf_md(pctx, md));
       if (salt.size() > std::numeric_limits<int>::max())
@@ -129,7 +128,6 @@ namespace ccf::crypto
       CHECK1(EVP_PKEY_CTX_add1_hkdf_info(pctx, info.data(), info_size));
       size_t outlen = length;
       CHECK1(EVP_PKEY_derive(pctx, r.data(), &outlen));
-      EVP_PKEY_CTX_free(pctx);
       r.resize(outlen);
       return r;
     }

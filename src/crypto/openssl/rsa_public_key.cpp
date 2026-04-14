@@ -123,9 +123,9 @@ namespace ccf::crypto
   {
     Unique_EVP_PKEY_CTX ctx(key);
     OpenSSL::CHECK1(EVP_PKEY_encrypt_init(ctx));
-    EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING);
-    EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256());
-    EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256());
+    OpenSSL::CHECK1(EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING));
+    OpenSSL::CHECK1(EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256()));
+    OpenSSL::CHECK1(EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256()));
 
     if (label != nullptr && label_size > 0)
     {
