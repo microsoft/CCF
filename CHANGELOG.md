@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-rc2
 
+### Changed
+
+- `didx509cpp` is now an internal dependency and its header is no longer installed with the CCF package.
+
 ### Removed
 
 - Removed `aes_gcm_encrypt()`, `aes_gcm_decrypt()`, and `default_iv` from `ccf::crypto` (#7811).
