@@ -515,7 +515,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.8.2";
+      openapi_info.document_version = "2.8.3";
     };
 
     void init_handlers() override
@@ -574,7 +574,6 @@ namespace loggingapp
         HTTP_POST,
         ccf::json_adapter(blocking_record),
         auth_policies)
-        .set_auto_schema<LoggingRecord::In, bool>()
         .install();
 
       auto blocking_record_with_receipt =
@@ -616,7 +615,6 @@ namespace loggingapp
         HTTP_POST,
         ccf::json_adapter(optional_commit_record),
         auth_policies)
-        .set_auto_schema<LoggingRecord::In, bool>()
         .add_query_parameter<std::string>(
           "wait_for_commit",
           ccf::endpoints::QueryParamPresence::OptionalParameter)
