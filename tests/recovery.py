@@ -1569,6 +1569,9 @@ def run_recovery_after_cose_upgrade(args):
 
         strict_args = copy.deepcopy(args)
         strict_args.package = cose_strict_package
+        strict_args.previous_service_identity_file = (
+            recovered_args.previous_service_identity_file
+        )
         strict_network = infra.network.Network(
             args.nodes,
             args.binary_dir,
