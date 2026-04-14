@@ -63,12 +63,6 @@ Symmetric Keys
 
 Currently, only AES-GCM is supported for symmetric encryption. New keys are generated via :cpp:func:`ccf::crypto::Entropy::random`
 
-.. doxygenfunction:: ccf::crypto::aes_gcm_encrypt
-  :project: CCF
-
-.. doxygenfunction:: ccf::crypto::aes_gcm_decrypt
-  :project: CCF
-
 .. doxygenclass:: ccf::crypto::Entropy
   :project: CCF
   :members:
