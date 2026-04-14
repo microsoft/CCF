@@ -7,8 +7,6 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ds/serialized.h"
 
-#include <climits>
-
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
@@ -102,62 +100,5 @@ namespace ccf::crypto
   std::unique_ptr<KeyAesGcm> make_key_aes_gcm(std::span<const uint8_t> rawKey)
   {
     return std::make_unique<KeyAesGcm_OpenSSL>(rawKey);
-  }
-
-  std::vector<uint8_t> aes_gcm_encrypt(
-    std::span<const uint8_t> key,
-    std::span<const uint8_t> plaintext,
-    std::span<const uint8_t> iv,
-    const std::vector<uint8_t>& aad)
-  {
-    if (iv.size() != iv_size)
-    {
-      throw std::runtime_error(
-        fmt::format("Expected IV of size {}, got {}", iv_size, iv.size()));
-    }
-
-    check_supported_aes_key_size(key.size() * CHAR_BIT);
-
-    std::vector<uint8_t> r;
-    std::vector<uint8_t> tag(GCM_SIZE_TAG);
-    auto k = make_key_aes_gcm(key);
-    k->encrypt(iv, plaintext, aad, r, tag.data());
-    r.insert(r.end(), tag.begin(), tag.end());
-    return r;
-  }
-
-  std::vector<uint8_t> aes_gcm_decrypt(
-    std::span<const uint8_t> key,
-    std::span<const uint8_t> ciphertext,
-    std::span<const uint8_t> iv,
-    const std::vector<uint8_t>& aad)
-  {
-    if (iv.size() != iv_size)
-    {
-      throw std::runtime_error(
-        fmt::format("Expected IV of size {}, got {}", iv_size, iv.size()));
-    }
-
-    check_supported_aes_key_size(key.size() * CHAR_BIT);
-
-    if (ciphertext.size() <= GCM_SIZE_TAG)
-    {
-      throw std::runtime_error("Not enough ciphertext");
-    }
-
-    size_t ciphertext_length = ciphertext.size() - GCM_SIZE_TAG;
-    std::vector<uint8_t> r;
-    auto k = make_key_aes_gcm(key);
-    if (!k->decrypt(
-          iv,
-          ciphertext.data() + ciphertext_length,
-          std::span<const uint8_t>(ciphertext.data(), ciphertext_length),
-          aad,
-          r))
-    {
-      throw std::runtime_error("Failed to decrypt");
-    }
-
-    return r;
   }
 }

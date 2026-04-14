@@ -886,16 +886,6 @@ TEST_CASE("CKM_RSA_AES_KEY_WRAP")
   REQUIRE(unwrapped == key_to_wrap);
 }
 
-TEST_CASE("AES-GCM convenience functions")
-{
-  EntropyPtr entropy = get_entropy();
-  std::vector<uint8_t> key = entropy->random(GCM_DEFAULT_KEY_SIZE);
-  auto iv = entropy->random(iv_size);
-  auto encrypted = aes_gcm_encrypt(key, contents, iv);
-  auto decrypted = aes_gcm_decrypt(key, encrypted, iv);
-  REQUIRE(decrypted == contents);
-}
-
 TEST_CASE("x509 time")
 {
   auto time = ccf::nonstd::SystemClock::now();
@@ -1333,25 +1323,6 @@ TEST_CASE("Sign and verify a chain with an intermediate and different subjects")
   );
 
   REQUIRE(!rc);
-}
-
-TEST_CASE("Decrypt should validate integrity")
-{
-  auto entropy = ccf::crypto::get_entropy();
-  auto key = entropy->random(16);
-  auto iv = entropy->random(ccf::crypto::iv_size);
-  std::vector<uint8_t> expected_plaintext = {0xde, 0xad, 0xbe, 0xef};
-  auto ciphertext = ccf::crypto::aes_gcm_encrypt(key, expected_plaintext, iv);
-  auto decrypted_plaintext = ccf::crypto::aes_gcm_decrypt(key, ciphertext, iv);
-
-  CHECK_EQ(expected_plaintext, decrypted_plaintext);
-
-  // corrupt part of ciphertext
-  auto broken_ciphertext = std::vector<uint8_t>(ciphertext);
-  broken_ciphertext[ciphertext.size() / 2] =
-    ~broken_ciphertext[ciphertext.size() / 2];
-
-  CHECK_THROWS(ccf::crypto::aes_gcm_decrypt(key, broken_ciphertext, iv));
 }
 
 TEST_CASE("Do not trust non-ca certs")

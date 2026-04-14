@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.0-rc2
 
-### Changed
+### Removed
 
-- **Breaking**: `aes_gcm_encrypt()` and `aes_gcm_decrypt()` in `ccf::crypto` now require an explicit IV parameter. The insecure default zero IV has been removed (#7811).
+- `aes_gcm_encrypt()` and `aes_gcm_decrypt()` convenience functions and `default_iv` from `ccf::crypto`. Use `make_key_aes_gcm()` and the `KeyAesGcm` class directly (#7811).
 
 ## [7.0.0-rc1]
 
