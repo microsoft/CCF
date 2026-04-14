@@ -63,10 +63,15 @@ namespace basicapp
         .install();
 
       make_endpoint(
-        "/records/blocking/{key}", HTTP_PUT, put, {ccf::user_cert_auth_policy})
+        "/records/blocking/{key}",
+        HTTP_PUT,
+        [put](ccf::endpoints::EndpointContext& ctx) {
+          ctx.rpc_ctx->set_consensus_committed_function(
+            ccf::samples::default_respond_on_commit);
+          put(ctx);
+        },
+        {ccf::user_cert_auth_policy})
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .set_consensus_committed_function(
-          ccf::samples::default_respond_on_commit)
         .install();
 
       auto get = [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
@@ -106,10 +111,15 @@ namespace basicapp
         .install();
 
       make_read_only_endpoint(
-        "/records/blocking/{key}", HTTP_GET, get, {ccf::user_cert_auth_policy})
+        "/records/blocking/{key}",
+        HTTP_GET,
+        [get](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+          ctx.rpc_ctx->set_consensus_committed_function(
+            ccf::samples::default_respond_on_commit);
+          get(ctx);
+        },
+        {ccf::user_cert_auth_policy})
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .set_consensus_committed_function(
-          ccf::samples::default_respond_on_commit)
         .install();
 
       auto post = [](ccf::endpoints::EndpointContext& ctx) {
