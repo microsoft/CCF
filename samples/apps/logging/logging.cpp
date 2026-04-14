@@ -564,6 +564,7 @@ namespace loggingapp
         .install();
       // SNIPPET_END: install_record
 
+      // SNIPPET_START: blocking_record
       auto blocking_record = [record](auto& ctx, nlohmann::json&& params) {
         ctx.rpc_ctx->set_consensus_committed_function(
           ccf::samples::default_respond_on_commit);
@@ -575,6 +576,7 @@ namespace loggingapp
         ccf::json_adapter(blocking_record),
         auth_policies)
         .install();
+      // SNIPPET_END: blocking_record
 
       auto blocking_record_with_receipt =
         [this, record](auto& ctx, nlohmann::json&& params) {
@@ -592,6 +594,7 @@ namespace loggingapp
       // Demonstrates per-request opt-in to blocking-until-committed via a
       // query parameter. The same endpoint can return immediately or hold
       // the response depending on the caller's choice.
+      // SNIPPET_START: optional_commit
       auto optional_commit_record =
         [record](auto& ctx, nlohmann::json&& params) {
           const auto parsed_query =
@@ -619,6 +622,7 @@ namespace loggingapp
           "wait_for_commit",
           ccf::endpoints::QueryParamPresence::OptionalParameter)
         .install();
+      // SNIPPET_END: optional_commit
 
       auto add_txid_in_body_put = [](auto& ctx, const auto& tx_id) {
         static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
