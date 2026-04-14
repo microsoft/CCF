@@ -575,6 +575,7 @@ namespace loggingapp
         HTTP_POST,
         ccf::json_adapter(blocking_record),
         auth_policies)
+        .set_auto_schema<LoggingRecord::In, bool>()
         .install();
       // SNIPPET_END: blocking_record
 
@@ -618,9 +619,10 @@ namespace loggingapp
         HTTP_POST,
         ccf::json_adapter(optional_commit_record),
         auth_policies)
-        .add_query_parameter<std::string>(
+        .add_query_parameter<bool>(
           "wait_for_commit",
           ccf::endpoints::QueryParamPresence::OptionalParameter)
+        .set_auto_schema<LoggingRecord::In, bool>()
         .install();
       // SNIPPET_END: optional_commit
 

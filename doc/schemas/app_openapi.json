@@ -417,8 +417,25 @@
       },
       "post": {
         "operationId": "PostAppLogBlockingPrivate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoggingRecord__In"
+              }
+            }
+          },
+          "description": "Auto-generated request body schema"
+        },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/boolean"
+                }
+              }
+            },
             "description": "Default response description"
           },
           "default": {
@@ -1049,12 +1066,29 @@
             "name": "wait_for_commit",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/string"
+              "$ref": "#/components/schemas/boolean"
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoggingRecord__In"
+              }
+            }
+          },
+          "description": "Auto-generated request body schema"
+        },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/boolean"
+                }
+              }
+            },
             "description": "Default response description"
           },
           "default": {

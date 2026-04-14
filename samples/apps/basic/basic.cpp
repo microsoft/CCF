@@ -111,12 +111,11 @@ namespace basicapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
-      auto blocking_get =
-        [get](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
-          ctx.rpc_ctx->set_consensus_committed_function(
-            ccf::samples::default_respond_on_commit);
-          get(ctx);
-        };
+      auto blocking_get = [get](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+        ctx.rpc_ctx->set_consensus_committed_function(
+          ccf::samples::default_respond_on_commit);
+        get(ctx);
+      };
       make_read_only_endpoint(
         "/records/blocking/{key}",
         HTTP_GET,
