@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Added `ccf::get_ledger_signing_mode()` and `ccf::get_allow_dual_signing_joinee()` app callbacks (declared in `ccf/research/get_ledger_signing_mode.h`) to control ledger signing mode and join policy. Defaults: `Dual` signing, allow dual joiners (#7772).
+- Added support for COSE-only ledger signatures. Networks can start in COSE-only mode or transition from dual signing (#7772).
 - Added support for inline transaction receipt construction at commit time. Endpoint authors can use `build_receipt_for_committed_tx()` to construct a full `TxReceiptImpl` from the `CommittedTxInfo` passed to their `ConsensusCommittedEndpointFunction` callback. See the logging sample app (`/log/blocking/private/receipt`) for example usage (#7785).
 
 ### Changed
