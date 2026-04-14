@@ -1425,9 +1425,11 @@ def run_recover_via_added_recovery_owner(args):
 
 
 def run_recovery_after_cose_upgrade(args):
-    """Start Dual, upgrade to COSE-only via node replacement, then recover.
-    This exercises the ledger replay path where the ledger contains both
-    dual-signed and COSE-only-signed entries with different views."""
+    """Start Dual, upgrade to COSE-only via node replacement, then recover
+    with allow-dual-joiners. Then live-upgrade the recovered network to strict
+    COSE-only by replacing nodes again, and recover from ledger files.
+    Exercises the full upgrade path: Dual → COSE (allow dual) → COSE (strict),
+    with recovery at each transition."""
     cose_only_package = args.package + "_cose_only_allow_join_dual"
 
     txs = app.LoggingTxs("user0")
@@ -1514,6 +1516,82 @@ def run_recovery_after_cose_upgrade(args):
             )
 
         LOG.success("Recovery after dual-to-COSE-only upgrade succeeded")
+
+        # --- Phase 2: live-upgrade recovered network to strict COSE-only,
+        # then recover from ledger files ---
+        cose_strict_package = args.package + "_cose_only"
+
+        phase2_primary, _ = recovered_network.find_primary()
+        phase2_old_nodes = recovered_network.get_joined_nodes()
+
+        # Trust strict COSE-only binary and replace all nodes
+        strict_host_data, _ = infra.utils.get_host_data_and_security_policy(
+            infra.platform_detection.get_platform(),
+            cose_strict_package,
+            binary_dir=args.binary_dir,
+        )
+        recovered_network.consortium.add_host_data(
+            phase2_primary,
+            infra.platform_detection.get_platform(),
+            strict_host_data,
+        )
+
+        strict_nodes = []
+        for _ in range(len(phase2_old_nodes)):
+            n = recovered_network.create_node()
+            recovered_network.join_node(n, cose_strict_package, recovered_args)
+            recovered_network.trust_node(n, recovered_args)
+            strict_nodes.append(n)
+
+        recovered_network.txs.issue(recovered_network, number_txs=5)
+
+        strict_primary = strict_nodes[0]
+        for old in phase2_old_nodes:
+            recovered_network.retire_node(strict_primary, old)
+            old.stop()
+
+        # Issue TXs in strict COSE-only mode
+        recovered_network.txs.issue(recovered_network, number_txs=5)
+
+        # Stop and recover from ledger
+        recovered_network.save_service_identity(recovered_args)
+        phase2_primary, _ = recovered_network.find_primary()
+        phase2_ledger_dir, phase2_committed_dirs = phase2_primary.get_ledger()
+
+        watcher2 = infra.health_watcher.NetworkHealthWatcher(
+            recovered_network, recovered_args, verbose=True
+        )
+        watcher2.start()
+        for node in recovered_network.get_joined_nodes():
+            time.sleep(args.election_timeout_ms / 1000)
+            node.stop()
+        watcher2.wait_for_recovery()
+
+        strict_args = copy.deepcopy(args)
+        strict_args.package = cose_strict_package
+        strict_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            existing_network=recovered_network,
+        )
+        strict_network.start_in_recovery(
+            strict_args,
+            ledger_dir=phase2_ledger_dir,
+            committed_ledger_dirs=phase2_committed_dirs,
+        )
+        strict_network.recover(strict_args)
+
+        strict_network.txs.issue(strict_network, number_txs=3)
+        final_primary, _ = strict_network.find_primary()
+        strict_service_key = get_service_key(strict_network)
+        strict_msg = strict_network.txs.priv[strict_network.txs.idx][0]
+        with final_primary.client("user0") as c:
+            fetch_and_verify_cose_receipt(
+                c, strict_msg["view"], strict_msg["seqno"], strict_service_key
+            )
+
+        LOG.success("Recovery with strict COSE-only after live upgrade succeeded")
 
 
 def run_recovery_dual_to_cose_only(args):

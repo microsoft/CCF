@@ -12,7 +12,7 @@
 #include "ccf/odata_error.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/mem.h"
-#include "ccf/research/get_ledger_signing_mode.h"
+#include "ccf/research/get_ledger_sign_mode.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
@@ -319,8 +319,8 @@ namespace ccf
 
       // Check if the joining node's signing mode is acceptable
       if (
-        in.ledger_signing_mode.has_value() &&
-        in.ledger_signing_mode.value() == ccf::LedgerSignMode::Dual &&
+        in.ledger_sign_mode.has_value() &&
+        in.ledger_sign_mode.value() == ccf::LedgerSignMode::Dual &&
         !ccf::get_allow_dual_signing_joinee())
       {
         return make_error(

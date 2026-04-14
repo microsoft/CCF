@@ -1320,7 +1320,7 @@ namespace ccf
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
-      join_params.ledger_signing_mode = ccf::get_ledger_signing_mode();
+      join_params.ledger_sign_mode = ccf::get_ledger_sign_mode();
       if (config.sealing_recovery.has_value() && snp_tcb_version.has_value())
       {
         join_params.sealing_recovery_data = std::make_pair(
@@ -1633,24 +1633,11 @@ namespace ccf
         throw std::logic_error("No signature found after recovery");
       }
 
-      // In full COSE-only mode (COSE signing + dual joiners disallowed),
-      // refuse to recover a ledger whose last signature is not COSE-only.
-      if (
-        ccf::get_ledger_signing_mode() == ccf::LedgerSignMode::COSE &&
-        !ccf::get_allow_dual_signing_joinee() && !lcs.has_value())
-      {
-        throw std::logic_error(
-          "Cannot recover a ledger without COSE signatures in COSE-only "
-          "mode. Use a COSE-only binary that allows dual joiners for the "
-          "intermediate recovery step, or recover the ledger with a "
-          "dual-signing binary first.");
-      }
-
       // Prevent downgrade: a Dual binary must not recover a COSE-only ledger
       // (one where the latest signature is COSE-only, i.e. COSE seqno is
       // strictly ahead of any traditional signature).
       if (
-        ccf::get_ledger_signing_mode() == ccf::LedgerSignMode::Dual &&
+        ccf::get_ledger_sign_mode() == ccf::LedgerSignMode::Dual &&
         lcs.has_value() && cose_seqno > sig_seqno)
       {
         throw std::logic_error(

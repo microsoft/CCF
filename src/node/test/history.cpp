@@ -107,8 +107,7 @@ TEST_CASE("Check signature verification")
 
   ccf::Nodes nodes(ccf::Tables::NODES);
   ccf::Service service(ccf::Tables::SERVICE);
-  ccf::Signatures signatures_table(ccf::Tables::SIGNATURES);
-  ccf::CoseSignatures cose_signatures(ccf::Tables::COSE_SIGNATURES);
+  ccf::Signatures signatures(ccf::Tables::SIGNATURES);
 
   std::shared_ptr<ccf::kv::Consensus> consensus =
     std::make_shared<DummyConsensus>(&backup_store);
@@ -140,26 +139,13 @@ TEST_CASE("Check signature verification")
     REQUIRE(backup_store.current_version() == 2);
   }
 
-  INFO("COSE signature table should be populated");
-  {
-    auto tx = primary_store.create_read_only_tx();
-    auto cose_sigs = tx.ro(cose_signatures);
-    REQUIRE(cose_sigs->get().has_value());
-  }
-
-  {
-    INFO("In default (Dual) mode, node signature table should be populated");
-    auto tx = primary_store.create_read_only_tx();
-    auto sigs = tx.ro(signatures_table);
-    REQUIRE(sigs->get().has_value());
-  }
-
   INFO("Issue a bogus signature, rejected by verification on the backup");
   {
     auto txs = primary_store.create_tx();
-    auto cose_sigs = txs.rw(cose_signatures);
-    ccf::CoseSignature bogus{};
-    cose_sigs->put(bogus);
+    auto sigs = txs.rw(signatures);
+    ccf::PrimarySignature bogus(ccf::kv::test::PrimaryNodeId, 0);
+    bogus.sig = std::vector<uint8_t>(256, 1);
+    sigs->put(bogus);
     REQUIRE(txs.commit() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
   }
 }

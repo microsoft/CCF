@@ -45,16 +45,16 @@ Since these operations may require disk IO and produce large responses, these fe
 Upgrading to COSE-Only Ledger Signatures
 -----------------------------------------
 
-By default, CCF nodes emit **dual** ledger signatures: a traditional node signature and a COSE Sign1 signature. Applications control this via two weak-symbol callbacks declared in ``ccf/research/get_ledger_signing_mode.h``:
+By default, CCF nodes emit **dual** ledger signatures: a traditional node signature and a COSE Sign1 signature. Applications control this via two weak-symbol callbacks declared in ``ccf/research/get_ledger_sign_mode.h``:
 
-- ``ccf::get_ledger_signing_mode()`` — returns ``Dual`` (default) or ``COSE``.
+- ``ccf::get_ledger_sign_mode()`` — returns ``Dual`` (default) or ``COSE``.
 - ``ccf::get_allow_dual_signing_joinee()`` — returns ``true`` (default) or ``false``. When ``false``, the primary rejects join requests from ``Dual``-mode nodes.
 
 Both are set at link time by providing strong definitions in the application binary. Joining nodes advertise their signing mode in the join request.
 
 A rolling upgrade from ``Dual`` to ``COSE``-only is a two-step process:
 
-1. **COSE-only, allow dual joiners.** Deploy a binary that returns ``COSE`` from ``get_ledger_signing_mode()`` but leaves ``get_allow_dual_signing_joinee()`` at its default (``true``). Replace nodes one at a time. During this phase, new nodes running the old ``Dual`` binary can still join as replacements.
+1. **COSE-only, allow dual joiners.** Deploy a binary that returns ``COSE`` from ``get_ledger_sign_mode()`` but leaves ``get_allow_dual_signing_joinee()`` at its default (``true``). During this phase, nodes running the old ``Dual`` binary can still join.
 
 2. **COSE-only, disallow dual joiners.** Once all nodes run the COSE-only binary, deploy a second binary that also overrides ``get_allow_dual_signing_joinee()`` to return ``false``. Replace nodes again. After this, ``Dual`` joiners are rejected.
 

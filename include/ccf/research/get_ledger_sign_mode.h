@@ -22,7 +22,7 @@ namespace ccf
    *
    * @return the desired ledger signing mode
    */
-  LedgerSignMode get_ledger_signing_mode();
+  LedgerSignMode get_ledger_sign_mode();
 
   /** Can be optionally implemented by the application to control whether
    * nodes running in Dual signing mode are allowed to join this network.
