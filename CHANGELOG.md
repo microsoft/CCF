@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Removed
 
-- `aes_gcm_encrypt()` and `aes_gcm_decrypt()` convenience functions and `default_iv` from `ccf::crypto`. Use `make_key_aes_gcm()` and the `KeyAesGcm` class directly (#7811).
+- Removed `aes_gcm_encrypt()`, `aes_gcm_decrypt()`, and `default_iv` from `ccf::crypto` (#7811).
 
 ## [7.0.0-rc1]
 
