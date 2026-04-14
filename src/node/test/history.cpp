@@ -152,8 +152,6 @@ TEST_CASE("Check signature verification")
 
 TEST_CASE("Check signing works across rollback")
 {
-  ccf::COSESignaturesConfig cose_config;
-
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
   auto node_kp = ccf::crypto::make_ec_key_pair();
@@ -169,7 +167,8 @@ TEST_CASE("Check signing works across rollback")
     std::make_shared<ccf::MerkleTxHistory>(
       primary_store, ccf::kv::test::PrimaryNodeId, *node_kp);
   primary_history->set_endorsed_certificate(self_signed);
-  primary_history->set_service_signing_identity(service_kp, cose_config);
+  primary_history->set_service_signing_identity(
+    service_kp, ccf::COSESignaturesConfig{});
   primary_store.set_history(primary_history);
   primary_store.initialise_term(store_term);
 
@@ -178,7 +177,8 @@ TEST_CASE("Check signing works across rollback")
     std::make_shared<ccf::MerkleTxHistory>(
       backup_store, ccf::kv::test::FirstBackupNodeId, *node_kp);
   backup_history->set_endorsed_certificate(self_signed);
-  backup_history->set_service_signing_identity(service_kp, cose_config);
+  backup_history->set_service_signing_identity(
+    service_kp, ccf::COSESignaturesConfig{});
   backup_store.set_history(backup_history);
   backup_store.set_encryptor(encryptor);
   backup_store.initialise_term(store_term);
