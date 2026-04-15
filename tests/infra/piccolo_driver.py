@@ -10,7 +10,6 @@ from random import seed
 import getpass
 from loguru import logger as LOG
 import time
-import http
 import hashlib
 import json
 from piccolo import generator
