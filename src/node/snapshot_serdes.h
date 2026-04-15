@@ -54,7 +54,7 @@ namespace ccf
 
     if (store_snapshot_size > size)
     {
-      throw std::logic_error(fmt::format(
+      throw std::invalid_argument(fmt::format(
         "Snapshot transaction header claims size {} which exceeds available "
         "buffer size {}",
         store_snapshot_size,
