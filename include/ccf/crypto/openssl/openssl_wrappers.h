@@ -86,7 +86,9 @@ namespace ccf::crypto::OpenSSL
   {
     if (val <= 0)
     {
-      throw std::runtime_error("OpenSSL error: expected positive value");
+      unsigned long ec = ERR_get_error();
+      throw std::runtime_error(
+        fmt::format("OpenSSL error: {}", error_string(ec)));
     }
   }
 
