@@ -56,8 +56,8 @@ namespace ccf::crypto::OpenSSL
     if (rc != 1)
     {
       unsigned long ec = ERR_get_error();
-      throw std::runtime_error(
-        fmt::format("OpenSSL error: {}", error_string(ec)));
+      throw std::runtime_error(fmt::format(
+        "OpenSSL error (rc={}, ec={}): {}", rc, ec, error_string(ec)));
     }
   }
 
@@ -76,8 +76,8 @@ namespace ccf::crypto::OpenSSL
     if (expect != actual)
     {
       unsigned long ec = ERR_get_error();
-      throw std::runtime_error(
-        fmt::format("OpenSSL error: {}", error_string(ec)));
+      throw std::runtime_error(fmt::format(
+        "OpenSSL error (rc={}, ec={}): {}", actual, ec, error_string(ec)));
     }
   }
 
@@ -87,8 +87,8 @@ namespace ccf::crypto::OpenSSL
     if (val <= 0)
     {
       unsigned long ec = ERR_get_error();
-      throw std::runtime_error(
-        fmt::format("OpenSSL error: {}", error_string(ec)));
+      throw std::runtime_error(fmt::format(
+        "OpenSSL error (rc={}, ec={}): {}", val, ec, error_string(ec)));
     }
   }
 

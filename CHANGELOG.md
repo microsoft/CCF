@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Removed
 
+- Removed `CHECK0()` from `ccf::crypto::OpenSSL` in the public header `openssl_wrappers.h` (#7817).
 - Removed `aes_gcm_encrypt()`, `aes_gcm_decrypt()`, and `default_iv` from `ccf::crypto` (#7811).
 
 ## [7.0.0-rc1]
