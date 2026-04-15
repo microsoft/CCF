@@ -169,3 +169,7 @@ When reviewing code, pay special attention to:
 - Input parsing and validation
 - Memory management
 - Error handling in security-critical paths
+
+### Third-party library return values and error handling
+
+See [reviewing skill](/.github/skills/reviewing.md) for detailed guidance on checking return values from OpenSSL, libcurl, llhttp, nghttp2, QuickJS, and other third-party C libraries. When a diff adds or modifies calls to any of these libraries, verify that every call that can fail has its return value checked, the correct check macro is used, and error handling is consistent within each function.
