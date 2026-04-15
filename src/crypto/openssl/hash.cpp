@@ -107,25 +107,25 @@ namespace ccf::crypto
       std::vector<uint8_t> r(length);
       Unique_EVP_PKEY_CTX pctx(EVP_PKEY_HKDF);
       CHECK1(EVP_PKEY_derive_init(pctx));
-      CHECK1(EVP_PKEY_CTX_set_hkdf_md(pctx, md));
+      CHECKPOSITIVE(EVP_PKEY_CTX_set_hkdf_md(pctx, md));
       if (salt.size() > std::numeric_limits<int>::max())
       {
         throw std::logic_error("Salt size is too large");
       }
       int salt_size = static_cast<int>(salt.size());
-      CHECK1(EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt.data(), salt_size));
+      CHECKPOSITIVE(EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt.data(), salt_size));
       if (ikm.size() > std::numeric_limits<int>::max())
       {
         throw std::logic_error("IKM size is too large");
       }
       int ikm_size = static_cast<int>(ikm.size());
-      CHECK1(EVP_PKEY_CTX_set1_hkdf_key(pctx, ikm.data(), ikm_size));
+      CHECKPOSITIVE(EVP_PKEY_CTX_set1_hkdf_key(pctx, ikm.data(), ikm_size));
       if (info.size() > std::numeric_limits<int>::max())
       {
         throw std::logic_error("Info size is too large");
       }
       int info_size = static_cast<int>(info.size());
-      CHECK1(EVP_PKEY_CTX_add1_hkdf_info(pctx, info.data(), info_size));
+      CHECKPOSITIVE(EVP_PKEY_CTX_add1_hkdf_info(pctx, info.data(), info_size));
       size_t outlen = length;
       CHECK1(EVP_PKEY_derive(pctx, r.data(), &outlen));
       r.resize(outlen);

@@ -260,7 +260,7 @@ namespace ccf::crypto
 
     if (key != nullptr)
     {
-      OpenSSL::CHECK0(X509_REQ_sign(req, key, EVP_sha512()));
+      OpenSSL::CHECKPOSITIVE(X509_REQ_sign(req, key, EVP_sha512()));
     }
 
     return req;
