@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 
 - Removed `aes_gcm_encrypt()`, `aes_gcm_decrypt()`, and `default_iv` from `ccf::crypto` (#7811).
+- Removed `get_responder()` from the public `ccf::RpcContext` API and made `http_responder.h` a private header (#7818).
 
 ## [7.0.0-rc1]
 
