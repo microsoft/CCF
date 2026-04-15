@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Added temporal sharding support, allowing completed ledger ranges to be sealed into immutable, independently-addressable shards while the active shard continues accepting writes. Sharding is disabled by default for backward compatibility. New governance proposal actions: `seal_current_shard`, `set_shard_policy`. New `ccf.node.sealShard()`, `ccf.node.setShardPolicy()` JavaScript governance APIs. New `CCFConfig::Sharding` configuration section. Shard metadata is stored in public governance tables (`public:ccf.gov.shards.info`, `public:ccf.gov.shards.policy`). Auto-seal is supported based on seqno count or time thresholds. Sealed shard data is automatically archived to the first `ledger.read_only_directories` entry for shared access across nodes.
 - Added support for inline transaction receipt construction at commit time. Endpoint authors can use `build_receipt_for_committed_tx()` to construct a full `TxReceiptImpl` from the `CommittedTxInfo` passed to their `ConsensusCommittedEndpointFunction` callback. See the logging sample app (`/log/blocking/private/receipt`) for example usage (#7785).
 
 ### Changed

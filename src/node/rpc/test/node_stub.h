@@ -163,6 +163,17 @@ namespace ccf
     {
       return;
     }
+
+    bool seal_shard(ccf::kv::Tx& /*tx*/) override
+    {
+      return true;
+    }
+
+    void set_shard_policy(
+      ccf::kv::Tx& /*tx*/, const ShardPolicyInfo& /*policy*/) override
+    {
+      return;
+    }
   };
 
   class StubNodeStateCache : public historical::AbstractStateCache

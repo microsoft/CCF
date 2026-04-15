@@ -16,6 +16,7 @@
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/node_operation_interface.h"
 #include "node/session_metrics.h"
+#include "service/tables/shards.h"
 
 namespace ccf
 {
@@ -58,6 +59,9 @@ namespace ccf
     virtual RecoveryDecisionProtocolSubsystem&
     get_recovery_decision_protocol() = 0;
     virtual void shuffle_sealed_shares(ccf::kv::Tx& tx) = 0;
+    virtual bool seal_shard(ccf::kv::Tx& tx) = 0;
+    virtual void set_shard_policy(
+      ccf::kv::Tx& tx, const ShardPolicyInfo& policy) = 0;
     [[nodiscard]] virtual const ccf::StartupConfig& get_node_config() const = 0;
     virtual ccf::crypto::Pem get_network_cert() = 0;
     virtual void stop_notice() = 0;
