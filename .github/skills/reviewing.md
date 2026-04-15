@@ -20,13 +20,13 @@ CCF wraps OpenSSL with helpers defined in `include/ccf/crypto/openssl/openssl_wr
 
 ### Available check macros
 
-| Macro | Use when the OpenSSL function … |
-|---|---|
-| `CHECK1(rc)` | returns **1** on success (most `EVP_*`, `BN_*`, `X509_*` setters) |
-| `CHECK0(rc)` | returns **0** on success (rare; e.g. some comparison helpers) |
-| `CHECKNULL(ptr)` | returns a **pointer** that is null on failure |
-| `CHECKPOSITIVE(val)` | returns a **positive int** on success (e.g. `EVP_PKEY_CTX_set_*`) |
-| `CHECKEQUAL(expect, actual)` | must return an **exact value** |
+| Macro                        | Use when the OpenSSL function …                                   |
+| ---------------------------- | ----------------------------------------------------------------- |
+| `CHECK1(rc)`                 | returns **1** on success (most `EVP_*`, `BN_*`, `X509_*` setters) |
+| `CHECK0(rc)`                 | returns **0** on success (rare; e.g. some comparison helpers)     |
+| `CHECKNULL(ptr)`             | returns a **pointer** that is null on failure                     |
+| `CHECKPOSITIVE(val)`         | returns a **positive int** on success (e.g. `EVP_PKEY_CTX_set_*`) |
+| `CHECKEQUAL(expect, actual)` | must return an **exact value**                                    |
 
 ### Available RAII wrappers (`Unique_*`)
 
@@ -55,12 +55,12 @@ Use this to verify that the correct check macro is used and that the error path 
 
 CCF wraps libcurl in `src/http/curl.h`.
 
-| Macro | Use when … |
-|---|---|
-| `CHECK_CURL_EASY(fn, ...)` | calling any `curl_easy_*` function |
-| `CHECK_CURL_EASY_SETOPT(handle, opt, arg)` | calling `curl_easy_setopt` |
-| `CHECK_CURL_EASY_GETINFO(handle, info, arg)` | calling `curl_easy_getinfo` |
-| `CHECK_CURL_MULTI(fn, ...)` | calling any `curl_multi_*` function |
+| Macro                                        | Use when …                          |
+| -------------------------------------------- | ----------------------------------- |
+| `CHECK_CURL_EASY(fn, ...)`                   | calling any `curl_easy_*` function  |
+| `CHECK_CURL_EASY_SETOPT(handle, opt, arg)`   | calling `curl_easy_setopt`          |
+| `CHECK_CURL_EASY_GETINFO(handle, info, arg)` | calling `curl_easy_getinfo`         |
+| `CHECK_CURL_MULTI(fn, ...)`                  | calling any `curl_multi_*` function |
 
 ### What to look for
 
