@@ -25,10 +25,6 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     GetVersion::Out, ccf_version, quickjs_version, unsafe);
 
-  DECLARE_JSON_ENUM(
-    LedgerSignMode,
-    {{LedgerSignMode::Dual, "Dual"}, {LedgerSignMode::COSE, "COSE"}});
-
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::In);
   DECLARE_JSON_REQUIRED_FIELDS(
     JoinNetworkNodeToNode::In,

@@ -6,7 +6,7 @@
 #include "ccf/node/cose_signatures_config.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/pal/mem.h"
-#include "ccf/research/get_ledger_sign_mode.h"
+#include "ccf/node/ledger_sign_mode.h"
 #include "ccf/service/local_sealing.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/code_id.h"

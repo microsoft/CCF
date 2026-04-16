@@ -45,16 +45,17 @@ Since these operations may require disk IO and produce large responses, these fe
 Upgrading to COSE-Only Ledger Signatures
 -----------------------------------------
 
-By default, CCF nodes emit **dual** ledger signatures: a traditional node signature and a COSE Sign1 signature. Applications control this via two weak-symbol callbacks declared in ``ccf/research/get_ledger_sign_mode.h``:
+By default, CCF nodes emit **dual** ledger signatures: a traditional node signature and a COSE Sign1 signature. Applications control this via the ``ccf::get_ledger_sign_mode()`` weak-symbol callback declared in ``ccf/node/ledger_sign_mode.h``, which returns one of three modes:
 
-- ``ccf::get_ledger_sign_mode()`` — returns ``Dual`` (default) or ``COSE``.
-- ``ccf::get_allow_dual_signing_joinee()`` — returns ``true`` (default) or ``false``. When ``false``, the primary rejects join requests from ``Dual``-mode nodes.
+- ``Dual`` (default) — emit both signature types, accept all joiners.
+- ``CoseAllowDualJoin`` — emit only COSE signatures, but still accept join requests from ``Dual``-mode nodes. Use during rolling upgrades.
+- ``CoseOnly`` — emit only COSE signatures, reject ``Dual``-mode joiners. Final state after upgrade.
 
-Both are set at link time by providing strong definitions in the application binary. Joining nodes advertise their signing mode in the join request.
+The mode is set at link time by providing a strong definition in the application binary. Joining nodes advertise their signing mode in the join request.
 
-A rolling upgrade from ``Dual`` to ``COSE``-only is a two-step process:
+A rolling upgrade from ``Dual`` to ``CoseOnly`` is a two-step process:
 
-1. **COSE-only, allow dual joiners.** Deploy a binary that returns ``COSE`` from ``get_ledger_sign_mode()`` but leaves ``get_allow_dual_signing_joinee()`` at its default (``true``). During this phase, nodes running the old ``Dual`` binary can still join.
+1. **CoseAllowDualJoin.** Deploy a binary that returns ``CoseAllowDualJoin``. Replace nodes one at a time. During this phase, new nodes running the old ``Dual`` binary can still join as replacements.
 
-2. **COSE-only, disallow dual joiners.** Once all nodes run the COSE-only binary, deploy a second binary that also overrides ``get_allow_dual_signing_joinee()`` to return ``false``. Replace nodes again. After this, ``Dual`` joiners are rejected.
+2. **CoseOnly.** Once all nodes are upgraded, deploy a binary that returns ``CoseOnly``. Replace nodes again. After this, ``Dual`` joiners are rejected.
 

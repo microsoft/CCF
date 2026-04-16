@@ -4,7 +4,7 @@
 
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/pal/locking.h"
-#include "ccf/research/get_ledger_sign_mode.h"
+#include "ccf/node/ledger_sign_mode.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
 #include "common/configuration.h"
@@ -628,7 +628,7 @@ namespace ccf
         "signature mode: {}",
         cose_signatures_config_.issuer,
         cose_signatures_config_.subject,
-        ledger_sign_mode_ == ccf::LedgerSignMode::Dual ? "Dual" : "COSE");
+        nlohmann::json(ledger_sign_mode_).dump());
     }
 
     const ccf::COSESignaturesConfig& get_cose_signatures_config() override
