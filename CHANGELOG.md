@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Removed
 
+- Removed `CHECK0()` from `ccf::crypto::OpenSSL` in the public header `openssl_wrappers.h` (#7817).
 - Removed `aes_gcm_encrypt()`, `aes_gcm_decrypt()`, and `default_iv` from `ccf::crypto` (#7811).
 - Removed `get_responder()` from the public `ccf::RpcContext` API and made `http_responder.h` a private header (#7818).
 - Removed the `/node/memory` endpoint. This endpoint was originally useful for monitoring SGX enclave memory usage, which is no longer relevant now that SGX support has been removed.
