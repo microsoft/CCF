@@ -535,8 +535,13 @@ namespace asynchost
       // truncated on the primary, so we have to make sure that whenever we
       // complete the file it doesn't contain anything past the last_idx, which
       // can happen on the follower unless explicitly truncated before
-      // completion.
-      truncate(get_last_idx(), /* remove_file_if_empty = */ false);
+      // completion. This is only necessary when the file was recovered from an
+      // existing file on disk (from_existing_file is true). For fresh files,
+      // total_len always matches the physical file size, so avoid a potentially expensive truncate.
+      if (from_existing_file)
+      {
+        truncate(get_last_idx(), /* remove_file_if_empty = */ false);
+      }
 
       fseeko(file, total_len, SEEK_SET);
       size_t table_offset = ftello(file);
