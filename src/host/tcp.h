@@ -12,7 +12,9 @@
 
 #include <netinet/in.h>
 #include <optional>
-#include <unistd.h>
+#ifndef _WIN32
+#  include <unistd.h>
+#endif
 
 namespace asynchost
 {
@@ -528,11 +530,19 @@ namespace asynchost
       if (is_client && !client_host.has_value() && addr_current != nullptr)
       {
         int rc = 0;
-        uv_os_fd_t existing_sock = 0;
-        if (
-          uv_fileno(
-            reinterpret_cast<const uv_handle_t*>(&uv_handle), &existing_sock) <
-          0)
+        uv_os_fd_t existing_fd = {};
+        const auto uv_fileno_rc = uv_fileno(
+          reinterpret_cast<const uv_handle_t*>(&uv_handle), &existing_fd);
+        if (uv_fileno_rc < 0 && uv_fileno_rc != UV_EBADF)
+        {
+          LOG_FAIL_FMT(
+            "uv_fileno returned unexpected error while checking TCP handle "
+            "state: {}",
+            uv_strerror(uv_fileno_rc));
+          return false;
+        }
+
+        if (uv_fileno_rc == UV_EBADF)
         {
           const int family = addr_current->ai_family;
           uv_os_sock_t sock = 0;
@@ -546,14 +556,14 @@ namespace asynchost
 
           if (!set_connection_timeout(sock))
           {
-            close(sock);
+            close_socket_before_uv_ownership(sock);
             return false;
           }
 
           if ((rc = uv_tcp_open(&uv_handle, sock)) < 0)
           {
             LOG_FAIL_FMT("uv_tcp_open failed: {}", uv_strerror(rc));
-            close(sock);
+            close_socket_before_uv_ownership(sock);
             return false;
           }
         }
@@ -600,27 +610,62 @@ namespace asynchost
         setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &ms, sizeof(ms));
       if (ret != 0)
       {
+#ifdef _WIN32
+        const auto err = WSAGetLastError();
+        LOG_FAIL_FMT("Failed to set socket option (TCP_USER_TIMEOUT): {}", err);
+#else
+        const auto err = errno;
         LOG_FAIL_FMT(
           "Failed to set socket option (TCP_USER_TIMEOUT): {}",
-          std::strerror(errno)); // NOLINT(concurrency-mt-unsafe)
+          std::strerror(err)); // NOLINT(concurrency-mt-unsafe)
+#endif
         return false;
       }
 
       return true;
     }
 
+    static void close_socket_before_uv_ownership(uv_os_sock_t sock)
+    {
+      // Socket ownership is transferred to libuv only if uv_tcp_open succeeds.
+      // Before that, this socket must be closed by the caller.
+      // This is best-effort cleanup on an existing failure path: we only log
+      // close() errors (including EINTR). We intentionally do not retry
+      // close(), since retrying may close a reused fd.
+#ifdef _WIN32
+      const auto rc = closesocket(sock);
+#else
+      const auto rc = close(sock);
+#endif
+      if (rc != 0)
+      {
+#ifdef _WIN32
+        const auto err = WSAGetLastError();
+        LOG_FAIL_FMT("Failed to close socket {}: {}", sock, err);
+#else
+        const auto err = errno;
+        LOG_FAIL_FMT(
+          "Failed to close socket {}: {}",
+          sock,
+          std::strerror(err)); // NOLINT(concurrency-mt-unsafe)
+#endif
+      }
+    }
+
     bool set_connection_timeout_on_uv_handle()
     {
-      uv_os_fd_t sock = 0;
-      const auto rc =
-        uv_fileno(reinterpret_cast<const uv_handle_t*>(&uv_handle), &sock);
+      uv_os_fd_t existing_fd = {};
+      const auto rc = uv_fileno(
+        reinterpret_cast<const uv_handle_t*>(&uv_handle), &existing_fd);
       if (rc < 0)
       {
-        LOG_FAIL_FMT("uv_fileno failed: {}", uv_strerror(rc));
+        LOG_FAIL_FMT(
+          "uv_fileno failed while applying TCP_USER_TIMEOUT: {}",
+          uv_strerror(rc));
         return false;
       }
 
-      return set_connection_timeout(sock);
+      return set_connection_timeout(existing_fd);
     }
 
     void assert_status(Status from, Status to)
