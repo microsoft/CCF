@@ -1,5 +1,10 @@
 ---
-applyTo: "**/*.cpp,**/*.h,**/*.hpp,**/*.cc,**/*.c"
+applyTo:
+  - "**/*.cpp"
+  - "**/*.h"
+  - "**/*.hpp"
+  - "**/*.cc"
+  - "**/*.c"
 ---
 
 # Code review – third-party library error handling
