@@ -4,6 +4,7 @@
 
 #include "ccf/ds/json_schema.h"
 #include "ccf/node/cose_signatures_config.h"
+#include "ccf/node/ledger_sign_mode.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/service/local_sealing.h"
 #include "ccf/service/node_info_network.h"
@@ -95,6 +96,7 @@ namespace ccf
         sealing_recovery_data = std::nullopt;
       std::optional<std::vector<uint8_t>> code_transparent_statement =
         std::nullopt;
+      std::optional<ccf::LedgerSignMode> ledger_sign_mode = std::nullopt;
     };
 
     struct Out
