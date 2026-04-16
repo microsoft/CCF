@@ -29,7 +29,6 @@ CCF wraps OpenSSL with helpers defined in `include/ccf/crypto/openssl/openssl_wr
 | Macro                        | Use when the OpenSSL function …                                   |
 | ---------------------------- | ----------------------------------------------------------------- |
 | `CHECK1(rc)`                 | returns **1** on success (most `EVP_*`, `BN_*`, `X509_*` setters) |
-| `CHECK0(rc)`                 | returns **0** on success (rare; e.g. some comparison helpers)     |
 | `CHECKNULL(ptr)`             | returns a **pointer** that is null on failure                     |
 | `CHECKPOSITIVE(val)`         | returns a **positive int** on success (e.g. `EVP_PKEY_CTX_set_*`) |
 | `CHECKEQUAL(expect, actual)` | must return an **exact value**                                    |
