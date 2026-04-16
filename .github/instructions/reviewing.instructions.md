@@ -36,7 +36,7 @@ CCF wraps OpenSSL with helpers defined in `include/ccf/crypto/openssl/openssl_wr
 ### What to look for
 
 - **Allocations without `CHECKNULL`:** Any direct call to `EVP_PKEY_new()`, `BIO_new()`, `X509_new()`, `EVP_MD_CTX_new()`, `BN_new()`, `SSL_CTX_new()`, `SSL_new()`, or similar that stores the result without passing it through `CHECKNULL()` or an equivalent null check.
-- **`CHECK1` vs `CHECKPOSITIVE` mix-ups:** Some OpenSSL functions (notably `EVP_PKEY_CTX_set_*`) return a positive value on success, not exactly 1. Using `CHECK1` on those calls silently swallows valid return codes > 1. Conversely, `CHECKPOSITIVE` is wrong for functions that return exactly 1 on success.
+- **`CHECK1` vs `CHECKPOSITIVE` mix-ups:** Some OpenSSL functions (notably `EVP_PKEY_CTX_set_*`) return a positive value on success, not exactly 1. Using `CHECK1` on those calls will incorrectly treat valid return codes > 1 as failures and trigger false-positive error handling. Conversely, `CHECKPOSITIVE` is wrong for functions that return exactly 1 on success.
 - **`BIO_get_mem_ptr` / `BIO_read` ignored:** These return an int indicating success. Verify the return is tested before dereferencing the output pointer.
 - **Missing `ERR_get_error` drain on error paths:** When an OpenSSL failure is caught but the error queue is not drained (or vice-versa), later calls may see stale errors.
 - **Raw `new`/`free` instead of RAII wrappers:** If a `Unique_*` type exists for the object, the review should suggest using it rather than manual `*_free()` calls.
