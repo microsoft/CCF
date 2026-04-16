@@ -484,25 +484,6 @@
         ],
         "type": "string"
       },
-      "MemoryUsage__Out": {
-        "properties": {
-          "current_allocated_heap_size": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "max_total_heap_size": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "peak_allocated_heap_size": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "max_total_heap_size",
-          "current_allocated_heap_size",
-          "peak_allocated_heap_size"
-        ],
-        "type": "object"
-      },
       "NodeId": {
         "format": "hex",
         "pattern": "^[a-f0-9]{64}$",
@@ -1298,29 +1279,6 @@
           }
         }
       ]
-    },
-    "/node/memory": {
-      "get": {
-        "operationId": "GetNodeMemory",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MemoryUsage__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
-        }
-      }
     },
     "/node/metrics": {
       "get": {
